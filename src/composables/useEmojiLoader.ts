@@ -29,20 +29,17 @@ export async function ensureEmojiDataLoaded(): Promise<void> {
   
   emojiDataLoadInitiated = true
   
-  // Create the load promise
   emojiDataLoadPromise = (async () => {
     try {
       const emojiCacheStore = useEmojiCacheStore()
       const serverChannelStore = useServerChannelStore()
       const { isLoaded: unifiedLoaded, reload: loadUnifiedEmojiData } = useUnifiedEmoji()
       
-      // Load unified emoji data if not already loaded
       if (!unifiedLoaded.value) {
         await loadUnifiedEmojiData()
         debug.log('✅ Unified emoji data loaded')
       }
       
-      // Initialize emoji cache if not already initialized
       if (!emojiCacheStore.isInitialized) {
         const allServerIds = serverChannelStore.servers.map(server => server.id)
         if (allServerIds.length > 0) {
@@ -82,7 +79,6 @@ export async function ensureEmojiDataLoaded(): Promise<void> {
  * Use this when you want to preload emojis but don't need to wait
  */
 export function triggerEmojiDataLoad(): void {
-  // Start loading in background with a small delay to not block initial render
   setTimeout(() => {
     ensureEmojiDataLoaded().catch(err => {
       debug.warn('Background emoji load failed:', err)
@@ -99,7 +95,6 @@ export function useEmojiLoader() {
   
   const isEmojiDataReady = ref(false)
   
-  // Check if emoji data is ready
   const checkEmojiDataReady = () => {
     isEmojiDataReady.value = unifiedLoaded.value && emojiCacheStore.isInitialized
   }

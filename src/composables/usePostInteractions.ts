@@ -122,7 +122,6 @@ export function usePostInteractions() {
       const result = await services.posts.toggleLike(postId)
       debug.log(`✅ Favorite toggled for post ${postId}:`, result.liked ? 'Liked' : 'Unliked')
 
-      // Update store feeds so all views reflect the new state
       activityPubStore.updatePostInteractionInAllFeeds(postId, 'favorite', result.liked)
 
       return { 

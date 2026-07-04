@@ -79,7 +79,6 @@ export async function getRemoteMemberGroups(serverId: string): Promise<RemoteMem
 export async function getServerCoMemberInstances(profileId: string): Promise<RemoteMemberGroup[]> {
   const supabase = getSupabaseClient();
 
-  // Get all servers this user belongs to
   const { data: userServers, error: serverError } = await supabase
     .from('user_servers')
     .select('server_id')

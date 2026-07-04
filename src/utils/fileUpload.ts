@@ -47,7 +47,6 @@ export async function uploadFile(
       };
     }
 
-    // Get public URL
     const { data: urlData } = supabase.storage
       .from(bucket)
       .getPublicUrl(data.path);
@@ -116,16 +115,13 @@ export async function downloadAndUploadImage(
   try {
     debug.log(`Downloading ${type} from ${imageUrl}...`);
     
-    // Fetch the image
     const response = await fetch(imageUrl);
     if (!response.ok) {
       throw new Error(`Failed to download image: ${response.statusText}`);
     }
 
-    // Get the blob
     const blob = await response.blob();
     
-    // Determine file extension from content type or URL
     let fileExt = 'jpg';
     if (blob.type) {
       if (blob.type.includes('png')) fileExt = 'png';
@@ -139,7 +135,6 @@ export async function downloadAndUploadImage(
       }
     }
 
-    // Convert blob to File
     const fileName = `${type}_${Date.now()}.${fileExt}`;
     const file = new File([blob], fileName, { type: blob.type || 'image/jpeg' });
 
@@ -150,7 +145,6 @@ export async function downloadAndUploadImage(
       // Import uploadBanner dynamically to avoid circular imports
       const { uploadBanner } = await import('@/utils/bannerUtils');
       const result = await uploadBanner(file, userId);
-      // Convert banner result format to UploadResult format
       return {
         success: result.success,
         url: result.url,

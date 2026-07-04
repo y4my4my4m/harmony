@@ -54,7 +54,7 @@ export function createApp(): Application {
 
   // ActivityPub inboxes get a tight body limit: real AP payloads are a few KB,
   // and a large limit invites storage/bandwidth amplification via redeliveries.
-  // Must be mounted before the general parser — once a body is parsed the
+  // Must be mounted before the general parser - once a body is parsed the
   // later parser skips the request.
   const jsonVerify = (req: express.Request, _res: express.Response, buf: Buffer) => {
     (req as any).rawBody = buf;

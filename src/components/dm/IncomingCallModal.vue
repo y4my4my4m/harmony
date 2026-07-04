@@ -115,7 +115,6 @@ watch(() => props.show, (isShowing) => {
   }
 }, { immediate: true })
 
-// Stop ringtone when component unmounts
 onUnmounted(() => {
   stopRingtone()
 })

@@ -249,7 +249,7 @@ function isInsideCodeFence(text: string): boolean {
  * inside ``` blocks split into separate url parts at parse time; edit mode
  * already worked because it joins parts before the RichTextEditor sees them.
  *
- * Only URLs that fall inside an open code fence are coalesced — standalone link
+ * Only URLs that fall inside an open code fence are coalesced - standalone link
  * parts (YouTube, Spotify, link previews, etc.) must stay as `type: 'url'`.
  */
 export function coalesceInlineContentForMarkdown(
@@ -309,7 +309,6 @@ export function isSingleEmojiMessage(parts: MessagePart[]): boolean {
     return true;
   }
   
-  // Check if single text part is just one emoji (with optional whitespace)
   if (part.type === 'text') {
     const trimmed = (part.text || '').trim();
     // Unicode emoji regex - must be ONLY an emoji (flags, ZWJ sequences, or standard emojis)

@@ -441,13 +441,11 @@ const displayedCategories = computed((): DisplayCategory[] => {
     categoryMap.get(catId)!.push(emoji);
   }
   
-  // Get category metadata from service or constants
   const serviceCats = getCategories();
   const categoryMetadata = serviceCats.length > 0 
     ? serviceCats 
     : EMOJI_CATEGORIES;
   
-  // Build categories with emojis, sorted by order
   const categories: DisplayCategory[] = [];
   
   for (const meta of categoryMetadata) {
@@ -456,7 +454,6 @@ const displayedCategories = computed((): DisplayCategory[] => {
     
     let filteredEmojis = emojis;
     
-    // Filter by search query if present
     if (query) {
       filteredEmojis = emojis.filter(emoji => 
         emoji.shortcode.toLowerCase().includes(query) ||
@@ -475,7 +472,6 @@ const displayedCategories = computed((): DisplayCategory[] => {
     });
   }
   
-  // Sort by order
   return categories.sort((a, b) => a.order - b.order);
 });
 
@@ -930,9 +926,7 @@ function ctxRemoveFrequent() {
 // Lazy load emoji data when popup is mounted (user opened emoji picker)
 onMounted(async () => {
   // Show popup immediately, load emojis in background (non-blocking)
-  // This ensures the popup opens instantly and emojis load progressively
   
-  // Trigger emoji data loading in background (non-blocking)
   const { triggerEmojiDataLoad } = await import('@/composables/useEmojiLoader')
   triggerEmojiDataLoad()
   

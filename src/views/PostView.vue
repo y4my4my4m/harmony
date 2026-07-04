@@ -338,7 +338,6 @@ const loadPostWithContext = async () => {
 
     postWithContext.value = result;
     
-    // Load reactions for all posts in the thread
     const allPostIds = [
       ...result.ancestors.map(p => p.id),
       result.mainPost.id,
@@ -355,7 +354,6 @@ const loadPostWithContext = async () => {
       await nextTick();
       scrollToPost(props.highlightReply);
     } else if (props.timestamp) {
-      // Handle timestamp-based deep linking
       await nextTick();
       scrollToTimestamp(props.timestamp);
     }
@@ -586,13 +584,11 @@ const handleReplyCreated = async (newReply?: TimelinePost) => {
   
   // Optimistically add the new reply immediately (so user sees it right away)
   if (newReply && postWithContext.value) {
-    // Add to descendants array
     postWithContext.value = {
       ...postWithContext.value,
       descendants: [...postWithContext.value.descendants, newReply]
     };
     
-    // Update reply count on main post
     if (postWithContext.value.mainPost) {
       postWithContext.value.mainPost.replies_count = 
         (postWithContext.value.mainPost.replies_count || 0) + 1;
@@ -603,7 +599,6 @@ const handleReplyCreated = async (newReply?: TimelinePost) => {
   
   toast.success('Reply posted!');
   
-  // Reload in background to ensure consistency (catches any missed data)
   setTimeout(() => {
     loadPostWithContext().catch(err => {
       debug.warn('Background refresh failed:', err);
@@ -639,7 +634,6 @@ const handleEdited = (post: any) => {
 const handleFavorite = async (postId: string) => {
   try {
     await activityPubService.toggleFavorite(postId);
-    // Reload to show updated state
     await loadPostWithContext();
   } catch (err) {
     debug.error('❌ Failed to favorite post:', err);
@@ -650,7 +644,6 @@ const handleFavorite = async (postId: string) => {
 const handleReblog = async (postId: string) => {
   try {
     await activityPubService.toggleReblog(postId);
-    // Reload to show updated state
     await loadPostWithContext();
     toast.success('Post reblogged!');
   } catch (err) {
@@ -662,7 +655,6 @@ const handleReblog = async (postId: string) => {
 const handleBookmark = async (postId: string) => {
   try {
     await activityPubService.toggleBookmark(postId);
-    // Reload to show updated state
     await loadPostWithContext();
     toast.success('Post bookmarked!');
   } catch (err) {
@@ -754,7 +746,6 @@ const goBack = () => {
 
 const setPostRef = (postId: string, el: any) => {
   if (el) {
-    // Handle both Element and Component instance refs
     const element = el instanceof HTMLElement ? el : el.$el;
     if (element instanceof HTMLElement) {
       postRefs.value[postId] = element;
@@ -770,7 +761,6 @@ const scrollToPost = (postId: string) => {
       block: 'center' 
     });
     
-    // Add temporary highlight
     element.classList.add('scroll-highlighted');
     setTimeout(() => {
       element.classList.remove('scroll-highlighted');
@@ -779,7 +769,6 @@ const scrollToPost = (postId: string) => {
 };
 
 const scrollToTimestamp = (timestamp: number) => {
-  // Find post closest to timestamp and scroll to it
   const posts = [mainPost.value, ...ancestors.value, ...descendants.value]
     .filter(Boolean) as TimelinePost[];
   

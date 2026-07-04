@@ -1,6 +1,6 @@
 // Editable fields must always defer to the browser's native menu so users can
 // paste, select-all, look up, etc. (right-click on desktop, long-press on
-// mobile/PWA) — even when nothing is currently selected (e.g. empty input).
+// mobile/PWA) - even when nothing is currently selected (e.g. empty input).
 const EDITABLE_FIELD_SELECTOR =
   'input:not([readonly]):not([type="button"]):not([type="submit"]):not([type="checkbox"]):not([type="radio"]), textarea:not([readonly]), [contenteditable="true"], [contenteditable=""]';
 

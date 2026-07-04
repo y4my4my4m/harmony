@@ -44,7 +44,6 @@ const handleServiceWorkerUpdate = (event: any) => {
     return
   }
   
-  // Extract from the custom event structure
   if (event.detail?.newWorker) {
     updateWaiting = event.detail.newWorker
   } else if (event.detail?.registration?.waiting) {
@@ -65,7 +64,6 @@ const installUpdate = async () => {
   updating.value = true
   
   try {
-    // Get the current registration to ensure we have the latest waiting SW
     const registration = await navigator.serviceWorker.getRegistration()
     const waitingSW = registration?.waiting || updateWaiting
     
@@ -85,7 +83,6 @@ const installUpdate = async () => {
       navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange)
     })
     
-    // Set up a timeout in case the controller change doesn't fire
     const timeoutPromise = new Promise<void>((resolve) => {
       setTimeout(() => {
         debug.warn('⏰ Service Worker: Controller change timeout, forcing reload')
@@ -97,13 +94,11 @@ const installUpdate = async () => {
     debug.log('📤 Sending SKIP_WAITING to service worker...')
     waitingSW.postMessage({ type: 'SKIP_WAITING' })
     
-    // Wait for either controller change or timeout
     await Promise.race([controllerChangePromise, timeoutPromise])
     
     // Small delay to ensure SW is fully active
     await new Promise(resolve => setTimeout(resolve, 100))
     
-    // Reload the page to use the new service worker
     debug.log('🔄 Reloading page...')
     window.location.reload()
   } catch (error) {
@@ -116,7 +111,6 @@ const installUpdate = async () => {
 
 const dismissUpdate = () => {
   showUpdate.value = false
-  // Store dismissal for this session
   sessionStorage.setItem('harmony-update-dismissed', 'true')
 }
 

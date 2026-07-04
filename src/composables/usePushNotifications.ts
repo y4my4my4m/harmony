@@ -13,7 +13,6 @@ import { isPWA } from '@/utils/pwaUtils'
 // Federation backend base path (proxied via nginx)
 const FEDERATION_BACKEND_URL = '/api/federation'
 
-// Push notification state (shared across all composable instances)
 const isSupported = ref(false)
 const isSubscribed = ref(false)
 const isLoading = ref(false)
@@ -149,22 +148,18 @@ async function subscribe(deviceName?: string): Promise<{ success: boolean; error
       return { success: false, error: 'Notification permission denied. Please enable in browser settings.' }
     }
 
-    // Get service worker registration
     const registration = await navigator.serviceWorker.ready
     
-    // Subscribe to push
     const subscription = await registration.pushManager.subscribe({
       userVisibleOnly: true,
       applicationServerKey: urlBase64ToUint8Array(vapidPublicKey.value)
     })
 
-    // Get auth token
     const token = await getAuthToken()
     if (!token) {
       return { success: false, error: 'Not authenticated' }
     }
 
-    // Send subscription to server
     const response = await fetch(`${FEDERATION_BACKEND_URL}/push/subscribe`, {
       method: 'POST',
       headers: {
@@ -185,7 +180,6 @@ async function subscribe(deviceName?: string): Promise<{ success: boolean; error
     isSubscribed.value = true
     debug.log('✅ Push notification subscription successful')
     
-    // Refresh subscriptions list
     await fetchSubscriptions()
     
     return { success: true }
@@ -206,7 +200,6 @@ async function unsubscribe(): Promise<{ success: boolean; error?: string }> {
   error.value = null
 
   try {
-    // Get current subscription
     const subscription = await getCurrentSubscription()
     
     if (!subscription) {
@@ -214,14 +207,11 @@ async function unsubscribe(): Promise<{ success: boolean; error?: string }> {
       return { success: true }
     }
 
-    // Unsubscribe from browser
     await subscription.unsubscribe()
     
     // Browser unsubscribed successfully - update state immediately
-    // This ensures UI is consistent even if server request fails
     isSubscribed.value = false
 
-    // Get auth token
     const token = await getAuthToken()
     if (!token) {
       // Browser already unsubscribed, but couldn't notify server
@@ -230,7 +220,6 @@ async function unsubscribe(): Promise<{ success: boolean; error?: string }> {
       return { success: true } // Return success since browser is unsubscribed
     }
 
-    // Remove from server
     const response = await fetch(`${FEDERATION_BACKEND_URL}/push/unsubscribe`, {
       method: 'POST',
       headers: {
@@ -255,7 +244,6 @@ async function unsubscribe(): Promise<{ success: boolean; error?: string }> {
 
     debug.log('✅ Push notification unsubscribed')
     
-    // Refresh subscriptions list
     await fetchSubscriptions()
     
     return { success: true }
@@ -313,10 +301,8 @@ async function deleteSubscription(subscriptionId: string): Promise<{ success: bo
       throw new Error(data.error || 'Failed to delete subscription')
     }
 
-    // Refresh subscriptions list
     await fetchSubscriptions()
     
-    // Check if current device is still subscribed
     await checkSubscriptionStatus()
 
     return { success: true }
@@ -520,7 +506,6 @@ async function initialize(): Promise<void> {
     // Check current subscription status
     await checkSubscriptionStatus()
     
-    // Fetch all subscriptions (only if not already fetched)
     if (subscriptions.value.length === 0) {
       await fetchSubscriptions()
     }

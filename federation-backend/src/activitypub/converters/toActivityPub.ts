@@ -79,24 +79,20 @@ export function postToNote(post: any, author: any, quoteUrl?: string): any {
     note.summary = post.content_warning;
   }
 
-  // Add sensitive flag
   if (post.is_sensitive) {
     note.sensitive = true;
   }
 
-  // Add attachments if present
   const attachments = extractAttachments(post.content);
   if (attachments.length > 0) {
     note.attachment = attachments;
   }
 
-  // Add tags (mentions, hashtags)
   const tags = extractTags(post.content);
   if (tags.length > 0) {
     note.tag = tags;
   }
 
-  // Add reply info
   if (post.in_reply_to) {
     // in_reply_to is a UUID - need to get the ap_id of the parent post
     // For federated posts, this is their original ActivityPub URL
@@ -104,7 +100,6 @@ export function postToNote(post: any, author: any, quoteUrl?: string): any {
     note.inReplyTo = post.in_reply_to; // Will be resolved in createPostActivity
   }
 
-  // Add quote post URL if this is a quote post
   if (quoteUrl) {
     note.quoteUrl = quoteUrl;
     note._misskey_quote = quoteUrl; // Misskey compatibility
@@ -142,7 +137,6 @@ export function profileToActor(profile: any): any {
   const domain = config.INSTANCE_DOMAIN;
   const userUrl = `https://${domain}/users/${profile.username}`;
 
-  // Parse custom_status if available
   let customStatusData = null;
   if (profile.custom_status) {
     try {
@@ -176,7 +170,6 @@ export function profileToActor(profile: any): any {
     },
   };
 
-  // Add icon (avatar) - convert to full URL if relative path
   const avatarUrl = getFullAvatarUrl(profile.avatar_url);
   if (avatarUrl) {
     actor.icon = {
@@ -186,7 +179,6 @@ export function profileToActor(profile: any): any {
     };
   }
 
-  // Add banner - convert to full URL if relative path
   const bannerUrl = getFullBannerUrl(profile.banner_url);
   if (bannerUrl) {
     actor.image = {
@@ -196,7 +188,6 @@ export function profileToActor(profile: any): any {
     };
   }
 
-  // Add public key
   if (profile.public_key) {
     actor.publicKey = {
       id: `${userUrl}#main-key`,
@@ -205,10 +196,8 @@ export function profileToActor(profile: any): any {
     };
   }
 
-  // Add featured collection (pinned posts)
   actor.featured = `${userUrl}/featured`;
 
-  // Add profile fields as PropertyValue attachments
   if (profile.profile_fields && Array.isArray(profile.profile_fields)) {
     actor.attachment = profile.profile_fields.map((field: any) => ({
       type: 'PropertyValue',
@@ -217,12 +206,10 @@ export function profileToActor(profile: any): any {
     }));
   }
 
-  // Add manually_approves_followers flag
   if (profile.manually_approves_followers) {
     actor.manuallyApprovesFollowers = true;
   }
 
-  // Add discoverable flag
   if (profile.federation_discoverable !== undefined) {
     actor.discoverable = profile.federation_discoverable;
   }
@@ -469,7 +456,6 @@ export function createUpdateActivity(profile: any): any {
   const userUrl = `https://${domain}/users/${profile.username}`;
   const activityId = `${userUrl}/updates/${Date.now()}`;
 
-  // Create the updated Actor object
   const actor = profileToActor(profile);
 
   return {
@@ -597,7 +583,6 @@ function extractAttachments(content: any): any[] {
   return content
     .filter((item) => item.type === 'file')
     .map((item) => {
-      // Convert simple fileType to proper MIME type
       const mediaType = getMediaType(item.fileType, item.mimeType, item.url);
       
       const attachment: any = {
@@ -611,10 +596,8 @@ function extractAttachments(content: any): any[] {
       if (item.width) attachment.width = item.width;
       if (item.height) attachment.height = item.height;
       
-      // Add blurhash if available (placeholder image)
       if (item.blurhash) attachment.blurhash = item.blurhash;
       
-      // Add focal point if available (for image cropping)
       if (item.focalPoint) attachment.focalPoint = item.focalPoint;
       
       return attachment;

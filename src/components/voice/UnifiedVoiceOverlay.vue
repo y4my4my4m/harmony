@@ -400,7 +400,6 @@ const connectionStats = computed(() => voiceStore.connectionStats);
       return voiceStore.allParticipants.filter(p => p.userId !== voiceStore.fullscreenUserId);
     });
     
-    // Track previous screenshare state to detect when it stops
     const previousScreenShareState = ref<boolean | null>(null);
     
     // WATCHERS
@@ -429,7 +428,6 @@ const connectionStats = computed(() => voiceStore.connectionStats);
           voiceStore.exitFullscreen();
         }
         
-        // Update previous state
         previousScreenShareState.value = hasVideoOrScreenshare;
       },
       { deep: true, immediate: true }
@@ -458,7 +456,6 @@ const connectionStats = computed(() => voiceStore.connectionStats);
       ([userId, allUsers]) => {
         if (voiceStore.viewMode !== 'fullscreen' || !userId) return;
         
-        // Find the user in allUsers
         const user = allUsers.find((u: any) => u.userId === userId);
         
         // If user exists but has no video/screenshare, exit fullscreen
@@ -503,11 +500,9 @@ const connectionStats = computed(() => voiceStore.connectionStats);
     const handleSettingsUpdate = (event: { type: string; value: any }) => {
       switch (event.type) {
         case 'streamQuality':
-          // Update stream quality in the voice store
           voiceStore.updateStreamQuality(event.value);
           break;
         case 'saveAll':
-          // Save all settings including stream quality
           if (event.value.videoQuality || event.value.frameRate || event.value.audioBitrate) {
             const qualityToResolution: Record<string, number> = {
               '360p': 360,
@@ -551,12 +546,6 @@ const connectionStats = computed(() => voiceStore.connectionStats);
         return
       }
       
-      // Only activate if 2+ participants are in the call
-      // if (connectionStats.value.total < 2) {
-      //   debug.log('🎮 [Konami] Not enough participants (need 2+, have', connectionStats.value.total, ')')
-      //   return
-      // }
-
       const currentUserId = voiceStore.localState.userId || authStore.session?.user?.id
       if (!currentUserId) {
         debug.warn('🎮 [Konami] No user ID available')
@@ -566,7 +555,6 @@ const connectionStats = computed(() => voiceStore.connectionStats);
       debug.log('🎮 [Konami] Activating rainbow party!')
       konamiEnabled.value = false // Disable konami code detection
       
-      // Stop konami code detector
       if (konamiDetector) {
         konamiDetector.reset()
       }
@@ -581,7 +569,6 @@ const connectionStats = computed(() => voiceStore.connectionStats);
       // No auto-deactivate - users can close manually with X button
     }
     
-    // Reset konami flag when rainbow party closes
     watch(() => easterEggState.value.isActive, (isActive) => {
       if (!isActive && easterEggState.value.type === 'rainbow-party') {
         konamiEnabled.value = true // Re-enable konami code detection
@@ -593,7 +580,6 @@ const connectionStats = computed(() => voiceStore.connectionStats);
       }
     })
 
-    // Initialize easter egg service when channel changes
     const initializeEasterEgg = () => {
       const channelId = voiceStore.currentChannelId || voiceStore.optimisticChannelId
       if (channelId) {
@@ -601,7 +587,6 @@ const connectionStats = computed(() => voiceStore.connectionStats);
         if (currentUserId) {
           easterEggService.initialize(channelId, currentUserId)
           
-          // Subscribe to easter egg state changes (only once)
           if (!easterEggState.value.activatedBy) {
             easterEggService.subscribe((state) => {
               easterEggState.value = state
@@ -663,7 +648,6 @@ const connectionStats = computed(() => voiceStore.connectionStats);
       keybinds.unregisterHandler('toggle-voice-settings');
       keybinds.unregisterHandler('exit-fullscreen');
       
-      // Cleanup easter egg service
       easterEggService.cleanup();
     });
 </script>

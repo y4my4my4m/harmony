@@ -124,7 +124,6 @@ export async function resolveMentionUserIds(content: any[]): Promise<any[]> {
     }
   }
 
-  // Apply resolved UUIDs to content
   return content.map((part: any) => {
     if (part.type !== 'mention' || !part.username) return part;
 

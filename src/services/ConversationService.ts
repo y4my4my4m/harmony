@@ -135,7 +135,6 @@ export class ConversationService {
       }
     });
     
-    // Sort replies by creation date
     const sortReplies = (post: ActivityPubPost & { replies?: ActivityPubPost[] }) => {
       if (post.replies?.length) {
         post.replies.sort((a: any, b: any) => 
@@ -203,7 +202,6 @@ export class ConversationService {
 
       debug.log(`🔗 Conversation root ID: ${conversationRootId}`);
       
-      // Create navigation context
       const context = this.createNavigationContext(
         conversationRootId,
         postId,

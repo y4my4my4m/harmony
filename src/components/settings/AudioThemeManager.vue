@@ -388,7 +388,6 @@ onMounted(async () => {
   localVolume.value = Math.round(themeStore.audioVolume * 100)
   updateCacheInfo()
   
-  // Update cache info periodically
   setInterval(updateCacheInfo, 5000)
 })
 

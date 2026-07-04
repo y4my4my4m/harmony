@@ -11,7 +11,7 @@ import {
 /**
  * Reserved cache keys for non-server emoji groups. They flow through the same
  * server-keyed machinery (so they land in nameIndex/globalEmojiIndex and resolve
- * in :shortcode: at send time) but are not real servers — they're never
+ * in :shortcode: at send time) but are not real servers - they're never
  * persisted to IndexedDB and the picker renders them as their own sections.
  */
 export const PERSONAL_EMOJI_GROUPS = {
@@ -410,7 +410,7 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
         const requests: Promise<{ data: Emoji[] | null }>[] = [
           // Instance category: only LOCAL (and admin-imported, re-hosted) emoji.
           // Emoji cached from inter-instance interactions carry a `domain`, so
-          // exclude those — they don't belong in this instance's own collection.
+          // exclude those - they don't belong in this instance's own collection.
           supabase
             .from('emojis')
             .select('*')

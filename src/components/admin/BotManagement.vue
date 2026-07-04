@@ -233,12 +233,10 @@ async function createBot() {
     const userId = authStore.session?.user?.id
     if (!userId) return
     
-    // Generate bot token
     const token = generateBotToken()
     const tokenHash = await hashBotToken(token)
     const tokenPrefix = token.substring(0, 8)
     
-    // Create bot
     const { data: bot, error: botError } = await supabase
       .from('bots')
       .insert({
@@ -253,7 +251,6 @@ async function createBot() {
     
     if (botError) throw botError
     
-    // Create bot token
     const { error: tokenError } = await supabase
       .from('bot_tokens')
       .insert({
@@ -265,12 +262,10 @@ async function createBot() {
     
     if (tokenError) throw tokenError
     
-    // Show token
     currentToken.value = token
     showTokenModal.value = true
     showCreateModal.value = false
     
-    // Reset form
     newBot.value = {
       username: '',
       display_name: '',
@@ -278,7 +273,6 @@ async function createBot() {
       is_public: true
     }
     
-    // Reload bots
     await loadBots()
     
     toast.success('Bot created successfully!')
@@ -306,7 +300,6 @@ async function regenerateToken(bot: any) {
       .update({ is_active: false, revoked_at: new Date().toISOString() })
       .eq('bot_id', bot.id)
     
-    // Create new token
     await supabase
       .from('bot_tokens')
       .insert({

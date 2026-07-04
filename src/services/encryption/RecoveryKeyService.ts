@@ -320,7 +320,6 @@ export class RecoveryKeyService {
    * remain usable, but newly-generated phrases now carry a real checksum.
    */
   async generateMnemonic(wordCount: 12 | 24 = 12): Promise<string[]> {
-    // Generate entropy: 128 bits for 12 words, 256 bits for 24 words.
     const entropyBytes = wordCount === 12 ? 16 : 32
     const entropy = crypto.getRandomValues(new Uint8Array(entropyBytes))
 
@@ -494,12 +493,10 @@ export class RecoveryKeyService {
 
     this.mnemonic = words
 
-    // Convert mnemonic to seed
     const mnemonicString = words.join(' ')
     const encoder = new TextEncoder()
     const seedData = encoder.encode(mnemonicString)
 
-    // Create master key material using PBKDF2
     const keyMaterial = await crypto.subtle.importKey(
       'raw',
       seedData,
@@ -523,7 +520,6 @@ export class RecoveryKeyService {
       512
     )
 
-    // Import master secret as HKDF key
     const masterKey = await crypto.subtle.importKey(
       'raw',
       masterBits,
@@ -679,7 +675,6 @@ export class RecoveryKeyService {
   generateQRData(): string | null {
     if (!this.mnemonic) return null
 
-    // Create a compact JSON structure
     const data = {
       v: 1, // version
       m: this.mnemonic.join(' '),

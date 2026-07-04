@@ -19,13 +19,11 @@ export const GetUserIdFromUsername = async (username: string): Promise<string> =
     return data[0].id;
 }
 
-// Get user profile by ID with caching
 export const GetUserProfileById = async (userId: string, forceRefresh = false): Promise<User | null> => {
     const serverUsersStore = useServerUsersStore();
     return await serverUsersStore.fetchUserProfile(userId, forceRefresh);
 }
 
-// Get user profile by username with caching
 export const GetUserProfileByUsername = async (username: string, forceRefresh = false): Promise<User | null> => {
     const userId = await GetUserIdFromUsername(username);
     if (!userId) return null;
@@ -33,13 +31,11 @@ export const GetUserProfileByUsername = async (username: string, forceRefresh = 
     return await GetUserProfileById(userId, forceRefresh);
 }
 
-// Get multiple user profiles efficiently
 export const GetMultipleUserProfiles = async (userIds: string[], forceRefresh = false): Promise<Record<string, User>> => {
     const serverUsersStore = useServerUsersStore();
     return await serverUsersStore.fetchMultipleUserProfiles(userIds, forceRefresh);
 }
 
-// Check if user profile is cached
 export const IsUserProfileCached = (userId: string): boolean => {
     const serverUsersStore = useServerUsersStore();
     return serverUsersStore.getUserProfile(userId) !== null;

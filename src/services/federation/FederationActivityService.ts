@@ -40,7 +40,6 @@ export class FederationActivityService {
     try {
       debug.log(`📤 Federation: Creating post activity (${operation})`)
 
-      // Get post data
       const postData = await this.getPostData(postId)
       if (!postData) {
         return { success: false, error: 'Missing required data for activity creation' }
@@ -51,7 +50,6 @@ export class FederationActivityService {
         return { success: false, error: 'Missing required data for activity creation' }
       }
 
-      // Generate activity ID and determine type
       const instanceDomain = await this.getInstanceDomain()
       const activityId = `${instanceDomain}/activities/${crypto.randomUUID()}`
       
@@ -63,7 +61,6 @@ export class FederationActivityService {
         default: throw new Error(`Unknown post operation: ${operation}`)
       }
 
-      // Create post activity data using your existing functions
       const activityData = await this.buildPostActivityData({
         activityId,
         activityType,
@@ -110,7 +107,6 @@ export class FederationActivityService {
     try {
       debug.log(`📤 Federation: Creating follow activity (${operation})`)
 
-      // Get actor and target data
       const actorData = await this.getActorData(followerId)
       const targetData = await this.getActorData(targetUserId)
 
@@ -118,12 +114,10 @@ export class FederationActivityService {
         return { success: false, error: 'Missing required data for activity creation' }
       }
 
-      // Generate activity ID and determine type
       const instanceDomain = await this.getInstanceDomain()
       const activityId = `${instanceDomain}/activities/${crypto.randomUUID()}`
       const activityType = operation === 'follow' ? 'Follow' : 'Undo'
 
-      // Create follow activity data
       const activityData = await this.buildFollowActivityData({
         activityId,
         activityType,
@@ -166,18 +160,15 @@ export class FederationActivityService {
     try {
       debug.log(`📤 Federation: Creating profile update activity`)
 
-      // Get actor data
       const actorData = await this.getActorData(userId)
 
       if (!actorData) {
         return { success: false, error: 'Missing required data for activity creation' }
       }
 
-      // Generate activity ID
       const instanceDomain = await this.getInstanceDomain()
       const activityId = `${instanceDomain}/activities/${crypto.randomUUID()}`
 
-      // Create profile update activity data
       const activityData = await this.buildProfileUpdateActivityData({
         activityId,
         actor: actorData

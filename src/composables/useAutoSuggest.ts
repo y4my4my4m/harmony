@@ -108,7 +108,6 @@ export function useAutoSuggest(
   const serverRolesLoaded = ref(false);
   const serverRolesServerId = ref<string | null>(null);
 
-  // Trigger patterns
   const triggers: AutoSuggestTrigger[] = [];
   
   if (finalConfig.enableEmojis) {
@@ -199,7 +198,6 @@ export function useAutoSuggest(
         // Skip if already added from server emojis
         if (seenNames.has((emoji.shortcode ?? '').toLowerCase())) continue;
         
-        // Get URL for display (SVG or null for native)
         const svgUrl = getSvgUrl(emoji.shortcode);
         
         suggestions.push({
@@ -241,7 +239,6 @@ export function useAutoSuggest(
       .slice(0, finalConfig.maxSuggestions);
   });
 
-  // Get user mention suggestions based on mode
   const mentionSuggestions = computed((): SuggestionItem[] => {
     if (!finalConfig.enableMentions || state.value.triggerType !== 'mention') {
       return [];
@@ -257,14 +254,11 @@ export function useAutoSuggest(
       const suggestions: SuggestionItem[] = [];
       let usersToSearch: any[] = [];
 
-      // Get current server ID to filter users by server membership
       const currentServerId = serverChannelStore.currentServerId;
       
-      // Log bridged users status
       debug.log(`🎯 AutoSuggest: bridgedUsers count = ${bridgedUsers.value.length}, loaded = ${bridgedUsersLoaded.value}`);
       
       if (currentServerId) {
-        // Get users only from the current server context
         usersToSearch = userDataService.getUsersInContext(currentServerId);
         debug.log(`🎯 AutoSuggest: Using server context ${currentServerId}, found ${usersToSearch.length} server members`);
       } else {
@@ -276,7 +270,6 @@ export function useAutoSuggest(
 
       const seenUsers = new Set<string>(); // Track already processed users
       
-      // Add Harmony users
       for (const userData of usersToSearch) {
         // Skip if we've already seen this user
         if (seenUsers.has(userData.id)) {
@@ -288,13 +281,11 @@ export function useAutoSuggest(
         const usernameStr = userData.username?.toLowerCase() || '';
 
         if (displayName.includes(query) || usernameStr.includes(query)) {
-          // Create display format for text input (what user sees while typing)
           const isLocal = userData.isLocal;
           const currentDomain = import.meta.env.VITE_DOMAIN as string;
           const userDomain = userData.domain || currentDomain;
           const displayText = isLocal ? `@${userData.username}` : `@${userData.username}@${userDomain}`;
           
-          // Create storage format for database (always @uuid@domain)
           const mentionText = `@${userData.id}@${userDomain}`;
 
           suggestions.push({
@@ -349,7 +340,6 @@ export function useAutoSuggest(
         }
       }
 
-      // Add mentionable roles to suggestions (including @everyone)
       for (const role of serverRoles.value) {
         if (!role.mentionable) continue;
         
@@ -522,7 +512,6 @@ export function useAutoSuggest(
     }
   });
 
-  // Track current search to abort stale requests
   let currentSearchAbortController: AbortController | null = null;
   let currentSearchQuery = '';
   
@@ -538,14 +527,12 @@ export function useAutoSuggest(
       return cached.hasBridge;
     }
     
-    // Check if there's already a pending request for this server
     const pendingRequest = bridgeBotCheckPending.get(serverId);
     if (pendingRequest) {
       debug.log(`🌉 Bridge bot check already pending for server ${serverId}, reusing request`);
       return pendingRequest;
     }
     
-    // Create new request and store it
     const requestPromise = (async () => {
       try {
         const { data, error } = await supabase
@@ -566,7 +553,6 @@ export function useAutoSuggest(
           return false;
         }
         
-        // Filter for bridge bots in the result
         const bridgeBots = (data || []).filter((perm: any) => perm.bot?.bot_type === 'bridge');
         const hasBridge = bridgeBots.length > 0;
         
@@ -583,12 +569,10 @@ export function useAutoSuggest(
         bridgeBotCheckCache.set(serverId, { hasBridge: false, timestamp: Date.now() });
         return false;
       } finally {
-        // Remove from pending map when done
         bridgeBotCheckPending.delete(serverId);
       }
     })();
     
-    // Store the pending request
     bridgeBotCheckPending.set(serverId, requestPromise);
     
     return requestPromise;
@@ -613,7 +597,6 @@ export function useAutoSuggest(
     }
   };
 
-  // Fetch server roles for @role mentions
   const fetchServerRoles = async (serverId: string) => {
     if (!serverId) {
       serverRoles.value = [];
@@ -627,7 +610,6 @@ export function useAutoSuggest(
     
     try {
       const roles = await roleService.getRolesForServer(serverId);
-      // Filter to only mentionable roles
       serverRoles.value = roles;
       serverRolesServerId.value = serverId;
       serverRolesLoaded.value = true;
@@ -705,7 +687,6 @@ export function useAutoSuggest(
     }
   };
 
-  // Calculate cursor position for suggestion placement
   const calculateCursorPosition = (): SuggestionPosition => {
     if (!inputElement.value) {
       return { x: 0, y: 0 };
@@ -714,7 +695,6 @@ export function useAutoSuggest(
     const input = inputElement.value;
     let inputRect: DOMRect;
     
-    // Handle different input types
     if ('getBoundingClientRect' in input) {
       inputRect = input.getBoundingClientRect();
     } else if (input.$el) {
@@ -723,14 +703,12 @@ export function useAutoSuggest(
       return { x: 0, y: 0 };
     }
 
-    // Calculate suggestion popup dimensions
     const suggestionCount = suggestions.value.length;
     const headerHeight = finalConfig.enableEmojis || finalConfig.enableMentions ? 32 : 0; // Header height
     const itemHeight = 44; // Each suggestion item height
     const maxHeight = 240; // Maximum popup height
     const padding = 8; // Popup padding
     
-    // Calculate actual popup height needed
     const popupHeight = Math.min(
       headerHeight + (suggestionCount * itemHeight) + padding,
       maxHeight
@@ -795,12 +773,10 @@ export function useAutoSuggest(
     return { x, y };
   };
 
-  // Clear active command state
   const dismissActiveCommand = () => {
     activeCommand.value = null;
   };
 
-  // Handle input changes and detect triggers
   const handleInput = (value: string, cursorPosition: number) => {
     const textBeforeCursor = value.substring(0, cursorPosition);
     // RichTextEditor uses \u00A0 (nbsp) for spaces; \s doesn't match it. Normalize for pattern matching.
@@ -820,12 +796,11 @@ export function useAutoSuggest(
         
         debug.log('[DEBUG] Trigger found!', { type: trigger.type, query, matchIndex: match.index });
         
-        // Calculate the actual trigger position (where @ or : starts)
         let triggerPosition = match.index;
         
         if (trigger.type === 'mention') {
           // For mentions, the pattern is (?:^|\s)@([a-zA-Z0-9_+-]*)$
-          // So if the match starts with whitespace, we need to adjust
+          // A match starting with whitespace shifts the insert position
           const matchText = match[0];
           if (matchText.startsWith(' ') || matchText.startsWith('\t')) {
             triggerPosition = match.index + 1; // Skip the whitespace
@@ -847,12 +822,10 @@ export function useAutoSuggest(
           const serverId = serverChannelStore.currentServerId;
           const channelId = serverChannelStore.currentChannelId;
           
-          // Fetch server roles for @role mentions
           if (serverId && serverId !== serverRolesServerId.value) {
             fetchServerRoles(serverId);
           }
           
-          // Check if server has bridge bots (lazy - only when @ is typed)
           checkBridgeBotsIfNeeded(serverId).then(hasBridge => {
             // Only fetch bridged users if server has bridge bots and we haven't loaded them yet
             if (hasBridge && channelId && channelId !== bridgedUsersChannelId.value) {
@@ -883,7 +856,6 @@ export function useAutoSuggest(
   // Selection state to prevent duplicate selections
   const isSelecting = ref(false);
 
-  // Handle keyboard navigation
   const handleKeyDown = (event: KeyboardEvent): boolean => {    
     if (!state.value.isActive || suggestions.value.length === 0) {
       return false;
@@ -992,7 +964,6 @@ export function useAutoSuggest(
           // Use display form that matches what RichTextEditor renders as data-display-text:
           //   local users  → @username        (no domain)
           //   remote users → @username@domain
-          // This prevents cursor position mismatch when setCursorPosition walks the DOM.
           if (suggestion.user?.is_local) {
             insertText = `@${suggestion.username} `;
           } else {
@@ -1044,12 +1015,10 @@ export function useAutoSuggest(
       
       return newText;
     } finally {
-      // Reset selection flag to allow future selections
       isSelecting.value = false;
     }
   };
 
-  // Close suggestions
   const closeSuggestions = () => {
     state.value.isActive = false;
     state.value.triggerType = null;
@@ -1058,7 +1027,6 @@ export function useAutoSuggest(
     activityPubUsers.value = [];
   };
 
-  // Update position (useful for responsive positioning)
   const updatePosition = () => {
     if (state.value.isActive) {
       state.value.position = calculateCursorPosition();
@@ -1094,7 +1062,6 @@ export function useAutoSuggest(
     // Only check if we haven't checked this server yet
     if (currentServerIdForBridgeCheck.value !== serverId) {
       currentServerIdForBridgeCheck.value = serverId;
-      // Check if this server has bridge bots (cached per server)
       currentServerHasBridgeBots.value = await hasBridgeBots(serverId);
     }
     
@@ -1108,7 +1075,6 @@ export function useAutoSuggest(
       bridgedUsersLoaded.value = false;
       bridgedUsers.value = [];
       bridgedUsersChannelId.value = null;
-      // Reset bridge bot check when channel changes (will re-check when @ is typed)
       if (serverChannelStore.currentServerId !== currentServerIdForBridgeCheck.value) {
         currentServerHasBridgeBots.value = null;
         currentServerIdForBridgeCheck.value = null;

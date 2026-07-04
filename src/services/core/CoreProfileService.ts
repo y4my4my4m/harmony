@@ -218,7 +218,6 @@ export class CoreProfileService {
    */
   async updateProfile(profileData: ProfileData): Promise<Profile> {
     try {
-      // Get current user context (auth + profile ID resolved once)
       const profileId = await authContextService.getCurrentProfileId()
       const authUser = await authContextService.getCurrentAuthUser()
 
@@ -266,7 +265,6 @@ export class CoreProfileService {
    */
   async createProfile(profileData: Profile): Promise<Profile> {
     try {
-      // Get current user context (auth user resolved once)
       const authUser = await authContextService.getCurrentAuthUser()
 
       // Input validation and sanitization
@@ -287,7 +285,6 @@ export class CoreProfileService {
         .single()
 
       if (error) {
-        // Handle unique constraint violations securely
         if (error.code === '23505') {
           if (error.message.includes('username')) {
             throw this.createError('USERNAME_TAKEN', 'Username is already taken')
@@ -384,7 +381,6 @@ export class CoreProfileService {
   }
 
   private sanitizeSearchQuery(query: string): string {
-    // Remove potentially dangerous characters
     return query.trim().replace(/[<>'";&]/g, '')
   }
 

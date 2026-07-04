@@ -617,7 +617,6 @@ class TrendingService {
 
       if (error || !data) return null;
 
-      // Get additional stats
       const [postsCount, usersCount] = await Promise.all([
         this.getInstancePostCount(domain),
         this.getInstanceUserCount(domain)
@@ -715,7 +714,6 @@ class TrendingService {
         query = query.eq('media_attachments', '[]');
       }
 
-      // Apply instance filter
       if (instance && instance !== 'all') {
         query = query.eq('author.domain', instance);
       }

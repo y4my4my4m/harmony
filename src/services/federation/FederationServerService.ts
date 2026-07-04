@@ -100,7 +100,6 @@ export class FederationServerService {
     try {
       debug.log(`🔍 Discovering: ${input}`)
 
-      // Check if this is an invite link
       const inviteMatch = input.match(/^https?:\/\/([^/]+)\/invite\/([A-Za-z0-9]+)$/i)
       if (inviteMatch) {
         return await this.resolveInviteLink(input, inviteMatch[1], inviteMatch[2])
@@ -109,7 +108,6 @@ export class FederationServerService {
       // Regular server discovery
       const params = new URLSearchParams()
       
-      // Determine if it's a URL or handle
       if (input.startsWith('http://') || input.startsWith('https://')) {
         params.set('url', input)
       } else {
@@ -143,7 +141,6 @@ export class FederationServerService {
         }
       }
 
-      // Extract instance from server URL
       const serverInstance = new URL(data.server.id).hostname
 
       const server: RemoteServer = {
@@ -447,7 +444,6 @@ export class FederationServerService {
       }
     }
 
-    // Parse handle format: name@instance
     const match = handle.match(/^([^@]+)@(.+)$/)
     if (match) {
       return {

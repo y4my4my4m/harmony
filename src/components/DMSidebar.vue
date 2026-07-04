@@ -292,7 +292,6 @@ const getConversationAvatarUrl = (conversation: DMConversation): string => {
   return getUserAvatarUrl(conversation.other_user.id).value || conversation.other_user.avatar_url || ''
 }
 
-// Get user status for avatar display (presence-aware)
 const getUserStatus = (userId: string): 'online' | 'away' | 'busy' | 'offline' => {
   try {
     const status = getPresenceAwareStatus(userId).value;
@@ -306,7 +305,6 @@ const getUserStatus = (userId: string): 'online' | 'away' | 'busy' | 'offline' =
   }
 }
 
-// Get conversation user status (optimized for placeholder data)
 const getConversationUserStatus = (conversation: DMConversation): 'online' | 'away' | 'busy' | 'offline' => {
   if (!conversation.other_user?.id) {
     debug.log('DMSidebar - No other_user.id for conversation:', conversation.id);
@@ -471,7 +469,6 @@ const handleConversationHover = async (conversationId: string) => {
   hoveredConversations.value.add(conversationId)
   
   try {
-    // Load user profile for this conversation on demand
     const success = await dmStore.loadConversationUserProfile(conversationId)
     
     if (success) {

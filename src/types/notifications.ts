@@ -103,7 +103,6 @@ export interface NotificationPreferences {
   sound_chat_messages: boolean;
   sound_voice_activity: boolean;
   
-  // Push notifications
   push_notifications: boolean;
   push_mentions: boolean;
   push_dms: boolean;

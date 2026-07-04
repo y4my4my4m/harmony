@@ -78,7 +78,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
         ]);
         
         // NON-BLOCKING: Don't wait for websocket connection - let it connect in background
-        // This prevents 6+ second blocking during initial load
         this.subscribeToUserServers(userId).catch(error => {
           debug.warn('⚠️ Failed to subscribe to user servers (non-blocking):', error)
         })
@@ -1967,7 +1966,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
       const newCategory = payload.new as Category;
       debug.log('📥 Real-time: Category created:', newCategory.name);
       
-      // Check if category already exists
       if (this.categories.some(c => c.id === newCategory.id)) {
         debug.log('⚠️ Category already exists, skipping duplicate');
         return;
@@ -2063,7 +2061,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
       const serverId = payload.new.server_id;
       debug.log('📥 Real-time: User joined server:', serverId);
       
-      // Check if server already in list (may have been added by createServer)
       if (this.servers.some(s => s.id === serverId)) {
         debug.log('⚠️ Server already in list, skipping duplicate');
         return;
@@ -2367,7 +2364,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
         ? Math.max(...serversInTarget.map(s => s.position || 0)) + 1
         : 0;
 
-      // Store previous state for rollback
       const serverIndex = this.servers.findIndex(s => s.id === serverId);
       const previousFolderId = serverIndex !== -1 ? this.servers[serverIndex].folder_id : null;
       const previousPosition = serverIndex !== -1 ? this.servers[serverIndex].position : 0;
@@ -2419,7 +2415,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
         return false;
       }
 
-      // Store previous state for rollback on error
       const previousState = positions.map(pos => {
         const server = this.servers.find(s => s.id === pos.serverId);
         return server ? { serverId: pos.serverId, folderId: server.folder_id, position: server.position } : null;
@@ -2489,7 +2484,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
      * Uses optimistic updates for smooth UX
      */
     async updateFolderPositions(positions: { folderId: string; position: number }[]): Promise<boolean> {
-      // Store previous state for rollback on error
       const previousState = positions.map(pos => {
         const folder = this.folders.find(f => f.id === pos.folderId);
         return folder ? { folderId: pos.folderId, position: folder.position } : null;
@@ -2581,7 +2575,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
       const rootServers = serversByFolder.get(null) || [];
 
       // Folders and root servers are interleaved based on position
-      // For simplicity, we'll put all folders first, then root servers
+      // Folders first, then root servers
       // A more complex implementation would interleave by position
       result.push(...foldersWithServers);
       result.push(...rootServers);

@@ -108,14 +108,12 @@ export class MegolmKeyBackupService {
   // INITIALIZATION
 
   async initialize(userId: string): Promise<void> {
-    // Clean up old subscriptions if re-initializing
     if (this.userId && this.userId !== userId) {
       this.cleanup()
     }
 
     this.userId = userId
     
-    // Set up realtime subscriptions for key requests
     await this.setupRealtimeSubscriptions()
     
     debug.log('✅ MegolmKeyBackupService initialized with realtime key request support')
@@ -198,7 +196,6 @@ export class MegolmKeyBackupService {
 
       debug.log(`✅ Found session and request authorized, fulfilling...`)
 
-      // Get the requester's public key for encryption
       const { data: requesterKey } = await supabase
         .from('user_key_pairs')
         .select('identity_public_key')
@@ -469,7 +466,6 @@ export class MegolmKeyBackupService {
         senderPublicKey
       )
 
-      // Import the session
       await megolmService.importInboundSession(
         request.room_id,
         request.sender_user_id,
@@ -480,7 +476,6 @@ export class MegolmKeyBackupService {
 
       debug.log(`✅ Imported session ${request.session_id.substring(0, 8)}... from fulfilled request`)
 
-      // Remove from pending requests
       this.pendingRequests.delete(request.session_id)
 
       // Mark the request consumed. The fulfilled key reaches us via an ephemeral
@@ -497,7 +492,6 @@ export class MegolmKeyBackupService {
           .then(() => {}, () => {})
       }
 
-      // Notify callbacks (so UI can retry decryption)
       for (const callback of this.keyReceivedCallbacks) {
         try {
           callback(request.room_id, request.session_id)
@@ -506,7 +500,6 @@ export class MegolmKeyBackupService {
         }
       }
 
-      // Create backup with the new session
       this.triggerAutoBackup().catch(() => {})
       return true
     } catch (error) {
@@ -687,7 +680,6 @@ export class MegolmKeyBackupService {
       debug.warn('⚠️ Backup merge check failed, writing local sessions only:', mergeErr)
     }
 
-    // Create backup data
     const backupData: MegolmBackupData = {
       version: 1,
       userId: this.userId,
@@ -699,7 +691,6 @@ export class MegolmKeyBackupService {
     const backupJson = JSON.stringify(backupData)
     const encryptedBackup = await recoveryKeyService.encryptForBackup(backupJson)
 
-    // Calculate hash for integrity check
     const hash = await this.calculateHash(backupJson)
 
     // Upsert to database
@@ -763,14 +754,12 @@ export class MegolmKeyBackupService {
       throw new Error('Failed to decrypt backup - invalid recovery key?')
     }
 
-    // Verify integrity
     const hash = await this.calculateHash(backupJson)
     if (hash !== backup.backup_hash) {
       debug.warn('⚠️ Backup hash mismatch - data may be corrupted')
       // Continue anyway - user might want partial recovery
     }
 
-    // Parse backup data
     const backupData: MegolmBackupData = JSON.parse(backupJson)
 
     if (backupData.version !== 1) {
@@ -781,7 +770,6 @@ export class MegolmKeyBackupService {
       throw new Error('Backup belongs to a different user')
     }
 
-    // Import sessions into MegolmService
     await megolmService.importAllSessions(backupData.sessions)
 
     debug.log(`✅ Restored ${backupData.sessions.outbound.length} outbound, ${backupData.sessions.inbound.length} inbound sessions`)
@@ -1135,7 +1123,6 @@ export class MegolmKeyBackupService {
       debug.error('❌ Failed to cancel request:', error)
     }
 
-    // Remove from pending
     for (const [sessionId, entry] of this.pendingRequests) {
       if (entry.requestId === requestId) {
         this.pendingRequests.delete(sessionId)
@@ -1268,7 +1255,6 @@ export class MegolmKeyBackupService {
       throw new Error(`Unsupported backup version: ${importData.version}`)
     }
 
-    // Import sessions
     await megolmService.importAllSessions(importData.sessions)
 
     return {

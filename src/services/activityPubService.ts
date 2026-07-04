@@ -173,7 +173,6 @@ export class ActivityPubService {
 
     if (error) throw error;
 
-    // Process user interactions into boolean flags and filter out suspended users
     const posts = (data || [])
       .filter((post: any) => !post.author?.is_suspended) // Exclude posts from suspended users
       .map((post: any) => {
@@ -223,7 +222,6 @@ export class ActivityPubService {
 
       if (error) throw error;
 
-      // Process user interactions into boolean flags and filter out suspended users
       const posts = (data || [])
         .filter((post: any) => !post.author?.is_suspended)
         .map((post: any) => {
@@ -236,7 +234,6 @@ export class ActivityPubService {
           };
         });
       
-      // Log statistics
       const localCount = posts.filter((p: any) => p.is_local).length;
       const federatedCount = posts.filter((p: any) => !p.is_local).length;
       debug.log(`🌐 Enhanced public timeline: ${localCount} local + ${federatedCount} federated = ${posts.length} total posts`);
@@ -458,7 +455,6 @@ export class ActivityPubService {
 
       // Pagination using max_id
       if (options.max_id) {
-        // Get the created_at of the max_id post for cursor-based pagination
         const { data: cursorPost } = await supabase
           .from('posts')
           .select('created_at')
@@ -596,7 +592,6 @@ export class ActivityPubService {
 
       if (error) throw error;
       
-      // Filter out posts from suspended users
       return (data || []).filter(post => !post.author?.is_suspended) as TimelinePost[];
     } catch (error) {
       debug.error('Failed to search posts:', error);
@@ -744,7 +739,6 @@ export class ActivityPubService {
     const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
     if (!user) throw new Error('User not authenticated');
 
-    // Get original post to verify ownership and get author info
     const { data: originalPost, error: fetchError } = await supabase
       .from('posts')
       .select(`
@@ -864,7 +858,6 @@ export class ActivityPubService {
 
     if (error) throw error;
 
-    // Filter out null profiles only
     return (data
       ?.filter((follow: any) => follow.follower)
       .map((follow: any) => ({
@@ -939,7 +932,6 @@ export class ActivityPubService {
 
     if (error) throw error;
 
-    // Filter out null profiles only
     return (data
       ?.filter((follow: any) => follow.following)
       .map((follow: any) => ({
@@ -990,14 +982,12 @@ export class ActivityPubService {
     }
 
     if (existing) {
-      // Remove favorite
       await this.unfavoritePost(postId);
       
       // Federation is handled automatically by database triggers
       
       return { favorited: false };
     } else {
-      // Add favorite
       const interaction = await this.favoritePost(postId);
       
       // Federation is handled automatically by database triggers
@@ -1065,7 +1055,6 @@ export class ActivityPubService {
     const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
     if (!user) throw new Error('User not authenticated');
 
-    // Get the user's profile ID
     const profileId = await this.getCurrentUserProfileId();
 
     // First, resolve to the original post ID (in case this is a reblog)
@@ -1078,7 +1067,6 @@ export class ActivityPubService {
     // Use the original post ID if this is a reblog
     const actualPostId = targetPost?.reblog?.id || postId;
 
-    // Check if we already have a reblog interaction for this post
     const { data: existingInteraction } = await supabase
       .from('post_interactions')
       .select('id')
@@ -1088,7 +1076,6 @@ export class ActivityPubService {
       .maybeSingle();
 
     if (existingInteraction) {
-      // Remove reblog interaction
       await supabase
         .from('post_interactions')
         .delete()
@@ -1110,7 +1097,6 @@ export class ActivityPubService {
 
       return { reblogged: false };
     } else {
-      // Add reblog interaction for the ORIGINAL post
       await supabase
         .from('post_interactions')
         .insert({
@@ -1121,7 +1107,6 @@ export class ActivityPubService {
           metadata: {}
         });
 
-      // Create reblog post (reblogPost already handles getting the original)
       const reblogPost = await this.reblogPost(actualPostId);
 
       // Federation is handled automatically by database triggers
@@ -1138,10 +1123,8 @@ export class ActivityPubService {
     const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
     if (!user) throw new Error('User not authenticated');
 
-    // Get the user's profile ID
     const profileId = await this.getCurrentUserProfileId();
 
-    // Get the post to reblog
     const { data: targetPost, error: postError } = await supabase
       .from('timeline_posts')
       .select('*')
@@ -1151,7 +1134,6 @@ export class ActivityPubService {
     if (postError) throw postError;
 
     // If the target is itself a reblog, get the ORIGINAL post instead
-    // This prevents reblog chains (reblog of reblog of reblog...)
     let originalPost = targetPost;
     let actualOriginalId = postId;
     
@@ -1175,7 +1157,6 @@ export class ActivityPubService {
       }
     }
 
-    // Create reblog post
     const ap_id = `${this.instanceUrl}/activities/${crypto.randomUUID()}`;
     
     const reblogPost = {
@@ -1241,10 +1222,8 @@ export class ActivityPubService {
     const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
     if (!user) throw new Error('User not authenticated');
 
-    // Get the user's profile ID
     const profileId = await this.getCurrentUserProfileId();
 
-    // Get the post to quote
     const { data: targetPost, error: postError } = await supabase
       .from('timeline_posts')
       .select('*')
@@ -1275,10 +1254,8 @@ export class ActivityPubService {
       }
     }
 
-    // Parse user's content into MessagePart format
     const parsedContent = await this.formatPostContent(userContent);
 
-    // Create quote reblog post
     const ap_id = `${this.instanceUrl}/activities/${crypto.randomUUID()}`;
     
     const quotePost = {
@@ -1327,7 +1304,6 @@ export class ActivityPubService {
       throw error;
     }
 
-    // Add reblog interaction for the ORIGINAL post
     await supabase
       .from('post_interactions')
       .insert({
@@ -1349,7 +1325,6 @@ export class ActivityPubService {
     const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
     if (!user) throw new Error('User not authenticated');
 
-    // Get the user's profile ID
     const profileId = await this.getCurrentUserProfileId();
 
     const { error } = await supabase
@@ -1371,10 +1346,8 @@ export class ActivityPubService {
     const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
     if (!user) throw new Error('User not authenticated');
 
-    // Get the user's profile ID
     const profileId = await this.getCurrentUserProfileId();
 
-    // Check if already bookmarked
     const { data: existing } = await supabase
       .from('post_interactions')
       .select('id')
@@ -1384,11 +1357,9 @@ export class ActivityPubService {
       .single();
 
     if (existing) {
-      // Remove bookmark
       await this.unbookmarkPost(postId);
       return { bookmarked: false };
     } else {
-      // Add bookmark
       const interaction = await this.bookmarkPost(postId);
       return { bookmarked: true, interaction };
     }
@@ -1401,7 +1372,6 @@ export class ActivityPubService {
     const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
     if (!user) throw new Error('User not authenticated');
 
-    // Get the user's profile ID
     const profileId = await this.getCurrentUserProfileId();
 
     const ap_id = `${this.instanceUrl}/activities/${crypto.randomUUID()}`;
@@ -1438,7 +1408,6 @@ export class ActivityPubService {
     const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
     if (!user) throw new Error('User not authenticated');
 
-    // Get the user's profile ID
     const profileId = await this.getCurrentUserProfileId();
 
     const { error } = await supabase
@@ -1482,7 +1451,6 @@ export class ActivityPubService {
    * OPTIMIZED: Uses in-memory cache with TTL and request deduplication
    */
   async getUserByHandle(handle: string, forceRefresh: boolean = false): Promise<FederatedUser | null> {
-    // Parse handle (@username@domain or @username)
     const cleanHandle = handle.startsWith('@') ? handle.slice(1) : handle;
     const [username, domain] = cleanHandle.includes('@') 
       ? cleanHandle.split('@')
@@ -1499,7 +1467,6 @@ export class ActivityPubService {
         return cachedProfile;
       }
     } else {
-      // Clear cache entry on force refresh
       this.clearProfileCache(cacheKey);
     }
     
@@ -1510,17 +1477,14 @@ export class ActivityPubService {
       return inFlight.promise;
     }
     
-    // Create the actual fetch promise
     const fetchPromise = this._fetchUserByHandle(username, domain, isRemote, forceRefresh, cacheKey);
     
-    // Track this request
     this.inFlightRequests.set(cacheKey, { promise: fetchPromise });
     
     try {
       const result = await fetchPromise;
       return result;
     } finally {
-      // Clean up in-flight tracking
       this.inFlightRequests.delete(cacheKey);
     }
   }
@@ -1550,7 +1514,6 @@ export class ActivityPubService {
       }
 
       if (data) {
-        // Parse bio and display name emojis from federation_metadata
         let bio: string | any[] = data.bio || '';
         let display_name: string | any[] = data.display_name || data.username;
         
@@ -1619,7 +1582,6 @@ export class ActivityPubService {
     try {
       debug.log(`Fetching remote actor: ${actorId}`);
       
-      // Check if profile already exists
       const { data: existingProfile } = await supabase
         .from('profiles')
         .select('*')
@@ -1657,7 +1619,6 @@ export class ActivityPubService {
         } as FederatedUser;
       }
       
-      // Fetch actor document
       const actorResponse = await fetch(actorId, {
         headers: {
           'Accept': 'application/activity+json, application/ld+json',
@@ -1672,13 +1633,11 @@ export class ActivityPubService {
       
       const actor = await actorResponse.json();
       
-      // Parse domain and username from actor ID
       const actorUrl = new URL(actorId);
       const domain = actorUrl.hostname;
       const pathParts = actorUrl.pathname.split('/');
       const username = actor.preferredUsername || pathParts[pathParts.length - 1];
       
-      // Create federated profile using the database function
       const { data: profileId, error: createError } = await supabase
         .rpc('create_federated_profile', {
           p_username: username,
@@ -1700,7 +1659,6 @@ export class ActivityPubService {
         return null;
       }
       
-      // Fetch the created profile
       const { data: newProfile, error: fetchError } = await supabase
         .from('profiles')
         .select('*')
@@ -1884,7 +1842,6 @@ export class ActivityPubService {
         .in('visibility', ['public', 'unlisted']);
     }
 
-    // Filter out deleted posts and apply ordering
     query = query
       .or('is_deleted.is.null,is_deleted.eq.false')
       .order('created_at', { ascending: false })
@@ -1898,7 +1855,6 @@ export class ActivityPubService {
 
     if (error) throw error;
 
-    // Process user interactions into boolean flags and filter out suspended users
     const rawData: any[] = data || [];
     const posts = rawData
       .filter((post: any) => !post.author?.is_suspended)
@@ -2036,7 +1992,6 @@ export class ActivityPubService {
     const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
     if (!user) return { is_favorited: false, is_reblogged: false, is_bookmarked: false };
 
-    // Get the user's profile ID
     const profileId = await this.getCurrentUserProfileId();
 
     const { data: interactions } = await supabase
@@ -2074,10 +2029,8 @@ export class ActivityPubService {
     const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
     if (!user) throw new Error('User not authenticated');
 
-    // Get the user's profile ID
     const profileId = await this.getCurrentUserProfileId();
 
-    // Get original post to verify ownership
     const { data: originalPost, error: fetchError } = await supabase
       .from('posts')
       .select('*')
@@ -2089,7 +2042,6 @@ export class ActivityPubService {
       throw new Error('Post not found or not owned by user');
     }
 
-    // Prepare update data
     const updateData: any = {
     };
 
@@ -2106,7 +2058,6 @@ export class ActivityPubService {
       updateData.media_attachments = updates.media_attachments;
     }
 
-    // Update post in database
     const { data: updatedPost, error } = await supabase
       .from('posts')
       .update(updateData)
@@ -2116,7 +2067,6 @@ export class ActivityPubService {
 
     if (error) throw error;
 
-    // Create Update activity for federation
     await this.createActivity({
       type: 'Update',
       actor_id: user.id,
@@ -2143,10 +2093,8 @@ export class ActivityPubService {
     const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
     if (!user) throw new Error('User not authenticated');
 
-    // Get the user's profile ID
     const profileId = await this.getCurrentUserProfileId();
 
-    // Update follow status
     const { data: follow, error } = await supabase
       .from('follows')
       .update({
@@ -2163,7 +2111,6 @@ export class ActivityPubService {
       throw new Error('Follow request not found or already processed');
     }
 
-    // Create Accept activity for federation
     await this.createActivity({
       type: 'Accept',
       actor_id: user.id,
@@ -2191,10 +2138,8 @@ export class ActivityPubService {
     const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
     if (!user) throw new Error('User not authenticated');
 
-    // Get the user's profile ID
     const profileId = await this.getCurrentUserProfileId();
 
-    // Update follow status
     const { data: follow, error } = await supabase
       .from('follows')
       .update({ status: 'rejected' })
@@ -2208,7 +2153,6 @@ export class ActivityPubService {
       throw new Error('Follow request not found or already processed');
     }
 
-    // Create Reject activity for federation
     await this.createActivity({
       type: 'Reject',
       actor_id: user.id,
@@ -2236,7 +2180,6 @@ export class ActivityPubService {
     const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
     if (!user) throw new Error('User not authenticated');
 
-    // Get the original activity
     const { data: originalActivity, error } = await supabase
       .from('ap_activities')
       .select('*')
@@ -2248,7 +2191,6 @@ export class ActivityPubService {
       throw new Error('Original activity not found');
     }
 
-    // Create Undo activity for federation
     await this.createActivity({
       type: 'Undo',
       actor_id: user.id,
@@ -2277,7 +2219,6 @@ export class ActivityPubService {
     const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
     if (!user) throw new Error('User not authenticated');
 
-    // Get server and channel info
     const { data: server } = await supabase
       .from('servers')
       .select('name, domain')
@@ -2294,7 +2235,6 @@ export class ActivityPubService {
       throw new Error('Server or channel not found');
     }
 
-    // Create VoiceJoin activity for federation
     await this.createActivity({
       type: 'VoiceJoin',
       actor_id: user.id,
@@ -2387,7 +2327,6 @@ export class ActivityPubService {
     const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
     if (!user) throw new Error('User not authenticated');
 
-    // Create Join activity for federation
     await this.createActivity({
       type: 'Join',
       actor_id: user.id,
@@ -2449,7 +2388,6 @@ export class ActivityPubService {
   }): Promise<void> {
     const ap_id = `${this.instanceUrl}/activities/${crypto.randomUUID()}`;
     
-    // Store activity in database
     const { error } = await supabase
       .from('ap_activities')
       .insert({

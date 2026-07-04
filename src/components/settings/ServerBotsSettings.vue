@@ -290,7 +290,6 @@ async function loadBots() {
     if (botsError) throw botsError
     availableBots.value = bots || []
 
-    // Load installed bots for this server
     const { data: installations, error: installError } = await supabase
       .from('bot_server_permissions')
       .select(`
@@ -319,7 +318,6 @@ function isInstalled(botId: string): boolean {
 function showAddModal(bot: any) {
   selectedBot.value = bot
   
-  // Set default permissions
   selectedPermissions.value = {
     read_messages: true,
     send_messages: true,
@@ -383,7 +381,6 @@ async function addBot() {
 function showPermissionsModal(installation: any) {
   selectedInstallation.value = installation
   
-  // Load current permissions
   editingPermissions.value = {
     read_messages: installation.read_messages,
     send_messages: installation.send_messages,

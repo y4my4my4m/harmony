@@ -149,7 +149,6 @@ const router = createRouter({
       component: () => import('@/layouts/SocialLayout.vue'),
       meta: { requiresAuth: true },
       props: route => {
-        // Extract props from child route for layout
         const childRoute = route.matched[route.matched.length - 1];
         return childRoute?.props?.default || {};
       },
@@ -419,7 +418,6 @@ const router = createRouter({
       path: '/:pathMatch(.*)*',
       name: 'CatchAll',
       redirect: () => {
-        // Determine if user is authenticated
         const authStore = useAuthStore();
         const isLoggedIn = authStore.isLoggedIn;
         

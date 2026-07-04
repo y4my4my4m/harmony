@@ -24,7 +24,6 @@ export async function handlePushNotificationJob(data: PushNotificationJobData): 
   logger.debug(`📱 Processing push notification: ${type} for user ${user_id}`);
   
   try {
-    // Send push notification
     await PushNotificationService.sendForNotification({
       id: notification_id,
       user_id,

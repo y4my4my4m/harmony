@@ -383,7 +383,6 @@ const emit = defineEmits<{
   edited: [post: any];
 }>();
 
-// Store
 const profileStore = useProfileStore();
 const instanceSettings = useInstanceSettingsStore();
 
@@ -603,7 +602,6 @@ const handleSuggestionSelect = (suggestion: SuggestionItem) => {
 };
 
 const handleKeydown = (event: KeyboardEvent) => {
-  // Handle autoSuggest navigation
   const handled = autoSuggest.handleKeyDown(event);
   if (handled) return;
   
@@ -660,7 +658,6 @@ const handleDrop = async (event: DragEvent) => {
   const files = event.dataTransfer?.files;
   if (!files || files.length === 0) return;
 
-  // Filter for images and videos only
   const mediaFiles = Array.from(files).filter(
     file => file.type.startsWith('image/') || file.type.startsWith('video/')
   );
@@ -670,7 +667,6 @@ const handleDrop = async (event: DragEvent) => {
     return;
   }
 
-  // Create mock event for handleFileUpload
   const mockEvent = {
     target: {
       files: mediaFiles,
@@ -739,12 +735,10 @@ const handleGifInsert = (gif: any) => {
 };
 
 const handleClose = () => {
-  // Close all pickers
   showMediaPicker.value = false;
   showVisibilityMenu.value = false;
   
   if (content.value.trim() && !isPosting.value) {
-    // Save as draft
     isDraft.value = true;
     setTimeout(() => {
       isDraft.value = false;

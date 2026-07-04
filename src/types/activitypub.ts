@@ -551,7 +551,6 @@ export interface FederatedPost extends TimelinePost {
   federation_status?: 'pending' | 'completed' | 'failed';
   last_federated_at?: string;
   
-  // Update tracking
   edit_history?: {
     content: any;
     edited_at: string;

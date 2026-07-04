@@ -337,10 +337,10 @@ const genPrompt = ref('');
 const GEN_PROMPT_MAX_LEN = 200;
 const generating = aiGen.isGenerating;
 const quota = aiGen.quota;
-/** Latest successfully generated emoji — shown in the hero slot above the list. */
+/** Latest successfully generated emoji - shown in the hero slot above the list. */
 const revealedEmoji = ref<Emoji | null>(null);
 
-// "You have N generation(s) left today" — auto-bounded by the instance cap.
+// "You have N generation(s) left today" - auto-bounded by the instance cap.
 // Admins/owners are exempt from the per-user cap, so we phrase it accordingly.
 const quotaText = computed(() => {
   const q = quota.value;
@@ -484,7 +484,7 @@ const pausePreview = (e: Event) => {
   v.currentTime = 0;
 };
 
-/** Leaving a clip card — stop muted preview and any audio on this item. */
+/** Leaving a clip card - stop muted preview and any audio on this item. */
 const handleClipItemLeave = (itemId: string, e: MouseEvent) => {
   hoveredGif.value = null;
   if (audioClipId.value === itemId) {
@@ -564,7 +564,6 @@ const applyFeed = (feed: Awaited<ReturnType<typeof gifProvider.trending>>) => {
   }
 };
 
-// Check if a GIF is favorited (by URL)
 const isFavorited = (gifUrl: string): boolean => favoriteUrls.value.has(gifUrl);
 
 // Fetch a page of trending/search results. `reset` replaces the list and
@@ -611,14 +610,12 @@ const loadMore = () => {
   fetchPage(false);
 };
 
-// Trigger the next page when the user scrolls near the bottom.
 const onResultsScroll = () => {
   const el = resultsRef.value;
   if (!el) return;
   if (el.scrollHeight - el.scrollTop - el.clientHeight < 320) loadMore();
 };
 
-// Load user's favorite GIFs
 const loadFavorites = async () => {
   isLoading.value = true;
   try {
@@ -631,7 +628,6 @@ const loadFavorites = async () => {
   }
 };
 
-// Toggle favorite status for a GIF
 const toggleFavorite = async (gif: Gif) => {
   const gifUrl = gif.media_formats.gif.url;
   const previewUrl = gif.media_formats.gifpreview.url;
@@ -650,7 +646,6 @@ const toggleFavorite = async (gif: Gif) => {
     return;
   }
   
-  // Update local state immediately
   if (result.isFavorite) {
     favoriteUrls.value.add(gifUrl);
     favorites.value.unshift({
@@ -670,7 +665,6 @@ const toggleFavorite = async (gif: Gif) => {
   favoriteUrls.value = new Set(favoriteUrls.value);
 };
 
-// Remove a favorite GIF
 const removeFavorite = async (favoriteId: string) => {
   const favorite = favorites.value.find(f => f.id === favoriteId);
   if (!favorite) return;
@@ -734,14 +728,12 @@ watch(showGenerate, (show) => {
   }
 });
 
-// Load favorites when switching to favorites view
 watch(() => props.showFavorites, (show) => {
   if (show && favorites.value.length === 0) {
     loadFavorites();
   }
 });
 
-// Initialize
 onMounted(async () => {
   await loadFavorites();
   fetchPage(true);

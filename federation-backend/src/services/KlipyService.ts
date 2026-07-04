@@ -28,7 +28,7 @@ export interface NormalizedGif {
   title?: string;
   /** Klipy item page (klipy.com/gifs/...) for attribution links. */
   itemUrl?: string;
-  /** True for clip media (mp4/webm) — rendered/sent as video, not an image. */
+  /** True for clip media (mp4/webm) - rendered/sent as video, not an image. */
   isVideo?: boolean;
   media_formats: {
     gif: { url: string };
@@ -409,7 +409,7 @@ export class KlipyService {
   /**
    * Fetch search suggestions (no query) or autocomplete (with query) terms.
    * Klipy exposes these as `/search-suggestions` and `/autocomplete` under the
-   * keyed base path. Failures degrade to an empty list — suggestions are a
+   * keyed base path. Failures degrade to an empty list - suggestions are a
    * nice-to-have, never a hard dependency.
    */
   static async fetchSuggestions(opts: {
@@ -460,7 +460,7 @@ export type GenerationStatus =
 /**
  * Kick off an AI emoji generation. Klipy returns a job id immediately and
  * processes asynchronously. When `callbackUrl` is provided, Klipy POSTs the
- * finished emoji there (preferred — no long-held request). The id is also used
+ * finished emoji there (preferred - no long-held request). The id is also used
  * for status polling as a fallback. Uses the no-ads key.
  */
 export async function startEmojiGeneration(
@@ -571,7 +571,7 @@ async function extractGeneratedImage(
     }
   }
 
-  // 2) Hosted file URL — Klipy's standard `file` size/format structure, or a
+  // 2) Hosted file URL - Klipy's standard `file` size/format structure, or a
   // plain url/preview_url. Prefer lossless/transparent formats for emoji.
   const file = item?.file as KlipyFile | undefined;
   const imageUrl =

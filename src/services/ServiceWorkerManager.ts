@@ -108,20 +108,17 @@ export class ServiceWorkerManager {
     try {
       debug.log('🔧 ServiceWorker: Initializing...')
 
-      // Check if service workers are supported
       if (!('serviceWorker' in navigator)) {
         debug.warn('⚠️ ServiceWorker: Not supported in this browser')
         return false
       }
 
-      // Register service worker
       this.registration = await navigator.serviceWorker.register('/service-worker.js', {
         scope: '/'
       })
 
       debug.log('✅ ServiceWorker: Registered successfully')
 
-      // Handle service worker updates with better UX - Mobile friendly
       this.registration.addEventListener('updatefound', () => {
         debug.log('🔄 ServiceWorker: Update found')
         const newWorker = this.registration!.installing
@@ -203,11 +200,9 @@ export class ServiceWorkerManager {
         return null
       }
 
-      // Check if already subscribed
       let subscription = await this.registration.pushManager.getSubscription()
       
       if (!subscription) {
-        // Create new subscription
         const vapidPublicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY
         
         if (!vapidPublicKey) {
@@ -223,7 +218,6 @@ export class ServiceWorkerManager {
         debug.log('✅ Push subscription created:', subscription)
       }
 
-      // Send subscription to server
       await this.sendSubscriptionToServer(subscription, userId)
       
       return subscription
@@ -314,7 +308,6 @@ export class ServiceWorkerManager {
         await router.push(`/chat/${data.data.server_id}`)
       }
 
-      // Mark notification as read
       await this.handleMarkNotificationRead(data.data)
     } catch (error) {
       debug.error('❌ Error navigating to notification:', error)
@@ -482,7 +475,6 @@ export class ServiceWorkerManager {
       const { useNotificationStore } = await import('@/stores/useNotification')
       const notificationStore = useNotificationStore()
 
-      // Find and mark the notification as read
       const notification = notificationStore.notifications.find(n => 
         n.data?.message_id === data.message_id ||
         n.data?.conversation_id === data.conversation_id
@@ -500,7 +492,6 @@ export class ServiceWorkerManager {
    * Handle service worker updates
    */
   private handleServiceWorkerUpdate(): void {
-    // Show update available notification
     debug.log('🆕 ServiceWorker update available')
     
     // You could show a toast notification here
@@ -566,7 +557,6 @@ export class ServiceWorkerManager {
       if (subscription) {
         await subscription.unsubscribe()
         
-        // Remove from server
         const { supabase } = await import('@/supabase')
         await supabase
           .from('push_subscriptions')
@@ -613,7 +603,6 @@ export class ServiceWorkerManager {
 
     debug.log('⏭️ Manually activating waiting service worker')
     
-    // Send skip waiting message to the waiting service worker
     this.registration.waiting.postMessage({ type: 'SKIP_WAITING' })
     
     // Listen for the controlling change

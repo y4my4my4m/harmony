@@ -28,7 +28,6 @@ export async function startDatabaseListener(): Promise<void> {
 
   const supabase = getSupabaseClient();
 
-  // Subscribe to real-time changes for federation events  
   let channel = supabase
     .channel('federation-events');
 
@@ -444,7 +443,6 @@ async function handleNewReaction(interaction: any): Promise<void> {
   try {
     const supabase = getSupabaseClient();
 
-    // Get the post to find its author and URL
     const { data: post } = await supabase
       .from('posts')
       .select('id, author_id, ap_id')
@@ -460,7 +458,6 @@ async function handleNewReaction(interaction: any): Promise<void> {
       return;
     }
 
-    // Get user who reacted
     const { data: user } = await supabase
       .from('profiles')
       .select('*')
@@ -472,7 +469,6 @@ async function handleNewReaction(interaction: any): Promise<void> {
       return;
     }
 
-    // Get post author profile
     const { data: postAuthor } = await supabase
       .from('profiles')
       .select('inbox_url, is_local, federated_id, username, domain')
@@ -493,7 +489,6 @@ async function handleNewReaction(interaction: any): Promise<void> {
 
     logger.info(`🌐 Federating reaction: ${content} on post ${post.id}`);
 
-    // Send to post author's inbox if they're remote
     if (!postAuthor.is_local && postAuthor.inbox_url) {
       const authorUrl = postAuthor.federated_id
         || `https://${postAuthor.domain}/users/${postAuthor.username}`;
@@ -531,7 +526,6 @@ async function handleNewFollow(follow: any): Promise<void> {
       return;
     }
 
-    // Get following (check if remote)
     const { data: following } = await supabase
       .from('profiles')
       .select('*')
@@ -549,7 +543,6 @@ async function handleNewFollow(follow: any): Promise<void> {
     const { createFollowActivity } = await import('./FederationHandlers.js');
     const activity = createFollowActivity(follower, following);
 
-    // Send to following's inbox
     if (following.inbox_url) {
       await DeliveryQueue.sendToInbox(following.inbox_url, activity, follower.id);
       logger.info(`✅ Follow request queued for delivery to ${following.inbox_url}`);
@@ -593,7 +586,6 @@ async function handleProfileUpdate(oldProfile: any, newProfile: any): Promise<vo
 
     const supabase = getSupabaseClient();
 
-    // Get full profile data (realtime might not include all fields)
     const { data: profile } = await supabase
       .from('profiles')
       .select('*')
@@ -605,11 +597,9 @@ async function handleProfileUpdate(oldProfile: any, newProfile: any): Promise<vo
       return;
     }
 
-    // Create Update activity
     const { createProfileUpdateActivity } = await import('./FederationHandlers.js');
     const activity = createProfileUpdateActivity(profile);
 
-    // Log what we're sending
     logger.info('Update activity object:', {
       id: activity.id,
       type: activity.type,
@@ -653,7 +643,6 @@ async function handleUnfollow(deletedFollow: any): Promise<void> {
       return;
     }
 
-    // Get following (check if remote)
     const { data: following } = await supabase
       .from('profiles')
       .select('*')
@@ -670,7 +659,6 @@ async function handleUnfollow(deletedFollow: any): Promise<void> {
     const { createUndoFollowActivity } = await import('./FederationHandlers.js');
     const activity = createUndoFollowActivity(follower, following, deletedFollow);
 
-    // Send to following's inbox
     if (following.inbox_url) {
       await DeliveryQueue.sendToInbox(following.inbox_url, activity, follower.id);
       logger.info(`✅ Undo Follow queued for delivery to ${following.inbox_url}`);
@@ -692,7 +680,6 @@ async function handleInteractionRemoval(deletedInteraction: any): Promise<void> 
 
     const supabase = getSupabaseClient();
 
-    // Get the user who removed the interaction
     const { data: user } = await supabase
       .from('profiles')
       .select('*')
@@ -704,7 +691,6 @@ async function handleInteractionRemoval(deletedInteraction: any): Promise<void> 
       return;
     }
 
-    // Get the post
     const { data: post } = await supabase
       .from('posts')
       .select('id, ap_id, author_id')
@@ -723,7 +709,6 @@ async function handleInteractionRemoval(deletedInteraction: any): Promise<void> 
       return;
     }
 
-    // Get post author to send Undo
     const { data: postAuthor } = await supabase
       .from('profiles')
       .select('inbox_url, is_local')
@@ -736,7 +721,6 @@ async function handleInteractionRemoval(deletedInteraction: any): Promise<void> 
       return;
     }
 
-    // Handle based on interaction type
     if (deletedInteraction.interaction_type === 'emoji_reaction' || 
         deletedInteraction.interaction_type === 'favorite') {
       logger.info(`🌐 Federating reaction removal on post ${post.id}`);
@@ -763,7 +747,6 @@ async function handlePinChange(post: any, oldPost: any): Promise<void> {
   try {
     const supabase = getSupabaseClient();
 
-    // Get full post data
     const { data: fullPost } = await supabase
       .from('posts')
       .select('*')
@@ -775,7 +758,6 @@ async function handlePinChange(post: any, oldPost: any): Promise<void> {
       return;
     }
 
-    // Get author
     const { data: author } = await supabase
       .from('profiles')
       .select('*')
@@ -802,7 +784,6 @@ async function handlePinChange(post: any, oldPost: any): Promise<void> {
       return;
     }
 
-    // Get followers to notify
     const { data: followers } = await supabase
       .from('follows')
       .select('follower:profiles!follows_follower_id_fkey(id, inbox_url, is_local, shared_inbox_url)')
@@ -840,14 +821,12 @@ async function handleNewBlock(block: any): Promise<void> {
   try {
     const supabase = getSupabaseClient();
 
-    // Get blocker
     const { data: blocker } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', block.blocker_id)
       .single();
 
-    // Get blocked user (column is blocked_user_id in user_blocks table)
     const { data: blocked } = await supabase
       .from('profiles')
       .select('*')
@@ -886,14 +865,12 @@ async function handleUnblock(block: any): Promise<void> {
 
     const supabase = getSupabaseClient();
 
-    // Get blocker
     const { data: blocker } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', block.blocker_id)
       .single();
 
-    // Get blocked user (column is blocked_user_id in user_blocks table)
     const { data: blocked } = await supabase
       .from('profiles')
       .select('*')
@@ -934,7 +911,6 @@ async function handleNewReport(report: any): Promise<void> {
 
     const supabase = getSupabaseClient();
 
-    // Get reporter
     const { data: reporter } = await supabase
       .from('profiles')
       .select('*')
@@ -945,7 +921,6 @@ async function handleNewReport(report: any): Promise<void> {
       return;
     }
 
-    // Get reported user
     const { data: reportedUser } = await supabase
       .from('profiles')
       .select('*')
@@ -962,7 +937,6 @@ async function handleNewReport(report: any): Promise<void> {
       return;
     }
 
-    // Get reported post if applicable
     let reportedPost = null;
     if (report.reported_post_id) {
       const { data: post } = await supabase
@@ -976,7 +950,6 @@ async function handleNewReport(report: any): Promise<void> {
     const { createFlagActivity } = await import('./FederationHandlers.js');
     const activity = createFlagActivity(reporter, reportedUser, reportedPost, report.reason);
 
-    // Send to the reported user's instance inbox
     const instanceDomain = reportedUser.domain;
     const instanceInbox = `https://${instanceDomain}/inbox`;
 
@@ -999,7 +972,6 @@ export async function handleChannelCreated(channel: any): Promise<void> {
     const supabase = getSupabaseClient();
     const hostDomain = config.INSTANCE_DOMAIN;
     
-    // Get server info (include owner for signing federation requests)
     const { data: server } = await supabase
       .from('servers')
       .select('id, owner, federation_enabled, is_local_server')
@@ -1010,13 +982,11 @@ export async function handleChannelCreated(channel: any): Promise<void> {
       return;
     }
     
-    // Validate server owner exists (required for HTTP signature)
     if (!server.owner) {
       logger.warn(`⚠️ Server ${server.id} has no owner - cannot federate channel creation`);
       return;
     }
     
-    // Get remote member groups
     const remoteMemberGroups = await getRemoteMemberGroups(channel.server_id);
     if (remoteMemberGroups.length === 0) {
       return;
@@ -1025,11 +995,9 @@ export async function handleChannelCreated(channel: any): Promise<void> {
     const serverUrl = `https://${hostDomain}/servers/${channel.server_id}`;
     const channelUrl = `${serverUrl}/channels/${channel.id}`;
     
-    // Determine channel type
     const channelType = channel.type === 2 ? 'harmony:Category' : 
                         (channel.type === 1 ? 'harmony:VoiceChannel' : 'harmony:TextChannel');
     
-    // Create Add activity
     const activity = {
       '@context': [
         'https://www.w3.org/ns/activitystreams',
@@ -1071,7 +1039,6 @@ export async function handleChannelUpdated(channel: any, _oldChannel: any): Prom
     const supabase = getSupabaseClient();
     const hostDomain = config.INSTANCE_DOMAIN;
     
-    // Get server info (include owner for signing federation requests)
     const { data: server } = await supabase
       .from('servers')
       .select('id, owner, federation_enabled, is_local_server')
@@ -1082,13 +1049,11 @@ export async function handleChannelUpdated(channel: any, _oldChannel: any): Prom
       return;
     }
     
-    // Validate server owner exists (required for HTTP signature)
     if (!server.owner) {
       logger.warn(`⚠️ Server ${server.id} has no owner - cannot federate channel update`);
       return;
     }
     
-    // Get remote member groups
     const remoteMemberGroups = await getRemoteMemberGroups(channel.server_id);
     if (remoteMemberGroups.length === 0) {
       return;
@@ -1097,7 +1062,6 @@ export async function handleChannelUpdated(channel: any, _oldChannel: any): Prom
     const serverUrl = `https://${hostDomain}/servers/${channel.server_id}`;
     const channelUrl = `${serverUrl}/channels/${channel.id}`;
     
-    // Create Update activity
     const activity = {
       '@context': [
         'https://www.w3.org/ns/activitystreams',
@@ -1139,7 +1103,6 @@ export async function handleChannelDeleted(channel: any): Promise<void> {
     const supabase = getSupabaseClient();
     const hostDomain = config.INSTANCE_DOMAIN;
     
-    // Get server info (include owner for signing federation requests)
     const { data: server } = await supabase
       .from('servers')
       .select('id, owner, federation_enabled, is_local_server')
@@ -1150,13 +1113,11 @@ export async function handleChannelDeleted(channel: any): Promise<void> {
       return;
     }
     
-    // Validate server owner exists (required for HTTP signature)
     if (!server.owner) {
       logger.warn(`⚠️ Server ${server.id} has no owner - cannot federate channel deletion`);
       return;
     }
     
-    // Get remote member groups
     const remoteMemberGroups = await getRemoteMemberGroups(channel.server_id);
     if (remoteMemberGroups.length === 0) {
       return;
@@ -1165,7 +1126,6 @@ export async function handleChannelDeleted(channel: any): Promise<void> {
     const serverUrl = `https://${hostDomain}/servers/${channel.server_id}`;
     const channelUrl = channel.ap_id || `${serverUrl}/channels/${channel.id}`;
     
-    // Create Remove activity (opposite of Add)
     const activity = {
       '@context': [
         'https://www.w3.org/ns/activitystreams',
@@ -1201,13 +1161,11 @@ export async function handleServerUpdated(server: any, _oldServer: any): Promise
     const supabase = getSupabaseClient();
     const hostDomain = config.INSTANCE_DOMAIN;
     
-    // Validate server owner exists (required for HTTP signature)
     if (!server.owner) {
       logger.warn(`⚠️ Server ${server.id} has no owner - cannot federate server update`);
       return;
     }
     
-    // Get remote member groups
     const remoteMemberGroups = await getRemoteMemberGroups(server.id);
     if (remoteMemberGroups.length === 0) {
       logger.info('No remote members to notify of server update');
@@ -1216,7 +1174,6 @@ export async function handleServerUpdated(server: any, _oldServer: any): Promise
     
     const serverUrl = `https://${hostDomain}/servers/${server.id}`;
     
-    // Build Update activity with all profile properties
     const iconUrl = getFullServerIconUrl(server.icon) ?? undefined;
     const bannerUrl = getFullServerBannerUrl(server.banner) ?? undefined;
 
@@ -1325,7 +1282,6 @@ export async function handleNewChannelMessage(message: any): Promise<void> {
   try {
     const supabase = getSupabaseClient();
     
-    // Get channel info
     const { data: channel } = await supabase
       .from('channels')
       .select('id, name, server_id')
@@ -1337,7 +1293,6 @@ export async function handleNewChannelMessage(message: any): Promise<void> {
       return;
     }
     
-    // Import and call the handler
     const { handleChannelMessageFederation } = await import('./ChannelMessageHandler.js');
     await handleChannelMessageFederation({
       message_id: message.id,
@@ -1358,7 +1313,6 @@ async function handleChannelMessageUpdate(message: any): Promise<void> {
   try {
     const supabase = getSupabaseClient();
     
-    // Get channel info
     const { data: channel } = await supabase
       .from('channels')
       .select('id, server_id')
@@ -1369,7 +1323,6 @@ async function handleChannelMessageUpdate(message: any): Promise<void> {
       return;
     }
     
-    // Import and call the handler
     const { handleChannelMessageUpdate: federateUpdate } = await import('./ChannelMessageHandler.js');
     await federateUpdate({
       message_id: message.id,
@@ -1388,7 +1341,6 @@ async function handleChannelMessageDeletion(message: any): Promise<void> {
   try {
     const supabase = getSupabaseClient();
     
-    // Get channel info
     const { data: channel } = await supabase
       .from('channels')
       .select('id, server_id')
@@ -1399,7 +1351,6 @@ async function handleChannelMessageDeletion(message: any): Promise<void> {
       return;
     }
     
-    // Import and call the handler
     const { handleChannelMessageDelete: federateDelete } = await import('./ChannelMessageHandler.js');
     await federateDelete({
       message_id: message.id,
@@ -1429,7 +1380,6 @@ export async function handleNewDM(message: any): Promise<void> {
     const supabase = getSupabaseClient();
     const domain = config.INSTANCE_DOMAIN;
     
-    // Get the sender profile
     const { data: sender } = await supabase
       .from('profiles')
       .select('id, username, display_name, avatar_url, domain, is_local, federated_id')
@@ -1447,7 +1397,6 @@ export async function handleNewDM(message: any): Promise<void> {
       return;
     }
     
-    // Get all participants in the conversation (excluding sender)
     const { data: participants, error: participantsError } = await supabase
       .from('conversation_participants')
       .select('user_id')
@@ -1467,7 +1416,6 @@ export async function handleNewDM(message: any): Promise<void> {
     
     logger.debug(`Found ${participants.length} participant(s) in conversation`);
     
-    // Get profiles for all participants
     const participantIds = participants.map(p => p.user_id);
     const { data: profiles, error: profilesError } = await supabase
       .from('profiles')
@@ -1497,7 +1445,6 @@ export async function handleNewDM(message: any): Promise<void> {
       remoteUsers.map((p: any) => `${p.username}@${p.domain}`)
     );
     
-    // Look up conversation type so the receiver knows group vs direct
     const { data: conversation } = await supabase
       .from('conversations')
       .select('type')
@@ -1505,11 +1452,9 @@ export async function handleNewDM(message: any): Promise<void> {
       .single();
     const conversationType = conversation?.type || 'direct';
 
-    // Build sender URL
     const senderUrl = `https://${domain}/users/${sender.username}`;
     const messageUrl = `https://${domain}/messages/${message.id}`;
     
-    // Convert content to HTML
     const htmlContent = convertContentToHTML(message.content);
     const attachments = extractAttachments(message.content);
     const baseTags = extractActivityPubTags(message.content);
@@ -1737,7 +1682,6 @@ export async function handleMessageReactionRemoval(deletedReaction: any): Promis
     const supabase = getSupabaseClient();
     const domain = config.INSTANCE_DOMAIN;
 
-    // Get the user who removed the reaction
     const { data: user } = await supabase
       .from('profiles')
       .select('*')

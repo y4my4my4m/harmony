@@ -115,7 +115,6 @@ export class GifService {
         })
 
       if (error) {
-        // Handle unique constraint violation (already favorited)
         if (error.code === '23505') {
           return { success: false, error: 'GIF already in favorites' }
         }
@@ -123,7 +122,6 @@ export class GifService {
         return { success: false, error: error.message }
       }
 
-      // Update local caches
       this.favoriteUrls.add(gifUrl)
       // Invalidate full cache so next getFavorites() refreshes
       this.favoritesCache = null
@@ -157,7 +155,6 @@ export class GifService {
         return { success: false, error: error.message }
       }
 
-      // Update local caches
       this.favoriteUrls.delete(gifUrl)
       // Invalidate full cache so next getFavorites() refreshes
       this.favoritesCache = null
@@ -228,7 +225,6 @@ export class GifService {
    * uses AuthContextService for auth
    */
   async getFavorites(mediaType?: GifMediaType): Promise<FavoriteGif[]> {
-    // Return cached data if still valid
     const now = Date.now()
     if (this.favoritesCache && (now - this.favoritesCacheTime) < CACHE_TTL) {
       return this.filterByType(this.favoritesCache, mediaType)
@@ -278,7 +274,6 @@ export class GifService {
 
       const favorites = (data || []) as FavoriteGif[]
       
-      // Update caches
       this.favoritesCache = favorites
       this.favoritesCacheTime = Date.now()
       this.favoriteUrls = new Set(favorites.map(f => f.gif_url))

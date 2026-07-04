@@ -13,7 +13,6 @@ import { userDataService } from '@/services/userDataService';
 export function migrateLegacyMentions(content: MessagePart[]): MessagePart[] {
   return content.map(part => {
     if (part.type === 'mention') {
-      // Check if it's already in new format
       if ('username' in part && 'domain' in part && 'isLocal' in part) {
         return part; // Already migrated
       }
@@ -96,7 +95,6 @@ export function formatMentionForDisplay(mention: MentionContent): string {
  * @returns MentionContent object or null if user not found
  */
 export function parseDisplayMention(displayMention: string): MentionContent | null {
-  // Remove @ prefix if present
   const cleanMention = displayMention.startsWith('@') ? displayMention.slice(1) : displayMention;
   
   // Split by @ to get username and domain
@@ -108,7 +106,6 @@ export function parseDisplayMention(displayMention: string): MentionContent | nu
     return null;
   }
   
-  // Look up user by username and domain
   const userId = userDataService.findUserIdByUsername(username, domain);
   if (!userId) {
     return null;

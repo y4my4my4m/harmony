@@ -399,11 +399,9 @@ const loadInvites = async () => {
   
   try {
     isLoading.value = true
-    // Load all invites for this server (admin view)
     const invites = await getInviteHistory(authStore.session.user.id, props.serverId)
     allInvites.value = invites
     
-    // Load user information for creators
     await loadUserData(invites)
   } catch (error) {
     debug.error('Error loading invites:', error)

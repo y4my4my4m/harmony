@@ -174,15 +174,12 @@ const inputRef = ref<HTMLInputElement | HTMLTextAreaElement>()
 const passwordVisible = ref(false)
 const isFocused = ref(false)
 
-// Generate unique ID
 const inputId = computed(() => props.id || `input-${Math.random().toString(36).substr(2, 9)}`)
 
-// Determine input component type
 const inputComponent = computed(() => {
   return props.type === 'textarea' ? 'textarea' : 'input'
 })
 
-// Compute actual input type for password toggle
 const computedType = computed(() => {
   if (props.type === 'password' && passwordVisible.value) {
     return 'text'
@@ -190,12 +187,10 @@ const computedType = computed(() => {
   return props.type === 'textarea' ? undefined : props.type
 })
 
-// Show password toggle button
 const showPasswordToggle = computed(() => {
   return props.passwordToggle && props.type === 'password'
 })
 
-// Show clear button
 const showClearButton = computed(() => {
   return props.clearable && !props.disabled && !props.readonly
 })

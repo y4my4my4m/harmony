@@ -101,7 +101,6 @@ export function splitIntoBlockSegments(
   while (i < lines.length) {
     const line = lines[i];
 
-    // Track fenced code blocks so `>` inside them is treated as literal text.
     if (FENCE_LINE.test(line)) {
       insideFence = !insideFence;
       textBuffer.push(line);

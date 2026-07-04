@@ -23,7 +23,6 @@ export async function handlePostJob(data: FederationJobData): Promise<void> {
   logger.info(`📝 Processing post job: ${type} for post ${post_id}`);
 
   try {
-    // Fetch full post data
     const { data: post, error: postError } = await supabase
       .from('posts')
       .select('*')
@@ -36,7 +35,6 @@ export async function handlePostJob(data: FederationJobData): Promise<void> {
       return;
     }
 
-    // Fetch author profile
     const { data: author, error: authorError } = await supabase
       .from('profiles')
       .select('*')
@@ -49,14 +47,12 @@ export async function handlePostJob(data: FederationJobData): Promise<void> {
       return;
     }
 
-    // Update status to processing
     await updateFederationStatus(post_id, 'posts', 'processing');
 
     let activity;
 
     switch (type) {
       case 'create':
-        // Create activity for new post
         activity = await createPostActivity(post, author);
         
         // Persist ap_id so reaction/reply handlers can find it
@@ -137,7 +133,6 @@ export async function handlePostJob(data: FederationJobData): Promise<void> {
         break;
 
       case 'delete':
-        // Create Delete activity
         activity = createDeleteActivity(author, post);
         
         // Broadcast deletion to followers
@@ -160,7 +155,6 @@ export async function handlePostJob(data: FederationJobData): Promise<void> {
         return;
     }
 
-    // Mark as completed
     await updateFederationStatus(post_id, 'posts', 'completed');
     logger.info(`✅ Post ${post_id} federated successfully`);
 

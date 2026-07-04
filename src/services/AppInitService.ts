@@ -24,11 +24,9 @@ export async function initializeAppSettings() {
     const instanceSettings = useInstanceSettingsStore()
     await instanceSettings.fetchSettings()
     
-    // Initialize visual theme system
     const visualTheme = useVisualTheme()
     await visualTheme.initialize()
     
-    // Load user-specific settings if logged in
     const authStore = useAuthStore()
     if (authStore.session?.user?.id) {
       await loadUserSettings()
@@ -58,7 +56,6 @@ async function loadUserSettings() {
       return null
     }
     
-    // Apply locale if available
     if (profile.locale) {
       await setLocale(profile.locale)
     }

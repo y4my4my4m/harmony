@@ -10,7 +10,7 @@ export function useChannelPermissions() {
   } = useServerPermissions()
 
   // Consistent permission model: owner bypass + isLocalServer check for all channel operations
-  // This ensures semantic coherence - if you can drag, you can create/move/delete
+  // One permission gates drag/create/move/delete so the operations stay coherent
   const hasManageChannelsPermission = computed(() => {
     // For federated servers, no local user can manage channels
     if (!isLocalServer.value) return false

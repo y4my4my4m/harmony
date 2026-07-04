@@ -261,7 +261,6 @@ const voiceUploading = ref(false);
 // message wasn't sent, without losing their draft.
 const overLimitBuzz = ref(false);
 
-// Get store for channel ID (more reliable than props on direct page load)
 const serverChannelStore = useServerChannelStore()
 
 // Send permission gating (channel-level role permissions)
@@ -422,7 +421,6 @@ const handleVoiceRecordingComplete = async (result: VoiceRecordingResult) => {
   }
 }
 
-// Initialize and listen for resize
 onMounted(() => {
   checkMobile();
   window.addEventListener('resize', checkMobile);
@@ -430,7 +428,6 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener('resize', checkMobile);
-  // Cleanup typing indicator
   stopTyping()
   hasStartedTyping = false
   if (typingResetTimeout) {
@@ -458,7 +455,6 @@ const updateText = (newText: string, cursorPosition?: number) => {
     
     emit('update:modelValue', newText);
     
-    // Wait for Vue to process the update
     nextTick(() => {
       // Now render the content manually with skip cursor restore
       if (richEditorRef.value?.renderContent) {
@@ -523,13 +519,11 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
       // Typing indicator is triggered in handleModelValueUpdate to avoid duplicate calls
     };
 
-    // Handle typing indicator - only send "on" once, then keep alive
     const handleTyping = () => {
       if (!typingContext.value) {
         return
       }
       
-      // Clear reset timeout
       if (typingResetTimeout) {
         clearTimeout(typingResetTimeout)
         typingResetTimeout = null
@@ -617,17 +611,14 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
     };
 
     const send = () => {
-      // Stop typing indicator when sending
       stopTyping()
       hasStartedTyping = false
 
-      // Clear typing reset timeout
       if (typingResetTimeout) {
         clearTimeout(typingResetTimeout)
         typingResetTimeout = null
       }
 
-      // Close auto-suggest and active command when sending
       autoSuggest.closeSuggestions();
       autoSuggest.dismissActiveCommand();
 
@@ -662,7 +653,6 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
         triggerMessage();
         emit('update:modelValue', '');
 
-        // Clear the rich text editor
         if (richEditorRef.value?.clear) {
           richEditorRef.value.clear();
         }
@@ -684,7 +674,6 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
 
     const handleBlur = () => {
       isEditorFocused.value = false;
-      // Stop typing when editor loses focus
       stopTyping()
       hasStartedTyping = false
       if (typingResetTimeout) {
@@ -756,7 +745,6 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
         uploadStatus: 'pending'
       };
 
-      // Create preview for images and videos
       if (file.type.startsWith('image/') || file.type.startsWith('video/')) {
         const url = URL.createObjectURL(file);
         fileData.preview = url;
@@ -884,7 +872,6 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
       }
     };
 
-    // Handle external file drop events from ChatComponent
     const handleExternalFileDrop = (event: CustomEvent) => {
       const { files } = event.detail;
       if (files && files.length > 0) {

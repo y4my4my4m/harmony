@@ -149,14 +149,11 @@ export class MegolmMessageEncryptionService {
     }
     this.currentUserId = profile.id
 
-    // Initialize backup service (includes realtime key request subscriptions)
     if (this.currentUserId) {
       await megolmKeyBackupService.initialize(this.currentUserId)
       
-      // Register callback for when keys are received via realtime
       megolmKeyBackupService.onKeyReceived((roomId, sessionId) => {
         debug.log(`🔑 Key received for room ${roomId.substring(0, 8)}..., session ${sessionId.substring(0, 8)}...`)
-        // Emit event for UI to retry decryption
         window.dispatchEvent(new CustomEvent('megolm-key-received', { 
           detail: { roomId, sessionId } 
         }))
@@ -182,10 +179,8 @@ export class MegolmMessageEncryptionService {
       if (storedKeys) {
         debug.log('🔐 Found stored CryptoKeys in IndexedDB - auto-unlocking...')
 
-        // Set derived keys directly (no mnemonic needed)
         recoveryKeyService.setDerivedKeys(storedKeys)
 
-        // Initialize Megolm service with the encryption key
         await megolmService.initialize(this.currentUserId, storedKeys.encryptionKey)
         await this.ensureIdentityKeyPair()
         // Ensure the per-user signing key exists. Legacy users (created
@@ -194,7 +189,6 @@ export class MegolmMessageEncryptionService {
         await this.ensureSigningKeyPair().catch(err =>
           debug.warn('⚠️ Failed to ensure signing key on auto-unlock:', err),
         )
-        // Register this device (per-device signing identity, trust state).
         await deviceIdentityService.ensureRegistered(this.currentUserId).catch(err =>
           debug.warn('⚠️ Failed to register device on auto-unlock:', err),
         )
@@ -293,7 +287,6 @@ export class MegolmMessageEncryptionService {
     // Derive keys from mnemonic
     const derivedKeys = await recoveryKeyService.deriveKeysFromMnemonic(words)
 
-    // Initialize Megolm service with encryption key
     await megolmService.initialize(this.currentUserId, derivedKeys.encryptionKey)
 
     // Ensure identity key pair (ECDH) and signing key pair (ECDSA) both exist
@@ -335,7 +328,6 @@ export class MegolmMessageEncryptionService {
     void megolmKeyBackupService.processMyFulfilledRequests()
       .catch(error => debug.warn('⚠️ Failed to import fulfilled key requests:', error))
 
-    // Store non-extractable CryptoKeys in IndexedDB (mnemonic is NOT persisted)
     await this.storeSessionKeys(derivedKeys)
     this.clearLegacyStorage()
 
@@ -358,7 +350,6 @@ export class MegolmMessageEncryptionService {
       throw new Error('Not initialized')
     }
 
-    // Generate new recovery mnemonic (real BIP39 SHA-256 checksum)
     const words = await recoveryKeyService.generateMnemonic(12)
     
     // Complete setup with the generated words
@@ -382,7 +373,6 @@ export class MegolmMessageEncryptionService {
     // Derive keys from mnemonic
     const derivedKeys = await recoveryKeyService.deriveKeysFromMnemonic(words)
 
-    // Initialize Megolm service
     await megolmService.initialize(this.currentUserId, derivedKeys.encryptionKey)
     debug.log('✅ Megolm service initialized')
 
@@ -392,7 +382,6 @@ export class MegolmMessageEncryptionService {
     await this.ensureIdentityKeyPair(true)
     debug.log('✅ Identity key pair ready')
 
-    // Generate signing key pair for per-message sender binding
     await this.ensureSigningKeyPair()
     debug.log('✅ Signing key pair ready')
 
@@ -402,10 +391,8 @@ export class MegolmMessageEncryptionService {
       debug.warn('⚠️ Failed to register device during setup:', err),
     )
 
-    // Initialize backup service
     await megolmKeyBackupService.initialize(this.currentUserId)
 
-    // Generate verification code
     const verificationCode = await recoveryKeyService.generateVerificationCode()
 
     // Store recovery key metadata (NOT the key itself!)
@@ -421,7 +408,6 @@ export class MegolmMessageEncryptionService {
     }
     debug.log('✅ Recovery key metadata registered')
 
-    // Create initial backup
     try {
       await megolmKeyBackupService.createBackup()
       debug.log('✅ Initial backup created')
@@ -429,7 +415,6 @@ export class MegolmMessageEncryptionService {
       debug.warn('⚠️ Failed to create initial backup:', backupError)
     }
 
-    // Store non-extractable CryptoKeys in IndexedDB (mnemonic is NOT persisted)
     await this.storeSessionKeys(derivedKeys)
     this.clearLegacyStorage()
 
@@ -536,7 +521,6 @@ export class MegolmMessageEncryptionService {
       )
     }
 
-    // Generate a new ECDH key pair
     const keyPair = await crypto.subtle.generateKey(
       { name: 'ECDH', namedCurve: 'P-256' },
       true,
@@ -662,7 +646,6 @@ export class MegolmMessageEncryptionService {
     const encryptedPrivate = await this.encryptPrivateKeyForStorage(privatePkcs8B64)
 
     if (existingRow?.id) {
-      // Add the signing keypair to the existing row (preserves ECDH key).
       const { error } = await supabase
         .from('user_key_pairs')
         .update({
@@ -778,7 +761,7 @@ export class MegolmMessageEncryptionService {
         this.signingKeyCache.set(userId, { entry, cachedAt: entry.cachedAt })
         this.checkAndPinSigningKey(userId, fingerprint).catch(() => {})
       } catch {
-        // Import failed: leave uncached so the per-sender path logs details.
+        // per-user prefetch is best-effort
       }
     }))
 
@@ -1024,7 +1007,6 @@ export class MegolmMessageEncryptionService {
       megolmKeyBackupService.triggerAutoBackup().catch(() => {})
     }
 
-    // Store encrypted message in content as base64 text
     const encryptedContent: MessagePart[] = [{
       type: 'text',
       text: encryptedMessage.ciphertext
@@ -1132,7 +1114,6 @@ export class MegolmMessageEncryptionService {
       throw new Error('No encryption metadata')
     }
 
-    // Get room ID from message context
     const roomId = message.channel_id || message.conversation_id || ''
 
     if (metadata.algorithm === 'megolm_v3') {
@@ -1396,13 +1377,11 @@ export class MegolmMessageEncryptionService {
       throw new Error('Missing Megolm encryption metadata')
     }
 
-    // Get the encrypted ciphertext
     const ciphertext = message.content[0]?.type === 'text' ? message.content[0].text : ''
     if (!ciphertext) {
       throw new Error('No encrypted content found')
     }
 
-    // Build the encrypted message object
     const encryptedMessage: MegolmEncryptedMessage = {
       sessionId,
       messageIndex,
@@ -1568,7 +1547,6 @@ export class MegolmMessageEncryptionService {
   ): Promise<void> {
     if (!this.currentUserId) return
 
-    // Get users who need the session (fast in-memory check)
     const usersNeedingSession = megolmService.getUsersNeedingSession(roomId, recipientIds, sessionId)
 
     if (usersNeedingSession.length === 0) {
@@ -1593,7 +1571,6 @@ export class MegolmMessageEncryptionService {
       return
     }
 
-    // Create lookup map for fast access
     const keyMap = new Map<string, string>()
     for (const row of publicKeys || []) {
       if (row.identity_public_key) {
@@ -1614,7 +1591,7 @@ export class MegolmMessageEncryptionService {
     debug.log(`📤 Sharing session with ${usersWithKeys} users...`)
 
     // PARALLEL: encrypt the session key for every recipient (cheap, CPU-bound).
-    // The N ECDH wraps are unavoidable for group E2EE — each recipient gets the
+    // The N ECDH wraps are unavoidable for group E2EE - each recipient gets the
     // key sealed to their own identity key so the server can never read it.
     const encryptResults = await Promise.all(
       Array.from(keyMap.entries()).map(async ([userId, publicKey]) => {
@@ -2304,7 +2281,6 @@ export class MegolmMessageEncryptionService {
     this.identityCreatedAtMs = null
     this.clearLegacyStorage()
 
-    // Delete the local backup record.
     await megolmKeyBackupService.deleteBackup().catch(() => {})
 
     // Wipe ALL server-side identity in one atomic, RLS-bypassing call. This is
@@ -2325,10 +2301,8 @@ export class MegolmMessageEncryptionService {
         .or(`sender_user_id.eq.${this.currentUserId},recipient_user_id.eq.${this.currentUserId}`)
     }
 
-    // Close Megolm service
     megolmService.close()
 
-    // Clear recovery key service
     recoveryKeyService.clear()
 
     debug.log('✅ Encryption reset complete')

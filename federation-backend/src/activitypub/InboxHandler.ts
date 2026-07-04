@@ -98,7 +98,6 @@ router.get(
     const maxDate = req.query.max_date as string | undefined;
     const supabase = getSupabaseClient();
 
-    // Get user
     const { data: user, error: userError } = await supabase
       .from('profiles')
       .select('id, federated_id')
@@ -167,7 +166,6 @@ router.get(
         .or(`to_addresses.cs.{"${escapedId}"},cc_addresses.cs.{"${escapedId}"}`)
         .eq('is_local', false);
 
-      // Apply type filter to count if specified
       if (activityType) {
         countQuery = countQuery.eq('ap_type', activityType);
       }
@@ -212,7 +210,6 @@ router.get(
       .order('created_at', { ascending: false })
       .limit(limit + 1);
 
-    // Apply cursor (timestamp-based for efficient pagination)
     if (cursor && cursor !== 'start') {
       const { data: cursorActivity } = await supabase
         .from('ap_activities')
@@ -230,12 +227,10 @@ router.get(
       query = query.range(offset, offset + limit - 1);
     }
 
-    // Apply type filter
     if (activityType) {
       query = query.eq('ap_type', activityType);
     }
 
-    // Apply date range filters
     if (minDate) {
       query = query.gte('created_at', minDate);
     }
@@ -255,9 +250,7 @@ router.get(
     const items = (activities || []).slice(0, limit);
     const lastItem = items[items.length - 1];
 
-    // Return activities from activity_data (full ActivityPub format)
     const orderedItems = items.map((activity: any) => {
-      // Return the full activity from activity_data, ensuring it has required fields
       const activityData = activity.activity_data || {};
       return {
         '@context': activityData['@context'] || 'https://www.w3.org/ns/activitystreams',
@@ -279,7 +272,6 @@ router.get(
       orderedItems,
     };
 
-    // Add pagination links
     if (hasMore && lastItem?.id) {
       response.next = `${inboxUrl}?cursor=${lastItem.id}&limit=${limit}`;
     }
@@ -309,7 +301,6 @@ async function handleInbox(
   logger.debug(`handleInbox called for user: ${username || 'shared inbox'}`);
   logger.debug(`Raw body type: ${typeof activity}, is null: ${activity === null}`);
 
-  // Validate activity structure
   if (!activity || !activity.type || !activity.actor) {
     logger.warn(`Invalid activity structure - type: ${activity?.type}, actor: ${activity?.actor}`);
     res.status(400).json({ error: 'Invalid activity' });
@@ -318,7 +309,6 @@ async function handleInbox(
 
   logger.info(`📥 Received ${activity.type} activity from ${activity.actor}`);
 
-  // Check if the sending instance is blocked (O(1) in-memory lookup)
   try {
     const actorUrl = new URL(activity.actor);
     const actorDomain = actorUrl.hostname;
@@ -379,7 +369,6 @@ async function handleInbox(
       }
     } else {
       // Verify the actor in the activity matches the signing key's owner
-      // This prevents someone from signing an activity on behalf of another user
       if (verification.actorUrl && actorUrl) {
         const actorMatch = SignatureService.verifyActorMatch(actorUrl, verification.actorUrl);
         if (!actorMatch) {
@@ -453,7 +442,6 @@ async function handleInbox(
     }
   }
 
-  // Store activity in database (idempotent)
   const supabase = getSupabaseClient();
   // actorUrl already extracted above during signature verification
   let originDomain: string | null = null;

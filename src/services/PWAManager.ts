@@ -61,19 +61,14 @@ export class PWAManager {
     // Detect PWA capabilities
     this.detectCapabilities()
 
-    // Setup install prompt handling
     this.setupInstallPrompt()
 
-    // Setup native app behaviors
     this.setupNativeAppBehaviors()
 
-    // Setup share target handling
     this.setupShareTarget()
 
-    // Setup app shortcuts
     this.setupAppShortcuts()
 
-    // Setup badge API
     this.setupBadgeAPI()
 
     // Refresh flags after listeners are registered (installPrompt may still be null until event fires)
@@ -155,22 +150,17 @@ export class PWAManager {
       this.setupPullToRefresh()
     }
 
-    // Handle status bar safe areas
     this.setupSafeAreas()
 
     // Prevent zoom on double tap
     this.preventDoubleClickZoom()
 
-    // Add native-like focus management
     this.setupFocusManagement()
 
-    // Setup keyboard shortcuts for PWA
     this.setupKeyboardShortcuts()
 
-    // Add native scroll behavior
     this.setupNativeScrolling()
 
-    // Setup orientation handling
     this.setupOrientationHandling()
   }
 
@@ -178,12 +168,10 @@ export class PWAManager {
    * Setup enhanced focus management for better keyboard navigation
    */
   private setupFocusManagement(): void {
-    // Track focus for better accessibility
     let lastFocusedElement: HTMLElement | null = null
 
     document.addEventListener('focusin', (e) => {
       lastFocusedElement = e.target as HTMLElement
-      // Add visual focus indicator for keyboard users
       if (e.target instanceof HTMLElement) {
         e.target.classList.add('keyboard-focused')
       }
@@ -195,7 +183,6 @@ export class PWAManager {
       }
     })
 
-    // Handle escape key to clear focus
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && lastFocusedElement) {
         lastFocusedElement.blur()
@@ -218,7 +205,6 @@ export class PWAManager {
       // Cmd/Ctrl + Shift + R for hard refresh
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'R') {
         e.preventDefault()
-        // Clear cache and reload
         if ('caches' in window) {
           caches.keys().then(names => {
             names.forEach(name => caches.delete(name))
@@ -261,7 +247,6 @@ export class PWAManager {
    */
   private setupOrientationHandling(): void {
     const handleOrientationChange = () => {
-      // Emit event for components to respond to orientation changes
       window.dispatchEvent(new CustomEvent('pwa-orientation-change', {
         detail: {
           orientation: screen.orientation?.type || 'unknown',
@@ -269,7 +254,6 @@ export class PWAManager {
         }
       }))
 
-      // Update viewport height for mobile browsers
       const vh = window.innerHeight * 0.01
       document.documentElement.style.setProperty('--vh', `${vh}px`)
     }
@@ -290,7 +274,6 @@ export class PWAManager {
    * Setup share target handling
    */
   private setupShareTarget(): void {
-    // Handle shared content when app is launched via share target
     const urlParams = new URLSearchParams(window.location.search)
     
     if (urlParams.has('title') || urlParams.has('text') || urlParams.has('url')) {
@@ -309,7 +292,6 @@ export class PWAManager {
    * Setup app shortcuts handling
    */
   private setupAppShortcuts(): void {
-    // Handle app shortcuts navigation
     const path = window.location.pathname
     
     if (path === '/dm') {
@@ -423,7 +405,6 @@ export class PWAManager {
     let refreshIndicator: HTMLElement | null = null
     let validScrollContainer: Element | null = null
 
-    // Define selectors for valid pull-to-refresh contexts
     const validSelectors = [
       '[data-timeline]',           // Timeline feeds
       '[data-chat-messages]',      // Chat/DM messages
@@ -435,7 +416,6 @@ export class PWAManager {
     ]
 
     const isValidPullToRefreshContext = (target: Element): boolean => {
-      // Check if touch started on or within a valid container
       for (const selector of validSelectors) {
         if (target.matches?.(selector) || target.closest?.(selector)) {
           return true
@@ -445,12 +425,10 @@ export class PWAManager {
     }
 
     const isAtTopOfScrollContainer = (container: Element): boolean => {
-      // Check if the container is scrolled to the very top
       return container.scrollTop <= 0
     }
 
     const findScrollContainer = (target: Element): Element | null => {
-      // Find the scrollable container for the target element
       let current: Element | null = target
       
       while (current && current !== document.documentElement) {
@@ -484,7 +462,6 @@ export class PWAManager {
         </div>
       `
       
-      // Add styles
       Object.assign(refreshIndicator.style, {
         position: 'fixed',
         top: '0',
@@ -556,7 +533,6 @@ export class PWAManager {
 
       validScrollContainer = findScrollContainer(target)
       
-      // Check if we're at the top
       const isAtTop = validScrollContainer 
         ? isAtTopOfScrollContainer(validScrollContainer)
         : window.scrollY === 0
@@ -612,7 +588,6 @@ export class PWAManager {
    * Setup safe areas for notch devices
    */
   private setupSafeAreas(): void {
-    // Add CSS custom properties for safe areas
     document.documentElement.style.setProperty('--safe-area-inset-top', 'env(safe-area-inset-top)')
     document.documentElement.style.setProperty('--safe-area-inset-right', 'env(safe-area-inset-right)')
     document.documentElement.style.setProperty('--safe-area-inset-bottom', 'env(safe-area-inset-bottom)')
@@ -646,17 +621,14 @@ export class PWAManager {
   }
 
   private notifyInstallAvailable(): void {
-    // Emit event for components to listen
     window.dispatchEvent(new CustomEvent('pwa-install-available'))
   }
 
   private notifyAppInstalled(): void {
-    // Emit event for components to listen
     window.dispatchEvent(new CustomEvent('pwa-app-installed'))
   }
 
   private handleSharedContent(data: any): void {
-    // Emit event with shared data
     window.dispatchEvent(new CustomEvent('pwa-shared-content', { detail: data }))
   }
 
@@ -666,7 +638,6 @@ export class PWAManager {
   }
 
   private hidePullToRefreshIndicator(): void {
-    // Hide pull-to-refresh UI
     debug.log('📱 PWA Manager: Hide pull-to-refresh indicator')
   }
 

@@ -24,7 +24,6 @@ export async function handleVoiceJoinJob(data: FederationJobData): Promise<void>
   logger.info(`🎤 Processing voice join federation: user ${user_id} -> channel ${channel_id}`);
 
   try {
-    // Get user info
     const { data: user } = await supabase
       .from('profiles')
       .select('id, username, federated_id, is_local')
@@ -37,7 +36,6 @@ export async function handleVoiceJoinJob(data: FederationJobData): Promise<void>
       return;
     }
 
-    // Get channel and server info
     const { data: channel } = await supabase
       .from('channels')
       .select(`
@@ -106,7 +104,6 @@ export async function handleVoiceJoinJob(data: FederationJobData): Promise<void>
         server.name
       );
 
-      // Send to each remote instance
       for (const group of remoteMemberGroups) {
         const inbox = group.shared_inbox || `https://${group.instance}/inbox`;
         await DeliveryQueue.enqueue(joinActivity, inbox, user.id, 10);
@@ -138,7 +135,6 @@ export async function handleVoiceLeaveJob(data: FederationJobData): Promise<void
   logger.info(`🔇 Processing voice leave federation: user ${user_id} -> channel ${channel_id}`);
 
   try {
-    // Get user info
     const { data: user } = await supabase
       .from('profiles')
       .select('id, username, federated_id, is_local')
@@ -150,7 +146,6 @@ export async function handleVoiceLeaveJob(data: FederationJobData): Promise<void
       return;
     }
 
-    // Get server info
     const { data: server } = await supabase
       .from('servers')
       .select('id, name, federation_enabled, is_local_server, federation_inbox_url')
@@ -200,7 +195,6 @@ export async function handleVoiceLeaveJob(data: FederationJobData): Promise<void
         server_id
       );
 
-      // Send to each remote instance
       for (const group of remoteMemberGroups) {
         const inbox = group.shared_inbox || `https://${group.instance}/inbox`;
         await DeliveryQueue.enqueue(leaveActivity, inbox, user.id, 10);

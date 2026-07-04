@@ -56,7 +56,6 @@ const canManageServer = computed(() => serverSettingsPermissions.value.canEditBa
 const canCreateCategories = computed(() => channelPermissions.value.canCreateCategories);
 const canCreateChannels = computed(() => channelPermissions.value.canCreateChannels);
 
-// Check if user is server owner
 const isOwner = computed(() => {
   const server = serverChannelStore.currentServer;
   const userId = authStore.session?.user?.id;
@@ -133,7 +132,6 @@ const leaveServer = async () => {
     
     const server = serverChannelStore.currentServer;
     
-    // Check if it's a remote server (federated)
     if (server && !server.is_local_server) {
       const result = await federationServerService.leaveServer(props.serverId, userId);
       if (!result.success) {

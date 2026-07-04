@@ -16,7 +16,7 @@
  * Receive routing:
  *   - By default, events route into the central `useActivityPub` store
  *     handlers (`handleRealtimePostCreate/Update/Delete`) which update
- *     `homeFeed` / `publicFeed` / `localFeed` — the right default for views
+ *     `homeFeed` / `publicFeed` / `localFeed` - the right default for views
  *     that consume those store feeds directly.
  *   - Views that maintain their OWN posts array (UserProfileView,
  *     HashtagView) pass an `options` object with custom handlers so they

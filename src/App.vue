@@ -130,7 +130,6 @@ const handleSwitchToChat = () => {
   router.push({ name: 'Chat' })
 }
 
-// Initialize haptic feedback for the app
 onMounted(() => {
   // Initialize app settings in background (non-blocking)
   // This loads theme/language settings but doesn't block rendering
@@ -161,7 +160,6 @@ onMounted(() => {
   }
   document.addEventListener('click', hapticClickHandler)
   
-  // Initialize status lifecycle debugger in development
   if (import.meta.env.DEV) {
     import('@/services/StatusLifecycleDebugger').then(({ statusDebugger }) => {
       statusDebugger.startDebugging()

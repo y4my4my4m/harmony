@@ -323,7 +323,6 @@ export default defineComponent({
       isTouchDevice.value = hasSmallScreen || isTouchOnlyDevice;
     };
 
-    // Get available devices and apply stored settings
     const getDevices = async () => {
       try {
         const devices = await navigator.mediaDevices.enumerateDevices();
@@ -347,28 +346,23 @@ export default defineComponent({
     // Load stored settings - called AFTER devices are enumerated
     const loadStoredSettings = async () => {
       try {
-        // Load from centralized VoiceSettingsService
         const settings = VoiceSettingsService.getAll();
         const constraints = VoiceSettingsService.getAudioConstraints();
         
-        // Apply audio constraints
         echoCancellation.value = constraints.echoCancellation;
         noiseSuppression.value = constraints.noiseSuppression;
         autoGainControl.value = constraints.autoGainControl;
         
-        // Apply volume and quality settings
         if (settings.inputVolume !== undefined) inputVolume.value = settings.inputVolume;
         if (settings.outputVolume !== undefined) outputVolume.value = settings.outputVolume;
         if (settings.videoQuality) videoQuality.value = settings.videoQuality;
         if (settings.frameRate) frameRate.value = settings.frameRate;
         if (settings.audioBitrate) audioBitrate.value = settings.audioBitrate;
         
-        // Validate and apply device selections
         const storedInputDevice = settings.selectedInputDevice;
         const storedOutputDevice = settings.selectedOutputDevice;
         const storedVideoDevice = settings.selectedVideoDevice;
         
-        // Check if stored input device exists
         if (storedInputDevice && inputDevices.value.some(d => d.deviceId === storedInputDevice)) {
           selectedInputDevice.value = storedInputDevice;
           debug.log('🎤 [VoiceSettingsPanel] Using stored input device:', storedInputDevice);
@@ -380,7 +374,6 @@ export default defineComponent({
           }
         }
         
-        // Check if stored output device exists
         if (storedOutputDevice && outputDevices.value.some(d => d.deviceId === storedOutputDevice)) {
           selectedOutputDevice.value = storedOutputDevice;
           debug.log('🔊 [VoiceSettingsPanel] Using stored output device:', storedOutputDevice);
@@ -392,7 +385,6 @@ export default defineComponent({
           }
         }
         
-        // Check if stored video device exists
         if (storedVideoDevice && videoDevices.value.some(d => d.deviceId === storedVideoDevice)) {
           selectedVideoDevice.value = storedVideoDevice;
           debug.log('📹 [VoiceSettingsPanel] Using stored video device:', storedVideoDevice);
@@ -461,7 +453,6 @@ export default defineComponent({
       testLevel.value = 0;
     };
 
-    // Update video preview
     const updateVideoPreview = async () => {
       if (previewStream.value) {
         previewStream.value.getTracks().forEach(track => track.stop());
@@ -515,7 +506,6 @@ export default defineComponent({
         debug.error('❌ [VoiceSettingsPanel] Failed to switch output device:', error);
       }
       
-      // Save via VoiceSettingsService
       VoiceSettingsService.setOutputDevice(selectedOutputDevice.value);
       
       emit('update-settings', { type: 'outputDevice', value: selectedOutputDevice.value });
@@ -538,7 +528,6 @@ export default defineComponent({
         autoGainControl: autoGainControl.value
       };
       
-      // Update WebRTC service directly (this also saves via VoiceSettingsService)
       unifiedWebRTC.updateAudioConstraints(audioConstraints);
       
       // Also emit for any parent components that might be listening
@@ -549,7 +538,6 @@ export default defineComponent({
     };
 
     const updateVideoSettings = () => {
-      // Convert quality string to resolution number
       const qualityToResolution: Record<string, number> = {
         '360p': 360,
         '480p': 480,
@@ -558,7 +546,6 @@ export default defineComponent({
         'source': -1, // -1 means native/source
       };
       
-      // Save video settings via VoiceSettingsService
       VoiceSettingsService.updateMany({
         videoQuality: videoQuality.value as '480p' | '720p' | '1080p',
         frameRate: frameRate.value,

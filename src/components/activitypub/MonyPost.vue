@@ -744,10 +744,8 @@ const author = computed(() => {
 });
 
 // Fallback author for edge cases where author is temporarily unavailable
-// This prevents posts from disappearing during re-renders due to RLS policy timing issues
 const authorFallback = computed(() => {
   if (author.value) return null;
-  // Return a minimal author object to keep the post visible
   return {
     id: props.post.author_id,
     username: 'Loading...',
@@ -858,7 +856,6 @@ const isQuotePost = computed(() => {
     return false;
   }
   
-  // Check if user actually added their own content
   const hasUserContent = content.some(part => 
     part.type === 'text' && part.text && part.text.trim().length > 0
   );
@@ -886,7 +883,6 @@ const isQuotePost = computed(() => {
   return true;
 });
 
-// Get reblog/quote reference URL for unhydrated posts
 const reblogReferenceUrl = computed(() => {
   return props.post.metadata?.reblog_of_ap_url || 
          props.post.metadata?.quote_url || 
@@ -944,7 +940,7 @@ const userQuoteContent = computed(() => {
 
 const displayContent = computed(() => {
   // For pure reblogs, show the original content
-  // For quote posts, we'll show the original content in a quoted block
+  // Quote posts render the original content in a quoted block
   return (isReblog.value && props.post.reblog) ? props.post.reblog.content : props.post.content;
 });
 
@@ -1081,7 +1077,6 @@ const displayIsSensitive = computed(() => {
   return props.post.is_sensitive;
 });
 
-// Track dynamically loaded reply context
 const loadedReplyContext = ref<any>(null);
 const isLoadingReplyContext = ref(false);
 
@@ -1101,12 +1096,10 @@ const displayReplyContext = computed(() => {
   return null;
 });
 
-// Show reply context card only in timeline view (not in thread view)
 const showReplyContextCard = computed(() => {
   return displayReplyContext.value && !props.hideReplyContext && !props.isInThread;
 });
 
-// Load reply context if we have in_reply_to but no reply_context
 const loadReplyContext = async () => {
   // For reblogs, use the reblogged post's in_reply_to
   const inReplyTo = isReblog.value 
@@ -1134,7 +1127,6 @@ const loadReplyContext = async () => {
       .single();
     
     if (!error && parentPost && parentPost.author) {
-      // Handle author being either an object or array (Supabase join result)
       const author = Array.isArray(parentPost.author) ? parentPost.author[0] : parentPost.author;
       if (author) {
         loadedReplyContext.value = {
@@ -1162,7 +1154,7 @@ const loadReplyContext = async () => {
   }
 };
 
-// For reblogs, we need to fetch the user's interaction state with the ORIGINAL post
+// Reblogs: interaction state belongs to the ORIGINAL post
 const originalPostInteractions = ref<{
   is_favorited: boolean;
   is_reblogged: boolean;
@@ -1173,7 +1165,6 @@ const loadOriginalPostInteractions = async () => {
   if (!isReblog.value || !props.post.reblog?.id) return;
   
   // Check if interactions were pre-loaded by the store
-  // This prevents N+1 queries when the parent already batch-fetched interactions
   const reblog = props.post.reblog;
   if (reblog.is_favorited !== undefined || reblog.is_reblogged !== undefined || reblog.is_bookmarked !== undefined) {
     originalPostInteractions.value = {
@@ -1212,7 +1203,6 @@ const loadOriginalPostInteractions = async () => {
   }
 };
 
-// Load reply context on mount if needed
 onMounted(() => {
   // Check for reply context in post or reblog
   const inReplyTo = isReblog.value 
@@ -1251,7 +1241,7 @@ const originalPostId = computed(() => {
 // every reply call site agrees.
 const replyTarget = computed<TimelinePost>(() => getOriginalPost(props.post));
 
-// For reblogs, we need to show reactions for the ORIGINAL post
+// Reblogs: reactions belong to the ORIGINAL post
 // Create a post-like object with the correct ID for PostReactions component
 const displayPostForReactions = computed((): TimelinePost => {
   if (isReblog.value && props.post.reblog?.id) {
@@ -1297,7 +1287,6 @@ const displayInteractionCounts = computed(() => {
 });
 
 const replyContentText = computed(() => {
-  // Return the full JSONB content from reply_context
   if (displayReplyContext.value && displayReplyContext.value.content) {
     return displayReplyContext.value.content;
   }
@@ -1371,7 +1360,6 @@ const visibilityTitle = computed(() => {
 
 // Check if post can be reblogged (Mastodon behavior: only public/unlisted posts can be reblogged)
 const canReblog = computed(() => {
-  // Get the original post's visibility (for reblogs, check the original)
   const originalVisibility = props.post.reblog?.visibility || props.post.visibility;
   return originalVisibility === 'public' || originalVisibility === 'unlisted';
 });
@@ -1413,7 +1401,6 @@ const formatCount = (count: number) => {
 };
 
 const onReply = () => {
-  // Toggle inline reply - handled entirely within MonyPost
   showInlineReply.value = !showInlineReply.value;
   // Don't emit to parent - we handle replies inline now
 };
@@ -1493,7 +1480,6 @@ const handleEmojiSelected = async (emoji: any) => {
       } else {
         debug.log(`✅ Added emoji reaction ${emoji.name} to post ${props.post.id}`);
         closeEmojiPopup();
-        // Refresh the reactions display
         if (postReactionsRef.value) {
           await (postReactionsRef.value as any).loadReactions?.();
         }
@@ -1515,7 +1501,6 @@ const handleEmojiSelected = async (emoji: any) => {
  */
 const formatEmojiName = (name: string | undefined): string => {
   if (!name) return '';
-  // Remove colons from start/end if present
   let formatted = name.replace(/^:+|:+$/g, '');
   // Remove @. or @domain suffix for cleaner display
   formatted = formatted.replace(/@\.?$/, '').replace(/@[^@]+$/, '');
@@ -1545,11 +1530,9 @@ const renderDisplayNameWithEmojis = (displayName: string, emojis?: Array<{name: 
   if (!displayName) return '';
   if (!emojis || emojis.length === 0) return escapeHtml(displayName);
   
-  // Create emoji map for quick lookup - handle various name formats
   const emojiMap = new Map<string, string>();
   for (const e of emojis) {
     if (!e.name || !e.url) continue;
-    // Store with original name
     emojiMap.set(e.name, e.url);
     // Also store without colons if present
     const cleanName = e.name.replace(/^:|:$/g, '');
@@ -1687,7 +1670,6 @@ const onUndoReblog = async () => {
   closeMenu();
   
   try {
-    // Get the original post ID from the reblog
     const originalPostId = props.post.reblog?.id || props.post.metadata?.reblog_of;
     
     if (originalPostId) {
@@ -1722,10 +1704,8 @@ const handleDeleteConfirm = async () => {
     isDeleting.value = true;
     showDeleteConfirmation.value = false;
     
-    // Call the delete action through the store
     await activityPubStore.deletePost(props.post.id);
     
-    // Show success toast
     notificationStore.showToast(
       'server_update',
       'Post deleted',
@@ -1738,7 +1718,6 @@ const handleDeleteConfirm = async () => {
   } catch (error) {
     debug.error('❌ Failed to delete post:', error);
     
-    // Show error toast
     notificationStore.showToast(
       'server_update',
       'Delete failed',
@@ -1760,13 +1739,11 @@ const handleDeleteCancel = () => {
 const showReplyTarget = async () => {
   if (displayReplyContext.value) {
     try {
-      // Get conversation navigation data from service
       const navigationData = await ConversationService.getConversationNavigationData(props.post.id, {
         highlightPost: props.post.id
       });
       
       if (navigationData.success && navigationData.route) {
-        // Handle navigation in the component
         await router.push(navigationData.route);
       } else {
         debug.error('❌ Failed to get conversation navigation data:', navigationData.error);
@@ -1909,7 +1886,6 @@ const handleSimpleReblog = async () => {
 
 const handleQuoteReblog = () => {
   showReblogMenu.value = false;
-  // Open composer with the ORIGINAL post as a quote (not a reblog)
   const originalPost = props.post.reblog || props.post;
   const originalAuthor = props.post.reblog_author || props.post.author;
   activityPubStore.openComposer({
@@ -2032,9 +2008,7 @@ const handleAdminDeletePost = async () => {
   }
 };
 
-// Handle emoji picker for original post (for reblogs, target the original)
 const handleShowEmojiPickerForOriginal = () => {
-  // Create a post-like object with the original post ID for the emoji picker
   const targetPost: any = isReblog.value && props.post.reblog
     ? { ...props.post.reblog, id: originalPostId.value }
     : props.post;

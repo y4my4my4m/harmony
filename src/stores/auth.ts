@@ -304,7 +304,6 @@ export const useAuthStore = defineStore('auth', {
         // 1. User opens encryption settings
         // 2. User views/creates encrypted messages
         // 3. Server requires encryption
-        // This prevents unnecessary initialization for users who don't use encryption
       }
 
       supabase.auth.onAuthStateChange(async (event, session) => {
@@ -312,7 +311,6 @@ export const useAuthStore = defineStore('auth', {
         const newUserId = session?.user?.id;
         
         // If already logged in with same user, IGNORE most events
-        // This prevents re-validation on tab visibility changes, token refresh, etc.
         // Supabase fires SIGNED_IN when tab becomes visible - we must ignore it
         if (currentUserId && newUserId === currentUserId) {
           // Same user - only handle actual logout or user data changes
@@ -607,7 +605,6 @@ export const useAuthStore = defineStore('auth', {
           }
         }
 
-        // Check if user has 2FA enabled
         const { data: factors } = await supabase.auth.mfa.listFactors();
         const totpFactor = factors?.totp?.find((f: any) => f.status === 'verified');
 

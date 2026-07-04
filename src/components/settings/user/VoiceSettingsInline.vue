@@ -361,7 +361,6 @@ const handleKeybindKeydown = (event: KeyboardEvent) => {
   }
 };
 
-// Handle mouse button recording (for PTT on mouse buttons)
 const handleKeybindMousedown = (event: MouseEvent) => {
   if (!isRecordingKeybind.value) return;
   
@@ -406,7 +405,6 @@ watch(releaseDelay, (newValue) => {
   localReleaseDelay.value = newValue;
 }, { immediate: true });
 
-// Get available devices and apply stored settings
 const getDevices = async () => {
   try {
     const devices = await navigator.mediaDevices.enumerateDevices();
@@ -430,16 +428,13 @@ const getDevices = async () => {
 // Load stored settings - called AFTER devices are enumerated
 const loadStoredSettings = async () => {
   try {
-    // Load from centralized VoiceSettingsService
     const settings = VoiceSettingsService.getAll();
     const constraints = VoiceSettingsService.getAudioConstraints();
     
-    // Apply audio constraints
     echoCancellation.value = constraints.echoCancellation;
     noiseSuppression.value = constraints.noiseSuppression;
     autoGainControl.value = constraints.autoGainControl;
     
-    // Apply volume settings
     if (settings.inputVolume !== undefined) inputVolume.value = settings.inputVolume;
     if (settings.outputVolume !== undefined) outputVolume.value = settings.outputVolume;
     if (settings.videoQuality) videoQuality.value = settings.videoQuality;
@@ -451,7 +446,6 @@ const loadStoredSettings = async () => {
     const storedOutputDevice = settings.selectedOutputDevice;
     const storedVideoDevice = settings.selectedVideoDevice;
     
-    // Check if stored input device exists
     if (storedInputDevice && inputDevices.value.some(d => d.deviceId === storedInputDevice)) {
       selectedInputDevice.value = storedInputDevice;
       debug.log('🎤 [VoiceSettingsInline] Using stored input device:', storedInputDevice);
@@ -464,7 +458,6 @@ const loadStoredSettings = async () => {
       }
     }
     
-    // Check if stored output device exists
     if (storedOutputDevice && outputDevices.value.some(d => d.deviceId === storedOutputDevice)) {
       selectedOutputDevice.value = storedOutputDevice;
       debug.log('🔊 [VoiceSettingsInline] Using stored output device:', storedOutputDevice);
@@ -477,7 +470,6 @@ const loadStoredSettings = async () => {
       }
     }
     
-    // Check if stored video device exists
     if (storedVideoDevice && videoDevices.value.some(d => d.deviceId === storedVideoDevice)) {
       selectedVideoDevice.value = storedVideoDevice;
       debug.log('📹 [VoiceSettingsInline] Using stored video device:', storedVideoDevice);
@@ -547,7 +539,6 @@ const stopTesting = () => {
   testLevel.value = 0;
 };
 
-// Update video preview
 const updateVideoPreview = async () => {
   if (previewStream.value) {
     previewStream.value.getTracks().forEach(track => track.stop());
@@ -621,7 +612,6 @@ const updateAudioSettings = () => {
     autoGainControl: autoGainControl.value
   };
   
-  // Update WebRTC service directly
   unifiedWebRTC.updateAudioConstraints(audioConstraints);
   saveSettings();
   

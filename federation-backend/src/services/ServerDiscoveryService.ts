@@ -62,7 +62,6 @@ router.get(
         banner: serverData.image?.url || null,
         memberCount: serverData.memberCount ?? serverData['harmony:memberCount'] ?? 0,
         channels: (serverData['harmony:channels'] || []).map((c: any) => {
-          // Map type to simple 'text', 'voice', or 'category'
           let type = 'text';
           if (c.type === 'harmony:VoiceChannel' || c.type === 1 || c.channelType === 'voice') {
             type = 'voice';
@@ -142,7 +141,7 @@ router.post(
         return `https://${instance}${url.startsWith('/') ? '' : '/'}${url}`;
       };
 
-      // Fix server icon — omit default so remote UIs use their own fallback
+      // Fix server icon - omit default so remote UIs use their own fallback
       if (data.server?.icon) {
         data.server.icon = isDefaultServerIcon(data.server.icon)
           ? null
@@ -180,7 +179,6 @@ router.get(
     const { code } = req.params;
     const supabase = getSupabaseClient();
 
-    // Find the invite
     const { data: invite, error: inviteError } = await supabase
       .from('invites')
       .select(`
@@ -198,12 +196,10 @@ router.get(
       return res.status(404).json({ error: 'Invite not found' });
     }
 
-    // Check if expired
     if (invite.expires_at && new Date(invite.expires_at) < new Date()) {
       return res.status(410).json({ error: 'Invite has expired' });
     }
 
-    // Check if fully used
     if (invite.uses !== null && invite.max_uses !== null && invite.uses >= invite.max_uses) {
       return res.status(410).json({ error: 'Invite has reached maximum uses' });
     }
@@ -211,21 +207,18 @@ router.get(
     const server = invite.server;
     const hostDomain = config.INSTANCE_DOMAIN;
 
-    // Get member count
     const { count: memberCount } = await supabase
       .from('user_servers')
       .select('*', { count: 'exact', head: true })
       .eq('server_id', server.id)
       .eq('status', 'accepted');
 
-    // Get categories from channel_categories table
     const { data: categories } = await supabase
       .from('channel_categories')
       .select('id, name, order')
       .eq('server_id', server.id)
       .order('order', { ascending: true });
 
-    // Get channels
     const { data: channels } = await supabase
       .from('channels')
       .select('id, name, type, category, order, description')
@@ -233,10 +226,8 @@ router.get(
       .eq('is_remote', false)
       .order('order', { ascending: true });
 
-    // Build channel structure with full AP IDs
     const serverApId = `https://${hostDomain}/servers/${server.id}`;
     
-    // Convert categories to channel format (type = 'category')
     const categoryList = (categories || []).map(cat => ({
       id: `${serverApId}/channels/${cat.id}`,
       localId: cat.id,
@@ -248,7 +239,6 @@ router.get(
       description: null,
     }));
 
-    // Convert regular channels
     const channelList = (channels || []).map(c => ({
       id: `${serverApId}/channels/${c.id}`,
       localId: c.id,
@@ -302,7 +292,6 @@ router.post(
       return res.status(400).json({ error: 'serverUrl and userId are required' });
     }
 
-    // Verify caller owns the userId they claim
     const authHeader = req.headers.authorization;
     if (!authHeader?.startsWith('Bearer ')) {
       return res.status(401).json({ error: 'Authorization required' });
@@ -315,7 +304,6 @@ router.post(
 
     const supabase = getSupabaseClient();
 
-    // Verify user exists, is local, and matches the authenticated caller
     const { data: user, error: userError } = await supabase
       .from('profiles')
       .select('id, username, federated_id, inbox_url')
@@ -328,7 +316,6 @@ router.post(
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Fetch remote server
     const remoteServer = await ServerDiscoveryService.fetchServerByUrl(serverUrl);
     if (!remoteServer) {
       return res.status(404).json({ error: 'Remote server not found' });
@@ -357,11 +344,9 @@ router.post(
     }
 
     if (!localServer) {
-      // Create local reference (joining user becomes the reference owner)
       localServer = await ServerDiscoveryService.createLocalServerReference(remoteServer, userId);
     }
 
-    // Check if already a member
     const { data: existingMembership } = await supabase
       .from('user_servers')
       .select('id, status')
@@ -395,7 +380,6 @@ router.post(
       return res.status(500).json({ error: 'Failed to create membership' });
     }
 
-    // Send Join activity to remote server (notifies them even for public servers)
     const joinActivity = ServerDiscoveryService.createJoinActivity(
       user.federated_id || `https://${config.INSTANCE_DOMAIN}/users/${user.username}`,
       remoteServer.id,
@@ -460,7 +444,6 @@ router.post(
       return res.status(400).json({ error: 'serverId and userId are required' });
     }
 
-    // Verify caller owns the userId they claim
     const authHeader = req.headers.authorization;
     if (!authHeader?.startsWith('Bearer ')) {
       return res.status(401).json({ error: 'Authorization required' });
@@ -473,7 +456,6 @@ router.post(
 
     const supabase = getSupabaseClient();
 
-    // Get user and verify they match the authenticated caller
     const { data: user } = await supabase
       .from('profiles')
       .select('id, username, federated_id')
@@ -486,7 +468,6 @@ router.post(
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Get server
     const { data: server } = await supabase
       .from('servers')
       .select('*')
@@ -497,7 +478,6 @@ router.post(
       return res.status(404).json({ error: 'Server not found' });
     }
 
-    // Remove local membership
     await supabase
       .from('user_servers')
       .delete()
@@ -560,7 +540,6 @@ router.get(
     
     const supabase = getSupabaseClient();
 
-    // Get channel info
     const { data: channel, error: channelError } = await supabase
       .from('channels')
       .select(`
@@ -640,7 +619,6 @@ router.get(
 
       const data = await response.json();
       
-      // Parse ActivityPub collection response
       const items = data.orderedItems || data.items || [];
       
       // Deduplicate author URLs to avoid fetching the same user multiple times
@@ -661,7 +639,6 @@ router.get(
       const { ActivityProcessor } = await import('../activitypub/ActivityProcessor.js');
       const authorMap = new Map<string, any>();
       
-      // Fetch each author and map them by the URL we used to fetch them
       const fetchResults = await Promise.all(Array.from(uniqueAuthorUrls).map(async (url) => {
         try {
           const profile = await ActivityProcessor['ensureRemoteUser'](url);
@@ -678,11 +655,9 @@ router.get(
         }
       }));
       
-      // Build the author map from successful results
       for (const result of fetchResults) {
         if (result && result.profile) {
           const { url, profile } = result;
-          // Map by BOTH the original URL and the canonical federated_id
           authorMap.set(url, profile);
           authorMap.set(url.toLowerCase(), profile);
           if (profile.federated_id && profile.federated_id !== url) {
@@ -702,10 +677,8 @@ router.get(
         
         if (!note) return null;
 
-        // Get author URL - can be from attributedTo or actor
         const authorUrl = note.attributedTo || activity.actor;
         
-        // Get author from our pre-fetched map (try multiple variations)
         let author = authorMap.get(authorUrl) || 
                      authorMap.get(authorUrl?.toLowerCase()) || 
                      null;
@@ -723,7 +696,6 @@ router.get(
                               note.content?.match(/^\[([^\]]+)\]:?/);
           const bridgeName = bridgeMatch?.[1] || note.name || 'External User';
           
-          // Create a placeholder author for bridge/external messages
           author = {
             id: null,
             username: bridgeName.toLowerCase().replace(/[^a-z0-9_-]/g, '_').substring(0, 30),
@@ -741,7 +713,6 @@ router.get(
           }
         }
 
-        // Extract message UUID from ap_id if possible
         let messageUuid: string | undefined;
         const uuidMatch = note.id?.match(/\/messages\/([a-f0-9-]{36})$/i);
         if (uuidMatch) {
@@ -804,7 +775,6 @@ router.get(
             url: t.icon?.url,
           }));
 
-        // Fetch reactions for this message if we have a cached ID
         let reactions: any[] = [];
         if (cachedMsgId) {
           const { data: rxns } = await supabase.rpc('get_message_reactions', { 
@@ -813,7 +783,6 @@ router.get(
           reactions = rxns || [];
         }
 
-        // Return the message regardless of caching success
         return {
           id: cachedMsgId || messageUuid || note.id,
           content: note.content,
@@ -864,17 +833,16 @@ export class ServerDiscoveryService {
   /**
    * Discover a server by WebFinger handle, the standard Fediverse way.
    * Formats supported:
-   * - server@domain.com         (preferred — an acct: handle, like Lemmy's !community@instance)
+   * - server@domain.com         (preferred - an acct: handle, like Lemmy's !community@instance)
    * - @server@domain.com        (leading @ tolerated)
    * - harmony://server@domain.com/slug   (legacy form, mapped to acct:slug@domain)
-   * - https://domain.com/servers/uuid    (direct URL — short-circuits WebFinger)
+   * - https://domain.com/servers/uuid    (direct URL - short-circuits WebFinger)
    *
    * Resolution: GET https://{domain}/.well-known/webfinger?resource=acct:{slug}@{domain}
    * then follow the rel="self" application/activity+json link to the Group actor.
    */
   static async discoverByWebFinger(resource: string): Promise<any | null> {
     try {
-      // Handle direct URL
       if (resource.startsWith('https://')) {
         return await this.fetchServerByUrl(resource);
       }
@@ -964,7 +932,6 @@ export class ServerDiscoveryService {
 
       const server = await response.json();
 
-      // Verify it's a Group (server)
       if (server.type !== 'Group') {
         logger.warn(`URL does not point to a Group: ${server.type}`);
         return null;
@@ -998,10 +965,8 @@ export class ServerDiscoveryService {
       const serverUrl = new URL(remoteServer.id);
       const hostDomain = serverUrl.hostname;
 
-      // Extract channels from Harmony extension
       const channels = remoteServer['harmony:channels'] || [];
 
-      // Check if server reference already exists
       const { data: existing } = await supabase
         .from('servers')
         .select('*')
@@ -1108,7 +1073,6 @@ export class ServerDiscoveryService {
         return match ? match[1] : null;
       };
 
-      // Map to track category AP IDs to local UUIDs
       const categoryMap = new Map<string, string>();
 
       // First pass: Create categories in channel_categories table (NOT channels table!)
@@ -1293,7 +1257,6 @@ export class ServerDiscoveryService {
     const supabase = getSupabaseClient();
 
     try {
-      // Get server reference
       const { data: server } = await supabase
         .from('servers')
         .select('*')
@@ -1306,7 +1269,6 @@ export class ServerDiscoveryService {
         return;
       }
 
-      // Fetch latest from remote
       const remoteServer = await this.fetchServerByUrl(server.ap_id);
 
       if (!remoteServer) {
@@ -1314,7 +1276,6 @@ export class ServerDiscoveryService {
         return;
       }
 
-      // Update local reference
       await supabase
         .from('servers')
         .update({
@@ -1396,10 +1357,8 @@ export class ServerDiscoveryService {
 
       logger.info(`👥 Found ${members.length} remote members`);
 
-      // Import ActivityProcessor for ensureRemoteUser
       const { ActivityProcessor } = await import('../activitypub/ActivityProcessor.js');
 
-      // Process each member
       for (const member of members) {
         try {
           // Member can be a URL string or an object with id
@@ -1420,11 +1379,9 @@ export class ServerDiscoveryService {
             continue; // Invalid URL
           }
 
-          // Create/update remote user profile
           const profile = await ActivityProcessor['ensureRemoteUser'](memberUrl);
           
           if (profile) {
-            // Add to user_servers if not already there
             const { error } = await supabase
               .from('user_servers')
               .upsert({
@@ -1458,7 +1415,6 @@ export class ServerDiscoveryService {
   static async getOrCreateServerReference(apId: string): Promise<any | null> {
     const supabase = getSupabaseClient();
 
-    // Check if exists
     const { data: existing } = await supabase
       .from('servers')
       .select('*')
@@ -1469,7 +1425,6 @@ export class ServerDiscoveryService {
       return existing;
     }
 
-    // Fetch and create
     const remoteServer = await this.fetchServerByUrl(apId);
     if (!remoteServer) {
       return null;

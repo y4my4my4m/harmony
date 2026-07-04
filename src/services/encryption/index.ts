@@ -1,7 +1,7 @@
 /**
  * Encryption services (Megolm-style, Matrix-inspired).
  *
- * Import lazily — these modules pull in crypto code that must not land in the
+ * Import lazily - these modules pull in crypto code that must not land in the
  * initial bundle:
  *
  * const { megolmMessageEncryptionService } = await import('@/services/encryption/MegolmMessageEncryptionService')

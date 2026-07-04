@@ -794,7 +794,6 @@ const handleMobileVoiceOpenChat = () => {
   openVoiceChannelChat(channelId);
 };
 
-// Get participants for mobile voice preview
 const getMobileVoicePreviewParticipants = computed(() => {
   if (!mobileVoicePreviewChannel.value) return [];
   
@@ -802,7 +801,6 @@ const getMobileVoicePreviewParticipants = computed(() => {
   return userIds.map(id => ({ id }));
 });
 
-// Open voice channel text chat
 const openVoiceChannelChat = (channelId: string) => {
   selectChannel(channelId);
 };
@@ -864,7 +862,6 @@ const loadActiveThreads = async (forceRefresh = false) => {
       grouped.get(channelId)!.push(thread);
     }
     channelThreads.value = grouped;
-    // Update cache metadata
     loadedThreadsServerId.value = serverId;
     threadsLastFetchedAt.value = new Date();
     debug.log(`✅ Loaded ${threads.length} threads for server, cached at ${threadsLastFetchedAt.value.toISOString()}`);
@@ -905,7 +902,6 @@ const createCategory = async (categoryName: string) => {
 // NOTE: Channel creation is handled by CreateChannel.vue which emits to ChatLayout.vue
 // The realtime subscription automatically adds new channels to the store via _handleChannelInsert
 
-// Check if user is in voice channel (or optimistically joining it)
 const isUserInVoiceChannel = (channelId: string): boolean => {
   // Check real connection
   if (voiceChannelStore.isConnected && voiceChannelStore.currentChannelId === channelId) {
@@ -1053,7 +1049,6 @@ const handleDeleteCategory = (category: Category) => {
     confirmationText: category.name,
     onConfirm: async () => {
       try {
-        // Check if user wants to delete channels too (typed "NAME DELETE")
         const confirmInput = document.querySelector<HTMLInputElement>('.confirmation-section input');
         const deleteChannels = confirmInput?.value?.trim().toUpperCase().endsWith(' DELETE') || false;
         
@@ -1191,7 +1186,6 @@ watch(() => props.currentServer?.id, async (newServerId, oldServerId) => {
 watch(() => serverChannelStore.categories, () => categoryChannelsCache.value.clear(), { deep: true });
 watch(() => serverChannelStore.categoryChannels, () => categoryChannelsCache.value.clear(), { deep: true });
 
-// Load threads and muted state when server changes
 watch(() => props.currentServer?.id, (newServerId) => {
   if (newServerId) {
     loadActiveThreads();

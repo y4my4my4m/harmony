@@ -475,7 +475,6 @@ export class AudioThemeService {
       // Preload new theme sounds
       await this.preloadTheme(themeId)
       
-      // Clear old cache to free memory
       this.clearCacheForTheme(previousTheme)
       
       this.emit('themeChanged', { from: previousTheme, to: themeId, theme })

@@ -441,7 +441,6 @@ const getPosition = (userId: string) => {
   const position = spatialStore.getUserPosition(userId);
   if (position) return position;
   
-  // Initialize user if not positioned
   spatialStore.initializeUserPosition(userId);
   return spatialStore.getUserPosition(userId) || { x: 0, y: 0 };
 };
@@ -530,12 +529,10 @@ const handleGridMouseMove = (event: MouseEvent) => {
   const x = event.clientX - rect.left;
   const y = event.clientY - rect.top;
   
-  // Calculate new position with bounds checking
   const dragOffset = spatialStore.dragOffset;
   const newX = Math.max(20, Math.min(rect.width - 20, x - dragOffset.x));
   const newY = Math.max(20, Math.min(rect.height - 20, y - dragOffset.y));
   
-  // Update LOCAL visual position immediately for 60fps smooth movement
   localVisualPositions.value.set(spatialStore.draggedUserId, { x: newX, y: newY });
   
   // Store position is updated by the debounced timer or on release
@@ -557,7 +554,6 @@ const handleGridMouseUp = () => {
     if (spatialStore.settings.enabled) {
       spatialAudioService.updateSpatialEffects();
       
-      // Show brief "updated" message
       showUpdatedMessage.value = true;
       setTimeout(() => {
         showUpdatedMessage.value = false;
@@ -608,12 +604,10 @@ const handleGridTouchMove = (event: TouchEvent) => {
   const x = touch.clientX - rect.left;
   const y = touch.clientY - rect.top;
   
-  // Calculate new position with bounds checking
   const dragOffset = spatialStore.dragOffset;
   const newX = Math.max(20, Math.min(rect.width - 20, x - dragOffset.x));
   const newY = Math.max(20, Math.min(rect.height - 20, y - dragOffset.y));
   
-  // Update LOCAL visual position immediately for smooth movement
   localVisualPositions.value.set(spatialStore.draggedUserId, { x: newX, y: newY });
 };
 
@@ -635,7 +629,6 @@ const startSpatialUpdateTimer = () => {
         spatialStore.setUserPosition(spatialStore.draggedUserId, localPos.x, localPos.y);
       }
       
-      // Update spatial audio effects
       spatialAudioService.updateSpatialEffects();
     }
   }, SPATIAL_UPDATE_INTERVAL);
@@ -668,12 +661,10 @@ const toggleSettings = () => {
 };
 
 const updateSettings = () => {
-  // Clear existing timer
   if (settingsUpdateTimer) {
     clearTimeout(settingsUpdateTimer);
   }
   
-  // Update settings immediately for UI responsiveness
   spatialStore.updateSettings(localSettings.value);
   
   // Debounce the spatial audio updates
@@ -727,7 +718,6 @@ watch(() => spatialStore.settings.enabled, (enabled) => {
   }
 });
 
-// Track participant IDs to detect joins/leaves without deep watching
 let previousParticipantIds = new Set<string>();
 
 // Initialize positions for new participants (watch by user ID string to avoid deep watching)
@@ -736,14 +726,12 @@ watch(
   () => {
     const currentIds = new Set(allParticipants.value.map(p => p.userId));
     
-    // Initialize positions for new participants
     currentIds.forEach(userId => {
       if (!previousParticipantIds.has(userId)) {
         spatialStore.initializeUserPosition(userId);
       }
     });
     
-    // Remove positions for users who left
     previousParticipantIds.forEach(userId => {
       if (!currentIds.has(userId)) {
         spatialStore.removeUserPosition(userId);
@@ -779,7 +767,6 @@ onMounted(() => {
   nextTick(() => {
     updateGridSize();
     
-    // Initialize positions for current participants
     allParticipants.value.forEach(participant => {
       spatialStore.initializeUserPosition(participant.userId);
     });

@@ -223,7 +223,6 @@ export class MegolmService {
       return
     }
 
-    // Load outbound sessions via ROOM_KEYS (canonical current session per room).
     try {
       const allOutbound = await this.getAllFromStore<MegolmOutboundSession>(STORES.OUTBOUND)
       debug.log(`📦 Found ${allOutbound.length} outbound sessions in IndexedDB`)
@@ -278,7 +277,6 @@ export class MegolmService {
       debug.error('❌ Failed to load outbound sessions:', error)
     }
 
-    // Load inbound sessions
     try {
       const inboundSessions = await this.getAllFromStore<MegolmInboundSession>(STORES.INBOUND)
       debug.log(`📦 Found ${inboundSessions.length} inbound sessions in IndexedDB`)
@@ -310,7 +308,6 @@ export class MegolmService {
    *   messages use a fresh key (membership-epoch rotation, Phase 3b).
    */
   async getOrCreateOutboundSession(roomId: string, epoch?: number): Promise<MegolmOutboundSession> {
-    // Check if we have an existing valid session
     let session = this.outboundSessions.get(roomId)
 
     const epochAdvanced =
@@ -322,7 +319,6 @@ export class MegolmService {
       return session
     }
 
-    // Create a new session (tagged with the current epoch).
     session = await this.createOutboundSession(roomId, epoch)
     return session
   }
@@ -335,11 +331,9 @@ export class MegolmService {
    * own messages even after session rotation, because we look up by sessionId.
    */
   private async createOutboundSession(roomId: string, epoch?: number): Promise<MegolmOutboundSession> {
-    // Generate session key material (32 bytes for AES-256)
     const sessionKeyBytes = crypto.getRandomValues(new Uint8Array(32))
     const sessionKey = this.arrayBufferToBase64(sessionKeyBytes.buffer)
 
-    // Generate unique session ID
     const sessionIdBytes = crypto.getRandomValues(new Uint8Array(16))
     const sessionId = this.arrayBufferToBase64(sessionIdBytes.buffer)
 
@@ -355,7 +349,6 @@ export class MegolmService {
       epoch: typeof epoch === 'number' ? epoch : 1
     }
 
-    // Store in memory
     this.outboundSessions.set(roomId, session)
     debug.log(`🔑 Created new outbound Megolm session for room ${roomId.substring(0, 8)}... (sessionId: ${sessionId.substring(0, 8)}...)`)
     
@@ -692,7 +685,6 @@ export class MegolmService {
     if (!inboundSession) {
       debug.log(`❌ No session found for ${encryptedMessage.sessionId}`)
       debug.log(`   Available inbound sessions: ${this.inboundSessions.size}`)
-      // Log what sessions we have for this room
       const roomSessions = Array.from(this.inboundSessions.keys())
         .filter(k => k.startsWith(roomId))
       debug.log(`   Sessions for this room: [${roomSessions.map(k => k.split(':').pop()?.substring(0, 8)).join(', ')}]`)
@@ -740,7 +732,6 @@ export class MegolmService {
   private async deriveRatchetKey(sessionKeyBase64: string, messageIndex: number): Promise<CryptoKey> {
     const sessionKeyBytes = this.base64ToArrayBuffer(sessionKeyBase64)
     
-    // Import the session key as key material
     const keyMaterial = await crypto.subtle.importKey(
       'raw',
       sessionKeyBytes,
@@ -873,7 +864,6 @@ export class MegolmService {
     inbound: MegolmInboundSession[]
   }): Promise<void> {
     // Don't clear existing sessions! Merge instead.
-    // This prevents losing locally-created sessions when backup is empty.
     
     if (data.outbound.length === 0 && data.inbound.length === 0) {
       debug.log('ℹ️ Backup is empty, keeping existing sessions')
@@ -882,7 +872,6 @@ export class MegolmService {
 
     debug.log(`📥 Merging ${data.outbound.length} outbound, ${data.inbound.length} inbound sessions from backup`)
 
-    // Import outbound sessions (merge - newer wins)
     for (const session of data.outbound) {
       const existing = this.outboundSessions.get(session.roomId)
       // Only replace if backup session is newer or we don't have one
@@ -913,7 +902,6 @@ export class MegolmService {
       }
     }
 
-    // Import inbound sessions (merge - always add if we don't have it)
     for (const session of data.inbound) {
       const key = `${session.roomId}:${session.senderUserId}:${session.sessionId}`
       if (!this.inboundSessions.has(key)) {

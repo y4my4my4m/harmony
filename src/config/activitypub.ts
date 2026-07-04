@@ -125,7 +125,6 @@ export function isLocalActor(actorUrl: string): boolean {
   return actorUrl.startsWith(ACTIVITYPUB_CONFIG.baseUrl);
 }
 
-// Generate ActivityPub Actor JSON from user data
 export function generateActorJson(user: FederatedUser): ActivityPubActor {
   const actorId = getActorUrl(user.username);
   
@@ -166,7 +165,6 @@ export function generateActorJson(user: FederatedUser): ActivityPubActor {
   } as ActivityPubActor;
 }
 
-// Generate WebFinger JSON response
 export function generateWebFingerJson(username: string): WebFingerResponse {
   const resource = getWebfingerResource(username);
   const actorUrl = getActorUrl(username);
@@ -188,7 +186,6 @@ export function generateWebFingerJson(username: string): WebFingerResponse {
   };
 }
 
-// Generate NodeInfo JSON response
 export function generateNodeInfoJson(stats?: {
   userCount?: number;
   postCount?: number;
@@ -228,13 +225,11 @@ export function generateNodeInfoJson(stats?: {
   };
 }
 
-// Check if request wants ActivityPub JSON
 export function wantsActivityPub(acceptHeader: string): boolean {
   return acceptHeader.includes('application/activity+json') || 
          acceptHeader.includes('application/ld+json');
 }
 
-// Check if request wants WebFinger JSON
 export function wantsWebFinger(acceptHeader: string): boolean {
   return acceptHeader.includes('application/jrd+json') ||
          acceptHeader.includes('application/json');

@@ -401,7 +401,6 @@ const navigateToUserPosts = (user: any) => {
 }
 
 const navigateToUserServers = async (user: AdminUser) => {
-  // Open modal and load user's servers
   selectedUserForServers.value = user
   showServersModal.value = true
   loadingServers.value = true

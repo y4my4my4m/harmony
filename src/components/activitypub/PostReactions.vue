@@ -190,9 +190,7 @@ const currentUserId = computed(() =>
 );
 
 // REMOVED: Individual reaction loading - now handled by batch fetch from timeline
-// This prevents N+1 queries by relying on batch fetch from the parent timeline
 
-// Handle reaction click (add/remove) using the store
 const handleReactionClick = async (reaction: PostEmojiReaction) => {
   if (!currentUserId.value) {
     debug.warn('User not authenticated');
@@ -258,12 +256,10 @@ const handleReactionClick = async (reaction: PostEmojiReaction) => {
   }
 };
 
-// Show reaction tooltip with user details
 const showTooltip = (event: MouseEvent, reaction: PostEmojiReaction) => {
   emit('show-reaction-tooltip', event, reaction);
 };
 
-// Hide reaction tooltip
 const hideTooltip = () => {
   emit('hide-reaction-tooltip');
 };
@@ -275,7 +271,6 @@ const handleEmojiError = (reaction: PostEmojiReaction) => {
   if (reaction?.emoji_url) brokenEmojiUrls.value.add(reaction.emoji_url);
 };
 
-// Handle emoji selection from parent components (like MonyPost)
 const handleEmojiSelected = async (emoji: any): Promise<boolean> => {
   if (!currentUserId.value) {
     debug.warn('User not authenticated');

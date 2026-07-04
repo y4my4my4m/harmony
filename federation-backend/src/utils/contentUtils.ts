@@ -157,7 +157,6 @@ export function extractActivityPubTags(content: any): any[] {
       });
     } else if (part.type === 'emoji' && part.emoji && typeof part.emoji === 'object') {
       // Add custom emoji as ActivityPub Emoji tag
-      // This allows Mastodon/Misskey to render the custom emoji
       const emoji = part.emoji;
       if (emoji.url && (emoji.name || emoji.display_name)) {
         const emojiName = emoji.name || emoji.display_name;

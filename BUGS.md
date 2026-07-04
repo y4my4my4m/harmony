@@ -32,7 +32,7 @@ All three 20260520 security migrations are now mirrored in `db_schema/init/` (C8
 
 ## Critical (security / data corruption - fix ASAP)
 
-*(C5, C6, C7 - resolved July 2026: the legacy Signal-Protocol client stack was deleted outright (`MessageEncryptionService`, `SignalProtocolService(Browser)`, `EncryptionKeyStore(Browser)`, `WebRTCEncryptionService`, `FrameEncryptor`, `KeySetupWizard.vue`). The live app is Megolm-only. P2P calls now honestly rely on DTLS-SRTP transport encryption — the dormant, broken frame-encryption layer and its false E2EE indicator are gone. LiveKit voice E2EE (Megolm-wrapped room keys) is unaffected.)*
+*(C5, C6, C7 - resolved July 2026: the legacy Signal-Protocol client stack was deleted outright (`MessageEncryptionService`, `SignalProtocolService(Browser)`, `EncryptionKeyStore(Browser)`, `WebRTCEncryptionService`, `FrameEncryptor`, `KeySetupWizard.vue`). The live app is Megolm-only. P2P calls now honestly rely on DTLS-SRTP transport encryption - the dormant, broken frame-encryption layer and its false E2EE indicator are gone. LiveKit voice E2EE (Megolm-wrapped room keys) is unaffected.)*
 
 *(C8, C9, C10 - init/migration parity - and C11 - recovery-code MFA bypass - were fixed July 2026; see the Pattern C / Init parity notes above.)*
 
@@ -42,7 +42,7 @@ All three 20260520 security migrations are now mirrored in `db_schema/init/` (C8
 
 ### Permissions & calls
 
-*(H2/H3 resolved July 2026: the dead `canViewChannel`/`canAccessChannel` stubs were deleted; `canViewSettings: true` is now documented as intentional — the settings view doubles as a read-only server overview, with every mutation gated individually.)*
+*(H2/H3 resolved July 2026: the dead `canViewChannel`/`canAccessChannel` stubs were deleted; `canViewSettings: true` is now documented as intentional - the settings view doubles as a read-only server overview, with every mutation gated individually.)*
 
 | # | Bug | Location |
 |---|-----|----------|
@@ -68,7 +68,7 @@ All three 20260520 security migrations are now mirrored in `db_schema/init/` (C8
 
 *(H17 fixed July 2026: `claim_ap_activity`/`complete_ap_activity` RPCs (migration `20260705_ap_inbox_idempotency.sql`) gate processing on both the user and server inboxes; redeliveries are acknowledged without re-running side effects. H13/H14 fixed July 2026: `/resolve-post` validates the URL upfront via `validateExternalUrl`; `/fetch-posts` requires `outbox_url` to match the stored remote profile row. H18 fixed: ±5 min Date-header skew window in `SignatureService.verifySignature`. H19 fixed: requests with a body must carry a signature-covered, matching Digest header.)*
 
-### Federation server-inbox authorization (Discord-clone path) — FIXED July 2026
+### Federation server-inbox authorization (Discord-clone path) - FIXED July 2026
 
 The server inbox authenticates the sender but **allowed same-domain delegation**, so any authenticated remote user could act as any other user on their host. The microblog path (`ActivityProcessor`) had C1/C2 ownership guards; the server path (`ServerInboxHandler`) did not. Fixed by gating each mutating handler on the actor's standing in the server:
 
@@ -197,7 +197,7 @@ Also fixed (same pass):
 - **L7-L11.** `useUndoRedo` pointer drift; notification getter re-entrancy; `spatialAudio` / voice Maps not cleared on logout; etc. *(unverified)*
 - ~~**L12.**~~ Fixed July 2026: `http:` in `validateExternalUrl` now allowed only when `NODE_ENV !== 'production'`
 - ~~**L13.**~~ Fixed July 2026: both the metadata and paginated inbox GET branches require the owner (or an admin); others get an empty collection, and responses are `Cache-Control: private`.
-- ~~**L14.**~~ Resolved July 2026 (docs): SHA-256 is deliberate — bot tokens carry 256 bits of entropy, so a slow hash adds nothing and the digest doubles as the lookup key. The misleading bcrypt comment was removed.
+- ~~**L14.**~~ Resolved July 2026 (docs): SHA-256 is deliberate - bot tokens carry 256 bits of entropy, so a slow hash adds nothing and the digest doubles as the lookup key. The misleading bcrypt comment was removed.
 - **L15.** Dev error responses may leak internal messages - `bot-gateway/src/index.ts:88-93`
 - **L16.** Verbose logging of message metadata/content - `bot-gateway/src/api/BotRestAPI.ts:105-106`
 - **L17.** Bridge shutdown doesn't clear periodic user-refresh interval

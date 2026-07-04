@@ -132,7 +132,6 @@ const emit = defineEmits<{
 
 const { canManageChannels } = useServerPermissions()
 
-// Calculate position to keep menu in viewport
 const menuStyle = computed(() => {
   const menuWidth = 200
   const menuHeight = 350
@@ -232,7 +231,6 @@ const copyThreadId = async () => {
   emit('close')
 }
 
-// Close menu on click outside
 const handleClickOutside = (_e: MouseEvent) => {
   emit('close')
 }

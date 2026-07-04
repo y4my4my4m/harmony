@@ -132,7 +132,6 @@ export class FederationDecisionService {
     try {
       debug.log(`🤔 Federation: Deciding post federation for post: ${postId} (${operation})`)
 
-      // Get post data
       const { data: post, error } = await supabase
         .from('posts')
         .select('author_id, visibility, is_local')

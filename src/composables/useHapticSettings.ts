@@ -32,11 +32,9 @@ function loadSettings(): void {
   if (isInitialized.value) return
   
   try {
-    // Load master toggle
     const enabled = userStorage.getItem('haptics-enabled')
     isEnabled.value = enabled !== null ? enabled === 'true' : true
     
-    // Load individual triggers
     const triggers = userStorage.getItem('haptic-triggers')
     if (triggers) {
       const parsed = JSON.parse(triggers)

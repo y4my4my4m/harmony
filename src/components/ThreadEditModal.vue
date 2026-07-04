@@ -111,7 +111,6 @@ const saveChanges = async () => {
   
   const trimmedName = editedName.value.trim()
   
-  // Check if anything actually changed
   const hasChanges = 
     trimmedName !== props.thread.name ||
     editedLocked.value !== (props.thread.locked ?? false) ||

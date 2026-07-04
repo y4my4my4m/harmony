@@ -21,7 +21,6 @@ export class BotRestAPI {
   }
   
   private setupMiddleware() {
-    // Apply bot authentication to all routes
     this.router.use(botAuthMiddleware)
   }
   
@@ -30,16 +29,13 @@ export class BotRestAPI {
     // CHANNEL ENDPOINTS
     // =====================================================
     
-    // Send message to channel
     this.router.post('/channels/:channelId/messages', this.sendMessage.bind(this))
     
-    // Get channel messages
     this.router.get('/channels/:channelId/messages', this.getMessages.bind(this))
 
     // Lookup a message by bridged Discord message ID (stored in metadata.discord_message_id)
     this.router.get('/channels/:channelId/messages/lookup', this.lookupMessageByDiscordId.bind(this))
     
-    // Get single message
     this.router.get('/messages/:messageId', this.getMessage.bind(this))
 
     // Public invite preview (for Discord bridge embed cards)
@@ -48,29 +44,22 @@ export class BotRestAPI {
     // Edit message
     this.router.patch('/messages/:messageId', this.editMessage.bind(this))
     
-    // Delete message
     this.router.delete('/messages/:messageId', this.deleteMessage.bind(this))
     
-    // Add reaction
     this.router.put('/messages/:messageId/reactions/:emoji', this.addReaction.bind(this))
     
-    // Remove reaction
     this.router.delete('/messages/:messageId/reactions/:emoji', this.removeReaction.bind(this))
     
-    // Trigger typing indicator
     this.router.post('/channels/:channelId/typing', this.triggerTyping.bind(this))
     
     // =====================================================
     // SERVER ENDPOINTS (Harmony terminology)
     // =====================================================
     
-    // Get server info
     this.router.get('/servers/:serverId', this.getGuild.bind(this))
     
-    // Get server members
     this.router.get('/servers/:serverId/members', this.getGuildMembers.bind(this))
     
-    // Get server channels
     this.router.get('/servers/:serverId/channels', this.getGuildChannels.bind(this))
 
     // Create channel / category (bot must have manage_channels)
@@ -105,10 +94,8 @@ export class BotRestAPI {
     // EMOJI ENDPOINTS
     // =====================================================
     
-    // Get emojis (query by URL if provided)
     this.router.get('/emojis', this.getEmojis.bind(this))
     
-    // Create emoji (for Discord/federated emojis)
     this.router.post('/emojis', this.createEmoji.bind(this))
 
     // Silent content patch (e.g. refresh attachment URLs without "(edited)")
@@ -121,10 +108,8 @@ export class BotRestAPI {
     // USER ENDPOINTS
     // =====================================================
     
-    // Get user info
     this.router.get('/users/:userId', this.getUser.bind(this))
     
-    // Get current bot user
     this.router.get('/users/@me', this.getCurrentBot.bind(this))
   }
   
@@ -210,7 +195,6 @@ export class BotRestAPI {
         ...metadata
       }
       
-      // Insert message
       const { data: message, error } = await supabase
         .from('messages')
         .insert({
@@ -231,7 +215,6 @@ export class BotRestAPI {
         return res.status(500).json({ error: error.message })
       }
       
-      // Log action
       await this.logBotAction(botId, 'message_sent', { channel_id: channelId, message_id: message.id })
 
       this.triggerLinkPreviewEnrichment(message.id)
@@ -411,7 +394,6 @@ export class BotRestAPI {
       const { messageId } = req.params
       const botId = req.bot!.id
       
-      // Get message with author info
       const { data: message, error } = await supabase
         .from('messages')
         .select(`
@@ -425,7 +407,6 @@ export class BotRestAPI {
         return res.status(404).json({ error: 'Message not found' })
       }
       
-      // Check if bot has permission to read messages in this channel
       const { data: channel } = await supabase
         .from('channels')
         .select('server_id')
@@ -453,7 +434,6 @@ export class BotRestAPI {
       const { content } = req.body
       const botId = req.bot!.id
       
-      // Check if bot owns the message
       const { data: message } = await supabase
         .from('messages')
         .select('user_id, bot_id, channel_id')
@@ -511,7 +491,6 @@ export class BotRestAPI {
       const { messageId } = req.params
       const botId = req.bot!.id
       
-      // Check if bot owns the message
       const { data: message } = await supabase
         .from('messages')
         .select('user_id, bot_id, channel_id')
@@ -523,7 +502,6 @@ export class BotRestAPI {
       }
       
       if (message.bot_id !== botId) {
-        // Check if bot has manage_messages permission
         const canManage = await this.checkChannelPermission(botId, message.channel_id, 'manage_messages')
         if (!canManage) {
           return res.status(403).json({ error: 'Missing permission: manage_messages' })
@@ -553,7 +531,6 @@ export class BotRestAPI {
       const { metadata } = req.body
       const botId = req.bot!.id
       
-      // Get message to check permissions
       const { data: message } = await supabase
         .from('messages')
         .select('channel_id')
@@ -569,7 +546,6 @@ export class BotRestAPI {
         return res.status(403).json({ error: 'Missing permission: add_reactions' })
       }
       
-      // Check if emoji is a UUID (custom emoji) or Unicode (native emoji)
       const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(emoji)
       
       const insertData: any = {
@@ -611,7 +587,6 @@ export class BotRestAPI {
       const { discord_user_id } = req.body ?? {}
       const botId = req.bot!.id
       
-      // Get message to check permissions
       const { data: message } = await supabase
         .from('messages')
         .select('channel_id')
@@ -627,7 +602,6 @@ export class BotRestAPI {
         return res.status(403).json({ error: 'Missing permission: add_reactions' })
       }
       
-      // Check if emoji is a UUID (custom emoji) or Unicode (native emoji)
       const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(emoji)
       
       let query = supabase
@@ -680,7 +654,6 @@ export class BotRestAPI {
       const serverId = req.params.serverId || req.params.guildId
       const botId = req.bot!.id
       
-      // Check if bot is in the server
       const { data: permission } = await supabase
         .from('bot_server_permissions')
         .select('*')
@@ -719,7 +692,6 @@ export class BotRestAPI {
       const { limit = 100, after } = req.query
       const botId = req.bot!.id
       
-      // Check if bot is in the server
       const hasAccess = await this.checkBotInGuild(botId, serverId)
       if (!hasAccess) {
         return res.status(403).json({ error: 'Bot not in guild' })
@@ -1357,7 +1329,6 @@ export class BotRestAPI {
   // =====================================================
   
   private async checkChannelPermission(botId: string, channelId: string, permission: string): Promise<boolean> {
-    // Get server ID from channel
     const { data: channel, error: channelError } = await supabase
       .from('channels')
       .select('server_id')
@@ -1434,7 +1405,6 @@ export class BotRestAPI {
       return undefined
     }
     
-    // Remove leading slash if present
     const cleanPath = avatarPath.startsWith('/') ? avatarPath.slice(1) : avatarPath
     
     // Construct full URL with image optimization params
@@ -1664,7 +1634,6 @@ export class BotRestAPI {
       const { name, url, server_id, domain } = req.body
       const botId = req.bot!.id
       
-      // Validate required fields
       if (!name || !url) {
         return res.status(400).json({ error: 'Missing required fields: name, url' })
       }

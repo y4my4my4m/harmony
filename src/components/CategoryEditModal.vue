@@ -86,7 +86,6 @@ const saveChanges = async () => {
   
   const trimmedName = editedName.value.trim()
   
-  // Check if anything actually changed
   if (trimmedName === props.category.name) {
     closeModal()
     return
@@ -100,7 +99,6 @@ const saveChanges = async () => {
       name: trimmedName
     })
     
-    // Emit updated event with the updated category data
     const updatedCategory = { 
       ...props.category, 
       name: trimmedName

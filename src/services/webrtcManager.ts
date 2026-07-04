@@ -256,7 +256,6 @@ class WebRTCManagerService implements WebRTCManager {
         // Connection failed, reset activeService
         this.activeService = null;
       } catch (error) {
-        // Check if this was a cancellation
         if (error instanceof Error && error.name === 'AbortError') {
           this.activeService = null;
           debug.log('🚫 [WebRTCManager] LiveKit connection cancelled');
@@ -314,7 +313,6 @@ class WebRTCManagerService implements WebRTCManager {
       
       this.activeService = null;
     } catch (error) {
-      // Check if this was a cancellation
       if (error instanceof Error && error.name === 'AbortError') {
         this.activeService = null;
         debug.log('🚫 [WebRTCManager] P2P connection cancelled');

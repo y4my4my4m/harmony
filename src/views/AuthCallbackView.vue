@@ -252,13 +252,11 @@ onMounted(async () => {
     // Supabase client handles the token exchange automatically
     // when detectSessionInUrl is true (which it is in our config)
 
-    // Get the session that was just created
     const { data: { session }, error } = await supabase.auth.getSession()
 
     if (error) throw error
 
     if (!session) {
-      // Check if there's an error in the URL params
       const hashParams = new URLSearchParams(window.location.hash.substring(1))
       const queryParams = new URLSearchParams(window.location.search)
 
@@ -287,7 +285,6 @@ onMounted(async () => {
         })),
       })
 
-      // Check if multiple identities are linked (indicates account linking happened)
       if (identities.length > 1) {
         const identityEmails = identities
           .map((id: any) => id.email || id.identity_data?.email)
@@ -312,7 +309,6 @@ onMounted(async () => {
         }
       }
 
-      // Check if user is suspended
       const { data: profile } = await supabase
         .from('profiles')
         .select('is_suspended, suspension_reason')

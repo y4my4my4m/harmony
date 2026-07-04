@@ -47,7 +47,6 @@ const STREAMING_OTHER_PATTERNS = {
 export function parseMarkdownToNodes(text: string): MarkdownNode[] {
   const nodes: MarkdownNode[] = [];
 
-  // Store all matches with their positions
   interface Match {
     type: keyof typeof PATTERNS;
     match: RegExpMatchArray;
@@ -91,7 +90,6 @@ export function parseMarkdownToNodes(text: string): MarkdownNode[] {
       }
     });
 
-    // Sort matches by position, with longer matches taking precedence for overlaps
     return matches.sort((a, b) => {
       if (a.start !== b.start) return a.start - b.start;
       return (b.end - b.start) - (a.end - a.start);
@@ -112,7 +110,6 @@ export function parseMarkdownToNodes(text: string): MarkdownNode[] {
     }
   }
 
-  // Process matches and create nodes
   for (const match of filteredMatches) {
     // Add any plain text before this match
     if (match.start > processedUntil) {
@@ -131,7 +128,6 @@ export function parseMarkdownToNodes(text: string): MarkdownNode[] {
       }
     }
 
-    // Create node for the match
     switch (match.type) {
       case 'codeblock':
         nodes.push({
@@ -170,7 +166,6 @@ export function parseMarkdownToNodes(text: string): MarkdownNode[] {
     processedUntil = match.end;
   }
 
-  // Add any remaining plain text
   if (processedUntil < text.length) {
     const remainingText = text.substring(processedUntil);
     if (remainingText) {
@@ -311,7 +306,6 @@ function parseInlineChildren(content: string, parentType: string): MarkdownToken
 export function parseMarkdownWithMarkers(text: string): MarkdownToken[] {
   const tokens: MarkdownToken[] = [];
   
-  // Store all matches with their positions
   interface Match {
     type: keyof typeof PATTERNS | 'incomplete_codeblock';
     match: RegExpMatchArray;
@@ -347,7 +341,6 @@ export function parseMarkdownWithMarkers(text: string): MarkdownToken[] {
     // Incomplete code blocks (starting with ``` but not closed)
     INCOMPLETE_CODEBLOCK_PATTERN.lastIndex = 0;
     while ((match = INCOMPLETE_CODEBLOCK_PATTERN.exec(text)) !== null) {
-      // Check if this position is already covered by a complete code block
       const isAlreadyCovered = matches.some(existingMatch => 
         match!.index! >= existingMatch.start && match!.index! < existingMatch.end
       );
@@ -374,7 +367,6 @@ export function parseMarkdownWithMarkers(text: string): MarkdownToken[] {
         const start = match.index;
         const end = match.index + match[0].length;
         
-        // Check if this match is inside any code block
         const insideCodeBlock = matches.some(codeMatch => 
           (codeMatch.type === 'codeblock' || codeMatch.type === 'incomplete_codeblock') && 
           start >= codeMatch.start && end <= codeMatch.end
@@ -413,7 +405,6 @@ export function parseMarkdownWithMarkers(text: string): MarkdownToken[] {
     }
   }
 
-  // Reset lastIndex for token creation
   lastIndex = 0;
 
   filteredMatches.forEach(match => {
@@ -428,9 +419,7 @@ export function parseMarkdownWithMarkers(text: string): MarkdownToken[] {
       }
     }
 
-    // Add the matched token
     if (match.type === 'incomplete_codeblock') {
-      // Render incomplete code blocks as text with visible markers
       tokens.push({
         type: 'text',
         content: match.raw
@@ -447,7 +436,6 @@ export function parseMarkdownWithMarkers(text: string): MarkdownToken[] {
     lastIndex = match.end;
   });
 
-  // Add remaining text
   if (lastIndex < text.length) {
     const textContent = text.slice(lastIndex);
     if (textContent) {

@@ -402,16 +402,13 @@ const userHasEncryption = ref(false)
 // Conversation mute state
 const isConversationMuted = ref(false)
 
-// Check if user can toggle encryption (needs to have encryption set up)
 const canToggleEncryption = computed(() => userHasEncryption.value && !encryptionLoading.value)
 const encryptionToggleTitle = computed(() => {
   if (!userHasEncryption.value) return 'Set up encryption in settings first'
   return encryptionEnabled.value ? 'Click to disable encryption' : 'Click to enable encryption'
 })
 
-// Load encryption status
 async function loadEncryptionStatus() {
-  // Reset immediately so stale state from previous conversation isn't visible
   encryptionEnabled.value = false
   encryptionLoading.value = true
   try {
@@ -435,7 +432,6 @@ async function loadEncryptionStatus() {
   }
 }
 
-// Toggle encryption for this conversation
 async function toggleEncryption() {
   debug.log('🔐 Toggle encryption clicked')
   debug.log('🔐 canToggleEncryption:', canToggleEncryption.value)
@@ -486,7 +482,6 @@ async function toggleEncryption() {
     
     encryptionEnabled.value = newState
 
-    // Notify ChatComponent to refresh its encryption indicator
     window.dispatchEvent(new CustomEvent('dm-encryption-toggled', {
       detail: { conversationId: props.conversation.id, enabled: newState }
     }))
@@ -549,7 +544,6 @@ const cleanupPresenceTracking = async (userId?: string | null) => {
   }
 }
 
-// Call signal subscription
 let callSignalUnsubscribe: (() => void) | null = null
 
 const handleCallSignal = async (signal: CallSignal) => {
@@ -658,7 +652,6 @@ const subscribeToCallSignals = () => {
     props.conversation.id,
     handleCallSignal
   )
-  // Update initial participant count
   updateActiveCallParticipants()
 }
 
@@ -691,7 +684,6 @@ const handleStartCallRequest = (e: Event) => {
   }
 }
 
-// Initialize presence tracking when component loads
 onMounted(() => {
   initializePresenceTracking()
   subscribeToCallSignals()
@@ -719,7 +711,6 @@ watch(
       // Pass oldUserId explicitly - props.conversation.other_user.id is
       // already pointing at newUserId by the time this callback runs.
       await cleanupPresenceTracking(oldUserId ?? null)
-      // Initialize new tracking
       if (newUserId) {
         await initializePresenceTracking()
       }
@@ -742,7 +733,6 @@ watch(() => voiceStore.isConnecting, (connecting, wasConnecting) => {
   }
 })
 
-// Cleanup when component unmounts
 onUnmounted(() => {
   cleanupPresenceTracking()
   unsubscribeFromCallSignals()
@@ -937,7 +927,6 @@ const toggleVoiceCall = async () => {
   try {
     if (isInVoiceCall.value) {
       stopCallerRinging()
-      // Check if this is a federated call and end it properly
       if (dmCallSignaling.isFederatedCall(props.conversation.id)) {
         const profileId = await authContextService.getCurrentProfileId()
         if (profileId) await dmCallSignaling.endFederatedCall(props.conversation.id, profileId)
@@ -945,7 +934,6 @@ const toggleVoiceCall = async () => {
       await voiceStore.leaveVoiceChannel()
       toast.info('Left call')
     } else {
-      // Start voice call
       debug.log('📞 Starting DM voice call...')
       
       const profileId = await authContextService.getCurrentProfileId()
@@ -954,7 +942,6 @@ const toggleVoiceCall = async () => {
         return
       }
       
-      // Check if caller is already in another call
       if (voiceStore.isConnected) {
         toast.error('You are already in a call')
         return
@@ -987,7 +974,6 @@ const toggleVoiceCall = async () => {
   }
 }
 
-// Start a local (same-instance) call
 const startLocalCall = async (profileId: string, callType: 'voice' | 'video') => {
   const dmChannelId = `dm-${props.conversation.id}`
   
@@ -1015,7 +1001,6 @@ const startLocalCall = async (profileId: string, callType: 'voice' | 'video') =>
   }
 }
 
-// Start a federated (cross-instance) call via ActivityPub
 const startFederatedCall = async (profileId: string, callType: 'voice' | 'video') => {
   const otherUser = props.conversation.other_user
   if (!otherUser?.federated_id) {
@@ -1023,7 +1008,6 @@ const startFederatedCall = async (profileId: string, callType: 'voice' | 'video'
     return
   }
 
-  // Get our own federated ID
   const { data: myProfile } = await supabase
     .from('profiles')
     .select('federated_id, username')
@@ -1092,7 +1076,6 @@ const joinActiveCall = async () => {
     
     const dmChannelId = `dm-${props.conversation.id}`
     
-    // Send join signal
     await dmCallSignaling.joinCall(props.conversation.id, profileId)
     
     // Join the voice channel
@@ -1100,7 +1083,6 @@ const joinActiveCall = async () => {
     
     if (success) {
       toast.success('Joined call')
-      // Show voice overlay in maximized mode
       voiceStore.isOverlayVisible = true
       await new Promise(resolve => setTimeout(resolve, 100))
       debug.log('✅ Joined group call (maximized)')
@@ -1122,7 +1104,6 @@ const toggleVideoCall = async () => {
     }
     
     if (!isInVoiceCall.value) {
-      // Check if caller is already in another call
       if (voiceStore.isConnected) {
         toast.error('You are already in a call')
         return
@@ -1149,7 +1130,6 @@ const toggleVideoCall = async () => {
         await startLocalCall(profileId, 'video')
       }
     } else {
-      // Toggle video in ongoing call
       await voiceStore.toggleVideo()
       
       if (voiceStore.localState.isVideoEnabled) {
@@ -1167,7 +1147,6 @@ const toggleVideoCall = async () => {
   }
 }
 
-// Get receiver IDs for calling
 const getReceiverIds = (): string[] => {
   const currentUserId = authStore.session?.user?.id
   if (!currentUserId) return []

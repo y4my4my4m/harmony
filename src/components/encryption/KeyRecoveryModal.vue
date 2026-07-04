@@ -192,7 +192,6 @@ const canRestore = computed(() => {
   return recoveryWords.value.every(w => w.trim().length > 0) && isValid.value
 })
 
-// Validate words
 async function validateWords() {
   const words = recoveryWords.value.map(w => w.trim().toLowerCase())
   
@@ -218,7 +217,6 @@ async function validateWords() {
   }
 }
 
-// Handle paste into any input
 async function handlePaste(event: ClipboardEvent) {
   const text = event.clipboardData?.getData('text')
   if (!text) return
@@ -250,7 +248,6 @@ async function pasteFromClipboard() {
   }
 }
 
-// Clear words
 function clearWords() {
   recoveryWords.value = Array(12).fill('')
   validationMessage.value = ''
@@ -309,7 +306,6 @@ function stopQRScanner() {
 
 onUnmounted(stopQRScanner)
 
-// Parse QR data
 async function parseQRData() {
   if (!qrData.value) return
 
@@ -339,7 +335,6 @@ async function restoreEncryption() {
   try {
     const words = recoveryWords.value.map(w => w.trim().toLowerCase())
     
-    // Verify with verification code if provided
     if (verificationCode.value) {
       const { recoveryKeyService } = await import('@/services/encryption/RecoveryKeyService')
       const isCorrect = await recoveryKeyService.verifyRecoveryPhrase(words, verificationCode.value)
@@ -351,7 +346,6 @@ async function restoreEncryption() {
       }
     }
 
-    // Get current user
     const { supabase } = await import('@/supabase')
     const { data: { user } } = await supabase.auth.getUser()
     
@@ -359,7 +353,6 @@ async function restoreEncryption() {
       throw new Error('Not logged in')
     }
 
-    // Initialize the encryption service with recovery key
     const { megolmMessageEncryptionService } = await import('@/services/encryption/MegolmMessageEncryptionService')
     
     await megolmMessageEncryptionService.initialize(user.id)

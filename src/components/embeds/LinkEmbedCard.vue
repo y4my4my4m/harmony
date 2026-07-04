@@ -74,7 +74,7 @@ const emit = defineEmits<{
 // without waiting on an image that will never paint.
 const imageLoaded = ref(!props.payload.image || props.variant === 'compact');
 
-// Media-first layout (Discord-style): when the preview is essentially just
+// Media-first layout (Discord-style): when the preview is just
 // an image - e.g. a GIF page with a title and no description - the image IS
 // the content, so it renders at natural size instead of a 100px cropped
 // square thumbnail.

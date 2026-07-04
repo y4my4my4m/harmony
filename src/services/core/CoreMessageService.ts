@@ -181,7 +181,6 @@ export class CoreMessageService {
         throw this.createError('TOO_MANY_ATTACHMENTS', `Maximum ${maxMedia} media attachments per message`)
       }
 
-      // Get current user from cached userDataService (no database calls)
       const currentUser = userDataService.getCurrentUser()
       if (!currentUser?.id) {
         throw this.createError('AUTH_REQUIRED', 'User not authenticated')
@@ -193,7 +192,6 @@ export class CoreMessageService {
       let encryptionMetadata = null
       const allowFallback = options?.allowPlaintextFallback === true
 
-      // Get server encryption policy
       const { data: serverSettings } = await supabase
         .from('server_encryption_settings')
         .select('encryption_mode')
@@ -221,7 +219,6 @@ export class CoreMessageService {
               debug.log('🔐 Megolm encryption active - encrypting message for channel')
               debug.log(`🔐 Channel (room): ${channelId}`)
               
-              // Get all server members to share session key with
               const { data: members } = await supabase
                 .from('user_servers')
                 .select('user_id')
@@ -378,7 +375,6 @@ export class CoreMessageService {
         }
       }
 
-      // Get current user from cached userDataService (no database calls)
       const currentUser = userDataService.getCurrentUser()
       if (!currentUser?.id) {
         throw this.createError('AUTH_REQUIRED', 'User not authenticated')
@@ -408,7 +404,6 @@ export class CoreMessageService {
         return message
       }
 
-      // Check if conversation has encryption enabled
       const { data: convSettings } = await supabase
         .from('conversation_encryption_settings')
         .select('encryption_enabled')
@@ -421,7 +416,6 @@ export class CoreMessageService {
       if (conversationEncryptionEnabled) {
         const encryptionService = await getEncryptionService()
         if (encryptionService && encryptionService.isInitialized()) {
-          // Check if sender has recovery key set up and encryption unlocked
           const hasRecoveryKey = await encryptionService.hasRecoveryKey()
           const isUnlocked = encryptionService.isUnlocked()
 
@@ -430,14 +424,12 @@ export class CoreMessageService {
               debug.log('🔐 Megolm encryption active - encrypting DM')
               debug.log(`🔐 Conversation (room): ${conversationId}`)
 
-              // Get conversation participants
               const { data: participants } = await supabase
                 .from('conversation_participants')
                 .select('user_id')
                 .eq('conversation_id', conversationId)
                 .is('left_at', null)
 
-              // Get participant IDs (session will be shared with all)
               const recipientIds = participants?.map(p => p.user_id) || []
               if (!recipientIds.includes(currentUser.id)) {
                 recipientIds.push(currentUser.id)
@@ -532,7 +524,6 @@ export class CoreMessageService {
         throw this.createError('TOO_MANY_ATTACHMENTS', `Maximum ${maxMedia} media attachments per message`)
       }
 
-      // Get current user from cached userDataService (no database calls)
       const currentUser = userDataService.getCurrentUser()
       if (!currentUser?.id) {
         throw this.createError('AUTH_REQUIRED', 'User not authenticated')
@@ -559,17 +550,15 @@ export class CoreMessageService {
         const encryptionService = await getEncryptionService()
         if (encryptionService && encryptionService.isInitialized() && encryptionService.isUnlocked()) {
           try {
-            // Get the room ID (channel_id or conversation_id)
             const roomId = originalMessage.channel_id || originalMessage.conversation_id
             if (!roomId) {
               throw new Error('Cannot determine room ID for re-encryption')
             }
             
-            // For Megolm, we need to get current room members
+            // Megolm needs the current room members
             let recipientIds: string[] = []
             
             if (originalMessage.channel_id) {
-              // Get server members for the channel
               const { data: channel } = await supabase
                 .from('channels')
                 .select('server_id')
@@ -584,7 +573,6 @@ export class CoreMessageService {
                 recipientIds = members?.map(m => m.user_id) || []
               }
             } else if (originalMessage.conversation_id) {
-              // Get conversation participants
               const { data: participants } = await supabase
                 .from('conversation_participants')
                 .select('user_id')
@@ -614,7 +602,6 @@ export class CoreMessageService {
         }
       }
 
-      // Update the message with the new content (encrypted or plaintext)
       const { data: messages, error } = await supabase
         .from('messages')
         .update({ 
@@ -689,12 +676,10 @@ export class CoreMessageService {
     try {
       const profileId = await this.getCurrentUserProfileId()
       
-      // Determine if this is a native emoji (not a UUID) or a server emoji (UUID)
       const isNativeEmoji = !this.isValidUUID(emojiId)
       
       debug.log(`🔄 Core: Toggling reaction: message=${messageId}, emoji=${emojiId}, native=${isNativeEmoji}, user=${profileId}`)
 
-      // Build the match condition based on emoji type
       let existingReactionQuery = supabase
         .from('reactions')
         .select('id')
@@ -710,7 +695,6 @@ export class CoreMessageService {
       const { data: existingReaction } = await existingReactionQuery.maybeSingle()
 
       if (existingReaction) {
-        // Remove reaction - build delete query based on emoji type
         let deleteQuery = supabase
           .from('reactions')
           .delete()
@@ -730,7 +714,6 @@ export class CoreMessageService {
         debug.log('✅ Core: Reaction removed successfully')
         return { added: false }
       } else {
-        // Add reaction - insert with either emoji_id or custom_emoji_content
         const reactionData: any = {
           message_id: messageId,
           user_id: profileId,
@@ -874,7 +857,6 @@ export class CoreMessageService {
   private groupReactionRows(messageIds: string[], rows: any[]): Record<string, any[]> {
     const groupedReactions: Record<string, any[]> = {}
 
-    // Initialize all message IDs with empty arrays
     messageIds.forEach(messageId => {
       groupedReactions[messageId] = []
     })
@@ -1003,14 +985,13 @@ export class CoreMessageService {
       let isRemoteChannel = options.isRemote
 
       if (isRemoteChannel === undefined) {
-        // Check if this is a remote channel by looking up the server
         const { data: channel } = await supabase
           .from('channels')
           .select('id, is_remote, server_id')
           .eq('id', channelId)
           .maybeSingle()
 
-        // If channel has is_remote flag or we need to check the server
+        // Remote channel detection: is_remote flag, else check the server row
         isRemoteChannel = channel?.is_remote === true
 
         // Also check if the server is remote
@@ -1096,18 +1077,16 @@ export class CoreMessageService {
         const messageIds = orderedMessages.map(m => m.id)
         const reactionsByMessage = await this.getBatchMessageReactions(messageIds)
         
-        // Attach reactions to each message
         orderedMessages.forEach(message => {
           message.reactions = reactionsByMessage[message.id] || []
         })
         
-        // This ensures components can use reactionsStore.getMessageReactions() seamlessly
+        // Feeds reactionsStore so getMessageReactions() works unchanged
         await this.populateReactionsStoreCache(reactionsByMessage)
       }
 
       debug.log(`✅ Core: Loaded ${orderedMessages.length} messages with reactions for channel: ${channelId}`)
       
-      // Process encrypted messages
       const { processMessageDecryption } = await import('@/utils/messageDecryption')
       const decryptedMessages = await processMessageDecryption(orderedMessages)
       
@@ -1312,7 +1291,6 @@ export class CoreMessageService {
       const imgRegex = /<img\s+([^>]*)>/gi
       
       processedContent = processedContent.replace(imgRegex, (match, attrs) => {
-        // Extract src
         const srcMatch = attrs.match(/src=["']([^"']+)["']/i)
         if (!srcMatch) return match // Not a valid image, keep as-is
         
@@ -1326,14 +1304,12 @@ export class CoreMessageService {
         
         if (!isEmoji) return match // Not an emoji, keep as-is
         
-        // Extract name from alt, title, or data attributes
         const altMatch = attrs.match(/alt=["']:?([^"':]+):?["']/i)
         const titleMatch = attrs.match(/title=["']:?([^"':]+):?["']/i)
         const dataMatch = attrs.match(/data-(?:emoji|shortcode)=["']([^"']+)["']/i)
         
         const emojiName = (altMatch?.[1] || titleMatch?.[1] || dataMatch?.[1] || 'emoji').trim()
         
-        // Return a placeholder
         return `[REMOTE_EMOJI:${emojiName}:${src}]`
       })
       
@@ -1345,7 +1321,6 @@ export class CoreMessageService {
       // Strip remaining HTML tags
       const text = processedContent.replace(/<[^>]*>/g, '').trim()
       
-      // Parse the text for remote emoji placeholders
       if (text.includes('[REMOTE_EMOJI:')) {
         // Split while keeping the delimiter
         const parts = text.split(/(\[REMOTE_EMOJI:[^\]]+\])/g)
@@ -1458,18 +1433,16 @@ export class CoreMessageService {
         const messageIds = orderedMessages.map(m => m.id)
         const reactionsByMessage = await this.getBatchMessageReactions(messageIds)
         
-        // Attach reactions to each message
         orderedMessages.forEach(message => {
           message.reactions = reactionsByMessage[message.id] || []
         })
         
-        // This ensures components can use reactionsStore.getMessageReactions() seamlessly  
+        // Feeds reactionsStore so getMessageReactions() works unchanged  
         await this.populateReactionsStoreCache(reactionsByMessage)
       }
 
       debug.log(`✅ Core: Loaded ${orderedMessages.length} messages with reactions for conversation: ${conversationId}`)
       
-      // Process encrypted messages
       const { processMessageDecryption } = await import('@/utils/messageDecryption')
       const decryptedMessages = await processMessageDecryption(orderedMessages)
       

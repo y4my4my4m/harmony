@@ -21,7 +21,6 @@ const loadedLocales = new Map<string, any>()
  * Returns cached locale if already loaded
  */
 async function loadLocale(locale: string): Promise<any> {
-  // Return cached locale if already loaded
   if (loadedLocales.has(locale)) {
     return loadedLocales.get(locale)
   }
@@ -60,12 +59,10 @@ function getBrowserLocale(): string {
     return 'en'
   }
 
-  // Extract language code (en-US -> en)
   const languageCode = navigatorLocale.trim().split(/-|_/)[0]
   return languageCode
 }
 
-// Get saved locale from localStorage
 function getSavedLocale(): string | null {
   try {
     return localStorage.getItem('harmony-locale')
@@ -74,7 +71,6 @@ function getSavedLocale(): string | null {
   }
 }
 
-// Save locale to localStorage
 export function saveLocale(locale: string): void {
   try {
     localStorage.setItem('harmony-locale', locale)
@@ -83,7 +79,6 @@ export function saveLocale(locale: string): void {
   }
 }
 
-// Get initial locale
 function getInitialLocale(): string {
   const savedLocale = getSavedLocale()
   if (savedLocale) {
@@ -99,7 +94,6 @@ function getInitialLocale(): string {
   return 'en' // Default to English
 }
 
-// Get initial locale
 const initialLocale = getInitialLocale()
 
 // Create i18n instance with empty messages initially
@@ -135,7 +129,6 @@ async function loadInitialLocale(): Promise<void> {
   }
 }
 
-// Start loading initial locale immediately
 initialLocalePromise = loadInitialLocale().catch(err => {
   debug.error('Critical: Failed to load initial locale:', err)
   // Return void so promise still resolves (app can continue with empty translations)
@@ -154,12 +147,10 @@ export async function waitForInitialLocale(): Promise<void> {
 
 // Export locale helper with lazy loading
 export async function setLocale(locale: string): Promise<void> {
-  // Load locale if not already loaded
   if (!loadedLocales.has(locale)) {
     await loadLocale(locale)
   }
 
-  // Set the locale messages if not already set
   if (!i18n.global.availableLocales.includes(locale)) {
     const messages = loadedLocales.get(locale)
     if (messages) {
@@ -171,7 +162,6 @@ export async function setLocale(locale: string): Promise<void> {
   i18n.global.locale.value = locale
   saveLocale(locale)
   
-  // Update HTML lang attribute
   document.documentElement.setAttribute('lang', locale)
   
   debug.log(`🌐 Switched to locale: ${locale}`)

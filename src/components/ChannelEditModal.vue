@@ -279,7 +279,6 @@ const saveChanges = async () => {
   const trimmedName = editedName.value.trim()
   const trimmedDescription = editedDescription.value?.trim() || null
   
-  // Check if anything actually changed
   if (trimmedName === props.channel.name && trimmedDescription === props.channel.description) {
     closeModal()
     return
@@ -294,7 +293,6 @@ const saveChanges = async () => {
       description: trimmedDescription ?? undefined
     })
     
-    // Emit updated event with the updated channel data
     const updatedChannel = { 
       ...props.channel, 
       name: trimmedName, 
@@ -474,7 +472,6 @@ watch([() => props.show, activeTab, () => props.channel?.id], ([visible, tab]) =
   }
 })
 
-// Reset to General tab when modal closes
 watch(() => props.show, (visible) => {
   if (!visible) {
     activeTab.value = 'general'

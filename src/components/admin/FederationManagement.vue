@@ -733,7 +733,6 @@ const addDiscoveredInstance = async (domain: string) => {
     await adminService.addInstanceFromDomain(domain, false, authStore.session?.user?.id || '')
     await loadFederatedInstances()
     await loadInstanceStats()
-    // Remove from discovered list
     discoveredInstances.value = discoveredInstances.value.filter(i => i.domain !== domain)
   } catch (error) {
     debug.error('Failed to add discovered instance:', error)
@@ -768,7 +767,6 @@ const addInstanceFromDiscovery = async () => {
     await loadFederatedInstances()
     await loadInstanceStats()
     
-    // Reset form
     newInstanceDomain.value = ''
     discoveryResult.value = null
     addAsTrusted.value = false
@@ -780,11 +778,9 @@ const addInstanceFromDiscovery = async () => {
   }
 }
 
-// Handle Add Instance button click
 const handleAddInstance = () => {
   // Switch to search tab and focus on input
   discoveryTab.value = 'search'
-  // Reset form state
   newInstanceDomain.value = ''
   discoveryResult.value = null
   addAsTrusted.value = false

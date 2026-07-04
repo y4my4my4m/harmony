@@ -317,11 +317,9 @@ const {
 } = useAnnouncementUnreadCount({ autoRefresh: true })
 
 const adminSections = computed(() => {
-  // Check if user has admin permissions
   if (!authStore.session?.user?.id) return []
   
-  // You'll need to implement admin check logic here
-  // For now, we'll show to all users - you can modify this
+  // Visibility is gated in the template by `isAdmin`.
   return [
     { id: 'admin', label: 'Instance Admin', icon: CogIcon, isExternal: true, path: '/admin' },
   ]
@@ -395,7 +393,6 @@ const setActiveSection = (sectionId: string) => {
   if (isMobile.value) {
     closeSidebar()
   }
-  // Update URL to reflect the active section
   settingsNav.replaceSection(sectionId as SettingsSection)
 }
 
@@ -531,38 +528,31 @@ const isAdmin = computed(() => {
 })
 
 const handlePrivacyUpdate = async (privacySettings: any) => {
-  // Handle privacy settings update
   debug.log('Privacy settings updated:', privacySettings)
 }
 
 const handleAppearanceUpdate = async (appearanceSettings: any) => {
-  // Handle appearance settings update
   debug.log('Appearance settings updated:', appearanceSettings)
 }
 
 const handleNotificationsUpdate = async (notificationSettings: any) => {
-  // Handle notification settings update
   debug.log('Notification settings updated:', notificationSettings)
 }
 
 
 const handleVoiceSettingsUpdate = async (voiceSettings: any) => {
-  // Handle voice settings update
   debug.log('Voice settings updated:', voiceSettings)
 }
 
 const handleKeybindsUpdate = async (keybinds: any) => {
-  // Handle keybinds update
   debug.log('Keybinds updated:', keybinds)
 }
 
 const handleLanguageUpdate = async (language: string) => {
-  // Handle language update
   debug.log('Language updated:', language)
 }
 
 const handleAdvancedUpdate = async (advancedSettings: any) => {
-  // Handle advanced settings update
   debug.log('Advanced settings updated:', advancedSettings)
 }
 
@@ -601,12 +591,10 @@ const handleSettingsKeydown = (event: KeyboardEvent) => {
 
 // Lifecycle
 onMounted(async () => {
-  // Setup resize listener with SSR safety
   if (typeof window !== 'undefined') {
     window.addEventListener('resize', handleResize)
     handleResize() // Set initial width
     
-    // Add touch event listeners for swipe gestures
     window.addEventListener('touchstart', onSettingsTouchStart, { passive: true })
     window.addEventListener('touchmove', onSettingsTouchMove, { passive: false })
     window.addEventListener('touchend', onSettingsTouchEnd, { passive: true })
@@ -614,7 +602,6 @@ onMounted(async () => {
     document.addEventListener('keydown', handleSettingsKeydown)
   }
 
-  // Validate and set initial section
   const routeSection = Array.isArray(route.params.section) ? route.params.section[0] : route.params.section
   const initialSection = routeSection || props.section || 'account'
   
@@ -651,7 +638,6 @@ onMounted(async () => {
 onUnmounted(() => {
   if (typeof window !== 'undefined') {
     window.removeEventListener('resize', handleResize)
-    // Clean up touch event listeners
     window.removeEventListener('touchstart', onSettingsTouchStart)
     window.removeEventListener('touchmove', onSettingsTouchMove)
     window.removeEventListener('touchend', onSettingsTouchEnd)

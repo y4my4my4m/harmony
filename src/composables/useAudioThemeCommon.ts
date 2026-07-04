@@ -302,7 +302,6 @@ export function useAudioThemeCommon() {
     }
   }
 
-  // Initialize the composable
   const initialize = async (): Promise<void> => {
     if (!themeStore.isInitialized) {
       await themeStore.initialize()
@@ -315,7 +314,6 @@ export function useAudioThemeCommon() {
     localVolume.value = Math.round(newVolume * 100)
   })
 
-  // Initialize on mount if needed
   onMounted(() => {
     initialize()
   })

@@ -16,7 +16,7 @@ export interface BridgedCustomStatus {
   emoji: string | null
 }
 
-/** Ephemeral Discord (or other bridge) member from bot-gateway — not persisted in Harmony DB. */
+/** Ephemeral Discord (or other bridge) member from bot-gateway - not persisted in Harmony DB. */
 export interface BridgedChannelUser {
   id: string
   username: string

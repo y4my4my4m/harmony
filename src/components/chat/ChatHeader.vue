@@ -457,7 +457,6 @@ const handleToggleMute = async () => {
   }
 }
 
-// Close menu on outside click or Escape
 const handleKeyDown = (e: KeyboardEvent) => {
   if (e.key === 'Escape') showOptionsMenu.value = false
 }

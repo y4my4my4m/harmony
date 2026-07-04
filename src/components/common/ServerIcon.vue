@@ -104,7 +104,6 @@ const emit = defineEmits<{
 // Refs
 const fileInput = ref<HTMLInputElement>()
 
-// Map server size to pixel size for optimization
 const sizeMap: Record<serverSize, number> = {
   mini: 16,
   xs: 24,
@@ -155,7 +154,6 @@ const scheduleRetry = () => {
   }, delay)
 }
 
-// Update imgSrc when props change
 watch(
   () => [props.src, props.size, props.fetchSize],
   () => {
@@ -224,7 +222,6 @@ const handleFileSelect = async (event: Event) => {
     emit('upload', file)
   }
   
-  // Reset input
   target.value = ''
 }
 </script>

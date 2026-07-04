@@ -355,7 +355,6 @@ const handleEmojiUpload = (event: Event) => {
       handleBulkEmojiUpload(fileArray)
     }
   }
-  // Clear input
   if (input) {
     input.value = ''
   }
@@ -434,7 +433,6 @@ const handleBulkEmojiUpload = async (files: File[]) => {
     return
   }
 
-  // Validate files
   const skippedNotImage: string[] = []
   const skippedTooLarge: string[] = []
   const validFiles = files.filter(file => {
@@ -489,7 +487,6 @@ const handleBulkEmojiUpload = async (files: File[]) => {
     const successCount = results.filter(r => r !== null).length
     const failedCount = results.length - successCount
     
-    // Emit successful uploads
     results.forEach(emoji => {
       if (emoji) {
         emit('emoji-uploaded', emoji)
@@ -592,7 +589,6 @@ const saveEmojiRename = async (emoji: Emoji) => {
     const success = await renameEmoji(emoji.id, tempEmojiName.value.trim(), props.serverId)
     
     if (success) {
-      // Update the emoji in the list
       const updatedEmojis = props.emojis.map(e => 
         e.id === emoji.id ? { ...e, name: tempEmojiName.value.trim() } : e
       )

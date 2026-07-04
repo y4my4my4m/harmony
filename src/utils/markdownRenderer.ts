@@ -54,7 +54,6 @@ function renderTokenToHTML(token: MarkdownToken, options: RenderOptions): string
 
   switch (token.type) {
     case 'text':
-      // Handle newlines in text
       return escapeHtml(token.content).replace(/\n/g, '<br>');
 
     case 'bold': {

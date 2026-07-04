@@ -41,7 +41,6 @@ export function usePushToTalk() {
   // Local state for keybind recording (not part of useKeybinds)
   const isRecordingKeybind = ref(false)
   
-  // Get the PTT keybind
   const pttKeybind = computed(() => keybinds.getKeybind('push-to-talk'))
   
   // Computed values that map to the old API

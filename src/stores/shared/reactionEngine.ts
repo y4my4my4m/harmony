@@ -118,7 +118,6 @@ export function createReactionEngine<G, E>(
     const run = (async () => {
       try {
         const grouped = await adapter.fetchBatch(idsToFetch)
-        // Initialise every requested id (so "no reactions" is cached, not refetched).
         for (const id of idsToFetch) {
           reactionsByEntity.set(id, grouped[id] || [])
           lastFetched.set(id, now)

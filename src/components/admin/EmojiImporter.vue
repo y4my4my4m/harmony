@@ -213,7 +213,6 @@ const uniqueDomains = ref<string[]>([]);
 const totalEmojis = ref(0);
 const importedCount = ref(0);
 
-// Import modal state
 const showImportModal = ref(false);
 const selectedEmoji = ref<RemoteEmoji | null>(null);
 const importName = ref('');
@@ -224,7 +223,6 @@ const importingIds = ref(new Set<string>());
 const filteredEmojis = computed(() => {
   let result = [...emojis.value];
   
-  // Sort
   switch (sortBy.value) {
     case 'usage_count':
       result.sort((a, b) => b.usage_count - a.usage_count);
@@ -274,12 +272,10 @@ const loadEmojis = async () => {
       .order('usage_count', { ascending: false })
       .range(emojiOffset.value, emojiOffset.value + emojiPageSize - 1);
     
-    // Filter by domain
     if (selectedDomain.value) {
       query = query.eq('origin_domain', selectedDomain.value);
     }
     
-    // Filter by import status
     if (importStatus.value === 'not_imported') {
       query = query.is('imported_as', null);
     } else if (importStatus.value === 'imported') {
@@ -298,7 +294,6 @@ const loadEmojis = async () => {
     debug.log(`🎨 Loaded ${data?.length || 0} remote emojis`);
     emojis.value = data || [];
     
-    // Load unique domains for filter
     const { data: domainData, error: domainError } = await supabase
       .from('remote_emojis_cache')
       .select('origin_domain')
@@ -311,7 +306,6 @@ const loadEmojis = async () => {
       debug.log(`🎨 Found ${uniqueDomains.value.length} unique domains:`, uniqueDomains.value);
     }
     
-    // Load stats
     const { count: total, error: countError } = await supabase
       .from('remote_emojis_cache')
       .select('*', { count: 'exact', head: true });
@@ -374,7 +368,6 @@ const confirmImport = async () => {
     
     debug.log('Emoji imported successfully:', data);
     
-    // Update local state
     const idx = emojis.value.findIndex(e => e.id === selectedEmoji.value!.id);
     if (idx !== -1) {
       emojis.value[idx].imported_as = data;

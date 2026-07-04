@@ -12,7 +12,7 @@ export interface Gif {
   title?: string;
   /** Klipy item page URL (for attribution link on shared GIFs). */
   itemUrl?: string;
-  /** True for clip media (video) — sent/rendered as a video, not an image. */
+  /** True for clip media (video) - sent/rendered as a video, not an image. */
   isVideo?: boolean;
 }
 

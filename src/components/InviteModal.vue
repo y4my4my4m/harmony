@@ -513,7 +513,6 @@ const loadInviteConstraints = async () => {
     inviteConstraints.value = constraints
     canCreateInvites.value = constraints.canCreate
     
-    // Set defaults based on constraints
     expirationTime.value = constraints.defaultExpiration
     
     

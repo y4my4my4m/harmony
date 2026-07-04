@@ -218,13 +218,11 @@ function keyToDisplay(key: string, modifiers: KeybindModifiers): string {
   if (modifiers.shift) parts.push('Shift')
   if (modifiers.meta) parts.push('Meta')
   
-  // Check if it's a mouse button
   if (isMouseButton(key)) {
     parts.push(MOUSE_BUTTON_NAMES[key] || key)
     return parts.join(' + ')
   }
   
-  // Make key name readable
   let keyName = key
   const keyMappings: Record<string, string> = {
     'Space': 'Space',
@@ -295,7 +293,6 @@ function shouldSkipEvent(event: KeyboardEvent): boolean {
 function initializeKeybinds(): void {
   if (isInitialized.value) return
   
-  // Initialize with defaults
   for (const [action, def] of Object.entries(DEFAULT_KEYBINDS)) {
     keybinds.value.set(action as KeybindAction, {
       ...def,
@@ -304,7 +301,6 @@ function initializeKeybinds(): void {
     })
   }
   
-  // Load customizations from localStorage
   loadKeybinds()
   
   isInitialized.value = true
@@ -317,7 +313,6 @@ function loadKeybinds(): void {
     if (stored) {
       const data = JSON.parse(stored)
       
-      // Load input mode
       if (data.inputMode) {
         inputMode.value = data.inputMode
       }
@@ -325,7 +320,6 @@ function loadKeybinds(): void {
         releaseDelay.value = data.releaseDelay
       }
       
-      // Load customized keybinds
       if (data.keybinds) {
         for (const [action, custom] of Object.entries(data.keybinds)) {
           const keybind = keybinds.value.get(action as KeybindAction)
@@ -407,7 +401,6 @@ function handleKeyDown(event: KeyboardEvent): void {
     if (!handler) continue
     
     if (keybind.holdMode) {
-      // Clear any pending release
       const timer = releaseTimers.get(action)
       if (timer) {
         clearTimeout(timer)
@@ -421,7 +414,6 @@ function handleKeyDown(event: KeyboardEvent): void {
         debug.log(`⌨️ [Keybinds] ${action} pressed (hold)`)
       }
     } else {
-      // Toggle action
       ;(handler as KeybindHandler)()
       debug.log(`⌨️ [Keybinds] ${action} triggered`)
     }
@@ -437,13 +429,11 @@ function handleKeyUp(event: KeyboardEvent): void {
     if (!keybind.enabled) continue
     if (!holdState.value.get(action)) continue
     
-    // Check if the base key matches (ignore modifiers on release)
     if (event.code !== keybind.key) continue
     
     event.preventDefault()
     event.stopPropagation()
     
-    // Add release delay
     const timer = setTimeout(() => {
       holdState.value.set(action, false)
       const handler = handlers.value.get(action)
@@ -473,7 +463,6 @@ function handleWindowBlur(): void {
     }
   }
   
-  // Clear all release timers
   for (const timer of releaseTimers.values()) {
     clearTimeout(timer)
   }
@@ -514,7 +503,6 @@ function handleMouseDown(event: MouseEvent): void {
     if (!handler) continue
     
     if (keybind.holdMode) {
-      // Clear any pending release
       const timer = releaseTimers.get(action)
       if (timer) {
         clearTimeout(timer)
@@ -528,7 +516,6 @@ function handleMouseDown(event: MouseEvent): void {
         debug.log(`🖱️ [Keybinds] ${action} mouse pressed (hold)`)
       }
     } else {
-      // Toggle action
       ;(handler as KeybindHandler)()
       debug.log(`🖱️ [Keybinds] ${action} mouse triggered`)
     }
@@ -550,7 +537,6 @@ function handleMouseUp(event: MouseEvent): void {
     event.preventDefault()
     event.stopPropagation()
     
-    // Add release delay
     const timer = setTimeout(() => {
       holdState.value.set(action, false)
       const handler = handlers.value.get(action)
@@ -579,19 +565,16 @@ export function useKeybinds() {
   const isPTTMode = computed(() => inputMode.value === 'push_to_talk')
   const isVoiceActivityMode = computed(() => inputMode.value === 'voice_activity')
   
-  // Get keybind by action
   const getKeybind = (action: KeybindAction): KeybindDefinition | undefined => {
     return keybinds.value.get(action)
   }
   
-  // Get display string for keybind
   const getKeybindDisplay = (action: KeybindAction): string => {
     const keybind = keybinds.value.get(action)
     if (!keybind) return 'Not set'
     return keyToDisplay(keybind.key, keybind.modifiers)
   }
   
-  // Register handler for an action
   const registerHandler = (action: KeybindAction, handler: KeybindHandler | HoldKeyHandler): void => {
     handlers.value.set(action, handler)
   }
@@ -601,7 +584,6 @@ export function useKeybinds() {
     handlers.value.delete(action)
   }
   
-  // Set keybind
   const setKeybind = (action: KeybindAction, key: string, modifiers: KeybindModifiers): void => {
     const keybind = keybinds.value.get(action)
     if (keybind) {
@@ -612,7 +594,6 @@ export function useKeybinds() {
     }
   }
   
-  // Reset keybind to default
   const resetKeybind = (action: KeybindAction): void => {
     const keybind = keybinds.value.get(action)
     const def = DEFAULT_KEYBINDS[action]
@@ -624,14 +605,12 @@ export function useKeybinds() {
     }
   }
   
-  // Reset all keybinds
   const resetAllKeybinds = (): void => {
     for (const action of Object.keys(DEFAULT_KEYBINDS) as KeybindAction[]) {
       resetKeybind(action)
     }
   }
   
-  // Toggle keybind enabled state
   const toggleKeybindEnabled = (action: KeybindAction): void => {
     const keybind = keybinds.value.get(action)
     if (keybind) {
@@ -640,14 +619,12 @@ export function useKeybinds() {
     }
   }
   
-  // Set input mode
   const setInputMode = (mode: 'voice_activity' | 'push_to_talk'): void => {
     inputMode.value = mode
     saveKeybinds()
     debug.log(`⌨️ [Keybinds] Input mode set to ${mode}`)
   }
   
-  // Set release delay
   const setReleaseDelay = (delay: number): void => {
     releaseDelay.value = Math.max(0, Math.min(1000, delay))
     saveKeybinds()
@@ -663,7 +640,6 @@ export function useKeybinds() {
     activeContexts.value.delete(context)
   }
   
-  // Check if keybind matches event (for external use)
   const matchesEvent = (action: KeybindAction, event: KeyboardEvent): boolean => {
     const keybind = keybinds.value.get(action)
     if (!keybind || !keybind.enabled) return false
@@ -689,10 +665,8 @@ export function useKeybinds() {
     return false
   }
   
-  // Get PTT active state
   const isPTTActive = computed(() => holdState.value.get('push-to-talk') ?? false)
   
-  // Setup global listeners
   const setupListeners = (): void => {
     if (isListenerSetup.value) return
     if (typeof window === 'undefined') return
@@ -712,7 +686,6 @@ export function useKeybinds() {
     debug.log('⌨️ [Keybinds] Global listeners registered (keyboard + mouse)')
   }
   
-  // Cleanup listeners
   const cleanupListeners = (): void => {
     if (!isListenerSetup.value) return
     if (typeof window === 'undefined') return
@@ -730,7 +703,6 @@ export function useKeybinds() {
     
     isListenerSetup.value = false
     
-    // Clear all timers
     for (const timer of releaseTimers.values()) {
       clearTimeout(timer)
     }

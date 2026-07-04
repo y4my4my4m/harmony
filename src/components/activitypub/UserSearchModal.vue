@@ -236,7 +236,6 @@ const performSearch = async () => {
   hasMoreResults.value = false;
 
   try {
-    // Check if it's a handle search (@username@domain)
     const handleMatch = query.match(/^@?([^@]+)@([^@]+)$/);
 
     if (handleMatch) {
@@ -306,16 +305,13 @@ const selectRecentSearch = (user: FederatedUser) => {
 };
 
 const addToRecentSearches = (user: FederatedUser) => {
-  // Remove if already exists
   recentSearches.value = recentSearches.value.filter(u => u.id !== user.id);
   
-  // Add to beginning
   recentSearches.value.unshift(user);
   
   // Keep only last 5
   recentSearches.value = recentSearches.value.slice(0, 5);
   
-  // Save to localStorage
   try {
     localStorage.setItem('fediverse_recent_searches', JSON.stringify(recentSearches.value));
   } catch (error) {

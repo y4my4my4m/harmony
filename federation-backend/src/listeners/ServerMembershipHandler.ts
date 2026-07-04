@@ -19,7 +19,6 @@ export async function handleUserJoinRemoteServer(payload: any): Promise<void> {
 
     logger.info(`🚪 User ${user_id} joining remote server ${server_id}`);
 
-    // Get user
     const { data: user } = await supabase
       .from('profiles')
       .select('*')
@@ -31,7 +30,6 @@ export async function handleUserJoinRemoteServer(payload: any): Promise<void> {
       return;
     }
 
-    // Create Join activity
     const activity = {
       '@context': 'https://www.w3.org/ns/activitystreams',
       id: `https://${config.INSTANCE_DOMAIN}/users/${user.username}/joins/${Date.now()}`,
@@ -41,7 +39,6 @@ export async function handleUserJoinRemoteServer(payload: any): Promise<void> {
       published: new Date().toISOString(),
     };
 
-    // Send to remote server's inbox
     await DeliveryQueue.sendToInbox(server_inbox, activity, user.id);
 
     logger.info(`✅ Sent Join activity to remote server`);
@@ -60,7 +57,6 @@ export async function handleUserLeaveRemoteServer(payload: any): Promise<void> {
 
     logger.info(`🚪 User ${user_id} leaving remote server ${server_id}`);
 
-    // Get user
     const { data: user } = await supabase
       .from('profiles')
       .select('*')
@@ -72,7 +68,6 @@ export async function handleUserLeaveRemoteServer(payload: any): Promise<void> {
       return;
     }
 
-    // Create Leave activity
     const activity = {
       '@context': 'https://www.w3.org/ns/activitystreams',
       id: `https://${config.INSTANCE_DOMAIN}/users/${user.username}/leaves/${Date.now()}`,
@@ -82,7 +77,6 @@ export async function handleUserLeaveRemoteServer(payload: any): Promise<void> {
       published: new Date().toISOString(),
     };
 
-    // Send to remote server's inbox
     await DeliveryQueue.sendToInbox(server_inbox, activity, user.id);
 
     logger.info(`✅ Sent Leave activity to remote server`);
@@ -101,7 +95,6 @@ export async function handleRemoteUserLeftServer(payload: any): Promise<void> {
 
     logger.info(`🚪 Remote user ${user_id} left local server ${server_id}`);
 
-    // Get server
     const { data: server } = await supabase
       .from('servers')
       .select('*')
@@ -125,7 +118,6 @@ export async function handleRemoteUserLeftServer(payload: any): Promise<void> {
       published: new Date().toISOString(),
     };
 
-    // Get other remote members to notify
     const { data: memberGroups } = await supabase
       .rpc('get_server_members_by_instance', { p_server_id: server_id });
 

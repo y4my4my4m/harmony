@@ -97,7 +97,6 @@ class UserScopedStorage {
       return // Already set
     }
 
-    // Clear any old user's data if switching users
     if (this.currentUserId && this.currentUserId !== userId) {
       this.clearUserData(this.currentUserId)
     }
@@ -152,7 +151,6 @@ class UserScopedStorage {
         }
       }
 
-      // Remove all user-specific keys
       keysToRemove.forEach(key => localStorage.removeItem(key))
       
       if (keysToRemove.length > 0) {
@@ -269,7 +267,6 @@ class UserScopedStorage {
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i)
         if (key && key.startsWith(prefix)) {
-          // Remove the prefix to get the original key
           keys.push(key.substring(prefix.length))
         }
       }
@@ -307,7 +304,6 @@ class UserScopedStorage {
 // Export singleton instance
 export const userStorage = new UserScopedStorage()
 
-// Initialize on module load
 if (typeof window !== 'undefined') {
   userStorage.initialize()
 }

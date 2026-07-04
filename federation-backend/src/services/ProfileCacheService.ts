@@ -172,7 +172,6 @@ class ProfileCacheServiceSingleton {
       missing.push(...profileIds);
     }
 
-    // Fetch missing from DB
     if (missing.length > 0) {
       const supabase = getSupabaseClient();
       const { data } = await supabase

@@ -408,11 +408,9 @@ async function loadMyBots() {
   isLoading.value = true
 
   try {
-    // Get current user
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) throw new Error('Not authenticated')
 
-    // Get user profile ID
     const { data: profile } = await supabase
       .from('profiles')
       .select('id')
@@ -421,7 +419,6 @@ async function loadMyBots() {
 
     if (!profile) throw new Error('Profile not found')
 
-    // Load bots owned by this user
     const { data: bots, error } = await supabase
       .from('bots')
       .select('*')
@@ -446,7 +443,6 @@ async function createBot() {
   creating.value = true
 
   try {
-    // Get current user profile
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) throw new Error('Not authenticated')
 
@@ -458,7 +454,6 @@ async function createBot() {
 
     if (!profile) throw new Error('Profile not found')
 
-    // Create bot
     const { data: bot, error: botError } = await supabase
       .from('bots')
       .insert({
@@ -474,7 +469,6 @@ async function createBot() {
 
     if (botError) throw botError
 
-    // Generate token
     const token = generateBotToken()
     const tokenHash = await hashBotToken(token)
 
@@ -490,14 +484,12 @@ async function createBot() {
 
     if (tokenError) throw tokenError
 
-    // Show token
     currentToken.value = token
     newBotToken.value = true
     currentBot.value = bot
     showToken.value = true
     showCreateModal.value = false
 
-    // Reset form
     newBot.value = {
       username: '',
       display_name: '',
@@ -506,7 +498,6 @@ async function createBot() {
       is_public: true
     }
 
-    // Reload bots
     await loadMyBots()
 
     toast.success(`Bot "${bot.username}" created successfully!`)
@@ -555,7 +546,6 @@ async function regenerateToken() {
   if (!confirmed) return
 
   try {
-    // Generate new token
     const token = generateBotToken()
     const tokenHash = await hashBotToken(token)
 
@@ -565,7 +555,6 @@ async function regenerateToken() {
       .update({ is_active: false, revoked_at: new Date().toISOString() })
       .eq('bot_id', currentBot.value.id)
 
-    // Create new token
     const { error } = await supabase
       .from('bot_tokens')
       .insert({

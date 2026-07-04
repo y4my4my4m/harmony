@@ -60,7 +60,6 @@ export async function handleChannelMessageFederation(
 
     logger.info(`📨 Federating channel message ${message_id} in #${channel_name}`);
 
-    // Get message with author
     const { data: message, error: messageError } = await supabase
       .from('messages')
       .select(`
@@ -93,7 +92,6 @@ export async function handleChannelMessageFederation(
       }
     }
 
-    // Get server with federation info
     const { data: server } = await supabase
       .from('servers')
       .select('*, federation_inbox_url, ap_id, is_local_server')
@@ -110,7 +108,6 @@ export async function handleChannelMessageFederation(
     if (server.is_local_server === false && server.federation_inbox_url) {
       logger.info(`📤 User sending message to REMOTE server: ${server.name}`);
       
-      // Check if the author is local
       const { data: author } = await supabase
         .from('profiles')
         .select('id, username, federated_id, is_local')
@@ -122,7 +119,6 @@ export async function handleChannelMessageFederation(
         return;
       }
 
-      // Create activity to send to remote server
       const activity = createMessageActivity(
         message,
         server,
@@ -170,13 +166,11 @@ export async function handleChannelMessageFederation(
       return;
     }
 
-    // Get remote member groups
     const remoteMemberGroups = await getRemoteMemberGroups(server_id);
 
     if (remoteMemberGroups.length === 0) {
       logger.info('No remote members, skipping federation');
       
-      // Mark as skipped (preserve updated_at)
       await supabase
         .from('messages')
         .update({ 
@@ -196,7 +190,6 @@ export async function handleChannelMessageFederation(
       return;
     }
 
-    // Create ActivityPub activity
     const activity = createMessageActivity(
       message,
       server,
@@ -205,7 +198,6 @@ export async function handleChannelMessageFederation(
       'Create'
     );
 
-    // Send to each remote instance
     await deliverToRemoteInstances(remoteMemberGroups, activity, message.author.id);
 
     // Update federation status (preserve updated_at to avoid showing as edited)
@@ -419,14 +411,12 @@ function createMessageActivity(
   const messageUrl = `https://${hostDomain}/messages/${message.id}`;
   const activityId = `${serverUrl}/activities/${message.id}`;
 
-  // Get author AP ID - require valid author with username
   if (!message.author?.username) {
     throw new Error(`Cannot create activity: message ${message.id} has no valid author`);
   }
   const authorApId = message.author.federated_id || 
     `https://${hostDomain}/users/${message.author.username}`;
 
-  // Convert content
   const contentHtml = convertContentToHTML(message.content);
   const tags = extractActivityPubTags(message.content);
   const attachments = extractAttachments(message.content);
@@ -452,7 +442,6 @@ function createMessageActivity(
       })
     : message.content;
 
-  // Handle reply threading
   let inReplyTo: string | undefined;
   if (message.reply_to) {
     inReplyTo = `https://${hostDomain}/messages/${message.reply_to}`;
@@ -545,7 +534,6 @@ async function deliverToRemoteInstances(
     // Use shared inbox for efficiency
     const inbox = group.shared_inbox || `https://${group.instance}/inbox`;
 
-    // Add specific recipients to the activity
     const activityWithRecipients = {
       ...activity,
       to: group.member_ap_ids,

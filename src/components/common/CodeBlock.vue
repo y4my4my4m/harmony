@@ -53,7 +53,6 @@ export default defineComponent({
 
     const copyCode = async () => {
       try {
-        // Get plain text version of the code (without HTML syntax highlighting)
         await navigator.clipboard.writeText(props.code);
         copied.value = true;
         

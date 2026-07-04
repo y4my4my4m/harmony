@@ -540,7 +540,6 @@ watch(
   () => props.visible,
   async (visible) => {
     if (visible) {
-      // Set initial position from props immediately
       adjustedPosition.value = { x: props.x, y: props.y };
       // Then adjust for screen bounds after DOM update
       await adjustPosition();

@@ -102,7 +102,6 @@ export function parseBioWithEmojis(bio: string, emojis: Array<{name: string, url
     return [{ type: 'text', text: bio || '' }];
   }
 
-  // Create a map for quick emoji lookup
   const emojiMap = new Map(emojis.map(e => [e.name, e.url]));
   
   const parts: any[] = [];
@@ -126,7 +125,6 @@ export function parseBioWithEmojis(bio: string, emojis: Array<{name: string, url
     }
     
     if (emojiUrl) {
-      // Add emoji part with URL
       parts.push({
         type: 'emoji',
         emoji: {
@@ -144,7 +142,6 @@ export function parseBioWithEmojis(bio: string, emojis: Array<{name: string, url
     lastIndex = match.index + match[0].length;
   }
   
-  // Add remaining text
   if (lastIndex < bio.length) {
     const remainingText = bio.substring(lastIndex);
     if (remainingText) {
@@ -216,7 +213,6 @@ export async function resolveMentions(mentions: MentionMatch[]): Promise<Resolve
         continue;
       }
 
-      // Convert to FederatedUser format
       const federatedUser: FederatedUser = {
         id: user.id,
         username: user.username,
@@ -244,7 +240,6 @@ export async function resolveMentions(mentions: MentionMatch[]): Promise<Resolve
         last_synced_at: user.last_synced_at
       };
 
-      // Determine inbox URL for federation
       let inboxUrl: string | undefined;
       let actorUrl: string | undefined;
 
@@ -314,7 +309,6 @@ export function formatMentionsForActivityPub(
 ): string {
   let formatted = text;
   
-  // Sort mentions by position (reverse order to maintain indices)
   const sortedMentions = [...resolvedMentions].sort(
     (a, b) => b.mention.startIndex - a.mention.startIndex
   );
@@ -369,7 +363,6 @@ export async function resolveRemoteMention(username: string, domain: string, for
     const savedUser = result.user;
     debug.log(`✅ ${result.refreshed ? 'Refreshed' : (result.cached ? 'Found cached' : 'Created')} remote user: ${username}@${domain}`);
 
-    // Parse federation_metadata for bio and display name emojis
     let bioEmojis: Array<{name: string, url: string}> = [];
     let displayNameEmojis: Array<{name: string, url: string}> = [];
     if (savedUser.federation_metadata) {
@@ -388,13 +381,11 @@ export async function resolveRemoteMention(username: string, domain: string, for
       }
     }
 
-    // Convert bio to MessagePart[] if it has custom emojis
     let bio: string | any[] = savedUser.bio || '';
     if (bioEmojis.length > 0 && typeof bio === 'string') {
       bio = parseBioWithEmojis(bio, bioEmojis);
     }
 
-    // Convert display_name to MessagePart[] if it has custom emojis
     let display_name: string | any[] = savedUser.display_name || savedUser.username;
     if (displayNameEmojis.length > 0 && typeof display_name === 'string') {
       display_name = parseBioWithEmojis(display_name, displayNameEmojis);

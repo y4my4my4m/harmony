@@ -100,7 +100,6 @@ export function canonicalizeKeyRequest(fields: KeyRequestFields): string {
  * fully under our control.
  */
 export function canonicalizeForSigning(fields: SignedMessageFields): string {
-  // Sort keys lexicographically; only emit fields explicitly declared.
   const ordered: Record<string, string | number> = {
     algorithm: fields.algorithm,
     ciphertext_hash_b64: fields.ciphertext_hash_b64,

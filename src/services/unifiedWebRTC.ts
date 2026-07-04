@@ -174,7 +174,6 @@ export class UnifiedWebRTCService {
   async updateStreamQuality(settings: { resolution?: number; frameRate?: number; audioBitrate?: number }): Promise<void> {
     debug.log('📊 [P2P] Updating stream quality:', settings);
     
-    // Update settings
     if (settings.resolution !== undefined) {
       this.streamQualitySettings.resolution = settings.resolution;
     }
@@ -185,10 +184,8 @@ export class UnifiedWebRTCService {
       this.streamQualitySettings.audioBitrate = settings.audioBitrate;
     }
     
-    // Save to localStorage
     this.saveStreamQualitySettings();
     
-    // Apply to active video tracks using applyConstraints
     if (this.localStream) {
       const videoTracks = this.localStream.getVideoTracks();
       for (const track of videoTracks) {
@@ -245,13 +242,10 @@ export class UnifiedWebRTCService {
             track.stop();
             this.localStream!.removeTrack(track);
           });
-          // Add new track to local stream
           this.localStream.addTrack(newAudioTrack);
           
-          // Apply current mute state
           newAudioTrack.enabled = !currentMuteState;
           
-          // Update all peer connections with new audio track
           for (const [userId, conn] of this.connections) {
             try {
               const senders = conn.peerConnection.getSenders();
@@ -320,14 +314,12 @@ export class UnifiedWebRTCService {
     // If video is currently enabled, restart with new device
     if (this.localMediaState.isVideoEnabled && this.localStream && this.channelId) {
       try {
-        // Stop current video tracks
         const videoTracks = this.localStream.getVideoTracks();
         videoTracks.forEach(track => {
           track.stop();
           this.localStream!.removeTrack(track);
         });
         
-        // Get new video stream with selected device using quality settings
         const baseVideoConstraints = this.getVideoConstraints();
         const videoConstraints: any = {
           video: {
@@ -341,10 +333,8 @@ export class UnifiedWebRTCService {
         const newVideoTrack = newVideoStream.getVideoTracks()[0];
         
         if (newVideoTrack) {
-          // Add new track to local stream
           this.localStream.addTrack(newVideoTrack);
           
-          // Update all peer connections with new video track
           for (const [userId, conn] of this.connections) {
             try {
               const senders = conn.peerConnection.getSenders();
@@ -446,7 +436,6 @@ export class UnifiedWebRTCService {
       
       return true;
     } catch (error) {
-      // Check if this was a cancellation
       if (error instanceof DOMException && error.name === 'AbortError') {
         debug.log('🚫 [P2P] Connection cancelled');
         throw error; // Re-throw to propagate cancellation
@@ -464,7 +453,6 @@ export class UnifiedWebRTCService {
     debug.log('👋 Leaving voice channel');
     
     if (this.currentUserId && this.channelId) {
-      // Notify others we're leaving
       this.broadcastMessage({
         type: 'user-left',
         from: this.currentUserId,
@@ -473,7 +461,6 @@ export class UnifiedWebRTCService {
       });
     }
     
-    // Close all peer connections and cleanup audio
     this.connections.forEach(conn => {
       this.cleanupRemoteAudio(conn);
       conn.peerConnection.close();
@@ -481,13 +468,11 @@ export class UnifiedWebRTCService {
     this.connections.clear();
     this.allUserStates.clear();
     
-    // Stop local media
     if (this.localStream) {
       this.localStream.getTracks().forEach(track => track.stop());
       this.localStream = null;
     }
     
-    // Cleanup signaling
     if (this.signalChannel) {
       await this.signalChannel.unsubscribe();
       this.signalChannel = null;
@@ -543,7 +528,6 @@ export class UnifiedWebRTCService {
           audio: false
         };
         
-        // Add device ID if specified
         if (videoDevice) {
           videoConstraints.video.deviceId = { exact: videoDevice };
           debug.log('🎥 Using selected video device:', videoDevice);
@@ -567,18 +551,15 @@ export class UnifiedWebRTCService {
             this.localStream!.removeTrack(track);
           });
           
-          // Add new video track to local stream
           this.localStream.addTrack(videoTrack);
           this.localMediaState.isVideoEnabled = true;
           
           debug.log('📹 Local stream now has', this.localStream.getTracks().length, 'tracks');
           
-          // Add video track to all peer connections with renegotiation
           for (const [userId, conn] of this.connections) {
             try {
               debug.log('📹 Adding video track to peer:', userId);
               
-              // Check if we already have a video sender
               const existingSenders = conn.peerConnection.getSenders();
               const videoSender = existingSenders.find(s => s.track?.kind === 'video');
               
@@ -588,7 +569,6 @@ export class UnifiedWebRTCService {
                 await videoSender.replaceTrack(videoTrack);
                 debug.log('✅ Replaced video track for peer:', userId);
               } else {
-                // Add new video track (requires renegotiation)
                 debug.log('➕ Adding new video track for peer:', userId);
                 conn.peerConnection.addTrack(videoTrack, this.localStream);
                 debug.log('✅ Added new video track for peer:', userId);
@@ -608,7 +588,6 @@ export class UnifiedWebRTCService {
                   });
                 }
                 
-                // Create and send offer for renegotiation
                 debug.log('🔄 Creating renegotiation offer for peer:', userId);
               const offer = await conn.peerConnection.createOffer();
               await conn.peerConnection.setLocalDescription(offer);
@@ -644,7 +623,6 @@ export class UnifiedWebRTCService {
             track.stop();
             this.localStream.removeTrack(track);
             
-            // Remove from peer connections
             for (const [userId, conn] of this.connections) {
               try {
                 const senders = conn.peerConnection.getSenders();
@@ -669,7 +647,6 @@ export class UnifiedWebRTCService {
                     });
                   }
                   
-                  // Create and send offer for renegotiation
                   debug.log('🔄 Creating renegotiation offer after removing video');
                   const offer = await conn.peerConnection.createOffer();
                   await conn.peerConnection.setLocalDescription(offer);
@@ -693,7 +670,6 @@ export class UnifiedWebRTCService {
           this.localMediaState.isVideoEnabled = false;
           debug.log('✅ Video disabled, local stream now has', this.localStream.getTracks().length, 'tracks');
           
-          // Emit local stream change for UI update
           this.emit('local-stream-changed', this.localStream);
           debug.log('📺 Emitted local-stream-changed event (video disabled)');
         }
@@ -706,7 +682,6 @@ export class UnifiedWebRTCService {
     } catch (error) {
       debug.error('❌ Error toggling video:', error);
       
-      // Reset state on error
       this.localMediaState.isVideoEnabled = false;
       return false;
     }
@@ -715,7 +690,6 @@ export class UnifiedWebRTCService {
   /**
    * Toggle screen share on/off
    */
-  // Track IDs for screen share tracks (for proper cleanup)
   private screenShareVideoTrackId: string | null = null;
   private screenShareAudioTrackId: string | null = null;
   
@@ -737,7 +711,6 @@ export class UnifiedWebRTCService {
         const screenVideoTrack = screenStream.getVideoTracks()[0];
         const screenAudioTrack = screenStream.getAudioTracks()[0]; // System audio
         
-        // Store track IDs for cleanup
         this.screenShareVideoTrackId = screenVideoTrack?.id || null;
         this.screenShareAudioTrackId = screenAudioTrack?.id || null;
         
@@ -754,7 +727,6 @@ export class UnifiedWebRTCService {
             this.localMediaState.isVideoEnabled = false;
           }
           
-          // Remove existing video tracks (keep microphone audio)
           const videoTracks = this.localStream.getVideoTracks();
           videoTracks.forEach(track => {
             debug.log('🛑 Stopping and removing video track for screenshare:', track.id);
@@ -762,11 +734,9 @@ export class UnifiedWebRTCService {
             this.localStream!.removeTrack(track);
           });
           
-          // Add screen video track
           this.localStream.addTrack(screenVideoTrack);
           debug.log('✅ Added screen video track');
           
-          // Add screen audio track if available (system audio)
           if (screenAudioTrack) {
             this.localStream.addTrack(screenAudioTrack);
             debug.log('🔊 Screen sharing with system audio enabled');
@@ -787,11 +757,9 @@ export class UnifiedWebRTCService {
                 await videoSender.replaceTrack(screenVideoTrack);
                 debug.log('🔄 Replaced video with screen track for peer:', userId);
               } else {
-                // Add new screen track (requires renegotiation)
                 conn.peerConnection.addTrack(screenVideoTrack, this.localStream!);
                 debug.log('➕ Added screen track to peer:', userId);
                 
-                // Wait for stable state
                 if (conn.peerConnection.signalingState !== 'stable') {
                   await new Promise(resolve => {
                     const checkState = () => {
@@ -820,9 +788,7 @@ export class UnifiedWebRTCService {
                 debug.log('✅ Screen share renegotiation offer sent to:', userId);
               }
               
-              // Add screen audio track if available (needs renegotiation)
               if (screenAudioTrack) {
-                // Check if we already have this track in the peer connection
                 const existingSenders = conn.peerConnection.getSenders();
                 const hasScreenAudio = existingSenders.some(s => s.track?.id === screenAudioTrack.id);
                 
@@ -859,7 +825,6 @@ export class UnifiedWebRTCService {
             }
           }
           
-          // Handle screen share ending (either video or audio ending should stop both)
           screenVideoTrack.onended = () => {
             debug.log('📺 Screen video track ended');
             if (this.localMediaState.isScreenSharing) {
@@ -877,23 +842,19 @@ export class UnifiedWebRTCService {
           }
         }
       } else {
-        // Stop screen sharing
         if (this.localStream) {
           debug.log('🛑 Stopping screen share, cleaning up tracks:', {
             videoTrackId: this.screenShareVideoTrackId,
             audioTrackId: this.screenShareAudioTrackId
           });
           
-          // Remove screen video track by ID
           const videoTracks = this.localStream.getVideoTracks();
           videoTracks.forEach(track => {
-            // Remove the screen share video track (or all video if we don't have the ID)
             if (!this.screenShareVideoTrackId || track.id === this.screenShareVideoTrackId) {
               debug.log('🛑 Stopping video track:', track.id);
               track.stop();
               this.localStream!.removeTrack(track);
               
-              // Remove from peer connections
               this.connections.forEach(conn => {
                 const senders = conn.peerConnection.getSenders();
                 const videoSender = senders.find(s => s.track?.id === track.id);
@@ -905,7 +866,6 @@ export class UnifiedWebRTCService {
             }
           });
           
-          // Remove screen audio track by ID (much more reliable than label matching)
           if (this.screenShareAudioTrackId) {
             const audioTracks = this.localStream.getAudioTracks();
             const screenAudioTrack = audioTracks.find(t => t.id === this.screenShareAudioTrackId);
@@ -915,7 +875,6 @@ export class UnifiedWebRTCService {
               screenAudioTrack.stop();
               this.localStream!.removeTrack(screenAudioTrack);
               
-              // Remove from peer connections
               this.connections.forEach(conn => {
                 const senders = conn.peerConnection.getSenders();
                 const audioSender = senders.find(s => s.track?.id === this.screenShareAudioTrackId);
@@ -929,7 +888,6 @@ export class UnifiedWebRTCService {
             }
           }
           
-          // Clear stored track IDs
           this.screenShareVideoTrackId = null;
           this.screenShareAudioTrackId = null;
           
@@ -1124,7 +1082,6 @@ export class UnifiedWebRTCService {
 
   private async initializeLocalAudio(): Promise<void> {
     try {
-      // Get new audio stream with updated constraints and selected device
       const { inputDevice } = this.getSelectedDevices();
       const audioConstraints: MediaTrackConstraints = {
         ...this.audioConstraints
@@ -1147,7 +1104,6 @@ export class UnifiedWebRTCService {
       } catch (error) {
         debug.warn('⚠️ Failed to use selected device during constraint update, falling back to default:', error);
         
-        // Clear the invalid device ID and save
         this.selectedInputDevice = null;
         this.saveAudioSettings();
         
@@ -1171,12 +1127,10 @@ export class UnifiedWebRTCService {
       const audioTrack = this.localStream.getAudioTracks()[0];
       if (audioTrack) {
         audioTrack.enabled = !this.localMediaState.isMuted;
-        // debug.log('🎤 Audio track enabled:', audioTrack.enabled, 'muted:', this.localMediaState.isMuted);
       }
       
       this.setupAudioLevelMonitoring();
       
-      // Emit initial local stream for UI
       this.emit('local-stream-changed', this.localStream);
       this.emit('stream-changed', { userId: this.currentUserId, stream: this.localStream, type: 'local' });
     } catch (error) {
@@ -1224,7 +1178,6 @@ export class UnifiedWebRTCService {
           const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
           this.localMediaState.audioLevel = average;
           
-          // Calculate speaking state
           const wasSpeaking = this.localMediaState.isSpeaking;
           this.localMediaState.isSpeaking = this.calculateSpeakingState(average, this.localMediaState.isMuted);
           
@@ -1353,10 +1306,8 @@ export class UnifiedWebRTCService {
   private async handleUserJoined(userId: string, mediaState: UserMediaState): Promise<void> {
     debug.log('👋 User joined:', userId, mediaState);
     
-    // Store their media state
     this.allUserStates.set(userId, mediaState);
 
-    // Create peer connection
     await this.createPeerConnection(userId, true); // We initiate since they just joined
     
     this.emit('user-joined', { userId, mediaState });
@@ -1386,18 +1337,15 @@ export class UnifiedWebRTCService {
   private handleAudioLevel(data: { userId: string; audioLevel: number; timestamp: number }): void {
     const { userId, audioLevel } = data;
     
-    // Update the user's audio level in our state
     const userState = this.allUserStates.get(userId);
     if (userState) {
       const wasSpeaking = userState.isSpeaking;
       userState.audioLevel = audioLevel;
       
-      // Calculate speaking state for remote user
       userState.isSpeaking = this.calculateSpeakingState(audioLevel, userState.isMuted);
       
       this.emit('audio-level', { userId, level: audioLevel });
       
-      // Emit user state change if speaking state changed
       if (wasSpeaking !== userState.isSpeaking) {
         this.emit('user-state-changed', { userId, mediaState: userState });
       }
@@ -1424,7 +1372,6 @@ export class UnifiedWebRTCService {
       // Someone is sending us the current channel state
       debug.log('📥 Received channel state from:', from, data);
       
-      // Update our knowledge of all users
       if (data.allStates) {
         data.allStates.forEach((state: UserMediaState) => {
           if (state.userId !== this.currentUserId) {
@@ -1433,7 +1380,6 @@ export class UnifiedWebRTCService {
         });
       }
       
-      // Add the sender's state
       if (data.mediaState) {
         this.allUserStates.set(from, data.mediaState);
       }
@@ -1479,7 +1425,6 @@ export class UnifiedWebRTCService {
     
     this.connections.set(userId, connection);
     
-    // Add local stream tracks
     if (this.localStream) {
       this.localStream.getTracks().forEach(track => {
         debug.log('🔗 Adding track to peer', userId, ':', track.kind, 'enabled:', track.enabled);
@@ -1488,7 +1433,6 @@ export class UnifiedWebRTCService {
       debug.log('✅ Added', this.localStream.getTracks().length, 'tracks to peer connection with', userId);
     }
     
-    // Handle remote stream
     pc.ontrack = async (event) => {
       debug.log('📹 Received track from:', userId, event.track.kind, 'Stream ID:', event.streams[0]?.id);
       
@@ -1496,7 +1440,6 @@ export class UnifiedWebRTCService {
         connection.remoteStream = event.streams[0];
         debug.log('📡 Setting remote stream for user:', userId, 'Tracks:', event.streams[0].getTracks().length);
         
-        // Create audio element for remote audio playback
         await this.setupRemoteAudio(connection, event.streams[0]);
         
         this.emit('user-stream-changed', { userId, stream: event.streams[0] });
@@ -1506,7 +1449,6 @@ export class UnifiedWebRTCService {
       }
     };
     
-    // Handle ICE candidates
     pc.onicecandidate = (event) => {
       if (event.candidate) {
         this.sendDirectMessage(userId, {
@@ -1519,7 +1461,6 @@ export class UnifiedWebRTCService {
       }
     };
     
-    // Handle connection state changes
     pc.onconnectionstatechange = () => {
       connection.connectionState = pc.connectionState;
       this.emit('connection-state-changed', { userId, state: pc.connectionState });
@@ -1530,7 +1471,6 @@ export class UnifiedWebRTCService {
       debug.log('🧊 ICE state for', userId, ':', pc.iceConnectionState);
     };
     
-    // Create offer if we're the initiator
     if (isInitiator) {
       try {
         const offer = await pc.createOffer();
@@ -1712,17 +1652,14 @@ export class UnifiedWebRTCService {
     const audioTracks = stream.getAudioTracks();
     
     if (audioTracks.length > 0) {
-      // Create audio element for remote audio playback
       if (!connection.audioElement) {
         connection.audioElement = new Audio();
         connection.audioElement.autoplay = true;
         // Note: playsInline is for video elements, not needed for audio
       }
       
-      // Set the stream
       connection.audioElement.srcObject = stream;
       
-      // Check if spatial audio is enabled AND initialized
       const { useSpatialAudioStore } = await import('@/stores/spatialAudio');
       const { spatialAudioService } = await import('@/services/spatialAudio');
       const spatialStore = useSpatialAudioStore();
@@ -1741,12 +1678,10 @@ export class UnifiedWebRTCService {
                   'spatialActive:', isSpatialAudioActive,
                   'deafened:', this.localMediaState.isDeafened);
       
-      // Handle audio element errors
       connection.audioElement.onerror = (error) => {
         debug.error('❌ Audio element error for user', connection.userId, ':', error);
       };
       
-      // Log when audio starts playing
       connection.audioElement.onplay = () => {
         debug.log('▶️ Audio started playing for user:', connection.userId);
       };
@@ -1812,7 +1747,6 @@ export class UnifiedWebRTCService {
       const devices = VoiceSettingsService.getDevices();
       const constraints = VoiceSettingsService.getAudioConstraints();
       
-      // Load audio constraints
       this.audioConstraints = {
         ...this.audioConstraints,
         echoCancellation: constraints.echoCancellation,
@@ -1821,7 +1755,6 @@ export class UnifiedWebRTCService {
       };
       debug.log('🎛️ [P2P] Loaded audio settings:', this.audioConstraints);
       
-      // Load device settings
       this.selectedInputDevice = devices.inputDevice;
       this.selectedOutputDevice = devices.outputDevice;
       this.selectedVideoDevice = devices.videoDevice;
@@ -1833,14 +1766,12 @@ export class UnifiedWebRTCService {
 
   private saveAudioSettings(): void {
     try {
-      // Save audio constraints
       VoiceSettingsService.setAudioConstraints({
         echoCancellation: this.audioConstraints.echoCancellation,
         noiseSuppression: this.audioConstraints.noiseSuppression,
         autoGainControl: this.audioConstraints.autoGainControl
       });
       
-      // Save device settings
       if (this.selectedInputDevice) {
         VoiceSettingsService.setInputDevice(this.selectedInputDevice);
       }
@@ -1872,7 +1803,6 @@ export class UnifiedWebRTCService {
   async updateAudioConstraints(constraints: { echoCancellation?: boolean; noiseSuppression?: boolean; autoGainControl?: boolean }): Promise<void> {
     debug.log('🎛️ Updating audio constraints:', constraints);
     
-    // Update constraints
     Object.assign(this.audioConstraints, constraints);
     this.saveAudioSettings();
     
@@ -1902,13 +1832,10 @@ export class UnifiedWebRTCService {
             track.stop();
             this.localStream!.removeTrack(track);
           });
-          // Add new track to local stream
           this.localStream.addTrack(newAudioTrack);
           
-          // Apply current mute state
           newAudioTrack.enabled = !currentMuteState;
           
-          // Update all peer connections with new audio track
           for (const [userId, conn] of this.connections) {
             try {
               const senders = conn.peerConnection.getSenders();

@@ -130,7 +130,6 @@ export class ActivityProcessor {
    * Process incoming ActivityPub activity
    */
   static async processIncomingActivity(activity: any): Promise<void> {
-    // Check if actor is suspended on our instance
     const actorUrl = normalizeActor(activity.actor);
     if (actorUrl && await this.isActorSuspended(actorUrl)) {
       logger.info(`🚫 Ignoring activity from suspended user: ${actorUrl}`);
@@ -256,14 +255,12 @@ export class ActivityProcessor {
 
     logger.info(`Follow created and auto-accepted: ${followerUrl} → ${followingUrl}`);
 
-    // Send Accept activity back to follower
     if (followingUser && followingUser.is_local) {
       const { createAcceptActivity } = await import('./converters/toActivityPub.js');
       const { DeliveryQueue } = await import('./DeliveryQueue.js');
 
       const acceptActivity = createAcceptActivity(followingUser, activity);
 
-      // Get follower's inbox
       const { data: followerUser } = await supabase
         .from('profiles')
         .select('inbox_url')
@@ -409,7 +406,6 @@ export class ActivityProcessor {
       return;
     }
 
-    // Handle ChatThread - federated thread creation
     if (object.type === 'ChatThread') {
       logger.info(`📋 Routing Create ChatThread to handler: ${object.id}`);
       const { handleThreadActivity } = await import('./ThreadActivityHandler.js');
@@ -433,7 +429,6 @@ export class ActivityProcessor {
         } catch { /* not a valid URL, continue */ }
       }
 
-      // Check if this is a Harmony channel message (not a regular ActivityPub post)
       const harmonyServerId = object['harmony:serverId'];
       const harmonyChannelName = object['harmony:channelName'];
       
@@ -447,7 +442,6 @@ export class ActivityProcessor {
       // Ensure author exists
       await this.ensureRemoteUser(normalizeActor(activity.actor));
 
-      // Get author ID
       const author = await resolveProfileByActorUrl(normalizeActor(activity.actor));
 
       if (!author) {
@@ -455,7 +449,6 @@ export class ActivityProcessor {
         return;
       }
 
-      // Convert content (returns raw HTML for now)
       const rawContent = noteToContent(object);
       
       // Check for quote post (quoteUrl for Fediverse, _misskey_quote for Misskey)
@@ -470,7 +463,6 @@ export class ActivityProcessor {
       
       const content = rawContent;
 
-      // Determine visibility
       const visibility = this.determineVisibility(object);
 
       // Route group invite notifications (sent when remote user is added to group)
@@ -493,14 +485,12 @@ export class ActivityProcessor {
           conversationRootId = replyResult.conversationRootId;
         }
 
-        // Handle quote posts - fetch/create the quoted post and store reference
         let quotedPostData: any = null;
         if (quoteUrl) {
           logger.info(`📝 Processing quote post, quoted URL: ${quoteUrl}`);
           quotedPostData = await this.resolveQuotedPost(quoteUrl);
         }
 
-        // Build metadata object
         const metadata: any = {};
         if (object.inReplyTo) {
           metadata.in_reply_to_ap_url = object.inReplyTo;
@@ -530,7 +520,6 @@ export class ActivityProcessor {
           reblogs_count: object.shares?.totalItems || object.sharesCount || 0,
         };
 
-        // Add reblog data for quote posts (for display purposes)
         if (quotedPostData) {
           postData.reblog = {
             id: quotedPostData.id,
@@ -539,7 +528,6 @@ export class ActivityProcessor {
             visibility: quotedPostData.visibility,
           };
           
-          // Get quoted post author for reblog_author field
           const { data: quotedAuthor } = await supabase
             .from('profiles')
             .select('id, username, display_name, avatar_url, domain, is_local')
@@ -637,7 +625,6 @@ export class ActivityProcessor {
       }
     }
 
-    // Fetch the quoted post from remote
     logger.info(`📝 Fetching quoted post from remote: ${quoteUrl}`);
     const fetchedPost = await this.fetchAndCreateRemotePost(quoteUrl);
     
@@ -731,7 +718,6 @@ export class ActivityProcessor {
     // Parent is also a reply - in_reply_to is always a UUID (DB column), recurse
     const parentResult = await this.resolveReplyChain(parentPost.in_reply_to, depth + 1);
     
-    // Update the parent post with its conversation_root_id if we found it
     if (parentResult.conversationRootId && !parentPost.conversation_root_id) {
       await supabase
         .from('posts')
@@ -934,7 +920,6 @@ export class ActivityProcessor {
       const authorUrl = normalizeActor(remoteObject.attributedTo || remoteObject.actor);
       await this.ensureRemoteUser(authorUrl);
 
-      // Get author ID
       const { data: author } = await supabase
         .from('profiles')
         .select('id')
@@ -946,7 +931,6 @@ export class ActivityProcessor {
         return null;
       }
 
-      // Convert content
       const content = noteToContent(remoteObject);
       const visibility = this.determineVisibility(remoteObject);
 
@@ -1054,7 +1038,6 @@ export class ActivityProcessor {
         return;
       }
 
-      // Update user profile
       const profileData = actorToProfile(object);
 
       const updateData: any = {
@@ -1070,12 +1053,10 @@ export class ActivityProcessor {
         updateData.custom_status = profileData.custom_status;
       }
 
-      // Update profile fields (PropertyValue attachments)
       if (profileData.profile_fields) {
         updateData.profile_fields = profileData.profile_fields;
       }
 
-      // Update federation_metadata with emoji data
       const federationMetadata: any = {};
       if (profileData.bio_emojis && profileData.bio_emojis.length > 0) {
         federationMetadata.bio_emojis = profileData.bio_emojis;
@@ -1101,7 +1082,6 @@ export class ActivityProcessor {
 
       logger.info(`Updated profile: ${object.id}`);
     } else if (object.type === 'Note' || object.type === 'Article') {
-      // Handle post edits
       logger.info(`✏️ Processing post edit: ${object.id}`);
       
       // Find the existing post + author actor URL (joined via profiles.federated_id)
@@ -1125,10 +1105,8 @@ export class ActivityProcessor {
         return;
       }
 
-      // Convert content
       const content = noteToContent(object);
       
-      // Update the post
       const { error: updateError } = await supabase
         .from('posts')
         .update({
@@ -1152,22 +1130,18 @@ export class ActivityProcessor {
         logger.warn(`Thread Update failed: ${result.error}`);
       }
     } else if (object['harmony:type'] === 'harmony:GroupConversation') {
-      // Update group conversation (DM group) - name, icon changes
       await this.handleGroupConversationUpdate(activity, object);
     } else if (['harmony:TextChannel', 'harmony:VoiceChannel', 'harmony:Category'].includes(object.type)) {
       await this.processHarmonyChannelUpdate(activity, object);
     } else if (object.type === 'Group' || object['harmony:ChatServer']) {
-      // Update server (Group) - name, icon, description changes
       logger.info(`🏠 Processing server update: ${object.id}`);
       
-      // Extract server ID from the ap_id
       const serverIdMatch = object.id?.match(/\/servers\/([a-f0-9-]{36})$/i);
       if (!serverIdMatch) {
         logger.warn(`Cannot extract server ID from ap_id: ${object.id}`);
         return;
       }
       
-      // Find the server by ID (it should already exist as a federated copy)
       const { data: existingServer } = await supabase
         .from('servers')
         .select('id, ap_id')
@@ -1191,7 +1165,6 @@ export class ActivityProcessor {
         return;
       }
       
-      // Build update object
       const updateData: any = {
         updated_at: new Date().toISOString(),
       };
@@ -1308,7 +1281,6 @@ export class ActivityProcessor {
     // Ensure user exists
     await this.ensureRemoteUser(actorUrl);
 
-    // Get user ID
     const { data: user } = await supabase
       .from('profiles')
       .select('id')
@@ -1320,7 +1292,6 @@ export class ActivityProcessor {
       return;
     }
 
-    // Find target - could be a post OR a message (DM)
     let post = null;
     let message = null;
     
@@ -1384,7 +1355,6 @@ export class ActivityProcessor {
       }
     }
 
-    // Handle message (DM) reaction
     if (message) {
       const isCustomEmoji = !!(emojiUrl && emojiName);
       const reactionData: any = {
@@ -1451,7 +1421,6 @@ export class ActivityProcessor {
       return;
     }
 
-    // Handle post reaction (existing logic)
     if (post) {
       // Only image-backed custom emoji resolve to an emoji_id; unicode reactions
       // are grouped purely by custom_emoji_content (matches local behavior and
@@ -1522,7 +1491,6 @@ export class ActivityProcessor {
     // Ensure user exists
     await this.ensureRemoteUser(actorUrl);
 
-    // Get user ID
     const { data: user } = await supabase
       .from('profiles')
       .select('id')
@@ -1585,7 +1553,6 @@ export class ActivityProcessor {
             const authorUrl = normalizeActor(remotePost.attributedTo || remotePost.actor);
             await this.ensureRemoteUser(authorUrl);
             
-            // Get author ID
             const { data: author } = await supabase
               .from('profiles')
               .select('id')
@@ -1593,7 +1560,6 @@ export class ActivityProcessor {
               .single();
             
             if (author) {
-              // Create the original post
               const content = noteToContent(remotePost);
               const visibility = this.determineVisibility(remotePost);
               
@@ -1644,7 +1610,6 @@ export class ActivityProcessor {
       return;
     }
 
-    // Get original post author for reblog_author field
     const { data: originalAuthor } = await supabase
       .from('profiles')
       .select('id, username, display_name, avatar_url, domain, is_local')
@@ -1697,7 +1662,6 @@ export class ActivityProcessor {
         is_local: false,
       }).catch(err => logger.warn('Failed to create reblog interaction:', err));
       
-      // Increment reblogs_count on original post
       await supabase.rpc('increment_post_reblogs', { p_post_id: originalPost.id })
         .catch(err => logger.warn('Failed to increment reblog count:', err));
 
@@ -1720,10 +1684,9 @@ export class ActivityProcessor {
       return;
     }
 
-    // Handle string object (just the ID of the original activity)
     const objectType = typeof object === 'string' ? null : object.type;
     
-    // If object is a string, we need to look up what type it was
+    // String object refs need a lookup to determine their original type
     if (typeof object === 'string') {
       logger.info(`🔍 Undo object is a string ID: ${object}`);
       // Try to find the original activity by its ID
@@ -1735,7 +1698,6 @@ export class ActivityProcessor {
       
       if (originalActivity) {
         logger.info(`Found original activity type: ${originalActivity.ap_type}`);
-        // Process based on the original activity type
         await this.processUndoByType(originalActivity.ap_type, originalActivity.activity_data, activity.actor);
         return;
       } else {
@@ -1746,7 +1708,6 @@ export class ActivityProcessor {
 
     switch (objectType) {
       case 'Follow': {
-        // Remove follow
         const { followerUrl, followingUrl } = extractFollowData(object);
         logger.info(`🔄 Undoing follow: ${followerUrl} → ${followingUrl}`);
         
@@ -1792,7 +1753,6 @@ export class ActivityProcessor {
       }
 
       case 'Announce': {
-        // Remove reblog by ap_id (correct column)
         const announceId = typeof object === 'string' ? object : object.id;
         logger.info(`🔄 Undoing announce: ${announceId}`);
         
@@ -1804,7 +1764,6 @@ export class ActivityProcessor {
           .maybeSingle();
         
         if (reblogPost) {
-          // Delete the reblog post
           const { error: deleteError } = await supabase
             .from('posts')
             .delete()
@@ -1865,14 +1824,12 @@ export class ActivityProcessor {
       return;
     }
 
-    // Check if this is a message (DM) reaction
     if (objectUrl.includes('/messages/')) {
       const uuidMatch = objectUrl.match(/\/messages\/([a-f0-9-]{36})/);
       if (uuidMatch) {
         const messageId = uuidMatch[1];
         logger.info(`🔄 Undoing message reaction on ${messageId}`);
         
-        // Delete from reactions table (for messages)
         const { error, count } = await supabase
           .from('reactions')
           .delete()
@@ -1888,7 +1845,6 @@ export class ActivityProcessor {
       return;
     }
 
-    // Handle post reactions
     let post = null;
     
     // Try by ap_id first
@@ -1919,7 +1875,6 @@ export class ActivityProcessor {
       return;
     }
 
-    // Delete from post_interactions
     const { error, count } = await supabase
       .from('post_interactions')
       .delete()
@@ -1946,7 +1901,6 @@ export class ActivityProcessor {
         await this.processUndoReaction(activityData, actorUrl);
         break;
       case 'Follow':
-        // Extract follow data from the stored activity
         if (activityData) {
           const supabase = getSupabaseClient();
           const { followerUrl, followingUrl } = extractFollowData(activityData);
@@ -1974,7 +1928,6 @@ export class ActivityProcessor {
         }
         break;
       case 'Announce':
-        // Handle via ap_id lookup
         if (activityData?.id) {
           const supabase = getSupabaseClient();
           await supabase
@@ -2010,7 +1963,6 @@ export class ActivityProcessor {
       return;
     }
 
-    // Extract poll options
     const options = [];
     
     // oneOf = single choice, anyOf = multiple choice
@@ -2026,7 +1978,6 @@ export class ActivityProcessor {
       }
     }
 
-    // Calculate end time
     let endTime = null;
     if (object.endTime) {
       endTime = object.endTime;
@@ -2034,11 +1985,9 @@ export class ActivityProcessor {
       endTime = object.closed;
     }
 
-    // Convert content
     const content = noteToContent(object);
     const visibility = this.determineVisibility(object);
 
-    // Build poll metadata
     const pollMetadata = {
       is_poll: true,
       poll_options: options,
@@ -2048,7 +1997,6 @@ export class ActivityProcessor {
       poll_closed: !!object.closed || (endTime && new Date(endTime) < new Date()),
     };
 
-    // Check if poll already exists (may arrive via Update for vote count changes)
     const { data: existingPoll } = await supabase
       .from('posts')
       .select('id')
@@ -2056,7 +2004,6 @@ export class ActivityProcessor {
       .maybeSingle();
 
     if (existingPoll) {
-      // Update existing poll metadata (vote counts, closed status)
       const { error } = await supabase.from('posts')
         .update({ metadata: pollMetadata })
         .eq('id', existingPoll.id);
@@ -2372,13 +2319,11 @@ export class ActivityProcessor {
     const objectUrl = typeof activity.object === 'string' ? activity.object : activity.object?.id;
     const object = typeof activity.object === 'object' ? activity.object : null;
 
-    // Handle Harmony channel/category additions (sent to shared inbox)
     if (object && ['harmony:TextChannel', 'harmony:VoiceChannel', 'harmony:Category'].includes(object.type)) {
       await this.processHarmonyChannelAdd(activity, object);
       return;
     }
 
-    // Check if this is adding to featured collection
     if (!targetUrl?.includes('/featured') || !objectUrl) {
       logger.info(`Add activity not for featured collection, skipping`);
       return;
@@ -2386,7 +2331,6 @@ export class ActivityProcessor {
 
     logger.info(`📌 Processing Add to featured: ${objectUrl}`);
 
-    // Find the post by ap_id
     const { data: post, error } = await supabase
       .from('posts')
       .select('id, author_id')
@@ -2398,7 +2342,6 @@ export class ActivityProcessor {
       return;
     }
 
-    // Update the post to be pinned
     await supabase
       .from('posts')
       .update({ is_pinned: true })
@@ -2416,20 +2359,17 @@ export class ActivityProcessor {
     const targetUrl = typeof target === 'string' ? target : target?.id;
     const objectUrl = typeof activity.object === 'string' ? activity.object : activity.object?.id;
 
-    // Check if this is a group conversation participant removal
     const targetType = typeof target === 'object' ? target?.['harmony:type'] : null;
     if (targetType === 'harmony:GroupConversation') {
       await this.handleGroupConversationParticipantRemove(activity, target);
       return;
     }
 
-    // Handle Harmony channel/category removal (sent to shared inbox)
     if (objectUrl?.includes('/channels/') && targetUrl?.includes('/servers/')) {
       await this.processHarmonyChannelRemove(activity, objectUrl);
       return;
     }
 
-    // Check if this is removing from featured collection
     if (!targetUrl?.includes('/featured') || !objectUrl) {
       logger.info(`Remove activity not for featured collection, skipping`);
       return;
@@ -2437,7 +2377,6 @@ export class ActivityProcessor {
 
     logger.info(`📌 Processing Remove from featured: ${objectUrl}`);
 
-    // Find and unpin the post
     const { error } = await supabase
       .from('posts')
       .update({ is_pinned: false })
@@ -2473,12 +2412,10 @@ export class ActivityProcessor {
       return;
     }
 
-    // Process each flagged object (can be users or posts)
     for (const obj of objects) {
       const objectUrl = typeof obj === 'string' ? obj : obj?.id;
       if (!objectUrl) continue;
 
-      // Determine if it's a user or post
       const isUserReport = objectUrl.includes('/users/');
       
       if (isUserReport) {
@@ -2563,7 +2500,6 @@ export class ActivityProcessor {
       return;
     }
 
-    // Create or update block relationship
     await supabase.from('user_blocks').upsert({
       blocker_id: blocker.id,
       blocked_user_id: blocked.id,
@@ -2661,7 +2597,6 @@ export class ActivityProcessor {
   private static async ensureRemoteUserUncached(actorUrl: string, forceRefresh: boolean): Promise<any | null> {
     const supabase = getSupabaseClient();
 
-    // Check if user already exists by federated_id
     const { data: existing } = await supabase
       .from('profiles')
       .select('id, updated_at, federated_id, username, display_name, avatar_url, color, federation_metadata')
@@ -2669,7 +2604,6 @@ export class ActivityProcessor {
       .maybeSingle();
 
     if (existing && !forceRefresh) {
-      // Check if profile is stale (older than 24 hours)
       const updatedAt = new Date(existing.updated_at);
       const hoursSinceUpdate = (Date.now() - updatedAt.getTime()) / (1000 * 60 * 60);
       
@@ -2823,7 +2757,6 @@ export class ActivityProcessor {
     const supabase = getSupabaseClient();
     const actorUrl = normalizeActor(activity.actor);
     
-    // Get server and channel info from the activity
     const serverId = object['harmony:serverId'];
     const channelName = object['harmony:channelName'];
     
@@ -2841,7 +2774,6 @@ export class ActivityProcessor {
       return;
     }
 
-    // Verify the server exists locally (we should have a local reference)
     const { data: server } = await supabase
       .from('servers')
       .select('id, name, is_local_server')
@@ -2860,7 +2792,6 @@ export class ActivityProcessor {
       return;
     }
 
-    // Check if author is a member of the server
     const { data: membership } = await supabase
       .from('user_servers')
       .select('id')
@@ -2873,17 +2804,14 @@ export class ActivityProcessor {
       return;
     }
 
-    // Extract message UUID from ap_id if it's a Harmony message URL
     let messageId: string | null = null;
     const messageMatch = object.id?.match(/\/messages\/([a-f0-9-]{36})/);
     if (messageMatch) {
       messageId = messageMatch[1];
     } else {
-      // Generate a new UUID
       messageId = randomUUID();
     }
 
-    // Parse content - prefer harmony:rawContent for structured content
     let content: any;
     if (object['harmony:rawContent'] && Array.isArray(object['harmony:rawContent'])) {
       content = object['harmony:rawContent'].map((part: any) => {
@@ -2912,7 +2840,6 @@ export class ActivityProcessor {
     if (Array.isArray(content)) {
       content = content.map((item: any) => {
         if (item.type === 'emoji' && item.emoji) {
-          // Convert to URL-based emoji (like Discord bridge format)
           return {
             type: 'emoji',
             emoji: {
@@ -2927,7 +2854,6 @@ export class ActivityProcessor {
       });
     }
 
-    // Check if message already exists
     const { data: existingMessage } = await supabase
       .from('messages')
       .select('id')
@@ -3082,7 +3008,6 @@ export class ActivityProcessor {
           logger.info(`🧵 Created stub thread ${stubThreadId} for AP ID ${threadApIdValue}`);
         }
 
-        // Assign this message (and any other orphans) to the thread
         if (resolvedThreadId) {
           await supabase
             .from('messages')
@@ -3154,7 +3079,6 @@ export class ActivityProcessor {
   ): Promise<void> {
     const supabase = getSupabaseClient();
     
-    // Extract mentioned users (recipients)
     const to = Array.isArray(object.to) ? object.to : [object.to].filter(Boolean);
     const cc = Array.isArray(object.cc) ? object.cc : [object.cc].filter(Boolean);
     const allRecipients = [...to, ...cc];

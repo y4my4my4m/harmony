@@ -183,7 +183,6 @@ class LoggingService {
     const sanitized: Record<string, any> = {}
     
     for (const [key, value] of Object.entries(data)) {
-      // Check if key matches exclude patterns
       if (this.config.excludePatterns.some(pattern => pattern.test(key))) {
         sanitized[key] = '[REDACTED]'
         continue
@@ -193,7 +192,6 @@ class LoggingService {
       if (value && typeof value === 'object' && !Array.isArray(value)) {
         sanitized[key] = this.sanitizeData(value)
       } else if (typeof value === 'string') {
-        // Check if value looks like sensitive data
         if (this.config.excludePatterns.some(pattern => pattern.test(value))) {
           sanitized[key] = '[REDACTED]'
         } else {
@@ -222,18 +220,15 @@ class LoggingService {
       message,
     }
 
-    // Add sanitized data
     if (data) {
       entry.data = this.sanitizeData(data)
     }
 
-    // Add context (privacy-aware)
     entry.context = {
       url: window.location.pathname, // Only path, not full URL
       sessionId: this.sessionId,
     }
 
-    // Add user agent only with consent
     if (this.config.userConsent) {
       entry.context.userAgent = navigator.userAgent
       entry.context.viewport = {
@@ -242,7 +237,6 @@ class LoggingService {
       }
     }
 
-    // Add error details
     if (error) {
       entry.error = {
         name: error.name,
@@ -262,7 +256,6 @@ class LoggingService {
       this.buffer = this.buffer.slice(-this.config.bufferSize)
     }
     
-    // Save to storage
     this.saveBufferToStorage()
   }
 
@@ -444,13 +437,11 @@ class LoggingService {
 
       if (filtered.length === 0) return
 
-      // Send to backend aggregation endpoint
       const { error } = await supabase.functions.invoke('log-aggregation', {
         body: { logs: filtered },
       })
 
       if (!error) {
-        // Clear sent entries from buffer
         this.buffer = this.buffer.filter(e => !entriesToSend.includes(e))
         this.saveBufferToStorage()
         debug.log(`📊 Flushed ${filtered.length} logs to server`)
@@ -578,7 +569,6 @@ class LoggingService {
     URL.revokeObjectURL(url)
   }
 
-  // Cleanup
 
   destroy(): void {
     if (this.flushTimer) {
