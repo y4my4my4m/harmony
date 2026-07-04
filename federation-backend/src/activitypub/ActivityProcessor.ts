@@ -2640,7 +2640,25 @@ export class ActivityProcessor {
    * @param actorUrl - The ActivityPub actor URL
    * @param forceRefresh - If true, refresh profile even if user exists (for stale data)
    */
+  // Dedup concurrent fetches per actor: a burst of activities from a new (or
+  // stale) sender otherwise triggers N identical remote actor fetches.
+  private static inflightActorFetches = new Map<string, Promise<any | null>>();
+
   private static async ensureRemoteUser(actorUrl: string, forceRefresh: boolean = false): Promise<any | null> {
+    if (!forceRefresh) {
+      const inflight = this.inflightActorFetches.get(actorUrl);
+      if (inflight) return inflight;
+    }
+    const fetchPromise = this.ensureRemoteUserUncached(actorUrl, forceRefresh).finally(() => {
+      if (this.inflightActorFetches.get(actorUrl) === fetchPromise) {
+        this.inflightActorFetches.delete(actorUrl);
+      }
+    });
+    this.inflightActorFetches.set(actorUrl, fetchPromise);
+    return fetchPromise;
+  }
+
+  private static async ensureRemoteUserUncached(actorUrl: string, forceRefresh: boolean): Promise<any | null> {
     const supabase = getSupabaseClient();
 
     // Check if user already exists by federated_id
