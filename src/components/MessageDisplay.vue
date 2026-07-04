@@ -184,7 +184,11 @@
                     </template>
                     <template v-else>
                       started a {{ item.message.metadata?.call_type || 'voice' }} call
-                      <button class="call-join-btn" @click="joinCallFromSystemMessage(item.message)">
+                      <button
+                        v-if="isCallJoinable(item.message)"
+                        class="call-join-btn"
+                        @click="joinCallFromSystemMessage(item.message)"
+                      >
                         Join Call
                       </button>
                     </template>
@@ -589,6 +593,7 @@ import { useServerRolesStore } from '@/stores/useServerRoles';
 import { useProfileStore } from '@/stores/useProfile';
 import { useNotificationStore } from '@/stores/useNotification';
 import { useActivityPubStore } from '@/stores/useActivityPub';
+import { dmCallSignaling } from '@/services/DMCallSignaling';
 import { supabase } from '@/supabase'; 
 import { throttle } from '@/utils/throttle';
 import { getReactionTooltipAnchor } from '@/utils/reactionTooltipPosition';
@@ -2593,13 +2598,23 @@ const formatCallDuration = (seconds: number): string => {
   return remainMins > 0 ? `${hours}h ${remainMins}m` : `${hours}h`;
 };
 
+// A "started a call" message only offers Join while the call is actually
+// live (presence-derived); old messages whose call died stay inert
+const isCallJoinable = (message: any): boolean => {
+  dmCallSignaling.callStateVersion.value;
+  const conversationId = message.conversation_id || props.conversationId;
+  if (!conversationId) return false;
+  const call = dmCallSignaling.getActiveCall(conversationId);
+  if (!call) return false;
+  return !call.systemMessageId || call.systemMessageId === message.id;
+};
+
 const joinCallFromSystemMessage = async (message: any) => {
   const conversationId = message.conversation_id || props.conversationId;
   if (!conversationId) return;
-  
+
   try {
     const { useUnifiedVoiceChannelStore } = await import('@/stores/unifiedVoiceChannel');
-    const { dmCallSignaling } = await import('@/services/DMCallSignaling');
     const { authContextService } = await import('@/services/AuthContextService');
     const voiceStore = useUnifiedVoiceChannelStore();
     

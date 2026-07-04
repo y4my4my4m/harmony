@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { nextTick } from 'vue';
 import { webrtcManager } from '@/services/webrtcManager';
 import type { UserMediaState } from '@/services/unifiedWebRTC';
+import type { VideoSource } from '@/services/livekitWebRTC';
 import { spatialAudioService } from '@/services/spatialAudio';
 import { dmCallSignaling } from '@/services/DMCallSignaling';
 import { useSpatialAudioStore } from '@/stores/spatialAudio';
@@ -69,6 +70,7 @@ interface VoiceChannelState {
   layoutMode: 'grid' | 'speaker' | 'gallery';
   viewMode: 'normal' | 'maximized' | 'fullscreen';
   fullscreenUserId: string | null;
+  fullscreenSource: 'camera' | 'screen';
   isFullWindowMode: boolean; // Stream fills entire viewport in fullscreen mode
   
   pipActive: boolean;
@@ -139,6 +141,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     layoutMode: 'grid',
     viewMode: 'normal',
     fullscreenUserId: null,
+    fullscreenSource: 'camera',
     isFullWindowMode: false,
     
     pipActive: false,
@@ -449,6 +452,26 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           || conv?.other_user?.display_name
           || conv?.other_user?.username
           || 'DM Call';
+
+        // Announce call membership via realtime presence (local calls only -
+        // federated participants live on another instance). Presence expires
+        // with the socket, so refreshes/crashes can't leave ghost calls.
+        if (!federatedMatch) {
+          try {
+            const { authContextService } = await import('@/services/AuthContextService');
+            const profileId = await authContextService.getCurrentProfileId();
+            if (profileId) {
+              const activeCall = dmCallSignaling.getActiveCall(conversationId);
+              await dmCallSignaling.trackCallPresence(conversationId, {
+                callType: activeCall?.callType ?? 'voice',
+                isCaller: activeCall?.callerId === profileId,
+                systemMessageId: activeCall?.systemMessageId ?? null,
+              });
+            }
+          } catch (e) {
+            debug.warn('Failed to track DM call presence:', e);
+          }
+        }
       } else {
         this.dmOtherUserId = null;
         this.currentChannelName = (serverChannelStore as any).getChannelNameById?.(channelId) || 'Voice Channel';
@@ -781,8 +804,8 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         const wasFederated = this.isFederatedChannel;
         const channelId = this.currentChannelId;
         const serverId = this.currentServerId;
-        
         debug.log('👋 Leaving voice channel', wasFederated ? '(federated)' : '(local)');
+        this.isConnected = false;
         
         this.cleanupFederatedSubscription();
         if (this.pendingFederatedJoin?.timeout) {
@@ -863,17 +886,11 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     },
 
     async toggleVideo(): Promise<boolean> {
-      const themeStore = useThemeStore();
       const enabled = await webrtcManager.toggleVideo();
-      
+
       this.localState = webrtcManager.getLocalState();
       this.localStream = webrtcManager.getLocalStream();
-      
-      // Give UI time to update before playing sound
-      setTimeout(() => {
-        themeStore.playAudio(enabled ? 'camera_on' : 'camera_off');
-      }, 100);
-      
+
       debug.log('📹 Video toggled, local stream updated:', {
         enabled,
         streamId: this.localStream?.id,
@@ -887,17 +904,11 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     },
 
     async toggleScreenShare(): Promise<boolean> {
-      const themeStore = useThemeStore();
       const enabled = await webrtcManager.toggleScreenShare();
-      
+
       this.localState = webrtcManager.getLocalState();
       this.localStream = webrtcManager.getLocalStream();
-      
-      // Give UI time to update before playing sound
-      setTimeout(() => {
-        themeStore.playAudio(enabled ? 'screenshare_on' : 'screenshare_off');
-      }, 100);
-      
+
       debug.log('📺 Screen share toggled, local stream updated:', {
         enabled,
         streamId: this.localStream?.id,
@@ -1035,14 +1046,19 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       }
     },
 
-    enterFullscreen(userId: string): void {
+    enterFullscreen(userId: string, source?: 'camera' | 'screen'): void {
       this.viewMode = 'fullscreen';
       this.fullscreenUserId = userId;
+      // Default to the user's screenshare when they have one - that's what
+      // people almost always want front and center (watch parties)
+      const user = this.getUser(userId);
+      this.fullscreenSource = source ?? (user?.isScreenSharing ? 'screen' : 'camera');
     },
 
     exitFullscreen(): void {
       this.viewMode = 'normal';
       this.fullscreenUserId = null;
+      this.fullscreenSource = 'camera';
       this.isFullWindowMode = false;
     },
 
@@ -1070,12 +1086,12 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
      * This is REQUIRED for adaptive streaming to work - using srcObject directly
      * causes LiveKit to disable all simulcast layers (frozen video).
      */
-    attachVideoToElement(userId: string, videoElement: HTMLVideoElement): boolean {
-      return webrtcManager.attachVideoToElement(userId, videoElement);
+    attachVideoToElement(userId: string, videoElement: HTMLVideoElement, source: VideoSource = 'auto'): boolean {
+      return webrtcManager.attachVideoToElement(userId, videoElement, source);
     },
 
-    detachVideoFromElement(userId: string, videoElement: HTMLVideoElement): void {
-      webrtcManager.detachVideoFromElement(userId, videoElement);
+    detachVideoFromElement(userId: string, videoElement: HTMLVideoElement, source: VideoSource = 'auto'): void {
+      webrtcManager.detachVideoFromElement(userId, videoElement, source);
     },
 
     /**
@@ -1397,22 +1413,11 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         // NOT for audio level changes (which happen 20+ times per second)
         if (videoStateChanged || !oldState) {
           this.streamUpdateCounter = (this.streamUpdateCounter || 0) + 1;
-          debug.log('📹 Video state changed for', data.userId, '- counter:', this.streamUpdateCounter, 
+          debug.log('📹 Video state changed for', data.userId, '- counter:', this.streamUpdateCounter,
             'video:', data.mediaState.isVideoEnabled, 'screen:', data.mediaState.isScreenSharing);
-          
-          // Screenshare audio uses its own separate audio element, so we only
-          // need to add/remove the user from spatial processing -- NOT toggle
-          // traditional audio globally (that would clobber all other users).
-          if (oldState && oldState.isScreenSharing !== data.mediaState.isScreenSharing) {
-            const spatialStore = useSpatialAudioStore();
-            if (data.mediaState.isScreenSharing) {
-              debug.log('🔊 User started screensharing, removing from spatial audio:', data.userId);
-              this.removeUserFromSpatialAudio(data.userId);
-            } else if (spatialStore.settings.enabled) {
-              debug.log('🎧 User stopped screensharing, restoring spatial audio:', data.userId);
-              this.addUserToSpatialAudio(data.userId);
-            }
-          }
+          // Screenshare toggles no longer touch spatial audio: only the mic is
+          // spatialized (addUserToSpatialAudio uses the mic-only stream) and
+          // screenshare audio plays through its own stereo element.
         }
         
         // Don't auto-open overlay here - fires on every state change.
@@ -1439,7 +1444,19 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           isScreenSharing: state.isScreenSharing,
           isMuted: state.isMuted
         });
+
+        const wasSharing = this.localState.isScreenSharing;
+        const hadVideo = this.localState.isVideoEnabled;
         this.localState = state;
+
+        if (!this.isConnected) return;
+        const themeStore = useThemeStore();
+        if (wasSharing !== state.isScreenSharing) {
+          themeStore.playAudio(state.isScreenSharing ? 'screenshare_on' : 'screenshare_off');
+        }
+        if (hadVideo !== state.isVideoEnabled) {
+          themeStore.playAudio(state.isVideoEnabled ? 'camera_on' : 'camera_off');
+        }
       });
       
       webrtcManager.on('local-stream-changed', (stream: any) => {
@@ -1593,6 +1610,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       localStorage.removeItem('voiceChannelState');
       userStorage.removeItem('voiceChannelState');
       userStorage.removeItem('active-voice-session');
+      this._spatialMicTrackIds = {};
       this.stopVoiceSessionHeartbeat();
       debug.log('🗑️ Cleared voice channel state');
     },
@@ -1678,12 +1696,15 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
                   spatialStore.initializeUserPosition(user.userId, false);
                 }
                 
-                const userStream = webrtcManager.getUserStream(user.userId);
-                if (userStream) {
-                  await spatialAudioService.setupSpatialForUser(user.userId, userStream);
+                // Mic only - screenshare audio must stay stereo, out of the graph
+                const micStream = webrtcManager.getUserMicStream(user.userId);
+                const micTrackId = micStream?.getAudioTracks()[0]?.id;
+                if (micStream && micTrackId) {
+                  await spatialAudioService.setupSpatialForUser(user.userId, micStream);
+                  this._spatialMicTrackIds[user.userId] = micTrackId;
                   debug.log(`🎧 Setup spatial audio on load for user: ${user.userId}`);
                 } else {
-                  debug.warn(`⚠️ Stream not ready yet for user: ${user.userId}`);
+                  debug.warn(`⚠️ Mic stream not ready yet for user: ${user.userId}`);
                 }
               }
             }
@@ -1701,9 +1722,14 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
 
     // Debounce timers for spatial audio setup per user
     _spatialAudioDebounceTimers: {} as Record<string, ReturnType<typeof setTimeout>>,
-    
+    // Mic track currently wired into the spatial graph per user - lets us skip
+    // rebuilds triggered by unrelated stream changes (camera/screenshare toggles)
+    _spatialMicTrackIds: {} as Record<string, string>,
+
     /**
-     * Skips spatial audio during screenshare - screenshare audio should stay stereo.
+     * Wire a user's microphone into the spatial audio graph.
+     * Only the mic is spatialized - screenshare audio has its own stereo
+     * element and never enters the graph, so screensharers keep spatial voice.
      */
     addUserToSpatialAudio(userId: string): void {
       const spatialStore = useSpatialAudioStore();
@@ -1724,45 +1750,42 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         debug.warn('Failed to mute traditional audio before re-adding spatial user:', e);
       }
 
-      // Screenshare audio plays through its own separate audio element
-      const userState = this.allUsers.find(u => u.userId === userId);
-      if (userState?.isScreenSharing) {
-        debug.log('🎧 Skipping spatial audio for screensharing user:', userId);
-        return;
-      }
-      
       if (!spatialStore.userPositions.has(userId)) {
         spatialStore.initializeUserPosition(userId, false);
         debug.log('🎧 Initialized position for new user:', userId);
       }
-      
+
       if (this._spatialAudioDebounceTimers[userId]) {
         clearTimeout(this._spatialAudioDebounceTimers[userId]);
       }
-      
+
       // Small delay to ensure MediaStream is properly set up
       this._spatialAudioDebounceTimers[userId] = setTimeout(async () => {
         delete this._spatialAudioDebounceTimers[userId];
-        
-        // Double-check screenshare status (might have changed)
-        const currentUserState = this.allUsers.find(u => u.userId === userId);
-        if (currentUserState?.isScreenSharing) {
-          debug.log('🎧 User started screensharing, skipping spatial audio:', userId);
-          return;
-        }
-        
+
         // Re-check that spatial audio is still enabled (may have changed during the delay)
         if (!useSpatialAudioStore().settings.enabled) {
           return;
         }
-        
-        const userStream = webrtcManager.getUserStream(userId);
-        if (userStream) {
-          await spatialAudioService.setupSpatialForUser(userId, userStream);
-          spatialAudioService.updateSpatialEffects();
-        } else {
-          debug.warn('No media stream found for user:', userId);
+
+        const micStream = webrtcManager.getUserMicStream(userId);
+        const micTrackId = micStream?.getAudioTracks()[0]?.id;
+        if (!micStream || !micTrackId) {
+          debug.warn('No mic stream found for user:', userId);
+          return;
         }
+
+        // Same mic already in the graph - nothing to rebuild. Stream-changed
+        // events fire on every video toggle; tearing the audio chain down for
+        // those causes the audible glitches this guard prevents.
+        if (this._spatialMicTrackIds[userId] === micTrackId) {
+          debug.log('🎧 Mic track unchanged for', userId, '- skipping spatial rebuild');
+          return;
+        }
+
+        await spatialAudioService.setupSpatialForUser(userId, micStream);
+        this._spatialMicTrackIds[userId] = micTrackId;
+        spatialAudioService.updateSpatialEffects();
       }, 50);
     },
 
@@ -1774,6 +1797,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         clearTimeout(this._spatialAudioDebounceTimers[userId]);
         delete this._spatialAudioDebounceTimers[userId];
       }
+      delete this._spatialMicTrackIds[userId];
       spatialAudioService.removeUser(userId);
     },
 

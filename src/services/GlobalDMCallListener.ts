@@ -32,10 +32,24 @@ class GlobalDMCallListenerService {
   private userChannel: RealtimeChannel | null = null
   private federatedChannel: RealtimeChannel | null = null
   private currentUserId: string | null = null
-  
+  // Auto-dismiss for rings whose caller died before sending cancel/timeout
+  private ringDismissTimer: ReturnType<typeof setTimeout> | null = null
+  private readonly RING_DISMISS_MS = 45000
+
   // Reactive state for incoming calls
   public incomingCall = ref<IncomingCallData | null>(null)
   public showIncomingCallModal = ref(false)
+
+  private armRingDismissTimer(conversationId: string): void {
+    if (this.ringDismissTimer) clearTimeout(this.ringDismissTimer)
+    this.ringDismissTimer = setTimeout(() => {
+      this.ringDismissTimer = null
+      if (this.incomingCall.value?.conversationId === conversationId) {
+        debug.log('⏰ Incoming call ring expired without caller signal - dismissing')
+        this.dismissIncomingCall()
+      }
+    }, this.RING_DISMISS_MS)
+  }
 
   /**
    * Initialize: Subscribe to dm-calls:{profileId}
@@ -206,7 +220,8 @@ class GlobalDMCallListenerService {
         debug.log('⏰ Call timed out - dismissing incoming call modal')
         dmCallSignaling.handleRemoteSignal(signal)
         this.dismissIncomingCall()
-        toast.warning('Missed call')
+        // info: routes to the regular toast corner (warnings go top-center)
+        toast.info('Missed call')
         break
         
       case 'end':
@@ -275,7 +290,8 @@ class GlobalDMCallListenerService {
 
     this.incomingCall.value = incomingCallData
     this.showIncomingCallModal.value = true
-    
+    this.armRingDismissTimer(conversationId)
+
     debug.log('📞 ======== MODAL STATE UPDATED ========')
     debug.log('📞 showIncomingCallModal:', this.showIncomingCallModal.value)
     debug.log('📞 incomingCall:', this.incomingCall.value)
@@ -366,7 +382,8 @@ class GlobalDMCallListenerService {
 
     this.incomingCall.value = incomingCallData
     this.showIncomingCallModal.value = true
-    
+    this.armRingDismissTimer(payload.conversationId)
+
     debug.log('📞 [Federated] Showing incoming call modal')
   }
 
@@ -374,6 +391,10 @@ class GlobalDMCallListenerService {
    * Dismiss incoming call
    */
   dismissIncomingCall(): void {
+    if (this.ringDismissTimer) {
+      clearTimeout(this.ringDismissTimer)
+      this.ringDismissTimer = null
+    }
     this.incomingCall.value = null
     this.showIncomingCallModal.value = false
   }

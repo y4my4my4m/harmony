@@ -229,6 +229,9 @@ setLogLevel(import.meta.env.DEV ? LogLevel.debug : LogLevel.warn);
 
 // TYPES
 
+/** Which of a participant's video publications to target (camera and screenshare can be live concurrently). */
+export type VideoSource = 'camera' | 'screen' | 'auto';
+
 export interface UserMediaState {
   userId: string;
   isAudioEnabled: boolean;
@@ -789,12 +792,8 @@ export class LiveKitWebRTCService {
     
     try {
       if (!this.localMediaState.isVideoEnabled) {
-        // Disable screen share first if active
-        if (this.localMediaState.isScreenSharing) {
-          await this.toggleScreenShare();
-        }
-        
         // Enable video with current quality settings
+        // Camera and screenshare are independent tracks and may run concurrently
         debug.log('🎥 [LiveKit] Enabling video with settings:', this.streamQualitySettings);
         
         const resolution = this.getResolutionPreset(this.streamQualitySettings.resolution);
@@ -816,6 +815,7 @@ export class LiveKitWebRTCService {
         }
         
         await this.room.localParticipant.publishTrack(videoTrack, {
+          source: Track.Source.Camera,
           videoCodec: 'vp8',
           simulcast: true, // Enable simulcast for adaptive quality
         });
@@ -823,13 +823,13 @@ export class LiveKitWebRTCService {
         this.localMediaState.isVideoEnabled = true;
         debug.log('✅ [LiveKit] Video enabled');
       } else {
-        // Disable video
+        // Disable video - only unpublish the camera track, never the screenshare
         debug.log('🎥 [LiveKit] Disabling video...');
-        
-        const videoPublication = this.room.localParticipant.videoTrackPublications.values().next().value;
-        if (videoPublication?.track) {
+
+        const cameraPublication = this.room.localParticipant.getTrackPublication(Track.Source.Camera);
+        if (cameraPublication?.track) {
           // Store track reference before unpublishing (unpublish may invalidate it)
-          const track = videoPublication.track;
+          const track = cameraPublication.track;
           await this.room.localParticipant.unpublishTrack(track);
           if (track.mediaStreamTrack) {
             track.mediaStreamTrack.stop();
@@ -863,20 +863,7 @@ export class LiveKitWebRTCService {
     
     try {
       if (!this.localMediaState.isScreenSharing) {
-        // Disable video first if active
-        if (this.localMediaState.isVideoEnabled) {
-          const videoPublication = this.room.localParticipant.videoTrackPublications.values().next().value;
-          if (videoPublication?.track) {
-            const track = videoPublication.track;
-            await this.room.localParticipant.unpublishTrack(track);
-            if (track.mediaStreamTrack) {
-              track.mediaStreamTrack.stop();
-            }
-          }
-          this.localMediaState.isVideoEnabled = false;
-        }
-        
-        // Enable screen share
+        // Enable screen share (camera, if on, keeps publishing alongside)
         debug.log('📺 [LiveKit] Enabling screen share...');
         
         // Log existing tracks before starting new screenshare
@@ -1377,99 +1364,108 @@ export class LiveKitWebRTCService {
   }
 
   /**
-   * Attach video track to a video element using LiveKit's proper attachment method.
+   * Get a user's microphone-only stream. Spatial audio must process the mic
+   * alone - getUserStream also carries screenshare audio, which would get
+   * spatialized/panned along with the voice.
+   */
+  getUserMicStream(userId: string): MediaStream | null {
+    const participant = this.resolveParticipant(userId);
+    if (!participant) return null;
+
+    const stream = new MediaStream();
+    for (const publication of participant.audioTrackPublications.values()) {
+      if (publication.source === Track.Source.Microphone && publication.track?.mediaStreamTrack) {
+        stream.addTrack(publication.track.mediaStreamTrack);
+      }
+    }
+    return stream.getTracks().length > 0 ? stream : null;
+  }
+
+  /**
+   * Resolve a participant (local or remote) by profile UUID or LiveKit identity.
+   */
+  private resolveParticipant(userId: string): LocalParticipant | RemoteParticipant | null {
+    if (!this.room) return null;
+    if (userId === this.currentUserId) return this.room.localParticipant;
+
+    let participant = this.room.remoteParticipants.get(userId);
+    if (!participant) {
+      const identity = uuidToIdentityCache.get(userId);
+      if (identity) {
+        participant = this.room.remoteParticipants.get(identity);
+      }
+    }
+    return participant || null;
+  }
+
+  /**
+   * Pick a participant's video publication for the requested source.
+   * 'auto' prefers screenshare over camera (legacy single-tile behavior).
+   */
+  private pickVideoPublication(
+    participant: LocalParticipant | RemoteParticipant,
+    source: VideoSource
+  ): TrackPublication | undefined {
+    const publications: TrackPublication[] = [...participant.videoTrackPublications.values()];
+    const screen = publications.find(p => p.source === Track.Source.ScreenShare);
+    const camera = publications.find(p => p.source === Track.Source.Camera);
+
+    if (source === 'screen') return screen;
+    if (source === 'camera') return camera;
+    return screen || camera || publications[0];
+  }
+
+  /**
+   * Attach a video track to a video element using LiveKit's proper attachment method.
    * This is REQUIRED for adaptive streaming to work correctly!
    * When using srcObject directly, LiveKit doesn't know the video is being consumed
    * and may disable all simulcast layers.
+   *
+   * @param source which publication to attach now that camera and screenshare
+   *               can be live at the same time
    */
-  attachVideoToElement(userId: string, videoElement: HTMLVideoElement): boolean {
+  attachVideoToElement(userId: string, videoElement: HTMLVideoElement, source: VideoSource = 'auto'): boolean {
     if (!this.room) {
       debug.warn('📺 [LiveKit] attachVideoToElement: No room');
       return false;
     }
-    
-    // For local participant
-    if (userId === this.currentUserId) {
-      const localParticipant = this.room.localParticipant;
-      debug.log('📺 [LiveKit] Attaching local video, publications:', localParticipant.videoTrackPublications.size);
-      for (const publication of localParticipant.videoTrackPublications.values()) {
-        debug.log('📺 [LiveKit] Local publication:', publication.trackSid, 'track exists:', !!publication.track);
-        if (publication.track) {
-          // Use LiveKit's attach method for proper adaptive streaming
-          publication.track.attach(videoElement);
-          debug.log('📺 [LiveKit] Attached local video to element');
-          return true;
-        }
-      }
-      debug.warn('📺 [LiveKit] No local video track to attach');
-      return false;
-    }
-    
-    // For remote participant - try by userId first, then by mapped identity
-    let participant = this.room.remoteParticipants.get(userId);
-    if (!participant) {
-      const identity = uuidToIdentityCache.get(userId);
-      if (identity) {
-        participant = this.room.remoteParticipants.get(identity);
-      }
-    }
+
+    const participant = this.resolveParticipant(userId);
     if (!participant) {
       debug.warn('📺 [LiveKit] attachVideoToElement: Participant not found:', userId);
       return false;
     }
-    
-    debug.log('📺 [LiveKit] Attaching remote video for:', userId, 'publications:', participant.videoTrackPublications.size);
-    
-    for (const publication of participant.videoTrackPublications.values()) {
-      debug.log('📺 [LiveKit] Remote publication:', publication.trackSid, 
-        'isSubscribed:', publication.isSubscribed, 
-        'track exists:', !!publication.track,
-        'trackName:', publication.trackName);
-      
-      if (publication.track) {
-        // Use LiveKit's attach method for proper adaptive streaming
-        publication.track.attach(videoElement);
-        debug.log('📺 [LiveKit] ✅ Attached remote video to element for:', userId);
-        return true;
-      }
+
+    const publication = this.pickVideoPublication(participant, source);
+    if (publication?.track) {
+      publication.track.attach(videoElement);
+      debug.log(`📺 [LiveKit] ✅ Attached ${source} video for:`, userId);
+      return true;
     }
-    
-    debug.warn('📺 [LiveKit] No subscribed video track to attach for:', userId);
+
+    debug.warn(`📺 [LiveKit] No ${source} video track to attach for:`, userId);
     return false;
   }
 
   /**
-   * Detach video from element
+   * Detach video from element. When a source is given only that publication is
+   * detached; otherwise every video publication is detached from the element.
    */
-  detachVideoFromElement(userId: string, videoElement: HTMLVideoElement): void {
+  detachVideoFromElement(userId: string, videoElement: HTMLVideoElement, source: VideoSource = 'auto'): void {
     if (!this.room) return;
-    
-    // For local participant
-    if (userId === this.currentUserId) {
-      const localParticipant = this.room.localParticipant;
-      for (const publication of localParticipant.videoTrackPublications.values()) {
-        if (publication.track) {
-          publication.track.detach(videoElement);
-        }
+
+    const participant = this.resolveParticipant(userId);
+    if (!participant) return;
+
+    if (source === 'auto') {
+      for (const publication of participant.videoTrackPublications.values()) {
+        publication.track?.detach(videoElement);
       }
       return;
     }
-    
-    // For remote participant - try by userId first, then by mapped identity
-    let participant = this.room.remoteParticipants.get(userId);
-    if (!participant) {
-      const identity = uuidToIdentityCache.get(userId);
-      if (identity) {
-        participant = this.room.remoteParticipants.get(identity);
-      }
-    }
-    if (!participant) return;
-    
-    for (const publication of participant.videoTrackPublications.values()) {
-      if (publication.track) {
-        publication.track.detach(videoElement);
-      }
-    }
+
+    const publication = this.pickVideoPublication(participant, source);
+    publication?.track?.detach(videoElement);
   }
   
   /**

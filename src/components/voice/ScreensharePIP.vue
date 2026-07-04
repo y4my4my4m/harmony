@@ -183,7 +183,14 @@ watch(() => [voiceStore.pipActive, voiceStore.pipMode, pipStream.value], async (
     // Use browser's native PIP API
     try {
       const videoEl = document.createElement('video');
-      videoEl.srcObject = stream as MediaStream;
+      // Prefer LiveKit attach so we get the screenshare track specifically
+      // (the combined stream may also carry the user's camera track)
+      const attached = voiceStore.pipUserId
+        ? voiceStore.attachVideoToElement(voiceStore.pipUserId, videoEl, 'screen')
+        : false;
+      if (!attached) {
+        videoEl.srcObject = stream as MediaStream;
+      }
       videoEl.autoplay = true;
       videoEl.muted = false;
       
@@ -216,7 +223,7 @@ watch(
   [() => voiceStore.pipActive, () => voiceStore.pipMode, () => voiceStore.pipUserId, fixedVideoElement, () => voiceStore.streamUpdateCounter],
   ([active, mode, userId, videoEl, _counter]) => {
     if (active && mode === 'fixed' && userId && videoEl) {
-      const attached = voiceStore.attachVideoToElement(userId, videoEl as any);
+      const attached = voiceStore.attachVideoToElement(userId, videoEl as any, 'screen');
       if (!attached && pipStream.value) {
         // Fallback to srcObject if attach fails
         (videoEl as HTMLVideoElement).srcObject = pipStream.value;
@@ -232,7 +239,7 @@ watch(
   [() => voiceStore.pipActive, () => voiceStore.pipMode, () => voiceStore.pipUserId, draggableVideoElement, () => voiceStore.streamUpdateCounter],
   ([active, mode, userId, videoEl, _counter]) => {
     if (active && mode === 'draggable' && userId && videoEl) {
-      const attached = voiceStore.attachVideoToElement(userId, videoEl as any);
+      const attached = voiceStore.attachVideoToElement(userId, videoEl as any, 'screen');
       if (!attached && pipStream.value) {
         // Fallback to srcObject if attach fails
         (videoEl as HTMLVideoElement).srcObject = pipStream.value;
