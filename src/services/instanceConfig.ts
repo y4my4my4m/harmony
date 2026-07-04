@@ -1,21 +1,9 @@
-/**
- * Instance selection for the native (Tauri) client.
- *
- * The web client is instance-bound: it's served BY an instance, so relative
- * `/api/*` fetches and build-time VITE_SUPABASE_* env just work. The native
- * client is one universal binary — it must be told which instance to talk to.
- * The chosen instance's public config (Supabase URL + anon key) is fetched
- * from `/api/federation/instance-info` and persisted locally; supabase.ts and
- * apiUrl() read it synchronously at startup.
- *
- * On the web this module is inert: nothing is stored, apiUrl() returns paths
- * unchanged, supabase.ts falls through to env vars.
- */
+// The native client is one binary for any instance, so it fetches Supabase
+// config from /instance-info at runtime. Inert on web (falls back to env).
 
 const STORAGE_KEY = 'harmony.instance';
 
 export interface InstanceConfig {
-  /** Origin, e.g. "https://harmony.example.com" */
   origin: string;
   name: string;
   supabaseUrl: string;
@@ -49,23 +37,14 @@ export function clearStoredInstance(): void {
   localStorage.removeItem(STORAGE_KEY);
 }
 
-/**
- * Whether the app can't function until the user picks an instance:
- * native runtime with neither a stored instance nor build-time env.
- */
 export function needsInstanceSelection(): boolean {
   if (!isTauriRuntime()) return false;
   if (getStoredInstance()) return false;
-  // Self-built clients with baked env keep working without a picker,
-  // but only in dev where the vite proxy serves relative /api/* paths.
+  // dev builds with baked env use the vite proxy, no picker needed
   return import.meta.env.PROD || !import.meta.env.VITE_SUPABASE_URL;
 }
 
-/**
- * Resolve a backend-relative path ("/api/...") against the selected
- * instance. Returns the path unchanged when no instance is stored
- * (web client, or dev builds using the vite proxy).
- */
+// prefixes the selected instance origin; unchanged when none stored (web/dev proxy)
 export function apiUrl(path: string): string {
   const stored = getStoredInstance();
   return stored ? `${stored.origin}${path}` : path;
@@ -79,7 +58,6 @@ function normalizeOrigin(input: string): string {
   return url.origin;
 }
 
-/** Fetch and validate an instance's public config from its domain. */
 export async function fetchInstanceInfo(domainOrUrl: string): Promise<InstanceConfig> {
   const origin = normalizeOrigin(domainOrUrl);
 

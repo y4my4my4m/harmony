@@ -1,9 +1,4 @@
-/**
- * LiveKit token/config fetching, shared by the browser (livekitWebRTC) and
- * native (nativeLiveKit) transports. All URLs are backend-relative so the
- * federated voice flow works unchanged from either transport.
- */
-
+// shared by the browser and native transports; URLs stay backend-relative
 import { supabase } from '@/supabase';
 import { apiUrl } from '@/services/instanceConfig';
 import { debug } from '@/utils/debug';

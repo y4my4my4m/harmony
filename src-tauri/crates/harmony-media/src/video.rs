@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
-/// `{userId}:camera` / `{userId}:screen`; local previews use LOCAL_USER.
 pub const LOCAL_USER: &str = "local";
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -11,7 +10,7 @@ pub struct TileKey {
   pub is_screen: bool,
 }
 
-/// Owned I420 planes, tightly packed (stride == width for Y, width/2 for U/V).
+// tightly packed: stride == width for Y, width/2 for U/V
 pub struct OwnedVideoFrame {
   pub width: u32,
   pub height: u32,
@@ -20,9 +19,7 @@ pub struct OwnedVideoFrame {
   pub v: Vec<u8>,
 }
 
-/// Latest-frame-wins store shared between decode/capture threads and the
-/// render loop. Frames overwrite in place; the render loop polls `version`
-/// to skip redundant redraws.
+// latest-frame-wins; render loop polls `version` to skip redundant redraws
 #[derive(Clone, Default)]
 pub struct FrameStore {
   inner: Arc<FrameStoreInner>,
@@ -59,8 +56,6 @@ impl FrameStore {
     self.inner.version.load(Ordering::Acquire)
   }
 
-  /// Copies current tiles out for rendering (tile count is small; frame
-  /// data is cloned so the lock is never held during GPU upload).
   pub fn snapshot(&self) -> Vec<(TileKey, OwnedVideoFrame)> {
     let frames = self.inner.frames.lock().unwrap();
     let mut tiles: Vec<(TileKey, OwnedVideoFrame)> = frames
@@ -83,7 +78,6 @@ impl FrameStore {
   }
 }
 
-/// Copies I420 planes with arbitrary strides into a tightly-packed frame.
 pub fn pack_i420(
   width: u32,
   height: u32,
@@ -116,8 +110,7 @@ pub fn pack_i420(
   OwnedVideoFrame { width, height, y: py, u: pu, v: pv }
 }
 
-/// BT.601 limited-range RGB→I420. `step` = bytes per pixel, `r/g/b` = channel
-/// offsets within a pixel (BGRA: step 4, b=0 g=1 r=2; RGB24: step 3, r=0...).
+// BT.601 limited-range. step = bytes/pixel; ro/go/bo = channel offsets (BGRA: 4,2,1,0)
 pub fn rgb_to_i420(
   data: &[u8],
   width: u32,
@@ -150,7 +143,6 @@ pub fn rgb_to_i420(
 
   for crow in 0..ch {
     for ccol in 0..cw {
-      // average the 2x2 block (clamped at odd edges)
       let (mut sr, mut sg, mut sb, mut n) = (0i32, 0i32, 0i32, 0i32);
       for dy in 0..2usize {
         for dx in 0..2usize {

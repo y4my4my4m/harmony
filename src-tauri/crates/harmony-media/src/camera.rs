@@ -26,10 +26,7 @@ pub fn list_cameras() -> Vec<(String, String)> {
 }
 
 impl CameraCapture {
-  /// Spawns a capture thread reading the camera at its native rate,
-  /// feeding both the publish source and the local preview tile.
-  /// The camera is opened inside the thread (nokhwa handles aren't Send);
-  /// open errors are reported back synchronously.
+  // camera opened inside the thread: nokhwa handles aren't Send
   pub fn start(device_index: Option<u32>, frames: FrameStore) -> Result<Self, String> {
     let source =
       NativeVideoSource::new(VideoResolution { width: 1280, height: 720 }, false);

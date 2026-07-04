@@ -10,7 +10,9 @@ pub fn native_media_supported() -> bool {
 mod native {
   use std::sync::Arc;
 
-  use harmony_media::{DeviceList, EngineSnapshot, MediaEngine, MediaEvent, VolumeSource};
+  use harmony_media::{
+    DeviceList, EngineSnapshot, MediaEngine, MediaEvent, ScreenSource, VolumeSource,
+  };
   use tauri::{AppHandle, Emitter, Manager, State};
 
   use crate::call_window;
@@ -111,8 +113,31 @@ mod native {
     state: State<'_, MediaState>,
     enabled: bool,
     fps: Option<u32>,
+    source: Option<ScreenSource>,
   ) -> Result<bool, String> {
-    state.0.set_screenshare(enabled, fps).await
+    state.0.set_screenshare(enabled, fps, source).await
+  }
+
+  #[tauri::command]
+  pub async fn media_set_video_device(
+    state: State<'_, MediaState>,
+    device_id: String,
+  ) -> Result<(), String> {
+    state.0.set_video_device(device_id).await
+  }
+
+  #[tauri::command]
+  pub async fn media_list_screen_sources(
+    state: State<'_, MediaState>,
+  ) -> Result<Vec<ScreenSource>, String> {
+    state.0.list_screen_sources().await
+  }
+
+  #[tauri::command]
+  pub async fn media_screen_thumbnail(source: ScreenSource) -> Result<Option<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || harmony_media::capture_thumbnail(source))
+      .await
+      .map_err(|e| e.to_string())
   }
 
   #[tauri::command]

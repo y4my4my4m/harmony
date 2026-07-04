@@ -2,14 +2,12 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { getStoredInstance, isTauriRuntime } from '@/services/instanceConfig';
 
-// Native clients select their instance at runtime; web builds are
-// instance-bound via build-time env.
+// native clients pick their instance at runtime; web builds use build-time env
 const storedInstance = getStoredInstance();
 const supabaseUrl: string =
   storedInstance?.supabaseUrl ||
   import.meta.env.VITE_SUPABASE_URL ||
-  // native client before instance selection: the picker gates the UI and
-  // reloads once an instance is chosen, so this client is never used
+  // placeholder before instance selection; picker gates the UI so it's never used
   'https://instance-not-selected.invalid';
 const supabaseAnonKey: string =
   storedInstance?.supabaseAnonKey ||

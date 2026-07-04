@@ -13,3 +13,5 @@ serde_json = { workspace = true }
 log = "0.4"
 futures-util = "0.3"
 nokhwa = { version = "0.10", features = ["input-v4l"] }
+image = { version = "0.25", default-features = false, features = ["jpeg"] }
+base64 = "0.22"

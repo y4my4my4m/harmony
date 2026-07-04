@@ -29,6 +29,9 @@ pub fn run() {
     commands::media::media_broadcast,
     commands::media::media_enable_camera,
     commands::media::media_set_screenshare,
+    commands::media::media_set_video_device,
+    commands::media::media_list_screen_sources,
+    commands::media::media_screen_thumbnail,
     commands::media::call_window_open,
     commands::media::call_window_close
   ]);

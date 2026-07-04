@@ -1,7 +1,4 @@
-// Native call window: video tiles rendered with wgpu into a webview-less
-// tauri window (feature "unstable"). WebKitGTK has no WebRTC, so remote
-// frames decoded by the Rust media engine are displayed here instead of in
-// the webview — the Discord "popped-out call" model.
+// wgpu video tiles in a webview-less window: WebKitGTK can't render WebRTC frames
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -267,7 +264,6 @@ fn render_loop(
         let col = i % cols;
         let row = i / cols;
 
-        // letterbox inside the cell, preserving frame aspect
         let scale =
           (cell_w / frame.width as f32).min(cell_h / frame.height as f32);
         let w = frame.width as f32 * scale;
@@ -371,7 +367,7 @@ fn upload_tile(queue: &wgpu::Queue, tile: &TileTextures, frame: &OwnedVideoFrame
 }
 
 fn pollster_block<F: std::future::Future>(future: F) -> F::Output {
-  // tiny local block_on to avoid a pollster dep; render thread has no runtime
+  // hand-rolled block_on to avoid a pollster dep
   use std::sync::mpsc;
   use std::task::{Context, Poll, RawWaker, RawWakerVTable, Waker};
 

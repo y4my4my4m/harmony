@@ -1,14 +1,5 @@
-/**
- * Native LiveKit transport for the Linux Tauri client.
- *
- * WebKitGTK has no WebRTC, so media runs in the Rust process (livekit crate,
- * real libwebrtc) — see src-tauri/crates/harmony-media. This service mirrors
- * the LiveKitWebRTCService surface that webrtcManager consumes, translating
- * Tauri `media://*` events back into the JS event names the store expects.
- *
- * Phase 1 = voice only: video/screenshare land with the native call window
- * (Phase 2), so attachVideoToElement() and stream getters return null/false.
- */
+// Media runs in the Rust process (WebKitGTK has no WebRTC); this mirrors the
+// LiveKitWebRTCService surface and bridges media:// events to store event names.
 
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
@@ -34,9 +25,14 @@ export interface NativeDeviceList {
   cameras: NativeDeviceInfo[];
 }
 
+export interface NativeScreenSource {
+  id: number;
+  title: string;
+  isWindow: boolean;
+}
+
 let nativeSupported: boolean | null = null;
 
-/** True when running inside Tauri with the native-media feature compiled in. */
 export async function isNativeMediaSupported(): Promise<boolean> {
   if (nativeSupported !== null) return nativeSupported;
 
@@ -169,7 +165,6 @@ export class NativeLiveKitService {
     return this.listenersReady;
   }
 
-  /** Same wire protocol as livekitWebRTC's DataReceived handler. */
   private handleDataMessage(fromUserId: string | null, payload: string): void {
     let message: any;
     try {
@@ -340,11 +335,15 @@ export class NativeLiveKitService {
     }
   }
 
-  async toggleScreenShare(): Promise<boolean> {
+  async toggleScreenShare(source?: NativeScreenSource): Promise<boolean> {
     const enabled = !this.localMediaState.isScreenSharing;
     try {
       const fps = Number(VoiceSettingsService.getAll().frameRate) || 60;
-      const result = await invoke<boolean>('media_set_screenshare', { enabled, fps });
+      const result = await invoke<boolean>('media_set_screenshare', {
+        enabled,
+        fps,
+        source: source ?? null,
+      });
       this.localMediaState.isScreenSharing = result;
       this.emit('local-state-changed', { ...this.localMediaState });
       this.broadcastMediaState();
@@ -357,7 +356,23 @@ export class NativeLiveKitService {
     }
   }
 
-  /** Video renders in a native (wgpu) window — the webview can't play it. */
+  // empty on Wayland: the portal shows its own picker at capture start
+  async listScreenSources(): Promise<NativeScreenSource[]> {
+    try {
+      return await invoke<NativeScreenSource[]>('media_list_screen_sources');
+    } catch {
+      return [];
+    }
+  }
+
+  async captureScreenThumbnail(source: NativeScreenSource): Promise<string | null> {
+    try {
+      return await invoke<string | null>('media_screen_thumbnail', { source });
+    } catch {
+      return null;
+    }
+  }
+
   openCallWindow(): void {
     invoke('call_window_open').catch((error) => {
       debug.warn('⚠️ [NativeLiveKit] call window open failed:', error);
@@ -372,11 +387,9 @@ export class NativeLiveKitService {
     resolution?: number;
     frameRate?: number;
     audioBitrate?: number;
-  }): Promise<void> {
-    // audio-only in Phase 1; video quality mapping lands with Phase 2
-  }
+  }): Promise<void> {}
 
-  // STREAM ACCESS (no MediaStreams exist in the webview on the native path)
+  // STREAM ACCESS — no MediaStreams exist in the webview on the native path
 
   getLocalStream(): MediaStream | null {
     return null;
@@ -455,8 +468,8 @@ export class NativeLiveKitService {
     await invoke('media_set_output_device', { deviceId });
   }
 
-  async updateVideoDevice(_deviceId: string): Promise<void> {
-    // camera lands with Phase 2
+  async updateVideoDevice(deviceId: string): Promise<void> {
+    await invoke('media_set_video_device', { deviceId });
   }
 
   getSelectedDevices(): {

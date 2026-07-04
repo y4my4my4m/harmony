@@ -123,11 +123,7 @@ class WebRTCManagerService implements WebRTCManager {
     }
   }
 
-  /**
-   * Whether media runs in the Rust process (Linux Tauri client, where the
-   * webview has no WebRTC). LiveKit-only there: P2P needs webview WebRTC,
-   * so it's deferred until the native peer-connection path lands.
-   */
+  // native = media in the Rust process (Linux); no P2P there yet
   isNativeBackend(): boolean {
     return this.activeService === 'native';
   }

@@ -1,10 +1,4 @@
-/**
- * Device enumeration that works on both media backends: browser WebRTC
- * (navigator.mediaDevices) and the native Rust engine on the Linux Tauri
- * client, where the webview has no WebRTC and enumerateDevices() returns
- * nothing. Native device ids are ADM GUIDs, matching what the media_set_*
- * commands expect.
- */
+// native engine devices vs navigator.mediaDevices (empty in WebKitGTK)
 
 export interface EnumeratedDevice {
   deviceId: string;

@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { apiUrl } from '@/services/instanceConfig';
 import { nextTick } from 'vue';
 import { webrtcManager } from '@/services/webrtcManager';
+import { nativeLiveKit, type NativeScreenSource } from '@/services/nativeLiveKit';
 import type { UserMediaState } from '@/services/unifiedWebRTC';
 import type { VideoSource } from '@/services/livekitWebRTC';
 import { spatialAudioService } from '@/services/spatialAudio';
@@ -68,6 +69,8 @@ interface VoiceChannelState {
   recentSpeakers: RecentSpeaker[];
   
   isOverlayVisible: boolean;
+  // native (Linux X11) screenshare source picker
+  screenSourcePicker: { visible: boolean; sources: NativeScreenSource[] };
   layoutMode: 'grid' | 'speaker' | 'gallery';
   viewMode: 'normal' | 'maximized' | 'fullscreen';
   fullscreenUserId: string | null;
@@ -139,6 +142,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     recentSpeakers: [],
     
     isOverlayVisible: false,
+    screenSourcePicker: { visible: false, sources: [] },
     layoutMode: 'grid',
     viewMode: 'normal',
     fullscreenUserId: null,
@@ -905,7 +909,26 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     },
 
     async toggleScreenShare(): Promise<boolean> {
-      const enabled = await webrtcManager.toggleScreenShare();
+      // Native (Linux X11) has no OS screenshare picker, so offer an in-app one
+      // before starting. Wayland returns no sources (its portal picks), and
+      // stopping never needs a picker.
+      if (webrtcManager.isNativeBackend() && !this.localState.isScreenSharing) {
+        const sources = await nativeLiveKit.listScreenSources();
+        if (sources.length > 1) {
+          this.screenSourcePicker = { visible: true, sources };
+          return false;
+        }
+      }
+      return this.startScreenShare();
+    },
+
+    /** Actually start/stop screenshare; `source` picks the display on native X11. */
+    async startScreenShare(source?: NativeScreenSource): Promise<boolean> {
+      this.screenSourcePicker = { visible: false, sources: [] };
+
+      const enabled = webrtcManager.isNativeBackend()
+        ? await nativeLiveKit.toggleScreenShare(source)
+        : await webrtcManager.toggleScreenShare();
 
       this.localState = webrtcManager.getLocalState();
       this.localStream = webrtcManager.getLocalStream();
@@ -916,10 +939,14 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         videoTracks: this.localStream?.getVideoTracks().length || 0,
         audioTracks: this.localStream?.getAudioTracks().length || 0
       });
-      
+
       this.refreshStreamState();
-      
+
       return enabled;
+    },
+
+    cancelScreenSharePicker(): void {
+      this.screenSourcePicker = { visible: false, sources: [] };
     },
 
     /**

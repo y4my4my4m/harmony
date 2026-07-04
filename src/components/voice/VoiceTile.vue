@@ -12,9 +12,9 @@
     @dblclick="emit('request-fullscreen')"
     @contextmenu.prevent="handleContextMenu"
   >
-    <!-- Video layer -->
+    <!-- Video layer (webview transports only; native renders in the call window) -->
     <video
-      v-if="hasActiveVideo"
+      v-if="hasActiveVideo && !isNativeVideo"
       ref="videoElement"
       autoplay
       playsinline
@@ -22,6 +22,17 @@
       class="tile-video"
       :class="fitClass"
     />
+
+    <!-- Native transport: video lives in the wgpu call window -->
+    <button
+      v-else-if="hasActiveVideo && isNativeVideo"
+      class="tile-native-video"
+      @click.stop="openCallWindow"
+    >
+      <Icon :name="source === 'screen' ? 'screen-share' : 'video'" class="native-video-icon" />
+      <span>{{ source === 'screen' ? 'Screen share' : 'Camera' }} in call window</span>
+      <span class="native-video-hint">Click to open</span>
+    </button>
 
     <!-- Avatar fallback (camera tile without video) -->
     <div v-else class="tile-avatar">
@@ -87,6 +98,8 @@ import { computed, ref, watch, nextTick, onBeforeUnmount } from 'vue';
 import { debug } from '@/utils/debug';
 import type { UserMediaState } from '@/services/unifiedWebRTC';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
+import { webrtcManager } from '@/services/webrtcManager';
+import { nativeLiveKit } from '@/services/nativeLiveKit';
 import { useUserData } from '@/composables/useUserData';
 import DisplayName from '@/components/DisplayName.vue';
 import Icon from '@/components/common/Icon.vue';
@@ -150,6 +163,13 @@ const hasActiveVideo = computed(() =>
   props.source === 'screen' ? liveState.value.isScreenSharing : liveState.value.isVideoEnabled
 );
 
+// native video renders in the wgpu call window, not the webview <video>
+const isNativeVideo = computed(() => webrtcManager.isNativeBackend());
+
+const openCallWindow = () => {
+  nativeLiveKit.openCallWindow();
+};
+
 const fitClass = computed(() => {
   const fit = props.fit ?? (props.source === 'screen' ? 'contain' : 'cover');
   return fit === 'contain' ? 'fit-contain' : 'fit-cover';
@@ -208,6 +228,9 @@ const attach = () => {
     retryTimer = null;
   }
 
+  // Native transport has no MediaStream in the webview — nothing to attach.
+  if (isNativeVideo.value) return;
+
   if (!hasActiveVideo.value) {
     detach();
     return;
@@ -262,6 +285,36 @@ onBeforeUnmount(detach);
 
 .voice-tile.is-screen {
   background: #000;
+}
+
+.tile-native-video {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: linear-gradient(135deg, var(--background-tertiary), var(--background-secondary));
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.tile-native-video:hover {
+  color: var(--text-primary);
+}
+
+.native-video-icon {
+  width: 28px;
+  height: 28px;
+  opacity: 0.8;
+}
+
+.native-video-hint {
+  font-size: 0.72rem;
+  opacity: 0.6;
 }
 
 .voice-tile.speaking {
