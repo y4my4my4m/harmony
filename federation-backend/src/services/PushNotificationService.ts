@@ -65,6 +65,7 @@ const NOTIFICATION_TYPE_PREFERENCES: Record<string, { enabled: string; desktop?:
   activitypub_mention: { enabled: 'activitypub_mentions' },
   activitypub_reply: { enabled: 'activitypub_replies' },
   activitypub_follow_request: { enabled: 'activitypub_follow_requests' },
+  activitypub_follow_accepted: { enabled: 'activitypub_follows' },
 };
 
 class PushNotificationServiceClass {
@@ -702,6 +703,11 @@ class PushNotificationServiceClass {
       case 'activitypub_follow_request':
         title = 'New follow request';
         message = `${senderName}${senderDomain} wants to follow you`;
+        break;
+
+      case 'activitypub_follow_accepted':
+        title = 'Follow request accepted';
+        message = `${senderName}${senderDomain} accepted your follow request`;
         break;
       
       case 'activitypub_reaction':

@@ -20,13 +20,22 @@
           {{ $t('activitypub.followers') }}
           <span class="count">{{ followersCount }}</span>
         </button>
-        <button 
+        <button
           @click="currentView = 'following'"
           :class="['toggle-btn', { active: currentView === 'following' }]"
         >
           <Icon name="user-check" />
           Following
           <span class="count">{{ followingCount }}</span>
+        </button>
+        <button
+          v-if="isOwnProfile"
+          @click="currentView = 'requests'"
+          :class="['toggle-btn', { active: currentView === 'requests' }]"
+        >
+          <Icon name="user-plus" />
+          Requests
+          <span class="count" :class="{ 'count-pending': requestsCount > 0 }">{{ requestsCount }}</span>
         </button>
       </div>
     </div>
@@ -42,7 +51,7 @@
       <!-- Empty State -->
       <div v-else-if="users.length === 0" class="empty-state">
         <div class="empty-icon">
-          <Icon :name="currentView === 'followers' ? 'users' : 'user-check'" :size="64" />
+          <Icon :name="currentView === 'followers' ? 'users' : currentView === 'requests' ? 'user-plus' : 'user-check'" :size="64" />
         </div>
         <h3>{{ emptyStateTitle }}</h3>
         <p>{{ emptyStateMessage }}</p>
@@ -76,12 +85,30 @@
             <div class="user-item">
               <UserCard
                 :user="users[virtualRow.index]"
-                :show-follow-btn="users[virtualRow.index].id !== currentUserId"
-                :show-more-actions="true"
+                :show-follow-btn="currentView !== 'requests' && users[virtualRow.index].id !== currentUserId"
+                :show-more-actions="currentView !== 'requests'"
                 @follow="handleFollow"
                 @unfollow="handleUnfollow"
                 @user-click="handleUserClick"
               />
+              <div v-if="currentView === 'requests'" class="request-actions">
+                <button
+                  class="request-btn accept"
+                  :disabled="processingRequests.has(users[virtualRow.index].id)"
+                  @click="handleAcceptRequest(users[virtualRow.index])"
+                >
+                  <Icon name="check" />
+                  Accept
+                </button>
+                <button
+                  class="request-btn reject"
+                  :disabled="processingRequests.has(users[virtualRow.index].id)"
+                  @click="handleRejectRequest(users[virtualRow.index])"
+                >
+                  <Icon name="x" />
+                  Reject
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -115,6 +142,7 @@ import { useActivityPubStore } from '@/stores/useActivityPub';
 import { useAuthStore } from '@/stores/auth';
 import { useToast } from 'vue-toastification';
 import { activityPubService } from '@/services/activityPubService';
+import { interactionService } from '@/services/InteractionService';
 import { supabase } from '@/supabase';
 import type { FederatedUser } from '@/types';
 
@@ -134,7 +162,7 @@ const toast = useToast();
 // Props
 interface Props {
   userId?: string;
-  view?: 'followers' | 'following';
+  view?: 'followers' | 'following' | 'requests';
   userProfile?: any; // Optional: if provided, use its counts instead of querying
 }
 
@@ -145,12 +173,14 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 // State
-const currentView = ref<'followers' | 'following'>(props.view);
+const currentView = ref<'followers' | 'following' | 'requests'>(props.view);
 const users = ref<FederatedUser[]>([]);
 const isLoading = ref(false);
 const hasMore = ref(true);
 const followersCount = ref(0);
 const followingCount = ref(0);
+const requestsCount = ref(0);
+const processingRequests = ref(new Set<string>());
 const scrollContainerRef = ref<HTMLDivElement | null>(null);
 const sentinelRef = ref<HTMLDivElement | null>(null);
 
@@ -198,24 +228,35 @@ const targetUserId = computed(() => {
   return props.userId || currentUserId.value;
 });
 
+const isOwnProfile = computed(() => targetUserId.value === currentUserId.value);
+
 const viewTitle = computed(() => {
+  if (currentView.value === 'requests') return 'Follow Requests';
   return currentView.value === 'followers' ? 'Followers' : 'Following';
 });
 
 const viewSubtitle = computed(() => {
+  if (currentView.value === 'requests') {
+    const count = requestsCount.value;
+    return `${count} ${count === 1 ? 'person wants' : 'people want'} to follow you`;
+  }
   const count = currentView.value === 'followers' ? followersCount.value : followingCount.value;
-  return currentView.value === 'followers' 
+  return currentView.value === 'followers'
     ? `${count} ${count === 1 ? 'person follows' : 'people follow'} you`
     : `${count} ${count === 1 ? 'person' : 'people'} you follow`;
 });
 
 const emptyStateTitle = computed(() => {
   const { t } = useI18n();
+  if (currentView.value === 'requests') return 'No pending requests';
   return currentView.value === 'followers' ? t('activitypub.noFollowingYet') : t('activitypub.notFollowingAnyoneYet');
 });
 
 const emptyStateMessage = computed(() => {
-  return currentView.value === 'followers' 
+  if (currentView.value === 'requests') {
+    return 'When people request to follow you, they\'ll appear here.';
+  }
+  return currentView.value === 'followers'
     ? 'When people follow you, they\'ll appear here.'
     : 'When you follow people, they\'ll appear here.';
 });
@@ -235,6 +276,8 @@ const loadUsers = async (refresh = false) => {
     let result;
     if (currentView.value === 'followers') {
       result = await activityPubService.getFollowers(targetUserId.value, options);
+    } else if (currentView.value === 'requests') {
+      result = await activityPubService.getFollowRequests(targetUserId.value, options);
     } else {
       result = await activityPubService.getFollowing(targetUserId.value, options);
     }
@@ -254,9 +297,21 @@ const loadUsers = async (refresh = false) => {
   }
 };
 
+const loadRequestsCount = async () => {
+  if (!isOwnProfile.value || !targetUserId.value) return;
+
+  try {
+    requestsCount.value = await activityPubService.getFollowRequestsCount(targetUserId.value);
+  } catch (error) {
+    debug.error('Failed to load follow requests count:', error);
+  }
+};
+
 const loadCounts = async () => {
   if (!targetUserId.value) return;
-  
+
+  loadRequestsCount();
+
   try {
     // If user profile data was passed as prop, use it (avoid extra query)
     if (props.userProfile && props.userProfile.followers_count !== undefined) {
@@ -305,6 +360,39 @@ const handleUnfollow = (userId: string) => {
   // Remove from following list if currently viewing following
   if (currentView.value === 'following') {
     users.value = users.value.filter(u => u.id !== userId);
+  }
+};
+
+const handleAcceptRequest = async (user: FederatedUser) => {
+  if (processingRequests.value.has(user.id)) return;
+  processingRequests.value.add(user.id);
+  try {
+    await interactionService.acceptFollowRequest(user.id);
+    users.value = users.value.filter(u => u.id !== user.id);
+    requestsCount.value = Math.max(0, requestsCount.value - 1);
+    followersCount.value++;
+    toast.success(`Accepted follow request from ${user.display_name || user.username}`);
+  } catch (error) {
+    debug.error('Failed to accept follow request:', error);
+    toast.error('Failed to accept follow request');
+  } finally {
+    processingRequests.value.delete(user.id);
+  }
+};
+
+const handleRejectRequest = async (user: FederatedUser) => {
+  if (processingRequests.value.has(user.id)) return;
+  processingRequests.value.add(user.id);
+  try {
+    await interactionService.rejectFollowRequest(user.id);
+    users.value = users.value.filter(u => u.id !== user.id);
+    requestsCount.value = Math.max(0, requestsCount.value - 1);
+    toast.success(`Rejected follow request from ${user.display_name || user.username}`);
+  } catch (error) {
+    debug.error('Failed to reject follow request:', error);
+    toast.error('Failed to reject follow request');
+  } finally {
+    processingRequests.value.delete(user.id);
   }
 };
 
@@ -440,6 +528,58 @@ onUnmounted(() => {
 
 .toggle-btn.active .count {
   background: rgba(255, 255, 255, 0.2);
+  color: var(--text-primary);
+}
+
+.count-pending {
+  background: var(--harmony-primary);
+  color: var(--text-primary);
+}
+
+.request-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-color);
+}
+
+.request-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex: 1;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.request-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.request-btn.accept {
+  background: var(--harmony-primary);
+  color: var(--text-primary);
+}
+
+.request-btn.accept:hover:not(:disabled) {
+  background: var(--harmony-primary-hover);
+}
+
+.request-btn.reject {
+  background: var(--background-tertiary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+}
+
+.request-btn.reject:hover:not(:disabled) {
+  background: var(--background-hover);
   color: var(--text-primary);
 }
 

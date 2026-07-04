@@ -882,6 +882,50 @@ export class ActivityPubService {
   }
 
   /**
+   * Get pending follow requests for a user (manual approval mode)
+   */
+  async getFollowRequests(userId: string, options: TimelineOptions = {}): Promise<FederatedUser[]> {
+    const limit = options.limit || 20;
+    const offset = options.offset || 0;
+
+    const { data, error } = await supabase
+      .from('follows')
+      .select(`
+        follower:profiles!follows_follower_id_fkey (
+          id, username, display_name, domain, avatar_url, is_local, bio,
+          followers_count, following_count, posts_count, created_at, updated_at
+        )
+      `)
+      .eq('following_id', userId)
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (error) throw error;
+
+    return (data
+      ?.filter((follow: any) => follow.follower)
+      .map((follow: any) => ({
+        ...follow.follower,
+        handle: this.formatUserHandle(follow.follower.username, follow.follower.domain)
+      })) || []) as unknown as FederatedUser[];
+  }
+
+  /**
+   * Get count of pending follow requests for a user
+   */
+  async getFollowRequestsCount(userId: string): Promise<number> {
+    const { count, error } = await supabase
+      .from('follows')
+      .select('id', { count: 'exact', head: true })
+      .eq('following_id', userId)
+      .eq('status', 'pending');
+
+    if (error) throw error;
+    return count || 0;
+  }
+
+  /**
    * Get users that a user is following
    */
   async getFollowing(userId: string, options: TimelineOptions = {}): Promise<FederatedUser[]> {
