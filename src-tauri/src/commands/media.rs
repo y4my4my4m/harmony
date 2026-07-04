@@ -13,9 +13,12 @@ mod native {
   use harmony_media::{DeviceList, EngineSnapshot, MediaEngine, MediaEvent, VolumeSource};
   use tauri::{AppHandle, Emitter, Manager, State};
 
+  use crate::call_window;
+
   pub struct MediaState(pub MediaEngine);
 
   pub fn init(app: &AppHandle) {
+    app.manage(call_window::CallWindowState::default());
     let handle = app.clone();
     let engine = MediaEngine::new(Arc::new(move |event: MediaEvent| {
       let (name, payload) = match &event {
@@ -93,6 +96,38 @@ mod native {
     device_id: String,
   ) -> Result<(), String> {
     state.0.set_output_device(device_id).await
+  }
+
+  #[tauri::command]
+  pub async fn media_enable_camera(
+    state: State<'_, MediaState>,
+    enabled: bool,
+  ) -> Result<bool, String> {
+    state.0.enable_camera(enabled).await
+  }
+
+  #[tauri::command]
+  pub async fn media_set_screenshare(
+    state: State<'_, MediaState>,
+    enabled: bool,
+    fps: Option<u32>,
+  ) -> Result<bool, String> {
+    state.0.set_screenshare(enabled, fps).await
+  }
+
+  #[tauri::command]
+  pub async fn call_window_open(
+    app: AppHandle,
+    state: State<'_, MediaState>,
+  ) -> Result<(), String> {
+    let frames = state.0.frames();
+    call_window::open(&app, frames)
+  }
+
+  #[tauri::command]
+  pub async fn call_window_close(app: AppHandle) -> Result<(), String> {
+    call_window::close(&app);
+    Ok(())
   }
 
   #[tauri::command]

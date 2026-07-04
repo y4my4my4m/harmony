@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia';
+import { apiUrl } from '@/services/instanceConfig';
 import { supabase } from '@/supabase';
 import { activityPubService } from '@/services/activityPubService';
 import { authContextService } from '@/services/AuthContextService';
@@ -179,7 +180,7 @@ export const useActivityPubStore = defineStore('activitypub', {
     instanceUserCount: 0,
     instancePostCount: 0,
     instanceStatsFetchedAt: null,
-    federationApiUrl: '/api/federation', // Default, can be overridden from instance_config
+    federationApiUrl: apiUrl('/api/federation'), // Default, can be overridden from instance_config
     
       hasEverLoadedTimeline: false,
     timelineCacheTimestamp: null,

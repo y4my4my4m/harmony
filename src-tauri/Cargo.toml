@@ -1,23 +1,47 @@
+[workspace]
+members = [".", "crates/harmony-media"]
+
+[workspace.dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "macros"] }
+
 [package]
 name = "app"
-version = "1.2.0"
-description = "A Tauri App"
-authors = ["you"]
+version = "1.3.0"
+description = "Harmony desktop client"
+authors = ["Knowmad"]
 license = "AGPL-3.0"
 repository = ""
 default-run = "app"
 edition = "2021"
-rust-version = "1.70"
+rust-version = "1.77"
+
+[lib]
+name = "app_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2.5.2", features = [] }
 
 [dependencies]
-serde_json = "1.0"
-serde = { version = "1.0", features = ["derive"] }
-tauri = { version = "2.9", features = ["protocol-asset", "devtools"] }
+serde_json = { workspace = true }
+serde = { workspace = true }
+tokio = { workspace = true }
+log = "0.4"
+tauri = { version = "2.9", features = ["protocol-asset", "devtools", "unstable"] }
 tauri-plugin-fs = "2.4.4"
 tauri-plugin-shell = "2.3.3"
 
+[target.'cfg(all(target_os = "linux", not(target_os = "android")))'.dependencies.wgpu]
+version = "30"
+optional = true
+
+# native media engine is desktop-linux only; webview WebRTC covers other platforms
+[target.'cfg(all(target_os = "linux", not(target_os = "android")))'.dependencies]
+harmony-media = { path = "crates/harmony-media", optional = true }
+
 [features]
+default = ["native-media"]
 custom-protocol = ["tauri/custom-protocol"]
+native-media = ["dep:harmony-media", "dep:wgpu"]

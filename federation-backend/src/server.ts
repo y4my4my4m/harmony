@@ -37,6 +37,7 @@ import groupRouter from './activitypub/GroupService.js';
 
 import serverDiscoveryRouter from './services/ServerDiscoveryService.js';
 import instanceProbeRouter from './routes/instanceProbe.js';
+import instanceInfoRouter from './routes/instanceInfo.js';
 import { BlockedInstancesCache } from './services/BlockedInstancesCache.js';
 import { PushNotificationService } from './services/PushNotificationService.js';
 import { redis } from './services/RedisService.js';
@@ -47,8 +48,11 @@ export function createApp(): Application {
   app.set('trust proxy', 1);
 
   app.use(helmet());
+  // Native (Tauri) clients are cross-origin by construction: the frontend is
+  // served from the app's own origin, not from this instance's domain.
+  const nativeClientOrigins = ['tauri://localhost', 'https://tauri.localhost', 'http://tauri.localhost'];
   app.use(cors({
-    origin: config.CORS_ORIGIN.split(',').map(o => o.trim()),
+    origin: [...config.CORS_ORIGIN.split(',').map(o => o.trim()), ...nativeClientOrigins],
     credentials: true,
   }));
 
@@ -98,6 +102,9 @@ export function createApp(): Application {
   app.use('/api/livekit', livekitRouter);
   app.use('/voice', voiceRouter);
   app.use('/api/federation/voice', voiceRouter);
+  // Open CORS: a native client probes this before it knows the instance.
+  app.use('/instance-info', cors(), instanceInfoRouter);
+  app.use('/api/federation/instance-info', cors(), instanceInfoRouter);
   app.use('/realtime', realtimeRouter);
   app.use('/api/federation/realtime', realtimeRouter);
 

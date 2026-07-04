@@ -275,6 +275,7 @@
 
 <script lang="ts">
 import { defineComponent, ref, onMounted, onUnmounted, watch } from 'vue';
+import { enumerateMediaDevices } from '@/utils/mediaDevices';
 import { webrtcManager } from '@/services/webrtcManager';
 import { unifiedWebRTC } from '@/services/unifiedWebRTC';
 import { VoiceSettingsService } from '@/services/VoiceSettingsService';
@@ -325,7 +326,7 @@ export default defineComponent({
 
     const getDevices = async () => {
       try {
-        const devices = await navigator.mediaDevices.enumerateDevices();
+        const devices = await enumerateMediaDevices();
         inputDevices.value = devices.filter(d => d.kind === 'audioinput');
         outputDevices.value = devices.filter(d => d.kind === 'audiooutput');
         videoDevices.value = devices.filter(d => d.kind === 'videoinput');

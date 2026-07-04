@@ -125,9 +125,13 @@ export class NativeLiveKitService {
       await on('media://user-state', (p) => {
         // preserve data-channel-only flags (isDeafened) the SFU can't see
         const previous = this.allUserStates.get(p.userId);
+        const hadVideo = previous?.isVideoEnabled || previous?.isScreenSharing;
         const merged = { ...p, isDeafened: previous?.isDeafened ?? false };
         this.allUserStates.set(p.userId, merged);
         this.emit('user-state-changed', { userId: p.userId, mediaState: { ...merged } });
+        if (!hadVideo && (merged.isVideoEnabled || merged.isScreenSharing)) {
+          this.openCallWindow();
+        }
       });
 
       await on('media://local-state', (p) => {
@@ -274,6 +278,7 @@ export class NativeLiveKitService {
     } catch (error) {
       debug.warn('⚠️ [NativeLiveKit] media_disconnect failed:', error);
     }
+    this.closeCallWindow();
     this.connected = false;
     this.channelId = null;
     this.allUserStates.clear();
@@ -320,13 +325,47 @@ export class NativeLiveKitService {
   }
 
   async toggleVideo(): Promise<boolean> {
-    this.emit('error', new Error('Camera is not available on the Linux desktop client yet.'));
-    return false;
+    const enabled = !this.localMediaState.isVideoEnabled;
+    try {
+      const result = await invoke<boolean>('media_enable_camera', { enabled });
+      this.localMediaState.isVideoEnabled = result;
+      this.emit('local-state-changed', { ...this.localMediaState });
+      this.broadcastMediaState();
+      if (result) this.openCallWindow();
+      return result;
+    } catch (error) {
+      debug.error('❌ [NativeLiveKit] camera toggle failed:', error);
+      this.emit('error', error instanceof Error ? error : new Error(String(error)));
+      return this.localMediaState.isVideoEnabled;
+    }
   }
 
   async toggleScreenShare(): Promise<boolean> {
-    this.emit('error', new Error('Screen sharing is not available on the Linux desktop client yet.'));
-    return false;
+    const enabled = !this.localMediaState.isScreenSharing;
+    try {
+      const fps = Number(VoiceSettingsService.getAll().frameRate) || 60;
+      const result = await invoke<boolean>('media_set_screenshare', { enabled, fps });
+      this.localMediaState.isScreenSharing = result;
+      this.emit('local-state-changed', { ...this.localMediaState });
+      this.broadcastMediaState();
+      if (result) this.openCallWindow();
+      return result;
+    } catch (error) {
+      debug.error('❌ [NativeLiveKit] screenshare toggle failed:', error);
+      this.emit('error', error instanceof Error ? error : new Error(String(error)));
+      return this.localMediaState.isScreenSharing;
+    }
+  }
+
+  /** Video renders in a native (wgpu) window — the webview can't play it. */
+  openCallWindow(): void {
+    invoke('call_window_open').catch((error) => {
+      debug.warn('⚠️ [NativeLiveKit] call window open failed:', error);
+    });
+  }
+
+  closeCallWindow(): void {
+    invoke('call_window_close').catch(() => {});
   }
 
   async updateStreamQuality(_settings: {

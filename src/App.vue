@@ -1,4 +1,15 @@
 <template>
+  <!-- Native client: choose which Harmony instance to talk to (mandatory on
+       first run of a packaged build, reopenable from the login screen). -->
+  <InstancePicker v-if="showInstancePicker" @close="showInstancePicker = false" />
+  <button
+    v-if="isAuthRoute && storedInstanceName && !showInstancePicker"
+    class="instance-switch-badge"
+    @click="showInstancePicker = true"
+  >
+    Instance: {{ storedInstanceName }} — change
+  </button>
+
   <!-- Conditional Layout Rendering -->
   <AuthLayout v-if="isAuthRoute" />
   
@@ -80,7 +91,12 @@ import PublicServers from '@/components/PublicServers.vue'
 import AnnouncementPopup from '@/components/announcements/AnnouncementPopup.vue'
 import ThemeCustomizerPanel from '@/components/settings/user/ThemeCustomizerPanel.vue'
 import UnifiedConfirmationModal from '@/components/shared/UnifiedConfirmationModal.vue'
+import InstancePicker from '@/components/InstancePicker.vue'
+import { needsInstanceSelection, getStoredInstance } from '@/services/instanceConfig'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
+
+const showInstancePicker = ref(needsInstanceSelection())
+const storedInstanceName = computed(() => getStoredInstance()?.name ?? null)
 
 const {
   confirmDialogVisible,
@@ -305,5 +321,24 @@ async function handleIdentityChanged(e: CustomEvent) {
   #app {
     width: 100%;
     height: 100%;
+  }
+
+  .instance-switch-badge {
+    position: fixed;
+    bottom: 12px;
+    right: 12px;
+    z-index: 9999;
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: rgba(20, 20, 30, 0.75);
+    color: rgba(255, 255, 255, 0.75);
+    font-size: 0.8rem;
+    cursor: pointer;
+  }
+
+  .instance-switch-badge:hover {
+    color: white;
+    border-color: rgba(255, 255, 255, 0.35);
   }
 </style>

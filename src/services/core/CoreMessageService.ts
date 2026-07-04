@@ -1,5 +1,6 @@
 /** Local message CRUD, reactions, and loading. */
 import { supabase } from '@/supabase'
+import { apiUrl } from '@/services/instanceConfig';
 import type { Message, MessagePart } from '@/types'
 import { userDataService } from '@/services/userDataService'
 import { authContextService } from '@/services/AuthContextService'
@@ -1146,7 +1147,7 @@ export class CoreMessageService {
         ? abortSignalAny([options.signal, timeoutSignal])
         : timeoutSignal
 
-      const response = await fetch(`/api/federation/channels/${channelId}/messages?${params}`, {
+      const response = await fetch(apiUrl(`/api/federation/channels/${channelId}/messages?${params}`), {
         headers: {
           'Accept': 'application/json',
         },

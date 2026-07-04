@@ -1,3 +1,5 @@
+#[cfg(all(feature = "native-media", target_os = "linux"))]
+mod call_window;
 mod commands;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -24,7 +26,11 @@ pub fn run() {
     commands::media::media_set_input_device,
     commands::media::media_set_output_device,
     commands::media::media_set_user_volume,
-    commands::media::media_broadcast
+    commands::media::media_broadcast,
+    commands::media::media_enable_camera,
+    commands::media::media_set_screenshare,
+    commands::media::call_window_open,
+    commands::media::call_window_close
   ]);
   #[cfg(not(all(feature = "native-media", target_os = "linux")))]
   let builder = builder.invoke_handler(tauri::generate_handler![

@@ -39,6 +39,11 @@ import {
   electKeyCoordinator,
   type VoiceKeyEnvelope,
 } from './encryption/VoiceE2EEService';
+import {
+  getFederatedLiveKitToken,
+  getLiveKitConfig,
+  getLiveKitToken,
+} from './livekitTokens';
 
 // FEDERATED IDENTITY HELPERS
 
@@ -241,6 +246,8 @@ export interface UserMediaState {
   isDeafened: boolean;
   isSpeaking: boolean;
   audioLevel: number;
+  /** Only populated by the native (Tauri) transport. */
+  hasScreenShareAudio?: boolean;
 }
 
 export interface LiveKitConfig {
@@ -329,9 +336,6 @@ export class LiveKitWebRTCService {
   private readonly E2EE_DATA_TOPIC = 'harmony-e2ee';
   
   // LiveKit config cache
-  private configCache: LiveKitConfig | null = null;
-  private configCacheTime = 0;
-  private readonly CONFIG_CACHE_TTL = 60000; // 1 minute
   
   constructor() {
     this.loadAudioSettings();
@@ -370,42 +374,7 @@ export class LiveKitWebRTCService {
    * Get LiveKit configuration from the backend
    */
   async getConfig(forceRefresh = false): Promise<LiveKitConfig> {
-    const now = Date.now();
-    
-    if (!forceRefresh && this.configCache && (now - this.configCacheTime) < this.CONFIG_CACHE_TTL) {
-      return this.configCache;
-    }
-    
-    try {
-      // Try to get config from federation backend
-      const response = await fetch('/api/livekit/config');
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch LiveKit config');
-      }
-      
-      const config = await response.json();
-      
-      this.configCache = {
-        enabled: config.enabled ?? false,
-        mode: config.mode ?? 'hybrid',
-        wsUrl: config.wsUrl ?? null,
-        allowFederatedVoice: config.allowFederatedVoice ?? true,
-      };
-      this.configCacheTime = now;
-      
-      return this.configCache;
-    } catch (error) {
-      debug.warn('⚠️ Could not fetch LiveKit config, using defaults');
-      
-      // Return default config (P2P fallback)
-      return {
-        enabled: false,
-        mode: 'hybrid',
-        wsUrl: null,
-        allowFederatedVoice: true,
-      };
-    }
+    return getLiveKitConfig(forceRefresh);
   }
   
   /**
@@ -422,30 +391,7 @@ export class LiveKitWebRTCService {
    * Get a room token from the backend
    */
   private async getToken(roomName: string, roomType: 'voice_channel' | 'dm_call' | 'stage'): Promise<TokenResponse> {
-    const { data: { session } } = await supabase.auth.getSession();
-    
-    if (!session?.access_token) {
-      throw new Error('User not authenticated');
-    }
-    
-    const response = await fetch('/api/livekit/token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session.access_token}`,
-      },
-      body: JSON.stringify({
-        roomName,
-        roomType,
-      }),
-    });
-    
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'Unknown error' }));
-      throw new Error(error.error || 'Failed to get room token');
-    }
-    
-    return response.json();
+    return getLiveKitToken(roomName, roomType);
   }
   
   /**
@@ -457,25 +403,7 @@ export class LiveKitWebRTCService {
     roomName: string,
     roomType: 'voice_channel' | 'dm_call' | 'stage'
   ): Promise<TokenResponse> {
-    // TODO: Implement HTTP signature for federated requests
-    const response = await fetch(`${instanceUrl}/api/livekit/federated-token`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        actorId,
-        roomName,
-        roomType,
-      }),
-    });
-    
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'Unknown error' }));
-      throw new Error(error.error || 'Failed to get federated token');
-    }
-    
-    return response.json();
+    return getFederatedLiveKitToken(instanceUrl, actorId, roomName, roomType);
   }
   
   // CHANNEL MANAGEMENT
@@ -1875,6 +1803,10 @@ export class LiveKitWebRTCService {
             // Spread to create new object reference for Vue reactivity
             this.emit('user-state-changed', { userId: state.userId, mediaState: { ...state } });
           }
+        } else if (message.type === 'call-start-time') {
+          this.emit('call-start-time', { timestamp: message.data?.timestamp, from: message.from });
+        } else if (message.type === 'request-call-start-time') {
+          this.emit('request-call-start-time', { from: message.from });
         }
       } catch (error) {
         debug.warn('⚠️ [LiveKit] Failed to parse data message');
@@ -1998,6 +1930,20 @@ export class LiveKitWebRTCService {
     };
   }
   
+  /**
+   * Broadcast an arbitrary data message to all participants
+   */
+  broadcastMessage(message: any): void {
+    if (!this.room?.localParticipant) return;
+
+    try {
+      const encoder = new TextEncoder();
+      this.room.localParticipant.publishData(encoder.encode(JSON.stringify(message)), { reliable: true });
+    } catch (error) {
+      debug.warn('⚠️ [LiveKit] Failed to broadcast message:', message?.type);
+    }
+  }
+
   /**
    * Broadcast local media state to all participants
    */

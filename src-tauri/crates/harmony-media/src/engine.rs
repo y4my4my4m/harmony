@@ -1,12 +1,19 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
+use futures_util::StreamExt;
 use livekit::options::TrackPublishOptions;
 use livekit::prelude::*;
+use livekit::webrtc::video_frame::VideoBuffer;
+use livekit::webrtc::video_source::RtcVideoSource;
+use livekit::webrtc::video_stream::native::NativeVideoStream;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, oneshot};
 
+use crate::camera::CameraCapture;
 use crate::events::{AudioLevel, MediaEvent, UserMediaState};
+use crate::screencast::ScreenCapture;
+use crate::video::{pack_i420, FrameStore, TileKey};
 
 pub type EventSink = Arc<dyn Fn(MediaEvent) + Send + Sync>;
 
@@ -84,15 +91,27 @@ enum Command {
     topic: Option<String>,
     reply: oneshot::Sender<Result<(), String>>,
   },
+  EnableCamera {
+    enabled: bool,
+    reply: oneshot::Sender<Result<bool, String>>,
+  },
+  SetScreenshare {
+    enabled: bool,
+    fps: Option<u32>,
+    reply: oneshot::Sender<Result<bool, String>>,
+  },
 }
 
 pub struct MediaEngine {
   tx: mpsc::Sender<Command>,
+  frames: FrameStore,
 }
 
 impl MediaEngine {
   pub fn new(sink: EventSink) -> Self {
     let (tx, rx) = mpsc::channel(64);
+    let frames = FrameStore::default();
+    let actor_frames = frames.clone();
     std::thread::Builder::new()
       .name("harmony-media".into())
       .spawn(move || {
@@ -101,10 +120,15 @@ impl MediaEngine {
           .enable_all()
           .build()
           .expect("media runtime");
-        rt.block_on(actor_loop(rx, sink));
+        rt.block_on(actor_loop(rx, sink, actor_frames));
       })
       .expect("spawn media thread");
-    Self { tx }
+    Self { tx, frames }
+  }
+
+  /// Shared latest-frame store the call window renders from.
+  pub fn frames(&self) -> FrameStore {
+    self.frames.clone()
   }
 
   async fn send<T>(&self, make: impl FnOnce(oneshot::Sender<T>) -> Command) -> Result<T, String> {
@@ -171,6 +195,14 @@ impl MediaEngine {
   pub async fn broadcast(&self, payload: String, topic: Option<String>) -> Result<(), String> {
     self.send(|reply| Command::Broadcast { payload, topic, reply }).await?
   }
+
+  pub async fn enable_camera(&self, enabled: bool) -> Result<bool, String> {
+    self.send(|reply| Command::EnableCamera { enabled, reply }).await?
+  }
+
+  pub async fn set_screenshare(&self, enabled: bool, fps: Option<u32>) -> Result<bool, String> {
+    self.send(|reply| Command::SetScreenshare { enabled, fps, reply }).await?
+  }
 }
 
 struct CallState {
@@ -186,6 +218,19 @@ struct CallState {
   // 0..=200; 0 degrades to track disable (no per-track gain in bindings yet)
   volumes: HashMap<(String, VolumeSource), u16>,
   speaking: HashSet<String>,
+  frames: FrameStore,
+  camera: Option<(CameraCapture, LocalTrackPublication)>,
+  screen: Option<(ScreenCapture, LocalTrackPublication)>,
+  video_readers: HashMap<TileKey, tokio::task::JoinHandle<()>>,
+}
+
+impl Drop for CallState {
+  fn drop(&mut self) {
+    for (_, handle) in self.video_readers.drain() {
+      handle.abort();
+    }
+    self.frames.clear();
+  }
 }
 
 impl CallState {
@@ -194,8 +239,8 @@ impl CallState {
     UserMediaState {
       user_id: self.user_id.clone(),
       is_audio_enabled: !self.muted,
-      is_video_enabled: false,
-      is_screen_sharing: false,
+      is_video_enabled: self.camera.is_some(),
+      is_screen_sharing: self.screen.is_some(),
       is_muted: self.muted,
       is_deafened: self.deafened,
       is_speaking: speaking,
@@ -257,7 +302,7 @@ impl CallState {
   }
 }
 
-async fn actor_loop(mut rx: mpsc::Receiver<Command>, sink: EventSink) {
+async fn actor_loop(mut rx: mpsc::Receiver<Command>, sink: EventSink, frames: FrameStore) {
   let mut call: Option<CallState> = None;
 
   enum Step {
@@ -286,7 +331,7 @@ async fn actor_loop(mut rx: mpsc::Receiver<Command>, sink: EventSink) {
     };
 
     match step {
-      Step::Cmd(cmd) => handle_command(cmd, &mut call, &sink).await,
+      Step::Cmd(cmd) => handle_command(cmd, &mut call, &sink, &frames).await,
       Step::Room(ev) => handle_room_event(ev, &mut call, &sink),
       Step::RoomClosed => {
         call = None;
@@ -300,14 +345,19 @@ async fn actor_loop(mut rx: mpsc::Receiver<Command>, sink: EventSink) {
   }
 }
 
-async fn handle_command(cmd: Command, call: &mut Option<CallState>, sink: &EventSink) {
+async fn handle_command(
+  cmd: Command,
+  call: &mut Option<CallState>,
+  sink: &EventSink,
+  frames: &FrameStore,
+) {
   match cmd {
     Command::Connect { ws_url, token, channel_id, user_id, reply } => {
       if let Some(old) = call.take() {
         let _ = old.room.close().await;
         sink(MediaEvent::Disconnected { reason: "rejoining".into() });
       }
-      match do_connect(ws_url, token, channel_id, user_id, sink).await {
+      match do_connect(ws_url, token, channel_id, user_id, frames.clone(), sink).await {
         Ok(state) => {
           sink(MediaEvent::Connected { channel_id: state.channel_id.clone() });
           sink(MediaEvent::StateSynced {
@@ -425,7 +475,89 @@ async fn handle_command(cmd: Command, call: &mut Option<CallState>, sink: &Event
       };
       let _ = reply.send(result);
     }
+    Command::EnableCamera { enabled, reply } => {
+      let result = match call.as_mut() {
+        Some(active) => set_camera(active, enabled, sink).await,
+        None => Err("not connected".into()),
+      };
+      let _ = reply.send(result);
+    }
+    Command::SetScreenshare { enabled, fps, reply } => {
+      let result = match call.as_mut() {
+        Some(active) => set_screenshare(active, enabled, fps, sink).await,
+        None => Err("not connected".into()),
+      };
+      let _ = reply.send(result);
+    }
   }
+}
+
+async fn set_camera(
+  active: &mut CallState,
+  enabled: bool,
+  sink: &EventSink,
+) -> Result<bool, String> {
+  if enabled == active.camera.is_some() {
+    return Ok(enabled);
+  }
+
+  if enabled {
+    let capture = CameraCapture::start(None, active.frames.clone())?;
+    let track = LocalVideoTrack::create_video_track(
+      "camera",
+      RtcVideoSource::Native(capture.source.clone()),
+    );
+    let mut options = TrackPublishOptions::default();
+    options.source = TrackSource::Camera;
+    options.simulcast = true;
+    let publication = active
+      .room
+      .local_participant()
+      .publish_track(LocalTrack::Video(track), options)
+      .await
+      .map_err(|e| format!("publish camera: {e}"))?;
+    active.camera = Some((capture, publication));
+  } else if let Some((capture, publication)) = active.camera.take() {
+    capture.stop();
+    let _ = active.room.local_participant().unpublish_track(&publication.sid()).await;
+  }
+
+  sink(MediaEvent::LocalState(active.local_state()));
+  Ok(enabled)
+}
+
+async fn set_screenshare(
+  active: &mut CallState,
+  enabled: bool,
+  fps: Option<u32>,
+  sink: &EventSink,
+) -> Result<bool, String> {
+  if enabled == active.screen.is_some() {
+    return Ok(enabled);
+  }
+
+  if enabled {
+    let capture = ScreenCapture::start(fps.unwrap_or(60), active.frames.clone())?;
+    let track = LocalVideoTrack::create_video_track(
+      "screen",
+      RtcVideoSource::Native(capture.source.clone()),
+    );
+    let mut options = TrackPublishOptions::default();
+    options.source = TrackSource::Screenshare;
+    let publication = active
+      .room
+      .local_participant()
+      .publish_track(LocalTrack::Video(track), options)
+      .await
+      .map_err(|e| format!("publish screenshare: {e}"))?;
+    active.screen = Some((capture, publication));
+  } else if let Some((capture, publication)) = active.screen.take() {
+    capture.stop();
+    let _ = active.room.local_participant().unpublish_track(&publication.sid()).await;
+  }
+
+  sink(MediaEvent::LocalState(active.local_state()));
+  Ok(enabled)
 }
 
 async fn do_connect(
@@ -433,6 +565,7 @@ async fn do_connect(
   token: String,
   channel_id: String,
   user_id: String,
+  frames: FrameStore,
   _sink: &EventSink,
 ) -> Result<CallState, String> {
   let audio = PlatformAudio::new().map_err(|e| format!("platform audio: {e}"))?;
@@ -470,6 +603,10 @@ async fn do_connect(
     remote_audio: HashMap::new(),
     volumes: HashMap::new(),
     speaking: HashSet::new(),
+    frames,
+    camera: None,
+    screen: None,
+    video_readers: HashMap::new(),
   })
 }
 
@@ -506,27 +643,73 @@ fn handle_room_event(ev: RoomEvent, call: &mut Option<CallState>, sink: &EventSi
       let identity = p.identity().to_string();
       active.remote_audio.retain(|(id, _), _| *id != identity);
       active.speaking.remove(&identity);
+      active.video_readers.retain(|key, handle| {
+        if key.user_id == identity {
+          handle.abort();
+          false
+        } else {
+          true
+        }
+      });
+      active.frames.remove_user(&identity);
       sink(MediaEvent::UserLeft { user_id: identity });
     }
     RoomEvent::TrackSubscribed { track, publication, participant } => {
-      if let RemoteTrack::Audio(audio_track) = track {
-        let source = match publication.source() {
-          TrackSource::ScreenshareAudio => VolumeSource::Screen,
-          _ => VolumeSource::Mic,
-        };
-        let key = (participant.identity().to_string(), source);
-        active.remote_audio.insert(key.clone(), audio_track);
-        active.apply_audio_enabled(&key);
+      match track {
+        RemoteTrack::Audio(audio_track) => {
+          let source = match publication.source() {
+            TrackSource::ScreenshareAudio => VolumeSource::Screen,
+            _ => VolumeSource::Mic,
+          };
+          let key = (participant.identity().to_string(), source);
+          active.remote_audio.insert(key.clone(), audio_track);
+          active.apply_audio_enabled(&key);
+        }
+        RemoteTrack::Video(video_track) => {
+          let key = TileKey {
+            user_id: participant.identity().to_string(),
+            is_screen: publication.source() == TrackSource::Screenshare,
+          };
+          let frames = active.frames.clone();
+          let reader_key = key.clone();
+          let mut stream = NativeVideoStream::new(video_track.rtc_track());
+          let handle = tokio::spawn(async move {
+            while let Some(frame) = stream.next().await {
+              let buffer = frame.buffer.to_i420();
+              let (sy, su, sv) = buffer.strides();
+              let (y, u, v) = buffer.data();
+              frames.put(
+                reader_key.clone(),
+                pack_i420(buffer.width(), buffer.height(), y, sy, u, su, v, sv),
+              );
+            }
+          });
+          if let Some(old) = active.video_readers.insert(key, handle) {
+            old.abort();
+          }
+        }
       }
       sink(MediaEvent::UserState(active.remote_state(&participant)));
     }
     RoomEvent::TrackUnsubscribed { track, publication, participant } => {
-      if matches!(track, RemoteTrack::Audio(_)) {
-        let source = match publication.source() {
-          TrackSource::ScreenshareAudio => VolumeSource::Screen,
-          _ => VolumeSource::Mic,
-        };
-        active.remote_audio.remove(&(participant.identity().to_string(), source));
+      match track {
+        RemoteTrack::Audio(_) => {
+          let source = match publication.source() {
+            TrackSource::ScreenshareAudio => VolumeSource::Screen,
+            _ => VolumeSource::Mic,
+          };
+          active.remote_audio.remove(&(participant.identity().to_string(), source));
+        }
+        RemoteTrack::Video(_) => {
+          let key = TileKey {
+            user_id: participant.identity().to_string(),
+            is_screen: publication.source() == TrackSource::Screenshare,
+          };
+          if let Some(handle) = active.video_readers.remove(&key) {
+            handle.abort();
+          }
+          active.frames.remove(&key);
+        }
       }
       sink(MediaEvent::UserState(active.remote_state(&participant)));
     }

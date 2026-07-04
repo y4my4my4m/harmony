@@ -16,12 +16,14 @@
 
 import { livekitWebRTC, type UserMediaState, type LiveKitConfig, type VideoSource } from './livekitWebRTC';
 import { unifiedWebRTC } from './unifiedWebRTC';
+import { nativeLiveKit, isNativeMediaSupported } from './nativeLiveKit';
 import { VoiceSettingsService } from './VoiceSettingsService';
 import { debug } from '@/utils/debug';
 
 // TYPES
 
 export type WebRTCMode = 'sfu' | 'p2p' | 'hybrid';
+export type ActiveWebRTCService = 'livekit' | 'p2p' | 'native' | null;
 
 export interface WebRTCManager {
   // Connection
@@ -62,14 +64,14 @@ export interface WebRTCManager {
   // Status
   isConnected(): boolean;
   getCurrentMode(): 'sfu' | 'p2p' | null;
-  getActiveService(): 'livekit' | 'p2p' | null;
+  getActiveService(): ActiveWebRTCService;
 }
 
 // WEBRTC MANAGER SERVICE
 
 class WebRTCManagerService implements WebRTCManager {
   private currentMode: WebRTCMode = 'hybrid';
-  private activeService: 'livekit' | 'p2p' | null = null;
+  private activeService: ActiveWebRTCService = null;
   private configCache: LiveKitConfig | null = null;
   private eventListeners = new Map<string, Function[]>();
   
@@ -106,13 +108,28 @@ class WebRTCManagerService implements WebRTCManager {
           this.emit(event, data);
         }
       });
-      
+
       unifiedWebRTC.on(event, (data: any) => {
         if (this.activeService === 'p2p') {
           this.emit(event, data);
         }
       });
+
+      nativeLiveKit.on(event, (data: any) => {
+        if (this.activeService === 'native') {
+          this.emit(event, data);
+        }
+      });
     }
+  }
+
+  /**
+   * Whether media runs in the Rust process (Linux Tauri client, where the
+   * webview has no WebRTC). LiveKit-only there: P2P needs webview WebRTC,
+   * so it's deferred until the native peer-connection path lands.
+   */
+  isNativeBackend(): boolean {
+    return this.activeService === 'native';
   }
   
   /**
@@ -133,16 +150,16 @@ class WebRTCManagerService implements WebRTCManager {
   /**
    * Get the currently active service
    */
-  getActiveService(): 'livekit' | 'p2p' | null {
+  getActiveService(): ActiveWebRTCService {
     return this.activeService;
   }
-  
+
   /**
    * Get the current connection mode (what's actually being used)
    */
   getCurrentMode(): 'sfu' | 'p2p' | null {
     if (!this.activeService) return null;
-    return this.activeService === 'livekit' ? 'sfu' : 'p2p';
+    return this.activeService === 'p2p' ? 'p2p' : 'sfu';
   }
   
   /**
@@ -208,18 +225,52 @@ class WebRTCManagerService implements WebRTCManager {
       debug.log('🚫 [WebRTCManager] Connection cancelled before starting');
       return false;
     }
-    
+
     // Leave any existing connection
     if (this.activeService) {
       await this.leaveChannel();
     }
-    
+
     // Check for cancellation after cleanup
     if (abortSignal?.aborted) {
       debug.log('🚫 [WebRTCManager] Connection cancelled after cleanup');
       return false;
     }
-    
+
+    // Native media engine (Linux Tauri): LiveKit through Rust, no P2P.
+    if (await isNativeMediaSupported()) {
+      if (this.currentMode === 'p2p') {
+        this.emit('error', new Error('P2P calls are not available on the Linux desktop client yet. Voice channels use the server (SFU) transport.'));
+        return false;
+      }
+      if (abortSignal?.aborted) {
+        debug.log('🚫 [WebRTCManager] Connection cancelled before native attempt');
+        return false;
+      }
+
+      debug.log('🦀 [WebRTCManager] Using native media engine');
+      this.activeService = 'native';
+      try {
+        const success = await nativeLiveKit.joinChannel(channelId, userId, roomType, abortSignal, requireE2EE);
+        if (abortSignal?.aborted) {
+          if (success) {
+            await nativeLiveKit.leaveChannel();
+          }
+          this.activeService = null;
+          return false;
+        }
+        if (success) {
+          debug.log('✅ [WebRTCManager] Connected via native LiveKit');
+          return true;
+        }
+      } catch (error) {
+        debug.error('❌ [WebRTCManager] Native connection failed:', error);
+        this.emit('error', error);
+      }
+      this.activeService = null;
+      return false;
+    }
+
     const useSFU = await this.shouldUseSFU();
     
     // Check for cancellation after checking SFU availability
@@ -342,18 +393,21 @@ class WebRTCManagerService implements WebRTCManager {
     if (this.activeService) {
       await this.leaveChannel();
     }
-    
+
+    const useNative = await isNativeMediaSupported();
+    const service = useNative ? nativeLiveKit : livekitWebRTC;
+
     // Set activeService BEFORE joining so events are forwarded during connection
-    this.activeService = 'livekit';
-    
+    this.activeService = useNative ? 'native' : 'livekit';
+
     try {
-      const success = await livekitWebRTC.joinWithToken(wsUrl, token, channelId, userId);
-      
+      const success = await service.joinWithToken(wsUrl, token, channelId, userId);
+
       if (success) {
         debug.log('✅ [WebRTCManager] Connected to federated LiveKit server');
         return true;
       }
-      
+
       // Connection failed, reset activeService
       this.activeService = null;
       return false;
@@ -376,6 +430,8 @@ class WebRTCManagerService implements WebRTCManager {
         await livekitWebRTC.leaveChannel();
       } else if (this.activeService === 'p2p') {
         await unifiedWebRTC.leaveChannel();
+      } else if (this.activeService === 'native') {
+        await nativeLiveKit.leaveChannel();
       }
     } catch (e) {
       debug.warn('⚠️ [WebRTCManager] Error during leaveChannel (forcing cleanup):', e);
@@ -394,6 +450,8 @@ class WebRTCManagerService implements WebRTCManager {
       return livekitWebRTC.toggleVideo();
     } else if (this.activeService === 'p2p') {
       return unifiedWebRTC.toggleVideo();
+    } else if (this.activeService === 'native') {
+      return nativeLiveKit.toggleVideo();
     }
     return false;
   }
@@ -406,6 +464,8 @@ class WebRTCManagerService implements WebRTCManager {
       return livekitWebRTC.toggleScreenShare();
     } else if (this.activeService === 'p2p') {
       return unifiedWebRTC.toggleScreenShare();
+    } else if (this.activeService === 'native') {
+      return nativeLiveKit.toggleScreenShare();
     }
     return false;
   }
@@ -418,6 +478,8 @@ class WebRTCManagerService implements WebRTCManager {
       return livekitWebRTC.toggleMute();
     } else if (this.activeService === 'p2p') {
       return unifiedWebRTC.toggleMute();
+    } else if (this.activeService === 'native') {
+      return nativeLiveKit.toggleMute();
     }
     return false;
   }
@@ -430,6 +492,8 @@ class WebRTCManagerService implements WebRTCManager {
       livekitWebRTC.setMuted(muted);
     } else if (this.activeService === 'p2p') {
       unifiedWebRTC.setMuted(muted);
+    } else if (this.activeService === 'native') {
+      nativeLiveKit.setMuted(muted);
     }
   }
   
@@ -441,6 +505,8 @@ class WebRTCManagerService implements WebRTCManager {
       return livekitWebRTC.toggleDeafen();
     } else if (this.activeService === 'p2p') {
       return unifiedWebRTC.toggleDeafen();
+    } else if (this.activeService === 'native') {
+      return nativeLiveKit.toggleDeafen();
     }
     return false;
   }
@@ -530,6 +596,8 @@ class WebRTCManagerService implements WebRTCManager {
       await livekitWebRTC.updateStreamQuality(settings);
     } else if (this.activeService === 'p2p') {
       await unifiedWebRTC.updateStreamQuality(settings);
+    } else if (this.activeService === 'native') {
+      await nativeLiveKit.updateStreamQuality(settings);
     } else {
       debug.warn('⚠️ No active WebRTC service to update stream quality');
     }
@@ -543,6 +611,8 @@ class WebRTCManagerService implements WebRTCManager {
       return livekitWebRTC.getLocalState();
     } else if (this.activeService === 'p2p') {
       return unifiedWebRTC.getLocalState();
+    } else if (this.activeService === 'native') {
+      return nativeLiveKit.getLocalState();
     }
     return {
       userId: '',
@@ -564,6 +634,8 @@ class WebRTCManagerService implements WebRTCManager {
       return livekitWebRTC.getAllUsers();
     } else if (this.activeService === 'p2p') {
       return unifiedWebRTC.getAllUsers();
+    } else if (this.activeService === 'native') {
+      return nativeLiveKit.getAllUsers();
     }
     return [];
   }
@@ -578,6 +650,8 @@ class WebRTCManagerService implements WebRTCManager {
       return livekitWebRTC.isConnected();
     } else if (this.activeService === 'p2p') {
       return !!unifiedWebRTC.getLocalState().userId;
+    } else if (this.activeService === 'native') {
+      return nativeLiveKit.isConnected();
     }
     return false;
   }
@@ -595,6 +669,8 @@ class WebRTCManagerService implements WebRTCManager {
       await livekitWebRTC.updateInputDevice(deviceId);
     } else if (this.activeService === 'p2p') {
       await unifiedWebRTC.updateInputDevice(deviceId);
+    } else if (this.activeService === 'native') {
+      await nativeLiveKit.updateInputDevice(deviceId);
     }
     
     debug.log('🎤 [WebRTCManager] Updated input device:', deviceId);
@@ -611,6 +687,8 @@ class WebRTCManagerService implements WebRTCManager {
       await livekitWebRTC.updateOutputDevice(deviceId);
     } else if (this.activeService === 'p2p') {
       await unifiedWebRTC.updateOutputDevice(deviceId);
+    } else if (this.activeService === 'native') {
+      await nativeLiveKit.updateOutputDevice(deviceId);
     }
     
     debug.log('🔊 [WebRTCManager] Updated output device:', deviceId);
@@ -627,6 +705,8 @@ class WebRTCManagerService implements WebRTCManager {
       await livekitWebRTC.updateVideoDevice(deviceId);
     } else if (this.activeService === 'p2p') {
       await unifiedWebRTC.updateVideoDevice(deviceId);
+    } else if (this.activeService === 'native') {
+      await nativeLiveKit.updateVideoDevice(deviceId);
     }
     
     debug.log('📹 [WebRTCManager] Updated video device:', deviceId);
@@ -641,6 +721,8 @@ class WebRTCManagerService implements WebRTCManager {
       return livekitWebRTC.getSelectedDevices();
     } else if (this.activeService === 'p2p') {
       return unifiedWebRTC.getSelectedDevices();
+    } else if (this.activeService === 'native') {
+      return nativeLiveKit.getSelectedDevices();
     }
     // Fallback to VoiceSettingsService when no active service
     return VoiceSettingsService.getDevices();
@@ -649,11 +731,15 @@ class WebRTCManagerService implements WebRTCManager {
   // P2P-SPECIFIC METHODS (passthrough for compatibility)
   
   /**
-   * Broadcast a message (P2P only)
+   * Broadcast a message to all participants
    */
   broadcastMessage(message: any): void {
-    if (this.activeService === 'p2p') {
+    if (this.activeService === 'livekit') {
+      livekitWebRTC.broadcastMessage(message);
+    } else if (this.activeService === 'p2p') {
       (unifiedWebRTC as any).broadcastMessage(message);
+    } else if (this.activeService === 'native') {
+      nativeLiveKit.broadcastMessage(message);
     }
   }
   
@@ -676,8 +762,12 @@ class WebRTCManagerService implements WebRTCManager {
       livekitWebRTC.setUserMicVolume(userId, volume);
     } else if (this.activeService === 'p2p') {
       (unifiedWebRTC as any).setUserVolume?.(userId, volume / 100); // P2P uses 0-1 scale
+    } else if (this.activeService === 'native') {
+      // playout happens in the Rust process; no WebAudio chain exists
+      nativeLiveKit.setUserMicVolume(userId, volume);
+      return;
     }
-    
+
     // Also apply to spatial audio chain (operates on the outputGain node,
     // so it works even when traditional audio elements are muted)
     import('./spatialAudio').then(({ spatialAudioService }) => {
@@ -691,6 +781,8 @@ class WebRTCManagerService implements WebRTCManager {
   setUserScreenShareVolume(userId: string, volume: number): void {
     if (this.activeService === 'livekit') {
       livekitWebRTC.setUserScreenShareVolume(userId, volume);
+    } else if (this.activeService === 'native') {
+      nativeLiveKit.setUserScreenShareVolume(userId, volume);
     }
     // P2P doesn't support screenshare audio separately yet
   }
@@ -701,6 +793,8 @@ class WebRTCManagerService implements WebRTCManager {
   getUserMicVolume(userId: string): number {
     if (this.activeService === 'livekit') {
       return livekitWebRTC.getUserMicVolume(userId);
+    } else if (this.activeService === 'native') {
+      return nativeLiveKit.getUserMicVolume(userId);
     }
     return 100;
   }
@@ -711,6 +805,8 @@ class WebRTCManagerService implements WebRTCManager {
   getUserScreenShareVolume(userId: string): number {
     if (this.activeService === 'livekit') {
       return livekitWebRTC.getUserScreenShareVolume(userId);
+    } else if (this.activeService === 'native') {
+      return nativeLiveKit.getUserScreenShareVolume(userId);
     }
     return 100;
   }
@@ -721,6 +817,8 @@ class WebRTCManagerService implements WebRTCManager {
   hasScreenShareAudio(userId: string): boolean {
     if (this.activeService === 'livekit') {
       return livekitWebRTC.hasScreenShareAudio(userId);
+    } else if (this.activeService === 'native') {
+      return nativeLiveKit.hasScreenShareAudio(userId);
     }
     return false;
   }

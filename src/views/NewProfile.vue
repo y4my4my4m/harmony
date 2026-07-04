@@ -269,6 +269,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
+import { apiUrl } from '@/services/instanceConfig';
 import { debug } from '@/utils/debug'
 import { useProfileStore } from '@/stores/useProfile';
 import { useAuthStore } from '@/stores/auth';
@@ -639,7 +640,7 @@ const createProfile = async () => {
     creationStep.value = 'Generating federation keys...';
     try {
       // Use relative URL - federation backend is proxied through the same domain
-      const keyGenResponse = await fetch('/api/federation/generate-keys', {
+      const keyGenResponse = await fetch(apiUrl('/api/federation/generate-keys'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

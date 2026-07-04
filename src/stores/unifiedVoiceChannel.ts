@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia';
+import { apiUrl } from '@/services/instanceConfig';
 import { nextTick } from 'vue';
 import { webrtcManager } from '@/services/webrtcManager';
 import type { UserMediaState } from '@/services/unifiedWebRTC';
@@ -86,7 +87,7 @@ interface VoiceChannelState {
   streamUpdateCounter: number;
   
   // Active WebRTC transport ('livekit' for SFU, 'p2p' for peer-to-peer, null when disconnected)
-  connectionMode: 'livekit' | 'p2p' | null;
+  connectionMode: 'livekit' | 'p2p' | 'native' | null;
 
   // Whether the active call's media is end-to-end encrypted (SFU/LiveKit only for now).
   isEncrypted: boolean;
@@ -667,7 +668,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
               return;
             }
             
-            const response = await fetch('/api/federation/voice/join', {
+            const response = await fetch(apiUrl('/api/federation/voice/join'), {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -857,7 +858,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           if (wasFederated) {
             const session = await supabase.auth.getSession();
             if (session.data.session) {
-              fetch('/api/federation/voice/leave', {
+              fetch(apiUrl('/api/federation/voice/leave'), {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
