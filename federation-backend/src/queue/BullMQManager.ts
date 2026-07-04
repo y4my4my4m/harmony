@@ -57,7 +57,7 @@ export type JobType =
   | 'maintenance';
 
 export interface FederationJobData {
-  type: 'create' | 'update' | 'delete' | 'pin_change';
+  type: 'create' | 'update' | 'delete' | 'pin_change' | 'respond';
   [key: string]: any;
 }
 

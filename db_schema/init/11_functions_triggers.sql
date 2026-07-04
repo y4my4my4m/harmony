@@ -1229,6 +1229,42 @@ BEGIN
 END;
 $$;
 
+-- Queue follow-request response (Accept/Reject) for federation.
+-- Fires when a local user resolves a remote follower's pending request;
+-- the worker handles job type 'respond' in queue/handlers/followHandler.ts.
+CREATE OR REPLACE FUNCTION public.trigger_queue_follow_response_federation()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_follower_is_local BOOLEAN;
+    v_following_is_local BOOLEAN;
+BEGIN
+    IF OLD.status = 'pending' AND NEW.status IN ('accepted', 'rejected') THEN
+        SELECT is_local INTO v_follower_is_local FROM public.profiles WHERE id = NEW.follower_id;
+        SELECT is_local INTO v_following_is_local FROM public.profiles WHERE id = NEW.following_id;
+
+        IF COALESCE(v_follower_is_local, true) = false AND v_following_is_local = true THEN
+            PERFORM public.queue_federation_job(
+                'federate-follow',
+                jsonb_build_object(
+                    'type', 'respond',
+                    'follow_id', NEW.id,
+                    'follower_id', NEW.follower_id,
+                    'following_id', NEW.following_id,
+                    'status', NEW.status,
+                    'ap_id', NEW.ap_id
+                ), 5, 5, 3600
+            );
+        END IF;
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
 -- Queue interaction for federation
 CREATE OR REPLACE FUNCTION public.trigger_queue_interaction_federation()
 RETURNS trigger
