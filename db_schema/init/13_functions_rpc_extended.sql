@@ -4194,9 +4194,13 @@ BEGIN
             );
         END IF;
 
-    -- Follow request approved: notify the requester
-    ELSIF TG_TABLE_NAME = 'follows' AND TG_OP = 'UPDATE'
-        AND OLD.status = 'pending' AND NEW.status = 'accepted' THEN
+    -- Follow request approved: notify the requester.
+    -- OLD.status must only be referenced inside the follows-only branch: this
+    -- function also fires for INSERTs on reactions/post_interactions, whose
+    -- row types have no status column, and plpgsql resolves record fields in
+    -- the ELSIF condition even when the table check is false (42703).
+    ELSIF TG_TABLE_NAME = 'follows' AND TG_OP = 'UPDATE' THEN
+      IF OLD.status = 'pending' AND NEW.status = 'accepted' THEN
         SELECT id, username, display_name, avatar_url, domain, is_local
         INTO follower_profile
         FROM profiles
@@ -4233,6 +4237,8 @@ BEGIN
                 );
             END IF;
         END IF;
+
+      END IF;
 
     ELSIF TG_TABLE_NAME = 'reactions' AND TG_OP = 'INSERT' THEN
         SELECT user_id INTO single_target_id FROM messages WHERE id = NEW.message_id;
