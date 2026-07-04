@@ -1,16 +1,25 @@
 <template>
   <Teleport to="body">
-      <!-- Background blur -->
-      <div class="overlay-backdrop" :class="{ 'overlay-entering': isEntering, 'overlay-leaving': isLeaving }"></div>
-    <div 
-      v-if="voiceStore.isOverlayVisible" 
+    <!-- Background blur -->
+    <div class="overlay-backdrop" :class="{ 'overlay-entering': isEntering, 'overlay-leaving': isLeaving }"></div>
+    <div
+      v-if="voiceStore.isOverlayVisible"
       class="voice-overlay"
       :class="{ 'overlay-entering': isEntering, 'overlay-leaving': isLeaving }"
       @click.self="handleBackdropClick"
     >
-      
       <!-- Main container -->
-      <div class="voice-container" :class="[voiceStore.layoutMode, { 'maximized': voiceStore.viewMode === 'maximized', 'fullscreen-mode': voiceStore.viewMode === 'fullscreen', 'rainbow-party': easterEggState.isActive && easterEggState.type === 'rainbow-party', 'screen-shake': easterEggState.isActive && easterEggState.type === 'rainbow-party' }]">
+      <div
+        ref="containerEl"
+        class="voice-container"
+        :class="{
+          'native-fullscreen': isNativeFullscreen,
+          'controls-hidden': isNativeFullscreen && !controlsVisible,
+          'rainbow-party': easterEggState.isActive && easterEggState.type === 'rainbow-party',
+          'screen-shake': easterEggState.isActive && easterEggState.type === 'rainbow-party',
+        }"
+        @mousemove="pokeControls"
+      >
         <!-- Header -->
         <div class="voice-header">
           <div class="channel-info">
@@ -30,9 +39,8 @@
               </p>
             </div>
           </div>
-          
+
           <div class="header-controls">
-            <!-- E2EE Indicator -->
             <VoiceEncryptionBadge
               v-if="voiceStore.connectionMode"
               class="overlay-encryption-badge"
@@ -40,40 +48,15 @@
               size="md"
               show-label
             />
-            <!-- Connection Mode Indicator -->
             <div class="connection-mode-indicator" :class="voiceStore.connectionMode || 'unknown'">
               <Icon :name="voiceStore.connectionMode === 'livekit' ? 'server' : 'users'" />
               <span>{{ voiceStore.connectionMode === 'livekit' ? 'SFU' : 'P2P' }}</span>
             </div>
-            
-            <button 
-              @click="voiceStore.setLayoutMode('grid')"
-              class="layout-btn"
-              :class="{ active: voiceStore.layoutMode === 'grid' }"
-              title="Grid view"
-            >
-              <Icon name="grid" />
-            </button>
-            <button 
-              @click="voiceStore.setLayoutMode('speaker')"
-              class="layout-btn"
-              :class="{ active: voiceStore.layoutMode === 'speaker' }"
-              title="Speaker view"
-            >
-              <Icon name="user" />
-            </button>
-            <button 
-              @click="toggleMaximize"
-              class="layout-btn"
-              :class="{ active: voiceStore.viewMode === 'maximized' }"
-              title="Maximize"
-            >
-              <Icon name="maximize" />
-            </button>
-            <button 
+
+            <button
               @click="toggleSpatialPanel"
               class="layout-btn spatial-btn"
-              :class="{ 
+              :class="{
                 active: spatialStore.isPanelVisible,
                 'spatial-enabled': spatialStore.settings.enabled
               }"
@@ -81,7 +64,7 @@
             >
               <Icon name="audio-lines" />
             </button>
-            <button 
+            <button
               @click="toggleSettings"
               class="layout-btn"
               :class="{ active: showSettings }"
@@ -89,107 +72,96 @@
             >
               <Icon name="settings" />
             </button>
-            <button 
-              @click="minimizeOverlay"
-              class="minimize-btn"
-              title="Minimize"
+            <button
+              @click="toggleNativeFullscreen"
+              class="layout-btn"
+              :class="{ active: isNativeFullscreen }"
+              :title="isNativeFullscreen ? 'Exit fullscreen' : 'Fullscreen'"
             >
-              <Icon name="minimize" />
+              <Icon :name="isNativeFullscreen ? 'minimize' : 'maximize'" />
             </button>
-            <button 
-              @click="closeOverlay"
-              class="close-btn"
-              title="Close"
-            >
+            <button @click="minimizeOverlay" class="minimize-btn" title="Minimize">
+              <Icon name="minimize-2" />
+            </button>
+            <button @click="closeOverlay" class="close-btn" title="Close">
               <Icon name="x" />
             </button>
           </div>
         </div>
 
-        <!-- Featured Speaker (Speaker mode) - Hidden when in fullscreen to avoid doubled video -->
-        <div v-if="voiceStore.layoutMode === 'speaker' && featuredSpeaker && voiceStore.viewMode !== 'fullscreen'" class="featured-speaker">
-          <UnifiedVoiceUserCard
-            :user-state="featuredSpeaker"
-            @toggle-video="voiceStore.toggleVideo"
-            @toggle-screen-share="voiceStore.toggleScreenShare"
-            class="featured-card"
-          />
-        </div>
-
-        <!-- Participants Grid -->
-        <div v-if="voiceStore.viewMode !== 'fullscreen'" class="participants-container" :class="`layout-${voiceStore.layoutMode}`">
-          <TransitionGroup
-            name="participant"
-            tag="div"
-            class="participants-grid"
-            :class="[adaptiveGridClass, { 'speaker-mode': voiceStore.layoutMode === 'speaker' }]"
-            :style="voiceStore.layoutMode === 'grid' ? gridStyle : {}"
-          >
-            <UnifiedVoiceUserCard
-              v-for="participant in displayedParticipants"
-              :key="participant.userId"
-              :user-state="participant"
-              @toggle-video="voiceStore.toggleVideo"
-              @toggle-screen-share="voiceStore.toggleScreenShare"
-              class="participant-card"
-            />
-          </TransitionGroup>
-        </div>
-
-        <!-- Fullscreen View -->
-        <div 
-          v-else-if="voiceStore.viewMode === 'fullscreen' && fullscreenParticipant" 
-          class="fullscreen-container"
-          :class="{ 'full-window-mode': isFullWindowMode }"
-          @click="isFullWindowMode && voiceStore.toggleFullWindowMode()"
+        <!-- Stage -->
+        <div
+          class="stage"
+          :class="{ 'full-window-mode': isFullWindowActive }"
+          @click="isFullWindowActive && voiceStore.toggleFullWindowMode()"
         >
-          <UnifiedVoiceUserCard
-            :key="fullscreenParticipant.userId"
-            :user-state="fullscreenParticipant"
-            @toggle-video="voiceStore.toggleVideo"
-            @toggle-screen-share="voiceStore.toggleScreenShare"
-            class="fullscreen-card"
-          />
-          
-          <!-- Thumbnail strip at bottom with collapse button -->
-          <div class="thumbnail-strip-container">
-            <button 
-              class="thumbnail-collapse-btn"
-              @click="isThumbnailStripCollapsed = !isThumbnailStripCollapsed"
-              :title="isThumbnailStripCollapsed ? 'Show participants' : 'Hide participants'"
-            >
-              <Icon :name="isThumbnailStripCollapsed ? 'chevron-up' : 'chevron-down'" />
-            </button>
-            <div v-if="!isThumbnailStripCollapsed" class="thumbnail-strip">
-              <UnifiedVoiceUserCard
-                v-for="participant in nonFullscreenParticipants"
-                :key="participant.userId"
-                :user-state="participant"
-                @toggle-video="voiceStore.toggleVideo"
-                @toggle-screen-share="voiceStore.toggleScreenShare"
-                class="thumbnail-card"
+          <!-- Grid view -->
+          <div v-if="!focusedTile" ref="gridEl" class="tile-grid">
+            <VoiceTile
+              v-for="tile in tiles"
+              :key="tile.id"
+              :user-state="tile.userState"
+              :source="tile.source"
+              class="grid-tile"
+              :style="tileStyle"
+              @expand="focusTile(tile)"
+              @request-fullscreen="fullscreenTile(tile)"
+            />
+          </div>
+
+          <!-- Focus view -->
+          <template v-else>
+            <div class="focus-area">
+              <VoiceTile
+                :key="focusedTile.id"
+                :user-state="focusedTile.userState"
+                :source="focusedTile.source"
+                fit="contain"
+                class="focus-tile"
+                @expand="unfocus"
+                @request-fullscreen="toggleNativeFullscreen"
               />
             </div>
-          </div>
+
+            <div v-if="filmstripTiles.length > 0" class="filmstrip-container" @click.stop>
+              <button
+                class="filmstrip-collapse-btn"
+                @click="isFilmstripCollapsed = !isFilmstripCollapsed"
+                :title="isFilmstripCollapsed ? 'Show participants' : 'Hide participants'"
+              >
+                <Icon :name="isFilmstripCollapsed ? 'chevron-up' : 'chevron-down'" />
+              </button>
+              <div v-if="!isFilmstripCollapsed" class="filmstrip">
+                <VoiceTile
+                  v-for="tile in filmstripTiles"
+                  :key="tile.id"
+                  :user-state="tile.userState"
+                  :source="tile.source"
+                  class="filmstrip-tile"
+                  @expand="focusTile(tile)"
+                  @request-fullscreen="fullscreenTile(tile)"
+                />
+              </div>
+            </div>
+          </template>
         </div>
 
         <!-- Bottom Controls -->
         <div class="voice-controls">
-          <!-- Media controls -->
           <div class="media-controls">
             <!-- Microphone with device selector -->
             <div class="control-group">
-              <button 
+              <button
                 @click="voiceStore.toggleMute"
                 class="control-button"
-                :class="{ 
+                :class="{
                   active: !voiceStore.localState.isMuted,
                   muted: voiceStore.localState.isMuted,
                   'ptt-mode': isPTTMode,
                   'ptt-active': isPTTActive
                 }"
-                :title="isPTTMode 
-                  ? (isPTTActive ? `Transmitting (${pttKeyDisplay})` : `Push ${pttKeyDisplay} to talk`) 
+                :title="isPTTMode
+                  ? (isPTTActive ? `Transmitting (${pttKeyDisplay})` : `Push ${pttKeyDisplay} to talk`)
                   : (voiceStore.localState.isMuted ? 'Unmute (M)' : 'Mute (M)')"
               >
                 <Icon :name="voiceStore.localState.isMuted ? 'mic-off' : 'mic'" />
@@ -197,15 +169,15 @@
               </button>
               <DeviceSelector type="input" @open-settings="showSettings = true" />
             </div>
-            
+
             <!-- Speakers with device selector -->
             <div class="control-group">
-              <button 
+              <button
                 @click="voiceStore.toggleDeafen"
                 class="control-button"
-                :class="{ 
+                :class="{
                   active: !voiceStore.localState.isDeafened,
-                  deafened: voiceStore.localState.isDeafened 
+                  deafened: voiceStore.localState.isDeafened
                 }"
                 :title="voiceStore.localState.isDeafened ? 'Undeafen' : 'Deafen'"
               >
@@ -213,39 +185,32 @@
               </button>
               <DeviceSelector type="output" @open-settings="showSettings = true" />
             </div>
-            
-            <!-- Camera with device selector -->
+
+            <!-- Camera with device selector (independent of screenshare) -->
             <div class="control-group">
-              <button 
+              <button
                 @click="voiceStore.toggleVideo"
                 class="control-button"
-                :class="{ 
-                  active: voiceStore.localState.isVideoEnabled && !voiceStore.localState.isScreenSharing 
-                }"
-                :title="voiceStore.localState.isVideoEnabled && !voiceStore.localState.isScreenSharing ? 'Turn off camera' : 'Turn on camera'"
+                :class="{ active: voiceStore.localState.isVideoEnabled }"
+                :title="voiceStore.localState.isVideoEnabled ? 'Turn off camera' : 'Turn on camera'"
               >
-                <Icon :name="voiceStore.localState.isVideoEnabled && !voiceStore.localState.isScreenSharing ? 'video-off' : 'video'" />
+                <Icon :name="voiceStore.localState.isVideoEnabled ? 'video' : 'video-off'" />
               </button>
               <DeviceSelector type="video" @open-settings="showSettings = true" />
             </div>
-            
-            <button 
+
+            <button
               @click="voiceStore.toggleScreenShare"
               class="control-button"
-              :class="{ active: voiceStore.localState.isScreenSharing }"
+              :class="{ streaming: voiceStore.localState.isScreenSharing }"
               :title="voiceStore.localState.isScreenSharing ? 'Stop screen share' : 'Share screen'"
             >
               <Icon name="screen-share" />
             </button>
           </div>
 
-          <!-- Action controls -->
           <div class="action-controls">
-            <button 
-              @click="leaveChannel"
-              class="leave-button"
-              title="Leave channel"
-            >
+            <button @click="leaveChannel" class="leave-button" title="Leave channel">
               <Icon name="phone-off" />
               <span>Leave</span>
             </button>
@@ -256,12 +221,12 @@
 
     <!-- Voice Settings Panel - Teleported separately for proper z-index -->
     <Teleport to="body">
-      <div 
+      <div
         v-if="showSettings"
         class="settings-overlay-wrapper"
         @click.self="showSettings = false"
       >
-        <VoiceSettingsPanel 
+        <VoiceSettingsPanel
           @close="showSettings = false"
           @update-settings="handleSettingsUpdate"
         />
@@ -269,14 +234,10 @@
     </Teleport>
 
     <!-- Spatial Audio Panel -->
-    <SpatialAudioPanel 
-      :is-under-overlay="true"
-    />
+    <SpatialAudioPanel :is-under-overlay="true" />
 
     <!-- Confetti Effect -->
-    <ConfettiEffect 
-      :is-active="easterEggState.isActive && easterEggState.type === 'rainbow-party'"
-    />
+    <ConfettiEffect :is-active="easterEggState.isActive && easterEggState.type === 'rainbow-party'" />
   </Teleport>
 </template>
 
@@ -284,13 +245,13 @@
 import { computed, ref, watch, onMounted, onUnmounted } from 'vue';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { useSpatialAudioStore } from '@/stores/spatialAudio';
-import { useAdaptiveGrid } from '@/composables/useAdaptiveGrid';
 import { useKeybinds } from '@/composables/useKeybinds';
 import { debug } from '@/utils/debug';
 import { useKonamiCode } from '@/composables/useKonamiCode';
 import { easterEggService, type EasterEggState } from '@/services/EasterEggService';
 import { useAuthStore } from '@/stores/auth';
-import UnifiedVoiceUserCard from './UnifiedVoiceUserCard.vue';
+import type { UserMediaState } from '@/services/unifiedWebRTC';
+import VoiceTile from './VoiceTile.vue';
 import VoiceSettingsPanel from './VoiceSettingsPanel.vue';
 import SpatialAudioPanel from './SpatialAudioPanel.vue';
 import DeviceSelector from './DeviceSelector.vue';
@@ -326,7 +287,10 @@ const authStore = useAuthStore();
 const isEntering = ref(false);
 const isLeaving = ref(false);
 const showSettings = ref(false);
-const isThumbnailStripCollapsed = ref(false);
+const isFilmstripCollapsed = ref(false);
+
+const containerEl = ref<HTMLElement | null>(null);
+const gridEl = ref<HTMLElement | null>(null);
 
 // Easter egg state
 const easterEggState = ref<EasterEggState>({
@@ -336,320 +300,387 @@ const easterEggState = ref<EasterEggState>({
   activatedAt: null,
 });
 
-// Full window mode is now in the store
-const isFullWindowMode = computed(() => voiceStore.isFullWindowMode);
+// TILE MODEL
+// Every participant gets a camera tile (video or avatar); screensharers get
+// an additional dedicated screen tile, exactly like Discord's stream tiles.
 
-// ADAPTIVE GRID
+interface VoiceTileModel {
+  id: string;
+  userState: UserMediaState;
+  source: 'camera' | 'screen';
+}
 
-const { gridStyle, gridClass: adaptiveGridClass } = useAdaptiveGrid(
-  () => voiceStore.allParticipants.length
+const tiles = computed<VoiceTileModel[]>(() => {
+  const screenTiles: VoiceTileModel[] = [];
+  const cameraTiles: VoiceTileModel[] = [];
+
+  for (const p of voiceStore.allParticipants) {
+    if (p.isScreenSharing) {
+      screenTiles.push({ id: `${p.userId}:screen`, userState: p, source: 'screen' });
+    }
+    cameraTiles.push({ id: `${p.userId}:camera`, userState: p, source: 'camera' });
+  }
+
+  // Streams first: they're what watch parties are there for
+  return [...screenTiles, ...cameraTiles];
+});
+
+const focusedTile = computed<VoiceTileModel | null>(() => {
+  if (voiceStore.viewMode !== 'fullscreen' || !voiceStore.fullscreenUserId) return null;
+  const id = `${voiceStore.fullscreenUserId}:${voiceStore.fullscreenSource}`;
+  return tiles.value.find(t => t.id === id) || null;
+});
+
+const filmstripTiles = computed(() =>
+  focusedTile.value ? tiles.value.filter(t => t.id !== focusedTile.value!.id) : []
 );
 
-// COMPUTED PROPERTIES
-
 const connectionStats = computed(() => voiceStore.connectionStats);
-    
-    const featuredSpeaker = computed(() => {
-      if (voiceStore.layoutMode !== 'speaker') return null;
-      return voiceStore.featuredSpeaker;
-    });
-    
-    // const displayedParticipants = computed(() => {
-    //   // Explicitly access the store properties to ensure reactivity
-    //   const localState = voiceStore.localState;
-    //   const allUsers = voiceStore.allUsers;
-      
-    //   // Rebuild participants list to ensure reactivity
-    //   const participants = [localState];
-    //   allUsers.forEach(user => {
-    //     if (user.userId !== localState.userId) {
-    //       participants.push(user);
-    //     }
-    //   });
-      
-    //   if (voiceStore.layoutMode === 'speaker' && featuredSpeaker.value) {
-    //     // In speaker mode, show everyone except the featured speaker
-    //     return participants.filter(p => p.userId !== featuredSpeaker.value!.userId);
-    //   }
-      
-    //   // In grid mode, show everyone
-    //   return participants;
-    // });
 
+// FOCUS / FULLSCREEN
 
-    const displayedParticipants = computed(() => {
-      const allParticipants = voiceStore.allParticipants;
-      
-      if (voiceStore.layoutMode === 'speaker' && featuredSpeaker.value) {
-        // In speaker mode, show everyone except the featured speaker
-        return allParticipants.filter(p => p.userId !== featuredSpeaker.value!.userId);
-      }
-      
-      // In grid mode, show everyone
-      return allParticipants;
-    });
-    
-    // Fullscreen mode participants
-    const fullscreenParticipant = computed(() => {
-      if (voiceStore.viewMode !== 'fullscreen' || !voiceStore.fullscreenUserId) return null;
-      return voiceStore.allParticipants.find(p => p.userId === voiceStore.fullscreenUserId) || null;
-    });
-    
-    const nonFullscreenParticipants = computed(() => {
-      if (voiceStore.viewMode !== 'fullscreen' || !voiceStore.fullscreenUserId) return [];
-      return voiceStore.allParticipants.filter(p => p.userId !== voiceStore.fullscreenUserId);
-    });
-    
-    const previousScreenShareState = ref<boolean | null>(null);
-    
-    // WATCHERS
-    
-    // Watch for fullscreen participant's video/screenshare state changes
-    // Exit fullscreen when the user stops sharing their screen or disables video
-    watch(
-      () => fullscreenParticipant.value,
-      (participant, _oldParticipant) => {
-        if (!participant) {
-          // Fullscreen participant left or not found - exit fullscreen immediately
-          if (voiceStore.viewMode === 'fullscreen' && voiceStore.fullscreenUserId) {
-            debug.log('🖼️ [Fullscreen] Participant gone, exiting fullscreen');
-            voiceStore.exitFullscreen();
-          }
-          previousScreenShareState.value = null;
-          return;
-        }
-        
-        const hasVideoOrScreenshare = participant.isVideoEnabled || participant.isScreenSharing;
-        const hadVideoOrScreenshare = previousScreenShareState.value;
-        
-        // If they had video/screenshare and now don't, exit fullscreen immediately
-        if (hadVideoOrScreenshare === true && !hasVideoOrScreenshare) {
-          debug.log('🖼️ [Fullscreen] No more video/screenshare, exiting fullscreen');
-          voiceStore.exitFullscreen();
-        }
-        
-        previousScreenShareState.value = hasVideoOrScreenshare;
-      },
-      { deep: true, immediate: true }
-    );
+const focusTile = (tile: VoiceTileModel) => {
+  if (focusedTile.value?.id === tile.id) {
+    unfocus();
+  } else {
+    voiceStore.enterFullscreen(tile.userState.userId, tile.source);
+  }
+};
 
-    // Watch the store's streamUpdateCounter for any stream changes affecting fullscreen user
-    // This provides a backup trigger in case the deep watch misses something
-    watch(
-      () => voiceStore.streamUpdateCounter,
-      () => {
-        if (voiceStore.viewMode !== 'fullscreen' || !voiceStore.fullscreenUserId) return;
-        
-        // Re-check if fullscreen participant still has video/screenshare
-        const participant = fullscreenParticipant.value;
-        if (participant && !participant.isVideoEnabled && !participant.isScreenSharing) {
-          debug.log('🖼️ [Fullscreen] Stream update detected - no video, exiting fullscreen');
-          voiceStore.exitFullscreen();
-        }
-      }
-    );
+const unfocus = () => {
+  voiceStore.exitFullscreen();
+};
 
-    // Specifically watch for the fullscreen user's screenshare state
-    // This is the most direct way to catch screenshare stopping
-    watch(
-      [() => voiceStore.fullscreenUserId, () => voiceStore.allUsers],
-      ([userId, allUsers]) => {
-        if (voiceStore.viewMode !== 'fullscreen' || !userId) return;
-        
-        const user = allUsers.find((u: any) => u.userId === userId);
-        
-        // If user exists but has no video/screenshare, exit fullscreen
-        if (user && !user.isVideoEnabled && !user.isScreenSharing) {
-          debug.log('🖼️ [Fullscreen] User has no video/screenshare, exiting');
-          voiceStore.exitFullscreen();
-        }
-      },
-      { deep: true }
-    );
+const fullscreenTile = (tile: VoiceTileModel) => {
+  voiceStore.enterFullscreen(tile.userState.userId, tile.source);
+  if (!isNativeFullscreen.value) {
+    void toggleNativeFullscreen();
+  }
+};
 
-    // METHODS
-    
-    const handleBackdropClick = () => {
-      minimizeOverlay();
-    };
-    
-    const minimizeOverlay = () => {
-      isLeaving.value = true;
-      setTimeout(() => {
-        voiceStore.toggleOverlay();
-        isLeaving.value = false;
-        emit('minimize');
-      }, 300);
-    };
-    
-    const closeOverlay = () => {
-      minimizeOverlay();
-    };
-    
-    const leaveChannel = async () => {
-      const success = await voiceStore.leaveVoiceChannel();
-      if (success) {
-        emit('close');
-      }
-    };
-    
-    const toggleSettings = () => {
-      showSettings.value = !showSettings.value;
-    };
-    
-    const handleSettingsUpdate = (event: { type: string; value: any }) => {
-      switch (event.type) {
-        case 'streamQuality':
-          voiceStore.updateStreamQuality(event.value);
-          break;
-        case 'saveAll':
-          if (event.value.videoQuality || event.value.frameRate || event.value.audioBitrate) {
-            const qualityToResolution: Record<string, number> = {
-              '360p': 360,
-              '480p': 480,
-              '720p': 720,
-              '1080p': 1080,
-              'source': -1,
-            };
-            voiceStore.updateStreamQuality({
-              resolution: qualityToResolution[event.value.videoQuality] ?? 720,
-              frameRate: parseInt(event.value.frameRate) || 30,
-              audioBitrate: parseInt(event.value.audioBitrate) || 128
-            });
-          }
-          break;
-        // Other event types can be handled here if needed
-      }
-    };
-    
-    const toggleSpatialPanel = () => {
-      spatialStore.togglePanel();
-    };
-
-    const toggleMaximize = () => {
-      if (voiceStore.viewMode === 'maximized') {
-        voiceStore.setViewMode('normal');
-      } else {
-        voiceStore.setViewMode('maximized');
-      }
-    };
-    
-    // LIFECYCLE
-    
-    // Konami code and easter egg
-    const konamiEnabled = ref(true)
-    let konamiDetector: ReturnType<typeof useKonamiCode> | null = null
-    
-    const handleKonamiActivate = () => {
-      // Don't activate if konami is disabled or game is already active
-      if (!konamiEnabled.value || easterEggState.value.isActive) {
-        return
-      }
-      
-      const currentUserId = voiceStore.localState.userId || authStore.session?.user?.id
-      if (!currentUserId) {
-        debug.warn('🎮 [Konami] No user ID available')
-        return
-      }
-
-      debug.log('🎮 [Konami] Activating rainbow party!')
-      konamiEnabled.value = false // Disable konami code detection
-      
-      if (konamiDetector) {
-        konamiDetector.reset()
-      }
-      
-      easterEggService.activate('rainbow-party', currentUserId)
-      
-      // Auto-deactivate after confetti duration (10 seconds default)
-      setTimeout(() => {
-        easterEggService.deactivate()
-      }, 10000)
-      
-      // No auto-deactivate - users can close manually with X button
+// Exit focus when the focused feed disappears (user left, stream stopped).
+// A camera tile without live video is still a valid focus target (avatar),
+// so only a missing tile forces the exit.
+watch(
+  [tiles, () => voiceStore.fullscreenUserId],
+  () => {
+    if (voiceStore.viewMode !== 'fullscreen' || !voiceStore.fullscreenUserId) return;
+    if (!focusedTile.value) {
+      debug.log('🖼️ [Focus] Focused tile gone, exiting focus view');
+      voiceStore.exitFullscreen();
     }
-    
-    watch(() => easterEggState.value.isActive, (isActive) => {
-      if (!isActive && easterEggState.value.type === 'rainbow-party') {
-        konamiEnabled.value = true // Re-enable konami code detection
-        // Reset the existing konami detector (don't recreate - composables must be called at top level)
-        if (konamiDetector) {
-          konamiDetector.reset()
-        }
-        debug.log('🎮 [Konami] Rainbow party closed, re-enabling konami code detection')
-      }
-    })
+  },
+  { deep: true }
+);
 
-    const initializeEasterEgg = () => {
-      const channelId = voiceStore.currentChannelId || voiceStore.optimisticChannelId
-      if (channelId) {
-        const currentUserId = voiceStore.localState.userId || authStore.session?.user?.id
-        if (currentUserId) {
-          easterEggService.initialize(channelId, currentUserId)
-          
-          if (!easterEggState.value.activatedBy) {
-            easterEggService.subscribe((state) => {
-              easterEggState.value = state
-            })
-          }
-        }
+// Auto-focus a newly started remote screenshare when nothing is focused yet
+const knownScreenTileIds = ref<Set<string>>(new Set());
+watch(
+  () => tiles.value.filter(t => t.source === 'screen').map(t => t.id),
+  (ids) => {
+    const previous = knownScreenTileIds.value;
+    const fresh = ids.filter(id => !previous.has(id));
+    knownScreenTileIds.value = new Set(ids);
+
+    if (fresh.length === 0 || voiceStore.viewMode === 'fullscreen') return;
+    const newTile = tiles.value.find(
+      t => t.id === fresh[0] && t.userState.userId !== voiceStore.localState.userId
+    );
+    if (newTile) {
+      debug.log('🖼️ [Focus] Auto-focusing new remote screenshare:', newTile.id);
+      voiceStore.enterFullscreen(newTile.userState.userId, 'screen');
+    }
+  },
+  { immediate: true }
+);
+
+// NATIVE FULLSCREEN
+
+const isNativeFullscreen = ref(false);
+
+const toggleNativeFullscreen = async () => {
+  try {
+    if (document.fullscreenElement) {
+      await document.exitFullscreen();
+    } else if (containerEl.value) {
+      await containerEl.value.requestFullscreen();
+    }
+  } catch (error) {
+    debug.warn('🖼️ [Fullscreen] Native fullscreen request failed:', error);
+  }
+};
+
+// Esc both exits browser fullscreen and triggers our exit-fullscreen keybind;
+// remember when native fullscreen ended so the keybind doesn't also drop focus
+let lastNativeFullscreenExit = 0;
+
+const onFullscreenChange = () => {
+  const wasFullscreen = isNativeFullscreen.value;
+  isNativeFullscreen.value = document.fullscreenElement === containerEl.value;
+  if (isNativeFullscreen.value) {
+    pokeControls();
+  } else {
+    if (wasFullscreen) {
+      lastNativeFullscreenExit = Date.now();
+    }
+    controlsVisible.value = true;
+    if (controlsHideTimer) clearTimeout(controlsHideTimer);
+  }
+};
+
+// Auto-hide chrome while in native fullscreen (Discord-style)
+const controlsVisible = ref(true);
+let controlsHideTimer: ReturnType<typeof setTimeout> | null = null;
+
+const pokeControls = () => {
+  if (!isNativeFullscreen.value) return;
+  controlsVisible.value = true;
+  if (controlsHideTimer) clearTimeout(controlsHideTimer);
+  controlsHideTimer = setTimeout(() => {
+    controlsVisible.value = false;
+  }, 2500);
+};
+
+// Legacy "full window" mode (still reachable from the user context menu):
+// the focused tile covers the viewport without the browser fullscreen API
+const isFullWindowActive = computed(() => voiceStore.isFullWindowMode && !!focusedTile.value);
+
+// ADAPTIVE GRID
+// Best-fit solver: pick the column count that maximizes 16:9 tile size
+// within the observed stage dimensions.
+
+const stageSize = ref({ width: 0, height: 0 });
+let resizeObserver: ResizeObserver | null = null;
+
+watch(gridEl, (el) => {
+  resizeObserver?.disconnect();
+  if (el) {
+    resizeObserver = new ResizeObserver((entries) => {
+      const rect = entries[0]?.contentRect;
+      if (rect) {
+        stageSize.value = { width: rect.width, height: rect.height };
+      }
+    });
+    resizeObserver.observe(el);
+    const rect = el.getBoundingClientRect();
+    stageSize.value = { width: rect.width, height: rect.height };
+  }
+});
+
+const GRID_GAP = 8;
+const TILE_ASPECT = 16 / 9;
+
+const tileStyle = computed(() => {
+  const { width, height } = stageSize.value;
+  const count = tiles.value.length;
+  if (!width || !height || count === 0) {
+    return { width: '320px', height: '180px' };
+  }
+
+  let best = { w: 0, h: 0 };
+  for (let cols = 1; cols <= count; cols++) {
+    const rows = Math.ceil(count / cols);
+    let w = (width - GRID_GAP * (cols - 1)) / cols;
+    let h = w / TILE_ASPECT;
+    const maxH = (height - GRID_GAP * (rows - 1)) / rows;
+    if (h > maxH) {
+      h = maxH;
+      w = h * TILE_ASPECT;
+    }
+    if (w > best.w) {
+      best = { w, h };
+    }
+  }
+
+  return {
+    width: `${Math.max(Math.floor(best.w), 120)}px`,
+    height: `${Math.max(Math.floor(best.h), 68)}px`,
+  };
+});
+
+// METHODS
+
+const handleBackdropClick = () => {
+  minimizeOverlay();
+};
+
+const minimizeOverlay = () => {
+  isLeaving.value = true;
+  setTimeout(() => {
+    voiceStore.toggleOverlay();
+    isLeaving.value = false;
+    emit('minimize');
+  }, 300);
+};
+
+const closeOverlay = () => {
+  minimizeOverlay();
+};
+
+const leaveChannel = async () => {
+  const success = await voiceStore.leaveVoiceChannel();
+  if (success) {
+    emit('close');
+  }
+};
+
+const toggleSettings = () => {
+  showSettings.value = !showSettings.value;
+};
+
+const handleSettingsUpdate = (event: { type: string; value: any }) => {
+  switch (event.type) {
+    case 'streamQuality':
+      voiceStore.updateStreamQuality(event.value);
+      break;
+    case 'saveAll':
+      if (event.value.videoQuality || event.value.frameRate || event.value.audioBitrate) {
+        const qualityToResolution: Record<string, number> = {
+          '360p': 360,
+          '480p': 480,
+          '720p': 720,
+          '1080p': 1080,
+          'source': -1,
+        };
+        voiceStore.updateStreamQuality({
+          resolution: qualityToResolution[event.value.videoQuality] ?? 720,
+          frameRate: parseInt(event.value.frameRate) || 30,
+          audioBitrate: parseInt(event.value.audioBitrate) || 128
+        });
+      }
+      break;
+    // Other event types can be handled here if needed
+  }
+};
+
+const toggleSpatialPanel = () => {
+  spatialStore.togglePanel();
+};
+
+// LIFECYCLE
+
+// Konami code and easter egg
+const konamiEnabled = ref(true)
+let konamiDetector: ReturnType<typeof useKonamiCode> | null = null
+
+const handleKonamiActivate = () => {
+  // Don't activate if konami is disabled or game is already active
+  if (!konamiEnabled.value || easterEggState.value.isActive) {
+    return
+  }
+
+  const currentUserId = voiceStore.localState.userId || authStore.session?.user?.id
+  if (!currentUserId) {
+    debug.warn('🎮 [Konami] No user ID available')
+    return
+  }
+
+  debug.log('🎮 [Konami] Activating rainbow party!')
+  konamiEnabled.value = false // Disable konami code detection
+
+  if (konamiDetector) {
+    konamiDetector.reset()
+  }
+
+  easterEggService.activate('rainbow-party', currentUserId)
+
+  // Auto-deactivate after confetti duration (10 seconds default)
+  setTimeout(() => {
+    easterEggService.deactivate()
+  }, 10000)
+}
+
+watch(() => easterEggState.value.isActive, (isActive) => {
+  if (!isActive && easterEggState.value.type === 'rainbow-party') {
+    konamiEnabled.value = true // Re-enable konami code detection
+    // Reset the existing konami detector (don't recreate - composables must be called at top level)
+    if (konamiDetector) {
+      konamiDetector.reset()
+    }
+    debug.log('🎮 [Konami] Rainbow party closed, re-enabling konami code detection')
+  }
+})
+
+const initializeEasterEgg = () => {
+  const channelId = voiceStore.currentChannelId || voiceStore.optimisticChannelId
+  if (channelId) {
+    const currentUserId = voiceStore.localState.userId || authStore.session?.user?.id
+    if (currentUserId) {
+      easterEggService.initialize(channelId, currentUserId)
+
+      if (!easterEggState.value.activatedBy) {
+        easterEggService.subscribe((state) => {
+          easterEggState.value = state
+        })
       }
     }
+  }
+}
 
-    // Watch for channel changes
-    watch(
-      () => voiceStore.currentChannelId || voiceStore.optimisticChannelId,
-      () => {
-        initializeEasterEgg()
-      },
-      { immediate: true }
-    )
+// Watch for channel changes
+watch(
+  () => voiceStore.currentChannelId || voiceStore.optimisticChannelId,
+  () => {
+    initializeEasterEgg()
+  },
+  { immediate: true }
+)
 
-    // Konami code detector
-    konamiDetector = useKonamiCode(handleKonamiActivate)
+// Konami code detector
+konamiDetector = useKonamiCode(handleKonamiActivate)
 
-    onMounted(() => {
-      isEntering.value = true;
-      setTimeout(() => {
-        isEntering.value = false;
-      }, 300);
-      
-      // Activate voice-overlay context for keybinds
-      keybinds.activateContext('voice-overlay');
-      
-      // Register keybind handlers
-      // Note: toggleMute already handles PTT mode check internally
-      keybinds.registerHandler('toggle-mute', () => voiceStore.toggleMute());
-      keybinds.registerHandler('toggle-deafen', () => voiceStore.toggleDeafen());
-      keybinds.registerHandler('toggle-camera', () => voiceStore.toggleVideo());
-      keybinds.registerHandler('toggle-screenshare', () => voiceStore.toggleScreenShare());
-      keybinds.registerHandler('toggle-voice-settings', () => toggleSettings());
-      keybinds.registerHandler('exit-fullscreen', () => {
-        // Priority order: full-window mode > fullscreen > settings > minimize
-        if (voiceStore.isFullWindowMode) {
-          voiceStore.toggleFullWindowMode();
-        } else if (voiceStore.viewMode === 'fullscreen') {
-          voiceStore.exitFullscreen();
-        } else if (showSettings.value) {
-          showSettings.value = false;
-        } else {
-          minimizeOverlay();
-        }
-      });
-    });
-    
-    onUnmounted(() => {
-      // Deactivate context and unregister handlers
-      keybinds.deactivateContext('voice-overlay');
-      keybinds.unregisterHandler('toggle-mute');
-      keybinds.unregisterHandler('toggle-deafen');
-      keybinds.unregisterHandler('toggle-camera');
-      keybinds.unregisterHandler('toggle-screenshare');
-      keybinds.unregisterHandler('toggle-voice-settings');
-      keybinds.unregisterHandler('exit-fullscreen');
-      
-      easterEggService.cleanup();
-    });
+onMounted(() => {
+  isEntering.value = true;
+  setTimeout(() => {
+    isEntering.value = false;
+  }, 300);
+
+  document.addEventListener('fullscreenchange', onFullscreenChange);
+
+  // Activate voice-overlay context for keybinds
+  keybinds.activateContext('voice-overlay');
+
+  // Register keybind handlers
+  // Note: toggleMute already handles PTT mode check internally
+  keybinds.registerHandler('toggle-mute', () => voiceStore.toggleMute());
+  keybinds.registerHandler('toggle-deafen', () => voiceStore.toggleDeafen());
+  keybinds.registerHandler('toggle-camera', () => voiceStore.toggleVideo());
+  keybinds.registerHandler('toggle-screenshare', () => voiceStore.toggleScreenShare());
+  keybinds.registerHandler('toggle-voice-settings', () => toggleSettings());
+  keybinds.registerHandler('exit-fullscreen', () => {
+    // Priority order: native fullscreen > full window > focus > settings > minimize
+    if (document.fullscreenElement) {
+      void document.exitFullscreen();
+    } else if (Date.now() - lastNativeFullscreenExit < 300) {
+      // Browser already consumed this Esc to leave native fullscreen
+    } else if (voiceStore.isFullWindowMode) {
+      voiceStore.toggleFullWindowMode();
+    } else if (voiceStore.viewMode === 'fullscreen') {
+      voiceStore.exitFullscreen();
+    } else if (showSettings.value) {
+      showSettings.value = false;
+    } else {
+      minimizeOverlay();
+    }
+  });
+});
+
+onUnmounted(() => {
+  document.removeEventListener('fullscreenchange', onFullscreenChange);
+  resizeObserver?.disconnect();
+  if (controlsHideTimer) clearTimeout(controlsHideTimer);
+
+  // Deactivate context and unregister handlers
+  keybinds.deactivateContext('voice-overlay');
+  keybinds.unregisterHandler('toggle-mute');
+  keybinds.unregisterHandler('toggle-deafen');
+  keybinds.unregisterHandler('toggle-camera');
+  keybinds.unregisterHandler('toggle-screenshare');
+  keybinds.unregisterHandler('toggle-voice-settings');
+  keybinds.unregisterHandler('exit-fullscreen');
+
+  easterEggService.cleanup();
+});
 </script>
 
 <style scoped>
@@ -663,7 +694,7 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  padding: 16px;
   animation: overlay-enter 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 
@@ -678,7 +709,6 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   right: 0;
   bottom: 0;
   z-index: 1000;
-  /* background: rgba(0, 0, 0, 0.5); */
   backdrop-filter: blur(10px);
   transition: all 0.3s ease;
   opacity: 1;
@@ -692,52 +722,69 @@ const connectionStats = computed(() => voiceStore.connectionStats);
 
 .voice-container {
   position: relative;
-  /* background: linear-gradient(145deg, var(--background-tertiary), var(--background-secondary)); */
-  background: linear-gradient(145deg, color-mix(in srgb, var(--background-tertiary) 39%, transparent), color-mix(in srgb, var(--background-secondary) 35%, transparent));
+  background: linear-gradient(145deg, color-mix(in srgb, var(--background-tertiary) 60%, #000), color-mix(in srgb, var(--background-secondary) 55%, #000));
   backdrop-filter: blur(20px);
-  border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow:
     0 20px 60px rgba(0, 0, 0, 0.6),
     0 8px 32px rgba(0, 0, 0, 0.4),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
   width: 100%;
-  max-width: 1200px;
-  max-height: 90vh;
+  height: 100%;
+  max-width: 1600px;
+  max-height: 94vh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   z-index: 10000;
 }
 
-/* Maximized mode */
-.voice-container.maximized {
-  max-width: 95vw;
-  max-height: 95vh;
-}
-
-/* When .voice-container.maximized is present, remove align-items: center from .voice-overlay */
-.voice-overlay:has(> .voice-container.maximized) {
-  align-items: unset;
-}
-
-/* Fullscreen mode - maximize video space like Discord */
-.voice-container.fullscreen-mode {
-  max-width: 100vw;
-  max-height: 100vh;
-  height: 100vh;
-  width: 100vw;
+/* Native fullscreen: stage is everything, chrome floats over it */
+.voice-container.native-fullscreen {
+  max-width: none;
+  max-height: none;
   border-radius: 0;
+  border: none;
+  background: #000;
 }
 
-/* Compact header in fullscreen */
-.voice-container.fullscreen-mode .voice-header {
-  padding: 12px 16px;
+.voice-container.native-fullscreen .voice-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.75), transparent);
+  border-bottom: none;
+  transition: opacity 0.25s ease, transform 0.25s ease;
 }
 
-/* Compact controls in fullscreen */
-.voice-container.fullscreen-mode .voice-controls {
-  padding: 12px 16px;
+.voice-container.native-fullscreen .voice-controls {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.75), transparent);
+  border-top: none;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.voice-container.native-fullscreen.controls-hidden .voice-header {
+  opacity: 0;
+  transform: translateY(-12px);
+  pointer-events: none;
+}
+
+.voice-container.native-fullscreen.controls-hidden .voice-controls {
+  opacity: 0;
+  transform: translateY(12px);
+  pointer-events: none;
+}
+
+.voice-container.native-fullscreen.controls-hidden {
+  cursor: none;
 }
 
 /* Header */
@@ -745,14 +792,11 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 20px 24px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  /* background: linear-gradient(145deg, var(--background-secondary), var(--background-tertiary)); */
-  background: linear-gradient(145deg, color-mix(in srgb, var(--background-secondary) 21%, transparent), color-mix(in srgb, var(--background-tertiary) 19%, transparent));
-  /* backdrop-filter: blur(20px); */
+  padding: 12px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
 }
 
-/* Connection Mode Indicator - Inline with header controls */
 .connection-mode-indicator {
   display: flex;
   align-items: center;
@@ -795,29 +839,34 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
 }
 
 .channel-icon {
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   background: linear-gradient(145deg, #0EA5E9, #0284C7);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--text-primary);
-  font-size: 18px;
+  font-size: 16px;
+  flex-shrink: 0;
 }
 
 .channel-name {
-  font-size: 20px;
+  font-size: 17px;
   font-weight: 700;
   color: var(--text-primary);
-  margin: 0 0 4px 0;
+  margin: 0 0 2px 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .participant-count {
-  font-size: 14px;
+  font-size: 13px;
   color: var(--text-secondary);
   margin: 0;
 }
@@ -863,11 +912,6 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   border-color: rgba(14, 165, 233, 0.6);
 }
 
-/* Spatial audio button with indicator */
-.spatial-btn {
-  position: relative;
-}
-
 .spatial-btn.spatial-enabled {
   background: linear-gradient(145deg, #00d4aa, #00b894);
   color: var(--text-primary);
@@ -885,126 +929,108 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   border-color: #ed4245;
 }
 
-/* Featured Speaker - larger when screensharing */
-.featured-speaker {
-  padding: 16px;
-  display: flex;
-  justify-content: center;
+/* Stage */
+.stage {
   flex: 1;
   min-height: 0;
-}
-
-.featured-card {
-  width: 100%;
-  max-width: 900px;
-  min-height: 300px;
-  flex: 1;
   display: flex;
   flex-direction: column;
+  padding: 8px;
+  background: color-mix(in srgb, #000 35%, transparent);
 }
 
-/* When featured speaker is screensharing, maximize video */
-.featured-card :deep(.harmony-voice-card.screen-sharing) {
-  flex: 1;
+.voice-container.native-fullscreen .stage {
+  padding: 0;
+  background: #000;
 }
 
-.featured-card :deep(.harmony-voice-card.screen-sharing .video-container) {
+/* Grid view: best-fit sized tiles, centered */
+.tile-grid {
   flex: 1;
-  max-height: none;
-  height: auto;
-  min-height: 300px;
-}
-
-/* Participants Container */
-.participants-container {
-  flex: 1;
-  padding: 16px 24px;
-  overflow-y: auto;
   min-height: 0;
-}
-
-
-
-.voice-container.maximized .participants-container {
-  padding: 12px 16px;
-  min-height: 0;
-}
-
-.voice-container.maximized .participants-grid {
-  align-items: stretch;
-  align-content: start;
-}
-
-.voice-container.maximized .participant-card :deep(.harmony-voice-card) {
-  min-height: 350px;
-}
-
-.voice-container.maximized .participant-card :deep(.video-container) {
-  max-width: 640px;
-  max-height: 480px;
-}
-
-.participants-grid {
-  display: grid;
-  gap: var(--grid-gap, 16px);
-  grid-template-columns: repeat(auto-fill, minmax(var(--grid-min-width, 320px), var(--grid-max-width, 1fr)));
-  place-items: stretch;
-}
-
-/* Adaptive grid classes for specific participant counts */
-.participants-grid.grid-single {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  align-content: center;
   justify-content: center;
-  grid-template-columns: minmax(400px, 600px);
 }
 
-.participants-grid.grid-duo {
-  grid-template-columns: repeat(2, minmax(280px, 1fr));
+.grid-tile {
+  flex: 0 0 auto;
 }
 
-.participants-grid.grid-quad {
-  grid-template-columns: repeat(2, minmax(260px, 1fr));
+/* Focus view */
+.focus-area {
+  flex: 1;
+  min-height: 0;
+  display: flex;
 }
 
-.participants-grid.grid-six {
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+.focus-tile {
+  flex: 1;
+  min-height: 0;
 }
 
-.participants-grid.grid-nine {
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+.filmstrip-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+  padding-top: 4px;
 }
 
-.participants-grid.grid-large {
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+.filmstrip-collapse-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 18px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px 4px 0 0;
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-bottom: 4px;
 }
 
-.participants-grid.grid-gallery {
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+.filmstrip-collapse-btn:hover {
+  background: rgba(0, 0, 0, 0.7);
+  color: var(--text-primary);
 }
 
-/* Participant card height based on grid config */
-.participants-grid .participant-card :deep(.harmony-voice-card) {
-  min-height: var(--grid-card-height, 200px);
+.filmstrip {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  max-width: 100%;
+  padding: 2px;
+  flex-shrink: 0;
 }
 
-/* Maximized mode - larger tiles */
-.voice-container.maximized .participants-grid {
-  --grid-min-width: 380px;
-  --grid-gap: 20px;
+.filmstrip-tile {
+  flex: 0 0 auto;
+  width: 178px;
+  height: 100px;
 }
 
-.voice-container.maximized .participants-grid.grid-single,
-.voice-container.maximized .participants-grid.grid-duo {
-  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+/* Legacy full-window mode (context menu): focused tile covers the viewport */
+.stage.full-window-mode {
+  position: fixed;
+  inset: 0;
+  z-index: 10002;
+  padding: 0;
+  background: #000;
+  cursor: pointer;
 }
 
-.participants-grid.speaker-mode {
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  max-height: 300px;
-  overflow-y: visible;
+.stage.full-window-mode .focus-tile {
+  border-radius: 0;
 }
 
-.layout-speaker .participants-grid {
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+.stage.full-window-mode .filmstrip-container {
+  display: none;
 }
 
 /* Voice Controls */
@@ -1012,10 +1038,9 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 20px 24px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  /* background: linear-gradient(145deg, var(--background-tertiary), var(--background-secondary)); */
-  background: linear-gradient(145deg, color-mix(in srgb, var(--background-tertiary) 39%, transparent), color-mix(in srgb, var(--background-secondary) 35%, transparent));
+  padding: 12px 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
 }
 
 .media-controls {
@@ -1023,7 +1048,6 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   gap: 12px;
 }
 
-/* Control group with button and device selector */
 .control-group {
   display: flex;
   align-items: center;
@@ -1061,6 +1085,14 @@ const connectionStats = computed(() => voiceStore.connectionStats);
 }
 
 .control-button.muted {
+  background: linear-gradient(145deg, #ed4245, #c73e1d);
+  color: var(--text-primary);
+  border-color: rgba(237, 66, 69, 0.6);
+  box-shadow: 0 4px 16px rgba(237, 66, 69, 0.3);
+}
+
+/* Active screenshare: red like Discord's stop-streaming affordance */
+.control-button.streaming {
   background: linear-gradient(145deg, #ed4245, #c73e1d);
   color: var(--text-primary);
   border-color: rgba(237, 66, 69, 0.6);
@@ -1137,27 +1169,11 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   box-shadow: 0 6px 20px rgba(237, 66, 69, 0.4);
 }
 
-/* Participant Transitions */
-.participant-enter-active,
-.participant-leave-active {
-  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-}
-
-.participant-enter-from {
-  opacity: 0;
-  transform: scale(0.8) translateY(20px);
-}
-
-.participant-leave-to {
-  opacity: 0;
-  transform: scale(0.8) translateY(-20px);
-}
-
 /* Animations */
 @keyframes overlay-enter {
   from {
     opacity: 0;
-    transform: scale(0.9);
+    transform: scale(0.95);
   }
   to {
     opacity: 1;
@@ -1172,165 +1188,7 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   }
   to {
     opacity: 0;
-    transform: scale(0.9);
-  }
-}
-
-/* Responsive Design */
-@media (max-width: 1024px) {
-  .voice-container {
-    max-width: 95vw;
-  }
-  
-  .participants-grid {
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  }
-}
-
-/* Fullscreen Container - Discord-like layout where screenshare dominates */
-.fullscreen-container {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  padding: 12px 16px;
-  overflow: hidden;
-  height: 100%;
-  min-height: 0; /* Allow flex shrinking */
-}
-
-.fullscreen-card {
-  flex: 1;
-  min-height: 0;
-  margin-bottom: 8px;
-  display: flex;
-  flex-direction: column;
-  padding: 0!important;
-}
-
-/* Remove card constraints in fullscreen - let video fill the space */
-.fullscreen-card :deep(.harmony-voice-card) {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  padding: 8px;
-}
-
-.fullscreen-card :deep(.video-container) {
-  flex: 1;
-  max-width: 100%;
-  max-height: none;
-  min-height: 200px;
-  margin: 0 auto;
-}
-
-.fullscreen-card :deep(.video-stream) {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-
-/* User info label overlay in fullscreen - positioned at bottom left corner */
-.fullscreen-card :deep(.user-info) {
-  position: absolute;
-  bottom: 8px;
-  left: 8px;
-  width: auto !important; /* Override default width: 100% */
-  background: rgba(0, 0, 0, 0.7);
-  padding: 4px 12px;
-  border-radius: 4px;
-  backdrop-filter: blur(4px);
-  z-index: 5;
-  text-align: left;
-  margin: 0;
-  top: auto; /* Reset top positioning */
-}
-
-.fullscreen-card :deep(.avatar-container) {
-  display: none; /* Hide avatar when video is showing */
-}
-
-/* Thumbnail strip container with collapse button */
-.thumbnail-strip-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  flex-shrink: 0;
-}
-
-.thumbnail-collapse-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 48px;
-  height: 20px;
-  background: rgba(0, 0, 0, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 4px 4px 0 0;
-  color: rgba(255, 255, 255, 0.7);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  margin-bottom: -1px;
-}
-
-.thumbnail-collapse-btn:hover {
-  background: rgba(0, 0, 0, 0.7);
-  color: var(--text-primary);
-}
-
-/* Compact thumbnail strip at bottom - Discord style */
-.thumbnail-strip {
-  display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  padding: 4px;
-  max-height: 128px;
-  flex-shrink: 0;
-}
-
-.thumbnail-card {
-  flex-shrink: 0;
-  width: 120px;
-  min-height: 120px!important;
-  max-height: 120px!important;
-}
-
-.thumbnail-card :deep(.harmony-voice-card) {
-  min-height: 80px;
-  padding: 4px;
-}
-
-.thumbnail-card :deep(.video-container) {
-  max-height: 60px;
-  max-width: 100%;
-  margin-bottom: 2px;
-}
-
-.thumbnail-card :deep(.username) {
-  font-size: 10px;
-}
-
-.thumbnail-card :deep(.user-info) {
-  padding-bottom: 0;
-  top: auto;
-  bottom: 2px;
-}
-
-.thumbnail-card :deep(.avatar-container) {
-  transform: scale(0.7);
-}
-
-.thumbnail-card :deep(.status-indicators) {
-  transform: scale(0.8);
-}
-
-@media (max-width: 1024px) {
-  .voice-container {
-    max-width: 95vw;
-  }
-  
-  .participants-grid {
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    transform: scale(0.95);
   }
 }
 
@@ -1344,110 +1202,74 @@ const connectionStats = computed(() => voiceStore.connectionStats);
     padding: 8px;
     padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
   }
-  
+
   .voice-container {
     max-width: 100%;
     max-height: 100%;
-    border-radius: 16px;
+    border-radius: 12px;
   }
-  
+
   .voice-header {
-    padding: 12px 16px;
-    flex-wrap: wrap;
-    gap: 12px;
+    padding: 10px 12px;
+    gap: 8px;
   }
-  
-  .channel-info {
-    flex: 1;
-    min-width: 0;
-  }
-  
+
   .channel-icon {
-    width: 36px;
-    height: 36px;
-    font-size: 16px;
+    width: 32px;
+    height: 32px;
+    font-size: 14px;
   }
-  
+
   .channel-name {
-    font-size: 16px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    font-size: 15px;
   }
-  
+
   .participant-count {
     font-size: 12px;
   }
-  
+
   /* Hide connection mode text on tablet */
   .connection-mode-indicator span {
     display: none;
   }
-  
+
   .connection-mode-indicator {
     padding: 6px;
   }
-  
+
   .header-controls {
     gap: 6px;
   }
-  
+
   .layout-btn,
   .minimize-btn,
   .close-btn {
-    width: 40px;
-    height: 40px;
-    font-size: 16px;
+    width: 36px;
+    height: 36px;
+    font-size: 14px;
   }
-  
-  .participants-container {
-    padding: 12px 16px;
-    min-height: 200px;
-  }
-  
-  .participants-grid {
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    gap: 10px;
-  }
-  
+
   .voice-controls {
-    padding: 12px 16px;
-    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    padding: 10px 12px;
+    padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
     flex-wrap: wrap;
     gap: 12px;
   }
-  
+
   .media-controls {
     gap: 8px;
     flex-wrap: wrap;
     justify-content: center;
   }
-  
-  .control-button {
-    width: 48px;
-    height: 48px;
-    font-size: 18px;
-  }
-  
+
   .leave-button {
     padding: 10px 20px;
     font-size: 13px;
   }
-  
-  /* Fullscreen adjustments */
-  .fullscreen-container {
-    padding: 8px;
-  }
-  
-  .thumbnail-strip {
-    gap: 6px;
-    max-height: 100px;
-  }
-  
-  .thumbnail-card {
-    width: 90px;
-    min-height: 90px !important;
-    max-height: 90px !important;
+
+  .filmstrip-tile {
+    width: 142px;
+    height: 80px;
   }
 }
 
@@ -1457,145 +1279,59 @@ const connectionStats = computed(() => voiceStore.connectionStats);
     padding: 0;
     align-items: stretch;
   }
-  
+
   .voice-container {
     border-radius: 0;
     max-height: 100vh;
     height: 100%;
   }
-  
+
   .voice-header {
-    padding: 12px;
-    border-radius: 0;
+    padding: 10px 12px;
   }
-  
-  .channel-icon {
-    width: 32px;
-    height: 32px;
-    font-size: 14px;
-  }
-  
-  .channel-details {
-    gap: 2px;
-  }
-  
-  .channel-name {
-    font-size: 15px;
-  }
-  
-  .participant-count {
-    font-size: 11px;
-  }
-  
+
   .speaking-count {
     display: none;
   }
-  
-  .header-controls {
-    gap: 4px;
-  }
-  
-  /* Show layout toggle buttons on mobile */
-  .layout-btn[title="Grid view"],
-  .layout-btn[title="Speaker view"] {
-    display: flex;
-    width: 36px;
-    height: 36px;
-    font-size: 14px;
-  }
-  
-  /* Hide maximize button on mobile */
-  .layout-btn[title="Maximize"],
+
+  /* Native fullscreen adds little on small phones; keep minimize/close only */
   .minimize-btn {
     display: none;
   }
-  
-  .layout-btn.spatial-btn,
-  .close-btn {
-    width: 36px;
-    height: 36px;
-    font-size: 14px;
+
+  .stage {
+    padding: 4px;
   }
-  
-  /* Show settings button */
-  .layout-btn[title="Voice Settings"] {
-    display: flex;
-  }
-  
-  .participants-container {
-    padding: 8px 12px;
-    min-height: 150px;
-  }
-  
-  .participants-grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 8px;
-  }
-  
-  .participants-grid.grid-single {
-    grid-template-columns: 1fr;
-  }
-  
-  .participants-grid.grid-duo {
-    grid-template-columns: 1fr;
-    grid-auto-rows: minmax(180px, auto);
-  }
-  
-  .participants-grid.grid-quad {
-    grid-template-columns: repeat(2, 1fr);
-    grid-auto-rows: minmax(160px, auto);
-  }
-  
-  .participants-grid.grid-six {
-    grid-template-columns: repeat(3, 1fr);
-    grid-auto-rows: minmax(140px, auto);
-  }
-  
-  .participants-grid.grid-nine,
-  .participants-grid.grid-large,
-  .participants-grid.grid-gallery {
-    grid-template-columns: repeat(3, 1fr);
-    grid-auto-rows: minmax(120px, auto);
-  }
-  
-  .featured-card {
-    min-height: 200px;
-  }
-  
-  .featured-speaker {
-    padding: 8px;
-  }
-  
+
   /* Voice controls - bottom sheet style */
   .voice-controls {
     padding: 12px;
     padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
     flex-direction: column;
     gap: 12px;
-    background: linear-gradient(145deg, #2a2d35, #1e2028);
   }
-  
+
   .media-controls {
     width: 100%;
     justify-content: center;
     gap: 10px;
   }
-  
+
   .control-group {
     flex-direction: column;
     gap: 2px;
   }
-  
+
   .control-button {
     width: 52px;
     height: 52px;
     font-size: 20px;
   }
-  
+
   .action-controls {
     width: 100%;
   }
-  
+
   .leave-button {
     width: 100%;
     justify-content: center;
@@ -1603,98 +1339,15 @@ const connectionStats = computed(() => voiceStore.connectionStats);
     font-size: 14px;
     border-radius: 12px;
   }
-  
-  /* PTT badge adjustments */
+
   .ptt-badge {
     font-size: 8px;
     padding: 1px 4px;
   }
-  
-  /* Fullscreen on mobile */
-  .fullscreen-container {
-    padding: 4px;
-  }
-  
-  .thumbnail-strip-container {
-    padding-bottom: env(safe-area-inset-bottom, 0px);
-  }
-  
-  .thumbnail-strip {
-    gap: 4px;
-    max-height: 80px;
-    padding: 2px;
-  }
-  
-  .thumbnail-card {
-    width: 70px;
-    min-height: 70px !important;
-    max-height: 70px !important;
-  }
-  
-  .thumbnail-card :deep(.video-container) {
-    max-height: 45px;
-  }
-  
-  .thumbnail-card :deep(.username) {
-    font-size: 9px;
-  }
-}
 
-/* Very small mobile screens */
-@media (max-width: 360px) {
-  .voice-header {
-    padding: 10px;
-  }
-  
-  .channel-info {
-    gap: 8px;
-  }
-  
-  .channel-icon {
-    width: 28px;
-    height: 28px;
-    font-size: 12px;
-  }
-  
-  .channel-name {
-    font-size: 14px;
-  }
-  
-  .header-controls {
-    gap: 3px;
-  }
-  
-  .layout-btn.spatial-btn,
-  .close-btn {
-    width: 32px;
-    height: 32px;
-    font-size: 12px;
-  }
-  
-  .participants-grid {
-    grid-template-columns: 1fr;
-    gap: 6px;
-  }
-  
-  .media-controls {
-    gap: 8px;
-  }
-  
-  .control-button {
-    width: 48px;
-    height: 48px;
-    font-size: 18px;
-  }
-  
-  .leave-button {
-    padding: 12px 20px;
-    font-size: 13px;
-  }
-  
-  .thumbnail-card {
-    width: 60px;
-    min-height: 60px !important;
-    max-height: 60px !important;
+  .filmstrip-tile {
+    width: 106px;
+    height: 60px;
   }
 }
 
@@ -1730,7 +1383,7 @@ const connectionStats = computed(() => voiceStore.connectionStats);
     padding: 0;
     align-items: stretch;
   }
-  
+
   .settings-overlay-wrapper :deep(.settings-panel) {
     width: 100%;
     max-width: 100%;
@@ -1740,143 +1393,37 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   }
 }
 
-/* Full Window Mode - Stream fills entire viewport */
-.fullscreen-container.full-window-mode {
-  position: fixed !important;
-  top: 0 !important;
-  left: 0 !important;
-  right: 0 !important;
-  bottom: 0 !important;
-  width: 100vw !important;
-  height: 100vh !important;
-  padding: 0 !important;
-  margin: 0 !important;
-  z-index: 10002;
-  background: #000;
-  cursor: pointer;
-}
-
-.fullscreen-container.full-window-mode .fullscreen-card {
-  width: 100% !important;
-  height: 100% !important;
-  max-height: none !important;
-  border-radius: 0 !important;
-}
-
-.fullscreen-container.full-window-mode .fullscreen-card :deep(.video-container) {
-  max-width: 100%;
-  max-height: 100%;
-  border-radius: 0;
-}
-
-.fullscreen-container.full-window-mode .fullscreen-card :deep(.user-info) {
-  display: none !important;
-}
-
-.fullscreen-container.full-window-mode .thumbnail-strip-container {
-  display: none !important;
-}
-
 /* ============================================
    EASTER EGG: RAINBOW PARTY MODE
    ============================================ */
 
 .voice-container.rainbow-party {
   animation: rainbow-border 3s linear infinite;
-  box-shadow: 
+  box-shadow:
     0 20px 60px rgba(0, 0, 0, 0.6),
     0 8px 32px rgba(0, 0, 0, 0.4),
     inset 0 1px 0 rgba(255, 255, 255, 0.1),
     0 0 40px rgba(255, 0, 150, 0.5);
 }
 
-.voice-container.rainbow-party .participant-card {
+.voice-container.rainbow-party .grid-tile {
   animation: rainbow-glow 2s ease-in-out infinite;
-}
-
-.voice-container.rainbow-party .participant-card :deep(.harmony-voice-card) {
-  border: 3px solid;
-  border-image: linear-gradient(
-    45deg,
-    #ff6b6b,
-    #4ecdc4,
-    #45b7d1,
-    #f9ca24,
-    #f0932b,
-    #eb4d4b,
-    #6c5ce7,
-    #a29bfe
-  ) 1;
-  animation: rainbow-border-rotate 3s linear infinite;
-  box-shadow: 0 0 20px rgba(255, 0, 150, 0.6);
 }
 
 .voice-container.screen-shake {
   animation: screen-shake 0.5s ease-in-out;
-}
-
-/* Remove screen shake after animation completes */
-.voice-container.screen-shake {
   animation-fill-mode: forwards;
 }
 
 @keyframes rainbow-border {
-  0% {
-    border-color: #ff6b6b;
-    box-shadow: 
-      0 20px 60px rgba(0, 0, 0, 0.6),
-      0 8px 32px rgba(0, 0, 0, 0.4),
-      0 0 40px rgba(255, 107, 107, 0.5);
-  }
-  14% {
-    border-color: #4ecdc4;
-    box-shadow: 
-      0 20px 60px rgba(0, 0, 0, 0.6),
-      0 8px 32px rgba(0, 0, 0, 0.4),
-      0 0 40px rgba(78, 205, 196, 0.5);
-  }
-  28% {
-    border-color: #45b7d1;
-    box-shadow: 
-      0 20px 60px rgba(0, 0, 0, 0.6),
-      0 8px 32px rgba(0, 0, 0, 0.4),
-      0 0 40px rgba(69, 183, 209, 0.5);
-  }
-  42% {
-    border-color: #f9ca24;
-    box-shadow: 
-      0 20px 60px rgba(0, 0, 0, 0.6),
-      0 8px 32px rgba(0, 0, 0, 0.4),
-      0 0 40px rgba(249, 202, 36, 0.5);
-  }
-  57% {
-    border-color: #f0932b;
-    box-shadow: 
-      0 20px 60px rgba(0, 0, 0, 0.6),
-      0 8px 32px rgba(0, 0, 0, 0.4),
-      0 0 40px rgba(240, 147, 43, 0.5);
-  }
-  71% {
-    border-color: #eb4d4b;
-    box-shadow: 
-      0 20px 60px rgba(0, 0, 0, 0.6),
-      0 8px 32px rgba(0, 0, 0, 0.4),
-      0 0 40px rgba(235, 77, 75, 0.5);
-  }
-  85% {
-    border-color: #6c5ce7;
-    box-shadow: 
-      0 20px 60px rgba(0, 0, 0, 0.6),
-      0 8px 32px rgba(0, 0, 0, 0.4),
-      0 0 40px rgba(108, 92, 231, 0.5);
-  }
-  100% {
-    border-color: #a29bfe;
-    box-shadow: 
-      0 20px 60px rgba(0, 0, 0, 0.6),
-      0 8px 32px rgba(0, 0, 0, 0.4),
-      0 0 40px rgba(162, 155, 254, 0.5);
-  }
+  0% { border-color: #ff6b6b; }
+  14% { border-color: #4ecdc4; }
+  28% { border-color: #45b7d1; }
+  42% { border-color: #f9ca24; }
+  57% { border-color: #f0932b; }
+  71% { border-color: #eb4d4b; }
+  85% { border-color: #6c5ce7; }
+  100% { border-color: #a29bfe; }
 }
 
 @keyframes rainbow-glow {
@@ -1890,54 +1437,16 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   }
 }
 
-@keyframes rainbow-border-rotate {
-  0% {
-    border-image-source: linear-gradient(0deg, #ff6b6b, #4ecdc4, #45b7d1, #f9ca24);
-  }
-  25% {
-    border-image-source: linear-gradient(90deg, #f0932b, #eb4d4b, #6c5ce7, #a29bfe);
-  }
-  50% {
-    border-image-source: linear-gradient(180deg, #ff6b6b, #4ecdc4, #45b7d1, #f9ca24);
-  }
-  75% {
-    border-image-source: linear-gradient(270deg, #f0932b, #eb4d4b, #6c5ce7, #a29bfe);
-  }
-  100% {
-    border-image-source: linear-gradient(360deg, #ff6b6b, #4ecdc4, #45b7d1, #f9ca24);
-  }
-}
-
 @keyframes screen-shake {
-  0%, 100% {
-    transform: translate(0, 0);
-  }
-  10% {
-    transform: translate(-2px, -2px);
-  }
-  20% {
-    transform: translate(2px, 2px);
-  }
-  30% {
-    transform: translate(-2px, 2px);
-  }
-  40% {
-    transform: translate(2px, -2px);
-  }
-  50% {
-    transform: translate(-1px, -1px);
-  }
-  60% {
-    transform: translate(1px, 1px);
-  }
-  70% {
-    transform: translate(-1px, 1px);
-  }
-  80% {
-    transform: translate(1px, -1px);
-  }
-  90% {
-    transform: translate(0, 0);
-  }
+  0%, 100% { transform: translate(0, 0); }
+  10% { transform: translate(-2px, -2px); }
+  20% { transform: translate(2px, 2px); }
+  30% { transform: translate(-2px, 2px); }
+  40% { transform: translate(2px, -2px); }
+  50% { transform: translate(-1px, -1px); }
+  60% { transform: translate(1px, 1px); }
+  70% { transform: translate(-1px, 1px); }
+  80% { transform: translate(1px, -1px); }
+  90% { transform: translate(0, 0); }
 }
 </style>

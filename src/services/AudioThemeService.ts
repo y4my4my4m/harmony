@@ -223,7 +223,7 @@ export class AudioThemeService {
         camera_on: '/assets/sounds/futuristic/camera_on.mp3',
         camera_off: '/assets/sounds/futuristic/camera_off.mp3',
         screenshare_on: '/assets/sounds/futuristic/screenshare_on.mp3',
-        screenshare_off: '/assets/sounds/futuristic/screenshare_off.mp3',
+        screenshare_off: '/assets/sounds/default/screenshare_off.mp3',
         
         // Minimal UI sounds
         ui_click: '/assets/sounds/default/click.mp3',

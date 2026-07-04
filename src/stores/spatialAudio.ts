@@ -154,10 +154,12 @@ export const useSpatialAudioStore = defineStore('spatialAudio', {
                 debug.log(`🎧 Initialized position for user: ${user.userId}`);
               }
 
-              const userStream = webrtcManager.getUserStream(user.userId);
-              if (userStream) {
+              // Mic only - the combined stream can also carry screenshare
+              // audio, which must stay stereo and out of the spatial graph
+              const micStream = webrtcManager.getUserMicStream(user.userId);
+              if (micStream) {
                 debug.log(`🎧 Setting up spatial audio for existing user: ${user.userId}`);
-                await spatialAudioService.setupSpatialForUser(user.userId, userStream);
+                await spatialAudioService.setupSpatialForUser(user.userId, micStream);
               }
             }
           }

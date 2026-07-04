@@ -83,12 +83,12 @@
 
         <button
           @click="voiceStore.toggleVideo"
-          :class="['control-btn', 'video-btn', { 
-            active: voiceStore.localState.isVideoEnabled && !voiceStore.localState.isScreenSharing
+          :class="['control-btn', 'video-btn', {
+            active: voiceStore.localState.isVideoEnabled
           }]"
-          :title="voiceStore.localState.isVideoEnabled && !voiceStore.localState.isScreenSharing ? 'Turn off camera' : 'Turn on camera'"
+          :title="voiceStore.localState.isVideoEnabled ? 'Turn off camera' : 'Turn on camera'"
         >
-          <Icon :name="voiceStore.localState.isVideoEnabled && !voiceStore.localState.isScreenSharing ? 'video-off' : 'video'" />
+          <Icon :name="voiceStore.localState.isVideoEnabled ? 'video' : 'video-off'" />
         </button>
 
         <button

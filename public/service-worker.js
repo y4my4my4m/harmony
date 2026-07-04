@@ -164,12 +164,18 @@ async function handleNotificationClick(event) {
     return
   }
 
-  // Default click behavior - navigate to the content
+  // Default click behavior: focus an existing app window (tab or installed
+  // PWA) and navigate it in-place; only open a new window when none exists.
   const url = getNavigationUrl(data)
   const clientList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
-  const harmonyClient = clientList.find(client =>
-    client.url.includes('localhost') || client.url.includes('harmony')
-  )
+  const sameOriginClients = clientList.filter(client => {
+    try {
+      return new URL(client.url).origin === self.location.origin
+    } catch {
+      return false
+    }
+  })
+  const harmonyClient = sameOriginClients.find(client => client.focused) || sameOriginClients[0]
 
   if (harmonyClient) {
     await harmonyClient.focus()

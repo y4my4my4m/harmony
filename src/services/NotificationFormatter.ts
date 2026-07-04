@@ -71,9 +71,23 @@ function extractContentText(content: any): string | null {
   return String(content)
 }
 
+// Text inserted by DMCallSignaling.initiateCall for the call system message.
+// The notification trigger only forwards content_preview (no metadata), so
+// this string is the contract for detecting call notifications client-side.
+const CALL_STARTED_PREVIEW = 'started a call'
+
+function isIncomingCallData(data: Record<string, any>): boolean {
+  if (data.message?.metadata?.type === 'call_started') return true
+  const preview = extractContentText(data.preview ?? data.message?.content_preview)
+  return preview === CALL_STARTED_PREVIEW
+}
+
 function dmTitleAction(data: Record<string, any>): string {
   if (data.is_invite) {
     return ` added you to ${data.conversation?.name || 'a conversation'}`
+  }
+  if (isIncomingCallData(data)) {
+    return ' is calling you'
   }
   return ' sent you a message'
 }
@@ -117,6 +131,9 @@ const MESSAGE_TEMPLATES = {
     titleAction: dmTitleAction,
     title: (data: any) => getActorDisplayName(data) + dmTitleAction(data),
     message: (data: any) => {
+      if (isIncomingCallData(data)) {
+        return '📞 Incoming call — click to open'
+      }
       const text = extractContentText(data.message?.content_preview)
         || extractContentText(data.message?.content || data.content)
         || extractContentText(data.preview || data.content_preview)
@@ -129,14 +146,18 @@ const MESSAGE_TEMPLATES = {
       const sender = data.sender
       const senderUsername = sender?.display_name || sender?.username || data.sender_username || data.sender_display_name || 'Someone'
       if (data.is_invite) return `Invited by ${senderUsername}`
+      if (isIncomingCallData(data)) return `Call from ${senderUsername}`
       return `DM from ${senderUsername}`
     }
   },
 
   chat_message: {
-    titleAction: () => ' sent a message',
-    title: (data: any) => getActorDisplayName(data) + ' sent a message',
+    titleAction: (data: any) => isIncomingCallData(data) ? ' started a call' : ' sent a message',
+    title: (data: any) => getActorDisplayName(data) + (isIncomingCallData(data) ? ' started a call' : ' sent a message'),
     message: (data: any) => {
+      if (isIncomingCallData(data)) {
+        return '📞 Incoming call — click to join'
+      }
       const text = extractContentText(data.message?.content_preview)
         || extractContentText(data.preview || data.content_preview)
       if (text) {
@@ -147,6 +168,7 @@ const MESSAGE_TEMPLATES = {
     shortTitle: (data: any) => {
       const sender = data.sender
       const senderUsername = sender?.display_name || sender?.username || data.sender_username || data.sender_display_name || 'Someone'
+      if (isIncomingCallData(data)) return `Call from ${senderUsername}`
       return `Message from ${senderUsername}`
     }
   },
