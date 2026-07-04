@@ -119,17 +119,6 @@ export async function startDatabaseListener(): Promise<void> {
       {
         event: 'UPDATE',
         schema: 'public',
-        table: 'follows',
-      },
-      async (payload) => {
-        await handleFollowStatusChange(payload.old, payload.new);
-      }
-    )
-    .on(
-      'postgres_changes',
-      {
-        event: 'UPDATE',
-        schema: 'public',
         table: 'profiles',
       },
       async (payload) => {
@@ -567,70 +556,6 @@ async function handleNewFollow(follow: any): Promise<void> {
     }
   } catch (error) {
     logger.error('Failed to handle new follow:', error);
-  }
-}
-
-/**
- * Handle follow status change - when a local user resolves a pending follow
- * request from a remote follower, federate the Accept/Reject back to them.
- * (The auto-accept path in ActivityProcessor.processFollow sends its own
- * Accept; this only covers the manual-approval flow, which otherwise leaves
- * the remote side stuck on "requested".)
- */
-async function handleFollowStatusChange(oldFollow: any, newFollow: any): Promise<void> {
-  try {
-    if (!oldFollow || !newFollow) return;
-    if (oldFollow.status !== 'pending') return;
-    if (newFollow.status !== 'accepted' && newFollow.status !== 'rejected') return;
-
-    const supabase = getSupabaseClient();
-
-    // Follower must be remote (we deliver to their inbox)
-    const { data: follower } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', newFollow.follower_id)
-      .single();
-
-    if (!follower || follower.is_local || !follower.federated_id) {
-      logger.debug('Follow status change with local/unknown follower, no federation needed');
-      return;
-    }
-
-    // Following must be local (they are the one approving)
-    const { data: following } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', newFollow.following_id)
-      .single();
-
-    if (!following || !following.is_local) {
-      logger.debug('Follow status change on remote target, no federation needed');
-      return;
-    }
-
-    // Reconstruct the original Follow activity; the remote side matches the
-    // Accept/Reject on object.id, which we stored in follows.ap_id.
-    const followActivity = {
-      id: newFollow.ap_id,
-      type: 'Follow',
-      actor: follower.federated_id,
-      object: `https://${config.INSTANCE_DOMAIN}/users/${following.username}`,
-    };
-
-    const { createAcceptActivity, createRejectActivity } = await import('../activitypub/converters/toActivityPub.js');
-    const activity = newFollow.status === 'accepted'
-      ? createAcceptActivity(following, followActivity)
-      : createRejectActivity(following, followActivity);
-
-    if (follower.inbox_url) {
-      await DeliveryQueue.sendToInbox(follower.inbox_url, activity, following.id);
-      logger.info(`✅ ${activity.type} for follow request queued for delivery to ${follower.inbox_url}`);
-    } else {
-      logger.warn(`Cannot federate follow ${newFollow.status}: follower ${follower.username} has no inbox_url`);
-    }
-  } catch (error) {
-    logger.error('Failed to handle follow status change:', error);
   }
 }
 
