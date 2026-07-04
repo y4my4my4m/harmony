@@ -389,7 +389,7 @@ CREATE TRIGGER trigger_check_message_emoji_reaction_limit
 
 DROP TRIGGER IF EXISTS trigger_unified_notification_follows ON public.follows;
 CREATE TRIGGER trigger_unified_notification_follows
-    AFTER INSERT ON public.follows
+    AFTER INSERT OR UPDATE OF status ON public.follows
     FOR EACH ROW
     EXECUTE FUNCTION public.handle_unified_notification_processing();
 
