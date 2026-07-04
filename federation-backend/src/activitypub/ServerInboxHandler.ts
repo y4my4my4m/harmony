@@ -1819,10 +1819,19 @@ async function processUndoActivity(
   const objectType = typeof object === 'string' ? null : object.type;
 
   switch (objectType) {
-    case 'Join':
-      // Undo Join = Leave
+    case 'Join': {
+      // Undo Join = Leave. processLeaveServer trusts object.actor, so require
+      // it to be the authenticated outer actor - else anyone can "undo" a
+      // victim's Join and force-remove them from the server.
+      const undoActor = typeof activity.actor === 'string' ? activity.actor : activity.actor?.id;
+      const joinActor = typeof object.actor === 'string' ? object.actor : object.actor?.id;
+      if (!undoActor || !joinActor || !SignatureService.verifyActorMatch(undoActor, joinActor)) {
+        logger.warn(`🚫 Rejecting Undo(Join): actor ${undoActor} does not match Join actor ${joinActor}`);
+        return;
+      }
       await processLeaveServer(serverId, server, object);
       break;
+    }
 
     case 'Like':
     case 'EmojiReact':
