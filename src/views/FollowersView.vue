@@ -357,7 +357,6 @@ const handleUnfollow = (userId: string) => {
   // The UserCard already handled the actual unfollow via toggleFollow
   followingCount.value--;
   
-  // Remove from following list if currently viewing following
   if (currentView.value === 'following') {
     users.value = users.value.filter(u => u.id !== userId);
   }

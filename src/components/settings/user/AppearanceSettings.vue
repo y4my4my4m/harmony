@@ -997,7 +997,6 @@ function applySavedTheme(id: string) {
   }
 }
 
-// Import community presets and theme helpers
 import { COMMUNITY_PRESETS, BUILTIN_SKINS, type ThemePreset } from '@/composables/useVisualTheme'
 const communityPresets = COMMUNITY_PRESETS
 const builtinSkins = BUILTIN_SKINS
@@ -1159,7 +1158,6 @@ const onCustomThemeModeChange = () => {
 }
 
 const previewTheme = () => {
-  // Apply theme immediately for preview (doesn't save)
   if (settings.value.theme === 'custom') {
     try {
       const palette = generateThemePalette(
@@ -1323,14 +1321,11 @@ const resetSettings = () => {
   }
 }
 
-// Initialize
 onMounted(async () => {
   settings.value.emojiPack = currentPackId.value
 
-  // Initialize visual theme system
   await visualTheme.initialize()
   
-  // Load current settings from visual theme system
   const currentSettings = visualTheme.currentSettings.value
   settings.value = {
     theme: currentSettings.theme,

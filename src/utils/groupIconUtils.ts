@@ -81,7 +81,6 @@ export function getGroupIconUrl(
  * Generate a default group icon (similar to Discord's algorithm)
  */
 export function getDefaultGroupIcon(conversationId: string, size: number = DEFAULT_SIZE): string {
-  // Create a simple hash from conversation ID for consistent colors
   const hash = conversationId.split('').reduce((a, b) => {
     a = ((a << 5) - a) + b.charCodeAt(0)
     return a & a
@@ -100,7 +99,6 @@ export function getDefaultGroupIcon(conversationId: string, size: number = DEFAU
 
   const color = colors[Math.abs(hash) % colors.length]
   
-  // Create SVG with group icon
   const svg = `
     <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
       <rect width="${size}" height="${size}" fill="${color}" rx="${size * 0.2}"/>
@@ -124,13 +122,11 @@ export async function uploadGroupIcon(
   _onProgress?: (progress: number) => void
 ): Promise<{ success: boolean; iconPath?: string; error?: string }> {
   try {
-    // Validate against the group-icons bucket's real size/type limits.
     const validationError = await validateImageUpload(file, BUCKET_NAME)
     if (validationError) {
       return { success: false, error: validationError }
     }
 
-    // Generate unique filename
     const fileExt = file.name.split('.').pop()
     const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`
     const filePath = `${conversationId}/${fileName}`
@@ -148,13 +144,11 @@ export async function uploadGroupIcon(
       return { success: false, error: humanizeUploadError(uploadError, BUCKET_NAME) }
     }
 
-    // Get current user profile ID
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
       throw new Error('User not authenticated')
     }
 
-    // Get profile ID from auth user
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('id')
@@ -165,7 +159,6 @@ export async function uploadGroupIcon(
       throw new Error('User profile not found')
     }
 
-    // Update conversation metadata with new icon path
     const { error: updateError } = await supabase.rpc('update_group_icon', {
       conversation_uuid: conversationId,
       user_profile_id: profile.id,
@@ -174,7 +167,6 @@ export async function uploadGroupIcon(
 
     if (updateError) {
       debug.error('Database update error:', updateError)
-      // Clean up uploaded file if database update fails
       await supabase.storage.from(BUCKET_NAME).remove([filePath])
       return { success: false, error: 'Failed to update group settings' }
     }
@@ -192,7 +184,6 @@ export async function uploadGroupIcon(
  */
 export async function deleteGroupIcon(conversationId: string): Promise<{ success: boolean; error?: string }> {
   try {
-    // Get current icon path from conversation
     const { data: conversation, error: fetchError } = await supabase
       .from('conversations')
       .select('metadata')
@@ -205,13 +196,11 @@ export async function deleteGroupIcon(conversationId: string): Promise<{ success
 
     const iconPath = conversation.metadata.icon_url
 
-    // Get current user profile ID
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
       throw new Error('User not authenticated')
     }
 
-    // Get profile ID from auth user
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('id')
@@ -222,7 +211,6 @@ export async function deleteGroupIcon(conversationId: string): Promise<{ success
       throw new Error('User profile not found')
     }
 
-    // Remove icon from conversation metadata
     const { error: updateError } = await supabase.rpc('remove_group_icon', {
       conversation_uuid: conversationId,
       user_profile_id: profile.id
@@ -233,7 +221,6 @@ export async function deleteGroupIcon(conversationId: string): Promise<{ success
       return { success: false, error: 'Failed to update group settings' }
     }
 
-    // Delete file from storage
     const { error: deleteError } = await supabase.storage
       .from(BUCKET_NAME)
       .remove([iconPath])

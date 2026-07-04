@@ -153,7 +153,6 @@ defineEmits<{
   back: [];
 }>();
 
-// Store
 
 // State
 const post = ref<TimelinePost | null>(null);
@@ -242,7 +241,6 @@ const loadMoreReplies = async () => {
   
   isLoadingMoreReplies.value = true;
   try {
-    // Get the oldest reply ID for pagination
     const lastReply = replies.value[replies.value.length - 1];
     const maxId = lastReply?.id;
     
@@ -255,7 +253,6 @@ const loadMoreReplies = async () => {
       replies.value = [...replies.value, ...moreReplies];
     }
     
-    // Check if there are more to load
     hasMoreReplies.value = replies.value.length < totalReplies.value;
     
     debug.log(`✅ Loaded ${moreReplies.length} more replies (total: ${replies.value.length}/${totalReplies.value})`);
@@ -298,7 +295,6 @@ const handleReplyCreated = (newReply: TimelinePost) => {
   totalReplies.value++;
   showReplyComposer.value = false;
   
-  // Update post reply count
   if (post.value) {
     post.value.replies_count = (post.value.replies_count || 0) + 1;
   }

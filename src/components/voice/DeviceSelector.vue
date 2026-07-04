@@ -182,24 +182,20 @@ const loadDevices = async () => {
     outputDevices.value = devices.filter(d => d.kind === 'audiooutput');
     videoDevices.value = devices.filter(d => d.kind === 'videoinput');
 
-    // Get currently selected devices from VoiceSettingsService (persisted)
     const storedDevices = VoiceSettingsService.getDevices();
     
-    // Validate stored input device exists
     if (storedDevices.inputDevice && inputDevices.value.some(d => d.deviceId === storedDevices.inputDevice)) {
       selectedInputDevice.value = storedDevices.inputDevice;
     } else if (inputDevices.value.length > 0) {
       selectedInputDevice.value = inputDevices.value[0].deviceId;
     }
     
-    // Validate stored output device exists
     if (storedDevices.outputDevice && outputDevices.value.some(d => d.deviceId === storedDevices.outputDevice)) {
       selectedOutputDevice.value = storedDevices.outputDevice;
     } else if (outputDevices.value.length > 0) {
       selectedOutputDevice.value = outputDevices.value[0].deviceId;
     }
     
-    // Validate stored video device exists
     if (storedDevices.videoDevice && videoDevices.value.some(d => d.deviceId === storedDevices.videoDevice)) {
       selectedVideoDevice.value = storedDevices.videoDevice;
     } else if (videoDevices.value.length > 0) {
@@ -217,7 +213,6 @@ const toggleDropdown = async () => {
       const rect = selectorRef.value.getBoundingClientRect();
       dropdownPosition.value = { x: rect.left, y: rect.bottom + 8 };
     }
-    // Load devices when opening
     await loadDevices();
   }
   isOpen.value = !isOpen.value;
@@ -300,7 +295,6 @@ const openSettings = () => {
   emit('open-settings');
 };
 
-// Handle clicks outside
 const handleClickOutside = (event: MouseEvent) => {
   if (
     selectorRef.value &&
@@ -312,14 +306,12 @@ const handleClickOutside = (event: MouseEvent) => {
   }
 };
 
-// Handle device changes (hot-plug support)
 const handleDeviceChange = () => {
   if (isOpen.value) {
     loadDevices();
   }
 };
 
-// Handle keyboard
 const handleKeydown = (event: KeyboardEvent) => {
   if (event.key === 'Escape' && isOpen.value) {
     closeDropdown();

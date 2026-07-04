@@ -321,12 +321,10 @@ import { useTodayDashboard } from '@/composables/useTodayDashboard';
 import { debug } from '@/utils/debug';
 import type { Server, ServerFolder as ServerFolderType } from '@/types';
 
-// Define Props
 const props = defineProps<{
   servers: Server[];
 }>();
 
-// Define Emits for type safety
 const emit = defineEmits<{
   (e: 'show-public-servers', value: boolean): void;
   (e: 'switch-to-activitypub'): void;
@@ -459,7 +457,6 @@ const isSelected = (serverId: string) => {
   return serverId === activeServerId.value;
 };
 
-// Load funding state
 onMounted(async () => {
   const config = await fundingService.getFundingConfig()
   fundingEnabled.value = config?.enabled ?? false
@@ -595,7 +592,6 @@ const handleItemDragEnd = () => {
 };
 
 const handleItemDragEnter = (event: DragEvent, item: Server | ServerFolderType) => {
-  // Handle both root-level drags and drags from inside folders
   const isDraggingFromFolder = event.dataTransfer?.types.includes('application/x-from-folder');
   const isDragging = draggingItemId.value || isDraggingFromFolder;
   
@@ -607,7 +603,6 @@ const handleItemDragEnter = (event: DragEvent, item: Server | ServerFolderType) 
 };
 
 const handleItemDragOver = (event: DragEvent, item: Server | ServerFolderType) => {
-  // Handle both root-level drags and drags from inside folders
   const isDraggingFromFolder = event.dataTransfer?.types.includes('application/x-from-folder');
   const isDragging = draggingItemId.value || isDraggingFromFolder;
   
@@ -657,7 +652,6 @@ const handleItemDragLeave = (event: DragEvent) => {
 const handleItemDrop = async (event: DragEvent, targetItem: Server | ServerFolderType) => {
   event.stopPropagation();
   
-  // Get dragged item info from either state or dataTransfer
   const draggedId = draggingItemId.value || event.dataTransfer?.getData('text/plain');
   const fromFolderId = event.dataTransfer?.getData('application/x-from-folder');
   const isDraggingFromFolder = !!fromFolderId;
@@ -669,7 +663,6 @@ const handleItemDrop = async (event: DragEvent, targetItem: Server | ServerFolde
 
   const targetIsFolder = isFolder(targetItem);
   
-  // Handle server from folder being dropped
   if (isDraggingFromFolder) {
     const serversInFolder = props.servers.filter(s => s.folder_id === fromFolderId);
     
@@ -713,10 +706,8 @@ const handleItemDrop = async (event: DragEvent, targetItem: Server | ServerFolde
       }
     });
     
-    // Add the dragged server at the target position
     serverUpdates.push({ serverId: draggedId, folderId: null, position: targetPosition });
     
-    // Apply all updates
     if (serverUpdates.length > 0) {
       await serverChannelStore.updateServerPositions(serverUpdates);
     }
@@ -724,7 +715,6 @@ const handleItemDrop = async (event: DragEvent, targetItem: Server | ServerFolde
       await serverChannelStore.updateFolderPositions(folderUpdates);
     }
     
-    // Delete empty folder
     if (serversInFolder.length <= 1) {
       await serverChannelStore.deleteFolder(fromFolderId);
     }
@@ -733,7 +723,6 @@ const handleItemDrop = async (event: DragEvent, targetItem: Server | ServerFolde
     return;
   }
   
-  // Handle creating a folder when dropping server onto server (center zone)
   if (draggingItemType.value === 'server' && !targetIsFolder && dropPosition.value === 'into') {
     const targetServer = targetItem as Server;
     // Use the actual index in the sorted list to get proper position
@@ -743,7 +732,6 @@ const handleItemDrop = async (event: DragEvent, targetItem: Server | ServerFolde
     return;
   }
   
-  // Handle reordering root-level items
   await reorderItems(draggingItemId.value!, draggingItemType.value!, targetItem.id, targetIsFolder, dropPosition.value);
   resetDragState();
 };
@@ -764,7 +752,6 @@ const createFolderFromServers = async (draggedServerId: string, targetServerId: 
     }
   });
   
-  // Apply position updates
   if (serverUpdates.length > 0 || folderUpdates.length > 0) {
     await serverChannelStore.updateServerPositions(serverUpdates);
     if (folderUpdates.length > 0) {
@@ -772,7 +759,6 @@ const createFolderFromServers = async (draggedServerId: string, targetServerId: 
     }
   }
   
-  // Create the folder at the desired position
   const folder = await serverChannelStore.createFolder('', '#0EA5E9', position);
   if (folder) {
     await serverChannelStore.moveServerToFolder(draggedServerId, folder.id);
@@ -787,14 +773,12 @@ const reorderItems = async (
   targetIsFolder: boolean,
   position: 'before' | 'after' | 'into'
 ) => {
-  // Get current list
   const items = sortedSidebarItems.value;
   const draggedIndex = items.findIndex(i => i.id === draggedId);
   const targetIndex = items.findIndex(i => i.id === targetId);
   
   if (draggedIndex === -1 || targetIndex === -1) return;
   
-  // Calculate new position
   let newPosition: number;
   if (position === 'before') {
     newPosition = targetIndex <= draggedIndex ? targetIndex : targetIndex - 1;
@@ -802,12 +786,10 @@ const reorderItems = async (
     newPosition = targetIndex >= draggedIndex ? targetIndex : targetIndex + 1;
   }
   
-  // Create new order
   const newItems = [...items];
   const [draggedItem] = newItems.splice(draggedIndex, 1);
   newItems.splice(newPosition, 0, draggedItem);
   
-  // Update positions in database
   const serverUpdates: { serverId: string; folderId: string | null; position: number }[] = [];
   const folderUpdates: { folderId: string; position: number }[] = [];
   
@@ -874,14 +856,12 @@ const hideSidebarTooltip = () => {
 };
 
 const handleScrollAreaDragOver = (event: DragEvent) => {
-  // Check if we're over an item, folder content, or the empty bottom area
   const target = event.target as HTMLElement;
   const isOverItem = target.closest('.sidebar-item-wrapper') || 
                      target.closest('.folder-expanded') || 
                      target.closest('.folder-collapsed') ||
                      target.closest('.server-folder');
   
-  // Check if something is being dragged (either from root or from a folder)
   const isDragging = draggingItemId.value || event.dataTransfer?.types.includes('text/plain');
   
   if (!isOverItem && isDragging) {
@@ -935,17 +915,14 @@ const handleDropOnScrollArea = async (event: DragEvent) => {
     return;
   }
   
-  // Get the highest position to place item at the end
   const maxPosition = Math.max(
     ...sortedSidebarItems.value.map(i => i.position || 0),
     0
   ) + 1;
   
-  // Handle server dragged from a folder
   if (fromFolderId) {
     const serversInFolder = props.servers.filter(s => s.folder_id === fromFolderId);
     
-    // Remove from folder and place at end
     await serverChannelStore.moveServerToFolder(itemId, null);
     await serverChannelStore.updateServerPositions([{
       serverId: itemId,
@@ -1102,7 +1079,6 @@ const handleMarkFolderAsRead = async (folder: ServerFolderType) => {
 const createFolderFromServer = async () => {
   if (!selectedServer.value) return;
   
-  // Create a new folder at the server's position (empty name by default)
   const folderPosition = selectedServer.value.position || 0;
   const folder = await serverChannelStore.createFolder('', '#0EA5E9', folderPosition);
   if (folder) {

@@ -152,9 +152,7 @@ const overlayRef = ref<HTMLElement>()
 const containerRef = ref<HTMLElement>()
 const previousActiveElement = ref<HTMLElement>()
 
-// Handle modal opening
 const handleOpen = () => {
-  // Store previously focused element
   previousActiveElement.value = document.activeElement as HTMLElement
   
   // Prevent body scroll
@@ -168,7 +166,6 @@ const handleOpen = () => {
   emit('open')
 }
 
-// Handle modal closing
 const handleClose = () => {
   if (props.persistent) return
   
@@ -176,21 +173,18 @@ const handleClose = () => {
   emit('close')
 }
 
-// Handle overlay click
 const handleOverlayClick = () => {
   if (props.closeOnOverlay && !props.persistent) {
     handleClose()
   }
 }
 
-// Handle escape key
 const handleEscape = () => {
   if (props.closeOnEscape && !props.persistent) {
     handleClose()
   }
 }
 
-// Handle action button clicks
 const toast = useToast()
 const handleAction = async (action: ModalAction) => {
   try {
@@ -218,7 +212,6 @@ watch(() => props.modelValue, (isOpen) => {
   }
 })
 
-// Handle keyboard navigation for accessibility
 const handleKeydown = (event: KeyboardEvent) => {
   if (!props.modelValue) return
 

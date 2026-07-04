@@ -716,7 +716,6 @@ const loadInstanceConfig = async () => {
         defaultThemeJson: cfg.instance.defaultThemeJson || '',
       }
       
-      // Load OAuth providers
       if (cfg.instance.oauthProviders) {
         const providers = cfg.instance.oauthProviders
         if (Array.isArray(providers)) {
@@ -760,7 +759,6 @@ const saveConfig = async () => {
   try {
     const userId = authStore.session.user.id
     
-    // Save federation settings
     const fedSuccess = await adminService.updateFederationSettings({
       userId,
       inboundEnabled: config.value.federation.enableInbound,
@@ -807,7 +805,6 @@ const saveConfig = async () => {
     toast.success('Configuration saved successfully')
     debug.log('Configuration saved:', config.value)
     
-    // Refresh instance settings store so UI updates
     const instanceSettings = useInstanceSettingsStore()
     await instanceSettings.fetchSettings(true)
   } catch (error: any) {
@@ -991,13 +988,11 @@ const saveOAuthProviders = async () => {
 
   savingOAuthProviders.value = true
   try {
-    // Build array of enabled providers
     const enabledProviders: string[] = []
     if (oauthProviders.value.google) enabledProviders.push('google')
     if (oauthProviders.value.twitch) enabledProviders.push('twitch')
     if (oauthProviders.value.github) enabledProviders.push('github')
 
-    // Save OAuth providers as an array
     await adminService.setInstanceConfig(
       'oauth_providers',
       enabledProviders, // Pass as array, Supabase will convert to JSONB

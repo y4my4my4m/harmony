@@ -401,7 +401,6 @@ function applyPresetTheme(themeName: 'dark' | 'light' | 'midnight') {
 function applySettings(settings: VisualThemeSettings) {
   const root = document.documentElement
   
-  // Apply theme
   if (settings.theme === 'custom' && settings.customAccentColor) {
     try {
       const palette = generateThemePalette(
@@ -431,7 +430,6 @@ function applySettings(settings: VisualThemeSettings) {
     }
   }
   
-  // Apply font size
   root.style.setProperty('--message-font-size', `${settings.fontSize}px`)
 
   // Apply UI font family (the picker in Appearance settings flips this).
@@ -502,35 +500,30 @@ function applySettings(settings: VisualThemeSettings) {
   // `CSSStyleDeclaration` in lib.dom, but every browser we target understands it.
   ;(root.style as any).zoom = `${settings.zoomLevel}%`
   
-  // Apply compact mode
   if (settings.compactMode) {
     root.setAttribute('data-compact-mode', 'true')
   } else {
     root.removeAttribute('data-compact-mode')
   }
   
-  // Apply high contrast mode
   if (settings.highContrast) {
     root.setAttribute('data-high-contrast', 'true')
   } else {
     root.removeAttribute('data-high-contrast')
   }
   
-  // Apply reduce motion
   if (settings.reduceMotion) {
     root.setAttribute('data-reduce-motion', 'true')
   } else {
     root.removeAttribute('data-reduce-motion')
   }
   
-  // Apply timestamps visibility
   if (settings.showTimestamps) {
     root.setAttribute('data-show-timestamps', 'true')
   } else {
     root.removeAttribute('data-show-timestamps')
   }
   
-  // Apply screen reader support
   if (settings.screenReaderSupport) {
     root.setAttribute('data-screen-reader', 'true')
   } else {
@@ -646,7 +639,6 @@ async function loadFromSupabase(): Promise<Partial<VisualThemeSettings> | null> 
   if (!userId) return null
   
   try {
-    // Check if profile is already loaded in the store
     if (profileStore.profile?.appearance_settings) {
       debug.log('✅ Using cached appearance_settings from profile store')
       return profileStore.profile.appearance_settings as Partial<VisualThemeSettings>
@@ -727,9 +719,7 @@ export function useVisualTheme() {
     watch(
       settings,
       (newSettings) => {
-        // Apply settings immediately for real-time feedback
         applySettings(newSettings)
-        // Save to localStorage immediately
         saveToLocalStorage(newSettings)
         // Debounce save to Supabase
         debouncedSaveToSupabase(newSettings)
@@ -1149,7 +1139,6 @@ export function useVisualTheme() {
       activeSkinId: null,
       customSkinCss: '',
     }
-    // Apply default dark theme
     applyPresetTheme('dark')
     debug.log('🎨 Visual theme reset for new user')
   }

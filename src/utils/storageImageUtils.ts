@@ -54,7 +54,7 @@ export function isLocalStorageUrl(url: string): boolean {
  *
  * Only our own `user_media` uploads are transformed. Remote URLs (Discord CDN,
  * federated/misskey, pasted links) can't be transformed and pass through.
- * Animated formats are left raw too — imgproxy would flatten them to one frame.
+ * Animated formats are left raw too - imgproxy would flatten them to one frame.
  */
 const USER_MEDIA_PATTERN = /\/storage\/v1\/object\/public\/user_media\/(.+)$/
 const STATIC_IMAGE_EXT = /\.(jpe?g|png)(\?|$)/i

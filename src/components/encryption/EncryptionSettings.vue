@@ -353,7 +353,6 @@ const isBackingUp = ref(false)
 const isResetting = ref(false)
 const isImporting = ref(false)
 
-// Import state
 const selectedFile = ref<File | null>(null)
 const importError = ref('')
 
@@ -386,25 +385,21 @@ const statusDescription = computed(() => {
   return 'Your messages are protected with end-to-end encryption'
 })
 
-// Load encryption status
 async function loadEncryptionStatus() {
   try {
     const { megolmMessageEncryptionService } = await import('@/services/encryption/MegolmMessageEncryptionService')
     const { supabase } = await import('@/supabase')
     
-    // Get current user
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
       isInitialized.value = true
       return
     }
 
-    // Initialize service if needed
     if (!megolmMessageEncryptionService.isInitialized()) {
       await megolmMessageEncryptionService.initialize(user.id)
     }
 
-    // Get status
     const status = await megolmMessageEncryptionService.getEncryptionStatus()
     encryptionStatus.value = status
 
@@ -423,7 +418,6 @@ async function loadEncryptionStatus() {
       lastBackupTime.value = null
     }
 
-    // Get session stats if enabled
     if (status.enabled) {
       const { megolmService } = await import('@/services/encryption/MegolmService')
       const sessions = await megolmService.exportAllSessions()
@@ -441,7 +435,6 @@ async function loadEncryptionStatus() {
   }
 }
 
-// Format time
 function formatTime(isoString: string): string {
   const date = new Date(isoString)
   const now = new Date()
@@ -517,7 +510,6 @@ async function syncKeys() {
   }
 }
 
-// Create backup
 async function createBackup() {
   isBackingUp.value = true
   try {
@@ -552,14 +544,12 @@ async function exportBackupFile() {
   }
 }
 
-// Handle file selection
 function handleFileSelect(event: Event) {
   const input = event.target as HTMLInputElement
   selectedFile.value = input.files?.[0] || null
   importError.value = ''
 }
 
-// Import backup file
 async function importBackupFile() {
   if (!selectedFile.value) return
 
@@ -587,7 +577,6 @@ function closeImportModal() {
   importError.value = ''
 }
 
-// Reset encryption
 async function resetEncryption() {
   isResetting.value = true
   try {
@@ -617,7 +606,6 @@ async function resetEncryption() {
   }
 }
 
-// Handle setup complete
 async function handleSetupComplete() {
   showSetupWizard.value = false
   await loadEncryptionStatus()
@@ -625,7 +613,6 @@ async function handleSetupComplete() {
   await autoSyncAfterEnable()
 }
 
-// Handle recovery complete
 async function handleRecoveryComplete() {
   showRecoveryModal.value = false
   await loadEncryptionStatus()

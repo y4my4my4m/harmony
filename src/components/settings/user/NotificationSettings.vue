@@ -883,10 +883,8 @@ const testNotification = async (type: NotificationType) => {
   try {
     isTestingType.value = type
     
-    // Create test notification data locally
     const testData = createTestNotificationData(type)
     
-    // Show toast using the unified system
     notificationStore.showToast(
       type,
       testData.title,
@@ -898,11 +896,10 @@ const testNotification = async (type: NotificationType) => {
     // Play sound
     await notificationStore.playNotificationSound(type)
     
-    // Show desktop/native notification
     if (hasNotificationPermission.value) {
       const iconUrl = testData.avatar.value || '/img/app_icon_square.webp'
       
-      // On mobile PWA, we need to use service worker for notifications
+      // Mobile PWA notifications must go through the service worker
       // Direct `new Notification()` doesn't work on mobile
       if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
         const registration = await navigator.serviceWorker.ready
@@ -1055,11 +1052,9 @@ const resetToDefaults = () => {
 }
 
 const onVolumeChange = () => {
-  // Update volume in the notification store
   notificationStore.setVolume(soundVolume.value / 100)
 }
 
-// Push notification computed properties
 const pushStatusClass = computed(() => {
   if (!pushNotifications.isSupported.value) return 'not-supported'
   if (pushNotifications.permission.value === 'denied') return 'denied'
@@ -1081,7 +1076,6 @@ const pushStatusBadgeText = computed(() => {
   return 'Available'
 })
 
-// Push notification handlers
 const handlePushSubscribe = async () => {
   const result = await pushNotifications.subscribe()
   if (result.success) {
@@ -1171,7 +1165,6 @@ const formatDate = (dateStr: string): string => {
 onMounted(() => {
   hasNotificationPermission.value = typeof Notification !== 'undefined' && Notification.permission === 'granted'
   loadPreferences()
-  // Initialize push notifications
   pushNotifications.initialize()
 })
 

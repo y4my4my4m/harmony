@@ -166,11 +166,9 @@ const handleJoinServer = async (serverId: string) => {
     if (success) {
       // Haptic feedback for successful join
       triggerMessage('success')
-      // Refresh the user's server list
       await serverChannelStore.fetchServersForUser(userId)
       toast.success('Successfully joined the server!')
       
-      // Close the modal and let the ChatView watcher handle navigation
       closeModal()
     } else {
       toast.error('Failed to join the server')
@@ -196,7 +194,6 @@ const handleLeaveServer = async (serverId: string) => {
       await voiceStore.leaveVoiceChannel()
     }
     
-    // Unsubscribe from message channel if viewing a channel on this server
     if (serverChannelStore.currentServer?.id === serverId) {
       const chatStore = useChatStore()
       chatStore.unsubscribeFromMessages()
@@ -239,7 +236,6 @@ const handleFederatedServerJoined = (_serverId: string) => {
 
 const handleViewOwnerProfile = async (userId: string) => {
   try {
-    // Fetch the user profile if not already cached
     const serverUsersStore = useServerUsersStore()
     await serverUsersStore.fetchUserProfiles([userId])
     
@@ -260,7 +256,6 @@ const closeUserProfile = () => {
   selectedUser.value = null
 }
 
-// Setup escape key handler
 handleEscapeKey(closeModal)
 
 // Lifecycle

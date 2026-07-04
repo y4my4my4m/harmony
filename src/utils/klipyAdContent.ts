@@ -3,7 +3,7 @@
  * Harmony renders a clearer label outside the sandboxed iframe instead.
  *
  * IMPORTANT: Klipy's loader script queries `.ad` and only then sets `img` opacity
- * to 1. The element must stay in the DOM — do not remove it or `display:none` it.
+ * to 1. The element must stay in the DOM - do not remove it or `display:none` it.
  */
 
 const KLIPY_AD_FRAME_STYLES = `<style>

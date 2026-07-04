@@ -306,7 +306,6 @@ const bannerInput = ref<HTMLInputElement>();
 
 let usernameCheckTimeout: NodeJS.Timeout | null = null;
 
-// Extract OAuth provider data and auto-populate form
 onMounted(async () => {
   try {
     const session = authStore.session
@@ -319,7 +318,6 @@ onMounted(async () => {
     // Available OAuth providers (should match AuthComponent.vue)
     const OAUTH_PROVIDERS = ['google', 'github', 'twitch'] as const
     
-    // Find OAuth identity (not email provider)
     const oauthIdentity = identities.find((id: any) => 
       id.provider !== 'email' && OAUTH_PROVIDERS.includes(id.provider as typeof OAUTH_PROVIDERS[number])
     )
@@ -341,7 +339,6 @@ onMounted(async () => {
       debug.log('✅ Auto-populated avatar from OAuth (picture):', metadata.picture)
     }
 
-    // Extract display name
     if (metadata.full_name) {
       displayName.value = metadata.full_name
       debug.log('✅ Auto-populated display name:', metadata.full_name)
@@ -374,12 +371,10 @@ onMounted(async () => {
 
     if (suggestedUsername && suggestedUsername.length >= 3) {
       username.value = suggestedUsername
-      // Trigger username availability check
       formatUsername({ target: { value: suggestedUsername } } as any)
       debug.log('✅ Auto-populated username:', suggestedUsername)
     }
 
-    // Extract bio if available (some providers might have this)
     if (metadata.bio || metadata.description) {
       bio.value = (metadata.bio || metadata.description).substring(0, 500)
       debug.log('✅ Auto-populated bio')
@@ -505,7 +500,6 @@ const checkUsernameAvailability = async (usernameToCheck: string) => {
   usernameAvailable.value = false;
 
   try {
-    // Check if username exists in database
     const { data, error } = await supabase
       .from('profiles')
       .select('username')
@@ -543,12 +537,10 @@ const formatUsername = (event: Event) => {
   username.value = value;
   usernameAvailable.value = false;
   
-  // Clear any existing timeout
   if (usernameCheckTimeout) {
     clearTimeout(usernameCheckTimeout);
   }
   
-  // Validate username format
   if (value.length < 3 && value.length > 0) {
     usernameError.value = 'Username must be at least 3 characters';
     checkingUsername.value = false;
@@ -597,11 +589,9 @@ const createProfile = async () => {
     return;
   }
 
-  // Set loading state
   isCreatingProfile.value = true;
   creationStep.value = 'Creating profile...';
 
-  // Add loading state and better error handling
   try {
     debug.log('Creating profile with data:', {
       id: authStore.session.user.id,
@@ -611,7 +601,6 @@ const createProfile = async () => {
       color: selectedColor.value,
     });
 
-    // Get instance domain from config
     creationStep.value = 'Configuring instance...';
     const { data: instanceConfig } = await supabase
       .from('instance_config')
@@ -647,7 +636,6 @@ const createProfile = async () => {
     debug.log('Profile creation result:', result);
     
     // Generate ActivityPub keys for federation
-    // This ensures the user is immediately ready for federation (can be followed, etc.)
     creationStep.value = 'Generating federation keys...';
     try {
       // Use relative URL - federation backend is proxied through the same domain
@@ -672,7 +660,6 @@ const createProfile = async () => {
       // Don't fail profile creation - the Actor endpoint will generate keys on-the-fly
     }
     
-    // Handle avatar: upload file if exists, or use OAuth avatar URL if available
     if (avatarFile.value && result) {
       // User uploaded a file - upload it
       debug.log('Uploading avatar...');
@@ -725,7 +712,6 @@ const createProfile = async () => {
       }
     }
 
-    // Handle banner upload if file exists
     if (bannerFile.value && result) {
       debug.log('Uploading banner...');
       creationStep.value = 'Uploading banner...';
@@ -733,7 +719,6 @@ const createProfile = async () => {
         const uploadResult = await uploadBanner(bannerFile.value, authStore.session.user.id);
         
         if (uploadResult.success && uploadResult.url) {
-          // Update profile with banner URL only
           await profileStore.updateProfile({
             banner_url: uploadResult.url
           });

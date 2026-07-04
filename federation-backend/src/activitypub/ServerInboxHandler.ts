@@ -169,7 +169,6 @@ export async function processServerInboxActivity(
 
   logger.info(`📥 Server ${serverId} received ${activity.type} activity from ${activity.actor}`);
 
-  // Get server
   const { data: server } = await supabase
     .from('servers')
     .select('*')
@@ -181,13 +180,11 @@ export async function processServerInboxActivity(
     return;
   }
 
-  // Check if this is a local server that can receive activities
   if (!server.is_local_server) {
     logger.warn(`Server ${serverId} is not local, cannot process inbox`);
     return;
   }
 
-  // Check if sender instance is blocked
   try {
     const actorUrl = typeof activity.actor === 'string' ? activity.actor : activity.actor?.id;
     if (actorUrl) {
@@ -345,14 +342,12 @@ async function processJoinServer(
     return;
   }
 
-  // Check if user is suspended
   if (user.is_suspended) {
     logger.warn(`Rejecting join from suspended user: ${actorUrl}`);
     await sendRejectActivity(serverId, server, activity, user.inbox_url, 'User is suspended');
     return;
   }
 
-  // Check if user is banned from this server
   const { data: ban } = await supabase
     .from('server_bans')
     .select('id')
@@ -366,7 +361,6 @@ async function processJoinServer(
     return;
   }
 
-  // Check if server is private and requires an invite
   if (!server.public) {
     const inviteCode = activity['harmony:inviteCode'];
     
@@ -376,7 +370,6 @@ async function processJoinServer(
       return;
     }
 
-    // Validate the invite code
     const { data: invite, error: inviteError } = await supabase
       .from('invites')
       .select('id, expires_at, uses, max_uses, used')
@@ -390,21 +383,18 @@ async function processJoinServer(
       return;
     }
 
-    // Check if invite is expired
     if (invite.expires_at && new Date(invite.expires_at) < new Date()) {
       logger.warn(`Expired invite code: ${inviteCode}`);
       await sendRejectActivity(serverId, server, activity, user.inbox_url, 'Invite code has expired');
       return;
     }
 
-    // Check if invite has reached max uses
     if (invite.max_uses !== null && (invite.uses || 0) >= invite.max_uses) {
       logger.warn(`Invite code at max uses: ${inviteCode}`);
       await sendRejectActivity(serverId, server, activity, user.inbox_url, 'Invite code has reached maximum uses');
       return;
     }
 
-    // Increment invite usage
     await supabase
       .from('invites')
       .update({ uses: (invite.uses || 0) + 1 })
@@ -413,10 +403,8 @@ async function processJoinServer(
     logger.info(`✅ Valid invite code used: ${inviteCode}`);
   }
 
-  // Get the domain for member_instance tracking
   const memberDomain = new URL(actorUrl).hostname;
 
-  // Check if already a member
   const { data: existing } = await supabase
     .from('user_servers')
     .select('id, status')
@@ -428,14 +416,12 @@ async function processJoinServer(
     if (existing.status === 'accepted') {
       logger.info(`User ${user.username} already member of server ${serverId}`);
     } else {
-      // Update status to accepted
       await supabase
         .from('user_servers')
         .update({ status: 'accepted' })
         .eq('id', existing.id);
     }
   } else {
-    // Add to server membership
     const { error } = await supabase.from('user_servers').insert({
       server_id: serverId,
       user_id: user.id,
@@ -452,7 +438,6 @@ async function processJoinServer(
     logger.info(`✅ Added ${user.username}@${memberDomain} to server ${serverId}`);
   }
 
-  // Send Accept activity
   await sendAcceptActivity(serverId, server, activity, user.inbox_url);
   logger.info(`✅ Sent Accept to ${user.username}`);
 }
@@ -468,7 +453,6 @@ async function processLeaveServer(
   const supabase = getSupabaseClient();
   const actorUrl = typeof activity.actor === 'string' ? activity.actor : activity.actor.id;
 
-  // Get user
   const { data: user, error: userError } = await supabase
     .from('profiles')
     .select('id, username')
@@ -485,7 +469,6 @@ async function processLeaveServer(
     return;
   }
 
-  // Remove from server
   const { error } = await supabase
     .from('user_servers')
     .delete()
@@ -508,14 +491,12 @@ async function processAcceptActivity(
 ): Promise<void> {
   const supabase = getSupabaseClient();
 
-  // Check if this is accepting a Join activity
   const object = activity.object;
   if (!object || object.type !== 'Join') {
     logger.info('Accept activity is not for a Join, ignoring');
     return;
   }
 
-  // Get the user who made the join request
   const userActorUrl = typeof object.actor === 'string' ? object.actor : object.actor?.id;
   if (!userActorUrl) {
     logger.warn('Could not determine user from Join object');
@@ -533,7 +514,6 @@ async function processAcceptActivity(
     return;
   }
 
-  // Update membership status to accepted
   const { error } = await supabase
     .from('user_servers')
     .update({ status: 'accepted' })
@@ -573,7 +553,6 @@ async function processRejectActivity(
     return;
   }
 
-  // Remove the pending membership
   await supabase
     .from('user_servers')
     .delete()
@@ -626,7 +605,6 @@ async function processCreateActivity(
   const remoteAuthor = await ActivityProcessor['ensureRemoteUser'](actorUrl);
   logger.debug(`ensureRemoteUser returned: ${remoteAuthor ? `id=${remoteAuthor.id}, username=${remoteAuthor.username}` : 'null'}`);
 
-  // Get author
   const { data: author, error: authorError } = await supabase
     .from('profiles')
     .select('id, username, federated_id')
@@ -655,7 +633,6 @@ async function processCreateActivity(
 
   logger.debug(`Found author: id=${author.id}, username=${author.username}, federated_id=${author.federated_id}`);
 
-  // Verify author is a member of this server
   const { data: membership, error: memberError } = await supabase
     .from('user_servers')
     .select('id, status, member_instance')
@@ -687,14 +664,12 @@ async function processCreateActivity(
     return;
   }
 
-  // Parse context to get channel info
   const context = object.context;
   if (!context || !context.includes('/channels/')) {
     logger.warn('Message missing channel context');
     return;
   }
 
-  // Find channel by ap_id (the context URL)
   let { data: channel } = await supabase
     .from('channels')
     .select('id, name')
@@ -761,7 +736,6 @@ async function processCreateActivity(
     }
   }
 
-  // Parse content - handle both HTML string and harmony:rawContent
   let messageContent: any[];
   if (object['harmony:rawContent'] && Array.isArray(object['harmony:rawContent'])) {
     messageContent = normalizeMentionDomains(object['harmony:rawContent']);
@@ -971,7 +945,6 @@ async function processCreateActivity(
   if (server.is_local_server) {
     const senderDomain = new URL(actorUrl).hostname;
     
-    // Find all remote members EXCEPT the sender's instance
     const { data: remoteMemberGroups } = await supabase
       .from('user_servers')
       .select(`
@@ -1035,7 +1008,6 @@ async function processUpdateActivity(
     return;
   }
 
-  // Handle ChatThread updates
   if (object.type === 'ChatThread') {
     // AUTHZ: thread updates (incl. membership add/remove) are member-gated.
     const threadActor = typeof activity.actor === 'string' ? activity.actor : activity.actor?.id;
@@ -1062,7 +1034,6 @@ async function processUpdateActivity(
     }
   }
 
-  // Handle CATEGORY updates - stored in channel_categories table
   if (object.type === 'harmony:Category') {
     const catUuidMatch = object.id?.match(/\/channels\/([a-f0-9-]{36})$/i);
     if (!catUuidMatch) {
@@ -1102,7 +1073,6 @@ async function processUpdateActivity(
     return;
   }
 
-  // Handle CHANNEL updates (text/voice) - stored in channels table
   if (['harmony:TextChannel', 'harmony:VoiceChannel'].includes(object.type)) {
     const { data: channel } = await supabase
       .from('channels')
@@ -1160,16 +1130,13 @@ async function processUpdateActivity(
     return;
   }
 
-  // Handle SERVER updates (Group type) - name, icon, description changes
   if (object.type === 'Group' || object['harmony:ChatServer']) {
-    // Extract server ID from the ap_id
     const serverIdMatch = object.id?.match(/\/servers\/([a-f0-9-]{36})$/i);
     if (!serverIdMatch) {
       logger.warn(`Cannot extract server ID from ap_id: ${object.id}`);
       return;
     }
     
-    // Find the server by ID (it should already exist as a federated copy)
     const { data: existingServer } = await supabase
       .from('servers')
       .select('id')
@@ -1182,7 +1149,6 @@ async function processUpdateActivity(
       return;
     }
     
-    // Build update object
     const updateData: any = {
       updated_at: new Date().toISOString(),
     };
@@ -1229,7 +1195,6 @@ async function processUpdateActivity(
     return;
   }
 
-  // Find the message by ap_id
   const { data: message } = await supabase
     .from('messages')
     .select('id, channel_id')
@@ -1248,7 +1213,6 @@ async function processUpdateActivity(
     return;
   }
 
-  // Parse updated content
   let messageContent: any[];
   if (object['harmony:rawContent'] && Array.isArray(object['harmony:rawContent'])) {
     messageContent = normalizeMentionDomains(object['harmony:rawContent']);
@@ -1276,7 +1240,6 @@ async function processUpdateActivity(
     updatePayload = { ...updatePayload, metadata: meta };
   }
 
-  // Update message
   const { error } = await supabase
     .from('messages')
     .update(updatePayload)
@@ -1438,7 +1401,6 @@ async function processReactionActivity(
     return;
   }
 
-  // Find the message
   const messageIdMatch = objectUrl.match(/\/messages\/([a-f0-9-]+)/);
   let message = null;
 
@@ -1466,7 +1428,6 @@ async function processReactionActivity(
     return;
   }
 
-  // Extract emoji
   const emoji = activity.content || activity.tag?.find((t: any) => t.type === 'Emoji')?.name || '❤️';
   const emojiUrl = activity.tag?.find((t: any) => t.type === 'Emoji')?.icon?.url;
   const emojiName = activity.tag?.find((t: any) => t.type === 'Emoji')?.name;
@@ -1609,16 +1570,13 @@ async function processAddActivity(
     return;
   }
 
-  // Extract UUID from ap_id if possible
   let entityUuid: string | undefined;
   const match = object.id?.match(/\/channels\/([a-f0-9-]{36})$/i);
   if (match) {
     entityUuid = match[1];
   }
 
-  // Handle CATEGORY creation - goes into channel_categories table
   if (objectType === 'harmony:Category') {
-    // Check if category already exists (by name and server, since no ap_id column)
     const { data: existingCat } = await supabase
       .from('channel_categories')
       .select('id')
@@ -1651,7 +1609,6 @@ async function processAddActivity(
     return;
   }
 
-  // Handle CHANNEL creation (text/voice) - goes into channels table
   if (['harmony:TextChannel', 'harmony:VoiceChannel'].includes(objectType)) {
     const channelType = objectType === 'harmony:VoiceChannel' ? 1 : 0;
 
@@ -1660,7 +1617,6 @@ async function processAddActivity(
     if (object.category) {
       const catMatch = object.category.match(/\/channels\/([a-f0-9-]{36})$/i);
       if (catMatch) {
-        // Look up the category in channel_categories table by UUID
         const { data: cat } = await supabase
           .from('channel_categories')
           .select('id')
@@ -1672,7 +1628,6 @@ async function processAddActivity(
       }
     }
 
-    // Check if channel already exists
     const { data: existing } = await supabase
       .from('channels')
       .select('id')
@@ -1719,7 +1674,6 @@ async function processRemoveActivity(
 ): Promise<void> {
   const supabase = getSupabaseClient();
   
-  // Remove activity: actor removes object from target
   const objectUrl = typeof activity.object === 'string' ? activity.object : activity.object?.id;
   const removeActor = typeof activity.actor === 'string' ? activity.actor : activity.actor?.id;
 
@@ -1727,7 +1681,6 @@ async function processRemoveActivity(
     return;
   }
 
-  // Check if this is a channel/category removal
   if (objectUrl.includes('/channels/')) {
     // AUTHZ: structural change - require host authority or MANAGE_CHANNELS.
     if (!(await actorIsServerModerator(supabase, serverId, server, removeActor, PERM_MANAGE_CHANNELS))) {
@@ -1735,7 +1688,6 @@ async function processRemoveActivity(
       return;
     }
 
-    // Extract UUID from the URL
     const uuidMatch = objectUrl.match(/\/channels\/([a-f0-9-]{36})$/i);
     const entityUuid = uuidMatch ? uuidMatch[1] : null;
 
@@ -1791,7 +1743,6 @@ async function processRemoveActivity(
     return;
   }
 
-  // Remove from server
   await supabase
     .from('user_servers')
     .delete()

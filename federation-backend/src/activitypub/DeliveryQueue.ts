@@ -325,7 +325,6 @@ export class DeliveryQueue {
       return false;
     }
 
-    // Check if target instance is blocked
     if (BlockedInstancesCache.isBlocked(targetDomain)) {
       logger.info(`🚫 Skipping delivery to blocked instance: ${targetDomain}`);
       return false;
@@ -357,7 +356,6 @@ export class DeliveryQueue {
         senderId
       );
 
-      // Add content-type
       headers['Content-Type'] = 'application/activity+json';
 
       // Send request. safeFetch additionally re-validates URL+DNS per
@@ -372,14 +370,12 @@ export class DeliveryQueue {
 
       if (response.ok || response.status === 202) {
         const durationMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
-        // Update health tracking on success
         await this.updateEndpointHealth(targetInbox, targetDomain, true, response.status);
         this.recordDeliveryOutcome(targetDomain, true, durationMs, activityData);
         logger.info(`✅ Delivered to ${targetInbox} (${response.status})`);
         return true;
       } else {
         const durationMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
-        // Update health tracking on failure
         await this.updateEndpointHealth(
           targetInbox,
           targetDomain,
@@ -399,7 +395,6 @@ export class DeliveryQueue {
       }
     } catch (error) {
       const durationMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
-      // Update health tracking on network error
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       await this.updateEndpointHealth(targetInbox, targetDomain, false, undefined, errorMessage);
       this.recordDeliveryOutcome(targetDomain, false, durationMs, activityData, errorMessage);
@@ -427,7 +422,6 @@ export class DeliveryQueue {
       return false;
     }
 
-    // Check if target instance is blocked
     if (BlockedInstancesCache.isBlocked(targetDomain)) {
       logger.info(`🚫 Skipping delivery to blocked instance: ${targetDomain}`);
       await supabase
@@ -470,7 +464,6 @@ export class DeliveryQueue {
         
         if (profile) {
           senderId = profile.id;
-          // Update the queue item with resolved sender_id for future retries
           await supabase
             .from('federation_delivery_queue')
             .update({ sender_id: senderId })
@@ -504,7 +497,6 @@ export class DeliveryQueue {
         senderId
       );
 
-      // Add content-type
       headers['Content-Type'] = 'application/activity+json';
 
       // Send request. See note in `deliver()` - `validateExternalUrl(item.target_inbox_url)`

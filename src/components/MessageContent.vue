@@ -127,7 +127,6 @@ export default defineComponent({
         const value = editTextarea.value.value;
         const cursorPosition = editTextarea.value.selectionStart || 0;
         
-        // Handle auto-suggest
         autoSuggest.handleInput(value, cursorPosition);
       }
       
@@ -141,14 +140,12 @@ export default defineComponent({
         return; // Auto-suggest handled the event
       }
       
-      // Handle Enter key (save)
       if (event.key === 'Enter' && !event.shiftKey) {
         event.preventDefault();
         handleSaveEdit();
         return;
       }
       
-      // Handle Escape key (cancel)
       if (event.key === 'Escape') {
         event.preventDefault();
         handleCancelEdit();
@@ -171,7 +168,6 @@ export default defineComponent({
     };
 
     const handleSaveEdit = () => {
-      // Close auto-suggest when saving
       autoSuggest.closeSuggestions();
       
       if (!localEditableContent.value.trim()) {
@@ -187,7 +183,6 @@ export default defineComponent({
     };
 
     const handleCancelEdit = () => {
-      // Close auto-suggest when canceling
       autoSuggest.closeSuggestions();
       emit('cancel-edit');
     };

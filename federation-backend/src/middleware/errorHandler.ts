@@ -19,14 +19,12 @@ export const errorHandler = (
   res: Response,
   _next: NextFunction
 ) => {
-  // Log error
   logger.error(`Error: ${err.message}`, {
     stack: err.stack,
     url: req.url,
     method: req.method,
   });
 
-  // Handle Zod validation errors
   if (err instanceof ZodError) {
     return res.status(400).json({
       success: false,
@@ -38,7 +36,6 @@ export const errorHandler = (
     });
   }
 
-  // Handle custom AppError
   if (err instanceof AppError) {
     return res.status(err.statusCode).json({
       success: false,
@@ -46,7 +43,6 @@ export const errorHandler = (
     });
   }
 
-  // Handle Supabase errors
   if ('code' in err && 'message' in err) {
     return res.status(400).json({
       success: false,

@@ -375,7 +375,6 @@ onUnmounted(() => {
   document.removeEventListener('keydown', handleKeydown);
 });
 
-// Reload permissions + reposition every time the menu opens.
 watch(
   () => props.visible,
   async (visible) => {

@@ -44,7 +44,6 @@ export async function handleGroupUpdateJob(data: {
     return;
   }
 
-  // Get remote participants who need to be notified
   const { data: remoteParticipants } = await supabase
     .from('conversation_participants')
     .select(`

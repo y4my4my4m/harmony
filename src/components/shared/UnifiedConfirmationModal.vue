@@ -128,7 +128,6 @@ const handleConfirm = async () => {
   }
 }
 
-// Reset state when modal opens/closes
 watch(() => props.modelValue, (isOpen) => {
   if (isOpen) {
     confirmationInput.value = ''

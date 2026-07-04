@@ -84,7 +84,6 @@ class VoiceSettingsServiceClass {
       userStorage.setItem(STORAGE_KEY, JSON.stringify(this.settings));
       debug.log('💾 [VoiceSettings] Saved settings');
       
-      // Notify listeners
       this.listeners.forEach(listener => listener(this.settings));
     } catch (error) {
       debug.warn('⚠️ [VoiceSettings] Failed to save settings:', error);
@@ -207,7 +206,6 @@ class VoiceSettingsServiceClass {
       const videoValid = !this.settings.selectedVideoDevice || 
         videoDevices.some(d => d.deviceId === this.settings.selectedVideoDevice);
       
-      // Clear invalid device selections
       if (!inputValid) {
         debug.warn('⚠️ [VoiceSettings] Stored input device no longer exists, clearing');
         this.settings.selectedInputDevice = null;

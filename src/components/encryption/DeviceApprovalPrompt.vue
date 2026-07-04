@@ -78,7 +78,6 @@ const {
 } = useDeviceApprovals()
 const busy = ref(false)
 
-// Show one approver prompt at a time; the rest queue behind it.
 const currentApprover = computed<DeviceApprovalRequest | null>(
   () => pendingApprovals.value[0] || null,
 )

@@ -355,18 +355,14 @@ const SpatialAudioPanel = defineAsyncComponent(() => import('./SpatialAudioPanel
 const RecentSpeakers = defineAsyncComponent(() => import('./RecentSpeakers.vue'));
 const ScreensharePIP = defineAsyncComponent(() => import('./ScreensharePIP.vue'));
 
-// =============================================================================
 // STORE INSTANCES
-// =============================================================================
 // The original used `any` to avoid leaking private store types, which is preserved here.
 const voiceStore: any = useUnifiedVoiceChannelStore();
 const spatialStore = useSpatialAudioStore();
 const authStore = useAuthStore();
 const { getUser } = useUserData();
 
-// =============================================================================
 // STATE
-// =============================================================================
 const currentMode = ref<'dock' | 'minimized' | 'overlay'>('dock');
 const showSettings = ref(false);
 const showParticipantsDropdown = ref(false);
@@ -398,9 +394,7 @@ let dockShouldPreventClick = false;
 // Default dock position (centered at bottom)
 const DEFAULT_DOCK_POSITION = { left: 0, bottom: 80 }; // left: 0 means centered (handled by CSS transform)
 
-// =============================================================================
 // COMPUTED PROPERTIES
-// =============================================================================
 const channelName = computed(() => {
   // Use effective channel name which includes optimistic state
   return voiceStore.effectiveChannelName || 'Voice Channel';
@@ -451,7 +445,6 @@ const dockMode = computed(() => ({
   'overlay-mode': currentMode.value === 'overlay'
 }));
 
-// Check if dock is at default position
 const isAtDefaultPosition = computed(() => {
   const leftDiff = Math.abs(minimizedPosition.value.left - DEFAULT_POSITION.left);
   const bottomDiff = Math.abs(minimizedPosition.value.bottom - DEFAULT_POSITION.bottom);
@@ -506,7 +499,6 @@ const participantsDropdownStyle = computed((): Record<string, string> => {
 const dockParticipantsDropdownStyle = computed((): Record<string, string> => {
   if (currentMode.value !== 'dock') return {};
   
-  // Get dock container dimensions if available
   const dockHeight = dockContainerDimensions.value.height || 80; // Default height estimate
   const dockBottom = dockPosition.value.bottom;
   
@@ -567,9 +559,7 @@ const activeVideoUserName = computed(() => {
   return profile?.displayName || profile?.username || 'User';
 });
 
-// =============================================================================
 // METHODS
-// =============================================================================
 const expandToOverlay = () => {
   currentMode.value = 'overlay';
   voiceStore.isOverlayVisible = true;
@@ -612,7 +602,6 @@ const handleOverlayClosed = () => {
   currentMode.value = 'dock';
 };
 
-// Handle user section click - expand to overlay on mobile
 const handleUserSectionClick = () => {
   if (window.innerWidth <= 480) {
     expandToOverlay();
@@ -628,9 +617,7 @@ const activatePIPForActiveVideo = () => {
   }
 };
 
-// =============================================================================
 // DRAG FUNCTIONALITY FOR MINIMIZED DOCK
-// =============================================================================
 const STORAGE_KEY_MINIMIZED_POSITION = 'voice-dock-minimized-position';
 const STORAGE_KEY_DOCK_POSITION = 'voice-dock-position';
 
@@ -685,7 +672,6 @@ const saveMinimizedPosition = () => {
       Math.abs(minimizedPosition.value.bottom - DEFAULT_POSITION.bottom) < 1;
     
     if (isAtDefault) {
-      // Remove saved position to use default
       userStorage.removeItem(STORAGE_KEY_MINIMIZED_POSITION);
     } else {
       userStorage.setItem(STORAGE_KEY_MINIMIZED_POSITION, JSON.stringify(minimizedPosition.value));
@@ -704,7 +690,6 @@ const saveDockPosition = () => {
       Math.abs(dockPosition.value.bottom - DEFAULT_DOCK_POSITION.bottom) < 1;
     
     if (isAtDefault) {
-      // Remove saved position to use default (centered)
       userStorage.removeItem(STORAGE_KEY_DOCK_POSITION);
     } else {
       userStorage.setItem(STORAGE_KEY_DOCK_POSITION, JSON.stringify(dockPosition.value));
@@ -732,7 +717,6 @@ const startDrag = (e: MouseEvent | TouchEvent) => {
   const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
   const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
   
-  // Store initial mouse position to detect movement
   dragInitialMousePos.value = { x: clientX, y: clientY };
   
   dragStartPos.value = {
@@ -763,7 +747,6 @@ const handleDrag = (e: MouseEvent | TouchEvent) => {
   const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
   const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
   
-  // Check if mouse has moved significantly from initial position
   const deltaX = Math.abs(clientX - dragInitialMousePos.value.x);
   const deltaY = Math.abs(clientY - dragInitialMousePos.value.y);
   const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
@@ -781,7 +764,6 @@ const handleDrag = (e: MouseEvent | TouchEvent) => {
   rafId = requestAnimationFrame(() => {
     if (!isDragging.value) return;
     
-    // Calculate new position (no snapping during drag - allow free movement)
     const newLeft = clientX - dragStartPos.value.x;
     const newBottom = window.innerHeight - clientY - dragStartPos.value.y;
     
@@ -819,7 +801,6 @@ const stopDrag = () => {
   
   isDragging.value = false;
   
-  // Remove dragging class from body
   document.body.classList.remove('is-dragging-voice-dock');
   
   // Re-enable transitions after drag for smooth magnetic snap animation
@@ -898,9 +879,7 @@ const handleMinimizedClick = (e: MouseEvent) => {
   expandToDock();
 };
 
-// =============================================================================
 // DRAG FUNCTIONALITY FOR STANDARD DOCK
-// =============================================================================
 
 const startDockDrag = (e: MouseEvent | TouchEvent) => {
   // Don't start drag if clicking on interactive elements (buttons, etc.)
@@ -926,10 +905,8 @@ const startDockDrag = (e: MouseEvent | TouchEvent) => {
   const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
   const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
   
-  // Store initial mouse position
   dockDragInitialMousePos.value = { x: clientX, y: clientY };
   
-  // Calculate current position (account for centered positioning)
   const currentLeft = dockPosition.value.left === 0 
     ? window.innerWidth / 2 - (dockContainerDimensions.value.width / 2)
     : dockPosition.value.left;
@@ -963,7 +940,6 @@ const handleDockDrag = (e: MouseEvent | TouchEvent) => {
   const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
   const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
   
-  // Check if mouse has moved significantly
   const deltaX = Math.abs(clientX - dockDragInitialMousePos.value.x);
   const deltaY = Math.abs(clientY - dockDragInitialMousePos.value.y);
   const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
@@ -981,7 +957,6 @@ const handleDockDrag = (e: MouseEvent | TouchEvent) => {
   dockRafId = requestAnimationFrame(() => {
     if (!isDockDragging.value) return;
     
-    // Calculate new position (no snapping during drag)
     const newLeft = clientX - dockDragStartPos.value.x;
     const newBottom = window.innerHeight - clientY - dockDragStartPos.value.y;
     
@@ -1026,7 +1001,6 @@ const stopDockDrag = () => {
   
   // Magnetic snap check on release (desktop only)
   if (isDesktop.value) {
-    // Calculate distance to default (centered) position
     const currentLeft = dockPosition.value.left === 0 
       ? window.innerWidth / 2 - (dockContainerDimensions.value.width / 2)
       : dockPosition.value.left;
@@ -1088,9 +1062,7 @@ const handleDockClick = (e: MouseEvent) => {
   }
 };
 
-// =============================================================================
 // WATCHERS
-// =============================================================================
 
 // Track last attached user to prevent flashing from repeated attachments
 let lastAttachedUserId: string | null = null;
@@ -1118,7 +1090,6 @@ watch(
       lastAttachedUserId = userId;
       lastAttachedElement = videoEl as any;
     } else if (videoEl) {
-      // Clean up when no active video user
       voiceStore.detachVideoFromElement(lastAttachedUserId || '', videoEl as unknown as HTMLVideoElement);
       (videoEl as HTMLVideoElement).srcObject = null;
       lastAttachedUserId = null;
@@ -1128,7 +1099,6 @@ watch(
   { immediate: true }
 );
 
-// Attach video to dock preview (compact mode)
 watch(
   [activeVideoUser, dockVideoRef],
   ([user, videoEl]) => {
@@ -1172,7 +1142,6 @@ watch(
 );
 
 // Sync store's isOverlayVisible with local currentMode
-// This ensures when the store auto-opens overlay (e.g., when video is detected), the dock responds
 watch(
   () => voiceStore.isOverlayVisible,
   (shouldShowOverlay) => {
@@ -1184,9 +1153,7 @@ watch(
   { immediate: true }
 );
 
-// =============================================================================
 // LIFECYCLE & EVENT LISTENERS
-// =============================================================================
 // Close participants dropdown when clicking outside
 let handleClickOutside: ((e: MouseEvent) => void) | null = null;
 
@@ -1199,11 +1166,9 @@ onMounted(() => {
     currentMode.value = 'overlay';
   }
   
-  // Load saved positions
   loadMinimizedPosition();
   loadDockPosition();
   
-  // Close participants dropdown when clicking outside
   handleClickOutside = (e: MouseEvent) => {
     const target = e.target as HTMLElement;
     if (showParticipantsDropdown.value && 
@@ -1225,7 +1190,6 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-  // Clean up drag listeners
   stopDrag();
   stopDockDrag();
   
@@ -1239,7 +1203,6 @@ onUnmounted(() => {
     dockRafId = null;
   }
   
-  // Remove click outside listener
   if (handleClickOutside) {
     document.removeEventListener('click', handleClickOutside);
     handleClickOutside = null;

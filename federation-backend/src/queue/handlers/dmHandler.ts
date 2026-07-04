@@ -16,7 +16,6 @@ export async function handleDMJob(data: FederationJobData): Promise<void> {
   logger.info(`💬 Processing DM job: ${type} for message ${message_id}`);
 
   try {
-    // Get message
     const { data: message } = await supabase
       .from('messages')
       .select('*')
@@ -44,7 +43,6 @@ export async function handleDMJob(data: FederationJobData): Promise<void> {
       logger.warn(`Link preview enrichment failed for ${message_id}:`, err);
     }
 
-    // Check if already federated
     if (message.metadata?.federated) {
       logger.debug(`Message ${message_id} already federated, skipping`);
       await updateFederationStatus(message_id, 'messages', 'skipped');

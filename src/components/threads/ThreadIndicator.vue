@@ -56,7 +56,6 @@ const { getUserAvatarUrl } = useUserData()
 
 const displayParticipants = computed(() => {
   if (!props.thread?.participants) return []
-  // Show max 3 participants
   return props.thread.participants.slice(0, 3)
 })
 

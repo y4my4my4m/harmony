@@ -41,23 +41,19 @@ const props = withDefaults(defineProps<Props>(), {
 const voiceStore = useUnifiedVoiceChannelStore();
 const { getUser } = useUserData();
 
-// Get recent speakers sorted by most recent
 const displayedSpeakers = computed(() => {
   return voiceStore.getRecentSpeakers.slice(0, props.maxSpeakers);
 });
 
-// Check if a user is currently speaking
 const isSpeaking = (userId: string) => {
   return voiceStore.activelySpeakingUserIds.includes(userId);
 };
 
-// Get speaker's avatar URL
 const getSpeakerAvatar = (userId: string) => {
   const profile = getUser(userId)?.value;
   return profile?.avatarUrl || '/default_avatar.webp';
 };
 
-// Get speaker's display name
 const getSpeakerName = (userId: string) => {
   const profile = getUser(userId)?.value;
   return profile?.displayName || profile?.username || 'User';

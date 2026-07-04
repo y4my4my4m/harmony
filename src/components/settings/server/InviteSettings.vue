@@ -275,7 +275,6 @@ const loadServerRoles = async (): Promise<ServerRole[]> => {
 }
 
 const handleSettingsChange = () => {
-  // Clear any existing save messages when settings change
   saveMessage.value = null
 }
 

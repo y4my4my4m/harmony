@@ -37,7 +37,6 @@ interface InstanceSettings {
   /** imgproxy JPEG/WebP quality (1-100) for custom emoji storage transforms */
   customEmojiTransformQuality: number
 
-  // Display names
   allowCustomEmojisInDisplayNames: boolean
 
   // GIF / Klipy (picker UI)

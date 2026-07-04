@@ -715,7 +715,7 @@ export default defineComponent({
     const klipyWatermarkHref = (url: string) =>
       parseKlipyItemPageUrl(url) || defaultKlipyHomeUrl();
     const klipyWatermarkLogoUrl = KLIPY_WATERMARK_LOGO_URL;
-    // Stickers render small and inline, with no lightbox/zoom — "like stickers".
+    // Stickers render small and inline, with no lightbox/zoom - "like stickers".
     const isStickerMedia = (url: string) => isStickerMessageUrl(url);
     // Klipy AI emoji render as plain emoji: no watermark, no favorite, no lightbox.
     const isAiEmojiMedia = (url: string) => isAiEmojiMessageUrl(url);
@@ -772,7 +772,6 @@ export default defineComponent({
       Object.assign(imageLoadedState, newValue);
     }, { deep: true });
     
-    // Handle image load events
     const handleImageLoad = (url: string) => {
       imageLoadedState[url] = true;
       emit('image-loaded', url);
@@ -790,12 +789,10 @@ export default defineComponent({
       img.parentNode?.insertBefore(fallback, img);
     };
     
-    // Handle embed load events
     const handleEmbedLoad = () => {
       emit('embed-loaded');
     };
     
-    // Handle native video play/pause
     const handleVideoPlay = (event: Event) => {
       const video = event.target as HTMLVideoElement;
       const videoIndex = parseInt(video.dataset.videoIndex || '0', 10);
@@ -804,7 +801,6 @@ export default defineComponent({
       if (container) {
         container.dataset.isPlaying = 'true';
         
-        // Check if a different video is floating
         const thisVideoId = `${props.messageId}-video-${videoIndex}`;
         const floatingVideoId = getFloatingVideoMessageId();
         
@@ -862,7 +858,6 @@ export default defineComponent({
         } else {
           favoriteGifUrls.value.delete(mediaUrl);
         }
-        // Trigger reactivity
         favoriteGifUrls.value = new Set(favoriteGifUrls.value);
       }
     };
@@ -872,15 +867,12 @@ export default defineComponent({
       favoriteGifUrls.value = new Set(favorites.map(f => f.gif_url));
     };
     
-    // Register videos for floating on mount and load GIF favorites
     const floatingObserverCleanups: Array<() => void> = [];
 
     onMounted(() => {
-      // Load GIF favorites
       loadGifFavorites();
 
       nextTick(() => {
-        // Register all video containers
         videoContainers.value.forEach((container, index) => {
           if (container && props.messageId) {
             const originalParent = container.parentElement as HTMLElement;
@@ -1013,7 +1005,6 @@ export default defineComponent({
       return null;
     };
 
-    // Format mention display based on structured mention data
     const formatMentionDisplay = (mentionPart: any): string => {
       try {
         // Use the structured data from the new MentionContent format
@@ -1042,7 +1033,6 @@ export default defineComponent({
       // We need to display as @username for local users or @username@domain for remote users
       
       try {
-        // Parse the stored mention @uuid@domain
         const mentionMatch = storedMention.match(/^@([^@]+)@(.+)$/);
         if (!mentionMatch) {
           // Fallback: if not in expected format, return as-is
@@ -1051,7 +1041,6 @@ export default defineComponent({
         
         const [, , domain] = mentionMatch;
         
-        // Get user profile from userDataService
         const userProfile = userDataService.getUserProfile(userId);
         
         if (userProfile) {
@@ -1111,7 +1100,6 @@ export default defineComponent({
             segments.push({ type: 'text', content: beforeText });
           }
           
-          // Add the code block
           segments.push({ 
             type: 'codeblock', 
             code: codeBlock.code, 
@@ -1249,9 +1237,7 @@ export default defineComponent({
 
     const handleHashtagClick = (hashtag: string, event: MouseEvent) => {
       event.stopPropagation();
-      // Emit an event or handle the hashtag click as needed
       debug.log('Hashtag clicked:', hashtag);
-      // For example, you might want to emit an event to notify the parent component
       emit('hashtag-click', hashtag);
     };
 
@@ -1273,7 +1259,6 @@ export default defineComponent({
       return part?.isBridged || part?.domain === 'discord.com';
     };
     
-    // Get tooltip text for a mention
     const getMentionTooltip = (part: any): string => {
       if (part?.domain === 'discord.com') {
         return `Discord user: ${part.username}`;
@@ -1331,7 +1316,6 @@ export default defineComponent({
       debug.log('🔓 Click to decrypt message:', props.messageId);
       decrypting.value = true;
 
-      // Emit event to parent to handle decryption
       emit('decrypt-message', props.messageId);
 
       // Fallback reset (in case the finished event never fires)

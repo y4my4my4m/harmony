@@ -63,7 +63,6 @@ export function isHarmonyPostUrl(url: URL): boolean {
 }
 
 export function isHarmonyInviteUrl(url: URL): boolean {
-  // Check if it's a harmony domain with /invite/CODE pattern
   const hostname = url.hostname.toLowerCase();
   const isHarmonyDomain = harmonyDomains.has(hostname) || 
                           hostname === 'localhost';
@@ -135,7 +134,6 @@ function parseYouTubeTime(url: URL): number | null {
   // Pure number = seconds
   if (/^\d+$/.test(t)) return parseInt(t, 10);
 
-  // Format like 1h2m30s, 2m30s, 45s
   let total = 0;
   const hours = t.match(/(\d+)h/);
   const minutes = t.match(/(\d+)m/);

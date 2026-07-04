@@ -7,9 +7,7 @@ import { supabase } from '@/supabase';
 import type { TimelinePost, FederatedUser } from '@/types';
 import { debug } from '@/utils/debug'
 
-// ============================================================================
 // INTERFACES
-// ============================================================================
 
 export interface TrendingHashtag {
   tag: string;
@@ -86,15 +84,11 @@ export interface ExploreFilters {
   orderBy?: 'recent' | 'engagement';
 }
 
-// ============================================================================
 // TRENDING SERVICE CLASS
-// ============================================================================
 
 class TrendingService {
   
-  // ==========================================================================
   // HASHTAG TRENDING METHODS
-  // ==========================================================================
 
   /**
    * Get trending hashtags
@@ -187,9 +181,7 @@ class TrendingService {
     }
   }
 
-  // ==========================================================================
   // TRENDING POSTS METHODS
-  // ==========================================================================
 
   /**
    * Get trending posts
@@ -357,9 +349,7 @@ class TrendingService {
     }
   }
 
-  // ==========================================================================
   // TRENDING USERS METHODS
-  // ==========================================================================
 
   /**
    * Get trending users (suggested follows)
@@ -469,9 +459,7 @@ class TrendingService {
     }
   }
 
-  // ==========================================================================
   // INSTANCE DISCOVERY METHODS
-  // ==========================================================================
 
   /**
    * Get federated instances for exploration
@@ -629,7 +617,6 @@ class TrendingService {
 
       if (error || !data) return null;
 
-      // Get additional stats
       const [postsCount, usersCount] = await Promise.all([
         this.getInstancePostCount(domain),
         this.getInstanceUserCount(domain)
@@ -648,9 +635,7 @@ class TrendingService {
     }
   }
 
-  // ==========================================================================
   // EXPLORE CONTENT METHODS
-  // ==========================================================================
 
   /**
    * Get explore content based on filters
@@ -729,7 +714,6 @@ class TrendingService {
         query = query.eq('media_attachments', '[]');
       }
 
-      // Apply instance filter
       if (instance && instance !== 'all') {
         query = query.eq('author.domain', instance);
       }
@@ -758,9 +742,7 @@ class TrendingService {
     }
   }
 
-  // ==========================================================================
   // MAINTENANCE METHODS
-  // ==========================================================================
 
   /**
    * Update trending scores (should be called periodically)
@@ -787,9 +769,7 @@ class TrendingService {
     }
   }
 
-  // ==========================================================================
   // PRIVATE HELPER METHODS
-  // ==========================================================================
 
   private calculateTrend(changePercent: number): 'up' | 'down' | 'stable' {
     if (changePercent > 5) return 'up';

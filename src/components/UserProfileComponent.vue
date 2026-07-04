@@ -179,10 +179,8 @@ const currentCustomStatus = computed(() => getCustomStatus.value)
 const customStatusDisplayText = computed(() => formatCustomStatusDisplay(currentCustomStatus.value))
 const showStatusPicker = ref(false)
 
-// Add a local reactive status for immediate UI updates
 const localStatus = ref<UserStatus>(UserStatus.Offline)
 
-// Initialize local status from unified system
 const initializeLocalStatus = async () => {
   try {
     localStatus.value = getCurrentUserStatus.value
@@ -200,7 +198,6 @@ const currentUser = computed(() => {
   }
   return user
 })
-// Get current status reactively - use local status for immediate updates
 const currentStatus = computed(() => {
   try {
     // Use local status for immediate UI responsiveness
@@ -292,11 +289,9 @@ const selectStatus = async (status: UserStatus) => {
   debug.log('🔄 Current local status before change:', UserStatus[localStatus.value])
   
   try {
-    // Update local status immediately for instant UI feedback
     localStatus.value = status
     debug.log('✅ Local status updated immediately to:', UserStatus[status])
     
-    // Update via unified user data system in background
     await updateCurrentUserStatus(status)
     debug.log('✅ Backend status updated successfully to:', UserStatus[status])
     
@@ -359,7 +354,6 @@ const onClickOutside = (event: any) => {
 }
 
 const goToSettings = () => {
-  // Close mobile profile/sidebars when opening settings for better UX
   if (isMobile.value) {
     closeMobileSidebars()
   }
@@ -380,7 +374,6 @@ const handleAvatarClick = () => {
 }
 
 onMounted(async () => {
-  // Initialize local status for immediate UI updates
   await initializeLocalStatus()
   
   // Component uses ONLY useUserData for real-time profile updates

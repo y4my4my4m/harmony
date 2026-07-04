@@ -74,7 +74,6 @@ export async function resolveMentionsUserData(content: string): Promise<Record<s
   if (uniqueUsernames.size === 0) return userDataMap;
   
   try {
-    // Build a single query to get all mentioned users at once
     const usernameList = Array.from(uniqueUsernames);
     const localUsernames = usernameList.filter(u => !u.includes('@'));
     const remoteUsernames = usernameList.filter(u => u.includes('@'));
@@ -208,7 +207,6 @@ export async function resolveEmojisData(content: string): Promise<Record<string,
     }
   }
   
-  // Extract shortcode emojis (current format)
   emojiShortcodeRegex.lastIndex = 0;
   while ((match = emojiShortcodeRegex.exec(content)) !== null) {
     const token = match[1];
@@ -244,7 +242,7 @@ export async function resolveEmojisData(content: string): Promise<Record<string,
       }
     }
   } catch {
-    // Store not ready yet, fall through to DB
+    // cache probe is best-effort; fall through to the DB query
   }
 
   // Phase 2: Query database for any emojis not found in cache
@@ -344,7 +342,6 @@ export async function resolveHashtagsData(content: string): Promise<Record<strin
   let match;
   const uniqueHashtags = new Set<string>();
   
-  // Extract all unique hashtags from content
   while ((match = hashtagRegex.exec(content)) !== null) {
     const hashtag = match[1].toLowerCase(); // normalize to lowercase
     uniqueHashtags.add(hashtag);
@@ -365,7 +362,6 @@ export async function resolveHashtagsData(content: string): Promise<Record<strin
     return hashtagDataMap;
   }
   
-  // Map results by normalized name for quick lookup
   data?.forEach(hashtag => {
     hashtagDataMap[hashtag.normalized_tag] = {
       id: hashtag.id,
@@ -378,7 +374,7 @@ export async function resolveHashtagsData(content: string): Promise<Record<strin
   return hashtagDataMap;
 }
 
-/** Fenced code blocks must stay intact — URL/mention parsing inside them breaks view-mode markdown. */
+/** Fenced code blocks must stay intact - URL/mention parsing inside them breaks view-mode markdown. */
 const FENCED_CODE_BLOCK_REGEX = /```[\s\S]*?```/g;
 
 /**
@@ -532,7 +528,6 @@ async function parseContentSegment(
       } else if (hashtagMode === 'none') {
         parts.push({ type: 'text', text: match[0] });
       } else {
-        // Look up hashtag data from provided map
         const hashtagData = hashtagDataMap[normalizedName];
 
         if (hashtagData) {
@@ -559,7 +554,6 @@ async function parseContentSegment(
     lastIndex = match.index + match[0].length;
   }
   
-  // Add remaining text (if any)
   if (lastIndex < content.length) {
     const remainingText = content.substring(lastIndex);
     parts.push(...await parseTextForUrls(remainingText, emojiDataMap));
@@ -654,7 +648,6 @@ export async function parseContentToMessageParts(
     }
   }
 
-  // Clean up trailing whitespace from message parts
   return trimTrailingWhitespace(parts);
 }
 
@@ -711,7 +704,6 @@ async function parseTextForUrls(text: string, emojiDataMap: Record<string, any> 
   let lastIndex = 0;
   let match;
   
-  // Check if URL tracking stripping is enabled (respects user privacy setting)
   const shouldStripTrackers = isUrlTrackingStrippingEnabled();
   
   while ((match = URL_MATCH_REGEX.exec(text)) !== null) {
@@ -735,7 +727,6 @@ async function parseTextForUrls(text: string, emojiDataMap: Record<string, any> 
     lastIndex = segmentEnd;
   }
   
-  // Add remaining text
   if (lastIndex < text.length) {
     const remainingText = text.substring(lastIndex);
     parts.push(...await parseTextForEmojis(remainingText, emojiDataMap));
@@ -775,7 +766,6 @@ async function parseTextForEmojis(text: string, emojiDataMap: Record<string, any
       }
     }
     
-    // Add emoji
     const emojiIdentifier = emojiMatch[1];
     
     // Try to get emoji from data map (by ID or name)
@@ -795,7 +785,6 @@ async function parseTextForEmojis(text: string, emojiDataMap: Record<string, any
     
     if (emojiData) {
       // SIMPLIFIED: If emoji is from unified pack (has unicode), just output as text!
-      // This makes emojis portable and pack-agnostic in storage
       if (emojiData._inlineAsText && emojiData.unicode) {
         debug.log('✅ Inlining unified emoji as text:', emojiData.unicode);
         parts.push({ type: 'text', text: emojiData.unicode });
@@ -811,7 +800,6 @@ async function parseTextForEmojis(text: string, emojiDataMap: Record<string, any
     lastIndex = emojiIndex + emojiMatch[0].length;
   }
 
-  // Add remaining text
   if (lastIndex < text.length) {
     const remainingText = text.substring(lastIndex);
     if (remainingText) {
@@ -838,7 +826,6 @@ export function convertMessagePartsToActivityPubHTML(parts: MessagePart[]): stri
         return part.text || '';
         
       case 'mention': {
-        // Build proper ActivityPub mention with h-card structure
         const currentDomain = import.meta.env.VITE_DOMAIN as string;
         const username = (part.username || '').replace(/^@+/, ''); // prevent @@
         const domain = part.domain || currentDomain;
@@ -956,7 +943,6 @@ export function extractMentionsFromMessageParts(parts: MessagePart[]): Array<{
 export function convertActivityPubHTMLToMessageParts(html: string): MessagePart[] {
   if (!html) return [{ type: 'text', text: '' }];
   
-  // Create a DOM parser to extract structured content
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, 'text/html');
   const parts: MessagePart[] = [];
@@ -985,7 +971,6 @@ export function convertActivityPubHTMLToMessageParts(html: string): MessagePart[
         const href = element.getAttribute('href') || '';
         const text = element.textContent || '';
         
-        // Parse @username@domain format
         const mentionMatch = text.match(/^@([a-zA-Z0-9_-]+)(?:@([a-zA-Z0-9.-]+))?$/);
         if (mentionMatch) {
           const username = mentionMatch[1];
@@ -1016,7 +1001,6 @@ export function convertActivityPubHTMLToMessageParts(html: string): MessagePart[
         }
       }
       
-      // Check if this is a hashtag
       if (element.tagName === 'A' && element.classList.contains('hashtag')) {
         const text = element.textContent || '';
         // Unicode-aware hashtag regex for CJK and other scripts
@@ -1040,13 +1024,11 @@ export function convertActivityPubHTMLToMessageParts(html: string): MessagePart[
         }
       }
       
-      // Handle line breaks
       if (element.tagName === 'BR') {
         parts.push({ type: 'text', text: '\n' });
         return;
       }
       
-      // Handle paragraphs
       if (element.tagName === 'P') {
         node.childNodes.forEach(walkNode);
         // Add newline after paragraph if not the last element
@@ -1056,7 +1038,6 @@ export function convertActivityPubHTMLToMessageParts(html: string): MessagePart[
         return;
       }
       
-      // Process children recursively for other elements
       node.childNodes.forEach(walkNode);
     }
   };

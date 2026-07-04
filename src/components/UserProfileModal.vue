@@ -520,7 +520,6 @@ const availableServers = computed(() => {
   return serverChannelStore.servers || []
 })
 
-// Get the current instance domain
 const currentDomain = import.meta.env.VITE_DOMAIN as string
 
 /**
@@ -916,7 +915,6 @@ const bannerUrl = computed(() => {
 const bannerStyle = computed(() => {
   const banner = bannerUrl.value
   if (banner) {
-    // Get optimized banner URL with proper resize (640x350 at 80% quality)
     const optimizedBanner = getBannerUrl(banner, { width: 640, height: 350, quality: 80 })
     return {
       backgroundImage: `url(${optimizedBanner || banner})`,
@@ -1011,7 +1009,6 @@ const copyUserId = async () => {
       ? bridgedProfile.value.discord_id
       : props.user.id
     await navigator.clipboard.writeText(value)
-    // Show toast notification
     showActionsMenu.value = false
   } catch (error) {
     debug.error('Failed to copy user ID:', error)
@@ -1111,7 +1108,6 @@ const mentionUser = () => {
   const username = props.user.username || getUser(props.user.id).value?.username
   if (!username) return
 
-  // Build the mention handle (with domain suffix for remote users)
   let mentionHandle: string
   if (isFederatedUser(props.user)) {
     const handle = props.user.handle || `@${username}${props.user.domain ? '@' + props.user.domain : ''}`
@@ -1487,7 +1483,6 @@ watch(() => ({ show: props.show, userId: props.user?.id }), async (newVal, oldVa
       }
     }
     
-    // Load instance info for federation section (only for federated users)
     if (props.user && isFederatedUser(props.user)) {
       const domain = (props.user as FederatedUser).domain || currentDomain
       loadInstanceInfo(domain)
@@ -1495,7 +1490,6 @@ watch(() => ({ show: props.show, userId: props.user?.id }), async (newVal, oldVa
   }
 }, { immediate: true })
 
-// Cleanup on unmount
 onUnmounted(() => {
   cleanupProfilePresence()
 })

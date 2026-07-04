@@ -144,7 +144,6 @@ class StatusLifecycleDebugger {
 // Export singleton
 export const statusDebugger = new StatusLifecycleDebugger()
 
-// Make it globally available for console testing
 if (typeof window !== 'undefined') {
   ;(window as any).statusDebugger = statusDebugger
   ;(window as any).testStatus = async (status: string) => {

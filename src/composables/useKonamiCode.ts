@@ -39,27 +39,23 @@ export function useKonamiCode(onActivate: () => void) {
 
     const keyCode = event.code
 
-    // Clear reset timer
     if (resetTimer) {
       clearTimeout(resetTimer)
       resetTimer = null
     }
 
-    // Check if this key matches the next in sequence
     const expectedKey = KONAMI_SEQUENCE[sequence.value.length]
     
     if (keyCode === expectedKey) {
       sequence.value.push(keyCode)
       debug.log(`🎮 [Konami] Progress: ${sequence.value.length}/${KONAMI_SEQUENCE.length}`)
       
-      // Check if sequence is complete
       if (sequence.value.length === KONAMI_SEQUENCE.length) {
         debug.log('🎮 [Konami] Code activated!')
         isActive.value = true
         onActivate()
         sequence.value = []
       } else {
-        // Set reset timer
         resetTimer = setTimeout(() => {
           debug.log('🎮 [Konami] Sequence reset (timeout)')
           sequence.value = []

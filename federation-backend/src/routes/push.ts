@@ -9,7 +9,6 @@ import { PushNotificationService } from '../services/PushNotificationService.js'
 import { getSupabaseClient } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
 
-// Get admin client instance
 const supabaseAdmin = getSupabaseClient();
 
 const router = Router();

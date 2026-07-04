@@ -60,7 +60,7 @@ const delay = computed(() => {
   font-family: 'IBM Plex Mono', 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
   letter-spacing: 0.12em;
   user-select: none;
-  /* Whole-string glitch blip — one transform on the container, cheap. */
+  /* Whole-string glitch blip - one transform on the container, cheap. */
   animation: egpGlitch 7s steps(1, end) infinite;
   animation-delay: var(--egp-delay, 0s);
 }

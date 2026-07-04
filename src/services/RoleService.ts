@@ -1,9 +1,7 @@
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
 
-// =============================================
 // Permission Definitions (Discord-style)
-// =============================================
 
 export enum Permission {
   // General Permissions
@@ -102,9 +100,7 @@ export const PERMISSION_CATEGORIES = {
   },
 } as const
 
-// =============================================
 // Permission Bit Mapping (for bigint storage)
-// =============================================
 
 // Each permission maps to a specific bit position in the bigint
 export const PERMISSION_BITS: Record<Permission, number> = {
@@ -211,9 +207,7 @@ export const PERMISSION_DESCRIPTIONS: Record<Permission, string> = {
   [Permission.MOVE_MEMBERS]: 'Allows members to move other members between voice channels.',
 }
 
-// =============================================
 // Role Types
-// =============================================
 
 export interface ServerRole {
   id: string
@@ -282,9 +276,7 @@ export interface UpdateRoleParams {
   unicode_emoji?: string
 }
 
-// =============================================
 // Role Service Class
-// =============================================
 
 class RoleService {
   private roleCache = new Map<string, ServerRole[]>() // serverId -> roles
@@ -296,9 +288,7 @@ class RoleService {
   private pendingPermissionsRequests = new Map<string, Promise<Record<Permission, boolean>>>()
   private pendingServerRolesRequests = new Map<string, Promise<ServerRole[]>>()
 
-  // =============================================
   // Role CRUD Operations
-  // =============================================
 
   /**
    * Get all roles for a server
@@ -341,7 +331,6 @@ class RoleService {
         throw error
       }
 
-      // Fetch member counts separately
       const roleIds = (data || []).map((r: any) => r.id)
       const memberCounts: Record<string, number> = {}
       if (roleIds.length > 0) {
@@ -391,7 +380,6 @@ class RoleService {
 
       if (error) throw error
       
-      // Convert bigint permissions to object format
       return {
         ...data,
         permissions: bitmaskToPermissions(data.permissions)
@@ -407,11 +395,9 @@ class RoleService {
    */
   async createRole(serverId: string, params: Partial<CreateRoleParams>): Promise<ServerRole | null> {
     try {
-      // Get highest position for new role
       const roles = await this.getServerRoles(serverId)
       const maxPosition = Math.max(...roles.map(r => r.position), 0)
 
-      // Convert permissions object to bigint for database
       const permissionsBitmask = params.permissions 
         ? Number(permissionsToBitmask(params.permissions))
         : 0
@@ -437,7 +423,6 @@ class RoleService {
       // Invalidate cache
       this.roleCache.delete(serverId)
 
-      // Convert permissions back to object for frontend
       return {
         ...data,
         permissions: bitmaskToPermissions(data.permissions)
@@ -453,7 +438,6 @@ class RoleService {
    */
   async updateRole(roleId: string, params: UpdateRoleParams): Promise<ServerRole | null> {
     try {
-      // Convert permissions object to bigint if present
       const dbParams: Record<string, any> = { ...params }
       if (params.permissions && typeof params.permissions === 'object' && !Array.isArray(params.permissions)) {
         dbParams.permissions = Number(permissionsToBitmask(params.permissions as Record<Permission, boolean>))
@@ -468,7 +452,6 @@ class RoleService {
 
       if (error) throw error
 
-      // Convert bigint permissions back to object for frontend
       const role: ServerRole = {
         ...data,
         permissions: bitmaskToPermissions(data.permissions)
@@ -544,9 +527,7 @@ class RoleService {
     }
   }
 
-  // =============================================
   // User Role Assignments
-  // =============================================
 
   /**
    * Get roles assigned to a user in a server
@@ -756,9 +737,7 @@ class RoleService {
     }
   }
 
-  // =============================================
   // Permission Calculations
-  // =============================================
 
   /**
    * Get effective permissions for a user in a server/channel
@@ -853,9 +832,7 @@ class RoleService {
     return requiredPermissions.every(p => permissions[p] === true)
   }
 
-  // =============================================
   // Channel Permission Overrides
-  // =============================================
 
   /**
    * Get permission overrides for a channel
@@ -997,9 +974,7 @@ class RoleService {
     }
   }
 
-  // =============================================
   // Helper Methods
-  // =============================================
 
   /**
    * Get the highest role for a user (for display purposes)
@@ -1026,7 +1001,6 @@ class RoleService {
     targetId: string,
     serverId: string
   ): Promise<boolean> {
-    // Get both users' highest roles
     const [managerRoles, targetRoles] = await Promise.all([
       this.getUserRoles(managerId, serverId),
       this.getUserRoles(targetId, serverId),
@@ -1052,13 +1026,11 @@ class RoleService {
    */
   clearServerCache(serverId: string): void {
     this.roleCache.delete(serverId)
-    // Clear user role caches for this server
     for (const key of this.userRolesCache.keys()) {
       if (key.endsWith(`-${serverId}`)) {
         this.userRolesCache.delete(key)
       }
     }
-    // Clear permission caches for this server
     for (const key of this.permissionCache.keys()) {
       if (key.includes(serverId)) {
         this.permissionCache.delete(key)

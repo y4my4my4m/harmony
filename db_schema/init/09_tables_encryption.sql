@@ -307,6 +307,9 @@ COMMENT ON COLUMN public.server_encryption_settings.voice_encryption_mode IS 'di
 
 -- ---------------------------------------------------------------------------
 -- ENCRYPTION SESSIONS - Signal Protocol session state
+-- DEPRECATED (July 2026): the Signal client stack was removed; the app uses
+-- Megolm-style encryption. Kept for existing rows; DROP planned in a future
+-- migration once no live instance depends on it.
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.encryption_sessions (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
@@ -323,7 +326,7 @@ CREATE TABLE IF NOT EXISTS public.encryption_sessions (
 
     UNIQUE(local_user_id, local_device_id, remote_user_id, remote_device_id)
 );
-COMMENT ON TABLE public.encryption_sessions IS 'Signal Protocol session state for message encryption between users.';
+COMMENT ON TABLE public.encryption_sessions IS 'DEPRECATED: Signal Protocol session state. Unused since the Signal client stack was removed (July 2026); scheduled for removal.';
 
 CREATE INDEX IF NOT EXISTS idx_encryption_sessions_local ON public.encryption_sessions(local_user_id, local_device_id);
 CREATE INDEX IF NOT EXISTS idx_encryption_sessions_remote ON public.encryption_sessions(remote_user_id, remote_device_id);

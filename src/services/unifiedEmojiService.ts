@@ -204,9 +204,7 @@ function setEmojiPack(pack: EmojiPack): void {
   debug.log(`📦 Switched to emoji pack: ${pack}`)
 }
 
-// ==============================================
 // CONVERSION UTILITIES
-// ==============================================
 
 /**
  * Convert shortcode to unicode emoji
@@ -387,9 +385,7 @@ function unicodeToSvgUrl(unicode: string): string | null {
   return null
 }
 
-// ==============================================
 // EMOJI RESOLUTION (for display)
-// ==============================================
 
 export interface ResolvedEmoji {
   unicode: string          // The actual unicode character (always stored)
@@ -407,7 +403,6 @@ export interface ResolvedEmoji {
  */
 function resolveEmoji(input: string): ResolvedEmoji {
 
-  // Check if input is a shortcode (no emoji characters)
   const isShortcode = /^[a-z0-9_+-]+$/i.test(input)
   
   if (isShortcode) {
@@ -481,7 +476,6 @@ function resolveEmoji(input: string): ResolvedEmoji {
  * This ensures reactions are stored as standard unicode
  */
 function normalizeToUnicode(input: string): string {
-  // Check if it's a shortcode
   const isShortcode = /^[a-z0-9_+-]+$/i.test(input)
   if (isShortcode) {
     return shortcodeToUnicode(input) || input
@@ -491,9 +485,7 @@ function normalizeToUnicode(input: string): string {
   return input
 }
 
-// ==============================================
 // SEARCH
-// ==============================================
 
 /**
  * Search emojis by query
@@ -544,16 +536,13 @@ function getAllEmojis(): EmojiEntry[] {
   return emojiData.value?.emojis || []
 }
 
-// ==============================================
 // COMPOSABLE
-// ==============================================
 
 /**
  * Unified emoji composable
  * LAZY: Only loads emoji data when actually needed (emoji picker, search, etc.)
  */
 export function useUnifiedEmoji() {
-  // Initialize pack preference (lightweight, can load immediately)
   loadPackPreference()
   
   // LAZY: Don't auto-load emoji data - only load when needed
@@ -597,7 +586,6 @@ export function useUnifiedEmoji() {
     getCategories,
     getAllEmojis,
     
-    // Reload
     reload: loadEmojiData
   }
 }

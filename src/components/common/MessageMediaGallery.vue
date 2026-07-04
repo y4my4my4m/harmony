@@ -192,7 +192,7 @@ function thumbnailFor(item: GalleryMediaItem): string {
   cursor: pointer;
 }
 
-/* Mosaic: fixed grid geometry — intrinsic image size never affects layout */
+/* Mosaic: fixed grid geometry - intrinsic image size never affects layout */
 .message-media-gallery-count-2,
 .message-media-gallery-count-3,
 .message-media-gallery-count-4,

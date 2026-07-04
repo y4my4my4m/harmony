@@ -264,7 +264,6 @@ const handleServerDragEnd = () => {
 };
 
 const handleServerDragEnterItem = (event: DragEvent, server: Server) => {
-  // Check if it's an internal drag or external drag
   const isInternalDrag = draggingServerIdInFolder.value && draggingServerIdInFolder.value !== server.id;
   const hasExternalData = event.dataTransfer?.types.includes('text/plain') ?? false;
   const isExternal = !draggingServerIdInFolder.value && hasExternalData;
@@ -281,7 +280,6 @@ const handleServerDragEnterItem = (event: DragEvent, server: Server) => {
 
 const handleServerDragOverItem = (event: DragEvent, server: Server) => {
   event.preventDefault();
-  // Check if it's an internal drag or external drag
   const isInternalDrag = draggingServerIdInFolder.value && draggingServerIdInFolder.value !== server.id;
   const hasExternalData = event.dataTransfer?.types.includes('text/plain') ?? false;
   const isExternal = !draggingServerIdInFolder.value && hasExternalData;
@@ -307,7 +305,6 @@ const handleServerDropOnItem = (event: DragEvent, targetServer: Server) => {
   event.preventDefault();
   event.stopPropagation();
   
-  // Check if server is being dragged from outside the folder
   const externalServerId = event.dataTransfer?.getData('text/plain');
   const isFromOutside = externalServerId && !draggingServerIdInFolder.value;
   
@@ -337,7 +334,6 @@ const handleServerDropOnItem = (event: DragEvent, targetServer: Server) => {
   const newServers = [...props.servers];
   const [draggedServer] = newServers.splice(draggedIndex, 1);
   
-  // Calculate new index based on drop position
   let newIndex = targetIndex;
   if (dropPosition.value === 'after') {
     newIndex = draggedIndex < targetIndex ? targetIndex : targetIndex + 1;
@@ -420,7 +416,6 @@ const removeFromFolder = async () => {
     await serverChannelStore.moveServerToFolder(selectedServerForMenu.value.id, null);
     emit('server-removed', selectedServerForMenu.value.id);
     
-    // Check if folder is now empty - if so, delete it
     const remainingServers = props.servers.filter(s => s.id !== selectedServerForMenu.value!.id);
     if (remainingServers.length === 0) {
       await serverChannelStore.deleteFolder(props.folder.id);

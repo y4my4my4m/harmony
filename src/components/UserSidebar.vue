@@ -742,7 +742,6 @@ const users = computed(() => {
   }));
 });
 
-// Filter bridged Discord users (ephemeral, from bot-gateway cache)
 const filteredBridgedDiscordUsers = computed(() => {
   if (!channelHasBridge.value || bridgedDiscordUsers.value.length === 0) {
     return [];
@@ -841,7 +840,6 @@ function showBridgedDiscordUserProfile(bridgedUser: BridgedChannelUser) {
   showProfileModal.value = true;
 }
 
-// Filter users based on search query
 const filteredUsers = computed(() => {
   if (!searchQuery.value.trim()) {
     return users.value;
@@ -875,12 +873,10 @@ const groupedUsers = computed(() => {
     offline: []
   };
 
-  // Create groups for each hoisted role
   for (const role of hoistedRolesSorted.value) {
     groups[`role:${role.id}`] = [];
   }
 
-  // Track which users have been placed in a role group
   const usersInRoleGroups = new Set<string>();
 
   filteredUsers.value.forEach((user: User) => {
@@ -888,7 +884,6 @@ const groupedUsers = computed(() => {
     const isLocal = isUserLocal(user.id).value;
     
     if (isPresent) {
-      // Check if user has a hoisted role
       const highestHoistedRole = getHighestHoistedRole(user.id);
       
       if (highestHoistedRole) {
@@ -926,7 +921,6 @@ const groupedUsers = computed(() => {
     }
   });
 
-  // Sort users within each group
   Object.values(groups).forEach(group => {
     group.sort((a, b) => {
       const nameA = getUserDisplayName(a.id).value.toLowerCase();
@@ -961,12 +955,10 @@ const toggleGroup = (groupName: string) => {
   collapsedGroups.value[groupName] = !collapsedGroups.value[groupName];
 };
 
-// Load server roles and user role assignments for hoist feature
 const loadServerRolesAndAssignments = async (serverId: string) => {
   if (!serverId || rolesLoadedForServer.value === serverId) return;
   
   try {
-    // Fetch all roles for the server
     const roles = await roleService.getServerRoles(serverId);
     serverRoles.value = roles;
     
@@ -997,12 +989,10 @@ const loadServerRolesAndAssignments = async (serverId: string) => {
   } catch (error) {
     debug.error('Failed to load server roles:', error);
   } finally {
-    // Mark loaded even on failure so we never re-loop the role fetch.
     rolesLoadedForServer.value = serverId;
   }
 };
 
-// Get highest hoisted role for a user
 const getHighestHoistedRole = (userId: string): ServerRole | null => {
   const userRoles = userRolesMap.value.get(userId);
   if (!userRoles || userRoles.length === 0) return null;
@@ -1199,14 +1189,12 @@ watch(() => serverChannelStore.currentServerId, async (newServerId, oldServerId)
   
   if (oldServerId) {
     await unsubscribeFromContext(oldServerId);
-    // Reset role data when leaving server
     rolesLoadedForServer.value = null;
     serverRoles.value = [];
     userRolesMap.value = new Map();
   }
   if (newServerId) {
     await fetchAndSetUsers(newServerId);
-    // Load roles for hoist feature (non-blocking)
     loadServerRolesAndAssignments(newServerId);
   }
 }, { immediate: true });

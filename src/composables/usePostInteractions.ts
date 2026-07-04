@@ -19,9 +19,7 @@ export function usePostInteractions() {
   const isBookmarkLoading = ref(false)
   const isPinLoading = ref(false)
 
-  // =============================================
   // USER INTERACTIONS
-  // =============================================
 
   /**
    * Toggle follow status for a user
@@ -105,9 +103,7 @@ export function usePostInteractions() {
     }
   }
 
-  // =============================================
   // POST INTERACTIONS
-  // =============================================
 
   /**
    * Toggle favorite (like) status for a post
@@ -126,7 +122,6 @@ export function usePostInteractions() {
       const result = await services.posts.toggleLike(postId)
       debug.log(`✅ Favorite toggled for post ${postId}:`, result.liked ? 'Liked' : 'Unliked')
 
-      // Update store feeds so all views reflect the new state
       activityPubStore.updatePostInteractionInAllFeeds(postId, 'favorite', result.liked)
 
       return { 
@@ -242,9 +237,7 @@ export function usePostInteractions() {
     }
   }
 
-  // =============================================
   // UTILITY FUNCTIONS
-  // =============================================
 
   /**
    * Check if currently following a user

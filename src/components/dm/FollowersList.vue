@@ -115,7 +115,6 @@ const limit = 20
 
 // Methods
 const loadFollowingUsers = async (offset = 0, showLoading = true) => {
-  // Get current user profile ID cleanly
   const currentUser = getCurrentUser.value
   const userId = currentUser?.id
   if (!userId) return
@@ -158,7 +157,6 @@ const startConversation = async (user: Profile) => {
   if (!currentUserId) return
 
   try {
-    // Check if conversation already exists
     const existingConversation = dmStore.conversations.find(conv => 
       conv.other_user?.id === user.id
     )
@@ -170,7 +168,6 @@ const startConversation = async (user: Profile) => {
       return
     }
 
-    // Create new conversation
     const conversationId = await dmStore.createOrGetConversation(currentUserId, user.id)
     if (conversationId) {
       router.push(`/dm/${conversationId}`)
@@ -193,7 +190,6 @@ const getUserOnlineStatus = (userId: string): boolean => {
   return isUserOnline(userId).value
 }
 
-// Initialize
 onMounted(() => {
   loadFollowingUsers()
 })

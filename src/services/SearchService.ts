@@ -68,7 +68,6 @@ export class SearchService {
     try {
       const { signal } = options
 
-      // Validate query - allow empty string if filters are present
       if (filters.query === undefined || filters.query === null || typeof filters.query !== 'string') {
         // Only require query if no filters are present
         const hasFilters = filters.channelId || filters.userId || filters.conversationId || 
@@ -87,11 +86,9 @@ export class SearchService {
           : [filters.channelId]
       }
 
-      // Prepare parameters
       const limit = Math.min(filters.limit || this.DEFAULT_LIMIT, this.MAX_LIMIT)
       const offset = filters.offset || 0
 
-      // Convert dates to ISO strings for PostgreSQL
       const fromDate = filters.fromDate?.toISOString() || null
       const toDate = filters.toDate?.toISOString() || null
 
@@ -138,11 +135,9 @@ export class SearchService {
       const hasMore = searchResults.length > limit
       const results = searchResults.slice(0, limit)
 
-      // Load full message data for each result
       const messageIds = results.map(r => r.message_id)
       const messages = await this.loadMessagesByIds(messageIds)
 
-      // Sort messages by relevance (maintain order from search results)
       const messageMap = new Map(messages.map(m => [m.id, m]))
       const sortedMessages = results
         .map(r => messageMap.get(r.message_id))
@@ -209,7 +204,6 @@ export class SearchService {
           return decryptedMessages
         } catch (decryptError) {
           debug.warn('⚠️ Failed to decrypt search results:', decryptError)
-          // Return messages as-is if decryption fails
           return messages
         }
       }
@@ -236,7 +230,6 @@ export class SearchService {
     try {
       debug.log('🔄 Starting message reindexing...')
 
-      // Get total count
       const { count, error: countError } = await supabase
         .from('messages')
         .select('*', { count: 'exact', head: true })
@@ -257,7 +250,6 @@ export class SearchService {
           throw new Error('Reindexing was aborted')
         }
 
-        // Fetch batch of messages
         const { data: messages, error } = await supabase
           .from('messages')
           .select('id, content, channel_id, conversation_id, user_id, created_at, is_deleted')
@@ -280,7 +272,6 @@ export class SearchService {
             throw new Error('Reindexing was aborted')
           }
 
-          // Update message to trigger indexing (using a no-op update)
           await supabase
             .from('messages')
             .update({ updated_at: new Date().toISOString() })

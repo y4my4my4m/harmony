@@ -16,7 +16,6 @@ export async function handleMessageReactionJob(data: FederationJobData): Promise
   logger.info(`💬❤️ Processing message reaction job: ${type} for reaction ${reaction_id}`);
 
   try {
-    // Get reaction
     const { data: reaction } = await supabase
       .from('reactions')
       .select('*')
@@ -29,7 +28,6 @@ export async function handleMessageReactionJob(data: FederationJobData): Promise
       return;
     }
 
-    // Get message
     const { data: message } = await supabase
       .from('messages')
       .select('*, conversation_id')
@@ -48,7 +46,6 @@ export async function handleMessageReactionJob(data: FederationJobData): Promise
       // Use existing handler
       await handleNewMessageReaction(reaction);
     } else if (type === 'delete') {
-      // Create old data structure for the handler
       await handleMessageReactionRemoval({
         id: reaction_id,
         message_id,

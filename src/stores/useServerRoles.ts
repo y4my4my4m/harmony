@@ -8,7 +8,6 @@ export const useServerRolesStore = defineStore('serverRoles', () => {
   const rolesByServer = ref(new Map<string, ServerRole[]>())
   const userRolesByServer = ref(new Map<string, Map<string, ServerRole[]>>())
   const inflight = new Map<string, Promise<void>>()
-  // Map mutations don't trigger Pinia reactivity; bump _tick instead.
   const _tick = ref(0)
 
   async function ensureServerLoaded(serverId: string, options?: { force?: boolean }): Promise<void> {

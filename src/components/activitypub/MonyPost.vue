@@ -569,8 +569,8 @@
         <div class="tooltip-user-meta">
           <span class="tooltip-username">
             <DisplayName
-              v-if="(user as any).displayNameParts"
-              :parts="(user as any).displayNameParts"
+              v-if="user.displayNameParts"
+              :parts="user.displayNameParts"
               :fallback="user.displayName"
             />
             <DisplayName v-else :userId="user.id" :fallback="user.displayName" />
@@ -619,7 +619,7 @@ import { getEmojiUrl } from '@/utils/emojiUtils';
 import { getReactionTooltipAnchor } from '@/utils/reactionTooltipPosition';
 import { getOriginalPost } from '@/utils/postReblog';
 import { supabase } from '@/supabase';
-import type { TimelinePost } from '@/types';
+import type { TimelinePost, DisplayNamePart } from '@/types';
 
 // Components
 import MonyContent from './MonyContent.vue';
@@ -640,6 +640,7 @@ import EmojiPopup from '@/components/EmojiPopup.vue';
 import VueEasyLightbox from 'vue-easy-lightbox';
 import { useToast } from 'vue-toastification';
 import router from '@/router';
+import { useConfirmDialog } from '@/composables/useConfirmDialog'
 
 // Props
 interface Props {
@@ -657,6 +658,8 @@ const props = withDefaults(defineProps<Props>(), {
   embedded: false,
   showPinnedHeader: false,
 });
+
+const { confirm } = useConfirmDialog()
 
 // Emits
 const emit = defineEmits<{
@@ -708,11 +711,12 @@ const currentLightboxImage = ref<string>('');
 // Tooltip state for reaction tooltips
 const tooltip = ref({
   visible: false,
-  content: [] as { 
-    id: string; 
-    displayName: string; 
+  content: [] as {
+    id: string;
+    displayName: string;
+    displayNameParts?: DisplayNamePart[];
     displayNameEmojis?: Array<{name: string, url: string}>;
-    avatarUrl: string; 
+    avatarUrl: string;
     userColor?: string;
     isRemote?: boolean;
     domain?: string;
@@ -720,7 +724,7 @@ const tooltip = ref({
   }[],
   x: 0,
   y: 0,
-  emoji: null as any,
+  emoji: null as { name?: string; url?: string; unicode?: string } | null,
 });
 const tooltipTimer = ref<NodeJS.Timeout | null>(null);
 
@@ -740,10 +744,8 @@ const author = computed(() => {
 });
 
 // Fallback author for edge cases where author is temporarily unavailable
-// This prevents posts from disappearing during re-renders due to RLS policy timing issues
 const authorFallback = computed(() => {
   if (author.value) return null;
-  // Return a minimal author object to keep the post visible
   return {
     id: props.post.author_id,
     username: 'Loading...',
@@ -792,22 +794,26 @@ const {
           remote_reactions: result.remote_reactions,
           remote_reactions_fetched_at: new Date().toISOString(),
         });
+        // Post objects are store-shared refs; mutating keeps every rendered copy in sync.
         if (!props.post.metadata) {
-          (props.post as any).metadata = {};
+          // eslint-disable-next-line vue/no-mutating-props
+          props.post.metadata = {};
         }
-        (props.post.metadata as any).remote_reactions = result.remote_reactions;
-        (props.post.metadata as any).remote_reactions_fetched_at = new Date().toISOString();
+        // eslint-disable-next-line vue/no-mutating-props
+        props.post.metadata.remote_reactions = result.remote_reactions;
+        // eslint-disable-next-line vue/no-mutating-props
+        props.post.metadata.remote_reactions_fetched_at = new Date().toISOString();
       }
       // For reblogs, update the reblog sub-object (displayInteractionCounts reads from there)
       const target = (isReblog.value && props.post.reblog) ? props.post.reblog : props.post;
       if (result.favorites_count !== undefined) {
-        (target as any).favorites_count = result.favorites_count;
+        target.favorites_count = result.favorites_count;
       }
       if (result.replies_count !== undefined) {
-        (target as any).replies_count = result.replies_count;
+        target.replies_count = result.replies_count;
       }
       if (result.reblogs_count !== undefined) {
-        (target as any).reblogs_count = result.reblogs_count;
+        target.reblogs_count = result.reblogs_count;
       }
     },
     onRefresh: (postId: string) => emit('refresh', postId),
@@ -850,7 +856,6 @@ const isQuotePost = computed(() => {
     return false;
   }
   
-  // Check if user actually added their own content
   const hasUserContent = content.some(part => 
     part.type === 'text' && part.text && part.text.trim().length > 0
   );
@@ -878,7 +883,6 @@ const isQuotePost = computed(() => {
   return true;
 });
 
-// Get reblog/quote reference URL for unhydrated posts
 const reblogReferenceUrl = computed(() => {
   return props.post.metadata?.reblog_of_ap_url || 
          props.post.metadata?.quote_url || 
@@ -897,7 +901,7 @@ const displayAuthor = computed(() => {
 });
 
 const authorSupporterBadge = computed(() => {
-  const membership = (displayAuthor.value as any)?.supporter_membership;
+  const membership = displayAuthor.value?.supporter_membership;
   if (membership === undefined) return undefined;
   return badgeFromMembership(membership);
 });
@@ -936,7 +940,7 @@ const userQuoteContent = computed(() => {
 
 const displayContent = computed(() => {
   // For pure reblogs, show the original content
-  // For quote posts, we'll show the original content in a quoted block
+  // Quote posts render the original content in a quoted block
   return (isReblog.value && props.post.reblog) ? props.post.reblog.content : props.post.content;
 });
 
@@ -1073,7 +1077,6 @@ const displayIsSensitive = computed(() => {
   return props.post.is_sensitive;
 });
 
-// Track dynamically loaded reply context
 const loadedReplyContext = ref<any>(null);
 const isLoadingReplyContext = ref(false);
 
@@ -1093,12 +1096,10 @@ const displayReplyContext = computed(() => {
   return null;
 });
 
-// Show reply context card only in timeline view (not in thread view)
 const showReplyContextCard = computed(() => {
   return displayReplyContext.value && !props.hideReplyContext && !props.isInThread;
 });
 
-// Load reply context if we have in_reply_to but no reply_context
 const loadReplyContext = async () => {
   // For reblogs, use the reblogged post's in_reply_to
   const inReplyTo = isReblog.value 
@@ -1126,7 +1127,6 @@ const loadReplyContext = async () => {
       .single();
     
     if (!error && parentPost && parentPost.author) {
-      // Handle author being either an object or array (Supabase join result)
       const author = Array.isArray(parentPost.author) ? parentPost.author[0] : parentPost.author;
       if (author) {
         loadedReplyContext.value = {
@@ -1154,7 +1154,7 @@ const loadReplyContext = async () => {
   }
 };
 
-// For reblogs, we need to fetch the user's interaction state with the ORIGINAL post
+// Reblogs: interaction state belongs to the ORIGINAL post
 const originalPostInteractions = ref<{
   is_favorited: boolean;
   is_reblogged: boolean;
@@ -1165,7 +1165,6 @@ const loadOriginalPostInteractions = async () => {
   if (!isReblog.value || !props.post.reblog?.id) return;
   
   // Check if interactions were pre-loaded by the store
-  // This prevents N+1 queries when the parent already batch-fetched interactions
   const reblog = props.post.reblog;
   if (reblog.is_favorited !== undefined || reblog.is_reblogged !== undefined || reblog.is_bookmarked !== undefined) {
     originalPostInteractions.value = {
@@ -1204,7 +1203,6 @@ const loadOriginalPostInteractions = async () => {
   }
 };
 
-// Load reply context on mount if needed
 onMounted(() => {
   // Check for reply context in post or reblog
   const inReplyTo = isReblog.value 
@@ -1243,7 +1241,7 @@ const originalPostId = computed(() => {
 // every reply call site agrees.
 const replyTarget = computed<TimelinePost>(() => getOriginalPost(props.post));
 
-// For reblogs, we need to show reactions for the ORIGINAL post
+// Reblogs: reactions belong to the ORIGINAL post
 // Create a post-like object with the correct ID for PostReactions component
 const displayPostForReactions = computed((): TimelinePost => {
   if (isReblog.value && props.post.reblog?.id) {
@@ -1289,7 +1287,6 @@ const displayInteractionCounts = computed(() => {
 });
 
 const replyContentText = computed(() => {
-  // Return the full JSONB content from reply_context
   if (displayReplyContext.value && displayReplyContext.value.content) {
     return displayReplyContext.value.content;
   }
@@ -1363,7 +1360,6 @@ const visibilityTitle = computed(() => {
 
 // Check if post can be reblogged (Mastodon behavior: only public/unlisted posts can be reblogged)
 const canReblog = computed(() => {
-  // Get the original post's visibility (for reblogs, check the original)
   const originalVisibility = props.post.reblog?.visibility || props.post.visibility;
   return originalVisibility === 'public' || originalVisibility === 'unlisted';
 });
@@ -1405,7 +1401,6 @@ const formatCount = (count: number) => {
 };
 
 const onReply = () => {
-  // Toggle inline reply - handled entirely within MonyPost
   showInlineReply.value = !showInlineReply.value;
   // Don't emit to parent - we handle replies inline now
 };
@@ -1485,7 +1480,6 @@ const handleEmojiSelected = async (emoji: any) => {
       } else {
         debug.log(`✅ Added emoji reaction ${emoji.name} to post ${props.post.id}`);
         closeEmojiPopup();
-        // Refresh the reactions display
         if (postReactionsRef.value) {
           await (postReactionsRef.value as any).loadReactions?.();
         }
@@ -1507,7 +1501,6 @@ const handleEmojiSelected = async (emoji: any) => {
  */
 const formatEmojiName = (name: string | undefined): string => {
   if (!name) return '';
-  // Remove colons from start/end if present
   let formatted = name.replace(/^:+|:+$/g, '');
   // Remove @. or @domain suffix for cleaner display
   formatted = formatted.replace(/@\.?$/, '').replace(/@[^@]+$/, '');
@@ -1537,11 +1530,9 @@ const renderDisplayNameWithEmojis = (displayName: string, emojis?: Array<{name: 
   if (!displayName) return '';
   if (!emojis || emojis.length === 0) return escapeHtml(displayName);
   
-  // Create emoji map for quick lookup - handle various name formats
   const emojiMap = new Map<string, string>();
   for (const e of emojis) {
     if (!e.name || !e.url) continue;
-    // Store with original name
     emojiMap.set(e.name, e.url);
     // Also store without colons if present
     const cleanName = e.name.replace(/^:|:$/g, '');
@@ -1679,7 +1670,6 @@ const onUndoReblog = async () => {
   closeMenu();
   
   try {
-    // Get the original post ID from the reblog
     const originalPostId = props.post.reblog?.id || props.post.metadata?.reblog_of;
     
     if (originalPostId) {
@@ -1714,10 +1704,8 @@ const handleDeleteConfirm = async () => {
     isDeleting.value = true;
     showDeleteConfirmation.value = false;
     
-    // Call the delete action through the store
     await activityPubStore.deletePost(props.post.id);
     
-    // Show success toast
     notificationStore.showToast(
       'server_update',
       'Post deleted',
@@ -1730,7 +1718,6 @@ const handleDeleteConfirm = async () => {
   } catch (error) {
     debug.error('❌ Failed to delete post:', error);
     
-    // Show error toast
     notificationStore.showToast(
       'server_update',
       'Delete failed',
@@ -1752,13 +1739,11 @@ const handleDeleteCancel = () => {
 const showReplyTarget = async () => {
   if (displayReplyContext.value) {
     try {
-      // Get conversation navigation data from service
       const navigationData = await ConversationService.getConversationNavigationData(props.post.id, {
         highlightPost: props.post.id
       });
       
       if (navigationData.success && navigationData.route) {
-        // Handle navigation in the component
         await router.push(navigationData.route);
       } else {
         debug.error('❌ Failed to get conversation navigation data:', navigationData.error);
@@ -1901,12 +1886,11 @@ const handleSimpleReblog = async () => {
 
 const handleQuoteReblog = () => {
   showReblogMenu.value = false;
-  // Open composer with the ORIGINAL post as a quote (not a reblog)
   const originalPost = props.post.reblog || props.post;
   const originalAuthor = props.post.reblog_author || props.post.author;
   activityPubStore.openComposer({
-    quotePost: originalPost as any,
-    quoteAuthor: originalAuthor as any,
+    quotePost: originalPost,
+    quoteAuthor: originalAuthor,
   });
 };
 
@@ -1973,7 +1957,8 @@ const handleAdminToggleSensitive = async () => {
     await adminService.moderatePost(postId, action);
     activityPubStore.updatePostFieldInAllFeeds(postId, 'is_sensitive', newVal);
     if (isReblog.value && props.post.reblog) {
-      (props.post.reblog as any).is_sensitive = newVal;
+      // eslint-disable-next-line vue/no-mutating-props -- store-shared ref, see above
+      props.post.reblog.is_sensitive = newVal;
     }
     notificationStore.showToast('server_update', 'Post updated', newVal ? 'Post marked as sensitive.' : 'Post unmarked as sensitive.', 3000);
   } catch (error: any) {
@@ -1992,14 +1977,16 @@ const handleAdminSetCW = async () => {
       await adminService.moderatePost(postId, 'set_cw', cw.trim());
       activityPubStore.updatePostFieldInAllFeeds(postId, 'content_warning', cw.trim());
       if (isReblog.value && props.post.reblog) {
-        (props.post.reblog as any).content_warning = cw.trim();
+        // eslint-disable-next-line vue/no-mutating-props -- store-shared ref, see above
+        props.post.reblog.content_warning = cw.trim();
       }
       notificationStore.showToast('server_update', 'Content warning set', '', 3000);
     } else {
       await adminService.moderatePost(postId, 'remove_cw');
       activityPubStore.updatePostFieldInAllFeeds(postId, 'content_warning', null);
       if (isReblog.value && props.post.reblog) {
-        (props.post.reblog as any).content_warning = null;
+        // eslint-disable-next-line vue/no-mutating-props -- store-shared ref, see above
+        props.post.reblog.content_warning = null;
       }
       notificationStore.showToast('server_update', 'Content warning removed', '', 3000);
     }
@@ -2011,7 +1998,7 @@ const handleAdminSetCW = async () => {
 const handleAdminDeletePost = async () => {
   showMenu.value = false;
   const postId = originalPostId.value;
-  if (!confirm('Delete this post as admin? This cannot be undone.')) return;
+  if (!(await confirm({ title: 'Delete post (admin)', message: 'Delete this post as admin? This cannot be undone.', confirmButtonText: 'Delete', dangerAction: true }))) return;
   try {
     await adminService.moderatePost(postId, 'delete');
     activityPubStore.updatePostFieldInAllFeeds(postId, 'is_deleted', true);
@@ -2021,9 +2008,7 @@ const handleAdminDeletePost = async () => {
   }
 };
 
-// Handle emoji picker for original post (for reblogs, target the original)
 const handleShowEmojiPickerForOriginal = () => {
-  // Create a post-like object with the original post ID for the emoji picker
   const targetPost: any = isReblog.value && props.post.reblog
     ? { ...props.post.reblog, id: originalPostId.value }
     : props.post;
@@ -2310,7 +2295,7 @@ const closeLightbox = () => {
 }
 
 .reply-parent-post:hover {
-  border-color: #4b5563;
+  border-color: var(--border-secondary, #4b5563);
 }
 
 .reply-parent-header {
@@ -2408,7 +2393,7 @@ const closeLightbox = () => {
 }
 
 .content-warning {
-  background-color: #374151;
+  background-color: var(--background-tertiary, #374151);
   border-radius: 0.5rem;
   padding: 1rem;
   margin-bottom: 1rem;
@@ -2424,7 +2409,7 @@ const closeLightbox = () => {
 }
 
 .cw-toggle {
-  background-color: #4b5563;
+  background-color: var(--background-hover, #4b5563);
   color: var(--text-primary);
   border: none;
   padding: 0.5rem 1rem;
@@ -2763,7 +2748,7 @@ const closeLightbox = () => {
 }
 
 .quoted-post {
-  border: 1px solid #374151;
+  border: 1px solid var(--border-primary, #374151);
   border-radius: 0.75rem;
   padding: 1rem;
   background-color: rgba(0, 0, 0, 0.2);

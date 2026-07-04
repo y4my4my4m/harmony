@@ -9,9 +9,7 @@ import {
   messageTextLength,
 } from '@/utils/messageContentUtils'
 
-// =============================================
 // Thread Types
-// =============================================
 
 export interface CreateThreadParams {
   message_id: string
@@ -47,9 +45,7 @@ export interface ThreadMessagesResult {
   oldest_id?: string
 }
 
-// =============================================
 // Thread Service Class
-// =============================================
 
 interface ThreadMessageCache {
   messages: Message[]
@@ -97,9 +93,7 @@ class ThreadService {
     }
   }
 
-  // =============================================
   // Thread CRUD Operations
-  // =============================================
 
   /**
    * Create a new thread from a message
@@ -117,7 +111,6 @@ class ThreadService {
         return null
       }
 
-      // Fetch the created thread
       const thread = await this.getThread(data)
       return thread
     } catch (error) {
@@ -144,7 +137,6 @@ class ThreadService {
 
       if (error) throw error
 
-      // Fetch related data separately
       let channelData = null
       let creatorData = null
       let parentMessage = null
@@ -176,7 +168,6 @@ class ThreadService {
         parentMessage = msg
       }
 
-      // Check if current user is a member
       let isMember = false
       try {
         const profileId = await authContextService.getCurrentProfileId()
@@ -242,7 +233,6 @@ class ThreadService {
 
       if (error) throw error
 
-      // Return basic thread data - creator info will be fetched by components
       return (data || []).map((t: any) => ({
         ...t,
         channel_name: undefined, // Will be fetched if needed
@@ -289,7 +279,6 @@ class ThreadService {
       const channelIds = channels.map(c => c.id)
       const channelMap = new Map(channels.map(c => [c.id, c.name]))
 
-      // Get threads from these channels
       let query = supabase
         .from('threads')
         .select('*')
@@ -305,7 +294,6 @@ class ThreadService {
 
       if (error) throw error
 
-      // Map channel names
       return (data || []).map((t: any) => ({
         ...t,
         channel_name: channelMap.get(t.channel_id),
@@ -357,12 +345,10 @@ class ThreadService {
           is_member: true,
         }))
 
-      // Filter by server if specified
       if (serverId) {
         threads = threads.filter(t => t.server_id === serverId)
       }
 
-      // Sort by last message
       threads.sort((a, b) => {
         const aTime = a.last_message_at ? new Date(a.last_message_at as any).getTime() : 0
         const bTime = b.last_message_at ? new Date(b.last_message_at as any).getTime() : 0
@@ -468,9 +454,7 @@ class ThreadService {
     return result !== null
   }
 
-  // =============================================
   // Thread Membership
-  // =============================================
 
   /**
    * Join a thread
@@ -603,9 +587,7 @@ class ThreadService {
     }
   }
 
-  // =============================================
   // Thread Messages
-  // =============================================
 
   /**
    * Check if thread messages are cached and valid
@@ -669,7 +651,6 @@ class ThreadService {
         debug.log(`✅ Added message to thread cache: ${message.id}`)
       }
     } else {
-      // Create new cache entry
       this.evictOldestCache()
       this.messageCache.set(threadId, {
         messages: [message],
@@ -783,7 +764,6 @@ class ThreadService {
       const hasMore = messages.length > limit
       const resultMessages = messages.slice(0, limit).reverse() as Message[]
       
-      // Process URL embeds (same as chat/DM messages)
       try {
         ensureMessageEmbeds(resultMessages)
       } catch (error) {
@@ -796,7 +776,6 @@ class ThreadService {
         oldest_id: messages.length > 0 ? messages[messages.length - 1].id : undefined,
       }
 
-      // Update cache for initial load
       if (!before && !after) {
         this.evictOldestCache()
         this.messageCache.set(threadId, {
@@ -960,7 +939,6 @@ class ThreadService {
 
       if (hasService && hasRecoveryKey && isUnlocked) {
         try {
-          // Get server members for session sharing (same as channel send)
           let recipientIds: string[] = []
           if (serverId) {
             const { data: members } = await supabase
@@ -1049,7 +1027,6 @@ class ThreadService {
 
     const message = data as Message
 
-    // Process URL embeds (same as chat/DM messages)
     try {
       ensureMessageEmbeds(message)
     } catch (embedError) {
@@ -1059,9 +1036,7 @@ class ThreadService {
     return message
   }
 
-  // =============================================
   // Utility Methods
-  // =============================================
 
   /**
    * Get thread for a message (if exists)
@@ -1112,7 +1087,6 @@ class ThreadService {
     try {
       const profileId = await authContextService.getCurrentProfileId()
 
-      // Get last read position
       const { data: membership } = await supabase
         .from('thread_members')
         .select('last_read_at')

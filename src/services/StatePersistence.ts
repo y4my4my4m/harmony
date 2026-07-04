@@ -100,7 +100,6 @@ class StatePersistenceService {
         this.state = { ...DEFAULT_STATE }
       }
 
-      // Initialize app runtime state
       this.appState = {
         hasInitialized: this.state.appInitialized,
         hasServers: false, // Will be updated when servers are loaded
@@ -196,7 +195,6 @@ class StatePersistenceService {
       await this.forceSave()
     }
     
-    // Clear any pending timeouts
     if (this.saveTimeout) {
       clearTimeout(this.saveTimeout)
       this.saveTimeout = null
@@ -488,7 +486,6 @@ class StatePersistenceService {
     const issues: string[] = []
     
     try {
-      // Check if localStorage is available
       localStorage.setItem('test', 'test')
       localStorage.removeItem('test')
     } catch (error) {
@@ -516,8 +513,6 @@ class StatePersistenceService {
 
 }
 
-// Create singleton instance
 export const statePersistence = new StatePersistenceService()
 
-// Initialize immediately for early access
 statePersistence.initialize().catch(debug.error)

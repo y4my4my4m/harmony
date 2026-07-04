@@ -18,7 +18,6 @@ function cleanStoragePath(path: string): string {
 
 export function getAvatarUrl(avatarUrl: string | null | undefined, size: number = 256): string {
   const renderSize = canonicalSquareSize(size)
-  // Return default avatar if no URL provided or if it's not a string
   if (!avatarUrl || typeof avatarUrl !== 'string') {
     return '/default_avatar.webp'
   }
@@ -109,6 +108,6 @@ export function normalizeAvatarForStorage(avatarUrl: string | null | undefined):
     }
   }
   
-  // If it's an external URL, return as-is (we'll store the full URL)
+  // External URL: stored as-is, full URL
   return avatarUrl
 }

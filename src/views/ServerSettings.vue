@@ -451,7 +451,6 @@ const handleSettingsKeydown = (event: KeyboardEvent) => {
 
 // Lifecycle
 onMounted(async () => {
-  // Setup resize listener with SSR safety
   if (typeof window !== 'undefined') {
     window.addEventListener('resize', handleResize)
     handleResize() // Set initial width

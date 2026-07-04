@@ -32,7 +32,6 @@ const props = defineProps<Props>();
 
 const { getUserDisplayName, getUserAvatarUrl } = useUserData();
 
-// Call duration timer
 const callDuration = ref<string>('');
 let intervalId: number | null = null;
 

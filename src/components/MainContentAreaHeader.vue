@@ -43,7 +43,6 @@ const allFeedTabs = [
   { id: CurrentView.INSTANCES, label: t('activitypub.instances'), icon: 'server', requiresFederation: true }
 ];
 
-// Filter tabs based on federation status
 const mainFeedTabs = computed(() => 
   allFeedTabs.filter(tab => 
     !tab.requiresFederation || instanceSettings.isFederationEnabled

@@ -48,7 +48,6 @@ export class WebSocketGateway {
   
   // Bridged users cache: Harmony channel ID -> bridged users
   private bridgedUsersByChannel = new Map<string, BridgedUser[]>()
-  // Track which bot registered which channels (for cleanup on disconnect)
   private channelsByBot = new Map<string, Set<string>>()
   
   constructor(private wss: WebSocketServer) {
@@ -102,10 +101,8 @@ export class WebSocketGateway {
         console.log(`🔌 Bot disconnected: ${botConnection.username}`)
         this.connections.delete(ws)
         
-        // Clean up bridged users registered by this bot
         this.cleanupBotBridgeData(botConnection.botId)
         
-        // Update presence
         supabase
           .from('bot_presence')
           .update({
@@ -133,7 +130,6 @@ export class WebSocketGateway {
     // Hash token for lookup
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex')
     
-    // Verify token
     const { data: verification } = await supabase.rpc('verify_bot_token', {
       p_token_hash: tokenHash
     }) as any
@@ -154,7 +150,6 @@ export class WebSocketGateway {
     
     this.connections.set(ws, botConnection)
     
-    // Update presence
     await supabase
       .from('bot_presence')
       .upsert({
@@ -165,13 +160,11 @@ export class WebSocketGateway {
         gateway_session_id: botConnection.sessionId
       })
     
-    // Update bot last_online_at
     await supabase
       .from('bots')
       .update({ last_online_at: new Date().toISOString() })
       .eq('id', botConnection.botId)
     
-    // Send READY event
     ws.send(JSON.stringify({
       op: 0,
       t: 'READY',
@@ -192,10 +185,8 @@ export class WebSocketGateway {
   private handleHeartbeat(ws: WebSocket, botConnection: BotConnection) {
     botConnection.lastHeartbeat = Date.now()
     
-    // Send HEARTBEAT_ACK
     ws.send(JSON.stringify({ op: 11 }))
     
-    // Update presence timestamp
     supabase
       .from('bot_presence')
       .update({
@@ -340,7 +331,6 @@ export class WebSocketGateway {
       console.log(`║   Shared Discord members: ${data.members.length}`)
     }
     
-    // Track channels registered by this bot
     if (!this.channelsByBot.has(botConnection.botId)) {
       this.channelsByBot.set(botConnection.botId, new Set())
     }
@@ -462,7 +452,6 @@ export class WebSocketGateway {
       clearInterval(this.heartbeatInterval)
     }
     
-    // Close all connections
     for (const [ws] of this.connections) {
       ws.close(1000, 'Server shutting down')
     }

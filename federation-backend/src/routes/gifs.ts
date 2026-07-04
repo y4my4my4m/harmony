@@ -236,7 +236,7 @@ async function uniqueEmojiName(supabase: any, profileId: string, base: string): 
  * Short-lived cache of the per-viewer ads decision.
  *
  * `should_show_gif_ads` is two indexed lookups (instance_config by PK-ish key +
- * instance_supporters by indexed user_id), run once per GIF feed request — not
+ * instance_supporters by indexed user_id), run once per GIF feed request - not
  * per profile and not per item, so there is no N+1. The only realistic hot path
  * is a user paging/typing in the picker, which would re-ask the same answer
  * repeatedly. A tiny TTL cache collapses that burst into one DB round-trip while
@@ -308,7 +308,7 @@ async function handle(
       page,
       perPage,
       locale,
-      // Profile id is a stable, non-PII UUID — ideal as Klipy's customer_id.
+      // Profile id is a stable, non-PII UUID - ideal as Klipy's customer_id.
       customerId: req.profileId || req.user.id,
       withAds,
       userAgent: clientUserAgent,
@@ -468,7 +468,7 @@ async function getQuota(profileId: string): Promise<AiEmojiQuota> {
 // Async AI emoji generation (webhook-driven).
 //
 // Klipy's generate endpoint returns a job id instantly and pushes the finished
-// emoji to a callback URL when done — so we never hold the HTTP request open
+// emoji to a callback URL when done - so we never hold the HTTP request open
 // (that was causing the proxy/client to time out while the emoji still landed
 // in the DB). Flow:
 //   1. POST /ai-emojis/generate → kick off Klipy with our callback URL, record
@@ -477,7 +477,7 @@ async function getQuota(profileId: string): Promise<AiEmojiQuota> {
 //      bytes, create the emoji, and broadcast `ai_emoji:generated` on the
 //      user's realtime channel.
 //   3. Fallback: if no callback arrives, a detached server-side poll finalizes
-//      the same way. In-memory state is intentionally ephemeral — a backend
+//      the same way. In-memory state is intentionally ephemeral - a backend
 //      restart mid-generation just drops the job (acceptable per product).
 // ---------------------------------------------------------------------------
 
@@ -662,7 +662,7 @@ function scheduleFallbackPoll(jobId: string): void {
   }, GEN_FALLBACK_POLL_MS);
 }
 
-// Klipy posts the finished emoji here. Token-protected (no user auth — Klipy
+// Klipy posts the finished emoji here. Token-protected (no user auth - Klipy
 // can't carry a Supabase JWT). Must be reachable from the public internet.
 router.post('/ai-emojis/callback', async (req, res) => {
   if (!tokenMatches(req.query.token)) {

@@ -308,7 +308,6 @@ const isClickable = computed(() =>
   NotificationFormatter.isClickable(props.notification)
 )
 
-// Extract text from a MessagePart array or JSON string
 const extractMessagePartText = (content: any): string | null => {
   if (!content) return null
 

@@ -17,7 +17,7 @@ import { asyncHandler } from '../middleware/errorHandler.js';
 import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
 import { SignatureService } from './SignatureService.js';
-import { inboxLimiter } from '../middleware/rateLimit.js';
+import { inboxLimiter, instanceInboxLimiter } from '../middleware/rateLimit.js';
 import { getFullServerBannerUrl, getFullServerIconUrl } from '../utils/urlUtils.js';
 
 const router = Router();
@@ -40,7 +40,6 @@ function serverToGroup(
 ): any {
   const serverUrl = `https://${hostDomain}/servers/${server.id}`;
   
-  // Determine owner AP ID
   const ownerApId = ownerProfile?.federated_id || 
     (ownerProfile?.username ? `https://${hostDomain}/users/${ownerProfile.username}` : null);
 
@@ -140,7 +139,6 @@ router.get(
 
     logger.info(`📥 Fetching server ${serverId} as ActivityPub Group`);
 
-    // Get server with owner profile
     const { data: server, error: serverError } = await supabase
       .from('servers')
       .select('*')
@@ -156,7 +154,6 @@ router.get(
       return res.status(404).json({ error: 'Server is not hosted here' });
     }
 
-    // Get owner profile
     let ownerProfile = null;
     if (server.owner) {
       const { data: owner } = await supabase
@@ -167,14 +164,12 @@ router.get(
       ownerProfile = owner;
     }
 
-    // Get categories from channel_categories table
     const { data: categories } = await supabase
       .from('channel_categories')
       .select('*')
       .eq('server_id', serverId)
       .order('order', { ascending: true });
 
-    // Get channels ordered by category and position
     const { data: channelsData } = await supabase
       .from('channels')
       .select('*')
@@ -185,7 +180,6 @@ router.get(
 
     // Merge categories (as type=2) with channels for ActivityPub export
     const channels = [
-      // Add categories as type=2 channels
       ...(categories || []).map(cat => ({
         id: cat.id,
         name: cat.name,
@@ -195,18 +189,15 @@ router.get(
         description: null,
         server_id: serverId,
       })),
-      // Add regular channels
       ...(channelsData || []),
     ];
 
-    // Get member count
     const { count: memberCount } = await supabase
       .from('user_servers')
       .select('*', { count: 'exact', head: true })
       .eq('server_id', serverId)
       .eq('status', 'accepted');
 
-    // Convert to ActivityPub Group
     const group = serverToGroup(
       server, 
       channels || [], 
@@ -233,7 +224,6 @@ router.get(
     const { serverId, channelId } = req.params;
     const supabase = getSupabaseClient();
 
-    // Get channel with server info
     const { data: channel, error } = await supabase
       .from('channels')
       .select(`
@@ -302,7 +292,6 @@ router.get(
     const hostDomain = config.INSTANCE_DOMAIN;
     const messagesUrl = `https://${hostDomain}/servers/${serverId}/channels/${channelId}/messages`;
 
-    // Verify channel exists
     const { data: channel } = await supabase
       .from('channels')
       .select('id')
@@ -315,7 +304,6 @@ router.get(
     }
 
     if (!page) {
-      // Return collection metadata
       const { count } = await supabase
         .from('messages')
         .select('*', { count: 'exact', head: true })
@@ -335,7 +323,6 @@ router.get(
       });
     }
 
-    // Return paginated messages
     const limit = 50;
     const offset = (page - 1) * limit;
 
@@ -416,7 +403,6 @@ router.get(
     const membersUrl = `https://${hostDomain}/servers/${serverId}/members`;
 
     if (!page) {
-      // Get member count
       const { count } = await supabase
         .from('user_servers')
         .select('*', { count: 'exact', head: true })
@@ -487,7 +473,6 @@ router.get(
     const serverUrl = `https://${hostDomain}/servers/${serverId}`;
     const outboxUrl = `${serverUrl}/outbox`;
 
-    // Get all channel IDs for this server
     const { data: channels } = await supabase
       .from('channels')
       .select('id')
@@ -497,7 +482,6 @@ router.get(
     const channelIds = (channels || []).map(c => c.id);
 
     if (!page) {
-      // Return collection metadata
       const { count } = await supabase
         .from('messages')
         .select('*', { count: 'exact', head: true })
@@ -516,7 +500,6 @@ router.get(
       });
     }
 
-    // Return paginated messages as Create activities
     const limit = 20;
     const offset = (page - 1) * limit;
 
@@ -532,13 +515,11 @@ router.get(
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
-    // Convert to ActivityPub Create activities
     const items = (messages || []).map((message: any) => {
       const authorApId = message.author?.federated_id || 
         `https://${hostDomain}/users/${message.author?.username}`;
       const channelUrl = `${serverUrl}/channels/${message.channel?.id}`;
       
-      // Convert content array to HTML
       const contentHtml = Array.isArray(message.content)
         ? message.content.map((c: any) => {
             if (c.type === 'text') return `<p>${c.text || ''}</p>`;
@@ -597,12 +578,12 @@ router.get(
 router.post(
   '/servers/:serverId/inbox',
   inboxLimiter,
+  instanceInboxLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     const { serverId } = req.params;
     const activity = req.body;
     const actorUrl = typeof activity.actor === 'string' ? activity.actor : activity.actor?.id;
 
-    // Verify HTTP signature (same pattern as user inbox)
     const signature = req.headers.signature as string;
     if (!signature) {
       if (config.REQUIRE_VALID_SIGNATURES) {
@@ -647,8 +628,61 @@ router.post(
       }
     }
 
+    // Store + claim for idempotency, same machinery as the user inbox: a
+    // redelivered activity must not run its side effects twice. Activities
+    // that can't be stored (missing id, ap_type outside the DB constraint)
+    // are processed without a claim rather than dropped.
+    const supabase = getSupabaseClient();
+    let claimedForProcessing = false;
+    if (typeof activity.id === 'string' && activity.id) {
+      let originDomain: string | null = null;
+      try {
+        originDomain = actorUrl ? new URL(actorUrl).hostname.toLowerCase() : null;
+      } catch {
+        originDomain = null;
+      }
+      const normalizedType = activity.type === 'EmojiReact' ? 'EmojiReaction' : activity.type;
+      const { error: storeError } = await supabase.rpc('upsert_ap_activity', {
+        p_ap_id: activity.id,
+        p_ap_type: normalizedType,
+        p_actor_ap_id: actorUrl,
+        p_activity_data: activity,
+        p_origin_domain: originDomain,
+        p_to_addresses: Array.isArray(activity.to) ? activity.to : [activity.to].filter(Boolean),
+        p_cc_addresses: Array.isArray(activity.cc) ? activity.cc : [activity.cc].filter(Boolean),
+        p_is_local: false,
+      });
+      if (storeError) {
+        logger.warn(`Could not store server inbox activity ${activity.id}: ${storeError.message}`);
+      } else {
+        const { data: claimed, error: claimError } = await supabase.rpc('claim_ap_activity', {
+          p_ap_id: activity.id,
+        });
+        if (!claimError && claimed === false) {
+          logger.info(`↩️ Skipping already-processed server inbox activity ${activity.id}`);
+          res.status(202).json({ message: 'Activity already processed' });
+          return;
+        }
+        claimedForProcessing = !claimError;
+      }
+    }
+
     const { processServerInboxActivity } = await import('./ServerInboxHandler.js');
-    await processServerInboxActivity(serverId, activity);
+    try {
+      await processServerInboxActivity(serverId, activity);
+    } catch (error) {
+      if (claimedForProcessing) {
+        await supabase.rpc('complete_ap_activity', {
+          p_ap_id: activity.id,
+          p_success: false,
+          p_error: error instanceof Error ? error.message : String(error),
+        });
+      }
+      throw error;
+    }
+    if (claimedForProcessing) {
+      await supabase.rpc('complete_ap_activity', { p_ap_id: activity.id, p_success: true });
+    }
 
     res.status(202).json({ message: 'Activity accepted' });
   })

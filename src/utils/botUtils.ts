@@ -1,6 +1,3 @@
-/**
- * Generate a secure bot token
- */
 export function generateBotToken(prefix = 'harmony_bot_'): string {
   const randomBytes = new Uint8Array(32)
   crypto.getRandomValues(randomBytes)
@@ -9,7 +6,8 @@ export function generateBotToken(prefix = 'harmony_bot_'): string {
 }
 
 /**
- * Hash a bot token (client-side fallback - server should hash with bcrypt in production)
+ * SHA-256 is deliberate: tokens carry 256 bits of entropy, so a slow hash
+ * (bcrypt/argon2) adds nothing, and the digest doubles as the DB lookup key.
  */
 export async function hashBotToken(token: string): Promise<string> {
   const encoder = new TextEncoder()

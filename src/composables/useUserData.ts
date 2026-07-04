@@ -22,7 +22,6 @@ export function useUserData() {
     forceUpdate.value++
   }
   
-  // Setup event listeners
   const setupEventListeners = () => {
     const listeners = [
       { type: 'user-updated', listener: triggerUpdate },
@@ -39,7 +38,6 @@ export function useUserData() {
     })
   }
   
-  // Initialize immediately when composable is used
   const ensureInitialized = () => {
     if (!isInitialized.value) {
       setupEventListeners()
@@ -47,7 +45,6 @@ export function useUserData() {
     }
   }
   
-  // Initialize immediately
   ensureInitialized()
   
   // User Data Getters (all reactive)
@@ -170,7 +167,6 @@ export function useUserData() {
       if (customStatus) return customStatus
     }
     
-    // Return their status preference
     switch (user.status) {
       case UserStatus.Online:
         return 'Online'
@@ -480,7 +476,6 @@ export function useUserData() {
   const subscribeToDMPresence = async (conversationUserIds: string[]) => {
     await ensureInitialized()
     
-    // Create DM context with unique ID
     const contextId = 'dm-conversations'
     await userDataService.subscribeToContext(contextId, 'dm', conversationUserIds)
     return contextId
@@ -493,7 +488,6 @@ export function useUserData() {
   const subscribeToProfilePresence = async (userId: string) => {
     await ensureInitialized()
     
-    // Create profile context with user-specific ID
     const contextId = `profile-${userId}`
     await userDataService.subscribeToContext(contextId, 'profile', [userId])
     return contextId
@@ -506,7 +500,6 @@ export function useUserData() {
   const subscribeToFriendsPresence = async (friendUserIds: string[]) => {
     await ensureInitialized()
     
-    // Create friends context
     const contextId = 'friends-list'
     await userDataService.subscribeToContext(contextId, 'friends', friendUserIds)
     
@@ -529,7 +522,6 @@ export function useUserData() {
       return 'invisible'  // This will show as hollow circle
     }
     
-    // Check if user is actually present in real-time
     const isPresent = user.isOnline || false
     
     if (!isPresent) {
@@ -569,10 +561,8 @@ export function useUserData() {
    * Call this when DM list changes (new conversations, removed conversations)
    */
   const updateDMPresence = async (conversationUserIds: string[]) => {
-    // Unsubscribe from old DM context
     await unsubscribeFromContext('dm-conversations')
     
-    // Subscribe to new DM context if there are conversations
     if (conversationUserIds.length > 0) {
       return await subscribeToDMPresence(conversationUserIds)
     }
@@ -585,10 +575,8 @@ export function useUserData() {
    * Call this when friends list changes
    */
   const updateFriendsPresence = async (friendUserIds: string[]) => {
-    // Unsubscribe from old friends context
     await unsubscribeFromContext('friends-list')
     
-    // Subscribe to new friends context if there are friends
     if (friendUserIds.length > 0) {
       return await subscribeToFriendsPresence(friendUserIds)
     }

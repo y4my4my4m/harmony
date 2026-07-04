@@ -82,6 +82,8 @@ const NOTIFICATION_SOUND_MAPPING: Record<NotificationType, AudioAction> = {
   activitypub_follow_accepted: 'friend_request',
   report_update: 'server_update',
   error: 'server_update',
+  ui_success: 'ui_success',
+  ui_error: 'ui_error',
 }
 
 // Default notification preferences
@@ -144,7 +146,6 @@ let _unsubBulkRead: (() => void) | null = null
 let _unsubPrefsUpdated: (() => void) | null = null
 let _unsubReconnected: (() => void) | null = null
 let _dndInterval: ReturnType<typeof setInterval> | null = null
-// Track notification IDs recently processed to deduplicate
 const _recentlyProcessedIds = new Set<string>()
 const DEDUP_TTL_MS = 10_000
 

@@ -84,7 +84,6 @@ class EasterEggService {
 
     debug.log('🎮 [EasterEgg] Activated:', type)
 
-    // Notify listeners
     this.notifyListeners()
 
     // Broadcast to other participants
@@ -114,7 +113,6 @@ class EasterEggService {
 
     debug.log('🎮 [EasterEgg] Deactivated')
 
-    // Notify listeners
     this.notifyListeners()
 
     // Broadcast to other participants

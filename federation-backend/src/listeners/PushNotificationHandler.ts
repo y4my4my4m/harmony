@@ -13,7 +13,6 @@ import { logger } from '../utils/logger.js';
  * Start listening for notifications and send push notifications
  */
 export async function startPushNotificationListener(): Promise<void> {
-  // Initialize push service
   if (!PushNotificationService.initialize()) {
     logger.warn('⚠️ Push notification listener not started (VAPID not configured)');
     return;
@@ -23,7 +22,6 @@ export async function startPushNotificationListener(): Promise<void> {
 
   const supabase = getSupabaseClient();
 
-  // Subscribe to new notifications
   const _channel = supabase
     .channel('push-notifications')
     .on(
@@ -51,7 +49,6 @@ export async function startPushNotificationListener(): Promise<void> {
 
           logger.debug(`📬 New notification for push: ${notification.type} to user ${notification.user_id}`);
 
-          // Send push notification
           await PushNotificationService.sendForNotification(notification);
         } catch (error) {
           logger.error('Error handling notification for push:', error);
@@ -72,7 +69,6 @@ export async function startPushNotificationListener(): Promise<void> {
       }
     });
 
-  // Cleanup stale subscriptions periodically (every hour)
   setInterval(async () => {
     try {
       const cleaned = await PushNotificationService.cleanupStaleSubscriptions();

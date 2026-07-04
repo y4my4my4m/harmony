@@ -33,9 +33,7 @@ export class NotificationService {
     return this.instance
   }
 
-  // =====================================================
   // NOTIFICATION OPERATIONS (LOCAL-FIRST)
-  // =====================================================
 
   /**
    * Send notification using unified database system
@@ -405,9 +403,7 @@ export class NotificationService {
     }
   }
 
-  // =====================================================
   // HELPER METHODS
-  // =====================================================
 
   private createError(code: string, message: string, details?: any): NotificationServiceError {
     return {

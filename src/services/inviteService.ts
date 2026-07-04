@@ -23,7 +23,6 @@ export interface Invite {
 }
 
 function generateSecureCode(): string {
-  // Generate a more secure, readable invite code
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let result = '';
   for (let i = 0; i < 8; i++) {
@@ -38,13 +37,11 @@ async function generateInviteUrl(
   options: InviteOptions = {}
 ): Promise<{ success: boolean; url?: string; error?: string }> {
   try {
-    // Check if user has permission to create invites
     const canCreate = await canUserCreateInvites(userId, serverId);
     if (!canCreate) {
       return { success: false, error: 'You do not have permission to create invites for this server' };
     }
 
-    // Get invite constraints for this user
     const constraints = await getInviteConstraints(userId, serverId);
     
     const {
@@ -53,7 +50,6 @@ async function generateInviteUrl(
       temporary = false
     } = options;
 
-    // Validate against constraints
     if (constraints.maxExpiration > 0 && expiresIn > constraints.maxExpiration) {
       return { 
         success: false, 
@@ -72,10 +68,8 @@ async function generateInviteUrl(
       };
     }
 
-    // Generate a secure invite code
     const code = generateSecureCode();
 
-    // Calculate expiration time
     const expiresAt = expiresIn > 0 
       ? new Date(Date.now() + expiresIn * 60 * 1000)
       : null;
@@ -128,22 +122,18 @@ async function acceptInvite(code: string, userId: string): Promise<{ success: bo
       return { success: false, error: 'Invalid invite code' };
     }
 
-    // Check if invite is already used (for single-use invites)
     if (invite.used) {
       return { success: false, error: 'This invite has already been used' };
     }
 
-    // Check if invite has expired
     if (invite.expires_at && new Date() > new Date(invite.expires_at)) {
       return { success: false, error: 'This invite has expired' };
     }
 
-    // Check if invite has reached max uses
     if (invite.max_uses && invite.uses >= invite.max_uses) {
       return { success: false, error: 'This invite has reached its usage limit' };
     }
 
-    // Check if user is already in the server
     const { data: existingMember } = await supabase
       .from('user_servers')
       .select('id')
@@ -155,7 +145,6 @@ async function acceptInvite(code: string, userId: string): Promise<{ success: bo
       return { success: false, error: 'You are already a member of this server' };
     }
 
-    // Add user to the server
     const { error: userServerError } = await supabase
       .from('user_servers')
       .insert([{ 

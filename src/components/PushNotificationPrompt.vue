@@ -79,7 +79,6 @@ const hasUserDecided = (): boolean => {
   // If permission is denied, they've decided (in browser settings)
   if (permission.value === 'denied') return true
   
-  // Check if they explicitly disabled in our settings
   const disabled = localStorage.getItem('harmony-push-disabled')
   if (disabled === 'true') return true
   

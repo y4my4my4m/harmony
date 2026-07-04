@@ -144,7 +144,6 @@ class HapticFeedbackManager {
   }
 }
 
-// Create singleton instance
 export const hapticManager = new HapticFeedbackManager()
 
 // Vue directive for haptic feedback
@@ -152,7 +151,6 @@ export const vHaptic = {
   mounted(el: HTMLElement, binding: any) {
     const { value = 'light', modifiers } = binding
     
-    // Determine event type from modifiers
     const eventType = modifiers.hover ? 'mouseenter' : 'click'
     
     const handleTrigger = () => {
@@ -167,7 +165,6 @@ export const vHaptic = {
 
     el.addEventListener(eventType, handleTrigger)
     
-    // Store cleanup function
     ;(el as any)._hapticCleanup = () => {
       el.removeEventListener(eventType, handleTrigger)
     }

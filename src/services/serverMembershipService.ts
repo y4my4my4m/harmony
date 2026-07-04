@@ -33,7 +33,6 @@ export async function getServerMemberCount(serverId: string, forceRefresh = fals
     }
   }
 
-  // Check if request is already pending
   const pendingKey = `count-${serverId}`
   const pendingRequest = pendingMemberCountRequests.get(pendingKey)
   if (pendingRequest) {
@@ -41,7 +40,6 @@ export async function getServerMemberCount(serverId: string, forceRefresh = fals
     return pendingRequest
   }
 
-  // Create new request
   const requestPromise = (async () => {
     try {
       const { count, error } = await supabase
@@ -64,12 +62,10 @@ export async function getServerMemberCount(serverId: string, forceRefresh = fals
       debug.error(`❌ Error getting member count for server ${serverId}:`, error)
       return 0
     } finally {
-      // Remove from pending map
       pendingMemberCountRequests.delete(pendingKey)
     }
   })()
 
-  // Store pending request
   pendingMemberCountRequests.set(pendingKey, requestPromise)
 
   return requestPromise
@@ -81,7 +77,6 @@ export async function getServerMemberCount(serverId: string, forceRefresh = fals
 export async function getServerMemberCounts(serverIds: string[]): Promise<Map<string, number>> {
   const results = new Map<string, number>()
 
-  // Filter out servers we already have cached
   const uncachedServerIds: string[] = []
   for (const serverId of serverIds) {
     const cached = memberCountCache.get(serverId)
@@ -106,7 +101,6 @@ export async function getServerMemberCounts(serverIds: string[]): Promise<Map<st
 
     if (error) {
       debug.error('❌ Failed to batch get member counts:', error)
-      // Return cached results only
       return results
     }
 
@@ -150,14 +144,12 @@ export async function isUserMemberOfServer(
     }
   }
 
-  // Check if request is already pending
   const pendingRequest = pendingMembershipChecks.get(cacheKey)
   if (pendingRequest) {
     debug.log(`📊 Membership check already pending for ${userId}-${serverId}, reusing`)
     return pendingRequest
   }
 
-  // Create new request
   const requestPromise = (async () => {
     try {
       const { data, error } = await supabase
@@ -182,12 +174,10 @@ export async function isUserMemberOfServer(
       debug.error(`❌ Error checking membership for ${userId}-${serverId}:`, error)
       return false
     } finally {
-      // Remove from pending map
       pendingMembershipChecks.delete(cacheKey)
     }
   })()
 
-  // Store pending request
   pendingMembershipChecks.set(cacheKey, requestPromise)
 
   return requestPromise

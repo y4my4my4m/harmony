@@ -13,7 +13,6 @@ class BlockedInstancesCacheService {
   private lastRefresh: Date | null = null;
   private refreshIntervalId: ReturnType<typeof setInterval> | null = null;
   
-  // Refresh every 5 minutes
   private readonly REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 
   /**
@@ -22,7 +21,6 @@ class BlockedInstancesCacheService {
   async initialize(): Promise<void> {
     await this.refresh();
     
-    // Set up periodic refresh
     this.refreshIntervalId = setInterval(async () => {
       try {
         await this.refresh();
@@ -52,7 +50,6 @@ class BlockedInstancesCacheService {
     
     const newBlockedDomains = new Set<string>(data?.map(s => s.domain) || []);
     
-    // Log changes
     const added = [...newBlockedDomains].filter(d => !this.blockedDomains.has(d));
     const removed = [...this.blockedDomains].filter(d => !newBlockedDomains.has(d));
     

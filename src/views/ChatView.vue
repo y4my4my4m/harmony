@@ -71,7 +71,6 @@ const currentChannelName = computed(() => {
   return props.currentChannel?.name
 })
 
-// Load messages when route changes
 const loadMessages = async () => {
   // Abort any in-flight fetch from a previous channel/conversation
   if (fetchAbortController) {
@@ -87,7 +86,6 @@ const loadMessages = async () => {
 
     const conversationId = route.params.conversationId as string
     if (conversationId) {
-      // Update current conversation immediately for responsive UI
       if (dmStore.currentConversationId !== conversationId) {
         dmStore.setCurrentConversation(conversationId)
       }
@@ -140,7 +138,6 @@ const loadMessages = async () => {
     }
 
     if (serverId && channelId) {
-      // Update current channel immediately for responsive sidebar highlighting
       if (serverChannelStore.currentChannelId !== channelId) {
         serverChannelStore.setCurrentChannel(channelId)
       }
@@ -227,7 +224,6 @@ watch(
   { immediate: true }
 )
 
-// Track view context in database for notification suppression
 useViewContextTracking()
 
 // Watch for messageId query param to scroll and highlight
@@ -247,10 +243,8 @@ const scrollToMessage = async (messageId: string) => {
   
   const messageElement = document.getElementById(`message-${messageId}`)
   if (messageElement) {
-    // Get the scroll container (message display container)
     const scrollContainer = messageElement.closest('.message-display') as HTMLElement
     if (scrollContainer) {
-      // Calculate scroll position without causing layout shifts
       const elementTop = messageElement.offsetTop
       const elementHeight = messageElement.offsetHeight
       const containerHeight = scrollContainer.clientHeight
@@ -270,7 +264,6 @@ const scrollToMessage = async (messageId: string) => {
       })
     }
     
-    // Mark notification as read
     const notificationStore = useNotificationStore()
     const notification = notificationStore.notifications.find(n => 
       n.data?.message?.id === messageId || n.data?.message_id === messageId
@@ -402,7 +395,6 @@ const highlightSearchText = (messageElement: HTMLElement, query: string) => {
                 const textNode = document.createTextNode(text)
                 mark.parentNode?.replaceChild(textNode, mark)
               })
-              // Clean up empty wrapper
               if (wrapper.parentNode && wrapper.textContent) {
                 const textNode = document.createTextNode(wrapper.textContent)
                 wrapper.parentNode.replaceChild(textNode, wrapper)

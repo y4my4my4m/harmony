@@ -331,7 +331,6 @@ const toDateInput = ref('')
 const channelSuggestions = ref<Channel[]>([])
 const userSuggestions = ref<any[]>([])
 
-// Initialize filters from props (only when modal opens, not on mount)
 watch(() => props.show, (newVal, oldVal) => {
   if (newVal && !oldVal) {
     // Modal is being opened (was false, now true)
@@ -446,7 +445,6 @@ const handleChannelFilterInput = () => {
     return
   }
   
-  // Get channels from current server or all accessible channels
   const channels = serverChannelStore.channels || []
   channelSuggestions.value = channels
     .filter(ch => ch.name.toLowerCase().includes(query))

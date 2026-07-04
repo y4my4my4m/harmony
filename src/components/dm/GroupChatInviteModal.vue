@@ -294,11 +294,8 @@ const handleSearch = () => {
       debug.log('🔍 Selected users before filtering:', selectedUsers.value.map(u => ({ id: u.id, username: u.username })))
       
       searchResults.value = dmStore.searchResults.filter(user => {
-        // Filter out current user
         if (user.id === currentUserId.value) return false
-        // Filter out existing participants
         if (props.existingParticipants?.some(p => p.id === user.id)) return false
-        // Filter out already selected users
         if (selectedUsers.value.some(s => s.id === user.id)) return false
         return true
       })
@@ -328,17 +325,14 @@ const refreshSearchResults = () => {
     })
     
     searchResults.value = dmStore.searchResults.filter(user => {
-      // Filter out current user
       if (user.id === currentUserId.value) {
         debug.log('🚫 Filtering out current user:', user.id)
         return false
       }
-      // Filter out existing participants
       if (props.existingParticipants?.some(p => p.id === user.id)) {
         debug.log('🚫 Filtering out existing participant:', user.id)
         return false
       }
-      // Filter out already selected users
       if (selectedUsers.value.some(s => s.id === user.id)) {
         debug.log('🚫 Filtering out already selected user:', user.id, 'comparing with selected:', selectedUsers.value.map(s => s.id))
         return false
@@ -369,7 +363,6 @@ const toggleUserSelection = (user: DMUser) => {
   
   debug.log('👥 Selected users after toggle:', selectedUsers.value.map(u => ({ id: u.id, username: u.username })))
   
-  // Refresh search results to update filtering
   refreshSearchResults()
 }
 
@@ -381,14 +374,12 @@ const removeUserFromSelection = (userId: string) => {
   const index = selectedUsers.value.findIndex(u => u.id === userId)
   if (index > -1) {
     selectedUsers.value.splice(index, 1)
-    // Refresh search results to show the user again if we have a search active
     refreshSearchResults()
   }
 }
 
 const clearAllSelections = () => {
   selectedUsers.value = []
-  // Refresh search results to show all users again
   refreshSearchResults()
 }
 
@@ -492,7 +483,6 @@ const addUsersToConversation = async () => {
     )
 
     if (result) {
-      // Check if result is a new conversation ID (string) or success boolean (true)
       if (typeof result === 'string') {
         // New group conversation was created, navigate to it
         emit('conversationCreated', result)
@@ -522,7 +512,6 @@ onMounted(() => {
 
 watch(() => props.show, (show) => {
   if (show) {
-    // Reset state when modal opens
     selectedUsers.value = []
     clearSearch()
     groupName.value = ''

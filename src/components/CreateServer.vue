@@ -293,7 +293,6 @@ const createServer = async () => {
     const result = await serverChannelStore.createServer(serverData);
     debug.log('Server creation result:', result);
     
-    // Handle icon upload if file exists
     if (iconFile.value && result) {
       debug.log('Uploading server icon...');
       try {
@@ -301,7 +300,6 @@ const createServer = async () => {
         const uploadResult = await uploadServerIcon(iconFile.value, result.id);
         
         if (uploadResult.success && uploadResult.url) {
-          // Update server with icon URL
           await serverChannelStore.updateServer({
             id: result.id,
             icon: uploadResult.url

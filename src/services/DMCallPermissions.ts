@@ -231,7 +231,6 @@ class DMCallPermissionService {
         return true
       }
 
-      // Call notifications enabled if either sound OR desktop notifications are on
       return data.sound_voice_activity || data.desktop_notifications
     } catch {
       // Default to enabled on error

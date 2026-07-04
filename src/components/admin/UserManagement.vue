@@ -221,10 +221,12 @@ import { adminService, type AdminUser } from '@/services/AdminService'
 import { userDataService } from '@/services/userDataService'
 import { getServerIconUrl } from '@/utils/serverUtils'
 import { formatDate } from './adminFormat'
+import { useConfirmDialog } from '@/composables/useConfirmDialog'
 
 const authStore = useAuthStore()
 const router = useRouter()
 const toast = useToast()
+const { confirm } = useConfirmDialog()
 
 const userSearch = ref('')
 const activeUserFilter = ref('all')
@@ -312,7 +314,7 @@ const loadPreviousUsers = () => {
 const toggleModerator = async (user: any) => {
   const newStatus = !user.is_moderator
   const label = newStatus ? 'promote to moderator' : 'remove moderator from'
-  if (!confirm(`Are you sure you want to ${label} ${user.username}?`)) return
+  if (!(await confirm({ title: 'Moderator status', message: `Are you sure you want to ${label} ${user.username}?`, confirmButtonText: 'Confirm' }))) return
 
   try {
     await adminService.setModeratorStatus(user.id, newStatus)
@@ -320,7 +322,7 @@ const toggleModerator = async (user: any) => {
     window.dispatchEvent(new CustomEvent('admin:activity-changed'))
   } catch (error) {
     debug.error('Failed to toggle moderator status:', error)
-    alert('Failed to update moderator status.')
+    toast.error('Failed to update moderator status.')
   }
 }
 
@@ -351,13 +353,13 @@ const moderateUser = async (user: any, action: string) => {
       window.dispatchEvent(new CustomEvent('admin:activity-changed'))
       toast.success(`User ${user.username} has been suspended.`)
     } else if (action === 'unsuspend') {
-      if (!confirm(`Are you sure you want to unsuspend user ${user.username}?`)) return
+      if (!(await confirm({ title: 'Unsuspend user', message: `Are you sure you want to unsuspend user ${user.username}?`, confirmButtonText: 'Unsuspend' }))) return
       await adminService.moderateUser(user.id, 'unsuspend', 'Admin unsuspend', authStore.session?.user?.id || '')
       patchUserRow(user.id, { is_suspended: false, suspension_reason: null })
       window.dispatchEvent(new CustomEvent('admin:activity-changed'))
       toast.success(`User ${user.username} has been unsuspended.`)
     } else if (action === 'delete') {
-      if (!confirm(`Are you sure you want to delete user ${user.username}? This cannot be undone.`)) return
+      if (!(await confirm({ title: 'Delete user', message: `Are you sure you want to delete user ${user.username}? This cannot be undone.`, confirmButtonText: 'Delete', dangerAction: true }))) return
       await adminService.moderateUser(user.id, 'delete', 'Admin deletion', authStore.session?.user?.id || '')
       patchUserRow(user.id, null)
       window.dispatchEvent(new CustomEvent('admin:activity-changed'))
@@ -369,7 +371,7 @@ const moderateUser = async (user: any, action: string) => {
       patchUserRow(user.id, { force_sensitive: true })
       toast.success(`All future media from ${user.username} will be marked sensitive.`)
     } else if (action === 'unforce_sensitive') {
-      if (!confirm(`Remove force-sensitive from ${user.username}?`)) return
+      if (!(await confirm({ title: 'Remove force-sensitive', message: `Remove force-sensitive from ${user.username}?`, confirmButtonText: 'Remove' }))) return
       await adminService.moderateUser(user.id, 'unforce_sensitive', '', authStore.session?.user?.id || '')
       patchUserRow(user.id, { force_sensitive: false })
       toast.success(`Force-sensitive removed from ${user.username}.`)
@@ -380,7 +382,7 @@ const moderateUser = async (user: any, action: string) => {
       patchUserRow(user.id, { is_silenced: true, silenced_reason: reason })
       toast.success(`User ${user.username} has been silenced.`)
     } else if (action === 'unsilence') {
-      if (!confirm(`Remove silence from ${user.username}?`)) return
+      if (!(await confirm({ title: 'Remove silence', message: `Remove silence from ${user.username}?`, confirmButtonText: 'Remove' }))) return
       await adminService.moderateUser(user.id, 'unsilence', '', authStore.session?.user?.id || '')
       patchUserRow(user.id, { is_silenced: false, silenced_reason: null })
       toast.success(`User ${user.username} has been unsilenced.`)
@@ -399,7 +401,6 @@ const navigateToUserPosts = (user: any) => {
 }
 
 const navigateToUserServers = async (user: AdminUser) => {
-  // Open modal and load user's servers
   selectedUserForServers.value = user
   showServersModal.value = true
   loadingServers.value = true

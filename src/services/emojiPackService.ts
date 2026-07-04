@@ -255,7 +255,6 @@ export async function loadPackEmojiIndex(packId: string): Promise<EmojiPackItem[
     
     const emojis = await response.json()
     
-    // Update the pack with loaded emojis
     pack.emojis = emojis
     
     debug.log(`📦 Loaded ${emojis.length} emojis for pack:`, packId)

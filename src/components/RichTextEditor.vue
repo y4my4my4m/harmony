@@ -130,7 +130,6 @@ const isSingleLine = computed(() => {
   return !props.modelValue.includes('\n');
 });
 
-// Extract plain text from the editor (preserving markdown)
 const getPlainText = (): string => {
   if (!editorRef.value) return '';
   
@@ -150,7 +149,6 @@ const getPlainText = (): string => {
           text += `:${emojiName}:`;
         }
       } else if (el.classList.contains('editor-mention')) {
-        // Extract mention data from rich attributes
         const displayText = el.getAttribute('data-display-text');
         
         if (displayText) {
@@ -382,7 +380,6 @@ const setSelectionOffsets = (selStart: number, selEnd: number) => {
   }
 };
 
-// Get cursor position as text offset
 const getCursorPosition = (): number => {
   if (!editorRef.value) return 0;
 
@@ -397,7 +394,6 @@ const getCursorPosition = (): number => {
   );
 };
 
-// Set cursor position from text offset
 const setCursorPosition = (targetPosition: number) => {
   if (!editorRef.value) return;
 
@@ -405,7 +401,6 @@ const setCursorPosition = (targetPosition: number) => {
   setSelectionOffsets(targetPosition, targetPosition);
 };
 
-// Process mentions in text and create visual elements
 const processMentionsInText = (text: string): DocumentFragment => {
   const fragment = document.createDocumentFragment();
   
@@ -505,20 +500,17 @@ const processMentionsInText = (text: string): DocumentFragment => {
   return fragment;
 };
 
-// Create a mention element from display format (@username or @username@domain)
 const createMentionElementFromDisplay = (displayText: string, username: string, domain?: string): HTMLElement => {
   const span = document.createElement('span');
   span.className = 'editor-mention';
   span.contentEditable = 'false'; // Prevent editing the mention element itself
   
-  // Look up user information
   let userId: string | null = null;
   let userProfile: any = null;
   let isLocal = false;
   let actualDomain = domain;
   
   try {
-    // Find user by username and domain
     userId = userDataService.findUserIdByUsername(username, domain);
     if (userId) {
       userProfile = userDataService.getUserProfile(userId);
@@ -534,7 +526,6 @@ const createMentionElementFromDisplay = (displayText: string, username: string, 
     ? `@${username}` 
     : (domain ? `@${username}@${domain}` : `@${username}`);
   
-  // Store rich metadata in data attributes
   span.setAttribute('data-type', 'mention');
   span.setAttribute('data-username', username);
   span.setAttribute('data-display-text', normalizedDisplayText);
@@ -547,7 +538,6 @@ const createMentionElementFromDisplay = (displayText: string, username: string, 
   }
   span.setAttribute('data-islocal', isLocal.toString());
   
-  // Display text (what the user sees) - use normalized format
   span.textContent = normalizedDisplayText;
   
   return span;
@@ -638,7 +628,6 @@ const appendBlockquote = (
   target.appendChild(block);
 };
 
-// Render content with Discord-like markdown styling
 const renderContent = (text: string, skipCursorRestore = false) => {
   debug.log('🔧 renderContent called with:', text, 'skipCursorRestore:', skipCursorRestore);
   if (!editorRef.value || isRendering.value) {
@@ -650,7 +639,6 @@ const renderContent = (text: string, skipCursorRestore = false) => {
   const currentCursorPos = getCursorPosition();
   debug.log('🔧 Current cursor position:', currentCursorPos);
   
-  // Clear content
   editorRef.value.innerHTML = '';
   debug.log('🔧 Cleared editor content');
   
@@ -700,7 +688,6 @@ const renderContent = (text: string, skipCursorRestore = false) => {
   }
 };
 
-// Create DOM element from markdown token (keeping markers visible)
 const createElementFromToken = (token: MarkdownToken): Node => {
   switch (token.type) {
     case 'text':
@@ -844,7 +831,6 @@ const createElementFromToken = (token: MarkdownToken): Node => {
       const div = document.createElement('div');
       div.className = 'editor-codeblock-wrapper';
       
-      // Start marker (```language)
       const startMarker = document.createElement('div');
       startMarker.className = 'editor-codeblock-start';
       
@@ -857,11 +843,9 @@ const createElementFromToken = (token: MarkdownToken): Node => {
       const content = document.createElement('div');
       content.className = 'editor-codeblock-content';
       
-      // Apply syntax highlighting and preserve newlines
       const tokens = highlightSyntax(token.content, token.language);
       tokens.forEach(syntaxToken => {
         if (syntaxToken.content.includes('\n')) {
-          // Handle newlines in syntax tokens
           const lines = syntaxToken.content.split('\n');
           lines.forEach((line, index) => {
             if (line) {
@@ -933,7 +917,6 @@ const createElementFromToken = (token: MarkdownToken): Node => {
   }
 };
 
-// Apply an undo/redo state snapshot
 const applyUndoState = (state: UndoState) => {
   skipNextWatch.value = true;
   emit('update:modelValue', state.text);
@@ -960,7 +943,6 @@ const hasFormattableMarkers = (text: string): boolean => {
   return false;
 };
 
-// Handle input events
 const handleInput = (event?: Event) => {
   if (isRendering.value) return; // Prevent recursion
 
@@ -968,11 +950,9 @@ const handleInput = (event?: Event) => {
   emit('update:modelValue', text);
   if (event) emit('input', event);
 
-  // Emit cursor position for auto-suggest
   const cursorPos = getCursorPosition();
   emit('cursor-position-changed', cursorPos);
 
-  // Track state for undo/redo
   undoRedo.pushState(text, cursorPos);
 
   // Re-render to apply markdown / blockquote / greentext styling. The
@@ -1030,7 +1010,6 @@ const toggleInlineFormat = (kind: InlineFormatKind) => {
   applyEditorTextChange(newText, selectionStart, selectionEnd);
 };
 
-// Handle keyboard events
 const handleKeyDown = (event: KeyboardEvent) => {
   // Undo / Redo interception (Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z, Cmd variants)
   if ((event.ctrlKey || event.metaKey) && !event.altKey) {
@@ -1074,7 +1053,6 @@ const handleKeyDown = (event: KeyboardEvent) => {
     if (!event.defaultPrevented) {
       event.preventDefault();
       
-      // Insert a proper <br> tag for single line spacing
       const selection = window.getSelection();
       if (selection && selection.rangeCount > 0) {
         const range = selection.getRangeAt(0);
@@ -1115,19 +1093,16 @@ const handleKeyDown = (event: KeyboardEvent) => {
   emit('keydown', event);
 };
 
-// Handle focus
 const handleFocus = (event: FocusEvent) => {
   isFocused.value = true;
   emit('focus', event);
 };
 
-// Handle blur
 const handleBlur = (event: FocusEvent) => {
   isFocused.value = false;
   emit('blur', event);
 };
 
-// Handle paste
 const handlePaste = (event: ClipboardEvent) => {
   event.preventDefault();
 
@@ -1152,7 +1127,6 @@ const handlePaste = (event: ClipboardEvent) => {
   insertTextAtCursor(text);
 };
 
-// Insert text at cursor position
 const insertTextAtCursor = (text: string) => {
   if (!editorRef.value) return;
   
@@ -1175,7 +1149,6 @@ const insertTextAtCursor = (text: string) => {
   
   renderContent(newText);
   
-  // Track insertion for undo/redo
   nextTick(() => {
     const cursorPos = getCursorPosition();
     undoRedo.pushState(newText, cursorPos);
@@ -1222,7 +1195,6 @@ const focus = () => {
   }
 };
 
-// Clear the editor
 const clear = () => {
   if (editorRef.value) {
     editorRef.value.innerHTML = '';
@@ -1263,7 +1235,6 @@ watch(() => serverChannelStore.currentServerId, () => {
 // Watch for external model value changes
 watch(() => props.modelValue, (newValue) => {
   if (editorRef.value) {
-    // Check if we should skip this watch cycle (manual cursor control)
     if (skipNextWatch.value) {
       debug.log('🔧 Skipping watch cycle due to manual cursor control');
       skipNextWatch.value = false;
@@ -1288,7 +1259,6 @@ watch(() => props.modelValue, (newValue) => {
           if (editorRef.value) {
             const plainText = getPlainText();
             if (plainText.trim().length === 0 && editorRef.value.innerHTML.trim() !== '') {
-              // Clear any remaining content (like BR tags) to show placeholder
               editorRef.value.innerHTML = '';
             }
           }

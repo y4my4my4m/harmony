@@ -85,7 +85,6 @@ export async function uploadBanner(file: File, userId: string): Promise<{ succes
     if (!file || file.size === 0) {
       return { success: false, error: 'Choose a non-empty image file' }
     }
-    // Validate against the banners bucket's real size/type limits.
     const validationError = await validateImageUpload(file, 'banners')
     if (validationError) {
       return { success: false, error: validationError }
@@ -97,7 +96,6 @@ export async function uploadBanner(file: File, userId: string): Promise<{ succes
     
     const filePath = `${userId}/${userId}_banner.${ext}`
 
-    // Remove any existing banner files with a different extension
     try {
       const { data: existing } = await supabase.storage
         .from('banners')

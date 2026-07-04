@@ -54,7 +54,6 @@ export class AuthContextService {
    * Caches the result to avoid repeated database queries
    */
   async getCurrentContext(): Promise<UserContext> {
-    // Return cached context if available
     if (this.cachedContext) {
       return this.cachedContext
     }
@@ -199,7 +198,6 @@ export class AuthContextService {
         const newUserId = session?.user?.id
         const cachedUserId = this.cachedContext?.authUser?.id
         
-        // Clear if cache is unauthenticated or different user
         if (!this.cachedContext?.isAuthenticated || (cachedUserId && cachedUserId !== newUserId)) {
           debug.log('🔐 SIGNED_IN - clearing cache (unauthenticated or different user)')
           this.clearCache()
@@ -231,5 +229,4 @@ export class AuthContextService {
 // Export singleton instance
 export const authContextService = AuthContextService.getInstance()
 
-// Initialize auth listener on module load
 authContextService.initializeAuthListener()

@@ -158,7 +158,6 @@ import { useActivityPubStore, type UserList } from '@/stores/useActivityPub'
 // Router
 const router = useRouter()
 
-// Store
 const activityPubStore = useActivityPubStore()
 
 // State
@@ -181,7 +180,6 @@ const formData = reactive({
 // Computed
 const lists = computed(() => activityPubStore.lists)
 
-// Format replies policy for display
 const formatRepliesPolicy = (policy: string) => {
   switch (policy) {
     case 'followed': return 'Replies to followed'
@@ -191,7 +189,6 @@ const formatRepliesPolicy = (policy: string) => {
   }
 }
 
-// Load lists
 const loadLists = async () => {
   isLoadingLists.value = true
   try {
@@ -222,11 +219,9 @@ const confirmDeleteList = (list: UserList) => {
   listToDelete.value = list
 }
 
-// Close modal
 const closeModal = () => {
   showCreateModal.value = false
   editingList.value = null
-  // Reset form
   formData.title = ''
   formData.description = ''
   formData.replies_policy = 'list'
@@ -234,7 +229,6 @@ const closeModal = () => {
   formData.is_public = false
 }
 
-// Handle form submit
 const handleSubmit = async () => {
   if (!formData.title.trim()) return
 
@@ -265,7 +259,6 @@ const handleSubmit = async () => {
   }
 }
 
-// Handle delete
 const handleDelete = async () => {
   if (!listToDelete.value) return
 

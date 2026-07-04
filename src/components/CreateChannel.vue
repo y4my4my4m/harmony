@@ -166,7 +166,6 @@ watch(() => props.show, (newShow) => {
   if (newShow) {
     checkChannelCount()
   } else {
-    // Reset when modal closes
     channelNameError.value = ''
     currentChannelCount.value = 0
   }

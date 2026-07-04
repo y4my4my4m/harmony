@@ -525,7 +525,6 @@ const updateLetterOffsets = (e: MouseEvent) => {
   })
 }
 
-// Reset letter offsets when not hovering
 watch(isHoveringTitle, (hovering) => {
   if (!hovering) {
     letterOffsets.value = {}
@@ -682,7 +681,6 @@ const handle2FAVerification = async () => {
         throw new Error('Invalid or already used recovery code')
       }
 
-      // Refresh so the client picks up the factor-less auth state.
       await supabase.auth.refreshSession().catch(() => {})
       const { data: refreshedSession } = await supabase.auth.getSession()
       authStore.session = refreshedSession.session
@@ -784,7 +782,6 @@ const toggleMode = () => {
   router.push(props.isLogin ? '/register' : '/login')
 }
 
-// Load enabled OAuth providers
 const loadEnabledOAuthProviders = async () => {
   try {
     let enabledProviders: string[] = []
@@ -811,7 +808,6 @@ const loadEnabledOAuthProviders = async () => {
 
       if (oauthConfig?.config_value) {
         debug.log('📦 Found oauth_providers config:', oauthConfig.config_value)
-        // Parse the config value (may be JSON string or object)
         let providers = oauthConfig.config_value
         debug.log('📦 Raw providers value type:', typeof providers, providers)
         
@@ -889,7 +885,6 @@ const loadEnabledOAuthProviders = async () => {
   }
 }
 
-// Load instance branding
 const loadInstanceBranding = async () => {
   try {
     const config = await adminService.getInstanceConfig()

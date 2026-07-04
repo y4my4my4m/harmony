@@ -116,7 +116,6 @@ export async function handleRoleActivity(
 
     switch (activity.type) {
       case 'Create': {
-        // Create new role from remote server
         const roleObject = activity.object as RoleObject;
         const roleData = activityPubToRole(roleObject, targetServerId);
 
@@ -136,7 +135,6 @@ export async function handleRoleActivity(
       }
 
       case 'Update': {
-        // Update existing role
         const roleObject = activity.object as RoleObject;
         
         const { error } = await supabase
@@ -163,7 +161,6 @@ export async function handleRoleActivity(
       }
 
       case 'Delete': {
-        // Delete role
         const roleObject = activity.object as RoleObject;
 
         // Don't allow deleting @everyone role
@@ -193,10 +190,8 @@ export async function handleRoleActivity(
       }
 
       case 'Add': {
-        // Assign role to user
         const assignment = activity.object as RoleAssignment;
         
-        // Get role and user by AP IDs
         const [{ data: role }, { data: user }] = await Promise.all([
           supabase
             .from('server_roles')
@@ -235,7 +230,6 @@ export async function handleRoleActivity(
       }
 
       case 'Remove': {
-        // Remove role from user
         const assignment = activity.object as RoleAssignment;
 
         const [{ data: role }, { data: user }] = await Promise.all([
@@ -350,7 +344,6 @@ router.get(
     const { serverId } = req.params;
     const supabase = getSupabaseClient();
 
-    // Get server
     const { data: server, error: serverError } = await supabase
       .from('servers')
       .select('id, ap_id, is_local_server')
@@ -361,7 +354,6 @@ router.get(
       return res.status(404).json({ error: 'Server not found' });
     }
 
-    // Get roles
     const { data: roles, error: rolesError } = await supabase
       .from('server_roles')
       .select('*')
@@ -377,7 +369,6 @@ router.get(
     const serverApId = server.ap_id || `${baseUrl}/servers/${serverId}`;
     const collectionUrl = `${serverApId}/roles`;
 
-    // Return as ActivityPub Collection
     res.setHeader('Content-Type', 'application/activity+json');
     res.json({
       '@context': 'https://www.w3.org/ns/activitystreams',

@@ -17,7 +17,6 @@ export async function handleBlockJob(data: FederationJobData): Promise<void> {
   logger.info(`🚫 Processing block job: ${type} for block ${block_id}`);
 
   try {
-    // Get blocker profile
     const { data: blocker } = await supabase
       .from('profiles')
       .select('*')
@@ -30,7 +29,6 @@ export async function handleBlockJob(data: FederationJobData): Promise<void> {
       return;
     }
 
-    // Get blocked profile
     const { data: blocked } = await supabase
       .from('profiles')
       .select('*')
@@ -49,7 +47,6 @@ export async function handleBlockJob(data: FederationJobData): Promise<void> {
     const blockerActorUrl = `${baseUrl}/users/${blocker.username}`;
 
     if (type === 'create') {
-      // Create Block activity
       const blockActivity = {
         '@context': 'https://www.w3.org/ns/activitystreams',
         id: `${baseUrl}/activities/block/${block_id}`,
@@ -58,13 +55,11 @@ export async function handleBlockJob(data: FederationJobData): Promise<void> {
         object: blocked.federated_id || blocked.ap_id
       };
 
-      // Send to the blocked user's inbox
       if (blocked.inbox_url) {
         await DeliveryQueue.sendToInbox(blocked.inbox_url, blockActivity, blocker.id);
         logger.info(`✅ Block notification sent to ${blocked.inbox_url}`);
       }
     } else if (type === 'delete') {
-      // Create Undo Block activity
       const undoBlockActivity = {
         '@context': 'https://www.w3.org/ns/activitystreams',
         id: `${baseUrl}/activities/undo-block/${block_id}`,

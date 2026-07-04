@@ -63,9 +63,7 @@ export class CoreInteractionService {
     return this.instance
   }
 
-  // =====================================================
   // FOLLOW MANAGEMENT (SECURE LOCAL OPERATIONS)
-  // =====================================================
 
   /**
    * Follow/unfollow a user (pure local, secure)
@@ -123,7 +121,6 @@ export class CoreInteractionService {
         following = false
         debug.log(`✅ Core: Successfully unfollowed user: ${targetUserId}`)
       } else {
-        // Verify target user exists and check approval settings
         const { data: targetUser, error: userError } = await supabase
           .from('profiles')
           .select('id, manually_approves_followers')
@@ -153,11 +150,9 @@ export class CoreInteractionService {
           }
         }
 
-        // Determine if approval is required (ActivityPub standard)
         const requiresApproval = targetUser.manually_approves_followers || false
         const status = requiresApproval ? 'pending' : 'accepted'
 
-        // Create follow with secure insertion
         const { error } = await supabase
           .from('follows')
           .insert({
@@ -168,7 +163,6 @@ export class CoreInteractionService {
           })
 
         if (error) {
-          // Handle unique constraint violations
           if (error.code === '23505') {
             throw this.createError('ALREADY_FOLLOWING', 'Already following this user')
           }
@@ -266,9 +260,7 @@ export class CoreInteractionService {
     }
   }
 
-  // =====================================================
   // BLOCK MANAGEMENT (SECURE OPERATIONS)
-  // =====================================================
 
   /**
    * Block/unblock a user (secure with relationship cleanup)
@@ -330,7 +322,6 @@ export class CoreInteractionService {
           throw this.createError('BLOCK_FAILED', 'Failed to block user', blockError)
         }
 
-        // Remove any existing follow relationships (secure cleanup)
         await supabase
           .from('follows')
           .delete()
@@ -347,9 +338,7 @@ export class CoreInteractionService {
     }
   }
 
-  // =====================================================
   // MUTE MANAGEMENT (SECURE OPERATIONS)
-  // =====================================================
 
   /**
    * Mute/unmute a user (pure local, affects notifications only)
@@ -424,9 +413,7 @@ export class CoreInteractionService {
     }
   }
 
-  // =====================================================
   // RELATIONSHIP QUERIES (SECURE AGGREGATION)
-  // =====================================================
 
   /**
    * Get user relationships with secure batch processing
@@ -460,7 +447,6 @@ export class CoreInteractionService {
 
       debug.log(`🔄 Core: Getting relationships for ${sanitizedUserIds.length} users`)
 
-      // Initialize all relationships as false
       sanitizedUserIds.forEach(id => {
         relationships[id] = {
           following: false,
@@ -473,28 +459,24 @@ export class CoreInteractionService {
 
       // Secure batch queries with error handling
       const [followingData, followersData, blocksData, mutesData] = await Promise.allSettled([
-        // Get follows (outgoing - who current user follows)
         supabase
           .from('follows')
           .select('following_id, status')
           .eq('follower_id', profileId)
                       .in('following_id', sanitizedUserIds),
 
-                  // Get follows (incoming - who follows current user)
           supabase
             .from('follows')
             .select('follower_id, status')
             .eq('following_id', profileId)
             .in('follower_id', sanitizedUserIds),
 
-        // Get blocks
         supabase
           .from('user_blocks')
           .select('blocked_user_id')
           .eq('blocker_id', profileId)
           .in('blocked_user_id', sanitizedUserIds),
 
-        // Get mutes
         supabase
           .from('user_mutes')
           .select('muted_user_id')
@@ -502,7 +484,6 @@ export class CoreInteractionService {
           .in('muted_user_id', sanitizedUserIds)
       ])
 
-      // Process following relationships
       if (followingData.status === 'fulfilled' && followingData.value.data) {
         followingData.value.data.forEach(follow => {
                   relationships[follow.following_id].following = follow.status === 'accepted'
@@ -510,21 +491,18 @@ export class CoreInteractionService {
         })
       }
 
-      // Process follower relationships
       if (followersData.status === 'fulfilled' && followersData.value.data) {
         followersData.value.data.forEach(follow => {
           relationships[follow.follower_id].followedBy = follow.status === 'accepted'
         })
       }
 
-      // Process block relationships
       if (blocksData.status === 'fulfilled' && blocksData.value.data) {
         blocksData.value.data.forEach(block => {
           relationships[block.blocked_user_id].blocked = true
         })
       }
 
-      // Process mute relationships
       if (mutesData.status === 'fulfilled' && mutesData.value.data) {
         mutesData.value.data.forEach(mute => {
           relationships[mute.muted_user_id].muted = true
@@ -576,7 +554,6 @@ export class CoreInteractionService {
         .order('created_at', { ascending: false })
         .limit(secureLimit + 1) // Get one extra to check if there are more
 
-      // Apply cursor for pagination
       if (cursor) {
         query = query.lt('created_at', cursor)
       }
@@ -585,7 +562,6 @@ export class CoreInteractionService {
 
       if (error) throw this.createError('REQUESTS_FAILED', 'Failed to load follow requests', error)
 
-      // Check if there are more results
       const hasMore = requests && requests.length > secureLimit
       const actualRequests = hasMore ? requests.slice(0, secureLimit) : requests || []
 
@@ -758,9 +734,7 @@ export class CoreInteractionService {
     }
   }
 
-  // =====================================================
   // SECURITY HELPER METHODS
-  // =====================================================
 
   /**
    * Get current user's profile ID

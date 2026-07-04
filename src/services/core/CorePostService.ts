@@ -42,9 +42,7 @@ export class CorePostService {
     return this.instance
   }
 
-  // =====================================================
   // POST CREATION & MANAGEMENT (PURE LOCAL)
-  // =====================================================
 
   /**
    * Create a post (pure local database operation)
@@ -70,7 +68,6 @@ export class CorePostService {
         throw this.createError('EMPTY_CONTENT', 'Content cannot be empty')
       }
 
-      // Validate each MessagePart
       for (const part of data.content) {
         if (!part || typeof part !== 'object' || !part.type) {
           throw this.createError('INVALID_MESSAGE_PART', 'Each content part must be a valid MessagePart object')
@@ -159,7 +156,6 @@ export class CorePostService {
     try {
       const profileId = await this.getCurrentUserProfileId()
 
-      // Verify ownership
       const { data: existingPost } = await supabase
         .from('posts')
         .select('author_id')
@@ -217,7 +213,6 @@ export class CorePostService {
     try {
       const profileId = await this.getCurrentUserProfileId()
 
-      // Verify ownership
       const { data: existingPost } = await supabase
         .from('posts')
         .select('author_id')
@@ -245,9 +240,7 @@ export class CorePostService {
     }
   }
 
-  // =====================================================
   // POST INTERACTIONS (PURE LOCAL)
-  // =====================================================
 
   /**
    * Toggle like on a post (pure local)
@@ -259,7 +252,6 @@ export class CorePostService {
 
       debug.log(`🔄 Core: Toggling like: post=${postId}, user=${profileId}`)
 
-      // Check if already liked
       const { data: existingLike } = await supabase
         .from('post_interactions')
         .select('id')
@@ -273,7 +265,6 @@ export class CorePostService {
       let liked: boolean
 
       if (existingLike) {
-        // Remove like
         const { error } = await supabase
           .from('post_interactions')
           .delete()
@@ -286,7 +277,6 @@ export class CorePostService {
         if (error) throw this.createError('REMOVE_LIKE_FAILED', error.message, error)
         liked = false
       } else {
-        // Add like
         const { error } = await supabase
           .from('post_interactions')
           .insert({
@@ -327,7 +317,6 @@ export class CorePostService {
 
       debug.log(`🔄 Core: Toggling share: post=${postId}, user=${profileId}`)
 
-      // Check if already shared
       const { data: existingShare } = await supabase
         .from('post_interactions')
         .select('id')
@@ -341,7 +330,6 @@ export class CorePostService {
       let shared: boolean
 
       if (existingShare) {
-        // Remove share
         const { error } = await supabase
           .from('post_interactions')
           .delete()
@@ -354,7 +342,6 @@ export class CorePostService {
         if (error) throw this.createError('REMOVE_SHARE_FAILED', error.message, error)
         shared = false
       } else {
-        // Add share
         const { error } = await supabase
           .from('post_interactions')
           .insert({
@@ -394,7 +381,6 @@ export class CorePostService {
 
       debug.log(`🔄 Core: Toggling bookmark: post=${postId}, user=${profileId}`)
 
-      // Check if already bookmarked
       const { data: existingBookmark } = await supabase
         .from('post_interactions')
         .select('id')
@@ -408,7 +394,6 @@ export class CorePostService {
       let bookmarked: boolean
 
       if (existingBookmark) {
-        // Remove bookmark
         const { error } = await supabase
           .from('post_interactions')
           .delete()
@@ -421,7 +406,6 @@ export class CorePostService {
         if (error) throw this.createError('REMOVE_BOOKMARK_FAILED', error.message, error)
         bookmarked = false
       } else {
-        // Add bookmark
         const { error } = await supabase
           .from('post_interactions')
           .insert({
@@ -542,7 +526,6 @@ export class CorePostService {
 
       debug.log(`🔄 Core: Toggling post reaction: post=${postId}, emoji=${emojiId}, user=${profileId}`)
 
-      // Check if reaction already exists
       const { data: existingReaction } = await supabase
         .from('post_interactions')
         .select('id')
@@ -555,7 +538,6 @@ export class CorePostService {
         .maybeSingle()
 
       if (existingReaction) {
-        // Remove reaction
         const { error } = await supabase
           .from('post_interactions')
           .delete()
@@ -571,7 +553,6 @@ export class CorePostService {
         debug.log('✅ Core: Post reaction removed successfully')
         return { added: false }
       } else {
-        // Add reaction
         const { error } = await supabase
           .from('post_interactions')
           .insert({
@@ -641,9 +622,7 @@ export class CorePostService {
     }
   }
 
-  // =====================================================
   // POST LOADING (PURE LOCAL)
-  // =====================================================
 
   /**
    * Get reactions for multiple posts using optimized database function (pure local)
@@ -669,7 +648,6 @@ export class CorePostService {
       // Group reactions by post_id
       const groupedReactions: Record<string, any[]> = {}
       
-      // Initialize all post IDs with empty arrays
       postIds.forEach(postId => {
         groupedReactions[postId] = []
       })
@@ -749,7 +727,6 @@ export class CorePostService {
         const postIds = postList.map(p => p.id)
         const reactionsByPost = await this.getBatchPostReactions(postIds)
         
-        // Attach reactions to each post
         postList.forEach(post => {
           post.reactions = reactionsByPost[post.id] || []
         })
@@ -817,9 +794,7 @@ export class CorePostService {
     }
   }
 
-  // =====================================================
   // HELPER METHODS (PURE LOCAL)
-  // =====================================================
 
   private async getCurrentUserProfileId(): Promise<string> {
     try {

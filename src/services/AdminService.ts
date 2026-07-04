@@ -158,7 +158,6 @@ class AdminService {
    */
   async getSystemStats(): Promise<SystemStats> {
     try {
-      // Get all stats in parallel using direct queries
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       
@@ -190,7 +189,6 @@ class AdminService {
       };
     } catch (error) {
       debug.error('Failed to get system stats:', error);
-      // Return safe defaults on error
       return {
         total_users: 0,
         total_servers: 0,
@@ -209,7 +207,6 @@ class AdminService {
    */
   async getFederationStats(): Promise<FederationStats> {
     try {
-      // Get federation stats using direct queries
       const [
         pendingResult,
         successfulResult,
@@ -224,7 +221,6 @@ class AdminService {
         supabase.from('federation_endpoint_health').select('*')
       ]);
 
-      // Calculate endpoint health metrics
       const endpoints = endpointHealthResult.data || [];
       const totalEndpoints = endpoints.length;
       const deadEndpoints = endpoints.filter(e => e.is_dead).length;
@@ -252,7 +248,6 @@ class AdminService {
       };
     } catch (error) {
       debug.error('Failed to get federation stats:', error);
-      // Return safe defaults on error
       return {
         pending_deliveries: 0,
         successful_deliveries: 0,
@@ -362,7 +357,6 @@ class AdminService {
    */
   async getSystemHealth(): Promise<SystemHealth> {
     try {
-      // Get federation stats for health calculation
       const federationStats = await this.getFederationStats();
       
       // Measure database response time
@@ -370,14 +364,12 @@ class AdminService {
       await supabase.from('profiles').select('id').limit(1);
       const dbResponseTime = Date.now() - start;
 
-      // Get real DB connection count
       let connections = 0;
       try {
         const { data: connData } = await supabase.rpc('get_db_connection_count');
         connections = connData || 0;
       } catch { /* RPC may not exist yet */ }
 
-      // Get real DB size
       let dbSize = '--';
       try {
         const { data: sizeData } = await supabase.rpc('get_db_size');
@@ -706,10 +698,8 @@ class AdminService {
     adminId: string
   ): Promise<void> {
     try {
-      // Handle instance moderation using direct queries
       switch (action) {
         case 'block': {
-          // Update or insert federated instance as blocked
           const { error } = await supabase
             .from('federated_instances')
             .upsert({
@@ -804,7 +794,6 @@ class AdminService {
         };
       }
 
-      // Fetch instance config from instance_config table
       let instanceName = 'Harmony Instance'
       let instanceDescription = 'A federated social platform'
       let domain = import.meta.env.VITE_DOMAIN as string
@@ -848,10 +837,8 @@ class AdminService {
         if (configData) {
           configData.forEach((config) => {
             try {
-              // Parse JSONB value - it may be a string with quotes or already parsed
               let value = config.config_value
               
-              // Handle JSONB string values
               if (typeof value === 'string') {
                 // Try to parse if it's a JSON string (might be double-quoted)
                 try {
@@ -867,7 +854,6 @@ class AdminService {
               
               // Ensure we have a clean string value (not double-quoted)
               if (typeof value === 'string') {
-                // Remove any remaining escaped quotes
                 value = value.replace(/\\"/g, '"')
               }
 
@@ -1278,10 +1264,8 @@ class AdminService {
    */
   async exportLogs(): Promise<Blob> {
     try {
-      // Get recent admin activity
       const activity = await this.getRecentActivity(1000);
       
-      // Convert to CSV format
       const headers = ['Timestamp', 'Admin', 'Action', 'Target', 'Details', 'IP Address'];
       const csvContent = [
         headers.join(','),
@@ -1452,7 +1436,6 @@ class AdminService {
         .select('*', { count: 'exact' })
         .order('last_seen_at', { ascending: false });
 
-      // Apply filters
       switch (filter) {
         case 'blocked':
           query = query.eq('is_blocked', true);
@@ -1465,12 +1448,10 @@ class AdminService {
           break;
       }
 
-      // Apply search
       if (search) {
         query = query.or(`domain.ilike.%${search}%,description.ilike.%${search}%,software.ilike.%${search}%`);
       }
 
-      // Apply pagination
       query = query.range(offset, offset + limit - 1);
 
       const { data, error, count } = await query;
@@ -1534,7 +1515,6 @@ class AdminService {
     try {
       const cleanDomain = domain.replace(/^https?:\/\//, '').replace(/\/$/, '').toLowerCase();
       
-      // Check if instance already exists
       const { data: existing } = await supabase
         .from('federated_instances')
         .select('*')
@@ -1552,7 +1532,6 @@ class AdminService {
         throw new Error('Could not discover instance information');
       }
 
-      // Insert or update the instance
       const instanceData = {
         domain: cleanDomain,
         software: instanceInfo?.software || 'unknown',
@@ -1588,7 +1567,6 @@ class AdminService {
 
       if (error) throw error;
 
-      // Log admin activity
       debug.log(`Instance ${cleanDomain} ${existing ? 'updated' : 'added'} by admin ${adminId}`);
 
       return data;
@@ -1654,7 +1632,6 @@ class AdminService {
 
       if (error) throw error;
 
-      // Log admin activity
       debug.log(`Instance ${data.domain} updated by admin ${adminId}:`, updates);
 
       return data;
@@ -1683,7 +1660,6 @@ class AdminService {
 
       if (error) throw error;
 
-      // Log admin activity
       debug.log(`Instance ${instance?.domain} deleted by admin ${adminId}`);
     } catch (error) {
       debug.error('Failed to delete federated instance:', error);
@@ -1701,7 +1677,6 @@ class AdminService {
     try {
       const domain = query.trim().toLowerCase();
       
-      // Validate domain format
       if (!domain.includes('.') || domain.includes(' ')) {
         debug.log(`Invalid domain format: "${query}". User must enter a full domain like "mastodon.social"`);
         return [];
@@ -1797,7 +1772,6 @@ class AdminService {
         return [];
       }
 
-      // Sort by active users and return top instances
       const sorted = data.data.nodes
         .filter((node: any) => node.active_users_monthly > 100) // Only active instances
         .sort((a: any, b: any) => (b.active_users_monthly || 0) - (a.active_users_monthly || 0))
@@ -1884,13 +1858,11 @@ class AdminService {
    */
   async getDiscoveredInstances(limit: number = 20): Promise<{ domain: string; user_count: number; interaction_count: number }[]> {
     try {
-      // Get domains already in federated_instances (approved/known) to exclude
       const { data: knownData } = await supabase
         .from('federated_instances')
         .select('domain');
       const knownDomains = new Set((knownData || []).map((r: { domain: string }) => r.domain?.toLowerCase()).filter(Boolean));
 
-      // Get instances that users have interacted with
       const { data, error } = await supabase
         .from('profiles')
         .select('domain')
@@ -1911,7 +1883,6 @@ class AdminService {
         }
       });
 
-      // Convert to array and sort by interaction count
       const discovered = Array.from(instanceCounts.entries())
         .map(([domain, count]) => ({
           domain,
@@ -1933,7 +1904,6 @@ class AdminService {
    */
   async refreshInstanceInfo(instanceId: string): Promise<FederatedInstance> {
     try {
-      // Get current instance
       const { data: instance, error: fetchError } = await supabase
         .from('federated_instances')
         .select('*')
@@ -1942,7 +1912,6 @@ class AdminService {
 
       if (fetchError) throw fetchError;
 
-      // Fetch updated info
       const updatedInfo = await this.discoverInstance(instance.domain);
       
       if (updatedInfo) {
@@ -2000,7 +1969,6 @@ class AdminService {
     joined_at: string;
   }[]> {
     try {
-      // Get user's server memberships with server details
       const { data, error } = await supabase
         .from('user_servers')
         .select(`
@@ -2117,9 +2085,7 @@ class AdminService {
     if (error) throw error;
   }
 
-  // ============================================================================
   // FEDERATION MAINTENANCE
-  // ============================================================================
 
   /**
    * Get key consistency report for local users

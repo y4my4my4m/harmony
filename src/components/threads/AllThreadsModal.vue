@@ -146,7 +146,6 @@ const threads = ref<ThreadWithDetails[]>([])
 const loading = ref(false)
 const searchQuery = ref('')
 
-// Filter threads by search query
 const filteredThreads = computed(() => {
   if (!searchQuery.value) return threads.value
   const query = searchQuery.value.toLowerCase()

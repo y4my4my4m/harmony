@@ -53,9 +53,7 @@ export class CoreProfileService {
     return this.instance
   }
 
-  // =====================================================
   // PROFILE LOADING (SECURE & PRIVACY-AWARE)
-  // =====================================================
 
   /**
    * Load profile by ID with privacy controls (pure local, secure)
@@ -213,16 +211,13 @@ export class CoreProfileService {
     }
   }
 
-  // =====================================================
   // PROFILE MANAGEMENT (SECURE OWNERSHIP VERIFICATION)
-  // =====================================================
 
   /**
    * Update current user profile (SECURE ownership verification)
    */
   async updateProfile(profileData: ProfileData): Promise<Profile> {
     try {
-      // Get current user context (auth + profile ID resolved once)
       const profileId = await authContextService.getCurrentProfileId()
       const authUser = await authContextService.getCurrentAuthUser()
 
@@ -270,7 +265,6 @@ export class CoreProfileService {
    */
   async createProfile(profileData: Profile): Promise<Profile> {
     try {
-      // Get current user context (auth user resolved once)
       const authUser = await authContextService.getCurrentAuthUser()
 
       // Input validation and sanitization
@@ -291,7 +285,6 @@ export class CoreProfileService {
         .single()
 
       if (error) {
-        // Handle unique constraint violations securely
         if (error.code === '23505') {
           if (error.message.includes('username')) {
             throw this.createError('USERNAME_TAKEN', 'Username is already taken')
@@ -311,9 +304,7 @@ export class CoreProfileService {
     }
   }
 
-  // =====================================================
   // USER STATISTICS (SECURE AGGREGATION)
-  // =====================================================
 
   /**
    * Get user statistics with secure aggregation
@@ -364,9 +355,7 @@ export class CoreProfileService {
     }
   }
 
-  // =====================================================
   // SECURITY HELPER METHODS
-  // =====================================================
 
   private sanitizeProfileData(data: ProfileData): ProfileData {
     return {
@@ -392,7 +381,6 @@ export class CoreProfileService {
   }
 
   private sanitizeSearchQuery(query: string): string {
-    // Remove potentially dangerous characters
     return query.trim().replace(/[<>'";&]/g, '')
   }
 

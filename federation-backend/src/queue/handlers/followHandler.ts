@@ -17,14 +17,12 @@ export async function handleFollowJob(data: FederationJobData): Promise<void> {
   logger.info(`👥 Processing follow job: ${type} for follow ${follow_id}`);
 
   try {
-    // Get follower profile
     const { data: follower } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', follower_id)
       .single();
 
-    // Get following profile
     const { data: following } = await supabase
       .from('profiles')
       .select('*')
@@ -66,7 +64,6 @@ export async function handleFollowJob(data: FederationJobData): Promise<void> {
     const followerActorUrl = `${baseUrl}/users/${follower.username}`;
 
     if (type === 'create') {
-      // Create Follow activity
       const followActivity = {
         '@context': 'https://www.w3.org/ns/activitystreams',
         id: `${baseUrl}/activities/follow/${follow_id}`,
@@ -75,13 +72,11 @@ export async function handleFollowJob(data: FederationJobData): Promise<void> {
         object: following.federated_id || following.ap_id
       };
 
-      // Send to the followed user's inbox
       if (following.inbox_url) {
         await DeliveryQueue.sendToInbox(following.inbox_url, followActivity, follower.id);
         logger.info(`✅ Follow request sent to ${following.inbox_url}`);
       }
     } else if (type === 'delete') {
-      // Create Undo Follow activity
       const undoFollowActivity = {
         '@context': 'https://www.w3.org/ns/activitystreams',
         id: `${baseUrl}/activities/undo-follow/${follow_id}`,

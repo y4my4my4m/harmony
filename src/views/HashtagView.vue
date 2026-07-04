@@ -96,7 +96,6 @@ const { isMobile } = useLayoutState()
 // Router
 const router = useRouter()
 
-// Store
 const activityPubStore = useActivityPubStore()
 
 // State
@@ -270,7 +269,6 @@ watch(() => props.hashtag, (newTag, oldTag) => {
   }
 })
 
-// Load on mount
 onMounted(() => {
   loadPosts()
   loadHashtagStats()

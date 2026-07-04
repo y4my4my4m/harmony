@@ -223,7 +223,6 @@ const formatNumber = (num: number): string => {
 };
 
 const handleUserClick = () => {
-  // Emit event for parent to handle (show modal or navigate)
   emit('user-click', props.user);
 };
 
@@ -290,7 +289,6 @@ const handleReport = () => {
   showReportModal.value = true;
 };
 
-// Close actions menu when clicking outside
 const handleClickOutside = (event: Event) => {
   if (showActionsMenu.value) {
     const target = event.target as Element;

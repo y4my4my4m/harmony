@@ -3,14 +3,6 @@ import './assets/design-system.css'
 import './assets/shared.css'
 import './assets/embed-previews.css'
 import './assets/themes.css' // Theme system CSS
-// Dynamically import 'pwa.css' based on mobile detection
-// async function loadMobileStyles() {
-//   const isMobile = /Mobi|Android|iPhone|iPad|iPod|BlackBerry|Windows Phone/i.test(navigator.userAgent);
-//   if (isMobile) {
-//     await import('./assets/pwa.css');
-//     debug.log('📱 Mobile styles loaded');
-//   }
-// }
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import App from './App.vue'
@@ -145,5 +137,4 @@ async function initializeApp() {
   }
 }
 
-// Initialize the application
 initializeApp()

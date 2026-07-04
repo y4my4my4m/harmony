@@ -214,10 +214,8 @@ const confirmDeleteServer = async () => {
       toast.success('Server deleted successfully')
       hideDeleteConfirmation()
       
-      // Refresh the server list to remove the deleted server
       await serverChannelStore.fetchServersForUser(userId)
       
-      // Find the next available server to navigate to
       const availableServers = serverChannelStore.servers
       if (availableServers.length > 0) {
         // Navigate to the first available server

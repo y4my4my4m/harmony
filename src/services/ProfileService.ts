@@ -121,7 +121,6 @@ export class ProfileService {
         throw this.createError('UPDATE_FAILED', 'Failed to update profile', error)
       }
 
-      // Refresh userDataService cache
       try {
         await userDataService.fetchUserProfile(context.profileId, true)
       } catch (refreshError) {
@@ -144,7 +143,6 @@ export class ProfileService {
         ? useInstanceSettingsStore().settings.allowCustomEmojisInDisplayNames
         : true
 
-      // Validate display name emoji limits
       if (profileData.display_name) {
         const emojiMatches = profileData.display_name.match(/:([a-zA-Z0-9_+-]+):/g)
         if (emojiMatches && emojiMatches.length > 5) {
@@ -392,14 +390,12 @@ export class ProfileService {
         }
       }
 
-      // Check if already fetching this profile
       const pending = this.pendingFetches.get(userId)
       if (pending) {
         debug.log(`⏳ ProfileService: Reusing pending fetch for ${userId}`)
         return pending
       }
 
-      // Create fetch promise
       const fetchPromise = (async () => {
         try {
           const profile = await this.getProfileById(userId)
@@ -409,12 +405,10 @@ export class ProfileService {
           }
           return profile
         } finally {
-          // Remove from pending
           this.pendingFetches.delete(userId)
         }
       })()
 
-      // Track pending fetch
       this.pendingFetches.set(userId, fetchPromise)
       return fetchPromise
     } catch (error: any) {
@@ -488,7 +482,6 @@ export class ProfileService {
       const result = await uploadAvatar(file, userId)
       
       if (result.success && result.url) {
-        // Update the profile with the new avatar URL
         await this.updateCurrentProfile({ avatar_url: result.url })
       }
       
@@ -516,7 +509,6 @@ export class ProfileService {
       const result = await uploadBanner(file, userId)
       
       if (result.success && result.url) {
-        // Update the profile with the new banner URL
         await this.updateCurrentProfile({ banner_url: result.url })
       }
       

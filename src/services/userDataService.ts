@@ -55,7 +55,7 @@ function detectMobileDevice(): boolean {
  */
 const PROFILE_BACKFILL_CHUNK = 30
 
-/** Bulk member-list hydration — omit federation_metadata (large JSONB, rarely needed). */
+/** Bulk member-list hydration - omit federation_metadata (large JSONB, rarely needed). */
 const PROFILE_BULK_SELECT =
   'id, username, web_handle, display_name, avatar_url, banner_url, bio, color, status, domain, updated_at, created_at, is_local, custom_status, is_admin, is_moderator'
 
@@ -107,13 +107,10 @@ class UserDataService extends EventTarget {
       try { await loadEmojiData() } catch { /* non-critical */ }
     }
     
-    // Initialize current user
     await this.initializeCurrentUser(userId, username, avatarUrl, existingProfile)
     
-    // Setup global presence channel
     await this.setupGlobalPresence()
     
-    // Start heartbeat for core functionality
     this.startHeartbeat()
     
     this.initialized = true
@@ -129,7 +126,6 @@ class UserDataService extends EventTarget {
       return
     }
     
-    // Start activity tracking and lifecycle management
     this.setupActivityTracking()
     debug.log('✅ Background features initialized (activity tracking)')
   }
@@ -189,7 +185,6 @@ class UserDataService extends EventTarget {
       const saved = userStorage.getItem('custom_status')
       if (saved) {
         const customStatus = JSON.parse(saved) as CustomUserStatus
-        // Check if expired
         if (customStatus.expiresAt && new Date(customStatus.expiresAt) < new Date()) {
           userStorage.removeItem('custom_status')
           return null
@@ -230,7 +225,6 @@ class UserDataService extends EventTarget {
         ? JSON.parse(customStatusJson) 
         : customStatusJson
 
-      // Check if expired
       if (status.expires_at || status.expiresAt) {
         const expiresAt = status.expires_at || status.expiresAt
         if (new Date(expiresAt) < new Date()) {
@@ -238,7 +232,6 @@ class UserDataService extends EventTarget {
         }
       }
 
-      // Convert to CustomUserStatus format
       const customStatus: CustomUserStatus = {
         text: status.text || undefined,
         emoji: status.emoji || undefined,
@@ -268,7 +261,6 @@ class UserDataService extends EventTarget {
    * Setup activity tracking and lifecycle management
    */
   private setupActivityTracking(): void {
-    // Start activity tracking
     activityTracker.startTracking()
     
     // Listen for activity events
@@ -455,7 +447,6 @@ class UserDataService extends EventTarget {
           }
         }
         
-        // Parse custom status from database (returns undefined if expired)
         let customStatus = this.parseCustomStatus(profile.custom_status)
         
         // If DB has expired custom_status, clear it so the row stays clean
@@ -610,7 +601,6 @@ class UserDataService extends EventTarget {
       .subscribe(async (status: string) => {
         if (status === 'SUBSCRIBED') {
           debug.log('✅ Global presence channel connected')
-          // Track ONCE on subscription - that's all we need
           await this.trackCurrentUserGlobally()
         }
       })
@@ -632,7 +622,6 @@ class UserDataService extends EventTarget {
     const userData = this.users.get(this.currentUserId)
     if (!userData) return
     
-    // Handle invisible status - untrack from presence
     if (userData.status === UserStatus.Offline || userData.status === UserStatus.Invisible) {
       try {
         await this.globalChannel.untrack()
@@ -672,7 +661,6 @@ class UserDataService extends EventTarget {
     // eslint-disable-next-line unused-imports/no-unused-vars
     const userCount = Object.keys(state).length
     
-    // Track which users are globally online
     const globallyOnlineUserIds = new Set<string>()
     
     Object.values(state).forEach((presences: any[]) => {
@@ -885,19 +873,16 @@ class UserDataService extends EventTarget {
    * Subscribe to a context (server, DM, profile, friends)
    */
   async subscribeToContext(contextId: string, type: 'server' | 'dm' | 'profile' | 'friends', userIds: string[]): Promise<void> {
-    // Check if already subscribed to this context
     if (this.contexts.has(contextId)) {
       debug.log(`⚠️ Already subscribed to ${type} context:`, contextId, '- skipping duplicate subscription')
       return
     }
     
-    // Check if subscription is already in progress
     if (this.pendingSubscriptions.has(contextId)) {
       debug.log(`⚠️ Subscription already in progress for ${type} context:`, contextId, '- skipping duplicate')
       return
     }
     
-    // Mark subscription as in progress
     this.pendingSubscriptions.add(contextId)
     
     try {
@@ -920,7 +905,6 @@ class UserDataService extends EventTarget {
         await this.loadUsersData(userIds)
       }
 
-      // Create context
       const context: UserContext = {
         id: contextId,
         type,
@@ -939,7 +923,6 @@ class UserDataService extends EventTarget {
       // changes" regression.
       this.emitEvent('context-updated', { contextId })
 
-      // Setup context-specific presence if needed
       if (type === 'server') {
         await this.setupServerPresence(contextId, userIds)
       }
@@ -951,7 +934,6 @@ class UserDataService extends EventTarget {
 
       debug.log(`✅ Subscribed to ${type} context:`, contextId)
     } finally {
-      // Remove from pending subscriptions
       this.pendingSubscriptions.delete(contextId)
     }
   }
@@ -1105,13 +1087,10 @@ class UserDataService extends EventTarget {
     
     const context = this.contexts.get(serverId)
     if (context) {
-      // Add user to context
       context.userIds.add(newUserId)
       
-      // Load user data
       await this.loadUsersData([newUserId])
       
-      // Emit context update
       this.emitEvent('context-updated', { contextId: serverId, type: 'member-join', userId: newUserId })
     }
   }
@@ -1133,7 +1112,6 @@ class UserDataService extends EventTarget {
       // source of truth for online/offline status now.
       context.userIds.delete(leftUserId)
 
-      // Emit context update so the UI removes them from this server's list
       this.emitEvent('context-updated', { contextId: serverId, type: 'member-leave', userId: leftUserId })
     }
   }
@@ -1153,7 +1131,6 @@ class UserDataService extends EventTarget {
       color: updatedProfile.color
     })
     
-    // Update our local user data if we have it
     const userData = this.users.get(userId)
     if (userData) {
       if (updatedProfile.federation_metadata !== undefined) {
@@ -1245,7 +1222,6 @@ class UserDataService extends EventTarget {
     
     debug.log(`📡 Received profile update broadcast for user ${userId} in server ${serverId}:`, profileUpdates)
     
-    // Update our local user data if we have it
     const userData = this.users.get(userId)
     if (userData) {
       if (profileUpdates.displayName !== undefined) {
@@ -1503,7 +1479,6 @@ class UserDataService extends EventTarget {
    * Batch fetch multiple user profiles efficiently
    */
   async fetchMultipleUserProfiles(userIds: string[], forceRefresh: boolean = false): Promise<Record<string, any>> {
-    // Load missing users
     if (forceRefresh) {
       // Force refresh all users
       userIds.forEach(id => this.users.delete(id))
@@ -1511,7 +1486,6 @@ class UserDataService extends EventTarget {
     
     await this.loadUsersData(userIds)
     
-    // Return profiles in expected format
     const results: Record<string, any> = {}
     userIds.forEach(userId => {
       const profile = this.getUserProfile(userId)
@@ -1552,7 +1526,6 @@ class UserDataService extends EventTarget {
     const userData = this.users.get(this.currentUserId)
     if (!userData) throw new Error('Current user data not found')
     
-    // Track manual status changes
     if (isManual) {
       if (status === UserStatus.Away || status === UserStatus.Busy || status === UserStatus.Invisible) {
         this.wasManuallySet = true
@@ -1567,7 +1540,6 @@ class UserDataService extends EventTarget {
       }
     }
     
-    // Update local data immediately for instant UI feedback
     userData.status = status
     userData.lastCacheUpdate = new Date().toISOString()
     userData.lastHeartbeat = new Date().toISOString()
@@ -1586,14 +1558,12 @@ class UserDataService extends EventTarget {
         throw new Error(`Database update failed: ${error.message}`)
       }
       
-      // Verify the status was actually saved
       if (data && data[0] && data[0].status !== status) {
         throw new Error(`Status verification failed. Expected: ${status}, Got: ${data[0].status}`)
       }
       
       debug.log('✅ Status verified in database:', UserStatus[status])
       
-      // Update all presence channels (Supabase Realtime Presence)
       await this.updatePresenceStatus(status)
 
       // Sync to Redis presence
@@ -1635,17 +1605,14 @@ class UserDataService extends EventTarget {
     
     debug.log('🎭 Setting custom status:', customStatus?.text || '(clearing)')
     
-    // Clear any existing expiry timer
     if (this.customStatusExpiryTimer) {
       clearTimeout(this.customStatusExpiryTimer)
       this.customStatusExpiryTimer = null
     }
     
-    // Update local data
     userData.customStatus = customStatus
     userData.lastCacheUpdate = new Date().toISOString()
     
-    // Save to localStorage for persistence
     this.saveCustomStatusToLocalStorage(customStatus)
     
     // Schedule client-side clear when expiresAt is reached (no pg_cron; scale-friendly)
@@ -1714,7 +1681,6 @@ class UserDataService extends EventTarget {
       state: options?.state,
     }
     
-    // Set expiration if duration provided
     if (options?.durationMinutes) {
       customStatus.expiresAt = new Date(Date.now() + options.durationMinutes * 60 * 1000).toISOString()
     }
@@ -1749,7 +1715,6 @@ class UserDataService extends EventTarget {
     
     // If user data exists but customStatus is undefined, try to load it
     if (userData) {
-      // Load custom status from database and update cache
       try {
         const { data: profile } = await supabase
           .from('profiles')
@@ -1986,7 +1951,6 @@ class UserDataService extends EventTarget {
       loadEmojiData().catch(() => {})
     }
 
-    // Build a name->emoji map from pinned emojis for O(1) lookups
     const pinnedMap = new Map<string, { id: string; name: string; url: string }>()
     if (pinnedEmojis) {
       for (const e of pinnedEmojis) {
@@ -2097,7 +2061,6 @@ class UserDataService extends EventTarget {
   async cleanup(): Promise<void> {
     debug.log('🧹 Cleaning up User Data Service')
     
-    // Stop heartbeats (local + Redis)
     if (this.heartbeatTimer) {
       clearInterval(this.heartbeatTimer)
       this.heartbeatTimer = null
@@ -2122,7 +2085,6 @@ class UserDataService extends EventTarget {
       }
     }
     
-    // Unsubscribe from global presence
     if (this.globalChannel) {
       await this.globalChannel.unsubscribe()
       this.globalChannel = null
@@ -2136,7 +2098,6 @@ class UserDataService extends EventTarget {
       delete (window as any).__harmonyPresenceCleanup
     }
     
-    // Clear data
     this.users.clear()
     this.contexts.clear()
     this.currentUserId = null
@@ -2151,7 +2112,6 @@ class UserDataService extends EventTarget {
   async refresh(): Promise<void> {
     debug.log('🔄 Refreshing all user data')
     
-    // Reload all cached users
     const userIds = Array.from(this.users.keys())
     this.users.clear()
     

@@ -19,7 +19,6 @@ export function noteToContent(note: any): any[] {
   cleanText = cleanText.replace(/<\/(?:p|blockquote|h[1-6])>/gi, '\n\n');
   // <div>, <li> closing tags imply simple line breaks
   cleanText = cleanText.replace(/<\/(?:div|li)>/gi, '\n');
-  // Remove opening block-level tags (the closing tag already handles the break)
   cleanText = cleanText.replace(/<(?:p|div|li|blockquote|h[1-6])(?:\s[^>]*)?>/gi, '');
   // Remove inline tags WITHOUT adding spaces so @<span>user</span> → @user (not "@ user")
   cleanText = cleanText.replace(/<\/?(?:span|a|strong|b|em|i|u|s|del|code|sub|sup|mark|small|big|abbr)[^>]*>/gi, '');
@@ -84,7 +83,6 @@ export function noteToContent(note: any): any[] {
     let position = -1;
     
     if (tag.type === 'Emoji') {
-      // Find :emojiname: in text
       let emojiName = tag.name || '';
       if (emojiName.startsWith(':')) emojiName = emojiName.slice(1);
       if (emojiName.endsWith(':')) emojiName = emojiName.slice(0, -1);
@@ -132,7 +130,6 @@ export function noteToContent(note: any): any[] {
       }
     }
     
-    // Add the tag as a MessagePart
     if (tagPos.tag.type === 'Emoji') {
       let emojiName = tagPos.tag.name || '';
       if (emojiName.startsWith(':')) emojiName = emojiName.slice(1);
@@ -212,7 +209,6 @@ export function noteToContent(note: any): any[] {
     }
   }
   
-  // Handle media attachments
   addAttachments(parts, note.attachment);
   
   return parts.length > 0 ? parts : [{ type: 'text', text: '' }];
@@ -282,14 +278,11 @@ function addAttachments(parts: any[], attachments: any): void {
         altText: attachment.name, // Alt text for accessibility
       };
       
-      // Store dimensions if available
       if (attachment.width) filePart.width = attachment.width;
       if (attachment.height) filePart.height = attachment.height;
       
-      // Store blurhash if available (for placeholder images)
       if (attachment.blurhash) filePart.blurhash = attachment.blurhash;
       
-      // Store focal point if available (for image cropping)
       if (attachment.focalPoint) filePart.focalPoint = attachment.focalPoint;
       
       parts.push(filePart);
@@ -318,7 +311,6 @@ export function actorToProfile(actor: any): {
   bio_emojis?: Array<{ name: string; url: string }>;
   display_name_emojis?: Array<{ name: string; url: string }>;
 } {
-  // Extract username and domain from actor ID
   const actorUrl = new URL(actor.id);
   const domain = actorUrl.hostname;
   const username = actor.preferredUsername || actorUrl.pathname.split('/').pop() || 'unknown';
@@ -377,7 +369,6 @@ export function actorToProfile(actor: any): {
     profile.public_key = actor.publicKey.publicKeyPem;
   }
 
-  // Extract profile fields (PropertyValue attachments)
   if (actor.attachment && Array.isArray(actor.attachment)) {
     const profileFields = actor.attachment
       .filter((att: any) => att.type === 'PropertyValue')
@@ -392,17 +383,14 @@ export function actorToProfile(actor: any): {
     }
   }
 
-  // Extract discoverable flag
   if (actor.discoverable !== undefined) {
     profile.federation_discoverable = actor.discoverable;
   }
 
-  // Extract manually approves followers flag
   if (actor.manuallyApprovesFollowers !== undefined) {
     profile.manually_approves_followers = actor.manuallyApprovesFollowers;
   }
 
-  // Extract custom emojis from actor tags and split into display_name vs bio
   const allEmojis: Array<{ name: string; url: string }> = [];
 
   if (actor.tag && Array.isArray(actor.tag)) {
@@ -488,7 +476,6 @@ export function extractLikeData(activity: any): {
     data.emojiName = data.emoji;
   }
   
-  // Extract emoji URL from tag (for custom emojis)
   if (Array.isArray(activity.tag)) {
     const emojiTag = activity.tag.find((t: any) => t.type === 'Emoji');
     if (emojiTag) {

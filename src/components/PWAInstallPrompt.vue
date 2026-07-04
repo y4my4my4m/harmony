@@ -154,7 +154,6 @@ onMounted(() => {
   window.addEventListener('pwa-install-available', handleInstallAvailable)
   window.addEventListener('pwa-app-installed', handleAppInstalled)
   
-  // Check if we should show install prompt
   if (props.variant === 'banner' && capabilities.value.canInstall) {
     handleInstallAvailable()
   }

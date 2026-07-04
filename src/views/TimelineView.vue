@@ -87,7 +87,6 @@ const emit = defineEmits<{
   openSearch: []
 }>()
 
-// Store
 const activityPubStore = useActivityPubStore()
 const { blockedUsers, mutedUsers } = storeToRefs(activityPubStore)
 
@@ -106,7 +105,6 @@ const posts = computed(() => {
     const authorId = post.author_id || post.author?.id
     if (!authorId) return true
     
-    // Hide posts from blocked users completely
     if (blockedUsers.value.has(authorId)) {
       return false
     }
@@ -134,7 +132,6 @@ const hasMorePosts = computed(() => {
   }
 })
 
-// Load timeline data
 const loadTimeline = async () => {
   try {
     switch (props.currentView) {
@@ -284,7 +281,6 @@ watch(() => props.currentView, (newView, oldView) => {
   }
 }, { immediate: true }) // Load on initial mount via currentView prop
 
-// Load timeline on mount for direct navigation only if no currentView prop
 onMounted(() => {
   // Mark the feed as on-screen so the app-scoped realtime handlers process
   // live post arrivals (prepend + sound). Off-view they no-op to avoid

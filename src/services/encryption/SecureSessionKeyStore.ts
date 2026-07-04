@@ -187,11 +187,9 @@ class SecureSessionKeyStore {
 
 export const secureSessionKeyStore = new SecureSessionKeyStore()
 
-// =====================================================
 // Identity Key Store
 // Stores ECDH private keys as non-extractable CryptoKey
 // objects in IndexedDB for session key exchange.
-// =====================================================
 
 const IDENTITY_DB_NAME = 'harmony_identity_keys'
 const IDENTITY_DB_VERSION = 1
@@ -352,7 +350,6 @@ class IdentityKeyStore {
 
 export const identityKeyStore = new IdentityKeyStore()
 
-// =====================================================
 // Signing Key Store
 // Stores ECDSA P-256 private signing keys as non-extractable
 // CryptoKey objects in IndexedDB. Used for per-message sender
@@ -360,7 +357,6 @@ export const identityKeyStore = new IdentityKeyStore()
 //
 // Kept in its own IndexedDB database so a future device-rotation
 // flow can clear it independently of the ECDH identity key.
-// =====================================================
 
 const SIGNING_DB_NAME = 'harmony_signing_keys'
 const SIGNING_DB_VERSION = 1
@@ -494,7 +490,6 @@ class SigningKeyStore {
 
 export const signingKeyStore = new SigningKeyStore()
 
-// =====================================================
 // Pinned Key Store (TOFU)
 //
 // Trust-on-first-use record of each sender's signing-key fingerprint. This is
@@ -505,7 +500,6 @@ export const signingKeyStore = new SigningKeyStore()
 // Keyed by userId today; the record carries an optional deviceId so the Phase 3
 // per-device identity model can pin per (userId, deviceId) without a schema
 // migration (we bump DB_VERSION and switch the keyPath then).
-// =====================================================
 
 const PINNED_DB_NAME = 'harmony_pinned_keys'
 const PINNED_DB_VERSION = 1
@@ -625,7 +619,6 @@ class PinnedKeyStore {
 
 export const pinnedKeyStore = new PinnedKeyStore()
 
-// =====================================================
 // Device Key Store
 //
 // Per-device ECDSA signing private key (non-extractable), keyed by deviceId
@@ -636,7 +629,6 @@ export const pinnedKeyStore = new PinnedKeyStore()
 //
 // Kept separate from signingKeyStore (which holds the legacy user-level signing
 // key) so the two can be cleared / rotated independently.
-// =====================================================
 
 const DEVICE_DB_NAME = 'harmony_device_keys'
 const DEVICE_DB_VERSION = 1

@@ -178,7 +178,6 @@ const stopResize = () => {
   document.removeEventListener('mouseup', stopResize);
 };
 
-// Handle native PIP mode
 watch(() => [voiceStore.pipActive, voiceStore.pipMode, pipStream.value], async ([active, mode, stream]) => {
   if (active && mode === 'native' && stream) {
     // Use browser's native PIP API
@@ -188,7 +187,6 @@ watch(() => [voiceStore.pipActive, voiceStore.pipMode, pipStream.value], async (
       videoEl.autoplay = true;
       videoEl.muted = false;
       
-      // Wait for video to load
       await new Promise(resolve => {
         videoEl.addEventListener('loadedmetadata', resolve, { once: true });
       });
@@ -244,7 +242,6 @@ watch(
   { immediate: true }
 );
 
-// Cleanup
 onUnmounted(() => {
   document.removeEventListener('mousemove', onDrag);
   document.removeEventListener('mouseup', stopDrag);

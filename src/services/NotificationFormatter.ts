@@ -460,7 +460,6 @@ export class NotificationFormatter {
     let actorUserId: string | null = null
     let actorDisplayName: string | null = null
 
-    // Extract actor from structured notification data
     const actor = data.sender || data.reactor || data.actor || data.inviter || data.follower || data.user || data.author
     if (actor) {
       actorUserId = actor.user_id || actor.id || null
@@ -474,7 +473,6 @@ export class NotificationFormatter {
 
     if (!actorUserId || !actorDisplayName) return null
 
-    // Extract the suffix by finding the actor name in the formatted title
     const formatted = this.formatNotification(notification)
     const title = formatted.title
     const nameIndex = title.indexOf(actorDisplayName)

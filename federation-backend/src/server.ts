@@ -52,13 +52,19 @@ export function createApp(): Application {
     credentials: true,
   }));
 
-  app.use(express.json({
-    limit: '10mb',
-    type: ['application/json', 'application/activity+json', 'application/ld+json'],
-    verify: (req, _res, buf) => {
-      (req as any).rawBody = buf;
-    },
-  }));
+  // ActivityPub inboxes get a tight body limit: real AP payloads are a few KB,
+  // and a large limit invites storage/bandwidth amplification via redeliveries.
+  // Must be mounted before the general parser - once a body is parsed the
+  // later parser skips the request.
+  const jsonVerify = (req: express.Request, _res: express.Response, buf: Buffer) => {
+    (req as any).rawBody = buf;
+  };
+  const jsonTypes = ['application/json', 'application/activity+json', 'application/ld+json'];
+  app.use(
+    ['/inbox', '/users/:username/inbox', '/servers/:serverId/inbox'],
+    express.json({ limit: '1mb', type: jsonTypes, verify: jsonVerify })
+  );
+  app.use(express.json({ limit: '10mb', type: jsonTypes, verify: jsonVerify }));
   app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
   app.use(compression());

@@ -11,7 +11,6 @@ import { BotRestAPI } from './api/BotRestAPI.js'
 import { TTLCache } from './utils/TTLCache.js'
 import { getBridgeAttachmentMode, hasDiscordCdnFilePart } from './utils/mirrorExternalMedia.js'
 
-// Create Express app
 const app = express()
 
 // Middleware
@@ -30,20 +29,16 @@ app.get('/health', (req, res) => {
   })
 })
 
-// Create HTTP server
 const server = createServer(app)
 
-// Create WebSocket server
 const wss = new WebSocketServer({ 
   server, 
   path: '/gateway'
 })
 
-// Initialize services
 const gateway = new WebSocketGateway(wss)
 const eventDispatcher = new EventDispatcher(gateway)
 
-// Start event dispatcher
 eventDispatcher.start().catch(error => {
   console.error('❌ Failed to start event dispatcher:', error)
   process.exit(1)
@@ -86,7 +81,7 @@ async function getCallerProfileId(req: express.Request): Promise<string | null> 
   return profile.id as string
 }
 
-// Public bridge onboarding lookup — pairing codes only resolve non-secret metadata.
+// Public bridge onboarding lookup - pairing codes only resolve non-secret metadata.
 app.get('/bridge-setup/:pairingCode', async (req, res): Promise<void> => {
   const pairingCode = String(req.params.pairingCode ?? '').trim().toUpperCase()
   if (!/^HRM-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(pairingCode)) {
@@ -261,7 +256,7 @@ app.post('/attachments/refresh', async (req, res): Promise<void> => {
     return
   }
 
-  // Already kicked off a refresh for this message very recently — no-op.
+  // Already kicked off a refresh for this message very recently - no-op.
   if (refreshDedupe.get(messageId)) {
     res.json({ refreshing: true, deduped: true })
     return
@@ -340,13 +335,10 @@ process.on('SIGINT', shutdown)
 async function shutdown() {
   console.log('📥 Received shutdown signal')
   
-  // Close WebSocket connections
   gateway.shutdown()
   
-  // Close event dispatcher
   await eventDispatcher.shutdown()
   
-  // Close HTTP server
   server.close(() => {
     console.log('👋 Server shut down gracefully')
     process.exit(0)
@@ -359,7 +351,6 @@ async function shutdown() {
   }, 10000)
 }
 
-// Start server
 const PORT = config.port
 server.listen(PORT, () => {
   console.log('╔════════════════════════════════════════╗')

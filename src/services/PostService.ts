@@ -32,49 +32,29 @@ export class PostService {
   }
 
   async createPost(data: CreatePostData): Promise<TimelinePost> {
-    try {
 
-      const post = await corePostService.createPost(data)
+    const post = await corePostService.createPost(data)
 
-      return post
-
-    } catch (error) {
-      throw error
-    }
+    return post
   }
 
   async updatePost(postId: string, updates: UpdatePostData): Promise<TimelinePost> {
-    try {
 
-      const post = await corePostService.updatePost(postId, updates)
+    const post = await corePostService.updatePost(postId, updates)
 
-      return post
-
-    } catch (error) {
-      throw error
-    }
+    return post
   }
 
   async deletePost(postId: string): Promise<void> {
-    try {
 
-      await corePostService.deletePost(postId)
-
-    } catch (error) {
-      throw error
-    }
+    await corePostService.deletePost(postId)
   }
 
   async toggleLike(postId: string): Promise<{ liked: boolean; newCount: number }> {
-    try {
 
-      const result = await corePostService.toggleLike(postId)
+    const result = await corePostService.toggleLike(postId)
 
-      return result
-
-    } catch (error) {
-      throw error
-    }
+    return result
   }
 
   /**
@@ -116,7 +96,6 @@ export class PostService {
 
       debug.log(`✅ PostService: Reblog toggled: ${result.reblogged ? 'reblogged' : 'unreblogged'}`)
       
-      // Return in the expected format for the UI
       return { 
         reblogged: result.reblogged, 
         newCount: 0 // TODO: Get actual count from database if needed
@@ -128,17 +107,9 @@ export class PostService {
     }
   }
 
-    async toggleBookmark(postId: string): Promise<{ bookmarked: boolean }> {
-    try {
-
-      // Bookmarks are always local-only (no federation)
-      const result = await corePostService.toggleBookmark(postId)
-
-      return result
-
-    } catch (error) {
-      throw error
-    }
+  async toggleBookmark(postId: string): Promise<{ bookmarked: boolean }> {
+    // Bookmarks are always local-only (no federation)
+    return corePostService.toggleBookmark(postId)
   }
 
   /**
@@ -165,37 +136,27 @@ export class PostService {
   }
 
   async toggleReaction(postId: string, emojiId: string): Promise<{ added: boolean; newCount: number }> {
-    try {
+    const coreResult = await corePostService.toggleReaction(postId, emojiId)
 
-      const coreResult = await corePostService.toggleReaction(postId, emojiId)
+    const isNativeEmoji = !this.isValidUUID(emojiId)
 
-      // Check if this is a unicode/shortcode emoji (not a UUID)
-      const isNativeEmoji = !this.isValidUUID(emojiId)
+    let countQuery = supabase
+      .from('post_interactions')
+      .select('*', { count: 'exact', head: true })
+      .eq('post_id', postId)
+      .eq('interaction_type', 'reaction')
 
-      // Get reaction count for the API response - query by correct field
-      let countQuery = supabase
-        .from('post_interactions')
-        .select('*', { count: 'exact', head: true })
-        .eq('post_id', postId)
-        .eq('interaction_type', 'reaction')
-      
-      if (isNativeEmoji) {
-        countQuery = countQuery.eq('custom_emoji_content', emojiId)
-      } else {
-        countQuery = countQuery.eq('emoji_id', emojiId)
-      }
+    if (isNativeEmoji) {
+      countQuery = countQuery.eq('custom_emoji_content', emojiId)
+    } else {
+      countQuery = countQuery.eq('emoji_id', emojiId)
+    }
 
-      const { count } = await countQuery
+    const { count } = await countQuery
 
-      const result = {
-        added: coreResult.added,
-        newCount: count || 0
-      }
-
-      return result
-
-    } catch (error) {
-      throw error
+    return {
+      added: coreResult.added,
+      newCount: count || 0
     }
   }
 
@@ -221,45 +182,35 @@ export class PostService {
     hasMore: boolean;
     nextCursor?: string;
   }> {
-    try {
-      
-      // Map federated to public for core service (core doesn't distinguish federated)
-      const coreTimelineType = timelineType === 'federated' ? 'public' : timelineType
-      
-      const posts = await corePostService.loadTimelinePosts(coreTimelineType, options)
-      
-      // Transform core service response to match expected API
-      const { limit = 20 } = options
-      const hasMore = posts.length === limit
-      const nextCursor = hasMore ? posts[posts.length - 1]?.created_at : undefined
-      
-      const result = {
-        posts,
-        hasMore,
-        nextCursor
-      }
-      
-      return result
-
-    } catch (error) {
-      throw error
+    
+    // Map federated to public for core service (core doesn't distinguish federated)
+    const coreTimelineType = timelineType === 'federated' ? 'public' : timelineType
+    
+    const posts = await corePostService.loadTimelinePosts(coreTimelineType, options)
+    
+    // Transform core service response to match expected API
+    const { limit = 20 } = options
+    const hasMore = posts.length === limit
+    const nextCursor = hasMore ? posts[posts.length - 1]?.created_at : undefined
+    
+    const result = {
+      posts,
+      hasMore,
+      nextCursor
     }
+    
+    return result
   }
 
   async loadPost(postId: string): Promise<TimelinePost> {
-    try {
-      
-      const post = await corePostService.loadPost(postId)
-      
-      if (!post) {
-        throw this.createError('POST_NOT_FOUND', `Post not found: ${postId}`)
-      }
-      
-      return post
-
-    } catch (error) {
-      throw error
+    
+    const post = await corePostService.loadPost(postId)
+    
+    if (!post) {
+      throw this.createError('POST_NOT_FOUND', `Post not found: ${postId}`)
     }
+    
+    return post
   }
 
   async getPostReactions(postId: string): Promise<Array<{
@@ -268,15 +219,10 @@ export class PostService {
     count: number;
     users: Array<{ id: string; username: string; display_name?: string }>;
   }>> {
-    try {
-      
-      const reactions = await corePostService.getPostReactions(postId)
-      
-      return reactions
-
-    } catch (error) {
-      throw error
-    }
+    
+    const reactions = await corePostService.getPostReactions(postId)
+    
+    return reactions
   }
 
   private async getCurrentUserProfileId(): Promise<string> {

@@ -110,7 +110,6 @@ const imageError = ref(false)
 // Refs
 const fileInput = ref<HTMLInputElement>()
 
-// Map avatar size to pixel size for optimization
 const sizeMap: Record<AvatarSize, number> = {
   mini: 16,
   xs: 24,
@@ -161,7 +160,6 @@ const handleFileSelect = async (event: Event) => {
     emit('upload', file)
   }
   
-  // Reset input
   target.value = ''
 }
 
@@ -219,7 +217,6 @@ const handleImageLoad = () => {
   }
 }
 
-// Reset error state only when the src prop actually changes
 watch(() => props.src, () => {
   imageError.value = false
   retryCount.value = 0

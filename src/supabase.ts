@@ -10,9 +10,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
   );
 }
 
-// ============================================================================
 // "Remember me" - session persistence preference
-// ============================================================================
 //
 // The Supabase client persists its session token via a `Storage`-shaped
 // adapter. The default adapter writes to `localStorage`, which means
@@ -29,7 +27,6 @@ if (!supabaseUrl || !supabaseAnonKey) {
 // Defaults to `true` (remember) so users upgrading from the pre-fix
 // hardcoded `persistSession: true` behavior don't get silently logged
 // out on first refresh after deploy.
-// ============================================================================
 
 const REMEMBER_ME_STORAGE_KEY = 'harmony.auth.remember_me';
 
@@ -161,10 +158,8 @@ export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKe
   // No need for custom health check logic
 });
 
-// ============================================================================
 // Simple exports for backward compatibility
 // These functions are kept minimal - Supabase handles connection management
-// ============================================================================
 
 /**
  * Check if connection is healthy (lightweight)

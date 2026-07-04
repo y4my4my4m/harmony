@@ -235,12 +235,10 @@ const conflictMessage = ref('')
 // Computed
 const isPTTMode = keybinds.isPTTMode
 
-// Get display string for a keybind
 const getKeybindDisplay = (action: KeybindAction): string => {
   return keybinds.getKeybindDisplay(action)
 }
 
-// Start recording a keybind
 const startRecording = (action: KeybindAction) => {
   if (recordingAction.value === action) {
     // Cancel if clicking same button
@@ -251,12 +249,10 @@ const startRecording = (action: KeybindAction) => {
   hasConflict.value = false
 }
 
-// Reset a single keybind
 const resetKeybind = (action: KeybindAction) => {
   keybinds.resetKeybind(action)
 }
 
-// Reset all keybinds
 const resetAllKeybinds = () => {
   keybinds.resetAllKeybinds()
 }
@@ -276,7 +272,6 @@ const checkConflict = (action: KeybindAction, key: string, modifiers: KeybindMod
   return null
 }
 
-// Handle keydown when recording
 const handleKeydown = (event: KeyboardEvent) => {
   if (!recordingAction.value) return
   
@@ -302,7 +297,6 @@ const handleKeydown = (event: KeyboardEvent) => {
   })
 }
 
-// Handle mousedown when recording (for mouse button keybinds)
 const handleMousedown = (event: MouseEvent) => {
   if (!recordingAction.value) return
   
@@ -340,12 +334,10 @@ const recordKey = (key: string, modifiers: KeybindModifiers) => {
     hasConflict.value = false
   }
   
-  // Set the keybind
   const action = recordingAction.value
   keybinds.setKeybind(action, key, modifiers)
   recordingAction.value = null
   
-  // Emit update event
   emit('update-keybinds', { action, key, modifiers })
 }
 

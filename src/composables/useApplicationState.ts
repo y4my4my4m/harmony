@@ -83,7 +83,6 @@ export function useApplicationState() {
       _hasInitialized.value = true
       _isInitializing.value = false
       
-      // Mark persistence state
       statePersistence.setHasServers(serverCount > 0)
       await statePersistence.setAppInitialized(true)
       

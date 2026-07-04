@@ -104,9 +104,11 @@ import { debug } from '@/utils/debug'
 import { useToast } from 'vue-toastification'
 import Icon from '@/components/common/Icon.vue'
 import { announcementService, type Announcement } from '@/services/AnnouncementService'
+import { useConfirmDialog } from '@/composables/useConfirmDialog'
 
 
 const toast = useToast()
+const { confirm } = useConfirmDialog()
 
 const loadingStates = ref({ announcements: false })
 
@@ -275,7 +277,7 @@ const editAnnouncement = (a: Announcement) => {
 }
 
 const deleteAnnouncement = async (id: string) => {
-  if (!confirm('Delete this announcement?')) return
+  if (!(await confirm({ title: 'Delete announcement', message: 'Delete this announcement?', confirmButtonText: 'Delete', dangerAction: true }))) return
   try {
     await announcementService.deleteAnnouncement(id)
     toast.success('Announcement deleted')

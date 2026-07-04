@@ -56,7 +56,7 @@ export function useAudioThemeCommon() {
       if (success) {
         // const theme = themes.value.find(t => t.id === themeId)
         // notificationStore.showToast(
-        //   'ui_success' as any,
+        //   'ui_success',
         //   'Audio Theme Changed',
         //   `Switched to ${theme?.name || themeId}`,
         //   2000
@@ -64,7 +64,7 @@ export function useAudioThemeCommon() {
         return true
       } else {
         notificationStore.showToast(
-          'ui_error' as any,
+          'ui_error',
           'Failed to Change Theme',
           'Could not switch to the selected audio theme',
           3000
@@ -74,7 +74,7 @@ export function useAudioThemeCommon() {
     } catch (error) {
       debug.error('Failed to set theme:', error)
       notificationStore.showToast(
-        'ui_error' as any,
+        'ui_error',
         'Theme Error',
         error instanceof Error ? error.message : 'Unknown error occurred',
         4000
@@ -95,7 +95,7 @@ export function useAudioThemeCommon() {
     try {
       await themeStore.testAudio('mention')
       notificationStore.showToast(
-        'ui_success' as any,
+        'ui_success',
         'Audio Test',
         'Theme test completed',
         1500
@@ -103,7 +103,7 @@ export function useAudioThemeCommon() {
     } catch (error) {
       debug.error('Failed to test theme:', error)
       notificationStore.showToast(
-        'ui_error' as any,
+        'ui_error',
         'Audio Test Failed',
         'Could not play test sound',
         3000
@@ -129,7 +129,7 @@ export function useAudioThemeCommon() {
       
       const theme = themes.value.find(t => t.id === themeId)
       notificationStore.showToast(
-        'ui_success' as any,
+        'ui_success',
         'Theme Preview',
         `Testing ${theme?.name || themeId}`,
         1500
@@ -144,7 +144,7 @@ export function useAudioThemeCommon() {
     } catch (error) {
       debug.error('Failed to test theme:', error)
       notificationStore.showToast(
-        'ui_error' as any,
+        'ui_error',
         'Test Failed',
         'Could not preview theme audio',
         3000
@@ -191,7 +191,7 @@ export function useAudioThemeCommon() {
     try {
       themeStore.clearAudioCache()
       notificationStore.showToast(
-        'ui_success' as any,
+        'ui_success',
         'Cache Cleared',
         'Audio cache has been cleared successfully',
         2000
@@ -199,7 +199,7 @@ export function useAudioThemeCommon() {
     } catch (error) {
       debug.error('Failed to clear cache:', error)
       notificationStore.showToast(
-        'ui_error' as any,
+        'ui_error',
         'Clear Cache Failed',
         'Could not clear audio cache',
         3000
@@ -231,7 +231,7 @@ export function useAudioThemeCommon() {
       URL.revokeObjectURL(url)
       
       notificationStore.showToast(
-        'ui_success' as any,
+        'ui_success',
         'Settings Exported',
         'Audio theme settings have been downloaded',
         2000
@@ -239,7 +239,7 @@ export function useAudioThemeCommon() {
     } catch (error) {
       debug.error('Failed to export settings:', error)
       notificationStore.showToast(
-        'ui_error' as any,
+        'ui_error',
         'Export Failed',
         'Could not export theme settings',
         3000
@@ -260,7 +260,7 @@ export function useAudioThemeCommon() {
             const settings = JSON.parse(e.target?.result as string)
             themeStore.importPreferences(settings)
             notificationStore.showToast(
-              'ui_success' as any,
+              'ui_success',
               'Settings Imported',
               'Audio theme settings have been restored',
               2000
@@ -268,7 +268,7 @@ export function useAudioThemeCommon() {
           } catch (error) {
             debug.error('Failed to import settings:', error)
             notificationStore.showToast(
-              'ui_error' as any,
+              'ui_error',
               'Import Failed',
               'Could not import theme settings. Please check the file format.',
               3000
@@ -286,7 +286,7 @@ export function useAudioThemeCommon() {
       await themeStore.resetToDefaults()
       localVolume.value = 70
       notificationStore.showToast(
-        'ui_success' as any,
+        'ui_success',
         'Settings Reset',
         'Audio theme settings have been reset to defaults',
         2000
@@ -294,7 +294,7 @@ export function useAudioThemeCommon() {
     } catch (error) {
       debug.error('Failed to reset settings:', error)
       notificationStore.showToast(
-        'ui_error' as any,
+        'ui_error',
         'Reset Failed',
         'Could not reset theme settings',
         3000
@@ -302,7 +302,6 @@ export function useAudioThemeCommon() {
     }
   }
 
-  // Initialize the composable
   const initialize = async (): Promise<void> => {
     if (!themeStore.isInitialized) {
       await themeStore.initialize()
@@ -315,7 +314,6 @@ export function useAudioThemeCommon() {
     localVolume.value = Math.round(newVolume * 100)
   })
 
-  // Initialize on mount if needed
   onMounted(() => {
     initialize()
   })

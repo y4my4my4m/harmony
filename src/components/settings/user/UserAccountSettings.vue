@@ -484,7 +484,6 @@ const colorPreviewRef = ref<HTMLElement | null>(null)
 const bannerInput = ref<HTMLInputElement>()
 const displayNameInput = ref<HTMLInputElement | null>(null)
 
-// Display name auto-suggest (emoji only, no mentions/commands)
 const displayNameAutoSuggest = useAutoSuggest(
   displayNameInput,
   () => localProfile.value.display_name || '',
@@ -673,7 +672,6 @@ const handleBannerFileSelect = (event: Event) => {
   if (file) {
     debug.log('📤 Emitting banner upload event:', file.name, file.size)
     emit('upload-banner', file)
-    // Reset the input to allow re-uploading the same file
     target.value = ''
   } else {
     debug.log('❌ No file selected')

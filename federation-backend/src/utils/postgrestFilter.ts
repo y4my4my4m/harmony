@@ -2,7 +2,7 @@
  * Quote a value for safe use inside a PostgREST logical filter tree
  * (`.or(...)` / `.and(...)`).
  *
- * Inside these trees, reserved characters — `,` `.` `(` `)` `:` and whitespace —
+ * Inside these trees, reserved characters - `,` `.` `(` `)` `:` and whitespace-
  * are part of the filter grammar. A raw attacker-controlled string (e.g. a
  * federated `ap_id`/`url` from an inbox payload) containing any of them can
  * break out of the intended `column.eq.<value>` clause and inject additional

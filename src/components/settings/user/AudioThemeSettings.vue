@@ -123,9 +123,7 @@ import AudioThemeManager from '@/components/settings/AudioThemeManager.vue'
 import Icon from '@/components/common/Icon.vue'
 import type { AudioAction } from '@/types'
 
-// =============================================================================
 // STATE
-// =============================================================================
 
 const themeStore = useThemeStore()
 const notificationStore = useNotificationStore()
@@ -147,23 +145,19 @@ const testActions = [
   { id: 'ui_click', label: 'Click', icon: 'mouse-pointer', category: 'ui' }
 ] as const
 
-// =============================================================================
 // COMPUTED
-// =============================================================================
 
 const cacheInfo = computed(() => {
   return themeStore.getCacheInfo()
 })
 
-// =============================================================================
 // METHODS
-// =============================================================================
 
 const testSound = async (actionId: string): Promise<void> => {
   try {
     await themeStore.testAudio(actionId as AudioAction)
     notificationStore.showToast(
-      'ui_success' as any,
+      'ui_success',
       'Sound Test',
       `Tested ${actionId} successfully`,
       2000
@@ -171,7 +165,7 @@ const testSound = async (actionId: string): Promise<void> => {
   } catch (error) {
     debug.error('Failed to test sound:', error)
     notificationStore.showToast(
-      'ui_error' as any,
+      'ui_error',
       'Sound Test Failed',
       `Failed to test ${actionId}`,
       3000
@@ -184,7 +178,7 @@ const clearCache = async (): Promise<void> => {
     isLoading.value = true
     await themeStore.clearAudioCache()
     notificationStore.showToast(
-      'ui_success' as any,
+      'ui_success',
       'Cache Cleared',
       'Audio cache cleared successfully',
       2000
@@ -192,7 +186,7 @@ const clearCache = async (): Promise<void> => {
   } catch (error) {
     debug.error('Failed to clear cache:', error)
     notificationStore.showToast(
-      'ui_error' as any,
+      'ui_error',
       'Cache Clear Failed',
       'Failed to clear audio cache',
       3000
@@ -207,7 +201,7 @@ const resetSystem = async (): Promise<void> => {
     isLoading.value = true
     await themeStore.resetToDefaults()
     notificationStore.showToast(
-      'ui_success' as any,
+      'ui_success',
       'System Reset',
       'Audio system reset successfully',
       2000
@@ -215,7 +209,7 @@ const resetSystem = async (): Promise<void> => {
   } catch (error) {
     debug.error('Failed to reset system:', error)
     notificationStore.showToast(
-      'ui_error' as any,
+      'ui_error',
       'Reset Failed',
       'Failed to reset audio system',
       3000
@@ -227,7 +221,7 @@ const resetSystem = async (): Promise<void> => {
 
 const onThemeChanged = (themeId: string): void => {
   notificationStore.showToast(
-    'ui_success' as any,
+    'ui_success',
     'Theme Changed',
     `Switched to ${themeId} theme`,
     2000
@@ -248,10 +242,10 @@ const exportThemePack = async (): Promise<void> => {
     a.download = `harmony-audio-pack-${String(themeName).replace(/\s+/g, '-').toLowerCase()}-${new Date().toISOString().slice(0, 10)}.zip`
     a.click()
     URL.revokeObjectURL(url)
-    notificationStore.showToast('ui_success' as any, 'Pack exported', 'Audio theme pack downloaded as ZIP', 2000)
+    notificationStore.showToast('ui_success', 'Pack exported', 'Audio theme pack downloaded as ZIP', 2000)
   } catch (error) {
     debug.error('Failed to export pack:', error)
-    notificationStore.showToast('ui_error' as any, 'Export failed', error instanceof Error ? error.message : 'Could not export theme pack', 3000)
+    notificationStore.showToast('ui_error', 'Export failed', error instanceof Error ? error.message : 'Could not export theme pack', 3000)
   } finally {
     isExportingPack.value = false
   }
@@ -265,7 +259,7 @@ const importThemePack = (): void => {
     const file = (e.target as HTMLInputElement).files?.[0]
     if (!file) return
     if (file.size > PACK_MAX_BYTES) {
-      notificationStore.showToast('ui_error' as any, 'File too large', 'Pack must be under 10MB', 3000)
+      notificationStore.showToast('ui_error', 'File too large', 'Pack must be under 10MB', 3000)
       return
     }
     const reader = new FileReader()
@@ -273,10 +267,10 @@ const importThemePack = (): void => {
       try {
         const arrayBuffer = ev.target?.result as ArrayBuffer
         const theme = await themeStore.importThemePack(arrayBuffer)
-        notificationStore.showToast('ui_success' as any, 'Pack imported', `${theme.name} added as custom theme`, 2000)
+        notificationStore.showToast('ui_success', 'Pack imported', `${theme.name} added as custom theme`, 2000)
       } catch (err) {
         debug.error('Failed to import pack:', err)
-        notificationStore.showToast('ui_error' as any, 'Import failed', err instanceof Error ? err.message : 'Invalid audio pack format', 3000)
+        notificationStore.showToast('ui_error', 'Import failed', err instanceof Error ? err.message : 'Invalid audio pack format', 3000)
       }
     }
     reader.readAsArrayBuffer(file)
@@ -284,9 +278,7 @@ const importThemePack = (): void => {
   input.click()
 }
 
-// =============================================================================
 // LIFECYCLE
-// =============================================================================
 
 onMounted(async () => {
   try {
@@ -294,7 +286,7 @@ onMounted(async () => {
   } catch (error) {
     debug.error('Failed to initialize audio theme store:', error)
     notificationStore.showToast(
-      'ui_error' as any,
+      'ui_error',
       'Initialization Failed',
       'Failed to initialize audio system',
       3000

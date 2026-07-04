@@ -1,5 +1,5 @@
 /**
- * Klipy ad request context — device and slot dimensions for the ads API.
+ * Klipy ad request context - device and slot dimensions for the ads API.
  *
  * Klipy recommends passing ad-min/max-width/height plus device targeting params
  * to maximize fill. See https://docs.klipy.com/advertisements/receiving-an-ad

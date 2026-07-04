@@ -3,9 +3,7 @@ import type { Directive } from 'vue';
 const ClickOutsideDirective: Directive = {
   beforeMount(el, binding) {
     el.clickOutsideEvent = function(event: Event) {
-      // Check if click was outside the element
       if (!(el === event.target || el.contains(event.target as Node))) {
-        // Call the provided method
         binding.value(event);
       }
     };
@@ -13,7 +11,6 @@ const ClickOutsideDirective: Directive = {
     document.addEventListener('click', el.clickOutsideEvent);
   },
   unmounted(el) {
-    // Remove the event listener when the element is removed
     document.removeEventListener('click', el.clickOutsideEvent);
   },
 };

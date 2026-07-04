@@ -151,8 +151,10 @@ import { useToast } from 'vue-toastification'
 import { generateBotToken, hashBotToken } from '@/utils/botUtils'
 import BotAvatar from '@/components/common/BotAvatar.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
+import { useConfirmDialog } from '@/composables/useConfirmDialog'
 
 const toast = useToast()
+const { confirm } = useConfirmDialog()
 const authStore = useAuthStore()
 
 const loading = ref(true)
@@ -231,12 +233,10 @@ async function createBot() {
     const userId = authStore.session?.user?.id
     if (!userId) return
     
-    // Generate bot token
     const token = generateBotToken()
     const tokenHash = await hashBotToken(token)
     const tokenPrefix = token.substring(0, 8)
     
-    // Create bot
     const { data: bot, error: botError } = await supabase
       .from('bots')
       .insert({
@@ -251,7 +251,6 @@ async function createBot() {
     
     if (botError) throw botError
     
-    // Create bot token
     const { error: tokenError } = await supabase
       .from('bot_tokens')
       .insert({
@@ -263,12 +262,10 @@ async function createBot() {
     
     if (tokenError) throw tokenError
     
-    // Show token
     currentToken.value = token
     showTokenModal.value = true
     showCreateModal.value = false
     
-    // Reset form
     newBot.value = {
       username: '',
       display_name: '',
@@ -276,7 +273,6 @@ async function createBot() {
       is_public: true
     }
     
-    // Reload bots
     await loadBots()
     
     toast.success('Bot created successfully!')
@@ -289,7 +285,7 @@ async function createBot() {
 }
 
 async function regenerateToken(bot: any) {
-  if (!confirm(`Regenerate token for ${bot.username}? This will invalidate the old token.`)) {
+  if (!(await confirm({ title: 'Regenerate token', message: `Regenerate token for ${bot.username}? This will invalidate the old token.`, confirmButtonText: 'Regenerate', dangerAction: true }))) {
     return
   }
   
@@ -304,7 +300,6 @@ async function regenerateToken(bot: any) {
       .update({ is_active: false, revoked_at: new Date().toISOString() })
       .eq('bot_id', bot.id)
     
-    // Create new token
     await supabase
       .from('bot_tokens')
       .insert({
@@ -336,7 +331,7 @@ function viewBot(bot: any) {
 }
 
 async function deleteBot(bot: any) {
-  if (!confirm(`Delete ${bot.username}? This action cannot be undone.`)) {
+  if (!(await confirm({ title: 'Delete bot', message: `Delete ${bot.username}? This action cannot be undone.`, confirmButtonText: 'Delete', dangerAction: true }))) {
     return
   }
   

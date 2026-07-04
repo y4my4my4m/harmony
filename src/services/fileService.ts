@@ -26,7 +26,6 @@ async function validateChatUpload(file: File): Promise<void> {
 async function handleFileDrop(userId: string, file: any) {
     try {
         await validateChatUpload(file);
-        // Generate a unique filename
         const uniqueFileName = `${uuidv4()}.${file.name.split('.').pop()}`;
         const filePath = `${userId}/${uniqueFileName}`;
 
@@ -37,7 +36,6 @@ async function handleFileDrop(userId: string, file: any) {
 
         if (error) throw error;
 
-        // Get public URL
         const { data } = await supabase.storage
         .from('user_media')
         .getPublicUrl(filePath);
@@ -58,11 +56,9 @@ async function handleFileUploadWithProgress(
 ): Promise<string | null> {
     try {
         await validateChatUpload(file);
-        // Generate a unique filename
         const uniqueFileName = `${uuidv4()}.${file.name.split('.').pop()}`;
         const filePath = `${userId}/${uniqueFileName}`;
 
-        // Create a progress tracking wrapper
         let uploadedBytes = 0;
         const totalBytes = file.size;
 
@@ -90,7 +86,6 @@ async function handleFileUploadWithProgress(
         // Complete the progress
         if (onProgress) onProgress(100);
 
-        // Get public URL
         const { data } = await supabase.storage
             .from('user_media')
             .getPublicUrl(filePath);

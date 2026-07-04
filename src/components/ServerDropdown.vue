@@ -11,15 +11,6 @@
         {{ $t('server.leaveServer') }}
       </li>
     </ul>
-
-    <ConfirmationModal
-      :show="confirmDialogVisible"
-      :title="confirmDialogTitle"
-      :message="confirmDialogMessage"
-      :confirm-button-text="confirmDialogConfirmText"
-      @confirm="handleConfirm"
-      @close="handleClose"
-    />
   </div>
 </template>
   
@@ -36,7 +27,6 @@ import { supabase } from '@/supabase';
 import { useToast } from 'vue-toastification';
 import { federationServerService } from '@/services/federation/FederationServerService';
 import { useUserData } from '@/composables/useUserData';
-import ConfirmationModal from '@/components/ConfirmationModal.vue';
 
 interface Props {
   serverId?: string
@@ -66,7 +56,6 @@ const canManageServer = computed(() => serverSettingsPermissions.value.canEditBa
 const canCreateCategories = computed(() => channelPermissions.value.canCreateCategories);
 const canCreateChannels = computed(() => channelPermissions.value.canCreateChannels);
 
-// Check if user is server owner
 const isOwner = computed(() => {
   const server = serverChannelStore.currentServer;
   const userId = authStore.session?.user?.id;
@@ -100,15 +89,7 @@ const generateInviteLink = () => {
   closeDropdown();
 };
 
-const {
-  confirm,
-  confirmDialogVisible,
-  confirmDialogTitle,
-  confirmDialogMessage,
-  confirmDialogConfirmText,
-  handleConfirm,
-  handleClose,
-} = useConfirmDialog()
+const { confirm } = useConfirmDialog()
 
 const confirmLeaveServer = async () => {
   const server = serverChannelStore.currentServer;
@@ -151,7 +132,6 @@ const leaveServer = async () => {
     
     const server = serverChannelStore.currentServer;
     
-    // Check if it's a remote server (federated)
     if (server && !server.is_local_server) {
       const result = await federationServerService.leaveServer(props.serverId, userId);
       if (!result.success) {

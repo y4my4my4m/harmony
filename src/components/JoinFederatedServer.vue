@@ -237,7 +237,6 @@ async function joinServer() {
       // Force refresh the server list to include the newly joined server
       await serverChannelStore.fetchServersForUser(userId, true)
       
-      // Set the current server and fetch its channels/categories
       serverChannelStore.setCurrentServer(result.serverId)
       await serverChannelStore.fetchCategoriesAndChannels(result.serverId)
       

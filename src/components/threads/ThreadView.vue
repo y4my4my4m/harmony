@@ -281,6 +281,7 @@ import { realtimeConnectionManager } from '@/services/RealtimeConnectionManager'
 import type { Message, MessagePart, Emoji, Gif } from '@/types'
 import type { ThreadWithDetails } from '@/services/ThreadService'
 import type { FilePreviewData } from '@/components/FilePreview.vue'
+import { useConfirmDialog } from '@/composables/useConfirmDialog'
 
 interface Props {
   isVisible: boolean
@@ -291,6 +292,7 @@ interface Props {
 }
 
 const props = defineProps<Props>()
+const { confirm } = useConfirmDialog()
 const emit = defineEmits<{
   close: []
   'thread-updated': [thread: ThreadWithDetails]
@@ -348,7 +350,6 @@ const mediaPickerInitialTab = ref<'gifs' | 'emoji'>('gifs')
 const giphyOpen = computed(() => mediaPickerOpen.value && mediaPickerInitialTab.value === 'gifs')
 const emojiListOpen = computed(() => mediaPickerOpen.value && mediaPickerInitialTab.value === 'emoji')
 
-// Trigger element for media picker positioning
 const mediaPickerTriggerElement = computed(() => {
   return messageInputRef.value?.gifTriggerRef || messageInputRef.value?.emojiTriggerRef || null
 })
@@ -411,7 +412,6 @@ const displayThreadName = computed(() => {
 })
 
 
-// Load thread data
 const loadThread = async () => {
   // In draft mode, don't load - just show parent message
   if (isDraftMode.value) {
@@ -444,12 +444,10 @@ const loadThread = async () => {
   // No cache - show loading indicator
   loading.value = true
   try {
-    // Fetch thread data
     thread.value = await threadService.getThread(threadId, false)
     
     isMember.value = thread.value?.is_member ?? true
     
-    // Load messages
     if (thread.value) {
       const result = await threadService.getThreadMessages(thread.value.id)
       messages.value = result.messages
@@ -615,7 +613,7 @@ const unlockThread = async () => {
 const deleteThread = async () => {
   showOptions.value = false
   if (!thread.value) return
-  if (!confirm(`Are you sure you want to delete "${thread.value.name}"? This cannot be undone.`)) return
+  if (!(await confirm({ title: 'Delete thread', message: `Are you sure you want to delete "${thread.value.name}"? This cannot be undone.`, confirmButtonText: 'Delete', dangerAction: true }))) return
   try {
     await threadService.deleteThread(thread.value.id)
     close()
@@ -652,7 +650,6 @@ const parseMessageInput = async (input: string): Promise<MessagePart[]> => {
   
   debug.log('🔧 Emoji data map size:', Object.keys(emojiDataMap).length)
   
-  // Parse with unified system (now with emoji data)
   const result = await parseContentToMessageParts(input, userDataMap, emojiDataMap, {}, {}, buildChatParseOptions(false))
   
   debug.log('🔧 Final parsed message parts:', result)
@@ -679,7 +676,6 @@ const handleSendMessage = async (content: string, files: FilePreviewData[] = [],
   
   sending.value = true
   
-  // Clear input immediately for responsiveness
   const savedContent = content
   messageText.value = ''
   if (threadDraftKey.value) draftsStore.clearDraft(threadDraftKey.value)
@@ -772,7 +768,6 @@ const handleSendMessage = async (content: string, files: FilePreviewData[] = [],
       await nextTick()
       scrollToBottom()
       
-      // Send to DB (fail-closed + plaintext override prompt)
       const sendResult = await runWithEncryptionFallback(
         ({ allowPlaintextFallback }) =>
           threadService.sendThreadMessage(targetThreadId!, messageParts, savedReplyTo, undefined, {
@@ -790,7 +785,6 @@ const handleSendMessage = async (content: string, files: FilePreviewData[] = [],
         }
         threadService.addMessageToCache(targetThreadId, newMessage)
       } else {
-        // Remove optimistic message on declined or failed send
         const tempIndex = messages.value.findIndex(m => m.id === tempId)
         if (tempIndex !== -1) {
           messages.value.splice(tempIndex, 1)
@@ -923,7 +917,6 @@ watch(mediaPickerOpen, () => {
   }
 })
 
-// Handle sending a voice message
 const handleSendVoiceMessage = async (data: { url: string, duration: number, waveform: number[], mimeType: string }) => {
   if (!thread.value && !isDraftMode.value) return
 
@@ -1025,7 +1018,6 @@ const handleSendVoiceMessage = async (data: { url: string, duration: number, wav
   }
 }
 
-// Handle sending a GIF
 const handleSendGif = async (gif: Gif) => {
   const gifUrl = gif.media_formats.gif.url
   closeMediaPicker()
@@ -1074,7 +1066,6 @@ const handleSendGif = async (gif: Gif) => {
     if (sendResult.status === 'ok' && sendResult.result) {
       const newMessage = sendResult.result
       messages.value.push(newMessage)
-      // Update cache
       threadService.addMessageToCache(targetThreadId, newMessage)
       replyingToMessageId.value = ''
       replyingToUserName.value = ''
@@ -1091,15 +1082,12 @@ const handleSendGif = async (gif: Gif) => {
   }
 }
 
-// Handle adding emoji to message input (not reaction)
 const handleSendEmojiToInput = (emoji: Emoji) => {
   closeMediaPicker()
-  // Append emoji to message text
   messageText.value += `:${emoji.name}:`
 }
 
 const handleReplyingTo = (messageId: string, displayName?: string, userId?: string) => {
-  // Set reply state
   replyingToMessageId.value = messageId
   replyingToUserId.value = userId || ''
   
@@ -1132,11 +1120,9 @@ const cleanupSubscription = () => {
   }
 }
 
-// Setup realtime subscription for thread messages
 const setupRealtimeSubscription = () => {
   if (!thread.value?.id) return
 
-  // Clean up existing subscription
   if (threadSubscription.value) {
     threadSubscription.value()
     threadSubscription.value = null
@@ -1187,7 +1173,6 @@ const setupRealtimeSubscription = () => {
           messages.value.push(newMessage)
         }
 
-        // Update thread count
         if (thread.value) {
           thread.value.message_count = (thread.value.message_count || 0) + (tempIndex === -1 ? 1 : 0)
           thread.value.last_message_at = payloadNew.created_at
@@ -1200,16 +1185,13 @@ const setupRealtimeSubscription = () => {
       }
     },
     
-    // Handle message updates (edits, soft deletes)
     onUpdate: async (payload) => {
       const payloadNew = payload.new as any
       
-      // Handle soft delete
       if (payloadNew.is_deleted) {
         const index = messages.value.findIndex(m => m.id === payloadNew.id)
         if (index !== -1) {
           messages.value.splice(index, 1)
-          // Update cache
           if (thread.value?.id) {
             threadService.removeMessageFromCache(thread.value.id, payloadNew.id)
           }
@@ -1218,7 +1200,6 @@ const setupRealtimeSubscription = () => {
         return
       }
       
-      // Handle message edits
       const index = messages.value.findIndex(m => m.id === payloadNew.id)
       if (index !== -1) {
         const updatedMessage: Message = {
@@ -1228,7 +1209,6 @@ const setupRealtimeSubscription = () => {
           metadata: payloadNew.metadata || null,
         }
         messages.value[index] = updatedMessage
-        // Update cache
         if (thread.value?.id) {
           threadService.updateMessageInCache(thread.value.id, payloadNew.id, updatedMessage)
         }
@@ -1236,13 +1216,11 @@ const setupRealtimeSubscription = () => {
       }
     },
     
-    // Handle hard deletes
     onDelete: (payload) => {
       const payloadOld = payload.old as any
       const index = messages.value.findIndex(m => m.id === payloadOld.id)
       if (index !== -1) {
         messages.value.splice(index, 1)
-        // Update cache
         if (thread.value?.id) {
           threadService.removeMessageFromCache(thread.value.id, payloadOld.id)
         }
@@ -1270,12 +1248,10 @@ watch(() => props.threadId, () => {
   }
 })
 
-// Setup realtime when thread is loaded AND visible
 watch(() => [thread.value?.id, props.isVisible] as const, ([threadId, isVisible]) => {
   if (threadId && isVisible) {
     setupRealtimeSubscription()
   } else {
-    // Clean up subscription when thread is unloaded or becomes invisible
     cleanupSubscription()
   }
 }, { immediate: true })
@@ -1296,7 +1272,6 @@ onMounted(() => {
   }
 })
 
-// Cleanup on unmount
 onUnmounted(() => {
   cleanupSubscription()
 })

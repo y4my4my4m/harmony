@@ -459,14 +459,12 @@ const navigateToDefaultIfNeeded = async () => {
   if (!props.isDM && route.name === 'Chat' && !route.params.serverId && !route.params.channelId) {
     debug.log('🔄 Auto-navigating to default server/channel')
     
-    // Wait for servers to be loaded
     if (serverChannelStore.servers.length === 0) {
       // Wait a bit for servers to load
       await new Promise(resolve => setTimeout(resolve, 100))
     }
     
     if (serverChannelStore.servers.length > 0) {
-      // Check if we have a current server/channel from persistence
       let targetServerId = serverChannelStore.currentServerId
       let targetChannelId = serverChannelStore.currentChannelId
       
@@ -475,7 +473,6 @@ const navigateToDefaultIfNeeded = async () => {
         targetServerId = serverChannelStore.servers[0].id
         serverChannelStore.setCurrentServer(targetServerId)
         
-        // Fetch channels for this server
         await serverChannelStore.fetchCategoriesAndChannels(targetServerId)
       }
       

@@ -111,7 +111,6 @@ export class VoiceActivityHandler {
       return;
     }
 
-    // Get local recipients
     const recipients = Array.isArray(activity.to) ? activity.to : [activity.to];
     
     for (const recipientUrl of recipients) {
@@ -126,7 +125,7 @@ export class VoiceActivityHandler {
       }
 
       // Store the incoming call in a pending calls table or use realtime broadcast
-      // For now, we'll store it in a federated_voice_calls table
+      // Stored in federated_voice_calls
       const { error } = await supabase
         .from('federated_voice_calls')
         .upsert({
@@ -179,7 +178,6 @@ export class VoiceActivityHandler {
   private static async handleVoiceCallAccept(activity: VoiceCallAccept): Promise<void> {
     const supabase = getSupabaseClient();
     
-    // Update the call status
     const { error } = await supabase
       .from('federated_voice_calls')
       .update({
@@ -225,7 +223,6 @@ export class VoiceActivityHandler {
   private static async handleVoiceCallReject(activity: VoiceCallReject): Promise<void> {
     const supabase = getSupabaseClient();
     
-    // Update the call status
     const { error } = await supabase
       .from('federated_voice_calls')
       .update({
@@ -268,7 +265,6 @@ export class VoiceActivityHandler {
   private static async handleVoiceCallEnd(activity: VoiceCallEnd): Promise<void> {
     const supabase = getSupabaseClient();
     
-    // Update the call status
     const { error } = await supabase
       .from('federated_voice_calls')
       .update({
@@ -292,7 +288,6 @@ export class VoiceActivityHandler {
       .maybeSingle();
 
     if (call) {
-      // Notify both caller and recipient
       for (const userId of [call.caller_id, call.recipient_id]) {
         await supabase
           .channel(`federated-calls:${userId}`)
@@ -375,7 +370,6 @@ export class VoiceActivityHandler {
       return;
     }
     
-    // Get server info separately (Supabase foreign key joins can be unreliable)
     const { data: server } = await supabase
       .from('servers')
       .select('id, owner, is_local_server')
@@ -390,7 +384,6 @@ export class VoiceActivityHandler {
     if (!server?.is_local_server) {
       logger.info(`📡 Voice presence notification for federated server, updating local presence`);
       
-      // Track in voice_channel_participants for presence display
       try {
         await supabase
           .from('voice_channel_participants')
@@ -429,7 +422,7 @@ export class VoiceActivityHandler {
       return; // Don't generate token - the user already has one from the hosting instance
     }
     
-    // Server IS local - this is an actual join request, we need to generate a token
+    // Local server: actual join request, generate the token here
     if (!server?.owner) {
       logger.error(`Server owner not found for channel ${channel.id}, server_id: ${channel.server_id}`);
       await this.sendVoiceChannelJoinReject(activity, 'Server configuration error');
@@ -451,7 +444,6 @@ export class VoiceActivityHandler {
       return;
     }
 
-    // Generate LiveKit token for the federated user
     let token: string;
     let wsUrl: string;
     try {
@@ -470,7 +462,6 @@ export class VoiceActivityHandler {
       return;
     }
 
-    // Track in voice_channel_participants
     try {
       await supabase
         .from('voice_channel_participants')
@@ -556,7 +547,6 @@ export class VoiceActivityHandler {
 
     logger.info(`✅ Voice channel join accepted: ${activity.id}`);
 
-    // Find the local user this response is for
     const recipients = Array.isArray(activity.to) ? activity.to : [activity.to];
     
     for (const recipientUrl of recipients) {
@@ -596,7 +586,6 @@ export class VoiceActivityHandler {
 
     logger.info(`❌ Voice channel join rejected: ${activity.id}, reason: ${activity.reason}`);
 
-    // Find the local user this response is for
     const recipients = Array.isArray(activity.to) ? activity.to : [activity.to];
     
     for (const recipientUrl of recipients) {
@@ -694,7 +683,6 @@ export class VoiceActivityHandler {
       return;
     }
 
-    // Remove from tracking
     try {
       await supabase
         .from('voice_channel_participants')

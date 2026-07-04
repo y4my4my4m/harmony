@@ -56,7 +56,6 @@ export async function federateKick(payload: KickPayload): Promise<void> {
 
     logger.info(`👢 Federating kick: user ${user_id} from server ${server_id}`);
 
-    // Get server
     const { data: server } = await supabase
       .from('servers')
       .select('*')
@@ -67,7 +66,6 @@ export async function federateKick(payload: KickPayload): Promise<void> {
       return;
     }
 
-    // Get the kicked user
     const { data: user } = await supabase
       .from('profiles')
       .select('id, username, federated_id, is_local, inbox_url, domain')
@@ -88,7 +86,6 @@ export async function federateKick(payload: KickPayload): Promise<void> {
     const serverUrl = `https://${hostDomain}/servers/${server_id}`;
     const userApId = user.federated_id || `https://${user.domain}/users/${user.username}`;
 
-    // Create Remove activity
     const removeActivity = {
       '@context': [
         'https://www.w3.org/ns/activitystreams',
@@ -103,7 +100,6 @@ export async function federateKick(payload: KickPayload): Promise<void> {
       published: new Date().toISOString(),
     };
 
-    // Send to user's inbox
     if (user.inbox_url) {
       await DeliveryQueue.sendToInbox(user.inbox_url, removeActivity, moderator_id);
       logger.info(`👢 Sent kick notification to ${user.inbox_url}`);
@@ -137,7 +133,6 @@ export async function federateBan(payload: BanPayload): Promise<void> {
 
     logger.info(`🔨 Federating ban: user ${user_id} from server ${server_id}`);
 
-    // Get server
     const { data: server } = await supabase
       .from('servers')
       .select('*')
@@ -148,7 +143,6 @@ export async function federateBan(payload: BanPayload): Promise<void> {
       return;
     }
 
-    // Get the banned user
     const { data: user } = await supabase
       .from('profiles')
       .select('id, username, federated_id, is_local, inbox_url, domain')
@@ -169,13 +163,11 @@ export async function federateBan(payload: BanPayload): Promise<void> {
     const serverUrl = `https://${hostDomain}/servers/${server_id}`;
     const userApId = user.federated_id || `https://${user.domain}/users/${user.username}`;
 
-    // Calculate expiry if duration is set
     let expiresAt: string | undefined;
     if (duration && duration > 0) {
       expiresAt = new Date(Date.now() + duration * 1000).toISOString();
     }
 
-    // Create harmony:Ban activity
     const banActivity = {
       '@context': [
         'https://www.w3.org/ns/activitystreams',
@@ -195,7 +187,6 @@ export async function federateBan(payload: BanPayload): Promise<void> {
       published: new Date().toISOString(),
     };
 
-    // Send to user's inbox
     if (user.inbox_url) {
       await DeliveryQueue.sendToInbox(user.inbox_url, banActivity, moderator_id);
       logger.info(`🔨 Sent ban notification to ${user.inbox_url}`);
@@ -228,7 +219,6 @@ export async function federateUnban(payload: UnbanPayload): Promise<void> {
 
     logger.info(`✅ Federating unban: user ${user_id} from server ${server_id}`);
 
-    // Get server
     const { data: server } = await supabase
       .from('servers')
       .select('*')
@@ -239,7 +229,6 @@ export async function federateUnban(payload: UnbanPayload): Promise<void> {
       return;
     }
 
-    // Get the unbanned user
     const { data: user } = await supabase
       .from('profiles')
       .select('id, username, federated_id, is_local, inbox_url, domain')
@@ -257,7 +246,6 @@ export async function federateUnban(payload: UnbanPayload): Promise<void> {
     const serverUrl = `https://${hostDomain}/servers/${server_id}`;
     const userApId = user.federated_id || `https://${user.domain}/users/${user.username}`;
 
-    // Create Undo Ban activity
     const undoBanActivity = {
       '@context': [
         'https://www.w3.org/ns/activitystreams',
@@ -275,7 +263,6 @@ export async function federateUnban(payload: UnbanPayload): Promise<void> {
       published: new Date().toISOString(),
     };
 
-    // Send to user's inbox
     if (user.inbox_url) {
       await DeliveryQueue.sendToInbox(user.inbox_url, undoBanActivity, moderator_id);
     }
@@ -302,7 +289,6 @@ export async function federateUnban(payload: UnbanPayload): Promise<void> {
 export async function processIncomingBan(activity: any): Promise<void> {
   const supabase = getSupabaseClient();
   
-  // Extract server and user info
   const serverApId = typeof activity.actor === 'string' ? activity.actor : activity.actor?.id;
   const userApId = typeof activity.object === 'string' ? activity.object : activity.object?.id;
 
@@ -313,7 +299,6 @@ export async function processIncomingBan(activity: any): Promise<void> {
 
   logger.info(`🔨 Processing incoming ban from ${serverApId} for ${userApId}`);
 
-  // Find the local server reference
   const { data: server } = await supabase
     .from('servers')
     .select('id')
@@ -325,7 +310,6 @@ export async function processIncomingBan(activity: any): Promise<void> {
     return;
   }
 
-  // Find the user
   const { data: user } = await supabase
     .from('profiles')
     .select('id, is_local')
@@ -364,7 +348,6 @@ export async function processIncomingKick(activity: any): Promise<void> {
 
   logger.info(`👢 Processing incoming kick from ${serverApId} for ${userApId}`);
 
-  // Find the local server reference
   const { data: server } = await supabase
     .from('servers')
     .select('id')
@@ -375,7 +358,6 @@ export async function processIncomingKick(activity: any): Promise<void> {
     return;
   }
 
-  // Find the user
   const { data: user } = await supabase
     .from('profiles')
     .select('id, is_local')
@@ -386,7 +368,6 @@ export async function processIncomingKick(activity: any): Promise<void> {
     return;
   }
 
-  // Remove from server
   await supabase
     .from('user_servers')
     .delete()
@@ -416,7 +397,6 @@ export async function processIncomingUnban(activity: any): Promise<void> {
 
   logger.info(`✅ Processing incoming unban from ${serverApId} for ${userApId}`);
 
-  // Find the local server reference
   const { data: server } = await supabase
     .from('servers')
     .select('id')
@@ -427,7 +407,6 @@ export async function processIncomingUnban(activity: any): Promise<void> {
     return;
   }
 
-  // Find the user
   const { data: user } = await supabase
     .from('profiles')
     .select('id')
@@ -438,7 +417,6 @@ export async function processIncomingUnban(activity: any): Promise<void> {
     return;
   }
 
-  // Remove from server_bans if exists
   await supabase
     .from('server_bans')
     .delete()

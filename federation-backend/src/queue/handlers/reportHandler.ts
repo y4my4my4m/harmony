@@ -17,7 +17,6 @@ export async function handleReportJob(data: FederationJobData): Promise<void> {
   logger.info(`🚩 Processing report job for report ${report_id}`);
 
   try {
-    // Get reporter profile
     const { data: reporter } = await supabase
       .from('profiles')
       .select('*')
@@ -30,7 +29,6 @@ export async function handleReportJob(data: FederationJobData): Promise<void> {
       return;
     }
 
-    // Get reported user profile
     const { data: reportedUser } = await supabase
       .from('profiles')
       .select('*')
@@ -48,7 +46,6 @@ export async function handleReportJob(data: FederationJobData): Promise<void> {
     const baseUrl = `https://${config.INSTANCE_DOMAIN}`;
     const reporterActorUrl = `${baseUrl}/users/${reporter.username}`;
 
-    // Build report content
     const reportObjects: string[] = [reportedUser.federated_id || reportedUser.ap_id];
 
     // If there's a reported post, include it
@@ -64,7 +61,6 @@ export async function handleReportJob(data: FederationJobData): Promise<void> {
       }
     }
 
-    // Create Flag activity (standard ActivityPub report)
     const flagActivity = {
       '@context': 'https://www.w3.org/ns/activitystreams',
       id: `${baseUrl}/activities/flag/${report_id}`,

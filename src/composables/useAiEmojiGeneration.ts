@@ -1,5 +1,5 @@
 /**
- * AI emoji generation — resilient, app-global state.
+ * AI emoji generation - resilient, app-global state.
  *
  * Generation is asynchronous (webhook-driven on the backend): we POST to start
  * the job, then wait for an `ai_emoji:generated` (or `ai_emoji:failed`) event

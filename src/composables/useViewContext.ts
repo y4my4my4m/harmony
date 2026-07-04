@@ -55,7 +55,6 @@ export async function updateViewContext(
       conversation_id: conversationId
     })
 
-    // Initialize view context presence channel if needed
     if (!viewContextChannel) {
       // Use the cached auth context instead of a fresh network getUser() call.
       const userId = (await authContextService.getCurrentContext()).authUser?.id
@@ -95,7 +94,6 @@ export async function updateViewContext(
       }
     })
 
-    // Update session heartbeat context for smart push notifications
     sessionHeartbeat.updateContext({
       serverId,
       channelId,
@@ -127,7 +125,6 @@ export async function cleanupViewContext(): Promise<void> {
     viewContextTracker.reset()
   }
   
-  // Stop session heartbeat
   await sessionHeartbeat.stop()
 }
 

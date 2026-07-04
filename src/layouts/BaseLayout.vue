@@ -417,20 +417,15 @@ const initializeApp = async () => {
       return
     }
     
-    // Wait for router to be ready so we get the correct route
     await router.isReady()
     
-    // Determine what to load based on current route
     const loadingStrategy = routeAwareInitialization.getLoadingStrategy(route)
     
     // PERFORMANCE: Load minimum data needed to show UI, then mark as ready
-    // This allows the UI to appear immediately while other data loads in background
     
-    // Load user environment (servers list) - CRITICAL for navigation
     await serverChannelStore.initializeUserEnvironment(userId)
     
     // Load profile FIRST, then initialize userData with full profile data
-    // This ensures avatar, color, banner, and status are all available immediately
     await profileStore.fetchProfileByAuthUserId(userId).catch(err => {
       debug.warn('⚠️ Profile fetch failed:', err)
     })
@@ -484,7 +479,6 @@ const initializeApp = async () => {
     
     debug.log('✅ UserData initialized with profile data (avatar, color, banner, status should all be available)')
     
-    // Mark app as ready NOW - userData is initialized with full profile data
     hasServersLoaded.value = true;
     isAppInitialized.value = true;
     
@@ -497,7 +491,6 @@ const initializeApp = async () => {
           return
         }
         
-        // Initialize server users store integration
         const { useServerUsersStore } = await import('@/stores/useServerUsers')
         const serverUsersStore = useServerUsersStore()
         serverUsersStore.initializeUserDataIntegration()
@@ -551,7 +544,6 @@ const initializeApp = async () => {
   }
 }
 
-// Initialize only route-specific data and stores
 const initializeRouteSpecificData = async (userId: string, strategy: any, userData: any) => {
   try {
     if (strategy.routeType === 'server-channel') {
@@ -566,14 +558,12 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
 
       const emojiCacheStore = emojiCache.useEmojiCacheStore()
       
-      // Load current server presence only
       if (strategy.currentServerId) {
         const { getUserIdsForServer } = await import('@/services/usersService')
         const serverUserIds = await getUserIdsForServer(strategy.currentServerId)
         await userData.subscribeToContext(strategy.currentServerId, 'server', serverUserIds)
       }
       
-      // Load current server emojis only (others load in background)
       const allServerIds = serverChannelStore.servers.map(server => server.id)
       const otherServerIds = allServerIds.filter(id => id !== strategy.currentServerId)
       
@@ -598,14 +588,12 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
       const emojiCacheStore = emojiCache.useEmojiCacheStore()
       const dmStore = useDMStore()
       
-      // Initialize minimal emoji support for DMs
       const allServerIds = serverChannelStore.servers.map(server => server.id)
       if (allServerIds.length > 0) {
         const defaultServerId = serverChannelStore.currentServerId || allServerIds[0]
         await emojiCacheStore.initializeSelective([defaultServerId], [])
       }
       
-      // Initialize DM functionality
       if (strategy.routeType === 'dm' && strategy.currentConversationId) {
         await dmStore.initializeDMEnvironmentForDirectAccess(userId, strategy.currentConversationId)
       } else if (strategy.routeType === 'dm-list') {
@@ -614,7 +602,6 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
         await dmStore.initializeDMEnvironment(userId, false, false, 'partial')
       }
       
-      // Subscribe to DM presence for specific conversations
       if (strategy.routeType === 'dm' && strategy.currentConversationId) {
         const conversationUserIds = dmStore.conversations
           .filter(conv => conv.type === 'direct' && conv.other_user)
@@ -640,10 +627,8 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
       const emojiCacheStore = emojiCache.useEmojiCacheStore()
       const activityPubStore = useActivityPubStore()
       
-      // Load followed users for proper follow state
       await activityPubStore.loadFollowedUsers()
       
-      // Initialize minimal emoji support for social features
       const allServerIds = serverChannelStore.servers.map(server => server.id)
       if (allServerIds.length > 0) {
         const defaultServerId = serverChannelStore.currentServerId || allServerIds[0]
@@ -662,7 +647,6 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
 
       const emojiCacheStore = emojiCache.useEmojiCacheStore()
       
-      // Load default server emojis
       const allServerIds = serverChannelStore.servers.map(server => server.id)
       const defaultServerId = serverChannelStore.currentServerId || allServerIds[0]
       const otherServerIds = allServerIds.filter(id => id !== defaultServerId)
@@ -737,7 +721,6 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
             otherUserIds.delete(userId)
 
             if (otherUserIds.size === 0) {
-              // Store not ready - fall back to the direct participant lookup.
               const { data: allParticipations } = await supabase
                 .from('conversation_participants')
                 .select('conversation_id')
@@ -774,7 +757,6 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
     } else if (!skipBaselinePresence) {
       // Not a single DM view - load all users normally
     await Promise.all([
-      // Fetch server users
       (async () => {
         const { getUserIdsForServers } = await import('@/services/usersService')
         const allServers = serverChannelStore.servers
@@ -789,7 +771,6 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
         }
       })(),
       
-        // Fetch DM contacts (only for non-DM routes or DM list view)
       (async () => {
           if (strategy.routeType !== 'dm') {
         try {
@@ -822,7 +803,6 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
     ])
     }
     
-    // Load baseline user data for global presence (minimal profile info)
     if (!skipBaselinePresence && baselineUserIds.size > 0) {
       await userData.ensureProfilesAvailable(Array.from(baselineUserIds))
     }
@@ -840,7 +820,6 @@ const initializeBackgroundData = async (userId: string, _strategy: any) => {
     const dmStore = useDMStore()
     await dmStore.registerGlobalBroadcastHandlers(userId)
 
-    // Load only notification count initially (not full list)
     const { useNotificationStore } = await import('@/stores/useNotification')
     const notificationStore = useNotificationStore()
     await notificationStore.initializeUnreadCountOnly(userId)
@@ -854,7 +833,6 @@ const initializeBackgroundData = async (userId: string, _strategy: any) => {
     const { initializeSessionHeartbeat } = await import('@/composables/useViewContext')
     await initializeSessionHeartbeat(userId)
     
-    // Initialize typing indicator service
     const typingService = await import('@/services/TypingIndicatorService')
     await typingService.typingIndicatorService.initialize()
   } catch (error) {
@@ -864,7 +842,6 @@ const initializeBackgroundData = async (userId: string, _strategy: any) => {
 
 
 
-// Initialize global call listener when user logs in
 watch(() => authStore.session?.user?.id, async (userId) => {
   if (userId && !globalDMCallListener.isInitialized()) {
     await globalDMCallListener.initialize(userId)
@@ -880,7 +857,6 @@ watch(() => authStore.session, async (newSession, oldSession) => {
   // If user logged out (had session, now doesn't)
   else if (oldSession && !newSession) {
     
-    // Clean up user data service and all presence subscriptions
     try {
       const { userDataService } = await import('@/services/userDataService')
       await userDataService.cleanup()
@@ -889,7 +865,6 @@ watch(() => authStore.session, async (newSession, oldSession) => {
       debug.error('Failed to cleanup user data:', error)
     }
     
-    // Cleanup state persistence
     try {
       const { statePersistence } = await import('@/services/StatePersistence')
       await statePersistence.cleanup()
@@ -898,12 +873,10 @@ watch(() => authStore.session, async (newSession, oldSession) => {
       debug.error('Failed to cleanup state persistence:', error)
     }
     
-    // Cleanup session heartbeat (stops push notification tracking)
     try {
       const { cleanupViewContext } = await import('@/composables/useViewContext')
       await cleanupViewContext()
       
-      // Cleanup typing indicator service
       const typingService = await import('@/services/TypingIndicatorService')
       await typingService.typingIndicatorService.cleanup()
       debug.log('✅ Session heartbeat cleanup completed')
@@ -911,7 +884,6 @@ watch(() => authStore.session, async (newSession, oldSession) => {
       debug.error('Failed to cleanup session heartbeat:', error)
     }
     
-    // Cleanup global call listener
     globalDMCallListener.cleanup()
     
     isAppInitialized.value = false
@@ -920,14 +892,12 @@ watch(() => authStore.session, async (newSession, oldSession) => {
 })
 
 // Watch for route changes and refresh global presence
-// This ensures users remain visible globally when navigating between different contexts
 // Debounced to prevent excessive calls during rapid navigation
 let presenceRefreshTimeout: ReturnType<typeof setTimeout> | null = null
 const PRESENCE_REFRESH_DEBOUNCE_MS = 500
 
 watch(() => route.name, async (newRouteName, oldRouteName) => {
   if (newRouteName !== oldRouteName && isAppInitialized.value && authStore.session?.user?.id) {
-    // Clear any pending refresh
     if (presenceRefreshTimeout) {
       clearTimeout(presenceRefreshTimeout)
     }
@@ -945,7 +915,6 @@ watch(() => route.name, async (newRouteName, oldRouteName) => {
   }
 })
 
-// Track previous route type to detect cross-context navigation
 let previousRouteType: string | null = null
 
 // Route-aware store initialization when navigating between different contexts
@@ -962,7 +931,6 @@ watch(() => route.path, async (newPath) => {
   debug.log('🔄 Route context changed:', { from: previousRouteType, to: newStrategy.routeType, path: newPath })
   previousRouteType = newStrategy.routeType
   
-  // Initialize stores for the new route context
   if (newStrategy.routeType === 'dm' || newStrategy.routeType === 'dm-list') {
     try {
       const { useDMStore } = await import('@/stores/useDM')
@@ -1063,7 +1031,6 @@ const wrappedTouchEnd = (event: TouchEvent) => {
 
 // Mobile touch handlers
 onMounted(() => {
-  // Initialize RealtimeConnectionManager for reliable websocket connections
   realtimeConnectionManager.initialize()
   
   if (typeof window !== 'undefined') {
@@ -1094,10 +1061,8 @@ onBeforeUnmount(() => {
   }
   cancelInitRetryTimer()
   
-  // Cleanup global call listener
   globalDMCallListener.cleanup()
   
-  // Cleanup realtime connection manager
   realtimeConnectionManager.cleanup()
 })
 </script>

@@ -10,7 +10,6 @@ import type { Message, MessagePart } from '@/types'
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
 
-// Track decryption failures for debugging
 let lastDecryptionError: string | null = null
 
 /**
@@ -33,7 +32,6 @@ export async function processMessageDecryption(messages: Message[]): Promise<Mes
     return messages
   }
 
-  // Load Megolm encryption service
   let encryptionService: any = null
 
   try {
@@ -71,7 +69,6 @@ export async function processMessageDecryption(messages: Message[]): Promise<Mes
     return messages
   }
   
-  // Check if encryption is unlocked (user has entered recovery key)
   if (!encryptionService.isUnlocked()) {
     debug.log('🔐 Encryption locked - enter recovery key to decrypt messages')
     lastDecryptionError = 'Enter recovery key to unlock encryption'
@@ -124,7 +121,6 @@ export async function processMessageDecryption(messages: Message[]): Promise<Mes
     identityEpochMs = await encryptionService.getIdentityCreatedAt?.()
   } catch { /* unknown epoch → treat all failures as retryable */ }
 
-  // Process encrypted messages in parallel
   const decryptedResults = await Promise.all(
     encryptedMessages.map(async (message) => {
       try {
@@ -149,7 +145,6 @@ export async function processMessageDecryption(messages: Message[]): Promise<Mes
       } catch (error: any) {
         const errorMessage = error?.message || String(error)
 
-        // Set last error for UI display
         if (errorMessage.includes('Sender signature invalid')) {
           // Forgery detected - make this visible. Don't fall back to a soft
           // "session key" message which would hide the attack signal.
@@ -177,7 +172,6 @@ export async function processMessageDecryption(messages: Message[]): Promise<Mes
           sentAtMs < identityEpochMs
 
         // PRESERVE original content - UI will show glyphs based on encrypted && !decrypted
-        // This allows retry without hitting the database
         return {
           ...message,
           encrypted: true,

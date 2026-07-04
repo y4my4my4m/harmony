@@ -418,6 +418,64 @@ COMMENT ON FUNCTION public.upsert_ap_activity IS
 
 
 -- =============================================================================
+-- claim_ap_activity / complete_ap_activity - Inbox processing idempotency
+-- (mirrored from migrations/20260705_ap_inbox_idempotency.sql)
+-- =============================================================================
+CREATE OR REPLACE FUNCTION public.claim_ap_activity(p_ap_id text)
+RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_claimed boolean;
+BEGIN
+    UPDATE ap_activities
+    SET status = 'processing',
+        attempts = attempts + 1,
+        last_attempt_at = NOW(),
+        updated_at = NOW()
+    WHERE ap_id = p_ap_id
+      AND (
+        status IN ('pending', 'received', 'failed')
+        OR (status = 'processing' AND updated_at < NOW() - INTERVAL '10 minutes')
+      )
+    RETURNING true INTO v_claimed;
+
+    RETURN COALESCE(v_claimed, false);
+END;
+$$;
+
+COMMENT ON FUNCTION public.claim_ap_activity IS
+'Atomically claim an ActivityPub activity for processing. Returns false when the activity was already processed or is being processed (idempotency guard).';
+
+CREATE OR REPLACE FUNCTION public.complete_ap_activity(
+    p_ap_id text,
+    p_success boolean,
+    p_error text DEFAULT NULL
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+    UPDATE ap_activities
+    SET status = CASE WHEN p_success THEN 'completed' ELSE 'failed' END,
+        error_message = p_error,
+        updated_at = NOW()
+    WHERE ap_id = p_ap_id;
+END;
+$$;
+
+COMMENT ON FUNCTION public.complete_ap_activity IS
+'Mark a claimed ActivityPub activity as completed or failed. Failed activities become claimable again via claim_ap_activity.';
+
+REVOKE ALL ON FUNCTION public.claim_ap_activity(text) FROM anon, authenticated;
+REVOKE ALL ON FUNCTION public.complete_ap_activity(text, boolean, text) FROM anon, authenticated;
+
+
+-- =============================================================================
 -- update_endpoint_health - Track federation endpoint delivery health
 -- =============================================================================
 CREATE OR REPLACE FUNCTION public.update_endpoint_health(

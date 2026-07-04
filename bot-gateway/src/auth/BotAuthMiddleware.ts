@@ -33,7 +33,6 @@ export async function botAuthMiddleware(
     // Hash token for lookup
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex')
     
-    // Verify token
     const { data: verification, error } = await supabase.rpc('verify_bot_token', {
       p_token_hash: tokenHash
     }) as any
@@ -42,7 +41,6 @@ export async function botAuthMiddleware(
       return res.status(401).json({ error: 'Invalid or expired token' })
     }
     
-    // Attach bot info to request
     req.bot = {
       id: verification.bot_id,
       username: verification.username,

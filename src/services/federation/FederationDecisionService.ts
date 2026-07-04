@@ -24,9 +24,7 @@ export class FederationDecisionService {
     return this.instance
   }
 
-  // =====================================================
   // REACTION FEDERATION DECISIONS (LOCAL-FIRST)
-  // =====================================================
 
   /**
    * Decide if a reaction should be federated (clean local-first logic)
@@ -125,9 +123,7 @@ export class FederationDecisionService {
     }
   }
 
-  // =====================================================
   // POST FEDERATION DECISIONS
-  // =====================================================
 
   /**
    * Decide if a post should be federated
@@ -136,7 +132,6 @@ export class FederationDecisionService {
     try {
       debug.log(`🤔 Federation: Deciding post federation for post: ${postId} (${operation})`)
 
-      // Get post data
       const { data: post, error } = await supabase
         .from('posts')
         .select('author_id, visibility, is_local')
@@ -195,9 +190,7 @@ export class FederationDecisionService {
     }
   }
 
-  // =====================================================
   // FOLLOW FEDERATION DECISIONS
-  // =====================================================
 
   /**
    * Decide if a follow should be federated
@@ -256,9 +249,7 @@ export class FederationDecisionService {
     }
   }
 
-  // =====================================================
   // PROFILE UPDATE FEDERATION DECISIONS
-  // =====================================================
 
   /**
    * Decide if a profile update should be federated
@@ -308,9 +299,7 @@ export class FederationDecisionService {
     }
   }
 
-  // =====================================================
   // HELPER METHODS (CLEAN DECISION LOGIC)
-  // =====================================================
 
   /**
    * Check if federation is enabled for a specific user

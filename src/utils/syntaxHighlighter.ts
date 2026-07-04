@@ -134,7 +134,6 @@ export function highlightSyntax(code: string, language: string = 'text'): Syntax
       if (lang.keywords.includes(word)) {
         tokens.push({ type: 'keyword', content: word, className: 'token keyword' });
       } else {
-        // Check if it looks like a function call
         const nextChar = remaining[word.length];
         if (nextChar === '(') {
           tokens.push({ type: 'function', content: word, className: 'token function' });

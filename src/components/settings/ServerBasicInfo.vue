@@ -223,7 +223,6 @@ let currentBannerBlobUrl: string | null = null
 
 // Computed property for icon preview - shows selected file preview or current server icon
 const iconPreviewUrl = computed(() => {
-  // Clean up previous blob URL
   if (currentBlobUrl) {
     URL.revokeObjectURL(currentBlobUrl)
     currentBlobUrl = null
@@ -307,13 +306,11 @@ const handleFileInputChange = (event: Event) => {
   const file = input.files?.[0] || null
   
   if (file) {
-    // Validate file size (8MB limit)
     if (file.size > 8 * 1024 * 1024) {
       notificationStore.showToast('error', t('common.error'), t('server.fileSizeTooLarge'), 3000)
       return
     }
     
-    // Validate file type
     if (!file.type.startsWith('image/')) {
       notificationStore.showToast('error', t('common.error'), t('server.selectValidImageFile'), 3000)
       return
@@ -322,7 +319,6 @@ const handleFileInputChange = (event: Event) => {
   
   emit('file-change', file)
   
-  // Clear the input so the same file can be selected again
   if (input) {
     input.value = ''
   }

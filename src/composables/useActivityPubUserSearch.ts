@@ -67,7 +67,6 @@ export function useActivityPubUserSearch() {
         }
       }
 
-      // Sort by relevance
       suggestions.sort((a, b) => {
         const queryLower = query.toLowerCase();
         const aDisplay = (a.display_name || '').toLowerCase();
@@ -93,7 +92,6 @@ export function useActivityPubUserSearch() {
         return 0; // Keep original order for equal items
       });
 
-      // Remove any remaining duplicates as a final safety check
       const uniqueSuggestions = suggestions.filter((item, index, self) => 
         index === self.findIndex(s => 
           s.id === item.id || 

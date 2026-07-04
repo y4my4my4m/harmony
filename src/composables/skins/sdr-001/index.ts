@@ -88,7 +88,7 @@ export const sdr001Skin: Skin = {
     customBackgroundChroma: -6,
     // Colour tokens are derived from the palette (customPrimaryColor +
     // background sliders above). Do not pin --harmony-* / --text-* /
-    // --border-* in customCssOverrides — that blocks the theme editor
+    // --border-* in customCssOverrides - that blocks the theme editor
     // from updating the skin after apply.
     customCssOverrides: {},
     fontFamily: 'pixel',

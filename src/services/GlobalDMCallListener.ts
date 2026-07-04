@@ -72,7 +72,6 @@ class GlobalDMCallListenerService {
       return
     }
     
-    // Cleanup old channel if exists
     if (this.userChannel) {
       this.userChannel.unsubscribe()
     }
@@ -171,7 +170,6 @@ class GlobalDMCallListenerService {
 
     switch (signal.type) {
       case 'initiate':
-        // Register the call on the callee side so hasActiveCall() works
         dmCallSignaling.registerRemoteCall(
           signal.conversationId,
           signal.callerId,
@@ -251,7 +249,6 @@ class GlobalDMCallListenerService {
 
     if (!permissionCheck.allowed) {
       debug.log('🚫 Auto-declining:', permissionCheck.reason)
-      // Send decline signal back
       await dmCallSignaling.declineCall(
         conversationId,
         this.currentUserId,
@@ -260,7 +257,6 @@ class GlobalDMCallListenerService {
       return
     }
 
-    // Load caller data
     debug.log('📞 Loading caller data...')
     const { userDataService } = await import('./userDataService')
     await userDataService.ensureUsersLoaded([signal.callerId])
@@ -277,7 +273,6 @@ class GlobalDMCallListenerService {
       timestamp: signal.timestamp
     }
 
-    // Set state
     this.incomingCall.value = incomingCallData
     this.showIncomingCallModal.value = true
     
@@ -339,14 +334,12 @@ class GlobalDMCallListenerService {
       return
     }
 
-    // Register this as a federated active call so hasActiveCall() works
     dmCallSignaling.registerRemoteCall(
       payload.conversationId,
       payload.callerId,
       payload.callType
     )
     
-    // Store federated call info on the active call
     const call = dmCallSignaling.getActiveCall(payload.conversationId)
     if (call) {
       call.isFederated = true

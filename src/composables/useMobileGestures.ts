@@ -111,12 +111,10 @@ export function useMobileGestures() {
     const currentDeltaX = touch.clientX - touchState.value.startX
     const currentDeltaY = touch.clientY - touchState.value.startY
 
-    // Determine initial direction if not set
     if (!touchState.value.initialDirection && (Math.abs(currentDeltaX) > 10 || Math.abs(currentDeltaY) > 10)) {
       touchState.value.initialDirection = Math.abs(currentDeltaX) > Math.abs(currentDeltaY) ? 'horizontal' : 'vertical'
     }
 
-    // Calculate instantaneous velocity for fast swipe detection
     const timeDelta = prevTime - touchState.value.lastMoveTime
     const instantVelocity = timeDelta > 0 ? Math.abs(currentDeltaX - (touchState.value.currentX - touchState.value.startX)) / timeDelta : 0
     const isFastHorizontalSwipe = instantVelocity > config.velocityThreshold * 1.2 && 
@@ -130,11 +128,9 @@ export function useMobileGestures() {
         Math.abs(currentDeltaX) > config.directionThreshold) {
       event.preventDefault() // Prevent scrolling
       
-      // Start dragging if not already
       if (!touchState.value.isDragging) {
         touchState.value.isDragging = true
         
-        // Determine drag direction based on where touch started OR swipe direction
         if (!touchState.value.dragDirection) {
           if (touchState.value.startX <= config.edgeZone) {
             touchState.value.dragDirection = 'left'
@@ -148,17 +144,14 @@ export function useMobileGestures() {
           }
         }
         
-        // Notify drag start
         if (callbacks?.onDragStart && touchState.value.dragDirection) {
           callbacks.onDragStart(touchState.value.dragDirection)
         }
       }
       
-      // Update velocity tracking
       touchState.value.lastMoveTime = prevTime
       touchState.value.lastMoveX = prevX
       
-      // Notify drag move with raw deltaX
       if (callbacks?.onDragMove && touchState.value.dragDirection) {
         callbacks.onDragMove(currentDeltaX, touchState.value.dragDirection)
       }
@@ -179,9 +172,7 @@ export function useMobileGestures() {
     const velocity = finalDeltaX / Math.max(duration, 1) // px/ms, positive = right, negative = left
     const direction = touchState.value.dragDirection
 
-    // Check if we were actively dragging
     if (touchState.value.isDragging && direction) {
-      // Notify drag end with velocity
       if (callbacks.onDragEnd) {
         callbacks.onDragEnd(velocity, direction)
       }
@@ -213,7 +204,6 @@ export function useMobileGestures() {
       }
     }
 
-    // Reset touch state
     touchState.value = {
       startX: 0,
       startY: 0,

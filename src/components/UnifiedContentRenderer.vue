@@ -274,7 +274,6 @@ const imageLoaded = ref(props.imageLoaded);
 const handleContentClick = (event: Event) => {
   const target = event.target as HTMLElement;
   
-  // Handle image clicks in HTML mode
   if (target.tagName === 'IMG' && target.classList.contains('content-image')) {
     const src = target.getAttribute('src');
     if (src) {
@@ -285,7 +284,6 @@ const handleContentClick = (event: Event) => {
     return;
   }
   
-  // Handle mention clicks in HTML mode - always navigate locally
   if (target.classList.contains('mention')) {
     event.preventDefault();
     event.stopPropagation();
@@ -296,7 +294,6 @@ const handleContentClick = (event: Event) => {
     return;
   }
   
-  // Handle hashtag clicks in HTML mode
   if (target.classList.contains('hashtag')) {
     const tag = target.getAttribute('data-tag');
     if (tag) {
@@ -305,7 +302,6 @@ const handleContentClick = (event: Event) => {
     return;
   }
   
-  // Handle link clicks in HTML mode
   if (target.tagName === 'A' && target.classList.contains('url-link')) {
     const url = target.getAttribute('href');
     if (url) {
@@ -374,7 +370,6 @@ const handleLinkClick = (url: string, event: Event) => {
   emit('link-click', url, event);
 };
 
-// Initialize unified emoji service
 const { resolveEmoji, isNativePack, isLoaded: emojiServiceLoaded } = useUnifiedEmoji();
 
 onMounted(() => {
@@ -412,13 +407,11 @@ const getEmojiDisplayUrl = (emoji: any) => {
   return '';
 };
 
-// Check if emoji should render as native unicode
 const shouldRenderNativeEmoji = (emoji: any): boolean => {
   if (!emoji) return false;
   
   // Server custom emojis (uploaded to Supabase storage) always use URL
   if (emoji.url) {
-    // Check if this is a Supabase storage emoji (server custom emoji)
     const isSupabaseStorage = emoji.url.includes('/storage/v1/') || 
                                emoji.url.includes('/object/public/emojis/');
     if (isSupabaseStorage) {
@@ -441,7 +434,6 @@ const shouldRenderNativeEmoji = (emoji: any): boolean => {
   
   // If native pack selected and we can resolve unicode
   if (isNativePack.value) {
-    // Check if we have unicode available directly
     if (emoji.native || emoji.unicode) return true;
     
     // Try to resolve via unified service when name is available
@@ -459,7 +451,6 @@ const shouldRenderNativeEmoji = (emoji: any): boolean => {
   return false;
 };
 
-// Get unicode for native emoji rendering
 const getNativeEmojiChar = (emoji: any): string => {
   if (!emoji) return '';
   
@@ -767,7 +758,7 @@ const formatFileSize = (bytes: number): string => {
 }
 
 .url-link:hover {
-  color: #2563eb;
+  color: var(--harmony-primary, #2563eb);
 }
 
 .content-html :deep(.url-link) {
@@ -776,7 +767,7 @@ const formatFileSize = (bytes: number): string => {
 }
 
 .content-html :deep(.url-link:hover) {
-  color: #2563eb;
+  color: var(--harmony-primary, #2563eb);
 }
 
 .content-html :deep(.media-container) {

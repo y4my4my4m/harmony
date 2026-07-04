@@ -966,7 +966,7 @@ export const useDMStore = defineStore('dm', () => {
   }
 
   const initializeDMEnvironmentForDirectAccess = async (userId: string, conversationId?: string) => {
-    // This prevents the sidebar from flashing loading state when switching conversations
+    // Avoids a loading-state flash in the sidebar when switching conversations
     const hadConversations = conversations.value.length > 0
     if (!hadConversations) {
       isInitializing.value = true

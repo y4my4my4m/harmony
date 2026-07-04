@@ -114,7 +114,6 @@ class LiveKitService {
       throw new Error('User does not have permission to join this room');
     }
     
-    // Get user profile for metadata (lookup by auth_user_id)
     const supabase = getSupabaseClient();
     const { data: profile } = await supabase
       .from('profiles')
@@ -136,7 +135,6 @@ class LiveKitService {
 
     // Create access token
     // Use federated identity format for consistency across federation
-    // This allows ANY client (local or remote) to resolve the user profile
     const profileId = profile?.id || request.userId;
     const username = profile?.username || 'unknown';
     
@@ -168,7 +166,6 @@ class LiveKitService {
       }),
     });
     
-    // Set permissions based on room type
     const videoGrant: VideoGrant = {
       roomJoin: true,
       room: request.roomName,
@@ -210,11 +207,9 @@ class LiveKitService {
     // actor on a non-blocked instance could mint a token to join ANY voice
     // channel / DM call and (for non-E2EE rooms) eavesdrop on the SFU media.
 
-    // Extract instance domain from actor ID
     const actorUrl = new URL(request.actorId);
     const remoteDomain = actorUrl.hostname;
     
-    // Check if the instance is blocked
     const supabase = getSupabaseClient();
     const { data: blocked } = await supabase
       .from('blocked_instances')
@@ -236,10 +231,8 @@ class LiveKitService {
       throw new Error('permission denied: federated actor is not authorized for this room');
     }
 
-    // Create identity for federated user (unique across federation)
     const federatedIdentity = `federated:${request.actorId}`;
     
-    // Create access token with limited permissions
     const at = new AccessToken(cfg.apiKey, cfg.apiSecret, {
       identity: federatedIdentity,
       name: request.actorId.split('@').pop() || 'Remote User',
@@ -252,7 +245,6 @@ class LiveKitService {
       }),
     });
     
-    // Set permissions
     const videoGrant: VideoGrant = {
       roomJoin: true,
       room: request.roomName,
@@ -352,7 +344,6 @@ class LiveKitService {
       }
       logger.debug(`Extracted conversationId: ${conversationId}`);
       
-      // Check if user is a participant in this conversation (direct or group)
       const { data: participant, error: participantError } = await supabase
         .from('conversation_participants')
         .select('id')

@@ -304,7 +304,6 @@ const canProceed = computed(() => {
   }
 })
 
-// Generate random verification positions (3 random words to verify)
 function generateVerifyPositions() {
   const positions: number[] = []
   while (positions.length < 3) {
@@ -316,7 +315,6 @@ function generateVerifyPositions() {
   verifyPositions.value = positions.sort((a, b) => a - b)
 }
 
-// Check if verification inputs are correct
 function checkVerification() {
   verificationError.value = ''
   
@@ -373,7 +371,6 @@ Anyone with these words can access your encrypted messages.
 async function nextStep() {
   if (!canProceed.value) return
 
-  // Generate recovery key on step 1
   if (currentStep.value === 0) {
     currentStep.value = 1
     await generateRecoveryKey()
@@ -392,15 +389,12 @@ function previousStep() {
   }
 }
 
-// Generate the recovery key
 async function generateRecoveryKey() {
   isGenerating.value = true
   
   try {
-    // Import the recovery key service
     const { recoveryKeyService } = await import('@/services/encryption/RecoveryKeyService')
     
-    // Generate 12-word mnemonic (async: real BIP39 SHA-256 checksum)
     recoveryWords.value = await recoveryKeyService.generateMnemonic(12)
     
     // Derive keys to get verification code
@@ -426,10 +420,8 @@ async function completeSetup() {
   isProcessing.value = true
 
   try {
-    // Import the encryption service
     const { megolmMessageEncryptionService } = await import('@/services/encryption/MegolmMessageEncryptionService')
     
-    // Get current user
     const { supabase } = await import('@/supabase')
     const { data: { user } } = await supabase.auth.getUser()
     
@@ -437,7 +429,6 @@ async function completeSetup() {
       throw new Error('Not logged in')
     }
 
-    // Initialize the main service (converts auth_user_id to profile_id)
     await megolmMessageEncryptionService.initialize(user.id)
 
     // Complete setup with the words we've already generated

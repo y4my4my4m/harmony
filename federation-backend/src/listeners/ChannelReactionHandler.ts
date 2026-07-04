@@ -45,7 +45,6 @@ export async function handleChannelReactionFederation(
 
     logger.info(`👍 Federating reaction ${reaction_id} on message ${message_id}`);
 
-    // Get the reaction with related data
     const { data: reaction, error: reactionError } = await supabase
       .from('reactions')
       .select(`
@@ -67,7 +66,6 @@ export async function handleChannelReactionFederation(
       return;
     }
 
-    // Get the message and its server
     const { data: message, error: messageError } = await supabase
       .from('messages')
       .select(`
@@ -94,7 +92,6 @@ export async function handleChannelReactionFederation(
       return;
     }
 
-    // Get remote member groups
     const remoteMemberGroups = await getRemoteMemberGroups(server.id);
     
     if (remoteMemberGroups.length === 0) {
@@ -102,7 +99,6 @@ export async function handleChannelReactionFederation(
       return;
     }
 
-    // Build the reaction activity
     const userApId = reaction.user.federated_id || 
       `https://${hostDomain}/users/${reaction.user.username}`;
     const messageApId = message.metadata?.ap_id || 
@@ -143,7 +139,6 @@ export async function handleChannelReactionFederation(
       published: new Date().toISOString(),
     };
 
-    // Send to remote instances
     for (const group of remoteMemberGroups) {
       const inbox = group.shared_inbox || `https://${group.instance}/inbox`;
       
@@ -152,7 +147,6 @@ export async function handleChannelReactionFederation(
       logger.info(`✅ Queued reaction delivery to ${group.instance}`);
     }
 
-    // Update reaction federation status
     await supabase
       .from('reactions')
       .update({ federation_status: 'completed' })
@@ -181,7 +175,6 @@ export async function handleChannelReactionRemoval(
 
     logger.info(`↩️ Federating reaction removal on message ${message_id}`);
 
-    // Get the user
     const { data: user } = await supabase
       .from('profiles')
       .select('id, username, federated_id, is_local')
@@ -192,7 +185,6 @@ export async function handleChannelReactionRemoval(
       return;
     }
 
-    // Get the message and server
     const { data: message } = await supabase
       .from('messages')
       .select(`
@@ -214,7 +206,6 @@ export async function handleChannelReactionRemoval(
       return;
     }
 
-    // Get remote member groups
     const remoteMemberGroups = await getRemoteMemberGroups(server.id);
     
     if (remoteMemberGroups.length === 0) {
@@ -261,7 +252,6 @@ export async function handleChannelReactionRemoval(
       published: new Date().toISOString(),
     };
 
-    // Send to remote instances
     for (const group of remoteMemberGroups) {
       const inbox = group.shared_inbox || `https://${group.instance}/inbox`;
       await DeliveryQueue.enqueue(undoActivity, inbox, user.id);

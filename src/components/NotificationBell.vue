@@ -254,7 +254,6 @@ const togglePanel = async () => {
     closeMobileSidebars()
     document.body.style.overflow = 'hidden'
     
-    // Load full notification list only when panel is opened
     if (authStore.session?.user?.id && notifications.value.length === 0) {
       debug.log('📝 Loading full notification list on panel open...')
       await notificationStore.loadFullNotificationList(authStore.session.user.id)

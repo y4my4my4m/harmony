@@ -48,7 +48,6 @@ class ActivityTracker extends EventTarget {
       document.addEventListener(event, this.boundActivityHandler, { passive: true })
     })
     
-    // Start periodic activity checks
     this.activityCheckTimer = window.setInterval(() => {
       this.checkActivityStatus()
     }, this.CHECK_INTERVAL)
@@ -63,12 +62,10 @@ class ActivityTracker extends EventTarget {
     debug.log('⏹️ Stopping activity tracking')
     this.isTracking = false
     
-    // Remove activity listeners
     this.activityEvents.forEach(event => {
       document.removeEventListener(event, this.boundActivityHandler)
     })
     
-    // Clear timer
     if (this.activityCheckTimer) {
       clearInterval(this.activityCheckTimer)
       this.activityCheckTimer = null
@@ -103,7 +100,6 @@ class ActivityTracker extends EventTarget {
     const isAway = inactiveTime >= this.AWAY_THRESHOLD
     const isOffline = inactiveTime >= this.OFFLINE_THRESHOLD
     
-    // Emit status change events
     if (isOffline && !this.wasOffline) {
       debug.log('💤 User inactive for 15+ minutes - triggering offline')
       this.wasOffline = true

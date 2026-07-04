@@ -71,7 +71,7 @@ export function splitGluedUrlsInParts(parts: MessagePart[]): MessagePart[] {
     if (part.type === 'text') {
       const text = (part as { text?: string }).text || '';
       // Only repair bridge-style glued attachment blobs. Prose (including
-      // Discord-style `<https://...>`) is left alone — that syntax is handled
+      // Discord-style `<https://...>`) is left alone - that syntax is handled
       // at compose time by parseTextForUrls + parseUrlMatchContext.
       if (isPureGluedUrlBlob(text)) {
         for (const u of extractHttpUrls(text)) {

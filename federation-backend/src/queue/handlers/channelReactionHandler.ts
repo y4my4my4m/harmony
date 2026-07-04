@@ -17,7 +17,6 @@ export async function handleChannelReactionJob(data: FederationJobData): Promise
   logger.info(`💬⭐ Processing channel reaction job: ${type} for reaction ${reaction_id || 'deleted'}`);
 
   try {
-    // Handle delete (Undo) operations
     if (type === 'delete') {
       logger.info(`↩️ Processing reaction removal for message ${message_id}`);
       
@@ -45,7 +44,6 @@ export async function handleChannelReactionJob(data: FederationJobData): Promise
       return;
     }
 
-    // Check if already federated
     if (reaction.metadata?.federated) {
       logger.debug(`Reaction ${reaction_id} already federated, skipping`);
       await updateFederationStatus(reaction_id, 'reactions', 'skipped');

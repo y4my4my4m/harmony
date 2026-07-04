@@ -38,7 +38,7 @@ async function loadManifest(): Promise<{ login: string[]; offline: string[]; not
       return manifestCache
     }
   } catch (error) {
-    // Manifest doesn't exist or failed to load - that's okay, we'll use fallback
+    // Manifest missing or failed to load: fall back to defaults
   }
   
   return null

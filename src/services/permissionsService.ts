@@ -41,13 +41,10 @@ export interface UserPermissions {
  */
 async function getUserPermissions(userId: string, serverId: string): Promise<UserPermissions> {
   try {
-    // Get user's roles
     const roles = await roleService.getUserRoles(userId, serverId)
     
-    // Get effective permissions from database function
     const permissionFlags = await roleService.getUserPermissions(userId, serverId)
     
-    // Check if user is server owner
     const { data: server, error: serverError } = await supabase
       .from('servers')
       .select('owner')
@@ -59,7 +56,6 @@ async function getUserPermissions(userId: string, serverId: string): Promise<Use
     const isOwner = server.owner === userId
     const isAdmin = isOwner || permissionFlags[Permission.ADMINISTRATOR] === true
 
-    // Convert permission flags to array of Permission enums
     const permissions = Object.entries(permissionFlags)
       .filter(([_, value]) => value === true)
       .map(([key]) => key as Permission)
@@ -189,7 +185,6 @@ function getDefaultServerSettings(serverId: string): ServerSettings {
  */
 async function canUserCreateInvites(userId: string, serverId: string): Promise<boolean> {
   try {
-    // Check if user has CREATE_INVITE permission
     const canCreate = await roleService.hasPermission(userId, serverId, Permission.CREATE_INVITE)
     if (canCreate) return true
 

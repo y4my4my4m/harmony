@@ -64,7 +64,6 @@ class RequestDeduplicator {
       return pending.promise
     }
     
-    // Create new request
     debug.log(`🌐 New request: ${key}`)
     const promise = fetcher()
       .then((result) => {
@@ -75,7 +74,6 @@ class RequestDeduplicator {
         return result
       })
       .finally(() => {
-        // Clean up pending request
         this.pendingRequests.delete(key)
       })
     

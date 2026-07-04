@@ -288,7 +288,6 @@ const firstAudioAttachment = computed(() => {
   return null;
 });
 
-// Calculate menu position with boundary checking
 const menuStyle = computed(() => ({
   top: `${adjustedPosition.value.y}px`,
   left: `${adjustedPosition.value.x}px`,
@@ -297,10 +296,8 @@ const menuStyle = computed(() => ({
 // Watch for visibility changes to adjust position
 watch(() => props.isVisible, async (visible) => {
   if (visible) {
-    // Start with the provided position
     adjustedPosition.value = { ...props.position }
     
-    // Wait for menu to render
     await nextTick()
     
     if (menuRef.value) {
@@ -339,7 +336,6 @@ const defaultQuickEmojis = [
   { id: '😮', native: '😮', name: 'wow' }
 ];
 
-// Get quick reaction emojis (frequent + defaults if needed)
 const quickReactionEmojis = computed(() => {
   if (hasFrequentEmojis.value && topEmojisForContextMenu.value.length >= 4) {
     return topEmojisForContextMenu.value;
@@ -370,7 +366,6 @@ const openEmojiPicker = () => {
 const hasMediaURL = computed(() => {
   if (!props.message || !props.message.content) return false;
   
-  // Check if message content contains any URL parts (images, videos, audio)
   if (Array.isArray(props.message.content)) {
     return props.message.content.some(part => 
       part.type === 'url' || 

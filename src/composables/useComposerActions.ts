@@ -117,7 +117,6 @@ export function useComposerActions(options: ComposerActionsOptions) {
       }
     }
 
-    // Clear the input
     (event.target as HTMLInputElement).value = '';
   };
 
@@ -188,7 +187,6 @@ export function useComposerActions(options: ComposerActionsOptions) {
     try {
       debug.log('[DEBUG] submitPost: Starting...');
       
-      // Parse content to MessageParts using unified system
       const { 
         parseContentToMessageParts, 
         resolveMentionsUserData, 
@@ -210,7 +208,6 @@ export function useComposerActions(options: ComposerActionsOptions) {
       ]);
       debug.log('[DEBUG] submitPost: Content data resolved');
       
-      // Parse to MessageParts
       debug.log('[DEBUG] submitPost: Parsing to MessageParts...');
       const parsedContent = await parseContentToMessageParts(
         rawContent, 
@@ -231,7 +228,6 @@ export function useComposerActions(options: ComposerActionsOptions) {
         }
       }
 
-      // Create post via store
       debug.log('[DEBUG] submitPost: Calling store.createPost...');
       const post = await activityPubStore.createPost({
         content: parsedContent,

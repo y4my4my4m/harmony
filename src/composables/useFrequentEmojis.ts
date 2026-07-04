@@ -49,7 +49,6 @@ function loadFrequentEmojis(): void {
  */
 function saveFrequentEmojis(): void {
   try {
-    // Sort by count and lastUsed, keep only top MAX_STORED_EMOJIS
     const sorted = [...frequentEmojis.value]
       .sort((a, b) => {
         // Primary sort by count (descending)
@@ -82,15 +81,12 @@ function recordEmojiUsage(emoji: { id?: string; native?: string; name: string; u
   )
   
   if (existingIndex >= 0) {
-    // Update existing entry
     frequentEmojis.value[existingIndex].count++
     frequentEmojis.value[existingIndex].lastUsed = Date.now()
-    // Update URL in case it changed
     if (emoji.url) {
       frequentEmojis.value[existingIndex].url = emoji.url
     }
   } else {
-    // Add new entry
     frequentEmojis.value.push({
       id: emojiId,
       native: emoji.native,
@@ -155,7 +151,6 @@ export function useFrequentEmojis() {
   // Top 4 for context menu quick reactions
   const topEmojisForContextMenu = computed(() => getTopEmojis(4))
   
-  // Check if we have any frequent emojis
   const hasFrequentEmojis = computed(() => frequentEmojis.value.length > 0)
   
   return {
@@ -171,7 +166,6 @@ export function useFrequentEmojis() {
     isFrequentEmoji,
     getTopEmojis,
     
-    // Reload from storage (if needed)
     reload: () => {
       isInitialized.value = false
       loadFrequentEmojis()

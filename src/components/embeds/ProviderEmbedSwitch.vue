@@ -172,7 +172,6 @@ const isServerInvite = computed(() => {
     // Match /invite/CODE pattern on any harmony instance
     const inviteMatch = url.pathname.match(/^\/invite\/([A-Za-z0-9]+)$/);
     if (inviteMatch) {
-      // Check if it's a known harmony instance or current origin
       const harmonyDomains = [import.meta.env.VITE_DOMAIN as string, 'har.mony.local', 'localhost'];
       const isHarmonyDomain = harmonyDomains.some(d => url.hostname.includes(d)) || 
                               url.origin === window.location.origin;
@@ -258,7 +257,6 @@ onMounted(() => {
   }
   // For YouTube, Spotify, and LinkEmbedCard, the load event will be handled by @load handlers
   
-  // Setup YouTube Player API for floating video
   if (props.payload.provider === 'youtube') {
     nextTick(() => {
       setupYouTubePlayer();
@@ -269,7 +267,6 @@ onMounted(() => {
 let cleanupFloatingObserver: (() => void) | null = null;
 
 onUnmounted(() => {
-  // Cleanup YouTube message listener
   if (props.payload.provider === 'youtube') {
     window.removeEventListener('message', handleYouTubeMessage);
   }
@@ -283,7 +280,6 @@ function setupYouTubePlayer() {
   // Listen for YouTube Player API messages
   window.addEventListener('message', handleYouTubeMessage);
 
-  // Subscribe to YouTube player events immediately
   sendListeningEvent();
 
   // Register the whole embed wrapper for floating so the header + video float together
@@ -379,7 +375,6 @@ async function loadHarmonyPost() {
     const { useActivityPubStore } = await import('@/stores/useActivityPub');
     const store = useActivityPubStore();
     
-    // Check if post is already in feeds
     const feeds = [store.homeFeed, store.publicFeed, store.localFeed];
     for (const feed of feeds) {
       const found = feed.posts.find((post) => post.id === props.payload.harmony!.postId);
@@ -390,7 +385,6 @@ async function loadHarmonyPost() {
       }
     }
     
-    // Load post with author if not in feeds
     const post = await store.loadPostWithAuthor(props.payload.harmony.postId);
     if (!post) {
       harmonyError.value = 'Post unavailable';

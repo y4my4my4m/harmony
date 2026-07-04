@@ -236,7 +236,6 @@ onMounted(async () => {
     return
   }
 
-  // Check if user is admin using AdminService
   const isAdmin = await adminService.checkAdminPermissions(authStore.session.user.id)
   
   if (!isAdmin) {
@@ -351,7 +350,6 @@ const loadSystemStats = async () => {
     }
   } catch (error) {
     debug.error('Failed to load system stats:', error)
-    // Set defaults on error
     systemStats.value = {
       uptime: Date.now() - (7 * 24 * 60 * 60 * 1000),
       totalUsers: 0,
@@ -371,7 +369,6 @@ const loadSystemHealth = async () => {
     systemHealth.value = await adminService.getSystemHealth()
   } catch (error) {
     debug.error('Failed to load system health:', error)
-    // Set defaults
     systemHealth.value = {
       database: { responseTime: 0, connections: 0 },
       federation: { pending: 0, status: 'error' },
