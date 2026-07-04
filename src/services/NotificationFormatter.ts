@@ -303,6 +303,17 @@ const MESSAGE_TEMPLATES = {
     shortTitle: (_data: any) => `Follow request`
   },
 
+  activitypub_follow_accepted: {
+    titleAction: () => ' accepted your follow request',
+    title: (data: any) => getActorDisplayName(data) + ' accepted your follow request',
+    message: (data: any) => {
+      const sender = data.sender
+      const handle = sender?.handle || (sender?.username ? '@' + sender.username : '')
+      return handle ? `You are now following ${handle}` : 'You are now following them'
+    },
+    shortTitle: () => 'Request accepted'
+  },
+
   thread_reply: {
     titleAction: threadReplyTitleAction,
     title: (data: any) => getActorDisplayName(data) + threadReplyTitleAction(data),
@@ -619,7 +630,8 @@ export class NotificationFormatter {
       (notification.type.startsWith('activitypub_') && data.post_id) ||
       // Follow notifications navigate to the follower's profile
       (notification.type === 'activitypub_follow' && data.follower) ||
-      (notification.type === 'activitypub_follow_request' && data.follower)
+      (notification.type === 'activitypub_follow_request' && data.follower) ||
+      (notification.type === 'activitypub_follow_accepted' && data.sender)
     )
   }
   
@@ -641,6 +653,21 @@ export class NotificationFormatter {
           type: 'profile' as const,
           handle,
           userId: follower.id || follower.user_id
+        }
+      }
+    }
+
+    // Follow request accepted → navigate to the accepter's profile
+    if (notification.type === 'activitypub_follow_accepted') {
+      const sender = data.sender
+      if (sender) {
+        const handle = sender.is_local
+          ? sender.username
+          : `${sender.username}@${sender.domain}`
+        return {
+          type: 'profile' as const,
+          handle,
+          userId: sender.id || sender.user_id
         }
       }
     }

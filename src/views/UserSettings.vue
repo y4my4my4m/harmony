@@ -272,8 +272,12 @@ const activeSection = ref(props.section || 'account')
 // On mobile, entering settings without a specific section starts with the
 // nav open so users see where they are before a section takes over the
 // screen. Deep links to a section keep it closed.
+// NOTE: check the raw route param, not `props.section` - withDefaults gives
+// that a fallback of 'account', so it's never falsy and this check always
+// failed (the gear/status-picker entry point pushes { name: 'UserSettings' }
+// with no params, same as a bare "/settings" visit).
 const showSidebar = ref(
-  typeof window !== 'undefined' && window.innerWidth <= 768 && !props.section
+  typeof window !== 'undefined' && window.innerWidth <= 768 && !route.params.section
 )
 const windowWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1024)
 

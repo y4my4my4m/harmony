@@ -258,4 +258,45 @@ describe('SignatureService', () => {
       expect(result.headers.Signature).toContain('(request-target)')
     })
   })
+
+  describe('parseSignatureHeader', () => {
+    it('parses a standard Mastodon-style header', () => {
+      const parts = SignatureService.parseSignatureHeader(
+        'keyId="https://remote.test/users/alice#main-key",algorithm="rsa-sha256",headers="(request-target) host date digest",signature="dGVzdA=="'
+      )
+      expect(parts.keyId).toBe('https://remote.test/users/alice#main-key')
+      expect(parts.algorithm).toBe('rsa-sha256')
+      expect(parts.headers).toBe('(request-target) host date digest')
+      expect(parts.signature).toBe('dGVzdA==')
+    })
+
+    it('preserves base64 padding and internal = in signature values', () => {
+      const parts = SignatureService.parseSignatureHeader('signature="a=b+c/d=="')
+      expect(parts.signature).toBe('a=b+c/d==')
+    })
+
+    it('handles commas inside quoted values (keyId is a URI)', () => {
+      const parts = SignatureService.parseSignatureHeader(
+        'keyId="https://remote.test/users/a,b#main-key",signature="dGVzdA=="'
+      )
+      expect(parts.keyId).toBe('https://remote.test/users/a,b#main-key')
+      expect(parts.signature).toBe('dGVzdA==')
+    })
+
+    it('handles unquoted numeric params (created/expires)', () => {
+      const parts = SignatureService.parseSignatureHeader(
+        'keyId="https://remote.test/users/alice",created=1700000000,expires=1700000300,signature="dGVzdA=="'
+      )
+      expect(parts.created).toBe('1700000000')
+      expect(parts.expires).toBe('1700000300')
+    })
+
+    it('tolerates whitespace around separators', () => {
+      const parts = SignatureService.parseSignatureHeader(
+        'keyId = "https://remote.test/users/alice" , signature = "dGVzdA=="'
+      )
+      expect(parts.keyId).toBe('https://remote.test/users/alice')
+      expect(parts.signature).toBe('dGVzdA==')
+    })
+  })
 })

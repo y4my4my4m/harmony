@@ -146,7 +146,7 @@ import {
   UserCheck, Pencil, TrendingUp, TrendingDown, Compass, Hash,
   UserMinus, MoreVertical, Zap, Star, LogIn, LogOut, DoorOpen, ShieldCheck,
   Wifi, WifiOff, CircleHelp, Clock, Repeat2, Pin, PinOff,
-  DollarSign, Layers, AudioLines,
+  DollarSign, Layers, AudioLines, Megaphone, Wrench,
 } from 'lucide-vue-next'
 
 const ICON_MAP: Record<string, Component> = {
@@ -298,6 +298,8 @@ const ICON_MAP: Record<string, Component> = {
   'dollar-sign': DollarSign,
   'layers': Layers,
   'audio-lines': AudioLines,
+  'megaphone': Megaphone,
+  'wrench': Wrench,
 }
 
 const FILLED_ICONS = new Set(['heart-filled', 'bookmark-filled'])

@@ -96,20 +96,35 @@
             </div>
 
             <div class="action-buttons">
-              <button 
+              <button
                 class="btn btn-secondary"
                 @click="copyRecoveryKey"
                 :disabled="recoveryWords.length === 0"
               >
                 📋 Copy to Clipboard
               </button>
-              <button 
+              <button
                 class="btn btn-secondary"
                 @click="downloadRecoveryKey"
                 :disabled="recoveryWords.length === 0"
               >
                 💾 Download as File
               </button>
+              <button
+                class="btn btn-secondary"
+                @click="toggleQRCode"
+                :disabled="recoveryWords.length === 0"
+              >
+                {{ showQRCode ? '🙈 Hide QR Code' : '🔳 Show QR Code' }}
+              </button>
+            </div>
+
+            <div v-if="showQRCode && qrCodeDataUrl" class="qr-code-panel">
+              <img :src="qrCodeDataUrl" alt="Recovery key QR code" class="qr-code-image" />
+              <p class="hint">
+                Scan this from another device's recovery screen. Anyone who sees
+                this code can read your encrypted messages - don't screenshot it.
+              </p>
             </div>
 
             <div class="verification-code" v-if="verificationCode">
@@ -242,6 +257,29 @@ const isGenerating = ref(false)
 // Recovery key state
 const recoveryWords = ref<string[]>([])
 const verificationCode = ref('')
+
+// QR code display (same payload format KeyRecoveryModal's parseQRData reads)
+const showQRCode = ref(false)
+const qrCodeDataUrl = ref('')
+
+const toggleQRCode = async () => {
+  if (showQRCode.value) {
+    showQRCode.value = false
+    return
+  }
+  if (!qrCodeDataUrl.value) {
+    try {
+      const QRCode = (await import('qrcode')).default
+      const payload = btoa(JSON.stringify({ v: 1, m: recoveryWords.value.join(' '), t: Date.now() }))
+      qrCodeDataUrl.value = await QRCode.toDataURL(payload, { width: 220, margin: 1 })
+    } catch (err) {
+      debug.error('Failed to generate recovery QR code:', err)
+      toast.error('Could not generate QR code')
+      return
+    }
+  }
+  showQRCode.value = true
+}
 
 // Verification state
 const verifyPositions = ref<number[]>([])
@@ -670,6 +708,30 @@ onMounted(() => {
   background: var(--bg-secondary, #2a2a3e);
   border-radius: 8px;
   border: 1px solid var(--border-color, #444);
+  min-width: 0;
+}
+
+.qr-code-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 24px;
+}
+
+.qr-code-image {
+  width: 220px;
+  height: 220px;
+  border-radius: 8px;
+  background: #fff;
+  padding: 8px;
+}
+
+.qr-code-panel .hint {
+  font-size: 12px;
+  color: var(--text-secondary, #888);
+  text-align: center;
+  max-width: 320px;
 }
 
 .word-number {
@@ -905,8 +967,18 @@ onMounted(() => {
     border-radius: 0;
   }
 
+  /* 2-up on phones: 3 columns of mono words overflow narrow viewports */
   .recovery-words {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+
+  .word-card {
+    padding: 10px 12px;
+  }
+
+  .word {
+    overflow-wrap: anywhere;
   }
 
   .feature-grid {

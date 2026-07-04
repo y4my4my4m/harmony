@@ -114,9 +114,15 @@ export async function uploadBanner(file: File, userId: string): Promise<{ succes
       // Non-critical - continue with upload even if cleanup fails
     }
     
+    // Explicit contentType: some browsers hand over File objects with an empty
+    // type, and storage then serves the banner as application/octet-stream.
+    const extContentTypes: Record<string, string> = {
+      jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
+      gif: 'image/gif', webp: 'image/webp', avif: 'image/avif',
+    }
     const { error } = await supabase.storage
       .from('banners')
-      .upload(filePath, file, { upsert: true })
+      .upload(filePath, file, { upsert: true, contentType: file.type || extContentTypes[ext] })
 
     if (error) {
       return { success: false, error: humanizeUploadError(error, 'banners') }

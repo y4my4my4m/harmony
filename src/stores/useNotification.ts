@@ -10,6 +10,7 @@ import { authContextService } from '@/services/AuthContextService'
 import { userDataService } from '@/services/userDataService'
 import { userEventChannel } from '@/services/UserEventChannel'
 import { debug } from '@/utils/debug'
+import { useActivityPubStore } from '@/stores/useActivityPub'
 import { updateFaviconBadge } from '@/utils/faviconBadge'
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import type { 
@@ -78,6 +79,7 @@ const NOTIFICATION_SOUND_MAPPING: Record<NotificationType, AudioAction> = {
   activitypub_mention: 'mention',
   activitypub_reply: 'reply',
   activitypub_follow_request: 'friend_request',
+  activitypub_follow_accepted: 'friend_request',
   report_update: 'server_update',
   error: 'server_update',
 }
@@ -146,6 +148,24 @@ let _dndInterval: ReturnType<typeof setInterval> | null = null
 const _recentlyProcessedIds = new Set<string>()
 const DEDUP_TTL_MS = 10_000
 
+// Actor id embedded in a notification payload (shape varies by type).
+const notificationActorId = (n: Notification): string | undefined => {
+  const d: any = n.data
+  return d?.from_user_id ?? d?.sender?.user_id ?? d?.reactor?.user_id ?? d?.reactor?.id ?? d?.inviter?.user_id
+}
+
+// Muted/blocked users must not generate visible notifications.
+const isFromHiddenUser = (n: Notification): boolean => {
+  const id = notificationActorId(n)
+  if (!id) return false
+  try {
+    const ap = useActivityPubStore()
+    return ap.mutedUsers.has(id) || ap.blockedUsers.has(id)
+  } catch {
+    return false
+  }
+}
+
 export const useNotificationStore = defineStore('notification', {
   state: (): NotificationState => ({
     notifications: [],
@@ -210,7 +230,7 @@ export const useNotificationStore = defineStore('notification', {
         const isApMention = n.type === 'activitypub_mention'
         const isDM = n.type === 'dm'
         const isReaction = n.type === 'reaction'
-        const isFollow = n.type === 'activitypub_follow' || n.type === 'activitypub_follow_request'
+        const isFollow = n.type === 'activitypub_follow' || n.type === 'activitypub_follow_request' || n.type === 'activitypub_follow_accepted'
         const isSocial = typeof n.type === 'string' && n.type.startsWith('activitypub_')
 
         if (isMention || isApMention) mentionsAll++
@@ -284,7 +304,7 @@ export const useNotificationStore = defineStore('notification', {
           case 'social':
             return notification.type.startsWith('activitypub_')
           case 'follows':
-            return notification.type === 'activitypub_follow' || notification.type === 'activitypub_follow_request'
+            return notification.type === 'activitypub_follow' || notification.type === 'activitypub_follow_request' || notification.type === 'activitypub_follow_accepted'
           default:
             return true
         }
@@ -370,6 +390,7 @@ export const useNotificationStore = defineStore('notification', {
           case 'activitypub_reply':
             return state.preferences.activitypub_desktop_notifications && state.preferences.activitypub_desktop_replies
           case 'activitypub_follow_request':
+          case 'activitypub_follow_accepted':
             return state.preferences.activitypub_desktop_notifications && state.preferences.activitypub_desktop_follows
           
           default:
@@ -406,6 +427,7 @@ export const useNotificationStore = defineStore('notification', {
           case 'activitypub_reply':
             return state.preferences.activitypub_sound_notifications && state.preferences.activitypub_sound_replies
           case 'activitypub_follow_request':
+          case 'activitypub_follow_accepted':
             return state.preferences.activitypub_sound_notifications && state.preferences.activitypub_sound_follows
           
           default:
@@ -578,11 +600,13 @@ export const useNotificationStore = defineStore('notification', {
         })
 
         debug.log(`✅ Fetched ${data?.length || 0} notifications`)
-        
+
+        const visible = (data || []).filter((n: Notification) => !isFromHiddenUser(n))
+
         if (offset === 0) {
-          this.notifications = data || []
+          this.notifications = visible
         } else {
-          this.notifications.push(...(data || []))
+          this.notifications.push(...visible)
         }
 
         // Prime user cache so NotificationItem DisplayName can resolve custom emojis
@@ -629,10 +653,12 @@ export const useNotificationStore = defineStore('notification', {
 
       if (error) throw error
 
+      const visible = (data || []).filter((n: Notification) => !isFromHiddenUser(n))
+
       if (offset === 0) {
-        this.notifications = data || []
+        this.notifications = visible
       } else {
-        this.notifications.push(...(data || []))
+        this.notifications.push(...visible)
       }
 
       // Prime user cache so NotificationItem DisplayName can resolve custom emojis
@@ -734,6 +760,8 @@ export const useNotificationStore = defineStore('notification', {
 
       _recentlyProcessedIds.add(newNotification.id)
       setTimeout(() => _recentlyProcessedIds.delete(newNotification.id), DEDUP_TTL_MS)
+
+      if (isFromHiddenUser(newNotification)) return
 
       const notifData = newNotification.data || {}
       const notificationContext = {

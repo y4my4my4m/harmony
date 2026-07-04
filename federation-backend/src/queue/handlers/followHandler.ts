@@ -24,18 +24,35 @@ export async function handleFollowJob(data: FederationJobData): Promise<void> {
       .eq('id', follower_id)
       .single();
 
-    if (!follower || !follower.is_local) {
-      logger.debug('Follow from remote user, skipping outgoing federation');
-      await updateFederationStatus(follow_id, 'follows', 'skipped');
-      return;
-    }
-
     // Get following profile
     const { data: following } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', following_id)
       .single();
+
+    // 'respond' = local user resolved a remote follower's pending request;
+    // deliver Accept/Reject back to the follower (inverse direction of
+    // create/delete, which federate a LOCAL follower's actions outward).
+    // federation_status lifecycle mirrors 'create': the trigger stamps
+    // 'pending' (sweep retry marker), we move it to processing/completed.
+    if (type === 'respond') {
+      if (!follower || follower.is_local || !following || !following.is_local) {
+        logger.debug('Follow response needs remote follower + local target, skipping');
+        await updateFederationStatus(follow_id, 'follows', 'skipped');
+        return;
+      }
+      await updateFederationStatus(follow_id, 'follows', 'processing');
+      const sent = await sendFollowResponse(data, follower, following);
+      await updateFederationStatus(follow_id, 'follows', sent ? 'completed' : 'skipped');
+      return;
+    }
+
+    if (!follower || !follower.is_local) {
+      logger.debug('Follow from remote user, skipping outgoing federation');
+      await updateFederationStatus(follow_id, 'follows', 'skipped');
+      return;
+    }
 
     if (!following || following.is_local) {
       logger.debug('Follow of local user, no federation needed');
@@ -90,6 +107,41 @@ export async function handleFollowJob(data: FederationJobData): Promise<void> {
     await updateFederationStatus(follow_id, 'follows', 'failed');
     throw error;
   }
+}
+
+async function sendFollowResponse(
+  data: FederationJobData,
+  follower: any,
+  following: any,
+): Promise<boolean> {
+  const { status, ap_id } = data;
+
+  if (status !== 'accepted' && status !== 'rejected') {
+    logger.warn(`Follow response with unexpected status '${status}', skipping`);
+    return false;
+  }
+  if (!follower.inbox_url) {
+    logger.warn(`Cannot federate follow ${status}: follower ${follower.username} has no inbox_url`);
+    return false;
+  }
+
+  // Remote side matches the Accept/Reject on object.id = their original
+  // Follow activity id, which processFollow stored in follows.ap_id.
+  const followActivity = {
+    id: ap_id,
+    type: 'Follow',
+    actor: follower.federated_id,
+    object: `https://${config.INSTANCE_DOMAIN}/users/${following.username}`,
+  };
+
+  const { createAcceptActivity, createRejectActivity } = await import('../../activitypub/converters/toActivityPub.js');
+  const activity = status === 'accepted'
+    ? createAcceptActivity(following, followActivity)
+    : createRejectActivity(following, followActivity);
+
+  await DeliveryQueue.sendToInbox(follower.inbox_url, activity, following.id);
+  logger.info(`✅ Follow ${status === 'accepted' ? 'Accept' : 'Reject'} sent to ${follower.inbox_url}`);
+  return true;
 }
 
 async function updateFederationStatus(

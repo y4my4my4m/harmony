@@ -227,6 +227,21 @@ export class SignatureService {
    * 5. Verify the signature matches using the public key
    * 6. Optionally verify the Digest header matches the body hash
    */
+  /**
+   * Parse a Signature header (draft-cavage / RFC 9421 legacy form) into its
+   * parameters. Quoted values may legally contain commas and `=` (keyId is a
+   * URI, signature is base64) - a naive split(',') corrupts those.
+   */
+  static parseSignatureHeader(signature: string): Record<string, string> {
+    const parts: Record<string, string> = {};
+    const paramRe = /([A-Za-z0-9]+)\s*=\s*(?:"([^"]*)"|([^,]*))/g;
+    let m: RegExpExecArray | null;
+    while ((m = paramRe.exec(signature)) !== null) {
+      parts[m[1]] = m[2] !== undefined ? m[2] : (m[3] ?? '').trim();
+    }
+    return parts;
+  }
+
   static async verifySignature(
     signature: string,
     headers: Record<string, string>,
@@ -235,13 +250,7 @@ export class SignatureService {
     body?: any
   ): Promise<{ verified: boolean; actorUrl?: string; error?: string }> {
     try {
-      // Parse signature header
-      const signatureParts = signature.split(',').reduce((acc, part) => {
-        const [key, ...valueParts] = part.split('=');
-        const value = valueParts.join('=').replace(/"/g, '');
-        acc[key.trim()] = value;
-        return acc;
-      }, {} as Record<string, string>);
+      const signatureParts = this.parseSignatureHeader(signature);
 
       const { keyId, headers: signedHeaders, signature: sig } = signatureParts;
 
