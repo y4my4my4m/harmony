@@ -350,23 +350,37 @@ class BullMQManagerService {
       }
     }
 
-    // Sweep follows
+    // Sweep follows. Direction depends on follower locality:
+    //   local follower  -> outbound Follow ('create')
+    //   remote follower -> Accept/Reject response ('respond', stamped by
+    //                      trigger_queue_follow_response_federation)
+    // updated_at (not created_at) so respond rows - which are old rows whose
+    // status just changed - get the same 2s notify-race guard as fresh inserts.
     const { data: pendingFollows } = await supabase
       .from('follows')
-      .select('id, follower_id, following_id, status')
+      .select('id, follower_id, following_id, status, ap_id, follower:profiles!follows_follower_id_fkey(is_local)')
       .eq('federation_status', 'pending')
-      .lt('created_at', twoSecondsAgo)
+      .lt('updated_at', twoSecondsAgo)
       .limit(100);
 
     if (pendingFollows?.length) {
       logger.info(`Sweep found ${pendingFollows.length} pending follows`);
       for (const follow of pendingFollows) {
+        const followerIsLocal = (follow as any).follower?.is_local === true;
+
+        if (!followerIsLocal && !['accepted', 'rejected'].includes(follow.status)) {
+          // Remote follower still awaiting approval - nothing to federate yet.
+          await supabase.from('follows').update({ federation_status: 'skipped' }).eq('id', follow.id);
+          continue;
+        }
+
         await this.addJob('federate-follow', {
-          type: 'create',
+          type: followerIsLocal ? 'create' : 'respond',
           follow_id: follow.id,
           follower_id: follow.follower_id,
           following_id: follow.following_id,
           status: follow.status,
+          ap_id: follow.ap_id,
         });
         await supabase.from('follows').update({ federation_status: 'queued' }).eq('id', follow.id);
       }

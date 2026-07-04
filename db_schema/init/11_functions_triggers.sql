@@ -1232,6 +1232,8 @@ $$;
 -- Queue follow-request response (Accept/Reject) for federation.
 -- Fires when a local user resolves a remote follower's pending request;
 -- the worker handles job type 'respond' in queue/handlers/followHandler.ts.
+-- BEFORE UPDATE so it can stamp federation_status='pending' - the durable
+-- marker the 60s sweep retries from if the pg_notify is lost.
 CREATE OR REPLACE FUNCTION public.trigger_queue_follow_response_federation()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -1247,6 +1249,10 @@ BEGIN
         SELECT is_local INTO v_following_is_local FROM public.profiles WHERE id = NEW.following_id;
 
         IF COALESCE(v_follower_is_local, true) = false AND v_following_is_local = true THEN
+            NEW.federation_status := 'pending';
+            -- follows has no auto-updated_at trigger; stamp it so the sweep's
+            -- 2-second notify-race guard applies to this transition.
+            NEW.updated_at := now();
             PERFORM public.queue_federation_job(
                 'federate-follow',
                 jsonb_build_object(
