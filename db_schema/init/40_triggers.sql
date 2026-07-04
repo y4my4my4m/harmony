@@ -515,7 +515,7 @@ CREATE TRIGGER trigger_federate_follow_delete
 -- Queue follow-request response (Accept/Reject) for federation
 DROP TRIGGER IF EXISTS trigger_federate_follow_response ON public.follows;
 CREATE TRIGGER trigger_federate_follow_response
-    AFTER UPDATE ON public.follows
+    BEFORE UPDATE ON public.follows
     FOR EACH ROW
     EXECUTE FUNCTION public.trigger_queue_follow_response_federation();
 

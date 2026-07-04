@@ -34,12 +34,17 @@ export async function handleFollowJob(data: FederationJobData): Promise<void> {
     // 'respond' = local user resolved a remote follower's pending request;
     // deliver Accept/Reject back to the follower (inverse direction of
     // create/delete, which federate a LOCAL follower's actions outward).
+    // federation_status lifecycle mirrors 'create': the trigger stamps
+    // 'pending' (sweep retry marker), we move it to processing/completed.
     if (type === 'respond') {
       if (!follower || follower.is_local || !following || !following.is_local) {
         logger.debug('Follow response needs remote follower + local target, skipping');
+        await updateFederationStatus(follow_id, 'follows', 'skipped');
         return;
       }
-      await sendFollowResponse(data, follower, following);
+      await updateFederationStatus(follow_id, 'follows', 'processing');
+      const sent = await sendFollowResponse(data, follower, following);
+      await updateFederationStatus(follow_id, 'follows', sent ? 'completed' : 'skipped');
       return;
     }
 
@@ -108,16 +113,16 @@ async function sendFollowResponse(
   data: FederationJobData,
   follower: any,
   following: any,
-): Promise<void> {
+): Promise<boolean> {
   const { status, ap_id } = data;
 
   if (status !== 'accepted' && status !== 'rejected') {
     logger.warn(`Follow response with unexpected status '${status}', skipping`);
-    return;
+    return false;
   }
   if (!follower.inbox_url) {
     logger.warn(`Cannot federate follow ${status}: follower ${follower.username} has no inbox_url`);
-    return;
+    return false;
   }
 
   // Remote side matches the Accept/Reject on object.id = their original
@@ -136,6 +141,7 @@ async function sendFollowResponse(
 
   await DeliveryQueue.sendToInbox(follower.inbox_url, activity, following.id);
   logger.info(`✅ Follow ${status === 'accepted' ? 'Accept' : 'Reject'} sent to ${follower.inbox_url}`);
+  return true;
 }
 
 async function updateFederationStatus(
