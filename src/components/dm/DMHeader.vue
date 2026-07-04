@@ -326,10 +326,17 @@ const authStore = useAuthStore()
 
 // Caller ringing state
 let callerRingtoneInterval: ReturnType<typeof setInterval> | null = null
+let callerRingtoneCap: ReturnType<typeof setTimeout> | null = null
+const CALLER_RING_MAX_MS = 45000
+
 const stopCallerRinging = () => {
   if (callerRingtoneInterval) {
     clearInterval(callerRingtoneInterval)
     callerRingtoneInterval = null
+  }
+  if (callerRingtoneCap) {
+    clearTimeout(callerRingtoneCap)
+    callerRingtoneCap = null
   }
 }
 const startCallerRinging = async () => {
@@ -340,10 +347,27 @@ const startCallerRinging = async () => {
   callerRingtoneInterval = setInterval(() => {
     themeStore.playAudio('call_outgoing')
   }, 3000)
+  // Hard cap: the ring must never outlive the call timeout, even if every
+  // stop signal is missed
+  callerRingtoneCap = setTimeout(stopCallerRinging, CALLER_RING_MAX_MS)
 }
 
-// Active call tracking
-const activeCallParticipantCount = ref(0)
+// Ring state is presence-derived: stop as soon as the call is answered
+// (ringing cleared) or gone (declined, timed out, cancelled), regardless of
+// whether the corresponding broadcast was received
+watch(() => dmCallSignaling.callStateVersion.value, () => {
+  if (!callerRingtoneInterval) return
+  const call = dmCallSignaling.getActiveCall(props.conversation.id)
+  if (!call || !call.ringing) {
+    stopCallerRinging()
+  }
+})
+
+// Active call tracking (presence-derived, reactive via callStateVersion)
+const activeCallParticipantCount = computed(() => {
+  dmCallSignaling.callStateVersion.value
+  return dmCallSignaling.getCallParticipants(props.conversation.id).length
+})
 
 // Props
 interface Props {
@@ -599,17 +623,11 @@ const handleCallSignal = async (signal: CallSignal) => {
       
     case 'join':
     case 'accept':
-      stopCallerRinging()
-      dmCallSignaling.handleRemoteSignal(signal)
-      updateActiveCallParticipants()
-      break
-    
     case 'leave':
       stopCallerRinging()
       dmCallSignaling.handleRemoteSignal(signal)
-      updateActiveCallParticipants()
       break
-      
+
     case 'end':
       stopCallerRinging()
       dmCallSignaling.handleRemoteSignal(signal)
@@ -617,7 +635,6 @@ const handleCallSignal = async (signal: CallSignal) => {
         voiceStore.leaveVoiceChannel()
         toast.info('Call ended')
       }
-      activeCallParticipantCount.value = 0
       break
       
     case 'decline': {
@@ -642,17 +659,11 @@ const handleCallSignal = async (signal: CallSignal) => {
   }
 }
 
-const updateActiveCallParticipants = () => {
-  const participants = dmCallSignaling.getCallParticipants(props.conversation.id)
-  activeCallParticipantCount.value = participants.length
-}
-
 const subscribeToCallSignals = () => {
   callSignalUnsubscribe = dmCallSignaling.subscribeToConversation(
     props.conversation.id,
     handleCallSignal
   )
-  updateActiveCallParticipants()
 }
 
 const unsubscribeFromCallSignals = () => {
@@ -699,6 +710,11 @@ watch(
     if (newId !== oldId) {
       loadEncryptionStatus()
       loadConversationMuteState()
+      stopCallerRinging()
+      // Re-bind call signals to the new conversation - keeping the old
+      // subscription would show stale call state from the previous DM
+      unsubscribeFromCallSignals()
+      subscribeToCallSignals()
     }
   }
 )

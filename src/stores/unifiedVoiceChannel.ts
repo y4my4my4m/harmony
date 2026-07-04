@@ -452,6 +452,26 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           || conv?.other_user?.display_name
           || conv?.other_user?.username
           || 'DM Call';
+
+        // Announce call membership via realtime presence (local calls only -
+        // federated participants live on another instance). Presence expires
+        // with the socket, so refreshes/crashes can't leave ghost calls.
+        if (!federatedMatch) {
+          try {
+            const { authContextService } = await import('@/services/AuthContextService');
+            const profileId = await authContextService.getCurrentProfileId();
+            if (profileId) {
+              const activeCall = dmCallSignaling.getActiveCall(conversationId);
+              await dmCallSignaling.trackCallPresence(conversationId, {
+                callType: activeCall?.callType ?? 'voice',
+                isCaller: activeCall?.callerId === profileId,
+                systemMessageId: activeCall?.systemMessageId ?? null,
+              });
+            }
+          } catch (e) {
+            debug.warn('Failed to track DM call presence:', e);
+          }
+        }
       } else {
         this.dmOtherUserId = null;
         this.currentChannelName = (serverChannelStore as any).getChannelNameById?.(channelId) || 'Voice Channel';
