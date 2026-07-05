@@ -475,39 +475,41 @@ async function handleInbox(
     return;
   }
 
-  // Idempotency: only the first delivery of an activity may run side effects.
-  // Redeliveries (retries, relays) find the row completed/processing and are
-  // acknowledged without re-processing.
   const { data: claimed, error: claimError } = await supabase.rpc('claim_ap_activity', {
     p_ap_id: activity.id,
   });
-  if (claimError) {
-    logger.error('Failed to claim activity for processing:', claimError);
-    res.status(500).json({ error: 'Failed to claim activity' });
-    return;
-  }
-  if (!claimed) {
+  if (!claimError && claimed === false) {
     logger.info(`↩️ Skipping already-processed ${activity.type} activity ${activity.id}`);
     res.status(202).json({ message: 'Activity already processed' });
     return;
   }
+  if (claimError) {
+    logger.warn(
+      `claim_ap_activity unavailable; processing ${activity.type} ${activity.id} without idempotency guard: ${claimError.message}`
+    );
+  }
+  const claimActive = !claimError;
 
   try {
     await ActivityProcessor.processIncomingActivity(activity);
     logger.info(`✅ Processed ${activity.type} activity`);
-    await supabase.rpc('complete_ap_activity', { p_ap_id: activity.id, p_success: true });
+    if (claimActive) {
+      await supabase.rpc('complete_ap_activity', { p_ap_id: activity.id, p_success: true });
+    }
     res.status(202).json({ message: 'Activity accepted' });
   } catch (error) {
     logger.error('Failed to process activity:', error);
-    await supabase
-      .rpc('complete_ap_activity', {
-        p_ap_id: activity.id,
-        p_success: false,
-        p_error: error instanceof Error ? error.message : String(error),
-      })
-      .then(({ error: rpcError }) => {
-        if (rpcError) logger.error('Failed to mark activity failed:', rpcError);
-      });
+    if (claimActive) {
+      await supabase
+        .rpc('complete_ap_activity', {
+          p_ap_id: activity.id,
+          p_success: false,
+          p_error: error instanceof Error ? error.message : String(error),
+        })
+        .then(({ error: rpcError }) => {
+          if (rpcError) logger.error('Failed to mark activity failed:', rpcError);
+        });
+    }
     // Still return success to sender (we've stored it)
     res.status(202).json({ message: 'Activity accepted' });
   }

@@ -119,6 +119,25 @@ export function useFeedRealtime(
           activityPubStore.handleRealtimePostDelete(post)
         }
         break
+      case 'post:interaction': {
+        // Favorite / reblog / emoji-reaction count changes. Always routed to
+        // the store: interaction state lives in shared stores (post reactions +
+        // authoritative counts), not in a view's local post array, so this is
+        // orthogonal to the custom onCreate/onUpdate/onDelete handlers. The
+        // store reads server counts and no-ops for posts not in a visible feed.
+        const interaction = {
+          post_id: data.post_id,
+          interaction_type: data.interaction_type,
+          user_id: data.user_id,
+          emoji_id: data.emoji_id,
+        }
+        if (data.op === 'INSERT') {
+          activityPubStore.handleRealtimeInteractionChange({ event: 'INSERT', new: interaction })
+        } else if (data.op === 'DELETE') {
+          activityPubStore.handleRealtimeInteractionChange({ event: 'DELETE', old: interaction })
+        }
+        break
+      }
       default:
         debug.log(`useFeedRealtime: unknown feed_event type "${data.type}"`)
     }
