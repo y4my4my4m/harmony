@@ -226,43 +226,34 @@
       </div>
     </div>
 
-    <!-- native notifications (nativeNotify.ts), not Web Push -->
-    <div v-if="isNativeClient" class="settings-section">
-      <div class="section-header">
-        <h3 class="section-title">
-          <Icon name="smartphone" class="section-icon" />
-          Notifications
-        </h3>
-        <div class="push-status-badge subscribed">
-          <Icon name="check-circle" />
-          <span>Active</span>
-        </div>
-      </div>
-      <p class="section-description">
-        Harmony shows native notifications while the app is running, including in the background.
-        Notifications when the app is fully closed aren't supported yet.
-      </p>
-    </div>
-
-    <!-- Web Push (browser/PWA only) -->
-    <div v-else class="settings-section">
+    <div class="settings-section">
       <div class="section-header">
         <h3 class="section-title">
           <Icon name="smartphone" class="section-icon" />
           Push Notifications
         </h3>
-        <div class="push-status-badge" :class="pushStatusClass">
-          <Icon :name="pushStatusIcon" />
-          <span>{{ pushStatusBadgeText }}</span>
+        <div class="push-status-badge" :class="isNativeClient ? 'available' : pushStatusClass">
+          <Icon :name="isNativeClient ? 'info' : pushStatusIcon" />
+          <span>{{ isNativeClient ? 'This device: foreground' : pushStatusBadgeText }}</span>
         </div>
       </div>
       <p class="section-description">
-        Receive notifications on your device even when the app is closed.
-        Works on Android, iOS (PWA required), and desktop browsers.
+        {{ isNativeClient
+          ? 'Manage push to your other subscribed devices, and which notification types they receive.'
+          : 'Receive notifications on your device even when the app is closed. Works on Android, iOS (PWA required), and desktop browsers.' }}
       </p>
 
+      <!-- Native app: web push unavailable in the webview; needs FCM (planned) -->
+      <div v-if="isNativeClient" class="push-warning">
+        <Icon name="info" />
+        <div>
+          <strong>Background push coming to the app</strong>
+          <p>This device shows notifications while Harmony is open (including backgrounded) — pick which types above. Push while the app is fully closed needs native push (FCM), which isn't wired up yet. The settings below control push to your other subscribed devices.</p>
+        </div>
+      </div>
+
       <!-- iOS PWA Warning -->
-      <div v-if="pushNotifications.requiresPWA.value" class="push-warning">
+      <div v-if="!isNativeClient && pushNotifications.requiresPWA.value" class="push-warning">
         <Icon name="info" />
         <div>
           <strong>iOS requires installing the app</strong>
@@ -271,7 +262,7 @@
       </div>
 
       <!-- Not Supported Warning -->
-      <div v-if="!pushNotifications.isSupported.value" class="push-warning error">
+      <div v-if="!isNativeClient && !pushNotifications.isSupported.value" class="push-warning error">
         <Icon name="alert-triangle" />
         <div>
           <strong>Push notifications not supported</strong>
@@ -280,7 +271,7 @@
       </div>
 
       <!-- Permission Denied Warning -->
-      <div v-else-if="pushNotifications.permission.value === 'denied'" class="push-warning error">
+      <div v-else-if="!isNativeClient && pushNotifications.permission.value === 'denied'" class="push-warning error">
         <Icon name="x-circle" />
         <div>
           <strong>Notification permission blocked</strong>
@@ -342,8 +333,8 @@
         </button>
       </div>
 
-      <!-- Push Preferences (only shown when subscribed) -->
-      <div v-if="preferences.push_notifications && pushNotifications.isSubscribed.value" class="push-preferences">
+      <!-- Push preferences: account-wide, shown when subscribed anywhere or on native -->
+      <div v-if="preferences.push_notifications && (pushNotifications.isSubscribed.value || isNativeClient || pushNotifications.subscriptions.value.length > 0)" class="push-preferences">
       <div class="setting-item">
         <div class="setting-info">
             <h4 class="setting-label">Only When Offline</h4>

@@ -937,6 +937,30 @@ export const useNotificationStore = defineStore('notification', {
             : channelName ? `#${channelName}` : ''
           const groupKey =
             data.server_id || data.conversation_id || data.channel_id || notification.type || ''
+
+          // MessagingStyle shows sender+message only (no title line), so for
+          // types where the message body is *your* content being acted on, a
+          // bare preview reads as if the actor wrote it. Prefix the action.
+          const contentAction: Record<string, string> = {
+            reaction: 'Reacted to your message',
+            activitypub_reaction: 'Reacted to your post',
+            activitypub_favorite: 'Favorited your post',
+            activitypub_reblog: 'Reblogged your post',
+          }
+          let message = formatted.message
+          const action = contentAction[notification.type]
+          if (action) {
+            let emojiPrefix = ''
+            if (notification.type === 'reaction' || notification.type === 'activitypub_reaction') {
+              const reactionData = data.reaction || data
+              const emojiUrl = reactionData?.emoji_url || data.emoji_url
+              const emojiName = reactionData?.emoji_name || reactionData?.custom_emoji_content || data.emoji_name
+              // native unicode emoji renders as text; custom image emoji can't, so omit
+              if (emojiName && !emojiUrl) emojiPrefix = emojiName + ' '
+            }
+            message = `${emojiPrefix}${action}: ${formatted.message}`
+          }
+
           // large icon: server icon for server mentions, sender avatar for DMs/other
           const senderAvatar = NotificationFormatter.getAvatarUrl(notification)
           const serverId = data.server_id || data.location?.server_id
@@ -955,7 +979,7 @@ export const useNotificationStore = defineStore('notification', {
             title: formatted.title,
             sender,
             conversationTitle,
-            message: formatted.message,
+            message,
             avatarUrl: senderAvatar,
             largeIconUrl,
             groupKey,
