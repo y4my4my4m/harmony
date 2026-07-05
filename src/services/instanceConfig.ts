@@ -39,9 +39,7 @@ export function clearStoredInstance(): void {
 
 export function needsInstanceSelection(): boolean {
   if (!isTauriRuntime()) return false;
-  if (getStoredInstance()) return false;
-  // dev builds with baked env use the vite proxy, no picker needed
-  return import.meta.env.PROD || !import.meta.env.VITE_SUPABASE_URL;
+  return !getStoredInstance();
 }
 
 // prefixes the selected instance origin; unchanged when none stored (web/dev proxy)
@@ -61,9 +59,16 @@ function normalizeOrigin(input: string): string {
 export async function fetchInstanceInfo(domainOrUrl: string): Promise<InstanceConfig> {
   const origin = normalizeOrigin(domainOrUrl);
 
-  const response = await fetch(`${origin}/api/federation/instance-info`, {
-    headers: { Accept: 'application/json' },
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${origin}/api/federation/instance-info`, {
+      headers: { Accept: 'application/json' },
+    });
+  } catch {
+    // fetch rejects (not an HTTP error) on DNS/TLS/CORS failures — the most
+    // common being an instance that doesn't expose /instance-info or its CORS
+    throw new Error(`Couldn't reach ${origin}. Check the domain, or the instance may be too old to support native clients.`);
+  }
   if (!response.ok) {
     throw new Error(`Instance responded with ${response.status} — is this a Harmony instance?`);
   }

@@ -2,13 +2,15 @@
   <!-- Native client: choose which Harmony instance to talk to (mandatory on
        first run of a packaged build, reopenable from the login screen). -->
   <InstancePicker v-if="showInstancePicker" @close="showInstancePicker = false" />
-  <button
-    v-if="isAuthRoute && storedInstanceName && !showInstancePicker"
-    class="instance-switch-badge"
-    @click="showInstancePicker = true"
+  <!-- Native-only: which instance we're logging into, changeable from the login screen -->
+  <div
+    v-if="isTauriClient && isAuthRoute && !showInstancePicker"
+    class="instance-bar"
   >
-    Instance: {{ storedInstanceName }} — change
-  </button>
+    <span class="instance-bar__dot" />
+    <span class="instance-bar__name">{{ storedInstanceName || 'No instance selected' }}</span>
+    <button class="instance-bar__change" @click="showInstancePicker = true">Change</button>
+  </div>
 
   <!-- Conditional Layout Rendering -->
   <AuthLayout v-if="isAuthRoute" />
@@ -96,9 +98,10 @@ import ThemeCustomizerPanel from '@/components/settings/user/ThemeCustomizerPane
 import UnifiedConfirmationModal from '@/components/shared/UnifiedConfirmationModal.vue'
 import InstancePicker from '@/components/InstancePicker.vue'
 import ScreenSharePicker from '@/components/voice/ScreenSharePicker.vue'
-import { needsInstanceSelection, getStoredInstance } from '@/services/instanceConfig'
+import { needsInstanceSelection, getStoredInstance, isTauriRuntime } from '@/services/instanceConfig'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 
+const isTauriClient = isTauriRuntime()
 const showInstancePicker = ref(needsInstanceSelection())
 const storedInstanceName = computed(() => getStoredInstance()?.name ?? null)
 
@@ -327,22 +330,53 @@ async function handleIdentityChanged(e: CustomEvent) {
     height: 100%;
   }
 
-  .instance-switch-badge {
+  /* Native-only instance indicator, pinned to the top of the login screen and
+     kept clear of the status bar / notch via safe-area insets. */
+  .instance-bar {
     position: fixed;
-    bottom: 12px;
-    right: 12px;
+    top: 0;
+    left: 0;
+    right: 0;
     z-index: 9999;
-    padding: 6px 12px;
-    border-radius: 999px;
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    background: rgba(20, 20, 30, 0.75);
-    color: rgba(255, 255, 255, 0.75);
-    font-size: 0.8rem;
-    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: calc(env(safe-area-inset-top, 0px) + 8px) 14px 8px;
+    background: rgba(20, 20, 30, 0.9);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 0.82rem;
+    color: rgba(255, 255, 255, 0.7);
   }
 
-  .instance-switch-badge:hover {
+  .instance-bar__dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #43b581;
+    flex-shrink: 0;
+  }
+
+  .instance-bar__name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .instance-bar__change {
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: transparent;
+    color: #8ab4ff;
+    border-radius: 999px;
+    padding: 4px 12px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .instance-bar__change:hover {
+    border-color: rgba(255, 255, 255, 0.4);
     color: white;
-    border-color: rgba(255, 255, 255, 0.35);
   }
 </style>
