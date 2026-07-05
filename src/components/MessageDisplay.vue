@@ -78,9 +78,8 @@
       <template v-else-if="item.type === 'message'">
         <!-- Beginning of conversation indicator (only show when all messages loaded) -->
         <div v-if="item.index === 0 && isAllMessagesLoaded" class="beginning-indicator">
-          <div class="beginning-badge">
-            <span v-if="beginningInfo.kind === 'channel'" class="beginning-hash">#</span>
-            <img v-else-if="beginningInfo.avatar" class="beginning-avatar" :src="beginningInfo.avatar" alt="" />
+          <div v-if="beginningInfo.kind !== 'channel'" class="beginning-badge">
+            <img v-if="beginningInfo.avatar" class="beginning-avatar" :src="beginningInfo.avatar" alt="" />
             <span v-else class="beginning-initial">{{ (beginningInfo.name || '?').charAt(0).toUpperCase() }}</span>
           </div>
           <h2 class="beginning-title">
@@ -3793,23 +3792,23 @@ defineExpose({ editLastOwnMessage });
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 6px;
-  padding: 44px 20px 16px;
-  margin-bottom: 4px;
+  gap: 4px;
+  padding: 40px 20px 20px;
+  margin: 0 4px 8px;
+  border-bottom: 1px solid var(--border-secondary);
 }
 
 .beginning-badge {
-  width: 68px;
-  height: 68px;
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
   overflow: hidden;
-  color: #fff;
-  background: linear-gradient(135deg, var(--harmony-primary) 0%, var(--harmony-secondary) 100%);
-  box-shadow: 0 6px 18px rgba(14, 165, 233, 0.35);
+  color: var(--text-secondary);
+  background: var(--background-quaternary);
 }
 
 .beginning-avatar {
@@ -3818,32 +3817,26 @@ defineExpose({ editLastOwnMessage });
   object-fit: cover;
 }
 
-.beginning-hash {
-  font-size: 2.4rem;
-  font-weight: 700;
-  line-height: 1;
-}
-
 .beginning-initial {
-  font-size: 1.9rem;
+  font-size: 1.4rem;
   font-weight: 700;
   line-height: 1;
   text-transform: uppercase;
 }
 
 .beginning-title {
-  font-size: 1.6rem;
+  font-size: 1.75rem;
   font-weight: 800;
   color: var(--text-primary);
   margin: 0;
   line-height: 1.2;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
 }
 
 .beginning-subtitle {
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   color: var(--text-tertiary);
-  margin: 0;
+  margin: 2px 0 0;
   line-height: 1.45;
   max-width: 640px;
 }
@@ -4034,28 +4027,20 @@ defineExpose({ editLastOwnMessage });
   }
   
   .beginning-indicator {
-    padding: 28px 14px 12px;
+    padding: 28px 14px 16px;
   }
 
   .beginning-badge {
-    width: 56px;
-    height: 56px;
-  }
-
-  .beginning-hash {
-    font-size: 2rem;
-  }
-
-  .beginning-initial {
-    font-size: 1.6rem;
+    width: 44px;
+    height: 44px;
   }
 
   .beginning-title {
-    font-size: 1.3rem;
+    font-size: 1.4rem;
   }
 
   .beginning-subtitle {
-    font-size: 0.875rem;
+    font-size: 0.85rem;
   }
 
   .message-meta {
