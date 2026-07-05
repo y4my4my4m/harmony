@@ -346,7 +346,8 @@ onBeforeUnmount(detach);
 
 /* Avatar fallback */
 .tile-avatar {
-  position: relative;
+  position: absolute;
+  inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
