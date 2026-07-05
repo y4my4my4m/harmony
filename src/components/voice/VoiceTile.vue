@@ -36,6 +36,11 @@
 
     <!-- Avatar fallback (camera tile without video) -->
     <div v-else class="tile-avatar">
+      <div
+        v-if="userProfile.banner_url"
+        class="tile-banner"
+        :style="{ backgroundImage: `url(${userProfile.banner_url})` }"
+      />
       <div class="avatar-ring" :class="{ speaking: isSpeaking }">
         <Avatar
           :src="userProfile.avatar_url"
@@ -129,11 +134,12 @@ const showContextMenu = ref(false);
 const contextMenuPosition = ref({ x: 0, y: 0 });
 
 const userProfile = computed(() => {
-  const profileData = getUserProfile(props.userState.userId).value;
+  const profileData = getUserProfile(props.userState.userId).value as any;
   return {
     display_name: profileData?.display_name || null,
     username: profileData?.username || 'Unknown User',
     avatar_url: profileData?.avatar_url || '/default_avatar.webp',
+    banner_url: profileData?.bannerUrl || profileData?.banner_url || null,
   };
 });
 
@@ -339,9 +345,26 @@ onBeforeUnmount(detach);
 
 /* Avatar fallback */
 .tile-avatar {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
+}
+
+.tile-banner {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  filter: blur(18px) brightness(0.4);
+  transform: scale(1.2);
+  z-index: 0;
+}
+
+.tile-avatar .avatar-ring {
+  position: relative;
+  z-index: 1;
 }
 
 .avatar-ring {
