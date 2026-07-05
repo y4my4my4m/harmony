@@ -1,10 +1,15 @@
 name: Tauri
 
+# Public repo = unlimited free Actions minutes, but keep native builds off every
+# feature-branch commit: pre-merge check on PRs to master, post-merge on master,
+# and manual dispatch on demand. Skipped when only docs/backend change.
 on:
   push:
-    branches: [master, tauri-implementation]
+    branches: [master]
+    paths-ignore: ['**.md', 'docs/**', 'federation-backend/**']
   pull_request:
     branches: [master]
+    paths-ignore: ['**.md', 'docs/**', 'federation-backend/**']
   workflow_dispatch:
 
 concurrency:
