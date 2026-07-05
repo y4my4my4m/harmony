@@ -29,10 +29,15 @@ serde_json = { workspace = true }
 serde = { workspace = true }
 tokio = { workspace = true }
 log = "0.4"
-tauri = { version = "2.9", features = ["protocol-asset", "devtools", "unstable"] }
+tauri = { version = "2.9", features = ["protocol-asset", "devtools", "unstable", "tray-icon"] }
 tauri-plugin-fs = "2.4.4"
 tauri-plugin-shell = "2.3.3"
 tauri-plugin-notification = "2"
+
+# desktop-only UX plugins; not applicable to mobile
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-single-instance = "2"
+tauri-plugin-autostart = "2"
 
 [target.'cfg(all(target_os = "linux", not(target_os = "android")))'.dependencies.wgpu]
 version = "30"

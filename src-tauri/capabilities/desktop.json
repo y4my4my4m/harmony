@@ -1,0 +1,8 @@
+{
+  "$schema": "https://schema.tauri.app/config/2/capabilities",
+  "identifier": "desktop",
+  "description": "Desktop-only capabilities (tray, autostart)",
+  "platforms": ["linux", "macOS", "windows"],
+  "windows": ["main"],
+  "permissions": ["autostart:allow-enable", "autostart:allow-disable", "autostart:allow-is-enabled"]
+}
