@@ -3,8 +3,14 @@ package online.knowmad.harmony
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffXfermode
+import android.graphics.Rect
 import android.os.Build
 import android.os.Bundle
 import androidx.core.app.NotificationCompat
@@ -21,6 +27,25 @@ class MainActivity : TauriActivity() {
     super.onCreate(savedInstanceState)
     WindowCompat.setDecorFitsSystemWindows(window, true)
     createChannel()
+    restoreBars()
+  }
+
+  private fun restoreBars() {
+    val prefs = getSharedPreferences("harmony_ui", MODE_PRIVATE)
+    val status = prefs.getString("status_color", "#16161e") ?: "#16161e"
+    val nav = prefs.getString("nav_color", "#16161e") ?: "#16161e"
+    applyBars(status, nav, prefs.getBoolean("status_dark", false), prefs.getBoolean("nav_dark", false))
+  }
+
+  private fun applyBars(statusHex: String, navHex: String, statusDark: Boolean, navDark: Boolean) {
+    runOnUiThread {
+      WindowCompat.setDecorFitsSystemWindows(window, true)
+      parse(statusHex)?.let { window.statusBarColor = it }
+      parse(navHex)?.let { window.navigationBarColor = it }
+      val controller = WindowInsetsControllerCompat(window, window.decorView)
+      controller.isAppearanceLightStatusBars = statusDark
+      controller.isAppearanceLightNavigationBars = navDark
+    }
   }
 
   private fun createChannel() {
@@ -54,7 +79,7 @@ class MainActivity : TauriActivity() {
         }
 
       val personBuilder = Person.Builder().setName(sender)
-      if (avatar != null) personBuilder.setIcon(IconCompat.createWithBitmap(avatar))
+      if (avatar != null) personBuilder.setIcon(IconCompat.createWithBitmap(circleCrop(avatar)))
       val person = personBuilder.build()
 
       val style = NotificationCompat.MessagingStyle(person)
@@ -88,14 +113,27 @@ class MainActivity : TauriActivity() {
   }
 
   fun setSystemBarColors(statusHex: String, navHex: String, statusDark: Boolean, navDark: Boolean) {
-    runOnUiThread {
-      WindowCompat.setDecorFitsSystemWindows(window, true)
-      parse(statusHex)?.let { window.statusBarColor = it }
-      parse(navHex)?.let { window.navigationBarColor = it }
-      val controller = WindowInsetsControllerCompat(window, window.decorView)
-      controller.isAppearanceLightStatusBars = statusDark
-      controller.isAppearanceLightNavigationBars = navDark
-    }
+    getSharedPreferences("harmony_ui", MODE_PRIVATE)
+      .edit()
+      .putString("status_color", statusHex)
+      .putString("nav_color", navHex)
+      .putBoolean("status_dark", statusDark)
+      .putBoolean("nav_dark", navDark)
+      .apply()
+    applyBars(statusHex, navHex, statusDark, navDark)
+  }
+
+  private fun circleCrop(src: Bitmap): Bitmap {
+    val size = minOf(src.width, src.height)
+    val left = (src.width - size) / 2
+    val top = (src.height - size) / 2
+    val output = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(output)
+    val paint = Paint().apply { isAntiAlias = true }
+    canvas.drawCircle(size / 2f, size / 2f, size / 2f, paint)
+    paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN)
+    canvas.drawBitmap(src, Rect(left, top, left + size, top + size), Rect(0, 0, size, size), paint)
+    return output
   }
 
   private fun parse(hex: String): Int? =
