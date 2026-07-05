@@ -16,6 +16,7 @@ pub fn show_android_notification(
   conversation_title: String,
   message: String,
   avatar_url: String,
+  large_icon_url: String,
   group_key: String,
 ) -> Result<(), String> {
   #[cfg(target_os = "android")]
@@ -29,25 +30,35 @@ pub fn show_android_notification(
     let jtitle = env.new_string(&conversation_title).map_err(|e| e.to_string())?;
     let jmsg = env.new_string(&message).map_err(|e| e.to_string())?;
     let javatar = env.new_string(&avatar_url).map_err(|e| e.to_string())?;
+    let jlarge = env.new_string(&large_icon_url).map_err(|e| e.to_string())?;
     let jgroup = env.new_string(&group_key).map_err(|e| e.to_string())?;
     env
       .call_method(
         activity,
         "showNotification",
-        "(ILjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V",
+        "(ILjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V",
         &[
           JValue::Int(id),
           JValue::Object(&jsender),
           JValue::Object(&jtitle),
           JValue::Object(&jmsg),
           JValue::Object(&javatar),
+          JValue::Object(&jlarge),
           JValue::Object(&jgroup),
         ],
       )
       .map_err(|e| e.to_string())?;
   }
   #[cfg(not(target_os = "android"))]
-  let _ = (id, sender, conversation_title, message, avatar_url, group_key);
+  let _ = (
+    id,
+    sender,
+    conversation_title,
+    message,
+    avatar_url,
+    large_icon_url,
+    group_key,
+  );
   Ok(())
 }
 

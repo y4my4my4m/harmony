@@ -72,6 +72,7 @@ export async function nativeNotify(opts: {
   conversationTitle: string;
   message: string;
   avatarUrl?: string | null;
+  largeIconUrl?: string | null;
   groupKey?: string;
 }): Promise<boolean> {
   if (!isTauriRuntime()) return false;
@@ -91,13 +92,14 @@ export async function nativeNotify(opts: {
         conversationTitle,
         message,
         avatarUrl: opts.avatarUrl ?? '',
+        largeIconUrl: opts.largeIconUrl ?? opts.avatarUrl ?? '',
         groupKey: opts.groupKey ?? '',
       });
       return true;
     }
 
     const { sendNotification } = await import('@tauri-apps/plugin-notification');
-    const icon = await cacheAvatar(opts.avatarUrl);
+    const icon = await cacheAvatar(opts.largeIconUrl ?? opts.avatarUrl);
     const title = conversationTitle ? `${sender} · ${conversationTitle}` : sender || stripCustomEmojis(opts.title);
     sendNotification({ title, body: message, icon });
     return true;

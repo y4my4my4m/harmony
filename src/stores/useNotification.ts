@@ -937,12 +937,27 @@ export const useNotificationStore = defineStore('notification', {
             : channelName ? `#${channelName}` : ''
           const groupKey =
             data.server_id || data.conversation_id || data.channel_id || notification.type || ''
+          // large icon: server icon for server mentions, sender avatar for DMs/other
+          const senderAvatar = NotificationFormatter.getAvatarUrl(notification)
+          const serverId = data.server_id || data.location?.server_id
+          let largeIconUrl = senderAvatar
+          if (serverId) {
+            try {
+              const { useServerChannelStore } = await import('@/stores/useServerChannel')
+              const { getServerIconUrl } = await import('@/utils/serverUtils')
+              const server = useServerChannelStore().servers.find((s: any) => s.id === serverId)
+              if (server?.icon) largeIconUrl = getServerIconUrl(server.icon, 256)
+            } catch {
+              /* fall back to sender avatar */
+            }
+          }
           await nativeNotify({
             title: formatted.title,
             sender,
             conversationTitle,
             message: formatted.message,
-            avatarUrl: NotificationFormatter.getAvatarUrl(notification),
+            avatarUrl: senderAvatar,
+            largeIconUrl,
             groupKey,
           })
           return

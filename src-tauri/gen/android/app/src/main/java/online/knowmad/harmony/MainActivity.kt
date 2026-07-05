@@ -3,6 +3,7 @@ package online.knowmad.harmony
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
@@ -15,6 +16,8 @@ import android.os.Build
 import android.os.Bundle
 import androidx.core.app.NotificationCompat
 import androidx.core.app.Person
+import androidx.core.content.pm.ShortcutInfoCompat
+import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.drawable.IconCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -62,23 +65,14 @@ class MainActivity : TauriActivity() {
     conversationTitle: String,
     message: String,
     avatarUrl: String,
+    largeIconUrl: String,
     groupKey: String,
   ) {
     Thread {
-      val avatar =
-        if (avatarUrl.isNotEmpty()) {
-          try {
-            val conn = URL(avatarUrl).openConnection()
-            conn.connect()
-            BitmapFactory.decodeStream(conn.getInputStream())
-          } catch (e: Exception) {
-            null
-          }
-        } else {
-          null
-        }
+      val avatar = download(avatarUrl)
+      val largeIcon = download(largeIconUrl) ?: avatar
 
-      val personBuilder = Person.Builder().setName(sender)
+      val personBuilder = Person.Builder().setName(sender).setKey(sender)
       if (avatar != null) personBuilder.setIcon(IconCompat.createWithBitmap(circleCrop(avatar)))
       val person = personBuilder.build()
 
@@ -89,7 +83,9 @@ class MainActivity : TauriActivity() {
       }
       style.addMessage(message, System.currentTimeMillis(), person)
 
-      val launch = packageManager.getLaunchIntentForPackage(packageName)
+      val launch =
+        packageManager.getLaunchIntentForPackage(packageName)
+          ?: Intent(Intent.ACTION_MAIN).setPackage(packageName)
       val pending =
         PendingIntent.getActivity(
           this,
@@ -98,19 +94,48 @@ class MainActivity : TauriActivity() {
           PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
 
+      // conversation shortcut promotes the notification to Android's conversation
+      // section: title/avatar prominent, app name de-emphasized (Discord-style)
+      val shortcutId = if (groupKey.isNotEmpty()) groupKey else "conv_$id"
+      val shortcutIcon = largeIcon?.let { IconCompat.createWithBitmap(circleCrop(it)) }
+      val shortcut =
+        ShortcutInfoCompat.Builder(this, shortcutId)
+          .setLongLived(true)
+          .setShortLabel(if (conversationTitle.isNotEmpty()) conversationTitle else sender)
+          .setIntent(launch)
+          .setPerson(person)
+          .apply { shortcutIcon?.let { setIcon(it) } }
+          .build()
+      ShortcutManagerCompat.pushDynamicShortcut(this, shortcut)
+
       val builder =
         NotificationCompat.Builder(this, channelId)
           .setSmallIcon(R.drawable.ic_stat_harmony)
           .setStyle(style)
+          .setShortcutId(shortcutId)
           .setAutoCancel(true)
           .setPriority(NotificationCompat.PRIORITY_HIGH)
           .setContentIntent(pending)
+      largeIcon?.let { builder.setLargeIcon(circleCrop(it)) }
       if (groupKey.isNotEmpty()) builder.setGroup(groupKey)
 
       getSystemService(NotificationManager::class.java).notify(id, builder.build())
     }
       .start()
   }
+
+  private fun download(url: String): Bitmap? =
+    if (url.isEmpty()) {
+      null
+    } else {
+      try {
+        val conn = URL(url).openConnection()
+        conn.connect()
+        BitmapFactory.decodeStream(conn.getInputStream())
+      } catch (e: Exception) {
+        null
+      }
+    }
 
   fun setSystemBarColors(statusHex: String, navHex: String, statusDark: Boolean, navDark: Boolean) {
     getSharedPreferences("harmony_ui", MODE_PRIVATE)
