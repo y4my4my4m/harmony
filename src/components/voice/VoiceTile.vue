@@ -110,6 +110,7 @@ import DisplayName from '@/components/DisplayName.vue';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '@/components/common/Avatar.vue';
 import VoiceUserContextMenu from './VoiceUserContextMenu.vue';
+import { getBannerUrl } from '@/utils/bannerUtils';
 
 const props = withDefaults(defineProps<{
   userState: UserMediaState;
@@ -139,7 +140,7 @@ const userProfile = computed(() => {
     display_name: profileData?.display_name || null,
     username: profileData?.username || 'Unknown User',
     avatar_url: profileData?.avatar_url || '/default_avatar.webp',
-    banner_url: profileData?.bannerUrl || profileData?.banner_url || null,
+    banner_url: getBannerUrl(profileData?.bannerUrl || profileData?.banner_url) || null,
   };
 });
 
