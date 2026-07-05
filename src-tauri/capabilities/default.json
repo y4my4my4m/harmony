@@ -25,7 +25,13 @@
     "fs:allow-read-file",
     "fs:allow-read-dir",
     "fs:allow-exists",
-    "shell:allow-open"
+    "fs:allow-write-file",
+    "fs:allow-mkdir",
+    "shell:allow-open",
+    "notification:default",
+    "notification:allow-notify",
+    "notification:allow-request-permission",
+    "notification:allow-is-permission-granted"
   ]
 }
 

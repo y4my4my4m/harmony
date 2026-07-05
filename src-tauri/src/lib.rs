@@ -7,6 +7,7 @@ pub fn run() {
   let builder = tauri::Builder::default()
     .plugin(tauri_plugin_fs::init())
     .plugin(tauri_plugin_shell::init())
+    .plugin(tauri_plugin_notification::init())
     .setup(|app| {
       #[cfg(all(feature = "native-media", target_os = "linux"))]
       commands::media::init(&app.handle().clone());
@@ -34,12 +35,14 @@ pub fn run() {
     commands::media::media_screen_thumbnail,
     commands::media::call_window_open,
     commands::media::call_window_close,
-    commands::media::set_system_bar_colors
+    commands::media::set_system_bar_colors,
+    commands::media::show_android_notification
   ]);
   #[cfg(not(all(feature = "native-media", target_os = "linux")))]
   let builder = builder.invoke_handler(tauri::generate_handler![
     commands::media::native_media_supported,
-    commands::media::set_system_bar_colors
+    commands::media::set_system_bar_colors,
+    commands::media::show_android_notification
   ]);
 
   builder

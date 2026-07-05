@@ -4,6 +4,8 @@ import router from '@/router'
 import { useAuthStore } from './auth'
 import { viewContextTracker } from '@/services/ViewContextTracker'
 import { NotificationFormatter } from '@/services/NotificationFormatter'
+import { nativeNotify } from '@/services/nativeNotify'
+import { isTauriRuntime } from '@/services/instanceConfig'
 import { getEmojiUrl } from '@/utils/emojiUtils'
 import { services } from '@/services'
 import { authContextService } from '@/services/AuthContextService'
@@ -912,14 +914,6 @@ export const useNotificationStore = defineStore('notification', {
      */
     async showDesktopNotification(notification: Notification, formatted?: any) {
       try {
-        if (typeof Notification === 'undefined') {
-          return
-        }
-
-        if (Notification.permission !== 'granted') {
-          return
-        }
-
         // Only show desktop notifications when the tab is hidden/inactive
         // (in-app toasts handle notifications while the tab is visible)
         if (!document.hidden) {
@@ -928,6 +922,38 @@ export const useNotificationStore = defineStore('notification', {
 
         if (!formatted) {
           formatted = NotificationFormatter.formatNotification(notification)
+        }
+
+        // Native (Tauri) clients have no service worker; use the OS notification plugin
+        if (isTauriRuntime()) {
+          const data: any = notification.data || {}
+          const actor = data.actor || data.reactor || data.sender || {}
+          const sender =
+            actor.display_name || actor.username || data.sender_display_name || data.display_name || formatted.title
+          const serverName = data.server_name || data.location?.server_name || ''
+          const channelName = data.channel_name || data.location?.channel_name || ''
+          const conversationTitle = serverName
+            ? channelName ? `${serverName} #${channelName}` : serverName
+            : channelName ? `#${channelName}` : ''
+          const groupKey =
+            data.server_id || data.conversation_id || data.channel_id || notification.type || ''
+          await nativeNotify({
+            title: formatted.title,
+            sender,
+            conversationTitle,
+            message: formatted.message,
+            avatarUrl: NotificationFormatter.getAvatarUrl(notification),
+            groupKey,
+          })
+          return
+        }
+
+        if (typeof Notification === 'undefined') {
+          return
+        }
+
+        if (Notification.permission !== 'granted') {
+          return
         }
 
         // Use per-context tags so new notifications from the same source replace the previous one
