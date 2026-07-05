@@ -53,8 +53,9 @@
       }
     },
     "macOS": {
-      "minimumSystemVersion": "10.13",
-      "exceptionDomain": ""
+      "minimumSystemVersion": "11.0",
+      "exceptionDomain": "",
+      "entitlements": "Entitlements.plist"
     },
     "windows": {
       "certificateThumbprint": null,
