@@ -668,25 +668,33 @@ export const useServerChannelStore = defineStore('serverChannel', {
 
         this.refreshCategoryChannels()
 
-        for (let i = 0; i < channels.length; i++) {
-          const channel = channels[i]
-          const { error } = await supabase
-            .from('channels')
-            .update({ 
-              order: i, 
-              category: categoryId 
-            })
-            .eq('id', channel.id)
-
-          if (error) {
-            throw new Error(`Channel order update failed for ${channel.id}: ${error.message}`)
-          }
-        }
+        await this._persistChannelOrder(channels, categoryId, originalChannels)
       } catch (error) {
         debug.log('🔄 Rolling back optimistic channel order due to error')
         this.channels = originalChannels
         this.categoryChannels = originalCategoryChannels
         throw error
+      }
+    },
+
+    // Write only changed rows, in parallel; sequential full writes echoed N realtime events and lagged the drop.
+    async _persistChannelOrder(channels: Channel[], categoryId: string | null, originalChannels: Channel[]): Promise<void> {
+      const beforeById = new Map(originalChannels.map(c => [c.id, c]))
+      const changed = channels
+        .map((channel, index) => ({ channel, index }))
+        .filter(({ channel, index }) => {
+          const before = beforeById.get(channel.id)
+          return !before || (before.order || 0) !== index || (before.category ?? null) !== (categoryId ?? null)
+        })
+
+      const results = await Promise.all(
+        changed.map(({ channel, index }) =>
+          supabase.from('channels').update({ order: index, category: categoryId }).eq('id', channel.id)
+        )
+      )
+      const failed = results.find(r => r.error)
+      if (failed?.error) {
+        throw new Error(`Channel order update failed: ${failed.error.message}`)
       }
     },
 
@@ -706,21 +714,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
 
         this.refreshCategoryChannels()
 
-        for (let i = 0; i < channels.length; i++) {
-          const channel = channels[i]
-          const { error } = await supabase
-            .from('channels')
-            .update({ 
-              order: i, 
-              category: categoryId 
-            })
-            .eq('id', channel.id)
-
-          if (error) {
-            debug.error(`Error updating channel ${channel.id}:`, error)
-            throw error
-          }
-        }
+        await this._persistChannelOrder(channels, categoryId, originalChannels)
 
         debug.log(`✅ Successfully updated order for ${channels.length} channels`)
       } catch (error) {
