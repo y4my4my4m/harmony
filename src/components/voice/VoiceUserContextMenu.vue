@@ -380,6 +380,8 @@ const resolutionOptions = [
   { value: 480, label: '480p (SD)', short: '480p' },
   { value: 720, label: '720p (HD)', short: '720p' },
   { value: 1080, label: '1080p (Full HD)', short: '1080p' },
+  { value: 1440, label: '1440p (QHD)', short: '1440p' },
+  { value: 2160, label: '2160p (4K)', short: '4K' },
   { value: -1, label: 'Source (Native)', short: 'Source' }, // -1 = native resolution
 ];
 

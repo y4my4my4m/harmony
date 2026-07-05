@@ -358,14 +358,31 @@ export class LiveKitWebRTCService {
         return VideoPresets.h720.resolution as { width: number; height: number; frameRate: number };
       case 1080:
         return VideoPresets.h1080.resolution as { width: number; height: number; frameRate: number };
-      case -1: // Source/Native - use 1080p as max
-        return VideoPresets.h1080.resolution as { width: number; height: number; frameRate: number };
+      case 1440:
+        return { width: 2560, height: 1440, frameRate: 30 };
+      case 2160:
+        return { width: 3840, height: 2160, frameRate: 30 };
+      case -1: // Source/Native - allow up to 4K
+        return { width: 3840, height: 2160, frameRate: 30 };
       default: {
         const height = resolution;
         const width = Math.round(height * 16 / 9);
         return { width, height, frameRate: 30 };
       }
     }
+  }
+
+  // Screenshare bitrate ceiling — the previous 3 Mbps @1080p starved 60fps
+  // (the encoder dropped frames to fit). Scale with resolution and framerate.
+  private screenShareBitrate(height: number, frameRate: number): number {
+    const base =
+      height >= 2160 ? 16_000_000 :
+      height >= 1440 ? 8_000_000 :
+      height >= 1080 ? 5_000_000 :
+      height >= 720 ? 2_500_000 :
+      1_200_000;
+    const fpsScale = frameRate >= 60 ? 1.8 : frameRate >= 48 ? 1.4 : 1;
+    return Math.round(base * fpsScale);
   }
   
   // CONFIGURATION
@@ -814,6 +831,9 @@ export class LiveKitWebRTCService {
           audioBitrate: audioBitrateKbps
         });
         
+        // At high framerate, prioritise motion (smoothness) over static detail
+        const highFps = targetFrameRate >= 60;
+
         // Capture options for screenshare
         const captureOptions = {
           audio: {
@@ -828,18 +848,23 @@ export class LiveKitWebRTCService {
             frameRate: targetFrameRate,
           },
           resolution: screenResolution,
-          contentHint: 'detail',
+          contentHint: highFps ? 'motion' : 'detail',
           systemAudio: 'include', // Explicitly request system audio
         };
-        
-        // Publish options with bitrate settings
+
+        // Publish options. NOTE: screenshare reads `screenShareEncoding`, not
+        // `videoEncoding` (the latter is ignored for screen tracks), and
+        // degradationPreference/simulcast are top-level.
         const publishOptions = {
-          // Video encoding settings
-          videoEncoding: {
-            maxBitrate: screenResolution.height >= 1080 ? 3_000_000 : 
-                        screenResolution.height >= 720 ? 1_500_000 : 800_000,
+          screenShareEncoding: {
+            maxBitrate: this.screenShareBitrate(screenResolution.height, targetFrameRate),
             maxFramerate: targetFrameRate,
           },
+          // hold framerate under load instead of dropping frames
+          degradationPreference: 'maintain-framerate' as RTCDegradationPreference,
+          // full-res single layer keeps every frame at target fps (simulcast's
+          // lower layers otherwise cap framerate)
+          simulcast: false,
           // Audio bitrate in bits per second
           screenShareAudioBitrate: audioBitrateKbps * 1000,
         };
@@ -1093,7 +1118,7 @@ export class LiveKitWebRTCService {
             await track.mediaStreamTrack.applyConstraints(constraints);
             trackCount++;
             debug.log('✅ [LiveKit] Applied video constraints to', publication.source);
-            
+
             // Log actual track settings after applying
             const actualSettings = track.mediaStreamTrack.getSettings();
             debug.log('📊 [LiveKit] Actual track settings:', {
@@ -1103,6 +1128,32 @@ export class LiveKitWebRTCService {
             });
           } catch (error) {
             debug.error('❌ [LiveKit] Failed to apply video constraints:', error);
+          }
+        }
+
+        // Raise the encoder ceiling live — applyConstraints only touches
+        // capture; the sender keeps its publish-time maxBitrate otherwise.
+        const sender = (track as any).sender as RTCRtpSender | undefined;
+        if (sender && publication.source === Track.Source.ScreenShare) {
+          try {
+            const params = sender.getParameters();
+            const configured = this.streamQualitySettings.resolution;
+            const height = configured === -1
+              ? track.mediaStreamTrack.getSettings().height ?? 1080
+              : configured;
+            const fps = this.streamQualitySettings.frameRate;
+            params.degradationPreference = 'maintain-framerate';
+            for (const enc of params.encodings ?? []) {
+              enc.maxBitrate = this.screenShareBitrate(height, fps);
+              enc.maxFramerate = fps;
+            }
+            await sender.setParameters(params);
+            debug.log('✅ [LiveKit] Updated screenshare encoder params:', {
+              maxBitrate: this.screenShareBitrate(height, fps),
+              maxFramerate: fps,
+            });
+          } catch (error) {
+            debug.warn('⚠️ [LiveKit] Could not update encoder params live:', error);
           }
         }
       }
