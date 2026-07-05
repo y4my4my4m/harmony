@@ -87,7 +87,9 @@ CREATE INDEX IF NOT EXISTS idx_posts_author_id ON public.posts(author_id);
 CREATE INDEX IF NOT EXISTS idx_posts_created_at ON public.posts(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_posts_visibility ON public.posts(visibility);
 CREATE INDEX IF NOT EXISTS idx_posts_is_local ON public.posts(is_local);
-CREATE INDEX IF NOT EXISTS idx_posts_ap_id ON public.posts(ap_id) WHERE ap_id IS NOT NULL;
+-- UNIQUE: federated posts are keyed by ap_id; the check-then-insert path in
+-- ActivityProcessor relies on this to be race-proof against concurrent delivery.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_posts_ap_id ON public.posts(ap_id) WHERE ap_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_posts_in_reply_to ON public.posts(in_reply_to) WHERE in_reply_to IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_posts_conversation_id ON public.posts(conversation_id) WHERE conversation_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_posts_conversation_root ON public.posts(conversation_root_id) WHERE conversation_root_id IS NOT NULL;

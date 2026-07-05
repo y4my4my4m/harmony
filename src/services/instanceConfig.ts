@@ -56,28 +56,17 @@ function normalizeOrigin(input: string): string {
   return url.origin;
 }
 
-export async function fetchInstanceInfo(domainOrUrl: string): Promise<InstanceConfig> {
-  const origin = normalizeOrigin(domainOrUrl);
-
-  let response: Response;
-  try {
-    response = await fetch(`${origin}/api/federation/instance-info`, {
-      headers: { Accept: 'application/json' },
-    });
-  } catch {
-    // fetch rejects (not an HTTP error) on DNS/TLS/CORS failures — the most
-    // common being an instance that doesn't expose /instance-info or its CORS
-    throw new Error(`Couldn't reach ${origin}. Check the domain, or the instance may be too old to support native clients.`);
-  }
+async function fetchInstanceInfoFrom(origin: string): Promise<InstanceConfig> {
+  const response = await fetch(`${origin}/api/federation/instance-info`, {
+    headers: { Accept: 'application/json' },
+  });
   if (!response.ok) {
     throw new Error(`Instance responded with ${response.status} — is this a Harmony instance?`);
   }
-
   const info = await response.json();
   if (!info?.supabaseUrl || !info?.supabaseAnonKey) {
     throw new Error('Instance did not return a usable configuration');
   }
-
   return {
     origin,
     name: info.name || new URL(origin).hostname,
@@ -85,4 +74,29 @@ export async function fetchInstanceInfo(domainOrUrl: string): Promise<InstanceCo
     supabaseAnonKey: info.supabaseAnonKey,
     version: info.version,
   };
+}
+
+export async function fetchInstanceInfo(domainOrUrl: string): Promise<InstanceConfig> {
+  const trimmed = domainOrUrl.trim();
+  if (!trimmed) throw new Error('Enter an instance domain');
+
+  const origins = /^https?:\/\//i.test(trimmed)
+    ? [normalizeOrigin(trimmed)]
+    : [normalizeOrigin(`https://${trimmed}`), normalizeOrigin(`http://${trimmed}`)];
+
+  let lastError: unknown;
+  for (const origin of origins) {
+    try {
+      return await fetchInstanceInfoFrom(origin);
+    } catch (error) {
+      lastError = error;
+      if (error instanceof Error && error.message.startsWith('Instance ')) throw error;
+    }
+  }
+  const host = new URL(origins[0]).host;
+  throw new Error(
+    lastError instanceof Error && lastError.message.startsWith('Instance ')
+      ? lastError.message
+      : `Couldn't reach ${host}. Check the domain, or the instance may be too old to support native clients.`
+  );
 }

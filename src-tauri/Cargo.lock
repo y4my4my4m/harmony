@@ -64,7 +64,9 @@ name = "app"
 version = "1.3.0"
 dependencies = [
  "harmony-media",
+ "jni",
  "log",
+ "ndk-context",
  "serde",
  "serde_json",
  "tauri",

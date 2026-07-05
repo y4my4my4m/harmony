@@ -9,16 +9,20 @@
       </p>
 
       <form @submit.prevent="connect">
-        <input
-          v-model="domain"
-          type="text"
-          placeholder="harmony.example.com"
-          autocapitalize="none"
-          autocorrect="off"
-          spellcheck="false"
-          :disabled="busy"
-          autofocus
-        />
+        <div class="instance-picker__field">
+          <span class="instance-picker__scheme" aria-hidden="true">https://</span>
+          <input
+            v-model="domain"
+            type="text"
+            inputmode="url"
+            placeholder="harmony.example.com"
+            autocapitalize="none"
+            autocorrect="off"
+            spellcheck="false"
+            :disabled="busy"
+            autofocus
+          />
+        </div>
         <button type="submit" :disabled="busy || !domain.trim()">
           {{ busy ? 'Connecting…' : 'Connect' }}
         </button>
@@ -111,19 +115,39 @@ function cancel() {
   gap: 0.75rem;
 }
 
-.instance-picker__card input {
-  padding: 0.7rem 0.9rem;
+.instance-picker__field {
+  display: flex;
+  align-items: center;
   border-radius: 8px;
   border: 1px solid #3c3c55;
   background: #14141c;
+  overflow: hidden;
+}
+
+.instance-picker__field:focus-within {
+  border-color: #6d6df0;
+}
+
+.instance-picker__scheme {
+  padding-left: 0.9rem;
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 1rem;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.instance-picker__card input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.7rem 0.9rem 0.7rem 0.15rem;
+  border: none;
+  background: transparent;
   color: inherit;
   font-size: 1rem;
-  text-align: center;
 }
 
 .instance-picker__card input:focus {
   outline: none;
-  border-color: #6d6df0;
 }
 
 .instance-picker__card button[type='submit'] {

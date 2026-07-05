@@ -2,7 +2,6 @@
   <!-- Native client: choose which Harmony instance to talk to (mandatory on
        first run of a packaged build, reopenable from the login screen). -->
   <InstancePicker v-if="showInstancePicker" @close="showInstancePicker = false" />
-  <!-- Native-only: which instance we're logging into, changeable from the login screen -->
   <div
     v-if="isTauriClient && isAuthRoute && !showInstancePicker"
     class="instance-bar"
@@ -99,11 +98,14 @@ import UnifiedConfirmationModal from '@/components/shared/UnifiedConfirmationMod
 import InstancePicker from '@/components/InstancePicker.vue'
 import ScreenSharePicker from '@/components/voice/ScreenSharePicker.vue'
 import { needsInstanceSelection, getStoredInstance, isTauriRuntime } from '@/services/instanceConfig'
+import { useStatusBarTheme } from '@/composables/useStatusBarTheme'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 
 const isTauriClient = isTauriRuntime()
 const showInstancePicker = ref(needsInstanceSelection())
 const storedInstanceName = computed(() => getStoredInstance()?.name ?? null)
+
+useStatusBarTheme()
 
 const {
   confirmDialogVisible,
@@ -330,8 +332,6 @@ async function handleIdentityChanged(e: CustomEvent) {
     height: 100%;
   }
 
-  /* Native-only instance indicator, pinned to the top of the login screen and
-     kept clear of the status bar / notch via safe-area insets. */
   .instance-bar {
     position: fixed;
     top: 0;

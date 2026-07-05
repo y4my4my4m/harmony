@@ -37,6 +37,10 @@ tauri-plugin-shell = "2.3.3"
 version = "30"
 optional = true
 
+[target.'cfg(target_os = "android")'.dependencies]
+jni = "0.21"
+ndk-context = "0.1"
+
 # native media engine is desktop-linux only; webview WebRTC covers other platforms
 [target.'cfg(all(target_os = "linux", not(target_os = "android")))'.dependencies]
 harmony-media = { path = "crates/harmony-media", optional = true }

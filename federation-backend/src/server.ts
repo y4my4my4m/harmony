@@ -102,9 +102,8 @@ export function createApp(): Application {
   app.use('/api/livekit', livekitRouter);
   app.use('/voice', voiceRouter);
   app.use('/api/federation/voice', voiceRouter);
-  // Open CORS: a native client probes this before it knows the instance.
-  app.use('/instance-info', cors(), instanceInfoRouter);
-  app.use('/api/federation/instance-info', cors(), instanceInfoRouter);
+  app.use('/instance-info', instanceInfoRouter);
+  app.use('/api/federation/instance-info', instanceInfoRouter);
   app.use('/realtime', realtimeRouter);
   app.use('/api/federation/realtime', realtimeRouter);
 

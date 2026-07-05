@@ -33,11 +33,13 @@ pub fn run() {
     commands::media::media_list_screen_sources,
     commands::media::media_screen_thumbnail,
     commands::media::call_window_open,
-    commands::media::call_window_close
+    commands::media::call_window_close,
+    commands::media::set_system_bar_colors
   ]);
   #[cfg(not(all(feature = "native-media", target_os = "linux")))]
   let builder = builder.invoke_handler(tauri::generate_handler![
-    commands::media::native_media_supported
+    commands::media::native_media_supported,
+    commands::media::set_system_bar_colors
   ]);
 
   builder
