@@ -11,6 +11,7 @@ import { i18n, waitForInitialLocale } from './i18n'
 import { serviceWorkerManager } from '@/services/ServiceWorkerManager'
 import { pwaManager } from '@/services/PWAManager'
 import { useAuthStore } from '@/stores/auth'
+import { isTauriRuntime } from '@/services/instanceConfig'
 import { reactionCacheManager } from '@/utils/reactionCacheManager'
 
 import Toast from 'vue-toastification';
@@ -97,16 +98,13 @@ async function initializeApp() {
     //   - SW -> PWA: registration must precede install/push checks (kept as
     //     one sequential chain, but concurrent with the rest)
     //   - auth: session must be adopted before router guards run
-    const swChain = (async () => {
+    // SW/PWA is web-only; skip in Tauri (has its own native notification path)
+    const swChain = isTauriRuntime() ? Promise.resolve() : (async () => {
       const swSupported = await serviceWorkerManager.initialize()
       debug.log('🔔 Service Worker supported:', swSupported)
       await pwaManager.initialize()
       debug.log('🚀 PWA Manager initialized')
-      if (swSupported && Notification.permission === 'default') {
-        serviceWorkerManager.requestNotificationPermission().catch((err) => {
-          debug.warn('⚠️ Notification permission request failed:', err)
-        })
-      }
+      // no auto permission request here: unprompted requests get flagged as spammy
     })()
 
     const authStore = useAuthStore()

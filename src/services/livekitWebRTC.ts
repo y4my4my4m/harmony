@@ -317,6 +317,8 @@ export class LiveKitWebRTCService {
     autoGainControl: true,
   };
   
+  private levelPollTimer: ReturnType<typeof setInterval> | null = null;
+
   // Device selection
   private selectedInputDevice: string | null = null;
   private selectedOutputDevice: string | null = null;
@@ -534,6 +536,7 @@ export class LiveKitWebRTCService {
       }
       
       this.emit('channel-joined', { channelId, userId });
+      this.startLevelPolling();
       this.emit('local-state-changed', this.localMediaState);
       
       this.emit('channel-state-synced', { users: this.getAllUsers() });
@@ -614,6 +617,7 @@ export class LiveKitWebRTCService {
       await this.publishLocalAudio();
       
       this.emit('channel-joined', { channelId, userId });
+      this.startLevelPolling();
       this.emit('local-state-changed', this.localMediaState);
       this.emit('channel-state-synced', { users: this.getAllUsers() });
       
@@ -628,9 +632,35 @@ export class LiveKitWebRTCService {
   /**
    * Leave current voice channel
    */
+  // continuous local mic level (0-100); LiveKit's IsSpeaking VAD is binary/insensitive
+  private startLevelPolling(): void {
+    if (this.levelPollTimer) return;
+    this.levelPollTimer = setInterval(() => {
+      try {
+        const lp = this.room?.localParticipant;
+        if (!lp || !this.currentUserId) return;
+        const level = this.localMediaState.isMuted ? 0 : Math.round((lp.audioLevel ?? 0) * 100);
+        if (Math.abs(level - this.localMediaState.audioLevel) >= 3 || (level === 0) !== (this.localMediaState.audioLevel === 0)) {
+          this.localMediaState.audioLevel = level;
+          this.emit('audio-level', { userId: this.currentUserId, level });
+        }
+      } catch {
+        /* non-critical */
+      }
+    }, 100);
+  }
+
+  private stopLevelPolling(): void {
+    if (this.levelPollTimer) {
+      clearInterval(this.levelPollTimer);
+      this.levelPollTimer = null;
+    }
+  }
+
   async leaveChannel(): Promise<void> {
     debug.log('👋 [LiveKit] Leaving voice channel');
-    
+    this.stopLevelPolling();
+
     if (this.room) {
       try {
         await this.room.disconnect(true);
@@ -1582,8 +1612,8 @@ export class LiveKitWebRTCService {
     // Local participant speaking changes (voice activity indicator for ourselves)
     this.room.localParticipant.on(ParticipantEvent.IsSpeakingChanged, (speaking: boolean) => {
       this.localMediaState.isSpeaking = speaking;
-      this.localMediaState.audioLevel = speaking ? 50 : 0;
-      if (this.currentUserId) {
+      // audioLevel owned by startLevelPolling()
+      if (this.currentUserId && !speaking) {
         this.emit('audio-level', { userId: this.currentUserId, level: this.localMediaState.audioLevel });
       }
     });
@@ -1812,8 +1842,6 @@ export class LiveKitWebRTCService {
         const localSpeaking = speakerIdentities.has(localIdentity);
         if (this.localMediaState.isSpeaking !== localSpeaking) {
           this.localMediaState.isSpeaking = localSpeaking;
-          this.localMediaState.audioLevel = localSpeaking ? 50 : 0;
-          this.emit('audio-level', { userId: this.currentUserId, level: this.localMediaState.audioLevel });
         }
       }
       

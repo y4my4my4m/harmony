@@ -48,6 +48,25 @@ export function apiUrl(path: string): string {
   return stored ? `${stored.origin}${path}` : path;
 }
 
+// display domain for handles; VITE_DOMAIN is a build-time placeholder on native, so prefer the stored instance
+export function getInstanceDomain(): string {
+  const stored = getStoredInstance();
+  if (stored) {
+    try {
+      return new URL(stored.origin).host;
+    } catch {
+      /* fall through */
+    }
+  }
+  const baked = import.meta.env.VITE_DOMAIN as string | undefined;
+  if (baked) return baked;
+  if (typeof window !== 'undefined') {
+    const host = window.location.host;
+    if (host && !/^(localhost|127\.|tauri\.localhost)/i.test(host)) return host;
+  }
+  return 'your-instance';
+}
+
 function normalizeOrigin(input: string): string {
   let value = input.trim();
   if (!value) throw new Error('Enter an instance domain');

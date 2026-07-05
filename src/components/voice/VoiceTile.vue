@@ -161,7 +161,7 @@ const effectiveDeafened = computed(() => liveState.value.isDeafened);
 
 const isSpeaking = computed(() => {
   if (isSelf.value) {
-    return liveState.value.audioLevel > 20 && !effectiveMuted.value;
+    return liveState.value.audioLevel > 6 && !effectiveMuted.value;
   }
   return liveState.value.isSpeaking;
 });
@@ -326,6 +326,18 @@ onBeforeUnmount(detach);
 
 .voice-tile.speaking {
   outline-color: #00d4aa;
+}
+
+/* above the banner/video which fill the tile */
+.voice-tile.speaking::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 2px solid #00d4aa;
+  border-radius: 10px;
+  box-shadow: inset 0 0 14px rgba(0, 212, 170, 0.55);
+  pointer-events: none;
+  z-index: 3;
 }
 
 .tile-video {

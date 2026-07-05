@@ -497,9 +497,9 @@ export const useNotificationStore = defineStore('notification', {
       try {
         this.isLoading = true
         debug.log('🔔 Notification Store: Initializing for user:', userId)
-        
-        this.hasPermission = await this.checkNotificationPermission()
-        
+
+        this.hasPermission = await this.requestNativePermissionIfNeeded()
+
         await this.loadPreferences(userId)
         
         await this.fetchNotifications(userId)
@@ -527,9 +527,9 @@ export const useNotificationStore = defineStore('notification', {
       
       try {
         debug.log('🔔 Notification Store: Initializing with unread notifications')
-        
-        this.hasPermission = await this.checkNotificationPermission()
-        
+
+        this.hasPermission = await this.requestNativePermissionIfNeeded()
+
         await this.loadPreferences(userId)
         
         const profileId = await this.getProfileId(userId)
@@ -1250,21 +1250,27 @@ export const useNotificationStore = defineStore('notification', {
       }
     },
 
+    // reads only, never prompts (unprompted requests get flagged as spammy)
     async checkNotificationPermission(): Promise<boolean> {
       if (typeof Notification === 'undefined') {
         return false
       }
 
-      if (Notification.permission === 'granted') {
-        return true
-      }
+      return Notification.permission === 'granted'
+    },
 
-      if (Notification.permission !== 'denied') {
-        const permission = await Notification.requestPermission()
-        return permission === 'granted'
+    // native has no web-push soft-ask banner; ask the OS once post-login. Web
+    // keeps read-only here (its gesture-based soft-ask handles the prompt).
+    async requestNativePermissionIfNeeded(): Promise<boolean> {
+      if (!isTauriRuntime()) return this.checkNotificationPermission()
+      try {
+        const { isPermissionGranted, requestPermission } = await import('@tauri-apps/plugin-notification')
+        if (await isPermissionGranted()) return true
+        return (await requestPermission()) === 'granted'
+      } catch (error) {
+        debug.warn('⚠️ native notification permission request failed:', error)
+        return false
       }
-
-      return false
     },
 
     setupDndCheck() {

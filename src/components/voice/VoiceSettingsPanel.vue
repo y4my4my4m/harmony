@@ -207,6 +207,14 @@
           </div>
         </div>
 
+        <div class="settings-section">
+          <h4 class="section-title">
+            <Icon name="mic" />
+            Input Mode
+          </h4>
+          <VoiceInputModeSettings />
+        </div>
+
         <!-- Keybinds - Hidden on touch devices -->
         <div v-if="!isTouchDevice" class="settings-section keybinds-section">
           <h4 class="section-title">
@@ -281,10 +289,11 @@ import { unifiedWebRTC } from '@/services/unifiedWebRTC';
 import { VoiceSettingsService } from '@/services/VoiceSettingsService';
 import { debug } from '@/utils/debug';
 import Icon from '@/components/common/Icon.vue';
+import VoiceInputModeSettings from './VoiceInputModeSettings.vue';
 
 export default defineComponent({
   name: 'VoiceSettingsPanel',
-  components: { Icon },
+  components: { Icon, VoiceInputModeSettings },
   emits: ['close', 'update-settings'],
   setup(props, { emit }) {
     // Device lists

@@ -52,10 +52,9 @@
       </div>
     </div>
 
-    <!-- Desktop Notifications Section -->
     <div class="settings-section">
       <div class="section-header">
-        <h3 class="section-title">{{ $t('settings.notifications.enableDesktop') }}</h3>
+        <h3 class="section-title">{{ isNativeClient ? 'Enable Notifications' : $t('settings.notifications.enableDesktop') }}</h3>
         <div class="permission-status">
           <div class="permission-info">
             <Icon :name="permissionIcon" :class="permissionClass" />
@@ -227,8 +226,26 @@
       </div>
     </div>
 
-    <!-- Push Notifications Section (Native PWA) -->
-    <div class="settings-section">
+    <!-- native notifications (nativeNotify.ts), not Web Push -->
+    <div v-if="isNativeClient" class="settings-section">
+      <div class="section-header">
+        <h3 class="section-title">
+          <Icon name="smartphone" class="section-icon" />
+          Notifications
+        </h3>
+        <div class="push-status-badge subscribed">
+          <Icon name="check-circle" />
+          <span>Active</span>
+        </div>
+      </div>
+      <p class="section-description">
+        Harmony shows native notifications while the app is running, including in the background.
+        Notifications when the app is fully closed aren't supported yet.
+      </p>
+    </div>
+
+    <!-- Web Push (browser/PWA only) -->
+    <div v-else class="settings-section">
       <div class="section-header">
         <h3 class="section-title">
           <Icon name="smartphone" class="section-icon" />
@@ -240,7 +257,7 @@
         </div>
       </div>
       <p class="section-description">
-        Receive notifications on your device even when the app is closed. 
+        Receive notifications on your device even when the app is closed.
         Works on Android, iOS (PWA required), and desktop browsers.
       </p>
 
@@ -600,6 +617,7 @@ import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
 import Icon from '@/components/common/Icon.vue'
 import { useUserData } from '@/composables/useUserData'
 import { usePushNotifications } from '@/composables/usePushNotifications'
+import { isTauriRuntime } from '@/services/instanceConfig'
 import { useHapticSettings } from '@/composables/useHapticSettings'
 
 // Stores
@@ -608,6 +626,7 @@ const toast = useToast()
 const userData = useUserData()
 const pushNotifications = usePushNotifications()
 const hapticSettings = useHapticSettings()
+const isNativeClient = isTauriRuntime()
 
 // Test haptic feedback
 const testHaptic = () => {
@@ -796,10 +815,8 @@ const permissionClass = computed(() => {
 })
 
 const permissionText = computed(() => {
-  if (hasNotificationPermission.value) {
-    return 'Desktop notifications are enabled'
-  }
-  return 'Desktop notifications require permission'
+  const label = isNativeClient ? 'Notifications' : 'Desktop notifications'
+  return hasNotificationPermission.value ? `${label} are enabled` : `${label} require permission`
 })
 
 // Methods
@@ -854,20 +871,26 @@ const updatePreferences = async () => {
 }
 
 const requestPermission = async () => {
-  if (typeof Notification === 'undefined') {
-    toast.error('Desktop notifications are not supported in this browser')
-    return
-  }
-  
   try {
     isRequestingPermission.value = true
-    const permission = await Notification.requestPermission()
-    hasNotificationPermission.value = permission === 'granted'
-    
-    if (hasNotificationPermission.value) {
-      toast.success('Desktop notification permission granted')
+
+    if (isNativeClient) {
+      const { isPermissionGranted, requestPermission: requestNativePermission } = await import('@tauri-apps/plugin-notification')
+      hasNotificationPermission.value = (await isPermissionGranted())
+        || (await requestNativePermission()) === 'granted'
     } else {
-      toast.error('Desktop notification permission denied')
+      if (typeof Notification === 'undefined') {
+        toast.error('Notifications are not supported in this browser')
+        return
+      }
+      const permission = await Notification.requestPermission()
+      hasNotificationPermission.value = permission === 'granted'
+    }
+
+    if (hasNotificationPermission.value) {
+      toast.success('Notification permission granted')
+    } else {
+      toast.error('Notification permission denied')
     }
   } catch (error) {
     debug.error('Failed to request permission:', error)
@@ -898,10 +921,17 @@ const testNotification = async (type: NotificationType) => {
     
     if (hasNotificationPermission.value) {
       const iconUrl = testData.avatar.value || '/img/app_icon_square.webp'
-      
-      // Mobile PWA notifications must go through the service worker
-      // Direct `new Notification()` doesn't work on mobile
-      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+
+      if (isNativeClient) {
+        const { nativeNotify } = await import('@/services/nativeNotify')
+        await nativeNotify({
+          title: testData.title,
+          sender: testData.title,
+          conversationTitle: '',
+          message: testData.message,
+          avatarUrl: testData.avatar.value,
+        })
+      } else if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
         const registration = await navigator.serviceWorker.ready
         await registration.showNotification(testData.title, {
           body: testData.message,
@@ -1162,8 +1192,17 @@ const formatDate = (dateStr: string): string => {
 }
 
 // Check notification permission on mount
-onMounted(() => {
-  hasNotificationPermission.value = typeof Notification !== 'undefined' && Notification.permission === 'granted'
+onMounted(async () => {
+  if (isNativeClient) {
+    try {
+      const { isPermissionGranted } = await import('@tauri-apps/plugin-notification')
+      hasNotificationPermission.value = await isPermissionGranted()
+    } catch {
+      hasNotificationPermission.value = false
+    }
+  } else {
+    hasNotificationPermission.value = typeof Notification !== 'undefined' && Notification.permission === 'granted'
+  }
   loadPreferences()
   pushNotifications.initialize()
 })

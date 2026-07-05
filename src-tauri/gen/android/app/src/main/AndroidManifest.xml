@@ -11,6 +11,8 @@
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
 
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- navigator.vibrate() (haptic feedback) is a no-op in the WebView without this -->
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <!-- Keep voice alive when the app is backgrounded -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
