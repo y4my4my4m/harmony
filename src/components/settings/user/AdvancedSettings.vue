@@ -106,6 +106,28 @@
           />
         </div>
       </div>
+
+      <template v-if="isTauriDesktop">
+        <div class="setting-item">
+          <div class="setting-info">
+            <h4 class="setting-label">Game activity (rich presence)</h4>
+            <p class="setting-description">Show the game you're playing as your status. Detection runs locally; only the game name is shared, as your status text.</p>
+          </div>
+          <div class="setting-control">
+            <ToggleSwitch v-model="richPresence" @change="onRichPresenceChange" />
+          </div>
+        </div>
+
+        <div class="setting-item">
+          <div class="setting-info">
+            <h4 class="setting-label">In-game voice overlay</h4>
+            <p class="setting-description">Floating, click-through voice tiles over your game while in a call. Press Ctrl+Shift+O to toggle interaction.</p>
+          </div>
+          <div class="setting-control">
+            <ToggleSwitch v-model="gameOverlay" @change="onGameOverlayChange" />
+          </div>
+        </div>
+      </template>
     </div>
 
     <div class="settings-section">
@@ -254,6 +276,9 @@ import { useToast } from 'vue-toastification'
 import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
 import PWAInstallPrompt from '@/components/PWAInstallPrompt.vue'
 import RunOnLoginInstructionsModal from '@/components/RunOnLoginInstructionsModal.vue'
+import { isTauriRuntime } from '@/services/instanceConfig'
+import { isRichPresenceEnabled, setRichPresenceEnabled } from '@/services/nativePresence'
+import { isOverlayEnabled, setOverlayEnabled } from '@/services/overlayBridge'
 import { useDeveloperTools } from '@/composables/useDeveloperTools'
 import { useTodayDashboard } from '@/composables/useTodayDashboard'
 import { todayDigestService } from '@/services/TodayDigestService'
@@ -295,6 +320,13 @@ const settings = ref({
 
 const clearingCache = ref(false)
 const originalSettings = ref({ ...settings.value })
+
+const isAndroidUA = /Android/i.test(navigator.userAgent)
+const isTauriDesktop = computed(() => isTauriRuntime() && !isAndroidUA)
+const richPresence = ref(isRichPresenceEnabled())
+const gameOverlay = ref(isOverlayEnabled())
+function onRichPresenceChange() { setRichPresenceEnabled(richPresence.value) }
+function onGameOverlayChange() { setOverlayEnabled(gameOverlay.value) }
 
 const showRunOnLoginModal = ref(false)
 const runOnLoginEnabled = ref(localStorage.getItem('harmony-run-on-login-enabled') === 'true')
