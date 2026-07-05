@@ -62,6 +62,26 @@ pub fn show_android_notification(
   Ok(())
 }
 
+// start/stop the Android call foreground service (keeps audio alive when backgrounded)
+#[tauri::command]
+pub fn android_call_service(start: bool) -> Result<(), String> {
+  #[cfg(target_os = "android")]
+  {
+    use jni::objects::JObject;
+    let ctx = ndk_context::android_context();
+    let vm = unsafe { jni::JavaVM::from_raw(ctx.vm().cast()) }.map_err(|e| e.to_string())?;
+    let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
+    let activity = unsafe { JObject::from_raw(ctx.context().cast()) };
+    let method = if start { "startCallService" } else { "stopCallService" };
+    env
+      .call_method(activity, method, "()V", &[])
+      .map_err(|e| e.to_string())?;
+  }
+  #[cfg(not(target_os = "android"))]
+  let _ = start;
+  Ok(())
+}
+
 // #RRGGBB status/nav backgrounds; *_dark = dark icons on that bar (for a light bg)
 #[tauri::command]
 pub fn set_system_bar_colors(

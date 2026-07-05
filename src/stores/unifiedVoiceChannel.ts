@@ -11,6 +11,7 @@ import { useSpatialAudioStore } from '@/stores/spatialAudio';
 import { useAuthStore } from '@/stores/auth';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useServerChannelStore } from './useServerChannel';
+import { setCallServiceActive } from '@/services/callForegroundService';
 import { useThemeStore } from '@/stores/useTheme';
 import { useNotificationStore } from '@/stores/useNotification';
 import { useUserData } from '@/composables/useUserData';
@@ -484,6 +485,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       this.isConnected = true;
       this.isConnecting = false;
       this.connectionAbortController = null;
+      setCallServiceActive(true);
       this.sessionStartTime = new Date();
       
       this.optimisticChannelId = null;
@@ -621,6 +623,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
               this.isConnected = true;
               this.isConnecting = false;
               this.connectionAbortController = null;
+              setCallServiceActive(true);
               this.sessionStartTime = new Date();
               this.callStartTime = new Date();
               
@@ -811,6 +814,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         const serverId = this.currentServerId;
         debug.log('👋 Leaving voice channel', wasFederated ? '(federated)' : '(local)');
         this.isConnected = false;
+        setCallServiceActive(false);
         
         this.cleanupFederatedSubscription();
         if (this.pendingFederatedJoin?.timeout) {
@@ -1900,6 +1904,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       this.isConnected = false;
       this.isConnecting = false;
       this.connectionAbortController = null;
+      setCallServiceActive(false);
       this.sessionStartTime = null;
       this.callStartTime = null;
       this.allUsers = [];

@@ -1,6 +1,8 @@
 #[cfg(all(feature = "native-media", target_os = "linux"))]
 mod call_window;
 mod commands;
+#[cfg(desktop)]
+mod overlay;
 
 #[cfg(desktop)]
 fn setup_desktop(app: &tauri::AppHandle) -> tauri::Result<()> {
@@ -41,6 +43,18 @@ fn setup_desktop(app: &tauri::AppHandle) -> tauri::Result<()> {
     })
     .build(app)?;
 
+  // hotkey toggles overlay click-through <-> interactive (non-fatal if it fails)
+  {
+    use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
+    if let Err(e) = app.global_shortcut().on_shortcut("CmdOrCtrl+Shift+O", |app, _shortcut, event| {
+      if event.state() == ShortcutState::Pressed {
+        crate::overlay::toggle_interactive(app);
+      }
+    }) {
+      eprintln!("[overlay] failed to register hotkey: {e}");
+    }
+  }
+
   // X on the main window minimizes to tray instead of quitting (Discord-style)
   if let Some(win) = app.get_webview_window("main") {
     let w = win.clone();
@@ -80,7 +94,8 @@ pub fn run() {
     .plugin(tauri_plugin_autostart::init(
       tauri_plugin_autostart::MacosLauncher::LaunchAgent,
       Some(vec!["--minimized"]),
-    ));
+    ))
+    .plugin(tauri_plugin_global_shortcut::Builder::new().build());
 
   let builder = builder
     .plugin(tauri_plugin_fs::init())
@@ -90,11 +105,17 @@ pub fn run() {
       #[cfg(all(feature = "native-media", target_os = "linux"))]
       commands::media::init(&app.handle().clone());
       #[cfg(desktop)]
-      setup_desktop(&app.handle().clone())?;
+      {
+        use tauri::Manager;
+        app.manage(commands::presence::PresenceState::default());
+        app.manage(overlay::OverlayInteractive::default());
+        setup_desktop(&app.handle().clone())?;
+      }
       let _ = app;
       Ok(())
     });
 
+  // desktop + linux native media engine
   #[cfg(all(feature = "native-media", target_os = "linux"))]
   let builder = builder.invoke_handler(tauri::generate_handler![
     commands::media::native_media_supported,
@@ -116,13 +137,34 @@ pub fn run() {
     commands::media::call_window_open,
     commands::media::call_window_close,
     commands::media::set_system_bar_colors,
-    commands::media::show_android_notification
+    commands::media::show_android_notification,
+    commands::presence::presence_start,
+    commands::presence::presence_stop,
+    commands::presence::presence_current,
+    overlay::overlay_open,
+    overlay::overlay_close,
+    overlay::overlay_set_interactive
   ]);
-  #[cfg(not(all(feature = "native-media", target_os = "linux")))]
+  // desktop without the linux native engine (windows/macos, or linux feature-off)
+  #[cfg(all(desktop, not(all(feature = "native-media", target_os = "linux"))))]
   let builder = builder.invoke_handler(tauri::generate_handler![
     commands::media::native_media_supported,
     commands::media::set_system_bar_colors,
-    commands::media::show_android_notification
+    commands::media::show_android_notification,
+    commands::presence::presence_start,
+    commands::presence::presence_stop,
+    commands::presence::presence_current,
+    overlay::overlay_open,
+    overlay::overlay_close,
+    overlay::overlay_set_interactive
+  ]);
+  // mobile (android/ios) — no desktop-only commands
+  #[cfg(mobile)]
+  let builder = builder.invoke_handler(tauri::generate_handler![
+    commands::media::native_media_supported,
+    commands::media::set_system_bar_colors,
+    commands::media::show_android_notification,
+    commands::media::android_call_service
   ]);
 
   builder

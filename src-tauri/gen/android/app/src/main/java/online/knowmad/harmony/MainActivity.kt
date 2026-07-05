@@ -124,6 +124,15 @@ class MainActivity : TauriActivity() {
       .start()
   }
 
+  fun startCallService() {
+    val i = Intent(this, CallForegroundService::class.java)
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(i) else startService(i)
+  }
+
+  fun stopCallService() {
+    stopService(Intent(this, CallForegroundService::class.java))
+  }
+
   private fun download(url: String): Bitmap? =
     if (url.isEmpty()) {
       null

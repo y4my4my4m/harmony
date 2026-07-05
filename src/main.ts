@@ -137,4 +137,11 @@ async function initializeApp() {
   }
 }
 
-initializeApp()
+// The transparent game overlay loads this same bundle at index.html?overlay=1;
+// mount the lightweight overlay app instead of the full client.
+if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('overlay') === '1') {
+  import('./overlay/mountOverlay').then(m => m.mountOverlay()).catch(err => debug.error('overlay mount failed', err))
+} else {
+  initializeApp()
+  import('@/services/nativePresence').then(m => m.initRichPresence()).catch(() => {})
+}

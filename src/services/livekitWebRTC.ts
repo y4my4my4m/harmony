@@ -687,14 +687,22 @@ export class LiveKitWebRTCService {
    */
   private async publishLocalAudio(): Promise<void> {
     if (!this.room?.localParticipant) return;
-    
+
+    // Guard against a mic acquisition that never resolves (no device / a
+    // permission prompt that hangs, common on Android) so the join always
+    // completes — listen-only if the mic never comes up.
+    const trackPromise = createLocalAudioTrack({
+      echoCancellation: this.audioConstraints.echoCancellation,
+      noiseSuppression: this.audioConstraints.noiseSuppression,
+      autoGainControl: this.audioConstraints.autoGainControl,
+      deviceId: this.selectedInputDevice || undefined,
+    });
     try {
-      const audioTrack = await createLocalAudioTrack({
-        echoCancellation: this.audioConstraints.echoCancellation,
-        noiseSuppression: this.audioConstraints.noiseSuppression,
-        autoGainControl: this.audioConstraints.autoGainControl,
-        deviceId: this.selectedInputDevice || undefined,
-      });
+      const audioTrack = await Promise.race([
+        trackPromise,
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Microphone acquisition timed out')), 8000)),
+      ]);
       
       // Convert kbps to bps for LiveKit (settings stored in kbps, LiveKit expects bps)
       const audioBitrateBps = (this.streamQualitySettings.audioBitrate || 128) * 1000;
@@ -719,6 +727,8 @@ export class LiveKitWebRTCService {
     } catch (error) {
       // No microphone available - allow joining but force mute
       debug.warn('⚠️ [LiveKit] No microphone available, joining in muted state:', error);
+      // If the track resolves after the timeout, stop it so it doesn't hold the device
+      trackPromise.then(t => t.stop()).catch(() => {});
       this.localMediaState.isMuted = true;
       this.localMediaState.isAudioEnabled = false;
       this.emit('local-state-changed', this.localMediaState);
