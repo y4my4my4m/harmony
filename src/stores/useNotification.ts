@@ -4,6 +4,8 @@ import router from '@/router'
 import { useAuthStore } from './auth'
 import { viewContextTracker } from '@/services/ViewContextTracker'
 import { NotificationFormatter } from '@/services/NotificationFormatter'
+import { nativeNotify } from '@/services/nativeNotify'
+import { isTauriRuntime } from '@/services/instanceConfig'
 import { getEmojiUrl } from '@/utils/emojiUtils'
 import { services } from '@/services'
 import { authContextService } from '@/services/AuthContextService'
@@ -495,9 +497,9 @@ export const useNotificationStore = defineStore('notification', {
       try {
         this.isLoading = true
         debug.log('🔔 Notification Store: Initializing for user:', userId)
-        
-        this.hasPermission = await this.checkNotificationPermission()
-        
+
+        this.hasPermission = await this.requestNativePermissionIfNeeded()
+
         await this.loadPreferences(userId)
         
         await this.fetchNotifications(userId)
@@ -525,9 +527,9 @@ export const useNotificationStore = defineStore('notification', {
       
       try {
         debug.log('🔔 Notification Store: Initializing with unread notifications')
-        
-        this.hasPermission = await this.checkNotificationPermission()
-        
+
+        this.hasPermission = await this.requestNativePermissionIfNeeded()
+
         await this.loadPreferences(userId)
         
         const profileId = await this.getProfileId(userId)
@@ -912,14 +914,6 @@ export const useNotificationStore = defineStore('notification', {
      */
     async showDesktopNotification(notification: Notification, formatted?: any) {
       try {
-        if (typeof Notification === 'undefined') {
-          return
-        }
-
-        if (Notification.permission !== 'granted') {
-          return
-        }
-
         // Only show desktop notifications when the tab is hidden/inactive
         // (in-app toasts handle notifications while the tab is visible)
         if (!document.hidden) {
@@ -928,6 +922,77 @@ export const useNotificationStore = defineStore('notification', {
 
         if (!formatted) {
           formatted = NotificationFormatter.formatNotification(notification)
+        }
+
+        // Native (Tauri) clients have no service worker; use the OS notification plugin
+        if (isTauriRuntime()) {
+          const data: any = notification.data || {}
+          const actor = data.actor || data.reactor || data.sender || {}
+          const sender =
+            actor.display_name || actor.username || data.sender_display_name || data.display_name || formatted.title
+          const serverName = data.server_name || data.location?.server_name || ''
+          const channelName = data.channel_name || data.location?.channel_name || ''
+          const conversationTitle = serverName
+            ? channelName ? `${serverName} #${channelName}` : serverName
+            : channelName ? `#${channelName}` : ''
+          const groupKey =
+            data.server_id || data.conversation_id || data.channel_id || notification.type || ''
+
+          // MessagingStyle shows sender+message only (no title line), so for
+          // types where the message body is *your* content being acted on, a
+          // bare preview reads as if the actor wrote it. Prefix the action.
+          const contentAction: Record<string, string> = {
+            reaction: 'Reacted to your message',
+            activitypub_reaction: 'Reacted to your post',
+            activitypub_favorite: 'Favorited your post',
+            activitypub_reblog: 'Reblogged your post',
+          }
+          let message = formatted.message
+          const action = contentAction[notification.type]
+          if (action) {
+            let emojiPrefix = ''
+            if (notification.type === 'reaction' || notification.type === 'activitypub_reaction') {
+              const reactionData = data.reaction || data
+              const emojiUrl = reactionData?.emoji_url || data.emoji_url
+              const emojiName = reactionData?.emoji_name || reactionData?.custom_emoji_content || data.emoji_name
+              // native unicode emoji renders as text; custom image emoji can't, so omit
+              if (emojiName && !emojiUrl) emojiPrefix = emojiName + ' '
+            }
+            message = `${emojiPrefix}${action}: ${formatted.message}`
+          }
+
+          // large icon: server icon for server mentions, sender avatar for DMs/other
+          const senderAvatar = NotificationFormatter.getAvatarUrl(notification)
+          const serverId = data.server_id || data.location?.server_id
+          let largeIconUrl = senderAvatar
+          if (serverId) {
+            try {
+              const { useServerChannelStore } = await import('@/stores/useServerChannel')
+              const { getServerIconUrl } = await import('@/utils/serverUtils')
+              const server = useServerChannelStore().servers.find((s: any) => s.id === serverId)
+              if (server?.icon) largeIconUrl = getServerIconUrl(server.icon, 256)
+            } catch {
+              /* fall back to sender avatar */
+            }
+          }
+          await nativeNotify({
+            title: formatted.title,
+            sender,
+            conversationTitle,
+            message,
+            avatarUrl: senderAvatar,
+            largeIconUrl,
+            groupKey,
+          })
+          return
+        }
+
+        if (typeof Notification === 'undefined') {
+          return
+        }
+
+        if (Notification.permission !== 'granted') {
+          return
         }
 
         // Use per-context tags so new notifications from the same source replace the previous one
@@ -1209,21 +1274,27 @@ export const useNotificationStore = defineStore('notification', {
       }
     },
 
+    // reads only, never prompts (unprompted requests get flagged as spammy)
     async checkNotificationPermission(): Promise<boolean> {
       if (typeof Notification === 'undefined') {
         return false
       }
 
-      if (Notification.permission === 'granted') {
-        return true
-      }
+      return Notification.permission === 'granted'
+    },
 
-      if (Notification.permission !== 'denied') {
-        const permission = await Notification.requestPermission()
-        return permission === 'granted'
+    // native has no web-push soft-ask banner; ask the OS once post-login. Web
+    // keeps read-only here (its gesture-based soft-ask handles the prompt).
+    async requestNativePermissionIfNeeded(): Promise<boolean> {
+      if (!isTauriRuntime()) return this.checkNotificationPermission()
+      try {
+        const { isPermissionGranted, requestPermission } = await import('@tauri-apps/plugin-notification')
+        if (await isPermissionGranted()) return true
+        return (await requestPermission()) === 'granted'
+      } catch (error) {
+        debug.warn('⚠️ native notification permission request failed:', error)
+        return false
       }
-
-      return false
     },
 
     setupDndCheck() {

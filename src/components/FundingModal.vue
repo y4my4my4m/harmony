@@ -178,6 +178,7 @@ import PlatformIcon from '@/components/common/PlatformIcon.vue'
 import Icon from '@/components/common/Icon.vue'
 import { supabase } from '@/supabase'
 import { useProfileStore } from '@/stores/useProfile'
+import { getInstanceDomain } from '@/services/instanceConfig'
 
 const profileStore = useProfileStore()
 
@@ -200,9 +201,7 @@ const linkPlatformKey = (platform: string): string => normalizeKey(platform)
 const platformLabel = (platform: string): string =>
   PLATFORM_LABELS[normalizeKey(platform)] ?? platform
 
-const instanceDomain = computed(() =>
-  (import.meta.env.VITE_DOMAIN as string | undefined) ?? 'your-instance'
-)
+const instanceDomain = computed(() => getInstanceDomain())
 
 const currentUserHandle = computed(() => profileStore.profile?.username ?? '')
 

@@ -351,7 +351,7 @@
         >
           <div class="media-frame">
             <AttachmentRemoveButton
-              v-if="canEditAttachments"
+              v-if="canEditAttachments && !isAnimatedImage(part.url) && !isStickerMedia(part.url)"
               @click="requestRemoveAttachment(part.url)"
             />
             <div v-if="!imageLoadedState[part.url]" class="media-skeleton image-skeleton"></div>
@@ -411,7 +411,7 @@
         >
           <div class="media-frame">
             <AttachmentRemoveButton
-              v-if="canEditAttachments"
+              v-if="canEditAttachments && !isKlipyMedia(part.url)"
               @click="requestRemoveAttachment(part.url)"
             />
             <video

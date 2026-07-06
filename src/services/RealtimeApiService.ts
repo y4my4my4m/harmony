@@ -1,7 +1,8 @@
 import { supabase } from '@/supabase'
+import { apiUrl } from '@/services/instanceConfig';
 import { debug } from '@/utils/debug'
 
-const API_BASE = '/api/federation/realtime'
+const API_BASE = apiUrl('/api/federation/realtime')
 
 type PresenceStatus = 'online' | 'idle' | 'dnd' | 'offline' | 'invisible'
 

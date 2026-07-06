@@ -415,6 +415,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
+import { apiUrl } from '@/services/instanceConfig';
 import { debug } from '@/utils/debug'
 import { escapeHtml } from '@/utils/sanitize'
 import DOMPurify from 'dompurify'
@@ -657,7 +658,7 @@ async function loadInstanceInfo(domain: string) {
   isLoadingInstanceInfo.value = true
   try {
     // Proxy through federation backend to avoid browser CORS blocking
-    const probeRes = await fetch(`/api/federation/instances/probe?domain=${encodeURIComponent(domain)}`, {
+    const probeRes = await fetch(apiUrl(`/api/federation/instances/probe?domain=${encodeURIComponent(domain)}`), {
       headers: { Accept: 'application/json' },
       signal: AbortSignal.timeout(15000),
     })

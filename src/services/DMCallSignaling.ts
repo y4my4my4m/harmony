@@ -12,6 +12,7 @@
  */
 
 import { ref } from 'vue'
+import { apiUrl } from '@/services/instanceConfig';
 import { supabase } from '@/supabase'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { authContextService } from './AuthContextService'
@@ -883,7 +884,7 @@ class DMCallSignalingService {
     debug.log('📞 [Federated] Initiating federated call to:', calleeFederatedId)
     
     try {
-      const configResponse = await fetch('/api/livekit/config')
+      const configResponse = await fetch(apiUrl('/api/livekit/config'))
       const config = await configResponse.json()
       
       if (!config.enabled || !config.wsUrl) {
@@ -899,7 +900,7 @@ class DMCallSignalingService {
         return null
       }
       
-      const tokenResponse = await fetch('/api/livekit/token', {
+      const tokenResponse = await fetch(apiUrl('/api/livekit/token'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -918,7 +919,7 @@ class DMCallSignalingService {
       
       // Send federated call invite via ActivityPub
       // This is handled by the federation backend
-      const inviteResponse = await fetch('/api/livekit/federated-call/invite', {
+      const inviteResponse = await fetch(apiUrl('/api/livekit/federated-call/invite'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1012,7 +1013,7 @@ class DMCallSignalingService {
         return null
       }
       
-      await fetch('/api/livekit/federated-call/accept', {
+      await fetch(apiUrl('/api/livekit/federated-call/accept'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1053,7 +1054,7 @@ class DMCallSignalingService {
       
       const { data: { session } } = await supabase.auth.getSession()
       if (session?.access_token) {
-        await fetch('/api/livekit/federated-call/reject', {
+        await fetch(apiUrl('/api/livekit/federated-call/reject'), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -1091,7 +1092,7 @@ class DMCallSignalingService {
       
       const { data: { session } } = await supabase.auth.getSession()
       if (session?.access_token) {
-        await fetch('/api/livekit/federated-call/end', {
+        await fetch(apiUrl('/api/livekit/federated-call/end'), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

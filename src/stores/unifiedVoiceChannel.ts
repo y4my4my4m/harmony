@@ -1,6 +1,8 @@
 import { defineStore } from 'pinia';
+import { apiUrl } from '@/services/instanceConfig';
 import { nextTick } from 'vue';
 import { webrtcManager } from '@/services/webrtcManager';
+import { nativeLiveKit, type NativeScreenSource } from '@/services/nativeLiveKit';
 import type { UserMediaState } from '@/services/unifiedWebRTC';
 import type { VideoSource } from '@/services/livekitWebRTC';
 import { spatialAudioService } from '@/services/spatialAudio';
@@ -9,6 +11,8 @@ import { useSpatialAudioStore } from '@/stores/spatialAudio';
 import { useAuthStore } from '@/stores/auth';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useServerChannelStore } from './useServerChannel';
+import { setCallServiceActive } from '@/services/callForegroundService';
+import { syncOverlayForCall } from '@/services/overlayBridge';
 import { useThemeStore } from '@/stores/useTheme';
 import { useNotificationStore } from '@/stores/useNotification';
 import { useUserData } from '@/composables/useUserData';
@@ -67,6 +71,8 @@ interface VoiceChannelState {
   recentSpeakers: RecentSpeaker[];
   
   isOverlayVisible: boolean;
+  // native (Linux X11) screenshare source picker
+  screenSourcePicker: { visible: boolean; sources: NativeScreenSource[] };
   layoutMode: 'grid' | 'speaker' | 'gallery';
   viewMode: 'normal' | 'maximized' | 'fullscreen';
   fullscreenUserId: string | null;
@@ -86,7 +92,7 @@ interface VoiceChannelState {
   streamUpdateCounter: number;
   
   // Active WebRTC transport ('livekit' for SFU, 'p2p' for peer-to-peer, null when disconnected)
-  connectionMode: 'livekit' | 'p2p' | null;
+  connectionMode: 'livekit' | 'p2p' | 'native' | null;
 
   // Whether the active call's media is end-to-end encrypted (SFU/LiveKit only for now).
   isEncrypted: boolean;
@@ -138,6 +144,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     recentSpeakers: [],
     
     isOverlayVisible: false,
+    screenSourcePicker: { visible: false, sources: [] },
     layoutMode: 'grid',
     viewMode: 'normal',
     fullscreenUserId: null,
@@ -479,6 +486,8 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       this.isConnected = true;
       this.isConnecting = false;
       this.connectionAbortController = null;
+      setCallServiceActive(true);
+      syncOverlayForCall(true);
       this.sessionStartTime = new Date();
       
       this.optimisticChannelId = null;
@@ -616,6 +625,8 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
               this.isConnected = true;
               this.isConnecting = false;
               this.connectionAbortController = null;
+              setCallServiceActive(true);
+              syncOverlayForCall(true);
               this.sessionStartTime = new Date();
               this.callStartTime = new Date();
               
@@ -667,7 +678,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
               return;
             }
             
-            const response = await fetch('/api/federation/voice/join', {
+            const response = await fetch(apiUrl('/api/federation/voice/join'), {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -806,6 +817,8 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         const serverId = this.currentServerId;
         debug.log('👋 Leaving voice channel', wasFederated ? '(federated)' : '(local)');
         this.isConnected = false;
+        setCallServiceActive(false);
+        syncOverlayForCall(false);
         
         this.cleanupFederatedSubscription();
         if (this.pendingFederatedJoin?.timeout) {
@@ -857,7 +870,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           if (wasFederated) {
             const session = await supabase.auth.getSession();
             if (session.data.session) {
-              fetch('/api/federation/voice/leave', {
+              fetch(apiUrl('/api/federation/voice/leave'), {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
@@ -904,7 +917,26 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     },
 
     async toggleScreenShare(): Promise<boolean> {
-      const enabled = await webrtcManager.toggleScreenShare();
+      // Native (Linux X11) has no OS screenshare picker, so offer an in-app one
+      // before starting. Wayland returns no sources (its portal picks), and
+      // stopping never needs a picker.
+      if (webrtcManager.isNativeBackend() && !this.localState.isScreenSharing) {
+        const sources = await nativeLiveKit.listScreenSources();
+        if (sources.length > 1) {
+          this.screenSourcePicker = { visible: true, sources };
+          return false;
+        }
+      }
+      return this.startScreenShare();
+    },
+
+    /** Actually start/stop screenshare; `source` picks the display on native X11. */
+    async startScreenShare(source?: NativeScreenSource): Promise<boolean> {
+      this.screenSourcePicker = { visible: false, sources: [] };
+
+      const enabled = webrtcManager.isNativeBackend()
+        ? await nativeLiveKit.toggleScreenShare(source)
+        : await webrtcManager.toggleScreenShare();
 
       this.localState = webrtcManager.getLocalState();
       this.localStream = webrtcManager.getLocalStream();
@@ -915,10 +947,14 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         videoTracks: this.localStream?.getVideoTracks().length || 0,
         audioTracks: this.localStream?.getAudioTracks().length || 0
       });
-      
+
       this.refreshStreamState();
-      
+
       return enabled;
+    },
+
+    cancelScreenSharePicker(): void {
+      this.screenSourcePicker = { visible: false, sources: [] };
     },
 
     /**
@@ -1872,6 +1908,8 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       this.isConnected = false;
       this.isConnecting = false;
       this.connectionAbortController = null;
+      setCallServiceActive(false);
+      syncOverlayForCall(false);
       this.sessionStartTime = null;
       this.callStartTime = null;
       this.allUsers = [];

@@ -568,7 +568,6 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border-top: 1px solid var(--border-color);
 }
 
 .chat-header-container {

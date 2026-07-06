@@ -4,6 +4,7 @@
  */
 
 import { supabase } from '@/supabase';
+import { apiUrl } from '@/services/instanceConfig';
 import { debug } from '@/utils/debug'
 
 export interface SystemStats {
@@ -1709,7 +1710,7 @@ class AdminService {
       const cleanDomain = domain.replace(/^https?:\/\//, '').replace(/\/$/, '').toLowerCase();
       debug.log(`Probing instance via backend proxy: ${cleanDomain}`);
 
-      const response = await fetch(`/api/federation/instances/probe?domain=${encodeURIComponent(cleanDomain)}`, {
+      const response = await fetch(apiUrl(`/api/federation/instances/probe?domain=${encodeURIComponent(cleanDomain)}`), {
         headers: { 'Accept': 'application/json' },
         signal: AbortSignal.timeout(30000),
       });
@@ -2107,7 +2108,7 @@ class AdminService {
       if (!session?.access_token) {
         throw new Error('Not authenticated');
       }
-      const response = await fetch('/api/federation/health/key-consistency', {
+      const response = await fetch(apiUrl('/api/federation/health/key-consistency'), {
         headers: {
           Authorization: `Bearer ${session.access_token}`,
         },
@@ -2145,7 +2146,7 @@ class AdminService {
       if (!session?.access_token) {
         return { success: false, message: 'Not authenticated' };
       }
-      const response = await fetch('/api/federation/health/maintenance', {
+      const response = await fetch(apiUrl('/api/federation/health/maintenance'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

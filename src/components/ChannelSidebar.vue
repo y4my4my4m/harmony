@@ -464,6 +464,9 @@ const dragState = ref<DragState>({
   isOver: false,
 });
 
+const frozenOrphans = ref<Channel[] | null>(null);
+const frozenCategoryChannels = ref<Map<string, Channel[]>>(new Map());
+
 // Stores and Composables
 const serverChannelStore = useServerChannelStore();
 const router = useRouter();
@@ -525,6 +528,7 @@ const collapsedCategories = ref(new Set<string>());
 
 const orphanChannels = computed({
   get: () => {
+    if (dragState.value.isDragging && frozenOrphans.value) return frozenOrphans.value;
     if (!props.channels || !Array.isArray(props.channels)) return [];
     const categoryChannelIds = new Set(Object.values(props.categoryChannels || {}).flat().map(c => c.id));
     return props.channels
@@ -545,6 +549,9 @@ const categoryChannelsCache = ref<Map<string, any>>(new Map());
 const getCategoryChannelsComputed = (categoryId: string) => {
   return computed({
     get: () => {
+      if (dragState.value.isDragging && frozenCategoryChannels.value.has(categoryId)) {
+        return frozenCategoryChannels.value.get(categoryId)!;
+      }
       const categoryChannels = props.categoryChannels?.[categoryId] || [];
       const channelsInCategory = props.channels
         .filter(channel => categoryChannels.some(catChannel => catChannel.id === channel.id))
@@ -622,7 +629,15 @@ const onDragStart = (evt: any) => {
     evt.preventDefault();
     return false;
   }
-  
+
+  // Snapshot the live lists while isDragging is still false, then freeze.
+  frozenOrphans.value = [...orphanChannels.value];
+  const snapshot = new Map<string, Channel[]>();
+  for (const cat of storeCategories.value) {
+    snapshot.set(cat.id, [...getCachedCategoryChannels(cat.id).value]);
+  }
+  frozenCategoryChannels.value = snapshot;
+
   dragState.value = {
     isDragging: true,
     draggedItem: draggedChannel,
@@ -636,6 +651,8 @@ const onDragStart = (evt: any) => {
 const onDragEnd = () => {
   document.body.classList.remove('dragging-channel');
   dragState.value = { isDragging: false, draggedItem: null, sourceCategoryId: null, targetCategoryId: null, isOver: false };
+  frozenOrphans.value = null;
+  frozenCategoryChannels.value = new Map();
 };
 
 const onChannelAddedToCategory = async (evt: { item: HTMLElement }, categoryId: string) => {

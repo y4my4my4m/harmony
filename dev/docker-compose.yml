@@ -3,7 +3,7 @@ version: "3.8"
 # =============================================================================
 # HARMONY LOCAL DEVELOPMENT ENVIRONMENT
 # =============================================================================
-# 
+#
 # This docker-compose provides:
 # - Caddy reverse proxy with HTTPS (using mkcert certificates)
 # - Federation backend (in Docker to access PostgreSQL for the BullMQ LISTEN/NOTIFY bridge)
@@ -78,6 +78,7 @@ services:
       - DATABASE_URL=postgresql://supabase_admin:${POSTGRES_PASSWORD:-your-super-secret-and-long-postgres-password}@supabase-db:5432/postgres
       - LIVEKIT_URL=ws://harmony-livekit:7880
       - CORS_ORIGIN=https://har.mony.local
+      - REDIS_URL=redis://:YOUR_REDIS_PASSWORD_HERE@harmony-livekit-redis:6379
     volumes:
       # Mount source for hot-reload with tsx watch
       - ../federation-backend/src:/app/src
@@ -85,6 +86,7 @@ services:
     networks:
       - harmony-dev
       - supabase_default
+      - harmony-webrtc
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
@@ -93,6 +95,9 @@ networks:
     driver: bridge
   supabase_default:
     external: true
+  harmony-webrtc:
+    external: true
+    name: webrtc_harmony-webrtc
 
 volumes:
   caddy-data:

@@ -383,6 +383,7 @@ import { fundingService, type SupporterBadge, type DonationRecord, type FundingL
 import { supabase } from '@/supabase'
 import { useAutoSuggest } from '@/composables/useAutoSuggest'
 import { userDataService } from '@/services/userDataService'
+import { getInstanceDomain } from '@/services/instanceConfig'
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import { useEmojiCacheStore } from '@/stores/useEmojiCache'
 import { useToast } from 'vue-toastification'
@@ -778,9 +779,7 @@ const fundingLinks = ref<FundingLink[]>([])
 // Used by the donor-handle callout in the Support section. Pulls from the
 // loaded profile (already passed in via props) so the user sees their own
 // handle pre-filled and can copy with one click.
-const supporterInstanceDomain = computed(() =>
-  (import.meta.env.VITE_DOMAIN as string | undefined) ?? 'your-instance'
-)
+const supporterInstanceDomain = computed(() => getInstanceDomain())
 const currentUserHandleShort = computed(() => props.profile?.username ?? '')
 const copyCurrentSupportHandle = async () => {
   if (!currentUserHandleShort.value) return

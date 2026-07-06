@@ -1,6 +1,7 @@
 // ActivityPub Service - Database operations for posts, interactions, and follows
 // Triggers handle federation automatically - no client-side federation needed
 import { supabase } from '@/supabase';
+import { apiUrl } from '@/services/instanceConfig';
 import { trendingService } from './TrendingService';
 
 const POST_AUTHOR_EMBED = `
@@ -613,7 +614,7 @@ export class ActivityPubService {
   async probeInstanceHealth(domain: string): Promise<'online' | 'offline'> {
     try {
       const cleanDomain = domain.replace(/^https?:\/\//, '').replace(/\/$/, '').toLowerCase();
-      const res = await fetch(`/api/federation/instances/health?domain=${encodeURIComponent(cleanDomain)}`, {
+      const res = await fetch(apiUrl(`/api/federation/instances/health?domain=${encodeURIComponent(cleanDomain)}`), {
         headers: { Accept: 'application/json' },
         signal: AbortSignal.timeout(15000),
       });

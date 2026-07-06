@@ -12,6 +12,11 @@ import { debug } from '@/utils/debug';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import router from '@/router';
 
+// Channel ids we just wrote during a local reorder, with an expiry. Their realtime
+// echoes are skipped so the sidebar doesn't re-sort/re-render on our own writes.
+const pendingReorderWrites = new Map<string, number>();
+const REORDER_ECHO_TTL = 5000;
+
 export const useServerChannelStore = defineStore('serverChannel', {
   state: () => ({
     servers: [] as Server[],
@@ -660,33 +665,52 @@ export const useServerChannelStore = defineStore('serverChannel', {
       const originalCategoryChannels = { ...this.categoryChannels }
 
       try {
+        // Category membership only changes on a cross-category move; a same-category
+        // reorder needs no categoryChannels rebuild (getters read order off channels).
+        const membershipChanged = channels.some(ch => {
+          const before = originalChannels.find(c => c.id === ch.id)
+          return (before?.category ?? null) !== (categoryId ?? null)
+        })
+
         const updateMap = new Map(channels.map((channel, index) => [channel.id, { order: index, category: categoryId }]))
         this.channels = this.channels.map(channel => {
           const update = updateMap.get(channel.id)
           return update ? { ...channel, order: update.order, category: update.category } : channel
         })
 
-        this.refreshCategoryChannels()
+        if (membershipChanged) this.refreshCategoryChannels()
 
-        for (let i = 0; i < channels.length; i++) {
-          const channel = channels[i]
-          const { error } = await supabase
-            .from('channels')
-            .update({ 
-              order: i, 
-              category: categoryId 
-            })
-            .eq('id', channel.id)
-
-          if (error) {
-            throw new Error(`Channel order update failed for ${channel.id}: ${error.message}`)
-          }
-        }
+        await this._persistChannelOrder(channels, categoryId, originalChannels)
       } catch (error) {
         debug.log('🔄 Rolling back optimistic channel order due to error')
         this.channels = originalChannels
         this.categoryChannels = originalCategoryChannels
         throw error
+      }
+    },
+
+    // Write only changed rows, in parallel; sequential full writes echoed N realtime events and lagged the drop.
+    async _persistChannelOrder(channels: Channel[], categoryId: string | null, originalChannels: Channel[]): Promise<void> {
+      const beforeById = new Map(originalChannels.map(c => [c.id, c]))
+      const changed = channels
+        .map((channel, index) => ({ channel, index }))
+        .filter(({ channel, index }) => {
+          const before = beforeById.get(channel.id)
+          return !before || (before.order || 0) !== index || (before.category ?? null) !== (categoryId ?? null)
+        })
+
+      const expiry = Date.now() + REORDER_ECHO_TTL
+      for (const { channel } of changed) pendingReorderWrites.set(channel.id, expiry)
+
+      const results = await Promise.all(
+        changed.map(({ channel, index }) =>
+          supabase.from('channels').update({ order: index, category: categoryId }).eq('id', channel.id)
+        )
+      )
+      const failed = results.find(r => r.error)
+      if (failed?.error) {
+        for (const { channel } of changed) pendingReorderWrites.delete(channel.id)
+        throw new Error(`Channel order update failed: ${failed.error.message}`)
       }
     },
 
@@ -706,21 +730,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
 
         this.refreshCategoryChannels()
 
-        for (let i = 0; i < channels.length; i++) {
-          const channel = channels[i]
-          const { error } = await supabase
-            .from('channels')
-            .update({ 
-              order: i, 
-              category: categoryId 
-            })
-            .eq('id', channel.id)
-
-          if (error) {
-            debug.error(`Error updating channel ${channel.id}:`, error)
-            throw error
-          }
-        }
+        await this._persistChannelOrder(channels, categoryId, originalChannels)
 
         debug.log(`✅ Successfully updated order for ${channels.length} channels`)
       } catch (error) {
@@ -1892,8 +1902,16 @@ export const useServerChannelStore = defineStore('serverChannel', {
     _handleChannelUpdate(payload: any): void {
       const updatedChannel = payload.new as Channel;
       const oldChannel = payload.old as Channel;
+
+      // Skip the echo of our own optimistic reorder write - already applied locally.
+      const pendingExpiry = pendingReorderWrites.get(updatedChannel.id);
+      if (pendingExpiry !== undefined) {
+        pendingReorderWrites.delete(updatedChannel.id);
+        if (pendingExpiry > Date.now()) return;
+      }
+
       debug.log('📝 Real-time: Channel updated:', updatedChannel.name);
-      
+
       const channelIndex = this.channels.findIndex(c => c.id === updatedChannel.id);
       if (channelIndex !== -1) {
         this.channels[channelIndex] = { ...this.channels[channelIndex], ...updatedChannel };

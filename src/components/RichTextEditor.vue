@@ -134,23 +134,30 @@ const getPlainText = (): string => {
   if (!editorRef.value) return '';
   
   let text = '';
-  
+  let lastWasMention = false;
+  const MERGEABLE_AFTER_MENTION = /[A-Za-z0-9._@-]/;
+
   const processNode = (node: Node) => {
     if (node.nodeType === Node.TEXT_NODE) {
       const content = node.textContent || '';
+      if (lastWasMention && content && MERGEABLE_AFTER_MENTION.test(content[0])) {
+        text += ' ';
+      }
+      lastWasMention = false;
       // Always add text content (including whitespace/newlines)
       text += content;
     } else if (node.nodeType === Node.ELEMENT_NODE) {
       const el = node as HTMLElement;
-      
+
       if (el.classList.contains('editor-emoji')) {
+        lastWasMention = false;
         const emojiName = el.getAttribute('data-emoji');
         if (emojiName) {
           text += `:${emojiName}:`;
         }
       } else if (el.classList.contains('editor-mention')) {
         const displayText = el.getAttribute('data-display-text');
-        
+
         if (displayText) {
           // Use the display text (@username or @username@domain) for message parsing
           text += displayText;
@@ -158,7 +165,9 @@ const getPlainText = (): string => {
           // Fallback to element text content
           text += el.textContent || '';
         }
+        lastWasMention = true;
       } else if (el.classList.contains('editor-blockquote')) {
+        lastWasMention = false;
         const lineEls = el.querySelectorAll(':scope > .editor-blockquote-line');
         lineEls.forEach((lineEl, index) => {
           if (index > 0) text += '\n';
@@ -176,8 +185,10 @@ const getPlainText = (): string => {
           processNode(child);
         }
       } else if (el.tagName === 'BR') {
+        lastWasMention = false;
         text += '\n';
       } else if (el.tagName === 'DIV' || el.tagName === 'P') {
+        lastWasMention = false;
         // Block elements created by some browsers (Chrome uses <div> for Enter)
         if (text.length > 0 && !text.endsWith('\n')) {
           text += '\n';

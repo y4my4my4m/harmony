@@ -551,9 +551,13 @@ export class ActivityProcessor {
           return;
         }
 
-        const { data: insertedPost, error } = await supabase.from('posts').insert(postData).select('id, author_id, content, metadata, conversation_root_id').single();
+        const { data: insertedPost, error } = await supabase.from('posts').insert(postData).select('id, author_id, content, metadata, conversation_root_id').maybeSingle();
 
         if (error) {
+          if ((error as { code?: string }).code === '23505') {
+            logger.info(`⏭️ Post ${object.id} lost insert race (already exists), skipping duplicate`);
+            return;
+          }
           logger.error('Failed to create post from activity:', error);
         } else {
           const postType = quotedPostData ? 'quote post' : 'post';

@@ -1,0 +1,30 @@
+{
+  "streaming": {
+    "obs": "OBS Studio",
+    "obs64": "OBS Studio",
+    "streamlabs": "Streamlabs"
+  },
+  "playing": {
+    "cs2": "Counter-Strike 2",
+    "csgo": "Counter-Strike",
+    "dota2": "Dota 2",
+    "valorant": "VALORANT",
+    "league of legends": "League of Legends",
+    "leagueclient": "League of Legends",
+    "factorio": "Factorio",
+    "stardew valley": "Stardew Valley",
+    "hades": "Hades",
+    "minecraft": "Minecraft",
+    "javaw": "Minecraft",
+    "eldenring": "Elden Ring",
+    "cyberpunk2077": "Cyberpunk 2077",
+    "rocketleague": "Rocket League",
+    "gtav": "Grand Theft Auto V",
+    "rust": "Rust",
+    "terraria": "Terraria",
+    "hollow_knight": "Hollow Knight",
+    "celeste": "Celeste",
+    "portal2": "Portal 2",
+    "deadcells": "Dead Cells"
+  }
+}

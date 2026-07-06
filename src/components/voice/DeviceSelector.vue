@@ -108,6 +108,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
+import { enumerateMediaDevices } from '@/utils/mediaDevices';
 import { webrtcManager } from '@/services/webrtcManager';
 import { VoiceSettingsService } from '@/services/VoiceSettingsService';
 import Icon from '@/components/common/Icon.vue';
@@ -169,14 +170,18 @@ const dropdownStyle = computed(() => ({
 // Methods
 const loadDevices = async () => {
   try {
-    // Request permission first if needed
-    try {
-      await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-    } catch {
-      // Continue even if permission denied - might already have it
+    // Request permission first if needed (browser backend only; the native
+    // engine enumerates through the ADM without a permission prompt)
+    const { isNativeMediaSupported } = await import('@/services/nativeLiveKit');
+    if (!(await isNativeMediaSupported())) {
+      try {
+        await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+      } catch {
+        // Continue even if permission denied - might already have it
+      }
     }
 
-    const devices = await navigator.mediaDevices.enumerateDevices();
+    const devices = await enumerateMediaDevices();
     
     inputDevices.value = devices.filter(d => d.kind === 'audioinput');
     outputDevices.value = devices.filter(d => d.kind === 'audiooutput');

@@ -12,9 +12,9 @@
     @dblclick="emit('request-fullscreen')"
     @contextmenu.prevent="handleContextMenu"
   >
-    <!-- Video layer -->
+    <!-- Video layer (webview transports only; native renders in the call window) -->
     <video
-      v-if="hasActiveVideo"
+      v-if="hasActiveVideo && !isNativeVideo"
       ref="videoElement"
       autoplay
       playsinline
@@ -23,8 +23,24 @@
       :class="fitClass"
     />
 
+    <!-- Native transport: video lives in the wgpu call window -->
+    <button
+      v-else-if="hasActiveVideo && isNativeVideo"
+      class="tile-native-video"
+      @click.stop="openCallWindow"
+    >
+      <Icon :name="source === 'screen' ? 'screen-share' : 'video'" class="native-video-icon" />
+      <span>{{ source === 'screen' ? 'Screen share' : 'Camera' }} in call window</span>
+      <span class="native-video-hint">Click to open</span>
+    </button>
+
     <!-- Avatar fallback (camera tile without video) -->
     <div v-else class="tile-avatar">
+      <div
+        v-if="userProfile.banner_url"
+        class="tile-banner"
+        :style="{ backgroundImage: `url(${userProfile.banner_url})` }"
+      />
       <div class="avatar-ring" :class="{ speaking: isSpeaking }">
         <Avatar
           :src="userProfile.avatar_url"
@@ -87,11 +103,14 @@ import { computed, ref, watch, nextTick, onBeforeUnmount } from 'vue';
 import { debug } from '@/utils/debug';
 import type { UserMediaState } from '@/services/unifiedWebRTC';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
+import { webrtcManager } from '@/services/webrtcManager';
+import { nativeLiveKit } from '@/services/nativeLiveKit';
 import { useUserData } from '@/composables/useUserData';
 import DisplayName from '@/components/DisplayName.vue';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '@/components/common/Avatar.vue';
 import VoiceUserContextMenu from './VoiceUserContextMenu.vue';
+import { getBannerUrl } from '@/utils/bannerUtils';
 
 const props = withDefaults(defineProps<{
   userState: UserMediaState;
@@ -116,11 +135,12 @@ const showContextMenu = ref(false);
 const contextMenuPosition = ref({ x: 0, y: 0 });
 
 const userProfile = computed(() => {
-  const profileData = getUserProfile(props.userState.userId).value;
+  const profileData = getUserProfile(props.userState.userId).value as any;
   return {
     display_name: profileData?.display_name || null,
     username: profileData?.username || 'Unknown User',
     avatar_url: profileData?.avatar_url || '/default_avatar.webp',
+    banner_url: getBannerUrl(profileData?.bannerUrl || profileData?.banner_url) || null,
   };
 });
 
@@ -141,7 +161,7 @@ const effectiveDeafened = computed(() => liveState.value.isDeafened);
 
 const isSpeaking = computed(() => {
   if (isSelf.value) {
-    return liveState.value.audioLevel > 20 && !effectiveMuted.value;
+    return liveState.value.audioLevel > 6 && !effectiveMuted.value;
   }
   return liveState.value.isSpeaking;
 });
@@ -149,6 +169,13 @@ const isSpeaking = computed(() => {
 const hasActiveVideo = computed(() =>
   props.source === 'screen' ? liveState.value.isScreenSharing : liveState.value.isVideoEnabled
 );
+
+// native video renders in the wgpu call window, not the webview <video>
+const isNativeVideo = computed(() => webrtcManager.isNativeBackend());
+
+const openCallWindow = () => {
+  nativeLiveKit.openCallWindow();
+};
 
 const fitClass = computed(() => {
   const fit = props.fit ?? (props.source === 'screen' ? 'contain' : 'cover');
@@ -208,6 +235,9 @@ const attach = () => {
     retryTimer = null;
   }
 
+  // Native transport has no MediaStream in the webview — nothing to attach.
+  if (isNativeVideo.value) return;
+
   if (!hasActiveVideo.value) {
     detach();
     return;
@@ -264,8 +294,50 @@ onBeforeUnmount(detach);
   background: #000;
 }
 
+.tile-native-video {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: linear-gradient(135deg, var(--background-tertiary), var(--background-secondary));
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.tile-native-video:hover {
+  color: var(--text-primary);
+}
+
+.native-video-icon {
+  width: 28px;
+  height: 28px;
+  opacity: 0.8;
+}
+
+.native-video-hint {
+  font-size: 0.72rem;
+  opacity: 0.6;
+}
+
 .voice-tile.speaking {
   outline-color: #00d4aa;
+}
+
+/* above the banner/video which fill the tile */
+.voice-tile.speaking::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 2px solid #00d4aa;
+  border-radius: 10px;
+  box-shadow: inset 0 0 14px rgba(0, 212, 170, 0.55);
+  pointer-events: none;
+  z-index: 3;
 }
 
 .tile-video {
@@ -286,9 +358,27 @@ onBeforeUnmount(detach);
 
 /* Avatar fallback */
 .tile-avatar {
+  position: absolute;
+  inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
+}
+
+.tile-banner {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  filter: blur(18px) brightness(0.4);
+  transform: scale(1.2);
+  z-index: 0;
+}
+
+.tile-avatar .avatar-ring {
+  position: relative;
+  z-index: 1;
 }
 
 .avatar-ring {

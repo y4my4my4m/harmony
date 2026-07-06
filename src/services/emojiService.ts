@@ -1,5 +1,6 @@
 // emojiService.ts
 import { supabase } from '@/supabase';
+import { apiUrl } from '@/services/instanceConfig';
 import { v4 as uuidv4 } from 'uuid';
 import { useEmojiCacheStore, PERSONAL_EMOJI_GROUPS } from '@/stores/useEmojiCache';
 import type { Emoji } from '@/types';
@@ -628,7 +629,7 @@ async function getAiEmojiQuota(): Promise<AiEmojiQuota | null> {
     const { data } = await supabase.auth.getSession();
     const token = data.session?.access_token;
     try {
-        const res = await fetch('/api/federation/gifs/ai-emojis/quota', {
+        const res = await fetch(apiUrl('/api/federation/gifs/ai-emojis/quota'), {
             headers: {
                 Accept: 'application/json',
                 ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -648,7 +649,7 @@ async function getAiEmojiQuota(): Promise<AiEmojiQuota | null> {
 async function generateAiEmoji(prompt: string): Promise<StartedAiEmoji> {
     const { data } = await supabase.auth.getSession();
     const token = data.session?.access_token;
-    const res = await fetch('/api/federation/gifs/ai-emojis/generate', {
+    const res = await fetch(apiUrl('/api/federation/gifs/ai-emojis/generate'), {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',

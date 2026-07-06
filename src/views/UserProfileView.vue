@@ -307,6 +307,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch, onMounted, onUnmounted } from 'vue';
+import { apiUrl } from '@/services/instanceConfig';
 import { storeToRefs } from 'pinia';
 import { debug } from '@/utils/debug'
 import { throttle } from '@/utils/throttle'
@@ -928,7 +929,7 @@ const loadMorePosts = async () => {
         const oldestPost = userPosts.value[userPosts.value.length - 1];
         const maxId = oldestPost?.ap_id || oldestRemotePostId.value;
         
-        const response = await fetch('/api/federation/fetch-posts', {
+        const response = await fetch(apiUrl('/api/federation/fetch-posts'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
