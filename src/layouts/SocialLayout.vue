@@ -165,6 +165,9 @@
       :quote-post="activityPubStore.composerState.quotePost"
       :quote-author="activityPubStore.composerState.quoteAuthor"
       :initial-content="activityPubStore.composerState.content"
+      :initial-content-warning="activityPubStore.composerState.contentWarning"
+      :initial-sensitive="activityPubStore.composerState.sensitive"
+      :default-visibility="activityPubStore.composerState.visibility"
       @close="handleCloseComposer"
       @posted="handlePosted"
     />
