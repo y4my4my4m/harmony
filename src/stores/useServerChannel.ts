@@ -1820,6 +1820,9 @@ export const useServerChannelStore = defineStore('serverChannel', {
             case 'category:delete':
               this._handleCategoryDelete(data);
               break;
+            case 'server:update':
+              this._handleServerUpdate(data);
+              break;
             case 'membership:event': {
               const { getMembershipService } = await import('@/services/membershipService');
               getMembershipService().handleBroadcastEvent(data.new);
@@ -1870,6 +1873,17 @@ export const useServerChannelStore = defineStore('serverChannel', {
         await this.serverStructureSubscription.unsubscribe();
         this.serverStructureSubscription = null;
       }
+    },
+
+    // realtime servers-row update; cache bump forces icon reload (fixed upsert path)
+    async _handleServerUpdate(payload: any): Promise<void> {
+      const updated = payload?.new;
+      if (!updated?.id) return;
+      const idx = this.servers.findIndex(s => s.id === updated.id);
+      if (idx === -1) return;
+      this.servers[idx] = { ...this.servers[idx], ...updated };
+      const { invalidateServerIconCache } = await import('@/utils/serverUtils');
+      invalidateServerIconCache();
     },
 
     /**
