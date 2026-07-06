@@ -32,7 +32,7 @@
         />
         <video
           v-else-if="item.fileType === 'video'"
-          :src="videoFrameSrc(item.url)"
+          :src="item.url"
           class="content-video"
           controls
           preload="metadata"
@@ -49,7 +49,6 @@
 <script setup lang="ts">
 import { computed, onMounted, watch } from 'vue';
 import type { MessagePart } from '@/types';
-import { videoFrameSrc } from '@/utils/videoThumb';
 import {
   isImageMediaUrl,
   isVideoMediaUrl,

@@ -106,7 +106,7 @@
             class="media-container video-container"
           >
             <video
-              :src="videoFrameSrc(part.url)"
+              :src="part.url"
               controls
               class="content-video"
             ></video>
@@ -149,7 +149,7 @@
             class="media-container video-container"
           >
             <video
-              :src="videoFrameSrc(part.url)"
+              :src="part.url"
               controls
               class="content-video"
             ></video>
@@ -205,7 +205,6 @@ import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
 import { escapeHtml, sanitizeMessageHtml } from '@/utils/sanitize';
 import { isTauriRuntime } from '@/services/instanceConfig';
 import { openExternalUrl } from '@/services/tauriLinks';
-import { videoFrameSrc } from '@/utils/videoThumb';
 import DisplayName from '@/components/DisplayName.vue';
 import EncryptedGlyphPreview from '@/components/encryption/EncryptedGlyphPreview.vue';
 

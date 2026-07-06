@@ -18,7 +18,7 @@
           />
           <video
             v-else-if="isVideo(file)"
-            :src="videoFrameSrc(file.preview)"
+            :src="file.preview"
             class="thumbnail-video"
             muted
           />
@@ -70,7 +70,6 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { videoFrameSrc } from '@/utils/videoThumb';
 
 export interface FilePreviewData {
   file: File;
