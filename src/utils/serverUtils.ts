@@ -16,14 +16,6 @@ const TRANSFORM_OPTIONS = {
   quality: 80,
 }
 
-// Server icons upload to a fixed path (upsert), so the URL is unchanged after a
-// re-upload and the CDN/browser serves the stale image. Bump this to force a
-// reload; call invalidateServerIconCache() when an icon changes.
-let serverIconCacheBuster = Date.now()
-export function invalidateServerIconCache(): void {
-  serverIconCacheBuster = Date.now()
-}
-
 /**
  * Get the origin (protocol + host) from a URL string
  */
@@ -63,8 +55,7 @@ function transformSupabaseStoragePath(path: string, size: number): string {
       },
     })
 
-  const sep = data.publicUrl.includes('?') ? '&' : '?'
-  return `${data.publicUrl}${sep}v=${serverIconCacheBuster}`
+  return data.publicUrl
 }
 
 /**

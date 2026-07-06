@@ -9,7 +9,6 @@ import { statePersistence } from '@/services/StatePersistence';
 import { userEventChannel } from '@/services/UserEventChannel';
 import { authContextService } from '@/services/AuthContextService';
 import { debug } from '@/utils/debug';
-import { invalidateServerIconCache } from '@/utils/serverUtils';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import router from '@/router';
 
@@ -2175,8 +2174,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
         this.currentServer = { ...this.currentServer, ...updatedServer };
         debug.log('✅ Current server updated:', updatedServer.name);
       }
-      // icon/banner reuse a fixed storage path (upsert) → bust cache to reload
-      invalidateServerIconCache();
     },
 
     /**
