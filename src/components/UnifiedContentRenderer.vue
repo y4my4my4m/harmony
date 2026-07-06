@@ -106,7 +106,7 @@
             class="media-container video-container"
           >
             <video
-              :src="part.url"
+              :src="videoFrameSrc(part.url)"
               controls
               class="content-video"
             ></video>
@@ -149,7 +149,7 @@
             class="media-container video-container"
           >
             <video
-              :src="part.url"
+              :src="videoFrameSrc(part.url)"
               controls
               class="content-video"
             ></video>
@@ -205,6 +205,7 @@ import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
 import { escapeHtml, sanitizeMessageHtml } from '@/utils/sanitize';
 import { isTauriRuntime } from '@/services/instanceConfig';
 import { openExternalUrl } from '@/services/tauriLinks';
+import { videoFrameSrc } from '@/utils/videoThumb';
 import DisplayName from '@/components/DisplayName.vue';
 import EncryptedGlyphPreview from '@/components/encryption/EncryptedGlyphPreview.vue';
 
@@ -309,7 +310,6 @@ const handleContentClick = (event: Event) => {
   const anchor = target.closest('a') as HTMLAnchorElement | null;
   if (anchor) {
     const url = anchor.getAttribute('href');
-    console.warn('🔗 [content-click] anchor href:', url, 'tauri:', isTauriRuntime());
     if (url && /^https?:\/\//i.test(url)) {
       // target="_blank" is a no-op in the Tauri webview; route through the shell
       // plugin there instead. On web/PWA leave the native anchor behavior alone.
