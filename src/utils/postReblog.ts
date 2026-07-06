@@ -22,13 +22,8 @@
  * note there for display), so the unwrap rule has to discriminate carefully:
  * unwrap pure reblogs only.
  *
- * `MonyPost.originalPostId` (used for favorite / reblog / bookmark) does
- * NOT discriminate today - that's a pre-existing UX issue (favoriting a
- * quote post favorites the quoted note rather than the quote itself). It
- * is intentionally left untouched by this module to keep this commit
- * scoped to the reply / context bugs the user reported; the same
- * `isQuotePost` exclusion can be applied to that computed in a follow-up
- * if the favorite/reblog/bookmark routing needs to be corrected too.
+ * `MonyPost.isPureReblog` applies the same discrimination for interaction
+ * routing (favorite / reblog / bookmark target the quote itself).
  */
 
 import type { TimelinePost, ActivityPubPost, FederatedUser } from '@/types';

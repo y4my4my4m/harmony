@@ -93,7 +93,9 @@ const { blockedUsers, mutedUsers } = storeToRefs(activityPubStore)
 // Layout state
 const { isMobile } = useLayoutState()
 
-const isLoadingFeed = computed(() => activityPubStore.isLoadingFeed)
+const isLoadingFeed = computed(() =>
+  activityPubStore.isFeedLoading(props.currentView as 'home' | 'public' | 'local')
+)
 
 // Computed - filter out posts from blocked and muted users
 const posts = computed(() => {

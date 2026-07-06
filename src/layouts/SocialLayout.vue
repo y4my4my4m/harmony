@@ -492,12 +492,7 @@ const handleSwitchFeed = async (feed: string) => {
       break
   }
   
-  // Only load feed data if not already loaded or loading
-  if (activityPubStore.isLoadingFeed) {
-    debug.log(`⏳ Feed is already loading, skipping duplicate load`)
-    return
-  }
-
+  // Per-feed load actions guard against their own duplicate in-flight loads.
   try {
     switch (feed) {
       case 'home':

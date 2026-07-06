@@ -345,6 +345,7 @@ import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useRouter, useRoute } from 'vue-router';
 import { useServerPermissions } from '@/composables/useServerPermissions';
 import { useHapticSettings } from '@/composables/useHapticSettings';
+import { useViewport } from '@/composables/useViewport';
 import { useNotificationStore } from '@/stores/useNotification';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { useThemeStore } from '@/stores/useTheme';
@@ -493,11 +494,8 @@ const { triggerVoice } = useHapticSettings();
 // Only consider mobile if screen is actually small (touch-enabled desktops should still allow drag)
 const isVoiceType = (type: any): boolean => Number(type) === 1;
 
-const isMobile = computed(() => {
-  const hasSmallScreen = window.innerWidth <= 768;
-  const isTouchOnlyDevice = 'ontouchstart' in window && !window.matchMedia('(pointer: fine)').matches;
-  return hasSmallScreen || isTouchOnlyDevice;
-});
+const { isMobileViewport, isTouchOnly } = useViewport();
+const isMobile = computed(() => isMobileViewport.value || isTouchOnly);
 
 const dragGroup = computed(() => ({
   name: 'channels',

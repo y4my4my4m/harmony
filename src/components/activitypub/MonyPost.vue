@@ -3,7 +3,7 @@
   <!-- FIXED: Use v-show instead of v-if to prevent post disappearing on re-render -->
   <!-- Also added fallback for missing author to prevent complete disappearance -->
   <article class="mony-post" data-testid="post-item"
-  v-show="post && (author || authorFallback)" :class="{ 'is-reply': post.reply_context, 'is-reblog': isReblog, 'is-pinned': showPinnedHeader && post.is_pinned }">
+  v-show="post && (author || authorFallback)" :class="{ 'is-reply': post.reply_context, 'is-reblog': isPureReblog, 'is-pinned': showPinnedHeader && post.is_pinned }">
     
     <!-- Pinned indicator (profile timeline pinned section only) -->
     <div v-if="showPinnedHeader && post.is_pinned" class="pinned-header">
@@ -11,8 +11,8 @@
       <span>Pinned</span>
     </div>
 
-    <!-- Reblog Header (if this is a reblog) -->
-    <div v-if="isReblog" class="reblog-header">
+    <!-- Reblog Header (pure boosts only; quotes are first-class posts) -->
+    <div v-if="isPureReblog" class="reblog-header">
       <Icon name="reblog" class="reblog-icon" />
       <div 
         class="reblog-author" 
@@ -31,7 +31,7 @@
     </div>
 
     <!-- Main Post Content -->
-    <div class="post-content" :class="{ 'reblog-content': isReblog }">
+    <div class="post-content" :class="{ 'reblog-content': isPureReblog }">
       <!-- Author Info (show original author for reblogs) -->
       <div class="post-header">
         <div 
@@ -60,7 +60,7 @@
             <div class="author-handle">
               <span>{{ displayAuthor.username }}</span>
               <span class="instance-domain" :class="{ 'is-local': displayAuthor.is_local }">
-                @{{ isReblog ? originalInstanceDomain : instanceDomain }}
+                @{{ isPureReblog ? originalInstanceDomain : instanceDomain }}
               </span>
             </div>
           </div>
@@ -143,16 +143,16 @@
           
           <!-- Quoted post content -->
           <div class="quoted-post">
-            <div class="quoted-post-header">
+            <div v-if="quotedAuthor" class="quoted-post-header">
               <Avatar
-                :src="displayAuthor.avatar_url"
-                :alt="displayAuthor.display_name || displayAuthor.username"
+                :src="quotedAuthor.avatar_url"
+                :alt="quotedAuthor.display_name || quotedAuthor.username"
                 size="sm"
               />
               <div class="quoted-author-info">
-                <span class="quoted-author-name"><DisplayName :userId="displayAuthor.id" :fallback="displayAuthor.display_name || displayAuthor.username" /></span>
-                <span class="quoted-author-handle">@{{ displayAuthor.username }}</span>
-                <time class="quoted-post-time">{{ formatRelativeTime(originalCreatedAt) }}</time>
+                <span class="quoted-author-name"><DisplayName :userId="quotedAuthor.id" :fallback="quotedAuthor.display_name || quotedAuthor.username" /></span>
+                <span class="quoted-author-handle">@{{ quotedAuthor.username }}</span>
+                <time class="quoted-post-time">{{ formatRelativeTime(quotedCreatedAt) }}</time>
               </div>
             </div>
             
@@ -384,7 +384,7 @@
               </button>
               
               <button 
-                v-if="canEdit"
+                v-if="canEdit && !isPureReblog"
                 class="dropdown-item"
                 @click="onEdit"
               >
@@ -393,7 +393,7 @@
               </button>
               
               <button
-                v-if="canEdit && !isReblog"
+                v-if="canEdit && !isPureReblog"
                 class="dropdown-item"
                 @click="onTogglePin"
               >
@@ -402,7 +402,7 @@
               </button>
 
               <button 
-                v-if="isReblog && canDelete"
+                v-if="isPureReblog && canDelete"
                 class="dropdown-item"
                 @click="onUndoReblog"
               >
@@ -411,7 +411,7 @@
               </button>
               
               <button 
-                v-if="!isReblog && canDelete"
+                v-if="!isPureReblog && canDelete"
                 class="dropdown-item danger"
                 @click="onDelete"
               >
@@ -609,6 +609,7 @@ import { useActivityPubStore } from '@/stores/useActivityPub';
 import { useNotificationStore } from '@/stores/useNotification';
 import { useThemeStore } from '@/stores/useTheme';
 import { usePostInteractions } from '@/composables/usePostInteractions';
+import { useViewport } from '@/composables/useViewport';
 import { useRemotePostSync } from '@/composables/useRemotePostSync';
 import ConversationService from '@/services/ConversationService';
 import { formatDistanceToNow, format } from 'date-fns';
@@ -689,7 +690,7 @@ const { toggleFavorite, toggleReblog, toggleBookmark, togglePinPost } = usePostI
 // Local state (removed isToggling since composable handles loading)
 const showSensitiveContent = ref(false);
 const sensitiveRevealedForTouch = ref(false); // On mobile: first tap reveals blur, second tap opens lightbox
-const isTouchDevice = typeof window !== 'undefined' && 'ontouchstart' in window && !window.matchMedia('(pointer: fine)').matches;
+const { isTouchOnly: isTouchDevice } = useViewport();
 const showMenu = ref(false);
 const menuButtonRef = ref<HTMLElement | null>(null);
 const dropdownRef = ref<HTMLElement | null>(null);
@@ -804,8 +805,8 @@ const {
         // eslint-disable-next-line vue/no-mutating-props
         props.post.metadata.remote_reactions_fetched_at = new Date().toISOString();
       }
-      // For reblogs, update the reblog sub-object (displayInteractionCounts reads from there)
-      const target = (isReblog.value && props.post.reblog) ? props.post.reblog : props.post;
+      // For pure reblogs, update the reblog sub-object (displayInteractionCounts reads from there)
+      const target = (isPureReblog.value && props.post.reblog) ? props.post.reblog : props.post;
       if (result.favorites_count !== undefined) {
         target.favorites_count = result.favorites_count;
       }
@@ -883,6 +884,10 @@ const isQuotePost = computed(() => {
   return true;
 });
 
+// Pure boost (Announce wrapper) - quote posts are first-class posts and
+// must NOT unwrap: their header, interactions and routing target the quote.
+const isPureReblog = computed(() => isReblog.value && !isQuotePost.value);
+
 const reblogReferenceUrl = computed(() => {
   return props.post.metadata?.reblog_of_ap_url || 
          props.post.metadata?.quote_url || 
@@ -895,9 +900,20 @@ const isVideoMediaUrl = (url: string): boolean => {
   return /\.(mp4|webm|ogg|avi|mov|wmv|flv|m4v)(\?.*)?$/i.test(url);
 };
 
+// Main card header author. Pure reblogs unwrap to the boosted author;
+// quotes keep the quoter (the quoted author renders inside the quote block).
 const displayAuthor = computed(() => {
-  const author = (isReblog.value && props.post.reblog_author) ? props.post.reblog_author : props.post.author;
+  const author = (isPureReblog.value && props.post.reblog_author) ? props.post.reblog_author : props.post.author;
   return author || authorFallback.value;
+});
+
+// Author/time shown inside the quoted block of a quote post.
+const quotedAuthor = computed(() => {
+  return props.post.reblog_author || props.post.reblog?.author || null;
+});
+
+const quotedCreatedAt = computed(() => {
+  return props.post.reblog?.created_at || props.post.created_at;
 });
 
 const authorSupporterBadge = computed(() => {
@@ -916,17 +932,17 @@ const authorInstanceBadge = computed(() => {
 });
 
 const originalInstanceDomain = computed(() => {
-  if (!isReblog.value || !props.post.reblog_author) return instanceDomain.value;
+  if (!isPureReblog.value || !props.post.reblog_author) return instanceDomain.value;
   const { domain } = props.post.reblog_author;
   return domain || import.meta.env.VITE_DOMAIN as string;
 });
 
 const originalCreatedAt = computed(() => {
-  return (isReblog.value && props.post.reblog) ? props.post.reblog.created_at : props.post.created_at;
+  return (isPureReblog.value && props.post.reblog) ? props.post.reblog.created_at : props.post.created_at;
 });
 
 const isEdited = computed(() => {
-  const post = (isReblog.value && props.post.reblog) ? props.post.reblog : props.post;
+  const post = (isPureReblog.value && props.post.reblog) ? props.post.reblog : props.post;
   if (!post.updated_at || !post.created_at) return false;
   const created = new Date(post.created_at).getTime();
   const updated = new Date(post.updated_at).getTime();
@@ -1081,8 +1097,8 @@ const loadedReplyContext = ref<any>(null);
 const isLoadingReplyContext = ref(false);
 
 const displayReplyContext = computed(() => {
-  // For reblogs, check the reblogged post's reply context
-  if (isReblog.value && props.post.reblog?.reply_context) {
+  // For pure reblogs, check the reblogged post's reply context
+  if (isPureReblog.value && props.post.reblog?.reply_context) {
     return props.post.reblog.reply_context;
   }
   // First check if we have reply_context in the post itself
@@ -1101,12 +1117,12 @@ const showReplyContextCard = computed(() => {
 });
 
 const loadReplyContext = async () => {
-  // For reblogs, use the reblogged post's in_reply_to
-  const inReplyTo = isReblog.value 
-    ? props.post.reblog?.in_reply_to 
+  // For pure reblogs, use the reblogged post's in_reply_to
+  const inReplyTo = isPureReblog.value
+    ? props.post.reblog?.in_reply_to
     : props.post.in_reply_to;
-  const hasReplyContext = isReblog.value 
-    ? props.post.reblog?.reply_context 
+  const hasReplyContext = isPureReblog.value
+    ? props.post.reblog?.reply_context
     : props.post.reply_context;
     
   if (!inReplyTo || hasReplyContext || isLoadingReplyContext.value) {
@@ -1162,7 +1178,7 @@ const originalPostInteractions = ref<{
 } | null>(null);
 
 const loadOriginalPostInteractions = async () => {
-  if (!isReblog.value || !props.post.reblog?.id) return;
+  if (!isPureReblog.value || !props.post.reblog?.id) return;
   
   // Check if interactions were pre-loaded by the store
   const reblog = props.post.reblog;
@@ -1205,28 +1221,28 @@ const loadOriginalPostInteractions = async () => {
 
 onMounted(() => {
   // Check for reply context in post or reblog
-  const inReplyTo = isReblog.value 
-    ? props.post.reblog?.in_reply_to 
+  const inReplyTo = isPureReblog.value
+    ? props.post.reblog?.in_reply_to
     : props.post.in_reply_to;
-  const hasReplyContext = isReblog.value 
-    ? props.post.reblog?.reply_context 
+  const hasReplyContext = isPureReblog.value
+    ? props.post.reblog?.reply_context
     : props.post.reply_context;
     
   if (inReplyTo && !hasReplyContext) {
     loadReplyContext();
   }
 
-  // For reblogs, fetch the user's interaction state with the original post
-  if (isReblog.value) {
+  // For pure reblogs, fetch the user's interaction state with the original post
+  if (isPureReblog.value) {
     loadOriginalPostInteractions();
   }
 
 });
 
-// The ID of the original post - for reblogs, this is the reblogged post's ID
-// All interactions (favorite, reblog, bookmark) should target this ID
+// Interaction target id: pure reblogs unwrap to the boosted post; quote
+// posts are favorited/reblogged/bookmarked as themselves.
 const originalPostId = computed(() => {
-  if (isReblog.value && props.post.reblog?.id) {
+  if (isPureReblog.value && props.post.reblog?.id) {
     return props.post.reblog.id;
   }
   return props.post.id;
@@ -1244,7 +1260,7 @@ const replyTarget = computed<TimelinePost>(() => getOriginalPost(props.post));
 // Reblogs: reactions belong to the ORIGINAL post
 // Create a post-like object with the correct ID for PostReactions component
 const displayPostForReactions = computed((): TimelinePost => {
-  if (isReblog.value && props.post.reblog?.id) {
+  if (isPureReblog.value && props.post.reblog?.id) {
     return {
       ...props.post.reblog,
       id: props.post.reblog.id,
@@ -1265,7 +1281,7 @@ const repliesCountOverride = ref<number | null>(null)
 const displayInteractionCounts = computed(() => {
   const fav = favoriteOverride.value;
 
-  if (isReblog.value && props.post.reblog) {
+  if (isPureReblog.value && props.post.reblog) {
     const interactions = originalPostInteractions.value;
     return {
       favorites_count: fav?.favorites_count ?? props.post.reblog.favorites_count ?? 0,
@@ -1834,7 +1850,7 @@ const handleToggleFavorite = async () => {
   const postId = originalPostId.value;
   if (!postId) return;
 
-  const targetPost = isReblog.value ? props.post.reblog : props.post
+  const targetPost = isPureReblog.value ? props.post.reblog : props.post
   const wasFavorited = displayInteractionCounts.value.is_favorited
   const prevCount = displayInteractionCounts.value.favorites_count
 
@@ -1855,7 +1871,7 @@ const handleToggleFavorite = async () => {
   }
 
   // Also update the reblog interaction ref so it stays in sync
-  if (isReblog.value && originalPostInteractions.value) {
+  if (isPureReblog.value && originalPostInteractions.value) {
     originalPostInteractions.value = {
       ...originalPostInteractions.value,
       is_favorited: favoriteOverride.value?.is_favorited ?? wasFavorited
@@ -1886,8 +1902,12 @@ const handleSimpleReblog = async () => {
 
 const handleQuoteReblog = () => {
   showReblogMenu.value = false;
-  const originalPost = props.post.reblog || props.post;
-  const originalAuthor = props.post.reblog_author || props.post.author;
+  // Pure reblogs unwrap so the quote references the boosted note; quoting
+  // a quote post references the quote itself.
+  const originalPost = isPureReblog.value ? (props.post.reblog || props.post) : props.post;
+  const originalAuthor = isPureReblog.value
+    ? (props.post.reblog_author || props.post.author)
+    : props.post.author;
   activityPubStore.openComposer({
     quotePost: originalPost,
     quoteAuthor: originalAuthor,
@@ -1956,7 +1976,7 @@ const handleAdminToggleSensitive = async () => {
     const action = currentSensitive ? 'unmark_sensitive' : 'mark_sensitive';
     await adminService.moderatePost(postId, action);
     activityPubStore.updatePostFieldInAllFeeds(postId, 'is_sensitive', newVal);
-    if (isReblog.value && props.post.reblog) {
+    if (isPureReblog.value && props.post.reblog) {
       // eslint-disable-next-line vue/no-mutating-props -- store-shared ref, see above
       props.post.reblog.is_sensitive = newVal;
     }
@@ -1969,14 +1989,14 @@ const handleAdminToggleSensitive = async () => {
 const handleAdminSetCW = async () => {
   showMenu.value = false;
   const postId = originalPostId.value;
-  const existingCw = (isReblog.value && props.post.reblog?.content_warning) || props.post.content_warning || '';
+  const existingCw = (isPureReblog.value && props.post.reblog?.content_warning) || props.post.content_warning || '';
   const cw = prompt('Content warning text (leave empty to remove):', existingCw);
   if (cw === null) return;
   try {
     if (cw.trim()) {
       await adminService.moderatePost(postId, 'set_cw', cw.trim());
       activityPubStore.updatePostFieldInAllFeeds(postId, 'content_warning', cw.trim());
-      if (isReblog.value && props.post.reblog) {
+      if (isPureReblog.value && props.post.reblog) {
         // eslint-disable-next-line vue/no-mutating-props -- store-shared ref, see above
         props.post.reblog.content_warning = cw.trim();
       }
@@ -1984,7 +2004,7 @@ const handleAdminSetCW = async () => {
     } else {
       await adminService.moderatePost(postId, 'remove_cw');
       activityPubStore.updatePostFieldInAllFeeds(postId, 'content_warning', null);
-      if (isReblog.value && props.post.reblog) {
+      if (isPureReblog.value && props.post.reblog) {
         // eslint-disable-next-line vue/no-mutating-props -- store-shared ref, see above
         props.post.reblog.content_warning = null;
       }
@@ -2009,7 +2029,7 @@ const handleAdminDeletePost = async () => {
 };
 
 const handleShowEmojiPickerForOriginal = () => {
-  const targetPost: any = isReblog.value && props.post.reblog
+  const targetPost: any = isPureReblog.value && props.post.reblog
     ? { ...props.post.reblog, id: originalPostId.value }
     : props.post;
   handleShowEmojiPicker(targetPost);

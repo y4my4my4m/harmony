@@ -2,9 +2,10 @@
   "$schema": "https://schema.tauri.app/config/2/capabilities",
   "identifier": "default",
   "description": "Default capabilities for Harmony app",
-  "windows": ["main", "overlay"],
+  "windows": ["main", "overlay", "oauth"],
   "permissions": [
     "core:default",
+    "core:webview:allow-create-webview-window",
     "core:window:allow-close",
     "core:window:allow-maximize",
     "core:window:allow-minimize",

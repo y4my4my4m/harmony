@@ -12,7 +12,7 @@
       <div class="section-header">
         <h3 class="section-title">{{ $t('user.dnd') }}</h3>
         <div class="dnd-status" :class="{ active: isDndActive }">
-          {{ isDndActive ? $t('activitypub.online') : $t('user.offline') }}
+          {{ isDndActive ? 'Active' : 'Inactive' }}
         </div>
       </div>
       
@@ -54,21 +54,27 @@
 
     <div class="settings-section">
       <div class="section-header">
-        <h3 class="section-title">{{ isNativeClient ? 'Enable Notifications' : $t('settings.notifications.enableDesktop') }}</h3>
+        <h3 class="section-title">{{ isMobileClient ? 'Enable Notifications' : $t('settings.notifications.enableDesktop') }}</h3>
         <div class="permission-status">
-          <div class="permission-info">
-            <Icon :name="permissionIcon" :class="permissionClass" />
-            <span class="permission-text">{{ permissionText }}</span>
+          <div v-if="!systemNotificationsAvailable" class="permission-info">
+            <Icon name="alert-circle" class="permission-denied" />
+            <span class="permission-text">Not supported in this browser{{ isMobileClient ? ' — install the app to get notifications' : '' }}</span>
           </div>
-          <button 
-            v-if="!hasNotificationPermission" 
-            @click="requestPermission"
-            class="permission-btn"
-            :disabled="isRequestingPermission"
-          >
-            <Icon v-if="isRequestingPermission" name="loader" class="spinning" />
-            <span>{{ isRequestingPermission ? $t('common.loading') : 'Grant Permission' }}</span>
-          </button>
+          <template v-else>
+            <div class="permission-info">
+              <Icon :name="permissionIcon" :class="permissionClass" />
+              <span class="permission-text">{{ permissionText }}</span>
+            </div>
+            <button
+              v-if="!hasNotificationPermission"
+              @click="requestPermission"
+              class="permission-btn"
+              :disabled="isRequestingPermission"
+            >
+              <Icon v-if="isRequestingPermission" name="loader" class="spinning" />
+              <span>{{ isRequestingPermission ? $t('common.loading') : 'Grant Permission' }}</span>
+            </button>
+          </template>
         </div>
       </div>
       
@@ -230,25 +236,23 @@
       <div class="section-header">
         <h3 class="section-title">
           <Icon name="smartphone" class="section-icon" />
-          Push Notifications
+          {{ isNativeClient ? 'Push to Other Devices' : 'Push Notifications' }}
         </h3>
         <div class="push-status-badge" :class="isNativeClient ? 'available' : pushStatusClass">
           <Icon :name="isNativeClient ? 'info' : pushStatusIcon" />
-          <span>{{ isNativeClient ? 'This device: foreground' : pushStatusBadgeText }}</span>
+          <span>{{ pushStatusBadgeText }}</span>
         </div>
       </div>
       <p class="section-description">
-        {{ isNativeClient
-          ? 'Manage push to your other subscribed devices, and which notification types they receive.'
-          : 'Receive notifications on your device even when the app is closed. Works on Android, iOS (PWA required), and desktop browsers.' }}
+        {{ pushSectionDescription }}
       </p>
 
-      <!-- Native app: web push unavailable in the webview; needs FCM (planned) -->
-      <div v-if="isNativeClient" class="push-warning">
+      <!-- Native mobile app: background push needs FCM (planned) -->
+      <div v-if="isNativeMobile" class="push-warning">
         <Icon name="info" />
         <div>
           <strong>Background push coming to the app</strong>
-          <p>This device shows notifications while Harmony is open (including backgrounded) — pick which types above. Push while the app is fully closed needs native push (FCM), which isn't wired up yet. The settings below control push to your other subscribed devices.</p>
+          <p>This device shows notifications while Harmony is open (including backgrounded). Push while the app is fully closed needs native push (FCM), which isn't wired up yet.</p>
         </div>
       </div>
 
@@ -297,8 +301,8 @@
         </div>
       </div>
 
-      <!-- Subscribe/Unsubscribe Buttons -->
-      <div v-if="pushNotifications.isSupported.value" class="push-actions">
+      <!-- Subscribe/Unsubscribe Buttons (web push - browser only) -->
+      <div v-if="!isNativeClient && pushNotifications.isSupported.value" class="push-actions">
         <button 
           v-if="!pushNotifications.isSubscribed.value"
           @click="handlePushSubscribe"
@@ -333,8 +337,8 @@
         </button>
       </div>
 
-      <!-- Push preferences: account-wide, shown when subscribed anywhere or on native -->
-      <div v-if="preferences.push_notifications && (pushNotifications.isSubscribed.value || isNativeClient || pushNotifications.subscriptions.value.length > 0)" class="push-preferences">
+      <!-- Push preferences: account-wide, shown when subscribed on any device -->
+      <div v-if="preferences.push_notifications && (pushNotifications.isSubscribed.value || pushNotifications.subscriptions.value.length > 0)" class="push-preferences">
       <div class="setting-item">
         <div class="setting-info">
             <h4 class="setting-label">Only When Offline</h4>
@@ -374,6 +378,14 @@
           </div>
         </div>
       </div>
+
+      <!-- Native client with nothing to manage -->
+      <p
+        v-if="isNativeClient && !pushNotifications.isSubscribed.value && pushNotifications.subscriptions.value.length === 0"
+        class="push-empty-note"
+      >
+        No devices are subscribed to push yet. Enable push notifications on your phone or in a browser, then manage those devices here.
+      </p>
 
       <!-- Subscribed Devices List -->
       <div v-if="pushNotifications.subscriptions.value.length > 0" class="subscribed-devices">
@@ -446,15 +458,15 @@
       </div>
     </div>
 
-    <!-- Haptic Feedback Section -->
-    <div class="settings-section" v-if="hapticSettings.isSupported">
+    <!-- Haptic Feedback Section (mobile devices only) -->
+    <div class="settings-section" v-if="hapticsAvailable">
       <div class="section-header">
         <h3 class="section-title">Haptic Feedback</h3>
         <div class="haptic-status" :class="{ active: hapticSettings.isEnabled.value }">
           {{ hapticSettings.isEnabled.value ? 'Enabled' : 'Disabled' }}
         </div>
       </div>
-      <p class="section-description">Vibration feedback for interactions (mobile devices)</p>
+      <p class="section-description">Vibration feedback for interactions</p>
       
       <div class="setting-item">
         <div class="setting-info">
@@ -608,7 +620,7 @@ import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
 import Icon from '@/components/common/Icon.vue'
 import { useUserData } from '@/composables/useUserData'
 import { usePushNotifications } from '@/composables/usePushNotifications'
-import { isTauriRuntime } from '@/services/instanceConfig'
+import { isTauri, isTauriMobile, isMobileDevice, supportsHaptics } from '@/utils/platform'
 import { useHapticSettings } from '@/composables/useHapticSettings'
 
 // Stores
@@ -617,7 +629,11 @@ const toast = useToast()
 const userData = useUserData()
 const pushNotifications = usePushNotifications()
 const hapticSettings = useHapticSettings()
-const isNativeClient = isTauriRuntime()
+const isNativeClient = isTauri()
+const isNativeMobile = isTauriMobile()
+const isMobileClient = isMobileDevice()
+const hapticsAvailable = supportsHaptics()
+const systemNotificationsAvailable = isNativeClient || typeof Notification !== 'undefined'
 
 // Test haptic feedback
 const testHaptic = () => {
@@ -806,7 +822,7 @@ const permissionClass = computed(() => {
 })
 
 const permissionText = computed(() => {
-  const label = isNativeClient ? 'Notifications' : 'Desktop notifications'
+  const label = isNativeClient || isMobileClient ? 'Notifications' : 'Desktop notifications'
   return hasNotificationPermission.value ? `${label} are enabled` : `${label} require permission`
 })
 
@@ -1091,10 +1107,22 @@ const pushStatusIcon = computed(() => {
 })
 
 const pushStatusBadgeText = computed(() => {
+  if (isNativeClient) {
+    return isNativeMobile ? 'This device: foreground' : 'This device: native notifications'
+  }
   if (!pushNotifications.isSupported.value) return 'Not Supported'
   if (pushNotifications.permission.value === 'denied') return 'Blocked'
   if (pushNotifications.isSubscribed.value) return 'Enabled'
   return 'Available'
+})
+
+const pushSectionDescription = computed(() => {
+  if (isNativeClient) {
+    return isNativeMobile
+      ? 'This device gets notifications while the app is open. Manage push to your other subscribed devices below.'
+      : 'The desktop app already shows system notifications while it\'s running. These settings manage push to your other devices (phone, browsers) and which notification types they receive.'
+  }
+  return 'Receive notifications on your device even when the app is closed. Works on Android, iOS (PWA required), and desktop browsers.'
 })
 
 const handlePushSubscribe = async () => {
@@ -1871,6 +1899,17 @@ font-size: 12px;
   background: rgba(255, 255, 255, 0.02);
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.push-empty-note {
+  margin: 0 0 8px 0;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .subscribed-devices {

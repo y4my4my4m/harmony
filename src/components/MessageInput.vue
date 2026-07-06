@@ -153,6 +153,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
+import { useViewport } from '@/composables/useViewport';
 import { debug } from '@/utils/debug'
 import { useAutoSuggest } from '@/composables/useAutoSuggest';
 import { useHapticSettings } from '@/composables/useHapticSettings';
@@ -340,14 +341,9 @@ let hasStartedTyping = false
 let typingResetTimeout: number | null = null
 const TYPING_RESET_MS = 2000 // Reset after 2 seconds of no typing to allow re-triggering
 
-// Mobile detection - check for touch device or narrow screen
-const isMobile = ref(false);
-const checkMobile = () => {
-  // Only consider mobile if screen is small OR touch-only device (no mouse)
-  const hasSmallScreen = window.innerWidth <= 768;
-  const isTouchOnlyDevice = 'ontouchstart' in window && !window.matchMedia('(pointer: fine)').matches;
-  isMobile.value = hasSmallScreen || isTouchOnlyDevice;
-};
+// Mobile = small screen OR touch-only device (no mouse)
+const { isMobileViewport, isTouchOnly } = useViewport();
+const isMobile = computed(() => isMobileViewport.value || isTouchOnly);
 
 // Character count of the raw editor text. Used to surface a counter when
 // the user is close to / over the limit. We count the raw editor string
@@ -421,13 +417,7 @@ const handleVoiceRecordingComplete = async (result: VoiceRecordingResult) => {
   }
 }
 
-onMounted(() => {
-  checkMobile();
-  window.addEventListener('resize', checkMobile);
-});
-
 onUnmounted(() => {
-  window.removeEventListener('resize', checkMobile);
   stopTyping()
   hasStartedTyping = false
   if (typingResetTimeout) {
