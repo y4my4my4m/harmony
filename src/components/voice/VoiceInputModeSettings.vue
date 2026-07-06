@@ -70,13 +70,19 @@ import { ref, onUnmounted } from 'vue';
 import { usePushToTalk } from '@/composables/usePushToTalk';
 import Icon from '@/components/common/Icon.vue';
 
+const emit = defineEmits<{ 'input-mode-change': [mode: 'voice_activity' | 'push_to_talk'] }>();
+
 const ptt = usePushToTalk();
 const inputMode = ptt.inputMode;
 const pttKeyDisplay = ptt.pttKeyDisplay;
 const releaseDelay = ptt.releaseDelay;
 const isRecordingKeybind = ptt.isRecordingKeybind;
-const setInputMode = ptt.setInputMode;
 const localReleaseDelay = ref(ptt.releaseDelay.value);
+
+function setInputMode(mode: 'voice_activity' | 'push_to_talk') {
+  ptt.setInputMode(mode);
+  emit('input-mode-change', mode);
+}
 
 function onKey(e: KeyboardEvent) {
   if (ptt.recordKeybind(e)) {
@@ -86,8 +92,17 @@ function onKey(e: KeyboardEvent) {
   }
 }
 
+function onMouse(e: MouseEvent) {
+  if (ptt.recordMouseButton(e)) {
+    e.preventDefault();
+    e.stopPropagation();
+    stopRecording();
+  }
+}
+
 function stopRecording() {
   window.removeEventListener('keydown', onKey, true);
+  window.removeEventListener('mousedown', onMouse, true);
 }
 
 function toggleRecording() {
@@ -97,6 +112,7 @@ function toggleRecording() {
   } else {
     ptt.startRecordingKeybind();
     window.addEventListener('keydown', onKey, true);
+    window.addEventListener('mousedown', onMouse, true);
   }
 }
 
