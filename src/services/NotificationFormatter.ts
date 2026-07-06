@@ -249,7 +249,8 @@ const MESSAGE_TEMPLATES = {
   },
 
   activitypub_favorite: {
-    title: (data: any) => `${data.user.display_name || data.user.username} favorited your post`,
+    titleAction: () => ' favorited your post',
+    title: (data: any) => getActorDisplayName(data) + ' favorited your post',
     message: (data: any) => {
       const text = extractContentText(data.post_content) || extractContentText(data.post?.content_preview)
       if (text) {
@@ -262,7 +263,8 @@ const MESSAGE_TEMPLATES = {
   },
 
   activitypub_reblog: {
-    title: (data: any) => `${data.user.display_name || data.user.username} reblogged your post`,
+    titleAction: () => ' reblogged your post',
+    title: (data: any) => getActorDisplayName(data) + ' reblogged your post',
     message: (data: any) => {
       const text = extractContentText(data.post_content) || extractContentText(data.post?.content_preview)
       if (text) {
