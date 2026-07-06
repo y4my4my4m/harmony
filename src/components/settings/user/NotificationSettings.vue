@@ -600,7 +600,7 @@
         <button 
           @click="resetToDefaults"
           class="reset-btn"
-          :disabled="!hasChanges"
+          :disabled="isAtDefaults"
         >
           <Icon name="rotate-ccw" />
           <span>Reset to Defaults</span>
@@ -641,10 +641,8 @@ const testHaptic = () => {
   toast.success('Haptic feedback triggered!')
 }
 
-// State
-const preferences = reactive<NotificationPreferences>({
-  id: '',
-  user_id: '',
+// State (initial values double as the factory defaults for reset)
+const DEFAULT_PREFERENCES: Omit<NotificationPreferences, 'id' | 'user_id' | 'created_at' | 'updated_at'> = {
   desktop_notifications: true,
   desktop_mentions: true,
   desktop_dms: true,
@@ -668,7 +666,6 @@ const preferences = reactive<NotificationPreferences>({
   dnd_enabled: false,
   dnd_start_time: '22:00:00',
   dnd_end_time: '08:00:00',
-  // ActivityPub preferences
   activitypub_notifications: true,
   activitypub_follows: true,
   activitypub_favorites: true,
@@ -688,8 +685,14 @@ const preferences = reactive<NotificationPreferences>({
   activitypub_sound_reblogs: false,
   activitypub_sound_mentions: true,
   activitypub_sound_replies: true,
+}
+
+const preferences = reactive<NotificationPreferences>({
+  id: '',
+  user_id: '',
   created_at: '',
-  updated_at: ''
+  updated_at: '',
+  ...DEFAULT_PREFERENCES,
 })
 
 const originalPreferences = ref<NotificationPreferences>({} as NotificationPreferences)
@@ -809,9 +812,11 @@ const activityPubNotificationTypes = [
 // Computed properties
 const isDndActive = computed(() => notificationStore.isDndActive)
 
-const hasChanges = computed(() => {
-  return JSON.stringify(preferences) !== JSON.stringify(originalPreferences.value)
-})
+const isAtDefaults = computed(() =>
+  (Object.keys(DEFAULT_PREFERENCES) as Array<keyof typeof DEFAULT_PREFERENCES>).every(
+    (key) => preferences[key] === DEFAULT_PREFERENCES[key]
+  )
+)
 
 const permissionIcon = computed(() => {
   return hasNotificationPermission.value ? 'check-circle' : 'alert-circle'
@@ -1082,10 +1087,11 @@ const testAllNotifications = async () => {
   }
 }
 
-const resetToDefaults = () => {
-  Object.assign(preferences, originalPreferences.value)
-  updatePreferences()
-  toast.success('Notification preferences reset to defaults')
+// Restores factory defaults (NOT the last-saved state - toggles save
+// immediately, so "last saved" is always just the current state).
+const resetToDefaults = async () => {
+  Object.assign(preferences, DEFAULT_PREFERENCES)
+  await updatePreferences()
 }
 
 const onVolumeChange = () => {
