@@ -239,6 +239,8 @@ const ACTOR_HEADER_TYPES = new Set([
   'activitypub_mention',
   'activitypub_reply',
   'activitypub_reaction',
+  'activitypub_favorite',
+  'activitypub_reblog',
 ])
 
 // State
@@ -359,8 +361,8 @@ const messagePreview = computed(() => {
     return truncatePreview(preview)
   }
 
-  // For ActivityPub reactions, show the post preview (your post that was reacted to)
-  if (props.notification.type === 'activitypub_reaction') {
+  // For ActivityPub reactions/favorites/reblogs, show the post preview
+  if (['activitypub_reaction', 'activitypub_favorite', 'activitypub_reblog'].includes(props.notification.type)) {
     const preview = extractMessagePartText(data.post?.content_preview)
       || extractMessagePartText(data.post_content)
       || extractMessagePartText(data.post?.content)
@@ -536,6 +538,9 @@ const typeIcon = computed(() => {
     dm: DMIcon,
     chat_message: DMIcon,
     reaction: ReactionIcon,
+    activitypub_reaction: ReactionIcon,
+    activitypub_favorite: ReactionIcon,
+    activitypub_reblog: ReactionIcon,
     reply: ReplyIcon,
     server_invite: ServerInviteIcon,
     voice_channel_activity: VoiceIcon,
@@ -614,7 +619,9 @@ const typeIcon = computed(() => {
 }
 
 .indicator--reaction,
-.indicator--activitypub_reaction {
+.indicator--activitypub_reaction,
+.indicator--activitypub_favorite,
+.indicator--activitypub_reblog {
   background: linear-gradient(180deg, #faa61a, #f39c12);
 }
 
@@ -727,7 +734,9 @@ const typeIcon = computed(() => {
 }
 
 .overlay--activitypub_favorite svg,
-.overlay--activitypub_favorite .reactionIcon path {
+.overlay--activitypub_favorite .reactionIcon path,
+.overlay--activitypub_reblog svg,
+.overlay--activitypub_reblog .reactionIcon path {
   /* background: linear-gradient(135deg, #d6a811, #ff8d30); */
   fill: #d6a811!important;
 }
