@@ -49,13 +49,22 @@ export async function signInViaOAuthPopup(providerUrl: string): Promise<string> 
   return new Promise<string>((resolve, reject) => {
     let settled = false
     let unlisten: (() => void) | undefined
-    let pollTimer: ReturnType<typeof setInterval> | undefined
+
+    // The popup can be closed from its native title bar; detect that as a
+    // cancel. Window-destroyed events don't reliably cross windows, so poll.
+    const pollTimer = setInterval(() => {
+      WebviewWindow.getByLabel(OAUTH_WINDOW_LABEL)
+        .then((win) => {
+          if (!win) settle(() => reject(new Error('oauth-cancelled')))
+        })
+        .catch(() => undefined)
+    }, POPUP_POLL_INTERVAL_MS)
 
     const settle = (fn: () => void) => {
       if (settled) return
       settled = true
       unlisten?.()
-      if (pollTimer) clearInterval(pollTimer)
+      clearInterval(pollTimer)
       fn()
     }
 
@@ -74,16 +83,6 @@ export async function signInViaOAuthPopup(providerUrl: string): Promise<string> 
       debug.error('OAuth popup failed to open:', event)
       settle(() => reject(new Error('Failed to open the sign-in window')))
     })
-
-    // The popup can be closed from its native title bar; detect that as a
-    // cancel. Window-destroyed events don't reliably cross windows, so poll.
-    pollTimer = setInterval(() => {
-      WebviewWindow.getByLabel(OAUTH_WINDOW_LABEL)
-        .then((win) => {
-          if (!win) settle(() => reject(new Error('oauth-cancelled')))
-        })
-        .catch(() => undefined)
-    }, POPUP_POLL_INTERVAL_MS)
   })
 }
 

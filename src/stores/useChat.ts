@@ -10,6 +10,7 @@ import { processMessageDecryption } from '@/utils/messageDecryption';
 import { debug } from '@/utils/debug';
 import { realtimeConnectionManager, type ConnectionStatus } from '@/services/RealtimeConnectionManager';
 import { getRandomId, createTempMessageId, findOptimisticMatchIndex } from '@/stores/shared/optimisticMessages';
+import { insertMessageSorted, evictOldestCacheEntry, waitForPendingReplyFetch } from '@/stores/shared/messageCacheUtils';
 
 // import { getEmoji } from '@/services/emojiService';
 export const useChatStore = defineStore('chat', {
@@ -49,18 +50,7 @@ export const useChatStore = defineStore('chat', {
       }
 
       if (this.fetchingReplyMessages.has(messageId)) {
-        return new Promise((resolve) => {
-          const checkCache = () => {
-            if (this.replyMessageCache.has(messageId)) {
-              resolve(this.replyMessageCache.get(messageId)!);
-            } else if (!this.fetchingReplyMessages.has(messageId)) {
-              resolve(null);
-            } else {
-              setTimeout(checkCache, 50);
-            }
-          };
-          checkCache();
-        });
+        return waitForPendingReplyFetch(messageId, this.replyMessageCache, this.fetchingReplyMessages);
       }
 
       this.fetchingReplyMessages.add(messageId);
@@ -191,22 +181,7 @@ export const useChatStore = defineStore('chat', {
     },
 
     evictOldestCache() {
-      if (this.messageCache.size <= this.maxCacheSize) return;
-
-      let oldestTime = new Date();
-      let oldestChannelId = '';
-
-      this.messageCache.forEach((cache, channelId) => {
-        if (cache.lastFetchedAt < oldestTime) {
-          oldestTime = cache.lastFetchedAt;
-          oldestChannelId = channelId;
-        }
-      });
-
-      if (oldestChannelId) {
-        this.messageCache.delete(oldestChannelId);
-        debug.log(`Evicted cache for channel: ${oldestChannelId}`);
-      }
+      evictOldestCacheEntry(this.messageCache, this.maxCacheSize);
     },
 
     async fetchMessages(channelId: string, oldestMessageId: string = '', signal?: AbortSignal) {
@@ -509,28 +484,8 @@ export const useChatStore = defineStore('chat', {
       }
     },
 
-    /**
-     * Insert a message into a sorted array by created_at.
-     * Most realtime messages are newest and will be appended (O(1) fast path).
-     * Older messages (e.g. arriving after reconnect) are binary-inserted.
-     */
     _insertMessageSorted(arr: Message[], msg: Message) {
-      const msgTime = new Date(msg.created_at).getTime();
-      // Fast path: message is newer than the last element (most common)
-      if (arr.length === 0 || new Date(arr[arr.length - 1].created_at).getTime() <= msgTime) {
-        arr.push(msg);
-        return;
-      }
-      let lo = 0, hi = arr.length;
-      while (lo < hi) {
-        const mid = (lo + hi) >>> 1;
-        if (new Date(arr[mid].created_at).getTime() <= msgTime) {
-          lo = mid + 1;
-        } else {
-          hi = mid;
-        }
-      }
-      arr.splice(lo, 0, msg);
+      insertMessageSorted(arr, msg);
     },
 
     async reprocessEncryptedMessages(roomId?: string) {
