@@ -39,6 +39,11 @@ import {
   electKeyCoordinator,
   type VoiceKeyEnvelope,
 } from './encryption/VoiceE2EEService';
+import {
+  getFederatedLiveKitToken,
+  getLiveKitConfig,
+  getLiveKitToken,
+} from './livekitTokens';
 
 // FEDERATED IDENTITY HELPERS
 
@@ -241,6 +246,8 @@ export interface UserMediaState {
   isDeafened: boolean;
   isSpeaking: boolean;
   audioLevel: number;
+  /** Only populated by the native (Tauri) transport. */
+  hasScreenShareAudio?: boolean;
 }
 
 export interface LiveKitConfig {
@@ -310,6 +317,8 @@ export class LiveKitWebRTCService {
     autoGainControl: true,
   };
   
+  private levelPollTimer: ReturnType<typeof setInterval> | null = null;
+
   // Device selection
   private selectedInputDevice: string | null = null;
   private selectedOutputDevice: string | null = null;
@@ -329,9 +338,6 @@ export class LiveKitWebRTCService {
   private readonly E2EE_DATA_TOPIC = 'harmony-e2ee';
   
   // LiveKit config cache
-  private configCache: LiveKitConfig | null = null;
-  private configCacheTime = 0;
-  private readonly CONFIG_CACHE_TTL = 60000; // 1 minute
   
   constructor() {
     this.loadAudioSettings();
@@ -354,14 +360,31 @@ export class LiveKitWebRTCService {
         return VideoPresets.h720.resolution as { width: number; height: number; frameRate: number };
       case 1080:
         return VideoPresets.h1080.resolution as { width: number; height: number; frameRate: number };
-      case -1: // Source/Native - use 1080p as max
-        return VideoPresets.h1080.resolution as { width: number; height: number; frameRate: number };
+      case 1440:
+        return { width: 2560, height: 1440, frameRate: 30 };
+      case 2160:
+        return { width: 3840, height: 2160, frameRate: 30 };
+      case -1: // Source/Native - allow up to 4K
+        return { width: 3840, height: 2160, frameRate: 30 };
       default: {
         const height = resolution;
         const width = Math.round(height * 16 / 9);
         return { width, height, frameRate: 30 };
       }
     }
+  }
+
+  // Screenshare bitrate ceiling — the previous 3 Mbps @1080p starved 60fps
+  // (the encoder dropped frames to fit). Scale with resolution and framerate.
+  private screenShareBitrate(height: number, frameRate: number): number {
+    const base =
+      height >= 2160 ? 16_000_000 :
+      height >= 1440 ? 8_000_000 :
+      height >= 1080 ? 5_000_000 :
+      height >= 720 ? 2_500_000 :
+      1_200_000;
+    const fpsScale = frameRate >= 60 ? 1.8 : frameRate >= 48 ? 1.4 : 1;
+    return Math.round(base * fpsScale);
   }
   
   // CONFIGURATION
@@ -370,42 +393,7 @@ export class LiveKitWebRTCService {
    * Get LiveKit configuration from the backend
    */
   async getConfig(forceRefresh = false): Promise<LiveKitConfig> {
-    const now = Date.now();
-    
-    if (!forceRefresh && this.configCache && (now - this.configCacheTime) < this.CONFIG_CACHE_TTL) {
-      return this.configCache;
-    }
-    
-    try {
-      // Try to get config from federation backend
-      const response = await fetch('/api/livekit/config');
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch LiveKit config');
-      }
-      
-      const config = await response.json();
-      
-      this.configCache = {
-        enabled: config.enabled ?? false,
-        mode: config.mode ?? 'hybrid',
-        wsUrl: config.wsUrl ?? null,
-        allowFederatedVoice: config.allowFederatedVoice ?? true,
-      };
-      this.configCacheTime = now;
-      
-      return this.configCache;
-    } catch (error) {
-      debug.warn('⚠️ Could not fetch LiveKit config, using defaults');
-      
-      // Return default config (P2P fallback)
-      return {
-        enabled: false,
-        mode: 'hybrid',
-        wsUrl: null,
-        allowFederatedVoice: true,
-      };
-    }
+    return getLiveKitConfig(forceRefresh);
   }
   
   /**
@@ -422,30 +410,7 @@ export class LiveKitWebRTCService {
    * Get a room token from the backend
    */
   private async getToken(roomName: string, roomType: 'voice_channel' | 'dm_call' | 'stage'): Promise<TokenResponse> {
-    const { data: { session } } = await supabase.auth.getSession();
-    
-    if (!session?.access_token) {
-      throw new Error('User not authenticated');
-    }
-    
-    const response = await fetch('/api/livekit/token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session.access_token}`,
-      },
-      body: JSON.stringify({
-        roomName,
-        roomType,
-      }),
-    });
-    
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'Unknown error' }));
-      throw new Error(error.error || 'Failed to get room token');
-    }
-    
-    return response.json();
+    return getLiveKitToken(roomName, roomType);
   }
   
   /**
@@ -457,25 +422,7 @@ export class LiveKitWebRTCService {
     roomName: string,
     roomType: 'voice_channel' | 'dm_call' | 'stage'
   ): Promise<TokenResponse> {
-    // TODO: Implement HTTP signature for federated requests
-    const response = await fetch(`${instanceUrl}/api/livekit/federated-token`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        actorId,
-        roomName,
-        roomType,
-      }),
-    });
-    
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'Unknown error' }));
-      throw new Error(error.error || 'Failed to get federated token');
-    }
-    
-    return response.json();
+    return getFederatedLiveKitToken(instanceUrl, actorId, roomName, roomType);
   }
   
   // CHANNEL MANAGEMENT
@@ -589,6 +536,7 @@ export class LiveKitWebRTCService {
       }
       
       this.emit('channel-joined', { channelId, userId });
+      this.startLevelPolling();
       this.emit('local-state-changed', this.localMediaState);
       
       this.emit('channel-state-synced', { users: this.getAllUsers() });
@@ -669,6 +617,7 @@ export class LiveKitWebRTCService {
       await this.publishLocalAudio();
       
       this.emit('channel-joined', { channelId, userId });
+      this.startLevelPolling();
       this.emit('local-state-changed', this.localMediaState);
       this.emit('channel-state-synced', { users: this.getAllUsers() });
       
@@ -683,9 +632,35 @@ export class LiveKitWebRTCService {
   /**
    * Leave current voice channel
    */
+  // continuous local mic level (0-100); LiveKit's IsSpeaking VAD is binary/insensitive
+  private startLevelPolling(): void {
+    if (this.levelPollTimer) return;
+    this.levelPollTimer = setInterval(() => {
+      try {
+        const lp = this.room?.localParticipant;
+        if (!lp || !this.currentUserId) return;
+        const level = this.localMediaState.isMuted ? 0 : Math.round((lp.audioLevel ?? 0) * 100);
+        if (Math.abs(level - this.localMediaState.audioLevel) >= 3 || (level === 0) !== (this.localMediaState.audioLevel === 0)) {
+          this.localMediaState.audioLevel = level;
+          this.emit('audio-level', { userId: this.currentUserId, level });
+        }
+      } catch {
+        /* non-critical */
+      }
+    }, 100);
+  }
+
+  private stopLevelPolling(): void {
+    if (this.levelPollTimer) {
+      clearInterval(this.levelPollTimer);
+      this.levelPollTimer = null;
+    }
+  }
+
   async leaveChannel(): Promise<void> {
     debug.log('👋 [LiveKit] Leaving voice channel');
-    
+    this.stopLevelPolling();
+
     if (this.room) {
       try {
         await this.room.disconnect(true);
@@ -742,14 +717,22 @@ export class LiveKitWebRTCService {
    */
   private async publishLocalAudio(): Promise<void> {
     if (!this.room?.localParticipant) return;
-    
+
+    // Guard against a mic acquisition that never resolves (no device / a
+    // permission prompt that hangs, common on Android) so the join always
+    // completes — listen-only if the mic never comes up.
+    const trackPromise = createLocalAudioTrack({
+      echoCancellation: this.audioConstraints.echoCancellation,
+      noiseSuppression: this.audioConstraints.noiseSuppression,
+      autoGainControl: this.audioConstraints.autoGainControl,
+      deviceId: this.selectedInputDevice || undefined,
+    });
     try {
-      const audioTrack = await createLocalAudioTrack({
-        echoCancellation: this.audioConstraints.echoCancellation,
-        noiseSuppression: this.audioConstraints.noiseSuppression,
-        autoGainControl: this.audioConstraints.autoGainControl,
-        deviceId: this.selectedInputDevice || undefined,
-      });
+      const audioTrack = await Promise.race([
+        trackPromise,
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Microphone acquisition timed out')), 8000)),
+      ]);
       
       // Convert kbps to bps for LiveKit (settings stored in kbps, LiveKit expects bps)
       const audioBitrateBps = (this.streamQualitySettings.audioBitrate || 128) * 1000;
@@ -774,6 +757,8 @@ export class LiveKitWebRTCService {
     } catch (error) {
       // No microphone available - allow joining but force mute
       debug.warn('⚠️ [LiveKit] No microphone available, joining in muted state:', error);
+      // If the track resolves after the timeout, stop it so it doesn't hold the device
+      trackPromise.then(t => t.stop()).catch(() => {});
       this.localMediaState.isMuted = true;
       this.localMediaState.isAudioEnabled = false;
       this.emit('local-state-changed', this.localMediaState);
@@ -886,6 +871,9 @@ export class LiveKitWebRTCService {
           audioBitrate: audioBitrateKbps
         });
         
+        // At high framerate, prioritise motion (smoothness) over static detail
+        const highFps = targetFrameRate >= 60;
+
         // Capture options for screenshare
         const captureOptions = {
           audio: {
@@ -900,18 +888,23 @@ export class LiveKitWebRTCService {
             frameRate: targetFrameRate,
           },
           resolution: screenResolution,
-          contentHint: 'detail',
+          contentHint: highFps ? 'motion' : 'detail',
           systemAudio: 'include', // Explicitly request system audio
         };
-        
-        // Publish options with bitrate settings
+
+        // Publish options. NOTE: screenshare reads `screenShareEncoding`, not
+        // `videoEncoding` (the latter is ignored for screen tracks), and
+        // degradationPreference/simulcast are top-level.
         const publishOptions = {
-          // Video encoding settings
-          videoEncoding: {
-            maxBitrate: screenResolution.height >= 1080 ? 3_000_000 : 
-                        screenResolution.height >= 720 ? 1_500_000 : 800_000,
+          screenShareEncoding: {
+            maxBitrate: this.screenShareBitrate(screenResolution.height, targetFrameRate),
             maxFramerate: targetFrameRate,
           },
+          // hold framerate under load instead of dropping frames
+          degradationPreference: 'maintain-framerate' as RTCDegradationPreference,
+          // full-res single layer keeps every frame at target fps (simulcast's
+          // lower layers otherwise cap framerate)
+          simulcast: false,
           // Audio bitrate in bits per second
           screenShareAudioBitrate: audioBitrateKbps * 1000,
         };
@@ -1165,7 +1158,7 @@ export class LiveKitWebRTCService {
             await track.mediaStreamTrack.applyConstraints(constraints);
             trackCount++;
             debug.log('✅ [LiveKit] Applied video constraints to', publication.source);
-            
+
             // Log actual track settings after applying
             const actualSettings = track.mediaStreamTrack.getSettings();
             debug.log('📊 [LiveKit] Actual track settings:', {
@@ -1175,6 +1168,32 @@ export class LiveKitWebRTCService {
             });
           } catch (error) {
             debug.error('❌ [LiveKit] Failed to apply video constraints:', error);
+          }
+        }
+
+        // Raise the encoder ceiling live — applyConstraints only touches
+        // capture; the sender keeps its publish-time maxBitrate otherwise.
+        const sender = (track as any).sender as RTCRtpSender | undefined;
+        if (sender && publication.source === Track.Source.ScreenShare) {
+          try {
+            const params = sender.getParameters();
+            const configured = this.streamQualitySettings.resolution;
+            const height = configured === -1
+              ? track.mediaStreamTrack.getSettings().height ?? 1080
+              : configured;
+            const fps = this.streamQualitySettings.frameRate;
+            params.degradationPreference = 'maintain-framerate';
+            for (const enc of params.encodings ?? []) {
+              enc.maxBitrate = this.screenShareBitrate(height, fps);
+              enc.maxFramerate = fps;
+            }
+            await sender.setParameters(params);
+            debug.log('✅ [LiveKit] Updated screenshare encoder params:', {
+              maxBitrate: this.screenShareBitrate(height, fps),
+              maxFramerate: fps,
+            });
+          } catch (error) {
+            debug.warn('⚠️ [LiveKit] Could not update encoder params live:', error);
           }
         }
       }
@@ -1593,8 +1612,8 @@ export class LiveKitWebRTCService {
     // Local participant speaking changes (voice activity indicator for ourselves)
     this.room.localParticipant.on(ParticipantEvent.IsSpeakingChanged, (speaking: boolean) => {
       this.localMediaState.isSpeaking = speaking;
-      this.localMediaState.audioLevel = speaking ? 50 : 0;
-      if (this.currentUserId) {
+      // audioLevel owned by startLevelPolling()
+      if (this.currentUserId && !speaking) {
         this.emit('audio-level', { userId: this.currentUserId, level: this.localMediaState.audioLevel });
       }
     });
@@ -1823,8 +1842,6 @@ export class LiveKitWebRTCService {
         const localSpeaking = speakerIdentities.has(localIdentity);
         if (this.localMediaState.isSpeaking !== localSpeaking) {
           this.localMediaState.isSpeaking = localSpeaking;
-          this.localMediaState.audioLevel = localSpeaking ? 50 : 0;
-          this.emit('audio-level', { userId: this.currentUserId, level: this.localMediaState.audioLevel });
         }
       }
       
@@ -1875,6 +1892,10 @@ export class LiveKitWebRTCService {
             // Spread to create new object reference for Vue reactivity
             this.emit('user-state-changed', { userId: state.userId, mediaState: { ...state } });
           }
+        } else if (message.type === 'call-start-time') {
+          this.emit('call-start-time', { timestamp: message.data?.timestamp, from: message.from });
+        } else if (message.type === 'request-call-start-time') {
+          this.emit('request-call-start-time', { from: message.from });
         }
       } catch (error) {
         debug.warn('⚠️ [LiveKit] Failed to parse data message');
@@ -1998,6 +2019,20 @@ export class LiveKitWebRTCService {
     };
   }
   
+  /**
+   * Broadcast an arbitrary data message to all participants
+   */
+  broadcastMessage(message: any): void {
+    if (!this.room?.localParticipant) return;
+
+    try {
+      const encoder = new TextEncoder();
+      this.room.localParticipant.publishData(encoder.encode(JSON.stringify(message)), { reliable: true });
+    } catch (error) {
+      debug.warn('⚠️ [LiveKit] Failed to broadcast message:', message?.type);
+    }
+  }
+
   /**
    * Broadcast local media state to all participants
    */

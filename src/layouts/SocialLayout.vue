@@ -730,7 +730,6 @@ const formatNumber = (num: number): string => {
   display: flex;
   flex-direction: row;
   overflow: hidden;
-  border-top: 1px solid var(--border-color);
 }
 
 .social-content-area {

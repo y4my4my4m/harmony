@@ -22,10 +22,11 @@ export default defineConfig({
   server: ({
     strictPort: true,
     port: 5173,
-    // Allow custom local domains for development.
-    // `allowedHosts` is `string[] | true` in Vite 5+, the array literal is fine
-    // at runtime but vue-tsc's older Vite types may infer it differently; cast.
-    allowedHosts: (['har.mony.local', 'localhost'] as unknown as string[]),
+    // bind all interfaces so a physical device (tauri mobile dev) can reach the
+    // dev server at the machine's LAN IP; TAURI_DEV_HOST overrides when set
+    host: process.env.TAURI_DEV_HOST || '0.0.0.0',
+    // allow the LAN IP / device host tauri injects (array would reject it)
+    allowedHosts: (true as unknown as string[]),
     proxy: {
       '/api/federation': {
         target: 'http://localhost:3001',

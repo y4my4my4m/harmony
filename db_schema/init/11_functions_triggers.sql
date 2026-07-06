@@ -1024,50 +1024,63 @@ $$;
 
 -- Maintain posts.replies_count: covers reply insert, late in_reply_to
 -- resolution (federation), soft-delete flips and hard deletes.
+-- LOCAL parents recompute from actual rows (authoritative, drift-proof);
+-- REMOTE parents apply +1/-1 on top of the origin-supplied baseline.
 CREATE OR REPLACE FUNCTION public.update_post_reply_count()
 RETURNS trigger
 LANGUAGE plpgsql
 AS $$
+DECLARE
+  affected uuid := NULL;
+  delta integer := 0;
+  parent_is_local boolean;
 BEGIN
   IF TG_OP = 'INSERT' THEN
     IF NEW.in_reply_to IS NOT NULL AND (NEW.is_deleted IS DISTINCT FROM true) THEN
-      UPDATE public.posts
-      SET replies_count = COALESCE(replies_count, 0) + 1
-      WHERE id = NEW.in_reply_to;
+      affected := NEW.in_reply_to;
+      delta := 1;
     END IF;
-    RETURN NEW;
 
   ELSIF TG_OP = 'UPDATE' THEN
     IF OLD.in_reply_to IS NULL AND NEW.in_reply_to IS NOT NULL
        AND (NEW.is_deleted IS DISTINCT FROM true) THEN
-      UPDATE public.posts
-      SET replies_count = COALESCE(replies_count, 0) + 1
-      WHERE id = NEW.in_reply_to;
+      affected := NEW.in_reply_to;
+      delta := 1;
+    ELSIF NEW.in_reply_to IS NOT NULL AND OLD.is_deleted IS DISTINCT FROM NEW.is_deleted THEN
+      affected := NEW.in_reply_to;
+      delta := CASE WHEN NEW.is_deleted IS TRUE THEN -1 ELSE 1 END;
     END IF;
-
-    IF NEW.in_reply_to IS NOT NULL AND OLD.is_deleted IS DISTINCT FROM NEW.is_deleted THEN
-      IF NEW.is_deleted IS TRUE THEN
-        UPDATE public.posts
-        SET replies_count = GREATEST(COALESCE(replies_count, 0) - 1, 0)
-        WHERE id = NEW.in_reply_to;
-      ELSE
-        UPDATE public.posts
-        SET replies_count = COALESCE(replies_count, 0) + 1
-        WHERE id = NEW.in_reply_to;
-      END IF;
-    END IF;
-    RETURN NEW;
 
   ELSIF TG_OP = 'DELETE' THEN
     IF OLD.in_reply_to IS NOT NULL AND (OLD.is_deleted IS DISTINCT FROM true) THEN
-      UPDATE public.posts
-      SET replies_count = GREATEST(COALESCE(replies_count, 0) - 1, 0)
-      WHERE id = OLD.in_reply_to;
+      affected := OLD.in_reply_to;
+      delta := -1;
     END IF;
-    RETURN OLD;
   END IF;
 
-  RETURN NULL;
+  IF affected IS NOT NULL THEN
+    -- Lock the parent first so the recompute below takes its snapshot AFTER any
+    -- concurrent sibling reply commits (READ COMMITTED would otherwise let the
+    -- count subquery miss a just-inserted row and undercount). One row locked
+    -- per trigger invocation -> no deadlock.
+    SELECT is_local INTO parent_is_local
+    FROM public.posts WHERE id = affected FOR UPDATE;
+
+    IF parent_is_local IS TRUE THEN
+      UPDATE public.posts p
+      SET replies_count = (
+        SELECT count(*) FROM public.posts c
+        WHERE c.in_reply_to = affected AND c.is_deleted IS DISTINCT FROM true
+      )
+      WHERE p.id = affected;
+    ELSE
+      UPDATE public.posts
+      SET replies_count = GREATEST(COALESCE(replies_count, 0) + delta, 0)
+      WHERE id = affected;
+    END IF;
+  END IF;
+
+  RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
 END;
 $$;
 

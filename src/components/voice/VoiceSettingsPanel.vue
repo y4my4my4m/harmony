@@ -207,6 +207,14 @@
           </div>
         </div>
 
+        <div class="settings-section">
+          <h4 class="section-title">
+            <Icon name="mic" />
+            Input Mode
+          </h4>
+          <VoiceInputModeSettings />
+        </div>
+
         <!-- Keybinds - Hidden on touch devices -->
         <div v-if="!isTouchDevice" class="settings-section keybinds-section">
           <h4 class="section-title">
@@ -275,15 +283,17 @@
 
 <script lang="ts">
 import { defineComponent, ref, onMounted, onUnmounted, watch } from 'vue';
+import { enumerateMediaDevices } from '@/utils/mediaDevices';
 import { webrtcManager } from '@/services/webrtcManager';
 import { unifiedWebRTC } from '@/services/unifiedWebRTC';
 import { VoiceSettingsService } from '@/services/VoiceSettingsService';
 import { debug } from '@/utils/debug';
 import Icon from '@/components/common/Icon.vue';
+import VoiceInputModeSettings from './VoiceInputModeSettings.vue';
 
 export default defineComponent({
   name: 'VoiceSettingsPanel',
-  components: { Icon },
+  components: { Icon, VoiceInputModeSettings },
   emits: ['close', 'update-settings'],
   setup(props, { emit }) {
     // Device lists
@@ -325,7 +335,7 @@ export default defineComponent({
 
     const getDevices = async () => {
       try {
-        const devices = await navigator.mediaDevices.enumerateDevices();
+        const devices = await enumerateMediaDevices();
         inputDevices.value = devices.filter(d => d.kind === 'audioinput');
         outputDevices.value = devices.filter(d => d.kind === 'audiooutput');
         videoDevices.value = devices.filter(d => d.kind === 'videoinput');

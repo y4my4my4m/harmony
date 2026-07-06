@@ -77,14 +77,20 @@
       <!-- Regular Message or Revealed Blocked Message -->
       <template v-else-if="item.type === 'message'">
         <!-- Beginning of conversation indicator (only show when all messages loaded) -->
-        <div v-if="item.index === 0 && hasScrollbar && isAllMessagesLoaded" class="beginning-indicator" :style="getIndicatorStyle()">
-          <div class="beginning-content">
-            <div class="beginning-icon">🌟</div>
-            <div class="beginning-text">
-              <div class="beginning-title">{{ $t('message.conversationBeginning') }}</div>
-              <div class="beginning-subtitle">{{ $t('message.conversationBeginningSubtitle') }}</div>
-            </div>
+        <div v-if="item.index === 0 && isAllMessagesLoaded" class="beginning-indicator">
+          <div v-if="beginningInfo.kind !== 'channel'" class="beginning-badge">
+            <img v-if="beginningInfo.avatar" class="beginning-avatar" :src="beginningInfo.avatar" alt="" />
+            <span v-else class="beginning-initial">{{ (beginningInfo.name || '?').charAt(0).toUpperCase() }}</span>
           </div>
+          <h2 class="beginning-title">
+            <template v-if="beginningInfo.kind === 'channel'">{{ $t('message.channelWelcome', { name: beginningInfo.name }) }}</template>
+            <template v-else>{{ beginningInfo.name }}</template>
+          </h2>
+          <p class="beginning-subtitle">
+            <template v-if="beginningInfo.kind === 'channel'">{{ $t('message.channelWelcomeSubtitle', { name: beginningInfo.name }) }}</template>
+            <template v-else-if="beginningInfo.kind === 'group'">{{ $t('message.groupBeginning', { name: beginningInfo.name }) }}</template>
+            <template v-else>{{ $t('message.dmBeginning', { name: beginningInfo.name }) }}</template>
+          </p>
         </div>
 
         <!-- Date separator -->
@@ -1356,6 +1362,23 @@ const isAllMessagesLoaded = computed(() => {
   return false;
 });
 
+// Context shown by the conversation-start header (channel vs DM vs group).
+const beginningInfo = computed(() => {
+  if (props.channelId) {
+    const channel = serverChannelStore.channels.find(c => c.id === props.channelId);
+    return { kind: 'channel', name: channel?.name || '', avatar: undefined as string | undefined };
+  }
+  if (props.conversationId) {
+    const conv = dmStore.getCurrentConversation;
+    if (conv?.type === 'group') {
+      return { kind: 'group', name: conv.name || 'Group', avatar: conv.icon_url };
+    }
+    const other = conv?.other_user;
+    return { kind: 'dm', name: other?.display_name || other?.username || 'this user', avatar: other?.avatar_url };
+  }
+  return { kind: 'channel', name: '', avatar: undefined as string | undefined };
+});
+
 // --- REFS ---
 const messageDisplayContainer = ref<HTMLDivElement | null>(null);
 const topSentinelRef = ref<HTMLDivElement | null>(null);
@@ -1472,7 +1495,6 @@ watch(hoveredMessageId, (id) => {
 
 const isAtTop = ref(false);
 const hasScrollbar = ref(false);
-const bufferDistance = ref(0);
 const selectedUser = ref<User | null>(null);
 const showProfileModal = ref(false);
 const showInviteModal = ref(false);
@@ -1511,9 +1533,6 @@ const reportTargetUser = ref<{ username: string; display_name?: string; avatar_u
 const isLightboxOpen = ref(false);
 const indexRef = ref(0);
 const activeLightboxImages = ref<string[]>([]);
-
-// --- CONSTANTS ---
-const BUFFER_THRESHOLD = 15; // pixels needed to trigger buffer effect
 
 // --- VIRTUAL SCROLLING ---
 // Track the initial offset separately so it doesn't change on prepend
@@ -2316,7 +2335,6 @@ onMounted(() => {
   if (messageDisplayContainer.value) {
     isAtTop.value = messageDisplayContainer.value.scrollTop === 0;
     checkScrollable();
-    messageDisplayContainer.value.addEventListener('wheel', handleWheel, { passive: false });
   }
   setupTopSentinelObserver();
   setupResizeObserver();
@@ -2363,9 +2381,6 @@ watch(() => dmStore.highlightedMessageId, (messageId) => {
 onUnmounted(() => {
   window.removeEventListener('keydown', onShiftDown);
   window.removeEventListener('keyup', onShiftUp);
-  if (messageDisplayContainer.value) {
-    messageDisplayContainer.value.removeEventListener('wheel', handleWheel);
-  }
   if (longPressTimer.value) {
     clearTimeout(longPressTimer.value);
   }
@@ -2443,9 +2458,7 @@ const handleScroll = throttle(() => {
   
   checkScrollable();
   isAtTop.value = scrollTop === 0;
-  
-  if (!isAtTop.value || !hasScrollbar.value) bufferDistance.value = 0;
-  
+
   // Prefetch when near top (within 400px)
   if (scrollTop < 400 && hasScrollbar.value) {
     if (!isAllMessagesLoaded.value && !isLoadingOlderMessages.value && props.loadMoreMessages) {
@@ -2477,15 +2490,6 @@ const handleScroll = throttle(() => {
 
   emit('update:isAtBottom', isAtBottom);
 }, 16);
-
-const handleWheel = (event: WheelEvent) => {
-  if (messageDisplayContainer.value && hasScrollbar.value && isAtTop.value && event.deltaY < 0) {
-    event.preventDefault();
-    bufferDistance.value = Math.min(bufferDistance.value + Math.abs(event.deltaY) * 0.5, BUFFER_THRESHOLD * 2);
-  } else if (event.deltaY > 0) {
-    bufferDistance.value = 0;
-  }
-};
 
 // Message Display Logic
 const shouldShowHeader = (message: Message, index: number): boolean => {
@@ -2532,19 +2536,6 @@ const shouldShowDateSeparator = (message: Message, index: number): boolean => {
   if (index === 0) return false;
   const prevMessage = props.messages[index - 1];
   return !isSameDay(new Date(message.created_at), new Date(prevMessage.created_at));
-};
-
-const getIndicatorStyle = () => {
-  if (!hasScrollbar.value || bufferDistance.value <= 0) {
-    return { opacity: 0, transform: 'translateY(-20px)', pointerEvents: 'none' as const };
-  }
-  const progress = Math.min(bufferDistance.value / BUFFER_THRESHOLD, 1);
-  return {
-    opacity: progress,
-    transform: `translateY(${-20 + progress * 20}px)`,
-    pointerEvents: progress > 0.5 ? ('auto' as const) : ('none' as const),
-    transition: 'opacity 0.2s ease-out, transform 0.2s ease-out'
-  };
 };
 
 // Formatting
@@ -3799,50 +3790,55 @@ defineExpose({ editLastOwnMessage });
 /* Beginning of conversation indicator */
 .beginning-indicator {
   display: flex;
-  justify-content: center;
-  padding: 32px 16px 24px;
-  margin-bottom: 8px;
-  /* Remove default transitions since we handle them programmatically */
-  transition: none;
-}
-
-.beginning-content {
-  display: flex;
   flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 40px 20px 20px;
+  margin: 0 4px 8px;
+  border-bottom: 1px solid var(--border-secondary);
+}
+
+.beginning-badge {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: flex;
   align-items: center;
-  text-align: center;
-  max-width: 480px;
-  padding: 24px;
-  background: linear-gradient(135deg, rgba(14, 165, 233, 0.1) 0%, rgba(14, 165, 233, 0.05) 100%);
-  border-radius: 16px;
-  border: 1px solid rgba(14, 165, 233, 0.2);
-  transition: all 0.3s ease-in-out;
+  justify-content: center;
+  margin-bottom: 8px;
+  overflow: hidden;
+  color: var(--text-secondary);
+  background: var(--background-quaternary);
 }
 
-.beginning-content:hover {
-  background: linear-gradient(135deg, rgba(14, 165, 233, 0.15) 0%, rgba(14, 165, 233, 0.08) 100%);
-  border-color: rgba(14, 165, 233, 0.3);
+.beginning-avatar {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
-.beginning-icon {
-  font-size: 2rem;
-  margin-bottom: 12px;
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+.beginning-initial {
+  font-size: 1.4rem;
+  font-weight: 700;
+  line-height: 1;
+  text-transform: uppercase;
 }
 
 .beginning-title {
-  font-size: 1.125rem;
-  font-weight: 600;
+  font-size: 1.75rem;
+  font-weight: 800;
   color: var(--text-primary);
-  margin-bottom: 4px;
-  line-height: 1.4;
+  margin: 0;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
 }
 
 .beginning-subtitle {
-  font-size: 0.875rem;
-  color: var(--text-secondary);
-  line-height: 1.4;
-  opacity: 0.8;
+  font-size: 0.9rem;
+  color: var(--text-tertiary);
+  margin: 2px 0 0;
+  line-height: 1.45;
+  max-width: 640px;
 }
 
 /* Highlighted message */
@@ -4031,20 +4027,20 @@ defineExpose({ editLastOwnMessage });
   }
   
   .beginning-indicator {
-    padding: 24px 12px 16px;
+    padding: 28px 14px 16px;
   }
-  
-  .beginning-content {
-    padding: 20px 16px;
-    max-width: 100%;
+
+  .beginning-badge {
+    width: 44px;
+    height: 44px;
   }
-  
+
   .beginning-title {
-    font-size: 1rem;
+    font-size: 1.4rem;
   }
-  
+
   .beginning-subtitle {
-    font-size: 0.8125rem;
+    font-size: 0.85rem;
   }
 
   .message-meta {

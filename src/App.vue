@@ -1,4 +1,16 @@
 <template>
+  <!-- Native client: choose which Harmony instance to talk to (mandatory on
+       first run of a packaged build, reopenable from the login screen). -->
+  <InstancePicker v-if="showInstancePicker" @close="showInstancePicker = false" />
+  <div
+    v-if="isTauriClient && isAuthRoute && !showInstancePicker"
+    class="instance-bar"
+  >
+    <span class="instance-bar__dot" />
+    <span class="instance-bar__name">{{ storedInstanceName || 'No instance selected' }}</span>
+    <button class="instance-bar__change" @click="showInstancePicker = true">Change</button>
+  </div>
+
   <!-- Conditional Layout Rendering -->
   <AuthLayout v-if="isAuthRoute" />
   
@@ -36,6 +48,9 @@
   
   <!-- Persistent Voice Connection (only when authenticated) -->
   <PersistentVoiceConnection v-if="!isAuthRoute" />
+
+  <!-- Native (Linux X11) screenshare source picker -->
+  <ScreenSharePicker v-if="!isAuthRoute" />
   
   <!-- PWA Components -->
   <PWAInstallBanner />
@@ -80,7 +95,17 @@ import PublicServers from '@/components/PublicServers.vue'
 import AnnouncementPopup from '@/components/announcements/AnnouncementPopup.vue'
 import ThemeCustomizerPanel from '@/components/settings/user/ThemeCustomizerPanel.vue'
 import UnifiedConfirmationModal from '@/components/shared/UnifiedConfirmationModal.vue'
+import InstancePicker from '@/components/InstancePicker.vue'
+import ScreenSharePicker from '@/components/voice/ScreenSharePicker.vue'
+import { needsInstanceSelection, getStoredInstance, isTauriRuntime } from '@/services/instanceConfig'
+import { useStatusBarTheme } from '@/composables/useStatusBarTheme'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
+
+const isTauriClient = isTauriRuntime()
+const showInstancePicker = ref(needsInstanceSelection())
+const storedInstanceName = computed(() => getStoredInstance()?.name ?? null)
+
+useStatusBarTheme()
 
 const {
   confirmDialogVisible,
@@ -305,5 +330,53 @@ async function handleIdentityChanged(e: CustomEvent) {
   #app {
     width: 100%;
     height: 100%;
+  }
+
+  .instance-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: calc(env(safe-area-inset-top, 0px) + 8px) 14px 8px;
+    background: rgba(20, 20, 30, 0.9);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 0.82rem;
+    color: rgba(255, 255, 255, 0.7);
+  }
+
+  .instance-bar__dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #43b581;
+    flex-shrink: 0;
+  }
+
+  .instance-bar__name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .instance-bar__change {
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: transparent;
+    color: #8ab4ff;
+    border-radius: 999px;
+    padding: 4px 12px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .instance-bar__change:hover {
+    border-color: rgba(255, 255, 255, 0.4);
+    color: white;
   }
 </style>

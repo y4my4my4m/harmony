@@ -76,7 +76,7 @@
           <!-- Mobile Logo -->
           <div class="mobile-logo">
             <img src="/icon_3d.webp" alt="Harmony" />
-            <h1 class="mobile-title">{{ instanceName }}</h1>
+            <h1 class="mobile-title">{{ displayTitle }}</h1>
           </div>
 
           <!-- Form Header -->
@@ -381,6 +381,7 @@ import { useToast } from 'vue-toastification'
 import { supabase, setRememberMe, getRememberMe } from '@/supabase'
 import { getRandomLoginBackground } from '@/utils/backgroundUtils'
 import { adminService } from '@/services/AdminService'
+import { getStoredInstance } from '@/services/instanceConfig'
 import type { Provider } from '@supabase/supabase-js'
 
 // Props
@@ -471,7 +472,16 @@ const letterOffsets = ref<Record<number, { x: number; y: number }>>({})
 // Instance branding
 const instanceName = ref('Harmony')
 const instanceDescription = ref('Connect, communicate, and create together')
-const instanceNameLetters = computed(() => instanceName.value.split(''))
+// Native/universal client picks an instance explicitly — show its domain so it's
+// clear which server you're signing into. Web/PWA falls back to the brand name.
+const displayTitle = computed(() => {
+  const stored = getStoredInstance()
+  if (stored) {
+    try { return new URL(stored.origin).host } catch { /* fall through */ }
+  }
+  return instanceName.value
+})
+const instanceNameLetters = computed(() => displayTitle.value.split(''))
 
 // Computed styles
 const authStyles = computed(() => ({

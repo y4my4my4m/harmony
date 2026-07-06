@@ -6,6 +6,7 @@
  */
 
 import { debug } from '@/utils/debug';
+import { enumerateMediaDevices } from '@/utils/mediaDevices';
 import { userStorage } from '@/utils/userScopedStorage';
 
 const STORAGE_KEY = 'voice-settings';
@@ -194,7 +195,7 @@ class VoiceSettingsServiceClass {
    */
   async validateDevices(): Promise<{ input: boolean; output: boolean; video: boolean }> {
     try {
-      const devices = await navigator.mediaDevices.enumerateDevices();
+      const devices = await enumerateMediaDevices();
       const inputDevices = devices.filter(d => d.kind === 'audioinput');
       const outputDevices = devices.filter(d => d.kind === 'audiooutput');
       const videoDevices = devices.filter(d => d.kind === 'videoinput');

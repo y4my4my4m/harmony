@@ -481,7 +481,10 @@ async function initialize(): Promise<void> {
     isSupported.value = checkSupport()
     
     if (!isSupported.value) {
-      debug.log('Push notifications not supported in this browser')
+      // Can't subscribe here (no PushManager), but subscriptions + prefs are
+      // server-side, so still load them for cross-device management.
+      debug.log('Push subscribe unsupported here; loading subscriptions for management only')
+      await fetchSubscriptions().catch(() => {})
       return
     }
 
