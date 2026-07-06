@@ -23,7 +23,20 @@ export const useServerStore = defineStore('server', {
       const toast = useToast();
       try {
         const dataToUpdate = { ...serverData }
-        
+
+        // versioned upload paths self-invalidate the CDN; capture old paths to delete after
+        let oldIcon: string | null = null
+        let oldBanner: string | null = null
+        if ((file || bannerFile) && serverData.id) {
+          const { data: existing } = await supabase
+            .from('servers')
+            .select('icon, banner')
+            .eq('id', serverData.id)
+            .single()
+          oldIcon = existing?.icon ?? null
+          oldBanner = existing?.banner ?? null
+        }
+
         if (file && serverData.id) {
           const ext = file.name.split('.').pop();
           if (!ext) throw new Error('File must have an extension');
@@ -34,14 +47,12 @@ export const useServerStore = defineStore('server', {
             return false;
           }
 
-          const filePath = `${serverData.id}/${serverData.id}.${ext}`;
+          const filePath = `${serverData.id}/icon-${Date.now()}.${ext}`;
 
           debug.log('Uploading server icon to:', filePath);
           const { error: uploadError } = await supabase.storage
             .from('server_icons')
-            .upload(filePath, file, {
-              upsert: true
-            });
+            .upload(filePath, file);
 
           if (uploadError) {
             toast.error(humanizeUploadError(uploadError, 'server_icons'));
@@ -65,14 +76,12 @@ export const useServerStore = defineStore('server', {
             return false;
           }
 
-          const filePath = `${serverData.id}/${serverData.id}_banner.${ext}`;
+          const filePath = `${serverData.id}/banner-${Date.now()}.${ext}`;
 
           debug.log('Uploading server banner to:', filePath);
           const { error: uploadError } = await supabase.storage
             .from('server_banners')
-            .upload(filePath, bannerFile, {
-              upsert: true
-            });
+            .upload(filePath, bannerFile);
 
           if (uploadError) {
             toast.error(humanizeUploadError(uploadError, 'server_banners'));
@@ -98,6 +107,16 @@ export const useServerStore = defineStore('server', {
           .eq('id', serverId);
 
         if (error) throw error;
+
+        // best-effort: remove the replaced files (only in-bucket relative paths)
+        const isBucketPath = (p?: string | null): p is string =>
+          !!p && !/^(https?:|blob:|\/)/.test(p) && p.includes('/')
+        if (file && isBucketPath(oldIcon) && oldIcon !== dataToUpdate.icon) {
+          await supabase.storage.from('server_icons').remove([oldIcon])
+        }
+        if (bannerFile && isBucketPath(oldBanner) && oldBanner !== dataToUpdate.banner) {
+          await supabase.storage.from('server_banners').remove([oldBanner])
+        }
 
         debug.log("Server updated successfully");
         return true;
