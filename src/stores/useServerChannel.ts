@@ -9,6 +9,7 @@ import { statePersistence } from '@/services/StatePersistence';
 import { userEventChannel } from '@/services/UserEventChannel';
 import { authContextService } from '@/services/AuthContextService';
 import { debug } from '@/utils/debug';
+import { invalidateServerIconCache } from '@/utils/serverUtils';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import router from '@/router';
 
@@ -1820,9 +1821,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
             case 'category:delete':
               this._handleCategoryDelete(data);
               break;
-            case 'server:update':
-              this._handleServerUpdate(data);
-              break;
             case 'membership:event': {
               const { getMembershipService } = await import('@/services/membershipService');
               getMembershipService().handleBroadcastEvent(data.new);
@@ -1873,17 +1871,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
         await this.serverStructureSubscription.unsubscribe();
         this.serverStructureSubscription = null;
       }
-    },
-
-    // realtime servers-row update; cache bump forces icon reload (fixed upsert path)
-    async _handleServerUpdate(payload: any): Promise<void> {
-      const updated = payload?.new;
-      if (!updated?.id) return;
-      const idx = this.servers.findIndex(s => s.id === updated.id);
-      if (idx === -1) return;
-      this.servers[idx] = { ...this.servers[idx], ...updated };
-      const { invalidateServerIconCache } = await import('@/utils/serverUtils');
-      invalidateServerIconCache();
     },
 
     /**
@@ -2175,19 +2162,21 @@ export const useServerChannelStore = defineStore('serverChannel', {
     _handleServerUpdate(payload: any): void {
       const updatedServer = payload.new as Server;
       debug.log('📝 Real-time: Server updated:', updatedServer.id, updatedServer.name);
-      
+
       const serverIndex = this.servers.findIndex(s => s.id === updatedServer.id);
       if (serverIndex === -1) {
         return;
       }
-      
+
       this.servers[serverIndex] = { ...this.servers[serverIndex], ...updatedServer };
       debug.log('✅ Server updated in list:', updatedServer.name);
-      
+
       if (this.currentServerId === updatedServer.id) {
         this.currentServer = { ...this.currentServer, ...updatedServer };
         debug.log('✅ Current server updated:', updatedServer.name);
       }
+      // icon/banner reuse a fixed storage path (upsert) → bust cache to reload
+      invalidateServerIconCache();
     },
 
     /**
