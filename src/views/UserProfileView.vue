@@ -703,17 +703,10 @@ const loadUserProfile = async (handle: string, forceRefresh: boolean = false) =>
           const profile = profileStore.profile;
           
           if (profile) {
-            let posts_count = 0;
-            try {
-              // Try to get a sample of posts to validate the user exists and has posts
-              const userPostsSample = await activityPubService.getUserPosts(currentUser.id, { limit: 5 });
-              posts_count = userPostsSample?.length || 0;
-              debug.log(`📊 Post count sample: ${posts_count} (this will be updated after full posts load)`);
-            } catch (error) {
-              debug.log('Could not get post count, using 0 as default:', error);
-              posts_count = 0;
-            }
-            
+            // Placeholder until the real posts load updates it - fetching a
+            // "sample" here was a wasted round-trip on every profile open.
+            const posts_count = 0;
+
             user.value = {
               id: currentUser.id,
               username: profile.username || currentUsername,

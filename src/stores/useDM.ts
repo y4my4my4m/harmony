@@ -13,6 +13,7 @@ import { debug } from '@/utils/debug'
 import { realtimeConnectionManager, type ConnectionStatus } from '@/services/RealtimeConnectionManager'
 import { userEventChannel } from '@/services/UserEventChannel'
 import { getRandomId, createTempMessageId, findOptimisticMatchIndex } from '@/stores/shared/optimisticMessages'
+import { insertMessageSorted, evictOldestCacheEntry, waitForPendingReplyFetch } from '@/stores/shared/messageCacheUtils'
 
 export interface DMUser {
   id: string
@@ -152,22 +153,7 @@ export const useDMStore = defineStore('dm', () => {
   }
 
   const evictOldestCache = () => {
-    if (messageCache.value.size <= maxCacheSize) return
-
-    let oldestTime = new Date()
-    let oldestConversationId = ''
-
-    messageCache.value.forEach((cache, conversationId) => {
-      if (cache.lastFetchedAt < oldestTime) {
-        oldestTime = cache.lastFetchedAt
-        oldestConversationId = conversationId
-      }
-    })
-
-    if (oldestConversationId) {
-      messageCache.value.delete(oldestConversationId)
-      debug.log(`Evicted DM cache for conversation: ${oldestConversationId}`)
-    }
+    evictOldestCacheEntry(messageCache.value, maxCacheSize)
   }
 
   const isCacheValid = (conversationId: string): boolean => {
@@ -187,28 +173,6 @@ export const useDMStore = defineStore('dm', () => {
       currentDMMessages.value = [...cached.messages]
       allMessagesLoaded.value = cached.allMessagesLoaded
     }
-  }
-
-  /**
-   * Insert a message into a sorted array by created_at.
-   * Fast path for newest messages (append), binary insert for older ones.
-   */
-  const insertMessageSorted = (arr: Message[], msg: Message) => {
-    const msgTime = new Date(msg.created_at).getTime()
-    if (arr.length === 0 || new Date(arr[arr.length - 1].created_at).getTime() <= msgTime) {
-      arr.push(msg)
-      return
-    }
-    let lo = 0, hi = arr.length
-    while (lo < hi) {
-      const mid = (lo + hi) >>> 1
-      if (new Date(arr[mid].created_at).getTime() <= msgTime) {
-        lo = mid + 1
-      } else {
-        hi = mid
-      }
-    }
-    arr.splice(lo, 0, msg)
   }
 
   /**
@@ -480,18 +444,7 @@ export const useDMStore = defineStore('dm', () => {
     }
 
     if (fetchingReplyMessages.value.has(messageId)) {
-      return new Promise((resolve) => {
-        const checkCache = () => {
-          if (replyMessageCache.value.has(messageId)) {
-            resolve(replyMessageCache.value.get(messageId)!)
-          } else if (!fetchingReplyMessages.value.has(messageId)) {
-            resolve(null)
-          } else {
-            setTimeout(checkCache, 50)
-          }
-        }
-        checkCache()
-      })
+      return waitForPendingReplyFetch(messageId, replyMessageCache.value, fetchingReplyMessages.value)
     }
 
     fetchingReplyMessages.value.add(messageId)
