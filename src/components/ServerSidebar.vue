@@ -318,6 +318,7 @@ import InviteModal from '@/components/InviteModal.vue';
 import FundingModal from '@/components/FundingModal.vue';
 import { fundingService } from '@/services/FundingService';
 import { useTodayDashboard } from '@/composables/useTodayDashboard';
+import { useViewport } from '@/composables/useViewport';
 import { debug } from '@/utils/debug';
 import type { Server, ServerFolder as ServerFolderType } from '@/types';
 
@@ -823,10 +824,8 @@ watch(() => route.fullPath, () => {
   hideSidebarTooltip();
 });
 
-const isTouchDevice = ref(false);
-if (typeof window !== 'undefined') {
-  isTouchDevice.value = 'ontouchstart' in window && !window.matchMedia('(pointer: fine)').matches;
-}
+const { isTouchOnly } = useViewport();
+const isTouchDevice = ref(isTouchOnly);
 
 const showSidebarTooltip = (event: MouseEvent, name: string, serverCount?: number) => {
   if (isTouchDevice.value) return;

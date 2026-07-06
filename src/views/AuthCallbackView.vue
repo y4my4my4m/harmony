@@ -106,6 +106,7 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
+import { isTauriRuntime } from '@/services/instanceConfig'
 import type { Session } from '@supabase/supabase-js'
 
 const router = useRouter()
@@ -173,12 +174,20 @@ const finalizeLoginAndRedirect = async (session: Session) => {
     .eq('auth_user_id', session.user.id)
     .maybeSingle()
 
-  setTimeout(() => {
-    if (!existingProfile || !existingProfile.username) {
-      router.push('/new-profile')
-    } else {
-      router.push('/chat')
+  const next = !existingProfile || !existingProfile.username ? '/new-profile' : '/chat'
+
+  // Native OAuth popup: the session is already persisted to storage shared
+  // with the main window. Hand off and let the main window close us.
+  if (isTauriRuntime()) {
+    const { isOAuthPopup, notifyOAuthComplete } = await import('@/services/tauriOAuth')
+    if (await isOAuthPopup()) {
+      await notifyOAuthComplete(next)
+      return
     }
+  }
+
+  setTimeout(() => {
+    router.push(next)
   }, 800)
 }
 

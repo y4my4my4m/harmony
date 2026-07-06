@@ -32,6 +32,7 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { debug } from '@/utils/debug'
 import { pwaManager } from '@/services/PWAManager'
+import { canInstallPWA } from '@/utils/platform'
 import {
   showInstallFailedToast,
   showInstallUnavailableToast,
@@ -114,10 +115,11 @@ const handleAppInstalled = () => {
 }
 
 onMounted(() => {
-  // Check initial state
+  // Installing a PWA only makes sense in a browser tab
+  if (!canInstallPWA()) return
+
   setTimeout(checkInstallAvailability, 2000) // Delay to avoid interfering with app load
-  
-  // Listen for install events
+
   window.addEventListener('pwa-install-available', handleInstallAvailable)
   window.addEventListener('pwa-app-installed', handleAppInstalled)
 })

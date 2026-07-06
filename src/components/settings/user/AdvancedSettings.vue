@@ -7,12 +7,12 @@
       </p>
     </div>
 
-    <div class="settings-section">
+    <div v-if="showInstallSection" class="settings-section">
       <h3 class="section-title">Install app</h3>
-      <p class="setting-description install-app-help">
+      <p v-if="!isInstalledPWA" class="setting-description install-app-help">
         Install Harmony as an app for faster loading and notifications. On desktop, use the install icon in your browser address bar if the button below is unavailable.
       </p>
-      <PWAInstallPrompt variant="button" :is-in-settings="true" />
+      <PWAInstallPrompt v-if="!isInstalledPWA" variant="button" :is-in-settings="true" />
 
       <div v-if="canShowRunOnLogin" class="setting-item run-on-login-item">
         <div class="setting-info">
@@ -75,6 +75,40 @@
       </div>
     </div>
 
+    <div v-if="isTauriDesktop" class="settings-section">
+      <h3 class="section-title">Desktop App</h3>
+
+      <div class="setting-item">
+        <div class="setting-info">
+          <h4 class="setting-label">Launch at startup</h4>
+          <p class="setting-description">Start Harmony automatically when you log into your computer. It launches minimized to the tray.</p>
+        </div>
+        <div class="setting-control">
+          <ToggleSwitch v-model="launchAtLogin" @change="onLaunchAtLoginChange" />
+        </div>
+      </div>
+
+      <div class="setting-item">
+        <div class="setting-info">
+          <h4 class="setting-label">Game activity (rich presence)</h4>
+          <p class="setting-description">Show the game you're playing as your status. Detection runs locally; only the game name is shared, as your status text.</p>
+        </div>
+        <div class="setting-control">
+          <ToggleSwitch v-model="richPresence" @change="onRichPresenceChange" />
+        </div>
+      </div>
+
+      <div class="setting-item">
+        <div class="setting-info">
+          <h4 class="setting-label">In-game voice overlay</h4>
+          <p class="setting-description">Floating, click-through voice tiles over your game while in a call. Press Ctrl+Shift+O to toggle interaction.</p>
+        </div>
+        <div class="setting-control">
+          <ToggleSwitch v-model="gameOverlay" @change="onGameOverlayChange" />
+        </div>
+      </div>
+    </div>
+
     <div class="settings-section">
       <h3 class="section-title">Developer Settings</h3>
 
@@ -106,28 +140,6 @@
           />
         </div>
       </div>
-
-      <template v-if="isTauriDesktop">
-        <div class="setting-item">
-          <div class="setting-info">
-            <h4 class="setting-label">Game activity (rich presence)</h4>
-            <p class="setting-description">Show the game you're playing as your status. Detection runs locally; only the game name is shared, as your status text.</p>
-          </div>
-          <div class="setting-control">
-            <ToggleSwitch v-model="richPresence" @change="onRichPresenceChange" />
-          </div>
-        </div>
-
-        <div class="setting-item">
-          <div class="setting-info">
-            <h4 class="setting-label">In-game voice overlay</h4>
-            <p class="setting-description">Floating, click-through voice tiles over your game while in a call. Press Ctrl+Shift+O to toggle interaction.</p>
-          </div>
-          <div class="setting-control">
-            <ToggleSwitch v-model="gameOverlay" @change="onGameOverlayChange" />
-          </div>
-        </div>
-      </template>
     </div>
 
     <div class="settings-section">
@@ -276,7 +288,7 @@ import { useToast } from 'vue-toastification'
 import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
 import PWAInstallPrompt from '@/components/PWAInstallPrompt.vue'
 import RunOnLoginInstructionsModal from '@/components/RunOnLoginInstructionsModal.vue'
-import { isTauriRuntime } from '@/services/instanceConfig'
+import { isTauriDesktop as checkTauriDesktop, canInstallPWA } from '@/utils/platform'
 import { isRichPresenceEnabled, setRichPresenceEnabled } from '@/services/nativePresence'
 import { isOverlayEnabled, setOverlayEnabled } from '@/services/overlayBridge'
 import { useDeveloperTools } from '@/composables/useDeveloperTools'
@@ -321,12 +333,25 @@ const settings = ref({
 const clearingCache = ref(false)
 const originalSettings = ref({ ...settings.value })
 
-const isAndroidUA = /Android/i.test(navigator.userAgent)
-const isTauriDesktop = computed(() => isTauriRuntime() && !isAndroidUA)
+const isTauriDesktop = checkTauriDesktop()
 const richPresence = ref(isRichPresenceEnabled())
 const gameOverlay = ref(isOverlayEnabled())
 function onRichPresenceChange() { setRichPresenceEnabled(richPresence.value) }
 function onGameOverlayChange() { setOverlayEnabled(gameOverlay.value) }
+
+// Native autostart (tauri-plugin-autostart); invoked directly so we don't
+// need the JS guest package for three one-line commands.
+const launchAtLogin = ref(false)
+async function onLaunchAtLoginChange() {
+  try {
+    const { invoke } = await import('@tauri-apps/api/core')
+    await invoke(launchAtLogin.value ? 'plugin:autostart|enable' : 'plugin:autostart|disable')
+  } catch (error) {
+    debug.error('Failed to toggle launch at startup:', error)
+    launchAtLogin.value = !launchAtLogin.value
+    toast.error('Failed to update launch at startup')
+  }
+}
 
 const showRunOnLoginModal = ref(false)
 const runOnLoginEnabled = ref(localStorage.getItem('harmony-run-on-login-enabled') === 'true')
@@ -335,6 +360,10 @@ const runOnLoginBrowserLabel = computed(() => getChromiumBrowserLabel())
 // Only surface on Chromium desktop when the app is actually installed -
 // the feature lives on `about://apps`, which only manages installed PWAs.
 const canShowRunOnLogin = computed(() => isPWA() && isChromiumDesktop())
+const isInstalledPWA = isPWA()
+// Hide install UI in the native app; keep the section when installable or
+// when the run-on-login item applies to an installed PWA.
+const showInstallSection = computed(() => canInstallPWA() || canShowRunOnLogin.value)
 
 const onRunOnLoginEnabled = () => {
   runOnLoginEnabled.value = true
@@ -416,9 +445,18 @@ const hasChanges = computed(() => {
   return JSON.stringify(settings.value) !== JSON.stringify(originalSettings.value)
 })
 
-onMounted(() => {
+onMounted(async () => {
   settings.value.developerMode = developerToolsEnabled.value
   originalSettings.value = { ...settings.value }
+
+  if (isTauriDesktop) {
+    try {
+      const { invoke } = await import('@tauri-apps/api/core')
+      launchAtLogin.value = await invoke<boolean>('plugin:autostart|is_enabled')
+    } catch (error) {
+      debug.error('Failed to read launch-at-startup state:', error)
+    }
+  }
 })
 
 watch(developerToolsEnabled, (v) => {

@@ -3,6 +3,8 @@
  * Provides tactile feedback on supported devices
  */
 
+import { isMobileUserAgent } from '@/utils/pwaUtils'
+
 export type HapticPattern = 'light' | 'medium' | 'heavy' | 'success' | 'warning' | 'error' | 'selection' | 'impact' | 'notification'
 
 export interface HapticOptions {
@@ -22,13 +24,17 @@ class HapticFeedbackManager {
   }
 
   private detectSupport(): void {
-    // Check for various haptic APIs
-    this.isSupported = 
-      'vibrate' in navigator || 
-      'mozVibrate' in navigator || 
-      'webkitVibrate' in navigator ||
-      // @ts-ignore - checking for iOS haptic feedback
-      (window.DeviceMotionEvent && typeof DeviceMotionEvent.requestPermission === 'function')
+    if (typeof navigator === 'undefined') {
+      this.isSupported = false
+      return
+    }
+    // Desktop Chrome exposes navigator.vibrate as a silent no-op, so a
+    // vibration API alone isn't enough - require an actual mobile device.
+    const hasVibrationApi =
+      'vibrate' in navigator ||
+      'mozVibrate' in navigator ||
+      'webkitVibrate' in navigator
+    this.isSupported = hasVibrationApi && isMobileUserAgent()
   }
 
   private loadPreferences(): void {

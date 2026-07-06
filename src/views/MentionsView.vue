@@ -48,7 +48,7 @@ const handlePostsVisible = (postIds: string[]) => {
   })
 }
 
-const isLoadingMentions = computed(() => activityPubStore.isLoadingFeed)
+const isLoadingMentions = computed(() => activityPubStore.isFeedLoading('mentions'))
 
 const mentionedPosts = computed(() => {
   return activityPubStore.mentionsFeed.posts || []

@@ -35,6 +35,7 @@ import { ref, onMounted } from 'vue'
 import { debug } from '@/utils/debug'
 import { usePushNotifications } from '@/composables/usePushNotifications'
 import { isPWA, isMobileUserAgent } from '@/utils/pwaUtils'
+import { supportsWebPush } from '@/utils/platform'
 
 const showBanner = ref(false)
 const enabling = ref(false)
@@ -89,8 +90,8 @@ const hasUserDecided = (): boolean => {
  * Determine if we should show the prompt
  */
 const shouldShowPrompt = (): boolean => {
-  // Must be supported
-  if (!isSupported.value) {
+  // Web push only exists in browsers - never in the native client
+  if (!supportsWebPush() || !isSupported.value) {
     debug.log('🔔 Push prompt: Not supported')
     return false
   }

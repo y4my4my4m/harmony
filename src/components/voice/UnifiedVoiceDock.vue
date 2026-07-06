@@ -334,6 +334,7 @@ import { useSpatialAudioStore } from '@/stores/spatialAudio';
 import { useAuthStore } from '@/stores/auth';
 import { useUserData } from '@/composables/useUserData';
 import { useKeybinds } from '@/composables/useKeybinds';
+import { useViewport } from '@/composables/useViewport';
 import { userStorage } from '@/utils/userScopedStorage';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '@/components/common/Avatar.vue';
@@ -360,6 +361,7 @@ const ScreensharePIP = defineAsyncComponent(() => import('./ScreensharePIP.vue')
 const voiceStore: any = useUnifiedVoiceChannelStore();
 const spatialStore = useSpatialAudioStore();
 const authStore = useAuthStore();
+const { isMobileViewport } = useViewport();
 const { getUser } = useUserData();
 
 // STATE
@@ -626,7 +628,7 @@ const DEFAULT_POSITION = { left: 10, bottom: 90 };
 // Magnetic snap threshold (pixels) - snap if within this distance
 const SNAP_THRESHOLD = 80; // Increased from 30 to 80 for better snap range
 // Only enable magnetic snap on desktop (not mobile)
-const isDesktop = computed(() => window.innerWidth > 768);
+const isDesktop = computed(() => !isMobileViewport.value);
 
 const loadMinimizedPosition = () => {
   try {
