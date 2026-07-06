@@ -1625,7 +1625,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
       this._removeCategoryFromLocalState(categoryId, channelsInCategory, deleteChannels);
     },
 
-    async updateChannel(channelData: { id: string; name?: string; description?: string }): Promise<void> {
+    async updateChannel(channelData: { id: string; name?: string; description?: string; slowmode_seconds?: number }): Promise<void> {
       try {
         debug.log('🔄 Updating channel via service-like helper:', channelData.id);
         
@@ -1652,10 +1652,11 @@ export const useServerChannelStore = defineStore('serverChannel', {
     /**
      * Service-like helper: Update channel with enhanced error handling
      */
-    async _updateChannelHelper(channelData: { id: string; name?: string; description?: string }) {
+    async _updateChannelHelper(channelData: { id: string; name?: string; description?: string; slowmode_seconds?: number }) {
       const updateData: any = {};
       if (channelData.name !== undefined) updateData.name = channelData.name;
       if (channelData.description !== undefined) updateData.description = channelData.description;
+      if (channelData.slowmode_seconds !== undefined) updateData.slowmode_seconds = channelData.slowmode_seconds;
 
       const { data, error } = await supabase
         .from('channels')
@@ -1696,10 +1697,11 @@ export const useServerChannelStore = defineStore('serverChannel', {
     /**
      * Fallback method for updating channel
      */
-    async _updateChannelFallback(channelData: { id: string; name?: string; description?: string }): Promise<void> {
+    async _updateChannelFallback(channelData: { id: string; name?: string; description?: string; slowmode_seconds?: number }): Promise<void> {
       const updateData: any = {};
       if (channelData.name !== undefined) updateData.name = channelData.name;
       if (channelData.description !== undefined) updateData.description = channelData.description;
+      if (channelData.slowmode_seconds !== undefined) updateData.slowmode_seconds = channelData.slowmode_seconds;
 
       const { data, error } = await supabase
         .from('channels')

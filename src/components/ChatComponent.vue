@@ -961,6 +961,13 @@
           } else if (code.startsWith('ENCRYPTION_') || msg.includes('ENCRYPTION_')) {
             sendError.value = msg
             setTimeout(() => { sendError.value = null }, 6000)
+          } else if (msg.includes('Slowmode')) {
+            // The chat store already dispatched harmony:slowmode-hit to sync
+            // the input countdown; surface the human-readable reason.
+            toast.info(msg)
+            if (content && !messageContent.value.trim()) {
+              messageContent.value = content
+            }
           }
         }
       };

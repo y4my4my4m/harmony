@@ -56,6 +56,27 @@
               <div class="character-count">{{ (editedDescription || '').length }}/1024</div>
             </div>
 
+            <div v-if="channel?.type === 0" class="form-group">
+              <label for="channel-slowmode">Slowmode</label>
+              <div class="slowmode-control">
+                <input
+                  id="channel-slowmode"
+                  v-model.number="slowmodeIndex"
+                  type="range"
+                  min="0"
+                  :max="SLOWMODE_STEPS.length - 1"
+                  step="1"
+                  class="slowmode-slider"
+                />
+                <span class="slowmode-value" :class="{ off: editedSlowmode === 0 }">
+                  {{ slowmodeLabel }}
+                </span>
+              </div>
+              <div class="form-hint">
+                Members can send one message per interval. Moderators with Manage Messages are exempt.
+              </div>
+            </div>
+
             <div class="form-group">
               <label>Channel Type</label>
               <div class="channel-type-display">
@@ -260,10 +281,24 @@ const emit = defineEmits<Emits>()
 
 const serverChannelStore = useServerChannelStore()
 
+// Discord-style slowmode intervals (seconds)
+const SLOWMODE_STEPS = [0, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600, 7200, 21600]
+
+function formatSlowmode(seconds: number): string {
+  if (seconds === 0) return 'Off'
+  if (seconds < 60) return `${seconds}s`
+  if (seconds < 3600) return `${seconds / 60}m`
+  return `${seconds / 3600}h`
+}
+
 const editedName = ref('')
 const editedDescription = ref('')
+const slowmodeIndex = ref(0)
 const isLoading = ref(false)
 const nameInput = ref<HTMLInputElement>()
+
+const editedSlowmode = computed(() => SLOWMODE_STEPS[slowmodeIndex.value] ?? 0)
+const slowmodeLabel = computed(() => formatSlowmode(editedSlowmode.value))
 
 const isValidName = computed(() => {
   return editedName.value.trim().length > 0 && editedName.value.trim().length <= 100
@@ -278,8 +313,10 @@ const saveChanges = async () => {
   
   const trimmedName = editedName.value.trim()
   const trimmedDescription = editedDescription.value?.trim() || null
-  
-  if (trimmedName === props.channel.name && trimmedDescription === props.channel.description) {
+  const currentSlowmode = props.channel.slowmode_seconds ?? 0
+  const slowmodeChanged = editedSlowmode.value !== currentSlowmode
+
+  if (trimmedName === props.channel.name && trimmedDescription === props.channel.description && !slowmodeChanged) {
     closeModal()
     return
   }
@@ -290,13 +327,15 @@ const saveChanges = async () => {
     await serverChannelStore.updateChannel({
       id: props.channel.id,
       name: trimmedName,
-      description: trimmedDescription ?? undefined
+      description: trimmedDescription ?? undefined,
+      ...(slowmodeChanged ? { slowmode_seconds: editedSlowmode.value } : {})
     })
     
     const updatedChannel = { 
       ...props.channel, 
       name: trimmedName, 
-      description: trimmedDescription 
+      description: trimmedDescription,
+      slowmode_seconds: editedSlowmode.value
     } as any
     emit('updated', updatedChannel)
     closeModal()
@@ -314,6 +353,16 @@ watch(() => props.channel, (newChannel) => {
   if (newChannel) {
     editedName.value = newChannel.name || ''
     editedDescription.value = newChannel.description || ''
+    const savedSlowmode = newChannel.slowmode_seconds ?? 0
+    let stepIndex = SLOWMODE_STEPS.indexOf(savedSlowmode)
+    if (stepIndex < 0) {
+      // Custom value (e.g. set via API): snap to the closest step below.
+      stepIndex = 0
+      for (let i = SLOWMODE_STEPS.length - 1; i >= 0; i--) {
+        if (SLOWMODE_STEPS[i] <= savedSlowmode) { stepIndex = i; break }
+      }
+    }
+    slowmodeIndex.value = stepIndex
   }
 }, { immediate: true })
 
@@ -630,6 +679,30 @@ watch(() => props.show, (visible) => {
   font-size: 0.75rem;
   color: var(--text-muted);
   margin-top: 4px;
+}
+
+.slowmode-control {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.slowmode-slider {
+  flex: 1;
+  accent-color: var(--harmony-primary, #0EA5E9);
+}
+
+.slowmode-value {
+  min-width: 44px;
+  text-align: right;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--harmony-primary, #0EA5E9);
+}
+
+.slowmode-value.off {
+  color: var(--text-muted);
+  font-weight: 500;
 }
 
 .modal-footer {

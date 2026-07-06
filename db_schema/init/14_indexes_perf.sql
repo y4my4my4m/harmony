@@ -166,6 +166,16 @@ CREATE INDEX IF NOT EXISTS idx_notifications_expires_at
 CREATE INDEX IF NOT EXISTS idx_notifications_type
   ON public.notifications (type);
 
+-- ---------------------------------------------------------------------------
+-- messages (slowmode last-message lookup)
+-- ---------------------------------------------------------------------------
+
+-- enforce_channel_slowmode() checks the author's most recent message per
+-- channel on every insert into a slowmode channel.
+CREATE INDEX IF NOT EXISTS idx_messages_channel_user_created
+  ON public.messages (channel_id, user_id, created_at DESC)
+  WHERE channel_id IS NOT NULL;
+
 DO $$
 BEGIN
   RAISE NOTICE 'Performance indexes (PH1) installed';

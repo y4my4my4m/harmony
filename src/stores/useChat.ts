@@ -757,6 +757,19 @@ export const useChatStore = defineStore('chat', {
           throw error;
         }
 
+        // Slowmode rejection: not transient within the window; retrying
+        // just re-trips the trigger. Drop the optimistic message and sync
+        // the input's countdown to the DB's authoritative remaining time.
+        const slowmodeMatch = code.match(/SLOWMODE_ACTIVE:(\d+)/);
+        if (slowmodeMatch) {
+          const waitSeconds = parseInt(slowmodeMatch[1], 10);
+          this.removeMessageFromCache(tempId);
+          window.dispatchEvent(new CustomEvent('harmony:slowmode-hit', {
+            detail: { seconds: waitSeconds, channelId },
+          }));
+          throw new Error(`Slowmode is on - you can send again in ${waitSeconds}s`);
+        }
+
         // Length-limit and structural validation errors are also not
         // transient - retrying with the same payload will fail the same
         // way. Drop the optimistic message and surface the error so the
