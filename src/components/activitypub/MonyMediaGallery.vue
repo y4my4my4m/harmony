@@ -26,7 +26,7 @@
       <!-- Video / GIFV -->
       <video
         v-else-if="media.type === 'video' || media.type === 'gifv' || (media.type === 'unknown' && isVideoUrl(media.url))"
-        :src="videoFrameSrc(media.url)"
+        :src="media.url"
         :poster="media.preview_url"
         class="media-video"
         :controls="media.type !== 'gifv'"
@@ -186,7 +186,6 @@ import { debug } from '@/utils/debug'
 import type { MediaAttachment } from '@/types';
 import Icon from '@/components/common/Icon.vue';
 import LightboxDownloadButton from '@/components/common/LightboxDownloadButton.vue';
-import { videoFrameSrc } from '@/utils/videoThumb';
 import VueEasyLightbox from 'vue-easy-lightbox';
 import { downloadMediaFromUrl, filenameFromUrl } from '@/utils/downloadMedia';
 

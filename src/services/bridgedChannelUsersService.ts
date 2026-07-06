@@ -1,6 +1,7 @@
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
 import { UserStatus, type User } from '@/types'
+import { apiUrl } from '@/services/instanceConfig'
 
 export const BRIDGED_DISCORD_USER_ID_PREFIX = 'discord:'
 
@@ -188,7 +189,7 @@ export async function fetchBridgedChannelUsers(
 
   const fetchPromise = (async (): Promise<CachedBridgedUsers> => {
     try {
-      const response = await fetch(`/bot-gateway/bridged-users/${channelId}`, {
+      const response = await fetch(apiUrl(`/bot-gateway/bridged-users/${channelId}`), {
         headers: await authHeaders(),
       })
       if (!response.ok) {
@@ -247,7 +248,7 @@ export async function fetchBridgedServerUsers(
 
   const fetchPromise = (async (): Promise<CachedBridgedUsers> => {
     try {
-      const response = await fetch(`/bot-gateway/bridged-users/server/${serverId}`, {
+      const response = await fetch(apiUrl(`/bot-gateway/bridged-users/server/${serverId}`), {
         headers: await authHeaders(),
       })
       if (!response.ok) {

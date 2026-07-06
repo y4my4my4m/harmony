@@ -33,7 +33,7 @@
           <video
             v-else-if="isEditFileVideo(file)"
             class="edit-attachment-thumb"
-            :src="videoFrameSrc(displayMediaUrl(file.url))"
+            :src="displayMediaUrl(file.url)"
             muted
           />
           <div v-else class="edit-attachment-file">
@@ -244,7 +244,7 @@
           >
             <div class="media-frame">
               <video
-                :src="videoFrameSrc(part.url)"
+                :src="part.url"
                 controls
                 class="content-video"
                 preload="metadata"
@@ -309,7 +309,7 @@
           >
             <div class="media-frame">
               <video
-                :src="videoFrameSrc(embedMedia(part)!.url)"
+                :src="embedMedia(part)!.url"
                 controls
                 loop
                 muted
@@ -415,7 +415,7 @@
               @click="requestRemoveAttachment(part.url)"
             />
             <video
-              :src="videoFrameSrc(part.url)"
+              :src="part.url"
               controls
               class="content-video"
               preload="metadata"
@@ -578,7 +578,6 @@ import MessageMediaGallery from '@/components/common/MessageMediaGallery.vue';
 import AttachmentRemoveButton from '@/components/common/AttachmentRemoveButton.vue';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import { groupMediaGalleryParts } from '@/utils/mediaGalleryUtils';
-import { videoFrameSrc } from '@/utils/videoThumb';
 import { getAttachmentThumbnailUrl } from '@/utils/storageImageUtils';
 import {
   isDiscordCdnUrl,
@@ -1326,7 +1325,6 @@ export default defineComponent({
     };
 
     return {
-      videoFrameSrc,
       displayContent,
       onAttachmentMediaError,
       getEmojiUrl,

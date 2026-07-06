@@ -13,8 +13,11 @@ import android.graphics.Paint
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
 import android.graphics.Rect
+import android.media.MediaMetadataRetriever
 import android.os.Build
 import android.os.Bundle
+import android.util.Base64
+import java.io.ByteArrayOutputStream
 import androidx.core.app.NotificationCompat
 import androidx.core.app.Person
 import androidx.core.content.pm.ShortcutInfoCompat
@@ -123,6 +126,39 @@ class MainActivity : TauriActivity() {
       getSystemService(NotificationManager::class.java).notify(id, builder.build())
     }
       .start()
+  }
+
+  // Extract a video's first frame as a JPEG data URL. Handles local and remote
+  // http(s) URLs natively (no CORS). Returns "" on failure.
+  fun videoThumbnail(url: String): String {
+    val retriever = MediaMetadataRetriever()
+    return try {
+      if (url.startsWith("http")) {
+        retriever.setDataSource(url, HashMap<String, String>())
+      } else {
+        retriever.setDataSource(url)
+      }
+      val frame = retriever.getFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+        ?: return ""
+      val scaled = scaleForThumb(frame)
+      val baos = ByteArrayOutputStream()
+      scaled.compress(Bitmap.CompressFormat.JPEG, 75, baos)
+      if (scaled != frame) frame.recycle()
+      "data:image/jpeg;base64," + Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP)
+    } catch (e: Exception) {
+      ""
+    } finally {
+      try { retriever.release() } catch (_: Exception) {}
+    }
+  }
+
+  private fun scaleForThumb(src: Bitmap): Bitmap {
+    val max = 640
+    val w = src.width
+    val h = src.height
+    if (w <= max && h <= max) return src
+    val ratio = minOf(max.toFloat() / w, max.toFloat() / h)
+    return Bitmap.createScaledBitmap(src, (w * ratio).toInt(), (h * ratio).toInt(), true)
   }
 
   fun openUrl(url: String) {
