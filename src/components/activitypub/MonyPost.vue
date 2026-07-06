@@ -418,6 +418,15 @@
                 <Icon name="trash" />
                 <span>Delete</span>
               </button>
+
+              <button
+                v-if="!isPureReblog && canDelete"
+                class="dropdown-item danger"
+                @click="onDeleteAndRedraft"
+              >
+                <Icon name="edit" />
+                <span>Delete & Re-draft</span>
+              </button>
               
               <div v-if="isRemotePost" class="dropdown-divider"></div>
               
@@ -483,6 +492,22 @@
               </button>
 
               <div v-if="!canDelete" class="dropdown-divider"></div>
+              <button
+                v-if="!canDelete && displayAuthor?.id"
+                class="dropdown-item"
+                @click="onMuteAuthor"
+              >
+                <Icon name="volume-x" />
+                <span>{{ isAuthorMuted ? 'Unmute' : 'Mute' }} @{{ displayAuthor.username }}</span>
+              </button>
+              <button
+                v-if="!canDelete && displayAuthor?.id"
+                class="dropdown-item danger"
+                @click="onBlockAuthor"
+              >
+                <Icon name="ban" />
+                <span>Block @{{ displayAuthor.username }}</span>
+              </button>
               <button
                 v-if="!canDelete"
                 class="dropdown-item danger"
@@ -642,6 +667,7 @@ import VueEasyLightbox from 'vue-easy-lightbox';
 import { useToast } from 'vue-toastification';
 import router from '@/router';
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
+import { messagePartsToRawText } from '@/utils/messageContentUtils'
 
 // Props
 interface Props {
@@ -1677,6 +1703,79 @@ const onTogglePin = async () => {
 const onDelete = () => {
   showDeleteConfirmation.value = true;
   closeMenu();
+};
+
+// Mastodon-style: delete the post and reopen the composer prefilled with
+// its content so the author can fix and repost.
+const onDeleteAndRedraft = async () => {
+  closeMenu();
+  if (isDeleting.value) return;
+  const confirmed = await confirm({
+    title: 'Delete & re-draft',
+    message: 'Delete this post and move its content back into the composer? Favorites and reblogs on it are lost.',
+    confirmButtonText: 'Delete & Re-draft',
+    dangerAction: true,
+  });
+  if (!confirmed) return;
+
+  try {
+    isDeleting.value = true;
+    const draftText = messagePartsToRawText(props.post.content as any);
+    const draft = {
+      content: draftText,
+      visibility: props.post.visibility || 'public',
+      contentWarning: props.post.content_warning || undefined,
+      sensitive: !!props.post.is_sensitive,
+    };
+    await activityPubStore.deletePost(props.post.id);
+    activityPubStore.openComposer(draft);
+  } catch (error: any) {
+    debug.error('Failed to delete & re-draft:', error);
+    toast.error(error?.message || 'Failed to delete post');
+  } finally {
+    isDeleting.value = false;
+  }
+};
+
+const isAuthorMuted = computed(() => {
+  const id = displayAuthor.value?.id;
+  return id ? activityPubStore.mutedUsers.has(id) : false;
+});
+
+const onMuteAuthor = async () => {
+  closeMenu();
+  const author = displayAuthor.value;
+  if (!author?.id) return;
+  try {
+    if (isAuthorMuted.value) {
+      await activityPubStore.unmuteUser(author.id);
+      toast.success(`Unmuted @${author.username}`);
+    } else {
+      await activityPubStore.muteUser(author.id);
+      toast.success(`Muted @${author.username} - their posts are hidden from your feeds`);
+    }
+  } catch (error: any) {
+    toast.error(error?.message || 'Failed to update mute');
+  }
+};
+
+const onBlockAuthor = async () => {
+  closeMenu();
+  const author = displayAuthor.value;
+  if (!author?.id) return;
+  const confirmed = await confirm({
+    title: `Block @${author.username}?`,
+    message: 'They won\'t be able to follow you or see your posts, and you won\'t see theirs.',
+    confirmButtonText: 'Block',
+    dangerAction: true,
+  });
+  if (!confirmed) return;
+  try {
+    await activityPubStore.blockUser(author.id);
+    toast.success(`Blocked @${author.username}`);
+  } catch (error: any) {
+    toast.error(error?.message || 'Failed to block user');
+  }
 };
 
 /**

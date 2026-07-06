@@ -338,6 +338,7 @@ import type { SuggestionItem } from '@/components/AutoSuggest.vue';
 
 // Utils
 import { getOriginalPost, getOriginalPostId, getReplyMentionAuthor } from '@/utils/postReblog';
+import { messagePartsToRawText } from '@/utils/messageContentUtils';
 
 // Components
 import MonyContent from './MonyContent.vue';
@@ -368,6 +369,8 @@ interface Props {
   isOpen?: boolean;
   defaultVisibility?: Post['visibility'];
   initialContent?: string;
+  initialContentWarning?: string;
+  initialSensitive?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -823,26 +826,6 @@ const handleSubmit = async () => {
   }
 };
 
-/**
- * Convert MessagePart[] from a post's content back to raw text for editing.
- */
-function messagePartsToRawText(parts: any[]): string {
-  if (!Array.isArray(parts)) return typeof parts === 'string' ? parts : '';
-  return parts.map((part: any) => {
-    switch (part.type) {
-      case 'text': return part.text || '';
-      case 'url': return part.url || '';
-      case 'mention': {
-        if (!part.isLocal && part.domain) return `@${part.username}@${part.domain}`;
-        return `@${part.username}`;
-      }
-      case 'emoji': return `:${part.emoji?.name || 'emoji'}:`;
-      case 'hashtag': return `#${part.name}`;
-      default: return '';
-    }
-  }).join('');
-}
-
 // Lifecycle
 onMounted(() => {
   if (props.type === 'edit' && props.editPost) {
@@ -879,6 +862,13 @@ onMounted(() => {
     }
   } else if (props.type === 'post' && props.initialContent?.trim()) {
     content.value = props.initialContent;
+    if (props.initialContentWarning) {
+      contentWarning.value = props.initialContentWarning;
+      showContentWarning.value = true;
+    }
+    if (props.initialSensitive) {
+      isSensitive.value = true;
+    }
   }
 
   nextTick(() => {
