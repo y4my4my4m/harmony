@@ -19,7 +19,7 @@
           </div>
           <div v-else class="video-preview">
             <video
-              :src="attachment.preview_url || attachment.url"
+              :src="videoFrameSrc(attachment.preview_url || attachment.url)"
               class="preview-video"
               muted
             />
@@ -100,6 +100,7 @@
 
 <script setup lang="ts">
 import Icon from '@/components/common/Icon.vue';
+import { videoFrameSrc } from '@/utils/videoThumb';
 
 // Props
 interface MediaAttachment {

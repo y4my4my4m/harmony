@@ -164,7 +164,8 @@ pub fn run() {
     commands::media::native_media_supported,
     commands::media::set_system_bar_colors,
     commands::media::show_android_notification,
-    commands::media::android_call_service
+    commands::media::android_call_service,
+    commands::media::android_open_url
   ]);
 
   builder
