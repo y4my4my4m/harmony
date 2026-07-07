@@ -51,7 +51,11 @@ CREATE TABLE IF NOT EXISTS public.servers (
     is_featured boolean DEFAULT false,
     featured_order integer DEFAULT 0,
 
+    -- Owner-set rules (string array) agreed to in the invite accept flow
+    rules jsonb NOT NULL DEFAULT '[]'::jsonb,
+
     -- Length backstops (sanitize_server_text() trigger clamps on every write)
+    CONSTRAINT servers_rules_shape_check CHECK (jsonb_typeof(rules) = 'array' AND jsonb_array_length(rules) <= 25),
     CONSTRAINT servers_name_length_check CHECK (char_length(name) <= 100),
     CONSTRAINT servers_description_length_check CHECK (description IS NULL OR char_length(description) <= 500),
     CONSTRAINT servers_slug_format CHECK (slug IS NULL OR slug ~ '^[a-z0-9][a-z0-9_-]{0,63}$')

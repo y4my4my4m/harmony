@@ -184,7 +184,7 @@ router.get(
       .select(`
         *,
         server:servers!invites_server_id_fkey(
-          id, name, description, icon, banner, public,
+          id, name, description, icon, banner, public, rules,
           owner:profiles!servers_owner_fkey(username, display_name, avatar_url)
         ),
         creator:profiles!invites_created_by_fkey(username, display_name, avatar_url)
@@ -253,11 +253,29 @@ router.get(
     // Merge categories and channels
     const allChannels = [...categoryList, ...channelList];
 
+    // rules travel with the invite so remote clients can show them pre-join
+    const serverRules = Array.isArray(server.rules)
+      ? server.rules.filter((r: unknown): r is string => typeof r === 'string' && r.trim().length > 0)
+      : [];
+
+    let instanceRules: string[] = [];
+    const { data: instanceRulesRow } = await supabase
+      .from('instance_config')
+      .select('config_value')
+      .eq('config_key', 'instance_rules')
+      .maybeSingle();
+    if (Array.isArray(instanceRulesRow?.config_value)) {
+      instanceRules = instanceRulesRow.config_value.filter(
+        (r: unknown): r is string => typeof r === 'string' && r.trim().length > 0
+      );
+    }
+
     res.json({
       code: invite.code,
       expiresAt: invite.expires_at,
       maxUses: invite.max_uses,
       uses: invite.uses || 0,
+      instanceRules,
       createdBy: invite.creator ? {
         username: invite.creator.username,
         displayName: invite.creator.display_name,
@@ -271,6 +289,7 @@ router.get(
         icon: getFullServerIconUrl(server.icon),
         banner: getFullServerBannerUrl(server.banner),
         memberCount: memberCount || 0,
+        rules: serverRules,
         channels: allChannels,
         inbox: `${serverApId}/inbox`,
       },

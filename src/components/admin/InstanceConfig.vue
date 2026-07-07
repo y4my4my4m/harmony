@@ -269,8 +269,8 @@
       </div>
       <div class="setting-group">
         <label>Instance Description</label>
-        <textarea 
-          v-model="instanceConfig.description" 
+        <textarea
+          v-model="instanceConfig.description"
           class="cyber-input"
           rows="3"
           placeholder="A federated social platform"
@@ -278,6 +278,19 @@
         ></textarea>
         <span class="setting-hint">
           This description appears as the subtitle on the login/register page.
+        </span>
+      </div>
+      <div class="setting-group">
+        <label>Instance Rules</label>
+        <textarea
+          v-model="instanceRulesText"
+          class="cyber-input"
+          rows="5"
+          placeholder="One rule per line, e.g.&#10;Be respectful&#10;No spam"
+          @input="instanceBrandingChanged = true"
+        ></textarea>
+        <span class="setting-hint">
+          Shown once to users joining a server here, and to federated users joining via an invite link.
         </span>
       </div>
 
@@ -638,6 +651,8 @@ const instanceConfig = ref({
 })
 const instanceIconFile = ref<File | null>(null)
 const instanceBannerFile = ref<File | null>(null)
+// One rule per line in the editor; persisted as a jsonb string array
+const instanceRulesText = ref('')
 
 // OAuth provider configuration
 const oauthProviders = ref({
@@ -715,7 +730,8 @@ const loadInstanceConfig = async () => {
         maintainerEmail: cfg.instance.maintainerEmail || '',
         defaultThemeJson: cfg.instance.defaultThemeJson || '',
       }
-      
+      instanceRulesText.value = (cfg.instance.rules || []).join('\n')
+
       if (cfg.instance.oauthProviders) {
         const providers = cfg.instance.oauthProviders
         if (Array.isArray(providers)) {
@@ -919,6 +935,11 @@ const saveInstanceBranding = async () => {
     await adminService.setInstanceConfigs({
       instance_name: instanceConfig.value.name,
       instance_description: instanceConfig.value.description,
+      instance_rules: instanceRulesText.value
+        .split('\n')
+        .map((line) => line.trim().slice(0, 300))
+        .filter((line) => line.length > 0)
+        .slice(0, 25),
       terms_url: instanceConfig.value.termsUrl,
       privacy_url: instanceConfig.value.privacyUrl,
       instance_icon: instanceConfig.value.iconUrl,

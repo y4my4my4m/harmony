@@ -11,6 +11,7 @@ INSERT INTO public.instance_config (config_key, config_value, description) VALUE
     ('domain', '"localhost"', 'The domain name of this instance'),
     ('instance_name', '"Harmony"', 'The name of this Harmony instance'),
     ('instance_description', '""', 'Description of this instance'),
+    ('instance_rules', '[]', 'Instance-wide rules (jsonb string array) shown to joining users'),
     ('open_registration', 'true', 'Whether new user registration is open'),
     ('approval_required', 'false', 'Whether new registrations require admin approval'),
     ('max_post_length', '500', 'Maximum length of ActivityPub posts'),

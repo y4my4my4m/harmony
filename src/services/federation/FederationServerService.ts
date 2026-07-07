@@ -38,6 +38,10 @@ export interface InviteInfo {
   expiresAt?: string
   maxUses?: number
   uses?: number
+  /** Server rules from the origin instance, shown before joining. */
+  serverRules?: string[]
+  /** Origin instance-wide rules, shown before joining. */
+  instanceRules?: string[]
   createdBy?: {
     username: string
     displayName?: string
@@ -234,6 +238,8 @@ export class FederationServerService {
         expiresAt: data.expiresAt,
         maxUses: data.maxUses,
         uses: data.uses,
+        serverRules: Array.isArray(data.server.rules) ? data.server.rules : [],
+        instanceRules: Array.isArray(data.instanceRules) ? data.instanceRules : [],
         createdBy: data.createdBy,
       }
 

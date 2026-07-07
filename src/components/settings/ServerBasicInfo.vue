@@ -60,6 +60,24 @@
       </div>
 
       <div class="form-group">
+        <label class="form-label" for="server-rules">{{ $t('server.rulesLabel', 'Server Rules') }}</label>
+        <textarea
+          id="server-rules"
+          v-model="rulesText"
+          class="form-textarea"
+          :class="{ 'read-only': !permissions.canChangeServerDescription }"
+          :placeholder="$t('server.rulesPlaceholder', 'One rule per line, e.g.\nBe respectful\nNo spam')"
+          :disabled="loading || !permissions.canChangeServerDescription"
+          :readonly="!permissions.canChangeServerDescription"
+          rows="5"
+          @input="updateServerRules"
+        />
+        <div class="form-hint">
+          {{ $t('server.rulesHint', 'Shown to people before they accept an invite (max 25 rules).') }}
+        </div>
+      </div>
+
+      <div class="form-group">
         <label class="form-label">{{ $t('server.serverOwner') }}</label>
         <div class="owner-info">
           <div class="owner-badge">
@@ -345,6 +363,27 @@ const updateServerDescription = (event: Event) => {
   const newDescription = (event.target as HTMLTextAreaElement).value
   const updatedServer = { ...props.server, description: newDescription }
   emit('update:server', updatedServer)
+}
+
+// Local text buffer so filtering empty lines doesn't fight the textarea cursor;
+// the parsed array (one rule per line, max 25) is what gets emitted/saved.
+const rulesText = ref((props.server.rules ?? []).join('\n'))
+
+watch(
+  () => props.server.id,
+  () => {
+    rulesText.value = (props.server.rules ?? []).join('\n')
+  },
+)
+
+const updateServerRules = () => {
+  if (!props.permissions.canChangeServerDescription) return
+  const rules = rulesText.value
+    .split('\n')
+    .map((line) => line.trim().slice(0, 300))
+    .filter((line) => line.length > 0)
+    .slice(0, 25)
+  emit('update:server', { ...props.server, rules })
 }
 </script>
 

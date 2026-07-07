@@ -109,6 +109,15 @@
             </div>
           </div>
 
+          <!-- Origin rules (instance + server) shown before joining -->
+          <div v-if="isInvite && combinedRules.length > 0" class="invite-rules">
+            <div class="invite-rules__title">{{ $t('federation.serverRules', 'Rules') }}</div>
+            <ol class="invite-rules__list">
+              <li v-for="(rule, index) in combinedRules" :key="index">{{ rule }}</li>
+            </ol>
+            <p class="invite-rules__note">{{ $t('federation.rulesAgreeNote', 'By joining, you agree to these rules.') }}</p>
+          </div>
+
           <!-- Channel Preview -->
           <div v-if="discoveredServer.channels.length > 0" class="channels-preview">
             <span 
@@ -188,6 +197,12 @@ const inviterDisplayNameParts = computed(() => {
   const dn = creator.displayName || creator.username || ''
   return userDataService.resolveDisplayNameParts(dn)
 })
+
+// origin instance rules first, then server rules
+const combinedRules = computed(() => [
+  ...(inviteInfo.value?.instanceRules ?? []),
+  ...(inviteInfo.value?.serverRules ?? []),
+])
 
 async function discoverServer() {
   if (!serverUrl.value) return
@@ -762,6 +777,40 @@ function formatExpiry(expiresAt: string): string {
     width: 100%;
     padding: 12px;
   }
+}
+
+.invite-rules {
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
+.invite-rules__title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.invite-rules__list {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-primary);
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.invite-rules__note {
+  margin: 8px 0 0;
+  font-size: 11px;
+  color: var(--text-muted);
 }
 </style>
 
