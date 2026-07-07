@@ -34,6 +34,7 @@ import {
   verifyMessageSignature,
 } from './MessageSigner'
 import { debug } from '@/utils/debug'
+import { isTauriRuntime } from '@/services/instanceConfig'
 
 const DEVICE_ID_STORAGE_KEY = 'harmony_device_id'
 
@@ -95,10 +96,10 @@ class DeviceIdentityService {
 
   /** Coarse platform label for display ("web" / "desktop" / "mobile"). */
   getPlatform(): string {
-    if (typeof (globalThis as any).__TAURI__ !== 'undefined') return 'desktop'
     const ua = typeof navigator !== 'undefined' ? navigator.userAgent : ''
-    if (/Android|iPhone|iPad|iPod|Mobile/i.test(ua)) return 'mobile'
-    return 'web'
+    const isMobileUA = /Android|iPhone|iPad|iPod|Mobile/i.test(ua)
+    if (isTauriRuntime()) return isMobileUA ? 'mobile' : 'desktop'
+    return isMobileUA ? 'mobile' : 'web'
   }
 
   /** Best-effort human label, e.g. "Chrome on Windows". */

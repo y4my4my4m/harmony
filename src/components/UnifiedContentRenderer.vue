@@ -203,6 +203,8 @@ import { useContentRenderer, type ContentRenderOptions } from '@/composables/use
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
 import { escapeHtml, sanitizeMessageHtml } from '@/utils/sanitize';
+import { isTauriRuntime } from '@/services/instanceConfig';
+import { openExternalUrl } from '@/services/tauriLinks';
 import DisplayName from '@/components/DisplayName.vue';
 import EncryptedGlyphPreview from '@/components/encryption/EncryptedGlyphPreview.vue';
 
@@ -302,9 +304,18 @@ const handleContentClick = (event: Event) => {
     return;
   }
   
-  if (target.tagName === 'A' && target.classList.contains('url-link')) {
-    const url = target.getAttribute('href');
-    if (url) {
+  // AP/Mastodon links wrap visible text in nested spans, so event.target is often
+  // a child, not the <a>. Match the nearest anchor.
+  const anchor = target.closest('a') as HTMLAnchorElement | null;
+  if (anchor) {
+    const url = anchor.getAttribute('href');
+    if (url && /^https?:\/\//i.test(url)) {
+      // target="_blank" is a no-op in the Tauri webview; route through the shell
+      // plugin there instead. On web/PWA leave the native anchor behavior alone.
+      if (isTauriRuntime()) {
+        event.preventDefault();
+        openExternalUrl(url);
+      }
       emit('link-click', url, event);
     }
     return;

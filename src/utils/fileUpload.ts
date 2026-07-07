@@ -9,6 +9,38 @@ export interface UploadResult {
   error?: string;
 }
 
+const EXTENSION_MIME: Record<string, string> = {
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  apng: 'image/apng',
+  svg: 'image/svg+xml',
+  bmp: 'image/bmp',
+  ico: 'image/x-icon',
+  mp4: 'video/mp4',
+  webm: 'video/webm',
+  mov: 'video/quicktime',
+  mkv: 'video/x-matroska',
+  mp3: 'audio/mpeg',
+  ogg: 'audio/ogg',
+  oga: 'audio/ogg',
+  wav: 'audio/wav',
+  flac: 'audio/flac',
+  m4a: 'audio/mp4',
+  pdf: 'application/pdf',
+  txt: 'text/plain',
+  md: 'text/markdown',
+  json: 'application/json',
+  zip: 'application/zip',
+};
+
+export function getMimeTypeFromFilename(filename: string): string {
+  const ext = filename.split('.').pop()?.toLowerCase() || '';
+  return EXTENSION_MIME[ext] || 'application/octet-stream';
+}
+
 /**
  * Upload a file to Supabase storage
  * @param file The file to upload

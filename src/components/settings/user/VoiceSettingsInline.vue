@@ -7,72 +7,7 @@
         Input Mode
       </h4>
       
-      <div class="input-mode-options">
-        <label 
-          class="input-mode-option" 
-          :class="{ active: inputMode === 'voice_activity' }"
-          @click="setInputMode('voice_activity')"
-        >
-          <div class="radio-custom" :class="{ checked: inputMode === 'voice_activity' }">
-            <div class="radio-inner"></div>
-          </div>
-          <div class="mode-content">
-            <span class="mode-title">Voice Activity</span>
-            <small class="mode-description">Automatically transmit when you speak</small>
-          </div>
-        </label>
-        
-        <label 
-          class="input-mode-option" 
-          :class="{ active: inputMode === 'push_to_talk' }"
-          @click="setInputMode('push_to_talk')"
-        >
-          <div class="radio-custom" :class="{ checked: inputMode === 'push_to_talk' }">
-            <div class="radio-inner"></div>
-          </div>
-          <div class="mode-content">
-            <span class="mode-title">Push to Talk</span>
-            <small class="mode-description">Hold a key to transmit</small>
-          </div>
-        </label>
-      </div>
-      
-      <!-- PTT-specific settings -->
-      <div v-if="inputMode === 'push_to_talk'" class="ptt-settings">
-        <div class="setting-group">
-          <label class="setting-label">Push to Talk Shortcut</label>
-          <button 
-            class="keybind-button" 
-            :class="{ recording: isRecordingKeybind }"
-            @click="handleKeybindClick"
-          >
-            <Icon name="keyboard" />
-            <span v-if="isRecordingKeybind">Press any key...</span>
-            <span v-else>{{ pttKeyDisplay }}</span>
-          </button>
-          <small class="setting-hint">Click to change the keybind</small>
-        </div>
-        
-        <div class="setting-group">
-          <label class="setting-label">
-            Release Delay
-            <span class="setting-value">{{ releaseDelay }}ms</span>
-          </label>
-          <div class="volume-control">
-            <input 
-              type="range" 
-              v-model.number="localReleaseDelay"
-              min="0" 
-              max="500" 
-              step="50"
-              class="setting-slider"
-              @input="updateReleaseDelay"
-            />
-            <div class="volume-indicator" :style="{ width: `${(localReleaseDelay / 500) * 100}%` }"></div>
-          </div>
-          <small class="setting-hint">Delay before muting after releasing the key (prevents cutting off words)</small>
-        </div>
-      </div>
+      <VoiceInputModeSettings @input-mode-change="onInputModeChange" />
     </div>
 
     <!-- Audio Settings -->
@@ -262,16 +197,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, computed } from 'vue';
+import { ref, onMounted, onUnmounted, watch } from 'vue';
 import { enumerateMediaDevices } from '@/utils/mediaDevices';
 import { debug } from '@/utils/debug'
 import { webrtcManager } from '@/services/webrtcManager';
 import { unifiedWebRTC } from '@/services/unifiedWebRTC';
 import { VoiceSettingsService } from '@/services/VoiceSettingsService';
-import { useKeybinds, type KeybindModifiers } from '@/composables/useKeybinds';
 import Icon from '@/components/common/Icon.vue';
-
-type InputMode = 'voice_activity' | 'push_to_talk';
+import VoiceInputModeSettings from '@/components/voice/VoiceInputModeSettings.vue';
 
 interface Props {
   loading?: boolean;
@@ -283,17 +216,9 @@ const emit = defineEmits<{
   'update-voice-settings': [settings: any];
 }>();
 
-// Centralized keybind system
-const keybinds = useKeybinds();
-
-// Local state for keybind recording
-const isRecordingKeybind = ref(false);
-
-// Computed refs for PTT settings
-const inputMode = keybinds.inputMode;
-const pttKeyDisplay = computed(() => keybinds.getKeybindDisplay('push-to-talk'));
-const releaseDelay = keybinds.releaseDelay;
-const localReleaseDelay = ref(keybinds.releaseDelay.value);
+function onInputModeChange(mode: 'voice_activity' | 'push_to_talk') {
+  emit('update-voice-settings', { type: 'inputMode', value: mode });
+}
 
 // Device lists
 const inputDevices = ref<MediaDeviceInfo[]>([]);
@@ -322,89 +247,6 @@ const testLevel = ref(0);
 const previewStream = ref<MediaStream | null>(null);
 const previewVideo = ref<HTMLVideoElement | null>(null);
 
-// PTT Functions
-const setInputMode = (mode: InputMode) => {
-  keybinds.setInputMode(mode);
-  emit('update-voice-settings', { type: 'inputMode', value: mode });
-};
-
-const handleKeybindClick = () => {
-  if (isRecordingKeybind.value) {
-    isRecordingKeybind.value = false;
-  } else {
-    isRecordingKeybind.value = true;
-  }
-};
-
-const handleKeybindKeydown = (event: KeyboardEvent) => {
-  if (isRecordingKeybind.value) {
-    event.preventDefault();
-    
-    // Ignore modifier-only keys
-    if (['Control', 'Alt', 'Shift', 'Meta'].includes(event.key)) {
-      return;
-    }
-    
-    // Escape cancels
-    if (event.code === 'Escape') {
-      isRecordingKeybind.value = false;
-      return;
-    }
-    
-    // Record the keybind
-    recordKey(event.code, {
-      ctrl: event.ctrlKey,
-      alt: event.altKey,
-      shift: event.shiftKey,
-      meta: event.metaKey,
-    });
-    event.stopPropagation();
-  }
-};
-
-const handleKeybindMousedown = (event: MouseEvent) => {
-  if (!isRecordingKeybind.value) return;
-  
-  // Only capture extra mouse buttons (3, 4, 5+) by default
-  // Left (0), Middle (1), Right (2) are used for UI interaction
-  if (event.button < 3) {
-    // Allow capturing if user holds a modifier key
-    if (!event.ctrlKey && !event.altKey && !event.shiftKey && !event.metaKey) {
-      return;
-    }
-  }
-  
-  event.preventDefault();
-  event.stopPropagation();
-  
-  const mouseKey = `Mouse${event.button}`;
-  recordKey(mouseKey, {
-    ctrl: event.ctrlKey,
-    alt: event.altKey,
-    shift: event.shiftKey,
-    meta: event.metaKey,
-  });
-};
-
-// Common function to record a key/mouse button
-const recordKey = (key: string, modifiers: KeybindModifiers) => {
-  keybinds.setKeybind('push-to-talk', key, modifiers);
-  isRecordingKeybind.value = false;
-};
-
-// Cancel keybind recording
-const cancelRecordingKeybind = () => {
-  isRecordingKeybind.value = false;
-};
-
-const updateReleaseDelay = () => {
-  keybinds.setReleaseDelay(localReleaseDelay.value);
-};
-
-// Sync local release delay with store
-watch(releaseDelay, (newValue) => {
-  localReleaseDelay.value = newValue;
-}, { immediate: true });
 
 const getDevices = async () => {
   try {
@@ -684,24 +526,16 @@ onMounted(() => {
   debug.log('🎛️ [VoiceSettingsInline] Component mounted, loading settings...');
   getDevices();
   navigator.mediaDevices.addEventListener('devicechange', getDevices);
-  window.addEventListener('keydown', handleKeybindKeydown);
-  window.addEventListener('mousedown', handleKeybindMousedown, { capture: true });
   window.addEventListener('harmony-device-changed', handleExternalDeviceChange);
 });
 
 onUnmounted(() => {
   navigator.mediaDevices.removeEventListener('devicechange', getDevices);
-  window.removeEventListener('keydown', handleKeybindKeydown);
-  window.removeEventListener('mousedown', handleKeybindMousedown, { capture: true });
   window.removeEventListener('harmony-device-changed', handleExternalDeviceChange);
   if (previewStream.value) {
     previewStream.value.getTracks().forEach(track => track.stop());
   }
   stopTesting();
-  // Cancel keybind recording if active
-  if (isRecordingKeybind.value) {
-    cancelRecordingKeybind();
-  }
 });
 </script>
 

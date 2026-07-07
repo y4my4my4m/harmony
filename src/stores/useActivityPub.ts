@@ -63,6 +63,8 @@ export interface UserListMember {
   };
 }
 
+type FeedKind = 'home' | 'public' | 'local' | 'mentions';
+
 interface ActivityPubState {
   homeFeed: MonyFeed;
   publicFeed: MonyFeed;
@@ -98,7 +100,7 @@ interface ActivityPubState {
   selectedPost?: Post;
   currentView: 'home' | 'public' | 'local';
   
-  isLoadingFeed: boolean;
+  loadingFeeds: Record<FeedKind, boolean>;
   isLoadingPost: boolean;
   isLoadingProfile: boolean;
   isPosting: boolean;
@@ -201,7 +203,7 @@ export const useActivityPubStore = defineStore('activitypub', {
     selectedPost: undefined,
     currentView: 'public',
     
-      isLoadingFeed: false,
+      loadingFeeds: { home: false, public: false, local: false, mentions: false },
     isLoadingPost: false,
     isLoadingProfile: false,
     isPosting: false,
@@ -289,10 +291,24 @@ export const useActivityPubStore = defineStore('activitypub', {
         case 'local': return state.localFeed.posts;
         default: return [];
       }
-    }
+    },
+
+    // Any feed loading (legacy consumers); use isFeedLoading for one feed.
+    isLoadingFeed: (state): boolean => Object.values(state.loadingFeeds).some(Boolean),
+
+    isFeedLoading: (state) => (feed: FeedKind) => state.loadingFeeds[feed]
   },
 
   actions: {
+    // Realtime prepends can already hold a post that pagination re-fetches
+    // (created_at cursor ties), so appends must dedupe by id.
+    _appendFeedPosts(target: TimelinePost[], incoming: TimelinePost[]) {
+      const seen = new Set(target.map((p) => p.id));
+      for (const post of incoming) {
+        if (!seen.has(post.id)) target.push(post);
+      }
+    },
+
     /**
      * Load just the essential blocking/muting data
      * Can be called independently of full store initialization
@@ -1607,7 +1623,7 @@ export const useActivityPubStore = defineStore('activitypub', {
      * Load the user's home timeline (with cache support)
      */
     async loadHomeFeed(before?: string) {
-      if (this.isLoadingFeed) return
+      if (this.loadingFeeds.home) return
       if (!before) {
         const hasCachedPosts = this.loadTimelineFromCache();
         if (hasCachedPosts) {
@@ -1624,7 +1640,7 @@ export const useActivityPubStore = defineStore('activitypub', {
         }
       }
 
-      this.isLoadingFeed = true;
+      this.loadingFeeds.home = true;
       try {
         // getUserTimeline matches follows.follower_id / post_interactions.user_id,
         // both of which FK to profiles(id) - the auth UUID matches nothing there.
@@ -1641,7 +1657,7 @@ export const useActivityPubStore = defineStore('activitypub', {
         // paint on extra fetch layers made every feed switch feel like a
         // loading screen.
         if (before) {
-          this.homeFeed.posts.push(...posts);
+          this._appendFeedPosts(this.homeFeed.posts, posts);
         } else {
           this.homeFeed.posts = posts;
           this.unreadCount = 0;
@@ -1662,7 +1678,7 @@ export const useActivityPubStore = defineStore('activitypub', {
       } catch (error) {
         debug.error('Failed to load home feed:', error);
       } finally {
-        this.isLoadingFeed = false;
+        this.loadingFeeds.home = false;
       }
     },
 
@@ -1711,8 +1727,8 @@ export const useActivityPubStore = defineStore('activitypub', {
      * Load the public timeline
      */
     async loadPublicFeed(before?: string) {
-      if (this.isLoadingFeed) return
-      this.isLoadingFeed = true;
+      if (this.loadingFeeds.public) return
+      this.loadingFeeds.public = true;
       try {
         const { posts, fullPage } = await activityPubService.getEnhancedPublicTimeline({
           limit: 20,
@@ -1721,7 +1737,7 @@ export const useActivityPubStore = defineStore('activitypub', {
 
         // Paint first, enrich in background (see loadHomeFeed).
         if (before) {
-          this.publicFeed.posts.push(...posts);
+          this._appendFeedPosts(this.publicFeed.posts, posts);
         } else {
           this.publicFeed.posts = posts;
         }
@@ -1745,7 +1761,7 @@ export const useActivityPubStore = defineStore('activitypub', {
       } catch (error) {
         debug.error('Failed to load public feed:', error);
       } finally {
-        this.isLoadingFeed = false;
+        this.loadingFeeds.public = false;
       }
     },
 
@@ -1753,8 +1769,8 @@ export const useActivityPubStore = defineStore('activitypub', {
      * Load the local timeline
      */
     async loadLocalFeed(before?: string) {
-      if (this.isLoadingFeed) return
-      this.isLoadingFeed = true;
+      if (this.loadingFeeds.local) return
+      this.loadingFeeds.local = true;
       try {
         const profileId = await authContextService.getCurrentProfileId();
         const { posts, fullPage } = await activityPubService.getUserTimeline(
@@ -1765,7 +1781,7 @@ export const useActivityPubStore = defineStore('activitypub', {
 
         // Paint first, enrich in background (see loadHomeFeed).
         if (before) {
-          this.localFeed.posts.push(...posts);
+          this._appendFeedPosts(this.localFeed.posts, posts);
         } else {
           this.localFeed.posts = posts;
         }
@@ -1784,7 +1800,7 @@ export const useActivityPubStore = defineStore('activitypub', {
       } catch (error) {
         debug.error('Failed to load local feed:', error);
       } finally {
-        this.isLoadingFeed = false;
+        this.loadingFeeds.local = false;
       }
     },
 
@@ -3358,8 +3374,8 @@ export const useActivityPubStore = defineStore('activitypub', {
       * Uses activitypub_mention notifications to find post IDs, then fetches full posts.
       */
      async loadMentionedPosts(before?: string) {
-       if (this.isLoadingFeed) return;
-       this.isLoadingFeed = true;
+       if (this.loadingFeeds.mentions) return;
+       this.loadingFeeds.mentions = true;
 
        try {
          const profileId = await authContextService.getCurrentProfileId();
@@ -3430,7 +3446,7 @@ export const useActivityPubStore = defineStore('activitypub', {
          this.ensureAuthorProfilesCached(processedPosts);
 
          if (before) {
-           this.mentionsFeed.posts.push(...processedPosts);
+           this._appendFeedPosts(this.mentionsFeed.posts, processedPosts);
          } else {
            this.mentionsFeed.posts = processedPosts;
          }
@@ -3440,7 +3456,7 @@ export const useActivityPubStore = defineStore('activitypub', {
        } catch (error) {
          debug.error('Failed to load mentioned posts:', error);
        } finally {
-         this.isLoadingFeed = false;
+         this.loadingFeeds.mentions = false;
        }
      },
 

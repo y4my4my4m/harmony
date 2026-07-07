@@ -4,11 +4,7 @@ import { services } from '@/services'
 import type { FederatedUser, TimelinePost } from '@/types'
 import { debug } from '@/utils/debug'
 
-/**
- * Composable for handling ActivityPub post and user interactions
- * Professional, DRY, and reusable across all components
- * Now using service layer for improved error handling and consistency
- */
+// ActivityPub post/user interaction wrappers over the service layer.
 export function usePostInteractions() {
   const activityPubStore = useActivityPubStore()
   
@@ -21,10 +17,6 @@ export function usePostInteractions() {
 
   // USER INTERACTIONS
 
-  /**
-   * Toggle follow status for a user
-   * Now using service layer for consistent error handling and optimistic updates
-   */
   const toggleFollow = async (user: FederatedUser | string): Promise<{ following: boolean; error?: string }> => {
     const userId = typeof user === 'string' ? user : user.id
     
@@ -49,9 +41,6 @@ export function usePostInteractions() {
     }
   }
 
-  /**
-   * Follow a user (explicit action)
-   */
   const followUser = async (user: FederatedUser | string): Promise<{ success: boolean; error?: string }> => {
     const userId = typeof user === 'string' ? user : user.id
     
@@ -76,9 +65,6 @@ export function usePostInteractions() {
     }
   }
 
-  /**
-   * Unfollow a user (explicit action)
-   */
   const unfollowUser = async (user: FederatedUser | string): Promise<{ success: boolean; error?: string }> => {
     const userId = typeof user === 'string' ? user : user.id
     
@@ -105,10 +91,6 @@ export function usePostInteractions() {
 
   // POST INTERACTIONS
 
-  /**
-   * Toggle favorite (like) status for a post
-   * Now using service layer for consistent error handling and optimistic updates
-   */
   const toggleFavorite = async (post: TimelinePost | string): Promise<{ success: boolean; liked?: boolean; newCount?: number; error?: string }> => {
     const postId = typeof post === 'string' ? post : post.id
     
@@ -140,10 +122,6 @@ export function usePostInteractions() {
     }
   }
 
-  /**
-   * Toggle reblog (boost) status for a post
-   * Now using service layer for consistent error handling and optimistic updates
-   */
   const toggleReblog = async (post: TimelinePost | string): Promise<{ success: boolean; reblogged?: boolean; newCount?: number; error?: string }> => {
     const postId = typeof post === 'string' ? post : post.id
     
@@ -173,10 +151,6 @@ export function usePostInteractions() {
     }
   }
 
-  /**
-   * Toggle bookmark status for a post
-   * Now using service layer for consistent error handling and optimistic updates
-   */
   const toggleBookmark = async (post: TimelinePost | string): Promise<{ success: boolean; bookmarked?: boolean; error?: string }> => {
     const postId = typeof post === 'string' ? post : post.id
     
@@ -204,9 +178,6 @@ export function usePostInteractions() {
     }
   }
 
-  /**
-   * Toggle pin status for a post (pin/unpin to profile)
-   */
   const togglePinPost = async (post: TimelinePost | string): Promise<{ success: boolean; pinned?: boolean; error?: string }> => {
     const postId = typeof post === 'string' ? post : post.id
     
@@ -239,22 +210,17 @@ export function usePostInteractions() {
 
   // UTILITY FUNCTIONS
 
-  /**
-   * Check if currently following a user
-   */
   const isFollowing = (user: FederatedUser | string): boolean => {
     const userId = typeof user === 'string' ? user : user.id
     return userId ? activityPubStore.followedUsers.has(userId) : false
   }
 
-  /**
-   * Get loading state for a specific interaction
-   */
   const getLoadingState = () => ({
     follow: isFollowLoading.value,
     favorite: isFavoriteLoading.value,
     reblog: isReblogLoading.value,
-    bookmark: isBookmarkLoading.value
+    bookmark: isBookmarkLoading.value,
+    pin: isPinLoading.value
   })
 
   return {
@@ -263,15 +229,19 @@ export function usePostInteractions() {
     followUser,
     unfollowUser,
     isFollowing,
-    
+
     // Post interactions
     toggleFavorite,
     toggleReblog,
     toggleBookmark,
     togglePinPost,
-    
-    // Loading states
-    ...getLoadingState(),
+
+    // Loading states (refs stay reactive; getLoadingState reads live values)
+    isFollowLoading,
+    isFavoriteLoading,
+    isReblogLoading,
+    isBookmarkLoading,
+    isPinLoading,
     getLoadingState
   }
-} 
+}

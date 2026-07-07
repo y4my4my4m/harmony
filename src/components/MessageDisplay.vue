@@ -1658,10 +1658,22 @@ watch([() => props.channelId, () => props.conversationId], () => {
   lastKnownMessageCount.value = 0;
   lastKnownFirstMessageId.value = null;
   lastKnownDisplayItemCount.value = 0;
+  enrichmentRequestedUserIds.clear();
+  enrichmentFetchedReactionIds.clear();
+  enrichmentFetchedEmbedPostIds.clear();
   // Snapshot the read boundary for the newly-opened context now, before the
   // scroll observer / open-handlers mark it read. Resolved once messages load.
   captureReadBoundary();
 });
+
+// The messages watcher below is `deep` (needed to catch prepends/appends
+// wrapped in the same array ref, decrypt flips, etc.), so it re-fires on
+// every nested mutation - e.g. each reaction toggle. These sets make the
+// enrichment side (profiles, badges, reaction + embed batch fetches) fire
+// network work only once per id instead of on every deep re-fire.
+const enrichmentRequestedUserIds = new Set<string>();
+const enrichmentFetchedReactionIds = new Set<string>();
+const enrichmentFetchedEmbedPostIds = new Set<string>();
 
 watch(() => props.messages, (newMessages) => {
   if (!newMessages || !Array.isArray(newMessages)) {
@@ -1731,24 +1743,26 @@ watch(() => props.messages, (newMessages) => {
     }
   });
 
-  if (userIds.size > 0) {
-    const userIdArray = Array.from(userIds);
+  const newUserIds = Array.from(userIds).filter(id => !enrichmentRequestedUserIds.has(id));
+  if (newUserIds.length > 0) {
+    newUserIds.forEach(id => enrichmentRequestedUserIds.add(id));
     setTimeout(() => {
-      ensureProfilesAvailable(userIdArray).catch(error => {
+      ensureProfilesAvailable(newUserIds).catch(error => {
         debug.error('Error ensuring user profiles are available:', error);
       });
       // Batch-prefetch supporter badges to avoid N+1 RPC calls
-      fundingService.prefetchBadges(userIdArray).catch(() => {});
+      fundingService.prefetchBadges(newUserIds).catch(() => {});
     }, 0);
   }
 
   // Batch fetch reactions for all messages (avoid N+1 queries)
   if (newMessages.length > 0) {
     const realMessageIds = newMessages
-      .filter(msg => !msg.id.startsWith('temp-') && !msg.sending)
+      .filter(msg => !msg.id.startsWith('temp-') && !msg.sending && !enrichmentFetchedReactionIds.has(msg.id))
       .map(msg => msg.id);
-    
+
     if (realMessageIds.length > 0) {
+      realMessageIds.forEach(id => enrichmentFetchedReactionIds.add(id));
       // Batch fetch reactions for all messages at once
       reactionsStore.fetchMultipleMessageReactions(realMessageIds).catch(error => {
         debug.error('Error batch fetching reactions:', error);
@@ -1761,12 +1775,14 @@ watch(() => props.messages, (newMessages) => {
       const embeds = msg.metadata?.embeds as Record<string, { provider?: string; harmony?: { postId?: string } }> | undefined;
       if (!embeds) return;
       Object.values(embeds).forEach(embed => {
-        if (embed?.provider === 'harmony-post' && embed.harmony?.postId) {
-          embedPostIds.add(embed.harmony.postId);
+        const postId = embed?.provider === 'harmony-post' ? embed.harmony?.postId : undefined;
+        if (postId && !enrichmentFetchedEmbedPostIds.has(postId)) {
+          embedPostIds.add(postId);
         }
       });
     });
     if (embedPostIds.size > 0) {
+      embedPostIds.forEach(id => enrichmentFetchedEmbedPostIds.add(id));
       postReactionsStore.fetchMultiplePostReactions(Array.from(embedPostIds)).catch(() => {});
     }
   }
@@ -2059,12 +2075,14 @@ watch(isLoadingOlderMessages, (loading, wasLoading) => {
   }
 });
 
+// Getter already tracks reactions-length per message; deep traversal on top
+// of it was redundant work on every message mutation.
 watch(() => props.messages.map(msg => msg.reactions?.length), () => {
   const hasVisibleReactions = props.messages.some(msg => msg.reactions && msg.reactions.length > 0);
   if (!hasVisibleReactions && tooltip.value.visible) {
     hideTooltip();
   }
-}, { deep: true });
+});
 
 // IntersectionObserver to clear unread counts when messages are scrolled into view
 // Debounced to prevent 45+ API calls per page load

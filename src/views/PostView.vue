@@ -185,6 +185,7 @@ import type {
   PostContextType 
 } from '@/types';
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
+import { usePostInteractions } from '@/composables/usePostInteractions'
 
 // Props
 interface Props {
@@ -206,6 +207,7 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const { confirm } = useConfirmDialog()
+const { toggleFavorite, toggleReblog, toggleBookmark } = usePostInteractions()
 
 // Composables
 const router = useRouter();
@@ -631,35 +633,34 @@ const handleEdited = (post: any) => {
   editingPost.value = null;
 };
 
+// Shared interaction path (usePostInteractions) keeps feed state in sync;
+// PostView used to call activityPubService directly, which desynced feeds.
 const handleFavorite = async (postId: string) => {
-  try {
-    await activityPubService.toggleFavorite(postId);
+  const result = await toggleFavorite(postId);
+  if (result.success) {
     await loadPostWithContext();
-  } catch (err) {
-    debug.error('❌ Failed to favorite post:', err);
-    toast.error('Failed to favorite post');
+  } else {
+    toast.error(result.error || 'Failed to favorite post');
   }
 };
 
 const handleReblog = async (postId: string) => {
-  try {
-    await activityPubService.toggleReblog(postId);
+  const result = await toggleReblog(postId);
+  if (result.success) {
     await loadPostWithContext();
-    toast.success('Post reblogged!');
-  } catch (err) {
-    debug.error('❌ Failed to reblog post:', err);
-    toast.error('Failed to reblog post');
+    toast.success(result.reblogged ? 'Post reblogged!' : 'Reblog removed');
+  } else {
+    toast.error(result.error || 'Failed to reblog post');
   }
 };
 
 const handleBookmark = async (postId: string) => {
-  try {
-    await activityPubService.toggleBookmark(postId);
+  const result = await toggleBookmark(postId);
+  if (result.success) {
     await loadPostWithContext();
-    toast.success('Post bookmarked!');
-  } catch (err) {
-    debug.error('❌ Failed to bookmark post:', err);
-    toast.error('Failed to bookmark post');
+    toast.success(result.bookmarked ? 'Post bookmarked!' : 'Bookmark removed');
+  } else {
+    toast.error(result.error || 'Failed to bookmark post');
   }
 };
 

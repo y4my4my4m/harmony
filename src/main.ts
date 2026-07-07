@@ -142,4 +142,6 @@ if (typeof window !== 'undefined' && new URLSearchParams(window.location.search)
 } else {
   initializeApp()
   import('@/services/nativePresence').then(m => m.initRichPresence()).catch(() => {})
+  import('@/services/tauriLinks').then(m => m.installTauriExternalLinks()).catch(() => {})
+  import('@/utils/videoPoster').then(m => m.installVideoPosters()).catch(() => {})
 }

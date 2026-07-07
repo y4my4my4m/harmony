@@ -16,9 +16,9 @@
             :alt="file.name"
             class="thumbnail-image"
           />
-          <video 
-            v-else-if="isVideo(file)" 
-            :src="file.preview" 
+          <video
+            v-else-if="isVideo(file)"
+            :src="file.preview"
             class="thumbnail-video"
             muted
           />

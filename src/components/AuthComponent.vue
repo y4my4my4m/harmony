@@ -382,6 +382,7 @@ import { supabase, setRememberMe, getRememberMe } from '@/supabase'
 import { getRandomLoginBackground } from '@/utils/backgroundUtils'
 import { adminService } from '@/services/AdminService'
 import { getStoredInstance } from '@/services/instanceConfig'
+import { isTauriDesktop } from '@/utils/platform'
 import type { Provider } from '@supabase/supabase-js'
 
 // Props
@@ -589,10 +590,15 @@ const handleOAuthLogin = async (providerId: string) => {
       })
     }
     
-    const { error } = await supabase.auth.signInWithOAuth({
+    // Native desktop: run the provider flow in a popup window so the main
+    // app stays put (an in-place webview navigation has no back button).
+    const usePopupFlow = isTauriDesktop()
+
+    const { data, error } = await supabase.auth.signInWithOAuth({
       provider: providerId as Provider,
       options: {
         redirectTo: `${window.location.origin}/auth/callback`,
+        skipBrowserRedirect: usePopupFlow,
         queryParams: providerId === 'google' ? {
           access_type: 'offline',
           prompt: 'consent',
@@ -601,9 +607,23 @@ const handleOAuthLogin = async (providerId: string) => {
     })
     
     if (error) throw error
-    
+
+    if (usePopupFlow) {
+      if (!data?.url) throw new Error('No authorization URL returned')
+      const { signInViaOAuthPopup } = await import('@/services/tauriOAuth')
+      const next = await signInViaOAuthPopup(data.url)
+      // The popup persisted the session to shared storage; a full
+      // navigation boots the app with it (same as the web redirect flow).
+      window.location.assign(next)
+      return
+    }
+
     // The browser will redirect to the OAuth provider
   } catch (error: any) {
+    if (error?.message === 'oauth-cancelled') {
+      oauthLoading.value = null
+      return
+    }
     debug.error('OAuth error:', error)
     toast.error(error.message || `Failed to sign in with ${providerId}`)
     oauthLoading.value = null

@@ -197,6 +197,28 @@ export function messagePartsToPlainText(parts: MessagePart[]): string {
 }
 
 /**
+ * Convert MessagePart[] back to raw composer text (edit / delete-and-redraft).
+ * Unlike messagePartsToPlainText, keeps remote-mention domains and hashtags
+ * round-trippable and drops file placeholders.
+ */
+export function messagePartsToRawText(parts: MessagePart[] | string): string {
+  if (!Array.isArray(parts)) return typeof parts === 'string' ? parts : '';
+  return parts.map((part: any) => {
+    switch (part?.type) {
+      case 'text': return part.text || '';
+      case 'url': return part.url || '';
+      case 'mention': {
+        if (!part.isLocal && part.domain) return `@${part.username}@${part.domain}`;
+        return `@${part.username}`;
+      }
+      case 'emoji': return `:${part.emoji?.name || 'emoji'}:`;
+      case 'hashtag': return `#${part.name}`;
+      default: return '';
+    }
+  }).join('');
+}
+
+/**
  * Strip a leading @mention of the current user from federated messages.
  * ActivityPub clients prepend @recipient on replies/DMs by convention - this
  * makes federated messages look awkward in a chat-style UI.  If the very first
