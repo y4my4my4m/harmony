@@ -1064,6 +1064,15 @@ CREATE TRIGGER prevent_profile_moderation_self_update_trigger
     FOR EACH ROW
     EXECUTE FUNCTION public.prevent_profile_moderation_self_update();
 
+-- ---------------------------------------------------------------------------
+-- Channel slowmode enforcement (see enforce_channel_slowmode in 11_functions)
+-- ---------------------------------------------------------------------------
+DROP TRIGGER IF EXISTS trigger_enforce_channel_slowmode ON public.messages;
+CREATE TRIGGER trigger_enforce_channel_slowmode
+    BEFORE INSERT ON public.messages
+    FOR EACH ROW
+    EXECUTE FUNCTION public.enforce_channel_slowmode();
+
 DO $$
 BEGIN
     RAISE NOTICE 'Triggers created successfully';

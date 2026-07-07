@@ -13,6 +13,7 @@ import {
 } from './livekitTokens';
 import { VoiceSettingsService } from './VoiceSettingsService';
 import { debug } from '@/utils/debug';
+import { isTauriRuntime } from '@/services/instanceConfig';
 
 export interface NativeDeviceInfo {
   id: string;
@@ -36,8 +37,7 @@ let nativeSupported: boolean | null = null;
 export async function isNativeMediaSupported(): Promise<boolean> {
   if (nativeSupported !== null) return nativeSupported;
 
-  const g = globalThis as any;
-  if (typeof g.__TAURI_INTERNALS__ === 'undefined' && typeof g.__TAURI__ === 'undefined') {
+  if (!isTauriRuntime()) {
     nativeSupported = false;
     return false;
   }

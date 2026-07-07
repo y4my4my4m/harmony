@@ -157,6 +157,7 @@ import { getServerIconUrl } from '@/utils/serverUtils';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useNotificationStore } from '@/stores/useNotification';
 import { useUnreadCounts } from '@/composables/useUnreadCounts';
+import { useViewport } from '@/composables/useViewport';
 import type { Server, ServerFolder } from '@/types';
 
 interface Props {
@@ -353,7 +354,7 @@ const handleServerClick = (serverId: string) => {
 };
 
 // Tooltip handlers
-const isTouchDevice = typeof window !== 'undefined' && 'ontouchstart' in window && !window.matchMedia('(pointer: fine)').matches;
+const { isTouchOnly: isTouchDevice } = useViewport();
 
 const showServerTooltip = (event: MouseEvent, name: string) => {
   if (isTouchDevice) return;

@@ -41,6 +41,7 @@ import { debug } from '@/utils/debug'
 import { parseMarkdownWithMarkers, type MarkdownToken } from '@/utils/markdownParser';
 import { splitIntoBlockSegments } from '@/utils/chatBlockquotes';
 import { useVisualTheme } from '@/composables/useVisualTheme';
+import { useViewport } from '@/composables/useViewport';
 import { highlightSyntax } from '@/utils/syntaxHighlighter';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import { userDataService } from '@/services/userDataService';
@@ -80,6 +81,8 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const emit = defineEmits<Emits>();
+
+const { isMobileViewport, isTouchOnly } = useViewport();
 
 const editorRef = ref<HTMLDivElement>();
 const isFocused = ref(false);
@@ -1049,10 +1052,8 @@ const handleKeyDown = (event: KeyboardEvent) => {
     }
   }
 
-  // Detect true mobile devices (small screen OR touch-only without mouse)
-  const hasSmallScreen = window.innerWidth <= 768;
-  const isTouchOnlyDevice = 'ontouchstart' in window && !window.matchMedia('(pointer: fine)').matches;
-  const isMobile = hasSmallScreen || isTouchOnlyDevice;
+  // True mobile = small screen OR touch-only without mouse
+  const isMobile = isMobileViewport.value || isTouchOnly;
   
   // On mobile, Enter inserts line break (user taps send button)
   // On desktop, emit to parent and let it handle (Enter sends, Shift+Enter for new line)

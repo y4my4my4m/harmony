@@ -98,10 +98,28 @@ export function usePushToTalk() {
     
     keybinds.setKeybind('push-to-talk', event.code, modifiers)
     isRecordingKeybind.value = false
-    
+
     return true
   }
-  
+
+  // Extra mouse buttons (3/4/5+, e.g. Mouse5) while recording; left/middle/right
+  // stay usable for the UI unless a modifier is held.
+  const recordMouseButton = (event: MouseEvent): boolean => {
+    if (!isRecordingKeybind.value) return false
+    if (event.button < 3 && !event.ctrlKey && !event.altKey && !event.shiftKey && !event.metaKey) {
+      return false
+    }
+    const modifiers: KeybindModifiers = {
+      ctrl: event.ctrlKey,
+      alt: event.altKey,
+      shift: event.shiftKey,
+      meta: event.metaKey,
+    }
+    keybinds.setKeybind('push-to-talk', `Mouse${event.button}`, modifiers)
+    isRecordingKeybind.value = false
+    return true
+  }
+
   const setReleaseDelay = (delay: number): void => {
     keybinds.setReleaseDelay(delay)
   }
@@ -163,6 +181,7 @@ export function usePushToTalk() {
     startRecordingKeybind,
     cancelRecordingKeybind,
     recordKeybind,
+    recordMouseButton,
     setReleaseDelay,
     resetToDefaults,
     

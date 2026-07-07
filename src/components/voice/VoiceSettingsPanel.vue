@@ -282,7 +282,8 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, onMounted, onUnmounted, watch } from 'vue';
+import { defineComponent, ref, computed, onMounted, onUnmounted, watch } from 'vue';
+import { useViewport } from '@/composables/useViewport';
 import { enumerateMediaDevices } from '@/utils/mediaDevices';
 import { webrtcManager } from '@/services/webrtcManager';
 import { unifiedWebRTC } from '@/services/unifiedWebRTC';
@@ -325,13 +326,8 @@ export default defineComponent({
     const previewVideo = ref<HTMLVideoElement | null>(null);
 
     // Touch device detection (hide keybinds on touch devices)
-    const isTouchDevice = ref(false);
-    const detectTouchDevice = () => {
-      // Only consider touch device if it's touch-only (no mouse/fine pointer)
-      const hasSmallScreen = window.innerWidth <= 768;
-      const isTouchOnlyDevice = 'ontouchstart' in window && !window.matchMedia('(pointer: fine)').matches;
-      isTouchDevice.value = hasSmallScreen || isTouchOnlyDevice;
-    };
+    const { isMobileViewport, isTouchOnly } = useViewport();
+    const isTouchDevice = computed(() => isMobileViewport.value || isTouchOnly);
 
     const getDevices = async () => {
       try {
@@ -621,7 +617,6 @@ export default defineComponent({
     // Lifecycle
     onMounted(() => {
       getDevices();
-      detectTouchDevice();
       navigator.mediaDevices.addEventListener('devicechange', getDevices);
       window.addEventListener('harmony-device-changed', handleExternalDeviceChange);
     });

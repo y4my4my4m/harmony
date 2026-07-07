@@ -55,6 +55,7 @@ export interface Channel {
   // Optional fields from database
   server_id?: string;
   description?: string;
+  slowmode_seconds?: number;
   ap_id?: string;
   is_remote?: boolean;
   federation_status?: string;

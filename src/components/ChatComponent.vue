@@ -165,8 +165,9 @@
   import type { Message, Gif, Emoji, MessagePart } from '@/types';
   import { recordEmojiUsage } from '@/services/emojiService';
   import { getEmojiShortcodeForInsert } from '@/services/emojiShortcodeResolver';
-  import { listen } from '@tauri-apps/api/event';
   import { readFile } from '@tauri-apps/plugin-fs';
+  import { isTauriRuntime } from '@/services/instanceConfig';
+  import { getMimeTypeFromFilename } from '@/utils/fileUpload';
   import MediaPickerPopup from '@/components/MediaPickerPopup.vue';
   import EmojiPopup from '@/components/EmojiPopup.vue';
   import ThreadView from '@/components/threads/ThreadView.vue';
@@ -182,9 +183,6 @@
   import { useServerPermissions } from '@/composables/useServerPermissions';
   import { useI18n } from 'vue-i18n';
   import { useToast } from 'vue-toastification';
-
-  // FIXME: probably breaking the __TAURI__ implementation if we declare it here
-  declare const __TAURI__: any;
 
   interface Props {
     messages: Message[];
@@ -336,10 +334,6 @@
       });
       
       
-      // Computed property to check if running in Tauri
-      const isTauri = computed(() => {
-        return typeof __TAURI__ !== 'undefined';
-      });
       const gifIconClicked = ref(false);
       const emojiIconClicked = ref(false);
 
@@ -800,23 +794,32 @@
       let unlistenTauriFileDrop: (() => void) | null = null;
 
       onMounted(async () => {
-        if (!isTauri.value) return;
-        unlistenTauriFileDrop = await listen('tauri://file-drop', async (event: any) => {
-          const filePath = event.payload[0];
-          try {
-            const fileBytes = await readFile(filePath);
-            const fileBlob = new Blob([fileBytes]);
+        if (!isTauriRuntime()) return;
+        // Tauri intercepts OS file drops (the DOM dataTransfer stays empty),
+        // so read the dropped paths through the webview drag-drop event.
+        const { getCurrentWebview } = await import('@tauri-apps/api/webview');
+        unlistenTauriFileDrop = await getCurrentWebview().onDragDropEvent(async (event) => {
+          if (event.payload.type === 'enter' || event.payload.type === 'over') {
+            showDragDropArea.value = true;
+            return;
+          }
+          showDragDropArea.value = false;
+          if (event.payload.type !== 'drop') return;
 
-            const file = new File([fileBlob], filePath.split('/').pop(), {
-              type: "mime/type",
-            });
-
-            const messageInputEvent = new CustomEvent('external-file-drop', {
-              detail: { files: [file] }
-            });
-            document.dispatchEvent(messageInputEvent);
-          } catch (error) {
-            debug.error('Error processing file drop:', error);
+          const files: File[] = [];
+          for (const filePath of event.payload.paths) {
+            try {
+              const fileBytes = await readFile(filePath);
+              const name = filePath.split(/[\\/]/).pop() || 'file';
+              files.push(new File([new Blob([fileBytes])], name, {
+                type: getMimeTypeFromFilename(name),
+              }));
+            } catch (error) {
+              debug.error('Error reading dropped file:', filePath, error);
+            }
+          }
+          if (files.length > 0) {
+            document.dispatchEvent(new CustomEvent('external-file-drop', { detail: { files } }));
           }
         });
       });
@@ -958,6 +961,13 @@
           } else if (code.startsWith('ENCRYPTION_') || msg.includes('ENCRYPTION_')) {
             sendError.value = msg
             setTimeout(() => { sendError.value = null }, 6000)
+          } else if (msg.includes('Slowmode')) {
+            // The chat store already dispatched harmony:slowmode-hit to sync
+            // the input countdown; surface the human-readable reason.
+            toast.info(msg)
+            if (content && !messageContent.value.trim()) {
+              messageContent.value = content
+            }
           }
         }
       };

@@ -1,5 +1,6 @@
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
+import { apiUrl } from '@/services/instanceConfig'
 
 /**
  * Lazy refresh of expired bridged (Discord) attachment URLs.
@@ -78,7 +79,7 @@ export async function requestAttachmentRefresh(messageId: string | null | undefi
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`
 
-    await fetch('/bot-gateway/attachments/refresh', {
+    await fetch(apiUrl('/bot-gateway/attachments/refresh'), {
       method: 'POST',
       headers,
       body: JSON.stringify({ messageId }),

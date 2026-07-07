@@ -99,6 +99,19 @@
           />
         </div>
         <div class="right-icons">
+          <span
+            v-if="slowmodeActive"
+            class="slowmode-indicator"
+            :class="{ cooling: slowmodeRemaining > 0 }"
+            :title="slowmodeRemaining > 0
+              ? `Slowmode: you can send again in ${slowmodeRemaining}s`
+              : `Slowmode is on: one message every ${slowmodeSeconds}s`"
+          >
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true">
+              <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm1 10.59V7h-2v6.41l4.29 4.3 1.42-1.42z"/>
+            </svg>
+            <span v-if="slowmodeRemaining > 0">{{ slowmodeRemaining }}s</span>
+          </span>
           <!--
             Character count: only shown when approaching / over the limit
             so it doesn't clutter the input for short messages. Red when
@@ -153,6 +166,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
+import { useViewport } from '@/composables/useViewport';
 import { debug } from '@/utils/debug'
 import { useAutoSuggest } from '@/composables/useAutoSuggest';
 import { useHapticSettings } from '@/composables/useHapticSettings';
@@ -270,9 +284,57 @@ const serverChannelStore = useServerChannelStore()
 const canSendMessages = ref(true); // optimistic until first resolution
 const isResolvingPermissions = ref(false);
 
+// --- Channel slowmode ---
+// DB trigger `enforce_channel_slowmode` is the source of truth; this is the
+// matching client UX (countdown + disabled send). MANAGE_MESSAGES is exempt.
+const slowmodeExempt = ref(false);
+const slowmodeRemaining = ref(0);
+let slowmodeTimer: ReturnType<typeof setInterval> | null = null;
+
+const slowmodeSeconds = computed(() => {
+  if (!props.channelId || props.conversationId || props.threadId) return 0;
+  const channel = serverChannelStore.channels.find(c => c.id === props.channelId);
+  return channel?.slowmode_seconds ?? 0;
+});
+
+const slowmodeActive = computed(() =>
+  slowmodeSeconds.value > 0 && !slowmodeExempt.value
+);
+
+function startSlowmodeCooldown(seconds: number) {
+  if (seconds <= 0) return;
+  slowmodeRemaining.value = seconds;
+  if (slowmodeTimer) clearInterval(slowmodeTimer);
+  slowmodeTimer = setInterval(() => {
+    slowmodeRemaining.value -= 1;
+    if (slowmodeRemaining.value <= 0 && slowmodeTimer) {
+      clearInterval(slowmodeTimer);
+      slowmodeTimer = null;
+    }
+  }, 1000);
+}
+
+// The DB rejects too-fast sends with SLOWMODE_ACTIVE:<n>; the chat store
+// broadcasts it so the countdown resyncs to the authoritative value.
+const handleSlowmodeHit = (event: Event) => {
+  const seconds = (event as CustomEvent<{ seconds?: number; channelId?: string }>).detail?.seconds;
+  const channelId = (event as CustomEvent<{ seconds?: number; channelId?: string }>).detail?.channelId;
+  if (channelId && channelId !== props.channelId) return;
+  if (typeof seconds === 'number' && seconds > 0) startSlowmodeCooldown(seconds);
+};
+
+watch(() => props.channelId, () => {
+  slowmodeRemaining.value = 0;
+  if (slowmodeTimer) {
+    clearInterval(slowmodeTimer);
+    slowmodeTimer = null;
+  }
+});
+
 async function refreshSendPermission() {
   if (!props.channelId || props.conversationId) {
     canSendMessages.value = true;
+    slowmodeExempt.value = true;
     return;
   }
   const userId = authStore.session?.user?.id;
@@ -283,16 +345,16 @@ async function refreshSendPermission() {
   }
   isResolvingPermissions.value = true;
   try {
-    const allowed = await roleService.hasPermission(
-      userId,
-      serverId,
-      Permission.SEND_MESSAGES,
-      props.channelId,
-    );
+    const [allowed, canManage] = await Promise.all([
+      roleService.hasPermission(userId, serverId, Permission.SEND_MESSAGES, props.channelId),
+      roleService.hasPermission(userId, serverId, Permission.MANAGE_MESSAGES, props.channelId),
+    ]);
     canSendMessages.value = allowed;
+    slowmodeExempt.value = canManage;
   } catch (err) {
     debug.warn('Failed to resolve SEND_MESSAGES permission, defaulting to allowed:', err);
     canSendMessages.value = true;
+    slowmodeExempt.value = false;
   } finally {
     isResolvingPermissions.value = false;
   }
@@ -340,14 +402,9 @@ let hasStartedTyping = false
 let typingResetTimeout: number | null = null
 const TYPING_RESET_MS = 2000 // Reset after 2 seconds of no typing to allow re-triggering
 
-// Mobile detection - check for touch device or narrow screen
-const isMobile = ref(false);
-const checkMobile = () => {
-  // Only consider mobile if screen is small OR touch-only device (no mouse)
-  const hasSmallScreen = window.innerWidth <= 768;
-  const isTouchOnlyDevice = 'ontouchstart' in window && !window.matchMedia('(pointer: fine)').matches;
-  isMobile.value = hasSmallScreen || isTouchOnlyDevice;
-};
+// Mobile = small screen OR touch-only device (no mouse)
+const { isMobileViewport, isTouchOnly } = useViewport();
+const isMobile = computed(() => isMobileViewport.value || isTouchOnly);
 
 // Character count of the raw editor text. Used to surface a counter when
 // the user is close to / over the limit. We count the raw editor string
@@ -422,12 +479,15 @@ const handleVoiceRecordingComplete = async (result: VoiceRecordingResult) => {
 }
 
 onMounted(() => {
-  checkMobile();
-  window.addEventListener('resize', checkMobile);
+  window.addEventListener('harmony:slowmode-hit', handleSlowmodeHit);
 });
 
 onUnmounted(() => {
-  window.removeEventListener('resize', checkMobile);
+  window.removeEventListener('harmony:slowmode-hit', handleSlowmodeHit);
+  if (slowmodeTimer) {
+    clearInterval(slowmodeTimer);
+    slowmodeTimer = null;
+  }
   stopTyping()
   hasStartedTyping = false
   if (typingResetTimeout) {
@@ -643,12 +703,20 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
         return;
       }
 
+      if (slowmodeActive.value && slowmodeRemaining.value > 0) {
+        toast.info(`Slowmode is on - you can send again in ${slowmodeRemaining.value}s`);
+        return;
+      }
+
       if (props.modelValue?.trim() || attachedFiles.value.length > 0) {
         const content = props.modelValue || '';
         // URL tracking parameter stripping is handled in unifiedContentProcessing.ts
         // This covers the entire app (ActivityPub, DMs, chat, etc.)
         // Pass reply message ID as third parameter
         emit('sendMessage', content, attachedFiles.value, props.replyMessageId || undefined);
+        if (slowmodeActive.value) {
+          startSlowmodeCooldown(slowmodeSeconds.value);
+        }
         // Haptic feedback on message send
         triggerMessage();
         emit('update:modelValue', '');
@@ -1123,6 +1191,23 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
     padding: 0 6px;
     user-select: none;
     pointer-events: auto;
+  }
+
+  .slowmode-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-muted, #72767d);
+    padding: 2px 6px;
+    border-radius: 10px;
+    user-select: none;
+  }
+
+  .slowmode-indicator.cooling {
+    color: var(--harmony-primary, #0EA5E9);
+    background: rgba(14, 165, 233, 0.12);
   }
 
   .message-char-count.over-limit {

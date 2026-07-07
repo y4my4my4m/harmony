@@ -62,6 +62,71 @@ pub fn show_android_notification(
   Ok(())
 }
 
+// Native video thumbnail (MediaMetadataRetriever) — Android WebView can't decode a
+// detached <video> for a canvas poster, and works for remote URLs without CORS.
+#[tauri::command]
+pub async fn android_video_thumbnail(url: String) -> Result<String, String> {
+  #[cfg(target_os = "android")]
+  {
+    tauri::async_runtime::spawn_blocking(move || -> Result<String, String> {
+      use jni::objects::{JObject, JValue};
+      let ctx = ndk_context::android_context();
+      let vm = unsafe { jni::JavaVM::from_raw(ctx.vm().cast()) }.map_err(|e| e.to_string())?;
+      let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
+      let activity = unsafe { JObject::from_raw(ctx.context().cast()) };
+      let jurl = env.new_string(&url).map_err(|e| e.to_string())?;
+      let result = env
+        .call_method(
+          activity,
+          "videoThumbnail",
+          "(Ljava/lang/String;)Ljava/lang/String;",
+          &[JValue::Object(&jurl)],
+        )
+        .map_err(|e| e.to_string())?
+        .l()
+        .map_err(|e| e.to_string())?;
+      let s: String = env
+        .get_string(&result.into())
+        .map_err(|e| e.to_string())?
+        .into();
+      Ok(s)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+  }
+  #[cfg(not(target_os = "android"))]
+  {
+    let _ = url;
+    Ok(String::new())
+  }
+}
+
+// tauri-plugin-shell's open command doesn't route to the Android mobile plugin,
+// so open URLs via a native ACTION_VIEW intent instead.
+#[tauri::command]
+pub fn android_open_url(url: String) -> Result<(), String> {
+  #[cfg(target_os = "android")]
+  {
+    use jni::objects::{JObject, JValue};
+    let ctx = ndk_context::android_context();
+    let vm = unsafe { jni::JavaVM::from_raw(ctx.vm().cast()) }.map_err(|e| e.to_string())?;
+    let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
+    let activity = unsafe { JObject::from_raw(ctx.context().cast()) };
+    let jurl = env.new_string(&url).map_err(|e| e.to_string())?;
+    env
+      .call_method(
+        activity,
+        "openUrl",
+        "(Ljava/lang/String;)V",
+        &[JValue::Object(&jurl)],
+      )
+      .map_err(|e| e.to_string())?;
+  }
+  #[cfg(not(target_os = "android"))]
+  let _ = url;
+  Ok(())
+}
+
 // start/stop the Android call foreground service (keeps audio alive when backgrounded)
 #[tauri::command]
 pub fn android_call_service(start: bool) -> Result<(), String> {
