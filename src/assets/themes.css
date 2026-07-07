@@ -207,13 +207,67 @@
   cursor: grabbing;
 }
 
-.floating-video-close {
-  opacity: 0;
-  transition: opacity 0.2s ease, background-color 0.2s ease;
+/* The embed's own header (provider label, Open/Hide) is redundant while floating —
+   the chrome bar carries those actions */
+.floating-video .provider-embed__header {
+  display: none;
 }
 
-.floating-video:hover .floating-video-close {
+.floating-video-chrome {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px 0 12px;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.75) 0%, rgba(0, 0, 0, 0.35) 75%, transparent 100%);
+  z-index: 15;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  cursor: move;
+  user-select: none;
+}
+
+.floating-video:hover .floating-video-chrome {
   opacity: 1;
+}
+
+.floating-video-chrome__grip {
+  flex: 1;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.floating-video-chrome__btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.85);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.floating-video-chrome__btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+
+.floating-video-chrome__btn--close:hover {
+  background: rgba(237, 66, 69, 0.9);
 }
 
 /* Floating video indicator */
@@ -246,28 +300,41 @@
   animation: none;
 }
 
-/* Floating video placeholder (skeleton) */
+/* Compact in-chat pill left behind while the video floats; click docks it back */
 .floating-video-placeholder {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   margin: 4px 0 8px 0;
+  padding: 8px 14px;
+  max-width: 100%;
+  border: 1px solid var(--border-primary, rgba(255, 255, 255, 0.1));
+  border-radius: 8px;
+  background: var(--background-tertiary, rgba(0, 0, 0, 0.3));
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
-@keyframes skeleton-shimmer {
-  0% {
-    background-position: -200% 0;
-  }
-  100% {
-    background-position: 200% 0;
-  }
+.floating-video-placeholder:hover {
+  background: var(--background-secondary, rgba(255, 255, 255, 0.06));
+  border-color: var(--border-hover, rgba(255, 255, 255, 0.25));
+  color: var(--text-primary);
 }
 
-/* Don't animate skeleton in reduced motion mode */
-[data-reduce-motion="true"] .floating-video-placeholder {
-  animation: none;
+.floating-video-placeholder__hint {
+  color: var(--text-muted, rgba(255, 255, 255, 0.4));
+  font-size: 11px;
 }
 
 /* Resize handles */
 .floating-video .resize-handle {
   transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.floating-video:hover .resize-handle {
+  opacity: 1 !important;
 }
 
 .floating-video .resize-handle:hover {

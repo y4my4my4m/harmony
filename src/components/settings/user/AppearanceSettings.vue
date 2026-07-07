@@ -608,6 +608,19 @@
           />
         </div>
       </div>
+
+      <div class="setting-item">
+        <div class="setting-info">
+          <h4 class="setting-label">{{ $t('settings.appearance.inviteBannerBg') }}</h4>
+          <p class="setting-description">{{ $t('settings.appearance.inviteBannerBgDesc') }}</p>
+        </div>
+        <div class="setting-control">
+          <ToggleSwitch
+            v-model="settings.inviteBannerBackground"
+            @change="onSettingChange"
+          />
+        </div>
+      </div>
     </div>
 
     <div class="settings-section">
@@ -870,6 +883,7 @@ const settings = ref({
   emojiPack: currentPackId.value,
   showCustomEmojisInDisplayNames: true,
   greentextEnabled: true,
+  inviteBannerBackground: true,
   bridgeSourceBadge: 'icon' as 'icon' | 'text',
   fontFamily: 'system' as 'system' | 'pixel',
   glassEffectsEnabled: true,
@@ -1303,6 +1317,7 @@ const saveSettings = () => {
     screenReaderSupport: settings.value.screenReaderSupport,
     showCustomEmojisInDisplayNames: settings.value.showCustomEmojisInDisplayNames,
     greentextEnabled: settings.value.greentextEnabled,
+    inviteBannerBackground: settings.value.inviteBannerBackground,
     bridgeSourceBadge: settings.value.bridgeSourceBadge,
     fontFamily: settings.value.fontFamily,
     glassEffectsEnabled: settings.value.glassEffectsEnabled,
@@ -1348,6 +1363,7 @@ onMounted(async () => {
     emojiPack: currentPackId.value,
     showCustomEmojisInDisplayNames: currentSettings.showCustomEmojisInDisplayNames !== false,
     greentextEnabled: currentSettings.greentextEnabled !== false,
+    inviteBannerBackground: currentSettings.inviteBannerBackground !== false,
     bridgeSourceBadge: currentSettings.bridgeSourceBadge === 'text' ? 'text' : 'icon',
     fontFamily: (currentSettings.fontFamily as 'system' | 'pixel') || 'system',
     glassEffectsEnabled: currentSettings.glassEffectsEnabled !== false,

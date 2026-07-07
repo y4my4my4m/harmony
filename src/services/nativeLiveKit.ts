@@ -54,6 +54,8 @@ export class NativeLiveKitService {
   private connected = false;
   private channelId: string | null = null;
   private currentUserId: string | null = null;
+  // PTT gate: closed = engine mic muted without touching the user's explicit mute state
+  private pttGateOpen = true;
   private localMediaState: UserMediaState = this.emptyState('');
   private allUserStates = new Map<string, UserMediaState>();
   private micVolumes = new Map<string, number>();
@@ -97,7 +99,9 @@ export class NativeLiveKitService {
       });
 
       await on('media://state-synced', (p) => {
-        this.localMediaState = { ...this.localMediaState, ...p.local, userId: this.currentUserId ?? p.local.userId };
+        // engine reports track-level mute (includes PTT gating); JS owns explicit mute
+        const explicitMuted = this.localMediaState.isMuted;
+        this.localMediaState = { ...this.localMediaState, ...p.local, userId: this.currentUserId ?? p.local.userId, isMuted: explicitMuted };
         this.allUserStates.clear();
         for (const user of p.users) {
           this.allUserStates.set(user.userId, user);
@@ -109,6 +113,8 @@ export class NativeLiveKitService {
       await on('media://user-joined', (p) => {
         this.allUserStates.set(p.userId, p);
         this.emit('user-joined', { userId: p.userId, mediaState: { ...p } });
+        // teach the newcomer our explicit mute/deafen state (track mute alone can't convey it)
+        this.broadcastMediaState();
       });
 
       await on('media://user-left', (p) => {
@@ -119,10 +125,11 @@ export class NativeLiveKitService {
       });
 
       await on('media://user-state', (p) => {
-        // preserve data-channel-only flags (isDeafened) the SFU can't see
+        // preserve data-channel-only flags (isDeafened, explicit isMuted) the SFU can't see;
+        // SFU-level mute also fires for PTT gating so it isn't user intent
         const previous = this.allUserStates.get(p.userId);
         const hadVideo = previous?.isVideoEnabled || previous?.isScreenSharing;
-        const merged = { ...p, isDeafened: previous?.isDeafened ?? false };
+        const merged = { ...p, isDeafened: previous?.isDeafened ?? false, isMuted: previous?.isMuted ?? p.isMuted };
         this.allUserStates.set(p.userId, merged);
         this.emit('user-state-changed', { userId: p.userId, mediaState: { ...merged } });
         if (!hadVideo && (merged.isVideoEnabled || merged.isScreenSharing)) {
@@ -131,7 +138,9 @@ export class NativeLiveKitService {
       });
 
       await on('media://local-state', (p) => {
-        this.localMediaState = { ...this.localMediaState, ...p, userId: this.currentUserId ?? p.userId };
+        // engine reports track-level mute (includes PTT gating); JS owns explicit mute
+        const explicitMuted = this.localMediaState.isMuted;
+        this.localMediaState = { ...this.localMediaState, ...p, userId: this.currentUserId ?? p.userId, isMuted: explicitMuted };
         this.emit('local-state-changed', { ...this.localMediaState });
       });
 
@@ -259,6 +268,8 @@ export class NativeLiveKitService {
     try {
       await invoke('media_connect', { wsUrl, token, channelId, userId });
       await this.applySavedDevices();
+      // engine starts unmuted each connect; re-apply the PTT gate before audio flows
+      await this.applyMicGate();
       return true;
     } catch (error) {
       debug.error('❌ [NativeLiveKit] media_connect failed:', error);
@@ -295,13 +306,28 @@ export class NativeLiveKitService {
     return next;
   }
 
+  // engine mic transmits only when unmuted AND (voice activity mode OR PTT held)
+  private isMicGated(): boolean {
+    return this.localMediaState.isMuted || !this.pttGateOpen;
+  }
+
+  private applyMicGate(): Promise<unknown> {
+    return invoke('media_set_muted', { muted: this.isMicGated() })
+      .catch((error) => debug.warn('⚠️ [NativeLiveKit] set_muted failed:', error));
+  }
+
   setMuted(muted: boolean): void {
     this.localMediaState.isMuted = muted;
     this.localMediaState.isAudioEnabled = !muted;
     this.emit('local-state-changed', { ...this.localMediaState });
-    invoke('media_set_muted', { muted })
-      .then(() => this.broadcastMediaState())
-      .catch((error) => debug.warn('⚠️ [NativeLiveKit] set_muted failed:', error));
+    this.applyMicGate().then(() => this.broadcastMediaState());
+  }
+
+  // no mute state change, nothing broadcast
+  setTransmitGate(open: boolean): void {
+    if (this.pttGateOpen === open) return;
+    this.pttGateOpen = open;
+    void this.applyMicGate();
   }
 
   toggleDeafen(): boolean {

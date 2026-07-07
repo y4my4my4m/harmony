@@ -40,6 +40,8 @@ jobs:
         with:
           node-version-file: ".nvmrc"
           cache: npm
+      - name: Stamp version from tag
+        run: node scripts/set-version.mjs "${{ github.event.inputs.tag || github.ref_name }}"
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.rust-targets }}
@@ -74,6 +76,8 @@ jobs:
         with:
           node-version-file: ".nvmrc"
           cache: npm
+      - name: Stamp version from tag
+        run: node scripts/set-version.mjs "${{ github.event.inputs.tag || github.ref_name }}"
       - uses: actions/setup-java@v4
         with:
           distribution: temurin

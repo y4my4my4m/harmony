@@ -40,6 +40,8 @@ tauri-plugin-single-instance = "2"
 tauri-plugin-autostart = "2"
 tauri-plugin-global-shortcut = "=2.2.0"
 sysinfo = "0.30"
+# non-grabbing global input observation for push-to-talk (X11/Windows/macOS; no Wayland)
+rdev = "0.5"
 
 [target.'cfg(all(target_os = "linux", not(target_os = "android")))'.dependencies.wgpu]
 version = "30"

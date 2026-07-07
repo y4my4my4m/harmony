@@ -1,11 +1,12 @@
 <template>
-  <BaseModal 
-    :show="show" 
+  <BaseModal
+    :show="show"
     @close="$emit('close')"
     title="Invite People"
     subtitle="Share this server with anyone you'd like to bring in"
     :icon="InviteIcon"
     :compact="false"
+    :background-image="modalBanner"
   >
     <div class="invite-modal-content">
       <!-- Invite Link Section -->
@@ -259,6 +260,7 @@ import { getInviteConstraints } from '@/services/permissionsService'
 import { useAuthStore } from '@/stores/auth'
 import { supabase } from '@/supabase'
 import { getServerIconUrl, getServerBannerUrl } from '@/utils/serverUtils'
+import { useVisualTheme } from '@/composables/useVisualTheme'
 import BaseModal from '@/components/common/BaseModal.vue'
 import InviteIcon from '@/components/icons/ServerInviteIcon.vue'
 
@@ -329,6 +331,14 @@ const resolvedIcon = computed(() => {
 const resolvedBanner = computed(() => {
   const raw = props.serverData?.banner ?? props.serverData?.banner_url ?? null
   return raw ? getServerBannerUrl(raw, { width: 480, height: 140 }) : null
+})
+
+// Appearance setting gates the full-modal banner backdrop (default on)
+const visualTheme = useVisualTheme()
+const modalBanner = computed(() => {
+  if (visualTheme.settings.value.inviteBannerBackground === false) return null
+  const raw = props.serverData?.banner ?? props.serverData?.banner_url ?? null
+  return raw ? getServerBannerUrl(raw, { width: 960, height: 540 }) : null
 })
 
 const resolvedMemberCount = computed(() => {
@@ -839,6 +849,14 @@ watch(() => props.show, async (newValue) => {
   font-size: 14px;
   cursor: pointer;
   min-width: 120px;
+  /* the control is dark regardless of app theme; without this the UA paints a
+     light dropdown and inherits our white text — white on white */
+  color-scheme: dark;
+}
+
+.setting-select option {
+  background-color: var(--background-secondary, #1e1f22);
+  color: var(--text-primary, #f2f3f5);
 }
 
 .setting-select:focus {

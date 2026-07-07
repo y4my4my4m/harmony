@@ -16,6 +16,8 @@
 
 import { ref, computed, readonly } from 'vue'
 import { debug } from '@/utils/debug'
+import { armNativePtt, disarmNativePtt } from '@/services/nativePtt'
+import { isTauriDesktop } from '@/utils/platform'
 
 // TYPES
 
@@ -184,6 +186,11 @@ const releaseDelay = ref(200) // ms
 // Debounce timer for hold release
 const releaseTimers: Map<KeybindAction, ReturnType<typeof setTimeout>> = new Map()
 
+// Native (OS-level) PTT capture — armed on Tauri desktop so PTT works while unfocused
+const nativeCaptureActive = ref(false)
+const nativePttAvailable = ref<boolean | null>(null)
+let nativeArmToken = 0
+
 // HELPERS
 
 /**
@@ -276,16 +283,45 @@ function isContextActive(context: KeybindContext): boolean {
 }
 
 /**
- * Check if we should skip this event (typing in input fields)
+ * Check if the event originated from a text-entry element
  */
-function shouldSkipEvent(event: KeyboardEvent): boolean {
-  const target = event.target as HTMLElement
-  if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
-    // Allow Escape in input fields
-    if (event.code === 'Escape') return false
-    return true
+function isTypingTarget(event: Event): boolean {
+  const target = event.target as HTMLElement | null
+  if (!target) return false
+  return target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable
+}
+
+// HOLD-MODE CORE — single path for all input sources (keyboard, mouse, native capture, touch)
+
+function pressHold(action: KeybindAction): void {
+  const timer = releaseTimers.get(action)
+  if (timer) {
+    clearTimeout(timer)
+    releaseTimers.delete(action)
   }
-  return false
+  if (holdState.value.get(action)) return
+  holdState.value.set(action, true)
+  const handler = handlers.value.get(action)
+  if (handler) (handler as HoldKeyHandler)(true)
+  debug.log(`⌨️ [Keybinds] ${action} hold start`)
+}
+
+function releaseHold(action: KeybindAction, immediate = false): void {
+  if (!holdState.value.get(action)) return
+  const existing = releaseTimers.get(action)
+  if (existing) clearTimeout(existing)
+  const finish = (): void => {
+    releaseTimers.delete(action)
+    holdState.value.set(action, false)
+    const handler = handlers.value.get(action)
+    if (handler) (handler as HoldKeyHandler)(false)
+    debug.log(`⌨️ [Keybinds] ${action} hold end`)
+  }
+  if (immediate || releaseDelay.value <= 0) {
+    finish()
+    return
+  }
+  releaseTimers.set(action, setTimeout(finish, releaseDelay.value))
 }
 
 // INITIALIZATION
@@ -373,19 +409,22 @@ function saveKeybinds(): void {
 // EVENT HANDLERS
 
 function handleKeyDown(event: KeyboardEvent): void {
-  if (shouldSkipEvent(event)) return
-  
+  const typing = isTypingTarget(event)
+
   // Check each keybind
   for (const [action, keybind] of keybinds.value.entries()) {
     if (!keybind.enabled) continue
     if (!isContextActive(keybind.context)) continue
     if (!matchesKeybind(event, keybind)) continue
-    
+
+    // While typing only hold-mode binds (PTT) and Escape stay live, like Discord
+    if (typing && !keybind.holdMode && event.code !== 'Escape') continue
+
     // Special handling for PTT in voice_activity mode
     if (action === 'push-to-talk' && inputMode.value !== 'push_to_talk') {
       continue // Skip PTT when not in PTT mode
     }
-    
+
     // Special handling for toggle-camera when PTT uses same key
     if (action === 'toggle-camera' && inputMode.value === 'push_to_talk') {
       const pttKeybind = keybinds.value.get('push-to-talk')
@@ -393,31 +432,23 @@ function handleKeyDown(event: KeyboardEvent): void {
         continue // PTT takes priority
       }
     }
-    
-    event.preventDefault()
-    event.stopPropagation()
-    
+
     const handler = handlers.value.get(action)
     if (!handler) continue
-    
+
+    // Don't eat the character while typing — PTT transmits AND types (Discord behavior)
+    if (!typing || event.code === 'Escape') {
+      event.preventDefault()
+      event.stopPropagation()
+    }
+
     if (keybind.holdMode) {
-      const timer = releaseTimers.get(action)
-      if (timer) {
-        clearTimeout(timer)
-        releaseTimers.delete(action)
-      }
-      
-      // Only trigger on initial press
-      if (!holdState.value.get(action)) {
-        holdState.value.set(action, true)
-        ;(handler as HoldKeyHandler)(true)
-        debug.log(`⌨️ [Keybinds] ${action} pressed (hold)`)
-      }
+      pressHold(action)
     } else {
       ;(handler as KeybindHandler)()
       debug.log(`⌨️ [Keybinds] ${action} triggered`)
     }
-    
+
     return // Only handle first matching keybind
   }
 }
@@ -428,45 +459,25 @@ function handleKeyUp(event: KeyboardEvent): void {
     if (!keybind.holdMode) continue
     if (!keybind.enabled) continue
     if (!holdState.value.get(action)) continue
-    
+
     if (event.code !== keybind.key) continue
-    
-    event.preventDefault()
-    event.stopPropagation()
-    
-    const timer = setTimeout(() => {
-      holdState.value.set(action, false)
-      const handler = handlers.value.get(action)
-      if (handler) {
-        ;(handler as HoldKeyHandler)(false)
-        debug.log(`⌨️ [Keybinds] ${action} released (hold)`)
-      }
-      releaseTimers.delete(action)
-    }, releaseDelay.value)
-    
-    releaseTimers.set(action, timer)
+
+    if (!isTypingTarget(event)) {
+      event.preventDefault()
+      event.stopPropagation()
+    }
+
+    releaseHold(action)
   }
 }
 
 function handleWindowBlur(): void {
-  // Release all held keys when window loses focus
   for (const [action, isHeld] of holdState.value.entries()) {
-    if (isHeld) {
-      holdState.value.set(action, false)
-      const handler = handlers.value.get(action)
-      if (handler) {
-        const keybind = keybinds.value.get(action)
-        if (keybind?.holdMode) {
-          ;(handler as HoldKeyHandler)(false)
-        }
-      }
-    }
+    if (!isHeld) continue
+    // Native capture keeps PTT alive while the window is unfocused
+    if (action === 'push-to-talk' && nativeCaptureActive.value) continue
+    releaseHold(action, true)
   }
-  
-  for (const timer of releaseTimers.values()) {
-    clearTimeout(timer)
-  }
-  releaseTimers.clear()
 }
 
 // MOUSE EVENT HANDLERS
@@ -503,52 +514,68 @@ function handleMouseDown(event: MouseEvent): void {
     if (!handler) continue
     
     if (keybind.holdMode) {
-      const timer = releaseTimers.get(action)
-      if (timer) {
-        clearTimeout(timer)
-        releaseTimers.delete(action)
-      }
-      
-      // Only trigger on initial press
-      if (!holdState.value.get(action)) {
-        holdState.value.set(action, true)
-        ;(handler as HoldKeyHandler)(true)
-        debug.log(`🖱️ [Keybinds] ${action} mouse pressed (hold)`)
-      }
+      pressHold(action)
     } else {
       ;(handler as KeybindHandler)()
       debug.log(`🖱️ [Keybinds] ${action} mouse triggered`)
     }
-    
+
     return // Only handle first matching keybind
   }
 }
 
 function handleMouseUp(event: MouseEvent): void {
   const mouseKey = `Mouse${event.button}`
-  
+
   // Check hold-mode keybinds
   for (const [action, keybind] of keybinds.value.entries()) {
     if (!keybind.holdMode) continue
     if (!keybind.enabled) continue
     if (!holdState.value.get(action)) continue
     if (keybind.key !== mouseKey) continue
-    
+
     event.preventDefault()
     event.stopPropagation()
-    
-    const timer = setTimeout(() => {
-      holdState.value.set(action, false)
-      const handler = handlers.value.get(action)
-      if (handler) {
-        ;(handler as HoldKeyHandler)(false)
-        debug.log(`🖱️ [Keybinds] ${action} mouse released (hold)`)
-      }
-      releaseTimers.delete(action)
-    }, releaseDelay.value)
-    
-    releaseTimers.set(action, timer)
+
+    releaseHold(action)
   }
+}
+
+// Native capture (Tauri desktop): armed only in voice + PTT mode; Rust reports press state for the bound key only, so PTT works unfocused
+function syncNativeCapture(): void {
+  if (!isTauriDesktop()) return
+
+  const keybind = keybinds.value.get('push-to-talk')
+  const wanted =
+    isListenerSetup.value &&
+    activeContexts.value.has('voice-connected') &&
+    inputMode.value === 'push_to_talk' &&
+    !!keybind?.enabled
+
+  const token = ++nativeArmToken
+  if (!wanted) {
+    if (nativeCaptureActive.value) {
+      nativeCaptureActive.value = false
+      void disarmNativePtt()
+      releaseHold('push-to-talk')
+    }
+    return
+  }
+
+  void armNativePtt(
+    { key: keybind!.key, modifiers: keybind!.modifiers },
+    (pressed) => (pressed ? pressHold('push-to-talk') : releaseHold('push-to-talk')),
+    () => {
+      // capture backend died (e.g. macOS accessibility denied) — window listeners still work
+      nativeCaptureActive.value = false
+      nativePttAvailable.value = false
+    },
+  ).then((supported) => {
+    if (token !== nativeArmToken) return
+    nativePttAvailable.value = supported
+    nativeCaptureActive.value = supported
+    debug.log(`⌨️ [Keybinds] Native PTT capture ${supported ? 'armed' : 'unavailable'}`)
+  })
 }
 
 // COMPOSABLE
@@ -590,10 +617,11 @@ export function useKeybinds() {
       keybind.key = key
       keybind.modifiers = { ...modifiers }
       saveKeybinds()
+      syncNativeCapture()
       debug.log(`⌨️ [Keybinds] Updated ${action} to ${keyToDisplay(key, modifiers)}`)
     }
   }
-  
+
   const resetKeybind = (action: KeybindAction): void => {
     const keybind = keybinds.value.get(action)
     const def = DEFAULT_KEYBINDS[action]
@@ -602,6 +630,7 @@ export function useKeybinds() {
       keybind.modifiers = { ...def.defaultModifiers }
       keybind.enabled = def.enabled
       saveKeybinds()
+      syncNativeCapture()
     }
   }
   
@@ -616,12 +645,14 @@ export function useKeybinds() {
     if (keybind) {
       keybind.enabled = !keybind.enabled
       saveKeybinds()
+      syncNativeCapture()
     }
   }
-  
+
   const setInputMode = (mode: 'voice_activity' | 'push_to_talk'): void => {
     inputMode.value = mode
     saveKeybinds()
+    syncNativeCapture()
     debug.log(`⌨️ [Keybinds] Input mode set to ${mode}`)
   }
   
@@ -633,11 +664,13 @@ export function useKeybinds() {
   // Activate a context
   const activateContext = (context: KeybindContext): void => {
     activeContexts.value.add(context)
+    syncNativeCapture()
   }
-  
+
   // Deactivate a context
   const deactivateContext = (context: KeybindContext): void => {
     activeContexts.value.delete(context)
+    syncNativeCapture()
   }
   
   const matchesEvent = (action: KeybindAction, event: KeyboardEvent): boolean => {
@@ -683,6 +716,7 @@ export function useKeybinds() {
     window.addEventListener('blur', handleWindowBlur)
     
     isListenerSetup.value = true
+    syncNativeCapture()
     debug.log('⌨️ [Keybinds] Global listeners registered (keyboard + mouse)')
   }
   
@@ -702,12 +736,13 @@ export function useKeybinds() {
     window.removeEventListener('blur', handleWindowBlur)
     
     isListenerSetup.value = false
-    
+    syncNativeCapture()
+
     for (const timer of releaseTimers.values()) {
       clearTimeout(timer)
     }
     releaseTimers.clear()
-    
+
     debug.log('⌨️ [Keybinds] Global listeners removed')
   }
   
@@ -719,7 +754,9 @@ export function useKeybinds() {
     releaseDelay: readonly(releaseDelay),
     activeContexts: readonly(activeContexts),
     isPTTActive,
-    
+    nativePttAvailable: readonly(nativePttAvailable),
+    nativeCaptureActive: readonly(nativeCaptureActive),
+
     // Computed
     isPTTMode,
     isVoiceActivityMode,
@@ -733,6 +770,8 @@ export function useKeybinds() {
     // Actions
     registerHandler,
     unregisterHandler,
+    pressHold,
+    releaseHold,
     setKeybind,
     resetKeybind,
     resetAllKeybinds,
@@ -745,37 +784,6 @@ export function useKeybinds() {
     // Lifecycle
     setupListeners,
     cleanupListeners,
-  }
-}
-
-// BACKWARD COMPATIBILITY
-
-/**
- * Legacy composable for PTT - wraps the new unified system
- * @deprecated Use useKeybinds instead
- */
-export function usePushToTalkLegacy() {
-  const kb = useKeybinds()
-  
-  return {
-    inputMode: kb.inputMode,
-    pttKey: computed(() => kb.getKeybind('push-to-talk')?.key ?? 'KeyV'),
-    pttKeyDisplay: computed(() => kb.getKeybindDisplay('push-to-talk')),
-    releaseDelay: kb.releaseDelay,
-    isPTTActive: kb.isPTTActive,
-    isRecordingKeybind: ref(false), // Recording handled by KeybindSettings
-    isPTTMode: kb.isPTTMode,
-    isVoiceActivityMode: kb.isVoiceActivityMode,
-    shouldBeMuted: computed(() => kb.isPTTMode.value && !kb.isPTTActive.value),
-    setInputMode: kb.setInputMode,
-    setReleaseDelay: kb.setReleaseDelay,
-    shouldBlockShortcut: kb.shouldBlockShortcut,
-    setupListeners: kb.setupListeners,
-    cleanupListeners: kb.cleanupListeners,
-    registerMuteCallback: (cb: (muted: boolean) => void) => {
-      kb.registerHandler('push-to-talk', (isPressed: boolean) => cb(!isPressed))
-    },
-    unregisterMuteCallback: () => kb.unregisterHandler('push-to-talk'),
   }
 }
 

@@ -161,6 +161,12 @@ const youtubeIframe = ref<HTMLIFrameElement | null>(null);
 const isPlaying = ref(false);
 const embedLoaded = ref(false);
 
+// Floating moves reload the iframe on browsers without moveBefore(); we track
+// playback position from infoDelivery so the reloaded player can resume in place.
+let lastKnownTime = 0;
+let iframeLoadCount = 0;
+let pendingRestore: { time: number; play: boolean } | null = null;
+
 const { registerVideo, returnToOriginalPosition, getFloatingVideoMessageId } = useFloatingVideo();
 
 // Detect server invite links (e.g., https://har.mony.lol/invite/ABC123)
@@ -289,7 +295,7 @@ function setupYouTubePlayer() {
     const originalParent = floatTarget.parentElement as HTMLElement;
     if (originalParent) {
       cleanupFloatingObserver?.();
-      cleanupFloatingObserver = registerVideo(floatTarget as unknown as HTMLElement, originalParent, props.messageId, 'youtube');
+      cleanupFloatingObserver = registerVideo(floatTarget as unknown as HTMLElement, originalParent, props.messageId, 'youtube', props.payload.url);
     }
   }
 }
@@ -304,6 +310,13 @@ function sendListeningEvent() {
       '*'
     );
   }
+}
+
+function sendPlayerCommand(func: string, args: unknown[] = []) {
+  youtubeIframe.value?.contentWindow?.postMessage(
+    JSON.stringify({ event: 'command', func, args }),
+    '*'
+  );
 }
 
 function updatePlayState(playing: boolean) {
@@ -351,11 +364,25 @@ function handleYouTubeMessage(event: MessageEvent) {
           updatePlayState(playing);
         }
       }
+      if (typeof data.info.currentTime === 'number') {
+        lastKnownTime = data.info.currentTime;
+      }
     }
-    
+
     if (data.event === 'onReady') {
       debug.log('[YouTube] Player ready');
       sendListeningEvent();
+      if (pendingRestore) {
+        const { time, play } = pendingRestore;
+        pendingRestore = null;
+        sendPlayerCommand('seekTo', [time, true]);
+        if (play) {
+          sendPlayerCommand('playVideo');
+        } else {
+          sendPlayerCommand('pauseVideo');
+        }
+        debug.log('[YouTube] Restored playback after iframe reload:', { time, play });
+      }
     }
     
     // YouTube may send initialDelivery before onReady - subscribe immediately
@@ -501,6 +528,16 @@ function handleEmbedLoad() {
   embedLoaded.value = true;
   emit('embed-loaded');
   if (props.payload.provider === 'youtube') {
+    iframeLoadCount++;
+    // reload #2+ means the iframe was moved by the floating player (no moveBefore
+    // support) — resume where it was once the fresh player reports ready
+    if (iframeLoadCount > 1 && lastKnownTime > 0) {
+      const floatTarget = embedWrapper.value || youtubeContainer.value;
+      pendingRestore = {
+        time: lastKnownTime,
+        play: floatTarget?.dataset.isPlaying === 'true',
+      };
+    }
     sendListeningEvent();
   }
 }

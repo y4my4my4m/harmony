@@ -1,11 +1,15 @@
 <template>
   <Teleport to="body">
     <div v-if="show" :class="['modal-overlay', overlayClass]" @click="handleOverlayClick">
-      <div 
-        class="modal-container" 
+      <div
+        class="modal-container"
         @click.stop
         :class="{ 'modal-compact': compact }"
       >
+        <div v-if="backgroundImage" class="modal-bg" aria-hidden="true">
+          <div class="modal-bg__image" :style="{ backgroundImage: `url(${backgroundImage})` }"></div>
+          <div class="modal-bg__scrim"></div>
+        </div>
         <!-- Header -->
         <div class="modal-header" v-if="showHeader">
           <div class="header-content">
@@ -54,6 +58,8 @@ interface Props {
   closeOnOverlay?: boolean
   /** Additional class for the overlay (e.g. "instance-detail-modal" for scoped child styles) */
   overlayClass?: string
+  /** Blurred, darkened image layer behind the whole modal (e.g. server banner) */
+  backgroundImage?: string | null
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -120,7 +126,7 @@ onUnmounted(() => {
   background: var(--background-quinary);
   border-radius: 12px;
   border: 1px solid var(--border-primary);
-  box-shadow: 
+  box-shadow:
     0 25px 50px rgba(0, 0, 0, 0.6),
     0 0 0 1px rgba(255, 255, 255, 0.03),
     inset 0 1px 0 rgba(255, 255, 255, 0.06);
@@ -131,6 +137,37 @@ onUnmounted(() => {
   flex-direction: column;
   animation: slideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
   position: relative;
+  overflow: hidden;
+}
+
+.modal-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.modal-bg__image {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  /* over-scale so the blur doesn't reveal transparent edges */
+  transform: scale(1.15);
+  filter: blur(24px) saturate(1.1);
+}
+
+.modal-bg__scrim {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--background-quinary) 72%, transparent);
+}
+
+.modal-header,
+.modal-content,
+.modal-footer {
+  position: relative;
+  z-index: 1;
 }
 
 .modal-compact {

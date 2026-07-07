@@ -52,15 +52,7 @@ export function usePushToTalk() {
   const isPTTActive = keybinds.isPTTActive
   const isPTTMode = keybinds.isPTTMode
   const isVoiceActivityMode = keybinds.isVoiceActivityMode
-  
-  // Should be muted when in PTT mode and key is not held
-  const shouldBeMuted = computed(() => {
-    if (keybinds.inputMode.value === 'voice_activity') {
-      return false
-    }
-    return !keybinds.isPTTActive.value
-  })
-  
+
   // Actions
   const setInputMode = (mode: InputMode): void => {
     keybinds.setInputMode(mode)
@@ -134,24 +126,7 @@ export function usePushToTalk() {
   const shouldBlockShortcut = (event: KeyboardEvent): boolean => {
     return keybinds.shouldBlockShortcut(event, [])
   }
-  
-  /**
-   * Register a callback to be called when mute state should change
-   * This is called by the voice store to respond to PTT state changes
-   */
-  const registerMuteCallback = (callback: (muted: boolean) => void): void => {
-    keybinds.registerHandler('push-to-talk', (isPressed: boolean) => {
-      callback(!isPressed) // isPressed=true means unmuted, so muted=false
-    })
-  }
-  
-  /**
-   * Unregister the mute callback
-   */
-  const unregisterMuteCallback = (): void => {
-    keybinds.unregisterHandler('push-to-talk')
-  }
-  
+
   // Lifecycle - delegate to useKeybinds
   const setupListeners = (): void => {
     keybinds.setupListeners()
@@ -174,8 +149,7 @@ export function usePushToTalk() {
     // Computed
     isPTTMode,
     isVoiceActivityMode,
-    shouldBeMuted,
-    
+
     // Actions
     setInputMode,
     startRecordingKeybind,
@@ -187,11 +161,7 @@ export function usePushToTalk() {
     
     // Utilities for other components
     shouldBlockShortcut,
-    
-    // Callback management
-    registerMuteCallback,
-    unregisterMuteCallback,
-    
+
     // Lifecycle
     setupListeners,
     cleanupListeners,

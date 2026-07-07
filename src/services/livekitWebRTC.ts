@@ -285,6 +285,9 @@ export class LiveKitWebRTCService {
     audioLevel: 0,
   };
   
+  // PTT gate: closed = mic track muted without touching the user's explicit mute state
+  private pttGateOpen = true;
+
   // Remote user states
   private allUserStates = new Map<string, UserMediaState>();
   
@@ -639,7 +642,7 @@ export class LiveKitWebRTCService {
       try {
         const lp = this.room?.localParticipant;
         if (!lp || !this.currentUserId) return;
-        const level = this.localMediaState.isMuted ? 0 : Math.round((lp.audioLevel ?? 0) * 100);
+        const level = this.isMicGated() ? 0 : Math.round((lp.audioLevel ?? 0) * 100);
         if (Math.abs(level - this.localMediaState.audioLevel) >= 3 || (level === 0) !== (this.localMediaState.audioLevel === 0)) {
           this.localMediaState.audioLevel = level;
           this.emit('audio-level', { userId: this.currentUserId, level });
@@ -748,8 +751,8 @@ export class LiveKitWebRTCService {
       debug.log('🎵 [LiveKit] Published audio with bitrate:', audioBitrateBps, 'bps');
       
       this.localMediaState.isAudioEnabled = true;
-      
-      if (this.localMediaState.isMuted) {
+
+      if (this.isMicGated()) {
         audioTrack.mute();
       }
       
@@ -1020,70 +1023,64 @@ export class LiveKitWebRTCService {
     }
   }
 
+  // mic track transmits only when unmuted AND (voice activity mode OR PTT held)
+  private isMicGated(): boolean {
+    return this.localMediaState.isMuted || !this.pttGateOpen;
+  }
+
+  private applyMicGate(): void {
+    if (!this.room?.localParticipant) return;
+    const audioPublication = this.room.localParticipant.audioTrackPublications.values().next().value;
+    if (!audioPublication?.track) return;
+    if (this.isMicGated()) {
+      (audioPublication.track as LocalAudioTrack).mute();
+    } else {
+      (audioPublication.track as LocalAudioTrack).unmute();
+    }
+  }
+
   /**
    * Toggle mute on/off
    */
   toggleMute(): boolean {
-    this.localMediaState.isMuted = !this.localMediaState.isMuted;
-    
-    if (this.room?.localParticipant) {
-      const audioPublication = this.room.localParticipant.audioTrackPublications.values().next().value;
-      if (audioPublication?.track) {
-        if (this.localMediaState.isMuted) {
-          (audioPublication.track as LocalAudioTrack).mute();
-        } else {
-          (audioPublication.track as LocalAudioTrack).unmute();
-        }
-      }
-    }
-    
-    this.broadcastMediaState();
-    this.emit('local-state-changed', this.localMediaState);
-    
+    this.setMuted(!this.localMediaState.isMuted);
     return this.localMediaState.isMuted;
   }
-  
+
   /**
-   * Set mute state directly (for Push-to-Talk)
+   * Set explicit mute state (user intent — broadcast to peers)
    */
   setMuted(muted: boolean): void {
     if (this.localMediaState.isMuted === muted) return; // No change
-    
+
     this.localMediaState.isMuted = muted;
-    
-    if (this.room?.localParticipant) {
-      const audioPublication = this.room.localParticipant.audioTrackPublications.values().next().value;
-      if (audioPublication?.track) {
-        if (muted) {
-          (audioPublication.track as LocalAudioTrack).mute();
-        } else {
-          (audioPublication.track as LocalAudioTrack).unmute();
-        }
-      }
-    }
-    
+    this.applyMicGate();
+
     this.broadcastMediaState();
     this.emit('local-state-changed', this.localMediaState);
   }
-  
+
+  /**
+   * Open/close the PTT transmit gate — no mute state change, nothing broadcast
+   */
+  setTransmitGate(open: boolean): void {
+    if (this.pttGateOpen === open) return;
+    this.pttGateOpen = open;
+    this.applyMicGate();
+  }
+
   /**
    * Toggle deafen on/off
    */
   toggleDeafen(): boolean {
     this.localMediaState.isDeafened = !this.localMediaState.isDeafened;
-    
+
     // Deafening also mutes (Discord behavior)
     if (this.localMediaState.isDeafened && !this.localMediaState.isMuted) {
       this.localMediaState.isMuted = true;
-      
-      if (this.room?.localParticipant) {
-        const audioPublication = this.room.localParticipant.audioTrackPublications.values().next().value;
-        if (audioPublication?.track) {
-          (audioPublication.track as LocalAudioTrack).mute();
-        }
-      }
+      this.applyMicGate();
     }
-    
+
     // Mute/unmute spatial audio master output if active
     try {
       const { spatialAudioService } = require('@/services/spatialAudio');
@@ -1637,10 +1634,13 @@ export class LiveKitWebRTCService {
       }
       
       this.setupParticipantListeners(participant);
-      
+
       this.emit('user-joined', { userId, mediaState });
       this.emit('channel-state-synced', { users: this.getAllUsers() });
-      
+
+      // teach the newcomer our explicit mute/deafen state (track mute alone can't convey it)
+      this.broadcastMediaState();
+
       // Rotate/redistribute the shared E2EE key so the newcomer is included.
       void this.onE2EEMembershipChanged();
     });
@@ -1952,28 +1952,18 @@ export class LiveKitWebRTCService {
    * Setup event listeners for a specific participant
    */
   private setupParticipantListeners(participant: RemoteParticipant): void {
+    // Track mute also fires for PTT gating, so it can't be trusted as user intent.
+    // Explicit mute arrives via the media-state data broadcast instead.
     participant.on(ParticipantEvent.TrackMuted, (publication: TrackPublication) => {
       const state = this.allUserStates.get(participant.identity);
       if (state && publication.kind === Track.Kind.Audio) {
-        state.isMuted = true;
+        state.isSpeaking = false;
+        state.audioLevel = 0;
         this.allUserStates.set(participant.identity, state);
-        // Use state.userId (resolved UUID) instead of identity for events
-        // Spread to create new object reference for Vue reactivity
         this.emit('user-state-changed', { userId: state.userId, mediaState: { ...state } });
       }
     });
-    
-    participant.on(ParticipantEvent.TrackUnmuted, (publication: TrackPublication) => {
-      const state = this.allUserStates.get(participant.identity);
-      if (state && publication.kind === Track.Kind.Audio) {
-        state.isMuted = false;
-        this.allUserStates.set(participant.identity, state);
-        // Use state.userId (resolved UUID) instead of identity for events
-        // Spread to create new object reference for Vue reactivity
-        this.emit('user-state-changed', { userId: state.userId, mediaState: { ...state } });
-      }
-    });
-    
+
     // Speaking changed
     participant.on(ParticipantEvent.IsSpeakingChanged, (speaking: boolean) => {
       const state = this.allUserStates.get(participant.identity);
@@ -1993,8 +1983,8 @@ export class LiveKitWebRTCService {
    * @param resolvedUserId - Optional resolved UUID (for federated users). If not provided, uses participant.identity
    */
   private createMediaState(participant: RemoteParticipant, resolvedUserId?: string): UserMediaState {
-    // Check if participant has muted their microphone
-    // isMicrophoneEnabled is false when they've muted or don't have a mic track
+    // Publication mute is only an initial guess (PTT gating also mutes the track);
+    // the participant's media-state broadcast corrects it right after join.
     const hasMic = participant.audioTrackPublications.size > 0;
     const isMicMuted = hasMic && !participant.isMicrophoneEnabled;
     

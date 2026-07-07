@@ -13,6 +13,33 @@ interface VideoElement {
   isPlaying: boolean
   placeholder?: HTMLElement
   aspectRatio: number
+  sourceUrl?: string
+}
+
+// moveBefore (Chrome 133+/newer WebKit) relocates a node without resetting iframe
+// or media state; insertBefore fallback reloads iframes — YouTube then restores
+// playback via the seek-on-reload path in ProviderEmbedSwitch.
+function moveNode(parent: HTMLElement, el: HTMLElement, before: Node | null): void {
+  const mover = (parent as any).moveBefore
+  if (typeof mover === 'function') {
+    mover.call(parent, el, before)
+  } else if (before) {
+    parent.insertBefore(el, before)
+  } else {
+    parent.appendChild(el)
+  }
+}
+
+// keep a <video> playing across a fallback (insertBefore) move
+function withVideoPlaybackPreserved(element: HTMLElement, move: () => void): void {
+  const video = element.querySelector('video')
+  const wasPlaying = video ? !video.paused : false
+  const time = video?.currentTime ?? 0
+  move()
+  if (video && wasPlaying && video.paused) {
+    video.currentTime = time
+    void video.play().catch(() => {})
+  }
 }
 
 // Global state (singleton)
@@ -24,7 +51,7 @@ const isUserSetting = ref(true) // Default: enabled
 // Per-element bookkeeping. WeakMaps keyed by the video element so entries
 // vanish with the element instead of living as ad-hoc expando properties.
 const videoObservers = new WeakMap<HTMLElement, IntersectionObserver>()
-const dragState = new WeakMap<HTMLElement, { dragHandle: HTMLElement; onMouseDown: (e: MouseEvent) => void }>()
+const dragState = new WeakMap<HTMLElement, { onMouseDown: (e: MouseEvent) => void }>()
 const resizeHandleState = new WeakMap<HTMLElement, HTMLElement[]>()
 
 if (typeof localStorage !== 'undefined') {
@@ -59,7 +86,8 @@ export function useFloatingVideo() {
     element: HTMLElement,
     originalParent: HTMLElement,
     messageId: string,
-    type: 'youtube' | 'video'
+    type: 'youtube' | 'video',
+    sourceUrl?: string
   ): (() => void) => {
     if (!isEnabled.value) return () => {}
 
@@ -70,12 +98,12 @@ export function useFloatingVideo() {
           if (currentFloatingVideo.value?.messageId === messageId && currentFloatingVideo.value?.element === element) {
             return
           }
-          
+
           const isPlaying = checkIfPlaying(element, type)
-          
+
           // If video is playing and less than 20% visible, float it
           if (isPlaying && entry.intersectionRatio < 0.2 && !currentFloatingVideo.value) {
-            floatVideo(element, originalParent, messageId, type)
+            floatVideo(element, originalParent, messageId, type, sourceUrl)
           }
           // If video is back in view and is floating, return it
           else if (entry.intersectionRatio > 0.8 && currentFloatingVideo.value?.messageId === messageId) {
@@ -133,7 +161,8 @@ export function useFloatingVideo() {
     element: HTMLElement,
     originalParent: HTMLElement,
     messageId: string,
-    type: 'youtube' | 'video'
+    type: 'youtube' | 'video',
+    sourceUrl?: string
   ) => {
     // If another video is already floating, return it first
     if (currentFloatingVideo.value && currentFloatingVideo.value.messageId !== messageId) {
@@ -145,7 +174,7 @@ export function useFloatingVideo() {
 
     const videoEl = element.querySelector('video') || element.querySelector('iframe')
     let aspectRatio = 16 / 9 // Default fallback
-    
+
     if (videoEl) {
       const rect = videoEl.getBoundingClientRect()
       if (rect.width > 0 && rect.height > 0) {
@@ -153,38 +182,23 @@ export function useFloatingVideo() {
       }
     }
 
-    const placeholder = document.createElement('div')
-    const elementRect = element.getBoundingClientRect()
+    const placeholder = document.createElement('button')
+    placeholder.type = 'button'
     placeholder.className = 'floating-video-placeholder'
-    placeholder.style.cssText = `
-      width: 100%;
-      height: ${elementRect.height}px;
-      border-radius: 8px;
-      background: linear-gradient(
-        90deg,
-        #40444b 0%,
-        #484c52 50%,
-        #40444b 100%
-      );
-      background-size: 200% 100%;
-      animation: skeleton-shimmer 1.5s infinite;
-      position: relative;
+    placeholder.title = 'Bring the video back here'
+    placeholder.innerHTML = `
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <rect x="2" y="4" width="20" height="16" rx="2" stroke="currentColor" stroke-width="2"/>
+        <rect x="11" y="11" width="8" height="6" rx="1" fill="currentColor"/>
+      </svg>
+      <span>Playing in floating player</span>
+      <span class="floating-video-placeholder__hint">Click to bring back</span>
     `
-    
-    const message = document.createElement('div')
-    message.style.cssText = `
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      color: var(--text-secondary);
-      font-size: 14px;
-      text-align: center;
-      pointer-events: none;
-    `
-    message.textContent = '📹 Video is floating'
-    placeholder.appendChild(message)
-    
+    placeholder.addEventListener('click', (e) => {
+      e.stopPropagation()
+      returnToOriginalPosition()
+    })
+
     element.parentNode?.insertBefore(placeholder, element)
 
     currentFloatingVideo.value = {
@@ -194,13 +208,14 @@ export function useFloatingVideo() {
       type,
       isPlaying: true,
       placeholder,
-      aspectRatio
+      aspectRatio,
+      sourceUrl
     }
 
     const windowWidth = window.innerWidth
     const videoWidth = Math.min(400, windowWidth * 0.9)
     const videoHeight = videoWidth / aspectRatio
-    
+
     floatingPosition.value = {
       x: windowWidth - videoWidth - 20,
       y: 80
@@ -208,7 +223,7 @@ export function useFloatingVideo() {
 
     // Move element out of the virtual scroller to document.body so it
     // survives row unmounting by the virtualizer
-    document.body.appendChild(element)
+    withVideoPlaybackPreserved(element, () => moveNode(document.body, element, null))
 
     element.classList.add('floating-video')
     element.style.position = 'fixed'
@@ -246,11 +261,11 @@ export function useFloatingVideo() {
       z-index: 5;
     `
     element.appendChild(interactionOverlay)
-    
-    addCloseButton(element)
-    
+
+    buildChrome(element, sourceUrl)
+
     makeDraggable(element)
-    
+
     makeResizable(element)
   }
 
@@ -262,26 +277,14 @@ export function useFloatingVideo() {
 
     // Vue's ref unwrapping types HTMLElement props as a complex unwrapped shape;
     // cast back to HTMLElement so DOM APIs accept these values.
-    const { element, placeholder, type } = currentFloatingVideo.value as unknown as VideoElement
+    const { element, placeholder } = currentFloatingVideo.value as unknown as VideoElement
 
-    // Pause the video before returning
-    if (type === 'video') {
-      const video = element.querySelector('video')
-      if (video) video.pause()
-    } else if (type === 'youtube') {
-      const iframe = element.querySelector('iframe')
-      if (iframe && iframe.contentWindow) {
-        iframe.contentWindow.postMessage(
-          '{"event":"command","func":"pauseVideo","args":""}',
-          '*'
-        )
-      }
-    }
-
-    // Move element back to its original position (before placeholder) since
-    // it was reparented to document.body when floating started
+    // Playback intentionally continues across the return (Discord-style);
+    // pausing is the close button's job, not the docking move's.
     if (placeholder && placeholder.parentNode) {
-      placeholder.parentNode.insertBefore(element, placeholder)
+      withVideoPlaybackPreserved(element, () =>
+        moveNode(placeholder.parentNode as HTMLElement, element, placeholder)
+      )
       placeholder.parentNode.removeChild(placeholder)
     }
 
@@ -296,7 +299,9 @@ export function useFloatingVideo() {
     
     const overlay = element.querySelector('.floating-video-interaction-overlay')
     if (overlay) overlay.remove()
-    
+
+    element.querySelector('.floating-video-chrome')?.remove()
+
     element.classList.remove('floating-video')
     element.style.position = ''
     element.style.top = ''
@@ -313,9 +318,6 @@ export function useFloatingVideo() {
     element.style.minWidth = ''
     element.style.minHeight = ''
 
-    const closeBtn = element.querySelector('.floating-video-close')
-    if (closeBtn) closeBtn.remove()
-
     removeResizeHandles(element)
 
     removeDragHandlers(element)
@@ -327,64 +329,66 @@ export function useFloatingVideo() {
   }
 
   /**
-   * Add close button to floating video
+   * Hover chrome: one top bar with drag space + open / dock / close actions
    */
-  const addCloseButton = (element: HTMLElement) => {
-    const closeBtn = document.createElement('button')
-    closeBtn.className = 'floating-video-close'
-    closeBtn.innerHTML = `
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-        <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" fill="currentColor"/>
-      </svg>
-    `
-    closeBtn.style.cssText = `
-      position: absolute;
-      top: 8px;
-      right: 8px;
-      background: rgba(0, 0, 0, 0.8);
-      border: none;
-      border-radius: 50%;
-      width: 32px;
-      height: 32px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      z-index: 10;
-      color: white;
-      transition: all 0.2s ease;
-      pointer-events: all;
-    `
+  const buildChrome = (element: HTMLElement, sourceUrl?: string) => {
+    const bar = document.createElement('div')
+    bar.className = 'floating-video-chrome'
 
-    closeBtn.addEventListener('mouseenter', () => {
-      closeBtn.style.background = 'rgba(237, 66, 69, 0.9)'
-    })
+    const grip = document.createElement('span')
+    grip.className = 'floating-video-chrome__grip'
+    grip.textContent = 'Floating player'
+    bar.appendChild(grip)
 
-    closeBtn.addEventListener('mouseleave', () => {
-      closeBtn.style.background = 'rgba(0, 0, 0, 0.8)'
-    })
+    const makeButton = (label: string, svg: string, onClick: () => void): HTMLButtonElement => {
+      const btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'floating-video-chrome__btn'
+      btn.title = label
+      btn.setAttribute('aria-label', label)
+      btn.innerHTML = svg
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation()
+        onClick()
+      })
+      bar.appendChild(btn)
+      return btn
+    }
 
-    closeBtn.addEventListener('click', (e) => {
-      e.stopPropagation()
-      
-      // Pause video before returning
-      if (currentFloatingVideo.value?.type === 'video') {
-        const video = element.querySelector('video')
-        if (video) video.pause()
-      } else if (currentFloatingVideo.value?.type === 'youtube') {
-        const iframe = element.querySelector('iframe')
-        if (iframe && iframe.contentWindow) {
-          iframe.contentWindow.postMessage(
-            '{"event":"command","func":"pauseVideo","args":""}',
-            '*'
-          )
+    if (sourceUrl) {
+      makeButton(
+        'Open link',
+        '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>',
+        () => window.open(sourceUrl, '_blank', 'noopener,noreferrer')
+      )
+    }
+
+    makeButton(
+      'Back to chat',
+      '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M15 14l-5-4v3H6v2h4v3z" fill="currentColor" stroke="none"/></svg>',
+      () => returnToOriginalPosition()
+    )
+
+    const closeBtn = makeButton(
+      'Close and pause',
+      '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>',
+      () => {
+        // Close means stop watching: pause, then dock
+        if (currentFloatingVideo.value?.type === 'video') {
+          element.querySelector('video')?.pause()
+        } else if (currentFloatingVideo.value?.type === 'youtube') {
+          const iframe = element.querySelector('iframe')
+          iframe?.contentWindow?.postMessage('{"event":"command","func":"pauseVideo","args":""}', '*')
+          // the docking move may reload the iframe before the pause lands; the
+          // dataset flag keeps the seek-restore path from resuming playback
+          element.dataset.isPlaying = 'false'
         }
+        returnToOriginalPosition()
       }
+    )
+    closeBtn.classList.add('floating-video-chrome__btn--close')
 
-      returnToOriginalPosition()
-    })
-
-    element.appendChild(closeBtn)
+    element.appendChild(bar)
   }
 
   /**
@@ -398,46 +402,11 @@ export function useFloatingVideo() {
     // eslint-disable-next-line unused-imports/no-unused-vars
     let hasMoved = false
 
-    const dragHandle = document.createElement('div')
-    dragHandle.className = 'floating-video-drag-handle'
-    dragHandle.style.cssText = `
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 50px;
-      height: 45px;
-      background: linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.3) 70%, transparent 100%);
-      cursor: move;
-      z-index: 15;
-      display: flex;
-      align-items: center;
-      padding-left: 12px;
-      color: white;
-      font-size: 11px;
-      font-weight: 600;
-      opacity: 0;
-      transition: opacity 0.2s ease;
-      pointer-events: all;
-      user-select: none;
-    `
-    dragHandle.innerHTML = '<span style="opacity: 0.8;">⋮⋮ Drag to move</span>'
-    element.appendChild(dragHandle)
-    
-    element.addEventListener('mouseenter', () => {
-      dragHandle.style.opacity = '1'
-    })
-    
-    element.addEventListener('mouseleave', () => {
-      if (!isDragging.value) {
-        dragHandle.style.opacity = '0'
-      }
-    })
-
     const onMouseDown = (e: MouseEvent) => {
       const target = e.target as HTMLElement
-      
-      // Don't drag if clicking close button or resize handles
-      if (target.closest('.floating-video-close') || target.closest('.resize-handle')) {
+
+      // Don't drag from action buttons or resize handles
+      if (target.closest('.floating-video-chrome__btn') || target.closest('.resize-handle')) {
         return
       }
 
@@ -487,16 +456,14 @@ export function useFloatingVideo() {
     const onMouseUp = (_e: MouseEvent) => {
       document.removeEventListener('mousemove', onMouseMove)
       document.removeEventListener('mouseup', onMouseUp)
-      
+
       isDragging.value = false
       element.style.cursor = ''
-      dragHandle.style.opacity = '0'
     }
 
     element.addEventListener('mousedown', onMouseDown)
-    dragHandle.addEventListener('mousedown', onMouseDown)
 
-    dragState.set(element, { dragHandle, onMouseDown })
+    dragState.set(element, { onMouseDown })
   }
 
   /**
@@ -505,7 +472,6 @@ export function useFloatingVideo() {
   const removeDragHandlers = (element: HTMLElement) => {
     const handlers = dragState.get(element)
     if (handlers) {
-      handlers.dragHandle.remove()
       element.removeEventListener('mousedown', handlers.onMouseDown)
       element.style.cursor = ''
       dragState.delete(element)
@@ -558,14 +524,8 @@ export function useFloatingVideo() {
       handles.push(handle)
     })
 
-    element.addEventListener('mouseenter', () => {
-      handles.forEach(h => h.style.opacity = '1')
-    })
-
-    element.addEventListener('mouseleave', () => {
-      handles.forEach(h => h.style.opacity = '0')
-    })
-
+    // visibility is CSS-driven (.floating-video:hover .resize-handle) — JS hover
+    // listeners here leaked because they were re-added on every float
     resizeHandleState.set(element, handles)
   }
 

@@ -141,6 +141,7 @@ pub fn run() {
     commands::presence::presence_start,
     commands::presence::presence_stop,
     commands::presence::presence_current,
+    commands::ptt::ptt_set_binding,
     overlay::overlay_open,
     overlay::overlay_close,
     overlay::overlay_set_interactive
@@ -154,6 +155,7 @@ pub fn run() {
     commands::presence::presence_start,
     commands::presence::presence_stop,
     commands::presence::presence_current,
+    commands::ptt::ptt_set_binding,
     overlay::overlay_open,
     overlay::overlay_close,
     overlay::overlay_set_interactive

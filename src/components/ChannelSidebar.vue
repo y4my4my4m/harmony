@@ -932,8 +932,8 @@ const getUsersInVoiceChannel = (channelId: string): string[] => serverUsersStore
 const getChannelCallStartTime = (channelId: string): Date | null => serverUsersStore.getCallStartTime(channelId);
 
 const getVoiceChannelParticipants = (channelId: string) => {
-  // Only return participants if the current user is in this specific channel
-  if (voiceChannelStore.currentChannelId === channelId) {
+  // effectiveChannelId includes the optimistic id so the roster shows while connecting
+  if (voiceChannelStore.effectiveChannelId === channelId) {
     return voiceChannelStore.allParticipants;
   }
   return [];
