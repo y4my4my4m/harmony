@@ -42,7 +42,7 @@
           <span v-if="isRecordingKeybind">Press any key...</span>
           <span v-else>{{ pttKeyDisplay }}</span>
         </button>
-        <small class="setting-hint">Click, then press a key. Works while Harmony is focused.</small>
+        <small class="setting-hint">Click, then press a key. {{ captureScopeHint }}</small>
       </div>
 
       <div class="setting-group">
@@ -66,18 +66,31 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onUnmounted } from 'vue';
+import { ref, computed, onUnmounted } from 'vue';
 import { usePushToTalk } from '@/composables/usePushToTalk';
+import { useKeybinds } from '@/composables/useKeybinds';
+import { isTauriDesktop, isMobileUserAgent } from '@/utils/platform';
 import Icon from '@/components/common/Icon.vue';
 
 const emit = defineEmits<{ 'input-mode-change': [mode: 'voice_activity' | 'push_to_talk'] }>();
 
 const ptt = usePushToTalk();
+const keybinds = useKeybinds();
 const inputMode = ptt.inputMode;
 const pttKeyDisplay = ptt.pttKeyDisplay;
 const releaseDelay = ptt.releaseDelay;
 const isRecordingKeybind = ptt.isRecordingKeybind;
 const localReleaseDelay = ref(ptt.releaseDelay.value);
+
+const captureScopeHint = computed(() => {
+  if (isMobileUserAgent()) return 'On mobile, hold the on-screen Talk button in the voice dock.';
+  if (isTauriDesktop()) {
+    return keybinds.nativePttAvailable.value === false
+      ? 'System-wide capture is unavailable in this session (Wayland or missing permissions) — the key works while Harmony is focused.'
+      : 'Works system-wide, even while Harmony is in the background.';
+  }
+  return 'Browsers only deliver keys while the Harmony tab is focused.';
+});
 
 function setInputMode(mode: 'voice_activity' | 'push_to_talk') {
   ptt.setInputMode(mode);

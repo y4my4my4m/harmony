@@ -155,17 +155,19 @@
                 @click="voiceStore.toggleMute"
                 class="control-button"
                 :class="{
-                  active: !voiceStore.localState.isMuted,
+                  active: !voiceStore.localState.isMuted && (!isPTTMode || isPTTActive),
                   muted: voiceStore.localState.isMuted,
                   'ptt-mode': isPTTMode,
-                  'ptt-active': isPTTActive
+                  'ptt-active': isPTTActive && !voiceStore.localState.isMuted
                 }"
-                :title="isPTTMode
-                  ? (isPTTActive ? `Transmitting (${pttKeyDisplay})` : `Push ${pttKeyDisplay} to talk`)
-                  : (voiceStore.localState.isMuted ? 'Unmute (M)' : 'Mute (M)')"
+                :title="voiceStore.localState.isMuted
+                  ? 'Unmute (M)'
+                  : isPTTMode
+                    ? (isPTTActive ? `Transmitting (${pttKeyDisplay})` : `Push ${pttKeyDisplay} to talk — click to mute`)
+                    : 'Mute (M)'"
               >
                 <Icon :name="voiceStore.localState.isMuted ? 'mic-off' : 'mic'" />
-                <span v-if="isPTTMode" class="ptt-badge" :class="{ active: isPTTActive }">PTT</span>
+                <span v-if="isPTTMode && !voiceStore.localState.isMuted" class="ptt-badge" :class="{ active: isPTTActive }">PTT</span>
               </button>
               <DeviceSelector type="input" @open-settings="showSettings = true" />
             </div>
@@ -641,7 +643,6 @@ onMounted(() => {
   keybinds.activateContext('voice-overlay');
 
   // Register keybind handlers
-  // Note: toggleMute already handles PTT mode check internally
   keybinds.registerHandler('toggle-mute', () => voiceStore.toggleMute());
   keybinds.registerHandler('toggle-deafen', () => voiceStore.toggleDeafen());
   keybinds.registerHandler('toggle-camera', () => voiceStore.toggleVideo());

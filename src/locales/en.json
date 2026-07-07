@@ -599,6 +599,8 @@
       "showCustomEmojisInDisplayNamesDesc": "When enabled, other users' display names show emoji images. When disabled, emojis and shortcodes are hidden entirely.",
       "greentext": "Greentext",
       "greentextDesc": "Render lines starting with > (no space) in green, imageboard-style. `> text` with a space is always a quote regardless of this setting.",
+      "inviteBannerBg": "Server banner in invite dialog",
+      "inviteBannerBgDesc": "Show a blurred, darkened server banner behind the invite dialog when the server has one.",
       "quickReact": "Quick React",
       "quickReactEnable": "Double-tap to quick react",
       "quickReactEnableDesc": "Double-tap (mobile) or double-click (desktop) a message to instantly react with your chosen emoji.",

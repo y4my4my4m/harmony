@@ -90,4 +90,6 @@ export interface VisualThemeSettings {
    * `icon` = platform icon (default); `text` = label badge e.g. DISCORD.
    */
   bridgeSourceBadge?: 'icon' | 'text'
+  /** Blurred server banner behind the invite dialog. Default: true (opt-out). */
+  inviteBannerBackground?: boolean
 }

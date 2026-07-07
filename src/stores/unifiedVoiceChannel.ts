@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { apiUrl } from '@/services/instanceConfig';
-import { nextTick } from 'vue';
+import { nextTick, watch, type WatchStopHandle } from 'vue';
 import { webrtcManager } from '@/services/webrtcManager';
 import { nativeLiveKit, type NativeScreenSource } from '@/services/nativeLiveKit';
 import type { UserMediaState } from '@/services/unifiedWebRTC';
@@ -26,6 +26,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 let voiceSessionHeartbeat: ReturnType<typeof setInterval> | null = null;
 
 let keybindListenersSetup = false;
+let inputModeWatchStop: WatchStopHandle | null = null;
 
 let webrtcListenersRegistered = false;
 
@@ -317,7 +318,29 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         this.optimisticServerId = serverId;
         this.optimisticChannelName = channel?.name || 'Voice Channel';
         this.isConnecting = true;
-        
+
+        // Optimistic roster: show ourselves + known channel occupants immediately;
+        // channel-state-synced replaces this with authoritative webrtc state.
+        this.localState.userId = userId;
+        const occupants = useServerUsersStore()
+          .getUsersInVoiceChannel(channelId)
+          .filter((id: string) => id !== userId);
+        this.allUsers = occupants.map((id: string) => ({
+          userId: id,
+          isAudioEnabled: true,
+          isVideoEnabled: false,
+          isScreenSharing: false,
+          isMuted: false,
+          isDeafened: false,
+          isSpeaking: false,
+          audioLevel: 0,
+        }));
+        if (occupants.length > 0) {
+          // profiles resolve during the connection handshake so tiles never show "Unknown User"
+          const { ensureProfilesAvailable } = useUserData();
+          void ensureProfilesAvailable(occupants).catch(() => {});
+        }
+
         debug.log('🎯 [Optimistic] Voice dock should be visible now for:', channelId);
         
         const activeVoiceSession = userStorage.getItem('active-voice-session');
@@ -352,6 +375,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         this.optimisticChannelId = null;
         this.optimisticServerId = null;
         this.optimisticChannelName = null;
+        this.allUsers = [];
         return false;
       }
     },
@@ -415,6 +439,8 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         throw new Error('Voice E2EE required but not available on this device');
       }
       
+      // gate must be current before the mic publishes (PTT joins must not go out hot)
+      this.syncTransmitGate();
       const webrtcSuccess = await webrtcManager.joinChannel(channelId, userId, roomType, abortSignal, requireE2EE);
       
       if (abortSignal?.aborted) {
@@ -600,6 +626,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
               this.setupWebRTCListeners();
               
               // Connect to remote LiveKit via webrtcManager (which will set activeService='livekit')
+              this.syncTransmitGate();
               const success = await webrtcManager.joinWithToken(livekitUrl, token, channelId, userId);
               
               if (abortSignal?.aborted) {
@@ -958,43 +985,12 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     },
 
     /**
-     * Toggle mute on/off
-     * IMPORTANT: In PTT mode, this only allows MUTING, not unmuting via button click.
-     * Unmuting in PTT mode happens only via the PTT key.
-     * This prevents accidental audio leaks when user clicks unmute button.
+     * Toggle explicit mute on/off. Works the same in both input modes —
+     * in PTT mode unmuting only re-arms the key, the transmit gate stays closed.
      */
     async toggleMute(): Promise<boolean> {
       const themeStore = useThemeStore();
-      const keybinds = useKeybinds();
-      
-      // In PTT mode, clicking the mute button should:
-      // - If currently transmitting (PTT held): mute immediately (safety)
-      // - If muted (PTT not held): stay muted, do NOT unmute via button
-      //   This prevents accidental voice activation when user clicks unmute
-      if (keybinds.isPTTMode.value) {
-        const currentlyMuted = this.localState.isMuted;
-        
-        if (!currentlyMuted) {
-          // User is unmuted (PTT is held) - allow muting for safety/privacy
-          if (this.isConnected) {
-            webrtcManager.setMuted(true);
-            this.localState = webrtcManager.getLocalState();
-          } else {
-            this.localState.isMuted = true;
-          }
-          themeStore.playAudio('mic_off');
-          debug.log('🎤 [PTT] Muted via button while transmitting');
-          return true;
-        } else {
-          // User is muted (PTT not held) - DON'T unmute via button click!
-          // They need to hold the PTT key to transmit
-          debug.log('🎤 [PTT] Ignoring unmute button - use PTT key to transmit');
-          // themeStore.playAudio('error'); // Optional: play error sound
-          return true; // Stay muted
-        }
-      }
-      
-      // Voice Activity mode - normal toggle behavior
+
       if (this.isConnected) {
         // eslint-disable-next-line unused-imports/no-unused-vars
         const muted = webrtcManager.toggleMute();
@@ -1015,10 +1011,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     },
 
     /**
-     * Set mute state directly (for Push-to-Talk)
-     * Unlike toggleMute, this doesn't play sound effects (to avoid spam during PTT)
-     * @param muted - Whether to mute (true) or unmute (false)
-     * @param playSound - Whether to play the mute/unmute sound effect (default: false)
+     * Set explicit mute state directly (no sound by default)
      */
     setMuted(muted: boolean, playSound: boolean = false): void {
       const themeStore = useThemeStore();
@@ -1845,58 +1838,60 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     },
 
     /**
+     * Transmit gate = !PTT mode OR PTT key held; explicit mute is layered on top by the services
+     */
+    syncTransmitGate(): void {
+      const keybinds = useKeybinds();
+      webrtcManager.setTransmitGate(!keybinds.isPTTMode.value || keybinds.isPTTActive.value);
+    },
+
+    /**
      * Setup keybind integration for voice controls
      * Registers handlers for all voice-related keybinds (PTT, mute, etc.)
      */
     setupPushToTalk(): void {
       if (keybindListenersSetup) return;
-      
+
       const keybinds = useKeybinds();
-      
+
       // Activate the voice-connected context
       keybinds.activateContext('voice-connected');
-      
-      keybinds.registerHandler('push-to-talk', (isPressed: boolean) => {
-        this.setMuted(!isPressed, false);
-      });
-      
+
+      keybinds.registerHandler('push-to-talk', () => this.syncTransmitGate());
+
       // When overlay IS open, it registers its own handlers that take priority
-      keybinds.registerHandler('toggle-mute', () => {
-        // Only handle if not in PTT mode (PTT mode handles mute differently)
-        if (!keybinds.isPTTMode.value) {
-          this.toggleMute();
-        }
-      });
+      keybinds.registerHandler('toggle-mute', () => this.toggleMute());
       keybinds.registerHandler('toggle-deafen', () => this.toggleDeafen());
       keybinds.registerHandler('toggle-camera', () => this.toggleVideo());
       keybinds.registerHandler('toggle-screenshare', () => this.toggleScreenShare());
-      
+
       keybinds.setupListeners();
-      
-      // If PTT mode is active, start muted
-      if (keybinds.isPTTMode.value) {
-        this.setMuted(true, false);
-      }
-      
+
+      this.syncTransmitGate();
+      inputModeWatchStop = watch(keybinds.isPTTMode, () => this.syncTransmitGate());
+
       keybindListenersSetup = true;
       debug.log('⌨️ [Keybinds] Voice keybinds integrated with voice channel');
     },
 
     cleanupPushToTalk(): void {
       if (!keybindListenersSetup) return;
-      
+
       const keybinds = useKeybinds();
-      
+
       keybinds.deactivateContext('voice-connected');
-      
+
       keybinds.unregisterHandler('push-to-talk');
       keybinds.unregisterHandler('toggle-mute');
       keybinds.unregisterHandler('toggle-deafen');
       keybinds.unregisterHandler('toggle-camera');
       keybinds.unregisterHandler('toggle-screenshare');
-      
+
       keybinds.cleanupListeners();
-      
+
+      inputModeWatchStop?.();
+      inputModeWatchStop = null;
+
       keybindListenersSetup = false;
       debug.log('⌨️ [Keybinds] Voice keybinds cleanup complete');
     },

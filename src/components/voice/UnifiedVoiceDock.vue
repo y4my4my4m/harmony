@@ -44,7 +44,8 @@
           <span class="channel-name">
             <DisplayName v-if="voiceStore.dmOtherUserId" :user-id="voiceStore.dmOtherUserId" :fallback="channelName" :truncate="true" />
             <template v-else>{{ channelName }}</template>
-            <span class="dock-connection-badge" :class="voiceStore.connectionMode || 'unknown'">
+            <span v-if="voiceStore.isConnecting" class="dock-connecting-spinner" title="Connecting…"></span>
+            <span v-else class="dock-connection-badge" :class="voiceStore.connectionMode || 'unknown'">
               {{ voiceStore.connectionMode === 'livekit' ? 'SFU' : voiceStore.connectionMode === 'p2p' ? 'P2P' : '' }}
             </span>
             <VoiceEncryptionBadge v-if="voiceStore.connectionMode" :encrypted="voiceStore.isEncrypted" />
@@ -56,18 +57,20 @@
       <div class="voice-controls" @mousedown.stop @touchstart.stop>
         <button
           @click="voiceStore.toggleMute"
-          :class="['control-btn', 'mic-btn', { 
-            active: !voiceStore.localState.isMuted && !voiceStore.localState.isDeafened,
+          :class="['control-btn', 'mic-btn', {
+            active: !voiceStore.localState.isMuted && !voiceStore.localState.isDeafened && (!isPTTMode || isPTTActive),
             muted: voiceStore.localState.isMuted,
             'ptt-mode': isPTTMode,
-            'ptt-active': isPTTActive
+            'ptt-active': isPTTActive && !voiceStore.localState.isMuted
           }]"
-          :title="isPTTMode 
-            ? (isPTTActive ? `Transmitting (${pttKeyDisplay})` : `Push ${pttKeyDisplay} to talk`) 
-            : (voiceStore.localState.isMuted ? 'Unmute' : 'Mute')"
+          :title="voiceStore.localState.isMuted
+            ? 'Unmute'
+            : isPTTMode
+              ? (isPTTActive ? `Transmitting (${pttKeyDisplay})` : `Push ${pttKeyDisplay} to talk — click to mute`)
+              : 'Mute'"
         >
           <Icon :name="voiceStore.localState.isMuted || voiceStore.localState.isDeafened ? 'mic-off' : 'mic'" />
-          <span v-if="isPTTMode" class="ptt-indicator" :class="{ active: isPTTActive }">PTT</span>
+          <span v-if="isPTTMode && !voiceStore.localState.isMuted" class="ptt-indicator" :class="{ active: isPTTActive }">PTT</span>
         </button>
 
         <button
@@ -120,6 +123,15 @@
           <Icon name="settings" />
         </button>
       </div>
+
+      <!-- On-screen PTT for touch devices (Discord mobile style) -->
+      <PushToTalkButton
+        v-if="isPTTMode && isTouchDevice"
+        class="dock-ptt-btn"
+        :disabled="voiceStore.localState.isMuted || voiceStore.localState.isDeafened"
+        @mousedown.stop
+        @touchstart.stop
+      />
 
       <!-- Video Preview Thumbnail (when someone has video/screenshare) -->
       <div 
@@ -231,11 +243,13 @@
         </div>
         
         <div class="minimized-controls">
-          <button 
+          <button
             @click.stop="voiceStore.toggleMute"
             class="mini-control-btn"
-            :class="{ muted: voiceStore.localState.isMuted }"
-            :title="voiceStore.localState.isMuted ? 'Unmute' : 'Mute'"
+            :class="{ muted: voiceStore.localState.isMuted, 'ptt-active': isPTTActive && !voiceStore.localState.isMuted }"
+            :title="voiceStore.localState.isMuted
+              ? 'Unmute'
+              : isPTTMode ? `Push ${pttKeyDisplay} to talk — click to mute` : 'Mute'"
           >
             <Icon :name="voiceStore.localState.isMuted || voiceStore.localState.isDeafened ? 'mic-off' : 'mic'" />
           </button>
@@ -341,6 +355,8 @@ import Avatar from '@/components/common/Avatar.vue';
 import DisplayName from '@/components/DisplayName.vue';
 import HeadphonesIcon from '@/components/icons/Headphones.vue';
 import VoiceEncryptionBadge from './VoiceEncryptionBadge.vue';
+import PushToTalkButton from './PushToTalkButton.vue';
+import { isMobileUserAgent } from '@/utils/platform';
 
 const UnifiedVoiceOverlay = defineAsyncComponent(() => import('./UnifiedVoiceOverlay.vue'));
 const VoiceSettingsPanel = defineAsyncComponent(() => import('./VoiceSettingsPanel.vue'));
@@ -351,6 +367,7 @@ const keybinds = useKeybinds();
 const isPTTMode = keybinds.isPTTMode;
 const isPTTActive = keybinds.isPTTActive;
 const pttKeyDisplay = computed(() => keybinds.getKeybindDisplay('push-to-talk'));
+const isTouchDevice = isMobileUserAgent();
 
 const SpatialAudioPanel = defineAsyncComponent(() => import('./SpatialAudioPanel.vue'));
 const RecentSpeakers = defineAsyncComponent(() => import('./RecentSpeakers.vue'));
@@ -1485,6 +1502,15 @@ onUnmounted(() => {
   color: var(--text-primary);
 }
 
+.dock-container:has(.dock-ptt-btn) {
+  flex-wrap: wrap;
+}
+
+.dock-ptt-btn {
+  flex-basis: 100%;
+  order: 10;
+}
+
 .control-btn.deafened {
   background: linear-gradient(145deg, #faa61a, #e67e22);
   color: var(--text-primary);
@@ -1773,6 +1799,12 @@ onUnmounted(() => {
   background: linear-gradient(145deg, #ed4245, #c73e1d);
   color: var(--text-primary);
   border-color: rgba(237, 66, 69, 0.6);
+}
+
+.mini-control-btn.ptt-active {
+  background: linear-gradient(145deg, #00d4aa, #00b894);
+  color: var(--text-primary);
+  border-color: rgba(0, 212, 170, 0.6);
 }
 
 .mini-control-btn.deafened {
@@ -2079,6 +2111,21 @@ onUnmounted(() => {
   0% { content: '.'; }
   33% { content: '..'; }
   66% { content: '...'; }
+}
+
+.dock-connecting-spinner {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  border-top-color: var(--harmony-primary, #00d4aa);
+  border-radius: 50%;
+  animation: dock-spin 0.8s linear infinite;
+  vertical-align: middle;
+}
+
+@keyframes dock-spin {
+  to { transform: rotate(360deg); }
 }
 </style>
 

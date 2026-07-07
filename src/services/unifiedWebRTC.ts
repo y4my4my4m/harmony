@@ -70,6 +70,8 @@ export class UnifiedWebRTCService {
   // Screen stream ids announced by peers (via media-state / state-sync),
   // used to classify incoming streams as camera/mic vs screenshare
   private announcedScreenStreamIds = new Map<string, string | null>();
+  // PTT gate: closed = mic track disabled without touching the user's explicit mute state
+  private pttGateOpen = true;
   private localMediaState: UserMediaState = {
     userId: '',
     isAudioEnabled: true,
@@ -408,7 +410,9 @@ export class UnifiedWebRTCService {
       
       // 1. Get audio stream immediately (Discord always starts with audio)
       await this.initializeLocalAudio();
-      
+      // fresh tracks start enabled; re-apply mute/PTT gate before audio flows
+      this.applyMicGate();
+
       // Check for cancellation after getting audio
       if (abortSignal?.aborted) {
         await this.leaveChannel();
@@ -786,46 +790,47 @@ export class UnifiedWebRTCService {
     }
   }
 
+  // mic track transmits only when unmuted AND (voice activity mode OR PTT held)
+  private isMicGated(): boolean {
+    return this.localMediaState.isMuted || !this.pttGateOpen;
+  }
+
+  private applyMicGate(): void {
+    const audioTrack = this.localStream?.getAudioTracks()[0];
+    if (audioTrack) {
+      audioTrack.enabled = !this.isMicGated();
+    }
+    this.localMediaState.isSpeaking = this.calculateSpeakingState(this.localMediaState.audioLevel, this.isMicGated());
+  }
+
   /**
    * Toggle mute on/off
    */
   toggleMute(): boolean {
-    this.localMediaState.isMuted = !this.localMediaState.isMuted;
-    
-    if (this.localStream) {
-      const audioTrack = this.localStream.getAudioTracks()[0];
-      if (audioTrack) {
-        audioTrack.enabled = !this.localMediaState.isMuted;
-      }
-    }
-    
-    this.localMediaState.isSpeaking = this.calculateSpeakingState(this.localMediaState.audioLevel, this.localMediaState.isMuted);
-    
-    this.broadcastMediaState();
-    this.emit('local-state-changed', this.localMediaState);
-    
+    this.setMuted(!this.localMediaState.isMuted);
     return this.localMediaState.isMuted;
   }
-  
+
   /**
-   * Set mute state directly (for Push-to-Talk)
+   * Set explicit mute state (user intent — broadcast to peers)
    */
   setMuted(muted: boolean): void {
     if (this.localMediaState.isMuted === muted) return; // No change
-    
+
     this.localMediaState.isMuted = muted;
-    
-    if (this.localStream) {
-      const audioTrack = this.localStream.getAudioTracks()[0];
-      if (audioTrack) {
-        audioTrack.enabled = !muted;
-      }
-    }
-    
-    this.localMediaState.isSpeaking = this.calculateSpeakingState(this.localMediaState.audioLevel, muted);
-    
+    this.applyMicGate();
+
     this.broadcastMediaState();
     this.emit('local-state-changed', this.localMediaState);
+  }
+
+  /**
+   * Open/close the PTT transmit gate — no mute state change, nothing broadcast
+   */
+  setTransmitGate(open: boolean): void {
+    if (this.pttGateOpen === open) return;
+    this.pttGateOpen = open;
+    this.applyMicGate();
   }
 
   /**
@@ -1071,7 +1076,7 @@ export class UnifiedWebRTCService {
           this.localMediaState.audioLevel = average;
           
           const wasSpeaking = this.localMediaState.isSpeaking;
-          this.localMediaState.isSpeaking = this.calculateSpeakingState(average, this.localMediaState.isMuted);
+          this.localMediaState.isSpeaking = this.calculateSpeakingState(average, this.isMicGated());
           
           this.emit('audio-level', { userId: this.currentUserId, level: average });
           

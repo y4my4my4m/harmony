@@ -36,6 +36,7 @@ export interface WebRTCManager {
   toggleScreenShare(): Promise<boolean>;
   toggleMute(): boolean;
   toggleDeafen(): boolean;
+  setTransmitGate(open: boolean): void;
   
   // Volume control
   setUserMicVolume(userId: string, volume: number): void;
@@ -72,6 +73,7 @@ export interface WebRTCManager {
 class WebRTCManagerService implements WebRTCManager {
   private currentMode: WebRTCMode = 'hybrid';
   private activeService: ActiveWebRTCService = null;
+  private transmitGateOpen = true;
   private configCache: LiveKitConfig | null = null;
   private eventListeners = new Map<string, Function[]>();
   
@@ -246,6 +248,7 @@ class WebRTCManagerService implements WebRTCManager {
 
       debug.log('🦀 [WebRTCManager] Using native media engine');
       this.activeService = 'native';
+      nativeLiveKit.setTransmitGate(this.transmitGateOpen);
       try {
         const success = await nativeLiveKit.joinChannel(channelId, userId, roomType, abortSignal, requireE2EE);
         if (abortSignal?.aborted) {
@@ -281,7 +284,8 @@ class WebRTCManagerService implements WebRTCManager {
       
       // Set activeService BEFORE joining so events are forwarded during connection
       this.activeService = 'livekit';
-      
+      livekitWebRTC.setTransmitGate(this.transmitGateOpen);
+
       try {
         const success = await livekitWebRTC.joinChannel(channelId, userId, roomType, abortSignal, requireE2EE);
         
@@ -339,7 +343,8 @@ class WebRTCManagerService implements WebRTCManager {
     // Use P2P (unifiedWebRTC)
     // Set activeService BEFORE joining so events are forwarded during connection
     this.activeService = 'p2p';
-    
+    unifiedWebRTC.setTransmitGate(this.transmitGateOpen);
+
     try {
       const success = await unifiedWebRTC.joinChannel(channelId, userId, abortSignal);
       
@@ -395,6 +400,7 @@ class WebRTCManagerService implements WebRTCManager {
 
     // Set activeService BEFORE joining so events are forwarded during connection
     this.activeService = useNative ? 'native' : 'livekit';
+    service.setTransmitGate(this.transmitGateOpen);
 
     try {
       const success = await service.joinWithToken(wsUrl, token, channelId, userId);
@@ -481,7 +487,7 @@ class WebRTCManagerService implements WebRTCManager {
   }
   
   /**
-   * Set mute state directly (for Push-to-Talk)
+   * Set explicit mute state (user intent — broadcast to peers)
    */
   setMuted(muted: boolean): void {
     if (this.activeService === 'livekit') {
@@ -490,6 +496,20 @@ class WebRTCManagerService implements WebRTCManager {
       unifiedWebRTC.setMuted(muted);
     } else if (this.activeService === 'native') {
       nativeLiveKit.setMuted(muted);
+    }
+  }
+
+  /**
+   * PTT transmit gate — cached so joins pick it up before the mic is published
+   */
+  setTransmitGate(open: boolean): void {
+    this.transmitGateOpen = open;
+    if (this.activeService === 'livekit') {
+      livekitWebRTC.setTransmitGate(open);
+    } else if (this.activeService === 'p2p') {
+      unifiedWebRTC.setTransmitGate(open);
+    } else if (this.activeService === 'native') {
+      nativeLiveKit.setTransmitGate(open);
     }
   }
   
