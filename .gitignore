@@ -112,3 +112,8 @@ tests/e2e/.auth/
 
 # Cursor agent session data (rules, plans, etc.) - exclude entire directory from public history
 .cursor/
+
+# Android release signing (CI-generated, never commit)
+*.keystore
+*.jks
+src-tauri/gen/android/app/keystore.properties

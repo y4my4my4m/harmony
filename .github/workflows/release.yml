@@ -65,6 +65,7 @@ jobs:
       contents: write
     env:
       NDK_VERSION: 28.2.13676358
+      HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -87,13 +88,35 @@ jobs:
         with:
           workspaces: src-tauri
       - run: npm ci
-      - name: Build APK
+
+      - name: Configure release signing
+        if: env.HAS_KEYSTORE == 'true'
+        run: |
+          cd src-tauri/gen/android/app
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > release.keystore
+          cat > keystore.properties <<EOF
+          storeFile=release.keystore
+          storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
+          keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
+          EOF
+
+      - name: Build signed release APK
+        if: env.HAS_KEYSTORE == 'true'
         run: |
           export NDK_HOME="$ANDROID_HOME/ndk/$NDK_VERSION"
+          npx tauri android build --target aarch64
+
+      - name: Build debug APK (no keystore configured)
+        if: env.HAS_KEYSTORE != 'true'
+        run: |
+          echo "::warning::No ANDROID_KEYSTORE_BASE64 secret - building a debug-signed APK. Add signing secrets for proper release builds."
+          export NDK_HOME="$ANDROID_HOME/ndk/$NDK_VERSION"
           npx tauri android build --debug --target aarch64
+
       - name: Attach APK to release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event.inputs.tag || github.ref_name }}
           draft: true
-          files: src-tauri/gen/android/app/build/outputs/apk/universal/debug/*.apk
+          files: src-tauri/gen/android/app/build/outputs/apk/universal/*/*.apk
