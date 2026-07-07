@@ -48,6 +48,11 @@ const floatingPosition = ref({ x: 0, y: 0 })
 const isDragging = ref(false)
 const isUserSetting = ref(true) // Default: enabled
 
+// After a manual dock the observer must not immediately re-float the video
+// (the returned embed can sit <20% visible at a viewport edge — feedback loop)
+let lastReturnAt = 0
+const REFLOAT_COOLDOWN_MS = 800
+
 // Per-element bookkeeping. WeakMaps keyed by the video element so entries
 // vanish with the element instead of living as ad-hoc expando properties.
 const videoObservers = new WeakMap<HTMLElement, IntersectionObserver>()
@@ -102,7 +107,12 @@ export function useFloatingVideo() {
           const isPlaying = checkIfPlaying(element, type)
 
           // If video is playing and less than 20% visible, float it
-          if (isPlaying && entry.intersectionRatio < 0.2 && !currentFloatingVideo.value) {
+          if (
+            isPlaying &&
+            entry.intersectionRatio < 0.2 &&
+            !currentFloatingVideo.value &&
+            Date.now() - lastReturnAt > REFLOAT_COOLDOWN_MS
+          ) {
             floatVideo(element, originalParent, messageId, type, sourceUrl)
           }
           // If video is back in view and is floating, return it
@@ -182,21 +192,25 @@ export function useFloatingVideo() {
       }
     }
 
+    // skeleton keeps the embed's exact footprint so the message layout doesn't shift
+    const elementRect = element.getBoundingClientRect()
     const placeholder = document.createElement('button')
     placeholder.type = 'button'
     placeholder.className = 'floating-video-placeholder'
     placeholder.title = 'Bring the video back here'
+    placeholder.style.width = `${Math.round(elementRect.width)}px`
+    placeholder.style.height = `${Math.round(elementRect.height)}px`
     placeholder.innerHTML = `
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <rect x="2" y="4" width="20" height="16" rx="2" stroke="currentColor" stroke-width="2"/>
         <rect x="11" y="11" width="8" height="6" rx="1" fill="currentColor"/>
       </svg>
-      <span>Playing in floating player</span>
+      <span class="floating-video-placeholder__label">Playing in floating player</span>
       <span class="floating-video-placeholder__hint">Click to bring back</span>
     `
     placeholder.addEventListener('click', (e) => {
       e.stopPropagation()
-      returnToOriginalPosition()
+      returnToOriginalPosition({ scrollIntoView: true })
     })
 
     element.parentNode?.insertBefore(placeholder, element)
@@ -234,7 +248,7 @@ export function useFloatingVideo() {
     element.style.zIndex = '9000'
     element.style.boxShadow = '0 8px 32px rgba(0, 0, 0, 0.6)'
     element.style.borderRadius = '8px'
-    element.style.overflow = 'hidden'
+    // no overflow:hidden — it would clip the resize handles sitting outside the corners
     element.style.transition = 'none'
     element.style.maxWidth = 'none'
     element.style.maxHeight = 'none'
@@ -247,6 +261,7 @@ export function useFloatingVideo() {
       (videoEl as HTMLElement).style.objectFit = 'contain';
       (videoEl as HTMLElement).style.maxWidth = 'none';
       (videoEl as HTMLElement).style.maxHeight = 'none';
+      (videoEl as HTMLElement).style.borderRadius = '8px';
     }
     
     const interactionOverlay = document.createElement('div')
@@ -272,7 +287,7 @@ export function useFloatingVideo() {
   /**
    * Return video to original position
    */
-  const returnToOriginalPosition = () => {
+  const returnToOriginalPosition = (options: { scrollIntoView?: boolean } = {}) => {
     if (!currentFloatingVideo.value) return
 
     // Vue's ref unwrapping types HTMLElement props as a complex unwrapped shape;
@@ -295,6 +310,7 @@ export function useFloatingVideo() {
       (videoEl as HTMLElement).style.objectFit = '';
       (videoEl as HTMLElement).style.maxWidth = '';
       (videoEl as HTMLElement).style.maxHeight = '';
+      (videoEl as HTMLElement).style.borderRadius = '';
     }
     
     const overlay = element.querySelector('.floating-video-interaction-overlay')
@@ -322,10 +338,20 @@ export function useFloatingVideo() {
 
     removeDragHandlers(element)
 
-    // Reconnect observer to continue watching for scroll events
-    videoObservers.get(element)?.observe(element)
-
     currentFloatingVideo.value = null
+    lastReturnAt = Date.now()
+
+    if (options.scrollIntoView) {
+      element.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    }
+
+    // Reconnect after the cooldown so the initial observation (or the scroll
+    // animation) can't immediately re-float the video we just docked
+    setTimeout(() => {
+      if (currentFloatingVideo.value?.element !== element && element.isConnected) {
+        videoObservers.get(element)?.observe(element)
+      }
+    }, REFLOAT_COOLDOWN_MS)
   }
 
   /**
@@ -363,10 +389,25 @@ export function useFloatingVideo() {
       )
     }
 
+    // Native browser PiP — only possible for <video>; cross-origin iframes
+    // (YouTube) can't be sent to PiP programmatically
+    const pipVideo = currentFloatingVideo.value?.type === 'video' ? element.querySelector('video') : null
+    if (pipVideo && document.pictureInPictureEnabled && !pipVideo.disablePictureInPicture) {
+      makeButton(
+        'Picture-in-picture',
+        '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><rect x="12" y="12" width="7" height="5" rx="1" fill="currentColor" stroke="none"/></svg>',
+        () => {
+          void pipVideo.requestPictureInPicture()
+            .then(() => returnToOriginalPosition())
+            .catch(() => {})
+        }
+      )
+    }
+
     makeButton(
       'Back to chat',
       '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M15 14l-5-4v3H6v2h4v3z" fill="currentColor" stroke="none"/></svg>',
-      () => returnToOriginalPosition()
+      () => returnToOriginalPosition({ scrollIntoView: true })
     )
 
     const closeBtn = makeButton(
