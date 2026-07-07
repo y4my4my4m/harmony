@@ -218,6 +218,7 @@
   top: 0;
   left: 0;
   right: 0;
+  border-radius: 8px 8px 0 0;
   height: 36px;
   display: flex;
   align-items: center;
@@ -300,32 +301,48 @@
   animation: none;
 }
 
-/* Compact in-chat pill left behind while the video floats; click docks it back */
+/* Skeleton left in the embed's exact footprint while the video floats;
+   clicking anywhere docks the video back (width/height set inline) */
 .floating-video-placeholder {
-  display: inline-flex;
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
+  gap: 6px;
   margin: 4px 0 8px 0;
-  padding: 8px 14px;
   max-width: 100%;
-  border: 1px solid var(--border-primary, rgba(255, 255, 255, 0.1));
+  border: 1px dashed var(--border-primary, rgba(255, 255, 255, 0.12));
   border-radius: 8px;
-  background: var(--background-tertiary, rgba(0, 0, 0, 0.3));
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.08) 50%, rgba(255, 255, 255, 0.04) 100%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer-placeholder 2s ease-in-out infinite;
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: 14px;
   cursor: pointer;
-  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  transition: border-color 0.15s ease, color 0.15s ease;
 }
 
 .floating-video-placeholder:hover {
-  background: var(--background-secondary, rgba(255, 255, 255, 0.06));
-  border-color: var(--border-hover, rgba(255, 255, 255, 0.25));
+  border-color: var(--border-hover, rgba(255, 255, 255, 0.3));
   color: var(--text-primary);
+}
+
+.floating-video-placeholder__label {
+  font-weight: 600;
 }
 
 .floating-video-placeholder__hint {
   color: var(--text-muted, rgba(255, 255, 255, 0.4));
-  font-size: 11px;
+  font-size: 12px;
+}
+
+@keyframes skeleton-shimmer-placeholder {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+[data-reduce-motion="true"] .floating-video-placeholder {
+  animation: none;
 }
 
 /* Resize handles */

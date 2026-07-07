@@ -80,7 +80,7 @@
                 <span class="setting-label">Expires after</span>
                 <span class="setting-description">How long the invite link will be valid</span>
               </div>
-              <select v-model="expirationTime" class="setting-select" @change="regenerateLink">
+              <select v-model="expirationTime" class="setting-select">
                 <option value="30">30 minutes</option>
                 <option value="60">1 hour</option>
                 <option value="360">6 hours</option>
@@ -96,7 +96,7 @@
                 <span class="setting-label">Max uses</span>
                 <span class="setting-description">How many times this link can be used</span>
               </div>
-              <select v-model="maxUses" class="setting-select" @change="regenerateLink">
+              <select v-model="maxUses" class="setting-select">
                 <option value="1">1 use</option>
                 <option value="5">5 uses</option>
                 <option value="10">10 uses</option>
@@ -106,21 +106,7 @@
                 <option value="0">No limit</option>
               </select>
             </div>
-
-            <div class="setting-row">
-              <div class="setting-info">
-                <span class="setting-label">Temporary membership</span>
-                <span class="setting-description">Grant temporary access that expires when they leave</span>
-              </div>
-              <label class="toggle-switch">
-                <input 
-                  type="checkbox" 
-                  v-model="temporaryMembership" 
-                  @change="regenerateLink"
-                />
-                <span class="toggle-slider"></span>
-              </label>
-            </div>
+            <p class="settings-hint">Settings apply when you generate a new link.</p>
           </div>
 
           <!-- Generate New Link -->
@@ -169,7 +155,6 @@
                 <span class="history-stat">
                   {{ formatTimeRemaining(invite.expires_at) }}
                 </span>
-                <span v-if="invite.temporary" class="temp-badge">TEMP</span>
               </div>
             </div>
             <div class="history-actions">
@@ -297,9 +282,8 @@ const authStore = useAuthStore()
 const inviteUrl = ref('')
 const linkCopied = ref(false)
 const isGenerating = ref(false)
-const expirationTime = ref(1440) // 1 day in minutes
+const expirationTime = ref(0) // minutes; 0 = never expires
 const maxUses = ref(0) // 0 = no limit
-const temporaryMembership = ref(false)
 const inviteHistory = ref<Invite[]>([])
 const inviteInput = ref<HTMLInputElement>()
 const canCreateInvites = ref(true) // Start with true, will be updated by constraints
@@ -376,7 +360,6 @@ const generateInvite = async () => {
     const options: InviteOptions = {
       expiresIn: expirationTime.value,
       maxUses: maxUses.value,
-      temporary: temporaryMembership.value
     }
     
     const result = await generateInviteUrl(props.serverId, authStore.session.user.id, options)
@@ -401,11 +384,6 @@ const generateInvite = async () => {
 const generateNewLink = async () => {
   await generateInvite()
   toast.success('New invite link generated!')
-}
-
-const regenerateLink = async () => {
-  // In a real implementation, you'd update the invite with new settings
-  await generateInvite()
 }
 
 const copyInviteLink = async () => {
@@ -517,15 +495,15 @@ const shareToSocial = (platform: string) => {
 
 const loadInviteConstraints = async () => {
   if (!props.serverId || !authStore.session?.user?.id) return
-  
+
   try {
     const constraints = await getInviteConstraints(authStore.session.user.id, props.serverId)
     inviteConstraints.value = constraints
     canCreateInvites.value = constraints.canCreate
-    
-    expirationTime.value = constraints.defaultExpiration
-    
-    
+
+    // default to Never unless the server caps invite lifetime
+    expirationTime.value = constraints.maxExpiration > 0 ? constraints.defaultExpiration : 0
+
     if (!constraints.canCreate) {
       permissionError.value = 'You do not have permission to create invites for this server'
     }
@@ -554,35 +532,38 @@ const loadInviteHistory = async () => {
   }
 }
 
-// Lifecycle
-onMounted(async () => {
-  if (props.show && props.serverId) {
-    iconLoadError.value = false
-    await Promise.all([
-      loadInviteConstraints(),
-      fetchMemberCount(),
-    ])
-    if (canCreateInvites.value) {
-      await generateInvite()
-    }
-    await loadInviteHistory()
+// Reuse the newest still-valid invite; only mint a new one when none exists.
+// "Generate New Link" is the sole explicit regeneration path.
+const initializeInvite = async () => {
+  if (!props.serverId) return
+  iconLoadError.value = false
+  liveMemberCount.value = null
+  inviteUrl.value = ''
+
+  await Promise.all([
+    loadInviteConstraints(),
+    fetchMemberCount(),
+    loadInviteHistory(),
+  ])
+
+  const reusable = inviteHistory.value.find(
+    (invite) => !isInviteExpired(invite) && !isInviteUsedUp(invite)
+  )
+  if (reusable) {
+    inviteUrl.value = formatInviteUrl(reusable.code)
+  } else if (canCreateInvites.value) {
+    await generateInvite()
   }
+}
+
+// Lifecycle
+onMounted(() => {
+  if (props.show) void initializeInvite()
 })
 
 // Watch for modal opening
-watch(() => props.show, async (newValue) => {
-  if (newValue && props.serverId) {
-    iconLoadError.value = false
-    liveMemberCount.value = null
-    await Promise.all([
-      loadInviteConstraints(),
-      fetchMemberCount(),
-    ])
-    if (canCreateInvites.value) {
-      await generateInvite()
-    }
-    await loadInviteHistory()
-  }
+watch(() => props.show, (visible) => {
+  if (visible) void initializeInvite()
 })
 </script>
 
@@ -864,45 +845,10 @@ watch(() => props.show, async (newValue) => {
   border-color: #0EA5E9;
 }
 
-.toggle-switch {
-  position: relative;
-  width: 44px;
-  height: 24px;
-  cursor: pointer;
-}
-
-.toggle-switch input {
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-
-.toggle-slider {
-  position: absolute;
-  inset: 0;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
-  transition: all 0.2s ease;
-}
-
-.toggle-slider:before {
-  position: absolute;
-  content: "";
-  height: 18px;
-  width: 18px;
-  left: 3px;
-  top: 3px;
-  background: #ffffff;
-  border-radius: 50%;
-  transition: all 0.2s ease;
-}
-
-.toggle-switch input:checked + .toggle-slider {
-  background: var(--harmony-primary);
-}
-
-.toggle-switch input:checked + .toggle-slider:before {
-  transform: translateX(20px);
+.settings-hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-muted, #80848e);
 }
 
 .generate-section {
@@ -972,14 +918,6 @@ watch(() => props.show, async (newValue) => {
   cursor: not-allowed;
 }
 
-.toggle-slider.disabled {
-  opacity: 0.5;
-}
-
-.toggle-switch input:disabled + .toggle-slider {
-  cursor: not-allowed;
-}
-
 .invite-history-section {
   display: flex;
   flex-direction: column;
@@ -1043,16 +981,6 @@ watch(() => props.show, async (newValue) => {
 
 .history-separator {
   color: var(--text-muted);
-}
-
-.temp-badge {
-  background: #f0b232;
-  color: #000000;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
 }
 
 .history-actions {
