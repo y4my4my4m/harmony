@@ -19,3 +19,7 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# JNI calls these by name via reflection; minify must not rename/strip them.
+-keep class online.knowmad.harmony.MainActivity { *; }
+-keep class online.knowmad.harmony.CallForegroundService { *; }
