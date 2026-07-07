@@ -71,6 +71,18 @@
         </div>
       </div>
 
+      <InviteAcceptModal
+        :show="showAcceptModal"
+        :server-name="serverData?.name || ''"
+        :description="serverData?.description"
+        :member-count="serverData?.member_count || 0"
+        :icon-url="hasCustomIcon ? serverData?.icon_url : null"
+        :banner-url="bannerUrl"
+        :joining="isJoining"
+        @close="showAcceptModal = false"
+        @accept="handleAcceptConfirmed"
+      />
+
       <ServerRulesModal
         :show="showRules"
         :server-name="serverData?.name || ''"
@@ -93,8 +105,9 @@ import { useAuthStore } from '@/stores/auth';
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
 import { getInviteInfo, type InviteInfo } from '@/services/inviteService';
 import { useInviteJoin } from '@/composables/useInviteJoin';
-import { getServerIconUrl } from '@/utils/serverUtils';
+import { getServerIconUrl, getServerBannerUrl } from '@/utils/serverUtils';
 import ServerRulesModal from '@/components/invite/ServerRulesModal.vue';
+import InviteAcceptModal from '@/components/invite/InviteAcceptModal.vue';
 
 const props = defineProps<{
   inviteCode: string;
@@ -113,6 +126,7 @@ const loading = ref(true);
 const error = ref<string | null>(null);
 const info = ref<InviteInfo | null>(null);
 const isJoined = ref(false);
+const showAcceptModal = ref(false);
 
 const {
   isJoining,
@@ -171,11 +185,22 @@ async function loadInviteData() {
   debug.log('🎫 Invite info loaded:', resolved);
 }
 
+const bannerUrl = computed(() =>
+  info.value?.banner ? getServerBannerUrl(info.value.banner, { width: 960, height: 540 }) : null
+);
+
+// Join is a two-step consent: card button opens the invite panel, Accept there
+// runs the shared pipeline (which may add the rules step)
 function handleJoin() {
   if (!authStore.session?.user?.id) {
     toast.warning('Please log in to join servers');
     return;
   }
+  showAcceptModal.value = true;
+}
+
+function handleAcceptConfirmed() {
+  showAcceptModal.value = false;
   requestJoin();
 }
 

@@ -205,6 +205,19 @@ BEGIN
             IF is_muted THEN CONTINUE; END IF;
         END IF;
 
+        -- Server-scoped notifications require current membership: users who left
+        -- (or are pending/banned) get nothing for reactions/replies/mentions there
+        IF p_server_id IS NOT NULL THEN
+            IF NOT EXISTS (
+                SELECT 1 FROM user_servers us
+                WHERE us.server_id = p_server_id
+                AND us.user_id = recipient_id
+                AND COALESCE(us.status, 'accepted') = 'accepted'
+            ) THEN
+                CONTINUE;
+            END IF;
+        END IF;
+
         -- Check channel/conversation mute + notification level
         IF p_channel_id IS NOT NULL OR p_conversation_id IS NOT NULL THEN
             SELECT nc.muted, nc.notification_level, nc.muted_until
