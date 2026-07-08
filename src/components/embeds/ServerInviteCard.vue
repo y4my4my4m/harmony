@@ -70,6 +70,29 @@
           Joining...
         </div>
       </div>
+
+      <InviteAcceptModal
+        :show="showAcceptModal"
+        :server-name="serverData?.name || ''"
+        :description="serverData?.description"
+        :member-count="serverData?.member_count || 0"
+        :icon-url="hasCustomIcon ? serverData?.icon_url : null"
+        :banner-url="bannerUrl"
+        :joining="isJoining"
+        @close="showAcceptModal = false"
+        @accept="handleAcceptConfirmed"
+      />
+
+      <ServerRulesModal
+        :show="showRules"
+        :server-name="serverData?.name || ''"
+        :server-rules="serverRules"
+        :instance-rules="pendingInstanceRules"
+        :instance-name="instanceName"
+        :joining="isJoining"
+        @close="showRules = false"
+        @agree="confirmJoin"
+      />
     </template>
   </article>
 </template>
@@ -77,22 +100,14 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
 import { debug } from '@/utils/debug'
-import { useRouter } from 'vue-router';
 import { useToast } from 'vue-toastification';
-import { supabase } from '@/supabase';
 import { useAuthStore } from '@/stores/auth';
-import { useServerChannelStore } from '@/stores/useServerChannel';
-import { acceptInvite } from '@/services/inviteService';
-import { getServerIconUrl } from '@/utils/serverUtils';
-
-interface ServerInviteData {
-  name: string;
-  icon_url?: string;
-  description?: string;
-  member_count?: number;
-  online_count?: number;
-  server_id?: string;
-}
+import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
+import { getInviteInfo, type InviteInfo } from '@/services/inviteService';
+import { useInviteJoin } from '@/composables/useInviteJoin';
+import { getServerIconUrl, getServerBannerUrl } from '@/utils/serverUtils';
+import ServerRulesModal from '@/components/invite/ServerRulesModal.vue';
+import InviteAcceptModal from '@/components/invite/InviteAcceptModal.vue';
 
 const props = defineProps<{
   inviteCode: string;
@@ -103,16 +118,45 @@ const emit = defineEmits<{
   (e: 'joined', serverId: string): void;
 }>();
 
-const router = useRouter();
 const toast = useToast();
 const authStore = useAuthStore();
-const serverStore = useServerChannelStore();
+const instanceSettings = useInstanceSettingsStore();
 
 const loading = ref(true);
 const error = ref<string | null>(null);
-const serverData = ref<ServerInviteData | null>(null);
-const isJoining = ref(false);
+const info = ref<InviteInfo | null>(null);
 const isJoined = ref(false);
+const showAcceptModal = ref(false);
+
+const {
+  isJoining,
+  showRules,
+  serverRules,
+  pendingInstanceRules,
+  requestJoin,
+  confirmJoin,
+  openServer,
+} = useInviteJoin(info, {
+  onJoined: (serverId) => {
+    isJoined.value = true;
+    emit('joined', serverId);
+  },
+});
+
+const instanceName = computed(() => instanceSettings.settings.instanceName);
+
+// template-compat view over the shared InviteInfo shape
+const serverData = computed(() => {
+  if (!info.value) return null;
+  return {
+    name: info.value.serverName,
+    icon_url: info.value.icon ? getServerIconUrl(info.value.icon) : undefined,
+    description: info.value.description ?? undefined,
+    member_count: info.value.memberCount,
+    online_count: undefined as number | undefined,
+    server_id: info.value.serverId,
+  };
+});
 
 const serverInitial = computed(() => {
   return serverData.value?.name?.charAt(0).toUpperCase() || 'S';
@@ -127,150 +171,41 @@ const hasCustomIcon = computed(() => {
 async function loadInviteData() {
   loading.value = true;
   error.value = null;
-  
-  debug.log('🎫 Loading invite data for code:', props.inviteCode);
-  
-  try {
-    // Step 1: Fetch invite details via SECURITY DEFINER RPC (post-20260520).
-    // Direct `from('invites').select('*').eq('code', ...)` is blocked for
-    // non-owners by the tightened RLS; the RPC returns one row by code.
-    const { data: inviteRows, error: inviteError } = await supabase
-      .rpc('lookup_invite_by_code', { p_code: props.inviteCode });
 
-    const invite = Array.isArray(inviteRows) ? inviteRows[0] : null;
-    debug.log('🎫 Invite query result:', { invite, inviteError });
-
-    if (inviteError || !invite) {
-      debug.error('🎫 Invite fetch error:', inviteError);
-      error.value = 'Invite not found or has expired';
-      return;
-    }
-
-    if (invite.used) {
-      error.value = 'This invite has already been used';
-      return;
-    }
-
-    if (invite.expires_at && new Date() > new Date(invite.expires_at)) {
-      error.value = 'This invite has expired';
-      return;
-    }
-
-    // Step 2: Fetch server details separately
-    // Note: The column is 'icon' not 'icon_url' - it stores a relative path
-    const { data: server, error: serverError } = await supabase
-      .from('servers')
-      .select('id, name, icon, description')
-      .eq('id', invite.server_id)
-      .single();
-
-    debug.log('🎫 Server query result:', { server, serverError });
-
-    if (serverError || !server) {
-      debug.error('🎫 Server fetch error:', serverError);
-      error.value = 'Server not found';
-      return;
-    }
-
-    // Step 3: Get member count (use centralized service with caching)
-    const { getServerMemberCount, isUserMemberOfServer } = await import('@/services/serverMembershipService')
-    const memberCount = await getServerMemberCount(server.id);
-
-    // Step 4: Check if current user is already a member (use centralized service)
-    // BUGS.md Pattern A v2: `user_servers.user_id` references `profiles(id)`,
-    // so `isUserMemberOfServer` must be called with the profile id, not the
-    // auth UUID. Previously this always returned `false`, so the "Already
-    // a member" pill never showed up for users who actually were members.
-    if (authStore.session?.user?.id) {
-      try {
-        const { authContextService } = await import('@/services/AuthContextService');
-        const profileId = await authContextService.getCurrentProfileId();
-        const isMember = await isUserMemberOfServer(profileId, server.id);
-        isJoined.value = isMember;
-      } catch (err) {
-        debug.warn('🎫 Could not check member status:', err);
-      }
-    }
-
-    const iconUrl = getServerIconUrl(server.icon);
-    
-    serverData.value = {
-      name: server.name,
-      icon_url: iconUrl,
-      description: server.description,
-      member_count: memberCount || 0,
-      server_id: server.id
-    };
-    
-    debug.log('🎫 Server data loaded:', serverData.value);
-  } catch (err) {
-    debug.error('🎫 Error loading invite:', err);
-    error.value = 'Failed to load invite details';
-  } finally {
+  const { info: resolved, error: resolveError } = await getInviteInfo(props.inviteCode);
+  if (resolveError || !resolved) {
+    error.value = resolveError || 'Failed to load invite details';
     loading.value = false;
+    return;
   }
+
+  info.value = resolved;
+  isJoined.value = resolved.isMember;
+  loading.value = false;
+  debug.log('🎫 Invite info loaded:', resolved);
 }
 
-async function handleJoin() {
+const bannerUrl = computed(() =>
+  info.value?.banner ? getServerBannerUrl(info.value.banner, { width: 960, height: 540 }) : null
+);
+
+// Join is a two-step consent: card button opens the invite panel, Accept there
+// runs the shared pipeline (which may add the rules step)
+function handleJoin() {
   if (!authStore.session?.user?.id) {
     toast.warning('Please log in to join servers');
     return;
   }
-
-  isJoining.value = true;
-
-  // BUGS.md Pattern A: acceptInvite inserts into `user_servers.user_id`
-  // which references `profiles(id)`. Pass profile id, not auth UUID.
-  let profileId: string;
-  try {
-    const { authContextService } = await import('@/services/AuthContextService');
-    profileId = await authContextService.getCurrentProfileId();
-  } catch (err) {
-    debug.error('Failed to resolve profile id for invite join:', err);
-    toast.error('Could not join - please try again.');
-    isJoining.value = false;
-    return;
-  }
-
-  try {
-    const result = await acceptInvite(props.inviteCode, profileId);
-    
-    if (result.success && result.serverId) {
-      isJoined.value = true;
-      toast.success(`Joined ${serverData.value?.name}!`);
-      emit('joined', result.serverId);
-      
-      // Refresh server list - `fetchServersForUser` filters by
-      // `user_servers.user_id` (profile FK), so we pass profile id.
-      // BUGS.md Pattern A v2.
-      await serverStore.fetchServersForUser(profileId);
-    } else {
-      toast.error(result.error || 'Failed to join server');
-    }
-  } catch (err) {
-    debug.error('Error joining server:', err);
-    toast.error('Failed to join server');
-  } finally {
-    isJoining.value = false;
-  }
+  showAcceptModal.value = true;
 }
 
-async function handleGoToServer() {
-  if (serverData.value?.server_id) {
-    serverStore.setCurrentServer(serverData.value.server_id);
-    
-    await serverStore.fetchCategoriesAndChannels(serverData.value.server_id);
-    
-    const defaultChannel = serverStore.getDefaultChannel();
-    
-    if (defaultChannel) {
-      // Navigate to the server with its default channel
-      router.push(`/chat/${serverData.value.server_id}/${defaultChannel}`);
-    } else {
-      // Fallback: just go to chat and let the app figure it out
-      router.push('/chat');
-    }
-  }
+function handleAcceptConfirmed() {
+  showAcceptModal.value = false;
+  requestJoin();
+}
+
+function handleGoToServer() {
+  if (info.value) void openServer(info.value.serverId);
 }
 
 onMounted(() => {

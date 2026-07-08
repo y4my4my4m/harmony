@@ -1073,6 +1073,29 @@ CREATE TRIGGER trigger_enforce_channel_slowmode
     FOR EACH ROW
     EXECUTE FUNCTION public.enforce_channel_slowmode();
 
+-- ---------------------------------------------------------------------------
+-- Membership removal drops role assignments (Discord parity: ex-members lose
+-- role color/hoist). Every removal path — leave, kick, ban, cascade — is uniform.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.cleanup_roles_on_member_leave()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+    DELETE FROM public.user_roles
+    WHERE user_id = OLD.user_id AND server_id = OLD.server_id;
+    RETURN OLD;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_cleanup_roles_on_member_leave ON public.user_servers;
+CREATE TRIGGER trg_cleanup_roles_on_member_leave
+    AFTER DELETE ON public.user_servers
+    FOR EACH ROW
+    EXECUTE FUNCTION public.cleanup_roles_on_member_leave();
+
 DO $$
 BEGIN
     RAISE NOTICE 'Triggers created successfully';

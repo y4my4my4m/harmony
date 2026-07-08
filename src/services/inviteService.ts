@@ -258,10 +258,85 @@ async function getInviteDetails(code: string): Promise<{ invite: Invite; serverN
   }
 }
 
-export { 
-  generateInviteUrl, 
-  acceptInvite, 
-  getInviteHistory, 
-  revokeInvite, 
-  getInviteDetails
+export interface InviteInfo {
+  code: string;
+  serverId: string;
+  serverName: string;
+  description: string | null;
+  icon: string | null;
+  banner: string | null;
+  rules: string[];
+  memberCount: number;
+  expiresAt: string | null;
+  isMember: boolean;
+}
+
+// Resolve invite → server card + rules + membership, without accepting it
+async function getInviteInfo(code: string): Promise<{ info?: InviteInfo; error?: string }> {
+  try {
+    const { data: inviteRows, error: inviteError } = await supabase
+      .rpc('lookup_invite_by_code', { p_code: code });
+
+    const invite = Array.isArray(inviteRows) ? inviteRows[0] : null;
+    if (inviteError || !invite) return { error: 'Invite not found or has expired' };
+    if (invite.used) return { error: 'This invite has been revoked' };
+    if (invite.expires_at && new Date() > new Date(invite.expires_at)) {
+      return { error: 'This invite has expired' };
+    }
+    if (invite.max_uses && (invite.uses || 0) >= invite.max_uses) {
+      return { error: 'This invite has reached its maximum uses' };
+    }
+
+    const { data: server, error: serverError } = await supabase
+      .from('servers')
+      .select('id, name, icon, banner, description, rules')
+      .eq('id', invite.server_id)
+      .single();
+
+    if (serverError || !server) return { error: 'Server not found' };
+
+    const { getServerMemberCount, isUserMemberOfServer } = await import('@/services/serverMembershipService');
+    const memberCount = await getServerMemberCount(server.id);
+
+    // Pattern A: membership is keyed by profiles(id), not the auth UUID
+    let isMember = false;
+    try {
+      const { authContextService } = await import('@/services/AuthContextService');
+      const profileId = await authContextService.getCurrentProfileId();
+      isMember = await isUserMemberOfServer(profileId, server.id);
+    } catch {
+      // not logged in / profile unresolved - treat as non-member
+    }
+
+    const rules = Array.isArray(server.rules)
+      ? server.rules.filter((r: unknown): r is string => typeof r === 'string' && r.trim().length > 0)
+      : [];
+
+    return {
+      info: {
+        code,
+        serverId: server.id,
+        serverName: server.name,
+        description: server.description ?? null,
+        icon: server.icon ?? null,
+        banner: server.banner ?? null,
+        rules,
+        memberCount: memberCount || 0,
+        expiresAt: invite.expires_at ?? null,
+        isMember,
+      },
+    };
+  } catch (error) {
+    debug.error('Error resolving invite info:', error);
+    return { error: 'Failed to load invite details' };
+  }
+}
+
+export {
+  generateInviteUrl,
+  acceptInvite,
+  getInviteHistory,
+  revokeInvite,
+  getInviteDetails,
+  getInviteInfo
 }

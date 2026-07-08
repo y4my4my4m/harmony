@@ -10,7 +10,10 @@ interface InstanceSettings {
   instanceDescription: string
   /** Branding icon URL used for the document favicon. */
   instanceIcon: string
-  
+
+  /** Instance-wide rules shown once to joining users (string array). */
+  instanceRules: string[]
+
   // Legal / policy URLs
   termsUrl: string
   privacyUrl: string
@@ -67,6 +70,7 @@ const DEFAULT_SETTINGS: InstanceSettings = {
   instanceName: import.meta.env.VITE_INSTANCE_NAME || 'Harmony',
   instanceDescription: '',
   instanceIcon: '',
+  instanceRules: [],
   termsUrl: import.meta.env.VITE_TERMS_URL || '',
   privacyUrl: import.meta.env.VITE_PRIVACY_URL || '',
   openRegistration: true,
@@ -206,6 +210,11 @@ export const useInstanceSettingsStore = defineStore('instanceSettings', {
             break
           case 'instance_icon':
             this.settings.instanceIcon = (typeof value === 'string' ? value : '') || ''
+            break
+          case 'instance_rules':
+            this.settings.instanceRules = Array.isArray(value)
+              ? value.filter((r: unknown): r is string => typeof r === 'string' && r.trim().length > 0)
+              : []
             break
           case 'terms_url':
             this.settings.termsUrl = value || ''

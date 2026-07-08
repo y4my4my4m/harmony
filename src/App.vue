@@ -66,10 +66,19 @@
   <AnnouncementPopup v-if="!isAuthRoute" />
   
   <!-- Global Modals (only when authenticated) -->
-  <PublicServers 
+  <PublicServers
     v-if="showPublicServers && !isAuthRoute"
     :force-refresh="shouldForceRefreshPublicServers"
     @close="handleClosePublicServers"
+  />
+
+  <!-- Clicked invite link from another (compatible) instance -->
+  <JoinFederatedServer
+    v-if="remoteInviteUrl && !isAuthRoute"
+    :key="remoteInviteUrl"
+    :initial-url="remoteInviteUrl"
+    @close="remoteInvitePrompt.close()"
+    @joined="remoteInvitePrompt.close()"
   />
 
   <!-- Floating live theme editor (Discord-style side panel over the app) -->
@@ -80,6 +89,9 @@
 import { ref, computed } from 'vue'
 import { debug } from '@/utils/debug'
 import { useRouter, useRoute } from 'vue-router'
+import { installInternalLinkInterceptor } from '@/utils/internalLinks'
+import { useRemoteInvitePrompt } from '@/composables/useRemoteInvitePrompt'
+import JoinFederatedServer from '@/components/JoinFederatedServer.vue'
 import BaseLayout from '@/layouts/BaseLayout.vue'
 import AuthLayout from '@/layouts/AuthLayout.vue'
 import NotificationToast from '@/components/NotificationToast.vue'
@@ -122,8 +134,11 @@ import { initializeAppSettings } from '@/services/AppInitService'
 
 let hapticClickHandler: ((e: Event) => void) | null = null
 let identityChangedHandler: ((e: Event) => void) | null = null
+let uninstallLinkInterceptor: (() => void) | null = null
 
 const router = useRouter()
+const remoteInvitePrompt = useRemoteInvitePrompt()
+const remoteInviteUrl = remoteInvitePrompt.pendingUrl
 const route = useRoute()
 
 // Auth route detection
@@ -201,6 +216,10 @@ onMounted(() => {
     )
   }
   window.addEventListener('harmony-identity-changed', identityChangedHandler)
+
+  // Same-instance links (e.g. invite URLs) navigate in-app instead of opening
+  // a new PWA window / external browser
+  uninstallLinkInterceptor = installInternalLinkInterceptor(router)
 })
 
 onUnmounted(() => {
@@ -212,6 +231,8 @@ onUnmounted(() => {
     window.removeEventListener('harmony-identity-changed', identityChangedHandler)
     identityChangedHandler = null
   }
+  uninstallLinkInterceptor?.()
+  uninstallLinkInterceptor = null
 })
 
 async function handleIdentityChanged(e: CustomEvent) {
