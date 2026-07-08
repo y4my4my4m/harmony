@@ -739,11 +739,10 @@ export class ActivityProcessor {
    * Re-link orphan replies whose `metadata.in_reply_to_ap_url` matches the
    * given parent ap_id but whose `in_reply_to` foreign key is still NULL.
    *
-   * This happens when a child reply arrives (via inbox or /resolve-post)
-   * before its parent - we stamp `metadata.in_reply_to_ap_url` so the link
-   * isn't lost, but the child stays orphaned in the thread RPC until the
-   * parent shows up. Calling this every time we import or look up a post
-   * means the thread "self-heals" as soon as the parent arrives.
+   * A child reply can arrive (via inbox or /resolve-post) before its parent;
+   * `metadata.in_reply_to_ap_url` is stamped so the link survives, but the
+   * child stays orphaned in the thread RPC until the parent lands. Called on
+   * every import/lookup so orphans relink once the parent exists.
    */
   private static async relinkPendingChildren(
     parentApId: string,
@@ -809,16 +808,14 @@ export class ActivityProcessor {
   /**
    * Fetch a remote post and create it locally.
    *
-   * If the post is a reply, the parent chain is walked recursively (sharing
-   * the depth budget with `resolveReplyChain`) so the imported post lands
-   * with `in_reply_to` and `conversation_root_id` populated, and any missing
-   * ancestors are imported alongside it. Without this, calling /resolve-post
-   * for a federated reply leaves it as a floating post - the local thread
-   * RPC then has nothing to walk and the user sees no context.
+   * For a reply, the parent chain is walked recursively (sharing the depth
+   * budget with `resolveReplyChain`) so the imported post lands with
+   * `in_reply_to` and `conversation_root_id` populated and any missing
+   * ancestors are imported too; otherwise the thread RPC has no chain to walk.
    *
-   * Whether the post was freshly imported or already cached, we also re-link
-   * any orphaned local replies whose `metadata.in_reply_to_ap_url` points at
-   * this post's ap_id (children that arrived before their parent).
+   * Whether freshly imported or already cached, also relinks orphaned local
+   * replies whose `metadata.in_reply_to_ap_url` points at this post's ap_id
+   * (children that arrived before their parent).
    */
   public static async fetchAndCreateRemotePost(postUrl: string, depth = 0): Promise<{
     id: string;
@@ -950,9 +947,9 @@ export class ActivityProcessor {
         conversationRootId = replyResult.conversationRootId;
       }
 
-      // Always stamp the AP url of the parent in metadata so we have a paper
-      // trail even if resolution failed (e.g. parent server unreachable). The
-      // client-side ancestor walker can retry from this hint later.
+      // Stamp the parent AP url in metadata even when resolution failed (e.g.
+      // parent server unreachable) so the client-side ancestor walker can
+      // retry from this hint later.
       const metadata: Record<string, any> = {};
       if (remoteObject.inReplyTo) {
         metadata.in_reply_to_ap_url = remoteObject.inReplyTo;

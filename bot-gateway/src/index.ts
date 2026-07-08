@@ -48,9 +48,7 @@ eventDispatcher.start().catch(error => {
 const botAPI = new BotRestAPI()
 app.use('/api/v1', botAPI.router)
 
-// =====================================================
 // USER-AUTHENTICATED ENDPOINTS
-// =====================================================
 //
 // These endpoints used to be public, which let any unauthenticated caller
 // enumerate connected bots (`/status`) and bridged Discord users for any

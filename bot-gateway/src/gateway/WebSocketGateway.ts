@@ -212,9 +212,7 @@ export class WebSocketGateway {
     }, config.websocket.heartbeatInterval)
   }
   
-  // =====================================================
   // EVENT BROADCASTING
-  // =====================================================
   
   /**
    * Send event to a specific bot
@@ -259,9 +257,7 @@ export class WebSocketGateway {
     console.log(`📣 Broadcast event to ${sent} bots`)
   }
   
-  // =====================================================
   // STATUS & MANAGEMENT
-  // =====================================================
   
   /**
    * Get connected bot count
@@ -296,9 +292,7 @@ export class WebSocketGateway {
     return false
   }
   
-  // =====================================================
   // BRIDGE DATA MANAGEMENT
-  // =====================================================
   
   /**
    * Handle bridge data registration from Discord bridge.

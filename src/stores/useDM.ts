@@ -515,9 +515,8 @@ export const useDMStore = defineStore('dm', () => {
       cleanupRealtimeSubscriptions()
       
       // Cold cache (or explicit refresh): block on the fetch so the loader
-      // shows. Warm cache: render what we have immediately and revalidate in
-      // the background (stale-while-revalidate) so the user never stares at a
-      // spinner when we already have the list.
+      // shows. Warm cache: render immediately and revalidate in the background
+      // (stale-while-revalidate) to avoid a spinner when the list is present.
       const hasCache = conversations.value.length > 0
       const runFetch = () => metadataOnly
         ? fetchUserConversationsMetadata(userId, loadStrategy)
@@ -1506,14 +1505,11 @@ export const useDMStore = defineStore('dm', () => {
         }
       });
 
-      // Kick off profile hydration in parallel WITHOUT blocking the first
-      // paint. Previously we awaited this so author names never flashed
-      // "Loading..." / "Unknown User", but on a cold DM open it meant the
-      // whole message list waited on a profiles round-trip before rendering -
-      // a major contributor to the "opens slowly" feel. Names are looked up
-      // reactively and fill in a moment later once profiles resolve (the DM
-      // participant is typically already cached), and the cache-hit path
-      // already renders without this preload, so this stays consistent.
+      // Hydrate profiles in parallel, NOT awaited: awaiting it made a cold DM
+      // open wait on a profiles round-trip before first paint (major "opens
+      // slowly" cause). Names resolve reactively once profiles arrive (the DM
+      // participant is usually already cached); the cache-hit path also renders
+      // without this preload, so behavior stays consistent.
       if (userIds.size > 0) {
         const serverUsersStore = useServerUsersStore();
         void serverUsersStore.fetchMultipleUserProfiles(Array.from(userIds)).catch(() => {});

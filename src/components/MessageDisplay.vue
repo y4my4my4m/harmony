@@ -1529,14 +1529,11 @@ const rowVirtualizer = useVirtualizer<HTMLDivElement, Element>(
     estimateSize: () => 60,
     overscan: 15,
     initialOffset: frozenInitialOffset.value,
-    // Stable per-item keys. Without this the measurement cache is keyed by
-    // INDEX: prepending a history page shifts every row's index, so each row
-    // inherits a stale height from the row previously at that index. The
-    // cascade of corrective re-measurements as rows re-render is what made
-    // the viewport visibly bounce while loading history. With stable keys,
-    // existing measurements survive the prepend and only the genuinely new
-    // rows measure in (and the virtualizer's built-in scroll adjustment
-    // compensates for those above the viewport).
+    // Stable per-item keys: cache is keyed by item id, not index. Without this,
+    // prepending a history page shifts every row's index and rows inherit stale
+    // heights, causing visible scroll bounce during history load. With stable
+    // keys, existing measurements survive the prepend; only new rows measure in
+    // and the virtualizer's scroll adjustment compensates for those above the viewport.
     getItemKey: (index: number) => displayItems.value[index]?.key ?? index,
   })) as any
 );
@@ -1626,12 +1623,11 @@ const lastKnownDisplayItemCount = ref(0);
 
 // --- WATCHERS ---
 let hasInitiallyScrolled = false;
-// Just after a context opens we scroll to the bottom, but late-arriving
-// messages (the stale-while-revalidate catch-up fetch, or a realtime insert)
-// land a beat later. During this grace window we keep following the bottom so
-// the user ends up at the true end of the conversation rather than floating
-// above the messages that arrived while they were away. Suppressed when a NEW
-// divider is shown (then we intentionally rest at the divider instead).
+// After a context opens we scroll to the bottom, but late-arriving messages
+// (stale-while-revalidate catch-up fetch or a realtime insert) land shortly
+// after. During this grace window keep following the bottom so the viewport
+// rests at the true end rather than above the late arrivals. Suppressed when a
+// NEW divider is shown (rest at the divider instead).
 let openFollowBottomUntil = 0;
 
 watch([() => props.channelId, () => props.conversationId], () => {
@@ -1867,15 +1863,14 @@ watch(() => props.messages, (newMessages) => {
                 if (!isAtBottom && scrollAttempts < 8) {
                   setTimeout(() => scrollToBottom(), scrollAttempts < 3 ? 50 : 150);
                 }
-                // else: settled (or gave up retrying). Intentionally KEEP
-                // `shouldBeAtBottom` true. Late content grows the list AFTER
-                // this initial scroll - the stale-while-revalidate catch-up
-                // append and image/embed loads - and the ResizeObserver only
-                // re-pins to the bottom while `shouldBeAtBottom` is true.
-                // Releasing it here (the old 500ms timeout) is exactly what
-                // left the user scrolled up when messages arrived during a
-                // channel switch. The scroll handler flips it false the moment
-                // the user scrolls up themselves.
+                // else: settled (or stopped retrying). KEEP `shouldBeAtBottom`
+                // true. Late content grows the list after this initial scroll
+                // (stale-while-revalidate append, image/embed loads); the
+                // ResizeObserver only re-pins to the bottom while
+                // `shouldBeAtBottom` is true. Releasing it here (the old 500ms
+                // timeout) left the user scrolled up when messages arrived
+                // during a channel switch. The scroll handler flips it false
+                // when the user scrolls up.
               }
             });
           };
@@ -3211,9 +3206,8 @@ const openContextMenu = (message: Message, event: MouseEvent) => {
 
   // On mobile the (...) button in the floating toolbar opens this menu.
   // The toolbar itself remains pinned ~48px above the original tap point,
-  // which visually clashes (and z-stacks) with the menu we're about to
-  // render. Dismiss the toolbar so the user sees exactly one surface -
-  // the menu - rooted at the tap.
+  // which visually clashes (and z-stacks) with this menu. Dismiss the toolbar
+  // so only one surface shows, rooted at the tap.
   if (isMobile.value) {
     hoveredMessageId.value = null;
     mobileActionTapPosition.value = null;

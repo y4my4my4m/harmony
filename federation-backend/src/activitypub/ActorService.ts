@@ -27,10 +27,9 @@ function isReactionsCacheFresh(metadata: any): boolean {
 }
 
 /**
- * Mark a post as "we tried to fetch reactions and got nothing useful" so
- * the TTL cache short-circuits the next call. This is what stops deleted
- * remote posts (404 on every outbound request) from being re-tried on
- * every feed refresh. Stores ONLY the timestamp; existing
+ * Record a reactions-fetch attempt so the TTL cache short-circuits the next
+ * call, preventing deleted remote posts (404 every fetch) from being retried
+ * on every feed refresh. Stores ONLY the timestamp; existing
  * `remote_reactions` (if any) is preserved.
  */
 async function markRemoteReactionsAttempted(

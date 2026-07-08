@@ -1402,8 +1402,8 @@ export class MegolmMessageEncryptionService {
         // Recovery is deduped PER SESSION: a page decrypt runs messages in
         // parallel, and every message of a missing session used to run its
         // own claim RPC + share re-fetch + key request - K undecryptable
-        // messages meant K copies of the whole recovery dance blocking first
-        // paint. All messages of one session now await one shared attempt.
+        // messages meant K full recovery passes blocking first paint. All
+        // messages of one session now await one shared attempt.
         const recovered = await this.recoverMissingSession(roomId, senderId, sessionId)
 
         if (recovered) {

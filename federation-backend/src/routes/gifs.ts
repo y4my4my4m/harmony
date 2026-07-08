@@ -282,8 +282,8 @@ async function handle(
   const perPage = sanitizePerPage(req.query.per_page);
   const locale = sanitizeLocale(req.query.locale);
 
-  // Klipy serves ad objects on the GIF feed only in our setup; other media
-  // feeds are kept ad-free (cleaner UX, and it skips the per-request ads lookup).
+  // Ads are enabled on the GIF feed only; other media feeds stay ad-free,
+  // which also skips the per-request ads lookup.
   const tierAllowsAds = mediaType === 'gifs' ? await shouldShowAds(req.profileId) : false;
   const clientUserAgent = resolveClientUserAgent(req.headers);
   // Klipy documents mobile-only ad delivery with a browser-like User-Agent.

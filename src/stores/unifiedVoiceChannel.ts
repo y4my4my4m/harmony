@@ -1078,8 +1078,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     enterFullscreen(userId: string, source?: 'camera' | 'screen'): void {
       this.viewMode = 'fullscreen';
       this.fullscreenUserId = userId;
-      // Default to the user's screenshare when they have one - that's what
-      // people almost always want front and center (watch parties)
+      // Default to the user's screenshare when present (watch-party case).
       const user = this.getUser(userId);
       this.fullscreenSource = source ?? (user?.isScreenSharing ? 'screen' : 'camera');
     },
@@ -1708,8 +1707,8 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           // Enable spatial audio (will start the update loop)
           await spatialAudioService.enableSpatialAudio();
           
-          // IMMEDIATELY mute traditional audio to prevent double audio (dry + wet)
-          // This is critical - must happen right after enabling, not in the timeout!
+          // Mute traditional audio to prevent double audio (dry + wet).
+          // Must run right after enabling, not in the timeout.
           webrtcManager.setTraditionalAudioEnabled(false);
           debug.log('Traditional audio muted immediately after spatial audio enabled');
           

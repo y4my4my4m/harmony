@@ -8,7 +8,6 @@ interface BotPermissionRow {
   read_messages: boolean | null
 }
 
-// ---------------------------------------------------------------------------
 // Per-message DB amplification was the dominant cost of message dispatch
 // before these caches were added (see BUGS.md PC1). Each handled message
 // previously issued TWO additional DB queries (channel → server, then
@@ -22,7 +21,6 @@ interface BotPermissionRow {
 // bot_server_permissions changes when an admin edits bot permissions or
 // activates/deactivates a bot. 5 minutes is a safe ceiling for staleness
 // for what's effectively a read-mostly access control list.
-// ---------------------------------------------------------------------------
 const CHANNEL_TO_SERVER_TTL_MS = 60 * 60 * 1000
 const CHANNEL_TO_SERVER_MAX = 10_000
 const BOT_PERMISSIONS_TTL_MS = 5 * 60 * 1000
@@ -132,9 +130,7 @@ export class EventDispatcher {
     }, 2000)
   }
 
-  // ---------------------------------------------------------------------
   // Reactions
-  // ---------------------------------------------------------------------
 
   private async initializeKnownReactions() {
     // Seed the known-reaction window so we don't replay historical reactions
@@ -275,9 +271,7 @@ export class EventDispatcher {
     console.log(`🎭 Dispatched ${type} to ${botIds.length} bots`)
   }
 
-  // ---------------------------------------------------------------------
   // Cached lookups (BUGS.md PC1)
-  // ---------------------------------------------------------------------
 
   /**
    * Resolve a channel's server_id. Cached for 1 hour because channels
@@ -598,9 +592,7 @@ export class EventDispatcher {
     console.log(`📨 Dispatched MESSAGE_DELETE to ${botIds.length} bots`)
   }
   
-  // =====================================================
   // FORMATTERS
-  // =====================================================
   
   /**
    * Convert a relative avatar path to a full URL
@@ -740,9 +732,7 @@ export class EventDispatcher {
       .filter(Boolean)
   }
   
-  // =====================================================
   // SHUTDOWN
-  // =====================================================
   
   async shutdown() {
     if (this.pollingInterval) {
