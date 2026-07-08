@@ -672,12 +672,9 @@ const props = defineProps({
     type: Boolean,
     default: false
   },
-  // Whether the "New messages" divider is active for this context. Channels and
-  // DMs derive their read boundary from the unread_counts store. Threads have no
-  // per-thread read-state, and they reuse this component with their PARENT
-  // channel id - feeding that channel's unread row against thread messages would
-  // place a bogus/stuck "NEW" line. So thread views pass false until real
-  // per-thread read tracking exists.
+  // "New messages" divider active for this context. Threads pass false: they have
+  // no per-thread read-state and reuse this component with the PARENT channel id,
+  // so its unread row against thread messages would place a bogus/stuck NEW line.
   enableReadDivider: {
     type: Boolean,
     default: true
@@ -691,15 +688,10 @@ const serverUsersStore = useServerUsersStore();
 const serverChannelStore = useServerChannelStore();
 const serverRolesStore = useServerRolesStore();
 
-// Server whose role colors are currently applied to the rendered messages.
-// This is deliberately decoupled from `serverChannelStore.currentServerId`:
-// on a server switch, `currentServerId` flips synchronously while the old
-// server's messages are still on screen, which would briefly repaint those
-// names with the new server's role lookup (-> usually a fallback to profile
-// color = the visible "color flash"). Instead we only advance
-// `coloringServerId` once the new channel's messages have actually rendered
-// (see the initial-load block in the message watcher), by which point the
-// new server's roles have been requested below.
+// Server whose role colors apply to rendered messages. Decoupled from
+// currentServerId (which flips synchronously on server switch while old messages
+// are still shown -> would repaint names with the new lookup = "color flash").
+// Advanced only once the new channel's messages have rendered (see message watcher).
 const coloringServerId = ref<string | null>(serverChannelStore.currentServerId);
 
 // Ensure role data is loaded for the current server so message author colors
@@ -713,14 +705,9 @@ watch(
   { immediate: true },
 );
 
-/**
- * Resolve a chat-author's display color, preferring their highest-position
- * colored role within the server the rendered messages belong to. Falls back
- * to the user's profile color (and ultimately the default in `getUserColor`).
- *
- * `coloringServerId` is null for DMs and ActivityPub contexts, in which case
- * there's no role to look up and we fall through to the profile color.
- */
+// Author color: prefer highest-position colored role in the message's server,
+// else profile color (getUserColor default). coloringServerId is null for DMs/AP
+// contexts -> no role lookup, falls through to profile color.
 const resolveChatUserColor = (userId: string | null | undefined): string => {
   if (!userId) return '#ffffff';
   const serverId = coloringServerId.value;
@@ -733,12 +720,8 @@ const resolveChatUserColor = (userId: string | null | undefined): string => {
 const { getUnreadCount } = useUnreadCounts();
 const { dividerBeforeMessageId, captureBoundary, resolveDivider, clear: clearReadDivider } = useReadDivider();
 
-/**
- * Retire the "New messages" divider when the user clicks a message at or after
- * it - that's an explicit "I've read past this" signal. Scrolling alone never
- * clears it (that would defeat the purpose), and clicking an older message
- * above the divider leaves it in place.
- */
+// Retire the "New messages" divider on click of a message at/after it (explicit
+// "read past this"). Scrolling never clears it; clicking an older message leaves it.
 const clearDividerIfMessageRead = (message: Message) => {
   const dividerId = dividerBeforeMessageId.value;
   if (!dividerId || !message?.id) return;
@@ -2000,26 +1983,15 @@ watch(() => props.messages, (newMessages) => {
           } else if (isAppend && !userWasAtBottom.value) {
             shouldBeAtBottom.value = false;
           }
-          // Load older messages (prepend) - pin viewport by scroll-height delta.
-          //
-          // The previous approach called `scrollToIndex(targetIndex, 'start')`
-          // + a sub-item offset correction on each of 5 RAFs. That visibly jumped
-          // because `scrollToIndex` issues a *new* scroll command instead of just
-          // adjusting `scrollTop`, and each retry re-fired it as the virtualizer
-          // re-measured. Standard chat-scroll pattern is cleaner: snapshot
-          // `scrollHeight` + `scrollTop` BEFORE prepend, then after prepend set
-          // `scrollTop = newScrollHeight - oldScrollHeight + oldScrollTop`. The
-          // virtualizer's `totalSize` reflects newly added items, so the delta
-          // is exactly how much we need to push down to keep the same content
-          // under the user's eye. No jumps, no scrollToIndex thrash.
+          // Load older messages (prepend): pin viewport by scroll-height delta.
+          // Snapshot scrollHeight+scrollTop BEFORE prepend, then set
+          // scrollTop = newScrollHeight - oldScrollHeight + oldScrollTop. Avoids
+          // scrollToIndex thrash (which issues a new scroll command and re-fires
+          // per RAF as the virtualizer re-measures, causing visible jumps).
           else if (!isAppend) {
             shouldBeAtBottom.value = false;
-            // Re-read the ref locally with a null guard - match the defensive
-            // style used throughout this watcher (lines 1435, 1440, 1646, 1680).
-            // The outer `if (messageDisplayContainer.value)` at the top of the
-            // nextTick is enough at runtime today, but binding `container` once
-            // here keeps the property accesses below from depending on TS
-            // narrowing flowing across nested branches.
+            // Re-read the ref locally with a null guard (defensive style used
+            // throughout this watcher; keeps TS narrowing out of nested branches).
             const container = messageDisplayContainer.value;
             if (container) {
               const newHeight = container.scrollHeight;
@@ -3190,10 +3162,8 @@ const handleDecryptMessage = async (message: Message) => {
       }));
     }
   } catch (error: any) {
-    // Surface the real reason. This used to be a silent debug.log, which made
-    // "click the glyph -> nothing happens" impossible to diagnose. The message
-    // distinguishes the common failure modes (missing session key, locked keys,
-    // signature mismatch) so it's actionable.
+    // Surface the real reason (was a silent debug.log): distinguish common
+    // failure modes (missing session key, locked keys, signature mismatch).
     const reason = error?.message || String(error);
     debug.error('❌ Could not decrypt message:', error);
     try {

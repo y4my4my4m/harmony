@@ -4,19 +4,10 @@ import { AppError } from '../middleware/errorHandler.js';
 import { logger } from '../utils/logger.js';
 import { safeFetch } from '../utils/ssrfProtection.js';
 
-// ---------------------------------------------------------------------------
-// In-memory cache for parsed public keys.
-//
-// `fetchActorPublicKey` already has a multi-tier persistent cache (profiles
-// table → ap_actor_cache table → remote HTTP fetch). But every inbound
-// signature still pays at least one DB roundtrip per verify. For a single
-// federation event with N inbox deliveries (each verified independently)
-// that's N roundtrips just to fetch the same N strings.
-//
-// This LRU sits in front of the DB caches and stores raw PEM strings keyed
-// by actorUrl. TTL is 1 hour, matching `ap_actor_cache.cache_expires_at` so
-// invalidation semantics are consistent.
-// ---------------------------------------------------------------------------
+// In-memory LRU of raw PEM strings keyed by actorUrl, in front of fetchActorPublicKey's
+// DB caches - avoids a DB roundtrip per inbound signature verify (N per federation
+// event with N inbox deliveries). TTL 1h matches ap_actor_cache.cache_expires_at
+// so invalidation semantics stay consistent.
 interface CachedKey {
   pem: string;
   expiresAt: number;

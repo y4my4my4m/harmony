@@ -269,12 +269,9 @@ export const useChatStore = defineStore('chat', {
           debug.warn('Failed to prepare message embeds:', error);
         }
 
-        // Check if request was cancelled or channel changed while fetching.
-        // BUGS.md H34: previously the stale-channel guard only ran on the
-        // INITIAL load (`oldestMessageId === ''`). Pagination requests
-        // (`oldestMessageId !== ''`) had no guard, so switching channels
-        // mid-`fetchOlderMessages` would prepend channel A's history into
-        // channel B's `messages` array and corrupt the cache.
+        // Guard against cancel / channel-switch mid-fetch (BUGS.md H34: the guard
+        // once ran only on initial load, so paginating while switching channels
+        // prepended channel A's history into channel B's messages).
         if (signal?.aborted) {
           throw new Error('Request aborted');
         }
@@ -311,15 +308,9 @@ export const useChatStore = defineStore('chat', {
           }
         });
         
-        // Kick off profile hydration in parallel WITHOUT blocking the first
-        // paint. Previously we awaited this so author names never flashed
-        // "Loading...", but on a cold channel open it meant the entire message
-        // list waited on a profiles round-trip before rendering anything -
-        // the single biggest contributor to the "opens slowly" feel. Author
-        // names are looked up reactively, so they fill in a moment later once
-        // the profiles resolve (most are already cached from the member list /
-        // presence anyway). The cache-hit path already renders without this
-        // preload, so async hydration here is consistent with existing UX.
+        // Hydrate profiles in parallel, NOT awaited: awaiting made the whole
+        // message list wait on a profiles round-trip before first paint (main
+        // cause of "opens slowly"). Author names resolve reactively a moment later.
         if (userIds.size > 0) {
           const serverUsersStore = useServerUsersStore();
           void serverUsersStore.fetchMultipleUserProfiles(Array.from(userIds)).catch(() => {});
@@ -690,17 +681,11 @@ export const useChatStore = defineStore('chat', {
       } catch (error: any) {
         debug.error('❌ Error sending message via service:', error);
 
-        // Encryption policy errors are NOT transient. Auto-retrying would either
-        // (a) keep failing for the same reason or (b) silently bypass the
-        // fail-closed policy. Surface immediately so the UI can ask the user
-        // whether to send unencrypted.
-        //
-        // We *remove* the optimistic instead of marking it failed: if the
-        // user accepts the fallback prompt, the UI will re-call this method
-        // with `allowPlaintextFallback: true`, which creates a fresh
-        // optimistic. Leaving the original as a "failed" message in the
-        // timeline made it look like the message had been sent and rejected,
-        // which is what BUGS.md flagged after the user pressed Cancel.
+        // Encryption policy errors are NOT transient - don't auto-retry (would
+        // keep failing or bypass fail-closed policy); surface so the UI can prompt.
+        // REMOVE the optimistic (not mark failed): accepting the fallback re-calls
+        // with allowPlaintextFallback:true and makes a fresh optimistic. A lingering
+        // "failed" message looked sent-then-rejected (BUGS.md, seen on Cancel).
         const code = (error?.code || error?.message || '').toString();
         const isEncryptionPolicyError =
           code.includes('ENCRYPTION_REQUIRED') ||

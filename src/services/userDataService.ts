@@ -566,20 +566,14 @@ class UserDataService extends EventTarget {
   private async setupGlobalPresence(): Promise<void> {
     if (!this.currentUserId) return
 
-    // BUGS.md H31 v2: install the beforeunload cleanup hook BEFORE we open
-    // any presence channel. Previous version assigned the function AFTER
-    // `supabase.channel(...).subscribe(...)`, leaving a small window where
-    // a tab close (or a fast initial-session restore + close cycle) would
-    // hit `auth.ts.setupOfflineHandlers`' `__harmonyPresenceCleanup?.()`
-    // before the function existed. The cleanup closure only captures
-    // `this`, so it's safe to install pre-subscribe - `untrackFromAll...`
-    // checks `this.globalChannel` / context channels and no-ops when no
-    // channels have been opened yet.
+    // BUGS.md H31 v2: install __harmonyPresenceCleanup BEFORE opening any presence
+    // channel, else a fast close hits auth.ts setupOfflineHandlers' cleanup call
+    // before the fn exists. Safe pre-subscribe: untrackFromAll... no-ops when no
+    // channels are open.
     if (typeof window !== 'undefined') {
       ;(window as any).__harmonyPresenceCleanup = () => {
-        // Synchronous best-effort: fire untrack calls and let the browser
-        // keepalive flush them. We don't `await` because `beforeunload` is
-        // a synchronous-ish hook - promises are unreliable past unload.
+        // Sync best-effort: fire untrack, let browser keepalive flush; no await
+        // since beforeunload can't reliably await promises past unload.
         this.untrackFromAllPresenceChannels().catch(err => {
           debug.warn('⚠️ __harmonyPresenceCleanup untrack failed:', err)
         })
@@ -759,12 +753,10 @@ class UserDataService extends EventTarget {
     const nextCustomStatus = presence.custom_status || existing?.customStatus
     const nextMobile = presence.is_mobile || existing?.isMobile || false
 
-    // Fast-path: if nothing user-visible changed and the user is already online,
-    // only bump bookkeeping fields (no reactive write, no event emit). Without
-    // this, Supabase Realtime Presence sync events (fired on every join/leave/
-    // track from any peer) cause every Avatar/DisplayName/Status component to
-    // re-render, which can remount <img> elements and force a fresh fetch
-    // through R2/imgproxy - visible as avatar flicker under network latency.
+    // Fast-path: if nothing user-visible changed and user is already online, only
+    // bump bookkeeping (no reactive write/emit). Otherwise every presence sync event
+    // (fired per peer join/leave/track) re-renders every Avatar/DisplayName, remounting
+    // <img> and refetching through R2/imgproxy - visible avatar flicker under latency.
     if (
       existing &&
       existing.isOnline === true &&
@@ -810,10 +802,9 @@ class UserDataService extends EventTarget {
     this.emitEvent('global-presence-updated', { userId, isOnline: true })
   }
   
-  // updateUserFromPresence removed - it was the helper for per-server
-  // Supabase Presence handlers that were also removed (see big comment in
-  // the server presence block). All presence-based user data now flows
-  // through `updateUserFromGlobalPresence` above.
+  // updateUserFromPresence removed with the per-server Presence handlers (see
+  // setupServerPresence comment). All presence data now flows through
+  // updateUserFromGlobalPresence above.
 
   
   /**
@@ -914,13 +905,11 @@ class UserDataService extends EventTarget {
       
       this.contexts.set(contextId, context)
 
-      // The context must be registered BEFORE we notify subscribers. The
-      // profile load above emits `data-refreshed` while this context does
-      // NOT yet exist, so the reactive member-list computed recomputes
-      // against an empty context. Without this explicit notify the list
-      // stays blank until the next unrelated event (e.g. a presence change)
-      // happens to bump reactivity - the "users only appear when presence
-      // changes" regression.
+      // Context is registered above BEFORE this notify: the profile load emits
+      // `data-refreshed` while the context doesn't yet exist, so the member-list
+      // computed recomputes against an empty context. Without this explicit notify
+      // the list stays blank until an unrelated event bumps reactivity (the "users
+      // only appear when presence changes" regression).
       this.emitEvent('context-updated', { contextId })
 
       if (type === 'server') {
@@ -960,27 +949,16 @@ class UserDataService extends EventTarget {
   }
   
   /**
-   * Setup server broadcast channel.
+   * Setup server broadcast channel. BROADCAST-ONLY: receives profile_update
+   * broadcasts from peers and presence_event broadcasts from DB triggers (member
+   * join/leave, profile/emoji changes).
    *
-   * This channel is BROADCAST-ONLY. It receives:
-   *   - profile_update broadcasts from peers
-   *   - presence_event broadcasts from DB triggers (member join/leave,
-   *     profile updates, emoji changes)
-   *
-   * It used to ALSO use Supabase Presence (`.track()` + `.on('presence', ...)`)
-   * to track who was "online in this server". That was the wrong model:
-   *   - Switching servers unsubscribes the user from this channel, which
-   *     fires `presence:leave` on every peer subscribed to the same channel,
-   *     making the user appear OFFLINE to other members of the server they
-   *     just left (despite still being logged in).
-   *   - `handleServerSync` would actively force-mark every member who isn't
-   *     in the per-server presence state as offline, even when global
-   *     presence still showed them online.
-   *
-   * Discord/Slack/Mastodon all model presence as GLOBAL (one user → one
-   * online/offline state visible to everyone who needs to see them), so we
-   * now do the same: `harmony-global-presence` is the single source of truth
-   * for online/offline. Per-server channels are pure pub/sub.
+   * It used to ALSO use Supabase Presence to track "online in this server", which
+   * was wrong: switching servers fired `presence:leave`, marking the user OFFLINE to
+   * everyone in the server they just left; and handleServerSync force-marked members
+   * absent from per-server presence as offline even when global presence showed them
+   * online. Online/offline is now GLOBAL - `harmony-global-presence` is the single
+   * source of truth; per-server channels are pure pub/sub.
    *
    * BUGS.md C14 retry behaviour for `CHANNEL_ERROR` is preserved.
    */
@@ -1058,24 +1036,11 @@ class UserDataService extends EventTarget {
     }
   }
   
-  // ---------------------------------------------------------------------
-  // REMOVED: trackCurrentUserInServer / handleServerSync / executeServerSync
-  //          / handleServerUserJoin / handleServerUserLeave
-  //
-  // These all coupled per-server Supabase Presence to online/offline state.
-  // That coupling caused user-visible bugs:
-  //   - Switching servers triggered `presence:leave` on the old server's
-  //     channel, marking the user OFFLINE for every peer there even though
-  //     they were still logged in (visible in their own per-server user
-  //     list, but offline to everyone else in the server they just left).
-  //   - `executeServerSync` force-set every member who wasn't in the
-  //     per-server presence to offline, regardless of global presence.
-  //
-  // Per the architecture rule in .cursor/rules/realtime-architecture.mdc,
-  // `server-presence:{serverId}` is a BROADCAST topic for profile/member/
-  // emoji events. Online/offline lives entirely on
-  // `harmony-global-presence` (one global "who's online" stream, mirroring
-  // Discord/Slack/Mastodon).
+  // REMOVED: trackCurrentUserInServer / handleServerSync / executeServerSync /
+  // handleServerUserJoin / handleServerUserLeave - they coupled per-server Presence
+  // to online/offline (see setupServerPresence for the bugs). Per
+  // .cursor/rules/realtime-architecture.mdc, server-presence:{serverId} is
+  // broadcast-only; online/offline lives on harmony-global-presence.
   // ---------------------------------------------------------------------
 
   /**
@@ -1294,12 +1259,9 @@ class UserDataService extends EventTarget {
     
     if (missingUserIds.length === 0) return
 
-    // Coalesce into a single batched fetch. Many UI elements (e.g. one
-    // <DisplayName> per message) call this with a single id within the same
-    // tick; without batching that becomes an N+1 storm of id=in.(oneId)
-    // queries. Every caller in the same microtask window shares one
-    // id=in.(...) request, and the cache check above keeps already-loaded
-    // users out of the queue.
+    // Coalesce single-id callers (e.g. one <DisplayName> per message) into one
+    // id=in.(...) fetch per microtask window, avoiding an N+1 query storm. Cache
+    // check above keeps already-loaded users out of the queue.
     missingUserIds.forEach(id => this.userLoadQueue.add(id))
 
     if (!this.userLoadBatchPromise) {

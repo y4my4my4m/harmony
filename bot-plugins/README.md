@@ -1,8 +1,6 @@
 # Harmony Bot Plugins
 
-## Welcome!
-
-This directory contains official and community-created bot plugins for Harmony.
+Official and community-created bot plugins for Harmony.
 
 ## Directory Structure
 
@@ -36,7 +34,7 @@ cd my-bridge/
 
 ### Discord Bridge
 
-**Status:** ✅ Production Ready
+**Status:** Production-ready
 
 Cross-platform bridge connecting Discord and Harmony servers.
 
@@ -182,13 +180,11 @@ Include:
 - Plugin name and version
 - Error message and logs
 - Steps to reproduce
-- Configuration (without tokens!)
+- Configuration (with tokens redacted)
 
 ## Featured Plugins
 
-Have a great plugin? We'll feature it here!
-
-Submit via PR with:
+To have a plugin featured here, submit a PR with:
 - Working code
 - Documentation
 - Example configuration
@@ -197,10 +193,6 @@ Submit via PR with:
 ## License
 
 Each plugin may document its own terms. The Discord bridge in this repo follows the root **AGPL-3.0** `LICENSE`.
-
----
-
-**Happy building! 🚀**
 
 For questions, check [docs/PLUGIN_SYSTEM.md](../docs/PLUGIN_SYSTEM.md) or reach out to the community.
 

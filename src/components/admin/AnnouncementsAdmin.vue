@@ -134,15 +134,9 @@ const announcementForm = ref({
 })
 
 
-// ---------------------------------------------------------------------------
-// datetime-local <-> ISO helpers
-// ---------------------------------------------------------------------------
-// HTML's `datetime-local` input gives us a naive local timestamp without a
-// timezone (e.g. "2026-05-26T21:00"). We convert in both directions so the
-// admin sees their own timezone but the DB stores UTC ISO strings.
-//
-// Both helpers are intentionally null-safe and treat an empty input as "no
-// value" rather than as the Unix epoch.
+// datetime-local <-> ISO helpers. `datetime-local` yields a naive local
+// timestamp (no TZ); convert both ways so the admin sees local time but the DB
+// stores UTC ISO. Null-safe: empty input means "no value", not the Unix epoch.
 function localInputToIso(local: string): string | undefined {
   if (!local) return undefined
   const d = new Date(local)
@@ -188,16 +182,12 @@ const getAnnouncementIcon = (icon: string | undefined) => {
 const saveAnnouncement = async () => {
   if (!announcementForm.value.title || !announcementForm.value.content) return
 
-  // Asymmetric handling for the two timestamps:
-  //   * `starts_at`: an empty input means "use the DB default (now()) on
-  //     create" / "leave the existing value alone on update". Sending
-  //     undefined makes the Supabase client omit the key entirely.
-  //   * `ends_at`:   an empty input means "no expiration" - admins clearing
-  //     the field must be able to explicitly drop the value back to NULL,
-  //     otherwise an existing expiry would be impossible to remove. We
-  //     send `null` rather than undefined so the column is overwritten.
-  // Cross-field validation: end-before-start would silently produce an
-  // announcement that's already expired the moment it's published.
+  // Asymmetric timestamp handling:
+  //   * starts_at: empty -> undefined so Supabase omits the key (DB default now()
+  //     on create / leave existing on update).
+  //   * ends_at: empty -> null (not undefined) so clearing overwrites the column
+  //     back to NULL = no expiration; else an existing expiry couldn't be removed.
+  // Validate end-after-start, else the announcement publishes already-expired.
   const startsIso = localInputToIso(announcementForm.value.starts_at)
   const endsIsoOrNull = announcementForm.value.ends_at
     ? localInputToIso(announcementForm.value.ends_at) ?? null

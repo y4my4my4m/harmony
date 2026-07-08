@@ -305,4 +305,4 @@ export const useChatStore = defineStore('chat', () => {
 
 ---
 
-> 📝 **Next Steps**: Learn about [Service Layer](./services.md) to understand how stores interact with external APIs.
+> **Next steps:** [Service Layer](./services.md) covers how stores interact with external APIs.

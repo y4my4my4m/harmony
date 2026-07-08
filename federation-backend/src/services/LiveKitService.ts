@@ -4,9 +4,7 @@ import { getSupabaseClient } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
 import { pgrstOrValue } from '../utils/postgrestFilter.js';
 
-// =============================================================================
 // TYPES
-// =============================================================================
 
 export interface TokenRequest {
   userId: string;
@@ -49,9 +47,7 @@ export interface LiveKitConfig {
   allowFederatedVoice: boolean;
 }
 
-// =============================================================================
 // LIVEKIT SERVICE
-// =============================================================================
 
 class LiveKitService {
   private roomService: RoomServiceClient | null = null;

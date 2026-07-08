@@ -14,10 +14,10 @@ AAL (Authentication Assurance Level) is a security metric that indicates how str
 The AAL level is stored in the JWT token and accessible via:
 
 ```typescript
-// ❌ WRONG - AAL is NOT directly on the session object
+// AAL is not directly on the session object
 const aal = session.aal; // undefined
 
-// ✅ CORRECT - AAL is in the user object
+// AAL is in the user object
 const aal = session.user.aal; // 'aal1' or 'aal2'
 ```
 
@@ -44,7 +44,7 @@ User enters email/password
 ```
 User enters 6-digit code
 → Call supabase.auth.mfa.verify()
-→ MFA_CHALLENGE_VERIFIED event fires (AAL still AAL1 at this moment!)
+→ MFA_CHALLENGE_VERIFIED event fires (AAL still AAL1 at this moment)
 → Session upgraded to AAL2 in background
 → getSession() now returns AAL2 session
 ```
@@ -60,7 +60,7 @@ AAL2 session is saved to localStorage automatically
 
 ### Issue 1: Race Condition with MFA_CHALLENGE_VERIFIED
 
-❌ **The Problem:**
+The problem:
 ```typescript
 supabase.auth.onAuthStateChange(async (event, session) => {
   if (session) {
@@ -72,9 +72,9 @@ supabase.auth.onAuthStateChange(async (event, session) => {
 });
 ```
 
-When `MFA_CHALLENGE_VERIFIED` event fires, the session AAL is STILL `aal1` because the upgrade happens AFTER the event. This causes the session to be rejected!
+When the `MFA_CHALLENGE_VERIFIED` event fires, the session AAL is still `aal1` because the upgrade happens after the event. This causes the session to be rejected.
 
-✅ **The Solution:**
+The solution:
 ```typescript
 supabase.auth.onAuthStateChange(async (event, session) => {
   // Special case: Allow MFA_CHALLENGE_VERIFIED through without AAL check
@@ -95,25 +95,25 @@ supabase.auth.onAuthStateChange(async (event, session) => {
 
 ### Issue 2: Reading AAL from Wrong Property
 
-❌ **Wrong:**
+Wrong:
 ```typescript
-const aal = (session as any).aal; // undefined!
+const aal = (session as any).aal; // undefined
 ```
 
-✅ **Correct:**
+Correct:
 ```typescript
 const aal = session.user.aal || 'aal1';
 ```
 
 ### Issue 3: Calling refreshSession() After mfa.verify()
 
-❌ **Don't do this:**
+Avoid this:
 ```typescript
 await supabase.auth.mfa.verify({...});
-await supabase.auth.refreshSession(); // ← Causes issues!
+await supabase.auth.refreshSession(); // causes issues
 ```
 
-✅ **Do this instead:**
+Do this instead:
 ```typescript
 await supabase.auth.mfa.verify({...});
 // Wait a moment for the auth state change to process
@@ -165,7 +165,7 @@ const has2FA = factors?.totp?.some(f => f.status === 'verified');
 
 - AAL2 sessions expire after 24 hours by default
 - After 24 hours, user must re-enter 2FA code
-- Access token refresh does NOT extend AAL2 duration
+- Access token refresh does not extend AAL2 duration
 - Only a fresh MFA verification resets the 24-hour timer
 
 ### Troubleshooting Session Loss
@@ -197,15 +197,15 @@ If users are logged out on page refresh:
 ### Pitfall 1: Checking AAL Too Aggressively
 
 ```typescript
-// ❌ BAD: Logs user out even though AAL2 session is valid
+// Logs the user out even though the AAL2 session is valid
 if (session && has2FA && session.user.aal !== 'aal2') {
-  await supabase.auth.signOut(); // Logged out on every page load!
+  await supabase.auth.signOut(); // logged out on every page load
 }
 ```
 
-**Why it happens:** If `session.user.aal` is undefined or null, this will log users out even if their session is actually valid.
+Why it happens: if `session.user.aal` is undefined or null, this logs users out even when their session is actually valid.
 
-**Solution:** Add proper defaults and logging:
+Solution: add proper defaults and logging:
 ```typescript
 const aal = session.user.aal || 'aal1';
 console.log('Session AAL:', aal);
@@ -217,11 +217,11 @@ if (session && has2FA && aal !== 'aal2') {
 
 ### Pitfall 2: Not Handling MFA_CHALLENGE_VERIFIED
 
-The `MFA_CHALLENGE_VERIFIED` event is special - it fires BEFORE the AAL upgrade completes. Always allow it through without AAL validation.
+The `MFA_CHALLENGE_VERIFIED` event is special: it fires before the AAL upgrade completes. Always allow it through without AAL validation.
 
 ### Pitfall 3: Multiple Auth State Listeners
 
-Having multiple `onAuthStateChange` listeners can cause race conditions. Only set up ONE listener in your auth initialization.
+Having multiple `onAuthStateChange` listeners can cause race conditions. Only set up one listener in your auth initialization.
 
 ## Best Practices
 

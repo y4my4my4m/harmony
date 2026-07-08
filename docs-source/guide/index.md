@@ -1,6 +1,6 @@
 # Harmony Developer Guide
 
-Welcome to the Harmony developer guide! This comprehensive documentation will help you understand, develop, and deploy the Harmony federated social platform.
+Documentation for understanding, developing, and deploying Harmony, a federated social platform.
 
 ## Quick Start
 

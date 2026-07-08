@@ -360,15 +360,11 @@ const loadPostWithContext = async () => {
       scrollToTimestamp(props.timestamp);
     }
     
-    // For remote posts, auto-fetch replies AND walk the ancestor chain in
-    // the background. Reactions are handled by MonyPost's useRemotePostSync
-    // composable on mount.
-    //
-    // Use the unwrapped main post so we hit the *original* note's collections
-    // (the Announce wrapper has no replies/reactions of its own). We also kick
-    // off ancestor resolution for federated replies whose parents aren't yet
-    // in the local DB - without this, federated reply threads show as a
-    // single floating post.
+    // Remote posts: auto-fetch replies + walk the ancestor chain in background
+    // (reactions handled by MonyPost's useRemotePostSync on mount). Use the
+    // unwrapped main post so we hit the *original* note's collections (the
+    // Announce wrapper has none of its own), and resolve ancestors for federated
+    // replies whose parents aren't local yet — else threads show as one floating post.
     const mainTarget = result.mainPost ? getOriginalPost(result.mainPost) : null;
     if (mainTarget) {
       const targetApId = getOriginalApId(mainTarget) || mainTarget.ap_id;

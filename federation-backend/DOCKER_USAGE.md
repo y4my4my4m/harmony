@@ -1,133 +1,93 @@
 # Federation Backend - Docker Usage
 
-## Single docker-compose.yml for Everything!
-
-Uses `.env` file to control behavior.
-
----
+A single `docker-compose.yml` covers development and production. Behavior is controlled through the `.env` file.
 
 ## Setup
 
 ```bash
 cd federation-backend
 
-# 1. Copy example
 cp .env.example .env
-
-# 2. Edit with YOUR keys
-nano .env
+# Edit .env with your Supabase keys (from the Supabase dashboard).
 ```
 
-**Set your Supabase keys** (from your Supabase dashboard)!
+## Development mode (hot reload)
 
----
+In `.env`:
 
-## Development Mode (Hot Reload)
-
-**In `.env`**:
 ```bash
 NODE_ENV=development
 DOCKERFILE=Dockerfile.dev
 LOG_LEVEL=debug
 ```
 
-**Run**:
+Run:
+
 ```bash
 docker compose up
 ```
 
-**What happens**:
-- Uses `Dockerfile.dev` (has hot reload)
-- Debug logging
-- Rebuilds on code changes (via tsx watch)
+This uses `Dockerfile.dev` with hot reload (via `tsx watch`), debug logging, and rebuilds on code changes.
 
----
+## Production mode
 
-## Production Mode
+In `.env`:
 
-**In `.env`**:
 ```bash
 NODE_ENV=production
 DOCKERFILE=Dockerfile
 LOG_LEVEL=info
 ```
 
-**Run**:
+Run:
+
 ```bash
 docker compose up -d
 ```
 
-**What happens**:
-- Uses `Dockerfile` (optimized build)
-- Info logging
-- Runs compiled code
+This uses `Dockerfile` (optimized build), info logging, and runs the compiled code.
 
----
-
-## Quick Commands
+## Quick commands
 
 ```bash
-# Start
-docker compose up -d
-
-# View logs
-docker compose logs -f
-
-# Restart
-docker compose restart
-
-# Stop
-docker compose down
-
-# Rebuild
-docker compose up --build
+docker compose up -d        # start
+docker compose logs -f      # view logs
+docker compose restart      # restart
+docker compose down         # stop
+docker compose up --build   # rebuild
 ```
 
----
+## Environment variables
 
-## Environment Variables
+Required in `.env`:
 
-**Required in `.env`**:
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `INSTANCE_DOMAIN`
 
-**Optional** (have defaults):
+Optional (with defaults):
+
 - `PORT` (default: 3001)
 - `NODE_ENV` (default: development)
 - `DOCKERFILE` (default: Dockerfile)
 - `LOG_LEVEL` (default: debug)
 
----
-
 ## Security
 
-✅ **Safe to commit**:
-- `docker-compose.yml` (no secrets!)
-- `.env.example` (template only!)
-- `Dockerfile`, `Dockerfile.dev`
+Safe to commit: `docker-compose.yml`, `.env.example`, `Dockerfile`, `Dockerfile.dev`.
 
-❌ **NEVER commit**:
-- `.env` (has your keys!)
-- Any file with `SERVICE_ROLE_KEY`
-
-`.gitignore` already excludes `.env` ✅
-
----
+Never commit `.env` or any file containing `SERVICE_ROLE_KEY`. `.gitignore` already excludes `.env`.
 
 ## Connecting to Supabase
 
-**Self-hosted Supabase** (Docker):
+Self-hosted Supabase (Docker):
+
 ```bash
 SUPABASE_URL=http://host.docker.internal:8000
 ```
 
-**Supabase Cloud**:
+Supabase Cloud:
+
 ```bash
 SUPABASE_URL=https://your-project.supabase.co
 ```
-
----
-
-**One file, controlled by `.env`!** Simple and safe! 🎯
-

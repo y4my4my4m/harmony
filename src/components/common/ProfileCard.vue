@@ -173,7 +173,6 @@ import type { User, FederatedUser } from '@/types'
 
 const { t } = useI18n()
 
-// ===== INTERFACE =====
 interface Props {
   user: User | FederatedUser
   isCompact?: boolean
@@ -212,18 +211,15 @@ const emit = defineEmits<{
   unblock: [userId: string]
 }>()
 
-// ===== DEPENDENCIES =====
 const router = useRouter()
 const authStore = useAuthStore()
 const activityPubStore = useActivityPubStore()
 const { getPresenceAwareStatus } = useUserData()
 const { toggleFollow, getLoadingState } = usePostInteractions()
 
-// ===== STATE =====
 const showActionsMenu = ref(false)
 const followInProgress = ref(false)
 
-// ===== TYPE GUARDS =====
 const isFederatedUser = computed(() => {
   const handle = (props.user as FederatedUser).handle
   return typeof handle === 'string' && handle.length > 0
@@ -240,7 +236,6 @@ const showRemoteInstanceBadge = computed(() => {
 
 const actionIconSize = computed(() => (props.isCompact ? 'sm' : 'md'))
 
-// ===== COMPUTED PROPERTIES =====
 const isCurrentUser = computed(() => {
   return props.user.id === authStore.session?.user?.id
 })
@@ -317,7 +312,6 @@ const followButtonText = computed(() => {
   return isFollowing.value ? t('activitypub.following') : t('activitypub.follow')
 })
 
-// ===== METHODS =====
 const formatNumber = (num: number): string => {
   if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M'
   if (num >= 1000) return (num / 1000).toFixed(1) + 'K'
@@ -458,7 +452,6 @@ const closeActionsMenu = () => {
   showActionsMenu.value = false
 }
 
-// ===== DIRECTIVES =====
 const vClickOutside = {
   mounted(el: HTMLElement, binding: any) {
     el._clickOutsideHandler = (event: MouseEvent) => {

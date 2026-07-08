@@ -1,69 +1,71 @@
-# 2FA Security Model - Final Implementation
+# 2FA Security Model
 
 ## Overview
 
-This document explains how 2FA (Two-Factor Authentication) works in Harmony after implementing the balanced security approach.
+This document describes how two-factor authentication (2FA) works in Harmony.
 
 ## How It Works
 
-### At Login ✅
+### At Login
+
 ```
 User enters email + password
 ↓
 Has 2FA enabled?
 ├─ NO  → Login successful (AAL1 session)
-└─ YES → MUST enter 2FA code (can't skip!)
+└─ YES → Enter 2FA code
          ↓
          Enter 6-digit code
          ↓
          Login successful (AAL2 session)
 ```
 
-**Key Point:** If you have 2FA enabled, **you MUST enter your 2FA code at login**. No exceptions.
+If a user has 2FA enabled, they must enter their 2FA code at login. It cannot be bypassed.
 
-### After Login (Session Persistence) ✅
+### After Login (Session Persistence)
 
 ```
 Login with 2FA → AAL2 session created (24 hours)
 ↓
 After 24 hours → AAL2 expires, downgrades to AAL1
 ↓
-But refresh token keeps you logged in!
+Refresh token keeps the user logged in
 ↓
 User stays logged in (weeks/months until manual logout or token expiry)
 ```
 
-**Key Point:** You stay logged in even after AAL2 expires. You only need to log in again (with 2FA) when you:
+The user stays logged in even after AAL2 expires. They only need to log in again (with 2FA) when they:
 - Manually log out
-- Refresh token expires (default: 60 days in Supabase)
+- Have their refresh token expire (default: 60 days in Supabase)
 - Clear browser storage
 
 ## Security Model
 
-### What We Check
+### What Is Checked
 
-#### During Login Flow ✅
-- **Password required** (AAL1)
-- **2FA code required** if 2FA is enabled (upgrades to AAL2)
-- Cannot bypass 2FA if it's enabled
+During the login flow:
+- Password is required (AAL1)
+- 2FA code is required if 2FA is enabled (upgrades to AAL2)
+- 2FA cannot be bypassed if it is enabled
 
-#### After Login (Session Validation) ✅
-- **Any valid session is accepted** (AAL1 or AAL2)
+After login (session validation):
+- Any valid session is accepted (AAL1 or AAL2)
 - No AAL level checking on page refresh
 - Refresh tokens keep users logged in
 
-### What We Don't Check
+### What Is Not Checked
 
-#### We DON'T Check AAL Level After Login ❌
+AAL level is not checked after login. Earlier versions logged users out after 24 hours; the current behavior accepts any valid session:
+
 ```typescript
-// ❌ OLD (BAD): Logged users out after 24 hours
+// Earlier behavior: logged users out after 24 hours
 if (has2FA && session.aal !== 'aal2') {
-  signOut(); // This forced re-login every 24 hours!
+  signOut(); // forced re-login every 24 hours
 }
 
-// ✅ NEW (GOOD): Accept any valid session
+// Current behavior: accept any valid session
 if (session) {
-  this.session = session; // AAL1 or AAL2 - doesn't matter!
+  this.session = session; // AAL1 or AAL2
 }
 ```
 
@@ -73,34 +75,34 @@ if (session) {
 1. User enables 2FA in settings
 2. Saves recovery codes
 3. Logs out
-4. **Next login requires 2FA** ✅
+4. The next login requires 2FA
 
 ### Daily Usage
 1. Login once with password + 2FA
-2. **Stay logged in for weeks/months** ✅
-3. AAL2 expires after 24h, downgrade to AAL1
-4. User doesn't notice - stays logged in!
-5. Only re-login if they manually log out
+2. Stay logged in for weeks/months
+3. AAL2 expires after 24h, downgrades to AAL1
+4. The user is not prompted again and stays logged in
+5. Re-login is only required after a manual logout
 
 ### Benefits
-- **Security:** 2FA required at login (can't bypass)
-- **Convenience:** Don't need to re-enter 2FA daily
-- **Industry Standard:** How Discord, GitHub, Google, etc. work
-- **Long Sessions:** Like Reddit - login once, stay logged in
+- Security: 2FA required at login, cannot be bypassed
+- Convenience: no need to re-enter 2FA daily
+- Industry standard: consistent with Discord, GitHub, Google, and others
+- Long sessions: login once, stay logged in (similar to Reddit)
 
 ## Technical Details
 
 ### AAL Levels
 
-**AAL1 (Authentication Assurance Level 1)**
+AAL1 (Authentication Assurance Level 1)
 - Password-only authentication
 - Standard security
-- No expiration (refresh token handles this)
+- No expiration (handled by refresh token)
 
-**AAL2 (Authentication Assurance Level 2)**
+AAL2 (Authentication Assurance Level 2)
 - Password + 2FA authentication
 - Enhanced security
-- **Expires after 24 hours** (Supabase default)
+- Expires after 24 hours (Supabase default)
 
 ### Session Lifecycle
 
@@ -120,7 +122,7 @@ Day 60: Refresh token expires (Supabase default)
 
 ### Code Implementation
 
-**Auth Store (`src/stores/auth.ts`):**
+Auth store (`src/stores/auth.ts`):
 
 ```typescript
 // During login - check if 2FA is required
@@ -132,7 +134,7 @@ async login(email: string, password: string) {
   const has2FA = factors?.totp?.some(f => f.status === 'verified');
   
   if (has2FA) {
-    // User MUST complete 2FA
+    // User must complete 2FA
     const { data: challenge } = await supabase.auth.mfa.challenge({
       factorId: totpFactor.id
     });
@@ -152,8 +154,8 @@ async login(email: string, password: string) {
 async initializeAuth() {
   const { data } = await supabase.auth.getSession();
   
-  // Accept session regardless of AAL level
-  // 2FA is enforced at LOGIN time, not on refresh
+  // Accept session regardless of AAL level.
+  // 2FA is enforced at login time, not on refresh.
   this.session = data.session;
 }
 ```
@@ -161,45 +163,44 @@ async initializeAuth() {
 ## Recovery Codes
 
 Users get 10 recovery codes when enabling 2FA:
-- Each code can be used **once**
-- Using a recovery code **disables 2FA** (they lost their authenticator)
-- User is redirected to settings to re-enable 2FA
-- Recovery codes are stored as **SHA-256 hashes** in the database
+- Each code can be used once
+- Using a recovery code disables 2FA (assuming the user lost their authenticator)
+- The user is redirected to settings to re-enable 2FA
+- Recovery codes are stored as SHA-256 hashes in the database
 
 ## Comparison with Other Apps
 
 ### Discord
 - 2FA required at login
 - Stay logged in indefinitely
-- Same as our implementation
+- Same as Harmony's implementation
 
 ### GitHub
 - 2FA required at login
 - Stay logged in for weeks
-- Optional: "Step up" to 2FA for sensitive operations
-- We don't have "step up" yet (future enhancement)
+- Optional step-up to 2FA for sensitive operations
+- Harmony does not have step-up yet (future enhancement)
 
 ### Google
 - 2FA required at login
-- Stay logged in until you log out
+- Stay logged in until logout
 - "Remember this device" option
-- We don't have device memory yet (future enhancement)
+- Harmony does not have device memory yet (future enhancement)
 
 ## Future Enhancements
 
-### Possible Improvements:
-1. **Step-Up Authentication** - Require 2FA again for sensitive operations:
+1. Step-up authentication: require 2FA again for sensitive operations:
    - Changing password
-   - Changing email  
+   - Changing email
    - Modifying 2FA settings
    - Deleting account
 
-2. **Trusted Devices** - "Remember this device for 30 days"
+2. Trusted devices: "Remember this device for 30 days"
    - Store device fingerprint
    - Skip 2FA on trusted devices
    - Still require password
 
-3. **Session Activity Log** - Show users:
+3. Session activity log:
    - Active sessions
    - Device info
    - Last activity
@@ -207,49 +208,49 @@ Users get 10 recovery codes when enabling 2FA:
 
 ## Testing Checklist
 
-### 2FA Required at Login ✅
+2FA required at login:
 - [ ] Enable 2FA on test account
 - [ ] Log out
 - [ ] Try to log in with just password
-- [ ] ✅ Should show 2FA modal (can't skip!)
+- [ ] Should show 2FA modal
 - [ ] Enter wrong code
-- [ ] ✅ Should show error
+- [ ] Should show error
 - [ ] Enter correct code
-- [ ] ✅ Should login successfully
+- [ ] Should login successfully
 
-### Long Session Persistence ✅
+Long session persistence:
 - [ ] Login with 2FA
 - [ ] Note the time
 - [ ] Wait 24+ hours
 - [ ] Refresh the page
-- [ ] ✅ Should still be logged in (no 2FA prompt!)
+- [ ] Should still be logged in (no 2FA prompt)
 - [ ] Check developer tools → Application → Local Storage
-- [ ] ✅ Should see `sb-*-auth-token` still present
+- [ ] Should see `sb-*-auth-token` still present
 
-### Manual Logout ✅
+Manual logout:
 - [ ] Login with 2FA
 - [ ] Use the app normally
 - [ ] Click "Log Out"
-- [ ] ✅ Should be logged out
+- [ ] Should be logged out
 - [ ] Try to login again
-- [ ] ✅ Should require 2FA again
+- [ ] Should require 2FA again
 
-### Recovery Codes ✅
+Recovery codes:
 - [ ] Enable 2FA
-- [ ] ✅ Should see 10 recovery codes
+- [ ] Should see 10 recovery codes
 - [ ] Save one recovery code
 - [ ] Log out
 - [ ] Click "Use recovery code instead"
 - [ ] Enter the saved code
-- [ ] ✅ Should login successfully
-- [ ] ✅ Should see warning about re-enabling 2FA
-- [ ] ✅ 2FA should be disabled
+- [ ] Should login successfully
+- [ ] Should see warning about re-enabling 2FA
+- [ ] 2FA should be disabled
 - [ ] Try to use same code again
-- [ ] ✅ Should fail (already used)
+- [ ] Should fail (already used)
 
 ## Database Schema
 
-**Recovery Codes Table:**
+Recovery codes table:
 ```sql
 CREATE TABLE mfa_recovery_codes (
   id UUID PRIMARY KEY,
@@ -260,7 +261,7 @@ CREATE TABLE mfa_recovery_codes (
 );
 ```
 
-**Helper Functions:**
+Helper functions:
 - `verify_recovery_code(user_id, code)` - Verify and mark as used
 - `save_recovery_codes(user_id, codes[])` - Save hashed codes
 - `count_unused_recovery_codes(user_id)` - Count remaining codes
@@ -278,12 +279,10 @@ CREATE TABLE mfa_recovery_codes (
 
 ## Summary
 
-**The Perfect Balance:**
-- **Secure:** 2FA is REQUIRED at login (can't bypass)
-- **Convenient:** Stay logged in for weeks (no daily 2FA prompts)
-- **Industry Standard:** How all major apps work
-- **User-Friendly:** Login once, use the app
+The model balances security and convenience:
+- Secure: 2FA is required at login and cannot be bypassed
+- Convenient: users stay logged in for weeks without daily 2FA prompts
+- Industry standard: consistent with major apps
+- User-friendly: login once, use the app
 
-**Key Takeaway:** 2FA protects your **login**, not your **session**. Once you're in, you stay in until you log out or your refresh token expires (60 days default).
-
-
+2FA protects the login, not the session. Once a user is logged in, they stay in until they log out or their refresh token expires (60 days default).

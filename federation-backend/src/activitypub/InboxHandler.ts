@@ -324,15 +324,12 @@ async function handleInbox(
     logger.debug(`Could not check instance block status: ${error}`);
   }
 
-  // ============================================
   // HTTP Signature Verification (SECURITY CRITICAL)
-  // ============================================
   // ActivityPub uses HTTP Signatures to authenticate requests.
   // 1. Remote server signs the request with their private key
   // 2. We fetch their public key from their actor document (over HTTPS)
   // 3. We verify the signature matches
   // 4. We verify the actor in the activity matches the signing key's owner
-  // ============================================
   
   const signature = req.headers.signature as string;
   const actorUrl = typeof activity.actor === 'string' ? activity.actor : activity.actor?.id;

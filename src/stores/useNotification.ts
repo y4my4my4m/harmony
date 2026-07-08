@@ -198,15 +198,10 @@ export const useNotificationStore = defineStore('notification', {
     },
 
     /**
-     * Single-pass projection of the notifications array into the counters
-     * the rest of the UI needs. Replaces 5+ separate `filter().length`
-     * getters that each scanned the full array (BUGS.md PC5).
-     *
-     * For parameterized counts (per-channel, per-server, per-conversation)
-     * we build Maps so callers do an O(1) lookup instead of an O(n) scan.
-     * Maps and primitive counters here are recomputed by Pinia/Vue only
-     * when `state.notifications` changes, so dependents that read multiple
-     * counts in one frame share a single full scan.
+     * Single-pass projection of notifications into all UI counters, replacing
+     * 5+ separate `filter().length` getters that each scanned the array (BUGS.md
+     * PC5). Parameterized counts use Maps for O(1) lookup. Recomputed only when
+     * `state.notifications` changes, so multiple reads in a frame share one scan.
      */
     notificationCounts(): NotificationCounts {
       const total = this.notifications.length
@@ -247,13 +242,9 @@ export const useNotificationStore = defineStore('notification', {
           if (isApMention) unreadMentions++
           if (isDM) unreadDMs++
           if (isMention) {
-            // The legacy getters used `||` between top-level and nested
-            // forms, which means a notification carrying BOTH
-            // `data.channel_id = X` AND `data.location.channel_id = Y`
-            // (with X !== Y) would count for both X and Y. We preserve
-            // that semantics here by bumping both keys when they differ,
-            // rather than collapsing via `??` which would count only one.
-            // BUGS.md M3 from code review.
+            // BUGS.md M3: preserve legacy `||` semantics — a notification with
+            // both top-level and nested ids (X !== Y) counts for both; bump both
+            // keys when they differ rather than collapsing via `??`.
             const cid = n.data?.channel_id
             const cidLoc = n.data?.location?.channel_id
             if (cid) bumpMap(unreadChannelMentions, cid)
@@ -314,16 +305,11 @@ export const useNotificationStore = defineStore('notification', {
       })
     },
 
-    // Per-type unread counts. These now read from the single-pass
-    // `notificationCounts` projection above instead of each running their
-    // own full-array scan.
-    //
-    // The `(this as any).notificationCounts` cast is a workaround for a
-    // vue-tsc / Pinia type-inference limitation: when one method-form
-    // getter references another via `this`, TypeScript surfaces the
-    // getter as its raw `() => T` function type instead of unwrapping
-    // to `T`. At runtime Pinia unwraps correctly. Tracking issue in
-    // upstream vue-tsc.
+    // Per-type unread counts, read from the single-pass `notificationCounts`
+    // projection instead of scanning the array each. The `(this as any)` cast
+    // works around a vue-tsc/Pinia limitation: a method-form getter referencing
+    // another via `this` surfaces as its raw `() => T` type; Pinia unwraps to T
+    // at runtime.
 
     unreadMentions(): number {
       return (this as any).notificationCounts.unreadMentions
@@ -679,18 +665,13 @@ export const useNotificationStore = defineStore('notification', {
     },
 
     /**
-     * DUAL-MODE NOTIFICATION SUBSCRIPTION
-     *
-     * Sets up two parallel listeners for maximum reliability:
-     *
-     * 1. Broadcast handler - via UserEventChannel (realtime.send() from DB triggers).
-     *    Lower latency, fewer channels, but depends on realtime.send() working.
-     *
-     * 2. postgres_changes fallback - classic CDC subscription on the notifications
-     *    table.  Always works if the table is in the supabase_realtime publication.
-     *
-     * Both paths funnel through _processIncomingNotification / _processNotificationUpdate
-     * which deduplicate by notification ID so double-delivery is harmless.
+     * DUAL-MODE NOTIFICATION SUBSCRIPTION: two parallel listeners for reliability.
+     * 1. Broadcast via UserEventChannel (realtime.send() from DB triggers) — lower
+     *    latency but depends on realtime.send() working.
+     * 2. postgres_changes CDC fallback on the notifications table — always works if
+     *    the table is in the supabase_realtime publication.
+     * Both funnel through _processIncomingNotification / _processNotificationUpdate,
+     * which dedup by notification ID so double-delivery is harmless.
      */
     async setupBroadcastNotificationHandlers(userId: string) {
       if (_unsubNewNotification) {
@@ -1172,12 +1153,10 @@ export const useNotificationStore = defineStore('notification', {
     },
 
     /**
-     * PREFERENCE MANAGEMENT - Client-side only
-     *
-     * notification_preferences.user_id references profiles(id). Callers may
-     * pass either an auth user id (legacy) or a profile id; we always resolve
-     * to a profile id before touching the row so loads, upserts, and broadcast
-     * reload-handlers stay consistent.
+     * PREFERENCE MANAGEMENT (client-side only). notification_preferences.user_id
+     * references profiles(id). Callers may pass an auth id (legacy) or profile id;
+     * always resolve to profile id before touching the row so loads/upserts/reload
+     * handlers stay consistent.
      */
     async loadPreferences(userIdOrAuthId: string) {
       const profileId = await this.getProfileId(userIdOrAuthId)
@@ -1208,11 +1187,9 @@ export const useNotificationStore = defineStore('notification', {
           updated_at: new Date().toISOString(),
         }
 
-        // BUGS.md H1: setupDndCheck early-returns when dnd_enabled is false,
-        // so we must re-invoke it whenever preferences change so the
-        // interval (re)starts on enable and stops on disable. Without this,
-        // toggling DND in another tab leaves this tab's check dead until
-        // page reload.
+        // BUGS.md H1: setupDndCheck early-returns when dnd_enabled is false, so
+        // re-invoke on every prefs change to (re)start/stop the interval — else
+        // toggling DND in another tab leaves this tab dead until reload.
         this.setupDndCheck()
 
         debug.log('✅ Loaded notification preferences')
@@ -1234,10 +1211,9 @@ export const useNotificationStore = defineStore('notification', {
         if (!this.preferences) return
 
         const previousPreferences = { ...this.preferences }
-        // BUGS.md H1: detect changes that affect the DND check so we can
-        // (re)start/stop the interval at the end. dnd_enabled flipping is
-        // the obvious one; dnd_start_time / dnd_end_time changes require
-        // re-evaluating `isQuietHours` immediately.
+        // BUGS.md H1: detect DND-affecting changes (dnd_enabled toggle, or
+        // start/end time) to (re)start/stop the interval and re-evaluate
+        // isQuietHours at the end.
         const dndFieldsChanged =
           ('dnd_enabled' in newPreferences && newPreferences.dnd_enabled !== previousPreferences.dnd_enabled) ||
           ('dnd_start_time' in newPreferences && newPreferences.dnd_start_time !== previousPreferences.dnd_start_time) ||
@@ -1381,18 +1357,11 @@ export const useNotificationStore = defineStore('notification', {
     },  
 
     /**
-     * Mark mention/reply notifications matching the given post ids as read.
-     * Called by the Mentions view as posts enter the rendered viewport. The
-     * goal (per user request) is "only clear notifications for the mentions
-     * actually seen in view" - not blanket-clear every mention notification
-     * when the page opens.
-     *
-     * Strategy: do an optimistic local update for whatever the in-memory
-     * store knows about, then mirror to the DB so anything the store hasn't
-     * loaded yet (NotificationBell hasn't been opened, etc.) still gets
-     * persisted. The DB call is fire-and-forget; failures are logged but
-     * don't revert local state (revisiting will re-attempt next time the
-     * posts scroll into view).
+     * Mark mention/reply notifications for the given post ids as read, called by
+     * the Mentions view as posts enter the viewport (only clear what's seen, not
+     * blanket-clear on open). Optimistic local update, then mirror to the DB for
+     * rows the store hasn't loaded. DB call is fire-and-forget; failures don't
+     * revert (revisiting retries when posts scroll back in).
      */
     async markMentionNotificationsForPostsAsRead(postIds: string[]) {
       if (!postIds.length) return

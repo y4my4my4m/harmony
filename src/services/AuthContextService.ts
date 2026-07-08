@@ -1,22 +1,6 @@
 /**
- * AuthContextService - Centralized authentication and profile resolution
- * 
- * This service solves the massive problem of every service doing the same auth lookup:
- * - Single source of truth for current user authentication
- * - Caches auth_user_id → profile.id mapping
- * - Provides global access to current user context
- * - Eliminates hundreds of duplicate database queries
- * 
- * BEFORE: 21+ services all doing:
- * ```
- * const { data: { user } } = await supabase.auth.getUser()
- * const { data: profile } = await supabase.from('profiles').select('id').eq('auth_user_id', user.id).single()
- * ```
- * 
- * AFTER: One lookup, cached globally:
- * ```
- * const profileId = await authContextService.getCurrentProfileId()
- * ```
+ * Centralized auth + profile resolution: single cached auth_user_id → profile.id
+ * mapping, replacing the per-service `getUser()` + profiles lookup done in 21+ services.
  */
 
 import { supabase } from '@/supabase'
@@ -88,21 +72,11 @@ export class AuthContextService {
       }
 
       if (!profile) {
-        // The auth user exists but the profile row doesn't yet (e.g. brand-new
-        // signup that hasn't completed the NewProfile.vue flow, or a refresh
-        // landing on /new-profile). This is a TRANSIENT state - the profile
-        // will be created moments later when the user submits the form.
-        //
-        // We must NOT cache `unauthenticated` here, because any code that
-        // races and populates the cache before profile creation (e.g.
-        // `activityPubStore.loadBlockingData()` called from auth.ts SIGNED_IN
-        // / initializeAuth) would poison the cache. The next call after
-        // profile creation would then return the stale `unauthenticated`
-        // state, causing `ProfileService.updateCurrentProfile` to throw
-        // AUTH_REQUIRED. Result: avatar upload succeeds (file lands in R2)
-        // but the avatar_url UPDATE never runs, so profiles.avatar_url stays
-        // at its DB DEFAULT (`/default_avatar.webp`). See investigation
-        // around 2026-05-27.
+        // Auth user exists but profile row doesn't yet (mid-signup, pre-NewProfile.vue).
+        // TRANSIENT - do NOT cache `unauthenticated`: a race (e.g. loadBlockingData
+        // from auth.ts SIGNED_IN) would poison the cache, and the stale value later
+        // makes ProfileService.updateCurrentProfile throw AUTH_REQUIRED - avatar
+        // upload lands in R2 but avatar_url UPDATE never runs. See 2026-05-27.
         debug.warn('Auth user found but no profile exists (transient, not caching):', user.id)
         return this.createUnauthenticatedContext()
       }

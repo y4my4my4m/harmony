@@ -4,7 +4,7 @@
 
 The Harmony Plugin System allows developers to create bridges, integrations, and extensions that connect Harmony to other platforms and services.
 
-**Built on the Bot API**, plugins are standalone services that:
+Built on the Bot API, plugins are standalone services that:
 - Use Harmony Bot API for communication
 - Run as independent processes
 - Follow a standard architecture pattern
@@ -12,7 +12,7 @@ The Harmony Plugin System allows developers to create bridges, integrations, and
 
 ## Bridge Pattern
 
-The **Discord Bridge** serves as the reference implementation for all plugins.
+The Discord Bridge serves as the reference implementation for all plugins.
 
 ### Architecture
 
@@ -285,14 +285,14 @@ await Promise.all([
   platformClient.connect()
 ])
 
-console.log('🌉 Bridge is running!')
+console.log('Bridge is running')
 ```
 
 ## Best Practices
 
 ### 1. Loop Prevention
 
-**Always check if message originated from your bridge:**
+Check whether a message originated from your bridge before forwarding it:
 
 ```typescript
 // Don't bridge messages from the bridge itself
@@ -304,7 +304,7 @@ if (message.author.bot) return
 
 ### 2. Rate Limiting
 
-**Implement proper rate limiting:**
+Implement rate limiting on outbound messages:
 
 ```typescript
 class RateLimiter {
@@ -332,7 +332,7 @@ class RateLimiter {
 
 ### 3. Error Recovery
 
-**Implement reconnection logic:**
+Implement reconnection logic:
 
 ```typescript
 async function connectWithRetry(maxRetries = 5) {
@@ -351,7 +351,7 @@ async function connectWithRetry(maxRetries = 5) {
 
 ### 4. Graceful Shutdown
 
-**Handle signals properly:**
+Handle termination signals:
 
 ```typescript
 process.on('SIGTERM', shutdown)
@@ -425,7 +425,7 @@ HarmonyPluginManager.register({
 
 ### Discord Bridge
 
-**Status:** ✅ Reference implementation included
+**Status:** Reference implementation included
 
 **Features:**
 - Bi-directional message sync
@@ -436,7 +436,7 @@ HarmonyPluginManager.register({
 
 ### Matrix Bridge (Community)
 
-**Status:** 🚧 In development
+**Status:** In development
 
 **Features:**
 - Full federation
@@ -445,7 +445,7 @@ HarmonyPluginManager.register({
 
 ### Slack Bridge (Community)
 
-**Status:** 📋 Planned
+**Status:** Planned
 
 **Features:**
 - Workspace integration
@@ -459,7 +459,7 @@ HarmonyPluginManager.register({
 
 ## Community Plugins
 
-Want to contribute a plugin?
+To contribute a plugin:
 1. Create a plugin following this guide
 2. Add a README with setup instructions
 3. Submit a PR to the repository
@@ -479,13 +479,11 @@ Want to contribute a plugin?
 
 ## Contributing
 
-We welcome plugin contributions!
+Plugin contributions are welcome.
 
 1. Follow the plugin template
 2. Write clear documentation
 3. Include setup instructions
 4. Test thoroughly
 5. Submit to community directory
-
-**Happy bridging! 🌉**
 

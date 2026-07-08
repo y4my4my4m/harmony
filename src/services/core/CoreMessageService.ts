@@ -254,33 +254,21 @@ export class CoreMessageService {
               this.markPlaintextOverride(extraMetadata = extraMetadata || {}, 'optional_encrypt_failed')
             }
           } else if (encryptionMode === 'required') {
-            // Server requires encryption but user doesn't have it set up/unlocked.
-            // Both cases must be NON-overridable: there is no "send plaintext"
-            // option on a required server, so always raise ENCRYPTION_REQUIRED
-            // (NOT ENCRYPTION_LOCKED, which the UI treats as fallback-eligible
-            // and would wrongly offer a plaintext send). The message still tells
-            // the user whether to set up or unlock.
+            // Required server, user can't encrypt: NON-overridable. Always raise
+            // ENCRYPTION_REQUIRED (never ENCRYPTION_LOCKED, which the UI treats as
+            // fallback-eligible and would wrongly offer plaintext). Message text
+            // still tells the user whether to set up or unlock.
             if (!hasRecoveryKey) {
               throw this.createError('ENCRYPTION_REQUIRED', 'This server requires encryption. Set up encryption in Settings first.')
             } else {
               throw this.createError('ENCRYPTION_REQUIRED', 'This server requires encryption. Unlock encryption with your recovery key first.')
             }
           } else {
-            // Optional encryption + user cannot encrypt. Two sub-cases:
-            //
-            //  (a) hasRecoveryKey && !isUnlocked
-            //      → The user has set up encryption but their session is
-            //        locked. They previously opted in, so silently
-            //        downgrading to plaintext would defy their stated
-            //        preference. Fail closed and let the UI prompt them
-            //        ("did you forget to unlock your recovery key?").
-            //
-            //  (b) !hasRecoveryKey
-            //      → The user has *never* set up encryption. Encryption is
-            //        only OPTIONAL on this server, so the user is fully
-            //        within policy to send plaintext. Prompting on every
-            //        send would be friction with no security benefit (they
-            //        haven't opted in). Send plaintext silently.
+            // Optional encryption + user cannot encrypt:
+            //  (a) hasRecoveryKey && !isUnlocked → opted in but locked; fail
+            //      closed (don't silently downgrade), UI prompts to unlock.
+            //  (b) !hasRecoveryKey → never opted in; plaintext is within policy,
+            //      send silently (no security benefit to prompting).
             if (hasRecoveryKey && !isUnlocked) {
               if (!allowFallback) {
                 throw this.createError('ENCRYPTION_LOCKED',

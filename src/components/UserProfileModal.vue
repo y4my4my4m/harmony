@@ -725,19 +725,10 @@ function getProfileUrl(user: FederatedUser | User | null): string {
   return `https://${fed.domain}/@${fed.username}`
 }
 
-// Computed properties
-//
-// `props.user.id` is a PROFILE id, but `authStore.session.user.id` is the
-// Supabase AUTH user id - the two are different UUIDs in this codebase
-// (BUGS.md Pattern A). Comparing them used to always return false, which
-// caused two regressions:
-//   1. Looking at your OWN profile would show "Send Message" / "Follow" /
-//      "Invite to Server" instead of "Edit Profile".
-//   2. The DM button on your own card would call create_or_get_direct_
-//      conversation with self as both participants → RPC accepted it and
-//      silently swallowed the click.
-// Compare against the cached current-user profile id from userDataService
-// (kept in sync by useUserData) so the check is reactive and id-correct.
+// props.user.id is a PROFILE id; authStore.session.user.id is the AUTH user id -
+// different UUIDs (BUGS.md Pattern A). Comparing them always returned false (broke
+// self-profile "Edit" vs "Send Message", and self-DM). Compare against the cached
+// current-user profile id from userDataService so the check is reactive and id-correct.
 const isBridgedDiscord = computed(() => isBridgedDiscordProfileUser(props.user))
 
 const bridgedProfile = computed((): User | null => {
@@ -977,16 +968,11 @@ const formatLastSeen = (dateString: string) => {
 }
 
 const formatFieldValue = (value: any) => {
-  // Profile fields can come from a federated server (ActivityPub
-  // `PropertyValue`) as HTML (e.g. `<a href="..." rel="me">...</a>`), or
-  // from a local profile as a plain string. We run BOTH cases through
-  // DOMPurify with the same allowlist as `UserProfileView.vue` so the
-  // profile modal and the standalone profile page render identically,
-  // and so a malicious federated PropertyValue can't smuggle a
-  // `<style>` / `<img onerror>` / `javascript:` href past the modal.
-  // The newline -> <br> conversion preserves how local multi-line
-  // plain-text values used to render (the previous `escapeHtml +
-  // replace(/\n/g, '<br>')` flow).
+  // Fields may be federated HTML (AP PropertyValue) or a local plain string.
+  // Both run through DOMPurify with the same allowlist as UserProfileView.vue
+  // (identical rendering + blocks a malicious PropertyValue smuggling
+  // <style>/<img onerror>/javascript: past the modal). newline -> <br> keeps
+  // local multi-line plaintext rendering as before.
   if (value == null) return ''
   const text = typeof value === 'string' ? value : String(value)
   // If the value doesn't already look like HTML, escape it so newlines

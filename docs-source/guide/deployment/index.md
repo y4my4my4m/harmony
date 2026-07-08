@@ -450,4 +450,4 @@ ALTER SYSTEM SET shared_buffers = '256MB';
 
 ---
 
-> 📝 **Next Steps**: Learn about [Monitoring](./monitoring.md) for comprehensive monitoring setup.
+> **Next steps:** [Monitoring](./monitoring.md) covers monitoring setup.

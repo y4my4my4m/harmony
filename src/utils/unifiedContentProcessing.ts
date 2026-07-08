@@ -29,11 +29,9 @@ const emojiUuidRegex = /:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-
 // Module-scoped regex; reset lastIndex per use to avoid cross-call interference.
 const emojiShortcodeRegex = createShortcodeRegex();
 
-// Hoisted to module scope; stateful 'g' patterns need lastIndex reset at
-// the call site before each use. Allocating a fresh RegExp inside every
-// `parseContentToMessageParts` / `parseTextForUrls` / `parseTextForEmojis`
-// call was a hot-path waste because these helpers run per-segment per
-// message (BUGS.md Pattern P-β + code-review M4).
+// Hoisted to module scope (BUGS.md Pattern P-β + code-review M4): these helpers
+// run per-segment per-message, so a fresh RegExp per call was hot-path waste.
+// Stateful 'g' patterns need lastIndex reset at the call site before each use.
 const MENTION_REGEX = /@([a-zA-Z0-9_-]+)(?:@([a-zA-Z0-9.-]+))?/g;
 const URL_PRESCAN_REGEX = URL_TOKEN_REGEX;
 const URL_MATCH_REGEX = new RegExp(`(${URL_TOKEN_REGEX.source})`, 'g');

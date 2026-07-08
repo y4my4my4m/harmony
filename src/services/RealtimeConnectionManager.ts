@@ -1,15 +1,7 @@
 /**
- * RealtimeConnectionManager
- * 
- * Professional-grade wrapper for Supabase realtime subscriptions with:
- * - Automatic reconnection with exponential backoff
- * - Connection health monitoring  
- * - Centralized subscription management
- * - Status tracking and callbacks
- * - Multi-event support (INSERT, UPDATE, DELETE)
- * - Global visibility and auth token refresh handling
- * 
- * Architecture similar to Discord/Slack for reliability.
+ * Wrapper for Supabase realtime subscriptions: exponential-backoff reconnect,
+ * health monitoring, centralized subscription mgmt, status callbacks,
+ * multi-event (INSERT/UPDATE/DELETE), visibility + auth-token-refresh handling.
  */
 
 import { supabase } from '@/supabase'
@@ -143,15 +135,10 @@ interface ManagedSubscription {
   lastError: string | null
   rapidCloseCount: number
   lastClosedAt: Date | null
-  /**
-   * Set whenever a subscription becomes disconnected for any reason
-   * (CHANNEL_ERROR / TIMED_OUT / CLOSED / `forceReconnect[All]` triggered
-   * by `online` / `visibilitychange`). Cleared when the next SUBSCRIBED
-   * event fires `onReconnected`. Required for gap-fill correctness - see
-   * BUGS.md C13: `forceReconnect()` resets `retryCount` to 0 before
-   * reconnecting, so the previous "wasReconnect = retryCount > 0" check
-   * silently missed every wake-from-sleep / network-restore gap.
-   */
+  // Set on any disconnect (CHANNEL_ERROR/TIMED_OUT/CLOSED/forceReconnect); cleared
+  // when the next SUBSCRIBED fires onReconnected. Required for gap-fill (BUGS.md C13):
+  // forceReconnect() zeroes retryCount, so the old "retryCount > 0" check missed
+  // every wake-from-sleep / network-restore gap.
   pendingGapFill: boolean
 }
 
@@ -171,17 +158,9 @@ const STALE_CONNECTION_THRESHOLD = 5 * 60 * 1000  // 5 minutes - very conservati
 
 // RealtimeConnectionManager Service
 
-/**
- * Threshold above which a returning-to-foreground tab is presumed to have a
- * silently-dead WebSocket. Mobile browsers/OSes commonly freeze background
- * tabs after ~30 seconds (Chrome on Android), and carrier NATs / sleep
- * states sever idle TCP connections without sending a FIN, so the channel
- * reports `SUBSCRIBED` long after delivery has actually stopped. Anything
- * past one minute hidden is almost guaranteed to need a fresh connection.
- *
- * Kept slightly conservative (60s rather than the 30s freeze-floor) to
- * avoid churn when the user briefly alt-tabs.
- */
+// Hidden longer than this => a returning tab is presumed to have a silently-dead
+// WebSocket (mobile freezes bg tabs ~30s, NAT/sleep sever idle TCP with no FIN, so
+// the channel still reports SUBSCRIBED). 60s not 30s to avoid churn on brief alt-tabs.
 const HIDDEN_FOR_STALE_MS = 60 * 1000
 
 class RealtimeConnectionManagerService {
@@ -195,12 +174,8 @@ class RealtimeConnectionManagerService {
   private onlineHandler: (() => void) | null = null
   private offlineHandler: (() => void) | null = null
   private visibilityHandler: (() => void) | null = null
-  /**
-   * Timestamp (ms epoch) when the tab last went to `hidden`. Cleared the
-   * moment we go visible again. Used to decide whether a visibility-change
-   * event should trigger a full reconnect (long absences = presume dead
-   * sockets) versus a cheap status sweep (short alt-tab).
-   */
+  // ms-epoch when tab last went hidden (cleared on visible). Long absence =>
+  // full reconnect (presume dead socket); short alt-tab => cheap status sweep.
   private hiddenAt: number | null = null
 
   // Lifecycle Methods
@@ -269,14 +244,10 @@ class RealtimeConnectionManagerService {
         debug.log(
           `👁️ RealtimeManager: Tab visible after ${Math.round(hiddenFor / 1000)}s (wsDead=${wsDead}) - forcing per-channel reconnect to flush stale sockets`,
         )
-        // Use per-channel reconnect (not the global path) because
-        // forceReconnect() explicitly tears down + rebuilds each channel,
-        // which routes through handleSubscriptionStatus and sets
-        // `pendingGapFill` so the SUBSCRIBED handler fires `onReconnected`
-        // (the hook DM/channel stores use to pull messages we missed
-        // while the WS was dead). The global path only bounces the
-        // underlying socket and may not surface a CLOSED status to each
-        // managed sub, so gap-fill could silently skip.
+        // Per-channel reconnect (not global): tears down + rebuilds each channel,
+        // setting pendingGapFill so SUBSCRIBED fires onReconnected (stores pull
+        // missed messages). Global path only bounces the socket and may not
+        // surface CLOSED per sub, so gap-fill could silently skip.
         this.forceReconnectAll()
         return
       }
@@ -336,16 +307,11 @@ class RealtimeConnectionManagerService {
     const { channelName } = config
     
     if (this.subscriptions.has(channelName)) {
-      // BUGS.md H29 (v2): the earlier "replace config in-place" approach was
-      // silently broken - `connectTableSubscription` closed over a LOCAL
-      // `config` reference, so reassigning `managedSub.config` didn't
-      // retarget the `onInsert`/`onUpdate`/`onDelete` handlers. Worse, the
-      // underlying Supabase channel was created with the OLD filter/table
-      // targets, so the new caller's filter set would be silently ignored
-      // even if the handlers HAD updated. The correct fix is to tear the
-      // channel down and rebuild it: this gives the new caller's handlers
-      // a fresh channel with their actual filters. Channel-name collisions
-      // are still a smell - we log loudly so they surface in dev/staging.
+      // BUGS.md H29 (v2): "replace config in-place" was broken - connectTable-
+      // Subscription closed over a LOCAL config, so reassigning managedSub.config
+      // didn't retarget handlers, and the channel kept the OLD filter/table. Fix:
+      // tear down + rebuild so the new caller gets a fresh channel with its filters.
+      // Name collisions are a smell - log loudly.
       debug.warn(
         `⚠️ RealtimeManager: duplicate subscription ${channelName} - tearing down and rebuilding with the new caller's handlers (BUGS.md H29). Callers should use unique channel names.`,
       )

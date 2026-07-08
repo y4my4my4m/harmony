@@ -55,18 +55,14 @@ export const useAuthStore = defineStore('auth', {
     },
 
     /**
-     * Read the JWT's `amr` (Authentication Methods References) claim and
-     * return the list of method names. Supabase records the methods the
-     * session was authenticated with - `password` after `signInWithPassword`,
-     * `totp` after `mfa.verify`, `oauth` after a third-party callback, etc.
+     * Read the JWT's `amr` (Authentication Methods References) claim - the methods
+     * the session authenticated with (`password`, `totp`, `oauth`, …).
      *
-     * Crucially, AMR persists through token refresh: it's session metadata,
-     * not a one-shot value. So a session that was once AAL2 (password+totp)
-     * still has `totp` in `amr` after Supabase's automatic AAL2 expiry
-     * downgrade to AAL1 (~24h default). That's how we distinguish "long
-     * session whose MFA grace period expired" (safe - keep the user logged
-     * in per docs/2FA_SECURITY_MODEL.md) from "fresh AAL1 mid-login that
-     * never completed MFA" (unsafe - must reject, BUGS.md C11/M64).
+     * AMR persists through token refresh (session metadata, not one-shot): a session
+     * once AAL2 (password+totp) still has `totp` in `amr` after Supabase's ~24h AAL2
+     * expiry downgrade to AAL1. That distinguishes "long session whose MFA grace
+     * expired" (safe - keep logged in per docs/2FA_SECURITY_MODEL.md) from "fresh
+     * AAL1 mid-login that never completed MFA" (unsafe - reject, BUGS.md C11/M64).
      */
     getAMR(session: Session | null): string[] {
       if (!session) return [];
@@ -86,34 +82,22 @@ export const useAuthStore = defineStore('auth', {
     },
 
     /**
-     * 🔒 CRITICAL SECURITY: Validate if a session is allowed to be adopted
-     * by this tab.
+     * 🔒 CRITICAL SECURITY: whether a session may be adopted by this tab.
      *
-     * Three accepted shapes (return true):
-     * - User has no MFA enabled (AAL1 is sufficient).
-     * - User has MFA, session is at AAL2 (just verified).
-     * - User has MFA, session is at AAL1, AND the session's `amr` claim
-     *   contains `totp` (i.e. MFA was completed earlier in this session
-     *   and AAL2 has since expired naturally - the documented long-session
-     *   UX in `docs/2FA_SECURITY_MODEL.md`).
+     * Accept (true): no MFA enabled; OR MFA + AAL2; OR MFA + AAL1 with `amr`
+     * containing `totp` (MFA completed earlier, AAL2 expired naturally - the
+     * long-session UX in docs/2FA_SECURITY_MODEL.md).
+     * Reject (false): MFA + AAL1 without `totp` in `amr` - a fresh password sign-in
+     * pre-MFA, or an OAuth callback for an MFA-enrolled user; must go to challenge.
      *
-     * One rejected shape (return false):
-     * - User has MFA, session is at AAL1, AND `amr` does NOT contain `totp`.
-     *   This is either a fresh password sign-in that hasn't yet completed
-     *   MFA (must redirect to challenge), or an OAuth callback for an
-     *   MFA-enrolled user (must show MFA challenge before granting access).
-     *
-     * The `amr` check is what closes the cross-tab MFA bypass without
-     * forcing every MFA user to re-enter their TOTP daily:
-     *   1. Tab A is logged in as UserA (no MFA).
-     *   2. Tab B logs out then starts password login as UserB (has MFA).
+     * The `amr` check closes the cross-tab MFA bypass without daily re-TOTP:
+     *   1. Tab A logged in as UserA (no MFA).
+     *   2. Tab B logs out, starts password login as UserB (has MFA).
      *   3. Tab B creates AAL1 session (amr=['password']) before TOTP verify.
-     *   4. Tab A refreshes and picks up Tab B's AAL1 session from storage.
-     *   5. Without this guard, Tab A would be logged in as UserB at AAL1.
-     *   6. With this guard, the AMR lacks `totp`, so we reject + sign out.
-     *
-     * Conversely, a UserB session that DID complete MFA (amr includes
-     * `totp`), then sat for 25h until AAL2 expired, is restored cleanly.
+     *   4. Tab A refreshes, picks up Tab B's AAL1 session from storage.
+     *   5. Without this guard, Tab A is logged in as UserB at AAL1.
+     *   6. With it, AMR lacks `totp`, so we reject + sign out.
+     * A UserB session that DID complete MFA then sat 25h until AAL2 expired restores cleanly.
      */
     async validateSessionForMFA(session: Session): Promise<boolean> {
       try {
@@ -202,26 +186,17 @@ export const useAuthStore = defineStore('auth', {
           this.isPasswordResetMode = true;
           this.session = session;
         } else if (currentPath === '/auth/callback') {
-          // OAuth callback path: Supabase's `detectSessionInUrl: true` has
-          // already exchanged the OAuth code for an AAL1 session by the time
-          // we get here (it runs at client-create time, which is before
-          // initializeAuth). If we run validateSessionForMFA on it now, an
-          // MFA-enrolled user gets rejected → signed out → AuthCallbackView
-          // mounts and finds no session, throws "Authentication failed",
-          // and the user is permanently locked out of OAuth login.
-          //
-          // Defer everything to AuthCallbackView, which has its own MFA
-          // challenge flow. We:
-          //   - Leave the session untouched in localStorage (the view will
-          //     read it via getSession()).
-          //   - Don't adopt it into Pinia (so isLoggedIn=false until the
-          //     view explicitly adopts after successful validation/MFA).
-          //   - Set _pendingMFAVerification so SIGNED_IN / INITIAL_SESSION
-          //     events fired during the OAuth processing are skipped by
-          //     `onAuthStateChange` (they'd otherwise hit the same
-          //     validateSessionForMFA rejection path).
-          //   - AuthCallbackView clears the flag after it adopts the session
-          //     itself or routes the user to MFA challenge / login.
+          // OAuth callback path: `detectSessionInUrl: true` already exchanged the
+          // code for an AAL1 session before initializeAuth runs. Validating it here
+          // would reject + sign out an MFA-enrolled user, so AuthCallbackView mounts
+          // with no session, throws "Authentication failed", and OAuth login is
+          // permanently locked out. Defer everything to AuthCallbackView (its own MFA
+          // flow):
+          //   - Leave the session in localStorage (view reads it via getSession()).
+          //   - Don't adopt into Pinia (isLoggedIn=false until the view adopts).
+          //   - Set _pendingMFAVerification so SIGNED_IN / INITIAL_SESSION during
+          //     OAuth processing are skipped in onAuthStateChange (same reject path).
+          //   - AuthCallbackView clears the flag after adopting or routing to MFA/login.
           debug.log('🔒 OAuth callback detected on initialization - deferring session adoption to AuthCallbackView');
           this._pendingMFAVerification = true;
           this.session = null;
@@ -557,27 +532,15 @@ export const useAuthStore = defineStore('auth', {
 
     async login(email: string, password: string) {
       // CRITICAL ORDERING: set the pending-MFA flag BEFORE signInWithPassword.
-      //
-      // `signInWithPassword` resolves with an AAL1 session and immediately
-      // queues a `SIGNED_IN` event as a microtask. The `await`s below for
-      // the suspended-user check and `listFactors` yield the event loop,
-      // letting that microtask run *before* we know whether MFA is needed.
-      //
-      // If the flag is set inside the `if (totpFactor)` branch (where it
-      // used to live), the SIGNED_IN handler runs while the flag is still
-      // false, calls `validateSessionForMFA` which rejects the AAL1 session
-      // for an MFA-enrolled user, and signs the user out. By the time
-      // `listFactors` runs, the session is already gone - `totpFactor` is
-      // undefined and `login()` returns `{ requires2FA: false }` despite
-      // the user clearly having 2FA. The login UI then shows "Welcome
-      // back!", navigates to /chat, and the protected route renders blank
-      // because the session is null. This was the user-reported bug:
-      // "log in, but nothing loads, and the MFA modal never appeared".
-      //
-      // Hoisting the flag to the very top means the SIGNED_IN handler
-      // returns early, the AAL1 session survives, listFactors actually
-      // finds the factor, and we either route to the MFA modal (2FA users)
-      // or finalize the session ourselves (non-2FA users) below.
+      // signInWithPassword resolves AAL1 and queues a SIGNED_IN microtask; the
+      // awaits below (suspended-user check, listFactors) yield the loop, letting it
+      // run before we know whether MFA is needed. If the flag were set inside the
+      // `if (totpFactor)` branch, SIGNED_IN would run flag-false, validateSessionForMFA
+      // rejects the AAL1 session and signs out an MFA user; listFactors then finds no
+      // session, so login() returns { requires2FA: false } despite 2FA - UI shows
+      // "Welcome back!", navigates to /chat, renders blank (the "nothing loads, MFA
+      // modal never appeared" bug). Hoisting the flag makes SIGNED_IN return early so
+      // the session survives for listFactors.
       this._pendingMFAVerification = true;
 
       try {

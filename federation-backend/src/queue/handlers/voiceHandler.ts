@@ -12,9 +12,7 @@ import { logger } from '../../utils/logger.js';
 import config from '../../config/index.js';
 import type { FederationJobData } from '../BullMQManager.js';
 
-// =============================================================================
 // VOICE CHANNEL JOIN HANDLER
-// =============================================================================
 
 export async function handleVoiceJoinJob(data: FederationJobData): Promise<void> {
   const supabase = getSupabaseClient();
@@ -123,9 +121,7 @@ export async function handleVoiceJoinJob(data: FederationJobData): Promise<void>
   }
 }
 
-// =============================================================================
 // VOICE CHANNEL LEAVE HANDLER
-// =============================================================================
 
 export async function handleVoiceLeaveJob(data: FederationJobData): Promise<void> {
   const supabase = getSupabaseClient();
@@ -210,9 +206,7 @@ export async function handleVoiceLeaveJob(data: FederationJobData): Promise<void
   }
 }
 
-// =============================================================================
 // HELPER FUNCTIONS
-// =============================================================================
 
 async function updateFederationStatus(
   channelId: string,

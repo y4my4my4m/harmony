@@ -548,18 +548,12 @@ export class LiveKitWebRTCService {
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
         debug.log('🚫 [LiveKit] Connection cancelled');
-        // BUGS.md H23: cancellation paths already call `leaveChannel()`
-        // inline; this catch only sees the error after they've torn down.
-        // Non-AbortError failures below still need explicit cleanup so a
-        // half-constructed Room / its event listeners don't leak.
+        // BUGS.md H23: cancellation paths already tore down inline; just propagate.
         throw error; // Re-throw to propagate cancellation
       }
       debug.error('❌ [LiveKit] Failed to join channel:', error);
-      // BUGS.md H23: previously the catch only logged + emitted. The Room
-      // was instantiated (`this.room = new Room(...)`) and its listeners
-      // were registered BEFORE `room.connect()` was awaited. A connect
-      // failure left both the Room object and the listeners alive,
-      // accumulating across retries. Tear down before returning.
+      // BUGS.md H23: Room + listeners are created before `room.connect()` is
+      // awaited, so a connect failure leaks both across retries. Tear down first.
       try {
         await this.leaveChannel();
       } catch (cleanupErr) {
@@ -1005,14 +999,10 @@ export class LiveKitWebRTCService {
 
       return this.localMediaState.isScreenSharing;
     } catch (error) {
-      // BUGS.md #8 - when the user dismisses the screen-share picker,
-      // `setScreenShareEnabled` throws but spatial-audio listeners had
-      // already started flipping audio routing in anticipation of the
-      // share. Without this notification, the consumer was leaving both
-      // the spatial (wet) graph AND the traditional `<audio>` (dry)
-      // playback enabled simultaneously, producing a "two streams at
-      // once" effect after a cancel. Emit a state change so listeners
-      // can re-derive the correct audio routing.
+      // BUGS.md #8 - dismissing the screen-share picker throws after spatial-audio
+      // listeners already flipped audio routing, leaving both spatial (wet) and
+      // traditional <audio> (dry) playback on ("two streams" effect). Emit a state
+      // change so listeners re-derive the correct routing.
       debug.error('❌ [LiveKit] Failed to toggle screen share:', error);
       this.localMediaState.isScreenSharing = false;
       this.broadcastMediaState();
@@ -2158,15 +2148,12 @@ export class LiveKitWebRTCService {
   }
 
   // ---------------------------------------------------------------------------
-  // Shared-key distribution (Model S)
-  //
-  // All participants must hold the same 32-byte room key. A deterministic
-  // "coordinator" (smallest participant identity) mints the key ONCE and ships
-  // it, Megolm-wrapped, over LiveKit's data channel; everyone else applies what
-  // they receive. On membership change the coordinator re-broadcasts the SAME
-  // key (re-wrapped for the new member) rather than rotating - regenerating per
-  // join desynced peers and triggered MissingKey/InvalidKey. The SFU only ever
-  // sees Megolm ciphertext, never the key bytes.
+  // Shared-key distribution (Model S): all participants hold the same 32-byte
+  // room key. Coordinator (smallest participant identity) mints it ONCE and ships
+  // it Megolm-wrapped over the data channel; others apply what they receive. On
+  // membership change the coordinator re-broadcasts the SAME key (re-wrapped),
+  // not a new one — rotating per join desynced peers (MissingKey/InvalidKey).
+  // SFU only ever sees Megolm ciphertext, never the key bytes.
   // ---------------------------------------------------------------------------
 
   /** Identities of everyone currently in the room (self + remotes). */
@@ -2184,13 +2171,12 @@ export class LiveKitWebRTCService {
   }
 
   /**
-   * Profile UUID for a participant. The LiveKit token embeds the real profile
-   * UUID in `metadata.profileId` (see federation-backend LiveKitService), so we
-   * trust that first. We MUST: the identity is always the synthetic
-   * `federated:https://{domain}/users/{username}` form - even for local users-
-   * and `resolveIdentityToUuid` can't map a local user's synthetic federated
-   * identity back to a UUID (they have no `federated_id` row), which silently
-   * dropped them from the Megolm recipient list -> "MissingKey".
+   * Profile UUID for a participant, from `metadata.profileId` (embedded in the
+   * LiveKit token, see federation-backend LiveKitService) first. Required: the
+   * identity is always the synthetic `federated:https://{domain}/users/{username}`
+   * form even for local users, which `resolveIdentityToUuid` can't map back to a
+   * UUID (no `federated_id` row) — silently dropping them from Megolm recipients
+   * -> "MissingKey".
    */
   private async resolveParticipantUuid(p: { identity: string; metadata?: string }): Promise<string | null> {
     if (p.metadata) {

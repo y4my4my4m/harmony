@@ -48,9 +48,7 @@ import {
   normalizeActor,
 } from '../activitypub/converters/fromActivityPub.js'
 
-// ============================================================================
 // toActivityPub tests
-// ============================================================================
 describe('toActivityPub converters', () => {
   describe('postToNote', () => {
     const author = { username: 'alice' }
@@ -386,9 +384,7 @@ describe('toActivityPub converters', () => {
   })
 })
 
-// ============================================================================
 // fromActivityPub tests
-// ============================================================================
 describe('fromActivityPub converters', () => {
   describe('noteToContent', () => {
     it('converts plain text HTML Note to MessagePart', () => {

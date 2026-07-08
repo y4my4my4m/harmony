@@ -83,9 +83,7 @@ export interface RequestContext {
   isLocal: boolean;
 }
 
-// =============================================================================
 // VOICE/VIDEO ACTIVITY TYPES (Harmony Extensions)
-// =============================================================================
 
 /**
  * Voice call invitation activity

@@ -226,8 +226,7 @@ export function useLayoutState() {
     rightSidebarOpen.value = false
   }
 
-  // ===== DRAG GESTURE FUNCTIONS =====
-  
+  // DRAG GESTURE FUNCTIONS  
   /**
    * Start a drag operation for native-feeling sidebar gestures
    * Tracks initial state to determine if we're opening or closing
