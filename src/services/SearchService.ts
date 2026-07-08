@@ -92,7 +92,7 @@ export class SearchService {
       const fromDate = filters.fromDate?.toISOString() || null
       const toDate = filters.toDate?.toISOString() || null
 
-      debug.log('🔍 Searching messages:', {
+      debug.log('Searching messages:', {
         query: filters.query.substring(0, 50),
         channelIds: channelIds?.length || 0,
         userId: filters.userId,
@@ -127,7 +127,7 @@ export class SearchService {
       })
 
       if (error) {
-        debug.error('❌ Search error:', error)
+        debug.error('Search error:', error)
         throw new Error(`Search failed: ${error.message}`)
       }
 
@@ -143,14 +143,14 @@ export class SearchService {
         .map(r => messageMap.get(r.message_id))
         .filter((m): m is Message => m !== undefined)
 
-      debug.log(`✅ Found ${sortedMessages.length} messages (hasMore: ${hasMore})`)
+      debug.log(`Found ${sortedMessages.length} messages (hasMore: ${hasMore})`)
 
       return {
         results: sortedMessages,
         hasMore
       }
     } catch (error) {
-      debug.error('❌ Failed to search messages:', error)
+      debug.error('Failed to search messages:', error)
       throw error
     }
   }
@@ -171,7 +171,7 @@ export class SearchService {
         .or('is_deleted.is.null,is_deleted.eq.false')
 
       if (error) {
-        debug.error('❌ Failed to load messages:', error)
+        debug.error('Failed to load messages:', error)
         throw error
       }
 
@@ -196,21 +196,21 @@ export class SearchService {
 
       // Decrypt encrypted messages
       if (messages.some(m => m.encrypted || m.encryption_metadata)) {
-        debug.log('🔐 Search results contain encrypted messages, attempting decryption...')
+        debug.log('Search results contain encrypted messages, attempting decryption...')
         try {
           const { processMessageDecryption } = await import('@/utils/messageDecryption')
           const decryptedMessages = await processMessageDecryption(messages)
-          debug.log('🔓 Search result decryption complete')
+          debug.log('Search result decryption complete')
           return decryptedMessages
         } catch (decryptError) {
-          debug.warn('⚠️ Failed to decrypt search results:', decryptError)
+          debug.warn('Failed to decrypt search results:', decryptError)
           return messages
         }
       }
 
       return messages
     } catch (error) {
-      debug.error('❌ Failed to load messages by IDs:', error)
+      debug.error('Failed to load messages by IDs:', error)
       throw error
     }
   }
@@ -228,7 +228,7 @@ export class SearchService {
     const { batchSize = 100, signal, onProgress } = options
 
     try {
-      debug.log('🔄 Starting message reindexing...')
+      debug.log('Starting message reindexing...')
 
       const { count, error: countError } = await supabase
         .from('messages')
@@ -240,7 +240,7 @@ export class SearchService {
       }
 
       const total = count || 0
-      debug.log(`📊 Found ${total} messages to index`)
+      debug.log(`Found ${total} messages to index`)
 
       let processed = 0
       let offset = 0
@@ -284,12 +284,12 @@ export class SearchService {
         }
 
         offset += batchSize
-        debug.log(`✅ Processed ${processed}/${total} messages`)
+        debug.log(`Processed ${processed}/${total} messages`)
       }
 
-      debug.log(`✅ Reindexing complete: ${processed} messages indexed`)
+      debug.log(`Reindexing complete: ${processed} messages indexed`)
     } catch (error) {
-      debug.error('❌ Failed to reindex messages:', error)
+      debug.error('Failed to reindex messages:', error)
       throw error
     }
   }

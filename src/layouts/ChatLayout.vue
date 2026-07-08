@@ -457,7 +457,7 @@ const handleChannelCreated = (channel?: any) => {
 const navigateToDefaultIfNeeded = async () => {
   // Only auto-navigate if we're on the bare /chat route with no params
   if (!props.isDM && route.name === 'Chat' && !route.params.serverId && !route.params.channelId) {
-    debug.log('🔄 Auto-navigating to default server/channel')
+    debug.log('Auto-navigating to default server/channel')
     
     if (serverChannelStore.servers.length === 0) {
       // Wait a bit for servers to load
@@ -486,7 +486,7 @@ const navigateToDefaultIfNeeded = async () => {
       
       // Navigate to the server/channel
       if (targetServerId && targetChannelId) {
-        debug.log('🎯 Navigating to:', { serverId: targetServerId, channelId: targetChannelId })
+        debug.log('Navigating to:', { serverId: targetServerId, channelId: targetChannelId })
         router.replace({ 
           name: 'ChatChannel', 
           params: { 

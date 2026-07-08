@@ -411,7 +411,7 @@ const getCursorPosition = (): number => {
 const setCursorPosition = (targetPosition: number) => {
   if (!editorRef.value) return;
 
-  debug.log('🔧 setCursorPosition called with:', targetPosition);
+  debug.log('setCursorPosition called with:', targetPosition);
   setSelectionOffsets(targetPosition, targetPosition);
 };
 
@@ -643,18 +643,18 @@ const appendBlockquote = (
 };
 
 const renderContent = (text: string, skipCursorRestore = false) => {
-  debug.log('🔧 renderContent called with:', text, 'skipCursorRestore:', skipCursorRestore);
+  debug.log('renderContent called with:', text, 'skipCursorRestore:', skipCursorRestore);
   if (!editorRef.value || isRendering.value) {
-    debug.log('🔧 renderContent early return:', { hasEditor: !!editorRef.value, isRendering: isRendering.value });
+    debug.log('renderContent early return:', { hasEditor: !!editorRef.value, isRendering: isRendering.value });
     return;
   }
   
   isRendering.value = true;
   const currentCursorPos = getCursorPosition();
-  debug.log('🔧 Current cursor position:', currentCursorPos);
+  debug.log('Current cursor position:', currentCursorPos);
   
   editorRef.value.innerHTML = '';
-  debug.log('🔧 Cleared editor content');
+  debug.log('Cleared editor content');
   
   if (!text || text.trim().length === 0) {
     // Keep editor truly empty (no BR tags) so placeholder shows via CSS :empty:before
@@ -689,13 +689,13 @@ const renderContent = (text: string, skipCursorRestore = false) => {
     nextTick(() => {
       if (editorRef.value && (document.activeElement === editorRef.value || 
           editorRef.value.contains(document.activeElement))) {
-        debug.log('🔧 Restoring cursor position to:', currentCursorPos);
+        debug.log('Restoring cursor position to:', currentCursorPos);
         setCursorPosition(currentCursorPos);
       }
       isRendering.value = false;
     });
   } else {
-    debug.log('🔧 Skipping cursor restore, will be set externally');
+    debug.log('Skipping cursor restore, will be set externally');
     nextTick(() => {
       isRendering.value = false;
     });
@@ -1182,11 +1182,11 @@ const autoExpand = () => {
 // Focus the editor
 const focus = () => {
   if (editorRef.value) {
-    debug.log('🔧 focus() called, editor exists:', !!editorRef.value);
+    debug.log('focus() called, editor exists:', !!editorRef.value);
     
     // Blur first to ensure clean state
     if (document.activeElement === editorRef.value) {
-      debug.log('🔧 Editor already focused, blurring first');
+      debug.log('Editor already focused, blurring first');
       editorRef.value.blur();
     }
     
@@ -1196,14 +1196,14 @@ const focus = () => {
     // Double-check focus was established
     requestAnimationFrame(() => {
       if (editorRef.value && document.activeElement !== editorRef.value) {
-        debug.warn('🔧 Focus attempt failed, trying again');
+        debug.warn('Focus attempt failed, trying again');
         editorRef.value.focus();
       }
-      debug.log('🔧 After focus(), activeElement:', document.activeElement === editorRef.value);
-      debug.log('🔧 Has selection:', !!window.getSelection()?.rangeCount);
+      debug.log('After focus(), activeElement:', document.activeElement === editorRef.value);
+      debug.log('Has selection:', !!window.getSelection()?.rangeCount);
     });
   } else {
-    debug.warn('🔧 focus() called but editorRef is null');
+    debug.warn('focus() called but editorRef is null');
   }
 };
 
@@ -1248,19 +1248,19 @@ watch(() => serverChannelStore.currentServerId, () => {
 watch(() => props.modelValue, (newValue) => {
   if (editorRef.value) {
     if (skipNextWatch.value) {
-      debug.log('🔧 Skipping watch cycle due to manual cursor control');
+      debug.log('Skipping watch cycle due to manual cursor control');
       skipNextWatch.value = false;
       return;
     }
     
     const currentText = getPlainText();
-    debug.log('🔧 RichTextEditor watch triggered:', { 
+    debug.log('RichTextEditor watch triggered:', { 
       newValue: JSON.stringify(newValue), 
       currentText: JSON.stringify(currentText), 
       different: currentText !== newValue 
     });
     if (currentText !== newValue) {
-      debug.log('🔧 Calling renderContent with:', JSON.stringify(newValue), '(from watch)');
+      debug.log('Calling renderContent with:', JSON.stringify(newValue), '(from watch)');
       // Don't skip cursor restore here - this is for normal typing
       renderContent(newValue || '', false);
       autoExpand();

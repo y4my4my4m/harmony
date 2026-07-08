@@ -44,7 +44,7 @@ export class ViewContextTracker {
    * Called by useViewContext when user navigates
    */
   updateContext(newContext: ViewContext) {
-    debug.log('🎯 ViewContext updated:', newContext)
+    debug.log('ViewContext updated:', newContext)
     this.currentContext = { ...newContext }
   }
 
@@ -130,7 +130,7 @@ export class ViewContextTracker {
     ) {
       const currentConvId = this.currentContext.conversation_id
       if (currentConvId && activeConversationId && currentConvId === activeConversationId) {
-        debug.warn('🎯 ViewContext: DM notification missing conversation_id, suppressed via activeConversationId fallback')
+        debug.warn('ViewContext: DM notification missing conversation_id, suppressed via activeConversationId fallback')
         return { ...SUPPRESSED, reason: 'User is viewing the source conversation (fallback match)' }
       }
     }
@@ -186,7 +186,7 @@ export class ViewContextTracker {
       if (error) {
         debug.warn('Failed to auto-clear notifications for context:', error)
       } else if (data && data > 0) {
-        debug.log(`🎯 Auto-cleared ${data} notifications for ${contextType}:${contextId}`)
+        debug.log(`Auto-cleared ${data} notifications for ${contextType}:${contextId}`)
       }
     } catch (error) {
       debug.error('Error clearing notifications for context:', error)
@@ -198,7 +198,7 @@ export class ViewContextTracker {
    */
   reset() {
     this.currentContext = { view_type: 'home' }
-    debug.log('🎯 ViewContext reset')
+    debug.log('ViewContext reset')
   }
 }
 

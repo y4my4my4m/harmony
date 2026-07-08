@@ -113,14 +113,14 @@ const getStatusClass = (status: UserStatus) => {
 }
 
 const refreshData = async () => {
-  debug.log('🔄 Refreshing user data...')
+  debug.log('Refreshing user data...')
   await refresh()
-  debug.log('✅ User data refreshed')
+  debug.log('User data refreshed')
 }
 
 const logStats = () => {
   const currentStats = stats.value
-  debug.log('📊 Current User Data Stats:', currentStats)
+  debug.log('Current User Data Stats:', currentStats)
 }
 </script>
 

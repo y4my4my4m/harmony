@@ -36,7 +36,7 @@ async function refresh(): Promise<void> {
     unreadCount.value = await announcementService.getUnreadCount()
     hasLoaded.value = true
   } catch (err) {
-    debug.warn('⚠️ useAnnouncementUnreadCount: refresh failed', err)
+    debug.warn('useAnnouncementUnreadCount: refresh failed', err)
   } finally {
     inFlight = false
   }

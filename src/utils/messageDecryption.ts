@@ -38,14 +38,14 @@ export async function processMessageDecryption(messages: Message[]): Promise<Mes
     const module = await import('@/services/encryption/MegolmMessageEncryptionService')
     encryptionService = module.megolmMessageEncryptionService
   } catch (error) {
-    debug.warn('⚠️ Megolm encryption service not available:', error)
+    debug.warn('Megolm encryption service not available:', error)
     lastDecryptionError = 'Encryption service not available'
     // Preserve original content - UI shows glyphs based on encrypted && !decrypted
     return messages
   }
   
   if (!encryptionService) {
-    debug.log('ℹ️ Encryption service not available - encrypted messages will show as glyphs')
+    debug.log('ℹEncryption service not available - encrypted messages will show as glyphs')
     lastDecryptionError = 'Encryption service not available'
     return messages
   }
@@ -55,22 +55,22 @@ export async function processMessageDecryption(messages: Message[]): Promise<Mes
     try {
       const { data: { session } } = await supabase.auth.getSession()
       if (session?.user?.id) {
-        debug.log('🔐 Lazy-initializing encryption for decryption...')
+        debug.log('Lazy-initializing encryption for decryption...')
         await encryptionService.initialize(session.user.id)
       }
     } catch (error) {
-      debug.warn('⚠️ Failed to lazy-initialize encryption for decryption:', error)
+      debug.warn('Failed to lazy-initialize encryption for decryption:', error)
     }
   }
 
   if (!encryptionService.isInitialized()) {
-    debug.log('ℹ️ Encryption not initialized - encrypted messages will show as glyphs')
+    debug.log('ℹEncryption not initialized - encrypted messages will show as glyphs')
     lastDecryptionError = 'Encryption service not initialized'
     return messages
   }
   
   if (!encryptionService.isUnlocked()) {
-    debug.log('🔐 Encryption locked - enter recovery key to decrypt messages')
+    debug.log('Encryption locked - enter recovery key to decrypt messages')
     lastDecryptionError = 'Enter recovery key to unlock encryption'
     // Preserve original content - UI shows glyphs based on encrypted && !decrypted
     return messages
@@ -81,7 +81,7 @@ export async function processMessageDecryption(messages: Message[]): Promise<Mes
   const currentUserId = encryptionService.getCurrentUserId()
   
   if (!currentUserId) {
-    debug.log('ℹ️ No user ID in encryption service - encrypted messages will show as glyphs')
+    debug.log('ℹNo user ID in encryption service - encrypted messages will show as glyphs')
     lastDecryptionError = 'User ID not available in encryption service'
     // Preserve original content - UI shows glyphs based on encrypted && !decrypted
     return messages
@@ -110,7 +110,7 @@ export async function processMessageDecryption(messages: Message[]): Promise<Mes
       await encryptionService.prefetchSigningKeys(senderIds)
     }
   } catch (error) {
-    debug.warn('⚠️ Signing key prefetch failed (non-fatal):', error)
+    debug.warn('Signing key prefetch failed (non-fatal):', error)
   }
 
   // "Identity epoch": messages encrypted before our current identity was created

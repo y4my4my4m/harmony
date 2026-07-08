@@ -83,7 +83,7 @@ export class CoreInteractionService {
         throw this.createError('INVALID_ACTION', 'Cannot follow yourself')
       }
 
-      debug.log(`🔄 Core: Toggling follow for user: ${targetUserId}`)
+      debug.log(`Core: Toggling follow for user: ${targetUserId}`)
 
       // Check current follow status
       const { data: existingFollow, error: followError } = await supabase
@@ -119,7 +119,7 @@ export class CoreInteractionService {
 
         if (error) throw this.createError('UNFOLLOW_FAILED', 'Failed to unfollow user', error)
         following = false
-        debug.log(`✅ Core: Successfully unfollowed user: ${targetUserId}`)
+        debug.log(`Core: Successfully unfollowed user: ${targetUserId}`)
       } else {
         const { data: targetUser, error: userError } = await supabase
           .from('profiles')
@@ -171,12 +171,12 @@ export class CoreInteractionService {
         
         following = status === 'accepted'
         pending = status === 'pending'
-        debug.log(`✅ Core: Successfully followed user: ${targetUserId} (status: ${status})`)
+        debug.log(`Core: Successfully followed user: ${targetUserId} (status: ${status})`)
       }
 
       return { following, pending }
     } catch (error) {
-      debug.error('❌ Core: Failed to toggle follow:', error)
+      debug.error('Core: Failed to toggle follow:', error)
       throw error
     }
   }
@@ -194,7 +194,7 @@ export class CoreInteractionService {
         throw this.createError('INVALID_INPUT', 'Follower user ID is required')
       }
 
-      debug.log(`🔄 Core: Accepting follow request from: ${followerUserId}`)
+      debug.log(`Core: Accepting follow request from: ${followerUserId}`)
 
       // Secure update with authorization verification
       const { data, error } = await supabase
@@ -214,9 +214,9 @@ export class CoreInteractionService {
         throw this.createError('REQUEST_NOT_FOUND', 'Follow request not found or already processed')
       }
 
-      debug.log(`✅ Core: Successfully accepted follow request from: ${followerUserId}`)
+      debug.log(`Core: Successfully accepted follow request from: ${followerUserId}`)
     } catch (error) {
-      debug.error('❌ Core: Failed to accept follow request:', error)
+      debug.error('Core: Failed to accept follow request:', error)
       throw error
     }
   }
@@ -234,7 +234,7 @@ export class CoreInteractionService {
         throw this.createError('INVALID_INPUT', 'Follower user ID is required')
       }
 
-      debug.log(`🔄 Core: Rejecting follow request from: ${followerUserId}`)
+      debug.log(`Core: Rejecting follow request from: ${followerUserId}`)
 
       // Status update (not delete): the federation backend listens for the
       // pending->rejected transition to deliver a Reject activity; a bare
@@ -253,9 +253,9 @@ export class CoreInteractionService {
         throw this.createError('REQUEST_NOT_FOUND', 'Follow request not found or already processed')
       }
 
-      debug.log(`✅ Core: Successfully rejected follow request from: ${followerUserId}`)
+      debug.log(`Core: Successfully rejected follow request from: ${followerUserId}`)
     } catch (error) {
-      debug.error('❌ Core: Failed to reject follow request:', error)
+      debug.error('Core: Failed to reject follow request:', error)
       throw error
     }
   }
@@ -280,7 +280,7 @@ export class CoreInteractionService {
         throw this.createError('INVALID_ACTION', 'Cannot block yourself')
       }
 
-      debug.log(`🔄 Core: Toggling block for user: ${targetUserId}`)
+      debug.log(`Core: Toggling block for user: ${targetUserId}`)
 
       // Check current block status
       const { data: existingBlock, error: blockError } = await supabase
@@ -304,7 +304,7 @@ export class CoreInteractionService {
 
         if (error) throw this.createError('UNBLOCK_FAILED', 'Failed to unblock user', error)
         blocked = false
-        debug.log(`✅ Core: Successfully unblocked user: ${targetUserId}`)
+        debug.log(`Core: Successfully unblocked user: ${targetUserId}`)
       } else {
         // Block user with secure transaction (block + remove follows)
         const { error: blockError } = await supabase
@@ -328,12 +328,12 @@ export class CoreInteractionService {
           .or(`and(follower_id.eq.${profileId},following_id.eq.${targetUserId}),and(follower_id.eq.${targetUserId},following_id.eq.${profileId})`)
 
         blocked = true
-        debug.log(`✅ Core: Successfully blocked user: ${targetUserId}`)
+        debug.log(`Core: Successfully blocked user: ${targetUserId}`)
       }
 
       return { blocked }
     } catch (error) {
-      debug.error('❌ Core: Failed to toggle block:', error)
+      debug.error('Core: Failed to toggle block:', error)
       throw error
     }
   }
@@ -358,7 +358,7 @@ export class CoreInteractionService {
         throw this.createError('INVALID_ACTION', 'Cannot mute yourself')
       }
 
-      debug.log(`🔄 Core: Toggling mute for user: ${targetUserId}`)
+      debug.log(`Core: Toggling mute for user: ${targetUserId}`)
 
       // Check current mute status
       const { data: existingMute, error: muteError } = await supabase
@@ -382,7 +382,7 @@ export class CoreInteractionService {
 
         if (error) throw this.createError('UNMUTE_FAILED', 'Failed to unmute user', error)
         muted = false
-        debug.log(`✅ Core: Successfully unmuted user: ${targetUserId}`)
+        debug.log(`Core: Successfully unmuted user: ${targetUserId}`)
       } else {
         // Mute user with secure insertion
         const { error } = await supabase
@@ -403,12 +403,12 @@ export class CoreInteractionService {
         }
 
         muted = true
-        debug.log(`✅ Core: Successfully muted user: ${targetUserId}`)
+        debug.log(`Core: Successfully muted user: ${targetUserId}`)
       }
 
       return { muted }
     } catch (error) {
-      debug.error('❌ Core: Failed to toggle mute:', error)
+      debug.error('Core: Failed to toggle mute:', error)
       throw error
     }
   }
@@ -445,7 +445,7 @@ export class CoreInteractionService {
 
       const relationships: Record<string, UserRelationship> = {}
 
-      debug.log(`🔄 Core: Getting relationships for ${sanitizedUserIds.length} users`)
+      debug.log(`Core: Getting relationships for ${sanitizedUserIds.length} users`)
 
       sanitizedUserIds.forEach(id => {
         relationships[id] = {
@@ -509,10 +509,10 @@ export class CoreInteractionService {
         })
       }
 
-      debug.log(`✅ Core: Successfully retrieved relationships for ${sanitizedUserIds.length} users`)
+      debug.log(`Core: Successfully retrieved relationships for ${sanitizedUserIds.length} users`)
       return relationships
     } catch (error) {
-      debug.error('❌ Core: Failed to get user relationships:', error)
+      debug.error('Core: Failed to get user relationships:', error)
       // Return empty object on error to avoid breaking UI
       return {}
     }
@@ -533,7 +533,7 @@ export class CoreInteractionService {
       // Input validation and security limits
       const secureLimit = Math.min(Math.max(1, limit), this.MAX_PAGINATION_LIMIT)
 
-      debug.log(`🔄 Core: Getting follow requests (limit: ${secureLimit})`)
+      debug.log(`Core: Getting follow requests (limit: ${secureLimit})`)
 
       let query = supabase
         .from('follows')
@@ -584,14 +584,14 @@ export class CoreInteractionService {
         ? actualRequests[actualRequests.length - 1].created_at 
         : undefined
 
-      debug.log(`✅ Core: Found ${transformedRequests.length} follow requests`)
+      debug.log(`Core: Found ${transformedRequests.length} follow requests`)
       return {
         requests: transformedRequests,
         hasMore,
         nextCursor
       }
     } catch (error) {
-      debug.error('❌ Core: Failed to get follow requests:', error)
+      debug.error('Core: Failed to get follow requests:', error)
       throw error
     }
   }
@@ -609,7 +609,7 @@ export class CoreInteractionService {
       // Security limits
       const secureLimit = Math.min(Math.max(1, limit), this.MAX_PAGINATION_LIMIT)
 
-      debug.log(`🔄 Core: Getting followers for user: ${userId}`)
+      debug.log(`Core: Getting followers for user: ${userId}`)
 
       let query = supabase
         .from('follows')
@@ -657,10 +657,10 @@ export class CoreInteractionService {
         ? actualFollowers[actualFollowers.length - 1].created_at 
         : undefined
 
-      debug.log(`✅ Core: Found ${users.length} followers`)
+      debug.log(`Core: Found ${users.length} followers`)
       return { users, hasMore, nextCursor }
     } catch (error) {
-      debug.error('❌ Core: Failed to get followers:', error)
+      debug.error('Core: Failed to get followers:', error)
       throw error
     }
   }
@@ -678,7 +678,7 @@ export class CoreInteractionService {
       // Security limits
       const secureLimit = Math.min(Math.max(1, limit), this.MAX_PAGINATION_LIMIT)
 
-      debug.log(`🔄 Core: Getting following for user: ${userId}`)
+      debug.log(`Core: Getting following for user: ${userId}`)
 
       let query = supabase
         .from('follows')
@@ -726,10 +726,10 @@ export class CoreInteractionService {
         ? actualFollowing[actualFollowing.length - 1].created_at 
         : undefined
 
-      debug.log(`✅ Core: Found ${users.length} following`)
+      debug.log(`Core: Found ${users.length} following`)
       return { users, hasMore, nextCursor }
     } catch (error) {
-      debug.error('❌ Core: Failed to get following:', error)
+      debug.error('Core: Failed to get following:', error)
       throw error
     }
   }
@@ -744,7 +744,7 @@ export class CoreInteractionService {
     try {
       return await authContextService.getCurrentProfileId()
     } catch (error) {
-      debug.error('❌ Core: Failed to get current user profile ID:', error)
+      debug.error('Core: Failed to get current user profile ID:', error)
       throw this.createError('AUTH_REQUIRED', 'User not authenticated')
     }
   }

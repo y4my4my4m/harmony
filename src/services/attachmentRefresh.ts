@@ -86,6 +86,6 @@ export async function requestAttachmentRefresh(messageId: string | null | undefi
     })
   } catch (error) {
     // Best-effort; a failure just means the broken image stays broken for now.
-    debug.warn('⚠️ Attachment refresh request failed:', error)
+    debug.warn('Attachment refresh request failed:', error)
   }
 }

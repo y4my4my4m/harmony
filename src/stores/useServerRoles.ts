@@ -36,9 +36,9 @@ export const useServerRolesStore = defineStore('serverRoles', () => {
         }
         userRolesByServer.value.set(serverId, userRoles)
         _tick.value++
-        debug.log(`🎭 ServerRolesStore: loaded ${sortedRoles.length} roles, ${userRoles.size} member assignments for ${serverId}`)
+        debug.log(`ServerRolesStore: loaded ${sortedRoles.length} roles, ${userRoles.size} member assignments for ${serverId}`)
       } catch (err) {
-        debug.error('🎭 ServerRolesStore: load failed for', serverId, err)
+        debug.error('ServerRolesStore: load failed for', serverId, err)
       } finally {
         inflight.delete(serverId)
       }

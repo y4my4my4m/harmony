@@ -49,15 +49,15 @@ export class CorePostService {
    */
   async createPost(data: CreatePostData): Promise<TimelinePost> {
     try {
-      debug.log('🚀 Core: createPost starting...')
+      debug.log('Core: createPost starting...')
       
       // Use AuthContextService for auth check (cached)
       const authUser = await authContextService.getCurrentAuthUser()
       if (!authUser) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
-      debug.log('✅ Core: Auth user verified')
+      debug.log('Core: Auth user verified')
 
       const profileId = await this.getCurrentUserProfileId()
-      debug.log('✅ Core: Profile ID retrieved:', profileId)
+      debug.log('Core: Profile ID retrieved:', profileId)
 
       // Enterprise-grade content validation
       if (!Array.isArray(data.content)) {
@@ -88,7 +88,7 @@ export class CorePostService {
         )
       }
 
-      debug.log('✅ Core: Content validation passed')
+      debug.log('Core: Content validation passed')
 
       // Enforce max media attachments per post (instance config, default 20)
       let mediaAttachments = data.media_attachments || []
@@ -122,7 +122,7 @@ export class CorePostService {
         metadata: { created_via: 'harmony_client', content_format: 'message_parts_v1' }
       }
 
-      debug.log('🔄 Core: Inserting post into database...')
+      debug.log('Core: Inserting post into database...')
       
       // Simple query - trust Supabase to handle connection
       const { data: post, error } = await supabase
@@ -135,15 +135,15 @@ export class CorePostService {
         .single()
 
       if (error) {
-        debug.error('❌ Core: Insert failed:', error)
+        debug.error('Core: Insert failed:', error)
         throw this.createError('INSERT_FAILED', error.message, error)
       }
 
-      debug.log('✅ Core: Post created successfully (local only), id:', post?.id)
+      debug.log('Core: Post created successfully (local only), id:', post?.id)
       
       return this.formatTimelinePost(post)
     } catch (error: any) {
-      debug.error('❌ Core: Failed to create post:', error)
+      debug.error('Core: Failed to create post:', error)
       throw error
     }
   }
@@ -197,10 +197,10 @@ export class CorePostService {
 
       if (error) throw this.createError('UPDATE_FAILED', error.message, error)
 
-      debug.log('✅ Core: Post updated successfully (local only)')
+      debug.log('Core: Post updated successfully (local only)')
       return this.formatTimelinePost(post)
     } catch (error) {
-      debug.error('❌ Core: Failed to update post:', error)
+      debug.error('Core: Failed to update post:', error)
       throw error
     }
   }
@@ -233,9 +233,9 @@ export class CorePostService {
 
       if (error) throw this.createError('DELETE_FAILED', error.message, error)
 
-      debug.log('✅ Core: Post deleted successfully (local only)')
+      debug.log('Core: Post deleted successfully (local only)')
     } catch (error) {
-      debug.error('❌ Core: Failed to delete post:', error)
+      debug.error('Core: Failed to delete post:', error)
       throw error
     }
   }
@@ -250,7 +250,7 @@ export class CorePostService {
     try {
       const profileId = await this.getCurrentUserProfileId()
 
-      debug.log(`🔄 Core: Toggling like: post=${postId}, user=${profileId}`)
+      debug.log(`Core: Toggling like: post=${postId}, user=${profileId}`)
 
       const { data: existingLike } = await supabase
         .from('post_interactions')
@@ -299,10 +299,10 @@ export class CorePostService {
         .eq('id', postId)
         .single()
 
-      debug.log(`✅ Core: Like ${liked ? 'added' : 'removed'} successfully`)
+      debug.log(`Core: Like ${liked ? 'added' : 'removed'} successfully`)
       return { liked, newCount: postRow?.favorites_count ?? 0 }
     } catch (error) {
-      debug.error('❌ Core: Failed to toggle like:', error)
+      debug.error('Core: Failed to toggle like:', error)
       throw error
     }
   }
@@ -315,7 +315,7 @@ export class CorePostService {
     try {
       const profileId = await this.getCurrentUserProfileId()
 
-      debug.log(`🔄 Core: Toggling share: post=${postId}, user=${profileId}`)
+      debug.log(`Core: Toggling share: post=${postId}, user=${profileId}`)
 
       const { data: existingShare } = await supabase
         .from('post_interactions')
@@ -363,10 +363,10 @@ export class CorePostService {
         .eq('id', postId)
         .single()
 
-      debug.log(`✅ Core: Share ${shared ? 'added' : 'removed'} successfully`)
+      debug.log(`Core: Share ${shared ? 'added' : 'removed'} successfully`)
       return { shared, newCount: postRow?.reblogs_count ?? 0 }
     } catch (error) {
-      debug.error('❌ Core: Failed to toggle share:', error)
+      debug.error('Core: Failed to toggle share:', error)
       throw error
     }
   }
@@ -379,7 +379,7 @@ export class CorePostService {
     try {
       const profileId = await this.getCurrentUserProfileId()
 
-      debug.log(`🔄 Core: Toggling bookmark: post=${postId}, user=${profileId}`)
+      debug.log(`Core: Toggling bookmark: post=${postId}, user=${profileId}`)
 
       const { data: existingBookmark } = await supabase
         .from('post_interactions')
@@ -419,10 +419,10 @@ export class CorePostService {
         bookmarked = true
       }
 
-      debug.log(`✅ Core: Bookmark ${bookmarked ? 'added' : 'removed'} successfully`)
+      debug.log(`Core: Bookmark ${bookmarked ? 'added' : 'removed'} successfully`)
       return { bookmarked }
     } catch (error) {
-      debug.error('❌ Core: Failed to toggle bookmark:', error)
+      debug.error('Core: Failed to toggle bookmark:', error)
       throw error
     }
   }
@@ -482,10 +482,10 @@ export class CorePostService {
 
       if (updateError) throw this.createError('PIN_UPDATE_FAILED', updateError.message, updateError)
 
-      debug.log(`📌 Core: Post ${postId} ${targetState ? 'pinned' : 'unpinned'}`)
+      debug.log(`Core: Post ${postId} ${targetState ? 'pinned' : 'unpinned'}`)
       return { pinned: targetState }
     } catch (error) {
-      debug.error('❌ Core: Failed to toggle pin:', error)
+      debug.error('Core: Failed to toggle pin:', error)
       throw error
     }
   }
@@ -508,7 +508,7 @@ export class CorePostService {
       if (error) throw this.createError('FETCH_PINNED_FAILED', error.message, error)
       return data || []
     } catch (error) {
-      debug.error('❌ Core: Failed to fetch pinned posts:', error)
+      debug.error('Core: Failed to fetch pinned posts:', error)
       throw error
     }
   }
@@ -524,7 +524,7 @@ export class CorePostService {
     try {
       const profileId = await this.getCurrentUserProfileId()
 
-      debug.log(`🔄 Core: Toggling post reaction: post=${postId}, emoji=${emojiId}, user=${profileId}`)
+      debug.log(`Core: Toggling post reaction: post=${postId}, emoji=${emojiId}, user=${profileId}`)
 
       const { data: existingReaction } = await supabase
         .from('post_interactions')
@@ -550,7 +550,7 @@ export class CorePostService {
 
         if (error) throw this.createError('REMOVE_REACTION_FAILED', error.message, error)
         
-        debug.log('✅ Core: Post reaction removed successfully')
+        debug.log('Core: Post reaction removed successfully')
         return { added: false }
       } else {
         const { error } = await supabase
@@ -566,7 +566,7 @@ export class CorePostService {
         if (error) {
           // Handle race condition (duplicate constraint violation)
           if (error.code === '23505') {
-            debug.log('🎯 Core: Race condition detected in post reaction toggle')
+            debug.log('Core: Race condition detected in post reaction toggle')
             
             // Double-check current state after race condition
             const { data: nowExists } = await supabase
@@ -581,7 +581,7 @@ export class CorePostService {
               .maybeSingle()
 
             if (nowExists) {
-              debug.log('✅ Core: Post reaction was added by another process, treating as success')
+              debug.log('Core: Post reaction was added by another process, treating as success')
               return { added: true, hadRaceCondition: true }
             } else {
               throw this.createError('RACE_CONDITION_ERROR', 'Unexpected duplicate error state')
@@ -590,11 +590,11 @@ export class CorePostService {
           throw this.createError('ADD_REACTION_FAILED', error.message, error)
         }
         
-        debug.log('✅ Core: Post reaction added successfully')
+        debug.log('Core: Post reaction added successfully')
         return { added: true }
       }
     } catch (error) {
-      debug.error('❌ Core: Failed to toggle post reaction:', error)
+      debug.error('Core: Failed to toggle post reaction:', error)
       throw error
     }
   }
@@ -604,20 +604,20 @@ export class CorePostService {
    */
   async getPostReactions(postId: string): Promise<any[]> {
     try {
-      debug.log(`🔄 Core: Fetching reactions for post: ${postId}`)
+      debug.log(`Core: Fetching reactions for post: ${postId}`)
       
       const { data: reactions, error } = await supabase
         .rpc('get_post_emoji_reactions', { p_post_id: postId })
 
       if (error) {
-        debug.error('❌ Core: Failed to fetch post reactions:', error)
+        debug.error('Core: Failed to fetch post reactions:', error)
         throw this.createError('FETCH_REACTIONS_FAILED', error.message, error)
       }
 
-      debug.log(`✅ Core: Fetched ${reactions?.length || 0} reaction groups for post: ${postId}`)
+      debug.log(`Core: Fetched ${reactions?.length || 0} reaction groups for post: ${postId}`)
       return reactions || []
     } catch (error) {
-      debug.error('❌ Core: Error in getPostReactions:', error)
+      debug.error('Core: Error in getPostReactions:', error)
       throw error
     }
   }
@@ -634,14 +634,14 @@ export class CorePostService {
         return {}
       }
 
-      debug.log(`🔄 Core: Batch fetching reactions for ${postIds.length} posts`)
+      debug.log(`Core: Batch fetching reactions for ${postIds.length} posts`)
       
       // Use the optimized database function
       const { data: reactions, error } = await supabase
         .rpc('get_batch_post_reactions', { post_ids: postIds })
 
       if (error) {
-        debug.error('❌ Core: Failed to batch fetch post reactions:', error)
+        debug.error('Core: Failed to batch fetch post reactions:', error)
         throw this.createError('BATCH_FETCH_POST_REACTIONS_FAILED', error.message, error)
       }
 
@@ -672,10 +672,10 @@ export class CorePostService {
         })
       })
 
-      debug.log(`✅ Core: Batch fetched reactions for ${postIds.length} posts (${reactions?.length || 0} reaction groups)`)
+      debug.log(`Core: Batch fetched reactions for ${postIds.length} posts (${reactions?.length || 0} reaction groups)`)
       return groupedReactions
     } catch (error) {
-      debug.error('❌ Core: Error in getBatchPostReactions:', error)
+      debug.error('Core: Error in getBatchPostReactions:', error)
       throw error
     }
   }
@@ -695,7 +695,7 @@ export class CorePostService {
     try {
       const { limit = 20, before, after, signal } = options
 
-      debug.log(`🔄 Core: Loading ${timeline} timeline posts`)
+      debug.log(`Core: Loading ${timeline} timeline posts`)
 
       let query = supabase
         .from('timeline_posts')
@@ -732,10 +732,10 @@ export class CorePostService {
         })
       }
 
-      debug.log(`✅ Core: Loaded ${postList.length} posts with reactions for ${timeline} timeline`)
+      debug.log(`Core: Loaded ${postList.length} posts with reactions for ${timeline} timeline`)
       return postList
     } catch (error) {
-      debug.error('❌ Core: Failed to load timeline posts:', error)
+      debug.error('Core: Failed to load timeline posts:', error)
       throw error
     }
   }
@@ -745,7 +745,7 @@ export class CorePostService {
    */
   async loadPost(postId: string): Promise<TimelinePost | null> {
     try {
-      debug.log(`🔄 Core: Loading post: ${postId}`)
+      debug.log(`Core: Loading post: ${postId}`)
 
       const { data: post, error } = await supabase
         .from('posts')
@@ -758,7 +758,7 @@ export class CorePostService {
 
       if (error) {
         if (error.code === 'PGRST116') {
-          debug.log(`ℹ️ Core: Post not found: ${postId}`)
+          debug.log(`ℹCore: Post not found: ${postId}`)
           return null
         }
         throw this.createError('LOAD_POST_FAILED', error.message, error)
@@ -786,10 +786,10 @@ export class CorePostService {
         // User not logged in or profile not found - keep defaults
       }
 
-      debug.log(`✅ Core: Loaded post: ${postId}`)
+      debug.log(`Core: Loaded post: ${postId}`)
       return formatted
     } catch (error) {
-      debug.error('❌ Core: Failed to load post:', error)
+      debug.error('Core: Failed to load post:', error)
       throw error
     }
   }
@@ -798,7 +798,7 @@ export class CorePostService {
 
   private async getCurrentUserProfileId(): Promise<string> {
     try {
-      debug.log('🔍 Core: Getting current user profile ID...')
+      debug.log('Core: Getting current user profile ID...')
       
       // Use cached profile ID from AuthContextService
       const profileId = await authContextService.getCurrentProfileId()
@@ -807,10 +807,10 @@ export class CorePostService {
         throw this.createError('PROFILE_NOT_FOUND', 'User profile not found')
       }
       
-      debug.log('✅ Core: Got profile ID:', profileId)
+      debug.log('Core: Got profile ID:', profileId)
       return profileId
     } catch (error) {
-      debug.error('❌ Core: Failed to get current user profile ID:', error)
+      debug.error('Core: Failed to get current user profile ID:', error)
       throw error
     }
   }

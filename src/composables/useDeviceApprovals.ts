@@ -95,7 +95,7 @@ async function onApprovedForThisDevice(payload: Record<string, any>) {
     await megolmMessageEncryptionService.claimPendingSessionShares().catch(() => 0)
     window.dispatchEvent(new CustomEvent('megolm-key-received', { detail: { roomId: '*', sessionId: '*' } }))
   } catch (err) {
-    debug.warn('⚠️ Post-approval key sync failed:', err)
+    debug.warn('Post-approval key sync failed:', err)
   }
   try {
     const { useNotificationStore } = await import('@/stores/useNotification')
@@ -225,7 +225,7 @@ export function useDeviceApprovals() {
         )
       } catch { /* non-fatal */ }
     } catch (err) {
-      debug.error('❌ secureThisLogin failed:', err)
+      debug.error('secureThisLogin failed:', err)
       throw err
     }
   }

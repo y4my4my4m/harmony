@@ -278,7 +278,7 @@ const handleOpenSearch = () => {
 // Single source of truth for timeline loading - only watch currentView prop changes
 watch(() => props.currentView, (newView, oldView) => {
   if (newView && newView !== oldView) {
-    debug.log(`🔄 Timeline view changed from ${oldView} to ${newView}, loading content`)
+    debug.log(`Timeline view changed from ${oldView} to ${newView}, loading content`)
     loadTimeline()
   }
 }, { immediate: true }) // Load on initial mount via currentView prop
@@ -291,7 +291,7 @@ onMounted(() => {
 
   // Only load if currentView is not provided (legacy support)
   if (!props.currentView) {
-    debug.log(`🔄 Timeline mounted without currentView prop, loading default timeline`)
+    debug.log(`Timeline mounted without currentView prop, loading default timeline`)
     loadTimeline()
   }
 })

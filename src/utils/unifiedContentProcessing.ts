@@ -784,14 +784,14 @@ async function parseTextForEmojis(text: string, emojiDataMap: Record<string, any
     if (emojiData) {
       // SIMPLIFIED: If emoji is from unified pack (has unicode), just output as text!
       if (emojiData._inlineAsText && emojiData.unicode) {
-        debug.log('✅ Inlining unified emoji as text:', emojiData.unicode);
+        debug.log('Inlining unified emoji as text:', emojiData.unicode);
         parts.push({ type: 'text', text: emojiData.unicode });
       } else {
         // Server custom emoji - needs the full object for URL lookup
         parts.push({ type: 'emoji', emoji: emojiData });
       }
     } else {
-      debug.warn('⚠️ Emoji not resolved, showing as text:', emojiMatch[0]);
+      debug.warn('Emoji not resolved, showing as text:', emojiMatch[0]);
       parts.push({ type: 'text', text: emojiMatch[0] });
     }
     

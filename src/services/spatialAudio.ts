@@ -91,7 +91,7 @@ export class SpatialAudioService {
     if (this.isInitialized) return;
 
     try {
-      debug.log('🎧 Initializing Spatial Audio Service...');
+      debug.log('Initializing Spatial Audio Service...');
       
       this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({
         latencyHint: 'interactive', // Prioritize low latency for voice chat
@@ -107,7 +107,7 @@ export class SpatialAudioService {
       
       this.isInitialized = true;
       
-      debug.log('🎧 Professional Spatial Audio Service initialized:', {
+      debug.log('Professional Spatial Audio Service initialized:', {
         sampleRate: this.audioContext.sampleRate,
         state: this.audioContext.state,
         baseLatency: this.audioContext.baseLatency,
@@ -123,7 +123,7 @@ export class SpatialAudioService {
       // Note: Update loop is started only when spatial audio is enabled via enableSpatialAudio()
       
     } catch (error) {
-      debug.error('❌ Failed to initialize spatial audio:', error);
+      debug.error('Failed to initialize spatial audio:', error);
       throw error;
     }
   }
@@ -152,7 +152,7 @@ export class SpatialAudioService {
     
     this.destination = this.audioContext.destination;
     
-    debug.log('🎛️ Master audio processing chain created with professional dynamics');
+    debug.log('Master audio processing chain created with professional dynamics');
   }
 
   /**
@@ -168,9 +168,9 @@ export class SpatialAudioService {
         const key = size.toString();
         this.impulseResponseCache[key] = this.createImpulseResponse(size);
       }
-      debug.log('🎧 Pre-loaded impulse responses for room sizes:', roomSizes);
+      debug.log('Pre-loaded impulse responses for room sizes:', roomSizes);
     } catch (error) {
-      debug.warn('⚠️ Failed to pre-load impulse responses:', error);
+      debug.warn('Failed to pre-load impulse responses:', error);
     }
   }
 
@@ -181,7 +181,7 @@ export class SpatialAudioService {
    */
   setListener(userId: string): void {
     this.listenerUserId = userId;
-    debug.log('🎧 Set spatial audio listener:', userId);
+    debug.log('Set spatial audio listener:', userId);
   }
 
   /**
@@ -190,46 +190,46 @@ export class SpatialAudioService {
    */
   async setupSpatialForUser(userId: string, mediaStream: MediaStream): Promise<void> {
     if (!this.audioContext || !this.destination) {
-      debug.warn('⚠️ Spatial audio not initialized - call initialize() first');
+      debug.warn('Spatial audio not initialized - call initialize() first');
       return;
     }
 
     // Safety check: Don't process the listener's own stream
     if (userId === this.listenerUserId) {
-      debug.warn('⚠️ Attempted to setup spatial audio for listener - skipping');
+      debug.warn('Attempted to setup spatial audio for listener - skipping');
       return;
     }
 
     if (!mediaStream) {
-      debug.warn('⚠️ No media stream provided for user:', userId);
+      debug.warn('No media stream provided for user:', userId);
       return;
     }
 
     const audioTracks = mediaStream.getAudioTracks();
     if (audioTracks.length === 0) {
-      debug.warn('⚠️ No audio tracks in stream for user:', userId);
+      debug.warn('No audio tracks in stream for user:', userId);
       return;
     }
 
-    debug.log('🎧 Setting up professional spatial audio for user:', userId);
+    debug.log('Setting up professional spatial audio for user:', userId);
     
     try {
       this.removeUser(userId);
 
       const audioTracks = mediaStream.getAudioTracks();
-      debug.log(`🎧 Stream has ${audioTracks.length} audio tracks:`);
+      debug.log(`Stream has ${audioTracks.length} audio tracks:`);
       audioTracks.forEach((track, i) => {
         debug.log(`   Track ${i}: id=${track.id.substring(0, 8)}..., label=${track.label}, enabled=${track.enabled}, muted=${track.muted}, readyState=${track.readyState}`);
       });
       
       if (audioTracks.length === 0) {
-        debug.warn('⚠️ No audio tracks to process for spatial audio!');
+        debug.warn('No audio tracks to process for spatial audio!');
         return;
       }
       
       const liveTracks = audioTracks.filter(t => t.readyState === 'live' && t.enabled);
       if (liveTracks.length === 0) {
-        debug.warn('⚠️ No live/enabled audio tracks for spatial audio!');
+        debug.warn('No live/enabled audio tracks for spatial audio!');
       }
 
       // Create audio source directly from MediaStream (better quality than HTMLAudioElement)
@@ -258,12 +258,12 @@ export class SpatialAudioService {
 
       // Ensure AudioContext is running (browser autoplay policies)
       if (this.audioContext.state === 'suspended') {
-        debug.log('🎧 AudioContext was suspended, resuming...');
+        debug.log('AudioContext was suspended, resuming...');
         await this.audioContext.resume();
       }
-      debug.log('🎧 AudioContext state:', this.audioContext.state);
+      debug.log('AudioContext state:', this.audioContext.state);
       
-      debug.log('✅ Professional spatial audio setup complete for user:', userId, {
+      debug.log('Professional spatial audio setup complete for user:', userId, {
         audioContextState: this.audioContext.state,
         hasReverb: !!processingChain.convolver,
         pannerType: processingChain.panner.constructor.name,
@@ -273,7 +273,7 @@ export class SpatialAudioService {
       this.updateSpatialEffects();
       
     } catch (error) {
-      debug.error('❌ Failed to setup spatial audio for user:', userId, error);
+      debug.error('Failed to setup spatial audio for user:', userId, error);
       throw error;
     }
   }
@@ -346,16 +346,16 @@ export class SpatialAudioService {
     if (!node) return;
 
     try {
-      debug.log('🎧 Removing spatial audio for user:', userId);
+      debug.log('Removing spatial audio for user:', userId);
       
       // Disconnect all audio nodes safely
       this.disconnectAudioChain(node);
       
       this.spatialNodes.delete(userId);
       
-      debug.log('✅ Successfully removed spatial audio for user:', userId);
+      debug.log('Successfully removed spatial audio for user:', userId);
     } catch (error) {
-      debug.error('❌ Failed to remove spatial audio for user:', userId, error);
+      debug.error('Failed to remove spatial audio for user:', userId, error);
     }
   }
 
@@ -378,7 +378,7 @@ export class SpatialAudioService {
       
       node.isConnected = false;
     } catch (error) {
-      debug.warn('⚠️ Error during audio chain disconnection:', error);
+      debug.warn('Error during audio chain disconnection:', error);
     }
   }
 
@@ -460,7 +460,7 @@ export class SpatialAudioService {
             node.pannerNode.setPosition(0, 0, -1);
           }
         } catch (error) {
-          debug.warn('⚠️ Failed to reset 3D position for user:', userId, error);
+          debug.warn('Failed to reset 3D position for user:', userId, error);
         }
       }
       
@@ -489,7 +489,7 @@ export class SpatialAudioService {
       
       node.gainNode.gain.setTargetAtTime(clampedGain, currentTime, transitionTime);
     } catch (error) {
-      debug.error('❌ Failed to set gain for user:', userId, error);
+      debug.error('Failed to set gain for user:', userId, error);
     }
   }
 
@@ -548,7 +548,7 @@ export class SpatialAudioService {
         }
       }
     } catch (error) {
-      debug.error('❌ Failed to set panning for user:', userId, error);
+      debug.error('Failed to set panning for user:', userId, error);
     }
   }
 
@@ -599,9 +599,9 @@ export class SpatialAudioService {
       }
       
       // Note: Removed per-frame debug logging for performance
-      // Uncomment for debugging: debug.log(`🎧 Set binaural position for ${userId}: angle ${(angle * 180 / Math.PI).toFixed(0)}°`);
+      // Uncomment for debugging: debug.log(`Set binaural position for ${userId}: angle ${(angle * 180 / Math.PI).toFixed(0)}°`);
     } catch (error) {
-      debug.error('❌ Failed to set 3D position for user:', userId, error);
+      debug.error('Failed to set 3D position for user:', userId, error);
     }
   }
 
@@ -612,7 +612,7 @@ export class SpatialAudioService {
    */
   updateUserPosition(userId: string, x: number, y: number): void {
     if (!this.isInitialized) {
-      debug.warn('⚠️ Spatial audio not initialized - position update ignored');
+      debug.warn('Spatial audio not initialized - position update ignored');
       return;
     }
 
@@ -623,7 +623,7 @@ export class SpatialAudioService {
     // Immediately trigger spatial effects update for responsive positioning
     this.updateSpatialEffects();
     
-    debug.log(`🎧 Updated position for ${userId}: (${x}, ${y})`);
+    debug.log(`Updated position for ${userId}: (${x}, ${y})`);
   }
 
   /**
@@ -634,7 +634,7 @@ export class SpatialAudioService {
   startSpatialUpdates(): void {
     // No-op: We no longer use an animation frame loop.
     // Spatial effects are updated on-demand when positions change.
-    debug.log('🎧 Spatial audio updates now triggered by position changes (no animation loop)');
+    debug.log('Spatial audio updates now triggered by position changes (no animation loop)');
   }
 
   /**
@@ -662,7 +662,7 @@ export class SpatialAudioService {
     if (spatialStore.settings.panningModel === 'equalpower') {
       const pannerNode = this.audioContext.createStereoPanner();
       pannerNode.pan.value = 0; // Start at center
-      debug.log('🎧 Created StereoPannerNode for equalpower panning');
+      debug.log('Created StereoPannerNode for equalpower panning');
       return pannerNode;
     }
     
@@ -679,7 +679,7 @@ export class SpatialAudioService {
     pannerNode.maxDistance = 10000;
     pannerNode.rolloffFactor = 0;
     
-    debug.log('🎧 Created PannerNode with settings:', {
+    debug.log('Created PannerNode with settings:', {
       panningModel: pannerNode.panningModel,
       distanceModel: pannerNode.distanceModel,
       refDistance: pannerNode.refDistance,
@@ -778,7 +778,7 @@ export class SpatialAudioService {
       }
     }
     
-    debug.log(`🎧 Created realistic room reverb: ${length} samples, room size: ${roomSize}`);
+    debug.log(`Created realistic room reverb: ${length} samples, room size: ${roomSize}`);
     return impulse;
   }
 
@@ -793,10 +793,10 @@ export class SpatialAudioService {
       const arrayBuffer = await response.arrayBuffer();
       const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
       
-      debug.log(`🎧 Loaded external impulse response from: ${url}`);
+      debug.log(`Loaded external impulse response from: ${url}`);
       return audioBuffer;
     } catch (error) {
-      debug.warn(`⚠️ Failed to load external impulse response: ${url}`, error);
+      debug.warn(`Failed to load external impulse response: ${url}`, error);
       throw error;
     }
   }
@@ -808,7 +808,7 @@ export class SpatialAudioService {
    * Reconnects spatial audio nodes if they were disconnected
    */
   async enableSpatialAudio(): Promise<void> {
-    debug.log('🎧 Enabling spatial audio...');
+    debug.log('Enabling spatial audio...');
     
     if (!this.isInitialized) {
       await this.initialize();
@@ -820,7 +820,7 @@ export class SpatialAudioService {
     for (const [userId, node] of this.spatialNodes) {
       if (!node.isConnected) {
         try {
-          debug.log(`🔊 Reconnecting spatial audio chain for user: ${userId}`);
+          debug.log(`Reconnecting spatial audio chain for user: ${userId}`);
           
           // Reconnect the audio chain
           node.source.connect(node.gainNode);
@@ -845,7 +845,7 @@ export class SpatialAudioService {
           node.isConnected = true;
           
         } catch (error) {
-          debug.error(`❌ Failed to reconnect spatial audio for user ${userId}:`, error);
+          debug.error(`Failed to reconnect spatial audio for user ${userId}:`, error);
         }
       }
     }
@@ -863,9 +863,9 @@ export class SpatialAudioService {
             convolver.connect(node.pannerNode);
             
             node.convolver = convolver;
-            debug.log('🎧 Re-enabled reverb for user:', userId);
+            debug.log('Re-enabled reverb for user:', userId);
           } catch (error) {
-            debug.error('❌ Failed to re-enable reverb for user:', userId, error);
+            debug.error('Failed to re-enable reverb for user:', userId, error);
           }
         }
       }
@@ -874,7 +874,7 @@ export class SpatialAudioService {
     this.startSpatialUpdates();
     
     this.updateSpatialEffects();
-    debug.log('✅ Spatial audio enabled - WET signal active');
+    debug.log('Spatial audio enabled - WET signal active');
   }
 
   /**
@@ -882,7 +882,7 @@ export class SpatialAudioService {
    * Disconnects all spatial audio nodes to prevent double audio (dry + wet)
    */
   disableSpatialAudio(): void {
-    debug.log('🎧 Disabling spatial audio...');
+    debug.log('Disabling spatial audio...');
     
     this.stopSpatialUpdates();
     
@@ -890,7 +890,7 @@ export class SpatialAudioService {
     // When disabled, only the DRY signal from HTMLAudioElement should play
     this.spatialNodes.forEach((node, userId) => {
       try {
-        debug.log(`🔇 Disconnecting spatial audio chain for user: ${userId}`);
+        debug.log(`Disconnecting spatial audio chain for user: ${userId}`);
         
         // Disconnect the entire audio chain IN REVERSE ORDER
         // Disconnect outputGain first - this cuts off audio to destination!
@@ -917,18 +917,18 @@ export class SpatialAudioService {
         node.isConnected = false;
         
       } catch (error) {
-        debug.warn(`⚠️ Error disconnecting spatial audio for user ${userId}:`, error);
+        debug.warn(`Error disconnecting spatial audio for user ${userId}:`, error);
       }
     });
     
-    debug.log('✅ Spatial audio disabled - all WET signals disconnected, DRY signal only');
+    debug.log('Spatial audio disabled - all WET signals disconnected, DRY signal only');
   }
 
   /**
    * Update settings and recreate audio nodes as needed
    */
   async updateSettings(): Promise<void> {
-    debug.log('🎧 Updating spatial audio settings...');
+    debug.log('Updating spatial audio settings...');
     
     this.updateSpatialEffects();
     
@@ -948,9 +948,9 @@ export class SpatialAudioService {
           convolver.connect(node.pannerNode);
           
           node.convolver = convolver;
-          debug.log('✅ Added reverb for user:', userId);
+          debug.log('Added reverb for user:', userId);
         } catch (error) {
-          debug.error('❌ Failed to add reverb for user:', userId, error);
+          debug.error('Failed to add reverb for user:', userId, error);
         }
       } else if (!shouldHaveReverb && hasReverb) {
         try {
@@ -963,9 +963,9 @@ export class SpatialAudioService {
           node.gainNode.disconnect();
           node.gainNode.connect(node.pannerNode);
           
-          debug.log('✅ Removed reverb for user:', userId);
+          debug.log('Removed reverb for user:', userId);
         } catch (error) {
-          debug.error('❌ Failed to remove reverb for user:', userId, error);
+          debug.error('Failed to remove reverb for user:', userId, error);
         }
       } else if (hasReverb && node.convolver) {
         try {
@@ -979,14 +979,14 @@ export class SpatialAudioService {
           newConvolver.connect(node.pannerNode);
           
           node.convolver = newConvolver;
-          debug.log('✅ Updated reverb for user:', userId);
+          debug.log('Updated reverb for user:', userId);
         } catch (error) {
-          debug.error('❌ Failed to update reverb for user:', userId, error);
+          debug.error('Failed to update reverb for user:', userId, error);
         }
       }
     }
     
-    debug.log('✅ Spatial audio settings updated');
+    debug.log('Spatial audio settings updated');
   }
 
   /**
@@ -997,7 +997,7 @@ export class SpatialAudioService {
     
     const targetGain = deafened ? 0 : 1.0;
     this.masterGainNode.gain.setTargetAtTime(targetGain, this.audioContext.currentTime, 0.015);
-    debug.log(`🔇 Spatial audio ${deafened ? 'deafened (gain→0)' : 'undeafened (gain→1)'}`);
+    debug.log(`Spatial audio ${deafened ? 'deafened (gain→0)' : 'undeafened (gain→1)'}`);
   }
 
   /**
@@ -1023,7 +1023,7 @@ export class SpatialAudioService {
    * Debug method to check audio output state
    */
   debugAudioState(): void {
-    debug.log('🔍 Spatial Audio Debug State:');
+    debug.log('Spatial Audio Debug State:');
     debug.log('- Initialized:', this.isInitialized);
     debug.log('- AudioContext state:', this.audioContext?.state || 'not-created');
     debug.log('- Active spatial nodes:', this.spatialNodes.size);
@@ -1031,7 +1031,7 @@ export class SpatialAudioService {
     debug.log('- Listener user:', this.listenerUserId);
     
     this.spatialNodes.forEach((node, userId) => {
-      debug.log(`\n👤 User ${userId}:`);
+      debug.log(`\nUser ${userId}:`);
       debug.log('  - Connected:', node.isConnected);
       debug.log('  - Has gain node:', !!node.gainNode);
       debug.log('  - Gain value:', node.gainNode?.gain.value);
@@ -1058,7 +1058,7 @@ export class SpatialAudioService {
     });
     
     const spatialStore = useSpatialAudioStore();
-    debug.log('\n📊 Spatial Store State:');
+    debug.log('\nSpatial Store State:');
     debug.log('- Spatial audio enabled in store:', spatialStore.settings.enabled);
     debug.log('- Panning model setting:', spatialStore.settings.panningModel);
     debug.log('- Distance model setting:', spatialStore.settings.distanceModel);
@@ -1066,7 +1066,7 @@ export class SpatialAudioService {
     debug.log('- Max distance setting:', spatialStore.settings.maxDistance);
     debug.log('- User positions:', Array.from(spatialStore.userPositions.entries()));
     
-    debug.log('\n🔊 Checking traditional audio elements...');
+    debug.log('\nChecking traditional audio elements...');
     const { unifiedWebRTC } = require('@/services/unifiedWebRTC');
     const connections = unifiedWebRTC.getAllUsers();
     connections.forEach((user: any) => {
@@ -1080,7 +1080,7 @@ export class SpatialAudioService {
    * Destroy spatial audio service and cleanup all resources
    */
   async destroy(): Promise<void> {
-    debug.log('🎧 Destroying spatial audio service...');
+    debug.log('Destroying spatial audio service...');
     
     if (this.animationFrameId) {
       cancelAnimationFrame(this.animationFrameId);
@@ -1099,7 +1099,7 @@ export class SpatialAudioService {
       try {
         this.compressorNode.disconnect();
       } catch (error) {
-        debug.warn('⚠️ Error disconnecting compressor node:', error);
+        debug.warn('Error disconnecting compressor node:', error);
       }
       this.compressorNode = null;
     }
@@ -1109,7 +1109,7 @@ export class SpatialAudioService {
       try {
         this.masterGainNode.disconnect();
       } catch (error) {
-        debug.warn('⚠️ Error disconnecting master gain node:', error);
+        debug.warn('Error disconnecting master gain node:', error);
       }
       this.masterGainNode = null;
     }
@@ -1117,9 +1117,9 @@ export class SpatialAudioService {
     if (this.audioContext && this.audioContext.state !== 'closed') {
       try {
         await this.audioContext.close();
-        debug.log('✅ AudioContext closed successfully');
+        debug.log('AudioContext closed successfully');
       } catch (error) {
-        debug.warn('⚠️ Error closing AudioContext:', error);
+        debug.warn('Error closing AudioContext:', error);
       }
     }
     
@@ -1129,7 +1129,7 @@ export class SpatialAudioService {
     this.isInitialized = false;
     this.lastUpdateTime = 0;
     
-    debug.log('✅ Professional Spatial Audio Service destroyed');
+    debug.log('Professional Spatial Audio Service destroyed');
   }
 }
 
@@ -1139,5 +1139,5 @@ export const spatialAudioService = new SpatialAudioService();
 // Expose to window for debugging in console
 if (typeof window !== 'undefined') {
   (window as any).spatialAudioService = spatialAudioService;
-  debug.log('🎧 spatialAudioService exposed to window for debugging');
+  debug.log('spatialAudioService exposed to window for debugging');
 }

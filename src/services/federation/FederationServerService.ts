@@ -102,7 +102,7 @@ export class FederationServerService {
    */
   async discoverServer(input: string): Promise<DiscoverServerResult> {
     try {
-      debug.log(`🔍 Discovering: ${input}`)
+      debug.log(`Discovering: ${input}`)
 
       const inviteMatch = input.match(/^https?:\/\/([^/]+)\/invite\/([A-Za-z0-9]+)$/i)
       if (inviteMatch) {
@@ -159,11 +159,11 @@ export class FederationServerService {
         instance: serverInstance,
       }
 
-      debug.log(`✅ Found remote server: ${server.name} on ${server.instance}`)
+      debug.log(`Found remote server: ${server.name} on ${server.instance}`)
       return { success: true, server, isInvite: false }
 
     } catch (error: any) {
-      debug.error('❌ Error discovering remote server:', error)
+      debug.error('Error discovering remote server:', error)
       return {
         success: false,
         error: error.message || 'Failed to connect to federation backend',
@@ -187,7 +187,7 @@ export class FederationServerService {
     code: string
   ): Promise<DiscoverServerResult> {
     try {
-      debug.log(`🎟️ Resolving invite: ${code} from ${instance}`)
+      debug.log(`Resolving invite: ${code} from ${instance}`)
 
       // Route through local backend to avoid CORS issues
       // Backend will proxy the request to the remote instance
@@ -243,11 +243,11 @@ export class FederationServerService {
         createdBy: data.createdBy,
       }
 
-      debug.log(`✅ Resolved invite to: ${server.name} on ${instance}`)
+      debug.log(`Resolved invite to: ${server.name} on ${instance}`)
       return { success: true, server, invite, isInvite: true }
 
     } catch (error: any) {
-      debug.error('❌ Error resolving invite:', error)
+      debug.error('Error resolving invite:', error)
       return {
         success: false,
         error: error.message || 'Failed to resolve invite link',
@@ -270,7 +270,7 @@ export class FederationServerService {
     inviteCode?: string
   ): Promise<JoinServerResult> {
     try {
-      debug.log(`👋 Joining remote server: ${serverUrl}${inviteCode ? ` with invite ${inviteCode}` : ''}`)
+      debug.log(`Joining remote server: ${serverUrl}${inviteCode ? ` with invite ${inviteCode}` : ''}`)
 
       const { data: { session } } = await supabase.auth.getSession()
       if (!session?.access_token) {
@@ -303,7 +303,7 @@ export class FederationServerService {
         }
       }
 
-      debug.log(`✅ Join request sent, status: ${data.status}`)
+      debug.log(`Join request sent, status: ${data.status}`)
       return {
         success: true,
         serverId: data.serverId,
@@ -312,7 +312,7 @@ export class FederationServerService {
       }
 
     } catch (error: any) {
-      debug.error('❌ Error joining remote server:', error)
+      debug.error('Error joining remote server:', error)
       return {
         success: false,
         error: error.message || 'Failed to connect to federation backend',
@@ -330,7 +330,7 @@ export class FederationServerService {
    */
   async leaveServer(serverId: string, userId: string): Promise<LeaveServerResult> {
     try {
-      debug.log(`👋 Leaving server: ${serverId}`)
+      debug.log(`Leaving server: ${serverId}`)
 
       const { data: { session } } = await supabase.auth.getSession()
       if (!session?.access_token) {
@@ -362,11 +362,11 @@ export class FederationServerService {
         }
       }
 
-      debug.log(`✅ Left server successfully`)
+      debug.log(`Left server successfully`)
       return { success: true }
 
     } catch (error: any) {
-      debug.error('❌ Error leaving server:', error)
+      debug.error('Error leaving server:', error)
       return {
         success: false,
         error: error.message || 'Failed to connect to federation backend',
@@ -383,7 +383,7 @@ export class FederationServerService {
    */
   async syncServer(serverId: string): Promise<{ success: boolean; error?: string }> {
     try {
-      debug.log(`🔄 Syncing server: ${serverId}`)
+      debug.log(`Syncing server: ${serverId}`)
 
       const response = await fetch(
         `${FEDERATION_API}/servers/${serverId}/sync`,
@@ -403,11 +403,11 @@ export class FederationServerService {
         }
       }
 
-      debug.log(`✅ Server synced successfully`)
+      debug.log(`Server synced successfully`)
       return { success: true }
 
     } catch (error: any) {
-      debug.error('❌ Error syncing server:', error)
+      debug.error('Error syncing server:', error)
       return {
         success: false,
         error: error.message || 'Failed to connect to federation backend',

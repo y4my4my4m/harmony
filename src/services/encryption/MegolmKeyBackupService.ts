@@ -116,7 +116,7 @@ export class MegolmKeyBackupService {
     
     await this.setupRealtimeSubscriptions()
     
-    debug.log('✅ MegolmKeyBackupService initialized with realtime key request support')
+    debug.log('MegolmKeyBackupService initialized with realtime key request support')
   }
 
   /**
@@ -142,7 +142,7 @@ export class MegolmKeyBackupService {
       })
     )
 
-    debug.log('🔔 Encryption key request handlers registered via user:{id} broadcast')
+    debug.log('Encryption key request handlers registered via user:{id} broadcast')
   }
 
   /**
@@ -150,10 +150,10 @@ export class MegolmKeyBackupService {
    * Auto-fulfill if we have the session key
    */
   private async handleIncomingKeyRequest(request: KeyRequest): Promise<void> {
-    debug.log(`📩 Received key request from ${request.requester_user_id.substring(0, 8)}... for session ${request.session_id.substring(0, 8)}...`)
+    debug.log(`Received key request from ${request.requester_user_id.substring(0, 8)}... for session ${request.session_id.substring(0, 8)}...`)
 
     if (!megolmService.isInitialized()) {
-      debug.log('⏸️ Megolm not initialized, cannot fulfill request')
+      debug.log('⏸Megolm not initialized, cannot fulfill request')
       return
     }
 
@@ -173,7 +173,7 @@ export class MegolmKeyBackupService {
       const sessionKey = sharable?.sessionKey ?? inbound?.sessionKey
 
       if (!sessionKey) {
-        debug.log(`ℹ️ Don't have session ${request.session_id.substring(0, 8)}...`)
+        debug.log(`ℹDon't have session ${request.session_id.substring(0, 8)}...`)
         return
       }
 
@@ -192,7 +192,7 @@ export class MegolmKeyBackupService {
         return
       }
 
-      debug.log(`✅ Found session and request authorized, fulfilling...`)
+      debug.log(`Found session and request authorized, fulfilling...`)
 
       const { data: requesterKey } = await supabase
         .from('user_key_pairs')
@@ -202,7 +202,7 @@ export class MegolmKeyBackupService {
         .maybeSingle()
 
       if (!requesterKey?.identity_public_key) {
-        debug.log(`⚠️ Requester has no public key, cannot fulfill`)
+        debug.log(`Requester has no public key, cannot fulfill`)
         return
       }
 
@@ -223,11 +223,11 @@ export class MegolmKeyBackupService {
         .eq('id', request.id)
 
       if (error) {
-        debug.error('❌ Failed to fulfill request:', error)
+        debug.error('Failed to fulfill request:', error)
         return
       }
 
-      debug.log(`✅ Fulfilled key request ${request.id.substring(0, 8)}...`)
+      debug.log(`Fulfilled key request ${request.id.substring(0, 8)}...`)
 
       // Durable repair of the offline path: the fulfillment above only helps
       // the requesting device right now. Also write a fresh
@@ -248,10 +248,10 @@ export class MegolmKeyBackupService {
           sessionKey,
         )
       } catch (repairErr) {
-        debug.warn('⚠️ Session-share repair after fulfillment failed (non-fatal):', repairErr)
+        debug.warn('Session-share repair after fulfillment failed (non-fatal):', repairErr)
       }
     } catch (error) {
-      debug.error('❌ Error handling key request:', error)
+      debug.error('Error handling key request:', error)
     }
   }
 
@@ -270,13 +270,13 @@ export class MegolmKeyBackupService {
   private async isKeyRequestAuthorized(request: KeyRequest): Promise<boolean> {
     // (1) Signature check.
     if (!request.request_signature) {
-      debug.warn('🚫 Key request has no signature - rejecting')
+      debug.warn('Key request has no signature - rejecting')
       return false
     }
     try {
       const spki = await this.getRequesterSigningKey(request.requester_user_id)
       if (!spki) {
-        debug.warn('🚫 Requester has no published signing key - cannot verify request')
+        debug.warn('Requester has no published signing key - cannot verify request')
         return false
       }
       const publicKey = await importPublicSigningKey(spki)
@@ -287,11 +287,11 @@ export class MegolmKeyBackupService {
       }
       const sigValid = await verifyKeyRequestSignature(fields, request.request_signature, publicKey)
       if (!sigValid) {
-        debug.warn('🚫 Key request signature invalid - rejecting')
+        debug.warn('Key request signature invalid - rejecting')
         return false
       }
     } catch (err) {
-      debug.warn('🚫 Key request signature verification threw - rejecting:', err)
+      debug.warn('Key request signature verification threw - rejecting:', err)
       return false
     }
 
@@ -302,15 +302,15 @@ export class MegolmKeyBackupService {
         p_user_id: request.requester_user_id,
       })
       if (error) {
-        debug.warn('🚫 is_room_member RPC failed - rejecting request:', error)
+        debug.warn('is_room_member RPC failed - rejecting request:', error)
         return false
       }
       if (!isMember) {
-        debug.warn('🚫 Requester is not a current member of the room - rejecting')
+        debug.warn('Requester is not a current member of the room - rejecting')
         return false
       }
     } catch (err) {
-      debug.warn('🚫 Membership check threw - rejecting:', err)
+      debug.warn('Membership check threw - rejecting:', err)
       return false
     }
 
@@ -434,10 +434,10 @@ export class MegolmKeyBackupService {
     // the per-row flip below.
     deferStatusFlip = false,
   ): Promise<boolean> {
-    debug.log(`📬 Key request fulfilled! Session ${request.session_id.substring(0, 8)}...`)
+    debug.log(`Key request fulfilled! Session ${request.session_id.substring(0, 8)}...`)
 
     if (!request.encrypted_key) {
-      debug.log('⚠️ Fulfilled request has no encrypted key')
+      debug.log('Fulfilled request has no encrypted key')
       return false
     }
 
@@ -455,7 +455,7 @@ export class MegolmKeyBackupService {
       }
 
       if (!senderPublicKey) {
-        debug.warn(`⚠️ No public key for sender ${request.sender_user_id.substring(0, 8)}, cannot decrypt`)
+        debug.warn(`No public key for sender ${request.sender_user_id.substring(0, 8)}, cannot decrypt`)
         return false
       }
 
@@ -472,7 +472,7 @@ export class MegolmKeyBackupService {
         0 // firstKnownIndex
       )
 
-      debug.log(`✅ Imported session ${request.session_id.substring(0, 8)}... from fulfilled request`)
+      debug.log(`Imported session ${request.session_id.substring(0, 8)}... from fulfilled request`)
 
       this.pendingRequests.delete(request.session_id)
 
@@ -501,7 +501,7 @@ export class MegolmKeyBackupService {
       this.triggerAutoBackup().catch(() => {})
       return true
     } catch (error) {
-      debug.error('❌ Error importing fulfilled key:', error)
+      debug.error('Error importing fulfilled key:', error)
       // Re-arm the dedup so a follow-up decrypt attempt can issue a fresh
       // request instead of being stuck behind this failed import.
       this.pendingRequests.delete(request.session_id)
@@ -675,7 +675,7 @@ export class MegolmKeyBackupService {
         }
       }
     } catch (mergeErr) {
-      debug.warn('⚠️ Backup merge check failed, writing local sessions only:', mergeErr)
+      debug.warn('Backup merge check failed, writing local sessions only:', mergeErr)
     }
 
     const backupData: MegolmBackupData = {
@@ -706,11 +706,11 @@ export class MegolmKeyBackupService {
       })
 
     if (error) {
-      debug.error('❌ Failed to create backup:', error)
+      debug.error('Failed to create backup:', error)
       throw new Error(`Failed to create backup: ${error.message}`)
     }
 
-    debug.log(`✅ Backup created with ${sessions.outbound.length} outbound, ${sessions.inbound.length} inbound sessions`)
+    debug.log(`Backup created with ${sessions.outbound.length} outbound, ${sessions.inbound.length} inbound sessions`)
   }
 
   /**
@@ -740,7 +740,7 @@ export class MegolmKeyBackupService {
     }
 
     if (!backup) {
-      debug.log('ℹ️ No backup found for user')
+      debug.log('ℹNo backup found for user')
       return { outboundCount: 0, inboundCount: 0 }
     }
 
@@ -754,7 +754,7 @@ export class MegolmKeyBackupService {
 
     const hash = await this.calculateHash(backupJson)
     if (hash !== backup.backup_hash) {
-      debug.warn('⚠️ Backup hash mismatch - data may be corrupted')
+      debug.warn('Backup hash mismatch - data may be corrupted')
       // Continue anyway - user might want partial recovery
     }
 
@@ -770,7 +770,7 @@ export class MegolmKeyBackupService {
 
     await megolmService.importAllSessions(backupData.sessions)
 
-    debug.log(`✅ Restored ${backupData.sessions.outbound.length} outbound, ${backupData.sessions.inbound.length} inbound sessions`)
+    debug.log(`Restored ${backupData.sessions.outbound.length} outbound, ${backupData.sessions.inbound.length} inbound sessions`)
 
     return {
       outboundCount: backupData.sessions.outbound.length,
@@ -824,11 +824,11 @@ export class MegolmKeyBackupService {
       .eq('user_id', this.userId)
 
     if (error) {
-      debug.error('❌ Failed to delete backup:', error)
+      debug.error('Failed to delete backup:', error)
       throw new Error(`Failed to delete backup: ${error.message}`)
     }
 
-    debug.log('✅ Backup deleted')
+    debug.log('Backup deleted')
   }
 
   // AUTO-BACKUP
@@ -856,7 +856,7 @@ export class MegolmKeyBackupService {
     this.autoBackupTimer = setTimeout(() => {
       this.autoBackupTimer = null
       this.createBackup().catch(error => {
-        debug.warn('⚠️ Auto-backup failed:', error)
+        debug.warn('Auto-backup failed:', error)
         // Don't throw - auto-backup failure shouldn't block operations
       })
     }, this.AUTO_BACKUP_DEBOUNCE_MS)
@@ -882,7 +882,7 @@ export class MegolmKeyBackupService {
     const existing = this.pendingRequests.get(sessionId)
     if (existing) {
       if (Date.now() - existing.createdAt < this.KEY_REQUEST_RETRY_MS) {
-        debug.log(`ℹ️ Already have pending request for session ${sessionId.substring(0, 8)}...`)
+        debug.log(`ℹAlready have pending request for session ${sessionId.substring(0, 8)}...`)
         return existing.requestId
       }
       this.pendingRequests.delete(sessionId)
@@ -913,10 +913,10 @@ export class MegolmKeyBackupService {
         requestSignature = await signKeyRequest(fields, signingKey)
         signingFingerprint = await this.getMySigningFingerprint()
       } else {
-        debug.warn('⚠️ No signing key available to sign key request - sending unsigned')
+        debug.warn('No signing key available to sign key request - sending unsigned')
       }
     } catch (err) {
-      debug.warn('⚠️ Failed to sign key request (sending unsigned):', err)
+      debug.warn('Failed to sign key request (sending unsigned):', err)
     }
 
     const { error } = await supabase
@@ -943,7 +943,7 @@ export class MegolmKeyBackupService {
       throw new Error(`Failed to create key request: ${error.message}`)
     }
 
-    debug.log(`📤 Created key request ${requestId.substring(0, 8)}... for session ${sessionId.substring(0, 8)}... from ${senderUserId?.substring(0, 8) || 'unknown'}`)
+    debug.log(`Created key request ${requestId.substring(0, 8)}... for session ${sessionId.substring(0, 8)}... from ${senderUserId?.substring(0, 8) || 'unknown'}`)
     return requestId
   }
 
@@ -961,7 +961,7 @@ export class MegolmKeyBackupService {
       .order('created_at', { ascending: false })
 
     if (error) {
-      debug.error('❌ Failed to fetch my pending requests:', error)
+      debug.error('Failed to fetch my pending requests:', error)
       return []
     }
 
@@ -982,7 +982,7 @@ export class MegolmKeyBackupService {
       .order('created_at', { ascending: false })
 
     if (error) {
-      debug.error('❌ Failed to fetch requests to me:', error)
+      debug.error('Failed to fetch requests to me:', error)
       return []
     }
 
@@ -1002,12 +1002,12 @@ export class MegolmKeyBackupService {
         await this.handleIncomingKeyRequest(request)
         fulfilledCount++
       } catch (error) {
-        debug.warn(`⚠️ Failed to process request ${request.id}:`, error)
+        debug.warn(`Failed to process request ${request.id}:`, error)
       }
     }
 
     if (fulfilledCount > 0) {
-      debug.log(`✅ Processed ${fulfilledCount} pending key requests`)
+      debug.log(`Processed ${fulfilledCount} pending key requests`)
     }
 
     return fulfilledCount
@@ -1051,7 +1051,7 @@ export class MegolmKeyBackupService {
         .in('user_id', senderIds)
         .eq('is_active', true)
       if (keysError) {
-        debug.warn('⚠️ Batch fulfiller-key fetch failed, aborting sweep (will retry next unlock):', keysError)
+        debug.warn('Batch fulfiller-key fetch failed, aborting sweep (will retry next unlock):', keysError)
         return 0
       }
       for (const k of keys || []) {
@@ -1097,11 +1097,11 @@ export class MegolmKeyBackupService {
         .in('id', failedIds)
         .eq('requester_user_id', this.userId)
         .then(() => {}, () => {})
-      debug.warn(`🗑️ Quarantined ${failedIds.length} undecryptable fulfilled key requests (marked expired)`)
+      debug.warn(`Quarantined ${failedIds.length} undecryptable fulfilled key requests (marked expired)`)
     }
 
     if (importedIds.length > 0) {
-      debug.log(`📥 Imported ${importedIds.length} fulfilled key requests (offline catch-up)`)
+      debug.log(`Imported ${importedIds.length} fulfilled key requests (offline catch-up)`)
     }
 
     return importedIds.length
@@ -1118,7 +1118,7 @@ export class MegolmKeyBackupService {
       .eq('requester_user_id', this.userId)
 
     if (error) {
-      debug.error('❌ Failed to cancel request:', error)
+      debug.error('Failed to cancel request:', error)
     }
 
     for (const [sessionId, entry] of this.pendingRequests) {
@@ -1191,7 +1191,7 @@ export class MegolmKeyBackupService {
       throw new Error(`Failed to fulfill key request: ${error.message}`)
     }
 
-    debug.log(`✅ Fulfilled key request ${requestId}`)
+    debug.log(`Fulfilled key request ${requestId}`)
   }
 
   // UTILITY METHODS

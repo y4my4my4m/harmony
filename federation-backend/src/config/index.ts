@@ -125,7 +125,7 @@ const parseEnv = () => {
     // inbox authz gate assumes activity.actor was matched against the signer.
     // Disabling it is a dev-only escape hatch - never allow it in production.
     if (parsed.NODE_ENV === 'production' && !parsed.REQUIRE_VALID_SIGNATURES) {
-      console.error('❌ REQUIRE_VALID_SIGNATURES=false is not allowed with NODE_ENV=production:');
+      console.error('REQUIRE_VALID_SIGNATURES=false is not allowed with NODE_ENV=production:');
       console.error('   it disables all federation authentication (actor spoofing, forged deletes/blocks).');
       console.error('   Unset it, or set NODE_ENV=development.');
       process.exit(1);
@@ -134,7 +134,7 @@ const parseEnv = () => {
     return parsed;
   } catch (error) {
     if (error instanceof z.ZodError) {
-      console.error('❌ Invalid environment variables:');
+      console.error('Invalid environment variables:');
       error.errors.forEach((err) => {
         console.error(`  - ${err.path.join('.')}: ${err.message}`);
       });

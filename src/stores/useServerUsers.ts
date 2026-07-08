@@ -58,8 +58,8 @@ export const useServerUsersStore = defineStore('serverUsers', {
   },
   actions: {
     initializeUserDataIntegration() {
-      debug.log('🔗 UserDataService is now the single source of truth for user data')
-      debug.log('✅ UserDataService integration initialized')
+      debug.log('UserDataService is now the single source of truth for user data')
+      debug.log('UserDataService integration initialized')
     },
 
     async fetchUserProfile(userId: string, forceRefresh = false): Promise<User | null> {
@@ -129,7 +129,7 @@ export const useServerUsersStore = defineStore('serverUsers', {
     },
 
     updateOnlineUsers(presenceState: Record<string, any>) {
-      debug.log('📊 Updating online users from presence:', presenceState);
+      debug.log('Updating online users from presence:', presenceState);
       
       const onlineUserIds = new Set<string>();
       
@@ -141,12 +141,12 @@ export const useServerUsersStore = defineStore('serverUsers', {
         });
       });
       
-      debug.log('👥 Online user IDs:', Array.from(onlineUserIds));
+      debug.log('Online user IDs:', Array.from(onlineUserIds));
       
       const previouslyOnlineUsers = Array.from(this.onlineUsers);
       previouslyOnlineUsers.forEach((userId: string) => {
         if (!onlineUserIds.has(userId)) {
-          debug.log('🔴 User went offline:', userId);
+          debug.log('User went offline:', userId);
           this.setUserOnlineStatus(userId, false);
         }
       });
@@ -157,7 +157,7 @@ export const useServerUsersStore = defineStore('serverUsers', {
         this.setUserOnlineStatus(userId, true);
       });
       
-      debug.log('✅ Online users updated:', this.onlineUsers.size, 'online');
+      debug.log('Online users updated:', this.onlineUsers.size, 'online');
     },
 
     setUserOnlineStatus(userId: string, isOnline: boolean) {
@@ -184,23 +184,23 @@ export const useServerUsersStore = defineStore('serverUsers', {
     async initializeMembershipTracking(serverId: string) {
       try {
         if (this.currentServerId !== serverId) {
-          debug.log(`🔄 Initializing membership tracking for server: ${serverId}`)
+          debug.log(`Initializing membership tracking for server: ${serverId}`)
 
           this.cleanupMembershipTracking()
 
           this.currentServerId = serverId
           this.membershipSubscriptionActive = true
 
-          debug.log(`✅ Membership tracking initialized for server: ${serverId}`)
+          debug.log(`Membership tracking initialized for server: ${serverId}`)
         }
       } catch (error) {
-        debug.error('❌ Failed to initialize membership tracking:', error)
+        debug.error('Failed to initialize membership tracking:', error)
       }
     },
 
     cleanupMembershipTracking() {
       if (this.currentServerId && this.membershipSubscriptionActive) {
-        debug.log(`🧹 Cleaning up membership tracking for server: ${this.currentServerId}`)
+        debug.log(`Cleaning up membership tracking for server: ${this.currentServerId}`)
         this.membershipSubscriptionActive = false
       }
     },
@@ -237,7 +237,7 @@ export const useServerUsersStore = defineStore('serverUsers', {
         await this.voiceChannelBroadcast.unsubscribe();
       }
 
-      debug.log('🎙️ Setting up voice channel broadcast for server:', serverId);
+      debug.log('Setting up voice channel broadcast for server:', serverId);
 
       // Voice channel state is ephemeral (broadcast-only, no DB table for initial state).
       this.voiceChannelBroadcast = supabase.channel(`voice-channels:${serverId}`, {
@@ -247,7 +247,7 @@ export const useServerUsersStore = defineStore('serverUsers', {
       });
 
       this.voiceChannelBroadcast.on('broadcast', { event: 'voice-channel-event' }, async (payload) => {
-        debug.log('🎙️ Received voice channel event:', payload);
+        debug.log('Received voice channel event:', payload);
         const { event, userId, channelId, callStartTime, federated } = payload.payload;
 
         if (event === 'user-joined') {
@@ -260,36 +260,36 @@ export const useServerUsersStore = defineStore('serverUsers', {
           
           if (callStartTime && !this.voiceChannelCallStartTimes[channelId]) {
             this.voiceChannelCallStartTimes[channelId] = new Date(callStartTime);
-            debug.log(`🕐 Set call start time for channel ${channelId}:`, this.voiceChannelCallStartTimes[channelId]);
+            debug.log(`Set call start time for channel ${channelId}:`, this.voiceChannelCallStartTimes[channelId]);
           }
           
           if (federated && userId) {
-            debug.log(`🌐 Loading profile for federated voice user: ${userId}`);
+            debug.log(`Loading profile for federated voice user: ${userId}`);
             userDataService.ensureUsersLoaded([userId]).catch((err) => {
               debug.warn('Failed to load federated user profile:', err);
             });
           }
           
-          debug.log(`✅ User ${userId} joined voice channel ${channelId}. Total: ${this.usersInVoiceChannels[channelId].length}`);
+          debug.log(`User ${userId} joined voice channel ${channelId}. Total: ${this.usersInVoiceChannels[channelId].length}`);
         } else if (event === 'user-left') {
           if (this.usersInVoiceChannels[channelId]) {
             this.usersInVoiceChannels[channelId] = this.usersInVoiceChannels[channelId].filter(id => id !== userId);
-            debug.log(`✅ User ${userId} left voice channel ${channelId}. Total: ${this.usersInVoiceChannels[channelId].length}`);
+            debug.log(`User ${userId} left voice channel ${channelId}. Total: ${this.usersInVoiceChannels[channelId].length}`);
             
             if (this.usersInVoiceChannels[channelId].length === 0) {
               delete this.voiceChannelCallStartTimes[channelId];
-              debug.log(`🕐 Cleared call start time for channel ${channelId} (empty)`);
+              debug.log(`Cleared call start time for channel ${channelId} (empty)`);
             }
           }
         } else if (event === 'call-start-time-sync') {
           if (callStartTime) {
             this.voiceChannelCallStartTimes[channelId] = new Date(callStartTime);
-            debug.log(`🕐 Synced call start time for channel ${channelId}:`, this.voiceChannelCallStartTimes[channelId]);
+            debug.log(`Synced call start time for channel ${channelId}:`, this.voiceChannelCallStartTimes[channelId]);
           }
         } else if (event === 'request-state') {
           const voiceStore = useUnifiedVoiceChannelStore();
           if (voiceStore.isConnected && voiceStore.currentChannelId) {
-            debug.log('📡 Responding to state request with our voice channel presence');
+            debug.log('Responding to state request with our voice channel presence');
             this.broadcastVoiceChannelEvent(
               serverId,
               voiceStore.currentChannelId,
@@ -302,18 +302,18 @@ export const useServerUsersStore = defineStore('serverUsers', {
       });
 
       await this.voiceChannelBroadcast.subscribe();
-      debug.log('✅ Voice channel broadcast subscribed for server:', serverId);
+      debug.log('Voice channel broadcast subscribed for server:', serverId);
       
       this.broadcastVoiceChannelEvent(serverId, '', 'request-state', '');
-      debug.log('📡 Requested current voice channel state from active users');
+      debug.log('Requested current voice channel state from active users');
     },
 
     async fetchVoiceChannelState(serverId: string) {
       try {
-        debug.log('📞 Fetching voice channel state for server:', serverId);
+        debug.log('Fetching voice channel state for server:', serverId);
         // DM voice calls don't use voice_channel_participants (non-UUID IDs)
         if (serverId === 'dm') {
-          debug.log('📞 Skipping DB fetch for DM voice state');
+          debug.log('Skipping DB fetch for DM voice state');
           return;
         }
         
@@ -339,8 +339,8 @@ export const useServerUsersStore = defineStore('serverUsers', {
 
         this.usersInVoiceChannels = { ...channelUsers };
         
-        debug.log('✅ Fetched voice channel state:', this.usersInVoiceChannels);
-        debug.log('📊 Channels with users:', Object.keys(this.usersInVoiceChannels).length);
+        debug.log('Fetched voice channel state:', this.usersInVoiceChannels);
+        debug.log('Channels with users:', Object.keys(this.usersInVoiceChannels).length);
       } catch (error) {
         debug.error('Error fetching voice channel state:', error);
       }
@@ -348,7 +348,7 @@ export const useServerUsersStore = defineStore('serverUsers', {
 
     broadcastVoiceChannelEvent(serverId: string, channelId: string, event: string, userId: string, callStartTime?: string) {
       if (!this.voiceChannelBroadcast) {
-        debug.error('❌ Voice channel broadcast not initialized');
+        debug.error('Voice channel broadcast not initialized');
         return;
       }
 
@@ -358,7 +358,7 @@ export const useServerUsersStore = defineStore('serverUsers', {
         payload: { event, userId, channelId, callStartTime }
       });
       
-      debug.log(`📡 Broadcasted ${event} for user ${userId} in channel ${channelId}`, callStartTime ? `with start time ${callStartTime}` : '');
+      debug.log(`Broadcasted ${event} for user ${userId} in channel ${channelId}`, callStartTime ? `with start time ${callStartTime}` : '');
     },
 
     getUsersInVoiceChannel(channelId: string): string[] {
@@ -384,7 +384,7 @@ export const useServerUsersStore = defineStore('serverUsers', {
         if (isFirstUser) {
           this.voiceChannelCallStartTimes[channelId] = new Date();
           callStartTime = this.voiceChannelCallStartTimes[channelId].toISOString();
-          debug.log(`🕐 First user - setting call start time for channel ${channelId}`);
+          debug.log(`First user - setting call start time for channel ${channelId}`);
         } else {
           callStartTime = this.voiceChannelCallStartTimes[channelId]?.toISOString();
         }
@@ -405,13 +405,13 @@ export const useServerUsersStore = defineStore('serverUsers', {
               if (error) {
                 debug.warn('Failed to write to voice_channel_participants:', error.message);
               } else {
-                debug.log('✅ Wrote to voice_channel_participants');
+                debug.log('Wrote to voice_channel_participants');
               }
             });
         } else if (isDMCall) {
-          debug.log('📞 DM voice call - skipping voice_channel_participants DB write');
+          debug.log('DM voice call - skipping voice_channel_participants DB write');
         } else {
-          debug.log('📡 Federated voice channel - skipping local DB write');
+          debug.log('Federated voice channel - skipping local DB write');
         }
 
         this.broadcastVoiceChannelEvent(serverId, channelId, 'user-joined', userId, callStartTime);
@@ -431,7 +431,7 @@ export const useServerUsersStore = defineStore('serverUsers', {
           
           if (this.usersInVoiceChannels[channelId].length === 0) {
             delete this.voiceChannelCallStartTimes[channelId];
-            debug.log(`🕐 Cleared call start time for channel ${channelId}`);
+            debug.log(`Cleared call start time for channel ${channelId}`);
           }
         }
 
@@ -446,13 +446,13 @@ export const useServerUsersStore = defineStore('serverUsers', {
               if (error) {
                 debug.warn('Failed to delete from voice_channel_participants:', error.message);
               } else {
-                debug.log('✅ Removed from voice_channel_participants');
+                debug.log('Removed from voice_channel_participants');
               }
             });
         } else if (isDMCall) {
-          debug.log('📞 DM voice call - skipping voice_channel_participants DB delete');
+          debug.log('DM voice call - skipping voice_channel_participants DB delete');
         } else {
-          debug.log('📡 Federated voice channel - skipping local DB delete');
+          debug.log('Federated voice channel - skipping local DB delete');
         }
 
         this.broadcastVoiceChannelEvent(serverId, channelId, 'user-left', userId);
@@ -483,7 +483,7 @@ export const useServerUsersStore = defineStore('serverUsers', {
      * Clean up a disconnected user from voice channel state (crash/network loss).
      */
     cleanupDisconnectedUser(serverId: string, channelId: string, userId: string) {
-      debug.log(`🧹 Cleaning up disconnected user ${userId} from channel ${channelId}`);
+      debug.log(`Cleaning up disconnected user ${userId} from channel ${channelId}`);
       
       if (this.usersInVoiceChannels[channelId]) {
         this.usersInVoiceChannels[channelId] = this.usersInVoiceChannels[channelId].filter(id => id !== userId);
@@ -504,7 +504,7 @@ export const useServerUsersStore = defineStore('serverUsers', {
             if (error) {
               debug.warn('Failed to cleanup voice_channel_participants:', error.message);
             } else {
-              debug.log('✅ Cleaned up disconnected user from voice_channel_participants');
+              debug.log('Cleaned up disconnected user from voice_channel_participants');
             }
           });
       }

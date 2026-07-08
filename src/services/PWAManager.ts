@@ -56,7 +56,7 @@ export class PWAManager {
    * Initialize PWA features
    */
   async initialize(): Promise<void> {
-    debug.log('🚀 PWA Manager: Initializing...')
+    debug.log('PWA Manager: Initializing...')
 
     // Detect PWA capabilities
     this.detectCapabilities()
@@ -76,7 +76,7 @@ export class PWAManager {
 
     void logInstallDiagnostics({ canInstallDeferred: this.installPrompt !== null })
 
-    debug.log('✅ PWA Manager: Initialized with capabilities:', this.capabilities)
+    debug.log('PWA Manager: Initialized with capabilities:', this.capabilities)
   }
 
   /**
@@ -100,7 +100,7 @@ export class PWAManager {
    */
   private setupInstallPrompt(): void {
     window.addEventListener('beforeinstallprompt', (event) => {
-      debug.log('💾 PWA Manager: Install prompt available', {
+      debug.log('PWA Manager: Install prompt available', {
         deferForCustomUi: shouldDeferInstallPrompt(),
       })
 
@@ -123,7 +123,7 @@ export class PWAManager {
     })
 
     window.addEventListener('appinstalled', () => {
-      debug.log('✅ PWA Manager: App installed successfully')
+      debug.log('PWA Manager: App installed successfully')
       this.installPrompt = null
       this.installOffered = false
       this.detectCapabilities()
@@ -274,7 +274,7 @@ export class PWAManager {
         url: urlParams.get('url') || ''
       }
       
-      debug.log('📤 PWA Manager: Handling shared content:', sharedData)
+      debug.log('PWA Manager: Handling shared content:', sharedData)
       this.handleSharedContent(sharedData)
     }
   }
@@ -286,10 +286,10 @@ export class PWAManager {
     const path = window.location.pathname
     
     if (path === '/dm') {
-      debug.log('📱 PWA Manager: Launched via DM shortcut')
+      debug.log('PWA Manager: Launched via DM shortcut')
       // Navigate to DMs or handle DM shortcut
     } else if (path === '/notifications') {
-      debug.log('🔔 PWA Manager: Launched via notifications shortcut')
+      debug.log('PWA Manager: Launched via notifications shortcut')
       // Navigate to notifications or handle notification shortcut
     }
   }
@@ -299,7 +299,7 @@ export class PWAManager {
    */
   private setupBadgeAPI(): void {
     if (this.capabilities.supportsBadging) {
-      debug.log('🏷️ PWA Manager: Badge API supported')
+      debug.log('PWA Manager: Badge API supported')
     }
   }
 
@@ -316,7 +316,7 @@ export class PWAManager {
         await (navigator as any).clearAppBadge()
       }
     } catch (error) {
-      debug.warn('⚠️ PWA Manager: Failed to update badge:', error)
+      debug.warn('PWA Manager: Failed to update badge:', error)
     }
   }
 
@@ -335,7 +335,7 @@ export class PWAManager {
       await this.installPrompt.prompt()
       const result = await this.installPrompt.userChoice
 
-      debug.log('💾 PWA Manager: Install prompt result:', result.outcome)
+      debug.log('PWA Manager: Install prompt result:', result.outcome)
 
       // Prompt can only be used once per beforeinstallprompt event
       this.installPrompt = null
@@ -349,7 +349,7 @@ export class PWAManager {
       this.detectCapabilities()
       return false
     } catch (error) {
-      debug.error('❌ PWA Manager: Install prompt failed:', error)
+      debug.error('PWA Manager: Install prompt failed:', error)
       this.installPrompt = null
       this.detectCapabilities()
       return false
@@ -368,16 +368,16 @@ export class PWAManager {
    */
   async shareContent(data: ShareData): Promise<boolean> {
     if (!this.capabilities.supportsShare) {
-      debug.warn('⚠️ PWA Manager: Web Share API not supported')
+      debug.warn('PWA Manager: Web Share API not supported')
       return false
     }
 
     try {
       await navigator.share(data)
-      debug.log('📤 PWA Manager: Content shared successfully')
+      debug.log('PWA Manager: Content shared successfully')
       return true
     } catch (error) {
-      debug.warn('⚠️ PWA Manager: Share failed:', error)
+      debug.warn('PWA Manager: Share failed:', error)
       return false
     }
   }
@@ -625,18 +625,18 @@ export class PWAManager {
 
   private showPullToRefreshIndicator(): void {
     // Implement pull-to-refresh UI
-    debug.log('📱 PWA Manager: Show pull-to-refresh indicator')
+    debug.log('PWA Manager: Show pull-to-refresh indicator')
   }
 
   private hidePullToRefreshIndicator(): void {
-    debug.log('📱 PWA Manager: Hide pull-to-refresh indicator')
+    debug.log('PWA Manager: Hide pull-to-refresh indicator')
   }
 
   /**
    * Trigger a hard refresh
    */
   private triggerRefresh(): void {
-    debug.log('🔄 PWA Manager: Triggering refresh')
+    debug.log('PWA Manager: Triggering refresh')
     window.location.reload()
   }
 

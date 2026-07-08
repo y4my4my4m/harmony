@@ -190,9 +190,9 @@ export function useLayoutState() {
   }
 
   const toggleMobileProfile = () => {
-    debug.log('🔄 toggleMobileProfile called, current state:', mobileProfileOpen.value)
+    debug.log('toggleMobileProfile called, current state:', mobileProfileOpen.value)
     mobileProfileOpen.value = !mobileProfileOpen.value
-    debug.log('🔄 toggleMobileProfile new state:', mobileProfileOpen.value)
+    debug.log('toggleMobileProfile new state:', mobileProfileOpen.value)
   }
 
   const closeMobileSidebars = () => {
@@ -248,7 +248,7 @@ export function useLayoutState() {
       leftSidebarOpen.value = false // Close other sidebar
     }
     
-    debug.log('📱 startDrag:', { 
+    debug.log('startDrag:', { 
       direction, 
       leftWasOpen: leftSidebarWasOpen.value, 
       rightWasOpen: rightSidebarWasOpen.value 
@@ -305,7 +305,7 @@ export function useLayoutState() {
       // If was open and progress < threshold → close
       const shouldBeOpen = progress > COMPLETION_THRESHOLD
       
-      debug.log('📱 endDrag left:', { 
+      debug.log('endDrag left:', { 
         progress, 
         wasOpen: leftSidebarWasOpen.value, 
         shouldBeOpen 
@@ -319,7 +319,7 @@ export function useLayoutState() {
       const progress = rightSidebarDragOffset.value / SIDEBAR_WIDTH
       const shouldBeOpen = progress > COMPLETION_THRESHOLD
       
-      debug.log('📱 endDrag right:', { 
+      debug.log('endDrag right:', { 
         progress, 
         wasOpen: rightSidebarWasOpen.value, 
         shouldBeOpen 
@@ -358,7 +358,7 @@ export function useLayoutState() {
         shouldBeOpen = progress > COMPLETION_THRESHOLD
       }
       
-      debug.log('📱 endDragWithVelocity left:', { 
+      debug.log('endDragWithVelocity left:', { 
         velocity, 
         progress, 
         wasOpen: leftSidebarWasOpen.value, 
@@ -380,7 +380,7 @@ export function useLayoutState() {
         shouldBeOpen = progress > COMPLETION_THRESHOLD
       }
       
-      debug.log('📱 endDragWithVelocity right:', { 
+      debug.log('endDragWithVelocity right:', { 
         velocity, 
         progress, 
         wasOpen: rightSidebarWasOpen.value, 

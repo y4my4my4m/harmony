@@ -74,7 +74,7 @@ export function installInternalLinkInterceptor(router: Router): () => void {
       // preventDefault only — stopPropagation would eat the app's other
       // delegated document listeners (haptics) for the same click
       event.preventDefault()
-      debug.log('🔗 Internal link intercepted:', href, '→', path)
+      debug.log('Internal link intercepted:', href, '→', path)
       void router.push(path)
       return
     }
@@ -82,7 +82,7 @@ export function installInternalLinkInterceptor(router: Router): () => void {
     const remoteInvite = toRemoteInviteUrl(href)
     if (remoteInvite) {
       event.preventDefault()
-      debug.log('🔗 Remote invite intercepted:', remoteInvite)
+      debug.log('Remote invite intercepted:', remoteInvite)
       useRemoteInvitePrompt().open(remoteInvite)
     }
   }

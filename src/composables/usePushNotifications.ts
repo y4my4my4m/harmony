@@ -178,7 +178,7 @@ async function subscribe(deviceName?: string): Promise<{ success: boolean; error
     }
 
     isSubscribed.value = true
-    debug.log('✅ Push notification subscription successful')
+    debug.log('Push notification subscription successful')
     
     await fetchSubscriptions()
     
@@ -242,7 +242,7 @@ async function unsubscribe(): Promise<{ success: boolean; error?: string }> {
       debug.warn('Server unsubscribe failed:', errMsg)
     }
 
-    debug.log('✅ Push notification unsubscribed')
+    debug.log('Push notification unsubscribed')
     
     await fetchSubscriptions()
     
@@ -391,7 +391,7 @@ function resetState(): void {
   error.value = null
   isInitialized = false
   isInitializing = false
-  debug.log('🔔 Push notification state reset (logout)')
+  debug.log('Push notification state reset (logout)')
 }
 
 /**
@@ -441,7 +441,7 @@ async function sendTestNotification(): Promise<{ success: boolean; error?: strin
     // If device-specific lookup failed, re-register the browser subscription
     // with the server and retry - covers desync after logout/login
     if (data.sent === 0 && currentEndpoint) {
-      debug.log('🔔 Test notification found no subscription, re-registering device...')
+      debug.log('Test notification found no subscription, re-registering device...')
       const resubResult = await subscribe()
       if (resubResult.success) {
         data = await sendTest()
@@ -469,7 +469,7 @@ async function sendTestNotification(): Promise<{ success: boolean; error?: strin
 async function initialize(): Promise<void> {
   // Prevent duplicate initialization
   if (isInitialized || isInitializing) {
-    debug.log('🔔 Push notifications already initialized, skipping')
+    debug.log('Push notifications already initialized, skipping')
     return
   }
   
@@ -514,7 +514,7 @@ async function initialize(): Promise<void> {
     }
 
     isInitialized = true
-    debug.log('🔔 Push notification system initialized', {
+    debug.log('Push notification system initialized', {
       supported: isSupported.value,
       permission: permission.value,
       subscribed: isSubscribed.value,

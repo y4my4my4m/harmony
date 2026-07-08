@@ -468,11 +468,11 @@ const mutedUsersCount = computed(() => activityPubStore.mutedUsers.size)
 
 // Watch for changes to blocked/muted users counts
 watch(blockedUsersCount, (newVal) => {
-  debug.log('👁️ UserProfileModal: blockedUsers changed, size:', newVal)
+  debug.log('UserProfileModal: blockedUsers changed, size:', newVal)
 }, { immediate: true })
 
 watch(mutedUsersCount, (newVal) => {
-  debug.log('👁️ UserProfileModal: mutedUsers changed, size:', newVal)
+  debug.log('UserProfileModal: mutedUsers changed, size:', newVal)
 }, { immediate: true })
 
 // Use professional presence system
@@ -553,7 +553,7 @@ async function loadUserStats(userId: string) {
         followers: stats.followers_count || 0
       }
       applyActivityFromStats(stats)
-      debug.log('👤 Loaded user stats:', fetchedUserStats.value)
+      debug.log('Loaded user stats:', fetchedUserStats.value)
     }
 
     // Also fetch created_at if not on user object
@@ -561,7 +561,7 @@ async function loadUserStats(userId: string) {
     const profile = await profileService.fetchProfile(userId)
     if (profile?.created_at) {
       fetchedCreatedAt.value = profile.created_at
-      debug.log('👤 Loaded user created_at:', fetchedCreatedAt.value)
+      debug.log('Loaded user created_at:', fetchedCreatedAt.value)
     }
   } catch (error) {
     debug.error('Failed to load user stats:', error)
@@ -598,7 +598,7 @@ async function loadUserActivity(userId: string) {
         message_count: Number(data.message_count ?? 0),
         voice_minutes: Number(data.voice_minutes ?? 0),
       }
-      debug.log('👤 Loaded user activity:', fetchedActivity.value)
+      debug.log('Loaded user activity:', fetchedActivity.value)
     }
   } catch (err) {
     debug.error('Failed to load user activity counters:', err)
@@ -618,7 +618,7 @@ async function loadUserRoles(userId: string) {
   try {
     const roles = await roleService.getUserRoles(userId, serverId)
     fetchedUserRoles.value = roles.filter(r => !r.is_default) // Exclude @everyone
-    debug.log('🎭 Loaded user roles:', fetchedUserRoles.value.length)
+    debug.log('Loaded user roles:', fetchedUserRoles.value.length)
   } catch (error) {
     debug.error('Failed to load user roles:', error)
     fetchedUserRoles.value = []
@@ -1181,7 +1181,7 @@ const isBlocked = computed(() => {
   blockedUsersCount.value
   // Use store getter for reliable check
   const blocked = activityPubStore.isBlocked(props.user.id)
-  debug.log(`🔍 isBlocked check: userId=${props.user.id}, blocked=${blocked}, blockedUsers size=${activityPubStore.blockedUsers.size}`)
+  debug.log(`isBlocked check: userId=${props.user.id}, blocked=${blocked}, blockedUsers size=${activityPubStore.blockedUsers.size}`)
   return blocked
 })
 
@@ -1209,7 +1209,7 @@ const isMuted = computed(() => {
   mutedUsersCount.value
   // Use store getter for reliable check
   const muted = activityPubStore.isMuted(props.user.id)
-  debug.log(`🔍 isMuted check: userId=${props.user.id}, muted=${muted}, mutedUsers size=${activityPubStore.mutedUsers.size}`)
+  debug.log(`isMuted check: userId=${props.user.id}, muted=${muted}, mutedUsers size=${activityPubStore.mutedUsers.size}`)
   return muted
 })
 
@@ -1385,7 +1385,7 @@ const initializeProfilePresence = async () => {
   if (props.user?.id && props.show && !profileContextId) {
     try {
       profileContextId = await subscribeToProfilePresence(props.user.id)
-      debug.log(`👤 ProfileModal: Tracking presence for user ${props.user.id}`)
+      debug.log(`ProfileModal: Tracking presence for user ${props.user.id}`)
     } catch (error) {
       debug.error('Failed to subscribe to profile presence:', error)
     }
@@ -1397,7 +1397,7 @@ const cleanupProfilePresence = async () => {
     try {
       await unsubscribeFromProfilePresence(props.user.id)
       profileContextId = null
-      debug.log(`👤 ProfileModal: Stopped tracking presence for user ${props.user.id}`)
+      debug.log(`ProfileModal: Stopped tracking presence for user ${props.user.id}`)
     } catch (error) {
       debug.error('Failed to unsubscribe from profile presence:', error)
     }

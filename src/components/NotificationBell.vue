@@ -255,7 +255,7 @@ const togglePanel = async () => {
     document.body.style.overflow = 'hidden'
     
     if (authStore.session?.user?.id && notifications.value.length === 0) {
-      debug.log('📝 Loading full notification list on panel open...')
+      debug.log('Loading full notification list on panel open...')
       await notificationStore.loadFullNotificationList(authStore.session.user.id)
     }
   } else {
@@ -280,7 +280,7 @@ const clearAllNotifications = async () => {
     isClearingAll.value = true
     await notificationStore.clearAllNotifications()
   } catch (error) {
-    debug.error('❌ Failed to clear all notifications:', error)
+    debug.error('Failed to clear all notifications:', error)
   } finally {
     isClearingAll.value = false
   }
@@ -384,7 +384,7 @@ const handleKeydown = (event: KeyboardEvent) => {
 // CLEAN ARCHITECTURE: NotificationBell is pure reactive display component
 // BaseLayout handles ALL notification initialization - we just display current state
 onMounted(() => {
-  debug.log('🔔 NotificationBell: Mounted as reactive display component')
+  debug.log('NotificationBell: Mounted as reactive display component')
   
   document.addEventListener('click', handleClickOutside)
   document.addEventListener('keydown', handleKeydown)

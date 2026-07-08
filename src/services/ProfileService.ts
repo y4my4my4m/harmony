@@ -67,7 +67,7 @@ export class ProfileService {
 
       return profile
     } catch (error) {
-      debug.error('❌ Failed to get current profile:', error)
+      debug.error('Failed to get current profile:', error)
       throw error
     }
   }
@@ -124,12 +124,12 @@ export class ProfileService {
       try {
         await userDataService.fetchUserProfile(context.profileId, true)
       } catch (refreshError) {
-        debug.warn('⚠️ Failed to refresh userDataService cache:', refreshError)
+        debug.warn('Failed to refresh userDataService cache:', refreshError)
       }
 
       return profile
     } catch (error) {
-      debug.error('❌ Failed to update profile:', error)
+      debug.error('Failed to update profile:', error)
       throw error
     }
   }
@@ -189,12 +189,12 @@ export class ProfileService {
       try {
         await userDataService.fetchUserProfile(profile.id, true)
       } catch (initError) {
-        debug.warn('⚠️ Failed to refresh userDataService cache:', initError)
+        debug.warn('Failed to refresh userDataService cache:', initError)
       }
 
       return profile
     } catch (error) {
-      debug.error('❌ Failed to create profile:', error)
+      debug.error('Failed to create profile:', error)
       throw error
     }
   }
@@ -216,7 +216,7 @@ export class ProfileService {
 
       return profile
     } catch (error) {
-      debug.error('❌ Failed to get profile by ID:', error)
+      debug.error('Failed to get profile by ID:', error)
       throw error
     }
   }
@@ -245,7 +245,7 @@ export class ProfileService {
 
       return profile
     } catch (error) {
-      debug.error('❌ Failed to get profile by username:', error)
+      debug.error('Failed to get profile by username:', error)
       throw error
     }
   }
@@ -290,7 +290,7 @@ export class ProfileService {
         total: count || 0
       }
     } catch (error) {
-      debug.error('❌ Failed to search profiles:', error)
+      debug.error('Failed to search profiles:', error)
       throw error
     }
   }
@@ -317,7 +317,7 @@ export class ProfileService {
         available: !existing || existing.length === 0
       }
     } catch (error) {
-      debug.error('❌ Failed to check username availability:', error)
+      debug.error('Failed to check username availability:', error)
       throw error
     }
   }
@@ -370,7 +370,7 @@ export class ProfileService {
       }
       return data
     } catch (error) {
-      debug.error('❌ Failed to update user status:', error)
+      debug.error('Failed to update user status:', error)
       throw error
     }
   }
@@ -385,7 +385,7 @@ export class ProfileService {
       if (useCache) {
         const cached = this.cache.get(userId)
         if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
-          debug.log(`✅ ProfileService: Using cached profile for ${userId}`)
+          debug.log(`ProfileService: Using cached profile for ${userId}`)
           return cached.profile
         }
       }
@@ -431,13 +431,13 @@ export class ProfileService {
         .maybeSingle()
 
       if (error && error.code !== 'PGRST116') {
-        debug.error('❌ Error fetching profile by auth user ID:', error)
+        debug.error('Error fetching profile by auth user ID:', error)
         return null
       }
 
       return profile || null
     } catch (error) {
-      debug.error('❌ Failed to get profile by auth user ID:', error)
+      debug.error('Failed to get profile by auth user ID:', error)
       return null
     }
   }
@@ -491,7 +491,7 @@ export class ProfileService {
         error: result.error
       }
     } catch (error: any) {
-      debug.error('❌ Failed to upload avatar:', error)
+      debug.error('Failed to upload avatar:', error)
       return {
         success: false,
         error: error.message || 'Failed to upload avatar'
@@ -514,7 +514,7 @@ export class ProfileService {
       
       return result
     } catch (error: any) {
-      debug.error('❌ Failed to upload banner:', error)
+      debug.error('Failed to upload banner:', error)
       return {
         success: false,
         error: error.message || 'Failed to upload banner'

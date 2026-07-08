@@ -965,7 +965,7 @@ const loadServerRolesAndAssignments = async (serverId: string) => {
     const hoistedRoles = roles.filter(r => r.hoist && !r.is_default);
 
     if (hoistedRoles.length > 0) {
-      debug.log(`🎭 UserSidebar: Found ${hoistedRoles.length} hoisted roles for server ${serverId}`);
+      debug.log(`UserSidebar: Found ${hoistedRoles.length} hoisted roles for server ${serverId}`);
 
       const hoistedRoleIds = hoistedRoles.map(r => r.id);
       const roleMap = new Map(hoistedRoles.map(r => [r.id, r]));
@@ -983,7 +983,7 @@ const loadServerRolesAndAssignments = async (serverId: string) => {
       }
 
       userRolesMap.value = newUserRolesMap;
-      debug.log(`🎭 UserSidebar: Loaded role assignments for ${newUserRolesMap.size} users`);
+      debug.log(`UserSidebar: Loaded role assignments for ${newUserRolesMap.size} users`);
     }
     
   } catch (error) {
@@ -1113,12 +1113,12 @@ const sidebarMeasureElement = (el: any) => {
 
 const fetchAndSetUsers = async (serverId: string | null) => {
   fetchCallCounter++;
-  debug.log(`🔍 UserSidebar fetchAndSetUsers called (${fetchCallCounter} times) for server:`, serverId);
+  debug.log(`UserSidebar fetchAndSetUsers called (${fetchCallCounter} times) for server:`, serverId);
   
   if (serverId) {
     // DEBOUNCE: Prevent duplicate calls for the same server
     if (lastFetchedServerId.value === serverId && isLoadingUsers.value) {
-      debug.log(`⏭️ UserSidebar: Already loading server ${serverId}, skipping duplicate call`);
+      debug.log(`⏭UserSidebar: Already loading server ${serverId}, skipping duplicate call`);
       return;
     }
     
@@ -1128,13 +1128,13 @@ const fetchAndSetUsers = async (serverId: string | null) => {
     let users = getUsersInContext(serverId).value;
     
     if (users.length > 0) {
-      debug.log(`💾 UserSidebar: Using cached users for server ${serverId} (${users.length} members)`);
+      debug.log(`UserSidebar: Using cached users for server ${serverId} (${users.length} members)`);
       isLoadingUsers.value = false; // Ensure loading state is cleared
       return; // Use cached data, no loading needed
     }
     
     // Only show loading if we truly have no data for this server
-    debug.log(`🔄 UserSidebar: No cached users found, loading for server ${serverId}...`);
+    debug.log(`UserSidebar: No cached users found, loading for server ${serverId}...`);
     isLoadingUsers.value = true;
     
     try {
@@ -1154,16 +1154,16 @@ const fetchAndSetUsers = async (serverId: string | null) => {
         }
         
         if (users.length > 0) {
-          debug.log(`✅ UserSidebar: Server context ready after ${waitTime}ms wait`);
+          debug.log(`UserSidebar: Server context ready after ${waitTime}ms wait`);
           return; // Found cached data during wait
         }
       }
       
       // No cached data available, create new subscription
-      debug.log(`🆕 UserSidebar: Creating new subscription for server ${serverId}...`);
+      debug.log(`UserSidebar: Creating new subscription for server ${serverId}...`);
       const userIds = await getUserIdsForServer(serverId);
       await subscribeToContext(serverId, 'server', userIds);
-      debug.log(`📋 Server user subscription ready: ${serverId} (${userIds.length} members)`);
+      debug.log(`Server user subscription ready: ${serverId} (${userIds.length} members)`);
     } finally {
       isLoadingUsers.value = false;
     }
@@ -1177,7 +1177,7 @@ watch(() => serverChannelStore.currentServerId, async (newServerId, oldServerId)
     return; // No change, skip
   }
   
-  debug.log(`🔄 UserSidebar: Server changed from ${oldServerId} to ${newServerId}`);
+  debug.log(`UserSidebar: Server changed from ${oldServerId} to ${newServerId}`);
   
   // INSTANT FEEDBACK: Clear loading state immediately if new server has cached data
   if (newServerId) {

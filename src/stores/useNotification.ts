@@ -482,7 +482,7 @@ export const useNotificationStore = defineStore('notification', {
       
       try {
         this.isLoading = true
-        debug.log('🔔 Notification Store: Initializing for user:', userId)
+        debug.log('Notification Store: Initializing for user:', userId)
 
         this.hasPermission = await this.requestNativePermissionIfNeeded()
 
@@ -495,9 +495,9 @@ export const useNotificationStore = defineStore('notification', {
         this.setupDndCheck()
         
         this.isInitialized = true
-        debug.log('✅ Notification Store: Initialized successfully')
+        debug.log('Notification Store: Initialized successfully')
       } catch (error) {
-        debug.error('❌ Notification Store: Failed to initialize:', error)
+        debug.error('Notification Store: Failed to initialize:', error)
         this.showToast('server_update', 'Failed to load notifications', 'Please refresh the page', 5000)
       } finally {
         this.isLoading = false
@@ -512,7 +512,7 @@ export const useNotificationStore = defineStore('notification', {
       if (this.isInitialized) return
       
       try {
-        debug.log('🔔 Notification Store: Initializing with unread notifications')
+        debug.log('Notification Store: Initializing with unread notifications')
 
         this.hasPermission = await this.requestNativePermissionIfNeeded()
 
@@ -535,7 +535,7 @@ export const useNotificationStore = defineStore('notification', {
             debug.error('Failed to load unread notifications:', error)
           } else {
             this.notifications = (data || []) as any
-            debug.log(`✅ Loaded ${this.notifications.length} unread notifications for badges`)
+            debug.log(`Loaded ${this.notifications.length} unread notifications for badges`)
           }
         } catch (err) {
           debug.error('Failed to load unread notifications:', err)
@@ -548,9 +548,9 @@ export const useNotificationStore = defineStore('notification', {
         this.setupDndCheck()
         
         this.isInitialized = true
-        debug.log('✅ Notification Store: Initialization complete')
+        debug.log('Notification Store: Initialization complete')
       } catch (error) {
-        debug.error('❌ Notification Store: Failed to initialize:', error)
+        debug.error('Notification Store: Failed to initialize:', error)
         this.unreadCount = 0
       }
     },
@@ -560,18 +560,18 @@ export const useNotificationStore = defineStore('notification', {
      */
     async loadFullNotificationList(userId: string) {
       if (this.fullListLoaded) {
-        debug.log('📝 Full notification list already loaded')
+        debug.log('Full notification list already loaded')
         return
       }
       
       try {
         this.isLoading = true
-        debug.log('📝 Loading full notification list...')
+        debug.log('Loading full notification list...')
         await this.fetchNotifications(userId)
         this.fullListLoaded = true
-        debug.log('✅ Full notification list loaded')
+        debug.log('Full notification list loaded')
       } catch (error) {
-        debug.error('❌ Failed to load full notification list:', error)
+        debug.error('Failed to load full notification list:', error)
       } finally {
         this.isLoading = false
       }
@@ -579,7 +579,7 @@ export const useNotificationStore = defineStore('notification', {
 
     async fetchNotifications(userId: string, limit = 50, offset = 0) {
       try {
-        debug.log('🔄 Fetching notifications for user:', userId)
+        debug.log('Fetching notifications for user:', userId)
         
         const profileId = await this.getProfileId(userId)
         
@@ -588,7 +588,7 @@ export const useNotificationStore = defineStore('notification', {
           offset
         })
 
-        debug.log(`✅ Fetched ${data?.length || 0} notifications`)
+        debug.log(`Fetched ${data?.length || 0} notifications`)
 
         const visible = (data || []).filter((n: Notification) => !isFromHiddenUser(n))
 
@@ -611,14 +611,14 @@ export const useNotificationStore = defineStore('notification', {
 
         return data || []
       } catch (error) {
-        debug.error('❌ Failed to fetch notifications:', error)
+        debug.error('Failed to fetch notifications:', error)
         
         // Fallback to direct query if service fails
         try {
-          debug.log('🔄 Falling back to direct notification fetch')
+          debug.log('Falling back to direct notification fetch')
           await this._fetchNotificationsFallback(userId, limit, offset)
         } catch (fallbackError) {
-          debug.error('❌ Fallback fetch also failed:', fallbackError)
+          debug.error('Fallback fetch also failed:', fallbackError)
           if (import.meta.env.DEV) {
             this.createMockNotifications(userId)
           }
@@ -675,12 +675,12 @@ export const useNotificationStore = defineStore('notification', {
      */
     async setupBroadcastNotificationHandlers(userId: string) {
       if (_unsubNewNotification) {
-        debug.log('✅ Notification handlers already registered, skipping')
+        debug.log('Notification handlers already registered, skipping')
         return
       }
 
       const profileId = await this.getProfileId(userId)
-      debug.log('🔔 Setting up dual-mode notification handlers for profile:', profileId)
+      debug.log('Setting up dual-mode notification handlers for profile:', profileId)
 
       // ---- 1. Broadcast handlers (best-effort, low latency) ----
       if (!_unsubNewNotification) {
@@ -690,10 +690,10 @@ export const useNotificationStore = defineStore('notification', {
           try {
             const n = data.notification as Notification
             if (!n?.id) return
-            debug.log('📡 Broadcast notification:new →', n.id)
+            debug.log('Broadcast notification:new →', n.id)
             await this._processIncomingNotification(n)
           } catch (error) {
-            debug.error('❌ Broadcast notification:new error:', error)
+            debug.error('Broadcast notification:new error:', error)
           }
         })
 
@@ -701,18 +701,18 @@ export const useNotificationStore = defineStore('notification', {
           try {
             this._processNotificationUpdate(data.id as string, data.is_read as boolean)
           } catch (error) {
-            debug.error('❌ Broadcast notification:update error:', error)
+            debug.error('Broadcast notification:update error:', error)
           }
         })
 
         _unsubBulkRead = userEventChannel.on('notification:bulk_read', (_data) => {
-          debug.log('📡 Bulk read event received, marking all notifications as read locally')
+          debug.log('Bulk read event received, marking all notifications as read locally')
           this.notifications.forEach(n => { n.is_read = true })
           this.updateUnreadCount()
         })
 
         _unsubPrefsUpdated = userEventChannel.on('preferences:updated', () => {
-          debug.log('📡 Preferences updated on another tab/device, reloading...')
+          debug.log('Preferences updated on another tab/device, reloading...')
           // Prefer profile id (the column the row is keyed on). Fall back to
           // the auth id only as a last resort - loadPreferences resolves
           // either to a profile id internally.
@@ -723,11 +723,11 @@ export const useNotificationStore = defineStore('notification', {
         })
 
         _unsubReconnected = userEventChannel.on('_reconnected', async () => {
-          debug.log('🔄 UserEventChannel reconnected - gap-filling notifications')
+          debug.log('UserEventChannel reconnected - gap-filling notifications')
           await this.fetchNotifications(profileId)
         })
 
-        debug.log('✅ Broadcast notification handlers registered')
+        debug.log('Broadcast notification handlers registered')
       }
 
     },
@@ -796,7 +796,7 @@ export const useNotificationStore = defineStore('notification', {
       if (!existing) return
       if (existing.is_read === isRead) return
 
-      debug.log('🔄 Notification read state synced:', id, 'is_read:', isRead)
+      debug.log('Notification read state synced:', id, 'is_read:', isRead)
       existing.is_read = isRead
       this.updateUnreadCount()
 
@@ -837,7 +837,7 @@ export const useNotificationStore = defineStore('notification', {
       uiDecision: any
     ) {
       try {
-        debug.log('🔔 Processing notification:', notification.type)
+        debug.log('Processing notification:', notification.type)
 
         if (uiDecision.showToast) {
           let emojiUrl: string | undefined
@@ -877,9 +877,9 @@ export const useNotificationStore = defineStore('notification', {
           this.playNotificationSound(notification.type)
         }
 
-        debug.log('✅ Notification processed successfully')
+        debug.log('Notification processed successfully')
       } catch (error) {
-        debug.error('❌ Error processing notification:', error)
+        debug.error('Error processing notification:', error)
         // Fallback: show minimal toast notification
         this.showToast(
           'server_update',
@@ -1004,7 +1004,7 @@ export const useNotificationStore = defineStore('notification', {
             ...notificationOptions,
             requireInteraction: false
           })
-          debug.log(`✅ Desktop notification shown via SW for ${notification.type}`)
+          debug.log(`Desktop notification shown via SW for ${notification.type}`)
         } else {
           const desktopNotification = new window.Notification(formatted.title, {
             ...notificationOptions,
@@ -1020,10 +1020,10 @@ export const useNotificationStore = defineStore('notification', {
           const timeout = (notification.type === 'mention' || notification.type === 'dm') ? 12000 : 8000
           setTimeout(() => desktopNotification.close(), timeout)
 
-          debug.log(`✅ Desktop notification shown for ${notification.type}`)
+          debug.log(`Desktop notification shown for ${notification.type}`)
         }
       } catch (error) {
-        debug.error('❌ Error showing desktop notification:', error)
+        debug.error('Error showing desktop notification:', error)
       }
     },
 
@@ -1047,7 +1047,7 @@ export const useNotificationStore = defineStore('notification', {
           
           if (matchesId || matchesConversation || matchesChannel) {
             sysNotif.close()
-            debug.log('🔕 Dismissed system notification synced from another device:', sysNotif.tag)
+            debug.log('Dismissed system notification synced from another device:', sysNotif.tag)
           }
         }
         
@@ -1060,7 +1060,7 @@ export const useNotificationStore = defineStore('notification', {
           }
         }
       } catch (error) {
-        debug.error('❌ Error dismissing system notification:', error)
+        debug.error('Error dismissing system notification:', error)
       }
     },
 
@@ -1123,9 +1123,9 @@ export const useNotificationStore = defineStore('notification', {
         
         await themeStore.playAudio(audioAction)
         
-        debug.log(`🔊 Played sound for ${type}`)
+        debug.log(`Played sound for ${type}`)
       } catch (error) {
-        debug.error(`❌ Failed to play sound for ${type}:`, error)
+        debug.error(`Failed to play sound for ${type}:`, error)
       }
     },
 
@@ -1192,9 +1192,9 @@ export const useNotificationStore = defineStore('notification', {
         // toggling DND in another tab leaves this tab dead until reload.
         this.setupDndCheck()
 
-        debug.log('✅ Loaded notification preferences')
+        debug.log('Loaded notification preferences')
       } catch (error) {
-        debug.error('❌ Failed to load preferences:', error)
+        debug.error('Failed to load preferences:', error)
         this.preferences = {
           ...DEFAULT_PREFERENCES,
           id: crypto.randomUUID(),
@@ -1243,9 +1243,9 @@ export const useNotificationStore = defineStore('notification', {
           userEventChannel.send('preferences:updated', {})
         }
 
-        debug.log('✅ Updated notification preferences')
+        debug.log('Updated notification preferences')
       } catch (error) {
-        debug.error('❌ Failed to update preferences:', error)
+        debug.error('Failed to update preferences:', error)
         throw error
       }
     },
@@ -1268,7 +1268,7 @@ export const useNotificationStore = defineStore('notification', {
         if (await isPermissionGranted()) return true
         return (await requestPermission()) === 'granted'
       } catch (error) {
-        debug.warn('⚠️ native notification permission request failed:', error)
+        debug.warn('native notification permission request failed:', error)
         return false
       }
     },
@@ -1304,7 +1304,7 @@ export const useNotificationStore = defineStore('notification', {
 
         await services.notifications.markAsRead(notificationId)
       } catch (error) {
-        debug.error('❌ Failed to mark notification as read:', error)
+        debug.error('Failed to mark notification as read:', error)
         
         if (notification) {
           notification.is_read = false
@@ -1325,7 +1325,7 @@ export const useNotificationStore = defineStore('notification', {
 
         await services.notifications.markAsUnread(notificationId)
       } catch (error) {
-        debug.error('❌ Failed to mark notification as unread:', error)
+        debug.error('Failed to mark notification as unread:', error)
         
         if (notification) {
           notification.is_read = true
@@ -1347,7 +1347,7 @@ export const useNotificationStore = defineStore('notification', {
         
         await services.notifications.deleteNotification(notificationId)
       } catch (error) {
-        debug.error('❌ Failed to delete notification:', error)
+        debug.error('Failed to delete notification:', error)
         
         this.notifications.splice(index, 0, notification)
         this.updateUnreadCount()
@@ -1489,9 +1489,9 @@ export const useNotificationStore = defineStore('notification', {
 
         themeStore.setAudioVolume(Math.max(0, Math.min(1, volume)))
 
-        debug.log(`🔊 Set notification volume to ${Math.round(volume * 100)}%`)
+        debug.log(`Set notification volume to ${Math.round(volume * 100)}%`)
       } catch (error) {
-        debug.error('❌ Failed to set notification volume:', error)
+        debug.error('Failed to set notification volume:', error)
       }
     },
     /**
@@ -1537,7 +1537,7 @@ export const useNotificationStore = defineStore('notification', {
         }
         return '/'
       } catch (error) {
-        debug.error('❌ Error getting notification URL:', error)
+        debug.error('Error getting notification URL:', error)
         return '/'
       }
     },
@@ -1593,11 +1593,11 @@ export const useNotificationStore = defineStore('notification', {
             default:
               // Exhaustive narrowing collapses `navData.type` to `never` in
               // the default branch; cast through `any` so we can log it.
-              debug.log('⚠️ No navigation data for notification type:', (navData as any).type)
+              debug.log('No navigation data for notification type:', (navData as any).type)
           }
         } else {
           // FIX: Fallback navigation for notifications without proper navData
-          debug.warn('⚠️ No navigation data extracted for notification:', notification.type)
+          debug.warn('No navigation data extracted for notification:', notification.type)
           
           // Try to provide sensible defaults based on notification type
           if (notification.type.startsWith('activitypub_')) {
@@ -1610,11 +1610,11 @@ export const useNotificationStore = defineStore('notification', {
               router.push('/dm')
             }
           } else {
-            debug.warn('⚠️ Could not determine navigation for notification, going to home')
+            debug.warn('Could not determine navigation for notification, going to home')
           }
         }
       } catch (error) {
-        debug.error('❌ Error handling notification click:', error)
+        debug.error('Error handling notification click:', error)
       }
     },
 
@@ -1679,7 +1679,7 @@ export const useNotificationStore = defineStore('notification', {
 
       this.notifications = mockNotifications
       this.updateUnreadCount()
-      debug.log('📝 Created mock notifications for development')
+      debug.log('Created mock notifications for development')
     },
 
     async getProfileId(authUserId: string): Promise<string> {

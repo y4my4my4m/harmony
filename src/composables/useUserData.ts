@@ -503,7 +503,7 @@ export function useUserData() {
     const contextId = 'friends-list'
     await userDataService.subscribeToContext(contextId, 'friends', friendUserIds)
     
-    debug.log(`👥 Friends Presence: Tracking ${friendUserIds.length} friends`)
+    debug.log(`Friends Presence: Tracking ${friendUserIds.length} friends`)
     return contextId
   }
   
@@ -581,7 +581,7 @@ export function useUserData() {
       return await subscribeToFriendsPresence(friendUserIds)
     }
     
-    debug.log(`👥 Friends Presence: No friends to track`)
+    debug.log(`Friends Presence: No friends to track`)
     return null
   }
   
@@ -608,15 +608,6 @@ export function useUserData() {
     }
   })
 
-  // // Lifecycle
-  // onMounted(async () => {
-  //   await ensureInitialized()
-  // })
-  
-  // onUnmounted(() => {
-  //   cleanupEventListeners()
-  // })
-  
   return {
     // Initialization
     initialize,

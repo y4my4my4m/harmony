@@ -303,7 +303,7 @@ function pressHold(action: KeybindAction): void {
   holdState.value.set(action, true)
   const handler = handlers.value.get(action)
   if (handler) (handler as HoldKeyHandler)(true)
-  debug.log(`⌨️ [Keybinds] ${action} hold start`)
+  debug.log(`⌨[Keybinds] ${action} hold start`)
 }
 
 function releaseHold(action: KeybindAction, immediate = false): void {
@@ -315,7 +315,7 @@ function releaseHold(action: KeybindAction, immediate = false): void {
     holdState.value.set(action, false)
     const handler = handlers.value.get(action)
     if (handler) (handler as HoldKeyHandler)(false)
-    debug.log(`⌨️ [Keybinds] ${action} hold end`)
+    debug.log(`⌨[Keybinds] ${action} hold end`)
   }
   if (immediate || releaseDelay.value <= 0) {
     finish()
@@ -340,7 +340,7 @@ function initializeKeybinds(): void {
   loadKeybinds()
   
   isInitialized.value = true
-  debug.log('⌨️ [Keybinds] Initialized with', keybinds.value.size, 'keybinds')
+  debug.log('⌨[Keybinds] Initialized with', keybinds.value.size, 'keybinds')
 }
 
 function loadKeybinds(): void {
@@ -368,10 +368,10 @@ function loadKeybinds(): void {
         }
       }
       
-      debug.log('⌨️ [Keybinds] Loaded customizations from storage')
+      debug.log('⌨[Keybinds] Loaded customizations from storage')
     }
   } catch (error) {
-    debug.warn('⌨️ [Keybinds] Failed to load from storage:', error)
+    debug.warn('⌨[Keybinds] Failed to load from storage:', error)
   }
 }
 
@@ -400,9 +400,9 @@ function saveKeybinds(): void {
     }
     
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
-    debug.log('⌨️ [Keybinds] Saved to storage')
+    debug.log('⌨[Keybinds] Saved to storage')
   } catch (error) {
-    debug.warn('⌨️ [Keybinds] Failed to save to storage:', error)
+    debug.warn('⌨[Keybinds] Failed to save to storage:', error)
   }
 }
 
@@ -446,7 +446,7 @@ function handleKeyDown(event: KeyboardEvent): void {
       pressHold(action)
     } else {
       ;(handler as KeybindHandler)()
-      debug.log(`⌨️ [Keybinds] ${action} triggered`)
+      debug.log(`⌨[Keybinds] ${action} triggered`)
     }
 
     return // Only handle first matching keybind
@@ -517,7 +517,7 @@ function handleMouseDown(event: MouseEvent): void {
       pressHold(action)
     } else {
       ;(handler as KeybindHandler)()
-      debug.log(`🖱️ [Keybinds] ${action} mouse triggered`)
+      debug.log(`[Keybinds] ${action} mouse triggered`)
     }
 
     return // Only handle first matching keybind
@@ -574,7 +574,7 @@ function syncNativeCapture(): void {
     if (token !== nativeArmToken) return
     nativePttAvailable.value = supported
     nativeCaptureActive.value = supported
-    debug.log(`⌨️ [Keybinds] Native PTT capture ${supported ? 'armed' : 'unavailable'}`)
+    debug.log(`⌨[Keybinds] Native PTT capture ${supported ? 'armed' : 'unavailable'}`)
   })
 }
 
@@ -618,7 +618,7 @@ export function useKeybinds() {
       keybind.modifiers = { ...modifiers }
       saveKeybinds()
       syncNativeCapture()
-      debug.log(`⌨️ [Keybinds] Updated ${action} to ${keyToDisplay(key, modifiers)}`)
+      debug.log(`⌨[Keybinds] Updated ${action} to ${keyToDisplay(key, modifiers)}`)
     }
   }
 
@@ -653,7 +653,7 @@ export function useKeybinds() {
     inputMode.value = mode
     saveKeybinds()
     syncNativeCapture()
-    debug.log(`⌨️ [Keybinds] Input mode set to ${mode}`)
+    debug.log(`⌨[Keybinds] Input mode set to ${mode}`)
   }
   
   const setReleaseDelay = (delay: number): void => {
@@ -717,7 +717,7 @@ export function useKeybinds() {
     
     isListenerSetup.value = true
     syncNativeCapture()
-    debug.log('⌨️ [Keybinds] Global listeners registered (keyboard + mouse)')
+    debug.log('⌨[Keybinds] Global listeners registered (keyboard + mouse)')
   }
   
   const cleanupListeners = (): void => {
@@ -743,7 +743,7 @@ export function useKeybinds() {
     }
     releaseTimers.clear()
 
-    debug.log('⌨️ [Keybinds] Global listeners removed')
+    debug.log('⌨[Keybinds] Global listeners removed')
   }
   
   return {

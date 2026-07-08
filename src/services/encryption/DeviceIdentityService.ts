@@ -158,7 +158,7 @@ class DeviceIdentityService {
 
     // A revoked row is dead; do not refresh it in place.
     if (existing?.revoked_at || existing?.trust_state === 'revoked') {
-      debug.warn('⚠️ Current device id is revoked; registering as a new device')
+      debug.warn('Current device id is revoked; registering as a new device')
       deviceId = this.rotateDeviceId()
       existing = null
       isNewIdentity = true
@@ -175,7 +175,7 @@ class DeviceIdentityService {
         deviceId,
       )
       if (!localPairValid) {
-        debug.warn('⚠️ Local cached signing public key does not match private key')
+        debug.warn('Local cached signing public key does not match private key')
         signingPublicSpki = null
       }
     }
@@ -220,7 +220,7 @@ class DeviceIdentityService {
       signingPublicSpki = minted.publicSpki
     } else if (!signingPublicSpki) {
       // Private key with no SPKI and no authoritative server key: first publish for this id.
-      debug.warn('⚠️ Device signing key missing public SPKI - minting a fresh keypair')
+      debug.warn('Device signing key missing public SPKI - minting a fresh keypair')
       const minted = await this.mintSigningKeypair(deviceId)
       signingPrivate = minted.privateKey
       signingPublicSpki = minted.publicSpki
@@ -239,7 +239,7 @@ class DeviceIdentityService {
         (row.trust_state === 'account' || row.trust_state === 'untrusted')
       ) {
         await this.setTrustState(deviceId, 'recovery').catch(err =>
-          debug.warn('⚠️ Failed to elevate device trust after recovery unlock:', err),
+          debug.warn('Failed to elevate device trust after recovery unlock:', err),
         )
         row.trust_state = 'recovery'
       }
@@ -263,7 +263,7 @@ class DeviceIdentityService {
       .eq('device_id', deviceId)
       .maybeSingle()
     if (error) {
-      debug.warn('⚠️ Failed to load existing device row:', error)
+      debug.warn('Failed to load existing device row:', error)
       return { row: null, error: true }
     }
     return { row: (data || null) as UserDevice | null, error: false }
@@ -276,7 +276,7 @@ class DeviceIdentityService {
       localStorage.setItem(DEVICE_ID_STORAGE_KEY, newId)
     } catch { /* ephemeral session */ }
     this.deviceId = newId
-    debug.warn(`🔄 Rotated local device id → ${newId.substring(0, 8)}`)
+    debug.warn(`Rotated local device id → ${newId.substring(0, 8)}`)
     return newId
   }
 
@@ -320,7 +320,7 @@ class DeviceIdentityService {
       .select('*')
       .maybeSingle()
     if (error) {
-      debug.warn('⚠️ Failed to refresh device row:', error)
+      debug.warn('Failed to refresh device row:', error)
       return existing
     }
     return (updated || existing) as UserDevice
@@ -348,10 +348,10 @@ class DeviceIdentityService {
       .maybeSingle()
 
     if (error) {
-      debug.warn('⚠️ Failed to register device:', error)
+      debug.warn('Failed to register device:', error)
       return null
     }
-    debug.log(`📱 Registered device ${deviceId.substring(0, 8)} (${row.label})`)
+    debug.log(`Registered device ${deviceId.substring(0, 8)} (${row.label})`)
 
     try {
       const others = (await this.listActiveDevices(userId)).filter(d => d.device_id !== deviceId)
@@ -359,7 +359,7 @@ class DeviceIdentityService {
         await this.requestApproval(userId)
       }
     } catch (err) {
-      debug.warn('⚠️ Failed to raise new-login approval request:', err)
+      debug.warn('Failed to raise new-login approval request:', err)
     }
 
     return inserted as UserDevice
@@ -405,7 +405,7 @@ class DeviceIdentityService {
       .is('revoked_at', null)
       .order('created_at', { ascending: true })
     if (error) {
-      debug.warn('⚠️ Failed to list devices:', error)
+      debug.warn('Failed to list devices:', error)
       return []
     }
     return (data || []) as UserDevice[]
@@ -494,7 +494,7 @@ class DeviceIdentityService {
   async revokeDevice(deviceId: string): Promise<void> {
     const userId = await this.resolveUserId()
     if (!userId) {
-      debug.warn('⚠️ revokeDevice: no profile id available')
+      debug.warn('revokeDevice: no profile id available')
       return
     }
     const { error } = await supabase
@@ -503,7 +503,7 @@ class DeviceIdentityService {
       .eq('user_id', userId)
       .eq('device_id', deviceId)
     if (error) {
-      debug.error('❌ Failed to revoke device:', error)
+      debug.error('Failed to revoke device:', error)
       throw new Error(error.message || 'Failed to sign out device')
     }
   }
@@ -511,7 +511,7 @@ class DeviceIdentityService {
   async renameDevice(deviceId: string, label: string): Promise<void> {
     const userId = await this.resolveUserId()
     if (!userId) {
-      debug.warn('⚠️ renameDevice: no profile id available')
+      debug.warn('renameDevice: no profile id available')
       return
     }
     const { error } = await supabase
@@ -520,7 +520,7 @@ class DeviceIdentityService {
       .eq('user_id', userId)
       .eq('device_id', deviceId)
     if (error) {
-      debug.error('❌ Failed to rename device:', error)
+      debug.error('Failed to rename device:', error)
       throw new Error(error.message || 'Failed to rename device')
     }
   }
@@ -547,7 +547,7 @@ class DeviceIdentityService {
       .eq('user_id', userId)
       .eq('device_id', deviceId)
     if (error) {
-      debug.error('❌ Failed to delete device:', error)
+      debug.error('Failed to delete device:', error)
       throw new Error(error.message || 'Failed to remove device')
     }
   }
@@ -591,7 +591,7 @@ class DeviceIdentityService {
         removed++
       } catch { /* best-effort */ }
     }
-    if (removed > 0) debug.log(`🧹 Pruned ${removed} stale device row(s)`)
+    if (removed > 0) debug.log(`Pruned ${removed} stale device row(s)`)
     return removed
   }
 
@@ -613,7 +613,7 @@ class DeviceIdentityService {
       .select('id')
       .maybeSingle()
     if (error) {
-      debug.warn('⚠️ Failed to create device approval request:', error)
+      debug.warn('Failed to create device approval request:', error)
       return null
     }
     return (data as any)?.id ?? null
@@ -700,7 +700,7 @@ class DeviceIdentityService {
       .eq('user_id', userId)
       .eq('device_id', deviceId)
     if (error) {
-      debug.error('❌ Failed to revoke current device:', error)
+      debug.error('Failed to revoke current device:', error)
       throw new Error(error.message || 'Failed to secure account')
     }
   }

@@ -1468,7 +1468,7 @@ const handleEmojiSelected = async (emoji: any) => {
     if (postReactionsRef.value?.handleEmojiSelected) {
       const success = await postReactionsRef.value.handleEmojiSelected(emoji);
       if (success) {
-        debug.log(`✅ Added emoji reaction ${emoji.name} to post ${props.post.id}`);
+        debug.log(`Added emoji reaction ${emoji.name} to post ${props.post.id}`);
         closeEmojiPopup();
       }
     } else {
@@ -1494,7 +1494,7 @@ const handleEmojiSelected = async (emoji: any) => {
           debug.warn('Failed to play error audio:', audioError);
         }
       } else {
-        debug.log(`✅ Added emoji reaction ${emoji.name} to post ${props.post.id}`);
+        debug.log(`Added emoji reaction ${emoji.name} to post ${props.post.id}`);
         closeEmojiPopup();
         if (postReactionsRef.value) {
           await (postReactionsRef.value as any).loadReactions?.();
@@ -1588,7 +1588,7 @@ const handleShowReactionTooltip = (event: MouseEvent, reaction: any) => {
   if (tooltipTimer.value) clearTimeout(tooltipTimer.value);
   
   // Debug: log reaction data
-  debug.log('🎯 Reaction tooltip data:', {
+  debug.log('Reaction tooltip data:', {
     emoji_name: reaction.emoji_name,
     reactors: reaction.reactors,
     user_reactions: reaction.user_reactions,
@@ -1607,7 +1607,7 @@ const handleShowReactionTooltip = (event: MouseEvent, reaction: any) => {
   // Add remote reactors from federated fetch. Use parts for display name so custom emojis
   // render (synthetic id is not in user cache, so DisplayName cannot look up by userId).
   const remoteUsers = (reaction.reactors || []).map((reactor: any) => {
-    debug.log('🎯 Remote reactor:', reactor);
+    debug.log('Remote reactor:', reactor);
     const displayName = reactor.display_name || reactor.username || 'Unknown';
     const rawEmojis = reactor.display_name_emojis || [];
     const pinnedEmojis = rawEmojis
@@ -1802,10 +1802,10 @@ const handleDeleteConfirm = async () => {
       3000
     );
     
-    debug.log('✅ Post successfully deleted:', props.post.id);
+    debug.log('Post successfully deleted:', props.post.id);
     
   } catch (error) {
-    debug.error('❌ Failed to delete post:', error);
+    debug.error('Failed to delete post:', error);
     
     notificationStore.showToast(
       'server_update',
@@ -1835,20 +1835,20 @@ const showReplyTarget = async () => {
       if (navigationData.success && navigationData.route) {
         await router.push(navigationData.route);
       } else {
-        debug.error('❌ Failed to get conversation navigation data:', navigationData.error);
+        debug.error('Failed to get conversation navigation data:', navigationData.error);
         
         // Use fallback route
         await router.push(navigationData.fallbackRoute);
       }
       
     } catch (error) {
-      debug.error('❌ Failed to navigate to conversation:', error);
+      debug.error('Failed to navigate to conversation:', error);
       
       // Fallback: emit the event as before
       emit('show-conversation', props.post.id);
     }
   } else {
-    debug.warn('⚠️ No reply context found for post:', props.post.id);
+    debug.warn('No reply context found for post:', props.post.id);
   }
 };
 

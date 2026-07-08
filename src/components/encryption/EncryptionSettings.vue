@@ -588,7 +588,7 @@ async function resetEncryption() {
     const { useUnifiedVoiceChannelStore } = await import('@/stores/unifiedVoiceChannel')
     const voiceStore = useUnifiedVoiceChannelStore()
     if (voiceStore.isConnected && voiceStore.isEncrypted) {
-      debug.log('🔐 Reset encryption: leaving active encrypted voice call first')
+      debug.log('Reset encryption: leaving active encrypted voice call first')
       await voiceStore.leaveVoiceChannel()
       toast.info('Left the encrypted voice call (its keys were reset)')
     }

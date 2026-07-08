@@ -44,7 +44,7 @@ export function useRemotePostSync(
     try {
       const result = await activityPubService.fetchRemoteReactions(apId, getOriginalPostId(p))
       if (result) {
-        debug.log(`📬 Fetched ${result.count} reactions for remote post`)
+        debug.log(`Fetched ${result.count} reactions for remote post`)
         options.onReactionsUpdate?.(result)
         options.onRefresh?.(p.id)
       }
@@ -66,7 +66,7 @@ export function useRemotePostSync(
     try {
       const result = await activityPubService.fetchRemoteReplies(apId, getOriginalPostId(p))
       if (result) {
-        debug.log(`📬 Fetched ${result.count} replies for remote post`)
+        debug.log(`Fetched ${result.count} replies for remote post`)
         // The service may attach extra counters when the remote responds with
         // updated tallies; they aren't part of the strict return type, so cast.
         const r = result as any

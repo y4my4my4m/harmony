@@ -34,7 +34,7 @@ class SecureSessionKeyStore {
       const request = indexedDB.open(DB_NAME, DB_VERSION)
 
       request.onerror = () => {
-        debug.warn('⚠️ SecureSessionKeyStore: Failed to open IndexedDB:', request.error)
+        debug.warn('SecureSessionKeyStore: Failed to open IndexedDB:', request.error)
         reject(request.error)
       }
 
@@ -75,7 +75,7 @@ class SecureSessionKeyStore {
       const store = tx.objectStore(STORE_NAME)
       store.put({ userId, ...safeKeys, storedAt: Date.now() })
       tx.oncomplete = () => {
-        debug.log('🔐 Session keys stored securely in IndexedDB (non-extractable)')
+        debug.log('Session keys stored securely in IndexedDB (non-extractable)')
         resolve()
       }
       tx.onerror = () => reject(tx.error)
@@ -103,7 +103,7 @@ class SecureSessionKeyStore {
         }
 
         if (!result.encryptionKey || !result.backupKey || !result.signingKey) {
-          debug.warn('⚠️ Stored session keys are incomplete - clearing')
+          debug.warn('Stored session keys are incomplete - clearing')
           this.clear(userId).catch(() => {})
           resolve(null)
           return
@@ -130,14 +130,14 @@ class SecureSessionKeyStore {
         const store = tx.objectStore(STORE_NAME)
         store.delete(userId)
         tx.oncomplete = () => {
-          debug.log('🔒 Session keys cleared from IndexedDB')
+          debug.log('Session keys cleared from IndexedDB')
           resolve()
         }
         tx.onerror = () => reject(tx.error)
         tx.onabort = () => reject(tx.error)
       })
     } catch {
-      debug.warn('⚠️ Failed to clear session keys from IndexedDB')
+      debug.warn('Failed to clear session keys from IndexedDB')
     }
   }
 
@@ -156,7 +156,7 @@ class SecureSessionKeyStore {
         tx.onabort = () => reject(tx.error)
       })
     } catch {
-      debug.warn('⚠️ Failed to clear all session keys from IndexedDB')
+      debug.warn('Failed to clear all session keys from IndexedDB')
     }
   }
 
@@ -205,7 +205,7 @@ class IdentityKeyStore {
       const request = indexedDB.open(IDENTITY_DB_NAME, IDENTITY_DB_VERSION)
 
       request.onerror = () => {
-        debug.warn('⚠️ IdentityKeyStore: Failed to open IndexedDB:', request.error)
+        debug.warn('IdentityKeyStore: Failed to open IndexedDB:', request.error)
         reject(request.error)
       }
 
@@ -257,7 +257,7 @@ class IdentityKeyStore {
       const store = tx.objectStore(IDENTITY_STORE_NAME)
       store.put({ userId, privateKey: safeKey, publicKeyBase64: publicKeyBase64 ?? null, storedAt: Date.now() })
       tx.oncomplete = () => {
-        debug.log('🔐 Identity key stored securely in IndexedDB (non-extractable)')
+        debug.log('Identity key stored securely in IndexedDB (non-extractable)')
         resolve()
       }
       tx.onerror = () => reject(tx.error)
@@ -320,7 +320,7 @@ class IdentityKeyStore {
         tx.onabort = () => reject(tx.error)
       })
     } catch {
-      debug.warn('⚠️ Failed to clear identity key from IndexedDB')
+      debug.warn('Failed to clear identity key from IndexedDB')
     }
   }
 
@@ -336,7 +336,7 @@ class IdentityKeyStore {
         tx.onabort = () => reject(tx.error)
       })
     } catch {
-      debug.warn('⚠️ Failed to clear all identity keys from IndexedDB')
+      debug.warn('Failed to clear all identity keys from IndexedDB')
     }
   }
 
@@ -372,7 +372,7 @@ class SigningKeyStore {
       const request = indexedDB.open(SIGNING_DB_NAME, SIGNING_DB_VERSION)
 
       request.onerror = () => {
-        debug.warn('⚠️ SigningKeyStore: Failed to open IndexedDB:', request.error)
+        debug.warn('SigningKeyStore: Failed to open IndexedDB:', request.error)
         reject(request.error)
       }
 
@@ -416,7 +416,7 @@ class SigningKeyStore {
       const store = tx.objectStore(SIGNING_STORE_NAME)
       store.put({ userId, privateKey: safeKey, storedAt: Date.now() })
       tx.oncomplete = () => {
-        debug.log('🔐 Signing key stored securely in IndexedDB (non-extractable)')
+        debug.log('Signing key stored securely in IndexedDB (non-extractable)')
         resolve()
       }
       tx.onerror = () => reject(tx.error)
@@ -460,7 +460,7 @@ class SigningKeyStore {
         tx.onabort = () => reject(tx.error)
       })
     } catch {
-      debug.warn('⚠️ Failed to clear signing key from IndexedDB')
+      debug.warn('Failed to clear signing key from IndexedDB')
     }
   }
 
@@ -476,7 +476,7 @@ class SigningKeyStore {
         tx.onabort = () => reject(tx.error)
       })
     } catch {
-      debug.warn('⚠️ Failed to clear all signing keys from IndexedDB')
+      debug.warn('Failed to clear all signing keys from IndexedDB')
     }
   }
 
@@ -523,7 +523,7 @@ class PinnedKeyStore {
       const request = indexedDB.open(PINNED_DB_NAME, PINNED_DB_VERSION)
 
       request.onerror = () => {
-        debug.warn('⚠️ PinnedKeyStore: Failed to open IndexedDB:', request.error)
+        debug.warn('PinnedKeyStore: Failed to open IndexedDB:', request.error)
         reject(request.error)
       }
 
@@ -573,7 +573,7 @@ class PinnedKeyStore {
         tx.onabort = () => reject(tx.error)
       })
     } catch {
-      debug.warn('⚠️ Failed to write pinned key record')
+      debug.warn('Failed to write pinned key record')
     }
   }
 
@@ -589,7 +589,7 @@ class PinnedKeyStore {
         tx.onabort = () => reject(tx.error)
       })
     } catch {
-      debug.warn('⚠️ Failed to clear pinned key record')
+      debug.warn('Failed to clear pinned key record')
     }
   }
 
@@ -605,7 +605,7 @@ class PinnedKeyStore {
         tx.onabort = () => reject(tx.error)
       })
     } catch {
-      debug.warn('⚠️ Failed to clear all pinned key records')
+      debug.warn('Failed to clear all pinned key records')
     }
   }
 
@@ -642,7 +642,7 @@ class DeviceKeyStore {
     return new Promise((resolve, reject) => {
       const request = indexedDB.open(DEVICE_DB_NAME, DEVICE_DB_VERSION)
       request.onerror = () => {
-        debug.warn('⚠️ DeviceKeyStore: Failed to open IndexedDB:', request.error)
+        debug.warn('DeviceKeyStore: Failed to open IndexedDB:', request.error)
         reject(request.error)
       }
       request.onsuccess = () => {
@@ -743,7 +743,7 @@ class DeviceKeyStore {
         tx.onabort = () => reject(tx.error)
       })
     } catch {
-      debug.warn('⚠️ Failed to clear device key')
+      debug.warn('Failed to clear device key')
     }
   }
 
@@ -759,7 +759,7 @@ class DeviceKeyStore {
         tx.onabort = () => reject(tx.error)
       })
     } catch {
-      debug.warn('⚠️ Failed to clear all device keys')
+      debug.warn('Failed to clear all device keys')
     }
   }
 

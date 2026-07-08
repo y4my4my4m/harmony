@@ -147,7 +147,7 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
     async initialize(userServerIds: string[]) {
       if (this.isInitialized) return;
       
-      debug.log('🎭 Initializing emoji cache system...');
+      debug.log('Initializing emoji cache system...');
       
       try {
         await this.fetchAllServerMetadata(userServerIds);
@@ -161,9 +161,9 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
         this.isInitialized = true;
         this.lastGlobalUpdate = new Date();
         
-        debug.log('✅ Emoji cache initialized successfully');
+        debug.log('Emoji cache initialized successfully');
       } catch (error) {
-        debug.error('❌ Failed to initialize emoji cache:', error);
+        debug.error('Failed to initialize emoji cache:', error);
         throw error;
       }
     },
@@ -171,8 +171,8 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
     async initializeSelective(priorityServerIds: string[] = [], backgroundServerIds: string[] = []) {
       if (this.isInitialized) return;
       
-      debug.log('🎭 Initializing emoji cache system (selective loading)...');
-      debug.log(`⚡ Priority servers: ${priorityServerIds.length}, Background: ${backgroundServerIds.length}`);
+      debug.log('Initializing emoji cache system (selective loading)...');
+      debug.log(`Priority servers: ${priorityServerIds.length}, Background: ${backgroundServerIds.length}`);
       
       try {
         const allRequestedIds = [...priorityServerIds, ...backgroundServerIds];
@@ -192,7 +192,7 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
           }
           if (hydratedServerIds.length > 0) {
             this.rebuildResolvedEmojis();
-            debug.log(`⚡ Hydrated ${hydratedServerIds.length} servers from IndexedDB cache`);
+            debug.log(`Hydrated ${hydratedServerIds.length} servers from IndexedDB cache`);
           }
         } catch (e) {
           debug.warn('IndexedDB hydration failed, will fetch from network:', e);
@@ -202,20 +202,20 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
         const backgroundMissing = backgroundServerIds.filter(id => !hydratedServerIds.includes(id));
 
         if (priorityMissing.length > 0) {
-          debug.log(`⚡ Loading ${priorityMissing.length} priority servers from network...`);
+          debug.log(`Loading ${priorityMissing.length} priority servers from network...`);
           await this.loadEmojisForServers(priorityMissing);
         }
         
         if (backgroundMissing.length > 0) {
           setTimeout(async () => {
-            debug.log(`🔄 Loading ${backgroundMissing.length} background servers from network...`);
+            debug.log(`Loading ${backgroundMissing.length} background servers from network...`);
             await this.loadEmojisForServers(backgroundMissing);
           }, 1000);
         }
 
         if (hydratedServerIds.length > 0) {
           setTimeout(async () => {
-            debug.log(`🔄 Revalidating ${hydratedServerIds.length} cached servers...`);
+            debug.log(`Revalidating ${hydratedServerIds.length} cached servers...`);
             for (const id of hydratedServerIds) {
               const cache = this.serverCaches.get(id);
               if (cache) cache.isStale = true;
@@ -231,9 +231,9 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
         this.isInitialized = true;
         this.lastGlobalUpdate = new Date();
         
-        debug.log('✅ Emoji cache initialized successfully (selective)');
+        debug.log('Emoji cache initialized successfully (selective)');
       } catch (error) {
-        debug.error('❌ Failed to initialize emoji cache selectively:', error);
+        debug.error('Failed to initialize emoji cache selectively:', error);
         throw error;
       }
     },
@@ -270,14 +270,14 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
       });
 
       if (serversToUpdate.length === 0) {
-        debug.log('📋 All emoji caches are up to date or loading');
+        debug.log('All emoji caches are up to date or loading');
         return;
       }
 
       serversToUpdate.forEach(id => this._loadingServerIds.add(id));
 
       try {
-        debug.log(`📥 Loading emojis for ${serversToUpdate.length} servers`);
+        debug.log(`Loading emojis for ${serversToUpdate.length} servers`);
 
         const [serverDetails, emojiData] = await Promise.all([
           this.fetchServerDetails(serversToUpdate),
@@ -388,7 +388,7 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
         });
       }
       
-      debug.log(`📦 Cached ${emojis.length} emojis for: ${serverCache.serverName}`);
+      debug.log(`Cached ${emojis.length} emojis for: ${serverCache.serverName}`);
     },
 
     /**
@@ -525,7 +525,7 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
       }
 
       this.resolvedEmojis = resolved;
-      debug.log('🔄 Rebuilt resolved emojis for', Object.keys(resolved).length, 'servers');
+      debug.log('Rebuilt resolved emojis for', Object.keys(resolved).length, 'servers');
 
       import('@/services/userDataService').then(({ userDataService }) => {
         userDataService.reResolveAllDisplayNames()
@@ -579,7 +579,7 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
       this.nameIndex.get(emoji.name)!.push(entry);
 
       this.rebuildResolvedEmojis();
-      debug.log('➕ Added new emoji to cache:', emoji.name);
+      debug.log('Added new emoji to cache:', emoji.name);
     },
 
     async handleEmojiUpdateEntry(emoji: Emoji) {
@@ -617,7 +617,7 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
         this.globalEmojiIndex.set(emoji.id, existingEntry);
 
         this.rebuildResolvedEmojis();
-        debug.log('🔄 Updated emoji in cache:', emoji.name);
+        debug.log('Updated emoji in cache:', emoji.name);
       } else {
         await this.handleEmojiInsert(emoji);
       }
@@ -657,7 +657,7 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
           lastFetched: Date.now(),
         });
 
-        debug.log('➖ Removed emoji from cache:', emoji.name);
+        debug.log('Removed emoji from cache:', emoji.name);
       }
     },
 
@@ -680,7 +680,7 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
      * These methods are kept as no-ops for backward compatibility.
      */
     setupRealtimeSubscriptions() {
-      debug.log('🔔 Emoji realtime: handled via server-presence broadcast');
+      debug.log('Emoji realtime: handled via server-presence broadcast');
     },
 
     cleanupRealtimeSubscriptions() {
@@ -712,7 +712,7 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
       this.lastCleanup = now;
       
       if (cleanedServers > 0 || cleanedEmojis > 0) {
-        debug.log(`🧹 Cache cleanup: removed ${cleanedServers} servers, ${cleanedEmojis} emojis`);
+        debug.log(`Cache cleanup: removed ${cleanedServers} servers, ${cleanedEmojis} emojis`);
       }
     },
 
@@ -723,7 +723,7 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
     },
 
     async refreshServer(serverId: string) {
-      debug.log('🔄 Force refreshing emojis for server:', serverId);
+      debug.log('Force refreshing emojis for server:', serverId);
       
       this.removeServerFromCache(serverId);
       await this.loadEmojisForServers([serverId]);
@@ -735,7 +735,7 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
         .sort((a, b) => b.accessCount - a.accessCount)
         .slice(0, 50);
 
-      debug.log(`🚀 Preloaded ${frequentEmojis.length} frequent emojis`);
+      debug.log(`Preloaded ${frequentEmojis.length} frequent emojis`);
     },
 
     getEmojiAnalytics() {
@@ -784,7 +784,7 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
       this._personalEmojiLoadedAt = 0;
       this._personalEmojiProfileId = null;
       
-      debug.log('🔄 Emoji cache reset');
+      debug.log('Emoji cache reset');
     },
   },
 });

@@ -67,7 +67,7 @@ export const useThemeStore = defineStore('theme', {
       this.lastError = null
 
       try {
-        debug.log('🎨 Initializing professional theme system...')
+        debug.log('Initializing professional theme system...')
 
         await audioThemeService.ensureCustomPacksLoaded()
         this.audioThemes = audioThemeService.getThemes()
@@ -80,9 +80,9 @@ export const useThemeStore = defineStore('theme', {
         await this.preloadCurrentTheme()
 
         this.isInitialized = true
-        debug.log('✅ Theme system initialized successfully')
+        debug.log('Theme system initialized successfully')
       } catch (error) {
-        debug.error('❌ Failed to initialize theme system:', error)
+        debug.error('Failed to initialize theme system:', error)
         this.lastError = error instanceof Error ? error.message : 'Unknown initialization error'
         throw error
       } finally {
@@ -93,7 +93,7 @@ export const useThemeStore = defineStore('theme', {
     setupEventListeners(): void {
       audioThemeService.on('themeChanged', (event) => {
         this.currentAudioTheme = event.to
-        debug.log(`🎵 Theme changed: ${event.from} → ${event.to}`)
+        debug.log(`Theme changed: ${event.from} → ${event.to}`)
       })
 
       audioThemeService.on('themePreloaded', (event) => {
@@ -101,11 +101,11 @@ export const useThemeStore = defineStore('theme', {
           this.isPreloading = false
           this.preloadingTheme = null
         }
-        debug.log(`✅ Theme preloaded: ${event.theme.name}`)
+        debug.log(`Theme preloaded: ${event.theme.name}`)
       })
 
       audioThemeService.on('audioError', (event) => {
-        debug.warn(`🔊 Audio playback error for ${event.action}:`, event.error)
+        debug.warn(`Audio playback error for ${event.action}:`, event.error)
       })
 
       audioThemeService.on('settingsChanged', (settings) => {
@@ -123,7 +123,7 @@ export const useThemeStore = defineStore('theme', {
       this.lastError = null
 
       try {
-        debug.log(`🎵 Switching to theme: ${themeId}`)
+        debug.log(`Switching to theme: ${themeId}`)
 
         const success = await audioThemeService.setTheme(themeId)
 
@@ -132,12 +132,12 @@ export const useThemeStore = defineStore('theme', {
           setTimeout(() => {
             audioThemeService.playThemeFeedbackSound(themeId)
           }, 100)
-          debug.log(`✅ Successfully switched to theme: ${themeId}`)
+          debug.log(`Successfully switched to theme: ${themeId}`)
         }
 
         return success
       } catch (error) {
-        debug.error(`❌ Failed to set theme ${themeId}:`, error)
+        debug.error(`Failed to set theme ${themeId}:`, error)
         this.lastError = error instanceof Error ? error.message : 'Theme switch failed'
         return false
       }
@@ -177,7 +177,7 @@ export const useThemeStore = defineStore('theme', {
         try {
           await this.initialize()
         } catch (error) {
-          debug.warn(`🔊 Audio system failed to auto-initialize, skipping ${action}`)
+          debug.warn(`Audio system failed to auto-initialize, skipping ${action}`)
           return
         }
       }
@@ -210,7 +210,7 @@ export const useThemeStore = defineStore('theme', {
 
     clearAudioCache(): void {
       audioThemeService.clearCache()
-      debug.log('🗑️ Audio cache cleared')
+      debug.log('Audio cache cleared')
     },
 
     getCacheInfo() {
@@ -245,9 +245,9 @@ export const useThemeStore = defineStore('theme', {
           this.setAudioVolume(volume)
         }
 
-        debug.log('✅ Theme preferences imported successfully')
+        debug.log('Theme preferences imported successfully')
       } catch (error) {
-        debug.error('❌ Failed to import theme preferences:', error)
+        debug.error('Failed to import theme preferences:', error)
         this.lastError = 'Failed to import preferences'
       }
     },
@@ -267,9 +267,9 @@ export const useThemeStore = defineStore('theme', {
         await this.setAudioTheme('default')
         this.setAudioVolume(0.7)
         this.clearError()
-        debug.log('✅ Theme settings reset to defaults')
+        debug.log('Theme settings reset to defaults')
       } catch (error) {
-        debug.error('❌ Failed to reset settings:', error)
+        debug.error('Failed to reset settings:', error)
         this.lastError = 'Failed to reset settings'
       }
     }

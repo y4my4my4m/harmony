@@ -198,10 +198,10 @@ export const useChatStore = defineStore('chat', {
           const now = new Date();
           const cacheAge = now.getTime() - cached.lastFetchedAt.getTime();
           
-          debug.log(`📦 Found cache for channel ${channelId}, age: ${Math.round(cacheAge / 1000)}s, valid: ${cacheAge < this.cacheValidityDuration}`);
+          debug.log(`Found cache for channel ${channelId}, age: ${Math.round(cacheAge / 1000)}s, valid: ${cacheAge < this.cacheValidityDuration}`);
 
           if (cacheAge < this.cacheValidityDuration) {
-            debug.log(`✅ Loading ${cached.messages.length} messages from cache instantly (cache is fresh)`);
+            debug.log(`Loading ${cached.messages.length} messages from cache instantly (cache is fresh)`);
             this.messages = [...cached.messages];
             this.allMessagesLoaded = cached.allMessagesLoaded;
             this.currentChannelId = channelId;
@@ -211,17 +211,17 @@ export const useChatStore = defineStore('chat', {
             void this.revalidateRecentMessages(channelId);
             return;
           } else {
-            debug.log(`⚠️ Cache is stale (${Math.round(cacheAge / 1000)}s old), fetching from database`);
+            debug.log(`Cache is stale (${Math.round(cacheAge / 1000)}s old), fetching from database`);
           }
         } else {
-          debug.log(`📭 No cache found for channel ${channelId}, fetching from database`);
+          debug.log(`No cache found for channel ${channelId}, fetching from database`);
         }
       }
 
       this.loadingOlderMessages = true;
       
       try {
-        debug.log('🔄 Loading messages via MessageService:', { channelId, oldestMessageId });
+        debug.log('Loading messages via MessageService:', { channelId, oldestMessageId });
 
         let beforeTimestamp: string | undefined;
         if (oldestMessageId !== '') {
@@ -233,11 +233,11 @@ export const useChatStore = defineStore('chat', {
             beforeTimestamp = ts instanceof Date
               ? ts.toISOString()
               : (typeof ts === 'string' ? ts : undefined);
-            debug.log('📅 Using timestamp for pagination:', beforeTimestamp);
+            debug.log('Using timestamp for pagination:', beforeTimestamp);
           }
         }
         
-        debug.log('📤 Loading older messages with params:', { channelId, limit: 20, beforeTimestamp });
+        debug.log('Loading older messages with params:', { channelId, limit: 20, beforeTimestamp });
 
         // Resolve is_remote from the already-loaded channel/server state so the
         // service can skip its channels + servers lookup round trips. When the
@@ -261,7 +261,7 @@ export const useChatStore = defineStore('chat', {
           }
         );
 
-        debug.log('✅ Service returned:', { messageCount: messages?.length || 0, hasMore });
+        debug.log('Service returned:', { messageCount: messages?.length || 0, hasMore });
 
         try {
           ensureMessageEmbeds(messages);
@@ -276,12 +276,12 @@ export const useChatStore = defineStore('chat', {
           throw new Error('Request aborted');
         }
         if (this.currentChannelId !== channelId) {
-          debug.log(`⏭️ Discarding stale response for channel ${channelId} (current: ${this.currentChannelId})`);
+          debug.log(`⏭Discarding stale response for channel ${channelId} (current: ${this.currentChannelId})`);
           return;
         }
 
         if (!messages || messages.length === 0) {
-          debug.log('📭 No older messages found');
+          debug.log('No older messages found');
           this.allMessagesLoaded = true;
           
           // Still set currentChannelId for empty channels!
@@ -296,7 +296,7 @@ export const useChatStore = defineStore('chat', {
               allMessagesLoaded: true,
               lastModified: new Date(),
             });
-            debug.log(`✅ Initialized empty cache for new channel: ${channelId}`);
+            debug.log(`Initialized empty cache for new channel: ${channelId}`);
           }
           return;
         }
@@ -320,7 +320,7 @@ export const useChatStore = defineStore('chat', {
         const olderMessages = messages;
         const allLoaded = !hasMore;
 
-        debug.log('📦 Processing messages:', { count: olderMessages.length, allLoaded, isInitialLoad: oldestMessageId === '' });
+        debug.log('Processing messages:', { count: olderMessages.length, allLoaded, isInitialLoad: oldestMessageId === '' });
 
         if (oldestMessageId === '') {
           // Merge with any messages received via realtime during the fetch to prevent losing them.
@@ -328,7 +328,7 @@ export const useChatStore = defineStore('chat', {
             (m: Message) => m.channel_id === channelId && !olderMessages.some((om: Message) => om.id === m.id)
           );
           if (realtimeOnly.length > 0) {
-            debug.log(`🔀 Merging ${realtimeOnly.length} realtime messages received during history fetch`);
+            debug.log(`Merging ${realtimeOnly.length} realtime messages received during history fetch`);
           }
           const merged = [...olderMessages, ...realtimeOnly];
           merged.sort((a: Message, b: Message) =>
@@ -351,9 +351,9 @@ export const useChatStore = defineStore('chat', {
             lastModified: new Date(),
           });
 
-          debug.log(`✅ Initial load: Cached ${merged.length} messages for channel`);
+          debug.log(`Initial load: Cached ${merged.length} messages for channel`);
         } else {
-          debug.log(`📤 Prepending ${olderMessages.length} older messages to ${this.messages.length} current messages`);
+          debug.log(`Prepending ${olderMessages.length} older messages to ${this.messages.length} current messages`);
           this.messages = [...olderMessages, ...this.messages];
           this.allMessagesLoaded = allLoaded;
 
@@ -365,7 +365,7 @@ export const useChatStore = defineStore('chat', {
             cached.lastFetchedAt = new Date();
           }
           
-          debug.log(`✅ Pagination: Now have ${this.messages.length} total messages, allLoaded: ${allLoaded}`);
+          debug.log(`Pagination: Now have ${this.messages.length} total messages, allLoaded: ${allLoaded}`);
         }
       } catch (error: any) {
         if (error.message === 'Request aborted') {
@@ -424,7 +424,7 @@ export const useChatStore = defineStore('chat', {
           cached.lastFetchedAt = new Date();
           cached.lastModified = new Date();
         }
-        debug.log(`🔄 Revalidate: merged ${fresh.length} missed message(s) for channel ${channelId}`);
+        debug.log(`Revalidate: merged ${fresh.length} missed message(s) for channel ${channelId}`);
       } catch (error) {
         debug.warn('Revalidate recent messages failed (non-fatal):', error);
       }
@@ -442,7 +442,7 @@ export const useChatStore = defineStore('chat', {
         return;
       }
 
-      debug.log('🔄 Adding message to cache via real-time:', {
+      debug.log('Adding message to cache via real-time:', {
         messageId: message.id,
         channelId: message.channel_id,
         currentChannelId: this.currentChannelId,
@@ -452,12 +452,12 @@ export const useChatStore = defineStore('chat', {
       if (this.currentChannelId === message.channel_id) {
         if (!this.messages.some(msg => msg.id === message.id)) {
           this._insertMessageSorted(this.messages, message);
-          debug.log('✅ Real-time message added to current messages:', message.id);
+          debug.log('Real-time message added to current messages:', message.id);
         } else {
-          debug.log('⚠️ Message already exists in current messages:', message.id);
+          debug.log('Message already exists in current messages:', message.id);
         }
       } else {
-        debug.log('🔍 Message not for current channel:', {
+        debug.log('Message not for current channel:', {
           messageChannelId: message.channel_id,
           currentChannelId: this.currentChannelId
         });
@@ -468,10 +468,10 @@ export const useChatStore = defineStore('chat', {
         if (!cached.messages.some(msg => msg.id === message.id)) {
           this._insertMessageSorted(cached.messages, message);
           cached.lastModified = new Date();
-          debug.log('✅ Real-time message added to cache:', message.id);
+          debug.log('Real-time message added to cache:', message.id);
         }
       } else {
-        debug.log('⚠️ No cache found for channel:', message.channel_id);
+        debug.log('No cache found for channel:', message.channel_id);
       }
     },
 
@@ -524,7 +524,7 @@ export const useChatStore = defineStore('chat', {
       const handler = async (e: Event) => {
         const detail = (e as CustomEvent).detail;
         const roomId = detail?.roomId as string | undefined;
-        debug.log(`🔑 Key received${roomId ? ` for room ${roomId.substring(0, 8)}...` : ''} - re-decrypting`);
+        debug.log(`Key received${roomId ? ` for room ${roomId.substring(0, 8)}...` : ''} - re-decrypting`);
         await this.reprocessEncryptedMessages(roomId);
       };
       (this as any)._keyListenerHandler = handler;
@@ -587,11 +587,11 @@ export const useChatStore = defineStore('chat', {
 
     async editMessage(messageId: string, content: MessagePart[]) {
       try {
-        debug.log('🔄 Editing message via MessageService:', messageId);
+        debug.log('Editing message via MessageService:', messageId);
 
         const currentMessage = this.messages.find(msg => msg.id === messageId);
         if (!currentMessage) {
-          debug.error('❌ Message not found in current messages:', messageId);
+          debug.error('Message not found in current messages:', messageId);
           return;
         }
         
@@ -604,24 +604,24 @@ export const useChatStore = defineStore('chat', {
         };
         
         this.updateMessageInCache(messageId, messageWithReactions);
-        debug.log('✅ Message edited via service layer');
+        debug.log('Message edited via service layer');
         
       } catch (error: any) {
-        debug.error('❌ Error editing message via service:', error);
+        debug.error('Error editing message via service:', error);
         throw new Error(error.message || 'Failed to edit message');
       }
     },
 
     async deleteMessage(messageId: string) {
       try {
-        debug.log('🔄 Deleting message via MessageService:', messageId);
+        debug.log('Deleting message via MessageService:', messageId);
 
         await services.messages.deleteMessage(messageId);
 
         this.removeMessageFromCache(messageId);
-        debug.log('✅ Message deleted via service layer');
+        debug.log('Message deleted via service layer');
       } catch (error: any) {
-        debug.error('❌ Error deleting message via service:', error);
+        debug.error('Error deleting message via service:', error);
         throw new Error(error.message || 'Failed to delete message');
       }
     },
@@ -661,7 +661,7 @@ export const useChatStore = defineStore('chat', {
       this.addMessageToCache(optimisticMessage as any);
       
       try {
-        debug.log('🔄 Sending message via MessageService:', { channelId, userId });
+        debug.log('Sending message via MessageService:', { channelId, userId });
         
         const message = await services.messages.sendChannelMessage(
           serverId,
@@ -672,14 +672,14 @@ export const useChatStore = defineStore('chat', {
           options
         );
         
-        debug.log('✅ Message saved to database:', message.id);
-        debug.log('📦 Message data from server:', message);
+        debug.log('Message saved to database:', message.id);
+        debug.log('Message data from server:', message);
         
         this._replaceTempWithReal(tempId, message, userId, channelId, content);
         
         return message;
       } catch (error: any) {
-        debug.error('❌ Error sending message via service:', error);
+        debug.error('Error sending message via service:', error);
 
         // Encryption policy errors are NOT transient - don't auto-retry (would
         // keep failing or bypass fail-closed policy); surface so the UI can prompt.
@@ -728,7 +728,7 @@ export const useChatStore = defineStore('chat', {
 
         // If offline, mark failed immediately - no point retrying
         if (!navigator.onLine) {
-          debug.log('📴 Offline - marking message as failed, will retry when user clicks Retry');
+          debug.log('Offline - marking message as failed, will retry when user clicks Retry');
           this._markMessageFailed(tempId);
           return;
         }
@@ -736,11 +736,11 @@ export const useChatStore = defineStore('chat', {
         // Auto-retry up to 2 times with exponential backoff (service call only, no new optimistic msg)
         for (let attempt = 1; attempt <= 2; attempt++) {
           const delay = Math.pow(2, attempt) * 1000;
-          debug.log(`🔁 Auto-retrying message send in ${delay}ms (attempt ${attempt}/2)`);
+          debug.log(`Auto-retrying message send in ${delay}ms (attempt ${attempt}/2)`);
           await new Promise(r => setTimeout(r, delay));
 
           if (!navigator.onLine) {
-            debug.log('📴 Went offline during retry - marking as failed');
+            debug.log('Went offline during retry - marking as failed');
             break;
           }
 
@@ -751,7 +751,7 @@ export const useChatStore = defineStore('chat', {
             this._replaceTempWithReal(tempId, retryResult, userId, channelId, content);
             return retryResult;
           } catch (retryError) {
-            debug.warn(`🔁 Retry attempt ${attempt} failed:`, retryError);
+            debug.warn(`Retry attempt ${attempt} failed:`, retryError);
           }
         }
 
@@ -797,7 +797,7 @@ export const useChatStore = defineStore('chat', {
       try { ensureMessageEmbeds(realMessage); } catch { /* embeds are best-effort */ }
 
       this.messages.splice(tempIndex, 1, realMessage as any);
-      debug.log('✅ Replaced temp message with real message:', { tempId, realId: message.id });
+      debug.log('Replaced temp message with real message:', { tempId, realId: message.id });
 
       const cached = this.messageCache.get(channelId);
       if (cached) {
@@ -821,7 +821,7 @@ export const useChatStore = defineStore('chat', {
         );
         this._replaceTempWithReal(tempId, message, userId, channelId, content);
       } catch (error) {
-        debug.error('❌ Retry failed:', error);
+        debug.error('Retry failed:', error);
         this._markMessageFailed(tempId);
       }
     },
@@ -838,7 +838,7 @@ export const useChatStore = defineStore('chat', {
         if (result.success || result.reason === 'duplicate_request') {
           // handled
         } else {
-          debug.error('🎯 Failed to toggle reaction:', (result as any).message || result.reason);
+          debug.error('Failed to toggle reaction:', (result as any).message || result.reason);
         }
       } catch (e) {
         debug.error('Error during reaction toggle:', e);
@@ -869,7 +869,7 @@ export const useChatStore = defineStore('chat', {
       // updated early for UI/stale guards, so it must NOT drive teardown - that
       // left the previous channel's realtime active when switching channels.
       if (hasMessagesSub && boundToThisChannel && this.currentSubscription) {
-        debug.log('📡 Already subscribed to channel:', channelName);
+        debug.log('Already subscribed to channel:', channelName);
         return;
       }
 
@@ -877,17 +877,17 @@ export const useChatStore = defineStore('chat', {
 
       // Stale binding or orphaned subs from a prior channel - rebuild cleanly.
       if (this.currentSubscription || this.realtimeChannelId) {
-        debug.log('🔄 Tearing down previous realtime channel:', this.realtimeChannelId, '→', channelId);
+        debug.log('Tearing down previous realtime channel:', this.realtimeChannelId, '→', channelId);
         this._teardownChannelRealtime();
       }
 
-      debug.log('🔔 Setting up real-time subscription for channel:', channelId);
+      debug.log('Setting up real-time subscription for channel:', channelId);
 
       const store = this;
 
       this.setupEncryptionKeyListener();
 
-      debug.log('📡 Creating real-time subscription via RealtimeConnectionManager:', channelName);
+      debug.log('Creating real-time subscription via RealtimeConnectionManager:', channelName);
       
       this.currentSubscription = realtimeConnectionManager.subscribeToTable({
         channelName,
@@ -900,19 +900,19 @@ export const useChatStore = defineStore('chat', {
         ],
         
         onInsert: async (payload) => {
-          debug.log('🟢 Real-time INSERT received:', payload.new?.id);
+          debug.log('Real-time INSERT received:', payload.new?.id);
           
           const payloadNew = payload.new as any;
           
           // Skip thread messages - they only appear in thread view, not main channel
           if (payloadNew.thread_id) {
-            debug.log('⚠️ Skipping thread message in main channel:', payloadNew.id);
+            debug.log('Skipping thread message in main channel:', payloadNew.id);
             return;
           }
           
           // Skip if this message already exists (from optimistic update)
           if (store.messages.findIndex(m => m.id === payloadNew.id) !== -1) {
-            debug.log('⚠️ Real message already exists (from sendMessage), skipping');
+            debug.log('Real message already exists (from sendMessage), skipping');
             return;
           }
           
@@ -921,7 +921,7 @@ export const useChatStore = defineStore('chat', {
           const tempMessageIndex = findOptimisticMatchIndex(store.messages as any, payloadNew);
           
           if (tempMessageIndex !== -1) {
-            debug.warn('⚠️ Temp message still exists during real-time, replacing now');
+            debug.warn('Temp message still exists during real-time, replacing now');
             let resolvedMessage: Message = {
               id: payloadNew.id,
               created_at: new Date(payloadNew.created_at),
@@ -971,7 +971,7 @@ export const useChatStore = defineStore('chat', {
           };
           
           if (newMessage.bot_id) {
-            debug.log('🤖 Real-time bot message received:', newMessage.id);
+            debug.log('Real-time bot message received:', newMessage.id);
           }
 
           const contentText = Array.isArray(newMessage.content) && newMessage.content[0]?.type === 'text' 
@@ -994,7 +994,7 @@ export const useChatStore = defineStore('chat', {
           }
 
           store.addMessageToCache(newMessage);
-          debug.log('📝 Real-time message added:', newMessage.id);
+          debug.log('Real-time message added:', newMessage.id);
         },
         
         onUpdate: async (payload) => {
@@ -1004,14 +1004,14 @@ export const useChatStore = defineStore('chat', {
           // (e.g. federation resolving a stub thread), remove from main channel cache.
           if (payloadNew.thread_id) {
             store.removeMessageFromCache(payloadNew.id);
-            debug.log('⚠️ Thread reply - removed from main channel if present:', payloadNew.id);
+            debug.log('Thread reply - removed from main channel if present:', payloadNew.id);
             return;
           }
           
           // Handle soft delete (federated message deletions use UPDATE with is_deleted = true)
           if (payloadNew.is_deleted) {
             store.removeMessageFromCache(payloadNew.id);
-            debug.log('🗑️ Message soft-deleted via real-time:', payloadNew.id);
+            debug.log('Message soft-deleted via real-time:', payloadNew.id);
             return;
           }
           
@@ -1042,23 +1042,23 @@ export const useChatStore = defineStore('chat', {
           }
 
           store.updateMessageInCache(updatedMessage.id, updatedMessage);
-          debug.log('🔄 Message updated via real-time:', updatedMessage.id);
+          debug.log('Message updated via real-time:', updatedMessage.id);
         },
         
         onDelete: (payload) => {
           const payloadOld = payload.old as any;
           store.removeMessageFromCache(payloadOld.id);
-          debug.log('🗑️ Message deleted via real-time:', payloadOld.id);
+          debug.log('Message deleted via real-time:', payloadOld.id);
         },
         
         onStatusChange: (status, name) => {
-          debug.log(`📡 ${name} status: ${status}`);
+          debug.log(`${name} status: ${status}`);
           store.connectionStatus = status;
         },
         
         // Gap-fill: fetch recent messages after reconnect to cover the disconnect window
         onReconnected: async () => {
-          debug.log('🔀 Channel reconnected, gap-filling missed messages for:', channelId);
+          debug.log('Channel reconnected, gap-filling missed messages for:', channelId);
           try {
             if (store.messages.length > 0) {
               const newestMsg = store.messages[store.messages.length - 1];
@@ -1076,11 +1076,11 @@ export const useChatStore = defineStore('chat', {
                 }
               }
               if (added > 0) {
-                debug.log(`✅ Gap-fill: added ${added} missed messages`);
+                debug.log(`Gap-fill: added ${added} missed messages`);
               }
             }
           } catch (err) {
-            debug.error('❌ Gap-fill failed:', err);
+            debug.error('Gap-fill failed:', err);
           }
         }
       });

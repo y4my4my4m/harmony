@@ -60,7 +60,7 @@ async function recordEmojiUsage(
         // Skip recording for native Unicode emojis (non-UUID emoji IDs)
         // Native emojis use the unicode character as their ID
         if (!isValidUUID(emojiId)) {
-            debug.log('📊 Skipping emoji usage tracking for native emoji:', emojiId);
+            debug.log('Skipping emoji usage tracking for native emoji:', emojiId);
             return;
         }
         
@@ -589,7 +589,7 @@ async function preloadFrequentEmojis(serverIds: string[] = []) {
             await getEmoji(emojiId); // This will cache them
         }
         
-        debug.log(`🚀 Preloaded ${emojiIds.length} frequent emojis`);
+        debug.log(`Preloaded ${emojiIds.length} frequent emojis`);
     } catch (error) {
         debug.error('Error preloading frequent emojis:', error);
     }

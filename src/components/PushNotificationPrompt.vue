@@ -92,29 +92,29 @@ const hasUserDecided = (): boolean => {
 const shouldShowPrompt = (): boolean => {
   // Web push only exists in browsers - never in the native client
   if (!supportsWebPush() || !isSupported.value) {
-    debug.log('🔔 Push prompt: Not supported')
+    debug.log('Push prompt: Not supported')
     return false
   }
   
   // Must be a PWA (installed app)
   if (!isPWA()) {
-    debug.log('🔔 Push prompt: Not a PWA, skipping')
+    debug.log('Push prompt: Not a PWA, skipping')
     return false
   }
   
   // User hasn't already decided
   if (hasUserDecided()) {
-    debug.log('🔔 Push prompt: User already decided')
+    debug.log('Push prompt: User already decided')
     return false
   }
   
   // Not recently dismissed
   if (wasRecentlyDismissed()) {
-    debug.log('🔔 Push prompt: Recently dismissed')
+    debug.log('Push prompt: Recently dismissed')
     return false
   }
   
-  debug.log('🔔 Push prompt: Should show!', { isPWA: isPWA(), isMobile: isMobileUserAgent() })
+  debug.log('Push prompt: Should show!', { isPWA: isPWA(), isMobile: isMobileUserAgent() })
   return true
 }
 
@@ -126,7 +126,7 @@ const enablePush = async () => {
     
     if (result.success) {
       showBanner.value = false
-      debug.log('✅ Push notifications enabled from prompt')
+      debug.log('Push notifications enabled from prompt')
     } else {
       debug.error('Failed to enable push:', result.error)
       // If permission denied, don't show again
@@ -145,14 +145,14 @@ const dismissBanner = () => {
   showBanner.value = false
   // Remember dismissal for 7 days
   localStorage.setItem('harmony-push-prompt-dismissed', Date.now().toString())
-  debug.log('🔔 Push prompt dismissed (7 days)')
+  debug.log('Push prompt dismissed (7 days)')
 }
 
 const closeBanner = () => {
   showBanner.value = false
   // Remember close for 30 days
   localStorage.setItem('harmony-push-prompt-closed', Date.now().toString())
-  debug.log('🔔 Push prompt closed (30 days)')
+  debug.log('Push prompt closed (30 days)')
 }
 
 onMounted(async () => {

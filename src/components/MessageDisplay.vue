@@ -776,7 +776,7 @@ const blockedUsersCount = computed(() => activityPubStore.blockedUsers.size);
 // Watch for changes to blocked users count and force re-evaluation
 watch(blockedUsersCount, (newCount, _oldCount) => {
   blockCheckVersion.value++;
-  debug.log('🔄 Blocked users changed, forcing re-render. Count:', newCount);
+  debug.log('Blocked users changed, forcing re-render. Count:', newCount);
 });
 
 const getDisplayContent = (message: Message): MessagePart[] => {
@@ -802,7 +802,7 @@ const isMessageFromBlockedUser = (message: Message): boolean => {
   // Debug: log check for first few messages (debug helper short-circuits on
   // its own when debug logging is disabled - no `isEnabled` flag needed).
   if (props.messages.indexOf(message) < 3) {
-    debug.log(`🔍 Block check: author=${authorId}, blocked=${isBlocked}, blockedUsers size=${activityPubStore.blockedUsers.size}`);
+    debug.log(`Block check: author=${authorId}, blocked=${isBlocked}, blockedUsers size=${activityPubStore.blockedUsers.size}`);
   }
   
   return isBlocked;
@@ -1796,7 +1796,7 @@ watch(() => props.messages, (newMessages) => {
             hasSetInitialOffset = true;
             frozenInitialOffset.value = (hasDivider ? dividerIndex : displayItems.value.length) * 60;
           }
-          debug.log(hasDivider ? '📜 Initial load - scrolling to NEW divider' : '📜 Initial load - scrolling to bottom');
+          debug.log(hasDivider ? 'Initial load - scrolling to NEW divider' : 'Initial load - scrolling to bottom');
 
           // When landing on a divider we are NOT at the bottom; don't let the
           // image-load handler yank the view down.
@@ -1846,8 +1846,8 @@ watch(() => props.messages, (newMessages) => {
           });
           
           const totalEmbeds = Array.from(embedCountsByMessage.values()).reduce((sum, count) => sum + count, 0);
-          debug.log('📜 Pending images to load:', pendingImages.length, 'out of', imageUrlsInMessages.size);
-          debug.log('📜 Total embeds to load:', totalEmbeds);
+          debug.log('Pending images to load:', pendingImages.length, 'out of', imageUrlsInMessages.size);
+          debug.log('Total embeds to load:', totalEmbeds);
           
           let scrollAttempts = 0;
           const scrollToBottom = () => {
@@ -1944,7 +1944,7 @@ watch(() => props.messages, (newMessages) => {
               
               // Scroll if all content loaded or timeout reached
               if ((allImagesLoaded && allEmbedsLoaded) || elapsed >= maxWaitTime) {
-                debug.log(`📜 Images loaded: ${imagesLoadedCount}/${pendingImages.length}, Embeds loaded: ${embedsLoadedCount}/${totalEmbeds}, elapsed: ${elapsed}ms`);
+                debug.log(`Images loaded: ${imagesLoadedCount}/${pendingImages.length}, Embeds loaded: ${embedsLoadedCount}/${totalEmbeds}, elapsed: ${elapsed}ms`);
                 scrollToTarget();
               } else {
                 // Check again after a short delay
@@ -1965,7 +1965,7 @@ watch(() => props.messages, (newMessages) => {
           const followBottom = userWasAtBottom.value ||
             (Date.now() < openFollowBottomUntil && !dividerBeforeMessageId.value);
           if (isAppend && followBottom) {
-            debug.log('📜 New messages - scrolling to bottom (at bottom / open grace)');
+            debug.log('New messages - scrolling to bottom (at bottom / open grace)');
             shouldBeAtBottom.value = true;
             const scrollNewToBottom = (attempt = 0) => {
               const count = displayItems.value.length;
@@ -2040,7 +2040,7 @@ watch(isLoadingOlderMessages, (loading, wasLoading) => {
       if (!messageDisplayContainer.value) return;
       const { scrollHeight, clientHeight } = messageDisplayContainer.value;
       if (scrollHeight <= clientHeight + 5) {
-        debug.log('📜 Still no scrollbar after loading - auto-loading more');
+        debug.log('Still no scrollbar after loading - auto-loading more');
         props.loadMoreMessages?.();
       }
     }, 300);
@@ -2179,7 +2179,7 @@ const clearUnreadCount = async (messageId: string) => {
     if (error) {
       debug.error('Failed to clear unread count:', error);
     } else {
-      debug.log('✅ Cleared unread count for', channelId ? 'channel' : 'conversation', channelId || conversationId);
+      debug.log('Cleared unread count for', channelId ? 'channel' : 'conversation', channelId || conversationId);
     }
     
     // Batch mark related notifications as read
@@ -2288,7 +2288,7 @@ const setupTopSentinelObserver = () => {
     (entries) => {
       const entry = entries[0];
       if (entry?.isIntersecting && hasInitiallyScrolled && !isAllMessagesLoaded.value && !isLoadingOlderMessages.value && props.loadMoreMessages) {
-        debug.log('📜 Top sentinel visible (prefetch zone) - auto-loading older messages');
+        debug.log('Top sentinel visible (prefetch zone) - auto-loading older messages');
         props.loadMoreMessages?.();
       }
     },
@@ -3063,14 +3063,14 @@ const handleEmbedLoaded = (messageId: string) => {
 };
 
 const handleDecryptMessage = async (message: Message) => {
-  debug.log('🔓 Attempting to decrypt message on click:', message.id);
+  debug.log('Attempting to decrypt message on click:', message.id);
   
   try {
     // Dynamically import the encryption service
     const { megolmMessageEncryptionService } = await import('@/services/encryption/MegolmMessageEncryptionService');
     
     if (!megolmMessageEncryptionService.isUnlocked()) {
-      debug.log('🔒 Encryption not unlocked - cannot decrypt');
+      debug.log('Encryption not unlocked - cannot decrypt');
       return;
     }
     
@@ -3089,7 +3089,7 @@ const handleDecryptMessage = async (message: Message) => {
     
     if (!hasOriginalContent) {
       // Content was replaced with glyphs (legacy) - reload from DB
-      debug.log('🔐 Content was replaced with glyphs, reloading from database...');
+      debug.log('Content was replaced with glyphs, reloading from database...');
       const { data: freshMessage } = await supabase
         .from('messages')
         .select('*')
@@ -3097,7 +3097,7 @@ const handleDecryptMessage = async (message: Message) => {
         .single();
       
       if (!freshMessage?.encryption_metadata || !freshMessage.encrypted) {
-        debug.log('❌ Message has no encryption metadata in database');
+        debug.log('Message has no encryption metadata in database');
         return;
       }
       
@@ -3111,7 +3111,7 @@ const handleDecryptMessage = async (message: Message) => {
     }
     
     const roomId = messageToDecrypt.channel_id || messageToDecrypt.conversation_id || props.channelId || props.conversationId || '';
-    debug.log('🔐 Decrypting with roomId:', roomId);
+    debug.log('Decrypting with roomId:', roomId);
     
     const messageForDecryption = {
       content: messageToDecrypt.content,
@@ -3154,7 +3154,7 @@ const handleDecryptMessage = async (message: Message) => {
         dmStore.updateMessageInCache(messageToDecrypt.id, updatedMessage);
       }
       
-      debug.log('✅ Message decrypted successfully on click');
+      debug.log('Message decrypted successfully on click');
 
       // Trigger reprocessing of other encrypted messages (we may now have the session key)
       window.dispatchEvent(new CustomEvent('megolm-key-received', {
@@ -3165,7 +3165,7 @@ const handleDecryptMessage = async (message: Message) => {
     // Surface the real reason (was a silent debug.log): distinguish common
     // failure modes (missing session key, locked keys, signature mismatch).
     const reason = error?.message || String(error);
-    debug.error('❌ Could not decrypt message:', error);
+    debug.error('Could not decrypt message:', error);
     try {
       useNotificationStore().showToast(
         'server_update',

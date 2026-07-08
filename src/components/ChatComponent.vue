@@ -831,7 +831,7 @@
 
       // Use unified content parsing system (DRY)
       const parseMessageInput = async (input: string): Promise<MessagePart[]> => {
-        debug.log('🔧 Using unified content parsing for:', input);
+        debug.log('Using unified content parsing for:', input);
 
         const userDataMap = await resolveMentionsUserData(input);
         const emojiDataMap = await resolveEmojisData(input);
@@ -840,7 +840,7 @@
         const result = await parseContentToMessageParts(
           input, userDataMap, emojiDataMap, {}, roleDataMap, buildChatParseOptions(props.isDM));
 
-        debug.log('🔧 Final parsed message parts:', result);
+        debug.log('Final parsed message parts:', result);
         return result;
       };
 
@@ -1086,7 +1086,7 @@
           },
         }
 
-        debug.log('🎙️ Sending voice message:', { url: data.url, messageParts, voiceMetadata, isDM: props.isDM, conversationId: props.conversationId })
+        debug.log('Sending voice message:', { url: data.url, messageParts, voiceMetadata, isDM: props.isDM, conversationId: props.conversationId })
 
         try {
           if (props.isDM && props.conversationId) {
@@ -1097,7 +1097,7 @@
               undefined,
               voiceMetadata
             )
-            debug.log('🎙️ Voice DM sent successfully')
+            debug.log('Voice DM sent successfully')
           } else if (serverChannelStore.currentServerId && serverChannelStore.currentChannelId) {
             await chatStore.sendMessage(
               serverChannelStore.currentServerId,
@@ -1107,9 +1107,9 @@
               '',
               voiceMetadata
             )
-            debug.log('🎙️ Voice channel message sent successfully')
+            debug.log('Voice channel message sent successfully')
           } else {
-            debug.error('🎙️ Cannot send voice: no channel or conversation context')
+            debug.error('Cannot send voice: no channel or conversation context')
           }
         } catch (error) {
           debug.error('Error sending voice message:', error)

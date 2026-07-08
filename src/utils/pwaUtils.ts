@@ -112,9 +112,9 @@ export async function logInstallDiagnostics(
     }
   }
 
-  debug.log('📋 PWA install diagnostics:', diagnostics)
+  debug.log('PWA install diagnostics:', diagnostics)
   if (diagnostics.manifestErrors.length > 0) {
-    debug.warn('📋 PWA install issues:', diagnostics.manifestErrors)
+    debug.warn('PWA install issues:', diagnostics.manifestErrors)
   }
 
   return diagnostics

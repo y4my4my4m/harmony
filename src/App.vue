@@ -174,7 +174,7 @@ onMounted(() => {
   // Initialize app settings in background (non-blocking)
   // This loads theme/language settings but doesn't block rendering
   initializeAppSettings().catch(err => {
-    debug.error('❌ Failed to initialize app settings:', err)
+    debug.error('Failed to initialize app settings:', err)
   })
   
   // Haptic feedback for interactive elements: ONE delegated listener that
@@ -203,7 +203,7 @@ onMounted(() => {
   if (import.meta.env.DEV) {
     import('@/services/StatusLifecycleDebugger').then(({ statusDebugger }) => {
       statusDebugger.startDebugging()
-      debug.log('🔍 Status lifecycle debugger started. Type showHelp() for available commands.')
+      debug.log('Status lifecycle debugger started. Type showHelp() for available commands.')
     })
   }
 
@@ -212,7 +212,7 @@ onMounted(() => {
   // dismissible toast, framed in plain language for non-technical users.
   identityChangedHandler = (e: Event) => {
     handleIdentityChanged(e as CustomEvent).catch(err =>
-      debug.warn('⚠️ Failed to surface identity-change notice:', err),
+      debug.warn('Failed to surface identity-change notice:', err),
     )
   }
   window.addEventListener('harmony-identity-changed', identityChangedHandler)

@@ -1313,7 +1313,7 @@ export default defineComponent({
       event.stopPropagation();
       if (decrypting.value) return;
 
-      debug.log('🔓 Click to decrypt message:', props.messageId);
+      debug.log('Click to decrypt message:', props.messageId);
       decrypting.value = true;
 
       emit('decrypt-message', props.messageId);

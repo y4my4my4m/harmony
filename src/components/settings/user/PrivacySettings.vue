@@ -734,7 +734,7 @@ const handlePasswordChange = async () => {
       return
     }
 
-    debug.log('✅ Password updated successfully:', data)
+    debug.log('Password updated successfully:', data)
     toast.success('Password updated successfully!')
     
     // Clear form after successful update

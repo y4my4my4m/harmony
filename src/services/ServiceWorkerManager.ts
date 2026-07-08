@@ -51,7 +51,7 @@ async function peekAllQuickReplies(): Promise<Required<QuickReplyEntry>[]> {
     db.close()
     return entries
   } catch (err) {
-    debug.error('❌ Quick reply queue: peek failed:', err)
+    debug.error('Quick reply queue: peek failed:', err)
     return []
   }
 }
@@ -68,7 +68,7 @@ async function removeQuickReply(id: number): Promise<void> {
     })
     db.close()
   } catch (err) {
-    debug.error('❌ Quick reply queue: delete failed:', err)
+    debug.error('Quick reply queue: delete failed:', err)
   }
 }
 
@@ -84,7 +84,7 @@ async function enqueueQuickReply(entry: QuickReplyEntry): Promise<void> {
     })
     db.close()
   } catch (err) {
-    debug.error('❌ Quick reply queue: enqueue failed:', err)
+    debug.error('Quick reply queue: enqueue failed:', err)
   }
 }
 
@@ -106,10 +106,10 @@ export class ServiceWorkerManager {
    */
   async initialize(): Promise<boolean> {
     try {
-      debug.log('🔧 ServiceWorker: Initializing...')
+      debug.log('ServiceWorker: Initializing...')
 
       if (!('serviceWorker' in navigator)) {
-        debug.warn('⚠️ ServiceWorker: Not supported in this browser')
+        debug.warn('ServiceWorker: Not supported in this browser')
         return false
       }
 
@@ -117,16 +117,16 @@ export class ServiceWorkerManager {
         scope: '/'
       })
 
-      debug.log('✅ ServiceWorker: Registered successfully')
+      debug.log('ServiceWorker: Registered successfully')
 
       this.registration.addEventListener('updatefound', () => {
-        debug.log('🔄 ServiceWorker: Update found')
+        debug.log('ServiceWorker: Update found')
         const newWorker = this.registration!.installing
         
         if (newWorker) {
           newWorker.addEventListener('statechange', () => {
             if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              debug.log('🆕 ServiceWorker: New version available - waiting for user action')
+              debug.log('ServiceWorker: New version available - waiting for user action')
               // Don't force immediate activation - let user control updates
               // Emit custom event for update notification (non-intrusive)
               window.dispatchEvent(new CustomEvent('sw-update-available', {
@@ -148,7 +148,7 @@ export class ServiceWorkerManager {
 
       // Prefetch critical resources in background (non-blocking)
       this.prefetchCriticalResources().catch(err => {
-        debug.warn('⚠️ ServiceWorker: Prefetch failed:', err)
+        debug.warn('ServiceWorker: Prefetch failed:', err)
       })
 
       // Drain any quick replies persisted by the SW while the app was
@@ -161,7 +161,7 @@ export class ServiceWorkerManager {
       return true
 
     } catch (error) {
-      debug.error('❌ ServiceWorker: Registration failed:', error)
+      debug.error('ServiceWorker: Registration failed:', error)
       return false
     }
   }
@@ -172,7 +172,7 @@ export class ServiceWorkerManager {
   async requestNotificationPermission(): Promise<NotificationPermission> {
     try {
       if (!('Notification' in window)) {
-        debug.warn('⚠️ Notifications not supported')
+        debug.warn('Notifications not supported')
         return 'denied'
       }
 
@@ -181,11 +181,11 @@ export class ServiceWorkerManager {
       }
 
       const permission = await Notification.requestPermission()
-      debug.log('🔔 Notification permission:', permission)
+      debug.log('Notification permission:', permission)
       
       return permission
     } catch (error) {
-      debug.error('❌ Error requesting notification permission:', error)
+      debug.error('Error requesting notification permission:', error)
       return 'denied'
     }
   }
@@ -196,7 +196,7 @@ export class ServiceWorkerManager {
   async subscribeToPushNotifications(userId: string): Promise<PushSubscription | null> {
     try {
       if (!this.registration) {
-        debug.error('❌ ServiceWorker not registered')
+        debug.error('ServiceWorker not registered')
         return null
       }
 
@@ -206,7 +206,7 @@ export class ServiceWorkerManager {
         const vapidPublicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY
         
         if (!vapidPublicKey) {
-          debug.error('❌ VAPID public key not configured')
+          debug.error('VAPID public key not configured')
           return null
         }
 
@@ -215,14 +215,14 @@ export class ServiceWorkerManager {
           applicationServerKey: this.urlBase64ToUint8Array(vapidPublicKey)
         })
 
-        debug.log('✅ Push subscription created:', subscription)
+        debug.log('Push subscription created:', subscription)
       }
 
       await this.sendSubscriptionToServer(subscription, userId)
       
       return subscription
     } catch (error) {
-      debug.error('❌ Error subscribing to push notifications:', error)
+      debug.error('Error subscribing to push notifications:', error)
       return null
     }
   }
@@ -248,9 +248,9 @@ export class ServiceWorkerManager {
         throw error
       }
 
-      debug.log('✅ Push subscription saved to server')
+      debug.log('Push subscription saved to server')
     } catch (error) {
-      debug.error('❌ Error saving push subscription:', error)
+      debug.error('Error saving push subscription:', error)
     }
   }
 
@@ -258,7 +258,7 @@ export class ServiceWorkerManager {
    * Handle messages from service worker
    */
   private handleServiceWorkerMessage(event: MessageEvent): void {
-    debug.log('📧 Message from ServiceWorker:', event.data)
+    debug.log('Message from ServiceWorker:', event.data)
 
     switch (event.data.type) {
       case 'NAVIGATE_TO_NOTIFICATION':
@@ -276,11 +276,11 @@ export class ServiceWorkerManager {
         // SW just enqueued a reply - drain immediately rather than waiting
         // for the next visibility/route event.
         this.drainQuickReplyQueue().catch(err => {
-          debug.error('❌ ServiceWorker: drainQuickReplyQueue after QUICK_REPLY_QUEUED failed:', err)
+          debug.error('ServiceWorker: drainQuickReplyQueue after QUICK_REPLY_QUEUED failed:', err)
         })
         break
       default:
-        debug.log('⚠️ Unknown ServiceWorker message type:', event.data.type)
+        debug.log('Unknown ServiceWorker message type:', event.data.type)
     }
   }
 
@@ -310,7 +310,7 @@ export class ServiceWorkerManager {
 
       await this.handleMarkNotificationRead(data.data)
     } catch (error) {
-      debug.error('❌ Error navigating to notification:', error)
+      debug.error('Error navigating to notification:', error)
     }
   }
 
@@ -325,7 +325,7 @@ export class ServiceWorkerManager {
   private scheduleQuickReplyDrainOnAuthReady(): void {
     const attemptDrain = () => {
       this.drainQuickReplyQueue().catch(err => {
-        debug.error('❌ ServiceWorker: scheduled quick reply drain failed:', err)
+        debug.error('ServiceWorker: scheduled quick reply drain failed:', err)
       })
     }
 
@@ -340,7 +340,7 @@ export class ServiceWorkerManager {
         if (session) attemptDrain()
       })
     }).catch(err => {
-      debug.warn('⚠️ ServiceWorker: failed to attach quick reply drain listener:', err)
+      debug.warn('ServiceWorker: failed to attach quick reply drain listener:', err)
     })
 
     // Drain when the tab regains focus - covers the "user typed reply,
@@ -375,7 +375,7 @@ export class ServiceWorkerManager {
       })
       await this.drainQuickReplyQueue()
     } catch (error) {
-      debug.error('❌ Error handling legacy quick reply:', error)
+      debug.error('Error handling legacy quick reply:', error)
     }
   }
 
@@ -403,7 +403,7 @@ export class ServiceWorkerManager {
       const { useAuthStore } = await import('@/stores/auth')
       const authStore = useAuthStore()
       if (!authStore.isLoggedIn) {
-        debug.log(`⏸️ Quick reply drain: not logged in, deferring ${pending.length} entries`)
+        debug.log(`⏸Quick reply drain: not logged in, deferring ${pending.length} entries`)
         return
       }
 
@@ -420,7 +420,7 @@ export class ServiceWorkerManager {
       try {
         await authContextService.getCurrentProfileId()
       } catch {
-        debug.log('⏸️ Quick reply drain: no profile resolved yet, deferring')
+        debug.log('⏸Quick reply drain: no profile resolved yet, deferring')
         return
       }
 
@@ -449,17 +449,17 @@ export class ServiceWorkerManager {
             )
           } else {
             // Unaddressable entry - drop it so we don't keep retrying forever.
-            debug.warn('⚠️ Quick reply drain: entry has no conversation/channel target, dropping', entry)
+            debug.warn('Quick reply drain: entry has no conversation/channel target, dropping', entry)
             await removeQuickReply(entry.id)
             continue
           }
           await removeQuickReply(entry.id)
           await this.handleMarkNotificationRead(notifData)
-          debug.log('✅ Quick reply flushed from queue')
+          debug.log('Quick reply flushed from queue')
         } catch (err) {
           // Leave the entry in the queue for a future retry. We log loudly
           // so flaky sends are visible during dev/QA.
-          debug.error('❌ Quick reply drain failed for entry, will retry later:', err, entry)
+          debug.error('Quick reply drain failed for entry, will retry later:', err, entry)
         }
       }
     } finally {
@@ -484,7 +484,7 @@ export class ServiceWorkerManager {
         await notificationStore.markAsRead(notification.id)
       }
     } catch (error) {
-      debug.error('❌ Error marking notification as read:', error)
+      debug.error('Error marking notification as read:', error)
     }
   }
 
@@ -492,7 +492,7 @@ export class ServiceWorkerManager {
    * Handle service worker updates
    */
   private handleServiceWorkerUpdate(): void {
-    debug.log('🆕 ServiceWorker update available')
+    debug.log('ServiceWorker update available')
     
     // You could show a toast notification here
     // For now, just log it
@@ -503,7 +503,7 @@ export class ServiceWorkerManager {
    */
   async sendMessage(message: any): Promise<void> {
     if (!this.registration?.active) {
-      debug.warn('⚠️ ServiceWorker not active, cannot send message')
+      debug.warn('ServiceWorker not active, cannot send message')
       return
     }
 
@@ -563,13 +563,13 @@ export class ServiceWorkerManager {
           .delete()
           .eq('user_id', userId)
 
-        debug.log('✅ Unsubscribed from push notifications')
+        debug.log('Unsubscribed from push notifications')
         return true
       }
 
       return false
     } catch (error) {
-      debug.error('❌ Error unsubscribing from push:', error)
+      debug.error('Error unsubscribing from push:', error)
       return false
     }
   }
@@ -597,17 +597,17 @@ export class ServiceWorkerManager {
    */
   async activateWaitingServiceWorker(): Promise<void> {
     if (!this.registration?.waiting) {
-      debug.warn('⚠️ No waiting service worker to activate')
+      debug.warn('No waiting service worker to activate')
       return
     }
 
-    debug.log('⏭️ Manually activating waiting service worker')
+    debug.log('⏭Manually activating waiting service worker')
     
     this.registration.waiting.postMessage({ type: 'SKIP_WAITING' })
     
     // Listen for the controlling change
     navigator.serviceWorker.addEventListener('controllerchange', () => {
-      debug.log('🔄 Service worker controller changed - reloading page')
+      debug.log('Service worker controller changed - reloading page')
       window.location.reload()
     })
   }
@@ -641,9 +641,9 @@ export class ServiceWorkerManager {
 
     try {
       await this.sendMessage({ type: 'PREFETCH_CRITICAL' })
-      debug.log('📦 ServiceWorker: Critical resources prefetched')
+      debug.log('ServiceWorker: Critical resources prefetched')
     } catch (error) {
-      debug.warn('⚠️ ServiceWorker: Failed to prefetch critical resources:', error)
+      debug.warn('ServiceWorker: Failed to prefetch critical resources:', error)
     }
   }
 
@@ -670,7 +670,7 @@ export class ServiceWorkerManager {
         setTimeout(() => resolve(null), 5000)
       })
     } catch (error) {
-      debug.error('❌ Failed to get service worker version:', error)
+      debug.error('Failed to get service worker version:', error)
       return null
     }
   }
@@ -685,7 +685,7 @@ export class ServiceWorkerManager {
       await this.registration.update()
       return this.registration.waiting !== null
     } catch (error) {
-      debug.error('❌ Failed to check for updates:', error)
+      debug.error('Failed to check for updates:', error)
       return false
     }
   }

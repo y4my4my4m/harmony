@@ -438,7 +438,7 @@ async function loadEncryptionStatus() {
   try {
     const { megolmMessageEncryptionService } = await import('@/services/encryption/MegolmMessageEncryptionService')
     userHasEncryption.value = megolmMessageEncryptionService.isUnlocked()
-    debug.log('🔐 User has encryption:', userHasEncryption.value)
+    debug.log('User has encryption:', userHasEncryption.value)
     
     const { data } = await supabase
       .from('conversation_encryption_settings')
@@ -447,7 +447,7 @@ async function loadEncryptionStatus() {
       .maybeSingle()
     
     encryptionEnabled.value = data?.encryption_enabled === true
-    debug.log('🔐 Conversation encryption enabled:', encryptionEnabled.value)
+    debug.log('Conversation encryption enabled:', encryptionEnabled.value)
   } catch (error) {
     debug.warn('Failed to load encryption status:', error)
     encryptionEnabled.value = false
@@ -457,12 +457,12 @@ async function loadEncryptionStatus() {
 }
 
 async function toggleEncryption() {
-  debug.log('🔐 Toggle encryption clicked')
-  debug.log('🔐 canToggleEncryption:', canToggleEncryption.value)
-  debug.log('🔐 userHasEncryption:', userHasEncryption.value)
+  debug.log('Toggle encryption clicked')
+  debug.log('canToggleEncryption:', canToggleEncryption.value)
+  debug.log('userHasEncryption:', userHasEncryption.value)
   
   if (!canToggleEncryption.value) {
-    debug.log('🔐 Cannot toggle - user does not have encryption set up')
+    debug.log('Cannot toggle - user does not have encryption set up')
     closeActionsMenu()
     showEncryptionSetupModal.value = true
     return
@@ -486,7 +486,7 @@ async function toggleEncryption() {
 
   encryptionLoading.value = true
   try {
-    debug.log('🔐 Setting encryption to:', newState)
+    debug.log('Setting encryption to:', newState)
     
     // Upsert the setting
     const { error } = await supabase
@@ -500,7 +500,7 @@ async function toggleEncryption() {
       })
     
     if (error) {
-      debug.error('🔐 Supabase error:', error)
+      debug.error('Supabase error:', error)
       throw error
     }
     
@@ -538,7 +538,7 @@ const initializePresenceTracking = async () => {
       // The userDataService will handle deduplication if user is already tracked globally
       profileContextId = await subscribeToProfilePresence(userId)
       presenceInitialized.value = true
-      debug.log(`🗨️ DMHeader: Tracking presence for user ${userId}`)
+      debug.log(`DMHeader: Tracking presence for user ${userId}`)
     } catch (error) {
       debug.error('Failed to subscribe to profile presence:', error)
     }
@@ -561,7 +561,7 @@ const cleanupPresenceTracking = async (userId?: string | null) => {
       await unsubscribeFromProfilePresence(targetUserId)
       profileContextId = null
       presenceInitialized.value = false
-      debug.log(`🗨️ DMHeader: Stopped tracking presence for user ${targetUserId}`)
+      debug.log(`DMHeader: Stopped tracking presence for user ${targetUserId}`)
     } catch (error) {
       debug.error('Failed to unsubscribe from profile presence:', error)
     }
@@ -723,7 +723,7 @@ watch(
   () => props.conversation.other_user?.id,
   async (newUserId, oldUserId) => {
     if (newUserId !== oldUserId) {
-      debug.log(`🔄 DMHeader: Conversation changed from ${oldUserId} to ${newUserId}`)
+      debug.log(`DMHeader: Conversation changed from ${oldUserId} to ${newUserId}`)
       // Pass oldUserId explicitly - props.conversation.other_user.id is
       // already pointing at newUserId by the time this callback runs.
       await cleanupPresenceTracking(oldUserId ?? null)
@@ -765,7 +765,7 @@ const otherUserStatus = computed(() => {
   
   // Debug logging to help identify issues
   if (import.meta.env.DEV) {
-    debug.log(`🔍 DMHeader status for ${props.conversation.other_user.id}:`, {
+    debug.log(`DMHeader status for ${props.conversation.other_user.id}:`, {
       status,
       presenceInitialized: presenceInitialized.value,
       profileContextId: profileContextId
@@ -950,7 +950,7 @@ const toggleVoiceCall = async () => {
       await voiceStore.leaveVoiceChannel()
       toast.info('Left call')
     } else {
-      debug.log('📞 Starting DM voice call...')
+      debug.log('Starting DM voice call...')
       
       const profileId = await authContextService.getCurrentProfileId()
       if (!profileId) {
@@ -1011,7 +1011,7 @@ const startLocalCall = async (profileId: string, callType: 'voice' | 'video') =>
     startCallerRinging()
     voiceStore.isOverlayVisible = true
     await new Promise(resolve => setTimeout(resolve, 100))
-    debug.log(`✅ ${callType} call overlay opened for caller`)
+    debug.log(`${callType} call overlay opened for caller`)
   } else {
     toast.error('Failed to start call')
   }
@@ -1062,7 +1062,7 @@ const startFederatedCall = async (profileId: string, callType: 'voice' | 'video'
     startCallerRinging()
     voiceStore.isOverlayVisible = true
     await new Promise(resolve => setTimeout(resolve, 100))
-    debug.log(`✅ Federated ${callType} call initiated`)
+    debug.log(`Federated ${callType} call initiated`)
   } else {
     toast.error('Failed to start call')
   }
@@ -1101,7 +1101,7 @@ const joinActiveCall = async () => {
       toast.success('Joined call')
       voiceStore.isOverlayVisible = true
       await new Promise(resolve => setTimeout(resolve, 100))
-      debug.log('✅ Joined group call (maximized)')
+      debug.log('Joined group call (maximized)')
     } else {
       toast.error('Failed to join call')
     }

@@ -45,7 +45,7 @@ export async function armNativePtt(
       },
     })
   } catch (error) {
-    debug.warn('⌨️ [NativePTT] arm failed:', error)
+    debug.warn('⌨[NativePTT] arm failed:', error)
     return false
   }
 }
@@ -59,6 +59,6 @@ export async function disarmNativePtt(): Promise<void> {
   try {
     await invoke('ptt_set_binding', { binding: null })
   } catch (error) {
-    debug.warn('⌨️ [NativePTT] disarm failed:', error)
+    debug.warn('⌨[NativePTT] disarm failed:', error)
   }
 }

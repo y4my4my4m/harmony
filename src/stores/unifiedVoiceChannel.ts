@@ -288,12 +288,12 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         const userId = authStore.session.user.id;
         
         if (this.isConnecting) {
-          debug.log('⚠️ Already attempting to connect, please wait...');
+          debug.log('Already attempting to connect, please wait...');
           return false;
         }
         
         if (this.isConnected && this.currentChannelId === channelId) {
-          debug.log('⚠️ Already connected to this voice channel');
+          debug.log('Already connected to this voice channel');
           return true;
         }
         
@@ -301,10 +301,10 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         // Must happen BEFORE setting isConnecting/abort controller, otherwise
         // leaveVoiceChannel enters the "cancel ongoing connection" path.
         if (this.isConnected && this.currentChannelId) {
-          debug.log('⚠️ Already in a voice channel, leaving first...');
+          debug.log('Already in a voice channel, leaving first...');
           const leaveOk = await this.leaveVoiceChannel();
           if (!leaveOk) {
-            debug.warn('⚠️ leaveVoiceChannel returned false - forcing cleanup');
+            debug.warn('leaveVoiceChannel returned false - forcing cleanup');
             await webrtcManager.leaveChannel();
             this.resetState();
           }
@@ -341,35 +341,35 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           void ensureProfilesAvailable(occupants).catch(() => {});
         }
 
-        debug.log('🎯 [Optimistic] Voice dock should be visible now for:', channelId);
+        debug.log('[Optimistic] Voice dock should be visible now for:', channelId);
         
         const activeVoiceSession = userStorage.getItem('active-voice-session');
         if (activeVoiceSession) {
           const session = JSON.parse(activeVoiceSession);
           if (session.tabId !== this.getTabId() && Date.now() - session.timestamp < 5000) {
-            debug.warn('⚠️ Another tab is already in a voice channel');
+            debug.warn('Another tab is already in a voice channel');
             throw new Error('You are already in a voice channel in another tab');
           }
         }
         
-        debug.log('🎯 Joining voice channel:', channelId, 'on server:', serverId);
+        debug.log('Joining voice channel:', channelId, 'on server:', serverId);
         
         const isRemoteServer = serverChannelStore.currentServer?.is_local_server === false;
         this.isFederatedChannel = isRemoteServer;
         
         if (isRemoteServer) {
-          debug.log('🌐 Joining federated voice channel, waiting for token exchange...');
+          debug.log('Joining federated voice channel, waiting for token exchange...');
           return await this.joinFederatedVoiceChannel(channelId, serverId, userId, abortSignal);
         }
         
         return await this.joinLocalVoiceChannel(channelId, serverId, userId, abortSignal);
       } catch (error) {
         if (error instanceof Error && error.name === 'AbortError') {
-          debug.log('🚫 Connection attempt cancelled by user');
+          debug.log('Connection attempt cancelled by user');
           return false;
         }
         
-        debug.error('❌ Failed to join voice channel:', error);
+        debug.error('Failed to join voice channel:', error);
         this.isConnecting = false;
         this.connectionAbortController = null;
         this.optimisticChannelId = null;
@@ -393,12 +393,12 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           .eq('server_id', serverId)
           .maybeSingle();
         if (error) {
-          debug.warn('⚠️ [VoiceChannel] Failed to read voice_encryption_mode:', error);
+          debug.warn('[VoiceChannel] Failed to read voice_encryption_mode:', error);
           return false;
         }
         return data?.voice_encryption_mode === 'required';
       } catch (err) {
-        debug.warn('⚠️ [VoiceChannel] resolveVoiceE2EERequired error:', err);
+        debug.warn('[VoiceChannel] resolveVoiceE2EERequired error:', err);
         return false;
       }
     },
@@ -458,7 +458,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       
       this.connectionMode = webrtcManager.getActiveService();
       this.isEncrypted = webrtcManager.isE2EEEnabled();
-      debug.log(`🔌 [VoiceChannel] Connected via ${this.connectionMode?.toUpperCase() || 'unknown'} mode (${roomType}), E2EE: ${this.isEncrypted}`);
+      debug.log(`[VoiceChannel] Connected via ${this.connectionMode?.toUpperCase() || 'unknown'} mode (${roomType}), E2EE: ${this.isEncrypted}`);
       
       if (abortSignal?.aborted) {
         await webrtcManager.leaveChannel();
@@ -523,10 +523,10 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       const existingCallStartTime = serverUsersStore.getCallStartTime(channelId);
       if (existingCallStartTime) {
         this.callStartTime = existingCallStartTime;
-        debug.log('🕐 Using existing call start time from serverUsersStore:', this.callStartTime);
+        debug.log('Using existing call start time from serverUsersStore:', this.callStartTime);
       } else {
         this.callStartTime = new Date();
-        debug.log('🕐 First user - setting call start time:', this.callStartTime);
+        debug.log('First user - setting call start time:', this.callStartTime);
       }
       
       this.saveVoiceChannelState();
@@ -579,7 +579,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         }
         
         const abortHandler = () => {
-          debug.log('🚫 Federated connection attempt cancelled');
+          debug.log('Federated connection attempt cancelled');
           if (this.pendingFederatedJoin?.timeout) {
             clearTimeout(this.pendingFederatedJoin.timeout);
           }
@@ -599,7 +599,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         
         const channelName = `federated-voice:${userId}`;
         
-        debug.log('🔔 Subscribing to federated voice token channel:', channelName);
+        debug.log('Subscribing to federated voice token channel:', channelName);
         
         this.federatedTokenSubscription = supabase
           .channel(channelName)
@@ -609,7 +609,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
               return;
             }
             
-            debug.log('✅ Received federated voice token:', payload);
+            debug.log('Received federated voice token:', payload);
             
             if (this.pendingFederatedJoin?.timeout) {
               clearTimeout(this.pendingFederatedJoin.timeout);
@@ -643,7 +643,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
               
               this.connectionMode = 'livekit';
               this.isEncrypted = webrtcManager.isE2EEEnabled();
-              debug.log('🔌 [VoiceChannel] Connected to federated voice channel via LiveKit');
+              debug.log('[VoiceChannel] Connected to federated voice channel via LiveKit');
               
               this.currentChannelId = channelId;
               this.currentServerId = serverId;
@@ -680,7 +680,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
             }
           })
           .on('broadcast', { event: 'voice-join-rejected' }, (payload) => {
-            debug.error('❌ Voice join rejected:', payload.payload);
+            debug.error('Voice join rejected:', payload.payload);
             
             if (this.pendingFederatedJoin?.timeout) {
               clearTimeout(this.pendingFederatedJoin.timeout);
@@ -691,7 +691,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
             reject(new Error(payload.payload.reason || 'Voice join rejected by remote server'));
           })
           .subscribe((status) => {
-            debug.log(`📡 Federated voice subscription status: ${status}`);
+            debug.log(`Federated voice subscription status: ${status}`);
           });
         
         // Call federation-backend to send VoiceChannelJoin activity
@@ -719,7 +719,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
               throw new Error(error.error || 'Failed to send voice join request');
             }
             
-            debug.log('📡 Voice join request sent to federation backend');
+            debug.log('Voice join request sent to federation backend');
             
             serverUsersStore.joinVoiceChannel(serverId, channelId, userId, false);
           } catch (error) {
@@ -737,7 +737,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
             return; // Already handled by abort handler
           }
           
-          debug.error('❌ Timeout waiting for federated voice token');
+          debug.error('Timeout waiting for federated voice token');
           if (abortSignal) {
             abortSignal.removeEventListener('abort', abortHandler);
           }
@@ -774,7 +774,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
 
         // If we're connecting, cancel the connection attempt
         if (this.isConnecting && this.connectionAbortController) {
-          debug.log('🚫 Cancelling ongoing connection attempt...');
+          debug.log('Cancelling ongoing connection attempt...');
           
           const optimisticChannelId = this.optimisticChannelId;
           const optimisticServerId = this.optimisticServerId;
@@ -830,7 +830,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
             }
           }
           
-          debug.log('✅ Connection attempt cancelled');
+          debug.log('Connection attempt cancelled');
           return true;
         }
 
@@ -842,7 +842,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         const wasFederated = this.isFederatedChannel;
         const channelId = this.currentChannelId;
         const serverId = this.currentServerId;
-        debug.log('👋 Leaving voice channel', wasFederated ? '(federated)' : '(local)');
+        debug.log('Leaving voice channel', wasFederated ? '(federated)' : '(local)');
         this.isConnected = false;
         setCallServiceActive(false);
         syncOverlayForCall(false);
@@ -920,7 +920,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
 
         return true;
       } catch (error) {
-        debug.error('❌ Failed to leave voice channel:', error);
+        debug.error('Failed to leave voice channel:', error);
         return false;
       }
     },
@@ -931,7 +931,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       this.localState = webrtcManager.getLocalState();
       this.localStream = webrtcManager.getLocalStream();
 
-      debug.log('📹 Video toggled, local stream updated:', {
+      debug.log('Video toggled, local stream updated:', {
         enabled,
         streamId: this.localStream?.id,
         videoTracks: this.localStream?.getVideoTracks().length || 0,
@@ -968,7 +968,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       this.localState = webrtcManager.getLocalState();
       this.localStream = webrtcManager.getLocalStream();
 
-      debug.log('📺 Screen share toggled, local stream updated:', {
+      debug.log('Screen share toggled, local stream updated:', {
         enabled,
         streamId: this.localStream?.id,
         videoTracks: this.localStream?.getVideoTracks().length || 0,
@@ -1025,7 +1025,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           if (playSound) {
             themeStore.playAudio(muted ? 'mic_off' : 'mic_on');
           }
-          debug.log('🎤 [PTT] Set muted state:', muted);
+          debug.log('[PTT] Set muted state:', muted);
         }
       } else {
         if (this.localState.isMuted !== muted) {
@@ -1033,7 +1033,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           if (playSound) {
             themeStore.playAudio(muted ? 'mic_off' : 'mic_on');
           }
-          debug.log('🎤 [PTT] Set preemptive muted state:', muted);
+          debug.log('[PTT] Set preemptive muted state:', muted);
         }
       }
     },
@@ -1131,7 +1131,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       const newSettings = { ...this.streamSettings, ...settings };
       this.streamSettings = newSettings;
       
-      debug.log('🎬 Updating stream quality:', newSettings);
+      debug.log('Updating stream quality:', newSettings);
       
       if (this.localState.isVideoEnabled || this.localState.isScreenSharing || !this.localState.isMuted) {
         try {
@@ -1140,12 +1140,12 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
             frameRate: newSettings.frameRate,
             audioBitrate: newSettings.audioBitrate
           });
-          debug.log('✅ Stream quality updated successfully');
+          debug.log('Stream quality updated successfully');
         } catch (error) {
-          debug.error('❌ Failed to update stream quality:', error);
+          debug.error('Failed to update stream quality:', error);
         }
       } else {
-        debug.log('ℹ️ Stream quality settings saved, will apply when video/audio is enabled');
+        debug.log('ℹStream quality settings saved, will apply when video/audio is enabled');
       }
       
       // Persist settings
@@ -1186,7 +1186,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       // Persist to localStorage
       this.saveUserVolumes();
       
-      debug.log(`🔊 Set mic volume for user ${userId}: ${clampedVolume}%`);
+      debug.log(`Set mic volume for user ${userId}: ${clampedVolume}%`);
     },
     
     /**
@@ -1203,7 +1203,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       // Persist to localStorage
       this.saveScreenShareVolumes();
       
-      debug.log(`🔊 Set screenshare volume for user ${userId}: ${clampedVolume}%`);
+      debug.log(`Set screenshare volume for user ${userId}: ${clampedVolume}%`);
     },
 
     saveUserVolumes(): void {
@@ -1238,7 +1238,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           Object.entries(volumeObj).forEach(([odUserId, volume]) => {
             this.userVolumes.set(odUserId, volume);
           });
-          debug.log('🔊 Loaded user volumes from localStorage');
+          debug.log('Loaded user volumes from localStorage');
         }
       } catch (error) {
         debug.warn('Failed to load user volumes:', error);
@@ -1253,7 +1253,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           Object.entries(volumeObj).forEach(([odUserId, volume]) => {
             this.userScreenShareVolumes.set(odUserId, volume);
           });
-          debug.log('🔊 Loaded screenshare volumes from localStorage');
+          debug.log('Loaded screenshare volumes from localStorage');
         }
       } catch (error) {
         debug.warn('Failed to load screenshare volumes:', error);
@@ -1297,32 +1297,32 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       const currentUserId = authStore.session?.user?.id;
       
       webrtcManager.on('channel-joined', (data: any) => {
-        debug.log('✅ Channel joined:', data);
+        debug.log('Channel joined:', data);
         this.connectionMode = webrtcManager.getActiveService();
         this.isEncrypted = webrtcManager.isE2EEEnabled();
       });
 
       webrtcManager.on('channel-left', (data: any) => {
-        debug.log('👋 Channel left:', data);
+        debug.log('Channel left:', data);
         this.isEncrypted = false;
       });
 
       webrtcManager.on('e2ee-status-changed', (data: { enabled: boolean }) => {
-        debug.log('🔐 E2EE status changed:', data);
+        debug.log('E2EE status changed:', data);
         this.isEncrypted = !!data?.enabled;
       });
 
       webrtcManager.on('channel-state-synced', async (data: any) => {
-        debug.log('🔄 Channel state synced:', data);
+        debug.log('Channel state synced:', data);
         this.allUsers = data.users;
         
         if (data.users.length === 0) {
           // We're the first/only user - broadcast our call start time
-          debug.log('🕐 First user in channel - broadcasting call start time');
+          debug.log('First user in channel - broadcasting call start time');
           this.broadcastCallStartTime();
         } else {
           // Others already in call - request their call start time to sync
-          debug.log('🕐 Joining existing call - requesting call start time');
+          debug.log('Joining existing call - requesting call start time');
           this.requestCallStartTime();
         }
         
@@ -1336,18 +1336,18 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         if (userIdsChanged && userIds.length > 0) {
           try {
             await ensureProfilesAvailable(userIds);
-            debug.log('✅ Loaded profiles for all voice users:', userIds.length);
+            debug.log('Loaded profiles for all voice users:', userIds.length);
             this.previousUserIds = userIds;
           } catch (error) {
-            debug.warn('⚠️ Failed to load profiles for voice users:', error);
+            debug.warn('Failed to load profiles for voice users:', error);
           }
         } else {
-          debug.log('ℹ️ No changes in user list, skipping profile load.');
+          debug.log('ℹNo changes in user list, skipping profile load.');
         }
       });
 
       webrtcManager.on('user-joined', async (data: any) => {
-        debug.log('👋 User joined:', data);
+        debug.log('User joined:', data);
         
         const existingIndex = this.allUsers.findIndex(u => u.userId === data.userId);
         if (existingIndex === -1) {
@@ -1360,13 +1360,13 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         if (data.mediaState?.isVideoEnabled || data.mediaState?.isScreenSharing) {
           if (!this.isOverlayVisible) {
             this.isOverlayVisible = true;
-            debug.log('📺 Auto-opening overlay - existing video/screenshare user detected:', data.userId);
+            debug.log('Auto-opening overlay - existing video/screenshare user detected:', data.userId);
           }
         }
 
         // Request call start time from existing participants
         if (!this.callStartTime) {
-          debug.log('🕐 Requesting call start time from existing participants');
+          debug.log('Requesting call start time from existing participants');
           this.requestCallStartTime();
         }
 
@@ -1374,9 +1374,9 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         const { ensureProfilesAvailable } = useUserData();
         try {
           await ensureProfilesAvailable([data.userId]);
-          debug.log('✅ Loaded profile for voice user:', data.userId);
+          debug.log('Loaded profile for voice user:', data.userId);
         } catch (error) {
-          debug.warn('⚠️ Failed to load profile for voice user:', data.userId, error);
+          debug.warn('Failed to load profile for voice user:', data.userId, error);
         }
 
         // Only play sound for OTHER users joining, not for self
@@ -1388,7 +1388,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       });
 
       webrtcManager.on('user-left', (data: any) => {
-        debug.log('👋 User left:', data);
+        debug.log('User left:', data);
         
         this.allUsers = this.allUsers.filter(u => u.userId !== data.userId);
         this.remoteStreams.delete(data.userId);
@@ -1408,7 +1408,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
 
         const totalUsers = this.allUsers.length + 1;
         if (totalUsers === 1) {
-          debug.log('🕐 Last user left - resetting call start time');
+          debug.log('Last user left - resetting call start time');
           this.callStartTime = null;
         }
 
@@ -1434,7 +1434,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           this.allUsers.splice(userIndex, 1, data.mediaState);
         } else if (data.mediaState && data.mediaState.userId) {
           // User not in list yet - add them
-          debug.log('➕ User not in list, adding:', data.userId);
+          debug.log('User not in list, adding:', data.userId);
           this.allUsers.push(data.mediaState);
         }
         
@@ -1442,7 +1442,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         // NOT for audio level changes (which happen 20+ times per second)
         if (videoStateChanged || !oldState) {
           this.streamUpdateCounter = (this.streamUpdateCounter || 0) + 1;
-          debug.log('📹 Video state changed for', data.userId, '- counter:', this.streamUpdateCounter,
+          debug.log('Video state changed for', data.userId, '- counter:', this.streamUpdateCounter,
             'video:', data.mediaState.isVideoEnabled, 'screen:', data.mediaState.isScreenSharing);
           // Screenshare toggles no longer touch spatial audio: only the mic is
           // spatialized (addUserToSpatialAudio uses the mic-only stream) and
@@ -1454,7 +1454,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       });
 
       webrtcManager.on('user-stream-changed', (data: any) => {
-        debug.log('📹 User stream changed:', data.userId, 'hasStream:', !!data.stream);
+        debug.log('User stream changed:', data.userId, 'hasStream:', !!data.stream);
         
         if (data.stream) {
           this.remoteStreams.set(data.userId, data.stream);
@@ -1468,7 +1468,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       });
 
       webrtcManager.on('local-state-changed', (state: any) => {
-        debug.log('🎛️ Local state changed in store:', {
+        debug.log('Local state changed in store:', {
           isVideoEnabled: state.isVideoEnabled,
           isScreenSharing: state.isScreenSharing,
           isMuted: state.isMuted
@@ -1527,7 +1527,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       webrtcManager.on('connection-state-changed', () => {});
 
       webrtcManager.on('error', (error: any) => {
-        debug.error('❌ WebRTC error:', error);
+        debug.error('WebRTC error:', error);
         // Could show notification to user
       });
 
@@ -1567,7 +1567,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     handleCallStartTime(timestamp: string): void {
       if (!this.callStartTime) {
         this.callStartTime = new Date(timestamp);
-        debug.log('🕐 Received call start time:', this.callStartTime);
+        debug.log('Received call start time:', this.callStartTime);
       }
     },
 
@@ -1607,7 +1607,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         };
         userStorage.setItem('active-voice-session', JSON.stringify(activeSession));
         
-        debug.log('💾 Saved voice channel state for auto-reconnect');
+        debug.log('Saved voice channel state for auto-reconnect');
       }
     },
 
@@ -1641,7 +1641,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       userStorage.removeItem('active-voice-session');
       this._spatialMicTrackIds = {};
       this.stopVoiceSessionHeartbeat();
-      debug.log('🗑️ Cleared voice channel state');
+      debug.log('Cleared voice channel state');
     },
 
     async reconnectToVoiceChannel(): Promise<boolean> {
@@ -1652,7 +1652,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       const savedState =
         userStorage.getItem('voiceChannelState') ?? localStorage.getItem('voiceChannelState');
       if (!savedState) {
-        debug.log('ℹ️ No saved voice channel state found');
+        debug.log('ℹNo saved voice channel state found');
         return false;
       }
 
@@ -1666,20 +1666,20 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           return false;
         }
 
-        debug.log('🔄 Attempting to reconnect to voice channel:', channelName);
+        debug.log('Attempting to reconnect to voice channel:', channelName);
         
         const success = await this.joinVoiceChannel(channelId, serverId);
         
         if (success) {
-          debug.log('✅ Successfully reconnected to voice channel');
+          debug.log('Successfully reconnected to voice channel');
         } else {
-          debug.log('❌ Failed to reconnect, clearing saved state');
+          debug.log('Failed to reconnect, clearing saved state');
           this.clearVoiceChannelState();
         }
         
         return success;
       } catch (error) {
-        debug.error('❌ Error reconnecting to voice channel:', error);
+        debug.error('Error reconnecting to voice channel:', error);
         this.clearVoiceChannelState();
         return false;
       }
@@ -1695,11 +1695,11 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         await spatialAudioService.initialize();
         spatialAudioService.setListener(userId);
         
-        debug.log('🎧 Spatial audio initialized for user:', userId);
+        debug.log('Spatial audio initialized for user:', userId);
         
         // If spatial audio is enabled in settings, activate it now
         if (spatialStore.settings.enabled) {
-          debug.log('🎧 Spatial audio is enabled in settings - activating on load...');
+          debug.log('Spatial audio is enabled in settings - activating on load...');
           
           if (!spatialStore.userPositions.has(userId)) {
             spatialStore.initializeUserPosition(userId, true);
@@ -1711,7 +1711,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           // IMMEDIATELY mute traditional audio to prevent double audio (dry + wet)
           // This is critical - must happen right after enabling, not in the timeout!
           webrtcManager.setTraditionalAudioEnabled(false);
-          debug.log('🔇 Traditional audio muted immediately after spatial audio enabled');
+          debug.log('Traditional audio muted immediately after spatial audio enabled');
           
           // Wait a bit for streams to be ready, then setup spatial audio for any existing users
           // This delay is important because streams might not be immediately available on join
@@ -1731,16 +1731,16 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
                 if (micStream && micTrackId) {
                   await spatialAudioService.setupSpatialForUser(user.userId, micStream);
                   this._spatialMicTrackIds[user.userId] = micTrackId;
-                  debug.log(`🎧 Setup spatial audio on load for user: ${user.userId}`);
+                  debug.log(`Setup spatial audio on load for user: ${user.userId}`);
                 } else {
-                  debug.warn(`⚠️ Mic stream not ready yet for user: ${user.userId}`);
+                  debug.warn(`Mic stream not ready yet for user: ${user.userId}`);
                 }
               }
             }
             
             spatialAudioService.updateSpatialEffects();
             
-            debug.log('✅ Spatial audio activated on load with all users');
+            debug.log('Spatial audio activated on load with all users');
           }, 300);
         }
         
@@ -1781,7 +1781,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
 
       if (!spatialStore.userPositions.has(userId)) {
         spatialStore.initializeUserPosition(userId, false);
-        debug.log('🎧 Initialized position for new user:', userId);
+        debug.log('Initialized position for new user:', userId);
       }
 
       if (this._spatialAudioDebounceTimers[userId]) {
@@ -1808,7 +1808,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         // events fire on every video toggle; tearing the audio chain down for
         // those causes the audible glitches this guard prevents.
         if (this._spatialMicTrackIds[userId] === micTrackId) {
-          debug.log('🎧 Mic track unchanged for', userId, '- skipping spatial rebuild');
+          debug.log('Mic track unchanged for', userId, '- skipping spatial rebuild');
           return;
         }
 
@@ -1871,7 +1871,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       inputModeWatchStop = watch(keybinds.isPTTMode, () => this.syncTransmitGate());
 
       keybindListenersSetup = true;
-      debug.log('⌨️ [Keybinds] Voice keybinds integrated with voice channel');
+      debug.log('⌨[Keybinds] Voice keybinds integrated with voice channel');
     },
 
     cleanupPushToTalk(): void {
@@ -1893,7 +1893,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       inputModeWatchStop = null;
 
       keybindListenersSetup = false;
-      debug.log('⌨️ [Keybinds] Voice keybinds cleanup complete');
+      debug.log('⌨[Keybinds] Voice keybinds cleanup complete');
     },
 
     resetState(): void {
@@ -1947,7 +1947,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         this.localStream = null;
         nextTick(() => {
           this.localStream = currentStream;
-          debug.log('🔄 Forced stream state refresh for UI reactivity');
+          debug.log('Forced stream state refresh for UI reactivity');
         });
       }
     }

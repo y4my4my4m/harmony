@@ -154,7 +154,7 @@ async function loadDevices() {
   try {
     devices.value = await deviceIdentityService.listAllDevices(userId)
   } catch (err) {
-    debug.warn('⚠️ Failed to load devices:', err)
+    debug.warn('Failed to load devices:', err)
   } finally {
     loading.value = false
   }
@@ -174,7 +174,7 @@ async function saveRename(d: UserDevice) {
     await deviceIdentityService.renameDevice(d.device_id, label)
     await loadDevices()
   } catch (err) {
-    debug.error('❌ Rename device failed:', err)
+    debug.error('Rename device failed:', err)
   } finally {
     busyId.value = null
   }
@@ -186,7 +186,7 @@ async function onRevoke(d: UserDevice) {
     await deviceIdentityService.revokeDevice(d.device_id)
     await loadDevices()
   } catch (err) {
-    debug.error('❌ Sign out device failed:', err)
+    debug.error('Sign out device failed:', err)
   } finally {
     busyId.value = null
   }
@@ -198,7 +198,7 @@ async function onDelete(d: UserDevice) {
     await deviceIdentityService.deleteDevice(d.device_id)
     await loadDevices()
   } catch (err) {
-    debug.error('❌ Remove device failed:', err)
+    debug.error('Remove device failed:', err)
   } finally {
     busyId.value = null
   }
@@ -238,7 +238,7 @@ onMounted(async () => {
       loading.value = false
     }
   } catch (err) {
-    debug.warn('⚠️ DeviceManager init failed:', err)
+    debug.warn('DeviceManager init failed:', err)
     loading.value = false
   }
 })

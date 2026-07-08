@@ -754,9 +754,9 @@ watch(
       try {
         await ensureProfilesAvailable(userIds);
         userIds.forEach(id => loadedProfileIds.add(id));
-        debug.log('✅ Loaded profiles for spatial audio participants:', userIds.length);
+        debug.log('Loaded profiles for spatial audio participants:', userIds.length);
       } catch (error) {
-        debug.warn('⚠️ Failed to load profiles for spatial audio participants:', error);
+        debug.warn('Failed to load profiles for spatial audio participants:', error);
       }
     }
   },

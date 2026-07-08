@@ -453,7 +453,7 @@ const visibilityOptions = [
 const getCurrentText = () => content.value || '';
 const updateText = (newText: string, cursorPosition?: number) => {
   if (cursorPosition !== undefined && richEditorRef.value) {
-    debug.log('🔧 Composer updateText:', { newText, cursorPosition });
+    debug.log('Composer updateText:', { newText, cursorPosition });
     richEditorRef.value.skipNextWatch = true;
 
     content.value = newText;
@@ -473,7 +473,7 @@ const updateText = (newText: string, cursorPosition?: number) => {
           const renderedText = richEditorRef.value.getPlainText?.() || '';
           const suffixLen = newText.length - cursorPosition;
           const adjustedCursor = Math.max(0, renderedText.length - suffixLen);
-          debug.log('🔧 Composer cursor adjustment:', {
+          debug.log('Composer cursor adjustment:', {
             rawLen: newText.length, renderedLen: renderedText.length,
             rawCursor: cursorPosition, adjustedCursor
           });

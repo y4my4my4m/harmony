@@ -285,23 +285,23 @@ const toggleStatusDropdown = () => {
 }
 
 const selectStatus = async (status: UserStatus) => {
-  debug.log('🔄 Attempting to change status to:', UserStatus[status])
-  debug.log('🔄 Current local status before change:', UserStatus[localStatus.value])
+  debug.log('Attempting to change status to:', UserStatus[status])
+  debug.log('Current local status before change:', UserStatus[localStatus.value])
   
   try {
     localStatus.value = status
-    debug.log('✅ Local status updated immediately to:', UserStatus[status])
+    debug.log('Local status updated immediately to:', UserStatus[status])
     
     await updateCurrentUserStatus(status)
-    debug.log('✅ Backend status updated successfully to:', UserStatus[status])
+    debug.log('Backend status updated successfully to:', UserStatus[status])
     
   } catch (error) {
-    debug.error('❌ Failed to change status:', error)
+    debug.error('Failed to change status:', error)
     
     // Revert local status on error
     try {
       localStatus.value = getCurrentUserStatus.value
-      debug.log('🔄 Reverted local status due to error')
+      debug.log('Reverted local status due to error')
     } catch (revertError) {
       debug.error('Failed to revert status:', revertError)
     }
@@ -317,9 +317,9 @@ const saveCustomStatus = async () => {
   
   try {
     await setCustomStatus({ text: customStatusText.value.trim() })
-    debug.log('✅ Custom status saved:', customStatusText.value)
+    debug.log('Custom status saved:', customStatusText.value)
   } catch (error) {
-    debug.error('❌ Failed to save custom status:', error)
+    debug.error('Failed to save custom status:', error)
   }
 }
 
@@ -328,9 +328,9 @@ const clearCustomStatus = async () => {
     await clearCustomStatusFn()
     customStatusText.value = ''
     showStatusDropdown.value = false
-    debug.log('✅ Custom status cleared')
+    debug.log('Custom status cleared')
   } catch (error) {
-    debug.error('❌ Failed to clear custom status:', error)
+    debug.error('Failed to clear custom status:', error)
   }
 }
 
@@ -343,7 +343,7 @@ const openStatusPicker = () => {
 }
 
 const handleStatusUpdated = (status: any) => {
-  debug.log('✅ Status updated from picker:', status)
+  debug.log('Status updated from picker:', status)
   showStatusPicker.value = false
 }
 
@@ -361,15 +361,15 @@ const goToSettings = () => {
 }
 
 const handleAvatarClick = () => {
-  debug.log('🔘 Avatar clicked!')
-  debug.log('📱 isMobile:', isMobile.value)
-  debug.log('🔧 toggleMobileProfile prop:', props.toggleMobileProfile)
+  debug.log('Avatar clicked!')
+  debug.log('isMobile:', isMobile.value)
+  debug.log('toggleMobileProfile prop:', props.toggleMobileProfile)
   
   if (isMobile.value && props.toggleMobileProfile) {
-    debug.log('✅ Calling toggleMobileProfile')
+    debug.log('Calling toggleMobileProfile')
     props.toggleMobileProfile()
   } else {
-    debug.log('❌ Not calling toggleMobileProfile - conditions not met')
+    debug.log('Not calling toggleMobileProfile - conditions not met')
   }
 }
 

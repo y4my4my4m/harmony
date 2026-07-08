@@ -39,7 +39,7 @@ class ActivityTracker extends EventTarget {
   startTracking(): void {
     if (this.isTracking) return
     
-    debug.log('🎯 Starting activity tracking')
+    debug.log('Starting activity tracking')
     this.isTracking = true
     this.lastActivity = Date.now()
     
@@ -59,7 +59,7 @@ class ActivityTracker extends EventTarget {
   stopTracking(): void {
     if (!this.isTracking) return
     
-    debug.log('⏹️ Stopping activity tracking')
+    debug.log('⏹Stopping activity tracking')
     this.isTracking = false
     
     this.activityEvents.forEach(event => {
@@ -83,7 +83,7 @@ class ActivityTracker extends EventTarget {
     
     // If user was inactive and now active, emit activity resumed
     if (wasInactive) {
-      debug.log('👋 User activity resumed')
+      debug.log('User activity resumed')
       this.dispatchEvent(new CustomEvent('activity-resumed', {
         detail: { timestamp: now }
       }))
@@ -101,7 +101,7 @@ class ActivityTracker extends EventTarget {
     const isOffline = inactiveTime >= this.OFFLINE_THRESHOLD
     
     if (isOffline && !this.wasOffline) {
-      debug.log('💤 User inactive for 15+ minutes - triggering offline')
+      debug.log('User inactive for 15+ minutes - triggering offline')
       this.wasOffline = true
       this.dispatchEvent(new CustomEvent('status-should-change', {
         detail: { 
@@ -111,7 +111,7 @@ class ActivityTracker extends EventTarget {
         }
       }))
     } else if (isAway && !this.wasAway && !isOffline) {
-      debug.log('😴 User inactive for 5+ minutes - triggering away')
+      debug.log('User inactive for 5+ minutes - triggering away')
       this.wasAway = true
       this.dispatchEvent(new CustomEvent('status-should-change', {
         detail: { 

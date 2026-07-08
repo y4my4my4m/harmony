@@ -336,7 +336,7 @@ export default defineComponent({
         outputDevices.value = devices.filter(d => d.kind === 'audiooutput');
         videoDevices.value = devices.filter(d => d.kind === 'videoinput');
 
-        debug.log('🎛️ [VoiceSettingsPanel] Enumerated devices:', {
+        debug.log('[VoiceSettingsPanel] Enumerated devices:', {
           inputs: inputDevices.value.length,
           outputs: outputDevices.value.length,
           videos: videoDevices.value.length
@@ -371,40 +371,40 @@ export default defineComponent({
         
         if (storedInputDevice && inputDevices.value.some(d => d.deviceId === storedInputDevice)) {
           selectedInputDevice.value = storedInputDevice;
-          debug.log('🎤 [VoiceSettingsPanel] Using stored input device:', storedInputDevice);
+          debug.log('[VoiceSettingsPanel] Using stored input device:', storedInputDevice);
         } else if (inputDevices.value.length > 0) {
           selectedInputDevice.value = inputDevices.value[0].deviceId;
           if (storedInputDevice) {
-            debug.warn('⚠️ [VoiceSettingsPanel] Stored input device not found, using default');
+            debug.warn('[VoiceSettingsPanel] Stored input device not found, using default');
             VoiceSettingsService.setInputDevice(selectedInputDevice.value);
           }
         }
         
         if (storedOutputDevice && outputDevices.value.some(d => d.deviceId === storedOutputDevice)) {
           selectedOutputDevice.value = storedOutputDevice;
-          debug.log('🔊 [VoiceSettingsPanel] Using stored output device:', storedOutputDevice);
+          debug.log('[VoiceSettingsPanel] Using stored output device:', storedOutputDevice);
         } else if (outputDevices.value.length > 0) {
           selectedOutputDevice.value = outputDevices.value[0].deviceId;
           if (storedOutputDevice) {
-            debug.warn('⚠️ [VoiceSettingsPanel] Stored output device not found, using default');
+            debug.warn('[VoiceSettingsPanel] Stored output device not found, using default');
             VoiceSettingsService.setOutputDevice(selectedOutputDevice.value);
           }
         }
         
         if (storedVideoDevice && videoDevices.value.some(d => d.deviceId === storedVideoDevice)) {
           selectedVideoDevice.value = storedVideoDevice;
-          debug.log('📹 [VoiceSettingsPanel] Using stored video device:', storedVideoDevice);
+          debug.log('[VoiceSettingsPanel] Using stored video device:', storedVideoDevice);
         } else if (videoDevices.value.length > 0) {
           selectedVideoDevice.value = videoDevices.value[0].deviceId;
           if (storedVideoDevice) {
-            debug.warn('⚠️ [VoiceSettingsPanel] Stored video device not found, using default');
+            debug.warn('[VoiceSettingsPanel] Stored video device not found, using default');
             VoiceSettingsService.setVideoDevice(selectedVideoDevice.value);
           }
         }
         
-        debug.log('🎛️ [VoiceSettingsPanel] Loaded settings:', settings);
+        debug.log('[VoiceSettingsPanel] Loaded settings:', settings);
       } catch (error) {
-        debug.warn('⚠️ Failed to load stored settings:', error);
+        debug.warn('Failed to load stored settings:', error);
       }
     };
 
@@ -490,10 +490,10 @@ export default defineComponent({
       
       try {
         await webrtcManager.updateInputDevice(selectedInputDevice.value);
-        debug.log('✅ [VoiceSettingsPanel] Successfully switched to new input device');
+        debug.log('[VoiceSettingsPanel] Successfully switched to new input device');
         window.dispatchEvent(new CustomEvent('harmony-device-changed', { detail: { type: 'input', deviceId: selectedInputDevice.value } }));
       } catch (error) {
-        debug.error('❌ [VoiceSettingsPanel] Failed to switch input device:', error);
+        debug.error('[VoiceSettingsPanel] Failed to switch input device:', error);
       }
       
       VoiceSettingsService.setInputDevice(selectedInputDevice.value);
@@ -506,10 +506,10 @@ export default defineComponent({
       
       try {
         await webrtcManager.updateOutputDevice(selectedOutputDevice.value);
-        debug.log('✅ [VoiceSettingsPanel] Successfully switched to new output device');
+        debug.log('[VoiceSettingsPanel] Successfully switched to new output device');
         window.dispatchEvent(new CustomEvent('harmony-device-changed', { detail: { type: 'output', deviceId: selectedOutputDevice.value } }));
       } catch (error) {
-        debug.error('❌ [VoiceSettingsPanel] Failed to switch output device:', error);
+        debug.error('[VoiceSettingsPanel] Failed to switch output device:', error);
       }
       
       VoiceSettingsService.setOutputDevice(selectedOutputDevice.value);

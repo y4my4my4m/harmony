@@ -26,26 +26,26 @@ class StatusLifecycleDebugger {
   startDebugging(): void {
     if (this.isDebugging) return
     
-    debug.log('🔍 Starting status lifecycle debugging')
+    debug.log('Starting status lifecycle debugging')
     this.isDebugging = true
     this.logHistory = []
 
     this.statusChangedListener = (event: any) => {
-      const log = `✅ Status changed: ${UserStatus[event.detail.status]} (User: ${event.detail.userId})`
+      const log = `Status changed: ${UserStatus[event.detail.status]} (User: ${event.detail.userId})`
       debug.log(log)
       this.logHistory.push(`${new Date().toLocaleTimeString()} - ${log}`)
     }
     userDataService.addEventListener('status-changed', this.statusChangedListener)
 
     this.activityResumedListener = (event: any) => {
-      const log = `👋 Activity resumed at ${new Date(event.detail.timestamp).toLocaleTimeString()}`
+      const log = `Activity resumed at ${new Date(event.detail.timestamp).toLocaleTimeString()}`
       debug.log(log)
       this.logHistory.push(`${new Date().toLocaleTimeString()} - ${log}`)
     }
     activityTracker.addEventListener('activity-resumed', this.activityResumedListener)
 
     this.statusShouldChangeListener = (event: any) => {
-      const log = `😴 Auto status change suggested: ${UserStatus[event.detail.status]} (${event.detail.reason})`
+      const log = `Auto status change suggested: ${UserStatus[event.detail.status]} (${event.detail.reason})`
       debug.log(log)
       this.logHistory.push(`${new Date().toLocaleTimeString()} - ${log}`)
     }
@@ -56,7 +56,7 @@ class StatusLifecycleDebugger {
    * Stop debug monitoring
    */
   stopDebugging(): void {
-    debug.log('⏹️ Stopping status lifecycle debugging')
+    debug.log('⏹Stopping status lifecycle debugging')
     this.isDebugging = false
 
     if (this.statusChangedListener) {
@@ -104,12 +104,12 @@ class StatusLifecycleDebugger {
    * Test manual status changes
    */
   async testManualStatusChange(status: UserStatus): Promise<void> {
-    debug.log(`🧪 Testing manual status change to: ${UserStatus[status]}`)
+    debug.log(`Testing manual status change to: ${UserStatus[status]}`)
     try {
       await userDataService.updateCurrentUserStatus(status)
-      debug.log('✅ Manual status change successful')
+      debug.log('Manual status change successful')
     } catch (error) {
-      debug.error('❌ Manual status change failed:', error)
+      debug.error('Manual status change failed:', error)
     }
   }
 
@@ -117,7 +117,7 @@ class StatusLifecycleDebugger {
    * Simulate inactivity for testing
    */
   simulateInactivity(minutes: number): void {
-    debug.log(`🕐 Simulating ${minutes} minutes of inactivity...`)
+    debug.log(`Simulating ${minutes} minutes of inactivity...`)
     
     // Hack the activity tracker's last activity time
     const millisecondsAgo = minutes * 60 * 1000
@@ -132,7 +132,7 @@ class StatusLifecycleDebugger {
   showDebugPanel(): void {
     const info = this.getCurrentStatusInfo()
     
-    console.group('🔍 Status Lifecycle Debug Panel')
+    console.group('Status Lifecycle Debug Panel')
     debug.log('Current User:', info.user)
     debug.log('Activity State:', info.activity)
     debug.log('Recent Log History:')
@@ -150,17 +150,17 @@ if (typeof window !== 'undefined') {
     const statusEnum = UserStatus[status as keyof typeof UserStatus]
     if (statusEnum !== undefined) {
       await statusDebugger.testManualStatusChange(statusEnum)
-      return `✅ Status changed to ${status}`
+      return `Status changed to ${status}`
     } else {
       const available = Object.keys(UserStatus).filter(k => isNaN(Number(k)))
       debug.log('Available statuses:', available)
-      return `❌ Invalid status. Available: ${available.join(', ')}`
+      return `Invalid status. Available: ${available.join(', ')}`
     }
   }
   ;(window as any).showStatusDebug = () => statusDebugger.showDebugPanel()
   ;(window as any).simulateInactivity = (minutes: number = 6) => {
     if (!minutes || isNaN(minutes)) {
-      debug.log('❌ Please provide a number of minutes. Example: simulateInactivity(6)')
+      debug.log('Please provide a number of minutes. Example: simulateInactivity(6)')
       return
     }
     statusDebugger.simulateInactivity(minutes)
@@ -171,17 +171,17 @@ if (typeof window !== 'undefined') {
   ;(window as any).resetActivity = () => {
     ;(activityTracker as any).lastActivity = Date.now()
     activityTracker.resetStatusTracking()
-    return '🔄 Activity reset to now'
+    return 'Activity reset to now'
   }
   
   ;(window as any).showHelp = () => {
-    console.group('🔍 Status Debug Commands')
+    console.group('Status Debug Commands')
     debug.log('showStatusDebug() - Show current status and activity info')
     debug.log('testStatus("Away") - Test manual status change')
     debug.log('simulateInactivity(6) - Simulate 6 minutes of inactivity')
     debug.log('resetActivity() - Reset activity tracker to now')
     debug.log('Available statuses: Online, Away, Busy, Offline')
     console.groupEnd()
-    return 'Help displayed above ☝️'
+    return 'Help displayed above '
   }
 }

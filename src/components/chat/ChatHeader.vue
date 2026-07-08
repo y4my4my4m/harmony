@@ -317,7 +317,7 @@ const setNotificationLevel = async (level: 'all' | 'mentions' | 'none') => {
       channelNotificationLevel.value = prevLevel
       debug.error('Failed to set notification level:', error)
     } else {
-      debug.log(`✅ Channel notification level set to: ${level}`)
+      debug.log(`Channel notification level set to: ${level}`)
     }
   } catch (error) {
     debug.error('Failed to set notification level:', error)
@@ -407,7 +407,7 @@ const handleMarkAsRead = async () => {
       await Promise.all(channelNotifications.map(n => notificationStore.markAsRead(n.id)))
     }
 
-    debug.log('✅ Marked channel as read:', props.channel.name)
+    debug.log('Marked channel as read:', props.channel.name)
   } catch (error) {
     debug.error('Failed to mark channel as read:', error)
   }
@@ -451,7 +451,7 @@ const handleToggleMute = async () => {
       detail: { channelId: props.channel.id, muted: newMuted },
     }))
 
-    debug.log(`✅ Channel ${newMuted ? 'muted' : 'unmuted'}:`, props.channel.name)
+    debug.log(`Channel ${newMuted ? 'muted' : 'unmuted'}:`, props.channel.name)
   } catch (error) {
     debug.error('Failed to toggle channel mute:', error)
   }

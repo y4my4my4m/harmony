@@ -63,13 +63,13 @@ export class PostService {
    */
   async toggleShare(postId: string): Promise<{ shared: boolean; newCount: number }> {
     try {
-      debug.log(`🚀 PostService: Delegating reblog to ActivityPub service for post: ${postId}`)
+      debug.log(`PostService: Delegating reblog to ActivityPub service for post: ${postId}`)
 
       // Import ActivityPub service dynamically to avoid circular dependencies
       const { activityPubService } = await import('./activityPubService')
       const result = await activityPubService.toggleReblog(postId)
 
-      debug.log(`✅ PostService: Reblog delegated to ActivityPub service: ${result.reblogged ? 'reblogged' : 'unreblogged'}`)
+      debug.log(`PostService: Reblog delegated to ActivityPub service: ${result.reblogged ? 'reblogged' : 'unreblogged'}`)
       
       // Return in the expected format for backward compatibility
       return { 
@@ -78,7 +78,7 @@ export class PostService {
       }
 
     } catch (error) {
-      debug.error('❌ PostService: Failed to toggle reblog via ActivityPub service:', error)
+      debug.error('PostService: Failed to toggle reblog via ActivityPub service:', error)
       throw error
     }
   }
@@ -88,13 +88,13 @@ export class PostService {
    */
   async toggleReblog(postId: string): Promise<{ reblogged: boolean; newCount: number }> {
     try {
-      debug.log(`🚀 PostService: Toggling reblog for post: ${postId}`)
+      debug.log(`PostService: Toggling reblog for post: ${postId}`)
 
       // Import ActivityPub service dynamically to avoid circular dependencies
       const { activityPubService } = await import('./activityPubService')
       const result = await activityPubService.toggleReblog(postId)
 
-      debug.log(`✅ PostService: Reblog toggled: ${result.reblogged ? 'reblogged' : 'unreblogged'}`)
+      debug.log(`PostService: Reblog toggled: ${result.reblogged ? 'reblogged' : 'unreblogged'}`)
       
       return { 
         reblogged: result.reblogged, 
@@ -102,7 +102,7 @@ export class PostService {
       }
 
     } catch (error) {
-      debug.error('❌ PostService: Failed to toggle reblog:', error)
+      debug.error('PostService: Failed to toggle reblog:', error)
       throw error
     }
   }
@@ -118,12 +118,12 @@ export class PostService {
    */
   async togglePinPost(postId: string): Promise<{ pinned: boolean }> {
     try {
-      debug.log(`📌 PostService: Toggling pin for post: ${postId}`)
+      debug.log(`PostService: Toggling pin for post: ${postId}`)
       const result = await corePostService.togglePinPost(postId)
-      debug.log(`✅ PostService: Post ${result.pinned ? 'pinned' : 'unpinned'}`)
+      debug.log(`PostService: Post ${result.pinned ? 'pinned' : 'unpinned'}`)
       return result
     } catch (error) {
-      debug.error('❌ PostService: Failed to toggle pin:', error)
+      debug.error('PostService: Failed to toggle pin:', error)
       throw error
     }
   }

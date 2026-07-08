@@ -608,7 +608,7 @@ const initializeCategoryStates = async () => {
     });
     collapsedCategories.value = newCollapsedSet;
   } catch (error) {
-    debug.warn('⚠️ Failed to initialize category states:', error);
+    debug.warn('Failed to initialize category states:', error);
   }
 };
 
@@ -733,7 +733,7 @@ const toggleCategory = async (categoryId: string) => {
     try {
       await statePersistence.setCategoryCollapseState(props.currentServer.id, categoryId, !wasCollapsed);
     } catch (error) {
-      debug.warn('⚠️ Failed to persist category collapse state:', error);
+      debug.warn('Failed to persist category collapse state:', error);
     }
   }
 };
@@ -844,7 +844,7 @@ const loadActiveThreads = async (forceRefresh = false) => {
       threadsLastFetchedAt.value) {
     const cacheAge = Date.now() - threadsLastFetchedAt.value.getTime();
     if (cacheAge < THREAD_CACHE_VALIDITY_MS) {
-      debug.log(`📦 Threads cache still valid (${Math.round(cacheAge / 1000)}s old, ${channelThreads.value.size} threads), skipping fetch`);
+      debug.log(`Threads cache still valid (${Math.round(cacheAge / 1000)}s old, ${channelThreads.value.size} threads), skipping fetch`);
       return;
     }
   }
@@ -879,7 +879,7 @@ const loadActiveThreads = async (forceRefresh = false) => {
     channelThreads.value = grouped;
     loadedThreadsServerId.value = serverId;
     threadsLastFetchedAt.value = new Date();
-    debug.log(`✅ Loaded ${threads.length} threads for server, cached at ${threadsLastFetchedAt.value.toISOString()}`);
+    debug.log(`Loaded ${threads.length} threads for server, cached at ${threadsLastFetchedAt.value.toISOString()}`);
   } catch (error) {
     debug.error('Failed to load threads:', error);
     channelThreads.value = new Map();
@@ -1183,15 +1183,15 @@ const handleThreadUpdated = () => {
 
 // Lifecycle Hooks
 watch(() => props.currentServer?.id, async (newServerId, oldServerId) => {
-  debug.log('🔄 Server changed:', { old: oldServerId, new: newServerId });
+  debug.log('Server changed:', { old: oldServerId, new: newServerId });
   if (newServerId) {
     initializeCategoryStates();
     // Setup voice channel broadcast for real-time updates
     // Await this to ensure voice channel state is fetched before rendering
-    debug.log('📞 Setting up voice channel broadcast for server:', newServerId);
+    debug.log('Setting up voice channel broadcast for server:', newServerId);
     await serverUsersStore.setupVoiceChannelBroadcast(newServerId);
-    debug.log('✅ Voice channel broadcast setup complete for server:', newServerId);
-    debug.log('👥 Users in voice channels:', serverUsersStore.usersInVoiceChannels);
+    debug.log('Voice channel broadcast setup complete for server:', newServerId);
+    debug.log('Users in voice channels:', serverUsersStore.usersInVoiceChannels);
   }
 }, { immediate: true });
 
@@ -1220,7 +1220,7 @@ watch(() => route.params.threadId, (threadId) => {
 // Thread changes now arrive via server-structure broadcast
 
 const threadChangeHandler = () => {
-  debug.log('🧵 Thread change detected via broadcast');
+  debug.log('Thread change detected via broadcast');
   loadActiveThreads(true);
 };
 

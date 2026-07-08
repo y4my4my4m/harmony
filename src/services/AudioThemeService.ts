@@ -479,7 +479,7 @@ export class AudioThemeService {
       
       this.emit('themeChanged', { from: previousTheme, to: themeId, theme })
       
-      debug.log(`🎵 Switched to audio theme: ${theme.name}`)
+      debug.log(`Switched to audio theme: ${theme.name}`)
       return true
     } catch (error) {
       debug.error(`Failed to switch to theme '${themeId}':`, error)
@@ -695,7 +695,7 @@ export class AudioThemeService {
       return
     }
 
-    debug.log(`🎵 Preloading theme: ${theme.name}`)
+    debug.log(`Preloading theme: ${theme.name}`)
     
     const soundPaths = Object.values(theme.sounds).filter(Boolean) as string[]
     const preloadPromises = soundPaths.map(path => 

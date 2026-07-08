@@ -401,7 +401,7 @@ async function generateRecoveryKey() {
     await recoveryKeyService.deriveKeysFromMnemonic(recoveryWords.value)
     verificationCode.value = await recoveryKeyService.generateVerificationCode()
     
-    debug.log('✅ Recovery key generated')
+    debug.log('Recovery key generated')
   } catch (error: any) {
     debug.error('Failed to generate recovery key:', error)
     toast.error('Failed to generate recovery key')

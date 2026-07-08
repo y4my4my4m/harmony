@@ -28,7 +28,7 @@ class SessionHeartbeatService {
   async initialize(_userId: string): Promise<void> {
     if (this.isInitialized) return
     this.isInitialized = true
-    debug.log('🫀 Session Heartbeat: Disabled - Supabase handles connections internally')
+    debug.log('Session Heartbeat: Disabled - Supabase handles connections internally')
   }
 
   /**
@@ -43,7 +43,7 @@ class SessionHeartbeatService {
    */
   updateContext(context: ViewContext): void {
     this.currentContext = context
-    debug.log('📍 Session Heartbeat: Context updated', context)
+    debug.log('Session Heartbeat: Context updated', context)
   }
 
   /**

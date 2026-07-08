@@ -259,7 +259,7 @@ const attach = () => {
     retryCount++;
     retryTimer = setTimeout(attach, 150 * retryCount);
   } else {
-    debug.warn(`📺 [VoiceTile] Failed to attach ${props.source} video for`, props.userState.userId);
+    debug.warn(`[VoiceTile] Failed to attach ${props.source} video for`, props.userState.userId);
   }
 };
 

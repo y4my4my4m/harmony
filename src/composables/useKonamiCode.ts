@@ -48,23 +48,23 @@ export function useKonamiCode(onActivate: () => void) {
     
     if (keyCode === expectedKey) {
       sequence.value.push(keyCode)
-      debug.log(`🎮 [Konami] Progress: ${sequence.value.length}/${KONAMI_SEQUENCE.length}`)
+      debug.log(`[Konami] Progress: ${sequence.value.length}/${KONAMI_SEQUENCE.length}`)
       
       if (sequence.value.length === KONAMI_SEQUENCE.length) {
-        debug.log('🎮 [Konami] Code activated!')
+        debug.log('[Konami] Code activated!')
         isActive.value = true
         onActivate()
         sequence.value = []
       } else {
         resetTimer = setTimeout(() => {
-          debug.log('🎮 [Konami] Sequence reset (timeout)')
+          debug.log('[Konami] Sequence reset (timeout)')
           sequence.value = []
         }, RESET_TIMEOUT)
       }
     } else {
       // Wrong key - reset sequence
       if (sequence.value.length > 0) {
-        debug.log(`🎮 [Konami] Wrong key (expected ${expectedKey}, got ${keyCode}), resetting`)
+        debug.log(`[Konami] Wrong key (expected ${expectedKey}, got ${keyCode}), resetting`)
         sequence.value = []
       }
     }
@@ -81,7 +81,7 @@ export function useKonamiCode(onActivate: () => void) {
 
   onMounted(() => {
     window.addEventListener('keydown', handleKeyDown, { capture: true })
-    debug.log('🎮 [Konami] Detector initialized')
+    debug.log('[Konami] Detector initialized')
   })
 
   onUnmounted(() => {
@@ -89,7 +89,7 @@ export function useKonamiCode(onActivate: () => void) {
     if (resetTimer) {
       clearTimeout(resetTimer)
     }
-    debug.log('🎮 [Konami] Detector cleaned up')
+    debug.log('[Konami] Detector cleaned up')
   })
 
   return {

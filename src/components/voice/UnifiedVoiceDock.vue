@@ -1166,7 +1166,7 @@ watch(
   (shouldShowOverlay) => {
     if (shouldShowOverlay && currentMode.value !== 'overlay') {
       currentMode.value = 'overlay';
-      debug.log('📺 [Dock] Auto-switching to overlay mode from store');
+      debug.log('[Dock] Auto-switching to overlay mode from store');
     }
   },
   { immediate: true }
