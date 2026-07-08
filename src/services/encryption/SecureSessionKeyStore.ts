@@ -492,14 +492,14 @@ export const signingKeyStore = new SigningKeyStore()
 
 // Pinned Key Store (TOFU)
 //
-// Trust-on-first-use record of each sender's signing-key fingerprint. This is
-// NOT secret material - it stores short fingerprints so the client can notice
-// when a contact's signing identity changes and surface a gentle, non-blocking
-// notice (deliberately NOT a Matrix-style mandatory verification wall).
+// Trust-on-first-use record of each sender's signing-key fingerprint. NOT secret
+// material — short fingerprints only, so the client can notice when a contact's
+// signing identity changes and surface a non-blocking notice (deliberately NOT a
+// Matrix-style mandatory verification wall).
 //
-// Keyed by userId today; the record carries an optional deviceId so the Phase 3
-// per-device identity model can pin per (userId, deviceId) without a schema
-// migration (we bump DB_VERSION and switch the keyPath then).
+// Keyed by userId; record carries an optional deviceId so the Phase 3 per-device
+// identity model can pin per (userId, deviceId) via a DB_VERSION bump + keyPath
+// switch, no schema migration.
 
 const PINNED_DB_NAME = 'harmony_pinned_keys'
 const PINNED_DB_VERSION = 1
@@ -621,14 +621,13 @@ export const pinnedKeyStore = new PinnedKeyStore()
 
 // Device Key Store
 //
-// Per-device ECDSA signing private key (non-extractable), keyed by deviceId
-// (NOT userId). This is the cryptographic core of the device-aware model: each
-// browser profile / install signs its own v3 messages with a key that never
-// leaves the device, so revoking a device (user_devices.revoked_at) actually
-// cuts off that device's ability to produce verifiable messages.
+// Per-device ECDSA signing private key (non-extractable), keyed by deviceId (NOT
+// userId). Core of the device-aware model: each browser profile/install signs its
+// own v3 messages with a key that never leaves the device, so revoking a device
+// (user_devices.revoked_at) cuts off its ability to produce verifiable messages.
 //
-// Kept separate from signingKeyStore (which holds the legacy user-level signing
-// key) so the two can be cleared / rotated independently.
+// Separate from signingKeyStore (legacy user-level signing key) so the two clear
+// and rotate independently.
 
 const DEVICE_DB_NAME = 'harmony_device_keys'
 const DEVICE_DB_VERSION = 1

@@ -57,15 +57,11 @@ export async function startDatabaseListener(): Promise<void> {
     );
   }
 
-  // NOTE: Post create/update/delete/pin federation runs exclusively through
-  // BullMQ (`federate-post` job → `postHandler.handlePostJob`). The DB
-  // trigger `trigger_queue_post_federation` queues the job via pg_notify on
-  // every INSERT/UPDATE/soft-delete/pin change, so we don't need a
-  // postgres_changes subscription on `posts` here. The previous CDC-based
-  // path used to handle these events but was unreliable (Supabase Realtime
-  // doesn't fire consistently for every row) and racy against the BullMQ
-  // path - `enrichPostLinkPreviews` and the home-feed realtime push now
-  // both live inside `handlePostJob`.
+  // Post create/update/delete/pin federation runs only through BullMQ: the
+  // `trigger_queue_post_federation` DB trigger queues a `federate-post` job via
+  // pg_notify, handled by `postHandler.handlePostJob` (which also owns
+  // `enrichPostLinkPreviews` and the home-feed push). No postgres_changes
+  // subscription on `posts` needed here.
   channel = channel
     .on(
       'postgres_changes',

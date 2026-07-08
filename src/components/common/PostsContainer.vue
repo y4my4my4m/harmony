@@ -96,14 +96,9 @@ const emit = defineEmits<{
   'load-more': []
   'empty-action': []
   'reply': [post: any]
-  // favorite/reblog/bookmark/delete are pass-through chains. MonyPost
-  // handles those interactions internally via usePostInteractions and only
-  // emits `delete`/`edit` upward via the post id; the entire favorite/
-  // reblog/bookmark chain is currently dead. The upstream feed views
-  // (TimelineView, BookmarksView, etc.) still declare handlers shaped
-  // `(post: TimelinePost) => Promise<void>` for their re-emit semantics,
-  // so declare the post payload here to keep the type chain coherent
-  // (and to avoid TS2322 contravariance breaks at every listener site).
+  // favorite/reblog/bookmark are dead pass-through chains (MonyPost handles them
+  // internally via usePostInteractions). Payload typed as TimelinePost to match the
+  // upstream views' handler signatures and avoid TS2322 contravariance at listeners.
   'favorite': [post: TimelinePost]
   'reblog': [post: TimelinePost]
   'bookmark': [post: TimelinePost]

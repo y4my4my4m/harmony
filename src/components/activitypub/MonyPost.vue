@@ -1007,14 +1007,10 @@ const postEmbeds = computed<Array<{ url: string; title?: string; description?: s
   return Object.values(embeds).filter((e: any) => e && e.title) as Array<{ url: string; title?: string; description?: string; image?: string; provider?: string }>;
 });
 
-// Embed de-duplication. useContentRenderer.formattedHTML auto-injects an inline
-// iframe for YouTube URLs (useContentRenderer.ts:507); without splitting postEmbeds
-// we'd also render a duplicate LinkEmbedCard for the same video. Split by whether
-// the URL is already an inline rich embed:
-//   * inlineRichEmbeds → URLs already iframed; rendered as a compact caption.
-//   * cardEmbeds       → everything else (Wikipedia, news, Spotify…); full LinkEmbedCard.
-// Provider detection prefers the federation-set `provider` field, falls back to URL
-// parsing for older/partial payloads that didn't tag it.
+// Embed de-dup: formattedHTML already injects an inline iframe for YouTube URLs
+// (useContentRenderer.ts:507), so split postEmbeds to avoid a duplicate LinkEmbedCard.
+// inlineRichEmbeds = already iframed (compact caption); cardEmbeds = full LinkEmbedCard.
+// Provider detection prefers the federation-set `provider`, falling back to URL parsing.
 const isInlineRichEmbed = (embed: { url: string; provider?: string }): boolean => {
   if (!embed?.url) return false;
   if (embed.provider === 'youtube') return true;

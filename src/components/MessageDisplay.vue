@@ -1863,13 +1863,9 @@ watch(() => props.messages, (newMessages) => {
                 if (!isAtBottom && scrollAttempts < 8) {
                   setTimeout(() => scrollToBottom(), scrollAttempts < 3 ? 50 : 150);
                 }
-                // else: settled (or stopped retrying). KEEP `shouldBeAtBottom`
-                // true. Late content grows the list after this initial scroll
-                // (stale-while-revalidate append, image/embed loads); the
-                // ResizeObserver only re-pins to the bottom while
-                // `shouldBeAtBottom` is true. Releasing it here (the old 500ms
-                // timeout) left the user scrolled up when messages arrived
-                // during a channel switch. The scroll handler flips it false
+                // else settled: KEEP `shouldBeAtBottom` true. The ResizeObserver
+                // re-pins to bottom only while it's true, so late content (SWR append,
+                // image/embed loads) stays pinned. The scroll handler flips it false
                 // when the user scrolls up.
               }
             });
@@ -3127,14 +3123,9 @@ const handleDecryptMessage = async (message: Message) => {
       : Boolean(decryptResult.senderVerified);
 
     if (decryptedContent) {
-      // NOTE: previous code called `resolveMentionsUserData(decryptedContent)`
-      // and assigned its return value to `content`, but-
-      // `resolveMentionsUserData` returns a Record<string, {userId, isLocal}>
-      // lookup map (not MessagePart[]). That was a latent bug - assigning the
-      // lookup map to `content` would render nothing. The decrypted content
-      // is already a parsed `MessagePart[]` from
-      // `megolmMessageEncryptionService.decryptMessage`, so we use it directly.
-      // Create updated message object
+      // decryptedContent is already a parsed MessagePart[] from decryptMessage; use it
+      // directly. Do NOT pass through resolveMentionsUserData - it returns a lookup map,
+      // not MessagePart[], which would render nothing.
       const updatedMessage: Message = {
         ...messageToDecrypt,
         content: decryptedContent,
@@ -3221,20 +3212,12 @@ const openContextMenu = (message: Message, event: MouseEvent) => {
   contextMenuVisible.value = true;
 };
 
-// Native right-click on a message row opens the same context menu the
-// "more" button does. We deliberately let the browser's native menu
-// take over for media (images, video, audio) and links so users can
-// still "Save image as", "Copy link address", etc. - that matches
-// Discord/Slack behaviour.
+// Native right-click opens the same context menu as the "more" button, but defers to
+// the browser's native menu for media and links (Save image as, Copy link address).
 const handleMessageContextMenu = (message: Message, event: MouseEvent) => {
-  // On mobile the OS fires a synthetic `contextmenu` event after a
-  // long-press. We already handle long-press explicitly via the
-  // touchstart timer (which shows the floating message-actions toolbar),
-  // so opening the full context menu on top of it produces two competing
-  // surfaces. Swallow the synthetic event so only the toolbar shows;
-  // the user can then tap the (...) button to get the full menu.
-  // Exception: selected text or native media/link targets should keep
-  // the browser/OS copy menu.
+  // Mobile long-press fires a synthetic `contextmenu`, but long-press is already
+  // handled via the touchstart timer (floating toolbar). Swallow it so the two menus
+  // don't compete; exception: selected text / native media/link targets keep the OS menu.
   if (isMobile.value && !shouldAllowNativeContextMenu(event)) {
     event.preventDefault();
     return;

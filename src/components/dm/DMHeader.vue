@@ -573,15 +573,8 @@ let callSignalUnsubscribe: (() => void) | null = null
 const handleCallSignal = async (signal: CallSignal) => {
   if (!authStore.session?.user?.id) return
 
-  // BUGS.md Pattern A: signal participant IDs and permission lookups all
-  // key on PROFILE ids (the rest of the call codebase resolves via
-  // `authContextService.getCurrentProfileId()`). Using the auth UUID here
-  // meant:
-  //   - `signal.callerId === currentUserId` never matched our own outgoing
-  //     signals, so self-suppression was broken,
-  //   - `canReceiveCall(callerId, currentUserId, ...)` queried the wrong
-  //     row, breaking block/DND/mute auto-decline,
-  //   - `declineCall(..., currentUserId, ...)` recorded the wrong actor.
+  // BUGS.md Pattern A: signal participant IDs and permission lookups key on PROFILE
+  // ids (resolve via authContextService.getCurrentProfileId()), not the auth UUID.
   let currentUserId: string
   try {
     const { authContextService } = await import('@/services/AuthContextService')

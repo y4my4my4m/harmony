@@ -2411,24 +2411,18 @@ export const useDMStore = defineStore('dm', () => {
       }
     })
 
-    // BUGS.md #4 - DM sidebar wasn't picking up new messages in
-    // conversations the user wasn't currently viewing. The DB already
-    // broadcasts `unread:change` on `user:{profileId}` whenever an
-    // `unread_messages_view` row changes, but `useDM` never listened for
-    // it (only `useUnreadCounts` did, and that store isn't used by the
-    // DM sidebar). Patch the matching conversation's `unread_count` and
-    // bump `last_activity` so the sort order reflects the new message
-    // without needing a full refetch / page refresh.
+    // BUGS.md #4 - listen for `unread:change` on `user:{profileId}` (DB broadcasts it on
+    // any unread_messages_view row change) so the DM sidebar updates unread_count and
+    // last_activity for non-active conversations without a full refetch.
     const unsubUnread = userEventChannel.on('unread:change', (data: any) => {
       const payload = data?.count || data
       const conversationId = payload?.conversation_id
       if (!conversationId) return
       const conv = conversations.value.find(c => c.id === conversationId)
       if (!conv) {
-        // Brand-new conversation we don't have locally - refetch the list
-        // so it shows up. This complements `conversation:new` which also
-        // triggers a refetch but only fires for genuinely new
-        // conversations, not for the first message in an existing one.
+        // Brand-new conversation we don't have locally - refetch. Complements
+        // `conversation:new`, which only fires for genuinely new conversations,
+        // not the first message in an existing one.
         fetchUserConversations(userId).catch(err => debug.warn('unread:change refetch failed:', err))
         return
       }

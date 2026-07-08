@@ -238,12 +238,9 @@ const isFederatedUser = (user: User | FederatedUser): user is FederatedUser => {
   return 'handle' in user
 }
 
-// Computed properties
-//
-// props.user.id is a profile id but authStore.session.user.id is the
-// Supabase auth user id - they are different UUIDs (BUGS.md Pattern A).
-// Compare against the cached current-user profile id so cards on your
-// own profile correctly hide "Send Message" / "Follow" actions.
+// props.user.id is a profile id, authStore.session.user.id is the auth UUID -
+// different UUIDs (BUGS.md Pattern A). Compare against the cached current-user
+// profile id so own-profile cards hide "Send Message" / "Follow".
 const isCurrentUser = computed(() => {
   if (!props.user.id) return false
   return props.user.id === getCurrentUser.value?.id
@@ -386,10 +383,8 @@ const handleMessage = async () => {
   emit('message', props.user)
 
   try {
-    // create_or_get_direct_conversation expects PROFILE IDs on both sides.
-    // Using authStore.session.user.id here previously passed the auth UUID,
-    // which fails the RPC's participant check and silently dropped users on
-    // the DM landing page instead of the new conversation (BUGS.md Pattern A).
+    // create_or_get_direct_conversation expects PROFILE IDs, not the auth UUID:
+    // the auth UUID fails the RPC's participant check (BUGS.md Pattern A).
     const { authContextService } = await import('@/services/AuthContextService')
     const currentProfileId = await authContextService.getCurrentProfileId()
     if (!currentProfileId) {

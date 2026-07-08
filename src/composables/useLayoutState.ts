@@ -3,10 +3,8 @@ import { useRoute } from 'vue-router'
 import { debug } from '@/utils/debug'
 
 const STORAGE_KEY_ACTIVITYPUB_RIGHT_SIDEBAR = 'harmony_activitypub_right_sidebar_open'
-// Server chat (member list) right sidebar is remembered independently from the
-// ActivityPub right sidebar, so collapsing one context doesn't collapse the
-// other - and bouncing through a DM (which has no right sidebar) no longer
-// leaves the chat member list stuck collapsed.
+// Chat member-list right sidebar is persisted independently from the ActivityPub
+// one so collapsing one context (or passing through a DM) doesn't collapse the other.
 const STORAGE_KEY_CHAT_RIGHT_SIDEBAR = 'harmony_chat_right_sidebar_open'
 
 // Global layout state
@@ -32,10 +30,9 @@ const SERVER_SIDEBAR_WIDTH = 72
 
 // Mobile detection
 //
-// only mutate sidebar state on *transitions* (desktop⇄mobile) and on
-// first mount. Every keystroke on mobile triggers a `resize` event because the
-// soft keyboard changes viewport height - if we closed sidebars on every call,
-// the DM search input would dismiss its own surrounding sidebar mid-typing.
+// Only mutate sidebar state on desktop⇄mobile transitions and first mount. Mobile
+// soft keyboard fires `resize` on every keystroke; closing sidebars on each would
+// dismiss the DM search input's own sidebar mid-typing.
 let hasInitialized = false
 const checkMobileDevice = () => {
   const wasMobile = isMobile.value
@@ -80,9 +77,8 @@ export function useLayoutState() {
     return p.startsWith('/social') || p.startsWith('/posts')
   }
 
-  // DM routes have no right sidebar (no member/details panel). Used to suppress
-  // the right-sidebar toggle/gesture/overlay so the mobile backdrop blur never
-  // appears on a screen that has nothing to reveal.
+  // DM routes have no right sidebar; suppress its toggle/gesture/overlay so the
+  // mobile backdrop blur never appears on a screen with nothing to reveal.
   const isDMRoute = (): boolean => route.path.startsWith('/dm')
   const isChatRoute = (): boolean => route.path.startsWith('/chat')
   const hasRightSidebar = computed(() => !isDMRoute())
@@ -133,9 +129,8 @@ export function useLayoutState() {
   watch(
     () => route.path,
     (path) => {
-      // DM has no right sidebar - collapse it so the mobile backdrop blur
-      // doesn't linger over a panel-less screen. The chat member-list state is
-      // preserved in localStorage and restored when returning to /chat.
+      // DM has no right sidebar - collapse it so the mobile backdrop blur doesn't
+      // linger. Chat member-list state persists in localStorage, restored on /chat.
       if (path.startsWith('/dm')) {
         rightSidebarOpen.value = false
         return

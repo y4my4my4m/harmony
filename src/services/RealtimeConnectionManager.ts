@@ -225,18 +225,11 @@ class RealtimeConnectionManagerService {
       const hiddenFor = this.hiddenAt ? Date.now() - this.hiddenAt : 0
       this.hiddenAt = null
 
-      // Long absences (mobile OS tab freeze, laptop sleep, carrier NAT
-      // timeout) almost always mean the WebSocket was killed without our
-      // socket-state observer seeing a CLOSE - the channel still reports
-      // SUBSCRIBED but no payloads will ever arrive. The classic symptom is
-      // "I had a DM open, walked away, got the push notification, but the
-      // message never showed up until I refreshed". Force a global reconnect
-      // here so every managed channel re-handshakes (and onReconnected
-      // gap-fill fires to pull anything we missed).
-      //
-      // Also force-reconnect when the underlying Supabase WS itself reports
-      // disconnected, regardless of how long we were hidden - some browsers
-      // (Safari iOS) freeze tabs <1s in and silently kill the socket.
+      // Long absences can kill the WebSocket with no CLOSE event: channel still
+      // reports SUBSCRIBED but no payloads arrive. Force a global reconnect so
+      // every channel re-handshakes and gap-fill runs. Also reconnect whenever
+      // the Supabase WS reports disconnected regardless of hidden duration
+      // (Safari iOS freezes tabs <1s in and silently kills the socket).
       const rtClient = (supabase as any).realtime
       const wsDead = rtClient && typeof rtClient.isConnected === 'function' && !rtClient.isConnected()
 

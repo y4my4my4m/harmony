@@ -93,15 +93,10 @@ export async function resolveMentionsUserData(content: string): Promise<Record<s
       }
     }
     
-    // Query for remote users (username@domain format).
-    //
-    // Previously this issued one query per remote mention (Promise.all of N
-    // round-trips). Replaced with a single PostgREST .or() filter that
-    // unions the (username, domain) pairs into one request. Username and
-    // domain charsets are constrained by MENTION_REGEX above
-    // (`[a-zA-Z0-9_-]+` and `[a-zA-Z0-9.-]+`) - neither contains commas,
-    // parens, or quotes, so the values are safe to interpolate directly
-    // into PostgREST filter syntax without escaping.
+    // Remote users (username@domain): single PostgREST .or() unioning the
+    // (username, domain) pairs. MENTION_REGEX charsets (`[a-zA-Z0-9_-]+`,
+    // `[a-zA-Z0-9.-]+`) contain no commas/parens/quotes, so the values are
+    // safe to interpolate into the filter without escaping.
     if (remoteUsernames.length > 0) {
       try {
         const pairs = remoteUsernames

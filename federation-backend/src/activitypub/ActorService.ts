@@ -1312,18 +1312,10 @@ async function _fetchRemotePostReactionsImpl(
       }
     }
 
-    // Standard ActivityPub approach.
-    //
-    // Mastodon, Pleroma, Akkoma, GoToSocial, Friendica, Pixelfed and Harmony
-    // all serialize a Note's likes collection at `${ap_id}/likes`. We try that
-    // URL first to skip the post-object roundtrip. Only if it 404s (or some
-    // other non-OK response) do we fall back to the legacy "fetch the post,
-    // read its `likes` property" path, which protects compatibility with
-    // non-conventional AP implementations.
-    //
-    // BUGS.md H15: postApId is attacker-influenced (from inbox / remote feed),
-    // so every outbound call is wrapped by safeFetch which enforces SSRF
-    // protection.
+    // Try `${ap_id}/likes` first (standard AP), fall back to fetching the post
+    // and reading its `likes` property for non-conventional implementations.
+    // BUGS.md H15: postApId is attacker-influenced, so outbound calls go through
+    // safeFetch (SSRF protection).
     const apHeaders = {
       'Accept': 'application/activity+json, application/ld+json',
       'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`,

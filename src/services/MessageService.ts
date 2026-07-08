@@ -127,12 +127,8 @@ export class MessageService {
       debug.log(`MessageService: Toggling reaction for message: ${messageId}, emoji: ${emojiId}`)
 
       // (chat reactions stay local, DM reactions may federate based on participants)
-      //
-      // We intentionally do NOT issue a follow-up COUNT query here: the
-      // reactions store already updates the count optimistically and then
-      // reconciles against the authoritative server data (via the per-message
-      // reconcile fetch + realtime), so the extra round-trip only added latency
-      // to every single reaction toggle without being consumed anywhere.
+      // No follow-up COUNT query: the reactions store updates optimistically and
+      // reconciles against server data via the per-message reconcile fetch + realtime.
       const result = await coreMessageService.toggleReaction(messageId, emojiId)
 
       return { added: result.added }

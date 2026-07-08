@@ -186,17 +186,11 @@ export const useAuthStore = defineStore('auth', {
           this.isPasswordResetMode = true;
           this.session = session;
         } else if (currentPath === '/auth/callback') {
-          // OAuth callback path: `detectSessionInUrl: true` already exchanged the
-          // code for an AAL1 session before initializeAuth runs. Validating it here
-          // would reject + sign out an MFA-enrolled user, so AuthCallbackView mounts
-          // with no session, throws "Authentication failed", and OAuth login is
-          // permanently locked out. Defer everything to AuthCallbackView (its own MFA
-          // flow):
-          //   - Leave the session in localStorage (view reads it via getSession()).
-          //   - Don't adopt into Pinia (isLoggedIn=false until the view adopts).
-          //   - Set _pendingMFAVerification so SIGNED_IN / INITIAL_SESSION during
-          //     OAuth processing are skipped in onAuthStateChange (same reject path).
-          //   - AuthCallbackView clears the flag after adopting or routing to MFA/login.
+          // OAuth AAL1 session already exists (detectSessionInUrl). Validating here would
+          // sign out an MFA-enrolled user and permanently lock out OAuth login. Defer to
+          // AuthCallbackView: leave session in localStorage, don't adopt into Pinia, set
+          // _pendingMFAVerification so SIGNED_IN/INITIAL_SESSION skip in onAuthStateChange.
+          // AuthCallbackView clears the flag after adopting or routing to MFA/login.
           debug.log('OAuth callback detected on initialization - deferring session adoption to AuthCallbackView');
           this._pendingMFAVerification = true;
           this.session = null;
@@ -531,16 +525,11 @@ export const useAuthStore = defineStore('auth', {
     },
 
     async login(email: string, password: string) {
-      // CRITICAL ORDERING: set the pending-MFA flag BEFORE signInWithPassword.
-      // signInWithPassword resolves AAL1 and queues a SIGNED_IN microtask; the
-      // awaits below (suspended-user check, listFactors) yield the loop, letting it
-      // run before we know whether MFA is needed. If the flag were set inside the
-      // `if (totpFactor)` branch, SIGNED_IN would run flag-false, validateSessionForMFA
-      // rejects the AAL1 session and signs out an MFA user; listFactors then finds no
-      // session, so login() returns { requires2FA: false } despite 2FA - UI shows
-      // "Welcome back!", navigates to /chat, renders blank (the "nothing loads, MFA
-      // modal never appeared" bug). Hoisting the flag makes SIGNED_IN return early so
-      // the session survives for listFactors.
+      // Set pending-MFA flag BEFORE signInWithPassword: it queues a SIGNED_IN microtask
+      // that runs during the awaits below (before we know if MFA is needed). Flag-false,
+      // SIGNED_IN would reject+sign out the AAL1 session, so listFactors sees no session
+      // and login() returns requires2FA:false despite 2FA. The flag makes SIGNED_IN
+      // return early so the session survives for listFactors.
       this._pendingMFAVerification = true;
 
       try {
