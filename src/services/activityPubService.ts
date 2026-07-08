@@ -2701,5 +2701,4 @@ export class ActivityPubService {
   }
 }
 
-// Export singleton instance
 export const activityPubService = ActivityPubService.getInstance();

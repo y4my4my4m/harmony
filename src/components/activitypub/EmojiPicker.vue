@@ -172,7 +172,6 @@ const emit = defineEmits<{
   emojiSelected: [emoji: { content: string; name: string }];
 }>();
 
-// Composables
 const { triggerReaction } = useHapticSettings();
 const { topEmojisForPicker, hasFrequentEmojis, recordEmojiUsage } = useFrequentEmojis();
 const { 
@@ -188,12 +187,10 @@ const {
   getTwemojiUrl
 } = useUnifiedEmoji();
 
-// State
 const selectedCategory = ref('people');
 const showPackMenu = ref(false);
 const hoveredEmojiName = ref<string | null>(null);
 
-// Computed
 const currentPackName = computed(() => {
   switch (currentPack.value) {
     case 'twemoji': return 'Twemoji';
@@ -245,7 +242,6 @@ const frequentEmojiItems = computed((): DisplayEmoji[] => {
   });
 });
 
-// Helper to get SVG URL for an emoji based on current pack
 function getEmojiSvgUrl(emoji: EmojiEntry): string | undefined {
   if (isNativePack.value) return undefined;
   

@@ -212,14 +212,12 @@ const { t } = useI18n()
 // Layout State
 const { isMobile } = useLayoutState()
 
-// Composables
 const router = useRouter()
 const serverStore = useServerStore()
 const emojiCacheStore = useEmojiCacheStore()
 const toast = useToast()
 const { serverSettingsPermissions } = useServerPermissions()
 
-// Reactive state
 const loading = ref(false)
 const ownerName = ref('')
 const selectedFile = ref<File | null>(null)
@@ -252,7 +250,6 @@ const currentSectionLabel = computed(() => {
   return section?.label || t('server.serverSettings')
 })
 
-// Computed permissions
 const permissions = computed(() => serverSettingsPermissions.value)
 
 const emojiPermissions = computed(() => ({
@@ -297,7 +294,6 @@ const hasChanges = computed(() => {
   return generalHasChanges.value || encryptionChanged
 })
 
-// Methods
 const handleResize = () => {
   if (typeof window !== 'undefined') {
     windowWidth.value = window.innerWidth
@@ -451,7 +447,6 @@ const handleSettingsKeydown = (event: KeyboardEvent) => {
   back()
 }
 
-// Lifecycle
 onMounted(async () => {
   if (typeof window !== 'undefined') {
     window.addEventListener('resize', handleResize)
@@ -470,7 +465,6 @@ onUnmounted(() => {
   }
 })
 
-// Watch for unsaved changes warning
 watch(hasChanges, (newValue) => {
   if (typeof window !== 'undefined') {
     if (newValue && permissions.value.canSaveChanges) {

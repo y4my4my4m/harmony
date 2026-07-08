@@ -933,5 +933,4 @@ class TrendingService {
   }
 }
 
-// Export singleton instance
 export const trendingService = new TrendingService(); 

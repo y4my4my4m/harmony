@@ -230,7 +230,6 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { supabase } from '@/supabase'
 import { formatDistanceToNow } from 'date-fns'
 
-// State
 const loading = ref(false)
 const timeRange = ref('24h')
 const refreshInterval = ref<number | null>(null)
@@ -290,12 +289,10 @@ const federationServers = ref<{
   lastSeen: Date
 }[]>([])
 
-// Computed
 const hasChartData = computed(() => latencyData.value.length > 0)
 const maxLatency = computed(() => Math.max(...latencyData.value.map(d => d.value), 1))
 const maxEndpointRequests = computed(() => Math.max(...endpointStats.value.map(e => e.requests), 1))
 
-// Methods
 const formatNumber = (num: number): string => {
   if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`
   if (num >= 1000) return `${(num / 1000).toFixed(1)}K`
@@ -566,7 +563,6 @@ const calculateTrend = (data: any[]): number => {
   return Math.round(((recentTotal - olderTotal) / olderTotal) * 100)
 }
 
-// Lifecycle
 onMounted(() => {
   refreshData()
   // Auto-refresh every 30 seconds

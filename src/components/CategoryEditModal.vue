@@ -114,7 +114,6 @@ const saveChanges = async () => {
   }
 }
 
-// Watch for category changes to reset form
 watch(() => props.category, (newCategory) => {
   if (newCategory) {
     editedName.value = newCategory.name || ''

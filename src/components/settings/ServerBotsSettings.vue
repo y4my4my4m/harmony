@@ -221,7 +221,6 @@ const props = defineProps<Props>()
 const { confirm } = useConfirmDialog()
 const profileStore = useProfileStore()
 
-// State
 const loading = ref(true)
 const adding = ref(false)
 const updatingPerms = ref(false)
@@ -254,7 +253,6 @@ const availablePermissions = [
   { key: 'ban_members', label: 'Ban Members', description: 'Ban members from server', required: false },
 ]
 
-// Computed
 const filteredAvailableBots = computed(() => {
   if (!searchQuery.value) return availableBots.value
 
@@ -266,7 +264,6 @@ const filteredAvailableBots = computed(() => {
   )
 })
 
-// Methods
 async function loadBots() {
   loading.value = true
 
@@ -457,7 +454,6 @@ function showMessage(type: string, text: string) {
   }, 5000)
 }
 
-// Lifecycle
 onMounted(() => {
   loadBots()
 })

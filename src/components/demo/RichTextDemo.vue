@@ -102,7 +102,6 @@ const handleCursorChange = (position: number) => {
   debug.log('Cursor position:', position);
 };
 
-// Watch for changes in test text
 watch(testText, (newValue) => {
   debug.log('Rich text content changed:', newValue);
 });

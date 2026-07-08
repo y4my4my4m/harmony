@@ -200,7 +200,6 @@ const props = withDefaults(defineProps<Props>(), {
 
 const MUTE_KEY = 'harmony-lightbox-video-muted';
 
-// State
 const galleryRef = ref<HTMLElement | null>(null);
 const lightboxVideoRef = ref<HTMLVideoElement | null>(null);
 const showSensitive = ref(!props.isSensitive);
@@ -291,7 +290,6 @@ function onVideoDblClick() {
   }
 }
 
-// Computed
 const galleryClass = computed(() => {
   const count = props.mediaAttachments.length;
   return {
@@ -372,7 +370,6 @@ async function downloadMedia(media: MediaAttachment) {
   await downloadMediaFromUrl(media.url, filename);
 }
 
-// Methods
 const formatFileSize = (bytes?: number): string => {
   if (!bytes) return '';
   

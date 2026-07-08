@@ -151,7 +151,6 @@ const isAuthRoute = computed(() => {
 const showPublicServers = ref(false)
 const shouldForceRefreshPublicServers = ref(false)
 
-// Event handlers
 const handleShowPublicServers = () => {
   showPublicServers.value = true
   shouldForceRefreshPublicServers.value = true

@@ -253,13 +253,11 @@ const {
   getPresenceAwareStatus
 } = useUserData()
 
-// State
 const showUserSearch = ref(false)
 const showGroupChatModal = ref(false)
 const searchQuery = ref('')
 const searchTimeout = ref<NodeJS.Timeout | null>(null)
 
-// Computed
 const sortedConversations = computed(() => dmStore.getSortedConversations)
 
 // Filter out blocked users from search results (uses store getter for reactivity)
@@ -319,7 +317,6 @@ const getConversationUserStatus = (conversation: DMConversation): 'online' | 'aw
   return getUserStatus(conversation.other_user.id);
 }
 
-// Methods
 const handleSearch = () => {
   if (searchTimeout.value) {
     clearTimeout(searchTimeout.value)

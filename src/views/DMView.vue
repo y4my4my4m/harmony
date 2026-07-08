@@ -111,7 +111,6 @@ import { debug } from '@/utils/debug'
 // before clearing the input. This file is a notification-only forwarder.
 import { ViewMode, ViewType } from '@/types/viewTypes'
 
-// Props
 interface Props {
   isDM: boolean
   conversationId?: string
@@ -120,14 +119,12 @@ interface Props {
 // eslint-disable-next-line unused-imports/no-unused-vars
 const props = defineProps<Props>()
 
-// Emits
 // eslint-disable-next-line unused-imports/no-unused-vars
 const emit = defineEmits<{
   toggleLeftSidebar: []
   toggleVoicePanel: []
 }>()
 
-// Stores
 const dmStore = useDMStore()
 const voiceStore = useUnifiedVoiceChannelStore()
 const route = useRoute()
@@ -139,7 +136,6 @@ const { getCurrentUser, getUserDisplayName, getUserAvatarUrl } = useUserData()
 // Layout state
 const { isMobile } = useLayoutState()
 
-// State
 const isLoading = ref(false)
 const isAtBottom = ref(true)
 const showAddUserModal = ref(false)
@@ -189,7 +185,6 @@ const joinCallFromBanner = async () => {
   }
 }
 
-// Computed
 const chatMessages = computed(() => dmStore.currentDMMessages)
 const currentConversation = computed(() => dmStore.getCurrentConversation)
 
@@ -397,7 +392,6 @@ const handleDeclineCall = async () => {
   }
 }
 
-// Computed for incoming call modal
 const getCallerName = computed(() => {
   if (!incomingCall.value?.callerId) return 'Unknown'
   return getUserDisplayName(incomingCall.value.callerId).value || 'Unknown'
@@ -408,12 +402,10 @@ const getCallerAvatar = computed(() => {
   return getUserAvatarUrl(incomingCall.value.callerId).value || '/default_avatar.webp'
 })
 
-// Watch for conversation changes
 watch(() => route.params.conversationId, loadMessages, { immediate: true })
 
 useViewContextTracking()
 
-// Watch for messageId query param to scroll and highlight
 watch(() => route.query.messageId, async (messageId) => {
   if (messageId && typeof messageId === 'string') {
     await nextTick()
@@ -421,7 +413,6 @@ watch(() => route.query.messageId, async (messageId) => {
   }
 }, { immediate: true })
 
-// Function to scroll to and highlight a message
 const scrollToMessage = async (messageId: string) => {
   await nextTick()
   
@@ -482,7 +473,6 @@ const scrollToMessage = async (messageId: string) => {
   }
 }
 
-// Function to highlight search text within message content
 const highlightSearchText = (messageElement: HTMLElement, query: string) => {
   const contentElements = messageElement.querySelectorAll('.message-content, .result-content')
   const searchTerms = query.trim().split(/\s+/).filter(term => term.length > 0)

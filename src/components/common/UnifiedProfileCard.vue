@@ -221,14 +221,12 @@ const emit = defineEmits<{
   unblock: [userId: string]
 }>()
 
-// Stores
 const router = useRouter()
 const activityPubStore = useActivityPubStore()
 
 // Professional presence system
 const { getPresenceAwareStatus, getCurrentUser } = useUserData()
 
-// State
 const isFollowLoading = ref(false)
 const showActionsMenu = ref(false)
 const followInProgress = ref(false)
@@ -324,7 +322,6 @@ const followButtonText = computed(() => {
   return isFollowing.value ? t('activitypub.following') : t('activitypub.follow')
 })
 
-// Methods
 const formatNumber = (num: number): string => {
   if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M'
   if (num >= 1000) return (num / 1000).toFixed(1) + 'K'

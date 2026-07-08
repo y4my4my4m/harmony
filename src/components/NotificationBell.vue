@@ -215,14 +215,12 @@ const authStore = useAuthStore()
 const router = useRouter()
 const { closeMobileSidebars } = useLayoutState()
 
-// Reactive state
 const isOpen = ref(false)
 const isMarkingAllAsRead = ref(false)
 const isClearingAll = ref(false)
 const isLoadingMore = ref(false)
 const hasMoreNotifications = ref(false)
 
-// Computed properties
 const notifications = computed(() => notificationStore.filteredNotifications)
 const unreadCount = computed(() => notificationStore.unreadCount)
 const hasUnread = computed(() => unreadCount.value > 0)
@@ -240,7 +238,6 @@ const activeFilter = computed({
 // which would otherwise open then instantly close.
 let suppressOutsideClose = false
 
-// Methods
 const togglePanel = async () => {
   const opening = !isOpen.value
   isOpen.value = !isOpen.value

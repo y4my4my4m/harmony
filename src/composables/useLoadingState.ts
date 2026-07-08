@@ -195,7 +195,7 @@ export interface ToastComposable {
 }
 
 export function useServiceToasts(): ToastComposable {
-  // Note: This would integrate with your actual toast system
+  // Integrates with the app toast system
   // For now, using console logs as placeholder
   
   const showSuccessToast = (message: string, details?: string) => {

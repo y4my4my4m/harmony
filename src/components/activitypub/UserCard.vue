@@ -140,7 +140,6 @@ import RemoteInstanceBadge from '@/components/common/RemoteInstanceBadge.vue';
 import { parseDisplayNameOrBioForDisplay } from '@/utils/mentionUtils';
 
 const { t } = useI18n();
-// Props
 interface Props {
   user: FederatedUser;
   isCompact?: boolean;
@@ -158,7 +157,6 @@ const props = withDefaults(defineProps<Props>(), {
   showActions: true
 });
 
-// Emits
 const emit = defineEmits<{
   'follow': [userId: string];
   'unfollow': [userId: string];
@@ -171,18 +169,15 @@ const emit = defineEmits<{
   'user-click': [user: FederatedUser];
 }>();
 
-// Stores
 const activityPubStore = useActivityPubStore();
 const authStore = useAuthStore();
 
 // Composables for clean interaction handling  
 const { toggleFollow, getLoadingState } = usePostInteractions();
 
-// State
 const showActionsMenu = ref(false);
 const followInProgress = ref(false);
 
-// Computed
 
 const handle = computed(() => {
   return props.user.is_local ? `${props.user.username}` : `${props.user.username}@${props.user.domain}`;
@@ -215,7 +210,6 @@ const showRemoteInstanceBadge = computed(() => {
   return props.showInstanceBadge && !props.user.is_local && !!props.user.domain;
 });
 
-// Methods
 const formatNumber = (num: number): string => {
   if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
   if (num >= 1000) return (num / 1000).toFixed(1) + 'K';

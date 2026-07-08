@@ -126,7 +126,6 @@ const route = useRoute()
 const router = useRouter()
 const dmStore = useDMStore()
 
-// Computed properties
 const isDMRoute = computed(() => {
   return route.path.startsWith('/dm')
 })
@@ -136,7 +135,6 @@ const showAddServerModal = computed({
   set: (value: boolean) => emit('update:showAddServerModal', value)
 })
 
-// Methods
 const isServerActive = (serverId: string): boolean => {
   return route.params.serverId === serverId
 }

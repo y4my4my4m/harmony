@@ -160,7 +160,6 @@ const emit = defineEmits<{
 // REFS
 const suggestContainer = ref<HTMLElement | null>(null);
 
-// COMPUTED PROPERTIES
 const isCommandList = computed(
   () => props.suggestions.length > 0 && props.suggestions.every((s) => s.isCommand),
 );

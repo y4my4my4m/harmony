@@ -414,7 +414,6 @@ const emit = defineEmits<{
   (e: 'openThread', thread: ThreadWithDetails): void
 }>();
 
-// State
 const isDropdownOpen = ref(false);
 const showInviteModal = ref(false);
 const isCategoryCreatorOpen = ref(false);
@@ -490,7 +489,6 @@ const getDragCursor = (itemType: 'channel' | 'category', isDragging = false) => 
 };
 const { triggerVoice } = useHapticSettings();
 
-// Computed Properties
 // Only consider mobile if screen is actually small (touch-enabled desktops should still allow drag)
 const isVoiceType = (type: any): boolean => Number(type) === 1;
 
@@ -596,7 +594,6 @@ const reorderableCategories = computed({
 
 const categoriesKey = computed(() => serverChannelStore.categories.map((c: any) => `${c.id}-${c.order}`).join(','));
 
-// Methods
 const initializeCategoryStates = async () => {
   if (!props.currentServer?.id) return;
   try {
@@ -756,7 +753,6 @@ const selectChannel = (channelId: string) => {
   });
 };
 
-// Handler for voice channel clicks - Discord-like behavior
 // On mobile, show preview instead of auto-joining
 const handleVoiceChannelClick = async (channelId: string) => {
   // If already in this voice channel, just navigate to its text chat

@@ -90,7 +90,6 @@ export default defineComponent({
     // Auto-suggest setup
     const autoSuggest = useAutoSuggest(editTextarea);
 
-    // Watch for changes to the prop and update the local copy accordingly
     watch(() => props.editableMessageContent, (newVal) => {
       localEditableContent.value = newVal;
       nextTick(() => {

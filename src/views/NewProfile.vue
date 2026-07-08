@@ -394,7 +394,6 @@ onMounted(async () => {
   }
 })
 
-// Computed properties
 const progressWidth = computed(() => `${(currentStep.value / 3) * 100}%`);
 
 const formattedUsername = computed(() => {
@@ -424,7 +423,6 @@ const bannerPreviewStyle = computed(() => {
   }
 });
 
-// Methods
 const getParticleStyle = (index: number) => {
   const delay = index * 0.5;
   const duration = 3 + (index % 3);

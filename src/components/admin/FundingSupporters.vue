@@ -599,7 +599,6 @@ const editDonationCurrency = ref('USD')
 const editDonationPlatform = ref('')
 const editDonationNote = ref('')
 
-// Watch for funding config changes
 watch(
   [fundingEnabled, fundingShowInBar, fundingShowProgress, fundingGoalAmount, fundingCurrency, fundingCurrentAmount, fundingPeriod, fundingDescription, fundingThankYou, fundingLinks, kofiWebhookToken, kofiAutoAssignTier],
   () => { fundingChanged.value = true },

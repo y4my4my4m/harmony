@@ -425,7 +425,6 @@ const gifSearchPlaceholder = computed(() =>
   props.showFavorites ? t('gif.favorites') : t('gif.searchKlipy'),
 );
 
-// State
 const searchQuery = ref(props.initialSearchQuery || '');
 const items = ref<GifResultItem[]>([]);
 const favorites = ref<FavoriteGif[]>([]);

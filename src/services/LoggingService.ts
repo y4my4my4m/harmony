@@ -68,7 +68,6 @@ export interface LoggingConfig {
   excludePatterns: RegExp[] // Patterns to exclude from logging
 }
 
-// Constants
 
 const LOG_LEVELS: Record<LogLevel, number> = {
   debug: 0,

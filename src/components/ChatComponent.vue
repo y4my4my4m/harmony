@@ -294,7 +294,6 @@
   
   const reactionTriggerElement = ref<HTMLElement | null>(null);
   
-  // Computed trigger refs from MessageInput
   const gifTriggerElement = computed(() => messageInputRef.value?.gifTriggerRef || null);
   const emojiTriggerElement = computed(() => messageInputRef.value?.emojiTriggerRef || null);
   
@@ -308,7 +307,6 @@
       const currentUserId = computed(() => profileStore.profileId);
       const hasActiveUploads = ref(false);
       
-      // Computed channel name - use prop or fallback to store lookup
       const effectiveChannelName = computed(() => {
         if (props.channelName) return props.channelName;
         // Fallback: try to get from store
@@ -319,7 +317,6 @@
         return undefined;
       });
       
-      // Computed DM username - use prop or fallback to store lookup
       const effectiveDMUsername = computed(() => {
         if (props.dmUsername) return props.dmUsername;
         // Fallback: try to get from store

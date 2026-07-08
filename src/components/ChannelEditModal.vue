@@ -348,7 +348,6 @@ const saveChanges = async () => {
   }
 }
 
-// Watch for channel changes to reset form
 watch(() => props.channel, (newChannel) => {
   if (newChannel) {
     editedName.value = newChannel.name || ''

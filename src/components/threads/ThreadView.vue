@@ -346,7 +346,6 @@ const emojiIconClicked = ref(false)
 const mediaPickerOpen = ref(false)
 const mediaPickerInitialTab = ref<'gifs' | 'emoji'>('gifs')
 
-// Computed values for MessageInput props
 const giphyOpen = computed(() => mediaPickerOpen.value && mediaPickerInitialTab.value === 'gifs')
 const emojiListOpen = computed(() => mediaPickerOpen.value && mediaPickerInitialTab.value === 'emoji')
 
@@ -354,7 +353,6 @@ const mediaPickerTriggerElement = computed(() => {
   return messageInputRef.value?.gifTriggerRef || messageInputRef.value?.emojiTriggerRef || null
 })
 
-// State
 const thread = ref<ThreadWithDetails | null>(null)
 const messages = ref<Message[]>([])
 const loading = ref(false)
@@ -1232,7 +1230,6 @@ const setupRealtimeSubscription = () => {
   debug.log(`Subscribed to thread messages: ${channelName}`)
 }
 
-// Watch for visibility changes
 watch(() => props.isVisible, (visible) => {
   if (visible) {
     loadThread()

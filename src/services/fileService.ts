@@ -42,7 +42,7 @@ async function handleFileDrop(userId: string, file: any) {
 
         debug.log(data);
 
-        return data.publicUrl; // Return the public URL of the uploaded file
+        return data.publicUrl;
     } catch (error) {
         debug.error('Error uploading file:', error);
         return null;

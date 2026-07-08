@@ -54,5 +54,4 @@ class SessionHeartbeatService {
   }
 }
 
-// Export singleton instance
 export const sessionHeartbeat = new SessionHeartbeatService()

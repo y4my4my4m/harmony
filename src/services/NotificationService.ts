@@ -414,6 +414,5 @@ export class NotificationService {
   }
 }
 
-// Export singleton instance
 export const notificationService = NotificationService.getInstance()
 export default NotificationService

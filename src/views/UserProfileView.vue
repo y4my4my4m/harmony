@@ -347,7 +347,6 @@ import Avatar from '@/components/common/Avatar.vue';
 // Layout state
 const { isMobile } = useLayoutState()
 
-// Props
 interface Props {
   profileHandle?: string;
   currentView?: string;
@@ -400,7 +399,6 @@ const emit = defineEmits<{
   backToTimeline: []
 }>()
 
-// Stores
 const activityPubStore = useActivityPubStore();
 const { blockedUsers, mutedUsers } = storeToRefs(activityPubStore);
 const authStore = useAuthStore();
@@ -415,7 +413,6 @@ const { getUserColor, getUserBannerUrl } = useUserData()
 const scrollContainerRef = ref<HTMLElement | null>(null);
 const isScrolled = ref(false);
 
-// State
 const user = ref<FederatedUser | null>(null);
 const isLoading = ref(true);
 const error = ref<string | null>(null);
@@ -489,7 +486,6 @@ const followerUsers = ref<FederatedUser[]>([]);
 const showProfileModal = ref(false);
 const selectedModalUser = ref<FederatedUser | null>(null);
 
-// Computed properties
 const plainDisplayName = computed(() => {
   const dn: unknown = user.value?.display_name
   if (!dn) return user.value?.username || 'Unknown User'
@@ -589,7 +585,6 @@ const handleRefresh = () => {
   loadUserProfile(handle, isRemote); // Force refresh for remote users
 };
 
-// Computed
 const isCurrentUser = computed(() => {
   return authStore.session?.user?.id === user.value?.id;
 });
@@ -655,7 +650,6 @@ const formatFieldValue = (value: string): string => {
   return sanitized.replace(/<a\b(?![^>]*\btarget=)/gi, '<a target="_blank" rel="noopener noreferrer nofollow"');
 };
 
-// Methods
 const formatJoinDate = (dateString: string): string => {
   return format(new Date(dateString), 'MMMM yyyy');
 };

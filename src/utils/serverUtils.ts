@@ -3,7 +3,6 @@ import { debug } from '@/utils/debug'
 import { validateImageUpload, humanizeUploadError } from '@/utils/uploadValidation'
 import { canonicalBannerSize, canonicalSquareSize } from '@/utils/imageTransformUtils'
 
-// Constants
 const DEFAULT_SERVER_ICON = '/default_server.webp'
 const SERVER_ICONS_BUCKET = 'server_icons'
 const SERVER_BANNERS_BUCKET = 'server_banners'

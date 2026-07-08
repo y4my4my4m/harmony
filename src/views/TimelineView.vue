@@ -52,7 +52,6 @@ import { useLayoutState } from '@/composables/useLayoutState'
 import { usePostInteractions } from '@/composables/usePostInteractions'
 import type { TimelinePost, FederatedUser } from '@/types'
 
-// Props
 interface Props {
   currentView: string
   posts?: TimelinePost[]
@@ -68,7 +67,6 @@ const props = withDefaults(defineProps<Props>(), {
   rightSidebarOpen: false
 })
 
-// Emits
 const emit = defineEmits<{
   refreshTimeline: []
   postCreated: []
@@ -97,7 +95,6 @@ const isLoadingFeed = computed(() =>
   activityPubStore.isFeedLoading(props.currentView as 'home' | 'public' | 'local')
 )
 
-// Computed - filter out posts from blocked and muted users
 const posts = computed(() => {
   const rawPosts = activityPubStore.getTimelinePosts(props.currentView as 'home' | 'public' | 'local')
   
@@ -155,7 +152,6 @@ const loadTimeline = async () => {
   }
 }
 
-// Event handlers
 const handleRefreshTimeline = () => {
   emit('refreshTimeline')
   loadTimeline()

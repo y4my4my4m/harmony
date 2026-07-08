@@ -655,5 +655,4 @@ export class PWAManager {
   }
 }
 
-// Export singleton instance
 export const pwaManager = PWAManager.getInstance()

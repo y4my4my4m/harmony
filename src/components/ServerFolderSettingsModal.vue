@@ -69,15 +69,12 @@ const emit = defineEmits<Emits>();
 
 const serverChannelStore = useServerChannelStore();
 
-// Constants
 const DEFAULT_COLOR = '#0EA5E9';
 
-// State
 const folderName = ref('');
 const selectedColor = ref(DEFAULT_COLOR);
 const isSaving = ref(false);
 
-// Computed
 const isValid = computed(() => true);
 
 const isEditMode = computed(() => {

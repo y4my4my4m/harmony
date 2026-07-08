@@ -293,7 +293,6 @@ const menuStyle = computed(() => ({
   left: `${adjustedPosition.value.x}px`,
 }));
 
-// Watch for visibility changes to adjust position
 watch(() => props.isVisible, async (visible) => {
   if (visible) {
     adjustedPosition.value = { ...props.position }

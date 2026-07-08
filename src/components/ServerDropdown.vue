@@ -50,7 +50,6 @@ const serverChannelStore = useServerChannelStore();
 const { unsubscribeFromContext } = useUserData();
 const { serverSettingsPermissions, channelPermissions } = useServerPermissions();
 
-// Computed permissions
 const canViewServerSettings = computed(() => serverSettingsPermissions.value.canViewSettings);
 const canManageServer = computed(() => serverSettingsPermissions.value.canEditBasicInfo);
 const canCreateCategories = computed(() => channelPermissions.value.canCreateCategories);

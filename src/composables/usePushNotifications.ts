@@ -568,7 +568,6 @@ export function usePushNotifications() {
   })
 
   return {
-    // State
     isSupported,
     isSubscribed,
     isLoading,
@@ -576,13 +575,11 @@ export function usePushNotifications() {
     subscriptions,
     error,
     
-    // Computed
     canSubscribe,
     canUnsubscribe,
     statusText,
     requiresPWA,
     
-    // Methods
     initialize,
     subscribe,
     unsubscribe,

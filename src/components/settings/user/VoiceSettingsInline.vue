@@ -506,10 +506,8 @@ const saveSettings = () => {
   }
 };
 
-// Watch for device changes
 watch(selectedVideoDevice, updateVideoPreview);
 
-// Lifecycle
 const handleExternalDeviceChange = (e: Event) => {
   const { type, deviceId } = (e as CustomEvent).detail || {}
   if (!deviceId) return

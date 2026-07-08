@@ -49,7 +49,7 @@ export class FederationDecisionService {
       const messageType = await this.getMessageType(messageId)
       
       if (messageType === 'chat') {
-        // Chat reactions stay local (your smart design!)
+        // Chat reactions stay local
         return {
           shouldFederate: false,
           reason: 'Chat reactions stay local per local-first design',
@@ -306,7 +306,6 @@ export class FederationDecisionService {
    */
   private async checkUserFederationEnabled(userId: string): Promise<FederationDecision> {
     try {
-      // Use your existing database function (smart!)
       const { data, error } = await supabase
         .rpc('is_federation_enabled_for_user', { user_id: userId })
 
@@ -346,7 +345,7 @@ export class FederationDecisionService {
         .rpc('get_public_federation_settings')
 
       if (error || !data) {
-        // Default to enabled if no settings found (your smart default)
+        // Default to enabled when no settings found
         return {
           shouldFederate: true,
           reason: 'Instance federation enabled (default)'

@@ -220,7 +220,6 @@ watch(() => isLoadingReactions.value, (loading, wasLoading) => {
   }
 });
 
-// Watch for message changes and reload reactions if needed
 watch(() => props.message.id, (newMessageId, oldMessageId) => {
   // Skip if it's a temp message or optimistic message
   if (newMessageId.startsWith('temp-') || props.message.sending) {

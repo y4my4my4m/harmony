@@ -663,7 +663,6 @@ import router from '@/router';
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { messagePartsToRawText } from '@/utils/messageContentUtils'
 
-// Props
 interface Props {
   post: TimelinePost;
   hideReplyContext?: boolean;
@@ -682,7 +681,6 @@ const props = withDefaults(defineProps<Props>(), {
 
 const { confirm } = useConfirmDialog()
 
-// Emits
 const emit = defineEmits<{
   reply: [post: TimelinePost];
   'reply-created': [reply: TimelinePost, parentId: string];
@@ -759,7 +757,6 @@ const handleTimeClick = () => {
   router.push({ name: 'PostDetail', params: { postId: props.post.id } });
 };
 
-// Computed
 const author = computed(() => {
   return props.post.author;
 });
@@ -1388,7 +1385,6 @@ const reblogDisabledReason = computed(() => {
   return 'This post cannot be reblogged';
 });
 
-// Methods
 const formatRelativeTime = (dateString: string) => {
   try {
     return formatDistanceToNow(new Date(dateString), { addSuffix: true });

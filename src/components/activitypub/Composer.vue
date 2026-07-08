@@ -331,7 +331,6 @@ import { useProfileStore } from '@/stores/useProfile';
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
 import type { TimelinePost, Post, FederatedUser, ActivityPubPost, PostAuthor } from '@/types';
 
-// Composables
 import { useComposerActions } from '@/composables/useComposerActions';
 import { useAutoSuggest } from '@/composables/useAutoSuggest';
 import type { SuggestionItem } from '@/components/AutoSuggest.vue';
@@ -356,7 +355,6 @@ import RichTextEditor from '@/components/RichTextEditor.vue';
 const { t } = useI18n();
 const toast = useToast();
 
-// Props
 interface Props {
   mode: 'modal' | 'inline';
   type: 'post' | 'reply' | 'quote' | 'edit';
@@ -379,7 +377,6 @@ const props = withDefaults(defineProps<Props>(), {
   initialContent: ''
 });
 
-// Emits
 const emit = defineEmits<{
   close: [];
   posted: [post: any];
@@ -389,7 +386,6 @@ const emit = defineEmits<{
 const profileStore = useProfileStore();
 const instanceSettings = useInstanceSettingsStore();
 
-// Refs
 const richEditorRef = ref<InstanceType<typeof RichTextEditor>>();
 const fileInputRef = ref<HTMLInputElement>();
 const emojiTriggerRef = ref<HTMLElement | null>(null);
@@ -414,10 +410,8 @@ const showGiphyPicker = computed(() => showMediaPicker.value && mediaPickerIniti
 const isDraft = ref(false);
 const mediaAttachments = ref<any[]>([]);
 
-// Constants
 const characterLimit = 500;
 
-// Computed
 const maxMediaAttachments = computed(() => instanceSettings.settings.maxMediaAttachmentsPerPost ?? 20);
 
 // For reblog targets, the actual reply-to is the original post, not the
@@ -427,7 +421,6 @@ const effectiveReplyToPost = computed(() =>
   props.replyToPost ? getOriginalPost(props.replyToPost) : undefined
 );
 
-// Computed
 const remainingCharacters = computed(() => characterLimit - content.value.length);
 const characterCounterClass = computed(() => {
   const remaining = remainingCharacters.value;
@@ -511,7 +504,6 @@ const actions = useComposerActions({
   }
 });
 
-// Computed
 const currentUser = computed(() => profileStore.profile);
 
 const placeholder = computed(() => {
@@ -584,7 +576,6 @@ const contentClasses = computed(() => {
   };
 });
 
-// Methods
 const handleContentUpdate = (newContent: string) => {
   content.value = newContent;
 };
@@ -826,7 +817,6 @@ const handleSubmit = async () => {
   }
 };
 
-// Lifecycle
 onMounted(() => {
   if (props.type === 'edit' && props.editPost) {
     content.value = messagePartsToRawText(props.editPost.content);
@@ -883,7 +873,6 @@ onMounted(() => {
   });
 });
 
-// Watch for modal open state and initial content
 watch(() => props.isOpen, (isOpen) => {
   if (isOpen && props.mode === 'modal') {
     nextTick(() => {
@@ -899,7 +888,6 @@ watch(() => props.initialContent, (val) => {
   }
 }, { immediate: true });
 
-// Watch for reply context changes (when opening reply composer)
 watch(() => props.replyToPost, (replyPost) => {
   if (props.type === 'reply' && replyPost && content.value === '') {
     // Same routing rule as onMounted - pure reblog → original author,

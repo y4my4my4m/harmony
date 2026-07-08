@@ -51,14 +51,12 @@ import type { TimelinePost, FederatedUser } from '@/types'
 // Layout state
 const { isMobile } = useLayoutState()
 
-// Props
 interface Props {
   currentView: 'trending' | 'instances'
 }
 
 const props = defineProps<Props>()
 
-// Emits
 const emit = defineEmits<{
   followUser: [userId: string]
   unfollowUser: [userId: string]
@@ -75,10 +73,8 @@ const activityPubStore = useActivityPubStore()
 const { followUser, unfollowUser, toggleFavorite, toggleReblog, toggleBookmark } = usePostInteractions()
 const router = useRouter()
 
-// Refs
 const exploreContentRef = ref<InstanceType<typeof ExploreContent> | null>(null)
 
-// State
 const isLoading = ref(false)
 const trendingPosts = ref<TimelinePost[]>([])
 const trendingTags = ref<Array<{ tag: string; count: number }>>([])
@@ -197,7 +193,6 @@ const handleOpenSearch = () => {
   emit('openSearch')
 }
 
-// Watch for route changes
 watch(() => props.currentView, loadExploreData)
 
 onMounted(() => {

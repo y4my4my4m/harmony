@@ -360,7 +360,6 @@ defineProps<{ loading: boolean }>()
 const toast = useToast()
 const { confirm } = useConfirmDialog()
 
-// State
 const isLoading = ref(false)
 const creating = ref(false)
 const myBots = ref<any[]>([])
@@ -382,12 +381,10 @@ const newBot = ref({
 
 const usernameError = ref('')
 
-// Computed
 const canCreate = computed(() => {
   return newBot.value.username.length >= 3 && !usernameError.value
 })
 
-// Methods
 function validateUsername() {
   const username = newBot.value.username
   
@@ -731,7 +728,6 @@ function formatNumber(num: number): string {
   return num.toString()
 }
 
-// Lifecycle
 onMounted(() => {
   loadMyBots()
 })

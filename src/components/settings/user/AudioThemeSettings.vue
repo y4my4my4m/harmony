@@ -128,7 +128,6 @@ import type { AudioAction } from '@/types'
 const themeStore = useThemeStore()
 const notificationStore = useNotificationStore()
 
-// Local state
 const isLoading = ref(false)
 const showAdvanced = ref(false)
 const isExportingPack = ref(false)
@@ -145,7 +144,6 @@ const testActions = [
   { id: 'ui_click', label: 'Click', icon: 'mouse-pointer', category: 'ui' }
 ] as const
 
-// COMPUTED
 
 const cacheInfo = computed(() => {
   return themeStore.getCacheInfo()

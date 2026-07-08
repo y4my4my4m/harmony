@@ -200,7 +200,6 @@ export class AuthContextService {
   }
 }
 
-// Export singleton instance
 export const authContextService = AuthContextService.getInstance()
 
 authContextService.initializeAuthListener()

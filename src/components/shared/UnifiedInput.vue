@@ -216,7 +216,6 @@ const inputClasses = computed(() => [
   }
 ])
 
-// Event handlers
 const handleInput = (event: Event) => {
   const target = event.target as HTMLInputElement | HTMLTextAreaElement
   emit('update:modelValue', target.value)
@@ -249,7 +248,6 @@ const handleKeyup = (event: KeyboardEvent) => {
   emit('keyup', event)
 }
 
-// Actions
 const togglePasswordVisibility = () => {
   passwordVisible.value = !passwordVisible.value
 }

@@ -773,7 +773,6 @@ const blockCheckVersion = ref(0);
 // Reactive computed that tracks the blocked users count for change detection
 const blockedUsersCount = computed(() => activityPubStore.blockedUsers.size);
 
-// Watch for changes to blocked users count and force re-evaluation
 watch(blockedUsersCount, (newCount, _oldCount) => {
   blockCheckVersion.value++;
   debug.log('Blocked users changed, forcing re-render. Count:', newCount);
@@ -808,7 +807,6 @@ const isMessageFromBlockedUser = (message: Message): boolean => {
   return isBlocked;
 };
 
-// Computed: Group consecutive blocked messages together (Discord-like)
 interface BlockedMessageGroup {
   type: 'blocked-group';
   firstMessageId: string;
@@ -825,7 +823,6 @@ interface ProcessedMessage {
 
 // eslint-disable-next-line unused-imports/no-unused-vars
 const processedMessages = computed((): ProcessedMessage[] => {
-  // Force reactivity
   blockCheckVersion.value;
   
   const result: ProcessedMessage[] = [];
@@ -947,7 +944,6 @@ type DisplayItem =
     };
 
 const displayItems = computed((): DisplayItem[] => {
-  // Force reactivity
   blockCheckVersion.value;
   
   const result: DisplayItem[] = [];
@@ -2188,7 +2184,6 @@ const clearUnreadCount = async (messageId: string) => {
   }
 };
 
-// Watch for messages changes to setup observer
 watch(() => props.messages.length, () => {
   if (props.messages.length > 0) {
     nextTick(() => {

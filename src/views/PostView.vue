@@ -187,7 +187,6 @@ import type {
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { usePostInteractions } from '@/composables/usePostInteractions'
 
-// Props
 interface Props {
   postId?: string;
   remoteHandle?: string;
@@ -209,7 +208,6 @@ const props = withDefaults(defineProps<Props>(), {
 const { confirm } = useConfirmDialog()
 const { toggleFavorite, toggleReblog, toggleBookmark } = usePostInteractions()
 
-// Composables
 const router = useRouter();
 const route = useRoute();
 const activityPub = useActivityPubStore();
@@ -244,7 +242,6 @@ const originalInstanceDomain = computed(() => {
 // Keep old name for error-state template
 const remoteOriginalUrl = originalInstanceUrl;
 
-// Reactive state
 const isLoading = ref(true);
 const isFetchingReactions = ref(false);
 const isFetchingReplies = ref(false);
@@ -259,7 +256,6 @@ const postRefs = ref<Record<string, HTMLElement>>({});
 const maxThreadDepth = ref(10);
 const showActionsMenu = ref(false);
 
-// Computed properties
 const mainPost = computed(() => postWithContext.value?.mainPost);
 const ancestors = computed(() => postWithContext.value?.ancestors || []);
 const descendants = computed(() => postWithContext.value?.descendants || []);
@@ -288,7 +284,6 @@ const resolveRemotePost = async (handle: string, noteId: string): Promise<string
   return post?.id || null;
 };
 
-// Methods
 const loadPostWithContext = async () => {
   try {
     isLoading.value = true;
@@ -782,13 +777,11 @@ const scrollToTimestamp = (timestamp: number) => {
   }
 };
 
-// Watchers
 watch(() => props.postId, loadPostWithContext);
 watch(() => props.remoteNoteId, loadPostWithContext);
 watch(() => props.contextType, loadPostWithContext);
 watch(() => props.highlightReply, loadPostWithContext);
 
-// Lifecycle
 onMounted(loadPostWithContext);
 </script>
 

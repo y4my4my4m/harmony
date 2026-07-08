@@ -116,10 +116,8 @@ import DisplayName from './DisplayName.vue'
 
 const notificationStore = useNotificationStore()
 
-// Computed
 const toasts = computed(() => notificationStore.toasts)
 
-// Methods
 const removeToast = (toastId: string) => {
   notificationStore.removeToast(toastId)
 }

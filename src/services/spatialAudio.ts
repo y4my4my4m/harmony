@@ -1133,7 +1133,6 @@ export class SpatialAudioService {
   }
 }
 
-// Export singleton instance
 export const spatialAudioService = new SpatialAudioService();
 
 // Expose to window for debugging in console

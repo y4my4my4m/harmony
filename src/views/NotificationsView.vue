@@ -26,7 +26,6 @@ import { useActivityPubStore } from '@/stores/useActivityPub'
 import type { TimelinePost, FederatedUser } from '@/types'
 import { ViewMode } from '@/types/viewTypes'
 
-// Props
 interface Props {
   currentView: string
   viewType: string
@@ -35,7 +34,6 @@ interface Props {
 // eslint-disable-next-line unused-imports/no-unused-vars
 const props = defineProps<Props>()
 
-// Emits
 const emit = defineEmits<{
   favoritePost: [post: TimelinePost]
   reblogPost: [post: TimelinePost]
@@ -46,10 +44,8 @@ const emit = defineEmits<{
 
 const activityPubStore = useActivityPubStore()
 
-// State
 const isLoadingNotifications = ref(false)
 
-// Computed
 // Notifications state lives on the store but isn't currently typed there.
 // Cast through any to read the data without changing runtime behaviour.
 const notifications = computed(() => {
@@ -71,7 +67,6 @@ const loadNotifications = async () => {
   }
 }
 
-// Event handlers
 const handleLoadMore = async () => {
   try {
     await (activityPubStore as any).loadMoreNotifications()

@@ -243,7 +243,6 @@ const ACTOR_HEADER_TYPES = new Set([
   'activitypub_reblog',
 ])
 
-// State
 const isHovering = ref(false)
 
 // Use NotificationFormatter for all message formatting
@@ -454,7 +453,6 @@ const hasQuickActions = computed(() => {
   return ['server_invite', 'dm', 'chat_message', 'mention', 'reply', 'activitypub_follow_request'].includes(props.notification.type)
 })
 
-// Methods
 const handleClick = () => {
   if (isClickable.value) {
     emit('click', props.notification)
@@ -531,7 +529,6 @@ const jumpToMessage = () => {
   emit('dismiss', props.notification.id)
 }
 
-// Computed properties for type icons
 const typeIcon = computed(() => {
   const iconMap = {
     mention: MentionIcon,

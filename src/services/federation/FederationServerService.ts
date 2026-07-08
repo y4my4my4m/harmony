@@ -462,6 +462,5 @@ export class FederationServerService {
   }
 }
 
-// Export singleton instance
 export const federationServerService = FederationServerService.getInstance()
 

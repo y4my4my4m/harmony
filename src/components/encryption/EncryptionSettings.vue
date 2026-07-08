@@ -327,7 +327,6 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 
 const toast = useToast()
 
-// State
 const isInitialized = ref(false)
 const encryptionStatus = ref({
   enabled: false,

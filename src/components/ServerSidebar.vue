@@ -332,7 +332,6 @@ const emit = defineEmits<{
   (e: 'switch-to-chat'): void;
 }>();
 
-// Reactive state
 const showPublicServers = ref(false);
 const showFundingModal = ref(false);
 const fundingEnabled = ref(false);
@@ -400,7 +399,6 @@ const sortedSidebarItems = computed(() => {
   return [...folders, ...rootServers].sort((a, b) => (a.position || 0) - (b.position || 0));
 });
 
-// Computed properties
 const isDMSelected = computed(() => {
   return route.name === 'DM' || route.name === 'DMHome' || route.name === 'DMConversation';
 });
@@ -425,7 +423,6 @@ const dmUnreadMentions = computed(() => {
   return notificationStore.unreadDMs;
 });
 
-// Methods
 const isFolder = (item: ServerFolderType | Server): item is ServerFolderType => {
   return 'is_expanded' in item;
 };
@@ -458,7 +455,6 @@ onMounted(async () => {
   fundingEnabled.value = config?.enabled ?? false
 })
 
-// Watchers
 watch(showPublicServers, (value) => {
   if (value) {
     emit('show-public-servers', value);

@@ -154,13 +154,11 @@ export function useFrequentEmojis() {
   const hasFrequentEmojis = computed(() => frequentEmojis.value.length > 0)
   
   return {
-    // State
     frequentEmojis,
     topEmojisForPicker,
     topEmojisForContextMenu,
     hasFrequentEmojis,
     
-    // Methods
     recordEmojiUsage,
     removeFrequentEmoji,
     isFrequentEmoji,

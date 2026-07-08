@@ -91,9 +91,6 @@ class VoiceSettingsServiceClass {
     }
   }
   
-  /**
-   * Get all settings
-   */
   getAll(): VoiceSettings {
     if (!this.initialized) {
       this.load();
@@ -112,9 +109,6 @@ class VoiceSettingsServiceClass {
     };
   }
   
-  /**
-   * Get audio constraints
-   */
   getAudioConstraints(): { echoCancellation: boolean; noiseSuppression: boolean; autoGainControl: boolean } {
     return {
       echoCancellation: this.settings.echoCancellation,
@@ -123,52 +117,34 @@ class VoiceSettingsServiceClass {
     };
   }
   
-  /**
-   * Update a single setting
-   */
   update<K extends keyof VoiceSettings>(key: K, value: VoiceSettings[K]): void {
     this.settings[key] = value;
     this.save();
   }
   
-  /**
-   * Update multiple settings at once
-   */
   updateMany(updates: Partial<VoiceSettings>): void {
     Object.assign(this.settings, updates);
     this.save();
   }
   
-  /**
-   * Set input device
-   */
   setInputDevice(deviceId: string | null): void {
     this.settings.selectedInputDevice = deviceId;
     this.save();
     debug.log('[VoiceSettings] Input device set to:', deviceId);
   }
   
-  /**
-   * Set output device
-   */
   setOutputDevice(deviceId: string | null): void {
     this.settings.selectedOutputDevice = deviceId;
     this.save();
     debug.log('[VoiceSettings] Output device set to:', deviceId);
   }
   
-  /**
-   * Set video device
-   */
   setVideoDevice(deviceId: string | null): void {
     this.settings.selectedVideoDevice = deviceId;
     this.save();
     debug.log('[VoiceSettings] Video device set to:', deviceId);
   }
   
-  /**
-   * Set audio constraints
-   */
   setAudioConstraints(constraints: { echoCancellation?: boolean; noiseSuppression?: boolean; autoGainControl?: boolean }): void {
     if (constraints.echoCancellation !== undefined) {
       this.settings.echoCancellation = constraints.echoCancellation;

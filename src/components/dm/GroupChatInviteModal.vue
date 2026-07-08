@@ -226,7 +226,6 @@ const toast = useToast()
 const dmStore = useDMStore()
 const authStore = useAuthStore()
 
-// State
 const searchQuery = ref('')
 const searchResults = ref<DMUser[]>([])
 const selectedUsers = ref<DMUser[]>([])
@@ -239,7 +238,6 @@ const searchTimeout = ref<NodeJS.Timeout>()
 const groupName = ref('')
 const isPrivateGroup = ref(false)
 
-// Computed
 const isNewGroup = computed(() => !props.conversationId)
 const currentUserId = computed(() => authStore.session?.user?.id)
 
@@ -270,7 +268,6 @@ const hasExternalUsers = computed(() => {
          (props.existingParticipants?.some(user => !user.is_local) ?? false)
 })
 
-// Methods
 const handleSearch = () => {
   if (searchTimeout.value) {
     clearTimeout(searchTimeout.value)
@@ -503,7 +500,6 @@ const addUsersToConversation = async () => {
   }
 }
 
-// Lifecycle
 onMounted(() => {
   nextTick(() => {
     searchInput.value?.focus()

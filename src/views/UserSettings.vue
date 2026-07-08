@@ -244,7 +244,6 @@ import RobotIcon from '@/components/icons/Robot.vue'
 import LogoutIcon from '@/components/icons/Logout.vue'
 import CloseIcon from '@/components/icons/Close.vue'
 
-// Props
 interface Props {
   section?: string
 }
@@ -253,7 +252,6 @@ const props = withDefaults(defineProps<Props>(), {
   section: 'account'
 })
 
-// Composables
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
@@ -264,7 +262,6 @@ const settingsNav = createSettingsNavigator(router)
 const { updateCurrentUserProfile } = useUserData()
 const { handleTouchStart, handleTouchMove, handleTouchEnd } = useMobileGestures()
 
-// Reactive state
 const loading = ref(false)
 const bannerUploading = ref(false)
 const profile = ref<User | null>(null)
@@ -281,7 +278,6 @@ const showSidebar = ref(
 )
 const windowWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1024)
 
-// Computed properties
 const isMobile = computed(() => windowWidth.value <= 768)
 
 const currentSectionLabel = computed(() => {
@@ -331,7 +327,6 @@ const validSections = computed(() => [
   ...appSections.value.map(s => s.id)
 ])
 
-// Methods
 const handleResize = () => {
   if (typeof window !== 'undefined') {
     windowWidth.value = window.innerWidth
@@ -556,7 +551,6 @@ const handleAdvancedUpdate = async (advancedSettings: any) => {
   debug.log('Advanced settings updated:', advancedSettings)
 }
 
-// Watchers
 watch(() => route.params.section, (newSection) => {
   const sectionStr = Array.isArray(newSection) ? newSection[0] : newSection
   if (sectionStr && validSections.value.includes(sectionStr)) {
@@ -589,7 +583,6 @@ const handleSettingsKeydown = (event: KeyboardEvent) => {
   closeSettings()
 }
 
-// Lifecycle
 onMounted(async () => {
   if (typeof window !== 'undefined') {
     window.addEventListener('resize', handleResize)

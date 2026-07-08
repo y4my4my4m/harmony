@@ -197,7 +197,6 @@ const handleAction = async (action: ModalAction) => {
   }
 }
 
-// Watch for modal value changes
 watch(() => props.modelValue, (isOpen) => {
   if (isOpen) {
     handleOpen()

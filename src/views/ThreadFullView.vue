@@ -258,7 +258,6 @@ import type { ThreadWithDetails } from '@/services/ThreadService'
 import type { FilePreviewData } from '@/components/FilePreview.vue'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 
-// Props
 interface Props {
   serverId: string
   threadId: string
@@ -305,7 +304,6 @@ const emojiIconClicked = ref(false)
 const mediaPickerOpen = ref(false)
 const mediaPickerInitialTab = ref<'gifs' | 'emoji'>('gifs')
 
-// Computed values for MessageInput props
 const giphyOpen = computed(() => mediaPickerOpen.value && mediaPickerInitialTab.value === 'gifs')
 const emojiListOpen = computed(() => mediaPickerOpen.value && mediaPickerInitialTab.value === 'emoji')
 
@@ -313,7 +311,6 @@ const mediaPickerTriggerElement = computed(() => {
   return messageInputRef.value?.gifTriggerRef || messageInputRef.value?.emojiTriggerRef || null
 })
 
-// State
 const thread = ref<ThreadWithDetails | null>(null)
 const messages = ref<Message[]>([])
 const loading = ref(true)
@@ -392,7 +389,6 @@ const loadMore = async () => {
   }
 }
 
-// Actions
 const goBack = () => {
   if (thread.value?.channel_id) {
     router.push({
@@ -1025,7 +1021,6 @@ watch(() => route.query.messageId, async (messageId) => {
   await scrollToThreadMessage(messageId)
 }, { immediate: true })
 
-// Watch for threadId changes
 watch(() => props.threadId, () => {
   if (props.threadId) {
     loadThread()

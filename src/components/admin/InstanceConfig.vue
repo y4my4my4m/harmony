@@ -695,7 +695,6 @@ const config = ref({
   }
 })
 
-// Watch for config changes
 watch(config, () => {
   configChanged.value = true
 }, { deep: true })

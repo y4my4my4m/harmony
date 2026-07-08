@@ -64,7 +64,6 @@ export interface EmojiData {
   lookups: EmojiLookups
 }
 
-// State
 const PACK_STORAGE_KEY = 'harmony-emoji-pack'
 const currentPack = ref<EmojiPack>(DEFAULT_EMOJI_PACK)
 const emojiData = ref<EmojiData | null>(null)
@@ -546,7 +545,6 @@ export function useUnifiedEmoji() {
   const isTwemojiPack = computed(() => currentPack.value === 'twemoji')
   
   return {
-    // State
     currentPack,
     isNativePack,
     isTwemojiPack,

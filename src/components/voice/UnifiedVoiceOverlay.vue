@@ -619,7 +619,6 @@ const initializeEasterEgg = () => {
   }
 }
 
-// Watch for channel changes
 watch(
   () => voiceStore.currentChannelId || voiceStore.optimisticChannelId,
   () => {

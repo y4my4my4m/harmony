@@ -142,7 +142,6 @@ const selectedInputDevice = ref<string | null>(null);
 const selectedOutputDevice = ref<string | null>(null);
 const selectedVideoDevice = ref<string | null>(null);
 
-// Computed
 // eslint-disable-next-line unused-imports/no-unused-vars
 const triggerIcon = computed(() => {
   switch (props.type) {
@@ -167,7 +166,6 @@ const dropdownStyle = computed(() => ({
   top: `${dropdownPosition.value.y}px`,
 }));
 
-// Methods
 const loadDevices = async () => {
   try {
     // Request permission first if needed (browser backend only; the native
@@ -335,7 +333,6 @@ const handleExternalDeviceChange = (e: Event) => {
   }
 };
 
-// Lifecycle
 onMounted(() => {
   document.addEventListener('click', handleClickOutside);
   document.addEventListener('keydown', handleKeydown);

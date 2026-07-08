@@ -133,7 +133,6 @@ const router = useRouter()
 // instance settings have loaded from the DB.
 const instanceName = computed(() => instanceSettingsStore.settings.instanceName || 'Harmony')
 
-// Composables
 const { touchState, handleTouchStart, handleTouchMove, handleTouchEnd } = useMobileGestures()
 const { 
   leftSidebarOpen, 

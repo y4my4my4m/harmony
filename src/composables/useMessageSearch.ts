@@ -38,7 +38,6 @@ export interface SearchFilters {
  */
 
 export function useMessageSearch() {
-  // State
   const isSearching = ref(false)
   const searchResults = ref<Message[]>([])
   const hasMore = ref(false)
@@ -63,7 +62,6 @@ export function useMessageSearch() {
   let debounceTimer: ReturnType<typeof setTimeout> | null = null
   const DEBOUNCE_MS = 300
 
-  // Computed
   const hasActiveFilters = computed(() => {
     return !!(
       filters.value.channelId ||
@@ -80,7 +78,6 @@ export function useMessageSearch() {
   const hasResults = computed(() => searchResults.value.length > 0)
   const canLoadMore = computed(() => hasMore.value && !isSearching.value)
 
-  // Methods
   const setQuery = (query: string) => {
     filters.value.query = query
   }
@@ -306,7 +303,6 @@ export function useMessageSearch() {
   )
 
   return {
-    // State
     isSearching,
     searchResults,
     hasMore,
@@ -317,7 +313,6 @@ export function useMessageSearch() {
     hasResults,
     canLoadMore,
 
-    // Methods
     setQuery,
     setFilter,
     clearFilter,

@@ -69,12 +69,10 @@ const props = withDefaults(defineProps<Props>(), {
   isInSettings: false
 })
 
-// Reactive state
 const showInstallPrompt = ref(false)
 const isInstalled = ref(false)
 const capabilities = ref(pwaManager.getCapabilities())
 
-// Computed properties
 const canShowInstallButton = computed(() => 
   capabilities.value.canInstall && props.variant === 'button'
 )
@@ -83,7 +81,6 @@ const supportsShare = computed(() =>
   capabilities.value.supportsShare
 )
 
-// Methods
 const installApp = async () => {
   if (!pwaManager.hasDeferredInstallPrompt()) {
     showInstallUnavailableToast()
@@ -146,7 +143,6 @@ const handleAppInstalled = () => {
   showInstallPrompt.value = false
 }
 
-// Lifecycle
 onMounted(() => {
   updateCapabilities()
   

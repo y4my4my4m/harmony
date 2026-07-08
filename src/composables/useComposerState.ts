@@ -35,7 +35,6 @@ export function useComposerState(options: ComposerStateOptions = {}) {
   // Media state
   const mediaAttachments = ref<MediaAttachment[]>([]);
   
-  // Computed properties
   const remainingCharacters = computed(() => {
     return characterLimit - content.value.length;
   });
@@ -85,7 +84,6 @@ export function useComposerState(options: ComposerStateOptions = {}) {
     }
   ];
 
-  // Actions
   const reset = () => {
     content.value = '';
     contentWarning.value = '';
@@ -132,7 +130,6 @@ export function useComposerState(options: ComposerStateOptions = {}) {
   };
 
   return {
-    // State
     content,
     contentWarning,
     visibility,
@@ -149,13 +146,11 @@ export function useComposerState(options: ComposerStateOptions = {}) {
     maxMediaAttachments,
     visibilityOptions,
     
-    // Computed
     remainingCharacters,
     characterCounterClass,
     canSubmit,
     canAddMedia,
     
-    // Actions
     reset,
     setVisibility,
     toggleContentWarning,

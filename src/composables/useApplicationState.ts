@@ -152,7 +152,6 @@ export function useApplicationState() {
     shouldShowSplash,
     shouldShowLoading,
     
-    // Actions
     startInitialization,
     completeInitialization,
     updateServerCount,

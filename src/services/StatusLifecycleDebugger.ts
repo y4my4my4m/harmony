@@ -141,7 +141,6 @@ class StatusLifecycleDebugger {
   }
 }
 
-// Export singleton
 export const statusDebugger = new StatusLifecycleDebugger()
 
 if (typeof window !== 'undefined') {

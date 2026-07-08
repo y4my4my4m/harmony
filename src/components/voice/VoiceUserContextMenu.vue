@@ -308,7 +308,6 @@ const menuRef = ref<HTMLElement | null>(null);
 // Initialize with props to prevent flash at 0,0
 const adjustedPosition = ref({ x: 0, y: 0 });
 
-// Computed
 const isVisible = computed(() => props.visible);
 
 const userProfile = computed(() => {
@@ -422,7 +421,6 @@ const setAudioBitrate = async (audioBitrate: number) => {
   await voiceStore.updateStreamQuality({ audioBitrate });
 };
 
-// Methods
 const close = () => {
   emit('close');
 };
@@ -528,7 +526,6 @@ const handleKeydown = (event: KeyboardEvent) => {
   }
 };
 
-// Lifecycle
 onMounted(() => {
   document.addEventListener('keydown', handleKeydown);
 });
@@ -537,7 +534,6 @@ onUnmounted(() => {
   document.removeEventListener('keydown', handleKeydown);
 });
 
-// Watch for visibility changes to adjust position
 watch(
   () => props.visible,
   async (visible) => {

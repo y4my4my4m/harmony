@@ -71,7 +71,6 @@ const toast = useToast()
 type AvatarSize = 'mini' | 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl'
 type UserStatus = 'online' | 'away' | 'busy' | 'offline' | 'invisible'
 
-// Props
 interface Props {
   src?: string | null
   alt?: string
@@ -97,17 +96,14 @@ const props = withDefaults(defineProps<Props>(), {
   loading: false
 })
 
-// Emits
 const emit = defineEmits<{
   'click': []
   'upload': [file: File]
   'edit': []
 }>()
 
-// State
 const imageError = ref(false)
 
-// Refs
 const fileInput = ref<HTMLInputElement>()
 
 const sizeMap: Record<AvatarSize, number> = {
@@ -120,7 +116,6 @@ const sizeMap: Record<AvatarSize, number> = {
   '2xl': 256
 }
 
-// Computed
 const avatarUrl = computed(() => {
   if (imageError.value) return '/default_avatar.webp'
   const pixelSize = props.fetchSize ?? (sizeMap[props.size] || 48)
@@ -129,7 +124,6 @@ const avatarUrl = computed(() => {
 
 const sizeClass = computed(() => `avatar-${props.size}`)
 
-// Methods
 const handleClick = () => {
   if (props.interactive) {
     emit('click')

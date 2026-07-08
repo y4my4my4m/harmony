@@ -199,7 +199,6 @@ import { storeToRefs } from 'pinia'
 import { useFundingStore } from '@/stores/useFunding'
 import FundingModal from '@/components/FundingModal.vue'
 
-// Props
 interface Props {
   leftSidebarOpen: boolean
   rightSidebarOpen: boolean
@@ -228,7 +227,6 @@ const props = withDefaults(defineProps<Props>(), {
   rightSidebarDragOffset: 0
 })
 
-// Emits
 // eslint-disable-next-line unused-imports/no-unused-vars
 const emit = defineEmits<{
   toggleLeftSidebar: []
@@ -237,7 +235,6 @@ const emit = defineEmits<{
   showPublicServers: []
 }>()
 
-// Stores
 const serverChannelStore = useServerChannelStore()
 const router = useRouter()
 const route = useRoute()
@@ -248,7 +245,6 @@ const { SIDEBAR_WIDTH } = useLayoutState()
 // User data
 useUserData();
 
-// State
 const showCreateChannelForm = ref(false)
 const currentCategoryId = ref<string | undefined>()
 const showPinnedMessages = ref(false)
@@ -259,7 +255,6 @@ const selectedThread = ref<any>(null)
 const showChannelEditModal = ref(false)
 const editingChannel = ref<any>(null)
 
-// Computed
 const servers = computed(() => serverChannelStore.servers)
 const channels = computed(() => serverChannelStore.channels)
 const categories = computed(() => serverChannelStore.categories)
@@ -329,10 +324,8 @@ const rightSidebarStyle = computed(() => {
   return {}
 })
 
-// State
 const showSearchModal = ref(false)
 
-// Event handlers
 const handleToggleSearch = () => {
   showSearchModal.value = true
 }

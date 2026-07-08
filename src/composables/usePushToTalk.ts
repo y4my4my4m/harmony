@@ -53,7 +53,6 @@ export function usePushToTalk() {
   const isPTTMode = keybinds.isPTTMode
   const isVoiceActivityMode = keybinds.isVoiceActivityMode
 
-  // Actions
   const setInputMode = (mode: InputMode): void => {
     keybinds.setInputMode(mode)
   }
@@ -146,11 +145,9 @@ export function usePushToTalk() {
     isPTTActive,
     isRecordingKeybind: computed(() => isRecordingKeybind.value),
     
-    // Computed
     isPTTMode,
     isVoiceActivityMode,
 
-    // Actions
     setInputMode,
     startRecordingKeybind,
     cancelRecordingKeybind,
@@ -162,7 +159,6 @@ export function usePushToTalk() {
     // Utilities for other components
     shouldBlockShortcut,
 
-    // Lifecycle
     setupListeners,
     cleanupListeners,
   }

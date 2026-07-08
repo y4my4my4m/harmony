@@ -157,16 +157,13 @@ import UserCard from './UserCard.vue';
 import DisplayName from '@/components/DisplayName.vue';
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 
-// Emits
 const emit = defineEmits<{
   'close': [];
   'user-selected': [user: FederatedUser];
 }>();
 
-// Refs
 const searchInputRef = ref<HTMLInputElement>();
 
-// State
 const searchQuery = ref('');
 const searchResults = ref<FederatedUser[]>([]);
 const isSearching = ref(false);
@@ -183,7 +180,6 @@ const searchFilters = [
   { id: 'remote', label: 'Federated', icon: 'globe' }
 ];
 
-// Computed
 const filteredResults = computed(() => {
   if (activeFilter.value === 'all') return searchResults.value;
   if (activeFilter.value === 'local') return searchResults.value.filter(u => u.is_local);
@@ -191,7 +187,6 @@ const filteredResults = computed(() => {
   return searchResults.value;
 });
 
-// Methods
 const handleOverlayClick = () => {
   emit('close');
 };
@@ -339,7 +334,6 @@ const loadSuggestedUsers = async () => {
   }
 };
 
-// Lifecycle
 onMounted(async () => {
   await nextTick();
   searchInputRef.value?.focus();

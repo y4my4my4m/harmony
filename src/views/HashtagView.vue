@@ -74,7 +74,6 @@ import Icon from '@/components/common/Icon.vue'
 import { getOriginalPostId, getReplyMentionAuthor } from '@/utils/postReblog'
 import type { TimelinePost } from '@/types'
 
-// Props
 interface Props {
   hashtag: string
   currentView?: string
@@ -98,7 +97,6 @@ const router = useRouter()
 
 const activityPubStore = useActivityPubStore()
 
-// State
 const posts = ref<TimelinePost[]>([])
 const isLoading = ref(false)
 const isLoadingMore = ref(false)
@@ -133,7 +131,6 @@ useFeedRealtime(feedKind, {
 // Post interactions
 const { toggleFavorite, toggleReblog, toggleBookmark } = usePostInteractions()
 
-// Methods
 const loadPosts = async () => {
   if (!props.hashtag) return
   
@@ -209,7 +206,6 @@ const formatTimeAgo = (dateStr: string): string => {
   return `${Math.floor(days / 30)}mo ago`
 }
 
-// Event handlers
 const handleReply = (post: TimelinePost) => {
   // For pure reblogs, route the reply to the original post and prefill the
   // original author's mention - same rule as `UserProfileView.replyToPost`
@@ -260,7 +256,6 @@ const handleShowConversation = (postId: string) => {
   router.push({ name: 'PostDetail', params: { postId } })
 }
 
-// Watch for hashtag changes
 watch(() => props.hashtag, (newTag, oldTag) => {
   if (newTag && newTag !== oldTag) {
     posts.value = []

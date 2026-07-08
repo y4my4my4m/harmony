@@ -599,7 +599,6 @@ export default defineComponent({
       emit('close');
     };
 
-    // Watch for device changes
     watch(selectedVideoDevice, updateVideoPreview);
 
     const handleExternalDeviceChange = (e: Event) => {
@@ -614,7 +613,6 @@ export default defineComponent({
       }
     };
 
-    // Lifecycle
     onMounted(() => {
       getDevices();
       navigator.mediaDevices.addEventListener('devicechange', getDevices);

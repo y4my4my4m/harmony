@@ -200,7 +200,6 @@ const clearErrorOnInput = () => {
   }
 }
 
-// Watch for changes to clear errors
 nextTick(() => {
   const inputElement = document.querySelector('input')
   if (inputElement) {

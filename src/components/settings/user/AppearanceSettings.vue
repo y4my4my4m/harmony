@@ -811,7 +811,6 @@ import ColorPicker from '@/components/common/ColorPicker.vue'
 import Icon from '@/components/common/Icon.vue'
 import EmojiPopup from '@/components/EmojiPopup.vue'
 
-// Props
 interface Props {
   profile: User | null
   loading: boolean
@@ -820,12 +819,10 @@ interface Props {
 // eslint-disable-next-line unused-imports/no-unused-vars
 const props = defineProps<Props>()
 
-// Emits
 const emit = defineEmits<{
   'update-appearance': [settings: any]
 }>()
 
-// Composables
 const { isEnabled: floatingVideoEnabled, setEnabled: setFloatingVideoEnabled } = useFloatingVideo()
 const visualTheme = useVisualTheme()
 const themeEditorPanel = useThemeEditorPanel()
@@ -861,7 +858,6 @@ function onQuickReactEmojiChosen(emoji: Emoji) {
   showQuickReactPicker.value = false
 }
 
-// State
 const settings = ref({
   theme: 'dark' as 'dark' | 'light' | 'midnight' | 'custom',
   customThemeMode: 'dark' as 'dark' | 'light',
@@ -902,7 +898,6 @@ const fontFamilyOptions: Array<{
   { id: 'pixel', label: 'NoRe Sans Pixel', preview: `'NoRe Sans Pixel Pro', monospace` },
 ]
 
-// Computed preview colors for custom theme
 const customPreviewColors = computed(() => {
   return generatePreviewColors(
     settings.value.customBackgroundColor,
@@ -1124,12 +1119,10 @@ const themes = [
   }
 ]
 
-// Computed
 const hasChanges = computed(() => {
   return JSON.stringify(settings.value) !== JSON.stringify(originalSettings.value)
 })
 
-// Methods
 const selectTheme = (themeId: string) => {
   settings.value.theme = themeId as 'dark' | 'light' | 'midnight' | 'custom'
   activeSavedThemeId.value = null

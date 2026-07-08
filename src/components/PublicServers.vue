@@ -102,19 +102,16 @@ const props = withDefaults(defineProps<Props>(), {
 })
 const emit = defineEmits<Emits>()
 
-// Stores
 const publicServersStore = usePublicServersStore()
 const serverChannelStore = useServerChannelStore()
 const serverStore = useServerStore()
 const authStore = useAuthStore()
 const { triggerDestructive, triggerMessage } = useHapticSettings()
 
-// Composables
 const router = useRouter()
 const toast = useToast()
 const { handleEscapeKey } = useKeyboardEvents()
 
-// State
 const searchQuery = ref('')
 const selectedCategory = ref<string | null>(null)
 const showCreateServerForm = ref(false)
@@ -123,7 +120,6 @@ const loadingServerIds = ref<Set<string>>(new Set())
 const showUserProfile = ref(false)
 const selectedUser = ref<any>(null)
 
-// Computed
 const joinedServerIds = computed(() => {
   return new Set(serverChannelStore.servers.map((server: any) => server.id))
 })
@@ -142,7 +138,6 @@ watch(selectedCategory, (newCategory) => {
   publicServersStore.setSelectedCategory(newCategory)
 })
 
-// Methods
 const closeModal = () => {
   emit('close')
 }
@@ -258,7 +253,6 @@ const closeUserProfile = () => {
 
 handleEscapeKey(closeModal)
 
-// Lifecycle
 onMounted(async () => {
   debug.log('PublicServers modal opened')
   debug.log('Current store state:', {
@@ -287,7 +281,6 @@ onMounted(async () => {
   }
 })
 
-// Watch for force refresh prop changes
 watch(() => props.forceRefresh, async (shouldForce) => {
   if (shouldForce) {
     await publicServersStore.forceRefresh()

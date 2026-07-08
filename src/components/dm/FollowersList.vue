@@ -92,7 +92,6 @@ import type { Profile } from '@/types'
 import Avatar from '../common/Avatar.vue'
 import DisplayName from '../DisplayName.vue'
 
-// Emits
 const emit = defineEmits<{
   conversationStarted: [conversationId: string]
 }>()
@@ -105,7 +104,6 @@ const { getCurrentUser, isUserOnline } = useUserData()
 const router = useRouter()
 const toast = useToast()
 
-// State
 const followingUsers = ref<Profile[]>([])
 const isLoading = ref(false)
 const isLoadingMore = ref(false)
@@ -113,7 +111,6 @@ const hasMore = ref(true)
 const currentOffset = ref(0)
 const limit = 20
 
-// Methods
 const loadFollowingUsers = async (offset = 0, showLoading = true) => {
   const currentUser = getCurrentUser.value
   const userId = currentUser?.id

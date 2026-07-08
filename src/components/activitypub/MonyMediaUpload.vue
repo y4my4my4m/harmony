@@ -101,7 +101,6 @@
 <script setup lang="ts">
 import Icon from '@/components/common/Icon.vue';
 
-// Props
 interface MediaAttachment {
   id?: string;
   type: 'image' | 'video' | 'audio' | 'unknown';
@@ -120,13 +119,11 @@ interface Props {
 
 defineProps<Props>();
 
-// Emits
 const emit = defineEmits<{
   remove: [index: number];
   'update-description': [index: number, description: string];
 }>();
 
-// Methods
 // eslint-disable-next-line unused-imports/no-unused-vars
 const updateDescription = (index: number, description: string) => {
   emit('update-description', index, description);

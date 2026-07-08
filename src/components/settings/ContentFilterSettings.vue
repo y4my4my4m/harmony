@@ -267,7 +267,6 @@ interface ContentFilters {
 const authStore = useAuthStore();
 const toast = useToast();
 
-// State
 const filters = reactive<ContentFilters>({
   showMedia: true,
   showReblogs: true,
@@ -301,7 +300,6 @@ const availableLanguages = [
   { code: 'hi', name: 'Hindi' }
 ];
 
-// Methods
 const getLanguageName = (code: string): string => {
   const lang = availableLanguages.find(l => l.code === code);
   return lang ? lang.name : code.toUpperCase();
@@ -411,7 +409,6 @@ const resetToDefaults = () => {
   updateFilters();
 };
 
-// Lifecycle
 onMounted(() => {
   loadSettings();
 });

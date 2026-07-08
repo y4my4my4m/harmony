@@ -278,7 +278,6 @@ const emit = defineEmits<{
 const toast = useToast()
 const authStore = useAuthStore()
 
-// Reactive state
 const inviteUrl = ref('')
 const linkCopied = ref(false)
 const isGenerating = ref(false)
@@ -302,7 +301,6 @@ const iconLoadError = ref(false)
 // whatever the caller passed in via serverData.member_count.
 const liveMemberCount = ref<number | null>(null)
 
-// Computed
 const serverInitial = computed(() => {
   return props.serverData?.name?.charAt(0).toUpperCase() || 'S'
 })
@@ -349,7 +347,6 @@ const fetchMemberCount = async () => {
   }
 }
 
-// Methods
 const generateInvite = async () => {
   if (!props.serverId || !authStore.session?.user?.id) return
 
@@ -556,12 +553,10 @@ const initializeInvite = async () => {
   }
 }
 
-// Lifecycle
 onMounted(() => {
   if (props.show) void initializeInvite()
 })
 
-// Watch for modal opening
 watch(() => props.show, (visible) => {
   if (visible) void initializeInvite()
 })

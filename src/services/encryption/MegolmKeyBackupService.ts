@@ -1256,6 +1256,5 @@ export class MegolmKeyBackupService {
   }
 }
 
-// Export singleton
 export const megolmKeyBackupService = MegolmKeyBackupService.getInstance()
 

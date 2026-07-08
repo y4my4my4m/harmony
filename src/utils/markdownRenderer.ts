@@ -168,7 +168,7 @@ function escapeHtml(text: string): string {
   return div.innerHTML;
 }
 
-// Function to extract plain text from markdown (for notifications, previews, etc.)
+// Plain-text extraction for notifications, previews, etc.
 export function extractPlainText(text: string): string {
   return text.replace(/\*\*([^*]+)\*\*/g, '$1')
              .replace(/\*([^*]+)\*/g, '$1')

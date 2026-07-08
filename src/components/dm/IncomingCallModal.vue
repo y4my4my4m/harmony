@@ -136,7 +136,6 @@ const stopRingtone = () => {
   }
 }
 
-// Watch for modal showing/hiding
 watch(() => props.show, (isShowing) => {
   if (isShowing) {
     isMinimized.value = false

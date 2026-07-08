@@ -253,13 +253,11 @@ const displayParticipants = computed(() => {
   return loadedParticipants.value
 })
 
-// Composables
 const toast = useToast()
 const router = useRouter()
 const dmStore = useDMStore()
 const { getCurrentUser } = useUserData()
 
-// State
 const fileInput = ref<HTMLInputElement>()
 const localGroupName = ref('')
 const localIconPath = ref<string | undefined>()
@@ -271,7 +269,6 @@ const showLeaveConfirm = ref(false)
 const showDeleteConfirm = ref(false)
 const savingGroupName = ref(false)
 
-// Computed
 const currentUser = computed(() => getCurrentUser.value)
 const isCreator = computed(() => currentUser.value?.id === props.conversation.created_by)
 const hasCustomIcon = computed(() => !!localIconPath.value)
@@ -303,7 +300,6 @@ const defaultGroupName = computed(() => {
   return 'Group Chat'
 })
 
-// Watchers
 watch(() => props.conversation, (newConv) => {
   if (newConv) {
     localGroupName.value = newConv.name || ''
@@ -320,7 +316,6 @@ watch(() => props.show, async (isOpen) => {
   }
 }, { immediate: true })
 
-// Methods
 function handleClose() {
   emit('close')
 }

@@ -222,7 +222,6 @@ interface ServerRole {
 const props = defineProps<Props>()
 const toast = useToast()
 
-// Reactive state
 const settings = ref<ServerSettings>(getDefaultServerSettings(props.serverId))
 const originalSettings = ref<ServerSettings>(getDefaultServerSettings(props.serverId))
 const serverRoles = ref<ServerRole[]>([])
@@ -230,12 +229,10 @@ const isSaving = ref(false)
 const isLoading = ref(true)
 const saveMessage = ref<{ type: 'success' | 'error'; text: string } | null>(null)
 
-// Computed
 const hasUnsavedChanges = computed(() => {
   return JSON.stringify(settings.value) !== JSON.stringify(originalSettings.value)
 })
 
-// Methods
 const loadSettings = async () => {
   try {
     isLoading.value = true
@@ -322,12 +319,10 @@ defineExpose({
   resetSettings
 })
 
-// Lifecycle
 onMounted(() => {
   loadSettings()
 })
 
-// Watch for server ID changes
 watch(() => props.serverId, () => {
   loadSettings()
 })

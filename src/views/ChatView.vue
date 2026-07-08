@@ -29,7 +29,6 @@ import { useAuthStore } from '@/stores/auth'
 import { useNotificationStore } from '@/stores/useNotification'
 import { useViewContextTracking } from '@/composables/useViewContext'
 
-// Props
 interface Props {
   currentServer?: any
   currentChannel?: any
@@ -40,27 +39,23 @@ const props = withDefaults(defineProps<Props>(), {
   isDM: false
 })
 
-// Emits
 const emit = defineEmits<{
   toggleLeftSidebar: []
   toggleVoicePanel: []
   showAllThreads: []
 }>()
 
-// Stores
 const chatStore = useChatStore()
 const dmStore = useDMStore()
 const serverChannelStore = useServerChannelStore()
 const authStore = useAuthStore()
 const route = useRoute()
 
-// State
 const isAtBottom = ref(true)
 const isLoading = ref(false)
 let fetchAbortController: AbortController | null = null
 let lastSeenServerId: string | null = null
 
-// Computed
 const chatMessages = computed(() => {
   return props.isDM ? dmStore.currentDMMessages : chatStore.messages
 })
@@ -217,7 +212,6 @@ const handleShowAllThreads = () => {
   emit('showAllThreads')
 }
 
-// Watch for route changes
 watch(
   () => [route.params.channelId, route.params.conversationId, route.params.serverId],
   loadMessages,
@@ -226,7 +220,6 @@ watch(
 
 useViewContextTracking()
 
-// Watch for messageId query param to scroll and highlight
 watch(() => route.query.messageId, async (messageId) => {
   if (messageId && typeof messageId === 'string') {
     await nextTick()
@@ -234,7 +227,6 @@ watch(() => route.query.messageId, async (messageId) => {
   }
 }, { immediate: true })
 
-// Function to scroll to and highlight a message
 const scrollToMessage = async (messageId: string) => {
   await nextTick()
   
@@ -333,7 +325,6 @@ const scrollToMessage = async (messageId: string) => {
   }
 }
 
-// Function to highlight search text within message content
 const highlightSearchText = (messageElement: HTMLElement, query: string) => {
   const contentElements = messageElement.querySelectorAll('.message-content, .result-content')
   const searchTerms = query.trim().split(/\s+/).filter(term => term.length > 0)
