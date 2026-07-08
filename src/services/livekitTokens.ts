@@ -49,7 +49,7 @@ export async function getLiveKitConfig(forceRefresh = false): Promise<LiveKitCon
 
     return configCache;
   } catch {
-    debug.warn('⚠️ Could not fetch LiveKit config, using defaults');
+    debug.warn('Could not fetch LiveKit config, using defaults');
 
     return {
       enabled: false,

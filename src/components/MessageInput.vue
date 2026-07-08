@@ -394,7 +394,7 @@ const { typingUsers, startTyping, stopTyping } = useTypingIndicator(() => typing
 
 // DEBUG: Track context changes for typing indicator debugging
 watch(typingContext, (newCtx, oldCtx) => {
-  debug.log('🔍 MessageInput: typingContext changed:', newCtx, 'from:', oldCtx)
+  debug.log('MessageInput: typingContext changed:', newCtx, 'from:', oldCtx)
 }, { immediate: true })
 
 // Track if we've started typing (to avoid sending multiple "on" events)
@@ -443,7 +443,7 @@ const handleVoiceRecordingComplete = async (result: VoiceRecordingResult) => {
   const userId = authStore.session?.user?.id
   if (!userId) return
 
-  debug.log('🎙️ Voice recording complete:', { duration: result.duration, blobSize: result.blob.size, mimeType: result.mimeType, waveformLength: result.waveform?.length })
+  debug.log('Voice recording complete:', { duration: result.duration, blobSize: result.blob.size, mimeType: result.mimeType, waveformLength: result.waveform?.length })
 
   voiceUploading.value = true
   try {
@@ -455,10 +455,10 @@ const handleVoiceRecordingComplete = async (result: VoiceRecordingResult) => {
       .upload(filePath, result.blob, { contentType: result.mimeType })
 
     if (error) throw error
-    debug.log('🎙️ Voice upload success:', { path: uploadData?.path || filePath })
+    debug.log('Voice upload success:', { path: uploadData?.path || filePath })
 
     const { data } = supabase.storage.from('user_media').getPublicUrl(filePath)
-    debug.log('🎙️ Voice public URL:', data.publicUrl)
+    debug.log('Voice public URL:', data.publicUrl)
 
     if (data.publicUrl) {
       emit('sendVoiceMessage', {
@@ -468,7 +468,7 @@ const handleVoiceRecordingComplete = async (result: VoiceRecordingResult) => {
         mimeType: result.mimeType,
       })
     } else {
-      debug.error('🎙️ No public URL returned for voice message')
+      debug.error('No public URL returned for voice message')
     }
   } catch (err) {
     debug.error('Failed to upload voice message:', err)
@@ -505,12 +505,12 @@ onUnmounted(() => {
 // fallback covers the brief window before `richEditorRef.value` mounts.
 const getCurrentText = () => richEditorRef.value?.getPlainText?.() ?? props.modelValue;
 const updateText = (newText: string, cursorPosition?: number) => {
-  debug.log('🔧 MessageInput updateText called:', { newText, cursorPosition });
+  debug.log('MessageInput updateText called:', { newText, cursorPosition });
   
   // Set cursor position after text update if provided
   if (cursorPosition !== undefined && richEditorRef.value) {
     // Set the skip flag BEFORE emitting the update
-    debug.log('🔧 Setting skipNextWatch to true');
+    debug.log('Setting skipNextWatch to true');
     richEditorRef.value.skipNextWatch = true;
     
     emit('update:modelValue', newText);
@@ -518,27 +518,27 @@ const updateText = (newText: string, cursorPosition?: number) => {
     nextTick(() => {
       // Now render the content manually with skip cursor restore
       if (richEditorRef.value?.renderContent) {
-        debug.log('🔧 Calling manual renderContent with skipCursorRestore=true');
+        debug.log('Calling manual renderContent with skipCursorRestore=true');
         richEditorRef.value.renderContent(newText, true); // Skip cursor restore
       }
       
       // Focus FIRST, then set cursor position
       nextTick(() => {
         if (richEditorRef.value) {
-          debug.log('🔧 Focusing editor FIRST');
+          debug.log('Focusing editor FIRST');
           richEditorRef.value.focus();
           
           // Wait longer to ensure focus and DOM are stable
           requestAnimationFrame(() => {
             requestAnimationFrame(() => {
               if (richEditorRef.value) {
-                debug.log('🔧 Now setting cursor position to:', cursorPosition);
+                debug.log('Now setting cursor position to:', cursorPosition);
                 richEditorRef.value.setCursorPosition(cursorPosition);
-                debug.log('🔧 Verifying final state:');
+                debug.log('Verifying final state:');
                 debug.log('  - activeElement:', document.activeElement);
                 debug.log('  - selection:', window.getSelection());
                 debug.log('  - rangeCount:', window.getSelection()?.rangeCount);
-                debug.log('🔧 Cursor should now be visible and ready for typing');
+                debug.log('Cursor should now be visible and ready for typing');
               }
             });
           });
@@ -991,7 +991,7 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
     // Watch modelValue for typing detection
     watch(() => props.modelValue, (newValue, oldValue) => {
       if (newValue && newValue.trim().length > 0 && isEditorFocused.value && newValue !== oldValue) {
-        debug.log('⌨️ MessageInput: modelValue changed, triggering typing:', newValue.length, 'chars')
+        debug.log('⌨MessageInput: modelValue changed, triggering typing:', newValue.length, 'chars')
         handleTyping()
       }
     });

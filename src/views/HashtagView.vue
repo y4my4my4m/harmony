@@ -143,7 +143,7 @@ const loadPosts = async () => {
     posts.value = result.posts
     hasMore.value = result.hasMore
     cursor.value = result.cursor
-    debug.log(`✅ Loaded ${result.posts.length} posts for #${props.hashtag}`)
+    debug.log(`Loaded ${result.posts.length} posts for #${props.hashtag}`)
   } catch (error) {
     debug.error('Failed to load hashtag posts:', error)
   } finally {

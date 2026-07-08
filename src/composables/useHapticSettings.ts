@@ -45,7 +45,7 @@ function loadSettings(): void {
     hapticManager.setEnabled(isEnabled.value)
     
     isInitialized.value = true
-    debug.log('🎮 Haptic settings loaded:', { enabled: isEnabled.value, triggers: hapticTriggers.value })
+    debug.log('Haptic settings loaded:', { enabled: isEnabled.value, triggers: hapticTriggers.value })
   } catch (error) {
     debug.error('Failed to load haptic settings:', error)
   }

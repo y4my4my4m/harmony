@@ -14,7 +14,7 @@ async function ensurePermission(): Promise<boolean> {
       permissionGranted = (await requestPermission()) === 'granted';
     }
   } catch (error) {
-    debug.warn('⚠️ [nativeNotify] permission check failed:', error);
+    debug.warn('[nativeNotify] permission check failed:', error);
     permissionGranted = false;
   }
   return permissionGranted;
@@ -34,7 +34,7 @@ async function cacheAvatar(url?: string | null): Promise<string | undefined> {
     await writeFile(rel, bytes, { baseDir: BaseDirectory.AppCache });
     return await join(await appCacheDir(), rel);
   } catch (error) {
-    debug.warn('⚠️ [nativeNotify] avatar cache failed:', error);
+    debug.warn('[nativeNotify] avatar cache failed:', error);
     return undefined;
   }
 }
@@ -104,7 +104,7 @@ export async function nativeNotify(opts: {
     sendNotification({ title, body: message, icon });
     return true;
   } catch (error) {
-    debug.warn('⚠️ [nativeNotify] send failed:', error);
+    debug.warn('[nativeNotify] send failed:', error);
     return false;
   }
 }

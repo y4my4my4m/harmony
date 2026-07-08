@@ -477,16 +477,16 @@ const handleAvatarUpload = async (file: File) => {
 }
 
 const handleBannerUpload = async (file: File) => {
-  debug.log('🖼️ Banner upload started:', file.name, file.size)
+  debug.log('Banner upload started:', file.name, file.size)
   
   if (!authStore.session?.user) {
-    debug.error('❌ No authenticated user for banner upload')
+    debug.error('No authenticated user for banner upload')
     return
   }
   
   try {
     bannerUploading.value = true
-    debug.log('📤 Uploading banner to storage...')
+    debug.log('Uploading banner to storage...')
     const result = await uploadBanner(file, authStore.session.user.id)
     
     if (!result.success) {
@@ -494,7 +494,7 @@ const handleBannerUpload = async (file: File) => {
       return
     }
     
-    debug.log('✅ Banner uploaded to:', result.url)
+    debug.log('Banner uploaded to:', result.url)
     
     const storagePath = result.url || ''
     
@@ -510,13 +510,13 @@ const handleBannerUpload = async (file: File) => {
         bannerUrl: storagePath || undefined
       })
     } catch (broadcastError) {
-      debug.error('⚠️ Banner broadcast failed (upload still succeeded):', broadcastError)
+      debug.error('Banner broadcast failed (upload still succeeded):', broadcastError)
     }
     
     toast.success('Banner updated successfully')
-    debug.log('🎉 Banner upload completed successfully')
+    debug.log('Banner upload completed successfully')
   } catch (error: any) {
-    debug.error('❌ Error uploading banner:', error)
+    debug.error('Error uploading banner:', error)
     toast.error(error?.message || 'Failed to upload banner')
   } finally {
     bannerUploading.value = false

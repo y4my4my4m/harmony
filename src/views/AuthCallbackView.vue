@@ -283,7 +283,7 @@ onMounted(async () => {
       const identities = session.user.identities || []
       const primaryEmail = session.user.email
 
-      debug.log('🔐 OAuth callback - User info:', {
+      debug.log('OAuth callback - User info:', {
         userId: session.user.id,
         email: primaryEmail,
         emailVerified: session.user.email_confirmed_at,
@@ -304,7 +304,7 @@ onMounted(async () => {
         )
 
         if (!allEmailsMatch) {
-          debug.error('⚠️ UNEXPECTED ACCOUNT LINKING DETECTED!', {
+          debug.error('UNEXPECTED ACCOUNT LINKING DETECTED!', {
             primaryEmail,
             linkedEmails: identityEmails,
             identities: identities.map((id: any) => ({
@@ -312,9 +312,9 @@ onMounted(async () => {
               email: id.email || id.identity_data?.email,
             })),
           })
-          debug.warn('⚠️ Accounts with different emails were linked. This should only happen when emails match!')
+          debug.warn('Accounts with different emails were linked. This should only happen when emails match!')
         } else {
-          debug.log('✅ Account linking detected with matching emails:', identityEmails.join(', '))
+          debug.log('Account linking detected with matching emails:', identityEmails.join(', '))
         }
       }
 
@@ -356,7 +356,7 @@ onMounted(async () => {
       const totpFactor = factors?.totp?.find((f: any) => f.status === 'verified')
       if (!totpFactor) {
         // No factor → not the "needs MFA" case. Bail.
-        debug.warn('🚨 OAuth callback rejected at AAL1 with no MFA factor - unexpected, signing out')
+        debug.warn('OAuth callback rejected at AAL1 with no MFA factor - unexpected, signing out')
         try { await supabase.auth.signOut() } catch { /* ignore */ }
         authStore.session = null
         throw new Error('Authentication failed. Please try again.')
@@ -416,7 +416,7 @@ onMounted(async () => {
 // session - including legitimate cross-user logins.
 onBeforeUnmount(() => {
   if (authStore._pendingMFAVerification) {
-    debug.log('🔒 AuthCallbackView unmounting with pending-MFA flag set - clearing')
+    debug.log('AuthCallbackView unmounting with pending-MFA flag set - clearing')
     authStore._pendingMFAVerification = false
   }
 })

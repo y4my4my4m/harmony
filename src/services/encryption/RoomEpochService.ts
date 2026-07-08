@@ -40,7 +40,7 @@ class RoomEpochService {
       this.cache.set(roomId, { epoch, cachedAt: Date.now() })
       return epoch
     } catch (err) {
-      debug.warn('⚠️ get_room_epoch failed, defaulting to epoch 1:', err)
+      debug.warn('get_room_epoch failed, defaulting to epoch 1:', err)
       return 1
     }
   }
@@ -53,13 +53,13 @@ class RoomEpochService {
         p_reason: reason,
       })
       if (error) {
-        debug.warn('⚠️ request_room_epoch_bump failed:', error)
+        debug.warn('request_room_epoch_bump failed:', error)
         return null
       }
       this.invalidate(roomId)
       return typeof data === 'number' ? data : null
     } catch (err) {
-      debug.warn('⚠️ rotate epoch threw:', err)
+      debug.warn('rotate epoch threw:', err)
       return null
     }
   }

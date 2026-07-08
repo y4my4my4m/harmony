@@ -35,7 +35,7 @@ async function apply(activity: Activity): Promise<void> {
       autoApplied = null;
     }
   } catch (error) {
-    debug.warn('⚠️ [nativePresence] status update failed:', error);
+    debug.warn('[nativePresence] status update failed:', error);
   }
 }
 
@@ -49,7 +49,7 @@ export async function startRichPresence(): Promise<void> {
     });
     await invoke('presence_start');
   } catch (error) {
-    debug.warn('⚠️ [nativePresence] start failed:', error);
+    debug.warn('[nativePresence] start failed:', error);
   }
 }
 

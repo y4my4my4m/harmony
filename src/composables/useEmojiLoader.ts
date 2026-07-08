@@ -37,7 +37,7 @@ export async function ensureEmojiDataLoaded(): Promise<void> {
       
       if (!unifiedLoaded.value) {
         await loadUnifiedEmojiData()
-        debug.log('✅ Unified emoji data loaded')
+        debug.log('Unified emoji data loaded')
       }
       
       if (!emojiCacheStore.isInitialized) {
@@ -50,7 +50,7 @@ export async function ensureEmojiDataLoaded(): Promise<void> {
             currentServerId ? [currentServerId] : [],
             otherServerIds
           )
-          debug.log('✅ Emoji cache initialized')
+          debug.log('Emoji cache initialized')
         }
       } else {
         // Already initialized, but ensure all servers are loaded
@@ -60,11 +60,11 @@ export async function ensureEmojiDataLoaded(): Promise<void> {
         
         if (missingServerIds.length > 0) {
           await emojiCacheStore.loadEmojisForServers(missingServerIds)
-          debug.log(`✅ Loaded emojis for ${missingServerIds.length} additional servers`)
+          debug.log(`Loaded emojis for ${missingServerIds.length} additional servers`)
         }
       }
     } catch (error) {
-      debug.warn('⚠️ Failed to load emoji data:', error)
+      debug.warn('Failed to load emoji data:', error)
     } finally {
       // Reset promise after completion so it can be called again if needed
       emojiDataLoadPromise = null

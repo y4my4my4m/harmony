@@ -37,7 +37,7 @@ function loadFrequentEmojis(): void {
       frequentEmojis.value = JSON.parse(stored)
     }
     isInitialized.value = true
-    debug.log('📊 Loaded frequent emojis:', frequentEmojis.value.length)
+    debug.log('Loaded frequent emojis:', frequentEmojis.value.length)
   } catch (error) {
     debug.error('Failed to load frequent emojis:', error)
     frequentEmojis.value = []
@@ -98,7 +98,7 @@ function recordEmojiUsage(emoji: { id?: string; native?: string; name: string; u
   }
   
   saveFrequentEmojis()
-  debug.log('📊 Recorded emoji usage:', emoji.name)
+  debug.log('Recorded emoji usage:', emoji.name)
 }
 
 /**
@@ -110,7 +110,7 @@ export function removeFrequentEmoji(emojiId: string): void {
   if (idx >= 0) {
     frequentEmojis.value.splice(idx, 1)
     saveFrequentEmojis()
-    debug.log('📊 Removed frequent emoji:', emojiId)
+    debug.log('Removed frequent emoji:', emojiId)
   }
 }
 

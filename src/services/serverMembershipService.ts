@@ -36,7 +36,7 @@ export async function getServerMemberCount(serverId: string, forceRefresh = fals
   const pendingKey = `count-${serverId}`
   const pendingRequest = pendingMemberCountRequests.get(pendingKey)
   if (pendingRequest) {
-    debug.log(`📊 Member count request already pending for server ${serverId}, reusing`)
+    debug.log(`Member count request already pending for server ${serverId}, reusing`)
     return pendingRequest
   }
 
@@ -48,7 +48,7 @@ export async function getServerMemberCount(serverId: string, forceRefresh = fals
         .eq('server_id', serverId)
 
       if (error) {
-        debug.error(`❌ Failed to get member count for server ${serverId}:`, error)
+        debug.error(`Failed to get member count for server ${serverId}:`, error)
         return 0
       }
 
@@ -59,7 +59,7 @@ export async function getServerMemberCount(serverId: string, forceRefresh = fals
 
       return memberCount
     } catch (error) {
-      debug.error(`❌ Error getting member count for server ${serverId}:`, error)
+      debug.error(`Error getting member count for server ${serverId}:`, error)
       return 0
     } finally {
       pendingMemberCountRequests.delete(pendingKey)
@@ -100,7 +100,7 @@ export async function getServerMemberCounts(serverIds: string[]): Promise<Map<st
       .in('server_id', uncachedServerIds)
 
     if (error) {
-      debug.error('❌ Failed to batch get member counts:', error)
+      debug.error('Failed to batch get member counts:', error)
       return results
     }
 
@@ -118,7 +118,7 @@ export async function getServerMemberCounts(serverIds: string[]): Promise<Map<st
       results.set(serverId, count)
     }
   } catch (error) {
-    debug.error('❌ Error batch getting member counts:', error)
+    debug.error('Error batch getting member counts:', error)
   }
 
   return results
@@ -146,7 +146,7 @@ export async function isUserMemberOfServer(
 
   const pendingRequest = pendingMembershipChecks.get(cacheKey)
   if (pendingRequest) {
-    debug.log(`📊 Membership check already pending for ${userId}-${serverId}, reusing`)
+    debug.log(`Membership check already pending for ${userId}-${serverId}, reusing`)
     return pendingRequest
   }
 
@@ -160,7 +160,7 @@ export async function isUserMemberOfServer(
         .maybeSingle()
 
       if (error) {
-        debug.error(`❌ Failed to check membership for ${userId}-${serverId}:`, error)
+        debug.error(`Failed to check membership for ${userId}-${serverId}:`, error)
         return false
       }
 
@@ -171,7 +171,7 @@ export async function isUserMemberOfServer(
 
       return isMember
     } catch (error) {
-      debug.error(`❌ Error checking membership for ${userId}-${serverId}:`, error)
+      debug.error(`Error checking membership for ${userId}-${serverId}:`, error)
       return false
     } finally {
       pendingMembershipChecks.delete(cacheKey)
@@ -194,7 +194,7 @@ export function invalidateServerCache(serverId: string): void {
       membershipCache.delete(key)
     }
   }
-  debug.log(`🗑️ Invalidated cache for server ${serverId}`)
+  debug.log(`Invalidated cache for server ${serverId}`)
 }
 
 /**
@@ -207,7 +207,7 @@ export function invalidateUserCache(userId: string): void {
       membershipCache.delete(key)
     }
   }
-  debug.log(`🗑️ Invalidated membership cache for user ${userId}`)
+  debug.log(`Invalidated membership cache for user ${userId}`)
 }
 
 /**
@@ -216,5 +216,5 @@ export function invalidateUserCache(userId: string): void {
 export function clearAllCaches(): void {
   memberCountCache.clear()
   membershipCache.clear()
-  debug.log('🗑️ Cleared all server membership caches')
+  debug.log('Cleared all server membership caches')
 }

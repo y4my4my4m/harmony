@@ -112,7 +112,7 @@ const reactions = computed(() => {
   try {
     return reactionsStore.getMessageReactions(props.message.id);
   } catch (error) {
-    debug.error('❌ Error getting reactions for message:', props.message.id, error);
+    debug.error('Error getting reactions for message:', props.message.id, error);
     return [];
   }
 });
@@ -146,7 +146,7 @@ const handleReactionClick = async (emoji: Emoji, emojiId: string) => {
   const result = await reactionsStore.toggleReaction(props.message.id, emojiId, currentUserId.value, emoji);
   
   if (!result.success && result.reason !== 'Request already in progress') {
-    debug.error('🎯 Failed to toggle reaction:', result.reason);
+    debug.error('Failed to toggle reaction:', result.reason);
   }
 };
 

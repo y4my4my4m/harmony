@@ -52,7 +52,7 @@ class RequestDeduplicator {
     if (!forceRefresh && cacheTTL > 0) {
       const cached = this.cache.get(key)
       if (cached && Date.now() - cached.timestamp < cacheTTL) {
-        debug.log(`📦 Cache hit for: ${key}`)
+        debug.log(`Cache hit for: ${key}`)
         return cached.data
       }
     }
@@ -60,11 +60,11 @@ class RequestDeduplicator {
     // Check for pending request
     const pending = this.pendingRequests.get(key)
     if (pending && !forceRefresh) {
-      debug.log(`🔄 Deduplicating request: ${key}`)
+      debug.log(`Deduplicating request: ${key}`)
       return pending.promise
     }
     
-    debug.log(`🌐 New request: ${key}`)
+    debug.log(`New request: ${key}`)
     const promise = fetcher()
       .then((result) => {
         // Cache the result if caching is enabled
@@ -88,13 +88,13 @@ class RequestDeduplicator {
   clearCache(keyOrPattern?: string | RegExp): void {
     if (!keyOrPattern) {
       this.cache.clear()
-      debug.log('🧹 Cleared all request cache')
+      debug.log('Cleared all request cache')
       return
     }
     
     if (typeof keyOrPattern === 'string') {
       this.cache.delete(keyOrPattern)
-      debug.log(`🧹 Cleared cache for: ${keyOrPattern}`)
+      debug.log(`Cleared cache for: ${keyOrPattern}`)
     } else {
       // RegExp pattern
       for (const key of this.cache.keys()) {
@@ -102,7 +102,7 @@ class RequestDeduplicator {
           this.cache.delete(key)
         }
       }
-      debug.log(`🧹 Cleared cache matching pattern: ${keyOrPattern}`)
+      debug.log(`Cleared cache matching pattern: ${keyOrPattern}`)
     }
   }
   

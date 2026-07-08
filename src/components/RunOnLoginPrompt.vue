@@ -64,19 +64,19 @@ const wasRecentlyDismissed = (): boolean => {
 
 const shouldShowPrompt = (): boolean => {
   if (!isPWA()) {
-    debug.log('🪟 Run-on-login prompt: not running as PWA, skipping')
+    debug.log('Run-on-login prompt: not running as PWA, skipping')
     return false
   }
   if (!isChromiumDesktop()) {
-    debug.log('🪟 Run-on-login prompt: not a Chromium-based desktop browser, skipping')
+    debug.log('Run-on-login prompt: not a Chromium-based desktop browser, skipping')
     return false
   }
   if (userHasEnabled()) {
-    debug.log('🪟 Run-on-login prompt: user already marked as enabled')
+    debug.log('Run-on-login prompt: user already marked as enabled')
     return false
   }
   if (wasRecentlyDismissed()) {
-    debug.log('🪟 Run-on-login prompt: recently dismissed/closed')
+    debug.log('Run-on-login prompt: recently dismissed/closed')
     return false
   }
   return true
@@ -90,13 +90,13 @@ const openInstructions = () => {
 const dismiss = () => {
   showBanner.value = false
   localStorage.setItem(STORAGE_KEYS.dismissed, Date.now().toString())
-  debug.log('🪟 Run-on-login prompt dismissed (7 days)')
+  debug.log('Run-on-login prompt dismissed (7 days)')
 }
 
 const close = () => {
   showBanner.value = false
   localStorage.setItem(STORAGE_KEYS.closed, Date.now().toString())
-  debug.log('🪟 Run-on-login prompt closed (30 days)')
+  debug.log('Run-on-login prompt closed (30 days)')
 }
 
 const handleEnabled = () => {

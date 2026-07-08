@@ -354,7 +354,7 @@ const navigateToProfile = () => {
       handle = handle.replace(`@${import.meta.env.VITE_DOMAIN as string}`, '');
     }
     
-    debug.log(`🔗 Navigating to profile with handle: ${handle}`);
+    debug.log(`Navigating to profile with handle: ${handle}`);
     router.push({ 
       name: 'UserProfile', 
       params: { handle } 

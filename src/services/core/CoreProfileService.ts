@@ -65,7 +65,7 @@ export class CoreProfileService {
         throw this.createError('INVALID_INPUT', 'Profile ID is required')
       }
 
-      debug.log(`🔄 Core: Loading profile: ${profileId}`)
+      debug.log(`Core: Loading profile: ${profileId}`)
 
       const { data: profile, error } = await supabase
         .from('profiles')
@@ -91,7 +91,7 @@ export class CoreProfileService {
 
       if (error) {
         if (error.code === 'PGRST116') {
-          debug.log(`ℹ️ Core: Profile not found: ${profileId}`)
+          debug.log(`ℹCore: Profile not found: ${profileId}`)
           return null
         }
         throw this.createError('LOAD_PROFILE_FAILED', 'Failed to load profile', error)
@@ -100,10 +100,10 @@ export class CoreProfileService {
       // Privacy filtering (remove sensitive data if needed)
       const sanitizedProfile = this.sanitizeProfileForPublicView(profile)
 
-      debug.log(`✅ Core: Profile loaded successfully: ${profileId}`)
+      debug.log(`Core: Profile loaded successfully: ${profileId}`)
       return sanitizedProfile
     } catch (error) {
-      debug.error('❌ Core: Failed to load profile:', error)
+      debug.error('Core: Failed to load profile:', error)
       throw error
     }
   }
@@ -118,7 +118,7 @@ export class CoreProfileService {
         throw this.createError('INVALID_INPUT', 'Auth user ID is required')
       }
 
-      debug.log(`🔄 Core: Loading profile by auth user ID`)
+      debug.log(`Core: Loading profile by auth user ID`)
 
       const { data: profile, error } = await supabase
         .from('profiles')
@@ -131,14 +131,14 @@ export class CoreProfileService {
       }
 
       if (!profile) {
-        debug.log(`ℹ️ Core: Profile not found for auth user`)
+        debug.log(`ℹCore: Profile not found for auth user`)
         return null
       }
 
-      debug.log(`✅ Core: Profile loaded by auth user ID`)
+      debug.log(`Core: Profile loaded by auth user ID`)
       return profile
     } catch (error) {
-      debug.error('❌ Core: Failed to load profile by auth user ID:', error)
+      debug.error('Core: Failed to load profile by auth user ID:', error)
       throw error
     }
   }
@@ -166,7 +166,7 @@ export class CoreProfileService {
       const sanitizedQuery = this.sanitizeSearchQuery(query)
       const secureLimit = Math.min(limit, this.MAX_SEARCH_LIMIT)
 
-      debug.log(`🔄 Core: Searching profiles: "${sanitizedQuery}"`)
+      debug.log(`Core: Searching profiles: "${sanitizedQuery}"`)
 
       if (signal?.aborted) {
         throw this.createError('ABORTED', 'Search was aborted')
@@ -203,10 +203,10 @@ export class CoreProfileService {
         this.sanitizeProfileForPublicView(profile)
       ) || []
 
-      debug.log(`✅ Core: Found ${filteredProfiles.length} profiles for: "${sanitizedQuery}"`)
+      debug.log(`Core: Found ${filteredProfiles.length} profiles for: "${sanitizedQuery}"`)
       return filteredProfiles
     } catch (error) {
-      debug.error('❌ Core: Failed to search profiles:', error)
+      debug.error('Core: Failed to search profiles:', error)
       throw error
     }
   }
@@ -225,7 +225,7 @@ export class CoreProfileService {
       const sanitizedData = this.sanitizeProfileData(profileData)
       this.validateProfileData(sanitizedData)
 
-      debug.log('🔄 Core: Updating profile with secure validation')
+      debug.log('Core: Updating profile with secure validation')
 
       // Secure database update with ownership verification
       const { data: profile, error } = await supabase
@@ -252,10 +252,10 @@ export class CoreProfileService {
         throw this.createError('UNAUTHORIZED', 'Not authorized to update this profile')
       }
 
-      debug.log('✅ Core: Profile updated successfully with security verification')
+      debug.log('Core: Profile updated successfully with security verification')
       return profile
     } catch (error) {
-      debug.error('❌ Core: Failed to update profile:', error)
+      debug.error('Core: Failed to update profile:', error)
       throw error
     }
   }
@@ -271,7 +271,7 @@ export class CoreProfileService {
       const sanitizedData = this.sanitizeProfileCreationData(profileData)
       this.validateProfileCreationData(sanitizedData)
 
-      debug.log('🔄 Core: Creating profile with security validation')
+      debug.log('Core: Creating profile with security validation')
 
       // Secure profile creation
       const { data: profile, error } = await supabase
@@ -296,10 +296,10 @@ export class CoreProfileService {
         throw this.createError('CREATE_FAILED', 'Failed to create profile', error)
       }
 
-      debug.log('✅ Core: Profile created successfully with security verification')
+      debug.log('Core: Profile created successfully with security verification')
       return profile
     } catch (error) {
-      debug.error('❌ Core: Failed to create profile:', error)
+      debug.error('Core: Failed to create profile:', error)
       throw error
     }
   }
@@ -316,7 +316,7 @@ export class CoreProfileService {
         throw this.createError('INVALID_INPUT', 'Profile ID is required')
       }
 
-      debug.log(`🔄 Core: Loading user stats: ${profileId}`)
+      debug.log(`Core: Loading user stats: ${profileId}`)
 
       // Secure aggregation query
       const { data: profile, error } = await supabase
@@ -347,10 +347,10 @@ export class CoreProfileService {
         voice_minutes: Number(profile.voice_minutes ?? 0),
       }
 
-      debug.log(`✅ Core: User stats loaded successfully`)
+      debug.log(`Core: User stats loaded successfully`)
       return stats
     } catch (error) {
-      debug.error('❌ Core: Failed to load user stats:', error)
+      debug.error('Core: Failed to load user stats:', error)
       throw error
     }
   }

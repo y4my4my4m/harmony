@@ -135,7 +135,7 @@ export const useInstanceSettingsStore = defineStore('instanceSettings', {
   actions: {
     async fetchSettings(force = false): Promise<void> {
       if (!force && this.isCacheValid && this.isLoaded) {
-        debug.log('📋 Using cached instance settings')
+        debug.log('Using cached instance settings')
         return
       }
 
@@ -179,7 +179,7 @@ export const useInstanceSettingsStore = defineStore('instanceSettings', {
 
         this.applyBranding()
 
-        debug.log('✅ Instance settings loaded:', {
+        debug.log('Instance settings loaded:', {
           federationEnabled: this.settings.federationEnabled,
           inbound: this.settings.federationInboundEnabled,
           outbound: this.settings.federationOutboundEnabled,

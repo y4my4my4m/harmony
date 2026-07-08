@@ -63,11 +63,11 @@ export async function updateViewContext(
 
       viewContextChannel = supabase.channel(`view-context:${userId}`)
         .on('presence', { event: 'sync' }, () => {
-          debug.log('🔄 View context presence synced')
+          debug.log('View context presence synced')
         })
         .subscribe(async (status) => {
           if (status === 'SUBSCRIBED') {
-            debug.log('✅ View context presence channel subscribed')
+            debug.log('View context presence channel subscribed')
           }
         })
     }
@@ -100,7 +100,7 @@ export async function updateViewContext(
       conversationId
     })
 
-    debug.log('✅ View context updated:', { viewType, serverId, channelId, conversationId })
+    debug.log('View context updated:', { viewType, serverId, channelId, conversationId })
   } catch (error) {
     debug.error('Error updating view context:', error)
   }

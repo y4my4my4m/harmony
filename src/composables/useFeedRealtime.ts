@@ -158,13 +158,13 @@ export function useFeedRealtime(
       })
       .subscribe((status: string) => {
         if (status === 'SUBSCRIBED') {
-          debug.log(`✅ FeedRealtime subscribed: ${topic}`)
+          debug.log(`FeedRealtime subscribed: ${topic}`)
         } else if (
           status === 'CHANNEL_ERROR' ||
           status === 'TIMED_OUT' ||
           status === 'CLOSED'
         ) {
-          debug.warn(`⚠️ FeedRealtime ${status}: ${topic}`)
+          debug.warn(`FeedRealtime ${status}: ${topic}`)
         }
       })
 

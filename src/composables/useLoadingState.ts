@@ -63,7 +63,7 @@ export function useLoadingState<T>(initialData: T | null = null): LoadingStateCo
     } catch (error) {
       const serviceError = formatServiceError(error)
       state.value = setError(state.value, serviceError)
-      debug.error('❌ Operation failed:', serviceError)
+      debug.error('Operation failed:', serviceError)
       throw serviceError
     }
   }
@@ -152,7 +152,7 @@ export function useOptimisticUpdate<T>(initialData: T | null = null): Optimistic
       rollback()
       
       const serviceError = formatServiceError(error)
-      debug.error('❌ Optimistic operation failed:', serviceError)
+      debug.error('Optimistic operation failed:', serviceError)
       
       // 6. Call error handler
       onError?.(serviceError)
@@ -199,19 +199,19 @@ export function useServiceToasts(): ToastComposable {
   // For now, using console logs as placeholder
   
   const showSuccessToast = (message: string, details?: string) => {
-    debug.log('✅ Success:', message, details || '')
+    debug.log('Success:', message, details || '')
     // TODO: Integrate with actual toast system
     // toast.success(message, { description: details })
   }
 
   const showErrorToast = (error: ServiceError) => {
-    debug.error('❌ Error:', error.message)
+    debug.error('Error:', error.message)
     // TODO: Integrate with actual toast system
     // toast.error(error.message, { description: error.details })
   }
 
   const showLoadingToast = (message: string) => {
-    debug.log('🔄 Loading:', message)
+    debug.log('Loading:', message)
     // TODO: Integrate with actual toast system
     // toast.loading(message)
   }
@@ -252,7 +252,7 @@ function formatServiceError(error: any): ServiceError {
 export function useServiceErrorBoundary() {
   const handleServiceError = (error: any, context: string) => {
     const formattedError = formatServiceError(error)
-    debug.error(`❌ Service error in ${context}:`, formattedError)
+    debug.error(`Service error in ${context}:`, formattedError)
     
     // TODO: Send to error reporting service
     // errorReporting.captureException(formattedError, { context })

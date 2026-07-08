@@ -95,7 +95,7 @@ class UserDataService extends EventTarget {
   async initialize(userId: string, username: string, avatarUrl?: string, existingProfile?: any): Promise<void> {
     if (this.initialized && this.currentUserId === userId) return
     
-    debug.log('🚀 Initializing User Data Service for:', username)
+    debug.log('Initializing User Data Service for:', username)
     
     // Await cleanup to prevent race conditions with subscriptions
     await this.cleanup()
@@ -114,7 +114,7 @@ class UserDataService extends EventTarget {
     this.startHeartbeat()
     
     this.initialized = true
-    debug.log('✅ User Data Service initialized')
+    debug.log('User Data Service initialized')
   }
 
   /**
@@ -122,12 +122,12 @@ class UserDataService extends EventTarget {
    */
   async initializeBackgroundFeatures(): Promise<void> {
     if (!this.initialized) {
-      debug.warn('⚠️ Cannot initialize background features - service not initialized')
+      debug.warn('Cannot initialize background features - service not initialized')
       return
     }
     
     this.setupActivityTracking()
-    debug.log('✅ Background features initialized (activity tracking)')
+    debug.log('Background features initialized (activity tracking)')
   }
   
   /**
@@ -139,12 +139,12 @@ class UserDataService extends EventTarget {
       if (saved !== null) {
         const statusNumber = parseInt(saved, 10)
         if (!isNaN(statusNumber) && statusNumber >= 0 && statusNumber <= 4) {
-          debug.log('📱 Found status backup in localStorage:', UserStatus[statusNumber])
+          debug.log('Found status backup in localStorage:', UserStatus[statusNumber])
           return statusNumber as UserStatus
         }
       }
     } catch (error) {
-      debug.warn('⚠️ Failed to read status from localStorage:', error)
+      debug.warn('Failed to read status from localStorage:', error)
     }
     return null
   }
@@ -192,7 +192,7 @@ class UserDataService extends EventTarget {
         return customStatus
       }
     } catch (error) {
-      debug.warn('⚠️ Failed to read custom status from localStorage:', error)
+      debug.warn('Failed to read custom status from localStorage:', error)
     }
     return null
   }
@@ -208,7 +208,7 @@ class UserDataService extends EventTarget {
         userStorage.removeItem('custom_status')
       }
     } catch (error) {
-      debug.warn('⚠️ Failed to save custom status to localStorage:', error)
+      debug.warn('Failed to save custom status to localStorage:', error)
     }
   }
 
@@ -252,7 +252,7 @@ class UserDataService extends EventTarget {
 
       return customStatus
     } catch (error) {
-      debug.warn('⚠️ Failed to parse custom status:', error)
+      debug.warn('Failed to parse custom status:', error)
       return undefined
     }
   }
@@ -272,7 +272,7 @@ class UserDataService extends EventTarget {
       this.handleAutomaticStatusChange(event.detail)
     })
     
-    debug.log('🎯 Activity tracking started')
+    debug.log('Activity tracking started')
   }
   
   /**
@@ -284,13 +284,13 @@ class UserDataService extends EventTarget {
     const userData = this.users.get(this.currentUserId)
     if (!userData) return
     
-    debug.log('👋 Activity resumed, current status:', UserStatus[userData.status], 'wasManuallySet:', this.wasManuallySet, 'manualStatus:', this.manualStatus !== null ? UserStatus[this.manualStatus] : 'null')
+    debug.log('Activity resumed, current status:', UserStatus[userData.status], 'wasManuallySet:', this.wasManuallySet, 'manualStatus:', this.manualStatus !== null ? UserStatus[this.manualStatus] : 'null')
     
     // If user manually chose a status, restore to that (not necessarily Online)
     if (this.wasManuallySet && this.manualStatus !== null) {
       // If current status already matches their manual choice, nothing to do
       if (userData.status === this.manualStatus) {
-        debug.log('👋 Already at manual status:', UserStatus[this.manualStatus])
+        debug.log('Already at manual status:', UserStatus[this.manualStatus])
         activityTracker.resetStatusTracking()
         return
       }
@@ -298,17 +298,17 @@ class UserDataService extends EventTarget {
       // Invisible/Away/Busy chosen manually - restore to that choice
       // (e.g., user was Busy, went auto-Offline from inactivity, now restore to Busy)
       if (this.manualStatus === UserStatus.Invisible) {
-        debug.log('👋 Keeping manual Invisible status')
+        debug.log('Keeping manual Invisible status')
         activityTracker.resetStatusTracking()
         return
       }
       
-      debug.log('👋 Restoring to manual status:', UserStatus[this.manualStatus])
+      debug.log('Restoring to manual status:', UserStatus[this.manualStatus])
       try {
         await this.updateCurrentUserStatus(this.manualStatus, false)
-        debug.log('✅ Status restored to', UserStatus[this.manualStatus])
+        debug.log('Status restored to', UserStatus[this.manualStatus])
       } catch (error) {
-        debug.error('❌ Failed to restore manual status:', error)
+        debug.error('Failed to restore manual status:', error)
       }
       activityTracker.resetStatusTracking()
       return
@@ -316,12 +316,12 @@ class UserDataService extends EventTarget {
     
     // No manual status set - restore to Online if auto-set to Away/Offline
     if (userData.status === UserStatus.Away || userData.status === UserStatus.Offline) {
-      debug.log('👋 User active again, restoring to Online (was auto-set to', UserStatus[userData.status], ')')
+      debug.log('User active again, restoring to Online (was auto-set to', UserStatus[userData.status], ')')
       try {
         await this.updateCurrentUserStatus(UserStatus.Online, false)
-        debug.log('✅ Status restored to Online')
+        debug.log('Status restored to Online')
       } catch (error) {
-        debug.error('❌ Failed to restore status to Online:', error)
+        debug.error('Failed to restore status to Online:', error)
       }
     }
     
@@ -340,11 +340,11 @@ class UserDataService extends EventTarget {
     // Only auto-change status if it's currently Online or if going to Offline
     // Don't override manual Away/Busy settings
     if (this.wasManuallySet && userData.status !== UserStatus.Online && detail.status !== UserStatus.Offline) {
-      debug.log('⏭️ Skipping auto status change - user manually set to:', UserStatus[userData.status])
+      debug.log('⏭Skipping auto status change - user manually set to:', UserStatus[userData.status])
       return
     }
     
-    debug.log(`😴 Auto-changing status to ${UserStatus[detail.status]} due to ${detail.reason} (${Math.round(detail.inactiveTime / 60000)}min)`)
+    debug.log(`Auto-changing status to ${UserStatus[detail.status]} due to ${detail.reason} (${Math.round(detail.inactiveTime / 60000)}min)`)
     
     await this.updateCurrentUserStatus(detail.status, false) // Don't mark as manual
   }
@@ -358,7 +358,7 @@ class UserDataService extends EventTarget {
       
       if (!profile) {
         // Only query database if profile wasn't already loaded
-        debug.log('🔄 Loading user profile from database...')
+        debug.log('Loading user profile from database...')
         const { data: profileData } = await supabase
           .from('profiles')
           .select('id, username, web_handle, display_name, avatar_url, banner_url, bio, color, status, domain, is_local, updated_at, created_at, custom_status, is_admin, is_moderator, federation_metadata')
@@ -366,7 +366,7 @@ class UserDataService extends EventTarget {
           .single()
         profile = profileData
       } else {
-        debug.log('✅ Using existing profile data, skipping database query')
+        debug.log('Using existing profile data, skipping database query')
       }
       
       if (profile) {
@@ -387,26 +387,26 @@ class UserDataService extends EventTarget {
             if (this.wasManuallySet && this.manualStatus === profile.status) {
               // User explicitly chose this status - preserve it
               finalStatus = profile.status
-              debug.log('✅ Preserving manually-set status from database:', UserStatus[finalStatus])
+              debug.log('Preserving manually-set status from database:', UserStatus[finalStatus])
             } else if (profile.status === UserStatus.Away && !this.wasManuallySet) {
               // Away in DB but no manual flag → was auto-idle, reset to Online
               finalStatus = UserStatus.Online
-              debug.log('🔄 User was auto-idle Away, resetting to Online (user just opened the app)')
+              debug.log('User was auto-idle Away, resetting to Online (user just opened the app)')
             } else if (this.wasManuallySet && this.manualStatus !== null) {
               // Manual flag exists but DB status diverged (e.g. auto-idle overrode manual) - restore manual choice
               finalStatus = this.manualStatus
-              debug.log('🔄 Restoring manual status:', UserStatus[finalStatus])
+              debug.log('Restoring manual status:', UserStatus[finalStatus])
             } else {
               finalStatus = profile.status
-              debug.log('✅ Preserving status from database:', UserStatus[finalStatus])
+              debug.log('Preserving status from database:', UserStatus[finalStatus])
             }
           } else if (profile.status === UserStatus.Online) {
             finalStatus = UserStatus.Online
-            debug.log('✅ Status loaded from database:', UserStatus[finalStatus])
+            debug.log('Status loaded from database:', UserStatus[finalStatus])
           } else {
             // Offline in DB - user is actively opening the app, reset to Online
             finalStatus = UserStatus.Online
-            debug.log('🔄 User was offline in DB but is now active, setting to Online')
+            debug.log('User was offline in DB but is now active, setting to Online')
           }
 
           // If final status differs from DB, sync it
@@ -416,9 +416,9 @@ class UserDataService extends EventTarget {
                 .from('profiles')
                 .update({ status: finalStatus })
                 .eq('id', userId)
-              debug.log('💾 Updated database status to', UserStatus[finalStatus])
+              debug.log('Updated database status to', UserStatus[finalStatus])
             } catch (syncError) {
-              debug.warn('⚠️ Failed to update status in database:', syncError)
+              debug.warn('Failed to update status in database:', syncError)
             }
           }
         } else {
@@ -426,10 +426,10 @@ class UserDataService extends EventTarget {
           const backupStatus = this.getStatusFromLocalStorage()
           if (this.wasManuallySet && this.manualStatus !== null) {
             finalStatus = this.manualStatus
-            debug.log('🔄 Using manually-set status from localStorage flag:', UserStatus[finalStatus])
+            debug.log('Using manually-set status from localStorage flag:', UserStatus[finalStatus])
           } else if (backupStatus === UserStatus.Busy || backupStatus === UserStatus.Invisible) {
             finalStatus = backupStatus
-            debug.log('🔄 Using user-preferred status from localStorage backup:', UserStatus[finalStatus])
+            debug.log('Using user-preferred status from localStorage backup:', UserStatus[finalStatus])
             
             // Sync backup to database for consistency
             try {
@@ -437,13 +437,13 @@ class UserDataService extends EventTarget {
                 .from('profiles')
                 .update({ status: finalStatus })
                 .eq('id', userId)
-              debug.log('💾 Synced localStorage status to database')
+              debug.log('Synced localStorage status to database')
             } catch (syncError) {
-              debug.warn('⚠️ Failed to sync status to database:', syncError)
+              debug.warn('Failed to sync status to database:', syncError)
             }
           } else {
             // Default to Online - user is actively using the app
-            debug.log('🆕 No valid status found, defaulting to Online (user is active)')
+            debug.log('No valid status found, defaulting to Online (user is active)')
           }
         }
         
@@ -456,7 +456,7 @@ class UserDataService extends EventTarget {
           if (expiresAt && new Date(expiresAt) < new Date()) {
             try {
               await supabase.rpc('clear_custom_status', { p_user_id: userId })
-              debug.log('🧹 Cleared expired custom status from database')
+              debug.log('Cleared expired custom status from database')
             } catch (_) { /* non-critical */ }
           }
         }
@@ -478,9 +478,9 @@ class UserDataService extends EventTarget {
                 p_state: (backupStatus as any).state || null,
                 p_duration_minutes: null,
               })
-              debug.log('💾 Synced localStorage custom status to database')
+              debug.log('Synced localStorage custom status to database')
             } catch (syncError) {
-              debug.warn('⚠️ Failed to sync custom status to database:', syncError)
+              debug.warn('Failed to sync custom status to database:', syncError)
             }
           }
         }
@@ -517,7 +517,7 @@ class UserDataService extends EventTarget {
         }
         
         this.users.set(userId, userData)
-        debug.log('✅ Current user initialized:', userData.displayName, 'Final Status:', UserStatus[finalStatus])
+        debug.log('Current user initialized:', userData.displayName, 'Final Status:', UserStatus[finalStatus])
       } else {
         // No profile exists - check if user had a manual status preference
         const savedFlag = this.getManualStatusFlag()
@@ -546,13 +546,13 @@ class UserDataService extends EventTarget {
         }
         
         this.users.set(userId, userData)
-        debug.log('✅ Current user initialized with minimal data:', username, 'Status:', UserStatus[initialStatus])
+        debug.log('Current user initialized with minimal data:', username, 'Status:', UserStatus[initialStatus])
       }
       
       this.emitEvent('user-updated', { userId })
       
     } catch (error) {
-      debug.error('❌ Failed to initialize current user:', error)
+      debug.error('Failed to initialize current user:', error)
       throw error
     }
   }
@@ -575,7 +575,7 @@ class UserDataService extends EventTarget {
         // Sync best-effort: fire untrack, let browser keepalive flush; no await
         // since beforeunload can't reliably await promises past unload.
         this.untrackFromAllPresenceChannels().catch(err => {
-          debug.warn('⚠️ __harmonyPresenceCleanup untrack failed:', err)
+          debug.warn('__harmonyPresenceCleanup untrack failed:', err)
         })
       }
     }
@@ -594,7 +594,7 @@ class UserDataService extends EventTarget {
       })
       .subscribe(async (status: string) => {
         if (status === 'SUBSCRIBED') {
-          debug.log('✅ Global presence channel connected')
+          debug.log('Global presence channel connected')
           await this.trackCurrentUserGlobally()
         }
       })
@@ -638,9 +638,9 @@ class UserDataService extends EventTarget {
         online_at: new Date().toISOString()
       })
       
-      debug.log(`✅ User ${this.currentUserId} tracked globally with status: ${UserStatus[userData.status]}`)
+      debug.log(`User ${this.currentUserId} tracked globally with status: ${UserStatus[userData.status]}`)
     } catch (error) {
-      debug.warn('⚠️ Global presence track failed:', error)
+      debug.warn('Global presence track failed:', error)
     }
   }
   
@@ -684,7 +684,7 @@ class UserDataService extends EventTarget {
       }
     })
     
-    debug.log(`✅ Global presence: ${globallyOnlineUserIds.size} users online globally`)
+    debug.log(`Global presence: ${globallyOnlineUserIds.size} users online globally`)
   }
   
   /**
@@ -734,7 +734,7 @@ class UserDataService extends EventTarget {
     // If user has status set to Offline (invisible), don't show them as online
     // This should never happen due to trackCurrentUserGlobally() checks, but handle it as safety net
     if (userStatus === UserStatus.Offline) {
-      debug.log(`👻 User ${userId} has offline status in global presence - skipping update (they should be invisible)`)
+      debug.log(`User ${userId} has offline status in global presence - skipping update (they should be invisible)`)
       // If they exist in our cache, mark them as offline
       if (existing) {
         existing.isOnline = false
@@ -850,7 +850,7 @@ class UserDataService extends EventTarget {
   private async handleConnectionLost(): Promise<void> {
     if (!this.currentUserId) return
     
-    debug.log('📡 Connection lost - setting user offline')
+    debug.log('Connection lost - setting user offline')
     
     try {
       await this.updateCurrentUserStatus(UserStatus.Offline, false)
@@ -865,19 +865,19 @@ class UserDataService extends EventTarget {
    */
   async subscribeToContext(contextId: string, type: 'server' | 'dm' | 'profile' | 'friends', userIds: string[]): Promise<void> {
     if (this.contexts.has(contextId)) {
-      debug.log(`⚠️ Already subscribed to ${type} context:`, contextId, '- skipping duplicate subscription')
+      debug.log(`Already subscribed to ${type} context:`, contextId, '- skipping duplicate subscription')
       return
     }
     
     if (this.pendingSubscriptions.has(contextId)) {
-      debug.log(`⚠️ Subscription already in progress for ${type} context:`, contextId, '- skipping duplicate')
+      debug.log(`Subscription already in progress for ${type} context:`, contextId, '- skipping duplicate')
       return
     }
     
     this.pendingSubscriptions.add(contextId)
     
     try {
-      debug.log(`🔄 Subscribing to ${type} context:`, contextId, `(${userIds.length} users)`)
+      debug.log(`Subscribing to ${type} context:`, contextId, `(${userIds.length} users)`)
 
       // Online-first hydration for large server member lists: load the
       // online members (or, if global presence hasn't synced yet, the first
@@ -921,7 +921,7 @@ class UserDataService extends EventTarget {
         void this.backfillContextProfiles(contextId, offlineBackfillIds)
       }
 
-      debug.log(`✅ Subscribed to ${type} context:`, contextId)
+      debug.log(`Subscribed to ${type} context:`, contextId)
     } finally {
       this.pendingSubscriptions.delete(contextId)
     }
@@ -942,10 +942,10 @@ class UserDataService extends EventTarget {
         if (!this.contexts.has(contextId)) return
         this.emitEvent('context-updated', { contextId })
       } catch (error) {
-        debug.warn(`⚠️ Profile backfill chunk failed for context ${contextId}:`, error)
+        debug.warn(`Profile backfill chunk failed for context ${contextId}:`, error)
       }
     }
-    debug.log(`✅ Profile backfill complete for context ${contextId} (${userIds.length} users)`)
+    debug.log(`Profile backfill complete for context ${contextId} (${userIds.length} users)`)
   }
   
   /**
@@ -964,7 +964,7 @@ class UserDataService extends EventTarget {
    */
   private async setupServerPresence(serverId: string, userIds: string[]): Promise<void> {
     const channelName = `server-presence:${serverId}`
-    debug.log('🔄 Subscribing to server broadcast channel:', serverId, 'with', userIds.length, 'users')
+    debug.log('Subscribing to server broadcast channel:', serverId, 'with', userIds.length, 'users')
 
     // Tear down any prior channel + retry timer on this context before
     // subscribing a new one. This is what prevents accumulating duplicates.
@@ -1048,7 +1048,7 @@ class UserDataService extends EventTarget {
    */
   private async handleServerMemberJoin(serverId: string, payload: any): Promise<void> {
     const newUserId = payload.new.user_id
-    debug.log(`👤 New member joined server ${serverId}:`, newUserId)
+    debug.log(`New member joined server ${serverId}:`, newUserId)
     
     const context = this.contexts.get(serverId)
     if (context) {
@@ -1066,7 +1066,7 @@ class UserDataService extends EventTarget {
    */
   private async handleServerMemberLeave(serverId: string, payload: any): Promise<void> {
     const leftUserId = payload.old.user_id
-    debug.log(`👋 Member left server ${serverId}:`, leftUserId)
+    debug.log(`Member left server ${serverId}:`, leftUserId)
 
     const context = this.contexts.get(serverId)
     if (context) {
@@ -1089,7 +1089,7 @@ class UserDataService extends EventTarget {
     const updatedProfile = payload.new
     const userId = updatedProfile.user_id || updatedProfile.id
     
-    debug.log(`🔄 Profile update received for user ${userId} in server ${serverId}:`, {
+    debug.log(`Profile update received for user ${userId} in server ${serverId}:`, {
       display_name: updatedProfile.display_name,
       avatar_url: updatedProfile.avatar_url,
       banner_url: updatedProfile.banner_url,
@@ -1140,9 +1140,9 @@ class UserDataService extends EventTarget {
         await this.refreshPresenceMediaFields()
       }
       
-      debug.log(`✅ Updated user data for ${userData.displayName} in server ${serverId}`)
+      debug.log(`Updated user data for ${userData.displayName} in server ${serverId}`)
     } else {
-      debug.log(`🔄 Loading fresh user data for ${userId} after profile update`)
+      debug.log(`Loading fresh user data for ${userId} after profile update`)
       await this.loadUsersData([userId])
       
       this.emitEvent('user-updated', { userId })
@@ -1185,7 +1185,7 @@ class UserDataService extends EventTarget {
       return
     }
     
-    debug.log(`📡 Received profile update broadcast for user ${userId} in server ${serverId}:`, profileUpdates)
+    debug.log(`Received profile update broadcast for user ${userId} in server ${serverId}:`, profileUpdates)
     
     const userData = this.users.get(userId)
     if (userData) {
@@ -1217,10 +1217,10 @@ class UserDataService extends EventTarget {
       
       this.emitEvent('user-updated', { userId })
       
-      debug.log(`✅ Updated user data for ${userData.displayName} from broadcast`)
+      debug.log(`Updated user data for ${userData.displayName} from broadcast`)
     } else {
       // If we don't have the user data, load it fresh from the database
-      debug.log(`🔄 Loading fresh user data for ${userId} after profile broadcast`)
+      debug.log(`Loading fresh user data for ${userId} after profile broadcast`)
       await this.loadUsersData([userId])
       
       // Emit event after loading
@@ -1246,7 +1246,7 @@ class UserDataService extends EventTarget {
     // still needs a DB row for custom display-name emoji shortcodes.
     const missingUserIds = userIds.filter(id => {
       if (!uuidPattern.test(id)) {
-        debug.warn(`⚠️ Skipping non-UUID user ID in loadUsersData: ${id}`)
+        debug.warn(`Skipping non-UUID user ID in loadUsersData: ${id}`)
         return false
       }
       const existing = this.users.get(id)
@@ -1285,7 +1285,7 @@ class UserDataService extends EventTarget {
   private async executeUserLoad(missingUserIds: string[]): Promise<void> {
     if (missingUserIds.length === 0) return
 
-    debug.log(`🔄 Loading user data for ${missingUserIds.length} users`)
+    debug.log(`Loading user data for ${missingUserIds.length} users`)
 
     const loadedIds: string[] = []
 
@@ -1301,7 +1301,7 @@ class UserDataService extends EventTarget {
           .in('id', chunk)
 
         if (error) {
-          debug.error('❌ Failed to load user data chunk:', error)
+          debug.error('Failed to load user data chunk:', error)
           continue
         }
 
@@ -1346,12 +1346,12 @@ class UserDataService extends EventTarget {
       }
 
       if (loadedIds.length > 0) {
-        debug.log(`✅ Loaded ${loadedIds.length} user profiles from database`)
+        debug.log(`Loaded ${loadedIds.length} user profiles from database`)
         await this.enrichDisplayNameEmojis(loadedIds)
         this.emitEvent('data-refreshed', { userIds: loadedIds })
       }
     } catch (error) {
-      debug.error('❌ Failed to load user data:', error)
+      debug.error('Failed to load user data:', error)
     }
   }
 
@@ -1483,7 +1483,7 @@ class UserDataService extends EventTarget {
   async updateCurrentUserStatus(status: UserStatus, isManual: boolean = true): Promise<void> {
     if (!this.currentUserId) throw new Error('No current user')
     
-    debug.log('🔄 Updating current user status to:', UserStatus[status], isManual ? '(manual)' : '(automatic)')
+    debug.log('Updating current user status to:', UserStatus[status], isManual ? '(manual)' : '(automatic)')
     
     const userData = this.users.get(this.currentUserId)
     if (!userData) throw new Error('Current user data not found')
@@ -1493,12 +1493,12 @@ class UserDataService extends EventTarget {
         this.wasManuallySet = true
         this.manualStatus = status
         this.saveManualStatusFlag()
-        debug.log('📌 Status manually set to:', UserStatus[status])
+        debug.log('Status manually set to:', UserStatus[status])
       } else if (status === UserStatus.Online) {
         this.wasManuallySet = false
         this.manualStatus = null
         this.clearManualStatusFlag()
-        debug.log('📌 Status manually set to Online - clearing manual flag')
+        debug.log('Status manually set to Online - clearing manual flag')
       }
     }
     
@@ -1524,7 +1524,7 @@ class UserDataService extends EventTarget {
         throw new Error(`Status verification failed. Expected: ${status}, Got: ${data[0].status}`)
       }
       
-      debug.log('✅ Status verified in database:', UserStatus[status])
+      debug.log('Status verified in database:', UserStatus[status])
       
       await this.updatePresenceStatus(status)
 
@@ -1539,16 +1539,16 @@ class UserDataService extends EventTarget {
       // Backup to localStorage
       try {
         userStorage.setItem('user_status', status.toString())
-        debug.log('💾 Status backed up to localStorage')
+        debug.log('Status backed up to localStorage')
       } catch (localStorageError) {
-        debug.warn('⚠️ Failed to backup status to localStorage:', localStorageError)
+        debug.warn('Failed to backup status to localStorage:', localStorageError)
       }
       
       this.emitEvent('status-changed', { userId: this.currentUserId, status })
-      debug.log('✅ Status updated successfully to:', UserStatus[status])
+      debug.log('Status updated successfully to:', UserStatus[status])
       
     } catch (error) {
-      debug.error('❌ Failed to update status:', error)
+      debug.error('Failed to update status:', error)
       // Note: local change already applied, database update failed
       throw error
     }
@@ -1565,7 +1565,7 @@ class UserDataService extends EventTarget {
     const userData = this.users.get(this.currentUserId)
     if (!userData) throw new Error('Current user data not found')
     
-    debug.log('🎭 Setting custom status:', customStatus?.text || '(clearing)')
+    debug.log('Setting custom status:', customStatus?.text || '(clearing)')
     
     if (this.customStatusExpiryTimer) {
       clearTimeout(this.customStatusExpiryTimer)
@@ -1583,7 +1583,7 @@ class UserDataService extends EventTarget {
       const delay = Math.max(0, expiresAtMs - Date.now())
       this.customStatusExpiryTimer = setTimeout(() => {
         this.customStatusExpiryTimer = null
-        this.clearCustomStatus().catch((err) => debug.warn('⚠️ Auto-clear custom status failed:', err))
+        this.clearCustomStatus().catch((err) => debug.warn('Auto-clear custom status failed:', err))
       }, delay)
     }
     
@@ -1606,7 +1606,7 @@ class UserDataService extends EventTarget {
         })
       }
     } catch (error) {
-      debug.warn('⚠️ Failed to persist custom status to database:', error)
+      debug.warn('Failed to persist custom status to database:', error)
       // Continue - local state is updated
     }
     
@@ -1614,7 +1614,7 @@ class UserDataService extends EventTarget {
     await this.broadcastProfileToContexts({ customStatus })
     
     this.emitEvent('custom-status-changed', { userId: this.currentUserId, customStatus })
-    debug.log('✅ Custom status updated and broadcast')
+    debug.log('Custom status updated and broadcast')
   }
 
   /**
@@ -1690,7 +1690,7 @@ class UserDataService extends EventTarget {
           return customStatus
         }
       } catch (error) {
-        debug.warn('⚠️ Failed to fetch user custom status:', error)
+        debug.warn('Failed to fetch user custom status:', error)
       }
     } else {
       // User not in cache, load full profile (which includes custom_status)
@@ -1716,7 +1716,7 @@ class UserDataService extends EventTarget {
    */
   private async updatePresenceStatus(status: UserStatus): Promise<void> {
     if (status === UserStatus.Invisible) {
-      debug.log(`👻 User going Invisible - untracking from all presence channels`)
+      debug.log(`User going Invisible - untracking from all presence channels`)
       await this.untrackFromAllPresenceChannels()
       return
     }
@@ -1739,7 +1739,7 @@ class UserDataService extends EventTarget {
   }): Promise<void> {
     if (!this.currentUserId) throw new Error('No current user')
     
-    debug.log('🔄 Updating current user profile:', profileData)
+    debug.log('Updating current user profile:', profileData)
     
     const userData = this.users.get(this.currentUserId)
     if (!userData) throw new Error('Current user data not found')
@@ -1764,10 +1764,10 @@ class UserDataService extends EventTarget {
       }
       
       this.emitEvent('user-updated', { userId: this.currentUserId })
-      debug.log('✅ Profile updated and broadcast to relevant contexts')
+      debug.log('Profile updated and broadcast to relevant contexts')
       
     } catch (error) {
-      debug.error('❌ Failed to broadcast profile update:', error)
+      debug.error('Failed to broadcast profile update:', error)
       throw error
     }
   }
@@ -1787,7 +1787,7 @@ class UserDataService extends EventTarget {
   }): Promise<void> {
     if (!this.currentUserId) return
     
-    debug.log(`🔄 Broadcasting profile update to ${this.contexts.size} contexts`)
+    debug.log(`Broadcasting profile update to ${this.contexts.size} contexts`)
     
     // Broadcast profile updates as events (not presence state)
     for (const context of this.contexts.values()) {
@@ -1803,14 +1803,14 @@ class UserDataService extends EventTarget {
             }
           })
           
-          debug.log(`📡 Profile broadcast to ${context.type} context: ${context.id}`)
+          debug.log(`Profile broadcast to ${context.type} context: ${context.id}`)
         } catch (error) {
-          debug.error(`❌ Failed to broadcast profile to context ${context.id}:`, error)
+          debug.error(`Failed to broadcast profile to context ${context.id}:`, error)
         }
       }
     }
     
-    debug.log(`📡 Profile broadcast completed to ${this.contexts.size} context channels`)
+    debug.log(`Profile broadcast completed to ${this.contexts.size} context channels`)
   }
   
   /**
@@ -1863,7 +1863,7 @@ class UserDataService extends EventTarget {
     }
 
     this.contexts.delete(contextId)
-    debug.log('✅ Unsubscribed from context:', contextId)
+    debug.log('Unsubscribed from context:', contextId)
   }
   
   /**
@@ -2021,7 +2021,7 @@ class UserDataService extends EventTarget {
    * Cleanup and reset
    */
   async cleanup(): Promise<void> {
-    debug.log('🧹 Cleaning up User Data Service')
+    debug.log('Cleaning up User Data Service')
     
     if (this.heartbeatTimer) {
       clearInterval(this.heartbeatTimer)
@@ -2065,14 +2065,14 @@ class UserDataService extends EventTarget {
     this.currentUserId = null
     this.initialized = false
     
-    debug.log('✅ User Data Service cleaned up')
+    debug.log('User Data Service cleaned up')
   }
   
   /**
    * Force refresh of all data
    */
   async refresh(): Promise<void> {
-    debug.log('🔄 Refreshing all user data')
+    debug.log('Refreshing all user data')
     
     const userIds = Array.from(this.users.keys())
     this.users.clear()
@@ -2090,7 +2090,7 @@ class UserDataService extends EventTarget {
     }
     
     this.emitEvent('data-refreshed', {})
-    debug.log('✅ User data refreshed')
+    debug.log('User data refreshed')
   }
   
   /**
@@ -2184,13 +2184,13 @@ class UserDataService extends EventTarget {
     if (this.globalChannel) {
       try {
         await this.globalChannel.untrack()
-        debug.log('👻 Untracked from global presence channel')
+        debug.log('Untracked from global presence channel')
       } catch (error) {
-        debug.warn('⚠️ Failed to untrack from global presence:', error)
+        debug.warn('Failed to untrack from global presence:', error)
       }
     }
 
-    debug.log('👻 User is now invisible to all other users')
+    debug.log('User is now invisible to all other users')
   }
 }
 

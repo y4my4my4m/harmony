@@ -328,28 +328,28 @@ onMounted(async () => {
       return
     }
 
-    debug.log('🔐 Extracting OAuth data from provider:', oauthIdentity.provider)
+    debug.log('Extracting OAuth data from provider:', oauthIdentity.provider)
 
     // Extract avatar from user_metadata (Supabase automatically fetches this from OAuth providers)
     if (metadata.avatar_url) {
       avatarPreview.value = metadata.avatar_url
-      debug.log('✅ Auto-populated avatar from OAuth:', metadata.avatar_url)
+      debug.log('Auto-populated avatar from OAuth:', metadata.avatar_url)
     } else if (metadata.picture) {
       // Some providers use 'picture' instead of 'avatar_url'
       avatarPreview.value = metadata.picture
-      debug.log('✅ Auto-populated avatar from OAuth (picture):', metadata.picture)
+      debug.log('Auto-populated avatar from OAuth (picture):', metadata.picture)
     }
 
     if (metadata.full_name) {
       displayName.value = metadata.full_name
-      debug.log('✅ Auto-populated display name:', metadata.full_name)
+      debug.log('Auto-populated display name:', metadata.full_name)
     } else if (metadata.name) {
       displayName.value = metadata.name
-      debug.log('✅ Auto-populated display name (name):', metadata.name)
+      debug.log('Auto-populated display name (name):', metadata.name)
     } else if (metadata.preferred_username) {
       // Fallback to username if no name available
       displayName.value = metadata.preferred_username
-      debug.log('✅ Auto-populated display name (preferred_username):', metadata.preferred_username)
+      debug.log('Auto-populated display name (preferred_username):', metadata.preferred_username)
     }
 
     // Extract username
@@ -373,15 +373,15 @@ onMounted(async () => {
     if (suggestedUsername && suggestedUsername.length >= 3) {
       username.value = suggestedUsername
       formatUsername({ target: { value: suggestedUsername } } as any)
-      debug.log('✅ Auto-populated username:', suggestedUsername)
+      debug.log('Auto-populated username:', suggestedUsername)
     }
 
     if (metadata.bio || metadata.description) {
       bio.value = (metadata.bio || metadata.description).substring(0, 500)
-      debug.log('✅ Auto-populated bio')
+      debug.log('Auto-populated bio')
     }
 
-    debug.log('✅ OAuth data extraction complete', {
+    debug.log('OAuth data extraction complete', {
       provider: oauthIdentity.provider,
       hasAvatar: !!avatarPreview.value,
       hasDisplayName: !!displayName.value,
@@ -650,14 +650,14 @@ const createProfile = async () => {
       
       if (keyGenResponse.ok) {
         const keyGenResult = await keyGenResponse.json();
-        debug.log('✅ Federation keys generated:', keyGenResult);
+        debug.log('Federation keys generated:', keyGenResult);
       } else {
         const errorData = await keyGenResponse.json().catch(() => ({}));
-        debug.warn('⚠️ Failed to generate federation keys:', errorData);
+        debug.warn('Failed to generate federation keys:', errorData);
         // Don't fail profile creation - keys can be generated later when needed
       }
     } catch (keyGenError) {
-      debug.warn('⚠️ Federation key generation error (non-fatal):', keyGenError);
+      debug.warn('Federation key generation error (non-fatal):', keyGenError);
       // Don't fail profile creation - the Actor endpoint will generate keys on-the-fly
     }
     
@@ -702,7 +702,7 @@ const createProfile = async () => {
           await profileStore.updateProfile({
             avatar_url: normalizedPath
           });
-          debug.log('✅ OAuth avatar uploaded successfully:', normalizedPath);
+          debug.log('OAuth avatar uploaded successfully:', normalizedPath);
         } else {
           debug.error('OAuth avatar upload failed:', uploadResult.error);
           toast.warning('Profile created but avatar upload failed. You can update it later in settings.');
@@ -757,9 +757,9 @@ const createProfile = async () => {
         color: selectedColor.value
       });
       
-      debug.log('✅ UserDataService updated and re-initialized with new profile data');
+      debug.log('UserDataService updated and re-initialized with new profile data');
     } catch (updateError) {
-      debug.warn('⚠️ Failed to update userDataService, but profile was created successfully:', updateError);
+      debug.warn('Failed to update userDataService, but profile was created successfully:', updateError);
     }
 
     toast.success('Welcome to Harmony! Your profile has been created.');

@@ -64,12 +64,12 @@ class TypingIndicatorService {
     }
 
     if (!user) {
-      debug.warn('⚠️ TypingIndicatorService: No user session after waiting, cannot initialize')
+      debug.warn('TypingIndicatorService: No user session after waiting, cannot initialize')
       return
     }
 
     this.currentUserId = user.id
-    debug.log('✅ TypingIndicatorService initialized for user:', user.id)
+    debug.log('TypingIndicatorService initialized for user:', user.id)
   }
 
   subscribeToTyping(
@@ -87,13 +87,13 @@ class TypingIndicatorService {
       this.ensureSubscribed(context).then(ok => {
         if (ok) this.handlePresenceSync(context)
       }).catch(err => {
-        debug.error('❌ TypingIndicatorService: Failed to subscribe:', err)
+        debug.error('TypingIndicatorService: Failed to subscribe:', err)
       })
     }
 
     if (!this.currentUserId) {
       this.initialize().then(wire).catch(err => {
-        debug.error('❌ TypingIndicatorService: Failed to initialize:', err)
+        debug.error('TypingIndicatorService: Failed to initialize:', err)
       })
     } else {
       wire()
@@ -115,14 +115,14 @@ class TypingIndicatorService {
     if (!this.currentUserId) {
       await this.initialize()
       if (!this.currentUserId) {
-        debug.warn('⚠️ TypingIndicatorService: Cannot start typing, no user ID')
+        debug.warn('TypingIndicatorService: Cannot start typing, no user ID')
         return
       }
     }
 
     const ok = await this.ensureSubscribed(context)
     if (!ok) {
-      debug.warn('⚠️ TypingIndicatorService: ensureSubscribed failed for startTyping')
+      debug.warn('TypingIndicatorService: ensureSubscribed failed for startTyping')
       return
     }
 
@@ -160,7 +160,7 @@ class TypingIndicatorService {
     })
     this.isCurrentlyTyping = true
     this.typingBroadcastContext = context
-    debug.log('✅ TypingIndicatorService: Typing status set to ON', contextKey)
+    debug.log('TypingIndicatorService: Typing status set to ON', contextKey)
 
     this.typingTimeout = window.setTimeout(() => {
       void this.stopTyping()
@@ -186,7 +186,7 @@ class TypingIndicatorService {
     }
     this.isCurrentlyTyping = false
     this.typingBroadcastContext = null
-    debug.log('✅ TypingIndicatorService: Typing status set to OFF')
+    debug.log('TypingIndicatorService: Typing status set to OFF')
   }
 
   /**
@@ -205,7 +205,7 @@ class TypingIndicatorService {
     }
 
     const channelName = this.getChannelName(context)
-    debug.log('🔄 TypingIndicatorService: Subscribing:', channelName)
+    debug.log('TypingIndicatorService: Subscribing:', channelName)
 
     const MAX_RETRIES = 5
     const RETRY_DELAY_MS = 500
@@ -216,18 +216,18 @@ class TypingIndicatorService {
         try {
           const subscribed = await this.subscribeToChannelForContext(context, channelName, SUBSCRIBE_TIMEOUT_MS)
           if (subscribed) {
-            debug.log('✅ TypingIndicatorService: Subscribed to', channelName, 'attempt', attempt)
+            debug.log('TypingIndicatorService: Subscribed to', channelName, 'attempt', attempt)
             return true
           }
         } catch {
-          debug.warn(`⚠️ TypingIndicatorService: Subscription attempt ${attempt}/${MAX_RETRIES} failed`, channelName)
+          debug.warn(`TypingIndicatorService: Subscription attempt ${attempt}/${MAX_RETRIES} failed`, channelName)
         }
         if (attempt < MAX_RETRIES) {
           await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS))
         }
       }
 
-      debug.error('❌ TypingIndicatorService: Failed to subscribe after', MAX_RETRIES, 'attempts', channelName)
+      debug.error('TypingIndicatorService: Failed to subscribe after', MAX_RETRIES, 'attempts', channelName)
       return false
     })()
 
@@ -283,7 +283,7 @@ class TypingIndicatorService {
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
           resolved = true
           clearTimeout(timeout)
-          debug.error('❌ TypingIndicatorService: Channel error for', channelName, status)
+          debug.error('TypingIndicatorService: Channel error for', channelName, status)
           supabase.removeChannel(ch).catch(() => {})
           reject(new Error(`Channel subscription failed: ${status}`))
         }
@@ -402,7 +402,7 @@ class TypingIndicatorService {
         try {
           callback(users)
         } catch (error) {
-          debug.error('❌ TypingIndicatorService: Error in callback:', error)
+          debug.error('TypingIndicatorService: Error in callback:', error)
         }
       })
     }
@@ -458,7 +458,7 @@ class TypingIndicatorService {
     this.typingUsers.clear()
     this.typingCallbacks.clear()
     this.currentUserId = null
-    debug.log('🧹 TypingIndicatorService: Cleaned up')
+    debug.log('TypingIndicatorService: Cleaned up')
   }
 }
 

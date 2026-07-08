@@ -82,7 +82,7 @@ export class GifService {
 
       this.favoriteUrls = new Set((data || []).map(f => f.gif_url))
       this.cacheInitialized = true
-      debug.log(`✅ GIF favorites cache initialized: ${this.favoriteUrls.size} favorites`)
+      debug.log(`GIF favorites cache initialized: ${this.favoriteUrls.size} favorites`)
     } catch (error) {
       debug.error('Error initializing GIF favorites cache:', error)
     }
@@ -126,7 +126,7 @@ export class GifService {
       // Invalidate full cache so next getFavorites() refreshes
       this.favoritesCache = null
       
-      debug.log(`✅ Added GIF to favorites: ${gifUrl.substring(0, 50)}...`)
+      debug.log(`Added GIF to favorites: ${gifUrl.substring(0, 50)}...`)
       return { success: true }
     } catch (error) {
       debug.error('Error adding GIF to favorites:', error)
@@ -159,7 +159,7 @@ export class GifService {
       // Invalidate full cache so next getFavorites() refreshes
       this.favoritesCache = null
       
-      debug.log(`✅ Removed GIF from favorites: ${gifUrl.substring(0, 50)}...`)
+      debug.log(`Removed GIF from favorites: ${gifUrl.substring(0, 50)}...`)
       return { success: true }
     } catch (error) {
       debug.error('Error removing GIF from favorites:', error)
@@ -279,7 +279,7 @@ export class GifService {
       this.favoriteUrls = new Set(favorites.map(f => f.gif_url))
       this.cacheInitialized = true
 
-      debug.log(`📋 GIF favorites loaded: ${favorites.length} items (cached for ${CACHE_TTL / 1000}s)`)
+      debug.log(`GIF favorites loaded: ${favorites.length} items (cached for ${CACHE_TTL / 1000}s)`)
       return favorites
     } catch (error) {
       debug.error('Error getting GIF favorites:', error)
@@ -330,7 +330,7 @@ export class GifService {
     this.favoritesCache = null
     this.favoritesCacheTime = 0
     this.pendingFavoritesRequest = null
-    debug.log('🧹 GIF favorites cache cleared')
+    debug.log('GIF favorites cache cleared')
   }
 }
 

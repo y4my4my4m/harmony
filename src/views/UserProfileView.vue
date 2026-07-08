@@ -585,7 +585,7 @@ const handleOpenSearch = () => {
 const handleRefresh = () => {
   const handle = currentHandle.value;
   const isRemote = handle.includes('@') && !handle.endsWith('@' + import.meta.env.VITE_DOMAIN as string);
-  debug.log(`🔄 Refreshing profile data...${isRemote ? ' (force refresh for remote user)' : ''}`);
+  debug.log(`Refreshing profile data...${isRemote ? ' (force refresh for remote user)' : ''}`);
   loadUserProfile(handle, isRemote); // Force refresh for remote users
 };
 
@@ -661,7 +661,7 @@ const formatJoinDate = (dateString: string): string => {
 };
 
 const loadUserProfile = async (handle: string, forceRefresh: boolean = false) => {
-  debug.log(`🔄 Loading profile for handle: ${handle}${forceRefresh ? ' (force refresh)' : ''}`);
+  debug.log(`Loading profile for handle: ${handle}${forceRefresh ? ' (force refresh)' : ''}`);
   isLoading.value = true;
   error.value = null;
   user.value = null; // Clear previous user data
@@ -672,32 +672,32 @@ const loadUserProfile = async (handle: string, forceRefresh: boolean = false) =>
       handle = handle.substring(1);
     }
     
-    debug.log(`🔍 Processing handle: ${handle}`);
+    debug.log(`Processing handle: ${handle}`);
     
     if (handle.includes('@')) {
-      debug.log(`🌐 Resolving federated user...${forceRefresh ? ' (force refresh)' : ''}`);
+      debug.log(`Resolving federated user...${forceRefresh ? ' (force refresh)' : ''}`);
       user.value = await activityPubService.getUserByHandle(handle, forceRefresh);
       
       if (user.value && !user.value.is_local && (user.value as any).outbox_url) {
         remoteOutboxUrl.value = (user.value as any).outbox_url;
-        debug.log(`📬 Saved outbox URL for remote pagination: ${remoteOutboxUrl.value}`);
+        debug.log(`Saved outbox URL for remote pagination: ${remoteOutboxUrl.value}`);
       }
     } else {
-      debug.log('👤 Looking up local user...');
+      debug.log('Looking up local user...');
       
       // For local users, try to get from activity pub service first
       try {
-        debug.log(`🔎 Fetching user by handle: @${handle}`);
+        debug.log(`Fetching user by handle: @${handle}`);
         user.value = await activityPubService.getUserByHandle(`@${handle}`);
       } catch (localError) {
-        debug.log('⚠️ ActivityPub lookup failed, trying profile service...');
+        debug.log('ActivityPub lookup failed, trying profile service...');
         
         // Fallback: check if this is the current user
         const currentUser = authStore.session?.user;
         const currentUsername = currentUser?.user_metadata?.username || currentUser?.email?.split('@')[0];
         
         if (currentUser && currentUsername === handle) {
-          debug.log('✅ Loading current user profile...');
+          debug.log('Loading current user profile...');
           
           await profileStore.fetchProfile(currentUser.id);
           const profile = profileStore.profile;
@@ -723,7 +723,7 @@ const loadUserProfile = async (handle: string, forceRefresh: boolean = false) =>
               updated_at: profile.updated_at || new Date().toISOString()
             };
             
-            debug.log(`✅ Created user object with ActivityPub counts:`, {
+            debug.log(`Created user object with ActivityPub counts:`, {
               followers_count: user.value.followers_count,
               following_count: user.value.following_count,
               posts_count: user.value.posts_count
@@ -731,7 +731,7 @@ const loadUserProfile = async (handle: string, forceRefresh: boolean = false) =>
           }
         } else {
           // Try to find user by username in the system
-          debug.log('🔎 Searching for user in system...');
+          debug.log('Searching for user in system...');
           
           user.value = {
             id: handle,
@@ -753,8 +753,8 @@ const loadUserProfile = async (handle: string, forceRefresh: boolean = false) =>
     }
     
     if (user.value) {
-      debug.log('✅ User profile loaded:', user.value.display_name);
-      debug.log('📊 User stats:', {
+      debug.log('User profile loaded:', user.value.display_name);
+      debug.log('User stats:', {
         posts: user.value.posts_count,
         following: user.value.following_count,
         followers: user.value.followers_count
@@ -766,11 +766,11 @@ const loadUserProfile = async (handle: string, forceRefresh: boolean = false) =>
         loadFollowers()
       ]);
     } else {
-      debug.log('❌ User not found');
+      debug.log('User not found');
       error.value = 'User not found';
     }
   } catch (err) {
-    debug.error('❌ Failed to load user profile:', err);
+    debug.error('Failed to load user profile:', err);
     error.value = 'Failed to load profile. The user might not exist or be unavailable.';
   } finally {
     isLoading.value = false;
@@ -782,7 +782,7 @@ const loadUserPosts = async (retryCount = 0) => {
   
   isLoadingPosts.value = true;
   try {
-    debug.log(`📝 Loading posts for user: ${user.value.username} (ID: ${user.value.id})${retryCount > 0 ? ` (retry ${retryCount})` : ''}`);
+    debug.log(`Loading posts for user: ${user.value.username} (ID: ${user.value.id})${retryCount > 0 ? ` (retry ${retryCount})` : ''}`);
     
     // Use consistent getUserPosts method for all users
     const posts = (await activityPubService.getUserPosts(user.value.id, { limit: 20 })) as TimelinePost[] || [];
@@ -806,15 +806,15 @@ const loadUserPosts = async (retryCount = 0) => {
     // For local users, enable if we got a full page
     if (!user.value.is_local && remoteOutboxUrl.value) {
       hasMorePostsRef.value = true; // Remote users can always have more posts to fetch
-      debug.log(`📬 Remote user - enabling infinite scroll (outbox: ${remoteOutboxUrl.value})`);
+      debug.log(`Remote user - enabling infinite scroll (outbox: ${remoteOutboxUrl.value})`);
     } else {
       hasMorePostsRef.value = posts && posts.length >= 20;
     }
-    debug.log(`📊 Loaded ${userPosts.value.length} posts for ${user.value.username}`);
+    debug.log(`Loaded ${userPosts.value.length} posts for ${user.value.username}`);
     
     // For remote users with no posts initially, poll a few times as background fetch may still be running
     if (!user.value.is_local && userPosts.value.length === 0 && retryCount < 3) {
-      debug.log(`📬 No posts yet for remote user, will retry in 2s (attempt ${retryCount + 1}/3)`);
+      debug.log(`No posts yet for remote user, will retry in 2s (attempt ${retryCount + 1}/3)`);
       setTimeout(() => {
         loadUserPosts(retryCount + 1);
       }, 2000);
@@ -829,7 +829,7 @@ const loadUserPosts = async (retryCount = 0) => {
 
     // Safe debugging with error handling
     try {
-      debug.log('📋 Posts sample:', userPosts.value.slice(0, 3).map(p => ({ 
+      debug.log('Posts sample:', userPosts.value.slice(0, 3).map(p => ({ 
         id: p.id, 
         content: p.content ? (typeof p.content === 'string' ? (p.content as string).substring(0, 50) : JSON.stringify(p.content).substring(0, 50)) : 'No content',
         content_type: typeof p.content,
@@ -838,11 +838,11 @@ const loadUserPosts = async (retryCount = 0) => {
         created_at: p.created_at
       })));
     } catch (debugError) {
-      debug.log('📋 Posts debug error:', debugError);
-      debug.log('📋 Raw posts data:', userPosts.value.slice(0, 2));
+      debug.log('Posts debug error:', debugError);
+      debug.log('Raw posts data:', userPosts.value.slice(0, 2));
     }
   } catch (error) {
-    debug.error('❌ Failed to load user posts:', error);
+    debug.error('Failed to load user posts:', error);
     userPosts.value = [];
     hasMorePostsRef.value = false;
   } finally {
@@ -857,18 +857,18 @@ const loadFollowing = async () => {
   if (!user.value) return;
   
   try {
-    debug.log(`👥 Loading following for user: ${user.value.username} (ID: ${user.value.id})`);
+    debug.log(`Loading following for user: ${user.value.username} (ID: ${user.value.id})`);
     
     // Use consistent getFollowing method for all users
     const following = await activityPubService.getFollowing(user.value.id, { limit: 50 });
     followingUsers.value = following || [];
     
-    debug.log(`📊 Loaded ${followingUsers.value.length} following for ${user.value?.username || 'unknown'}`);
+    debug.log(`Loaded ${followingUsers.value.length} following for ${user.value?.username || 'unknown'}`);
 
     // Trust profiles.following_count from the DB; the list here is capped at
     // 50 by the page size, so its length is not the real count.
   } catch (error) {
-    debug.error('❌ Failed to load following:', error);
+    debug.error('Failed to load following:', error);
     followingUsers.value = [];
   }
 };
@@ -877,19 +877,19 @@ const loadFollowers = async () => {
   if (!user.value) return;
   
   try {
-    debug.log(`👥 Loading followers for user: ${user.value.username} (ID: ${user.value.id})`);
+    debug.log(`Loading followers for user: ${user.value.username} (ID: ${user.value.id})`);
     
     // Use consistent getFollowers method for all users
     const followers = await activityPubService.getFollowers(user.value.id, { limit: 50 });
     followerUsers.value = followers || [];
     
-    debug.log(`📊 Loaded ${followerUsers.value.length} followers for ${user.value?.username || 'unknown'}`);
-    debug.log('👥 Follower users:', followerUsers.value.map(u => u?.display_name || u?.username || 'Unknown'));
+    debug.log(`Loaded ${followerUsers.value.length} followers for ${user.value?.username || 'unknown'}`);
+    debug.log('Follower users:', followerUsers.value.map(u => u?.display_name || u?.username || 'Unknown'));
     
     // Don't override the database count - trust profiles.followers_count
     isLoading.value = false;
   } catch (error) {
-    debug.error('❌ Failed to load followers:', error);
+    debug.error('Failed to load followers:', error);
     followerUsers.value = [];
   }
 };
@@ -899,7 +899,7 @@ const loadPinnedPosts = async () => {
   try {
     const posts = await services.posts.getPinnedPosts(user.value.id);
     pinnedPosts.value = posts as TimelinePost[] || [];
-    debug.log(`📌 Loaded ${pinnedPosts.value.length} pinned posts for ${user.value.username}`);
+    debug.log(`Loaded ${pinnedPosts.value.length} pinned posts for ${user.value.username}`);
   } catch (err) {
     debug.error('Failed to load pinned posts:', err);
     pinnedPosts.value = [];
@@ -911,12 +911,12 @@ const loadMorePosts = async () => {
   
   isLoadingPosts.value = true;
   try {
-    debug.log(`📖 Loading more posts for user: ${user.value.username}`);
+    debug.log(`Loading more posts for user: ${user.value.username}`);
     
     // For remote users, fetch from federation backend first
     if (!user.value.is_local && remoteOutboxUrl.value) {
       isLoadingMoreRemote.value = true;
-      debug.log(`🌐 Fetching more posts from remote outbox...`);
+      debug.log(`Fetching more posts from remote outbox...`);
       
       try {
         const oldestPost = userPosts.value[userPosts.value.length - 1];
@@ -936,7 +936,7 @@ const loadMorePosts = async () => {
         if (response.ok) {
           const result = await response.json();
           oldestRemotePostId.value = result.oldest_id;
-          debug.log(`📬 Federation response: has_more=${result.has_more}, next_page=${result.next_page}`);
+          debug.log(`Federation response: has_more=${result.has_more}, next_page=${result.next_page}`);
 
           // Merge newly-imported posts instead of replacing the whole list.
           // A wholesale replace re-rendered every visible note on each page
@@ -951,7 +951,7 @@ const loadMorePosts = async () => {
             userPosts.value = [...userPosts.value, ...newPosts]
               .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
             hasMorePostsRef.value = result.has_more;
-            debug.log(`📊 Merged ${newPosts.length} new posts (total ${userPosts.value.length})`);
+            debug.log(`Merged ${newPosts.length} new posts (total ${userPosts.value.length})`);
 
             const postReactionsStore = usePostReactionsStore();
             postReactionsStore.fetchMultiplePostReactions(newPosts.map(p => p.id), true);
@@ -960,7 +960,7 @@ const loadMorePosts = async () => {
             // Remote fetch produced nothing new - stop the scroll handler from
             // re-firing this request in a loop.
             hasMorePostsRef.value = false;
-            debug.log('📭 Remote fetch returned no new posts - stopping pagination');
+            debug.log('Remote fetch returned no new posts - stopping pagination');
           }
         } else {
           debug.warn('Failed to fetch remote posts:', response.status);
@@ -978,7 +978,7 @@ const loadMorePosts = async () => {
       const cursor = oldestPost?.created_at;
 
       if (!cursor) {
-        debug.log('❌ No cursor found for pagination');
+        debug.log('No cursor found for pagination');
         hasMorePostsRef.value = false;
         return;
       }
@@ -991,18 +991,18 @@ const loadMorePosts = async () => {
       if (posts && posts.length > 0) {
         userPosts.value.push(...(posts as TimelinePost[]));
         hasMorePostsRef.value = posts.length >= 20;
-        debug.log(`📊 Loaded ${posts.length} more posts. Total: ${userPosts.value.length}`);
+        debug.log(`Loaded ${posts.length} more posts. Total: ${userPosts.value.length}`);
         
         const postReactionsStore = usePostReactionsStore();
         postReactionsStore.fetchMultiplePostReactions(posts.map(p => p.id), true);
         activityPubStore.batchFetchRemoteReactions(posts as TimelinePost[]);
       } else {
         hasMorePostsRef.value = false;
-        debug.log('📭 No more posts available');
+        debug.log('No more posts available');
       }
     }
   } catch (error) {
-    debug.error('❌ Failed to load more posts:', error);
+    debug.error('Failed to load more posts:', error);
     hasMorePostsRef.value = false;
   } finally {
     isLoadingPosts.value = false;
@@ -1081,7 +1081,7 @@ const handleReport = () => {
 const showUserProfile = (clickedUser: import('@/types').User | FederatedUser) => {
   selectedModalUser.value = clickedUser as FederatedUser;
   showProfileModal.value = true;
-  debug.log(`👤 Showing profile modal for: ${(clickedUser as FederatedUser).handle}`);
+  debug.log(`Showing profile modal for: ${(clickedUser as FederatedUser).handle}`);
 };
 
 // eslint-disable-next-line unused-imports/no-unused-vars
@@ -1099,16 +1099,16 @@ const navigateToProfile = (clickedUser: FederatedUser) => {
     handle = handle.replace(`@${currentDomain}`, '');
   }
   
-  debug.log(`🔗 Navigating to profile: ${handle} (from ${clickedUser.handle})`);
-  debug.log(`📍 Current route before navigation:`, route.path);
+  debug.log(`Navigating to profile: ${handle} (from ${clickedUser.handle})`);
+  debug.log(`Current route before navigation:`, route.path);
   
   router.push({ 
     name: 'UserProfile', 
     params: { handle } 
   }).then(() => {
-    debug.log(`✅ Navigation completed to: /social/profile/${handle}`);
+    debug.log(`Navigation completed to: /social/profile/${handle}`);
   }).catch((error) => {
-    debug.error(`❌ Navigation failed:`, error);
+    debug.error(`Navigation failed:`, error);
   });
 };
 
@@ -1164,12 +1164,12 @@ const handleDelete = async (post: TimelinePost) => {
 };
 
 const navigateToHashtag = (tag: string) => {
-  debug.log(`#️⃣ Navigating to hashtag: #${tag}`);
+  debug.log(`#⃣ Navigating to hashtag: #${tag}`);
   router.push({ name: 'HashtagView', params: { tag } });
 };
 
 const showConversation = (postId: string) => {
-  debug.log(`🎯 Showing conversation for post: ${postId}`);
+  debug.log(`Showing conversation for post: ${postId}`);
   router.push({ name: 'PostDetail', params: { postId } });
 };
 
@@ -1194,11 +1194,11 @@ watch(currentHandle, async (newHandle, oldHandle) => {
   // Skip if handle hasn't actually changed or is already loading
   if (!newHandle || typeof newHandle !== 'string') return;
   if (newHandle === currentLoadingHandle) {
-    debug.log(`⏭️ Skipping duplicate load for handle: ${newHandle}`);
+    debug.log(`⏭Skipping duplicate load for handle: ${newHandle}`);
     return;
   }
   
-  debug.log(`👤 Profile handle changed from ${oldHandle} to ${newHandle}`);
+  debug.log(`Profile handle changed from ${oldHandle} to ${newHandle}`);
   currentLoadingHandle = newHandle;
   
   try {
@@ -1212,7 +1212,7 @@ watch(currentHandle, async (newHandle, oldHandle) => {
 }, { immediate: true });
 
 onMounted(async () => {
-  debug.log(`🔄 UserProfileView mounted with handle: ${currentHandle.value}`);
+  debug.log(`UserProfileView mounted with handle: ${currentHandle.value}`);
   
   await activityPubStore.initialize();
 });

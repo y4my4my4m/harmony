@@ -39,7 +39,7 @@ class EasterEggService {
     this.cleanup()
 
     this.channelName = `easter-egg:${channelId}`
-    debug.log('🎮 [EasterEgg] Initializing for channel:', channelId)
+    debug.log('[EasterEgg] Initializing for channel:', channelId)
 
     this.channel = supabase.channel(this.channelName, {
       config: {
@@ -53,16 +53,16 @@ class EasterEggService {
           type: EasterEggType
           userId: string
         }
-        debug.log('🎮 [EasterEgg] Received activation:', type, 'from', activatorId)
+        debug.log('[EasterEgg] Received activation:', type, 'from', activatorId)
         this.activate(type, activatorId, false) // Don't broadcast again
       })
       .on('broadcast', { event: 'deactivate' }, () => {
-        debug.log('🎮 [EasterEgg] Received deactivation')
+        debug.log('[EasterEgg] Received deactivation')
         this.deactivate(false) // Don't broadcast again
       })
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
-          debug.log('🎮 [EasterEgg] Channel subscribed')
+          debug.log('[EasterEgg] Channel subscribed')
         }
       })
   }
@@ -82,7 +82,7 @@ class EasterEggService {
       activatedAt: Date.now(),
     }
 
-    debug.log('🎮 [EasterEgg] Activated:', type)
+    debug.log('[EasterEgg] Activated:', type)
 
     this.notifyListeners()
 
@@ -111,7 +111,7 @@ class EasterEggService {
       activatedAt: null,
     }
 
-    debug.log('🎮 [EasterEgg] Deactivated')
+    debug.log('[EasterEgg] Deactivated')
 
     this.notifyListeners()
 
@@ -175,7 +175,7 @@ class EasterEggService {
     this.channelName = null
     this.listeners.clear() // Clear all listeners to prevent memory leaks
     this.deactivate(false) // Reset state without broadcasting
-    debug.log('🎮 [EasterEgg] Cleaned up')
+    debug.log('[EasterEgg] Cleaned up')
   }
 }
 

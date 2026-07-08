@@ -62,7 +62,7 @@ class GlobalDMCallListenerService {
       profileId = await authContextService.getCurrentProfileId()
     } catch {
       // authContextService failed -- try a direct DB lookup as fallback
-      debug.warn('⚠️ authContextService failed, trying direct profile lookup')
+      debug.warn('authContextService failed, trying direct profile lookup')
       try {
         const { data } = await supabase
           .from('profiles')
@@ -71,18 +71,18 @@ class GlobalDMCallListenerService {
           .single()
         profileId = data?.id ?? null
       } catch {
-        debug.error('❌ Direct profile lookup also failed')
+        debug.error('Direct profile lookup also failed')
       }
     }
     
     if (!profileId) {
-      debug.error('❌ Could not resolve profile ID for call listener - call notifications will not work until next login')
+      debug.error('Could not resolve profile ID for call listener - call notifications will not work until next login')
       return
     }
     
     // Don't re-initialize if already done
     if (this.userChannel && this.currentUserId === profileId) {
-      debug.log('ℹ️ Global call listener already initialized for this user')
+      debug.log('ℹGlobal call listener already initialized for this user')
       return
     }
     
@@ -93,52 +93,52 @@ class GlobalDMCallListenerService {
     this.currentUserId = profileId
     const channelName = `dm-calls:${profileId}`
     
-    debug.log(`📞 ================================================`)
-    debug.log(`📞 INITIALIZING GLOBAL CALL LISTENER`)
-    debug.log(`📞 User: ${profileId}`)
-    debug.log(`📞 Channel: ${channelName}`)
-    debug.log(`📞 ================================================`)
+    debug.log(`================================================`)
+    debug.log(`INITIALIZING GLOBAL CALL LISTENER`)
+    debug.log(`User: ${profileId}`)
+    debug.log(`Channel: ${channelName}`)
+    debug.log(`================================================`)
     
     this.userChannel = supabase.channel(channelName)
     
     this.userChannel
       .on('broadcast', { event: 'incoming-call' }, (payload) => {
         const signal = payload.payload as CallSignal
-        debug.log('📞 ======== CALL SIGNAL RECEIVED ========')
-        debug.log('📞 Type:', signal.type)
-        debug.log('📞 From:', signal.callerId)
-        debug.log('📞 Call Type:', signal.callType)
-        debug.log('📞 Conversation:', signal.conversationId)
-        debug.log('📞 ======================================')
+        debug.log('======== CALL SIGNAL RECEIVED ========')
+        debug.log('Type:', signal.type)
+        debug.log('From:', signal.callerId)
+        debug.log('Call Type:', signal.callType)
+        debug.log('Conversation:', signal.conversationId)
+        debug.log('======================================')
         
         this.handleCallSignal(signal)
       })
       .subscribe((status) => {
-        debug.log(`📡 Global call channel status: ${status}`)
+        debug.log(`Global call channel status: ${status}`)
         if (status === 'SUBSCRIBED') {
-          debug.log('✅ ==========================================')
-          debug.log('✅ GLOBAL CALL LISTENER READY!')
-          debug.log('✅ You can now receive calls from ANYWHERE')
-          debug.log('✅ ==========================================')
+          debug.log('==========================================')
+          debug.log('GLOBAL CALL LISTENER READY!')
+          debug.log('You can now receive calls from ANYWHERE')
+          debug.log('==========================================')
         }
       })
 
     // Also subscribe to federated calls channel
     // The federation backend broadcasts incoming federated calls here
     const federatedChannelName = `federated-calls:${profileId}`
-    debug.log(`📞 Subscribing to federated call channel: ${federatedChannelName}`)
+    debug.log(`Subscribing to federated call channel: ${federatedChannelName}`)
     
     this.federatedChannel = supabase.channel(federatedChannelName)
     
     this.federatedChannel
       .on('broadcast', { event: 'incoming-call' }, (payload) => {
-        debug.log('📞 ======== FEDERATED CALL RECEIVED ========')
-        debug.log('📞 Payload:', JSON.stringify(payload.payload))
-        debug.log('📞 =========================================')
+        debug.log('======== FEDERATED CALL RECEIVED ========')
+        debug.log('Payload:', JSON.stringify(payload.payload))
+        debug.log('=========================================')
         this.handleFederatedCallSignal(payload.payload)
       })
       .on('broadcast', { event: 'call-accepted' }, (payload) => {
-        debug.log('📞 [Federated] Call accepted:', payload.payload)
+        debug.log('[Federated] Call accepted:', payload.payload)
         const { callId } = payload.payload
         const call = dmCallSignaling.getActiveCall(callId)
         if (call?.timeoutTimer) {
@@ -147,18 +147,18 @@ class GlobalDMCallListenerService {
         }
       })
       .on('broadcast', { event: 'call-rejected' }, (payload) => {
-        debug.log('📞 [Federated] Call rejected:', payload.payload)
+        debug.log('[Federated] Call rejected:', payload.payload)
         const toast = useToast()
         toast.info('Call declined')
       })
       .on('broadcast', { event: 'call-ended' }, (payload) => {
-        debug.log('📞 [Federated] Call ended:', payload.payload)
+        debug.log('[Federated] Call ended:', payload.payload)
         this.dismissIncomingCall()
       })
       .subscribe((status) => {
-        debug.log(`📡 Federated call channel status: ${status}`)
+        debug.log(`Federated call channel status: ${status}`)
         if (status === 'SUBSCRIBED') {
-          debug.log('✅ Federated call listener ready')
+          debug.log('Federated call listener ready')
         }
       })
   }
@@ -170,17 +170,17 @@ class GlobalDMCallListenerService {
     const toast = useToast()
     
     if (!this.currentUserId) {
-      debug.error('❌ No current user - cannot handle call')
+      debug.error('No current user - cannot handle call')
       return
     }
     
     // Ignore our own signals
     if (signal.callerId === this.currentUserId) {
-      debug.log('ℹ️ Ignoring own call signal')
+      debug.log('ℹIgnoring own call signal')
       return
     }
 
-    debug.log('📞 Processing call signal type:', signal.type)
+    debug.log('Processing call signal type:', signal.type)
 
     switch (signal.type) {
       case 'initiate':
@@ -226,7 +226,7 @@ class GlobalDMCallListenerService {
         
       case 'end':
         // Caller cancelled or call ended - dismiss incoming call modal
-        debug.log('📞 Call ended/cancelled - dismissing incoming call modal')
+        debug.log('Call ended/cancelled - dismissing incoming call modal')
         dmCallSignaling.handleRemoteSignal(signal)
         this.dismissIncomingCall()
         break
@@ -243,15 +243,15 @@ class GlobalDMCallListenerService {
    */
   private async handleIncomingCall(conversationId: string, signal: CallSignal): Promise<void> {
     if (!this.currentUserId) {
-      debug.error('❌ No current user ID')
+      debug.error('No current user ID')
       return
     }
 
-    debug.log('📞 ======== PROCESSING INCOMING CALL ========')
-    debug.log('📞 From:', signal.callerId)
-    debug.log('📞 To:', this.currentUserId)
-    debug.log('📞 Type:', signal.callType)
-    debug.log('📞 Conversation:', conversationId)
+    debug.log('======== PROCESSING INCOMING CALL ========')
+    debug.log('From:', signal.callerId)
+    debug.log('To:', this.currentUserId)
+    debug.log('Type:', signal.callType)
+    debug.log('Conversation:', conversationId)
 
     // Check permissions
     const permissionCheck = await dmCallPermissions.canReceiveCall(
@@ -260,10 +260,10 @@ class GlobalDMCallListenerService {
       conversationId
     )
 
-    debug.log('🔍 Permission result:', permissionCheck)
+    debug.log('Permission result:', permissionCheck)
 
     if (!permissionCheck.allowed) {
-      debug.log('🚫 Auto-declining:', permissionCheck.reason)
+      debug.log('Auto-declining:', permissionCheck.reason)
       await dmCallSignaling.declineCall(
         conversationId,
         this.currentUserId,
@@ -272,12 +272,12 @@ class GlobalDMCallListenerService {
       return
     }
 
-    debug.log('📞 Loading caller data...')
+    debug.log('Loading caller data...')
     const { userDataService } = await import('./userDataService')
     await userDataService.ensureUsersLoaded([signal.callerId])
     
     const callerData = userDataService.getUser(signal.callerId)
-    debug.log('📞 Caller data loaded:', callerData?.displayName || callerData?.username)
+    debug.log('Caller data loaded:', callerData?.displayName || callerData?.username)
 
     const incomingCallData: IncomingCallData = {
       callerId: signal.callerId,
@@ -292,19 +292,19 @@ class GlobalDMCallListenerService {
     this.showIncomingCallModal.value = true
     this.armRingDismissTimer(conversationId)
 
-    debug.log('📞 ======== MODAL STATE UPDATED ========')
-    debug.log('📞 showIncomingCallModal:', this.showIncomingCallModal.value)
-    debug.log('📞 incomingCall:', this.incomingCall.value)
-    debug.log('📞 ======================================')
+    debug.log('======== MODAL STATE UPDATED ========')
+    debug.log('showIncomingCallModal:', this.showIncomingCallModal.value)
+    debug.log('incomingCall:', this.incomingCall.value)
+    debug.log('======================================')
     
     // Check DOM after a moment
     setTimeout(() => {
       const modals = document.querySelectorAll('.incoming-call-overlay')
-      debug.log('📞 Modal elements in DOM:', modals.length)
+      debug.log('Modal elements in DOM:', modals.length)
       if (modals.length === 0) {
-        debug.error('❌ MODAL NOT RENDERED!')
+        debug.error('MODAL NOT RENDERED!')
       } else {
-        debug.log('✅ Modal is in DOM')
+        debug.log('Modal is in DOM')
       }
     }, 100)
   }
@@ -329,7 +329,7 @@ class GlobalDMCallListenerService {
     const { useUnifiedVoiceChannelStore } = await import('@/stores/unifiedVoiceChannel')
     const voiceStore = useUnifiedVoiceChannelStore()
     if (voiceStore.isConnected) {
-      debug.log('📞 [Federated] Already in a call, ignoring incoming')
+      debug.log('[Federated] Already in a call, ignoring incoming')
       return
     }
 
@@ -346,7 +346,7 @@ class GlobalDMCallListenerService {
       payload.conversationId,
     )
     if (!permissionCheck.allowed) {
-      debug.log(`🚫 [Federated] Auto-rejecting incoming call: ${permissionCheck.reason}`)
+      debug.log(`[Federated] Auto-rejecting incoming call: ${permissionCheck.reason}`)
       return
     }
 
@@ -384,7 +384,7 @@ class GlobalDMCallListenerService {
     this.showIncomingCallModal.value = true
     this.armRingDismissTimer(payload.conversationId)
 
-    debug.log('📞 [Federated] Showing incoming call modal')
+    debug.log('[Federated] Showing incoming call modal')
   }
 
   /**
@@ -410,7 +410,7 @@ class GlobalDMCallListenerService {
    * Cleanup
    */
   cleanup(): void {
-    debug.log('🧹 Cleaning up global call listener')
+    debug.log('Cleaning up global call listener')
     if (this.userChannel) {
       this.userChannel.unsubscribe()
       this.userChannel = null

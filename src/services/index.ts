@@ -91,14 +91,14 @@ export const services = {
 export const debugServices = {
   debugConversation: (conversationId: string) => (messageService as any).debugConversation?.(conversationId),
   debugMessages: async (conversationId: string) => {
-    debug.log('🔍 Manual debug for conversation:', conversationId)
+    debug.log('Manual debug for conversation:', conversationId)
     await (messageService as any).debugConversation?.(conversationId)
     try {
       const result = await (messageService as any).loadConversationMessages(conversationId, { limit: 20 })
-      debug.log('🔍 Manual debug result:', result)
+      debug.log('Manual debug result:', result)
       return result
     } catch (error) {
-      debug.error('❌ Manual debug failed:', error)
+      debug.error('Manual debug failed:', error)
       throw error
     }
   }

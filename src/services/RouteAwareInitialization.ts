@@ -36,7 +36,7 @@ export class RouteAwareInitialization {
     const routeName = route.name as string
     const routePath = route.path
 
-    debug.log('🎯 RouteAwareInitialization: Analyzing route', { name: routeName, path: routePath, params: route.params })
+    debug.log('RouteAwareInitialization: Analyzing route', { name: routeName, path: routePath, params: route.params })
 
     // Server channel routes: /chat/{serverId}/{channelId}
     if (routeName === 'ChatChannel' || (routePath.startsWith('/chat/') && route.params.serverId && route.params.channelId)) {
@@ -114,7 +114,7 @@ export class RouteAwareInitialization {
     }
 
     // Default/fallback strategy (conservative approach)
-    debug.log('⚠️ RouteAwareInitialization: Unknown route, using conservative loading strategy')
+    debug.log('RouteAwareInitialization: Unknown route, using conservative loading strategy')
     return {
       shouldLoadDMs: false,
       shouldLoadAllServerPresence: false,
@@ -202,7 +202,7 @@ export class RouteAwareInitialization {
    * Log the loading strategy for debugging
    */
   logStrategy(strategy: LoadingStrategy): void {
-    debug.log('📊 Loading Strategy:', {
+    debug.log('Loading Strategy:', {
       routeType: strategy.routeType,
       currentServerId: strategy.currentServerId,
       currentChannelId: strategy.currentChannelId,
@@ -213,10 +213,10 @@ export class RouteAwareInitialization {
       shouldLoadNotificationsFull: strategy.shouldLoadNotificationsFull
     })
 
-    debug.log('⚡ Critical Path:', this.getCriticalPathData(strategy))
-    debug.log('📦 Content Loading:', this.getContentLoadingData(strategy))
-    debug.log('🔄 Background Loading:', this.getBackgroundLoadingData(strategy))
-    debug.log('🎯 On-Demand Only:', this.getOnDemandData(strategy))
+    debug.log('Critical Path:', this.getCriticalPathData(strategy))
+    debug.log('Content Loading:', this.getContentLoadingData(strategy))
+    debug.log('Background Loading:', this.getBackgroundLoadingData(strategy))
+    debug.log('On-Demand Only:', this.getOnDemandData(strategy))
   }
 }
 

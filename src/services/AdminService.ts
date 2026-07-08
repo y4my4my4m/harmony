@@ -1695,11 +1695,11 @@ class AdminService {
       const result = await this.discoverInstance(domain);
       
       if (result) {
-        debug.log(`✅ Successfully discovered instance: ${domain}`);
+        debug.log(`Successfully discovered instance: ${domain}`);
         return [result];
       }
       
-      debug.log(`❌ Could not discover instance at: ${domain}`);
+      debug.log(`Could not discover instance at: ${domain}`);
       return [];
     } catch (error) {
       debug.error('Failed to probe ActivityPub instance:', error);

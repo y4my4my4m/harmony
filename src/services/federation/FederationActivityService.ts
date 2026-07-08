@@ -38,7 +38,7 @@ export class FederationActivityService {
     operation: 'create' | 'update' | 'delete'
   ): Promise<ActivityCreationResult> {
     try {
-      debug.log(`📤 Federation: Creating post activity (${operation})`)
+      debug.log(`Federation: Creating post activity (${operation})`)
 
       const postData = await this.getPostData(postId)
       if (!postData) {
@@ -81,15 +81,15 @@ export class FederationActivityService {
       })
 
       if (error) {
-        debug.error('❌ Federation: Failed to create post activity:', error)
+        debug.error('Federation: Failed to create post activity:', error)
         return { success: false, error: error.message }
       }
 
-      debug.log(`✅ Federation: Post activity created: ${activityId}`)
+      debug.log(`Federation: Post activity created: ${activityId}`)
       return { success: true, activityId: activityIdResult }
 
     } catch (error) {
-      debug.error('❌ Federation: Error creating post activity:', error)
+      debug.error('Federation: Error creating post activity:', error)
       return { success: false, error: (error as Error).message }
     }
   }
@@ -105,7 +105,7 @@ export class FederationActivityService {
     operation: 'follow' | 'unfollow'
   ): Promise<ActivityCreationResult> {
     try {
-      debug.log(`📤 Federation: Creating follow activity (${operation})`)
+      debug.log(`Federation: Creating follow activity (${operation})`)
 
       const actorData = await this.getActorData(followerId)
       const targetData = await this.getActorData(targetUserId)
@@ -138,15 +138,15 @@ export class FederationActivityService {
       })
 
       if (error) {
-        debug.error('❌ Federation: Failed to create follow activity:', error)
+        debug.error('Federation: Failed to create follow activity:', error)
         return { success: false, error: error.message }
       }
 
-      debug.log(`✅ Federation: Follow activity created: ${activityId}`)
+      debug.log(`Federation: Follow activity created: ${activityId}`)
       return { success: true, activityId: activityIdResult }
 
     } catch (error) {
-      debug.error('❌ Federation: Error creating follow activity:', error)
+      debug.error('Federation: Error creating follow activity:', error)
       return { success: false, error: (error as Error).message }
     }
   }
@@ -158,7 +158,7 @@ export class FederationActivityService {
    */
   async createProfileUpdateActivity(userId: string): Promise<ActivityCreationResult> {
     try {
-      debug.log(`📤 Federation: Creating profile update activity`)
+      debug.log(`Federation: Creating profile update activity`)
 
       const actorData = await this.getActorData(userId)
 
@@ -186,15 +186,15 @@ export class FederationActivityService {
         })
 
       if (error) {
-        debug.error('❌ Federation: Failed to create profile update activity:', error)
+        debug.error('Federation: Failed to create profile update activity:', error)
         return { success: false, error: error.message }
       }
 
-      debug.log(`✅ Federation: Profile update activity created: ${activityId}`)
+      debug.log(`Federation: Profile update activity created: ${activityId}`)
       return { success: true, activityId: activityIdResult }
 
     } catch (error) {
-      debug.error('❌ Federation: Error creating profile update activity:', error)
+      debug.error('Federation: Error creating profile update activity:', error)
       return { success: false, error: (error as Error).message }
     }
   }

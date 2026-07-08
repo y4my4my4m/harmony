@@ -382,7 +382,7 @@ const loadPostWithContext = async () => {
     }
     
   } catch (err) {
-    debug.error('❌ Failed to load post with context:', err);
+    debug.error('Failed to load post with context:', err);
     error.value = err instanceof Error ? err.message : 'Failed to load post';
     toast.error('Failed to load post');
   } finally {
@@ -564,7 +564,7 @@ const handleInlineReplyCreated = (newReply: TimelinePost, _parentId: string) => 
       postWithContext.value.mainPost.replies_count =
         (postWithContext.value.mainPost.replies_count || 0) + 1;
     }
-    debug.log('✅ Inline reply appended to thread:', newReply.id);
+    debug.log('Inline reply appended to thread:', newReply.id);
   }
 
   // Reconcile with the server shortly after so counts/threading are accurate.
@@ -592,7 +592,7 @@ const handleReplyCreated = async (newReply?: TimelinePost) => {
         (postWithContext.value.mainPost.replies_count || 0) + 1;
     }
     
-    debug.log('✅ Reply added optimistically:', newReply.id);
+    debug.log('Reply added optimistically:', newReply.id);
   }
   
   toast.success('Reply posted!');
@@ -612,7 +612,7 @@ const handleDelete = async (postId: string) => {
     toast.success('Post deleted');
     goBack();
   } catch (err) {
-    debug.error('❌ Failed to delete post:', err);
+    debug.error('Failed to delete post:', err);
     toast.error('Failed to delete post');
   }
 };
@@ -625,7 +625,7 @@ const handleEdit = (postId: string) => {
 };
 
 const handleEdited = (post: any) => {
-  debug.log('✅ Post edited:', post.id);
+  debug.log('Post edited:', post.id);
   editingPost.value = null;
 };
 

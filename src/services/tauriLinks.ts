@@ -19,7 +19,7 @@ export async function openExternalUrl(url: string): Promise<void> {
       await open(url);
     }
   } catch (err) {
-    debug.warn('⚠️ [tauriLinks] failed to open external URL:', err);
+    debug.warn('[tauriLinks] failed to open external URL:', err);
   }
 }
 

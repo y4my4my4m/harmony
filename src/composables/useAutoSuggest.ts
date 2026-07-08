@@ -256,16 +256,16 @@ export function useAutoSuggest(
 
       const currentServerId = serverChannelStore.currentServerId;
       
-      debug.log(`🎯 AutoSuggest: bridgedUsers count = ${bridgedUsers.value.length}, loaded = ${bridgedUsersLoaded.value}`);
+      debug.log(`AutoSuggest: bridgedUsers count = ${bridgedUsers.value.length}, loaded = ${bridgedUsersLoaded.value}`);
       
       if (currentServerId) {
         usersToSearch = userDataService.getUsersInContext(currentServerId);
-        debug.log(`🎯 AutoSuggest: Using server context ${currentServerId}, found ${usersToSearch.length} server members`);
+        debug.log(`AutoSuggest: Using server context ${currentServerId}, found ${usersToSearch.length} server members`);
       } else {
         // Fallback to all users only if no server context is available
         // This should rarely happen in normal chat usage
         usersToSearch = userDataService.getAllUsers();
-        debug.log(`⚠️ AutoSuggest: No server context, falling back to all users (${usersToSearch.length} total)`);
+        debug.log(`AutoSuggest: No server context, falling back to all users (${usersToSearch.length} total)`);
       }
 
       const seenUsers = new Set<string>(); // Track already processed users
@@ -529,7 +529,7 @@ export function useAutoSuggest(
     
     const pendingRequest = bridgeBotCheckPending.get(serverId);
     if (pendingRequest) {
-      debug.log(`🌉 Bridge bot check already pending for server ${serverId}, reusing request`);
+      debug.log(`Bridge bot check already pending for server ${serverId}, reusing request`);
       return pendingRequest;
     }
     
@@ -547,7 +547,7 @@ export function useAutoSuggest(
           .eq('is_active', true);
         
         if (error) {
-          debug.warn('🌉 Failed to check for bridge bots:', error);
+          debug.warn('Failed to check for bridge bots:', error);
           // Cache negative result to avoid repeated failed queries
           bridgeBotCheckCache.set(serverId, { hasBridge: false, timestamp: Date.now() });
           return false;
@@ -560,11 +560,11 @@ export function useAutoSuggest(
         bridgeBotCheckCache.set(serverId, { hasBridge, timestamp: Date.now() });
         
         if (hasBridge) {
-          debug.log(`🌉 Server ${serverId} has ${bridgeBots.length} bridge bot(s)`);
+          debug.log(`Server ${serverId} has ${bridgeBots.length} bridge bot(s)`);
         }
         return hasBridge;
       } catch (error) {
-        debug.warn('🌉 Error checking for bridge bots:', error);
+        debug.warn('Error checking for bridge bots:', error);
         // Cache negative result
         bridgeBotCheckCache.set(serverId, { hasBridge: false, timestamp: Date.now() });
         return false;
@@ -613,9 +613,9 @@ export function useAutoSuggest(
       serverRoles.value = roles;
       serverRolesServerId.value = serverId;
       serverRolesLoaded.value = true;
-      debug.log(`🎭 Loaded ${serverRoles.value.length} mentionable roles for server ${serverId}`);
+      debug.log(`Loaded ${serverRoles.value.length} mentionable roles for server ${serverId}`);
     } catch (error) {
-      debug.warn('🎭 Failed to fetch server roles:', error);
+      debug.warn('Failed to fetch server roles:', error);
       serverRoles.value = [];
       serverRolesLoaded.value = true;
     }
@@ -894,7 +894,7 @@ export function useAutoSuggest(
   const selectSuggestion = (suggestion: SuggestionItem): string => {
     // Prevent duplicate selections
     if (isSelecting.value) {
-      debug.log('🔧 Preventing duplicate selection');
+      debug.log('Preventing duplicate selection');
       return '';
     }
     
@@ -913,7 +913,7 @@ export function useAutoSuggest(
       const triggerLength = endMatch ? endMatch[0].length : 1;
       const triggerEnd = triggerStart + triggerLength;
       
-      debug.log('🔧 selectSuggestion detailed debug:', {
+      debug.log('selectSuggestion detailed debug:', {
         currentText,
         triggerPosition: state.value.triggerPosition,
         query: state.value.query,
@@ -969,7 +969,7 @@ export function useAutoSuggest(
           } else {
             insertText = (suggestion.handle || `@${suggestion.username}`) + ' ';
           }
-          debug.log('🔧 ActivityPub mention insert:', {
+          debug.log('ActivityPub mention insert:', {
             handle: suggestion.handle,
             username: suggestion.username,
             domain: suggestion.user?.domain,
@@ -999,7 +999,7 @@ export function useAutoSuggest(
       // Calculate new cursor position (should be right after the inserted text including the space)
       const newCursorPosition = triggerStart + insertText.length;
       
-      debug.log('🔧 Final replacement:', { 
+      debug.log('Final replacement:', { 
         insertText, 
         newText,
         oldLength: currentText.length,

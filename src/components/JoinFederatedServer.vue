@@ -281,7 +281,7 @@ async function joinServer() {
       // NOTE: Use /chat/ route for actual chat, not /server/ (which is for settings)
       if (result.defaultChannelId) {
         serverChannelStore.setCurrentChannel(result.defaultChannelId)
-        debug.log('🎯 Navigating to default channel:', result.defaultChannelId)
+        debug.log('Navigating to default channel:', result.defaultChannelId)
         router.push(`/chat/${result.serverId}/${result.defaultChannelId}`)
       } else {
         // Fallback - try to get the first channel from discovered server
@@ -294,12 +294,12 @@ async function joinServer() {
         if (firstChannel) {
           const channelId = (firstChannel as any).localId || firstChannel.id?.split('/').pop()
           if (channelId) {
-            debug.log('🎯 Navigating to fallback channel:', channelId)
+            debug.log('Navigating to fallback channel:', channelId)
             router.push(`/chat/${result.serverId}/${channelId}`)
             return
           }
         }
-        debug.log('⚠️ No default channel found, navigating to DM page')
+        debug.log('No default channel found, navigating to DM page')
         router.push('/dm')
       }
     } else {

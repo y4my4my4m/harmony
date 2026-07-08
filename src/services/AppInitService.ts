@@ -17,7 +17,7 @@ import { debug } from '@/utils/debug'
  * Initialize all app settings
  */
 export async function initializeAppSettings() {
-  debug.log('🚀 Initializing app settings...')
+  debug.log('Initializing app settings...')
   
   try {
     // Initialize instance settings first (affects UI visibility)
@@ -36,9 +36,9 @@ export async function initializeAppSettings() {
       ensureEmojiDataLoaded().catch(() => {})
     }
     
-    debug.log('✅ App settings initialized successfully')
+    debug.log('App settings initialized successfully')
   } catch (error) {
-    debug.error('❌ Failed to initialize app settings:', error)
+    debug.error('Failed to initialize app settings:', error)
   }
 }
 
@@ -52,7 +52,7 @@ async function loadUserSettings() {
     const profile = profileStore.profile
     
     if (!profile) {
-      debug.log('📋 No profile loaded yet, settings will load when profile is available')
+      debug.log('No profile loaded yet, settings will load when profile is available')
       return null
     }
     
@@ -62,7 +62,7 @@ async function loadUserSettings() {
     
     // Appearance settings are handled by useVisualTheme.initialize()
     if (profile.appearance_settings) {
-      debug.log('📋 User settings available from profile store')
+      debug.log('User settings available from profile store')
     }
     
     return profile
@@ -110,10 +110,10 @@ export async function importUserSettings(settings: any) {
       await setLocale(settings.locale)
     }
     
-    debug.log('✅ Settings imported successfully')
+    debug.log('Settings imported successfully')
     return true
   } catch (error) {
-    debug.error('❌ Failed to import settings:', error)
+    debug.error('Failed to import settings:', error)
     return false
   }
 }

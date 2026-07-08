@@ -179,7 +179,7 @@ export class NativeLiveKitService {
     try {
       message = JSON.parse(payload);
     } catch {
-      debug.warn('⚠️ [NativeLiveKit] Failed to parse data message');
+      debug.warn('[NativeLiveKit] Failed to parse data message');
       return;
     }
 
@@ -210,7 +210,7 @@ export class NativeLiveKitService {
 
   broadcastMessage(message: any): void {
     invoke('media_broadcast', { payload: JSON.stringify(message), topic: null }).catch(() => {
-      debug.warn('⚠️ [NativeLiveKit] Failed to broadcast data message');
+      debug.warn('[NativeLiveKit] Failed to broadcast data message');
     });
   }
 
@@ -229,7 +229,7 @@ export class NativeLiveKitService {
     abortSignal?: AbortSignal,
     requireE2EE = false
   ): Promise<boolean> {
-    debug.log('🦀 [NativeLiveKit] Joining channel:', channelId, 'as:', userId);
+    debug.log('[NativeLiveKit] Joining channel:', channelId, 'as:', userId);
 
     if (requireE2EE) {
       // Rust-side frame cryptor lands with Phase 2.5
@@ -247,7 +247,7 @@ export class NativeLiveKitService {
       if (abortSignal?.aborted) return false;
       return await this.joinWithToken(tokenResponse.wsUrl, tokenResponse.token, channelId, userId);
     } catch (error) {
-      debug.error('❌ [NativeLiveKit] Failed to join channel:', error);
+      debug.error('[NativeLiveKit] Failed to join channel:', error);
       this.emit('error', error);
       return false;
     }
@@ -272,7 +272,7 @@ export class NativeLiveKitService {
       await this.applyMicGate();
       return true;
     } catch (error) {
-      debug.error('❌ [NativeLiveKit] media_connect failed:', error);
+      debug.error('[NativeLiveKit] media_connect failed:', error);
       this.emit('error', error instanceof Error ? error : new Error(String(error)));
       return false;
     }
@@ -282,7 +282,7 @@ export class NativeLiveKitService {
     try {
       await invoke('media_disconnect');
     } catch (error) {
-      debug.warn('⚠️ [NativeLiveKit] media_disconnect failed:', error);
+      debug.warn('[NativeLiveKit] media_disconnect failed:', error);
     }
     this.closeCallWindow();
     this.connected = false;
@@ -313,7 +313,7 @@ export class NativeLiveKitService {
 
   private applyMicGate(): Promise<unknown> {
     return invoke('media_set_muted', { muted: this.isMicGated() })
-      .catch((error) => debug.warn('⚠️ [NativeLiveKit] set_muted failed:', error));
+      .catch((error) => debug.warn('[NativeLiveKit] set_muted failed:', error));
   }
 
   setMuted(muted: boolean): void {
@@ -341,7 +341,7 @@ export class NativeLiveKitService {
     }
     invoke('media_set_deafened', { deafened: next })
       .then(() => this.broadcastMediaState())
-      .catch((error) => debug.warn('⚠️ [NativeLiveKit] set_deafened failed:', error));
+      .catch((error) => debug.warn('[NativeLiveKit] set_deafened failed:', error));
     return next;
   }
 
@@ -355,7 +355,7 @@ export class NativeLiveKitService {
       if (result) this.openCallWindow();
       return result;
     } catch (error) {
-      debug.error('❌ [NativeLiveKit] camera toggle failed:', error);
+      debug.error('[NativeLiveKit] camera toggle failed:', error);
       this.emit('error', error instanceof Error ? error : new Error(String(error)));
       return this.localMediaState.isVideoEnabled;
     }
@@ -376,7 +376,7 @@ export class NativeLiveKitService {
       if (result) this.openCallWindow();
       return result;
     } catch (error) {
-      debug.error('❌ [NativeLiveKit] screenshare toggle failed:', error);
+      debug.error('[NativeLiveKit] screenshare toggle failed:', error);
       this.emit('error', error instanceof Error ? error : new Error(String(error)));
       return this.localMediaState.isScreenSharing;
     }
@@ -401,7 +401,7 @@ export class NativeLiveKitService {
 
   openCallWindow(): void {
     invoke('call_window_open').catch((error) => {
-      debug.warn('⚠️ [NativeLiveKit] call window open failed:', error);
+      debug.warn('[NativeLiveKit] call window open failed:', error);
     });
   }
 
@@ -517,7 +517,7 @@ export class NativeLiveKitService {
         await this.updateOutputDevice(devices.outputDevice);
       }
     } catch (error) {
-      debug.warn('⚠️ [NativeLiveKit] Failed to apply saved devices:', error);
+      debug.warn('[NativeLiveKit] Failed to apply saved devices:', error);
     }
   }
 

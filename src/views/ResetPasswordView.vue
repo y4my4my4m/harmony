@@ -327,11 +327,11 @@ const checkMFAStatus = async () => {
     const totpFactor = factors?.totp?.find((f: any) => f.status === 'verified')
     
     if (totpFactor) {
-      debug.log('🔒 User has MFA enabled - will require 2FA verification for password reset')
+      debug.log('User has MFA enabled - will require 2FA verification for password reset')
       requiresMFA.value = true
       mfaFactorId.value = totpFactor.id
     } else {
-      debug.log('✅ User does not have MFA enabled')
+      debug.log('User does not have MFA enabled')
       requiresMFA.value = false
     }
   } catch (error: any) {
@@ -351,7 +351,7 @@ onMounted(async () => {
   // Note: The auth store will also catch this and set isPasswordResetMode flag
   const authListenerData = supabase.auth.onAuthStateChange(async (event, session) => {
     if (event === 'PASSWORD_RECOVERY' && session) {
-      debug.log('🔒 PASSWORD_RECOVERY event detected in ResetPasswordView')
+      debug.log('PASSWORD_RECOVERY event detected in ResetPasswordView')
       isValidToken.value = true
       isPasswordResetMode.value = true
       // Router guard will handle preventing navigation
@@ -470,7 +470,7 @@ const handleResetPassword = async () => {
   
   // If user has MFA enabled, show MFA modal instead of proceeding directly
   if (requiresMFA.value) {
-    debug.log('🔒 User has MFA - showing 2FA verification modal')
+    debug.log('User has MFA - showing 2FA verification modal')
     
     try {
       const { data: challengeData, error: challengeError } = await supabase.auth.mfa.challenge({
@@ -525,7 +525,7 @@ const performPasswordReset = async () => {
     }
     
     // Success!
-    debug.log('✅ Password reset successful:', data)
+    debug.log('Password reset successful:', data)
     isSuccess.value = true
     isPasswordResetMode.value = false
     
@@ -567,13 +567,13 @@ const handleMFAVerification = async () => {
     return
   }
 
-  debug.log('🔐 Starting MFA verification for password reset...')
+  debug.log('Starting MFA verification for password reset...')
   mfaLoading.value = true
   mfaError.value = ''
 
   try {
     if (useRecoveryCode.value) {
-      debug.log('📞 Verifying recovery code...')
+      debug.log('Verifying recovery code...')
       
       const { data: sessionData } = await supabase.auth.getSession()
       const userId = sessionData.session?.user?.id
@@ -593,7 +593,7 @@ const handleMFAVerification = async () => {
         throw new Error('Invalid or already used recovery code')
       }
 
-      debug.log('✅ Recovery code verified successfully!')
+      debug.log('Recovery code verified successfully!')
       
       // Unenroll the TOTP factor since they lost access to their authenticator
       await supabase.auth.mfa.unenroll({ factorId: mfaFactorId.value })
@@ -608,7 +608,7 @@ const handleMFAVerification = async () => {
       
       toast.warning('2FA has been disabled. Please re-enable it after logging in with your new password.')
     } else {
-      debug.log('📞 Verifying TOTP code...')
+      debug.log('Verifying TOTP code...')
       
       const { error: verifyError } = await supabase.auth.mfa.verify({
         factorId: mfaFactorId.value,
@@ -618,7 +618,7 @@ const handleMFAVerification = async () => {
 
       if (verifyError) throw verifyError
 
-      debug.log('✅ MFA verified - session upgraded to AAL2')
+      debug.log('MFA verified - session upgraded to AAL2')
       
       showMFAModal.value = false
       mfaCode.value = ''
@@ -627,7 +627,7 @@ const handleMFAVerification = async () => {
       await performPasswordReset()
     }
   } catch (error: any) {
-    debug.error('❌ MFA verification error:', error)
+    debug.error('MFA verification error:', error)
     mfaError.value = error.message || 'Invalid code. Please try again.'
   } finally {
     mfaLoading.value = false

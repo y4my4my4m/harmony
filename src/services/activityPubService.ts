@@ -186,7 +186,7 @@ export class ActivityPubService {
         };
       });
 
-    debug.log(`📊 Public timeline loaded: ${posts.length} posts (with user interactions)`);
+    debug.log(`Public timeline loaded: ${posts.length} posts (with user interactions)`);
     
     return posts;
   }
@@ -237,7 +237,7 @@ export class ActivityPubService {
       
       const localCount = posts.filter((p: any) => p.is_local).length;
       const federatedCount = posts.filter((p: any) => !p.is_local).length;
-      debug.log(`🌐 Enhanced public timeline: ${localCount} local + ${federatedCount} federated = ${posts.length} total posts`);
+      debug.log(`Enhanced public timeline: ${localCount} local + ${federatedCount} federated = ${posts.length} total posts`);
       
       const rawCount = (data || []).length;
       return { posts: posts as TimelinePost[], fullPage: rawCount >= limit };
@@ -268,7 +268,7 @@ export class ActivityPubService {
 
       if (error) throw error;
 
-      debug.log(`🌐 Federated timeline loaded: ${(data || []).length} posts from remote instances`);
+      debug.log(`Federated timeline loaded: ${(data || []).length} posts from remote instances`);
       return (data || []) as TimelinePost[];
     } catch (error) {
       debug.error('Failed to load federated timeline:', error);
@@ -286,7 +286,7 @@ export class ActivityPubService {
 
     const limit = options.limit || 20;
 
-    debug.log('🔄 Loading local timeline via RPC');
+    debug.log('Loading local timeline via RPC');
 
     try {
       // Use existing RPC that properly handles local timeline
@@ -308,13 +308,13 @@ export class ActivityPubService {
       // DEBUG: Verify all posts are truly local
       const localCount = posts.filter((p: any) => p.is_local).length || 0;
       const federatedCount = posts.filter((p: any) => !p.is_local).length || 0;
-      debug.log(`📊 Local timeline loaded: ${posts.length} posts total (${localCount} local, ${federatedCount} federated) with user interactions`);
+      debug.log(`Local timeline loaded: ${posts.length} posts total (${localCount} local, ${federatedCount} federated) with user interactions`);
       
       if (federatedCount > 0) {
-        debug.warn(`⚠️ WARNING: Local timeline contains ${federatedCount} federated posts! These should be filtered out.`);
+        debug.warn(`WARNING: Local timeline contains ${federatedCount} federated posts! These should be filtered out.`);
         const federatedPosts = data?.filter((p: any) => !p.is_local) || [];
         federatedPosts.forEach((post: any) => {
-          debug.warn(`🌐 Federated post in local timeline:`, {
+          debug.warn(`Federated post in local timeline:`, {
             id: post.id,
             author: post.author?.username,
             domain: post.author?.domain,
@@ -352,7 +352,7 @@ export class ActivityPubService {
     } = options;
 
     try {
-      debug.log(`🔄 Loading post with context: ${postId} (${context})`);
+      debug.log(`Loading post with context: ${postId} (${context})`);
       
       const { data, error } = await supabase.rpc('get_post_with_context', {
         p_context_type: context,
@@ -364,7 +364,7 @@ export class ActivityPubService {
       });
 
       if (error) {
-        debug.error('❌ Failed to get post with context:', error);
+        debug.error('Failed to get post with context:', error);
         throw error;
       }
 
@@ -372,7 +372,7 @@ export class ActivityPubService {
         throw new Error(data.error);
       }
 
-      debug.log(`✅ Post with context loaded: ${data.ancestors?.length || 0} ancestors, ${data.descendants?.length || 0} descendants`);
+      debug.log(`Post with context loaded: ${data.ancestors?.length || 0} ancestors, ${data.descendants?.length || 0} descendants`);
       
       return {
         mainPost: data.mainPost,
@@ -389,7 +389,7 @@ export class ActivityPubService {
         contextType: context
       };
     } catch (error) {
-      debug.error('❌ Failed to get post with context:', error);
+      debug.error('Failed to get post with context:', error);
       throw error;
     }
   }
@@ -1205,7 +1205,7 @@ export class ActivityPubService {
       throw error;
     }
 
-    debug.log(`📍 Created reblog post ${data.id} for original post ${postId}`);
+    debug.log(`Created reblog post ${data.id} for original post ${postId}`);
     return data;
   }
 
@@ -1315,7 +1315,7 @@ export class ActivityPubService {
         metadata: { is_quote: true }
       });
 
-    debug.log(`📝 Created quote reblog post ${data.id} for original post ${actualOriginalId}`);
+    debug.log(`Created quote reblog post ${data.id} for original post ${actualOriginalId}`);
     return data;
   }
 
@@ -1464,7 +1464,7 @@ export class ActivityPubService {
     if (!forceRefresh) {
       const cachedProfile = this.getCachedProfile(cacheKey);
       if (cachedProfile) {
-        debug.log(`✅ Using cached profile for: ${cacheKey}`);
+        debug.log(`Using cached profile for: ${cacheKey}`);
         return cachedProfile;
       }
     } else {
@@ -1552,13 +1552,13 @@ export class ActivityPubService {
 
     // If remote user not found locally (or force refresh), try to fetch from federation
     if (isRemote) {
-      debug.log(`🌐 ${forceRefresh ? 'Force refreshing' : 'Fetching'} remote user: ${username}@${domain}`);
+      debug.log(`${forceRefresh ? 'Force refreshing' : 'Fetching'} remote user: ${username}@${domain}`);
       
       const { resolveRemoteMention } = await import('@/utils/mentionUtils');
       const remoteUser = await resolveRemoteMention(username, domain, forceRefresh);
       
       if (remoteUser) {
-        debug.log(`✅ Successfully ${forceRefresh ? 'refreshed' : 'fetched'} remote user: @${username}@${domain}`);
+        debug.log(`Successfully ${forceRefresh ? 'refreshed' : 'fetched'} remote user: @${username}@${domain}`);
         // Cache the remote profile
         this.cacheProfile(cacheKey, remoteUser);
         return remoteUser;
@@ -2413,7 +2413,7 @@ export class ActivityPubService {
 
     // Queue for delivery to federated instances
     // This would be handled by a background job in production
-    debug.log(`📤 Queued ${activity.type} activity for federation:`, ap_id);
+    debug.log(`Queued ${activity.type} activity for federation:`, ap_id);
   }
 
   /**

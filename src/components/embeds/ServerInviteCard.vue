@@ -182,7 +182,7 @@ async function loadInviteData() {
   info.value = resolved;
   isJoined.value = resolved.isMember;
   loading.value = false;
-  debug.log('🎫 Invite info loaded:', resolved);
+  debug.log('Invite info loaded:', resolved);
 }
 
 const bannerUrl = computed(() =>

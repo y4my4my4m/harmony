@@ -67,10 +67,10 @@ class VoiceSettingsServiceClass {
           ...DEFAULT_SETTINGS,
           ...parsed,
         };
-        debug.log('🎛️ [VoiceSettings] Loaded settings:', this.settings);
+        debug.log('[VoiceSettings] Loaded settings:', this.settings);
       }
     } catch (error) {
-      debug.warn('⚠️ [VoiceSettings] Failed to load settings:', error);
+      debug.warn('[VoiceSettings] Failed to load settings:', error);
       this.settings = { ...DEFAULT_SETTINGS };
     }
     this.initialized = true;
@@ -83,11 +83,11 @@ class VoiceSettingsServiceClass {
   private save(): void {
     try {
       userStorage.setItem(STORAGE_KEY, JSON.stringify(this.settings));
-      debug.log('💾 [VoiceSettings] Saved settings');
+      debug.log('[VoiceSettings] Saved settings');
       
       this.listeners.forEach(listener => listener(this.settings));
     } catch (error) {
-      debug.warn('⚠️ [VoiceSettings] Failed to save settings:', error);
+      debug.warn('[VoiceSettings] Failed to save settings:', error);
     }
   }
   
@@ -145,7 +145,7 @@ class VoiceSettingsServiceClass {
   setInputDevice(deviceId: string | null): void {
     this.settings.selectedInputDevice = deviceId;
     this.save();
-    debug.log('🎤 [VoiceSettings] Input device set to:', deviceId);
+    debug.log('[VoiceSettings] Input device set to:', deviceId);
   }
   
   /**
@@ -154,7 +154,7 @@ class VoiceSettingsServiceClass {
   setOutputDevice(deviceId: string | null): void {
     this.settings.selectedOutputDevice = deviceId;
     this.save();
-    debug.log('🔊 [VoiceSettings] Output device set to:', deviceId);
+    debug.log('[VoiceSettings] Output device set to:', deviceId);
   }
   
   /**
@@ -163,7 +163,7 @@ class VoiceSettingsServiceClass {
   setVideoDevice(deviceId: string | null): void {
     this.settings.selectedVideoDevice = deviceId;
     this.save();
-    debug.log('📹 [VoiceSettings] Video device set to:', deviceId);
+    debug.log('[VoiceSettings] Video device set to:', deviceId);
   }
   
   /**
@@ -208,24 +208,24 @@ class VoiceSettingsServiceClass {
         videoDevices.some(d => d.deviceId === this.settings.selectedVideoDevice);
       
       if (!inputValid) {
-        debug.warn('⚠️ [VoiceSettings] Stored input device no longer exists, clearing');
+        debug.warn('[VoiceSettings] Stored input device no longer exists, clearing');
         this.settings.selectedInputDevice = null;
         this.save();
       }
       if (!outputValid) {
-        debug.warn('⚠️ [VoiceSettings] Stored output device no longer exists, clearing');
+        debug.warn('[VoiceSettings] Stored output device no longer exists, clearing');
         this.settings.selectedOutputDevice = null;
         this.save();
       }
       if (!videoValid) {
-        debug.warn('⚠️ [VoiceSettings] Stored video device no longer exists, clearing');
+        debug.warn('[VoiceSettings] Stored video device no longer exists, clearing');
         this.settings.selectedVideoDevice = null;
         this.save();
       }
       
       return { input: inputValid, output: outputValid, video: videoValid };
     } catch (error) {
-      debug.warn('⚠️ [VoiceSettings] Failed to validate devices:', error);
+      debug.warn('[VoiceSettings] Failed to validate devices:', error);
       return { input: true, output: true, video: true }; // Assume valid on error
     }
   }
@@ -244,7 +244,7 @@ class VoiceSettingsServiceClass {
   reset(): void {
     this.settings = { ...DEFAULT_SETTINGS };
     this.save();
-    debug.log('🔄 [VoiceSettings] Reset to defaults');
+    debug.log('[VoiceSettings] Reset to defaults');
   }
 }
 

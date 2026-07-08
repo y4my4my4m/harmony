@@ -124,12 +124,12 @@ class VoiceE2EEService {
       if (!textPart) return null
       const bytes = base64ToBytes(textPart.text)
       if (bytes.length !== VOICE_KEY_BYTES) {
-        debug.warn(`⚠️ [VoiceE2EE] Unwrapped key has unexpected length ${bytes.length}`)
+        debug.warn(`[VoiceE2EE] Unwrapped key has unexpected length ${bytes.length}`)
         return null
       }
       return bytes
     } catch (err) {
-      debug.warn('⚠️ [VoiceE2EE] Failed to unwrap room key (session may be pending):', err)
+      debug.warn('[VoiceE2EE] Failed to unwrap room key (session may be pending):', err)
       return null
     }
   }

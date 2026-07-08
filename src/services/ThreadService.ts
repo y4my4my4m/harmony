@@ -608,7 +608,7 @@ class ThreadService {
   private loadCachedMessages(threadId: string): ThreadMessagesResult | null {
     const cached = this.messageCache.get(threadId)
     if (cached && this.isCacheValid(threadId)) {
-      debug.log(`📦 Loading ${cached.messages.length} thread messages from cache: ${threadId}`)
+      debug.log(`Loading ${cached.messages.length} thread messages from cache: ${threadId}`)
       return {
         messages: [...cached.messages],
         has_more: cached.hasMore,
@@ -636,7 +636,7 @@ class ThreadService {
 
     if (oldestThreadId) {
       this.messageCache.delete(oldestThreadId)
-      debug.log(`🗑️ Evicted thread message cache: ${oldestThreadId}`)
+      debug.log(`Evicted thread message cache: ${oldestThreadId}`)
     }
   }
 
@@ -648,7 +648,7 @@ class ThreadService {
     if (cached) {
       if (!cached.messages.some(msg => msg.id === message.id)) {
         cached.messages.push(message)
-        debug.log(`✅ Added message to thread cache: ${message.id}`)
+        debug.log(`Added message to thread cache: ${message.id}`)
       }
     } else {
       this.evictOldestCache()
@@ -669,7 +669,7 @@ class ThreadService {
       const index = cached.messages.findIndex(msg => msg.id === messageId)
       if (index !== -1) {
         cached.messages[index] = updatedMessage
-        debug.log(`🔄 Updated message in thread cache: ${messageId}`)
+        debug.log(`Updated message in thread cache: ${messageId}`)
       }
     }
   }
@@ -681,7 +681,7 @@ class ThreadService {
     const cached = this.messageCache.get(threadId)
     if (cached) {
       cached.messages = cached.messages.filter(msg => msg.id !== messageId)
-      debug.log(`🗑️ Removed message from thread cache: ${messageId}`)
+      debug.log(`Removed message from thread cache: ${messageId}`)
     }
   }
 
@@ -707,17 +707,17 @@ class ThreadService {
         
         // If cache is fresh (less than 5 minutes old), return instantly
         if (cacheAge < this.cacheValidityDuration) {
-          debug.log(`✅ Loading ${cached.messages.length} thread messages from cache instantly (age: ${Math.round(cacheAge / 1000)}s)`)
+          debug.log(`Loading ${cached.messages.length} thread messages from cache instantly (age: ${Math.round(cacheAge / 1000)}s)`)
           return {
             messages: [...cached.messages],
             has_more: cached.hasMore,
             oldest_id: cached.oldestMessageId,
           }
         } else {
-          debug.log(`⚠️ Thread cache is stale (${Math.round(cacheAge / 1000)}s old), fetching from database`)
+          debug.log(`Thread cache is stale (${Math.round(cacheAge / 1000)}s old), fetching from database`)
         }
       } else {
-        debug.log(`📭 No cache found for thread ${threadId}, fetching from database`)
+        debug.log(`No cache found for thread ${threadId}, fetching from database`)
       }
     }
 
@@ -784,7 +784,7 @@ class ThreadService {
           oldestMessageId: result.oldest_id,
           hasMore: hasMore,
         })
-        debug.log(`✅ Cached ${resultMessages.length} thread messages: ${threadId}`)
+        debug.log(`Cached ${resultMessages.length} thread messages: ${threadId}`)
       } else if (before) {
         // Loading older messages - prepend to cache
         const cached = this.messageCache.get(threadId)
@@ -792,7 +792,7 @@ class ThreadService {
           cached.messages = [...resultMessages, ...cached.messages]
           cached.oldestMessageId = result.oldest_id
           cached.hasMore = hasMore
-          debug.log(`✅ Updated cache with ${resultMessages.length} older messages: ${threadId}`)
+          debug.log(`Updated cache with ${resultMessages.length} older messages: ${threadId}`)
         }
       }
 
@@ -1131,7 +1131,7 @@ class ThreadService {
     this.threadCache.delete(threadId)
     this.memberCache.delete(threadId)
     this.messageCache.delete(threadId)
-    debug.log(`🧹 Cleared all caches for thread: ${threadId}`)
+    debug.log(`Cleared all caches for thread: ${threadId}`)
   }
 }
 

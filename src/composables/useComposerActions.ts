@@ -239,11 +239,11 @@ export function useComposerActions(options: ComposerActionsOptions) {
       });
 
       debug.log('[DEBUG] submitPost: Post created!');
-      debug.log('✅ Post created successfully:', post.id);
+      debug.log('Post created successfully:', post.id);
       return post;
     } catch (error) {
       debug.error('[DEBUG] submitPost: ERROR:', error);
-      debug.error('❌ Failed to create post:', error);
+      debug.error('Failed to create post:', error);
       throw error;
     }
   };
@@ -282,10 +282,10 @@ export function useComposerActions(options: ComposerActionsOptions) {
         media_attachments: options.mediaAttachments.value,
       });
 
-      debug.log('✅ Post updated successfully:', post.id);
+      debug.log('Post updated successfully:', post.id);
       return post;
     } catch (error) {
-      debug.error('❌ Failed to update post:', error);
+      debug.error('Failed to update post:', error);
       throw error;
     }
   };

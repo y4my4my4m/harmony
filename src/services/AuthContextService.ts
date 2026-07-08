@@ -87,11 +87,11 @@ export class AuthContextService {
         isAuthenticated: true
       }
 
-      debug.log(`✅ Auth context resolved: ${user.id} → ${profile.id}`)
+      debug.log(`Auth context resolved: ${user.id} → ${profile.id}`)
       return this.cachedContext
 
     } catch (error) {
-      debug.error('❌ Failed to resolve auth context:', error)
+      debug.error('Failed to resolve auth context:', error)
       // Don't cache on unexpected failure - let the next call retry.
       return this.createUnauthenticatedContext()
     } finally {
@@ -140,7 +140,7 @@ export class AuthContextService {
    */
   clearCache(): void {
     this.cachedContext = null
-    debug.log('🧹 Auth context cache cleared')
+    debug.log('Auth context cache cleared')
   }
 
   /**
@@ -154,13 +154,13 @@ export class AuthContextService {
       // SIGNED_IN on tab visible is just Supabase reconnecting - same user, keep cache
       
       if (event === 'SIGNED_OUT') {
-        debug.log('🔄 Auth state: SIGNED_OUT - clearing cache')
+        debug.log('Auth state: SIGNED_OUT - clearing cache')
         this.clearCache()
         return
       }
       
       if (event === 'USER_UPDATED') {
-        debug.log('🔄 Auth state: USER_UPDATED - clearing cache')
+        debug.log('Auth state: USER_UPDATED - clearing cache')
         this.clearCache()
         return
       }
@@ -173,7 +173,7 @@ export class AuthContextService {
         const cachedUserId = this.cachedContext?.authUser?.id
         
         if (!this.cachedContext?.isAuthenticated || (cachedUserId && cachedUserId !== newUserId)) {
-          debug.log('🔐 SIGNED_IN - clearing cache (unauthenticated or different user)')
+          debug.log('SIGNED_IN - clearing cache (unauthenticated or different user)')
           this.clearCache()
         }
         return

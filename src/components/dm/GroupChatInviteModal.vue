@@ -290,8 +290,8 @@ const handleSearch = () => {
     isSearching.value = true
     try {
       await dmStore.searchUsers(query, currentUserId.value)
-      debug.log('🔍 Search completed, raw results:', dmStore.searchResults.length)
-      debug.log('🔍 Selected users before filtering:', selectedUsers.value.map(u => ({ id: u.id, username: u.username })))
+      debug.log('Search completed, raw results:', dmStore.searchResults.length)
+      debug.log('Selected users before filtering:', selectedUsers.value.map(u => ({ id: u.id, username: u.username })))
       
       searchResults.value = dmStore.searchResults.filter(user => {
         if (user.id === currentUserId.value) return false
@@ -300,7 +300,7 @@ const handleSearch = () => {
         return true
       })
       
-      debug.log('🔍 Filtered search results:', searchResults.value.length)
+      debug.log('Filtered search results:', searchResults.value.length)
     } catch (error) {
       debug.error('Search failed:', error)
       toast.error('Failed to search users')
@@ -318,7 +318,7 @@ const clearSearch = () => {
 const refreshSearchResults = () => {
   // Re-filter the current dmStore.searchResults with updated selected users
   if (dmStore.searchResults.length > 0) {
-    debug.log('🔍 Refreshing search results:', {
+    debug.log('Refreshing search results:', {
       totalResults: dmStore.searchResults.length,
       selectedUsers: selectedUsers.value.map(u => ({ id: u.id, username: u.username, hasId: !!u.id })),
       existingParticipants: props.existingParticipants?.map(p => p.id) || []
@@ -326,22 +326,22 @@ const refreshSearchResults = () => {
     
     searchResults.value = dmStore.searchResults.filter(user => {
       if (user.id === currentUserId.value) {
-        debug.log('🚫 Filtering out current user:', user.id)
+        debug.log('Filtering out current user:', user.id)
         return false
       }
       if (props.existingParticipants?.some(p => p.id === user.id)) {
-        debug.log('🚫 Filtering out existing participant:', user.id)
+        debug.log('Filtering out existing participant:', user.id)
         return false
       }
       if (selectedUsers.value.some(s => s.id === user.id)) {
-        debug.log('🚫 Filtering out already selected user:', user.id, 'comparing with selected:', selectedUsers.value.map(s => s.id))
+        debug.log('Filtering out already selected user:', user.id, 'comparing with selected:', selectedUsers.value.map(s => s.id))
         return false
       }
-      debug.log('✅ Keeping user in results:', user.id)
+      debug.log('Keeping user in results:', user.id)
       return true
     })
     
-    debug.log('🔍 Final search results count:', searchResults.value.length)
+    debug.log('Final search results count:', searchResults.value.length)
   }
 }
 
@@ -352,7 +352,7 @@ const selectFirstResult = () => {
 }
 
 const toggleUserSelection = (user: DMUser) => {
-  debug.log('🔄 Toggling user selection:', { user, hasId: !!user.id })
+  debug.log('Toggling user selection:', { user, hasId: !!user.id })
   
   const index = selectedUsers.value.findIndex(u => u.id === user.id)
   if (index > -1) {
@@ -361,7 +361,7 @@ const toggleUserSelection = (user: DMUser) => {
     selectedUsers.value.push(user)
   }
   
-  debug.log('👥 Selected users after toggle:', selectedUsers.value.map(u => ({ id: u.id, username: u.username })))
+  debug.log('Selected users after toggle:', selectedUsers.value.map(u => ({ id: u.id, username: u.username })))
   
   refreshSearchResults()
 }

@@ -131,7 +131,7 @@ class DMCallSignalingService {
     channel
       .on('broadcast', { event: 'call-signal' }, (payload) => {
         const signal = payload.payload as CallSignal
-        debug.log('📞 Received call signal:', {
+        debug.log('Received call signal:', {
           conversation: conversationId,
           type: signal.type,
           from: signal.callerId,
@@ -145,7 +145,7 @@ class DMCallSignalingService {
 
     await new Promise<void>((resolve, reject) => {
       channel.subscribe((status) => {
-        debug.log(`📡 Call channel dm-call:${conversationId} status:`, status)
+        debug.log(`Call channel dm-call:${conversationId} status:`, status)
         if (status === 'SUBSCRIBED') resolve()
         else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') reject(new Error(`Channel ${status}`))
       })
@@ -190,7 +190,7 @@ class DMCallSignalingService {
     this.listeners.get(conversationId)!.add(onSignal)
 
     this.ensureChannel(conversationId).catch(error => {
-      debug.error('📞 Failed to open call channel:', conversationId, error)
+      debug.error('Failed to open call channel:', conversationId, error)
     })
 
     return () => {
@@ -219,9 +219,9 @@ class DMCallSignalingService {
     try {
       const channel = await this.ensureChannel(conversationId)
       await channel.track(fullMeta)
-      debug.log('📞 Tracking call presence for conversation:', conversationId)
+      debug.log('Tracking call presence for conversation:', conversationId)
     } catch (error) {
-      debug.error('📞 Failed to track call presence:', error)
+      debug.error('Failed to track call presence:', error)
     }
   }
 
@@ -233,7 +233,7 @@ class DMCallSignalingService {
       try {
         await channel.untrack()
       } catch (error) {
-        debug.warn('📞 Failed to untrack call presence:', error)
+        debug.warn('Failed to untrack call presence:', error)
       }
     }
     this.releaseChannelIfUnused(conversationId)
@@ -278,7 +278,7 @@ class DMCallSignalingService {
           ringing: false,
           systemMessageId: metas.find(m => m.meta.systemMessageId)?.meta.systemMessageId ?? null,
         })
-        debug.log('📞 Discovered ongoing call via presence:', conversationId, userIds)
+        debug.log('Discovered ongoing call via presence:', conversationId, userIds)
         return
       }
 
@@ -313,7 +313,7 @@ class DMCallSignalingService {
       const currentChannel = this.channels.get(conversationId)
       const stillEmpty = !currentChannel || Object.keys(currentChannel.presenceState()).length === 0
       if (current && !current.ringing && stillEmpty) {
-        debug.log('📞 Call presence empty - ending call:', conversationId)
+        debug.log('Call presence empty - ending call:', conversationId)
         void this.finalizeCallMessage(current)
         this.deleteActiveCall(conversationId)
       }
@@ -335,7 +335,7 @@ class DMCallSignalingService {
    * accepting from the global incoming-call modal before DMHeader mounts).
    */
   async sendSignal(conversationId: string, signal: CallSignal): Promise<void> {
-    debug.log('📤 Sending call signal:', {
+    debug.log('Sending call signal:', {
       conversation: conversationId,
       type: signal.type,
       from: signal.callerId,
@@ -352,7 +352,7 @@ class DMCallSignalingService {
       })
     } else {
       const channelName = `dm-call:${conversationId}`
-      debug.log(`📤 No existing subscription - using temp channel: ${channelName}`)
+      debug.log(`No existing subscription - using temp channel: ${channelName}`)
       const tempChannel = supabase.channel(channelName)
       await new Promise<void>((resolve, reject) => {
         tempChannel.subscribe((status) => {
@@ -368,7 +368,7 @@ class DMCallSignalingService {
       await tempChannel.unsubscribe()
     }
 
-    debug.log('✅ Call signal sent successfully')
+    debug.log('Call signal sent successfully')
   }
 
   /**
@@ -443,7 +443,7 @@ class DMCallSignalingService {
    */
   private async sendSignalToUser(userId: string, signal: CallSignal): Promise<void> {
     const channelName = `dm-calls:${userId}`
-    debug.log(`📤 Sending call signal to user ${userId} on channel ${channelName}`)
+    debug.log(`Sending call signal to user ${userId} on channel ${channelName}`)
     
     const tempChannel = supabase.channel(channelName)
     
@@ -460,7 +460,7 @@ class DMCallSignalingService {
       payload: signal
     })
     
-    debug.log('✅ Signal sent to user:', userId)
+    debug.log('Signal sent to user:', userId)
     
     await tempChannel.unsubscribe()
   }
@@ -542,7 +542,7 @@ class DMCallSignalingService {
     // Broadcast on the conversation channel so the caller's DMHeader receives it
     await this.sendSignal(conversationId, signal)
 
-    debug.log('✅ Accept signal sent on conversation channel:', conversationId)
+    debug.log('Accept signal sent on conversation channel:', conversationId)
   }
 
   /**
@@ -766,7 +766,7 @@ class DMCallSignalingService {
     }, this.RING_WATCHDOG_MS)
     this.ringWatchdogs.set(conversationId, watchdog)
 
-    debug.log('📞 Registered remote call for conversation:', conversationId)
+    debug.log('Registered remote call for conversation:', conversationId)
   }
 
   /**
@@ -847,7 +847,7 @@ class DMCallSignalingService {
         }).eq('id', call.systemMessageId)
       }
 
-      debug.log('📞 Finalized call system message:', call.systemMessageId, 'duration:', durationSeconds, 's')
+      debug.log('Finalized call system message:', call.systemMessageId, 'duration:', durationSeconds, 's')
     } catch (error) {
       debug.error('Failed to finalize call system message:', error)
     }
@@ -861,7 +861,7 @@ class DMCallSignalingService {
       const msgIndex = messages.findIndex((m: any) => m.id === call.systemMessageId)
       if (msgIndex !== -1) {
         messages[msgIndex] = { ...messages[msgIndex], metadata: newMetadata }
-        debug.log('📞 Updated local message cache for call system message')
+        debug.log('Updated local message cache for call system message')
       }
     } catch {
       // cache update is best-effort
@@ -881,14 +881,14 @@ class DMCallSignalingService {
     calleeFederatedId: string,
     callType: 'voice' | 'video'
   ): Promise<FederatedCallInfo | null> {
-    debug.log('📞 [Federated] Initiating federated call to:', calleeFederatedId)
+    debug.log('[Federated] Initiating federated call to:', calleeFederatedId)
     
     try {
       const configResponse = await fetch(apiUrl('/api/livekit/config'))
       const config = await configResponse.json()
       
       if (!config.enabled || !config.wsUrl) {
-        debug.error('❌ LiveKit not configured for federated calls')
+        debug.error('LiveKit not configured for federated calls')
         return null
       }
       
@@ -896,7 +896,7 @@ class DMCallSignalingService {
       
       const { data: { session } } = await supabase.auth.getSession()
       if (!session?.access_token) {
-        debug.error('❌ Not authenticated')
+        debug.error('Not authenticated')
         return null
       }
       
@@ -913,7 +913,7 @@ class DMCallSignalingService {
       })
       
       if (!tokenResponse.ok) {
-        debug.error('❌ Failed to get LiveKit token')
+        debug.error('Failed to get LiveKit token')
         return null
       }
       
@@ -936,7 +936,7 @@ class DMCallSignalingService {
       })
       
       if (!inviteResponse.ok) {
-        debug.error('❌ Failed to send federated call invite')
+        debug.error('Failed to send federated call invite')
         return null
       }
       
@@ -971,10 +971,10 @@ class DMCallSignalingService {
         roomName,
       })
       
-      debug.log('✅ [Federated] Call initiated, waiting for response')
+      debug.log('[Federated] Call initiated, waiting for response')
       return callInfo
     } catch (error) {
-      debug.error('❌ [Federated] Failed to initiate call:', error)
+      debug.error('[Federated] Failed to initiate call:', error)
       return null
     }
   }
@@ -987,12 +987,12 @@ class DMCallSignalingService {
     userId: string,
     callerFederatedId: string
   ): Promise<{ token: string; wsUrl: string; roomName: string } | null> {
-    debug.log('📞 [Federated] Accepting federated call from:', callerFederatedId)
+    debug.log('[Federated] Accepting federated call from:', callerFederatedId)
     
     try {
       const call = this.activeCalls.get(conversationId)
       if (!call || !call.isFederated) {
-        debug.error('❌ No federated call found for conversation')
+        debug.error('No federated call found for conversation')
         return null
       }
       
@@ -1009,7 +1009,7 @@ class DMCallSignalingService {
 
       const { data: { session } } = await supabase.auth.getSession()
       if (!session?.access_token) {
-        debug.error('❌ Not authenticated')
+        debug.error('Not authenticated')
         return null
       }
       
@@ -1031,7 +1031,7 @@ class DMCallSignalingService {
         roomName: call.roomName || '',
       }
     } catch (error) {
-      debug.error('❌ [Federated] Failed to accept call:', error)
+      debug.error('[Federated] Failed to accept call:', error)
       return null
     }
   }
@@ -1044,7 +1044,7 @@ class DMCallSignalingService {
     userId: string,
     callerFederatedId: string
   ): Promise<void> {
-    debug.log('📞 [Federated] Declining federated call from:', callerFederatedId)
+    debug.log('[Federated] Declining federated call from:', callerFederatedId)
     
     try {
       const call = this.activeCalls.get(conversationId)
@@ -1069,7 +1069,7 @@ class DMCallSignalingService {
       
       this.deleteActiveCall(conversationId)
     } catch (error) {
-      debug.error('❌ [Federated] Failed to decline call:', error)
+      debug.error('[Federated] Failed to decline call:', error)
     }
   }
 
@@ -1080,7 +1080,7 @@ class DMCallSignalingService {
     conversationId: string,
     _userId: string
   ): Promise<void> {
-    debug.log('📞 [Federated] Ending federated call')
+    debug.log('[Federated] Ending federated call')
     
     try {
       const call = this.activeCalls.get(conversationId)
@@ -1107,7 +1107,7 @@ class DMCallSignalingService {
       
       this.deleteActiveCall(conversationId)
     } catch (error) {
-      debug.error('❌ [Federated] Failed to end call:', error)
+      debug.error('[Federated] Failed to end call:', error)
     }
   }
 
@@ -1155,17 +1155,17 @@ class DMCallSignalingService {
     conversationId: string
   }) => void): () => void {
     const channelName = `federated-calls:${userId}`
-    debug.log('📡 [Federated] Subscribing to:', channelName)
+    debug.log('[Federated] Subscribing to:', channelName)
     
     const channel = supabase.channel(channelName)
     
     channel
       .on('broadcast', { event: 'incoming-call' }, (payload) => {
-        debug.log('📞 [Federated] Incoming call:', payload.payload)
+        debug.log('[Federated] Incoming call:', payload.payload)
         onIncomingCall(payload.payload)
       })
       .on('broadcast', { event: 'call-accepted' }, (payload) => {
-        debug.log('📞 [Federated] Call accepted:', payload.payload)
+        debug.log('[Federated] Call accepted:', payload.payload)
         const { callId } = payload.payload
         const call = this.activeCalls.get(callId)
         if (call && call.timeoutTimer) {
@@ -1174,11 +1174,11 @@ class DMCallSignalingService {
         }
       })
       .on('broadcast', { event: 'call-rejected' }, (payload) => {
-        debug.log('📞 [Federated] Call rejected:', payload.payload)
+        debug.log('[Federated] Call rejected:', payload.payload)
         this.deleteActiveCall(payload.payload.callId)
       })
       .on('broadcast', { event: 'call-ended' }, (payload) => {
-        debug.log('📞 [Federated] Call ended:', payload.payload)
+        debug.log('[Federated] Call ended:', payload.payload)
         this.deleteActiveCall(payload.payload.callId)
       })
       .subscribe()

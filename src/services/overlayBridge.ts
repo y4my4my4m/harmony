@@ -49,7 +49,7 @@ async function close(): Promise<void> {
 export function syncOverlayForCall(inCall: boolean): void {
   if (!desktop()) return;
   const wanted = inCall && isOverlayEnabled();
-  (wanted ? open() : close()).catch(err => debug.warn('⚠️ [overlayBridge]', err));
+  (wanted ? open() : close()).catch(err => debug.warn('[overlayBridge]', err));
 }
 
 export async function setOverlayEnabled(on: boolean): Promise<void> {

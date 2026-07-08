@@ -84,7 +84,7 @@ async function resolveIdentityToUuid(identity: string, remoteServerDomain?: stri
   // UUID doesn't exist locally - if we're connected to a remote server,
   // this user is local to THAT server, not ours. We need to fetch their profile.
   if (remoteServerDomain) {
-    debug.log(`🌐 [LiveKit] UUID ${identity} not found locally, user is from ${remoteServerDomain}`);
+    debug.log(`[LiveKit] UUID ${identity} not found locally, user is from ${remoteServerDomain}`);
     
     // Only the UUID is known here; most instances expose users at
     // https://domain/users/username, so resolve via existing synced profiles
@@ -122,7 +122,7 @@ async function resolveIdentityToUuid(identity: string, remoteServerDomain?: stri
                 if (federatedUser?.id) {
                   federatedIdToUuidCache.set(actor.id, federatedUser.id);
                   uuidToIdentityCache.set(federatedUser.id, identity);
-                  debug.log(`🌐 [LiveKit] Resolved remote UUID ${identity} to local UUID ${federatedUser.id}`);
+                  debug.log(`[LiveKit] Resolved remote UUID ${identity} to local UUID ${federatedUser.id}`);
                   return federatedUser.id;
                 }
               }
@@ -133,11 +133,11 @@ async function resolveIdentityToUuid(identity: string, remoteServerDomain?: stri
         }
       }
     } catch (error) {
-      debug.warn(`🌐 [LiveKit] Failed to resolve remote UUID ${identity}:`, error);
+      debug.warn(`[LiveKit] Failed to resolve remote UUID ${identity}:`, error);
     }
     
     // Couldn't resolve - skip this user for now
-    debug.warn(`🌐 [LiveKit] Could not resolve UUID ${identity} from ${remoteServerDomain}`);
+    debug.warn(`[LiveKit] Could not resolve UUID ${identity} from ${remoteServerDomain}`);
     return null;
   }
   
@@ -161,7 +161,7 @@ async function resolveFederatedId(federatedId: string, originalIdentity: string)
   try {
     federatedUrl = new URL(federatedId);
   } catch {
-    debug.warn(`🌐 [LiveKit] Invalid federated ID URL: ${federatedId}`);
+    debug.warn(`[LiveKit] Invalid federated ID URL: ${federatedId}`);
     return null;
   }
   
@@ -183,7 +183,7 @@ async function resolveFederatedId(federatedId: string, originalIdentity: string)
     if (user?.id) {
       federatedIdToUuidCache.set(federatedId, user.id);
       uuidToIdentityCache.set(user.id, originalIdentity);
-      debug.log(`🌐 [LiveKit] Resolved federated identity ${federatedId} to UUID ${user.id}`);
+      debug.log(`[LiveKit] Resolved federated identity ${federatedId} to UUID ${user.id}`);
       return user.id;
     }
     
@@ -199,13 +199,13 @@ async function resolveFederatedId(federatedId: string, originalIdentity: string)
       if (localUser?.id) {
         federatedIdToUuidCache.set(federatedId, localUser.id);
         uuidToIdentityCache.set(localUser.id, originalIdentity);
-        debug.log(`🌐 [LiveKit] Resolved local user ${username} to UUID ${localUser.id}`);
+        debug.log(`[LiveKit] Resolved local user ${username} to UUID ${localUser.id}`);
         return localUser.id;
       }
     }
     
     // Profile not found locally - need to fetch it from the remote instance
-    debug.log(`🌐 [LiveKit] Profile not found for ${federatedId}, fetching from remote instance...`);
+    debug.log(`[LiveKit] Profile not found for ${federatedId}, fetching from remote instance...`);
     
     const { activityPubService } = await import('./activityPubService');
     
@@ -215,18 +215,18 @@ async function resolveFederatedId(federatedId: string, originalIdentity: string)
       if (federatedUser?.id) {
         federatedIdToUuidCache.set(federatedId, federatedUser.id);
         uuidToIdentityCache.set(federatedUser.id, originalIdentity);
-        debug.log(`🌐 [LiveKit] Fetched and resolved federated identity ${federatedId} to UUID ${federatedUser.id}`);
+        debug.log(`[LiveKit] Fetched and resolved federated identity ${federatedId} to UUID ${federatedUser.id}`);
         return federatedUser.id;
       }
     } catch (fetchError) {
-      debug.warn(`🌐 [LiveKit] Failed to fetch federated actor ${federatedId}:`, fetchError);
+      debug.warn(`[LiveKit] Failed to fetch federated actor ${federatedId}:`, fetchError);
     }
     
   } catch (error) {
-    debug.warn(`🌐 [LiveKit] Failed to resolve federated identity:`, error);
+    debug.warn(`[LiveKit] Failed to resolve federated identity:`, error);
   }
   
-  debug.warn(`🌐 [LiveKit] Could not resolve federated identity: ${federatedId}`);
+  debug.warn(`[LiveKit] Could not resolve federated identity: ${federatedId}`);
   return null;
 }
 
@@ -434,7 +434,7 @@ export class LiveKitWebRTCService {
    * Join a voice channel using LiveKit SFU
    */
   async joinChannel(channelId: string, userId: string, roomType: 'voice_channel' | 'dm_call' | 'stage' = 'voice_channel', abortSignal?: AbortSignal, requireE2EE = false): Promise<boolean> {
-    debug.log('🎯 [LiveKit] Joining voice channel:', channelId, 'as user:', userId, 'E2EE:', requireE2EE);
+    debug.log('[LiveKit] Joining voice channel:', channelId, 'as user:', userId, 'E2EE:', requireE2EE);
     
     try {
       // Check for cancellation
@@ -506,7 +506,7 @@ export class LiveKitWebRTCService {
         throw new DOMException('Connection cancelled', 'AbortError');
       }
       
-      debug.log('✅ [LiveKit] Connected to room:', roomName);
+      debug.log('[LiveKit] Connected to room:', roomName);
       
       // Sync existing participants (they don't trigger ParticipantConnected event)
       await this.syncExistingParticipants();
@@ -547,17 +547,17 @@ export class LiveKitWebRTCService {
       return true;
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
-        debug.log('🚫 [LiveKit] Connection cancelled');
+        debug.log('[LiveKit] Connection cancelled');
         // BUGS.md H23: cancellation paths already tore down inline; just propagate.
         throw error; // Re-throw to propagate cancellation
       }
-      debug.error('❌ [LiveKit] Failed to join channel:', error);
+      debug.error('[LiveKit] Failed to join channel:', error);
       // BUGS.md H23: Room + listeners are created before `room.connect()` is
       // awaited, so a connect failure leaks both across retries. Tear down first.
       try {
         await this.leaveChannel();
       } catch (cleanupErr) {
-        debug.warn('⚠️ [LiveKit] join-failure cleanup also failed:', cleanupErr);
+        debug.warn('[LiveKit] join-failure cleanup also failed:', cleanupErr);
       }
       this.emit('error', error);
       return false;
@@ -569,7 +569,7 @@ export class LiveKitWebRTCService {
    * Used when connecting to a remote instance's LiveKit server
    */
   async joinWithToken(wsUrl: string, token: string, channelId: string, userId: string): Promise<boolean> {
-    debug.log('🌐 [LiveKit] Joining federated voice channel:', channelId, 'with remote token');
+    debug.log('[LiveKit] Joining federated voice channel:', channelId, 'with remote token');
     
     try {
       // Clean previous connection
@@ -588,7 +588,7 @@ export class LiveKitWebRTCService {
         const wsUrlParsed = new URL(wsUrl);
         // Remove 'livekit.' prefix if present, or use the main domain
         this.remoteServerDomain = wsUrlParsed.hostname.replace(/^livekit\./, '');
-        debug.log('🌐 [LiveKit] Remote server domain:', this.remoteServerDomain);
+        debug.log('[LiveKit] Remote server domain:', this.remoteServerDomain);
       } catch {
         this.remoteServerDomain = null;
       }
@@ -605,7 +605,7 @@ export class LiveKitWebRTCService {
         autoSubscribe: true,
       });
       
-      debug.log('✅ [LiveKit] Connected to federated room');
+      debug.log('[LiveKit] Connected to federated room');
       
       // Sync existing participants
       await this.syncExistingParticipants();
@@ -620,7 +620,7 @@ export class LiveKitWebRTCService {
       
       return true;
     } catch (error) {
-      debug.error('❌ [LiveKit] Failed to join federated channel:', error);
+      debug.error('[LiveKit] Failed to join federated channel:', error);
       this.emit('error', error);
       return false;
     }
@@ -655,14 +655,14 @@ export class LiveKitWebRTCService {
   }
 
   async leaveChannel(): Promise<void> {
-    debug.log('👋 [LiveKit] Leaving voice channel');
+    debug.log('[LiveKit] Leaving voice channel');
     this.stopLevelPolling();
 
     if (this.room) {
       try {
         await this.room.disconnect(true);
       } catch (e) {
-        debug.warn('⚠️ [LiveKit] Room disconnect error (forcing cleanup):', e);
+        debug.warn('[LiveKit] Room disconnect error (forcing cleanup):', e);
       }
       this.room = null;
     }
@@ -742,7 +742,7 @@ export class LiveKitWebRTCService {
         red: true, // Redundant encoding for packet loss resilience
       } as any);
       
-      debug.log('🎵 [LiveKit] Published audio with bitrate:', audioBitrateBps, 'bps');
+      debug.log('[LiveKit] Published audio with bitrate:', audioBitrateBps, 'bps');
       
       this.localMediaState.isAudioEnabled = true;
 
@@ -750,10 +750,10 @@ export class LiveKitWebRTCService {
         audioTrack.mute();
       }
       
-      debug.log('✅ [LiveKit] Published local audio track');
+      debug.log('[LiveKit] Published local audio track');
     } catch (error) {
       // No microphone available - allow joining but force mute
-      debug.warn('⚠️ [LiveKit] No microphone available, joining in muted state:', error);
+      debug.warn('[LiveKit] No microphone available, joining in muted state:', error);
       // If the track resolves after the timeout, stop it so it doesn't hold the device
       trackPromise.then(t => t.stop()).catch(() => {});
       this.localMediaState.isMuted = true;
@@ -768,7 +768,7 @@ export class LiveKitWebRTCService {
    */
   async toggleVideo(): Promise<boolean> {
     if (!this.room?.localParticipant) {
-      debug.warn('⚠️ [LiveKit] No room connected');
+      debug.warn('[LiveKit] No room connected');
       return false;
     }
     
@@ -776,7 +776,7 @@ export class LiveKitWebRTCService {
       if (!this.localMediaState.isVideoEnabled) {
         // Enable video with current quality settings
         // Camera and screenshare are independent tracks and may run concurrently
-        debug.log('🎥 [LiveKit] Enabling video with settings:', this.streamQualitySettings);
+        debug.log('[LiveKit] Enabling video with settings:', this.streamQualitySettings);
         
         const resolution = this.getResolutionPreset(this.streamQualitySettings.resolution);
         
@@ -792,7 +792,7 @@ export class LiveKitWebRTCService {
               frameRate: { ideal: this.streamQualitySettings.frameRate }
             });
           } catch (e) {
-            debug.warn('⚠️ [LiveKit] Could not apply frameRate constraint:', e);
+            debug.warn('[LiveKit] Could not apply frameRate constraint:', e);
           }
         }
         
@@ -803,10 +803,10 @@ export class LiveKitWebRTCService {
         });
         
         this.localMediaState.isVideoEnabled = true;
-        debug.log('✅ [LiveKit] Video enabled');
+        debug.log('[LiveKit] Video enabled');
       } else {
         // Disable video - only unpublish the camera track, never the screenshare
-        debug.log('🎥 [LiveKit] Disabling video...');
+        debug.log('[LiveKit] Disabling video...');
 
         const cameraPublication = this.room.localParticipant.getTrackPublication(Track.Source.Camera);
         if (cameraPublication?.track) {
@@ -819,7 +819,7 @@ export class LiveKitWebRTCService {
         }
         
         this.localMediaState.isVideoEnabled = false;
-        debug.log('✅ [LiveKit] Video disabled');
+        debug.log('[LiveKit] Video disabled');
       }
       
       this.broadcastMediaState();
@@ -828,7 +828,7 @@ export class LiveKitWebRTCService {
       
       return this.localMediaState.isVideoEnabled;
     } catch (error) {
-      debug.error('❌ [LiveKit] Failed to toggle video:', error);
+      debug.error('[LiveKit] Failed to toggle video:', error);
       this.emit('error', error);
       return this.localMediaState.isVideoEnabled;
     }
@@ -839,17 +839,17 @@ export class LiveKitWebRTCService {
    */
   async toggleScreenShare(): Promise<boolean> {
     if (!this.room?.localParticipant) {
-      debug.warn('⚠️ [LiveKit] No room connected');
+      debug.warn('[LiveKit] No room connected');
       return false;
     }
     
     try {
       if (!this.localMediaState.isScreenSharing) {
         // Enable screen share (camera, if on, keeps publishing alongside)
-        debug.log('📺 [LiveKit] Enabling screen share...');
+        debug.log('[LiveKit] Enabling screen share...');
         
         // Log existing tracks before starting new screenshare
-        debug.log('📺 [LiveKit] Current audio tracks before screenshare:');
+        debug.log('[LiveKit] Current audio tracks before screenshare:');
         for (const pub of this.room.localParticipant.audioTrackPublications.values()) {
           debug.log(`  - ${pub.source}: ${pub.trackSid}, muted: ${pub.isMuted}`);
         }
@@ -862,7 +862,7 @@ export class LiveKitWebRTCService {
         const targetFrameRate = this.streamQualitySettings.frameRate;
         const audioBitrateKbps = this.streamQualitySettings.audioBitrate;
         
-        debug.log('📺 [LiveKit] Starting screenshare with settings:', {
+        debug.log('[LiveKit] Starting screenshare with settings:', {
           resolution: screenResolution,
           frameRate: targetFrameRate,
           audioBitrate: audioBitrateKbps
@@ -918,11 +918,11 @@ export class LiveKitWebRTCService {
               await pub.track.mediaStreamTrack.applyConstraints({
                 frameRate: { min: 15, ideal: targetFrameRate, max: targetFrameRate }
               });
-              debug.log('✅ [LiveKit] Applied frameRate constraint to screenshare:', targetFrameRate);
+              debug.log('[LiveKit] Applied frameRate constraint to screenshare:', targetFrameRate);
               
               // Log actual track settings - Chrome may impose limits (e.g., 15fps for tab capture)
               const actualSettings = pub.track.mediaStreamTrack.getSettings();
-              debug.log('📊 [LiveKit] Actual screenshare track settings:', {
+              debug.log('[LiveKit] Actual screenshare track settings:', {
                 width: actualSettings.width,
                 height: actualSettings.height,
                 frameRate: actualSettings.frameRate,
@@ -931,20 +931,20 @@ export class LiveKitWebRTCService {
               
               // Warn if Chrome is limiting FPS (common for tab capture)
               if (actualSettings.frameRate && actualSettings.frameRate < targetFrameRate) {
-                debug.warn(`⚠️ [LiveKit] Chrome limited framerate to ${actualSettings.frameRate}fps ` +
+                debug.warn(`[LiveKit] Chrome limited framerate to ${actualSettings.frameRate}fps ` +
                   `(requested ${targetFrameRate}fps). ` +
                   `Note: Tab capture is often capped at ~15fps by Chrome. ` +
                   `Try sharing entire screen or window for higher framerates.`);
               }
             } catch (e) {
-              debug.warn('⚠️ [LiveKit] Could not apply additional frameRate constraint:', e);
+              debug.warn('[LiveKit] Could not apply additional frameRate constraint:', e);
             }
           }
         }
         
         this.localMediaState.isScreenSharing = true;
         
-        debug.log('📺 [LiveKit] Screen share tracks published:');
+        debug.log('[LiveKit] Screen share tracks published:');
         for (const pub of this.room.localParticipant.videoTrackPublications.values()) {
           debug.log(`  - Video: ${pub.source}, trackSid: ${pub.trackSid}`);
         }
@@ -954,23 +954,23 @@ export class LiveKitWebRTCService {
           debug.log(`  - Audio: ${pub.source}, trackSid: ${pub.trackSid}`);
           if (pub.source === Track.Source.ScreenShareAudio) {
             hasScreenShareAudio = true;
-            debug.log('🔊 [LiveKit] ✅ Screenshare audio track published!');
+            debug.log('[LiveKit] Screenshare audio track published!');
           }
         }
         if (!hasScreenShareAudio) {
-          debug.warn('⚠️ [LiveKit] No screenshare audio - possible reasons:');
+          debug.warn('[LiveKit] No screenshare audio - possible reasons:');
           debug.warn('   1. "Share audio" checkbox not enabled in browser picker');
           debug.warn('   2. Sharing a window (not a tab) - no audio available');
           debug.warn('   3. Browser doesn\'t support system audio capture');
         }
         
-        debug.log('✅ [LiveKit] Screen share enabled');
+        debug.log('[LiveKit] Screen share enabled');
       } else {
         // Disable screen share
-        debug.log('📺 [LiveKit] Disabling screen share...');
+        debug.log('[LiveKit] Disabling screen share...');
         
         // Log tracks before disabling
-        debug.log('📺 [LiveKit] Tracks before disabling screenshare:');
+        debug.log('[LiveKit] Tracks before disabling screenshare:');
         for (const pub of this.room.localParticipant.audioTrackPublications.values()) {
           debug.log(`  - Audio ${pub.source}: ${pub.trackSid}`);
         }
@@ -981,7 +981,7 @@ export class LiveKitWebRTCService {
         await this.room.localParticipant.setScreenShareEnabled(false);
         
         // Log tracks after disabling
-        debug.log('📺 [LiveKit] Tracks after disabling screenshare:');
+        debug.log('[LiveKit] Tracks after disabling screenshare:');
         for (const pub of this.room.localParticipant.audioTrackPublications.values()) {
           debug.log(`  - Audio ${pub.source}: ${pub.trackSid}`);
         }
@@ -990,7 +990,7 @@ export class LiveKitWebRTCService {
         }
         
         this.localMediaState.isScreenSharing = false;
-        debug.log('✅ [LiveKit] Screen share disabled');
+        debug.log('[LiveKit] Screen share disabled');
       }
       
       this.broadcastMediaState();
@@ -1003,7 +1003,7 @@ export class LiveKitWebRTCService {
       // listeners already flipped audio routing, leaving both spatial (wet) and
       // traditional <audio> (dry) playback on ("two streams" effect). Emit a state
       // change so listeners re-derive the correct routing.
-      debug.error('❌ [LiveKit] Failed to toggle screen share:', error);
+      debug.error('[LiveKit] Failed to toggle screen share:', error);
       this.localMediaState.isScreenSharing = false;
       this.broadcastMediaState();
       this.emit('local-state-changed', this.localMediaState);
@@ -1112,10 +1112,10 @@ export class LiveKitWebRTCService {
       this.streamQualitySettings.audioBitrate = settings.audioBitrate;
     }
     
-    debug.log('🎬 [LiveKit] Stream quality settings updated:', this.streamQualitySettings);
+    debug.log('[LiveKit] Stream quality settings updated:', this.streamQualitySettings);
     
     if (!this.room?.localParticipant) {
-      debug.log('ℹ️ [LiveKit] Not connected - settings saved for next session');
+      debug.log('ℹ[LiveKit] Not connected - settings saved for next session');
       return;
     }
     
@@ -1124,7 +1124,7 @@ export class LiveKitWebRTCService {
       for (const publication of this.room.localParticipant.videoTrackPublications.values()) {
         const track = publication.track;
         if (!track?.mediaStreamTrack) {
-          debug.log('⚠️ [LiveKit] Track publication has no media track:', publication.trackSid);
+          debug.log('[LiveKit] Track publication has no media track:', publication.trackSid);
           continue;
         }
         
@@ -1141,20 +1141,20 @@ export class LiveKitWebRTCService {
         
         if (Object.keys(constraints).length > 0) {
           try {
-            debug.log('🎬 [LiveKit] Applying constraints to track:', publication.trackSid, constraints);
+            debug.log('[LiveKit] Applying constraints to track:', publication.trackSid, constraints);
             await track.mediaStreamTrack.applyConstraints(constraints);
             trackCount++;
-            debug.log('✅ [LiveKit] Applied video constraints to', publication.source);
+            debug.log('[LiveKit] Applied video constraints to', publication.source);
 
             // Log actual track settings after applying
             const actualSettings = track.mediaStreamTrack.getSettings();
-            debug.log('📊 [LiveKit] Actual track settings:', {
+            debug.log('[LiveKit] Actual track settings:', {
               width: actualSettings.width,
               height: actualSettings.height,
               frameRate: actualSettings.frameRate,
             });
           } catch (error) {
-            debug.error('❌ [LiveKit] Failed to apply video constraints:', error);
+            debug.error('[LiveKit] Failed to apply video constraints:', error);
           }
         }
 
@@ -1175,25 +1175,25 @@ export class LiveKitWebRTCService {
               enc.maxFramerate = fps;
             }
             await sender.setParameters(params);
-            debug.log('✅ [LiveKit] Updated screenshare encoder params:', {
+            debug.log('[LiveKit] Updated screenshare encoder params:', {
               maxBitrate: this.screenShareBitrate(height, fps),
               maxFramerate: fps,
             });
           } catch (error) {
-            debug.warn('⚠️ [LiveKit] Could not update encoder params live:', error);
+            debug.warn('[LiveKit] Could not update encoder params live:', error);
           }
         }
       }
       
       if (trackCount === 0) {
-        debug.log('ℹ️ [LiveKit] No active video tracks to apply settings to');
+        debug.log('ℹ[LiveKit] No active video tracks to apply settings to');
       }
     }
     
     // Note: Audio bitrate in LiveKit is set at track creation time
     // Runtime bitrate changes require republishing the track
     if (settings.audioBitrate !== undefined) {
-      debug.log('🎵 [LiveKit] Audio bitrate saved:', settings.audioBitrate, 'kbps');
+      debug.log('[LiveKit] Audio bitrate saved:', settings.audioBitrate, 'kbps');
       debug.log('   Note: Takes effect on next mic enable/reconnect');
     }
   }
@@ -1211,10 +1211,10 @@ export class LiveKitWebRTCService {
           frameRate: settings.frameRate ?? 30,
           audioBitrate: settings.audioBitrate ?? 128,
         };
-        debug.log('📊 [LiveKit] Loaded stream quality settings:', this.streamQualitySettings);
+        debug.log('[LiveKit] Loaded stream quality settings:', this.streamQualitySettings);
       }
     } catch (error) {
-      debug.warn('⚠️ [LiveKit] Failed to load stream settings:', error);
+      debug.warn('[LiveKit] Failed to load stream settings:', error);
     }
   }
   
@@ -1226,7 +1226,7 @@ export class LiveKitWebRTCService {
    */
   setTraditionalAudioEnabled(enabled: boolean): void {
     this.traditionalAudioMuted = !enabled;
-    debug.log(`🔊 [LiveKit] Setting traditional audio enabled: ${enabled} for ${this.remoteMicAudioElements.size} mic elements`);
+    debug.log(`[LiveKit] Setting traditional audio enabled: ${enabled} for ${this.remoteMicAudioElements.size} mic elements`);
     for (const audioElement of this.remoteMicAudioElements.values()) {
       audioElement.muted = !enabled;
     }
@@ -1246,7 +1246,7 @@ export class LiveKitWebRTCService {
     
     if (audioElement) {
       audioElement.volume = clampedVolume / 100;
-      debug.log(`🔊 [LiveKit] Set mic volume for ${participantId} to ${clampedVolume}%`);
+      debug.log(`[LiveKit] Set mic volume for ${participantId} to ${clampedVolume}%`);
     }
   }
   
@@ -1262,7 +1262,7 @@ export class LiveKitWebRTCService {
     
     if (audioElement) {
       audioElement.volume = clampedVolume / 100;
-      debug.log(`🔊 [LiveKit] Set screenshare volume for ${participantId} to ${clampedVolume}%`);
+      debug.log(`[LiveKit] Set screenshare volume for ${participantId} to ${clampedVolume}%`);
     }
   }
   
@@ -1432,24 +1432,24 @@ export class LiveKitWebRTCService {
    */
   attachVideoToElement(userId: string, videoElement: HTMLVideoElement, source: VideoSource = 'auto'): boolean {
     if (!this.room) {
-      debug.warn('📺 [LiveKit] attachVideoToElement: No room');
+      debug.warn('[LiveKit] attachVideoToElement: No room');
       return false;
     }
 
     const participant = this.resolveParticipant(userId);
     if (!participant) {
-      debug.warn('📺 [LiveKit] attachVideoToElement: Participant not found:', userId);
+      debug.warn('[LiveKit] attachVideoToElement: Participant not found:', userId);
       return false;
     }
 
     const publication = this.pickVideoPublication(participant, source);
     if (publication?.track) {
       publication.track.attach(videoElement);
-      debug.log(`📺 [LiveKit] ✅ Attached ${source} video for:`, userId);
+      debug.log(`[LiveKit] Attached ${source} video for:`, userId);
       return true;
     }
 
-    debug.warn(`📺 [LiveKit] No ${source} video track to attach for:`, userId);
+    debug.warn(`[LiveKit] No ${source} video track to attach for:`, userId);
     return false;
   }
 
@@ -1512,26 +1512,26 @@ export class LiveKitWebRTCService {
    */
   private async syncExistingParticipants(): Promise<void> {
     if (!this.room) {
-      debug.warn('⚠️ [LiveKit] syncExistingParticipants called but no room');
+      debug.warn('[LiveKit] syncExistingParticipants called but no room');
       return;
     }
     
     const existingParticipants = this.room.remoteParticipants;
-    debug.log(`🔄 [LiveKit] Syncing ${existingParticipants.size} existing participants`);
+    debug.log(`[LiveKit] Syncing ${existingParticipants.size} existing participants`);
     
     if (existingParticipants.size === 0) {
-      debug.log('📭 [LiveKit] No existing participants to sync');
+      debug.log('[LiveKit] No existing participants to sync');
       return;
     }
     
     for (const participant of existingParticipants.values()) {
-      debug.log(`👤 [LiveKit] Found existing participant: ${participant.identity}, sid: ${participant.sid}`);
+      debug.log(`[LiveKit] Found existing participant: ${participant.identity}, sid: ${participant.sid}`);
       
       // Resolve federated identity to profile UUID
       const userId = await resolveIdentityToUuid(participant.identity, this.remoteServerDomain);
       
       if (!userId) {
-        debug.warn(`⚠️ [LiveKit] Could not resolve identity for existing participant: ${participant.identity}`);
+        debug.warn(`[LiveKit] Could not resolve identity for existing participant: ${participant.identity}`);
         const mediaState = this.createMediaState(participant, participant.identity);
         this.allUserStates.set(participant.identity, mediaState);
         this.setupParticipantListeners(participant);
@@ -1543,7 +1543,7 @@ export class LiveKitWebRTCService {
       if (userId !== participant.identity) {
         this.allUserStates.set(participant.identity, mediaState);
       }
-      debug.log(`👤 [LiveKit] Added to allUserStates, total: ${this.allUserStates.size}`);
+      debug.log(`[LiveKit] Added to allUserStates, total: ${this.allUserStates.size}`);
       
       this.setupParticipantListeners(participant);
       
@@ -1553,7 +1553,7 @@ export class LiveKitWebRTCService {
       // TrackSubscribed events will handle any tracks that subscribe later
       const hasSubscribedTracks = this.hasSubscribedTracks(participant);
       if (hasSubscribedTracks) {
-        debug.log(`📺 [LiveKit] Participant ${userId} has already-subscribed tracks, emitting state`);
+        debug.log(`[LiveKit] Participant ${userId} has already-subscribed tracks, emitting state`);
         const stream = this.getUserStream(userId);
         this.emit('user-stream-changed', { userId, stream });
         // Spread to create new object reference for Vue reactivity
@@ -1561,7 +1561,7 @@ export class LiveKitWebRTCService {
       }
     }
     
-    debug.log(`✅ [LiveKit] Sync complete. Total users tracked: ${this.allUserStates.size}`);
+    debug.log(`[LiveKit] Sync complete. Total users tracked: ${this.allUserStates.size}`);
   }
   
   /**
@@ -1585,7 +1585,7 @@ export class LiveKitWebRTCService {
     
     // Connection state changes
     this.room.on(RoomEvent.ConnectionStateChanged, (state: ConnectionState) => {
-      debug.log('🔗 [LiveKit] Connection state:', state);
+      debug.log('[LiveKit] Connection state:', state);
       this.emit('connection-state-changed', { state });
     });
     
@@ -1607,12 +1607,12 @@ export class LiveKitWebRTCService {
     
     // Participant connected
     this.room.on(RoomEvent.ParticipantConnected, async (participant: RemoteParticipant) => {
-      debug.log('👋 [LiveKit] Participant connected:', participant.identity);
+      debug.log('[LiveKit] Participant connected:', participant.identity);
       
       // Resolve federated identity to profile UUID
       const userId = await resolveIdentityToUuid(participant.identity, this.remoteServerDomain);
       if (!userId) {
-        debug.warn(`⚠️ [LiveKit] Could not resolve identity for connected participant: ${participant.identity}`);
+        debug.warn(`[LiveKit] Could not resolve identity for connected participant: ${participant.identity}`);
         return; // Skip unresolvable participants
       }
       
@@ -1637,7 +1637,7 @@ export class LiveKitWebRTCService {
     
     // Participant disconnected
     this.room.on(RoomEvent.ParticipantDisconnected, async (participant: RemoteParticipant) => {
-      debug.log('👋 [LiveKit] Participant disconnected:', participant.identity);
+      debug.log('[LiveKit] Participant disconnected:', participant.identity);
       
       // Resolve federated identity to profile UUID
       const userId = await resolveIdentityToUuid(participant.identity, this.remoteServerDomain);
@@ -1664,7 +1664,7 @@ export class LiveKitWebRTCService {
     
     this.room.on(RoomEvent.TrackSubscribed, async (track: RemoteTrack, publication: TrackPublication, participant: RemoteParticipant) => {
       const source = publication.source;
-      debug.log('📺 [LiveKit] Track subscribed:', track.kind, 'source:', source, 'from', participant.identity);
+      debug.log('[LiveKit] Track subscribed:', track.kind, 'source:', source, 'from', participant.identity);
       
       // Resolve federated identity to profile UUID
       const userId = await resolveIdentityToUuid(participant.identity, this.remoteServerDomain);
@@ -1674,7 +1674,7 @@ export class LiveKitWebRTCService {
       let state = this.allUserStates.get(lookupId) || this.allUserStates.get(participant.identity);
       if (!state) {
         // Create state if it doesn't exist (edge case - track subscribed before participant fully registered)
-        debug.log('📺 [LiveKit] Creating state for participant during TrackSubscribed:', lookupId);
+        debug.log('[LiveKit] Creating state for participant during TrackSubscribed:', lookupId);
         state = this.createMediaState(participant, userId || participant.identity);
       }
       
@@ -1695,7 +1695,7 @@ export class LiveKitWebRTCService {
             // Clean up any existing screenshare audio for this participant first
             const existingElement = this.remoteScreenShareAudioElements.get(participant.identity);
             if (existingElement && existingElement !== audioElement) {
-              debug.log('🔊 [LiveKit] Cleaning up old screenshare audio element');
+              debug.log('[LiveKit] Cleaning up old screenshare audio element');
               try {
                 existingElement.pause();
                 existingElement.srcObject = null;
@@ -1706,7 +1706,7 @@ export class LiveKitWebRTCService {
             this.remoteScreenShareAudioElements.set(participant.identity, audioElement);
             if (userId && userId !== participant.identity) {
               this.remoteScreenShareAudioElements.set(userId, audioElement);
-              debug.log('🔊 [LiveKit] Also storing screenshare audio by userId:', userId);
+              debug.log('[LiveKit] Also storing screenshare audio by userId:', userId);
             }
             
             // Screenshare audio should bypass ALL audio processing
@@ -1721,7 +1721,7 @@ export class LiveKitWebRTCService {
               ?? 100;
             audioElement.volume = savedVolume / 100;
             
-            debug.log('🔊 [LiveKit] Screenshare audio attached (raw, no processing) for:', lookupId, 'volume:', savedVolume);
+            debug.log('[LiveKit] Screenshare audio attached (raw, no processing) for:', lookupId, 'volume:', savedVolume);
           } else {
             // Clean up any existing mic audio for this participant first  
             const existingElement = this.remoteMicAudioElements.get(participant.identity);
@@ -1742,16 +1742,16 @@ export class LiveKitWebRTCService {
             const savedVolume = this.userMicVolumes.get(participant.identity) ?? 100;
             audioElement.volume = savedVolume / 100;
             
-            debug.log('🔊 [LiveKit] Mic audio attached for:', lookupId, 'volume:', savedVolume, 'muted:', audioElement.muted);
+            debug.log('[LiveKit] Mic audio attached for:', lookupId, 'volume:', savedVolume, 'muted:', audioElement.muted);
           }
         }
       } else if (track.kind === Track.Kind.Video) {
         if (source === Track.Source.ScreenShare) {
           state.isScreenSharing = true;
-          debug.log('📺 [LiveKit] ScreenShare track subscribed for:', lookupId);
+          debug.log('[LiveKit] ScreenShare track subscribed for:', lookupId);
         } else {
           state.isVideoEnabled = true;
-          debug.log('📺 [LiveKit] Camera track subscribed for:', lookupId);
+          debug.log('[LiveKit] Camera track subscribed for:', lookupId);
         }
       }
       
@@ -1764,7 +1764,7 @@ export class LiveKitWebRTCService {
       // Emit events to update UI - ALWAYS emit when we have a valid UUID
       // Spread to create a NEW object reference so Vue's reactivity detects the change
       if (userId) {
-        debug.log('📺 [LiveKit] Emitting state change for:', userId, 'screenSharing:', state.isScreenSharing, 'videoEnabled:', state.isVideoEnabled);
+        debug.log('[LiveKit] Emitting state change for:', userId, 'screenSharing:', state.isScreenSharing, 'videoEnabled:', state.isVideoEnabled);
         const stream = this.getUserStream(userId);
         this.emit('user-stream-changed', { userId, stream });
         this.emit('user-state-changed', { userId, mediaState: { ...state } });
@@ -1773,7 +1773,7 @@ export class LiveKitWebRTCService {
     
     this.room.on(RoomEvent.TrackUnsubscribed, async (track: RemoteTrack, publication: TrackPublication, participant: RemoteParticipant) => {
       const source = publication.source;
-      debug.log('📺 [LiveKit] Track unsubscribed:', track.kind, 'source:', source, 'from', participant.identity);
+      debug.log('[LiveKit] Track unsubscribed:', track.kind, 'source:', source, 'from', participant.identity);
       
       // Resolve federated identity to profile UUID
       const userId = await resolveIdentityToUuid(participant.identity, this.remoteServerDomain);
@@ -1790,10 +1790,10 @@ export class LiveKitWebRTCService {
           if (userId && userId !== participant.identity) {
             this.remoteScreenShareAudioElements.delete(userId);
           }
-          debug.log('🔊 [LiveKit] Screenshare audio detached for:', lookupId);
+          debug.log('[LiveKit] Screenshare audio detached for:', lookupId);
         } else {
           this.remoteMicAudioElements.delete(participant.identity);
-          debug.log('🔊 [LiveKit] Mic audio detached for:', lookupId);
+          debug.log('[LiveKit] Mic audio detached for:', lookupId);
         }
       }
       
@@ -1858,13 +1858,13 @@ export class LiveKitWebRTCService {
     
     // Disconnected
     this.room.on(RoomEvent.Disconnected, (reason?: any) => {
-      debug.log('🔌 [LiveKit] Disconnected:', reason);
+      debug.log('[LiveKit] Disconnected:', reason);
       this.emit('channel-left', { channelId: this.channelId, reason });
     });
     
     // Error
     this.room.on(RoomEvent.MediaDevicesError, (error: Error) => {
-      debug.error('❌ [LiveKit] Media devices error:', error);
+      debug.error('[LiveKit] Media devices error:', error);
       this.emit('error', error);
     });
     
@@ -1888,25 +1888,25 @@ export class LiveKitWebRTCService {
           this.emit('request-call-start-time', { from: message.from });
         }
       } catch (error) {
-        debug.warn('⚠️ [LiveKit] Failed to parse data message');
+        debug.warn('[LiveKit] Failed to parse data message');
       }
     });
     
     // LOCAL track unpublished (fires when Chrome's "Stop Sharing" is clicked or track ends)
     this.room.on(RoomEvent.LocalTrackUnpublished, (publication: TrackPublication, _participant: LocalParticipant) => {
-      debug.log('📺 [LiveKit] Local track unpublished:', publication.kind, 'source:', publication.source);
+      debug.log('[LiveKit] Local track unpublished:', publication.kind, 'source:', publication.source);
       
       if (publication.kind === Track.Kind.Video) {
         if (publication.source === Track.Source.ScreenShare) {
-          debug.log('📺 [LiveKit] Screen share ended (Chrome stop button or track ended)');
+          debug.log('[LiveKit] Screen share ended (Chrome stop button or track ended)');
           this.localMediaState.isScreenSharing = false;
         } else if (publication.source === Track.Source.Camera) {
-          debug.log('📺 [LiveKit] Camera ended');
+          debug.log('[LiveKit] Camera ended');
           this.localMediaState.isVideoEnabled = false;
         }
       } else if (publication.kind === Track.Kind.Audio) {
         if (publication.source === Track.Source.ScreenShareAudio) {
-          debug.log('🔊 [LiveKit] Screen share audio ended');
+          debug.log('[LiveKit] Screen share audio ended');
           // No state to update - screenshare audio doesn't have a separate flag
         }
       }
@@ -1923,14 +1923,14 @@ export class LiveKitWebRTCService {
         });
       }
       
-      debug.log('📺 [LiveKit] Local state after unpublish:', 
+      debug.log('[LiveKit] Local state after unpublish:', 
         'video:', this.localMediaState.isVideoEnabled, 
         'screen:', this.localMediaState.isScreenSharing);
     });
     
     // Track published by remote user (fires AFTER TrackSubscribed, good for UI notification)
     this.room.on(RoomEvent.TrackPublished, async (publication: TrackPublication, participant: RemoteParticipant) => {
-      debug.log('📺 [LiveKit] Remote track published:', publication.kind, 'source:', publication.source, 'from:', participant.identity);
+      debug.log('[LiveKit] Remote track published:', publication.kind, 'source:', publication.source, 'from:', participant.identity);
       // This gives us another chance to update UI when remote user publishes a track
     });
     
@@ -2009,7 +2009,7 @@ export class LiveKitWebRTCService {
       const encoder = new TextEncoder();
       this.room.localParticipant.publishData(encoder.encode(JSON.stringify(message)), { reliable: true });
     } catch (error) {
-      debug.warn('⚠️ [LiveKit] Failed to broadcast message:', message?.type);
+      debug.warn('[LiveKit] Failed to broadcast message:', message?.type);
     }
   }
 
@@ -2033,7 +2033,7 @@ export class LiveKitWebRTCService {
       const encoder = new TextEncoder();
       this.room.localParticipant.publishData(encoder.encode(JSON.stringify(message)), { reliable: true });
     } catch (error) {
-      debug.warn('⚠️ [LiveKit] Failed to broadcast media state');
+      debug.warn('[LiveKit] Failed to broadcast media state');
     }
   }
   
@@ -2057,12 +2057,12 @@ export class LiveKitWebRTCService {
       this.audioConstraints.noiseSuppression = constraints.noiseSuppression;
       this.audioConstraints.autoGainControl = constraints.autoGainControl;
       
-      debug.log('🎛️ [LiveKit] Loaded audio settings from VoiceSettingsService:', {
+      debug.log('[LiveKit] Loaded audio settings from VoiceSettingsService:', {
         devices,
         constraints
       });
     } catch (error) {
-      debug.warn('⚠️ [LiveKit] Failed to load audio settings:', error);
+      debug.warn('[LiveKit] Failed to load audio settings:', error);
     }
   }
   
@@ -2087,7 +2087,7 @@ export class LiveKitWebRTCService {
     if (this.room?.localParticipant) {
       // Switch active microphone
       await this.room.switchActiveDevice('audioinput', deviceId);
-      debug.log('🎤 [LiveKit] Switched input device to:', deviceId);
+      debug.log('[LiveKit] Switched input device to:', deviceId);
     }
   }
   
@@ -2101,7 +2101,7 @@ export class LiveKitWebRTCService {
     if (this.room) {
       // Switch audio output
       await this.room.switchActiveDevice('audiooutput', deviceId);
-      debug.log('🔊 [LiveKit] Switched output device to:', deviceId);
+      debug.log('[LiveKit] Switched output device to:', deviceId);
     }
   }
   
@@ -2115,7 +2115,7 @@ export class LiveKitWebRTCService {
     if (this.room?.localParticipant && this.localMediaState.isVideoEnabled) {
       // Switch active camera
       await this.room.switchActiveDevice('videoinput', deviceId);
-      debug.log('📹 [LiveKit] Switched video device to:', deviceId);
+      debug.log('[LiveKit] Switched video device to:', deviceId);
     }
   }
   
@@ -2142,7 +2142,7 @@ export class LiveKitWebRTCService {
       }
       return { keyProvider: this.e2eeKeyProvider, worker: this.e2eeWorker };
     } catch (error) {
-      debug.warn('⚠️ [LiveKit] Failed to set up E2EE worker, room will be unencrypted:', error);
+      debug.warn('[LiveKit] Failed to set up E2EE worker, room will be unencrypted:', error);
       return null;
     }
   }
@@ -2208,7 +2208,7 @@ export class LiveKitWebRTCService {
       const data = new TextEncoder().encode(JSON.stringify(envelope));
       await this.room.localParticipant.publishData(data, { reliable: true, topic: this.E2EE_DATA_TOPIC });
     } catch (err) {
-      debug.warn('⚠️ [LiveKit] Failed to send E2EE envelope:', err);
+      debug.warn('[LiveKit] Failed to send E2EE envelope:', err);
     }
   }
 
@@ -2233,7 +2233,7 @@ export class LiveKitWebRTCService {
       this.e2eeEnabled = true;
       this.emit('e2ee-status-changed', { enabled: true });
     }
-    debug.log('🔐 [LiveKit] Applied shared room key', keyId);
+    debug.log('[LiveKit] Applied shared room key', keyId);
   }
 
   /**
@@ -2262,7 +2262,7 @@ export class LiveKitWebRTCService {
     const cipher = await voiceE2EEService.wrapKey(key, this.channelId, recipients);
     this.lastKeyEnvelope = { t: 'voice-key', keyId, cipher };
     await this.sendE2EEEnvelope(this.lastKeyEnvelope);
-    debug.log(`🔑 [LiveKit] Coordinator broadcast key ${keyId} to ${recipients.length} member(s)`);
+    debug.log(`[LiveKit] Coordinator broadcast key ${keyId} to ${recipients.length} member(s)`);
   }
 
   /** Try to apply the most recently received key envelope (retried as Megolm sessions arrive). */
@@ -2367,9 +2367,9 @@ export class LiveKitWebRTCService {
       this.e2eeEnabled = true;
       this.emit('e2ee-status-changed', { enabled: true });
       
-      debug.log('🔐 [LiveKit] E2EE enabled');
+      debug.log('[LiveKit] E2EE enabled');
     } catch (error) {
-      debug.error('❌ [LiveKit] Failed to enable E2EE:', error);
+      debug.error('[LiveKit] Failed to enable E2EE:', error);
       throw error;
     }
   }
@@ -2384,9 +2384,9 @@ export class LiveKitWebRTCService {
       await this.room.setE2EEEnabled(false);
       this.e2eeEnabled = false;
       this.emit('e2ee-status-changed', { enabled: false });
-      debug.log('🔓 [LiveKit] E2EE disabled');
+      debug.log('[LiveKit] E2EE disabled');
     } catch (error) {
-      debug.error('❌ [LiveKit] Failed to disable E2EE:', error);
+      debug.error('[LiveKit] Failed to disable E2EE:', error);
     }
   }
 

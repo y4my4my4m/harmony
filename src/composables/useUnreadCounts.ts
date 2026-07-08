@@ -161,9 +161,9 @@ export function useUnreadCounts() {
         })
       }
 
-      debug.log('✅ Fetched unread counts:', sharedUnreadCounts.value.size)
+      debug.log('Fetched unread counts:', sharedUnreadCounts.value.size)
     } catch (error) {
-      debug.error('❌ Error fetching unread counts:', error)
+      debug.error('Error fetching unread counts:', error)
     } finally {
       sharedIsLoading.value = false
     }
@@ -223,16 +223,16 @@ export function useUnreadCounts() {
         const action = data.action as string
         const countData = data.count as Record<string, any> | undefined
         if (!countData) return
-        debug.log('📡 Broadcast unread:change →', action)
+        debug.log('Broadcast unread:change →', action)
         applyUnreadChange(action, countData)
       })
 
       sharedReconnectUnsub = userEventChannel.on('_reconnected', async () => {
-        debug.log('🔄 UserEventChannel reconnected - gap-filling unread counts')
+        debug.log('UserEventChannel reconnected - gap-filling unread counts')
         await fetchUnreadCounts()
       })
 
-      debug.log('✅ Unread counts broadcast handler registered')
+      debug.log('Unread counts broadcast handler registered')
     }
 
   }
@@ -254,7 +254,7 @@ export function useUnreadCounts() {
       }
       sharedProfileId = null
       initPromise = null
-      debug.log('🧹 Cleaned up unread counts subscriptions')
+      debug.log('Cleaned up unread counts subscriptions')
     }
   }
 

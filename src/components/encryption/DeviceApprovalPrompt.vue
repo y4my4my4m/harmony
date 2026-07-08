@@ -92,7 +92,7 @@ async function onApprove() {
   try {
     await approve(currentApprover.value)
   } catch (err) {
-    debug.warn('⚠️ Approve device failed:', err)
+    debug.warn('Approve device failed:', err)
     try {
       const { useNotificationStore } = await import('@/stores/useNotification')
       useNotificationStore().showToast(
@@ -113,7 +113,7 @@ async function onDeny() {
   try {
     await deny(currentApprover.value)
   } catch (err) {
-    debug.warn('⚠️ Deny device failed:', err)
+    debug.warn('Deny device failed:', err)
     try {
       const { useNotificationStore } = await import('@/stores/useNotification')
       useNotificationStore().showToast(
@@ -138,7 +138,7 @@ async function onSecureThisLogin() {
   try {
     await secureThisLogin()
   } catch (err) {
-    debug.warn('⚠️ Secure this login failed:', err)
+    debug.warn('Secure this login failed:', err)
     try {
       const { useNotificationStore } = await import('@/stores/useNotification')
       useNotificationStore().showToast(
@@ -161,7 +161,7 @@ onMounted(async () => {
       await start(ctx.profileId)
     }
   } catch (err) {
-    debug.warn('⚠️ Device-approval prompt init failed:', err)
+    debug.warn('Device-approval prompt init failed:', err)
   }
 })
 </script>

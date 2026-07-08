@@ -103,13 +103,13 @@ async function loadEmojiData(): Promise<void> {
         emojiData.value = cachedData
         lookups.value = cachedData.lookups || null
         loadedFromCache = true
-        debug.log(`⚡ Loaded emoji data from IndexedDB cache: ${cachedData.totalCount} emojis`)
+        debug.log(`Loaded emoji data from IndexedDB cache: ${cachedData.totalCount} emojis`)
       }
 
       if (cachedFileMap) {
         twemojiFileMap.value = cachedFileMap
         if (loadedFromCache) {
-          debug.log(`⚡ Loaded Twemoji file map from IndexedDB cache`)
+          debug.log(`Loaded Twemoji file map from IndexedDB cache`)
         }
       }
     } catch (e) {
@@ -127,10 +127,10 @@ async function loadEmojiData(): Promise<void> {
       if (dataResponse.ok) {
         emojiData.value = await dataResponse.json()
         lookups.value = emojiData.value?.lookups || null
-        debug.log(`📦 Loaded unified emoji data: ${emojiData.value?.totalCount} emojis`)
+        debug.log(`Loaded unified emoji data: ${emojiData.value?.totalCount} emojis`)
         setCachedStaticEmojiData('unicode-emoji-data', emojiData.value, EMOJI_DATA_CACHE_VERSION)
       } else {
-        debug.warn('⚠️ unicode-emoji-data.json not found')
+        debug.warn('unicode-emoji-data.json not found')
       }
     }
     
@@ -139,7 +139,7 @@ async function loadEmojiData(): Promise<void> {
         const fileMapResponse = await fetch('/assets/emojis/twemoji-file-map.json')
         if (fileMapResponse.ok) {
           twemojiFileMap.value = await fileMapResponse.json()
-          debug.log(`📦 Loaded Twemoji file map: ${Object.keys(twemojiFileMap.value || {}).length} entries`)
+          debug.log(`Loaded Twemoji file map: ${Object.keys(twemojiFileMap.value || {}).length} entries`)
           setCachedStaticEmojiData('twemoji-file-map', twemojiFileMap.value, EMOJI_DATA_CACHE_VERSION)
         }
       } catch (e) {
@@ -191,7 +191,7 @@ function savePackPreference(): void {
 function setEmojiPack(pack: EmojiPack): void {
   currentPack.value = pack
   savePackPreference()
-  debug.log(`📦 Switched to emoji pack: ${pack}`)
+  debug.log(`Switched to emoji pack: ${pack}`)
 }
 
 // CONVERSION UTILITIES

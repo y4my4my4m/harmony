@@ -14,6 +14,6 @@ export async function setCallServiceActive(on: boolean): Promise<void> {
     const { invoke } = await import('@tauri-apps/api/core');
     await invoke('android_call_service', { start: on });
   } catch (error) {
-    debug.warn('⚠️ [callForegroundService] toggle failed:', error);
+    debug.warn('[callForegroundService] toggle failed:', error);
   }
 }

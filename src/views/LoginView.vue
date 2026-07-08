@@ -22,19 +22,19 @@ export default defineComponent({
     const authStore = useAuthStore();
 
     watch(() => authStore.isLoggedIn, (isLoggedIn) => {
-      debug.log('🔐 LoginView: isLoggedIn changed:', isLoggedIn);
+      debug.log('LoginView: isLoggedIn changed:', isLoggedIn);
       if (isLoggedIn) {
         try {
           const userId = authStore.session?.user?.id || '';
-          debug.log('🔐 LoginView: Navigating to chat, userId:', userId);
+          debug.log('LoginView: Navigating to chat, userId:', userId);
           updateUserStatus(userId, UserStatus.Online);
           router.push('/chat').then(() => {
-            debug.log('✅ LoginView: Navigation to /chat successful');
+            debug.log('LoginView: Navigation to /chat successful');
           }).catch((err) => {
-            debug.error('❌ LoginView: Navigation failed:', err);
+            debug.error('LoginView: Navigation failed:', err);
           });
         } catch (error: any) {
-          debug.error('❌ LoginView: Error during login navigation:', error);
+          debug.error('LoginView: Error during login navigation:', error);
           router.push('/new-profile');
         }
       }

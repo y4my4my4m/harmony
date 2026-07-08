@@ -21,17 +21,17 @@ export function usePostInteractions() {
     const userId = typeof user === 'string' ? user : user.id
     
     if (!userId) {
-      debug.error('❌ toggleFollow: Invalid user ID:', user)
+      debug.error('toggleFollow: Invalid user ID:', user)
       return { following: false, error: 'Invalid user ID' }
     }
 
     isFollowLoading.value = true
     try {
       const result = await services.interactions.toggleFollow(userId)
-      debug.log(`✅ Follow toggled for user ${userId}:`, result.following ? 'Following' : 'Unfollowed')
+      debug.log(`Follow toggled for user ${userId}:`, result.following ? 'Following' : 'Unfollowed')
       return { following: result.following }
     } catch (error) {
-      debug.error('❌ Failed to toggle follow:', error)
+      debug.error('Failed to toggle follow:', error)
       return { 
         following: false, 
         error: error instanceof Error ? error.message : 'Unknown error' 
@@ -45,17 +45,17 @@ export function usePostInteractions() {
     const userId = typeof user === 'string' ? user : user.id
     
     if (!userId) {
-      debug.error('❌ followUser: Invalid user ID:', user)
+      debug.error('followUser: Invalid user ID:', user)
       return { success: false, error: 'Invalid user ID' }
     }
 
     isFollowLoading.value = true
     try {
       await activityPubStore.followUser(userId)
-      debug.log(`✅ Successfully followed user: ${userId}`)
+      debug.log(`Successfully followed user: ${userId}`)
       return { success: true }
     } catch (error) {
-      debug.error('❌ Failed to follow user:', error)
+      debug.error('Failed to follow user:', error)
       return { 
         success: false, 
         error: error instanceof Error ? error.message : 'Unknown error' 
@@ -69,17 +69,17 @@ export function usePostInteractions() {
     const userId = typeof user === 'string' ? user : user.id
     
     if (!userId) {
-      debug.error('❌ unfollowUser: Invalid user ID:', user)
+      debug.error('unfollowUser: Invalid user ID:', user)
       return { success: false, error: 'Invalid user ID' }
     }
 
     isFollowLoading.value = true
     try {
       await activityPubStore.unfollowUser(userId)
-      debug.log(`✅ Successfully unfollowed user: ${userId}`)
+      debug.log(`Successfully unfollowed user: ${userId}`)
       return { success: true }
     } catch (error) {
-      debug.error('❌ Failed to unfollow user:', error)
+      debug.error('Failed to unfollow user:', error)
       return { 
         success: false, 
         error: error instanceof Error ? error.message : 'Unknown error' 
@@ -95,14 +95,14 @@ export function usePostInteractions() {
     const postId = typeof post === 'string' ? post : post.id
     
     if (!postId) {
-      debug.error('❌ toggleFavorite: Invalid post ID:', post)
+      debug.error('toggleFavorite: Invalid post ID:', post)
       return { success: false, error: 'Invalid post ID' }
     }
 
     isFavoriteLoading.value = true
     try {
       const result = await services.posts.toggleLike(postId)
-      debug.log(`✅ Favorite toggled for post ${postId}:`, result.liked ? 'Liked' : 'Unliked')
+      debug.log(`Favorite toggled for post ${postId}:`, result.liked ? 'Liked' : 'Unliked')
 
       activityPubStore.updatePostInteractionInAllFeeds(postId, 'favorite', result.liked)
 
@@ -112,7 +112,7 @@ export function usePostInteractions() {
         newCount: result.newCount
       }
     } catch (error) {
-      debug.error('❌ Failed to toggle favorite:', error)
+      debug.error('Failed to toggle favorite:', error)
       return { 
         success: false, 
         error: error instanceof Error ? error.message : 'Unknown error' 
@@ -126,14 +126,14 @@ export function usePostInteractions() {
     const postId = typeof post === 'string' ? post : post.id
     
     if (!postId) {
-      debug.error('❌ toggleReblog: Invalid post ID:', post)
+      debug.error('toggleReblog: Invalid post ID:', post)
       return { success: false, error: 'Invalid post ID' }
     }
 
     isReblogLoading.value = true
     try {
       const result = await services.posts.toggleReblog(postId)
-      debug.log(`✅ Reblog toggled for post ${postId}:`, result.reblogged ? 'Reblogged' : 'Unreblogged')
+      debug.log(`Reblog toggled for post ${postId}:`, result.reblogged ? 'Reblogged' : 'Unreblogged')
       
       return { 
         success: true, 
@@ -141,7 +141,7 @@ export function usePostInteractions() {
         newCount: result.newCount
       }
     } catch (error) {
-      debug.error('❌ Failed to toggle reblog:', error)
+      debug.error('Failed to toggle reblog:', error)
       return { 
         success: false, 
         error: error instanceof Error ? error.message : 'Unknown error' 
@@ -155,20 +155,20 @@ export function usePostInteractions() {
     const postId = typeof post === 'string' ? post : post.id
     
     if (!postId) {
-      debug.error('❌ toggleBookmark: Invalid post ID:', post)
+      debug.error('toggleBookmark: Invalid post ID:', post)
       return { success: false, error: 'Invalid post ID' }
     }
 
     isBookmarkLoading.value = true
     try {
       const result = await services.posts.toggleBookmark(postId)
-      debug.log(`✅ Bookmark toggled for post ${postId}:`, result.bookmarked ? 'Bookmarked' : 'Unbookmarked')
+      debug.log(`Bookmark toggled for post ${postId}:`, result.bookmarked ? 'Bookmarked' : 'Unbookmarked')
       return { 
         success: true, 
         bookmarked: result.bookmarked
       }
     } catch (error) {
-      debug.error('❌ Failed to toggle bookmark:', error)
+      debug.error('Failed to toggle bookmark:', error)
       return { 
         success: false, 
         error: error instanceof Error ? error.message : 'Unknown error' 
@@ -182,14 +182,14 @@ export function usePostInteractions() {
     const postId = typeof post === 'string' ? post : post.id
     
     if (!postId) {
-      debug.error('❌ togglePinPost: Invalid post ID:', post)
+      debug.error('togglePinPost: Invalid post ID:', post)
       return { success: false, error: 'Invalid post ID' }
     }
 
     isPinLoading.value = true
     try {
       const result = await services.posts.togglePinPost(postId)
-      debug.log(`📌 Pin toggled for post ${postId}:`, result.pinned ? 'Pinned' : 'Unpinned')
+      debug.log(`Pin toggled for post ${postId}:`, result.pinned ? 'Pinned' : 'Unpinned')
 
       activityPubStore.updatePostInteractionInAllFeeds(postId, 'pin', result.pinned)
 
@@ -198,7 +198,7 @@ export function usePostInteractions() {
         pinned: result.pinned
       }
     } catch (error: any) {
-      debug.error('❌ Failed to toggle pin:', error)
+      debug.error('Failed to toggle pin:', error)
       return { 
         success: false, 
         error: error?.message || (error instanceof Error ? error.message : 'Unknown error')

@@ -253,7 +253,7 @@ const handleGlobalCallAccept = async (acceptWithVideo: boolean) => {
   try {
     if (incomingCall.isFederated && incomingCall.callerFederatedId) {
       // Federated call: accept via ActivityPub and join remote LiveKit room
-      debug.log('📞 [Federated] Accepting federated call from:', incomingCall.callerFederatedId)
+      debug.log('[Federated] Accepting federated call from:', incomingCall.callerFederatedId)
 
       await dmCallSignaling.acceptFederatedCall(
         incomingCall.conversationId,
@@ -274,13 +274,13 @@ const handleGlobalCallAccept = async (acceptWithVideo: boolean) => {
             await voiceStore.toggleVideo()
           }
           await new Promise(resolve => setTimeout(resolve, 100))
-          debug.log('✅ [Federated] Joined federated call')
+          debug.log('[Federated] Joined federated call')
         } else {
           voiceStore.isOverlayVisible = false
         }
       } else {
         voiceStore.isOverlayVisible = false
-        debug.error('❌ [Federated] No room name available for federated call')
+        debug.error('[Federated] No room name available for federated call')
       }
     } else {
       // Local call: use Supabase Realtime signaling
@@ -296,7 +296,7 @@ const handleGlobalCallAccept = async (acceptWithVideo: boolean) => {
           await voiceStore.toggleVideo()
         }
         await new Promise(resolve => setTimeout(resolve, 100))
-        debug.log('✅ Joined call with maximized voice overlay')
+        debug.log('Joined call with maximized voice overlay')
       } else {
         voiceStore.isOverlayVisible = false
       }
@@ -364,7 +364,7 @@ const retryInitializationIfNeeded = async (reason: string) => {
   // genuinely-logged-out path.
   if (!authStore.session?.user?.id) return
   if (serverChannelStore.hasInitialized) return
-  debug.log(`🔁 BaseLayout: retrying app initialization (${reason})`)
+  debug.log(`BaseLayout: retrying app initialization (${reason})`)
   await initializeApp()
 }
 
@@ -391,7 +391,7 @@ const handleVisibilityRetry = () => {
 // Only loads what's needed for the current route instead of everything
 const initializeApp = async () => {
   if (initInFlight) {
-    debug.log('⏭️ BaseLayout: initializeApp already running, skipping duplicate call')
+    debug.log('⏭BaseLayout: initializeApp already running, skipping duplicate call')
     return
   }
   initInFlight = true
@@ -420,7 +420,7 @@ const initializeApp = async () => {
     
     // Load profile FIRST, then initialize userData with full profile data
     await profileStore.fetchProfileByAuthUserId(userId).catch(err => {
-      debug.warn('⚠️ Profile fetch failed:', err)
+      debug.warn('Profile fetch failed:', err)
     })
     
     // Initialize userData with full profile data (or fallback to auth data if profile not found)
@@ -428,7 +428,7 @@ const initializeApp = async () => {
     
     // Defensive check: ensure useUserData is a function
     if (typeof useUserData !== 'function') {
-      debug.error('❌ useUserData is not a function:', typeof useUserData, useUserData)
+      debug.error('useUserData is not a function:', typeof useUserData, useUserData)
       throw new Error(`useUserData is not a function, got: ${typeof useUserData}`)
     }
     
@@ -436,7 +436,7 @@ const initializeApp = async () => {
     
     // Defensive check: ensure userData has initialize method
     if (!userData || typeof userData.initialize !== 'function') {
-      debug.error('❌ userData.initialize is not a function:', typeof userData?.initialize, userData)
+      debug.error('userData.initialize is not a function:', typeof userData?.initialize, userData)
       throw new Error(`userData.initialize is not a function, got: ${typeof userData?.initialize}`)
     }
     
@@ -454,7 +454,7 @@ const initializeApp = async () => {
     // Initialize userData with full profile data (includes avatar, color, banner, status)
     // Double-check that initialize is still a function before calling
     if (typeof userData?.initialize !== 'function') {
-      debug.error('❌ userData.initialize is not a function before call:', typeof userData?.initialize, userData)
+      debug.error('userData.initialize is not a function before call:', typeof userData?.initialize, userData)
       throw new Error(`userData.initialize is not a function before call, got: ${typeof userData?.initialize}`)
     }
     
@@ -466,11 +466,11 @@ const initializeApp = async () => {
         userProfile
       )
     } catch (err) {
-      debug.warn('⚠️ UserData initialization failed:', err)
+      debug.warn('UserData initialization failed:', err)
       // Don't throw - allow app to continue even if userData init fails
     }
     
-    debug.log('✅ UserData initialized with profile data (avatar, color, banner, status should all be available)')
+    debug.log('UserData initialized with profile data (avatar, color, banner, status should all be available)')
     
     hasServersLoaded.value = true;
     isAppInitialized.value = true;
@@ -480,7 +480,7 @@ const initializeApp = async () => {
       try {
         // Verify userData is still valid before using it in background
         if (!userData || typeof userData !== 'object') {
-          debug.error('❌ userData is invalid in background function:', typeof userData, userData)
+          debug.error('userData is invalid in background function:', typeof userData, userData)
           return
         }
         
@@ -490,10 +490,10 @@ const initializeApp = async () => {
         
         // Step 3: Load route-specific data (needs userData)
         await initializeRouteSpecificData(userId, loadingStrategy, userData).catch(err => {
-          debug.warn('⚠️ Background route data initialization failed:', err)
+          debug.warn('Background route data initialization failed:', err)
         })
       } catch (err) {
-        debug.error('❌ Background initialization errors:', err)
+        debug.error('Background initialization errors:', err)
       }
     })()
     
@@ -514,7 +514,7 @@ const initializeApp = async () => {
     }, 100)
     
   } catch (error) {
-    debug.error('❌ Failed to initialize app:', error)
+    debug.error('Failed to initialize app:', error)
     // PWA cold-boot race: a network-down `initializeUserEnvironment` throw leaves
     // a valid session with an empty server list; marking ready here would show
     // ChatLayout's false "join/create a community" splash. Keep the loading screen
@@ -735,11 +735,11 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
               await userData.ensureProfilesAvailable(Array.from(otherUserIds))
             }
           } catch (error) {
-            debug.warn('⚠️ Background DM contacts loading failed:', error)
+            debug.warn('Background DM contacts loading failed:', error)
           }
         }, 500) // Load other DM contacts after 500ms
       } catch (error) {
-        debug.warn('⚠️ Failed to load current conversation participants:', error)
+        debug.warn('Failed to load current conversation participants:', error)
       }
     } else if (!skipBaselinePresence) {
       // Not a single DM view - load all users normally
@@ -754,7 +754,7 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
             userIds.forEach(id => baselineUserIds.add(id))
           }
         } catch (error) {
-          debug.warn('⚠️ Failed to batch-load server members:', error)
+          debug.warn('Failed to batch-load server members:', error)
         }
       })(),
       
@@ -783,7 +783,7 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
             }
           }
         } catch (error) {
-          debug.warn('⚠️ Failed to load DM contacts for global presence:', error)
+          debug.warn('Failed to load DM contacts for global presence:', error)
             }
         }
       })()
@@ -795,7 +795,7 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
     }
     
   } catch (error) {
-    debug.error('❌ Failed to initialize route-specific data:', error)
+    debug.error('Failed to initialize route-specific data:', error)
   }
 }
 
@@ -823,7 +823,7 @@ const initializeBackgroundData = async (userId: string, _strategy: any) => {
     const typingService = await import('@/services/TypingIndicatorService')
     await typingService.typingIndicatorService.initialize()
   } catch (error) {
-    debug.error('❌ Background loading failed:', error)
+    debug.error('Background loading failed:', error)
   }
 }
 
@@ -847,7 +847,7 @@ watch(() => authStore.session, async (newSession, oldSession) => {
     try {
       const { userDataService } = await import('@/services/userDataService')
       await userDataService.cleanup()
-      debug.log('✅ Global presence cleanup completed')
+      debug.log('Global presence cleanup completed')
     } catch (error) {
       debug.error('Failed to cleanup user data:', error)
     }
@@ -855,7 +855,7 @@ watch(() => authStore.session, async (newSession, oldSession) => {
     try {
       const { statePersistence } = await import('@/services/StatePersistence')
       await statePersistence.cleanup()
-      debug.log('✅ State persistence cleanup completed')
+      debug.log('State persistence cleanup completed')
     } catch (error) {
       debug.error('Failed to cleanup state persistence:', error)
     }
@@ -866,7 +866,7 @@ watch(() => authStore.session, async (newSession, oldSession) => {
       
       const typingService = await import('@/services/TypingIndicatorService')
       await typingService.typingIndicatorService.cleanup()
-      debug.log('✅ Session heartbeat cleanup completed')
+      debug.log('Session heartbeat cleanup completed')
     } catch (error) {
       debug.error('Failed to cleanup session heartbeat:', error)
     }
@@ -915,7 +915,7 @@ watch(() => route.path, async (newPath) => {
   // Skip if same route type (already initialized)
   if (previousRouteType === newStrategy.routeType) return
   
-  debug.log('🔄 Route context changed:', { from: previousRouteType, to: newStrategy.routeType, path: newPath })
+  debug.log('Route context changed:', { from: previousRouteType, to: newStrategy.routeType, path: newPath })
   previousRouteType = newStrategy.routeType
   
   if (newStrategy.routeType === 'dm' || newStrategy.routeType === 'dm-list') {
@@ -927,7 +927,7 @@ watch(() => route.path, async (newPath) => {
       // leaving the chat/DM layout, so they must be re-established on return.
       // The store renders the cached conversation list immediately and only
       // revalidates in the background when the cache is warm (no spinner).
-      debug.log('📬 Initializing DM store for navigation to:', newPath)
+      debug.log('Initializing DM store for navigation to:', newPath)
 
       if (newStrategy.routeType === 'dm' && newStrategy.currentConversationId) {
         await dmStore.initializeDMEnvironmentForDirectAccess(userId, newStrategy.currentConversationId)
@@ -963,7 +963,7 @@ const wrappedTouchMove = (event: TouchEvent) => {
     onSwipeLeft: () => {},
     onDragStart: (direction) => {
       if (isActivityPubTimeline && !hasOpenSidebars) return
-      debug.log('📱 Drag started:', direction)
+      debug.log('Drag started:', direction)
       startDrag(direction)
     },
     onDragMove: (deltaX, direction) => {
@@ -984,7 +984,7 @@ const wrappedTouchEnd = (event: TouchEvent) => {
       if (isOnTimeline) {
         timelineNavigateTo('right')
       } else if (!isActivityPub) {
-        debug.log('🔄 Quick swipe right, opening left sidebar')
+        debug.log('Quick swipe right, opening left sidebar')
         toggleLeftSidebar()
       } else {
         toggleLeftSidebar()
@@ -995,7 +995,7 @@ const wrappedTouchEnd = (event: TouchEvent) => {
       if (isOnTimeline) {
         timelineNavigateTo('left')
       } else if (!isActivityPub) {
-        debug.log('🔄 Quick swipe left, opening right sidebar')
+        debug.log('Quick swipe left, opening right sidebar')
         toggleRightSidebar()
       } else {
         toggleRightSidebar()
@@ -1009,7 +1009,7 @@ const wrappedTouchEnd = (event: TouchEvent) => {
         cancelDrag()
         return
       }
-      debug.log('📱 Drag ended:', { velocity, direction })
+      debug.log('Drag ended:', { velocity, direction })
       endDragWithVelocity(velocity, direction)
     }
   })

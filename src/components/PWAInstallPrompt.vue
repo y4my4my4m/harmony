@@ -115,7 +115,7 @@ const shareApp = async () => {
     try {
       await navigator.clipboard.writeText(window.location.origin)
       // You could show a toast here
-      debug.log('📋 App URL copied to clipboard')
+      debug.log('App URL copied to clipboard')
     } catch (error) {
       debug.error('Failed to share or copy URL:', error)
     }

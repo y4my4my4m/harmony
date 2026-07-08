@@ -640,7 +640,7 @@ const copyThreadId = async () => {
 
 // Use unified content parsing system (DRY - same as ChatComponent)
 const parseMessageInput = async (input: string): Promise<MessagePart[]> => {
-  debug.log('🔧 ThreadView: Using unified content parsing for:', input)
+  debug.log('ThreadView: Using unified content parsing for:', input)
   
   // Use efficient batch mention resolution
   const userDataMap = await resolveMentionsUserData(input)
@@ -648,11 +648,11 @@ const parseMessageInput = async (input: string): Promise<MessagePart[]> => {
   // Use unified emoji resolution - includes both server emojis AND unified pack
   const emojiDataMap = await resolveEmojisData(input)
   
-  debug.log('🔧 Emoji data map size:', Object.keys(emojiDataMap).length)
+  debug.log('Emoji data map size:', Object.keys(emojiDataMap).length)
   
   const result = await parseContentToMessageParts(input, userDataMap, emojiDataMap, {}, {}, buildChatParseOptions(false))
   
-  debug.log('🔧 Final parsed message parts:', result)
+  debug.log('Final parsed message parts:', result)
   return result
 }
 
@@ -1116,7 +1116,7 @@ const cleanupSubscription = () => {
   if (threadSubscription.value) {
     threadSubscription.value()
     threadSubscription.value = null
-    debug.log('📡 Unsubscribed from thread messages')
+    debug.log('Unsubscribed from thread messages')
   }
 }
 
@@ -1181,7 +1181,7 @@ const setupRealtimeSubscription = () => {
         threadService.addMessageToCache(thread.value!.id, newMessage)
         await nextTick()
         scrollToBottom()
-        debug.log('📝 Thread message added via realtime:', newMessage.id)
+        debug.log('Thread message added via realtime:', newMessage.id)
       }
     },
     
@@ -1195,7 +1195,7 @@ const setupRealtimeSubscription = () => {
           if (thread.value?.id) {
             threadService.removeMessageFromCache(thread.value.id, payloadNew.id)
           }
-          debug.log('🗑️ Thread message soft-deleted via realtime:', payloadNew.id)
+          debug.log('Thread message soft-deleted via realtime:', payloadNew.id)
         }
         return
       }
@@ -1212,7 +1212,7 @@ const setupRealtimeSubscription = () => {
         if (thread.value?.id) {
           threadService.updateMessageInCache(thread.value.id, payloadNew.id, updatedMessage)
         }
-        debug.log('🔄 Thread message updated via realtime:', payloadNew.id)
+        debug.log('Thread message updated via realtime:', payloadNew.id)
       }
     },
     
@@ -1224,12 +1224,12 @@ const setupRealtimeSubscription = () => {
         if (thread.value?.id) {
           threadService.removeMessageFromCache(thread.value.id, payloadOld.id)
         }
-        debug.log('🗑️ Thread message deleted via realtime:', payloadOld.id)
+        debug.log('Thread message deleted via realtime:', payloadOld.id)
       }
     },
   })
   
-  debug.log(`📡 Subscribed to thread messages: ${channelName}`)
+  debug.log(`Subscribed to thread messages: ${channelName}`)
 }
 
 // Watch for visibility changes

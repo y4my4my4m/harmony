@@ -579,7 +579,7 @@ const handleOAuthLogin = async (providerId: string) => {
     // Check if user is already logged in - if so, warn them about potential account linking
     const { data: { session } } = await supabase.auth.getSession()
     if (session) {
-      debug.warn('⚠️ User is already logged in when initiating OAuth. This may cause account linking.')
+      debug.warn('User is already logged in when initiating OAuth. This may cause account linking.')
       debug.log('Current session:', {
         userId: session.user.id,
         email: session.user.email,
@@ -824,10 +824,10 @@ const loadEnabledOAuthProviders = async () => {
         .eq('config_key', 'oauth_providers')
         .maybeSingle()
 
-      debug.log('🔍 OAuth config query result:', { data: oauthConfig, error: oauthError })
+      debug.log('OAuth config query result:', { data: oauthConfig, error: oauthError })
 
       if (oauthError) {
-        debug.warn('❌ Error querying oauth_providers from instance_config:', oauthError)
+        debug.warn('Error querying oauth_providers from instance_config:', oauthError)
         debug.warn('Error details:', {
           message: oauthError.message,
           code: oauthError.code,
@@ -837,38 +837,38 @@ const loadEnabledOAuthProviders = async () => {
       }
 
       if (oauthConfig?.config_value) {
-        debug.log('📦 Found oauth_providers config:', oauthConfig.config_value)
+        debug.log('Found oauth_providers config:', oauthConfig.config_value)
         let providers = oauthConfig.config_value
-        debug.log('📦 Raw providers value type:', typeof providers, providers)
+        debug.log('Raw providers value type:', typeof providers, providers)
         
         if (typeof providers === 'string') {
           try {
             providers = JSON.parse(providers)
-            debug.log('📦 Parsed JSON string:', providers)
+            debug.log('Parsed JSON string:', providers)
           } catch {
             // If not JSON, try splitting by comma
             providers = providers.split(',').map((p: string) => p.trim())
-            debug.log('📦 Split comma string:', providers)
+            debug.log('Split comma string:', providers)
           }
         }
         
         if (Array.isArray(providers)) {
           enabledProviders = providers.map((p: string) => p.toLowerCase())
-          debug.log('✅ Parsed as array:', enabledProviders)
+          debug.log('Parsed as array:', enabledProviders)
         } else if (typeof providers === 'object' && providers !== null) {
           // If it's an object like { google: true, twitch: false, github: true }
           enabledProviders = Object.entries(providers)
             .filter(([_, enabled]) => enabled === true || enabled === 'true')
             .map(([provider]) => provider.toLowerCase())
-          debug.log('✅ Parsed as object:', enabledProviders)
+          debug.log('Parsed as object:', enabledProviders)
         } else {
-          debug.warn('⚠️ Unknown providers format:', providers)
+          debug.warn('Unknown providers format:', providers)
         }
       } else {
-        debug.log('ℹ️ No oauth_providers config found in database')
+        debug.log('ℹNo oauth_providers config found in database')
       }
     } catch (dbError) {
-      debug.error('❌ Exception querying instance_config for OAuth providers:', dbError)
+      debug.error('Exception querying instance_config for OAuth providers:', dbError)
     }
 
     // Method 2: Fallback to AdminService config
@@ -904,9 +904,9 @@ const loadEnabledOAuthProviders = async () => {
       enabledProviders.includes(provider.id.toLowerCase())
     )
 
-    debug.log('✅ OAuth providers loaded:', enabledOAuthProviders.value.map(p => p.id))
+    debug.log('OAuth providers loaded:', enabledOAuthProviders.value.map(p => p.id))
     if (enabledOAuthProviders.value.length === 0) {
-      debug.log('ℹ️ No OAuth providers enabled - hiding OAuth section')
+      debug.log('ℹNo OAuth providers enabled - hiding OAuth section')
     }
   } catch (error) {
     debug.warn('Failed to load OAuth provider config, hiding OAuth providers:', error)

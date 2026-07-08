@@ -34,13 +34,13 @@ class DMCallPermissionService {
     receiverId: string,
     conversationId: string
   ): Promise<CallPermissionCheck> {
-    debug.log('🔍 Checking call permissions:', { callerId, receiverId, conversationId })
+    debug.log('Checking call permissions:', { callerId, receiverId, conversationId })
     
     try {
       // 1. Check if caller is blocked by receiver
-      debug.log('🔍 Checking if caller is blocked by receiver...')
+      debug.log('Checking if caller is blocked by receiver...')
       const isBlocked = await this.isUserBlocked(receiverId, callerId)
-      debug.log('🔍 Blocked check result:', isBlocked)
+      debug.log('Blocked check result:', isBlocked)
       if (isBlocked) {
         return {
           allowed: false,
@@ -50,9 +50,9 @@ class DMCallPermissionService {
       }
 
       // 2. Check if caller has blocked receiver (shouldn't be able to call)
-      debug.log('🔍 Checking if caller has blocked receiver...')
+      debug.log('Checking if caller has blocked receiver...')
       const hasBlockedReceiver = await this.isUserBlocked(callerId, receiverId)
-      debug.log('🔍 Has blocked receiver result:', hasBlockedReceiver)
+      debug.log('Has blocked receiver result:', hasBlockedReceiver)
       if (hasBlockedReceiver) {
         return {
           allowed: false,
@@ -62,9 +62,9 @@ class DMCallPermissionService {
       }
 
       // 3. Check if receiver is in Do Not Disturb mode
-      debug.log('🔍 Checking DND status...')
+      debug.log('Checking DND status...')
       const isDND = await this.isUserInDND(receiverId)
-      debug.log('🔍 DND check result:', isDND)
+      debug.log('DND check result:', isDND)
       if (isDND) {
         return {
           allowed: false,
@@ -74,9 +74,9 @@ class DMCallPermissionService {
       }
 
       // 4. Check if receiver is busy (already in another call)
-      debug.log('🔍 Checking busy status...')
+      debug.log('Checking busy status...')
       const isBusy = await this.isUserBusy(receiverId)
-      debug.log('🔍 Busy check result:', isBusy)
+      debug.log('Busy check result:', isBusy)
       if (isBusy) {
         return {
           allowed: false,
@@ -86,9 +86,9 @@ class DMCallPermissionService {
       }
 
       // 5. Check if receiver has muted this conversation
-      debug.log('🔍 Checking if conversation is muted...')
+      debug.log('Checking if conversation is muted...')
       const isMuted = await this.isConversationMuted(receiverId, conversationId)
-      debug.log('🔍 Muted check result:', isMuted)
+      debug.log('Muted check result:', isMuted)
       if (isMuted) {
         return {
           allowed: false,
@@ -98,9 +98,9 @@ class DMCallPermissionService {
       }
 
       // 6. Check notification preferences
-      debug.log('🔍 Checking notification preferences...')
+      debug.log('Checking notification preferences...')
       const notificationsEnabled = await this.areCallNotificationsEnabled(receiverId)
-      debug.log('🔍 Notifications enabled result:', notificationsEnabled)
+      debug.log('Notifications enabled result:', notificationsEnabled)
       if (!notificationsEnabled) {
         return {
           allowed: false,
@@ -110,10 +110,10 @@ class DMCallPermissionService {
       }
 
       // All checks passed
-      debug.log('✅ All permission checks passed - call allowed!')
+      debug.log('All permission checks passed - call allowed!')
       return { allowed: true }
     } catch (error) {
-      debug.error('❌ Error checking call permissions:', error)
+      debug.error('Error checking call permissions:', error)
       // BUGS.md H4: previously this failed OPEN on any error, which meant
       // that blocked / DND / muted users would still receive calls whenever
       // the permission lookup hit a DB/RLS error. The cost of a spurious
@@ -140,14 +140,14 @@ class DMCallPermissionService {
         .maybeSingle() // Use maybeSingle instead of single to handle no results
 
       if (error) {
-        debug.warn('⚠️ Error checking block status (RLS?):', error.message)
+        debug.warn('Error checking block status (RLS?):', error.message)
         // If RLS error, assume not blocked (fail open for calls)
         return false
       }
 
       return !!data
     } catch (error) {
-      debug.warn('⚠️ Exception checking block status:', error)
+      debug.warn('Exception checking block status:', error)
       // No block found or error - assume not blocked
       return false
     }

@@ -420,9 +420,9 @@ const localInstancePostCount = computed(() => activityPubStore.instancePostCount
 const loadTrendingHashtags = async () => {
   try {
     isLoadingTrending.value = true
-    debug.log('🔄 Loading trending hashtags...')
+    debug.log('Loading trending hashtags...')
     const hashtags = await trendingService.getTrendingHashtags({ limit: 10, days: 7 })
-    debug.log('📊 Trending hashtags:', hashtags)
+    debug.log('Trending hashtags:', hashtags)
     
     trendingTopics.value = hashtags.map(h => ({
       tag: h.tag,
@@ -431,7 +431,7 @@ const loadTrendingHashtags = async () => {
     
     // If no hashtags from DB, don't show placeholder
     if (trendingTopics.value.length === 0) {
-      debug.log('ℹ️ No trending hashtags found')
+      debug.log('ℹNo trending hashtags found')
     }
   } catch (error) {
     debug.error('Failed to load trending hashtags:', error)
@@ -471,7 +471,7 @@ const handleToggleSearch = () => {
 }
 
 const handleSwitchFeed = async (feed: string) => {
-  debug.log(`🔄 Switching to ${feed} feed`)
+  debug.log(`Switching to ${feed} feed`)
   
   // Navigate to the appropriate route
   switch (feed) {
@@ -515,11 +515,11 @@ const handleSwitchFeed = async (feed: string) => {
         break
       case 'trending':
         // Trending data would be loaded by ExploreView
-        debug.log('🔥 Navigating to trending view')
+        debug.log('Navigating to trending view')
         break
       case 'instances':
         // Instance data would be loaded by ExploreView  
-        debug.log('🌐 Navigating to instances view')
+        debug.log('Navigating to instances view')
         break
     }
   } catch (error) {
@@ -591,7 +591,7 @@ const handleShowUserProfile = (user: FederatedUser) => {
 
 const handleLoadMorePosts = async () => {
   // Prevent duplicate loading - this is handled by TimelineView
-  debug.log('⚠️ Load more handled by TimelineView component');
+  debug.log('Load more handled by TimelineView component');
 }
 
 const handleFollow = async (user: FederatedUser | string) => {
@@ -599,12 +599,12 @@ const handleFollow = async (user: FederatedUser | string) => {
     const userId = typeof user === 'string' ? user : user?.id
     
     if (!userId) {
-      debug.error('❌ handleFollow: Invalid user ID:', user)
+      debug.error('handleFollow: Invalid user ID:', user)
       return
     }
     
     await activityPubStore.followUser(userId)
-    debug.log(`✅ Successfully followed user: ${userId}`)
+    debug.log(`Successfully followed user: ${userId}`)
   } catch (error) {
     debug.error('Failed to follow user:', error)
   }
@@ -615,12 +615,12 @@ const handleUnfollow = async (user: FederatedUser | string) => {
     const userId = typeof user === 'string' ? user : user?.id
     
     if (!userId) {
-      debug.error('❌ handleUnfollow: Invalid user ID:', user)
+      debug.error('handleUnfollow: Invalid user ID:', user)
       return
     }
     
     await activityPubStore.unfollowUser(userId)
-    debug.log(`✅ Successfully unfollowed user: ${userId}`)
+    debug.log(`Successfully unfollowed user: ${userId}`)
   } catch (error) {
     debug.error('Failed to unfollow user:', error)
   }
@@ -656,7 +656,7 @@ const handleCloseComposer = () => {
 }
 
 const handlePosted = (post: any) => {
-  debug.log('✅ Post created:', post.id)
+  debug.log('Post created:', post.id)
   composerReplyPost.value = null
   // The store's realtime subscription will handle adding the post to feeds
 }

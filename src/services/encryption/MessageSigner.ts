@@ -257,7 +257,7 @@ export async function verifyMessageSignature(
   try {
     signature = Uint8Array.from(atob(signatureBase64), c => c.charCodeAt(0))
   } catch {
-    debug.warn('⚠️ Invalid signature base64')
+    debug.warn('Invalid signature base64')
     return false
   }
   const tbs = canonicalizeForSigning(fields)
@@ -269,7 +269,7 @@ export async function verifyMessageSignature(
       new TextEncoder().encode(tbs),
     )
   } catch (err) {
-    debug.warn('⚠️ verifyMessageSignature threw:', err)
+    debug.warn('verifyMessageSignature threw:', err)
     return false
   }
 }
@@ -297,7 +297,7 @@ export async function verifyKeyRequestSignature(
   try {
     signature = Uint8Array.from(atob(signatureBase64), c => c.charCodeAt(0))
   } catch {
-    debug.warn('⚠️ Invalid key-request signature base64')
+    debug.warn('Invalid key-request signature base64')
     return false
   }
   const tbs = canonicalizeKeyRequest(fields)
@@ -309,7 +309,7 @@ export async function verifyKeyRequestSignature(
       new TextEncoder().encode(tbs),
     )
   } catch (err) {
-    debug.warn('⚠️ verifyKeyRequestSignature threw:', err)
+    debug.warn('verifyKeyRequestSignature threw:', err)
     return false
   }
 }

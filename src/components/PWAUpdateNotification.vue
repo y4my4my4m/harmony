@@ -35,12 +35,12 @@ const updating = ref(false)
 let updateWaiting: ServiceWorker | null = null
 
 const handleServiceWorkerUpdate = (event: any) => {
-  debug.log('🔔 Service Worker update event received:', event.detail)
+  debug.log('Service Worker update event received:', event.detail)
   
   // Only show update notification for PWA users
   // Regular browser users will get updates on next page load anyway
   if (!isPWA()) {
-    debug.log('📱 Not a PWA, skipping update notification (will auto-update on reload)')
+    debug.log('Not a PWA, skipping update notification (will auto-update on reload)')
     return
   }
   
@@ -53,10 +53,10 @@ const handleServiceWorkerUpdate = (event: any) => {
   }
   
   if (updateWaiting) {
-    debug.log('✅ Waiting service worker found, showing update notification')
+    debug.log('Waiting service worker found, showing update notification')
     showUpdate.value = true
   } else {
-    debug.warn('⚠️ No waiting service worker in event')
+    debug.warn('No waiting service worker in event')
   }
 }
 
@@ -76,7 +76,7 @@ const installUpdate = async () => {
     // Set up the controller change listener BEFORE sending skip waiting
     const controllerChangePromise = new Promise<void>((resolve) => {
       const handleControllerChange = () => {
-        debug.log('✅ Service Worker: Controller changed, reloading...')
+        debug.log('Service Worker: Controller changed, reloading...')
         navigator.serviceWorker.removeEventListener('controllerchange', handleControllerChange)
         resolve()
       }
@@ -91,7 +91,7 @@ const installUpdate = async () => {
     })
     
     // Tell the waiting service worker to skip waiting
-    debug.log('📤 Sending SKIP_WAITING to service worker...')
+    debug.log('Sending SKIP_WAITING to service worker...')
     waitingSW.postMessage({ type: 'SKIP_WAITING' })
     
     await Promise.race([controllerChangePromise, timeoutPromise])
@@ -99,12 +99,12 @@ const installUpdate = async () => {
     // Small delay to ensure SW is fully active
     await new Promise(resolve => setTimeout(resolve, 100))
     
-    debug.log('🔄 Reloading page...')
+    debug.log('Reloading page...')
     window.location.reload()
   } catch (error) {
     debug.error('Failed to update app:', error)
     // Force reload anyway on error
-    debug.log('⚠️ Error during update, forcing reload...')
+    debug.log('Error during update, forcing reload...')
     window.location.reload()
   }
 }
@@ -125,7 +125,7 @@ onMounted(() => {
         updateWaiting = registration.waiting
         const dismissed = sessionStorage.getItem('harmony-update-dismissed')
         if (!dismissed) {
-          debug.log('📱 PWA has waiting service worker, showing update notification')
+          debug.log('PWA has waiting service worker, showing update notification')
           showUpdate.value = true
         }
       }

@@ -137,7 +137,7 @@ export function resolveEncryptionFallbackPrompt(accepted: boolean): void {
  */
 function defaultConfirm(scope: EncryptionFallbackScope, error: any): Promise<boolean> {
   if (encryptionFallbackPromptState.value.open) {
-    debug.warn('🔒 Encryption fallback prompt already open - auto-declining new prompt')
+    debug.warn('Encryption fallback prompt already open - auto-declining new prompt')
     return Promise.resolve(false)
   }
   return new Promise<boolean>(resolve => {
@@ -192,7 +192,7 @@ export function useEncryptionFallbackPrompt() {
         : await defaultConfirm(options.scope, error)
 
       if (!accepted) {
-        debug.warn('🔒 User declined plaintext fallback')
+        debug.warn('User declined plaintext fallback')
         return { status: 'declined' }
       }
 

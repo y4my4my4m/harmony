@@ -662,20 +662,20 @@ const handleAvatarUpload = (file: File) => {
 }
 
 const triggerBannerUpload = () => {
-  debug.log('🖼️ Banner upload triggered')
+  debug.log('Banner upload triggered')
   bannerInput.value?.click()
 }
 
 const handleBannerFileSelect = (event: Event) => {
-  debug.log('📁 Banner file selected')
+  debug.log('Banner file selected')
   const target = event.target as HTMLInputElement
   const file = target.files?.[0]
   if (file) {
-    debug.log('📤 Emitting banner upload event:', file.name, file.size)
+    debug.log('Emitting banner upload event:', file.name, file.size)
     emit('upload-banner', file)
     target.value = ''
   } else {
-    debug.log('❌ No file selected')
+    debug.log('No file selected')
   }
 }
 
