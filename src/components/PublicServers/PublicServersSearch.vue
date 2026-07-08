@@ -122,7 +122,6 @@ interface Emits {
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
-// Local state
 const showCategories = ref(false)
 
 const localSearchQuery = computed({

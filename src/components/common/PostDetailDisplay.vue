@@ -135,14 +135,12 @@ import Composer from '@/components/activitypub/Composer.vue';
 import Icon from '@/components/common/Icon.vue';
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 
-// Props
 interface Props {
   postId: string;
 }
 
 const props = defineProps<Props>();
 
-// Emits
 defineEmits<{
   reply: [post: TimelinePost];
   favorite: [postId: string];
@@ -154,7 +152,6 @@ defineEmits<{
 }>();
 
 
-// State
 const post = ref<TimelinePost | null>(null);
 const replies = ref<TimelinePost[]>([]);
 const isLoading = ref(true);
@@ -180,7 +177,6 @@ const replyTargetForComposer = computed<TimelinePost | undefined>(() =>
   post.value ? getOriginalPost(post.value) : undefined,
 );
 
-// Methods
 const loadPost = async () => {
   isLoading.value = true;
   error.value = null;
@@ -300,14 +296,12 @@ const handleReplyCreated = (newReply: TimelinePost) => {
   }
 };
 
-// Watch for postId changes
 watch(() => props.postId, (newPostId) => {
   if (newPostId) {
     loadPost();
   }
 }, { immediate: true });
 
-// Lifecycle
 onMounted(() => {
   loadPost();
 });

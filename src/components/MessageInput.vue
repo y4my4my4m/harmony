@@ -974,7 +974,6 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
       }
     );
 
-    // Watch for changes in attached files to emit to parent
     watch(attachedFiles, (newFiles) => {
       emit('files-attached', newFiles);
     }, { deep: true });

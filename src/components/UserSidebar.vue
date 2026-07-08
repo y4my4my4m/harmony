@@ -296,7 +296,6 @@ import {
   resolveBridgedUserColor,
 } from '@/services/bridgedChannelUsersService';
 
-// Props
 interface Props {
   visible?: boolean
 }
@@ -950,7 +949,6 @@ const currentServerData = computed(() => {
   return serverChannelStore.currentServer;
 });
 
-// Methods
 const toggleGroup = (groupName: string) => {
   collapsedGroups.value[groupName] = !collapsedGroups.value[groupName];
 };
@@ -1206,7 +1204,6 @@ const showUserProfile = async (user: User) => {
   showProfileModal.value = true;
 };
 
-// Helper to get status for avatar based on real-time presence
 const getStatusForAvatarValue = (userId: string): 'online' | 'away' | 'busy' | 'offline' => {
   // First check if user is actually present
   const isPresent = isUserOnline(userId).value;

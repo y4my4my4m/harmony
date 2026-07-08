@@ -413,7 +413,6 @@ let dockShouldPreventClick = false;
 // Default dock position (centered at bottom)
 const DEFAULT_DOCK_POSITION = { left: 0, bottom: 80 }; // left: 0 means centered (handled by CSS transform)
 
-// COMPUTED PROPERTIES
 const channelName = computed(() => {
   // Use effective channel name which includes optimistic state
   return voiceStore.effectiveChannelName || 'Voice Channel';
@@ -470,7 +469,6 @@ const isAtDefaultPosition = computed(() => {
   return leftDiff < 1 && bottomDiff < 1;
 });
 
-// Computed style for minimized dock position
 const minimizedPositionStyle = computed((): Record<string, string> => {
   if (currentMode.value !== 'minimized') return {};
   return {
@@ -481,7 +479,6 @@ const minimizedPositionStyle = computed((): Record<string, string> => {
   };
 });
 
-// Computed style for dock position
 const dockPositionStyle = computed((): Record<string, string> => {
   if (currentMode.value !== 'dock') return {};
   // If left is 0, use centered positioning (default)

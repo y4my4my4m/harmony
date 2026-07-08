@@ -160,7 +160,6 @@ const router = useRouter()
 
 const activityPubStore = useActivityPubStore()
 
-// State
 const isLoadingLists = ref(false)
 const showCreateModal = ref(false)
 const editingList = ref<UserList | null>(null)
@@ -177,7 +176,6 @@ const formData = reactive({
   is_public: false
 })
 
-// Computed
 const lists = computed(() => activityPubStore.lists)
 
 const formatRepliesPolicy = (policy: string) => {

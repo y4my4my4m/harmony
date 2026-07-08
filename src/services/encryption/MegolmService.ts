@@ -1113,6 +1113,5 @@ export class MegolmService {
   }
 }
 
-// Export singleton
 export const megolmService = MegolmService.getInstance()
 

@@ -1715,7 +1715,6 @@ export const useNotificationStore = defineStore('notification', {
   }
 })
 
-// Utility function
 // eslint-disable-next-line unused-imports/no-unused-vars
 function timeStringToMinutes(timeString: string): number {
   const [hours, minutes] = timeString.split(':').map(Number)

@@ -265,14 +265,12 @@ const contentRef = computed(() => props.content);
 // signature matches; cast to bridge the type-level mismatch.
 const renderer = useContentRenderer(contentRef, contentOptions, emit as unknown as (event: string, ...args: any[]) => void);
 
-// Computed helpers
 const isPreviewMode = computed(() => props.mode === 'preview');
 
 // Image loading state
 const imageLoaded = ref(props.imageLoaded);
 
 
-// Event handlers
 const handleContentClick = (event: Event) => {
   const target = event.target as HTMLElement;
   

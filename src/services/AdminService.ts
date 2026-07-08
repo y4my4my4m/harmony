@@ -2200,5 +2200,4 @@ class AdminService {
   }
 }
 
-// Export singleton instance
 export const adminService = new AdminService(); 

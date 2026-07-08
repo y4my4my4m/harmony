@@ -494,8 +494,7 @@ export class ServiceWorkerManager {
   private handleServiceWorkerUpdate(): void {
     debug.log('ServiceWorker update available')
     
-    // You could show a toast notification here
-    // For now, just log it
+    // Could surface a toast notification here; for now, just log it
   }
 
   /**
@@ -692,5 +691,4 @@ export class ServiceWorkerManager {
 
 }
 
-// Export singleton instance
 export const serviceWorkerManager = ServiceWorkerManager.getInstance()

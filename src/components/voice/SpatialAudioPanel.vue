@@ -419,7 +419,6 @@ const localVisualPositions = ref<Map<string, { x: number, y: number }>>(new Map(
 // Local settings for smooth updates
 const localSettings = ref({ ...spatialStore.settings });
 
-// COMPUTED PROPERTIES
 
 const currentUserId = computed(() => authStore.session?.user?.id || '');
 
@@ -709,7 +708,6 @@ const updateGridSize = () => {
 
 useEventListener(window, 'resize', updateGridSize);
 
-// Watch for spatial audio toggle
 watch(() => spatialStore.settings.enabled, (enabled) => {
   if (enabled) {
     spatialAudioService.enableSpatialAudio();

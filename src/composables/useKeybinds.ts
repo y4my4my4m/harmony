@@ -586,7 +586,6 @@ export function useKeybinds() {
     initializeKeybinds()
   }
   
-  // Computed
   const allKeybinds = computed(() => Array.from(keybinds.value.values()))
   const voiceKeybinds = computed(() => allKeybinds.value.filter(k => k.category === 'voice'))
   const isPTTMode = computed(() => inputMode.value === 'push_to_talk')
@@ -757,17 +756,14 @@ export function useKeybinds() {
     nativePttAvailable: readonly(nativePttAvailable),
     nativeCaptureActive: readonly(nativeCaptureActive),
 
-    // Computed
     isPTTMode,
     isVoiceActivityMode,
     
-    // Getters
     getKeybind,
     getKeybindDisplay,
     matchesEvent,
     shouldBlockShortcut,
     
-    // Actions
     registerHandler,
     unregisterHandler,
     pressHold,
@@ -781,7 +777,6 @@ export function useKeybinds() {
     activateContext,
     deactivateContext,
     
-    // Lifecycle
     setupListeners,
     cleanupListeners,
   }

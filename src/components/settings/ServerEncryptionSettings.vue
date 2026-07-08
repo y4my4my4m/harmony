@@ -208,7 +208,6 @@ interface Props {
 const props = defineProps<Props>()
 const { confirm } = useConfirmDialog()
 
-// State
 const loading = ref(true)
 const saving = ref(false)
 const error = ref<string | null>(null)
@@ -253,7 +252,6 @@ const encryptionModes = [
   }
 ]
 
-// Computed
 const canModify = computed(() => {
   const currentUser = userDataService.getCurrentUser()
   // Only server owner/admins can modify
@@ -308,7 +306,6 @@ const statusDescription = computed(() => {
   }
 })
 
-// Methods
 async function loadSettings() {
   loading.value = true
   error.value = null
@@ -470,7 +467,6 @@ defineExpose({
   resetSettings
 })
 
-// Lifecycle
 onMounted(() => {
   loadSettings()
 })

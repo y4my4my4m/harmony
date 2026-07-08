@@ -35,7 +35,6 @@ onMounted(() => {
   const strength = 300
   const baseGridColor = { r: 255, g: 255, b: 255 }
 
-  // Function to calculate deformation based on avatar positions
   const calculateDeformation = (x: number, y: number): { point: { x: number, y: number }, color: string, colorWeight: number } => {
     let deformationX = 0
     let deformationY = 0

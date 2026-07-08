@@ -1306,12 +1306,10 @@ export function useVisualTheme() {
   }
 
   return {
-    // State
     settings: computed(() => settings.value),
     isInitialized: computed(() => isInitialized.value),
     isSaving: computed(() => isSaving.value),
     
-    // Methods
     initialize,
     loadInstanceDefaultTheme,
     setTheme,

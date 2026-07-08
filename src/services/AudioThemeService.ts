@@ -894,5 +894,4 @@ export class AudioThemeService {
   }
 }
 
-// Export singleton instance
 export const audioThemeService = AudioThemeService.getInstance()

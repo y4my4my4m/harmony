@@ -1026,6 +1026,5 @@ class RoleService {
   }
 }
 
-// Export singleton instance
 export const roleService = new RoleService()
 

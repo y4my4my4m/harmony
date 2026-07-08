@@ -466,7 +466,6 @@ const isInServerContext = computed(() => {
 const blockedUsersCount = computed(() => activityPubStore.blockedUsers.size)
 const mutedUsersCount = computed(() => activityPubStore.mutedUsers.size)
 
-// Watch for changes to blocked/muted users counts
 watch(blockedUsersCount, (newVal) => {
   debug.log('UserProfileModal: blockedUsers changed, size:', newVal)
 }, { immediate: true })
@@ -490,7 +489,6 @@ const {
   getCurrentUser
 } = useUserData()
 
-// Reactive state
 const showActionsMenu = ref(false)
 const discordIdCopied = ref(false)
 let discordIdCopiedTimer: ReturnType<typeof setTimeout> | null = null
@@ -923,7 +921,6 @@ const bannerStyle = computed(() => {
   }
 })
 
-// Methods
 const handleAvatarError = (event: Event) => {
   const target = event.target as HTMLImageElement
   target.src = '/default_avatar.webp'
@@ -1344,7 +1341,6 @@ const getUserIsLocal = (user: any) => {
   return user?.is_local ?? true // Default to local if not specified
 }
 
-// Computed property for reactive follow state
 const isFollowingUser = computed(() => {
   if (!props.user) return false
   
@@ -1404,7 +1400,6 @@ const cleanupProfilePresence = async () => {
   }
 }
 
-// Watch for modal show/hide and user changes
 watch(() => ({ show: props.show, userId: props.user?.id }), async (newVal, oldVal) => {
   if (!newVal.show || !newVal.userId) {
     // Modal closed or no user - cleanup. Reset the dropdown too so the next
@@ -1481,7 +1476,6 @@ onUnmounted(() => {
   cleanupProfilePresence()
 })
 
-// Lifecycle
 onMounted(() => {
   loadUserNote()
 })

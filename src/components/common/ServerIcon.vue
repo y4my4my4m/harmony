@@ -62,7 +62,6 @@ type serverSize = 'mini' | 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl'
 type UserStatus = 'online' | 'away' | 'busy' | 'offline'
 type ImageShape = 'square' | 'rounded' | 'big-rounded' | 'round'
 
-// Props
 interface Props {
   id?: string
   src?: string | null
@@ -94,14 +93,12 @@ const props = withDefaults(defineProps<Props>(), {
   showTitle: true
 })
 
-// Emits
 const emit = defineEmits<{
   'click': [id?: string]
   'upload': [file: File]
   'edit': []
 }>()
 
-// Refs
 const fileInput = ref<HTMLInputElement>()
 
 const sizeMap: Record<serverSize, number> = {
@@ -114,7 +111,6 @@ const sizeMap: Record<serverSize, number> = {
   '2xl': 128
 }
 
-// Computed
 const sizeClass = computed(() => `server-${props.size}`)
 
 // --- Fallback image logic ---
@@ -191,7 +187,6 @@ onUnmounted(() => {
   clearRetryTimer()
 })
 
-// Methods
 const handleClick = () => {
   if (props.interactive) {
     emit('click', props.id)

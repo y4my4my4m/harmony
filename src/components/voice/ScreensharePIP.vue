@@ -76,7 +76,6 @@ import DisplayName from '@/components/DisplayName.vue';
 const voiceStore = useUnifiedVoiceChannelStore();
 const { getUserDisplayName } = useUserData();
 
-// Refs
 const fixedVideoElement = ref<HTMLVideoElement | null>(null);
 const draggableVideoElement = ref<HTMLVideoElement | null>(null);
 const isMinimized = ref(false);
@@ -89,7 +88,6 @@ const isResizing = ref(false);
 const dragStart = ref({ x: 0, y: 0 });
 const resizeStart = ref({ x: 0, y: 0, width: 0, height: 0 });
 
-// Computed
 const pipParticipant = computed(() => {
   if (!voiceStore.pipUserId) return null;
   return voiceStore.allParticipants.find(p => p.userId === voiceStore.pipUserId) || null;
@@ -112,7 +110,6 @@ const draggableStyle = computed(() => ({
   height: isMinimized.value ? 'auto' : `${size.value.height}px`,
 }));
 
-// Methods
 const closePIP = () => {
   voiceStore.togglePIP(null);
 };

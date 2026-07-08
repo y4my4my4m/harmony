@@ -187,7 +187,6 @@ import { authContextService } from '@/services/AuthContextService'
 import { useServerPermissions } from '@/composables/useServerPermissions'
 import { debug } from '@/utils/debug'
 
-// Props
 interface Props {
   channel: Channel
   server?: Server
@@ -197,7 +196,6 @@ interface Props {
 
 const props = defineProps<Props>()
 
-// Emits
 const emit = defineEmits<{
   'toggle-left-sidebar': []
   'toggle-right-sidebar': []
@@ -209,7 +207,6 @@ const emit = defineEmits<{
 
 const { canManageChannels } = useServerPermissions()
 
-// State
 const showMembersList = ref(false)
 const showOptionsMenu = ref(false)
 const pinnedCount = ref(0)
@@ -262,7 +259,6 @@ async function mergeServerChannelNotificationRow(
   })
 }
 
-// Methods
 const loadPinnedCount = async () => {
   if (!props.channel?.id) return
   try {

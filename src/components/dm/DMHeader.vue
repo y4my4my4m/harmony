@@ -369,7 +369,6 @@ const activeCallParticipantCount = computed(() => {
   return dmCallSignaling.getCallParticipants(props.conversation.id).length
 })
 
-// Props
 interface Props {
   conversation: DMConversation
   isMobile?: boolean
@@ -377,7 +376,6 @@ interface Props {
 
 const props = defineProps<Props>()
 
-// Emits
 const emit = defineEmits<{
   'toggle-left-sidebar': []
   'toggle-voice-panel': []
@@ -408,7 +406,6 @@ const {
   getPresenceAwareStatus
 } = useUserData()
 
-// State
 const showSearchModal = ref(false)
 const showOptionsMenu = ref(false)
 const presenceInitialized = ref(false)
@@ -520,7 +517,6 @@ async function toggleEncryption() {
   }
 }
 
-// Methods
 function handleGroupUpdated() {
   emit('group-updated')
 }
@@ -696,7 +692,6 @@ onMounted(() => {
   window.addEventListener('harmony-dm-start-call', handleStartCallRequest)
 })
 
-// Watch for conversation changes to update presence tracking and encryption
 watch(
   () => props.conversation.id,
   async (newId, oldId) => {
@@ -749,7 +744,6 @@ onUnmounted(() => {
   window.removeEventListener('harmony-dm-start-call', handleStartCallRequest)
 })
 
-// Computed
 const otherUserStatus = computed(() => {
   if (!props.conversation.other_user?.id) return 'offline'
   
@@ -772,7 +766,6 @@ const isFederatedUser = computed(() => {
   return !props.conversation.other_user?.is_local
 })
 
-// Methods
 const getStatusText = (status: string): string => {
   switch (status) {
     case 'online':

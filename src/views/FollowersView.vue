@@ -159,7 +159,6 @@ const authStore = useAuthStore();
 const router = useRouter();
 const toast = useToast();
 
-// Props
 interface Props {
   userId?: string;
   view?: 'followers' | 'following' | 'requests';
@@ -172,7 +171,6 @@ const props = withDefaults(defineProps<Props>(), {
   userProfile: undefined
 });
 
-// State
 const currentView = ref<'followers' | 'following' | 'requests'>(props.view);
 const users = ref<FederatedUser[]>([]);
 const isLoading = ref(false);
@@ -221,7 +219,6 @@ const setupScrollObserver = () => {
 
 watch([hasMore, sentinelRef], () => setupScrollObserver());
 
-// Computed
 const currentUserId = computed(() => authStore.session?.user?.id);
 
 const targetUserId = computed(() => {
@@ -261,7 +258,6 @@ const emptyStateMessage = computed(() => {
     : 'When you follow people, they\'ll appear here.';
 });
 
-// Methods
 const loadUsers = async (refresh = false) => {
   if (isLoading.value || !targetUserId.value) return;
   
@@ -345,7 +341,6 @@ const loadMore = () => {
   }
 };
 
-// Event handlers
 const handleFollow = (_userId: string) => {
   // User was followed - just update count
   // The UserCard already handled the actual follow via toggleFollow
@@ -406,7 +401,6 @@ const handleUserClick = (user: FederatedUser) => {
   router.push({ name: 'UserProfile', params: { handle } });
 };
 
-// Watchers
 watch(currentView, () => {
   users.value = [];
   hasMore.value = true;
@@ -424,7 +418,6 @@ watch(() => props.view, (newView) => {
   currentView.value = newView;
 });
 
-// Lifecycle
 onMounted(async () => {
   // Ensure activityPubStore is initialized with followed users
   if (activityPubStore.followedUsers.size === 0 && authStore.session?.user) {

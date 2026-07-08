@@ -29,7 +29,6 @@ const emit = defineEmits<{
   'image-click': [url: string];
 }>();
 
-// Event handlers
 const handleMentionClick = (userId: string, event: Event) => {
   // Extract handle from the mention element for backwards compatibility
   const target = event.target as HTMLElement;

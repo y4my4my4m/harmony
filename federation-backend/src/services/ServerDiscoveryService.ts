@@ -1115,7 +1115,6 @@ export class ServerDiscoveryService {
 
       logger.info(`✅ Created local reference for remote server: ${remoteServer.name} (id: ${serverRef.id})`);
 
-      // Helper to extract UUID from AP ID
       const extractUuid = (apId: string): string | null => {
         const match = apId.match(/\/channels\/([a-f0-9-]{36})$/i);
         return match ? match[1] : null;
@@ -1345,7 +1344,6 @@ export class ServerDiscoveryService {
       // Sync channels
       const remoteChannels = remoteServer['harmony:channels'] || [];
       
-      // Helper to determine channel type
       const getChannelType = (c: any): number => {
         if (c.type === 'harmony:Category' || c.type === 2 || c.channelType === 'category') {
           return 2; // category

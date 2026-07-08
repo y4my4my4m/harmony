@@ -273,7 +273,6 @@ const router = useRouter()
 const toast = useToast()
 const authStore = useAuthStore()
 
-// State
 const newPassword = ref('')
 const confirmPassword = ref('')
 const showPassword = ref(false)

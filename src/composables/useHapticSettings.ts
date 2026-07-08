@@ -89,12 +89,10 @@ export function useHapticSettings() {
   watch(hapticTriggers, saveSettings, { deep: true })
   
   return {
-    // State
     isEnabled,
     hapticTriggers,
     isSupported: hapticManager.supported,
     
-    // Methods
     triggerHaptic,
     
     // Quick trigger methods with category check

@@ -13,7 +13,6 @@ import { getBridgeAttachmentMode, hasDiscordCdnFilePart } from './utils/mirrorEx
 
 const app = express()
 
-// Middleware
 app.use(helmet())
 app.use(cors())
 app.use(compression())

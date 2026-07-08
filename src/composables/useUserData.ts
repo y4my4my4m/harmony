@@ -323,7 +323,6 @@ export function useUserData() {
     await userDataService.ensureUsersLoaded(userIds)
   }
   
-  // Actions
   
   /**
    * Initialize the service
@@ -640,7 +639,6 @@ export function useUserData() {
     getOnlineUsers,
     getAllUsers,
     
-    // Actions
     subscribeToContext,
     unsubscribeFromContext,
     updateCurrentUserStatus,
@@ -659,7 +657,6 @@ export function useUserData() {
     fetchMultipleUserProfiles,
     ensureProfilesAvailable,
     
-    // State
     isInitialized,
     
     // Presence Management

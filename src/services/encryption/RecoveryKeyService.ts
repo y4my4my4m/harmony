@@ -765,6 +765,5 @@ export class RecoveryKeyService {
   }
 }
 
-// Export singleton
 export const recoveryKeyService = RecoveryKeyService.getInstance()
 

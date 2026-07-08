@@ -73,7 +73,6 @@ import type { ActivityPubPost } from '@/types';
 import MonyPost from './MonyPost.vue';
 import Icon from '@/components/common/Icon.vue';
 
-// Props
 interface Props {
   post: ActivityPubPost;
   threadDepth: number;
@@ -85,7 +84,6 @@ interface Props {
 
 const props = defineProps<Props>();
 
-// Emits
 const emit = defineEmits<{
   reply: [post: ActivityPubPost];
   favorite: [postId: string];
@@ -98,12 +96,10 @@ const emit = defineEmits<{
   ref: [postId: string, el: HTMLElement];
 }>();
 
-// Computed
 const isHighlighted = computed(() => {
   return props.post.id === props.highlightedPostId;
 });
 
-// Methods
 const handleReply = (post: ActivityPubPost) => {
   emit('reply', post);
 };

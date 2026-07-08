@@ -388,7 +388,6 @@ import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import { useEmojiCacheStore } from '@/stores/useEmojiCache'
 import { useToast } from 'vue-toastification'
 
-// Props
 interface Props {
   profile: User | null
   loading: boolean
@@ -397,19 +396,16 @@ interface Props {
 
 const props = defineProps<Props>()
 
-// Emits
 const emit = defineEmits<{
   'update-profile': [profile: Partial<User>]
   'upload-avatar': [file: File]
   'upload-banner': [file: File]
 }>()
 
-// Composables
 const authStore = useAuthStore()
 const instanceSettings = useInstanceSettingsStore()
 const toast = useToast()
 
-// State
 const localProfile = ref<Partial<User>>({})
 const bannerKey = ref(0) // For forcing banner reload
 
@@ -473,7 +469,6 @@ function removeProfileField(index: number) {
   onProfileChange()
 }
 
-// Refs
 const colorPickerRef = ref<HTMLElement | null>(null)
 const colorPreviewRef = ref<HTMLElement | null>(null)
 const bannerInput = ref<HTMLInputElement>()
@@ -493,7 +488,6 @@ const displayNameAutoSuggest = useAutoSuggest(
   { mode: 'chat', enableEmojis: true, enableMentions: false }
 )
 
-// Computed
 const userEmail = computed(() => authStore.session?.user?.email)
 
 // Snapshot of the editable fields as they were when the form was last
@@ -574,7 +568,6 @@ const bannerStyle = computed(() => {
   }
 })
 
-// Methods
 const syncLocalProfile = () => {
   if (props.profile) {
     localProfile.value = {
@@ -754,7 +747,6 @@ const vClickOutside = {
   },
 }
 
-// Watchers
 watch(() => props.profile, syncLocalProfile, { immediate: true })
 
 // Watch for banner URL changes to trigger UI refresh

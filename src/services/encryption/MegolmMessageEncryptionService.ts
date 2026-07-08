@@ -2325,6 +2325,5 @@ export class MegolmMessageEncryptionService {
   }
 }
 
-// Export singleton
 export const megolmMessageEncryptionService = MegolmMessageEncryptionService.getInstance()
 

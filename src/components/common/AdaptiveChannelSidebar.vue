@@ -149,7 +149,6 @@ import Icon from '@/components/common/Icon.vue';
 import ChannelSidebar from '@/components/ChannelSidebar.vue';
 import DMSidebar from '@/components/DMSidebar.vue';
 
-// Props
 interface Props {
   mode: 'chat' | 'activitypub';
   currentServer?: Server;
@@ -202,13 +201,11 @@ const profileStore = useProfileStore();
 const authStore = useAuthStore();
 const notificationStore = useNotificationStore();
 
-// State
 const followingChange = ref(0);
 const followersChange = ref(0);
 const previousFollowingCount = ref(0);
 const previousFollowersCount = ref(0);
 
-// Computed properties
 const currentUser = computed(() => {
   // Try profile store first, fallback to auth store user data
   if (profileStore.profile) {
@@ -384,7 +381,6 @@ const formatNumber = (num: number): string => {
   return num.toString();
 };
 
-// Watch for changes in follow counts to show delta indicators
 watch(() => activityPubStore.followingCount, (newCount) => {
   if (previousFollowingCount.value !== 0) {
     followingChange.value = newCount - previousFollowingCount.value;
@@ -411,7 +407,6 @@ watch(() => activityPubStore.followersCount, (newCount) => {
   previousFollowersCount.value = newCount;
 });
 
-// Lifecycle
 onMounted(() => {
   previousFollowingCount.value = activityPubStore.followingCount;
   previousFollowersCount.value = activityPubStore.followersCount;

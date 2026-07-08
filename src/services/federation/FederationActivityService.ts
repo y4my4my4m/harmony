@@ -199,7 +199,7 @@ export class FederationActivityService {
     }
   }
 
-  // ACTIVITY DATA BUILDERS (COMPATIBLE WITH YOUR EDGE FUNCTIONS)
+  // ACTIVITY DATA BUILDERS (COMPATIBLE WITH THE EDGE FUNCTIONS)
 
   private async buildPostActivityData(params: {
     activityId: string
@@ -211,7 +211,6 @@ export class FederationActivityService {
     const { activityId, activityType, actor, postData, operation } = params
     const instanceDomain = await this.getInstanceDomain()
 
-    // Use your existing content conversion function
     const { data: htmlContent } = await supabase
       .rpc('convert_jsonb_to_ap', { content: postData.content })
 
@@ -317,7 +316,7 @@ export class FederationActivityService {
     }
   }
 
-  // DATA FETCHERS (INTEGRATE WITH YOUR DATABASE)
+  // DATA FETCHERS (INTEGRATE WITH THE DATABASE)
 
   private async getPostData(postId: string) {
     const { data, error } = await supabase

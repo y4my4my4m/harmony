@@ -462,7 +462,6 @@ export function useLayoutState() {
   })
 
   return {
-    // Reactive state
     leftSidebarOpen: computed(() => leftSidebarOpen.value),
     rightSidebarOpen: computed(() => rightSidebarOpen.value),
     hasRightSidebar,

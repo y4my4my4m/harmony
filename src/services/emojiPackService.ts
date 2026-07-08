@@ -313,14 +313,12 @@ export function useEmojiPacks() {
   const isTwemojiPack = computed(() => currentPackId.value === 'twemoji')
   
   return {
-    // State
     currentPackId,
     currentPack,
     packs,
     isNativePack,
     isTwemojiPack,
     
-    // Methods
     setCurrentPack,
     loadPackEmojiIndex,
     getEmojiPackUrl,

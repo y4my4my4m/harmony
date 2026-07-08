@@ -306,7 +306,6 @@ const emit = defineEmits<{
 const toast = useToast()
 const authStore = useAuthStore()
 
-// Reactive state
 const allInvites = ref<Invite[]>([])
 const isLoading = ref(true)
 const statusFilter = ref('all')
@@ -321,7 +320,6 @@ const isRevoking = ref(false)
 // Mock user data (in real app, this would come from your user store)
 const users = ref<Record<string, { display_name: string; avatar_url: string }>>({})
 
-// Computed
 const filteredInvites = computed(() => {
   let filtered = [...allInvites.value]
   
@@ -393,7 +391,6 @@ const stats = computed(() => {
   return { total, active, expired, totalUses }
 })
 
-// Methods
 const loadInvites = async () => {
   if (!authStore.session?.user?.id) return
   
@@ -544,7 +541,6 @@ const getEmptyStateMessage = (): string => {
   return 'No invites have been created for this server yet.'
 }
 
-// Lifecycle
 onMounted(() => {
   loadInvites()
 })

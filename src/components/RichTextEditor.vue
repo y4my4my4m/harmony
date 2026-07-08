@@ -1240,7 +1240,6 @@ watch(() => serverChannelStore.currentServerId, () => {
   roleDisplayCache.clear();
 });
 
-// Watch for external model value changes
 watch(() => props.modelValue, (newValue) => {
   if (editorRef.value) {
     if (skipNextWatch.value) {

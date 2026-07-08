@@ -284,12 +284,10 @@ interface DisplayCategory {
   emojis: EmojiEntry[];
 }
 
-// Props
 defineProps<{
   showFavorites?: boolean;
 }>();
 
-// Emits
 const emit = defineEmits<{
   (e: 'sendEmoji', emoji: Emoji): void;
   (e: 'update:showFavorites', value: boolean): void;
@@ -339,7 +337,6 @@ const isSectionCollapsed = (id: string) => {
   return collapsedSections.value.has(id);
 };
 
-// Computed: Filtered emoji list (current server first)
 const filteredEmojiList = computed((): FilteredServerEmojiGroup[] => {
   const query = searchQuery.value.toLowerCase().trim();
   // AI Generated has its own dedicated section below; everything else (servers,
@@ -395,7 +392,6 @@ const aiEmojis = computed((): ResolvedEmoji[] => {
 
 const showAiSection = computed(() => aiEmojis.value.length > 0);
 
-// Computed: Displayed categories from unified emoji service
 const displayedCategories = computed((): DisplayCategory[] => {
   if (!unifiedLoaded.value) return [];
   
@@ -823,7 +819,6 @@ watch(displayedCategories, (cats) => {
   }
 }, { immediate: true });
 
-// Lifecycle
 onMounted(async () => {
   const { triggerEmojiDataLoad } = await import('@/composables/useEmojiLoader');
   triggerEmojiDataLoad();

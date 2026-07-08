@@ -165,7 +165,6 @@ const activityTypes = [
   { value: 'streaming', label: 'Streaming', icon: StreamingIcon },
 ]
 
-// State
 const statusText = ref('')
 const selectedEmoji = ref<{ native?: string; name?: string; url?: string } | null>(null)
 const selectedActivity = ref('custom')
@@ -174,13 +173,11 @@ const showEmojiPicker = ref(false)
 const saving = ref(false)
 const emojiButtonRef = ref<HTMLElement | null>(null)
 
-// Computed
 const hasCurrentStatus = computed(() => {
   return props.currentStatus?.text || props.currentStatus?.emoji
 })
 const currentStatusDisplayText = computed(() => formatCustomStatusDisplay(props.currentStatus))
 
-// Methods
 const selectEmoji = (emoji: Emoji) => {
   // EmojiPopup sends Emoji type with id, name, url
   // For custom emojis: url is present, id is the emoji UUID

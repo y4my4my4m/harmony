@@ -162,18 +162,15 @@ const serverStore = useServerStore()
 const authStore = useAuthStore()
 const serverChannelStore = useServerChannelStore()
 
-// State
 const showDeleteModal = ref(false)
 const confirmationText = ref('')
 const confirmationError = ref('')
 const deleting = ref(false)
 
-// Computed
 const isConfirmationValid = computed(() => {
   return confirmationText.value === props.serverName && !confirmationError.value
 })
 
-// Methods
 const showDeleteConfirmation = () => {
   showDeleteModal.value = true
   confirmationText.value = ''

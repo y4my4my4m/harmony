@@ -165,5 +165,4 @@ class ActivityTracker extends EventTarget {
   }
 }
 
-// Export singleton instance
 export const activityTracker = new ActivityTracker()

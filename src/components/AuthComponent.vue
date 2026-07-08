@@ -385,7 +385,6 @@ import { getStoredInstance } from '@/services/instanceConfig'
 import { isTauriDesktop } from '@/utils/platform'
 import type { Provider } from '@supabase/supabase-js'
 
-// Props
 interface Props {
   isLogin?: boolean
 }
@@ -394,7 +393,6 @@ const props = withDefaults(defineProps<Props>(), {
   isLogin: true
 })
 
-// Composables
 const router = useRouter()
 const authStore = useAuthStore()
 const themeStore = useThemeStore()
@@ -423,7 +421,6 @@ const allOAuthProviders = [
 // Enabled OAuth providers (will be filtered based on config)
 const enabledOAuthProviders = ref<typeof allOAuthProviders>([])
 
-// Reactive state
 const email = ref('')
 const password = ref('')
 // Initialize from the persisted preference so the checkbox reflects the
@@ -484,7 +481,6 @@ const displayTitle = computed(() => {
 })
 const instanceNameLetters = computed(() => displayTitle.value.split(''))
 
-// Computed styles
 const authStyles = computed(() => ({
   '--bg-image': randomBg.value,
   '--mouse-x': `${mouseX.value}px`,
@@ -927,7 +923,6 @@ const loadInstanceBranding = async () => {
   }
 }
 
-// Lifecycle
 onMounted(async () => {
   randomBg.value = await getRandomLoginBackground()
   await Promise.all([

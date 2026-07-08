@@ -2826,7 +2826,7 @@ export const useDMStore = defineStore('dm', () => {
         
         if (newConversationId) {
           debug.log('Created new group conversation:', newConversationId)
-          return newConversationId // Return the new conversation ID
+          return newConversationId
         } else {
           return false
         }

@@ -208,7 +208,6 @@ const currentStatus = computed(() => {
   }
 })
 
-// Helper to get status display
 const currentStatusDisplay = computed(() => {
   const status = currentStatus.value
   switch (status) {

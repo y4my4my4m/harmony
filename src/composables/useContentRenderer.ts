@@ -46,7 +46,6 @@ export interface ContentRenderResult {
   isVideoUrl: (url: string) => boolean;
   isAudioUrl: (url: string) => boolean;
   
-  // Event handlers
   handleMentionClick: (userId: string, event: Event) => void;
   handleHashtagClick: (tag: string) => void;
   handleLinkClick: (url: string, event: Event) => void;
@@ -618,7 +617,6 @@ export function useContentRenderer(
     return sanitizeFormattedHtml(chunks.join(''));
   });
 
-  // Event handlers
   const handleMentionClick = (userId: string, event: Event) => {
     if (renderOptions.enableClickHandlers && emit) {
       emit('user-mention-click', userId, event);

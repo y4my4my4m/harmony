@@ -350,7 +350,6 @@ const props = defineProps<Props>()
 const toast = useToast()
 const { confirm } = useConfirmDialog()
 
-// State
 const loading = ref(false)
 const saving = ref(false)
 const roles = ref<ServerRole[]>([])
@@ -455,7 +454,6 @@ const permissionSections = [
   },
 ]
 
-// Helper to safely convert permissions to array
 // DB stores as { 'VIEW_CHANNEL': true, 'SEND_MESSAGES': true }
 // Frontend expects ['VIEW_CHANNEL', 'SEND_MESSAGES']
 const ensurePermissionsArray = (perms: unknown): string[] => {
@@ -484,7 +482,6 @@ const ensurePermissionsArray = (perms: unknown): string[] => {
   return []
 }
 
-// Helper to convert permissions array to JSONB object format for database
 const permissionsArrayToObject = (perms: string[]): Record<string, boolean> => {
   const obj: Record<string, boolean> = {}
   for (const perm of perms) {
@@ -493,7 +490,6 @@ const permissionsArrayToObject = (perms: string[]): Record<string, boolean> => {
   return obj
 }
 
-// Computed
 const hasChanges = computed(() => {
   if (!selectedRole.value) return false
   return isThisRoleDirty(selectedRole.value.id)
@@ -530,7 +526,6 @@ const filteredMembers = computed(() => {
   )
 })
 
-// Methods
 const loadRoles = async () => {
   if (!props.serverId) return
   loading.value = true
@@ -840,7 +835,6 @@ const handleReorder = async () => {
   }
 }
 
-// Watch for server changes
 watch(() => props.serverId, () => {
   selectedRole.value = null
   loadRoles()

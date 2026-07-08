@@ -1135,6 +1135,5 @@ class ThreadService {
   }
 }
 
-// Export singleton instance
 export const threadService = new ThreadService()
 

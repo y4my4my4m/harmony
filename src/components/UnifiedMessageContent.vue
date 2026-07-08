@@ -767,7 +767,6 @@ export default defineComponent({
     // Floating video
     const { registerVideo, returnToOriginalPosition, getFloatingVideoMessageId } = useFloatingVideo();
     
-    // Watch for prop changes and merge with internal state
     watch(() => props.imageLoaded, (newValue) => {
       Object.assign(imageLoadedState, newValue);
     }, { deep: true });
@@ -1075,7 +1074,6 @@ export default defineComponent({
         greentextEnabled: visualTheme.currentSettings.value.greentextEnabled !== false,
       });
 
-    // Function to render text content with code blocks as components
     const renderTextSegments = (text: string) => {
       const { renderedText, codeBlocks } = renderTextContent(text);
       const segments: Array<{type: 'text' | 'codeblock'; content?: string; code?: string; language?: string}> = [];
@@ -1119,7 +1117,6 @@ export default defineComponent({
       return segments;
     };
 
-    // Watch for changes to the prop and update the local copy accordingly
     watch(() => props.editableContent, (newVal) => {
       // Only update if the value is different to avoid infinite loops
       if (newVal !== localEditableContent.value) {

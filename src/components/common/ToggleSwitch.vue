@@ -9,7 +9,6 @@
 <script setup lang="ts">
 import { useHapticSettings } from '@/composables/useHapticSettings'
 
-// Props
 interface Props {
   modelValue: boolean
   disabled?: boolean
@@ -19,7 +18,6 @@ const props = withDefaults(defineProps<Props>(), {
   disabled: false
 })
 
-// Emits
 const emit = defineEmits<{
   'update:modelValue': [value: boolean]
   'change': [value: boolean]
@@ -28,7 +26,6 @@ const emit = defineEmits<{
 // Haptics
 const { triggerToggle } = useHapticSettings()
 
-// Methods
 const toggle = () => {
   if (props.disabled) return
   

@@ -296,7 +296,6 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<Emits>()
 
-// Composables
 const {
   isSearching,
   searchResults,
@@ -366,7 +365,6 @@ watch([fromDateInput, toDateInput], ([from, to]) => {
   setFilter('toDate', to ? new Date(to) : null)
 })
 
-// Computed
 const activeFilterChips = computed(() => {
   const chips: Record<string, { label: string; value: string }> = {}
   
@@ -416,7 +414,6 @@ const activeFilterCount = computed(() => {
   return Object.keys(activeFilterChips.value).length
 })
 
-// Methods
 const handleClose = () => {
   emit('close')
 }

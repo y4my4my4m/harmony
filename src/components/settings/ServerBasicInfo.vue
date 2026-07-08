@@ -239,7 +239,6 @@ const bannerFileInput = ref<HTMLInputElement>()
 let currentBlobUrl: string | null = null
 let currentBannerBlobUrl: string | null = null
 
-// Computed property for icon preview - shows selected file preview or current server icon
 const iconPreviewUrl = computed(() => {
   if (currentBlobUrl) {
     URL.revokeObjectURL(currentBlobUrl)

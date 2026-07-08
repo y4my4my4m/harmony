@@ -334,5 +334,4 @@ export class GifService {
   }
 }
 
-// Export singleton instance
 export const gifService = GifService.getInstance()

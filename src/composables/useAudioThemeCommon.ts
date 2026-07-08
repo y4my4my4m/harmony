@@ -11,14 +11,12 @@ export function useAudioThemeCommon() {
   const themeStore = useThemeStore()
   const notificationStore = useNotificationStore()
 
-  // Local state
   const isLoading = ref(false)
   const pendingTheme = ref<string | null>(null)
   const localVolume = ref(70)
   const previousVolume = ref(70)
   const isTesting = ref(false)
 
-  // Computed
   const themes = computed(() => themeStore.audioThemes)
   const currentTheme = computed(() => themeStore.currentAudioTheme)
 
@@ -319,18 +317,15 @@ export function useAudioThemeCommon() {
   })
 
   return {
-    // State
     isLoading,
     pendingTheme,
     localVolume,
     previousVolume,
     isTesting,
     
-    // Computed
     themes,
     currentTheme,
     
-    // Methods
     getThemeIcon,
     getThemeIconName,
     selectTheme,

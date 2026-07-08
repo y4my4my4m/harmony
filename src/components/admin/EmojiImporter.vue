@@ -202,7 +202,6 @@ interface RemoteEmoji {
   is_animated: boolean;
 }
 
-// State
 const emojis = ref<RemoteEmoji[]>([]);
 const toast = useToast()
 const isLoading = ref(false);
@@ -219,7 +218,6 @@ const importName = ref('');
 const isImporting = ref(false);
 const importingIds = ref(new Set<string>());
 
-// Computed
 const filteredEmojis = computed(() => {
   let result = [...emojis.value];
   
@@ -259,7 +257,6 @@ const loadPrevEmojiPage = () => {
   }
 };
 
-// Methods
 const loadEmojis = async () => {
   isLoading.value = true;
   
@@ -412,7 +409,6 @@ const formatRelativeTime = (dateString: string) => {
   return date.toLocaleDateString();
 };
 
-// Lifecycle
 onMounted(() => {
   loadEmojis();
 });

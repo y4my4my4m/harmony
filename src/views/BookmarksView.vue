@@ -26,7 +26,6 @@ import UnifiedContentArea from '@/components/common/UnifiedContentArea.vue'
 import { useActivityPubStore } from '@/stores/useActivityPub'
 import type { TimelinePost, FederatedUser } from '@/types'
 
-// Props
 interface Props {
   currentView: string
   viewType: string
@@ -35,7 +34,6 @@ interface Props {
 // eslint-disable-next-line unused-imports/no-unused-vars
 const props = defineProps<Props>()
 
-// Emits
 const emit = defineEmits<{
   favoritePost: [post: TimelinePost]
   reblogPost: [post: TimelinePost]
@@ -47,10 +45,8 @@ const emit = defineEmits<{
 
 const activityPubStore = useActivityPubStore()
 
-// State
 const isLoadingBookmarks = ref(false)
 
-// Computed
 const bookmarks = computed(() => {
   return activityPubStore.bookmarks || []
 })
@@ -70,7 +66,6 @@ const loadBookmarks = async () => {
   }
 }
 
-// Event handlers
 const handleLoadMore = async () => {
   try {
     await activityPubStore.loadMoreBookmarks()

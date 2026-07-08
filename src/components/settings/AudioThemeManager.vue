@@ -305,7 +305,6 @@ const volumePresets = [
   { label: 'Max', value: 100 }
 ]
 
-// COMPUTED
 
 const displayedThemes = computed(() => {
   const themeList = themes.value
@@ -391,12 +390,10 @@ onMounted(async () => {
   setInterval(updateCacheInfo, 5000)
 })
 
-// Watch for volume changes from store
 watch(() => themeStore.audioVolume, (newVolume) => {
   localVolume.value = Math.round(newVolume * 100)
 })
 
-// Watch for theme changes
 watch(() => themeStore.currentAudioTheme, () => {
   updateCacheInfo()
 })

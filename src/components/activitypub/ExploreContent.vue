@@ -304,7 +304,6 @@ const router = useRouter();
 
 useI18n();
 
-// Props
 interface Props {
   currentView: 'trending' | 'instances';
 }
@@ -350,7 +349,6 @@ const showInstanceModal = ref(false);
 const hasMoreContent = ref(false);
 const currentCursor = ref<string | null>(null);
 
-// Computed properties
 const availableSoftware = computed(() => {
   const set = new Set<string>();
   for (const inst of knownInstances.value) {
@@ -445,7 +443,6 @@ const currentTabData = computed(() => {
   }
 });
 
-// Methods
 const trendingFilters = () => {
   // "local" is a pseudo-instance meaning "this instance only". Express it via
   // is_local scoping (includeFederated:false) rather than a domain match, since
@@ -792,7 +789,6 @@ const refreshContent = async () => {
   }
 };
 
-// Watch for tab changes
 watch(() => props.currentView, async (newTab) => {
   if (newTab === 'trending') {
     await loadTrendingContent();
@@ -812,7 +808,6 @@ watch(() => props.currentView, (newTab) => {
   }
 }, { immediate: true });
 
-// Watch for filter changes
 watch([selectedContentType, selectedInstance, selectedTimeRange], async () => {
   await refreshContent();
 });

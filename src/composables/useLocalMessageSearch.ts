@@ -113,7 +113,6 @@ export function useLocalMessageSearch(
     searchUrls = true
   } = options
 
-  // State
   const query = ref('')
   const isSearching = ref(false)
   const searchResults = ref<LocalSearchResult[]>([])
@@ -121,7 +120,6 @@ export function useLocalMessageSearch(
   // Debounce timer
   let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
-  // Computed
   const hasQuery = computed(() => query.value.trim().length >= minQueryLength)
   const hasResults = computed(() => searchResults.value.length > 0)
   const resultCount = computed(() => searchResults.value.length)
@@ -286,19 +284,16 @@ export function useLocalMessageSearch(
   )
 
   return {
-    // State
     query,
     isSearching,
     searchResults,
     
-    // Computed
     hasQuery,
     hasResults,
     resultCount,
     searchableMessages,
     unsearchableCount,
     
-    // Methods
     setQuery,
     clearSearch,
     executeSearch,

@@ -278,7 +278,6 @@ const systemHealth = ref({
 })
 
 
-// Computed properties
 const systemStatus = computed(() => {
   const health = systemHealth.value
   if (health.federation.status === 'error') {
@@ -311,7 +310,6 @@ const healthStatus = computed(() => {
 
 
 
-// Methods
 const loadInitialData = async () => {
   loading.value = true
   try {

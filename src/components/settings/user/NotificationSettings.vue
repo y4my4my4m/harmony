@@ -623,7 +623,6 @@ import { usePushNotifications } from '@/composables/usePushNotifications'
 import { isTauri, isTauriMobile, isMobileDevice, supportsHaptics } from '@/utils/platform'
 import { useHapticSettings } from '@/composables/useHapticSettings'
 
-// Stores
 const notificationStore = useNotificationStore()
 const toast = useToast()
 const userData = useUserData()
@@ -809,7 +808,6 @@ const activityPubNotificationTypes = [
   }
 ]
 
-// Computed properties
 const isDndActive = computed(() => notificationStore.isDndActive)
 
 const isAtDefaults = computed(() =>
@@ -831,7 +829,6 @@ const permissionText = computed(() => {
   return hasNotificationPermission.value ? `${label} are enabled` : `${label} require permission`
 })
 
-// Methods
 const loadPreferences = () => {
   const currentPreferences = notificationStore.preferences
   if (currentPreferences) {
@@ -1232,7 +1229,6 @@ onMounted(async () => {
   pushNotifications.initialize()
 })
 
-// Watch for changes in the store
 watch(() => notificationStore.preferences, (newPreferences) => {
   if (newPreferences) {
     Object.assign(preferences, newPreferences)

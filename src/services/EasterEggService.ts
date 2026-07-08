@@ -138,23 +138,14 @@ class EasterEggService {
     }
   }
 
-  /**
-   * Get current state
-   */
   getState(): EasterEggState {
     return { ...this.state }
   }
 
-  /**
-   * Check if easter egg is active
-   */
   isActive(): boolean {
     return this.state.isActive
   }
 
-  /**
-   * Get active easter egg type
-   */
   getActiveType(): EasterEggType | null {
     return this.state.type
   }

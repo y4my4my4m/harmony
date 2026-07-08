@@ -227,12 +227,10 @@ const emit = defineEmits<{
 // Centralized keybind system
 const keybinds = useKeybinds()
 
-// Local state
 const recordingAction = ref<KeybindAction | null>(null)
 const hasConflict = ref(false)
 const conflictMessage = ref('')
 
-// Computed
 const isPTTMode = keybinds.isPTTMode
 
 const getKeybindDisplay = (action: KeybindAction): string => {
@@ -341,7 +339,6 @@ const recordKey = (key: string, modifiers: KeybindModifiers) => {
   emit('update-keybinds', { action, key, modifiers })
 }
 
-// Lifecycle
 onMounted(() => {
   window.addEventListener('keydown', handleKeydown, { capture: true })
   window.addEventListener('mousedown', handleMousedown, { capture: true })

@@ -156,7 +156,6 @@ const testActions = [
   { id: 'ui_click', label: 'Click', icon: 'mouse-pointer', category: 'ui' }
 ] as const
 
-// COMPUTED
 
 const currentTheme = computed(() => themeStore.getCurrentAudioTheme)
 

@@ -141,7 +141,6 @@ const saveChanges = async () => {
   }
 }
 
-// Watch for thread changes to reset form
 watch(() => props.thread, (newThread) => {
   if (newThread) {
     editedName.value = newThread.name || ''

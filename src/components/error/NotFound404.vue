@@ -112,11 +112,9 @@ const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
 
-// State
 const selectedImage = ref('')
 const imageError = ref(false)
 
-// Computed properties
 const isAuthenticated = computed(() => authStore.isLoggedIn)
 
 const canGoBack = computed(() => window.history.length > 1)
@@ -174,7 +172,6 @@ const defaultRoute = computed(() => {
   return notFoundContext.value.suggestedRoute || (isAuthenticated.value ? '/chat' : '/')
 })
 
-// Methods
 const selectRandomImage = async () => {
   try {
     selectedImage.value = await getRandom404Image()
@@ -211,7 +208,6 @@ const goBack = () => {
   }
 }
 
-// Lifecycle
 onMounted(() => {
   selectRandomImage()
 })

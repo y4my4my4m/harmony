@@ -509,7 +509,6 @@ import EyeOffIcon from '@/components/icons/EyeOff.vue'
 import CopyIcon from '@/components/icons/Copy.vue'
 import EncryptionSettings from '@/components/encryption/EncryptionSettings.vue'
 
-// Props
 interface Props {
   profile: User | null
   loading: boolean
@@ -517,12 +516,10 @@ interface Props {
 
 const props = defineProps<Props>()
 
-// Emits
 const emit = defineEmits<{
   'update-privacy': [settings: any]
 }>()
 
-// Composables
 const authStore = useAuthStore()
 const toast = useToast()
 
@@ -586,12 +583,10 @@ const activityPubStore = useActivityPubStore()
 let blocksMutesLastFetchedAt = 0
 const CACHE_TTL_MS = 30000
 
-// Computed
 const hasChanges = computed(() => {
   return JSON.stringify(settings.value) !== JSON.stringify(originalSettings.value)
 })
 
-// Methods
 // eslint-disable-next-line unused-imports/no-unused-vars
 const onSettingChange = () => {
   // Settings changed, enable save button

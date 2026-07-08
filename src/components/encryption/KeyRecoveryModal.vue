@@ -169,7 +169,6 @@ import Icon from '@/components/common/Icon.vue'
 const toast = useToast()
 const emit = defineEmits(['close', 'restored'])
 
-// State
 const activeTab = ref<'phrase' | 'qr'>('phrase')
 const recoveryWords = ref<string[]>(Array(12).fill(''))
 const qrData = ref('')

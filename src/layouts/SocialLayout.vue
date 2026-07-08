@@ -257,7 +257,6 @@ const props = withDefaults(defineProps<Props>(), {
   rightSidebarDragOffset: 0
 })
 
-// Emits
 // eslint-disable-next-line unused-imports/no-unused-vars
 const emit = defineEmits<{
   toggleLeftSidebar: []
@@ -273,15 +272,12 @@ const showFundingModal = ref(false)
 const router = useRouter()
 const route = useRoute()
 
-// Layout state
 const { SIDEBAR_WIDTH } = useLayoutState()
 
-// Computed drag styles for native-feeling gestures
 const leftSidebarStyle = computed(() => {
   if (!props.isMobile) return {}
-  
+
   if (props.isDragging && props.dragDirection === 'left') {
-    // Left sidebar slides in from left (accounting for server sidebar at 72px)
     const progress = props.leftSidebarDragOffset / SIDEBAR_WIDTH
     const closedPosition = -280 // Hidden position
     const openPosition = 72 // Open position (server sidebar width)
@@ -395,7 +391,6 @@ const currentViewData = computed(() => {
 })
 const specialViewData = computed(() => props.specialViewData)
 
-// State
 const showSearchModal = ref(false)
 const selectedUser = ref<FederatedUser | null>(null)
 const composerReplyPost = ref<TimelinePost | null>(null)
@@ -465,7 +460,6 @@ onMounted(() => {
 
 useViewContextTracking()
 
-// Event handlers
 const handleToggleSearch = () => {
   showSearchModal.value = !showSearchModal.value
 }
