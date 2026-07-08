@@ -5,7 +5,7 @@
 -- ----------
 -- Before the 2026-05-21 reply-routing fix, clicking "Reply" on a reblog row
 -- in the timeline addressed the boost wrapper (the local Announce post) as
--- the parent instead of the original Note. The Composer happily set
+-- the parent instead of the original Note. The Composer set
 -- `posts.in_reply_to = wrapper_id` and submitted, so the reply ended up:
 --
 --   - Showing "Replying to @<the-booster>" in the UI (the timeline view's

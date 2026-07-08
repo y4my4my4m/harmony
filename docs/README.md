@@ -24,13 +24,13 @@ Full pipeline (guides + API + components + sync + typedoc + static build): `npm 
 
 ## Documentation index
 
-- [Architecture Overview](./ARCHITECTURE.md)
+- [Architecture Overview](../docs-source/guide/architecture/index.md)
+- [Component Structure](../docs-source/guide/architecture/components.md)
+- [State Management](../docs-source/guide/architecture/state.md)
+- [Service Layer](../docs-source/guide/architecture/services.md)
 - [Development Guide](./DEVELOPMENT.md)
 - [API Reference](./API_REFERENCE.md)
 - [Federation System](./FEDERATION.md)
-- [Component Library](./COMPONENTS.md)
-- [State Management](./STATE_MANAGEMENT.md)
-- [Service Layer](./SERVICES.md)
 - [E2EE Implementation](./E2EE_IMPLEMENTATION.md)
 - [Bot API](./bot-api.md)
 - [Plugin System](./PLUGIN_SYSTEM.md)

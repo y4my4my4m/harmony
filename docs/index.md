@@ -71,7 +71,7 @@ npm run dev
 
 ## More
 
-- [Architecture overview](./ARCHITECTURE.md)
+- [Architecture overview](/guide/architecture/)
 - [Self-hosting](./self-hosting.md)
 - [Bot API](./bot-api.md)
 - [Federation](./FEDERATION.md)

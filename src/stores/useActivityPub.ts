@@ -112,9 +112,8 @@ interface ActivityPubState {
   // Number of timeline/feed views currently mounted. The per-user realtime
   // channel (`user:{id}`) stays connected app-wide for notifications/DMs, so
   // home-timeline post events (`post:new`, `home_feed:new_post`) keep arriving
-  // even when the user is in a server channel or DMs. Eagerly fetching +
-  // sounding for every followed-user post off-view is wasteful and noisy, so
-  // the "new post" handlers no-op while this is 0 (the feed reloads fresh on
+  // even in a server channel or DMs. The "new post" handlers no-op while this
+  // is 0 to avoid fetching + sounding for off-view posts (feed reloads fresh on
   // open). Other post events (update/delete/interaction) stay ungated because
   // they only mutate posts already held in memory.
   feedViewActiveCount: number;

@@ -122,7 +122,7 @@ const loadInstances = async () => {
   }
 }
 
-// Event handlers using composables - much cleaner!
+// Event handlers delegate to composables.
 const handleLoadMore = async () => {
   try {
     if (props.currentView === 'trending') {

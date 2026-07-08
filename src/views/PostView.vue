@@ -426,7 +426,7 @@ const fetchRemoteRepliesInBackground = async (targetPost: TimelinePost) => {
  * Cap at MAX_ANCESTOR_DEPTH so a malicious or pathological thread can't make
  * us issue an unbounded number of remote fetches.
  *
- * Two pieces of bookkeeping worth noting:
+ * Bookkeeping:
  *
  *   - `startToken` snapshots which post we're walking for. If the user
  *     navigates to a different post mid-walk, `resolvedPostId.value` will

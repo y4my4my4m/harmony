@@ -25,9 +25,7 @@ export class BotRestAPI {
   }
   
   private setupRoutes() {
-    // =====================================================
     // CHANNEL ENDPOINTS
-    // =====================================================
     
     this.router.post('/channels/:channelId/messages', this.sendMessage.bind(this))
     
@@ -52,9 +50,7 @@ export class BotRestAPI {
     
     this.router.post('/channels/:channelId/typing', this.triggerTyping.bind(this))
     
-    // =====================================================
     // SERVER ENDPOINTS (Harmony terminology)
-    // =====================================================
     
     this.router.get('/servers/:serverId', this.getGuild.bind(this))
     
@@ -90,9 +86,7 @@ export class BotRestAPI {
     this.router.get('/guilds/:guildId/members', this.getGuildMembers.bind(this))
     this.router.get('/guilds/:guildId/channels', this.getGuildChannels.bind(this))
     
-    // =====================================================
     // EMOJI ENDPOINTS
-    // =====================================================
     
     this.router.get('/emojis', this.getEmojis.bind(this))
     
@@ -104,18 +98,14 @@ export class BotRestAPI {
     // Merge bridge metadata (e.g. discord_message_id) without bumping updated_at
     this.router.patch('/messages/:messageId/metadata', this.mergeMessageMetadata.bind(this))
     
-    // =====================================================
     // USER ENDPOINTS
-    // =====================================================
     
     this.router.get('/users/:userId', this.getUser.bind(this))
     
     this.router.get('/users/@me', this.getCurrentBot.bind(this))
   }
   
-  // =====================================================
   // MEDIA
-  // =====================================================
 
   private async silentUpdateMessageContent(req: BotRequest, res: Response) {
     try {
@@ -159,9 +149,7 @@ export class BotRestAPI {
     }
   }
 
-  // =====================================================
   // MESSAGE ENDPOINTS
-  // =====================================================
   
   private async sendMessage(req: BotRequest, res: Response) {
     try {
@@ -645,9 +633,7 @@ export class BotRestAPI {
     }
   }
   
-  // =====================================================
   // GUILD ENDPOINTS
-  // =====================================================
   
   private async getGuild(req: BotRequest, res: Response) {
     try {
@@ -748,13 +734,9 @@ export class BotRestAPI {
     }
   }
   
-  // =====================================================
   // USER ENDPOINTS
-  // =====================================================
   
-  // =====================================================
   // CHANNEL / CATEGORY CREATION (used by bridges to mirror server structure)
-  // =====================================================
   //
   // These two endpoints intentionally trust the `manage_channels` permission
   // already enforced via bot_server_permissions; we do NOT re-implement a
@@ -1324,9 +1306,7 @@ export class BotRestAPI {
     }
   }
   
-  // =====================================================
   // PERMISSION HELPERS
-  // =====================================================
   
   private async checkChannelPermission(botId: string, channelId: string, permission: string): Promise<boolean> {
     const { data: channel, error: channelError } = await supabase
@@ -1381,9 +1361,7 @@ export class BotRestAPI {
     return !!data
   }
   
-  // =====================================================
   // FORMATTERS
-  // =====================================================
   
   /**
    * Convert a relative avatar path to a full URL
@@ -1536,9 +1514,7 @@ export class BotRestAPI {
       .filter(Boolean)
   }
   
-  // =====================================================
   // INVITE PREVIEW (public invite cards for bridge embeds)
-  // =====================================================
 
   private async getInvitePreview(req: BotRequest, res: Response) {
     try {
@@ -1602,9 +1578,7 @@ export class BotRestAPI {
     }
   }
 
-  // =====================================================
   // EMOJI METHODS
-  // =====================================================
   
   private async getEmojis(req: BotRequest, res: Response) {
     try {
@@ -1673,9 +1647,7 @@ export class BotRestAPI {
     }
   }
   
-  // =====================================================
   // AUDIT LOGGING
-  // =====================================================
   
   private async logBotAction(botId: string, action: string, metadata: any) {
     try {
