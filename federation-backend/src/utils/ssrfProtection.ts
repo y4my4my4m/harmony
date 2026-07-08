@@ -9,19 +9,10 @@
 import { logger } from './logger.js';
 import dns from 'dns';
 
-// ---------------------------------------------------------------------------
-// Keep-alive dispatcher for federation outbound HTTP.
-//
-// Node 18+ native `fetch` is undici under the hood, but the default Agent has
-// a 4 s keep-alive - too short for federation delivery, where the same
-// remote instance is contacted repeatedly within seconds (fan-out) and the
-// TLS handshake dominates per-request latency. A tuned dispatcher with a
-// 30 s keep-alive + a sane per-origin connection pool gives a large latency
-// win without changing any caller code.
-//
-// We dynamic-import undici so the file still works if the dep is unavailable
-// (older Node, restricted runtime); we just fall back to the default agent.
-// ---------------------------------------------------------------------------
+// Keep-alive dispatcher for federation outbound HTTP. Node's default undici Agent
+// has a 4s keep-alive — too short for fan-out delivery (same instance hit within
+// seconds, TLS handshake dominates), so use 30s keep-alive + per-origin pool.
+// Dynamic-import undici so the file still works without it (fall back to default agent).
 let federationDispatcher: any | undefined;
 try {
   // Top-level await is allowed in this ESM module.
@@ -221,9 +212,7 @@ export async function validateResolvedAddress(hostname: string): Promise<void> {
   // If BOTH lookups failed, the upstream fetch will fail naturally.
 }
 
-// ============================================================================
 // safeFetch - the canonical helper for outbound HTTP from federation code.
-// ============================================================================
 
 export interface SafeFetchOptions extends Omit<RequestInit, 'redirect' | 'signal'> {
   /**

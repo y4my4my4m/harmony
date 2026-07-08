@@ -362,4 +362,4 @@ interface UserFederationSettings {
 
 ---
 
-> 📝 **Next Steps**: Learn about [Voice Features](./voice.md) to understand voice chat implementation.
+> **Next steps:** [Voice Features](./voice.md) covers voice chat implementation.

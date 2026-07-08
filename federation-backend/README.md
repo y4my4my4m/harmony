@@ -1,185 +1,107 @@
 # Harmony Federation Backend
 
-**ActivityPub federation server for Harmony - FEDERATION ONLY!**
+ActivityPub federation service for Harmony. This backend handles federation only.
 
-## Purpose
+## Scope
 
-This backend handles ONLY ActivityPub federation. It does NOT handle:
-- Creating messages (frontend → Supabase)
-- Creating posts (frontend → Supabase)
-- User authentication (Supabase handles this)
-- CRUD operations (frontend → Supabase)
+This service handles ActivityPub federation and nothing else. It does not:
 
-## What It DOES Handle
+- Create messages or posts (the frontend writes those to Supabase)
+- Authenticate users (Supabase handles auth)
+- Perform general CRUD (the frontend talks to Supabase directly)
 
-✅ **ActivityPub Protocol**
-- Inbox/Outbox endpoints
-- WebFinger discovery
-- NodeInfo metadata
-- HTTP signature signing/verification
+What it does handle:
 
-✅ **Federation Delivery**
-- Listen for database events
-- Convert to ActivityPub format
-- Queue for delivery
-- Send to remote instances
-- Handle retries
+- **ActivityPub protocol** - inbox/outbox endpoints, WebFinger discovery, NodeInfo metadata, HTTP signature signing and verification
+- **Outbound delivery** - listens for database events, converts them to ActivityPub, batches per instance, delivers to remote instances, and retries on failure
+- **Federated servers** - Harmony servers are exposed as ActivityPub Groups, with local-first routing and multi-instance membership
+- **Inbound activities** - receives from remote instances, verifies signatures, processes activities, and writes results to the database
 
-✅ **Federated Discord Servers** (Innovation!)
-- Servers as ActivityPub Groups
-- Smart local-first routing
-- Efficient batching by instance
-- Multi-instance communities
-
-✅ **Incoming Activities**
-- Receive from remote instances
-- Verify signatures
-- Process activities
-- Write to database
-
----
-
-## Getting Started
+## Getting started
 
 ### Prerequisites
 
 - Node.js 18+
-- Supabase running (Docker or cloud)
+- A running Supabase instance (Docker or cloud)
 
 ### Installation
 
 ```bash
-# 1. Install dependencies
 npm install
 
-# 2. Configure environment
 cp .env.example .env
-nano .env  # Add your Supabase keys (NEVER commit .env!)
+# Edit .env with your Supabase keys. Do not commit .env.
 
-# 3. Start development server
 npm run dev
 ```
 
 ### Configuration
 
-**IMPORTANT**: Never commit `.env` with real keys!
-
 Copy `.env.example` and fill in:
-- `SUPABASE_URL` - Your Supabase URL
-- `SUPABASE_SERVICE_ROLE_KEY` - From Supabase dashboard (KEEP SECRET!)
-- `INSTANCE_DOMAIN` - Your actual domain
 
----
+- `SUPABASE_URL` - your Supabase URL
+- `SUPABASE_SERVICE_ROLE_KEY` - from the Supabase dashboard; keep it secret
+- `INSTANCE_DOMAIN` - your instance domain
 
-## Running Options
+Never commit `.env` or the service role key. `.gitignore` already excludes `.env`, `.env.local`, and `.env.production`.
 
-### Option 1: Direct (Development)
+## Running
+
+Development (hot reload):
+
 ```bash
 npm run dev
 ```
 
-### Option 2: Docker (Production)
+Production:
+
 ```bash
 docker compose up -d
 ```
 
-### Option 3: Docker Dev (Hot Reload)
+Docker with hot reload:
+
 ```bash
 docker compose -f docker-compose.dev.yml up
 ```
 
----
+See [DOCKER_USAGE.md](DOCKER_USAGE.md) for details on the Docker setup.
 
 ## Endpoints
 
-### ActivityPub (Federation)
+### ActivityPub
+
 - `GET /.well-known/webfinger` - WebFinger discovery
 - `GET /.well-known/nodeinfo` - NodeInfo metadata
 - `GET /nodeinfo/2.0` - NodeInfo 2.0
-- `GET /users/:username` - User Actor
-- `POST /users/:username/inbox` - User inbox
-- `GET /users/:username/outbox` - User outbox
-- `GET /servers/:serverId` - Server as Group
-- `POST /servers/:serverId/inbox` - Server inbox
-- `GET /servers/:serverId/outbox` - Server outbox
-- `POST /inbox` - Shared inbox
+- `GET /users/:username` - user Actor
+- `POST /users/:username/inbox` - user inbox
+- `GET /users/:username/outbox` - user outbox
+- `GET /servers/:serverId` - server as Group
+- `POST /servers/:serverId/inbox` - server inbox
+- `GET /servers/:serverId/outbox` - server outbox
+- `POST /inbox` - shared inbox
 
 ### Management
-- `GET /health` - Health check
-- `POST /api/activitypub/process-delivery` - Manual delivery trigger
 
----
+- `GET /health` - health check
+- `POST /api/activitypub/process-delivery` - manual delivery trigger
 
-## Security
-
-**⚠️ NEVER commit these to git**:
-- `.env` file
-- `SUPABASE_SERVICE_ROLE_KEY`
-- Production credentials
-
-The `.gitignore` is configured to exclude:
-- `.env`
-- `.env.local`
-- `.env.production`
-
-**Always use `.env.example` for documentation!**
-
----
-
-## Docker Setup
-
-### Using Docker Compose
+## Development commands
 
 ```bash
-# 1. Create .env file (from .env.example)
-cp .env.example .env
-nano .env  # Add your keys
-
-# 2. Start
-docker compose up -d
-
-# 3. View logs
-docker compose logs -f
-
-# 4. Stop
-docker compose down
+npm run dev         # hot reload
+npm run build       # production build
+npm start           # run production build
+npm run type-check  # type checking
 ```
-
-### Environment Variables
-
-Docker Compose reads from `.env` file automatically!
-
-**Never put real keys in docker-compose.yml!**
-
----
-
-## Development
-
-```bash
-# Hot reload (watches for file changes)
-npm run dev
-
-# Build for production
-npm run build
-
-# Run production build
-npm start
-
-# Type checking
-npm run type-check
-```
-
----
 
 ## Logs
 
-Logs are written to:
-- `logs/combined.log` - All logs
-- `logs/error.log` - Errors only
+- `logs/combined.log` - all logs
+- `logs/error.log` - errors only
 - Console (development)
-
----
 
 ## License
 
-Same as the Harmony repository: **GNU AGPL-3.0** (see root `LICENSE`).
+Same as the Harmony repository: GNU AGPL-3.0 (see the root `LICENSE`).

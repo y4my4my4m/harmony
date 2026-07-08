@@ -75,21 +75,11 @@ const isLoading = ref(false)
 // Twemoji file map for accurate SVG path resolution
 const twemojiFileMap = ref<Record<string, boolean> | null>(null)
 
-// Cache version - bump this when the static JSON files change to bust the IndexedDB cache.
-//
-// v2 (2026-05-21): `unicode-emoji-data.json` was regenerated on 2026-05-20 to
-// include keyword aliases (`+1`, `thumbsup`, etc.). Users whose IndexedDB
-// still holds the v1 blob would not see `:+1` resolve to thumbs_up in
-// autosuggest or in the emoji-picker search, because the keyword check
-// can't match a field that isn't in the cached payload. Bumping forces a
-// one-time refetch the next time the emoji loader runs.
-//
-// v3 (2026-05-25): The data was regenerated to merge ~884 GitHub/Discord-style
-// shortcode aliases (from `gemoji`) directly into `shortcodeToUnicode`. This
-// is what makes `:joy:`, `:heart:`, `:thumbsup:`, etc. resolve as standalone
-// shortcodes (not just keyword fuzzy-matches inside the picker). Without
-// bumping, users still see the v2 blob where only the picker's keyword
-// search could find these aliases.
+// Cache version - bump when the static JSON files change to bust the IndexedDB cache.
+//   v2 (2026-05-21): added keyword aliases (`+1`, `thumbsup`) to unicode-emoji-data.json.
+//   v3 (2026-05-25): merged ~884 gemoji shortcode aliases into `shortcodeToUnicode`,
+//                    so `:joy:`/`:heart:` resolve as standalone shortcodes, not just
+//                    picker keyword fuzzy-matches.
 const EMOJI_DATA_CACHE_VERSION = '4'
 
 /**

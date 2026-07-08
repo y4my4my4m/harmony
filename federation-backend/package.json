@@ -19,11 +19,6 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "diagnose": "tsx diagnose-federation.ts",
-    "diagnose-deep": "tsx diagnose-deep.ts",
-    "check-remote": "tsx check-remote-users.ts",
-    "check-misskey": "tsx check-misskey-follows.ts",
-    "refresh-users": "tsx refresh-remote-users.ts",
     "backfill-posts": "tsx backfill-posts.ts"
   },
   "keywords": [

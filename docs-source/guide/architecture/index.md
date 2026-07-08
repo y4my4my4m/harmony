@@ -140,4 +140,4 @@ The codebase is organized into modules:
 
 ---
 
-> 📝 **Next Steps**: Learn about [Data Flow](./data-flow.md) to understand how information moves through the system.
+> **Next steps:** [Data Flow](./data-flow.md) covers how information moves through the system.

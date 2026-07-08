@@ -872,25 +872,12 @@ class RoleService {
       const allowMask = permissionsToBitmask(allow)
       const denyMask = permissionsToBitmask(deny)
 
-      // ---------------------------------------------------------------------
-      // Why this isn't an upsert (anymore):
-      //
-      // PostgreSQL's `ON CONFLICT (channel_id, role_id)` needs a NON-partial
-      // unique index covering exactly those columns. Our partial indexes
-      // `uniq_cpo_channel_role WHERE user_id IS NULL` and the analogous user
-      // one DO exist in the DB, but PostgREST's `on_conflict` query parameter
-      // can't pass the partial WHERE clause to Postgres - so the planner
-      // refuses with 42P10 "no unique or exclusion constraint matching the
-      // ON CONFLICT specification".
-      //
-      // The composite `UNIQUE(channel_id, role_id, user_id)` doesn't help
-      // because Postgres treats NULL as distinct, so role-only and user-only
-      // rows aren't actually unique-constrained.
-      //
-      // Cleanest fix without changing the schema: do a manual lookup +
-      // INSERT-or-UPDATE. Two roundtrips instead of one, but this is admin
-      // UI traffic - frequency is negligible.
-      // ---------------------------------------------------------------------
+      // Manual lookup + INSERT-or-UPDATE instead of upsert: ON CONFLICT needs a
+      // non-partial unique index, but our uniqueness is via partial indexes
+      // (WHERE user_id IS NULL etc.) that PostgREST's on_conflict can't target
+      // (42P10), and composite UNIQUE(channel_id, role_id, user_id) doesn't help
+      // since Postgres treats NULL as distinct. Two roundtrips, but admin traffic
+      // only.
 
       const baseQuery = supabase
         .from('channel_permission_overrides')

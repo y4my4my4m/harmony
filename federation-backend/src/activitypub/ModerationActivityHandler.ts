@@ -15,9 +15,7 @@ import { DeliveryQueue } from '../activitypub/DeliveryQueue.js';
 import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
 
-// =============================================================================
 // TYPES
-// =============================================================================
 
 interface KickPayload {
   server_id: string;
@@ -40,9 +38,7 @@ interface UnbanPayload {
   moderator_id: string;
 }
 
-// =============================================================================
 // KICK HANDLER
-// =============================================================================
 
 /**
  * Federate a kick action (Remove activity)
@@ -117,9 +113,7 @@ export async function federateKick(payload: KickPayload): Promise<void> {
   }
 }
 
-// =============================================================================
 // BAN HANDLER
-// =============================================================================
 
 /**
  * Federate a ban action (harmony:Ban activity)
@@ -204,9 +198,7 @@ export async function federateBan(payload: BanPayload): Promise<void> {
   }
 }
 
-// =============================================================================
 // UNBAN HANDLER
-// =============================================================================
 
 /**
  * Federate an unban action (Undo harmony:Ban activity)
@@ -279,9 +271,7 @@ export async function federateUnban(payload: UnbanPayload): Promise<void> {
   }
 }
 
-// =============================================================================
 // INCOMING MODERATION HANDLER
-// =============================================================================
 
 /**
  * Process incoming ban activity from remote server

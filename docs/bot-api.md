@@ -11,7 +11,7 @@ The Harmony Bot API provides a Discord-compatible interface for creating bots th
 - Manage members and permissions
 - Respond to events in real-time
 
-**Compatible with existing Discord bot libraries with minimal changes!**
+It is compatible with existing Discord bot libraries with minimal changes.
 
 ## Quick Start
 
@@ -21,7 +21,7 @@ The Harmony Bot API provides a Discord-compatible interface for creating bots th
 2. Navigate to "Bot Management"
 3. Click "Create New Bot"
 4. Fill in bot details
-5. Copy the generated token (shown once!)
+5. Copy the generated token (shown only once)
 
 ### 2. Add Bot to Server
 
@@ -400,11 +400,11 @@ Most Discord.js patterns work with minimal changes:
 
 ## Security Best Practices
 
-1. **Never commit tokens to git** - use environment variables
-2. **Regenerate compromised tokens immediately** via admin panel
-3. **Use separate tokens for dev/prod**
-4. **Request only the permissions your bot needs**
-5. **Always validate user input**
+1. Never commit tokens to git; use environment variables.
+2. Regenerate compromised tokens immediately via the admin panel.
+3. Use separate tokens for development and production.
+4. Request only the permissions your bot needs.
+5. Always validate user input.
 
 ## Gateway Setup
 

@@ -1,8 +1,8 @@
 # Bot Gateway Setup Guide
 
-## Local Development (No Nginx!)
+## Local Development
 
-For local development, everything runs on separate ports with **direct connections**:
+For local development, each service runs on its own port with direct connections; no reverse proxy is required.
 
 ### Services Running Locally
 
@@ -16,7 +16,7 @@ cd federation-backend
 npm run dev
 # → http://localhost:3001
 
-# Terminal 3: Bot Gateway (NEW!)
+# Terminal 3: Bot Gateway
 cd bot-gateway
 npm install  # First time only
 npm run dev
@@ -25,7 +25,7 @@ npm run dev
 
 ### Bot configuration (local)
 
-When the bridge runs on the **same machine** as bot-gateway, connect directly —
+When the bridge runs on the same machine as bot-gateway, connect directly —
 no nginx, no `/bot-gateway` prefix:
 
 ```yaml
@@ -49,15 +49,11 @@ channelMappings:
 
 Install the bridge from [harmony-discord-bridge](https://github.com/y4my4my4m/harmony-discord-bridge) (not `bot-plugins/` in this repo).
 
-**No reverse proxy needed for local dev.**
-
----
-
 ## Production Setup
 
 ### 1. Nginx Configuration
 
-The nginx config has been updated with Bot Gateway routes:
+The nginx config includes the following Bot Gateway routes:
 
 ```nginx
 # WebSocket Gateway (for bots)
@@ -77,7 +73,7 @@ location /bot-gateway/health {
 }
 ```
 
-**Reload nginx after updating:**
+Reload nginx after updating the config:
 ```bash
 sudo nginx -t  # Test config
 sudo systemctl reload nginx
@@ -85,7 +81,7 @@ sudo systemctl reload nginx
 
 ### 2. Production URLs
 
-Update bot documentation with production URLs:
+The production endpoints are:
 
 ```markdown
 # Production Bot Gateway URLs
@@ -97,9 +93,9 @@ Update bot documentation with production URLs:
 
 ### 3. Bot configuration (production)
 
-**Hostname note:** On har.mony.lol, `har.mony.lol` is the Harmony app and
-bot-gateway (when proxied). `db.mony.lol` is Supabase/storage only — bots do
-**not** connect there.
+Hostname note: on har.mony.lol, `har.mony.lol` serves the Harmony app and
+bot-gateway (when proxied). `db.mony.lol` is Supabase/storage only; bots do
+not connect there.
 
 #### A) Bridge on the same server as bot-gateway (common)
 
@@ -116,7 +112,7 @@ harmony:
 
 #### B) Bridge on another machine (or only HTTPS exposed)
 
-Use the nginx `/bot-gateway` paths on the **app** domain:
+Use the nginx `/bot-gateway` paths on the app domain:
 
 ```yaml
 harmony:
@@ -129,7 +125,7 @@ harmony:
 
 ### 4. Deploy Bot Gateway
 
-**Option A: PM2 (Simple)**
+#### Option A: PM2
 ```bash
 cd bot-gateway
 npm install
@@ -138,7 +134,7 @@ pm2 start dist/index.js --name "harmony-bot-gateway"
 pm2 save
 ```
 
-**Option B: systemd (Recommended)**
+#### Option B: systemd (recommended)
 ```ini
 # /etc/systemd/system/harmony-bot-gateway.service
 [Unit]
@@ -164,7 +160,7 @@ sudo systemctl start harmony-bot-gateway
 sudo systemctl status harmony-bot-gateway
 ```
 
-**Option C: Docker Compose**
+#### Option C: Docker Compose
 ```yaml
 # docker-compose.yml
 services:
@@ -179,8 +175,6 @@ services:
       - NODE_ENV=production
     restart: unless-stopped
 ```
-
----
 
 ## Environment Variables
 
@@ -208,8 +202,6 @@ WS_MAX_CONNECTIONS_PER_BOT=5
 # Environment
 NODE_ENV=production
 ```
-
----
 
 ## Testing Local Setup
 
@@ -265,8 +257,6 @@ Bot should connect and show:
 ✅ Discord bot connected: BotTag#1234
 ```
 
----
-
 ## Architecture Summary
 
 ### Local (Development)
@@ -289,36 +279,31 @@ Nginx (443/80) ──> Harmony App (static files)
 User Bots ──> wss://har.mony.lol/bot-gateway/gateway
 ```
 
----
-
 ## Troubleshooting
 
-### Bot Can't Connect Locally
+### Bot can't connect locally
 
-**Check:**
+Check:
 1. Is bot-gateway running? (`curl http://localhost:3002/health`)
 2. Correct URLs in bot config? (ws://localhost:3002/gateway)
 3. Valid bot token? (check admin panel)
 4. Supabase credentials in bot-gateway/.env?
 
-### Bot Can't Connect in Production
+### Bot can't connect in production
 
-**Check:**
+Check:
 1. Nginx config updated and reloaded?
 2. Bot gateway service running? (`systemctl status harmony-bot-gateway`)
 3. Firewall allows port 3002? (if not using nginx)
-4. WSS (not WS) in production config?
+4. wss (not ws) in production config?
 5. HTTPS certificate valid?
 
 ### "Invalid or expired token"
 
-**Fix:**
-1. Go to admin panel
-2. Click "Regenerate Token" for the bot
-3. Update bot configuration with new token
-4. Restart bot
-
----
+1. Go to the admin panel.
+2. Click "Regenerate Token" for the bot.
+3. Update the bot configuration with the new token.
+4. Restart the bot.
 
 ## Checklist
 
@@ -336,11 +321,4 @@ User Bots ──> wss://har.mony.lol/bot-gateway/gateway
 - [ ] Bot documentation updated with wss:// URLs
 - [ ] SSL certificate valid
 - [ ] Firewall configured (if needed)
-
----
-
-**Local = Simple & Direct**  
-**Production = Nginx Reverse Proxy**
-
-That's it! No nginx needed for local dev! 🎉
 

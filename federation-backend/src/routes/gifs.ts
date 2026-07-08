@@ -1,14 +1,8 @@
 /**
- * GIF proxy routes (Klipy)
- *
- * Authenticated proxy in front of Klipy. The browser never sees a Klipy key.
- * The ads decision is made here, server-side, from the viewer's supporter tier
- * and the instance toggle, so it cannot be bypassed by the client:
- *
+ * GIF proxy routes (Klipy). Authenticated proxy; the browser never sees a Klipy
+ * key. The ads decision is server-side (can't be client-bypassed):
  *   withAds = (an ad-enabled key exists) AND should_show_gif_ads(viewer)
- *
- * When withAds is false the no-ads key is used (and any stray ad objects are
- * stripped in KlipyService), so supporters get a clean, ad-free experience.
+ * When false the no-ads key is used and stray ad objects are stripped in KlipyService.
  */
 
 import { createHash, randomUUID, timingSafeEqual } from 'crypto';
@@ -233,14 +227,10 @@ async function uniqueEmojiName(supabase: any, profileId: string, base: string): 
 }
 
 /**
- * Short-lived cache of the per-viewer ads decision.
- *
- * `should_show_gif_ads` is two indexed lookups (instance_config by PK-ish key +
- * instance_supporters by indexed user_id), run once per GIF feed request - not
- * per profile and not per item, so there is no N+1. The only realistic hot path
- * is a user paging/typing in the picker, which would re-ask the same answer
- * repeatedly. A tiny TTL cache collapses that burst into one DB round-trip while
- * staying fresh enough that a tier change is reflected within a minute.
+ * Short-lived TTL cache of the per-viewer ads decision. `should_show_gif_ads` is
+ * two indexed lookups run once per GIF feed request; the hot path is a user
+ * paging/typing in the picker re-asking the same answer. 60s collapses that burst
+ * into one round-trip while reflecting a tier change within a minute.
  */
 const ADS_CACHE_TTL_MS = 60_000;
 const adsDecisionCache = new Map<string, { value: boolean; expires: number }>();
@@ -464,22 +454,15 @@ async function getQuota(profileId: string): Promise<AiEmojiQuota> {
   };
 }
 
-// ---------------------------------------------------------------------------
-// Async AI emoji generation (webhook-driven).
-//
-// Klipy's generate endpoint returns a job id instantly and pushes the finished
-// emoji to a callback URL when done - so we never hold the HTTP request open
-// (that was causing the proxy/client to time out while the emoji still landed
-// in the DB). Flow:
-//   1. POST /ai-emojis/generate → kick off Klipy with our callback URL, record
-//      a pending job in memory, return 202 immediately.
-//   2. Klipy → POST /ai-emojis/callback?token=… with the result. We host the
-//      bytes, create the emoji, and broadcast `ai_emoji:generated` on the
-//      user's realtime channel.
-//   3. Fallback: if no callback arrives, a detached server-side poll finalizes
-//      the same way. In-memory state is intentionally ephemeral - a backend
-//      restart mid-generation just drops the job (acceptable per product).
-// ---------------------------------------------------------------------------
+// Async AI emoji generation (webhook-driven): Klipy's generate endpoint returns a
+// job id instantly and pushes the result to a callback, so we never hold the HTTP
+// request open (was timing out). Flow:
+//   1. POST /ai-emojis/generate → kick off Klipy with callback URL, record pending
+//      job in memory, return 202.
+//   2. Klipy → POST /ai-emojis/callback?token=… → host bytes, create emoji,
+//      broadcast `ai_emoji:generated` on the user's channel.
+//   3. Fallback: detached poll finalizes if no callback arrives. In-memory state is
+//      ephemeral - a backend restart mid-generation drops the job (acceptable).
 
 interface PendingGeneration {
   profileId: string;

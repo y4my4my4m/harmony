@@ -186,15 +186,9 @@
             />
           </div>
 
-          <!--
-            Compact captions for URLs that the content renderer ALREADY
-            iframes inline (currently YouTube). Sits right under the
-            content so it visually attaches to the iframe above, gives
-            users the title/channel context they'd otherwise need to
-            click into the iframe to see, but at a fraction of the
-            visual weight of a full link card. Suppresses the big
-            duplicate card that used to appear below the media gallery.
-          -->
+          <!-- Compact captions for URLs the content renderer already iframes inline
+               (YouTube): title/channel context under the iframe, without the big
+               duplicate link card below the media gallery. -->
           <a
             v-for="embed in inlineRichEmbeds"
             :key="`inline-${embed.url}`"
@@ -1013,29 +1007,14 @@ const postEmbeds = computed<Array<{ url: string; title?: string; description?: s
   return Object.values(embeds).filter((e: any) => e && e.title) as Array<{ url: string; title?: string; description?: string; image?: string; provider?: string }>;
 });
 
-// ---------------------------------------------------------------------------
-// Embed de-duplication: keep "the most of everything" without doubling up.
-// ---------------------------------------------------------------------------
-// `useContentRenderer.formattedHTML` auto-injects an inline iframe whenever
-// it sees a YouTube URL in the post text (see useContentRenderer.ts:507).
-// Without splitting `postEmbeds` we'd ALSO render a big LinkEmbedCard with
-// the same YouTube thumbnail / title / channel below - three vertical
-// surfaces showing the same video (iframe, optional uploaded media, link
-// card). The fix: split the embed list by whether the URL is already
-// represented as an inline rich embed.
-//
-//   * `inlineRichEmbeds`  → URLs the content renderer already iframes.
-//                            Rendered as a *compact caption* directly
-//                            beneath the content so the user still gets
-//                            the title/channel context Mastodon shows,
-//                            without doubling the visual weight.
-//   * `cardEmbeds`        → everything else (Wikipedia, news, Spotify
-//                            pages with no inline iframe support, etc.).
-//                            Render the full LinkEmbedCard like before.
-//
-// Provider detection: prefer the federation-set `provider` field, fall
-// back to URL parsing so this still works for older / partial payloads
-// that didn't tag the provider.
+// Embed de-duplication. useContentRenderer.formattedHTML auto-injects an inline
+// iframe for YouTube URLs (useContentRenderer.ts:507); without splitting postEmbeds
+// we'd also render a duplicate LinkEmbedCard for the same video. Split by whether
+// the URL is already an inline rich embed:
+//   * inlineRichEmbeds → URLs already iframed; rendered as a compact caption.
+//   * cardEmbeds       → everything else (Wikipedia, news, Spotify…); full LinkEmbedCard.
+// Provider detection prefers the federation-set `provider` field, falls back to URL
+// parsing for older/partial payloads that didn't tag it.
 const isInlineRichEmbed = (embed: { url: string; provider?: string }): boolean => {
   if (!embed?.url) return false;
   if (embed.provider === 'youtube') return true;
@@ -1046,13 +1025,8 @@ const isInlineRichEmbed = (embed: { url: string; provider?: string }): boolean =
 const inlineRichEmbeds = computed(() => postEmbeds.value.filter(isInlineRichEmbed));
 const cardEmbeds = computed(() => postEmbeds.value.filter((e) => !isInlineRichEmbed(e)));
 
-// When the post also has a media attachment, render link cards in the
-// `thumbnail` variant: a fixed-size horizontal card with a small image on
-// the left and one-line title + one-line description on the right. The
-// attachment is already the dominant visual; the card just adds the
-// site / title context without doubling the picture's footprint - same
-// pattern Mastodon and Misskey use. With no attachment present, fall back
-// to the full default card (image on top, full body).
+// With a media attachment present, use the compact `thumbnail` card variant so it
+// doesn't double the dominant image; otherwise the full `default` hero card.
 const cardEmbedVariant = computed<'default' | 'thumbnail'>(() =>
   (displayMediaAttachments.value as any[]).length > 0 ? 'thumbnail' : 'default'
 );

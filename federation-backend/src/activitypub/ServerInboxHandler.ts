@@ -154,9 +154,7 @@ function normalizeMentionDomains(content: any[]): any[] {
   });
 }
 
-// =============================================================================
 // MAIN HANDLER
-// =============================================================================
 
 /**
  * Process activity sent to server inbox
@@ -300,9 +298,7 @@ export async function processServerInboxActivity(
   }
 }
 
-// =============================================================================
 // JOIN / LEAVE HANDLERS
-// =============================================================================
 
 /**
  * Process Join activity (remote user wants to join server)
@@ -562,9 +558,7 @@ async function processRejectActivity(
   logger.info(`❌ Join rejected for ${user.username} in server ${serverId}`);
 }
 
-// =============================================================================
 // MESSAGE HANDLERS
-// =============================================================================
 
 /**
  * Process Create activity (message in server channel)
@@ -936,9 +930,7 @@ async function processCreateActivity(
     }
   }
 
-  // ==========================================================================
   // RE-BROADCAST: If this is the authoritative server, relay to other remotes
-  // ==========================================================================
   // When Instance B sends a message to Instance A (the server host),
   // Instance A should re-broadcast to Instance C, D, etc.
   
@@ -1816,9 +1808,7 @@ async function processUndoActivity(
   }
 }
 
-// =============================================================================
 // HELPER FUNCTIONS
-// =============================================================================
 
 /**
  * Send Accept activity for a Join request

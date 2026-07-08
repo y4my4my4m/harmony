@@ -1,16 +1,9 @@
-// Strip tracking / analytics parameters from URLs without changing the
-// destination resource. Two layers:
-//
-//   1. `UNIVERSAL_TRACKING_PARAMS` / `UNIVERSAL_TRACKING_PREFIXES` apply to
-//      every URL regardless of host. These are limited to params that are
-//      strictly attribution/analytics (utm_*, fbclid, gclid, etc.) and have
-//      no functional effect on the destination page.
-//   2. `DOMAIN_TRACKING_PARAMS` adds host-specific extras for cases the
-//      universal list shouldn't touch (e.g. Twitter's `s` and `t`, YouTube's
-//      `feature`, TikTok's share metadata).
-//
-// The cleaned URL is what we render to the user. The original URL stays in
-// the message body / database so federation peers see what the sender wrote.
+// Strip tracking/analytics params without changing the destination resource.
+// Two layers: UNIVERSAL_TRACKING_PARAMS/_PREFIXES apply to every host (strictly
+// attribution params with no functional effect); DOMAIN_TRACKING_PARAMS adds
+// host-specific extras unsafe to apply universally.
+// Cleaned URL is rendered; original stays in the DB/message body so federation
+// peers see what the sender wrote.
 
 // Always-stripped exact param names. Sourced from the analytics suites of
 // the major ad/email networks. Any params here are inert for the resource

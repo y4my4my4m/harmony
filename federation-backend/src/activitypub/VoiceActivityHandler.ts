@@ -22,9 +22,7 @@ import type {
   VoiceActivity 
 } from '../types/index.js';
 
-// =============================================================================
 // CONSTANTS
-// =============================================================================
 
 // Harmony ActivityPub context extension for voice
 export const HARMONY_VOICE_CONTEXT = 'https://harmony.social/ns/voice';
@@ -41,9 +39,7 @@ export const HARMONY_VOICE_TYPES = {
   VoiceChannelJoinReject: 'harmony:VoiceChannelJoinReject',
 } as const;
 
-// =============================================================================
 // HANDLER
-// =============================================================================
 
 export class VoiceActivityHandler {
   /**
@@ -712,9 +708,7 @@ export class VoiceActivityHandler {
     logger.info(`📞 Federated user ${user.username} left voice channel ${channel.id}`);
   }
 
-  // =============================================================================
   // VOICE CHANNEL ACTIVITY CREATION
-  // =============================================================================
 
   /**
    * Create a VoiceChannelJoin activity (legacy - constructs URLs from local domain)
@@ -988,9 +982,7 @@ export class VoiceActivityHandler {
     }
   }
 
-  // =============================================================================
   // ACTIVITY CREATION HELPERS
-  // =============================================================================
 
   /**
    * Create a VoiceCallInvite activity

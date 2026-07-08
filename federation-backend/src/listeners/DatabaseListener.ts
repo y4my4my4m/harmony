@@ -960,9 +960,7 @@ async function handleNewReport(report: any): Promise<void> {
   }
 }
 
-// =============================================================================
 // CHANNEL CRUD FEDERATION HANDLERS
-// =============================================================================
 
 /**
  * Handle channel creation - federate to remote server members
@@ -1271,9 +1269,7 @@ async function getRemoteMemberGroups(serverId: string): Promise<any[]> {
   return Array.from(instanceMap.values());
 }
 
-// =============================================================================
 // CHANNEL MESSAGE FEDERATION HANDLERS
-// =============================================================================
 
 /**
  * Handle new channel message - federate to remote server members
@@ -1363,9 +1359,7 @@ async function handleChannelMessageDeletion(message: any): Promise<void> {
   }
 }
 
-// =============================================================================
 // DM MESSAGE FEDERATION HANDLERS
-// =============================================================================
 
 /**
  * Handle new DM messages - federate to remote recipients
@@ -1747,9 +1741,7 @@ export async function handleMessageReactionRemoval(deletedReaction: any): Promis
   }
 }
 
-// =============================================================================
 // LINK PREVIEW ENRICHMENT
-// =============================================================================
 
 /**
  * Detect external URLs in a message and fetch previews via LinkPreviewService.

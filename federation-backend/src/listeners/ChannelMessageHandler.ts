@@ -18,9 +18,7 @@ import { convertContentToHTML, extractActivityPubTags, extractAttachments } from
 import { harmonyVoiceMessageExtension } from '../utils/voiceMessageFederation.js';
 import { getRemoteMemberGroups, type RemoteMemberGroup } from '../utils/federationUtils.js';
 
-// =============================================================================
 // TYPES
-// =============================================================================
 
 interface ChannelMessagePayload {
   message_id: string;
@@ -43,9 +41,7 @@ interface ChannelMessageDeletePayload {
   ap_id?: string;
 }
 
-// =============================================================================
 // CREATE MESSAGE HANDLER
-// =============================================================================
 
 /**
  * Handle channel message federation (Create)
@@ -220,9 +216,7 @@ export async function handleChannelMessageFederation(
   }
 }
 
-// =============================================================================
 // UPDATE MESSAGE HANDLER
-// =============================================================================
 
 /**
  * Handle channel message update federation
@@ -318,9 +312,7 @@ export async function handleChannelMessageUpdate(
   }
 }
 
-// =============================================================================
 // DELETE MESSAGE HANDLER
-// =============================================================================
 
 /**
  * Handle channel message deletion federation
@@ -391,9 +383,7 @@ export async function handleChannelMessageDelete(
   }
 }
 
-// =============================================================================
 // HELPER FUNCTIONS
-// =============================================================================
 
 /**
  * Create ActivityPub activity for a message

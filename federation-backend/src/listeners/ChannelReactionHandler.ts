@@ -11,9 +11,7 @@ import { logger } from '../utils/logger.js';
 import { formatEmojiForFederation, resolveOutboundEmoji } from '../utils/emojiResolvers.js';
 import config from '../config/index.js';
 
-// =============================================================================
 // TYPES
-// =============================================================================
 
 interface ReactionPayload {
   reaction_id: string;
@@ -28,9 +26,7 @@ interface ReactionDeletePayload {
   emoji_id?: string;
 }
 
-// =============================================================================
 // ADD REACTION HANDLER
-// =============================================================================
 
 /**
  * Handle channel message reaction federation
@@ -158,9 +154,7 @@ export async function handleChannelReactionFederation(
   }
 }
 
-// =============================================================================
 // REMOVE REACTION HANDLER
-// =============================================================================
 
 /**
  * Handle channel message reaction removal federation
@@ -263,9 +257,7 @@ export async function handleChannelReactionRemoval(
   }
 }
 
-// =============================================================================
 // HELPER FUNCTIONS
-// =============================================================================
 
 interface RemoteMemberGroup {
   instance: string;

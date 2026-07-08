@@ -13,26 +13,9 @@ import { discoveryLimiter } from '../middleware/rateLimit.js';
 
 const router = Router();
 
-// ============================================================================
-// Remote-reaction fetch coalescing
-// ----------------------------------------------------------------------------
-// `fetchRemotePostReactions` does up to TWO outbound HTTP calls per post
-// (post object → likes collection). To avoid hammering remote instances when
-// many users browse the same profile or a single user refreshes rapidly:
-//
-//   * TTL cache: if `posts.metadata.remote_reactions_fetched_at` is fresher
-//     than REACTIONS_TTL_MS, callers skip the fetch entirely and read the
-//     already-aggregated `remote_reactions` straight from the DB row they
-//     already SELECTed.
-//   * In-flight dedup: concurrent fetches for the same `post_ap_id` share
-//     a single Promise, so two users opening the same profile at once
-//     produce one outbound burst, not two.
-//
-// 30s is chosen so that new likes arriving via federation push (/inbox →
-// post_interactions trigger → broadcast) keep showing in real time on the
-// hot path; the cache only governs the "open a stale profile" path. Tune
-// in one place if needed.
-// ============================================================================
+// Coalesce remote-reaction fetches (2 outbound calls/post): TTL cache off
+// posts.metadata.remote_reactions_fetched_at + in-flight dedup by post_ap_id.
+// 30s keeps federation-pushed likes near-real-time while capping stale-profile refetches.
 const REACTIONS_TTL_MS = 30_000;
 const inFlightReactionFetches = new Map<string, Promise<any[]>>();
 

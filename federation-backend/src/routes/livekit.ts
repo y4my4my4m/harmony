@@ -8,9 +8,7 @@ import config from '../config/index.js';
 
 const router = Router();
 
-// =============================================================================
 // REQUEST VALIDATION SCHEMAS
-// =============================================================================
 
 const tokenRequestSchema = z.object({
   roomName: z.string().min(1).max(256),
@@ -30,9 +28,7 @@ const federatedTokenRequestSchema = z.object({
   canPublishData: z.boolean().optional(),
 });
 
-// =============================================================================
 // MIDDLEWARE
-// =============================================================================
 
 /**
  * Middleware to verify user authentication via Supabase JWT
@@ -93,9 +89,7 @@ const requireLiveKit = (req: Request, res: Response, next: Function) => {
   next();
 };
 
-// =============================================================================
 // PUBLIC ROUTES
-// =============================================================================
 
 /**
  * GET /api/livekit/config
@@ -145,9 +139,7 @@ router.get('/health', async (req: Request, res: Response) => {
   }
 });
 
-// =============================================================================
 // AUTHENTICATED ROUTES
-// =============================================================================
 
 /**
  * POST /api/livekit/token
@@ -469,9 +461,7 @@ router.post('/rooms/:roomName/participants/:identity/permissions', requireAuth, 
   }
 });
 
-// =============================================================================
 // FEDERATED CALL ROUTES
-// =============================================================================
 
 /**
  * POST /api/livekit/federated-call/invite

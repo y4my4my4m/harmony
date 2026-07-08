@@ -24,12 +24,9 @@ export type BlockSegment =
   | { type: 'greentext'; lines: string[] }
   | { type: 'blockquote'; lines: string[]; multiLine?: boolean };
 
-// `> ` followed by NON-EMPTY content. The full `> ` (space, no content)
-// and bare `>` (no space) are NOT blockquotes - they're incomplete
-// markers the user is still typing. Promoting them eagerly rewrites
-// the editor DOM into a styled scaffold mid-keystroke, strands the
-// cursor inside a zero-width content span, and the next keystroke can
-// end up inside the marker rather than the content, dropping input.
+// `> ` followed by NON-EMPTY content. Bare `>` / `> ` are incomplete markers the
+// user is still typing - promoting them eagerly rewrites the editor DOM mid-keystroke,
+// strands the cursor in a zero-width span, and drops the next keystroke.
 const SINGLE_QUOTE_LINE = /^> (.+)$/;
 
 export function isSingleQuoteLine(line: string): boolean {
@@ -54,21 +51,10 @@ export function stripMultiQuotePrefix(line: string): string {
   return line.slice(4);
 }
 
-// Imageboard-style greentext: EXACTLY ONE `>` followed by a non-space,
-// non-`>` character at the start of a line.
-//
-// `>>foo` / `>>>foo` (and longer) are NOT greentext - those are reply
-// chains (`>>123` is the imageboard reply syntax) or partially-typed
-// multi-line blockquote markers (`>>> body`). Promoting them to greentext
-// would (a) confuse anyone used to imageboard conventions and (b) cause a
-// visible green flash as the user types `>>>` toward a multi-line quote.
-//
-// Also explicitly excluded: `> foo` (single-`>` followed by SPACE - that's
-// a blockquote, handled separately), bare `>` / `>>>` (incomplete markers
-// the user is still typing), `>>> foo` (multi-line blockquote start),
-// and any text where the line doesn't START with `>` (so the `>` in
-// `<https://example.com>foo` doesn't get interpreted because the line
-// starts with `<`).
+// Imageboard-style greentext: EXACTLY ONE `>` then a non-space, non-`>` char at
+// line start. Excluded: `>>foo`/`>>>foo` (reply chains / partial multi-line markers,
+// would green-flash while typing `>>>`), `> foo` (blockquote, handled separately),
+// and lines not starting with `>` (so `>` inside `<https://example.com>foo` is inert).
 const GREENTEXT_LINE = /^>[^>\s]/;
 
 export function isGreentextLine(line: string): boolean {

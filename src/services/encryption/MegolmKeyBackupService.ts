@@ -158,16 +158,14 @@ export class MegolmKeyBackupService {
     }
 
     try {
-      // Resolve the session key we'd hand over. Two sources, in priority order:
-      //   1. getSessionKeyForSharing: our OWN outbound session for this room, or
-      //      our own inbound copy of a prior outbound. This is the critical case
-      //      the inbound-only lookup missed - the original SENDER holds the key
-      //      in `outbound`, never `inbound`, so a request for a message WE sent
-      //      was answered with "don't have session" and left pending forever.
-      //   2. findInboundSessionBySessionId: any inbound session we hold from
-      //      another sender (group-room key relay). Preserves prior behavior.
-      // Both return the base session key; the ratchet derives every index, so a
-      // first_known_index of 0 lets the requester decrypt the whole session.
+      // Resolve the session key to hand over, two sources in priority order:
+      //   1. getSessionKeyForSharing: our OWN outbound (or inbound copy of a prior
+      //      outbound). Critical case the inbound-only lookup missed — the sender
+      //      holds the key in `outbound`, never `inbound`, so requests for messages
+      //      WE sent were answered "don't have session" and left pending forever.
+      //   2. findInboundSessionBySessionId: an inbound session from another sender.
+      // Both return the base key; ratchet derives every index, so first_known_index
+      // of 0 lets the requester decrypt the whole session.
       const sharable = megolmService.getSessionKeyForSharing(request.room_id, request.session_id)
       const inbound = sharable
         ? null

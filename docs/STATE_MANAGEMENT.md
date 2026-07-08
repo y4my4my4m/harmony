@@ -524,8 +524,7 @@ if (import.meta.env.DEV) {
 const authStore = defineStore('auth', {
   state: () => ({
     session: null as Session | null,
-    // ❌ Don't store passwords or tokens directly
-    // ✅ Use secure session objects from Supabase
+    // Don't store passwords or tokens directly; use secure session objects from Supabase
   })
 })
 ```

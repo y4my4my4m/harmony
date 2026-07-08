@@ -281,4 +281,4 @@ async function startVoiceChat() {
 
 ---
 
-> 📝 **Next Steps**: Learn about [Federation](./federation.md) to understand how chat messages are federated across servers.
+> **Next steps:** [Federation](./federation.md) covers how chat messages are federated across servers.

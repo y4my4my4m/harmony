@@ -201,9 +201,9 @@ services:
 
 | Plugin | Status | Description |
 |---|---|---|
-| [Discord Bridge](/plugins/discord-bridge) | ✅ Reference implementation | Bi-directional Discord ↔ Harmony sync |
-| Matrix Bridge | 🚧 In development | Full federation + E2EE support |
-| Slack Bridge | 📋 Planned | Workspace integration |
+| [Discord Bridge](/plugins/discord-bridge) | Reference implementation | Bi-directional Discord ↔ Harmony sync |
+| Matrix Bridge | In development | Full federation + E2EE support |
+| Slack Bridge | Planned | Workspace integration |
 
 ## Plugin Ideas
 

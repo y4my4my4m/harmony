@@ -2,9 +2,9 @@
 
 ## Overview
 
-Link previews are now handled via a **webhook architecture**:
+Link previews are handled via a webhook architecture:
 
-1. **BEFORE INSERT trigger**: Synchronously enriches local Harmony post URLs (fast, no HTTP)
+1. **BEFORE INSERT trigger**: Synchronously enriches local Harmony post URLs (no HTTP)
 2. **AFTER INSERT trigger**: Fires async webhook to federated backend for external URLs
 3. **Federated backend**: Fetches previews, updates message metadata via Supabase RPC
 
@@ -45,7 +45,7 @@ where config_key = 'federation_settings';
 
 ### 3. Update Federation Backend
 
-The federated backend now has a new webhook endpoint at `/webhooks/enrich-message-previews`.
+The federated backend exposes a webhook endpoint at `/webhooks/enrich-message-previews`.
 
 **Environment variables needed** (already in your `.env`):
 ```env
