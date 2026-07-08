@@ -1931,6 +1931,7 @@ AS $$
         'instance_name',
         'instance_description',
         'instance_icon',
+        'instance_rules',
         'terms_url',
         'privacy_url',
         'open_registration',

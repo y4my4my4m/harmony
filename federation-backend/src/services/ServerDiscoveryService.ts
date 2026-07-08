@@ -132,7 +132,40 @@ router.post(
       }
 
       const data = await remoteResponse.json();
-      
+
+      // The invite blob is attacker-controlled JSON. Before we surface a
+      // convincing preview, confirm the advertised server is a genuine
+      // ActivityPub Group actor living on the same instance the invite came
+      // from — a hostile host can't fake the card, nor point us at someone
+      // else's real Group. safeFetch (inside fetchServerByUrl) re-guards SSRF.
+      const actorId: unknown = data?.server?.id;
+      let actorVerified = false;
+      if (typeof actorId === 'string') {
+        try {
+          const actorHost = new URL(actorId).host.toLowerCase();
+          if (actorHost === instance.toLowerCase()) {
+            const actor = await ServerDiscoveryService.fetchServerByUrl(actorId);
+            if (actor) {
+              // If the actor declares an inbox it must live on the same host too
+              const inbox = actor.inbox || data?.server?.inbox;
+              const inboxHost = inbox
+                ? new URL(inbox, `https://${instance}`).host.toLowerCase()
+                : actorHost;
+              actorVerified = inboxHost === actorHost;
+            }
+          }
+        } catch {
+          actorVerified = false;
+        }
+      }
+
+      if (!actorVerified) {
+        logger.warn(`🚫 Invite actor verification failed: code=${code} instance=${instance} id=${String(actorId)}`);
+        return res.status(422).json({
+          error: 'Could not verify this as a genuine federated server',
+        });
+      }
+
       // Convert relative URLs to absolute URLs using the remote instance
       const makeAbsolute = (url: string | null | undefined): string | null => {
         if (!url) return null;
@@ -184,7 +217,7 @@ router.get(
       .select(`
         *,
         server:servers!invites_server_id_fkey(
-          id, name, description, icon, banner, public,
+          id, name, description, icon, banner, public, rules,
           owner:profiles!servers_owner_fkey(username, display_name, avatar_url)
         ),
         creator:profiles!invites_created_by_fkey(username, display_name, avatar_url)
@@ -253,11 +286,29 @@ router.get(
     // Merge categories and channels
     const allChannels = [...categoryList, ...channelList];
 
+    // rules travel with the invite so remote clients can show them pre-join
+    const serverRules = Array.isArray(server.rules)
+      ? server.rules.filter((r: unknown): r is string => typeof r === 'string' && r.trim().length > 0)
+      : [];
+
+    let instanceRules: string[] = [];
+    const { data: instanceRulesRow } = await supabase
+      .from('instance_config')
+      .select('config_value')
+      .eq('config_key', 'instance_rules')
+      .maybeSingle();
+    if (Array.isArray(instanceRulesRow?.config_value)) {
+      instanceRules = instanceRulesRow.config_value.filter(
+        (r: unknown): r is string => typeof r === 'string' && r.trim().length > 0
+      );
+    }
+
     res.json({
       code: invite.code,
       expiresAt: invite.expires_at,
       maxUses: invite.max_uses,
       uses: invite.uses || 0,
+      instanceRules,
       createdBy: invite.creator ? {
         username: invite.creator.username,
         displayName: invite.creator.display_name,
@@ -271,6 +322,7 @@ router.get(
         icon: getFullServerIconUrl(server.icon),
         banner: getFullServerBannerUrl(server.banner),
         memberCount: memberCount || 0,
+        rules: serverRules,
         channels: allChannels,
         inbox: `${serverApId}/inbox`,
       },

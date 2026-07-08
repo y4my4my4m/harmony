@@ -238,6 +238,7 @@ const server = ref<Server>({
   description: '',
   icon: '',
   owner: '',
+  rules: [],
   allow_cross_server_emojis: true,
   public: false,
   created_at: undefined,
@@ -279,6 +280,7 @@ const generalHasChanges = computed(() => {
   return (
     server.value.name !== originalServer.value.name ||
     server.value.description !== originalServer.value.description ||
+    JSON.stringify(server.value.rules ?? []) !== JSON.stringify(originalServer.value.rules ?? []) ||
     server.value.icon !== originalServer.value.icon ||
     server.value.allow_cross_server_emojis !== originalServer.value.allow_cross_server_emojis ||
     server.value.public !== originalServer.value.public ||

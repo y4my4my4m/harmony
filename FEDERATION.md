@@ -146,9 +146,57 @@ Invite previews (server name, description, member count, channel list) are fetch
 over a small HTTP endpoint on the originating instance rather than baked into an
 activity, so the joining user can see what they're walking into before committing.
 
+That preview endpoint returns plain JSON, which is attacker-controlled: any host
+can serve a convincing-looking blob. So before a preview is shown, the resolving
+instance verifies the advertised `server.id` actually resolves to a genuine
+`application/activity+json` `Group` actor **on the same host the invite came from**
+(and that the actor's inbox lives there too). A host can't fake the card, and it
+can't point the resolver at somebody else's real `Group` to borrow its identity.
+Verification failure is surfaced to the user as "could not verify this as a genuine
+federated server," with a fall-back to just opening the link in a browser. The
+`Join` itself is independently re-validated at the target inbox (Group type +
+invite code), so this preview check is defence-in-depth, not the only gate.
+
 Cross-instance group-DM invites work differently: they arrive as a `Create` +
 `Note` with `metadata.type: "group_invite"`, because there's no server to send a
 `Join` to.
+
+### Idea: capability negotiation via NodeInfo (not yet implemented)
+
+Today "is this instance joinable as a chat server" is inferred implicitly: an
+invite URL is treated as joinable, and the real test is whether the `Group` actor
+fetch and the `Join`/`Accept` handshake succeed. That works, but it's discovered
+by *trying*, and it bakes in the assumption that `/invite/CODE`-shaped URLs on a
+foreign host speak Harmony's server dialect.
+
+A cleaner future path is explicit capability advertisement. NodeInfo already
+carries a free-form `metadata` object; a Harmony (or Harmony-compatible) node could
+declare something like:
+
+```jsonc
+// /nodeinfo/2.1  →  metadata
+"metadata": {
+  "nodeName": "…",
+  "features": ["chat-servers", "voice", "server-invites"]
+}
+```
+
+The resolving client would probe NodeInfo first (the `instanceProbe` route already
+fetches and parses it for other purposes) and only offer "Join Server" when the
+remote *asserts* the `chat-servers` / `server-invites` capability, instead of
+guessing from a URL pattern. Benefits:
+
+- Compatibility becomes a claim made by the peer, verifiable up front, rather than
+  a failure discovered mid-join.
+- Third-party implementers get a documented, non-Harmony-branded way to opt in —
+  advertise the feature flag, serve the `Group` actor and the invite endpoint, and
+  they interoperate without pretending to be "harmony" in `software.name`.
+- The same flags can gate other cross-instance affordances (voice, threads) as
+  they mature, so clients degrade gracefully against partial implementations.
+
+This is additive and backward-compatible: absence of the flag just means "fall back
+to the current try-and-see behaviour." Worth doing alongside the chat-server
+discovery-by-handle work noted above.
 
 ## Interoperability expectations
 

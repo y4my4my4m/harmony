@@ -41,7 +41,17 @@
         <svg viewBox="0 0 24 24" class="error-icon">
           <path d="M13,13H11V7H13M13,17H11V15H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z" fill="currentColor"/>
         </svg>
-        {{ error }}
+        <span>
+          {{ error }}
+          <a
+            v-if="props.initialUrl"
+            :href="props.initialUrl"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="error-fallback-link"
+            data-no-intercept
+          >{{ $t('federation.openInBrowser', 'Open link in browser instead') }}</a>
+        </span>
       </div>
 
       <!-- Server Preview -->
@@ -109,6 +119,15 @@
             </div>
           </div>
 
+          <!-- Origin rules (instance + server) shown before joining -->
+          <div v-if="isInvite && combinedRules.length > 0" class="invite-rules">
+            <div class="invite-rules__title">{{ $t('federation.serverRules', 'Rules') }}</div>
+            <ol class="invite-rules__list">
+              <li v-for="(rule, index) in combinedRules" :key="index">{{ rule }}</li>
+            </ol>
+            <p class="invite-rules__note">{{ $t('federation.rulesAgreeNote', 'By joining, you agree to these rules.') }}</p>
+          </div>
+
           <!-- Channel Preview -->
           <div v-if="discoveredServer.channels.length > 0" class="channels-preview">
             <span 
@@ -153,7 +172,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { federationServerService, type RemoteServer, type InviteInfo } from '@/services/federation'
 import { useAuthStore } from '@/stores/auth'
 import { useServerChannelStore } from '@/stores/useServerChannel'
@@ -162,6 +181,11 @@ import { useRouter } from 'vue-router'
 import { debug } from '@/utils/debug'
 import DisplayName from '@/components/DisplayName.vue'
 import { userDataService } from '@/services/userDataService'
+
+const props = defineProps<{
+  /** Prefill (e.g. a clicked remote invite URL) and auto-run discovery. */
+  initialUrl?: string
+}>()
 
 const emit = defineEmits<{
   close: []
@@ -181,6 +205,13 @@ const discoveredServer = ref<RemoteServer | null>(null)
 const inviteInfo = ref<InviteInfo | null>(null)
 const isInvite = ref(false)
 
+onMounted(() => {
+  if (props.initialUrl) {
+    serverUrl.value = props.initialUrl
+    void discoverServer()
+  }
+})
+
 const inviterDisplayNameParts = computed(() => {
   const creator = inviteInfo.value?.createdBy
   if (!creator?.displayName && !creator?.username) return undefined
@@ -188,6 +219,12 @@ const inviterDisplayNameParts = computed(() => {
   const dn = creator.displayName || creator.username || ''
   return userDataService.resolveDisplayNameParts(dn)
 })
+
+// origin instance rules first, then server rules
+const combinedRules = computed(() => [
+  ...(inviteInfo.value?.instanceRules ?? []),
+  ...(inviteInfo.value?.serverRules ?? []),
+])
 
 async function discoverServer() {
   if (!serverUrl.value) return
@@ -762,6 +799,52 @@ function formatExpiry(expiresAt: string): string {
     width: 100%;
     padding: 12px;
   }
+}
+
+.invite-rules {
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
+.invite-rules__title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.invite-rules__list {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-primary);
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.invite-rules__note {
+  margin: 8px 0 0;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.error-fallback-link {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  text-decoration: underline;
+}
+
+.error-fallback-link:hover {
+  color: var(--text-primary);
 }
 </style>
 
