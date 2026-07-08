@@ -571,12 +571,8 @@ const isDisable2FACodeValid = computed(() => {
 })
 
 // Privacy State
-//
-// `allowDMFromServerMembers` and `allowDMFromFollows` are visible in the UI
-// but currently flagged as "Coming soon" - there is no DB column for either
-// (the `notification_preferences` table does not store them) and no
-// server-side gate consumes them yet. Keep them in state so when we do
-// wire them up, persisting works straight away.
+// `allowDMFromServerMembers`/`allowDMFromFollows` are "Coming soon": no DB column in
+// notification_preferences and no server-side gate yet. Kept in state for when wired up.
 const settings = ref({
   allowDMFromServerMembers: true,
   allowDMFromFollows: true,
@@ -1147,9 +1143,8 @@ onMounted(async () => {
     blocksMutesLastFetchedAt = Date.now()
   }
 
-  // The DM-from-server-members / DM-from-follows preferences will be loaded
-  // from `notification_preferences` once the columns are added; for now the
-  // toggles are disabled UI placeholders so we skip the read.
+  // DM-from-server-members / DM-from-follows have no columns yet; toggles are
+  // disabled placeholders, so skip the read.
 
   originalSettings.value = { ...settings.value }
 

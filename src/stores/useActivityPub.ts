@@ -847,14 +847,9 @@ export const useActivityPubStore = defineStore('activitypub', {
         return;
       }
 
-      // Two realtime events can race to handle the same post: `post:new`
-      // (always fires on the author's channel) and `home_feed:new_post`
-      // (fires on the author + every local follower). For the author the
-      // checks below would run twice in parallel, both pass the
-      // exists-in-feed dedup (because neither call has unshifted yet),
-      // both await loadPostWithAuthor, and both unshift → two copies of
-      // the same post in every feed. Reserve the id BEFORE the async
-      // fetch so the second handler invocation bails immediately.
+      // `post:new` and `home_feed:new_post` can both fire for the author, racing
+      // through the exists-in-feed dedup before either unshifts → duplicate posts.
+      // Reserve the id before the async fetch so the second invocation bails.
       if (this._inFlightPostIds.has(post.id)) {
         debug.log('Post create already in-flight, skipping concurrent duplicate:', post.id);
         return;

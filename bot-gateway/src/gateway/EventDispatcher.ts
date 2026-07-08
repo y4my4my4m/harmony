@@ -8,19 +8,9 @@ interface BotPermissionRow {
   read_messages: boolean | null
 }
 
-// Per-message DB amplification was the dominant cost of message dispatch
-// before these caches were added (see BUGS.md PC1). Each handled message
-// previously issued TWO additional DB queries (channel → server, then
-// server → bot permissions) - three handlers (create/update/delete) ×
-// N messages = O(N) queries on top of the polling baseline.
-//
-// channel.server_id rarely changes (channels are moved between servers
-// only via admin actions). 1 hour TTL is generous; in practice the cache
-// stays warm for the life of the gateway.
-//
-// bot_server_permissions changes when an admin edits bot permissions or
-// activates/deactivates a bot. 5 minutes is a safe ceiling for staleness
-// for what's effectively a read-mostly access control list.
+// Cache channel→server and server→bot-permissions to avoid 2 DB queries per
+// handled message (BUGS.md PC1). server_id is admin-only (1h TTL); permissions
+// change on admin edits (5m TTL).
 const CHANNEL_TO_SERVER_TTL_MS = 60 * 60 * 1000
 const CHANNEL_TO_SERVER_MAX = 10_000
 const BOT_PERMISSIONS_TTL_MS = 5 * 60 * 1000

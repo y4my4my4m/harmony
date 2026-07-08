@@ -276,14 +276,9 @@ const channelId = computed(() => props.channelId || currentChannelId.value)
 const conversationId = computed(() => props.conversationId)
 
 const shouldShowNoServersSplash = computed(() => {
-  // Only treat an empty server list as "user has no servers" once we've
-  // confirmed the fetch actually completed. Without this guard, a failed
-  // initial fetch (network slow during PWA cold-boot, etc.) would render
-  // the onboarding splash even though the user has servers - they'd just
-  // see "join a server / create a community" while half-logged-in.
-  // `hasInitialized` is set to true only in the success path of
-  // `initializeUserEnvironment`, so it reliably distinguishes the
-  // genuine empty case from a transient failure.
+  // Only treat an empty server list as "no servers" once the fetch succeeded;
+  // hasInitialized is set only in initializeUserEnvironment's success path, so a
+  // failed initial fetch doesn't show the onboarding splash to a user with servers.
   return !props.isDM
     && serverChannelStore.hasInitialized
     && servers.value.length === 0

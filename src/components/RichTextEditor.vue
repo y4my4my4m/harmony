@@ -969,14 +969,10 @@ const handleInput = (event?: Event) => {
 
   undoRedo.pushState(text, cursorPos);
 
-  // Re-render to apply markdown / blockquote / greentext styling. The
-  // watcher used to be the only call site for `renderContent`, but it
-  // short-circuits when the new value equals the editor's plain text -
-  // which is always the case immediately after the user types, so live
-  // formatting never appeared during input. We now drive the render
-  // directly from input events, gated on `hasFormattableMarkers` so plain
-  // text typing doesn't pay the rebuild cost. Cursor restore inside
-  // `renderContent` keeps the caret stable across the rebuild.
+  // Re-render markdown/blockquote/greentext directly from input events (the watcher
+  // short-circuits when the new value equals the editor's plain text, which is always
+  // true right after typing). Gated on hasFormattableMarkers so plain typing skips the
+  // rebuild; renderContent restores the caret across the rebuild.
   if (hasFormattableMarkers(text)) {
     renderContent(text, false);
   }

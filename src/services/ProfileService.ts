@@ -174,15 +174,9 @@ export class ProfileService {
         throw this.createError('CREATE_FAILED', 'Failed to create profile', error)
       }
 
-      // Clear AuthContextService cache. Some earlier call (e.g.
-      // `activityPubStore.loadBlockingData()` from auth.ts SIGNED_IN /
-      // initializeAuth) may have resolved getCurrentContext BEFORE the
-      // profile existed. With the Fix A guard the loader no longer caches
-      // the unauthenticated state, but if anything else cached it (e.g. an
-      // in-flight `getCurrentContext` from a prior tick) we need a hard
-      // invalidation so the very next call - typically the avatar/banner
-      // `updateProfile` immediately after this returns - re-fetches and
-      // finds the freshly-inserted row.
+      // Hard-invalidate AuthContextService cache: an earlier getCurrentContext
+      // may have cached the pre-profile (unauthenticated) state, so the next
+      // call (the updateProfile right after this) must re-fetch the new row.
       authContextService.clearCache()
 
       // Ensure userDataService has the new profile in cache

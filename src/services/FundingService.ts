@@ -123,14 +123,9 @@ const badgeCache = new Map<string, { badge: SupporterBadge | null; fetchedAt: nu
 // Dedup in-flight badge requests so concurrent calls for the same user share one RPC
 const pendingBadgeRequests = new Map<string, Promise<SupporterBadge | null>>()
 
-// ---------------------------------------------------------------------------
-// Coalescing batch loader (DataLoader-style).
-//
-// A chat view renders one <SupporterBadge> per message author, each calling
-// getSupporterBadge() on mount within the same tick. Previously that produced
-// one /rpc/get_supporter_badge POST per user (an N+1 storm). We now collect all
-// userIds requested in the same microtask and resolve them with a single
-// get_supporter_badges(uuid[]) round-trip.
+// Coalescing batch loader: collect userIds requested in the same microtask and
+// resolve them with a single get_supporter_badges(uuid[]) call, avoiding one RPC
+// per <SupporterBadge> (N+1 across message authors).
 const badgeLoadQueue = new Set<string>()
 const badgeQueueResolvers = new Map<string, Array<(badge: SupporterBadge | null) => void>>()
 let badgeFlushScheduled = false

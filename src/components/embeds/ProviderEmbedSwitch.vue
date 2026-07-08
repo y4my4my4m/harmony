@@ -87,12 +87,8 @@
 <script lang="ts">
 import type { TimelinePost } from '@/types';
 
-// Module-level cache so re-mounts (virtual scroller) don't re-fetch.
-//
-// Previously this Map grew without bound for the life of the tab, accumulating
-// every distinct fediverse post URL ever embedded. Now bounded with simple
-// LRU eviction + a 15-minute soft TTL so stale embeds eventually refresh
-// (helpful for posts that get edited remotely).
+// Module-level cache so re-mounts (virtual scroller) don't re-fetch. LRU-bounded
+// with a 15-minute soft TTL so remotely-edited embeds eventually refresh.
 const FEDIVERSE_CACHE_MAX = 500;
 const FEDIVERSE_CACHE_TTL_MS = 15 * 60 * 1000;
 

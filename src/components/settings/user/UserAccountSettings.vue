@@ -413,15 +413,9 @@ const toast = useToast()
 const localProfile = ref<Partial<User>>({})
 const bannerKey = ref(0) // For forcing banner reload
 
-// ---------------------------------------------------------------------------
-// Profile fields editor state
-// ---------------------------------------------------------------------------
-// Editable mirror of `profile_fields`. We DECODE the stored HTML on load
-// (extracting the bare URL out of any `<a href="...">...</a>` wrapper) so the
-// user sees the plain value they originally typed, and ENCODE on save
-// (wrapping URL-shaped values in an <a> tag) so federated instances render
-// them as clickable links. This matches Mastodon's storage format and keeps
-// the editing UX as "type a URL, hit save" without exposing HTML to the user.
+// Editable mirror of `profile_fields`. DECODE stored HTML on load (extract bare URL
+// from any <a href>) and ENCODE on save (wrap URL-shaped values in <a>) so federated
+// instances render them clickable (Mastodon storage format) without exposing HTML.
 const PROFILE_FIELDS_MAX = 4
 const PROFILE_FIELD_NAME_MAX = 255
 const PROFILE_FIELD_VALUE_MAX = 255

@@ -454,15 +454,14 @@ async function getQuota(profileId: string): Promise<AiEmojiQuota> {
   };
 }
 
-// Async AI emoji generation (webhook-driven): Klipy's generate endpoint returns a
-// job id instantly and pushes the result to a callback, so we never hold the HTTP
-// request open (was timing out). Flow:
+// Async AI emoji generation (webhook-driven): Klipy returns a job id instantly and
+// pushes the result to a callback, so the HTTP request isn't held open. Flow:
 //   1. POST /ai-emojis/generate → kick off Klipy with callback URL, record pending
 //      job in memory, return 202.
 //   2. Klipy → POST /ai-emojis/callback?token=… → host bytes, create emoji,
 //      broadcast `ai_emoji:generated` on the user's channel.
 //   3. Fallback: detached poll finalizes if no callback arrives. In-memory state is
-//      ephemeral - a backend restart mid-generation drops the job (acceptable).
+//      ephemeral; a backend restart mid-generation drops the job.
 
 interface PendingGeneration {
   profileId: string;
@@ -475,7 +474,7 @@ interface PendingGeneration {
 }
 
 const pendingGenerations = new Map<string, PendingGeneration>();
-// Klipy emoji generation is async; allow a generous window for the result.
+// Klipy emoji generation is async; window for the result before fallback poll.
 const GEN_FALLBACK_POLL_MS = 6_000;
 const GEN_DEADLINE_MS = 120_000;
 

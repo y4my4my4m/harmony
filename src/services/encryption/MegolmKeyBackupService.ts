@@ -159,13 +159,12 @@ export class MegolmKeyBackupService {
 
     try {
       // Resolve the session key to hand over, two sources in priority order:
-      //   1. getSessionKeyForSharing: our OWN outbound (or inbound copy of a prior
-      //      outbound). Critical case the inbound-only lookup missed — the sender
-      //      holds the key in `outbound`, never `inbound`, so requests for messages
-      //      WE sent were answered "don't have session" and left pending forever.
+      //   1. getSessionKeyForSharing: our OWN outbound (sender holds the key in
+      //      `outbound`, never `inbound`, so the inbound-only lookup misses
+      //      requests for messages WE sent).
       //   2. findInboundSessionBySessionId: an inbound session from another sender.
       // Both return the base key; ratchet derives every index, so first_known_index
-      // of 0 lets the requester decrypt the whole session.
+      // 0 lets the requester decrypt the whole session.
       const sharable = megolmService.getSessionKeyForSharing(request.room_id, request.session_id)
       const inbound = sharable
         ? null
@@ -229,13 +228,11 @@ export class MegolmKeyBackupService {
 
       debug.log(`Fulfilled key request ${request.id.substring(0, 8)}...`)
 
-      // Durable repair of the offline path: the fulfillment above only helps
-      // the requesting device right now. Also write a fresh
-      // megolm_session_shares row sealed to the requester's CURRENT identity
-      // key, so their other devices / future claims recover this session from
-      // the DB without us being online again (fixes the "key reset -> stuck
-      // on online-only key requests" state). Authorization already passed
-      // above (signature + server-side room membership). Best-effort: the
+      // Durable offline repair: the fulfillment above only helps the requesting
+      // device now. Also write a fresh megolm_session_shares row sealed to the
+      // requester's CURRENT identity key, so their other devices / future claims
+      // recover from the DB without us being online again. Authorization already
+      // passed above (signature + server-side room membership). Best-effort; the
       // realtime fulfillment succeeded regardless.
       // Dynamic import: MegolmMessageEncryptionService imports this service
       // statically, so the reverse edge must be lazy to avoid a cycle.
@@ -1082,14 +1079,11 @@ export class MegolmKeyBackupService {
         .then(() => {}, () => {})
     }
 
-    // Quarantine failures: at this point we're unlocked with our identity key
-    // available, so a failed import is deterministic (typically the key was
-    // sealed to a PREVIOUS identity after a key reset) and would fail again
-    // on every future unlock - these rows were being re-swept forever,
-    // hammering the DB on each session start. Mark them expired; if the
-    // session is ever needed again, the on-demand key-request flow issues a
-    // fresh request (and the fulfillment-side share repair makes the new
-    // seal durable).
+    // Quarantine failures: we're unlocked with our identity key available, so a
+    // failed import is deterministic (key sealed to a PREVIOUS identity after a
+    // key reset) and fails again on every unlock. Mark expired to stop re-sweeping;
+    // if the session is needed again, the on-demand key-request flow issues a fresh
+    // request (and fulfillment-side share repair makes the new seal durable).
     if (failedIds.length > 0) {
       await supabase
         .from('megolm_key_requests')

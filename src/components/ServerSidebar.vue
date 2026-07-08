@@ -411,15 +411,10 @@ const isFediverseSelected = computed(() => {
   return isActivityPubRoute(route.name as string);
 });
 
-// The globe-icon badge should reflect what the user will *actually see and
-// be able to clear* by clicking through. /social/mentions is driven by
-// `activitypub_mention` notifications (see useActivityPub.loadMentionedPosts).
-// Counting any other AP type - follows, reblogs, favorites, even replies -
-// stranded the badge: the user clicked through, saw the post that came up
-// from the mention notification, but the reply/follow counts kept the badge
-// alive. Restrict to `activitypub_mention` so visiting the page (and
-// scrolling past the posts) consistently drives the badge back to zero.
-// Other AP notifications still surface in the bell-icon panel.
+// Count only `activitypub_mention`: /social/mentions is driven by those notifications
+// (useActivityPub.loadMentionedPosts), so other AP types (follows/reblogs/favorites)
+// would strand the badge since clicking through can't clear them. They still show in
+// the bell-icon panel.
 const unreadCount = computed(() => {
   return notificationStore.notifications.filter(
     n => !n.is_read && n.type === 'activitypub_mention'

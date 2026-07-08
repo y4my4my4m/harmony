@@ -461,14 +461,13 @@ export class MegolmMessageEncryptionService {
 
     if (existingKey && !forceNew) {
       if (cachedKey) {
-        // VERIFY the cached private still pairs with the PUBLISHED public key
-        // before trusting it. A key reset from another tab/device replaces
-        // the user_key_pairs row; peers then wrap keys to the NEW public
-        // while this browser unwraps with the OLD private - every fulfilled
-        // key request fails with an opaque GCM error, forever. When the
-        // pairing can't be confirmed (mismatch, or a legacy record without a
-        // recorded public half), fall through and re-restore from the DB
-        // row, which is authoritative (it's what peers encrypt to).
+        // Verify the cached private still pairs with the PUBLISHED public key
+        // before trusting it. A key reset from another tab/device replaces the
+        // user_key_pairs row; peers wrap to the NEW public while this browser
+        // unwraps with the OLD private, so every fulfilled key request fails with
+        // an opaque GCM error. On mismatch (or a legacy record with no recorded
+        // public half), fall through and re-restore from the authoritative DB row
+        // (what peers encrypt to).
         const cachedPublic = await identityKeyStore.loadPublicKey(this.currentUserId)
         if (cachedPublic && cachedPublic === existingKey.identity_public_key) {
           return
@@ -994,14 +993,12 @@ export class MegolmMessageEncryptionService {
         .catch(err => debug.warn('Background session sharing failed:', err))
     }
 
-    // Refresh the encrypted key backup the first time we send under a given
-    // session. CRITICAL for reading our OWN messages on a fresh device:
-    // recipients recover via server-side megolm_session_shares, but the SENDER
-    // is intentionally excluded from those shares and relies solely on the
-    // backup. The backup used to be written only at setup, so every outbound
-    // session created afterwards was unrecoverable on a new login - our own
-    // messages showed "session key not available" while everyone else read
-    // them fine. triggerAutoBackup is debounced, so bursts coalesce.
+    // Refresh the encrypted key backup on first send under a given session.
+    // CRITICAL for reading our OWN messages on a fresh device: recipients recover
+    // via server-side megolm_session_shares, but the SENDER is intentionally
+    // excluded from those shares and relies solely on the backup — so every
+    // outbound session must be backed up or it's unrecoverable on a new login.
+    // triggerAutoBackup is debounced, so bursts coalesce.
     if (!this.backedUpSessionIds.has(encryptedMessage.sessionId)) {
       this.backedUpSessionIds.add(encryptedMessage.sessionId)
       megolmKeyBackupService.triggerAutoBackup().catch(() => {})

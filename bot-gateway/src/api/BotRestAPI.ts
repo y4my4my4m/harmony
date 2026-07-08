@@ -432,13 +432,11 @@ export class BotRestAPI {
         return res.status(403).json({ error: 'Cannot edit messages from other bots or users' })
       }
 
-      // BUGS.md H38: editing your OWN message should only require `send_messages`
-      // (the permission to post in that channel) - requiring `manage_messages`
-      // here broke Discord bridge edit-sync because bridge bots typically only
-      // hold `send_messages`. The ownership check above already guarantees the
-      // bot is the author. `deleteMessage` already follows this pattern (line
-      // 307: own-message delete is allowed; `manage_messages` only required for
-      // OTHER bots' messages).
+      // BUGS.md H38: editing your OWN message requires only `send_messages`, not
+      // `manage_messages` (which broke Discord bridge edit-sync, since bridge bots
+      // typically hold only `send_messages`). Ownership check above guarantees the
+      // bot is the author. `deleteMessage` follows the same pattern: own-message
+      // delete allowed, `manage_messages` only required for OTHER bots' messages.
       const canSend = await this.checkChannelPermission(botId, message.channel_id, 'send_messages')
       if (!canSend) {
         return res.status(403).json({ error: 'Missing permission: send_messages' })
@@ -738,12 +736,9 @@ export class BotRestAPI {
   
   // CHANNEL / CATEGORY CREATION (used by bridges to mirror server structure)
   //
-  // These two endpoints intentionally trust the `manage_channels` permission
-  // already enforced via bot_server_permissions; we do NOT re-implement a
-  // separate "is the invoker server owner" check here because that gate
-  // belongs to the *calling tool* (e.g. the /bridge clone-server slash
-  // command), not the API. If the bot has `manage_channels` for this server
-  // (granted by the server owner during install), it can create channels.
+  // Authorization is `manage_channels` via bot_server_permissions only; no
+  // separate "is invoker server owner" check here — that gate belongs to the
+  // calling tool (e.g. /bridge clone-server), not the API.
 
   private async createCategory(req: BotRequest, res: Response) {
     try {

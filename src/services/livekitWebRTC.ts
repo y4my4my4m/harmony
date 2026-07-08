@@ -2148,12 +2148,12 @@ export class LiveKitWebRTCService {
   }
 
   // ---------------------------------------------------------------------------
-  // Shared-key distribution (Model S): all participants hold the same 32-byte
-  // room key. Coordinator (smallest participant identity) mints it ONCE and ships
-  // it Megolm-wrapped over the data channel; others apply what they receive. On
-  // membership change the coordinator re-broadcasts the SAME key (re-wrapped),
-  // not a new one — rotating per join desynced peers (MissingKey/InvalidKey).
-  // SFU only ever sees Megolm ciphertext, never the key bytes.
+  // Shared-key distribution (Model S): all participants share one 32-byte room
+  // key. Coordinator (smallest participant identity) mints it once, ships it
+  // Megolm-wrapped over the data channel; others apply what they receive. On
+  // membership change the coordinator re-broadcasts the SAME key (re-wrapped);
+  // rotating per join desyncs peers (MissingKey/InvalidKey). SFU only ever sees
+  // Megolm ciphertext, never the key bytes.
   // ---------------------------------------------------------------------------
 
   /** Identities of everyone currently in the room (self + remotes). */

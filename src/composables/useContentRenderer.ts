@@ -480,14 +480,9 @@ export function useContentRenderer(
         }
         
         case 'url': {
-          // Strip tracking params at render time so:
-          //  * federated posts (parsed server-side, bypassing the composer's
-          //    `parseTextForUrls` strip) display cleanly
-          //  * old posts saved before the strip feature existed still display
-          //    cleanly without a DB migration
-          //  * the displayed text matches the live href the user clicks
-          // The original URL stays in `part.url` (i.e. in the DB), so peers
-          // see what the sender wrote.
+          // Strip tracking params at render time so federated posts and pre-strip
+          // posts display cleanly and match the clicked href. Original URL stays in
+          // part.url (the DB) so peers see what the sender wrote.
           const rawUrl = part.url || '';
           const url = isUrlTrackingStrippingEnabled() ? stripTrackingParameters(rawUrl) : rawUrl;
           // sanitizeUrl rejects javascript:/data:/etc.; escapeHtml prevents
