@@ -69,7 +69,6 @@ import { computed } from 'vue';
 import { debug } from '@/utils/debug'
 import type { ActivityPubPost } from '@/types';
 
-// Components
 import MonyPost from './MonyPost.vue';
 import Icon from '@/components/common/Icon.vue';
 
@@ -111,8 +110,7 @@ const handleReplyCreated = (newReply: ActivityPubPost) => {
 };
 
 const expandThread = () => {
-  // TODO: Navigate to a dedicated expanded thread view
-  // For now, we could emit an event or navigate to the conversation root
+  // TODO: navigate to dedicated expanded thread view
   debug.log(`Expanding thread for post: ${props.post.id}`);
 };
 </script>

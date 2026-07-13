@@ -30,8 +30,6 @@ export async function handleChannelReactionJob(data: FederationJobData): Promise
       return;
     }
 
-    // Handle create operations
-    // Get reaction
     const { data: reaction } = await supabase
       .from('reactions')
       .select('*')
@@ -52,7 +50,6 @@ export async function handleChannelReactionJob(data: FederationJobData): Promise
 
     await updateFederationStatus(reaction_id, 'reactions', 'processing');
 
-    // Use the existing handleChannelReactionFederation function
     await handleChannelReactionFederation({
       reaction_id: reaction.id,
       message_id: reaction.message_id,

@@ -9,12 +9,8 @@ import { sendSuccess, sendError } from '../utils/response.js';
 
 const router = Router();
 
-/**
- * Health check endpoint
- */
 router.get('/', async (req: Request, res: Response) => {
   try {
-    // Check database connection
     const supabase = getSupabaseClient();
     const { error } = await supabase.from('profiles').select('id').limit(1);
 

@@ -1,8 +1,6 @@
 # 2FA Security Model
 
-## Overview
-
-This document describes how two-factor authentication (2FA) works in Harmony.
+How two-factor authentication (2FA) works in Harmony.
 
 ## How It Works
 
@@ -278,11 +276,5 @@ Helper functions:
 - `docs/2FA_LOGIN_FIX.md` - MFA_CHALLENGE_VERIFIED race condition fix
 
 ## Summary
-
-The model balances security and convenience:
-- Secure: 2FA is required at login and cannot be bypassed
-- Convenient: users stay logged in for weeks without daily 2FA prompts
-- Industry standard: consistent with major apps
-- User-friendly: login once, use the app
 
 2FA protects the login, not the session. Once a user is logged in, they stay in until they log out or their refresh token expires (60 days default).

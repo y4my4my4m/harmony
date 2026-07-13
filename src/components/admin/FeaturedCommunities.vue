@@ -83,7 +83,6 @@ const toast = useToast()
 const loadingStates = ref({ featuredServers: false })
 
 
-// Featured communities
 const featuredServersList = ref<Array<{
   id: string;
   name: string;

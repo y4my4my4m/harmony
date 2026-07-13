@@ -372,8 +372,7 @@ const menuStyle = computed(() => ({
   top: `${adjustedPosition.value.y}px`,
 }));
 
-// Stream Quality Options
-// Note: -1 = Source (native resolution), other values are specific resolutions
+// -1 = Source (native resolution), other values are specific resolutions
 const resolutionOptions = [
   { value: 360, label: '360p (Low)', short: '360p' },
   { value: 480, label: '480p (SD)', short: '480p' },
@@ -392,7 +391,6 @@ const frameRateOptions = [
   { value: 60, label: '60 FPS' },
 ];
 
-// Audio bitrate options (kbps)
 const audioBitrateOptions = [
   { value: 32, label: '32 kbps (Low)', short: '32k' },
   { value: 64, label: '64 kbps (Voice)', short: '64k' },
@@ -400,7 +398,6 @@ const audioBitrateOptions = [
   { value: 256, label: '256 kbps (High)', short: '256k' },
 ];
 
-// Current quality settings (from store or defaults)
 // Handle -1 (source) as a valid value, default to 720 only if undefined/null
 const currentResolution = computed(() => {
   const res = voiceStore.streamSettings?.resolution;
@@ -519,7 +516,6 @@ const adjustPosition = async () => {
   adjustedPosition.value = { x, y };
 };
 
-// Keyboard handler
 const handleKeydown = (event: KeyboardEvent) => {
   if (event.key === 'Escape') {
     close();
@@ -539,14 +535,12 @@ watch(
   async (visible) => {
     if (visible) {
       adjustedPosition.value = { x: props.x, y: props.y };
-      // Then adjust for screen bounds after DOM update
       await adjustPosition();
     }
   },
   { immediate: true }
 );
 
-// Also watch for position prop changes
 watch(
   () => [props.x, props.y],
   async () => {

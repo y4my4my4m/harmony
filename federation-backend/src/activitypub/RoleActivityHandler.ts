@@ -6,10 +6,6 @@ import config from '../config/index.js';
 
 const router = Router();
 
-/**
- * Role ActivityPub Types
- * Extends ActivityPub for role management in federated servers
- */
 export interface RoleActivity {
   '@context': string | string[];
   id: string;
@@ -45,9 +41,6 @@ export interface RoleAssignment {
   relationship: 'hasRole';
 }
 
-/**
- * Convert database role to ActivityPub Role object
- */
 export function roleToActivityPub(
   role: any,
   serverApId: string
@@ -80,9 +73,6 @@ export function roleToActivityPub(
   return apRole;
 }
 
-/**
- * Convert ActivityPub Role object to database format
- */
 export function activityPubToRole(
   apRole: RoleObject,
   serverId: string
@@ -102,9 +92,6 @@ export function activityPubToRole(
   };
 }
 
-/**
- * Handle incoming role activities from federated servers
- */
 export async function handleRoleActivity(
   activity: RoleActivity,
   targetServerId: string
@@ -274,9 +261,6 @@ export async function handleRoleActivity(
   }
 }
 
-/**
- * Create a role activity for federation
- */
 export function createRoleActivity(
   type: 'Create' | 'Update' | 'Delete',
   role: any,
@@ -306,9 +290,6 @@ export function createRoleActivity(
   };
 }
 
-/**
- * Create a role assignment activity for federation
- */
 export function createRoleAssignmentActivity(
   type: 'Add' | 'Remove',
   userApId: string,

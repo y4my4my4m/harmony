@@ -16,9 +16,6 @@ export interface MaintenanceJobData {
   triggered_by?: string;
 }
 
-/**
- * Handle maintenance jobs
- */
 export async function handleMaintenanceJob(data: MaintenanceJobData): Promise<void> {
   logger.info(`🔧 Running maintenance task: ${data.task}`);
 
@@ -38,12 +35,8 @@ export async function handleMaintenanceJob(data: MaintenanceJobData): Promise<vo
 }
 
 /**
- * Sweep for local users missing keys and generate them
- * 
- * This catches any edge cases where:
- * - Users were created before key generation was implemented
- * - Key generation failed during profile creation
- * - Keys were somehow lost/corrupted
+ * Sweep for local users missing keys and regenerate (covers failed
+ * generation during profile creation, or lost/corrupted keys).
  */
 async function sweepMissingKeys(): Promise<void> {
   const supabase = getSupabaseClient();
@@ -53,7 +46,7 @@ async function sweepMissingKeys(): Promise<void> {
     .select('id, username, domain')
     .eq('is_local', true)
     .is('public_key', null)
-    .limit(50); // Process in batches
+    .limit(50);
 
   if (queryError) {
     logger.error('❌ Failed to query users without keys:', queryError);
@@ -76,7 +69,6 @@ async function sweepMissingKeys(): Promise<void> {
 
       const keys = await SignatureService.generateKeyPair();
 
-      // Store private key first
       const { error: privateKeyError } = await supabase
         .from('user_private_keys')
         .upsert({
@@ -157,7 +149,6 @@ async function cleanupOrphanedKeys(): Promise<void> {
         // Has private key but no public key - regenerate both
         logger.info(`  🔑 Regenerating keys for: ${user.username} (had orphaned private key)`);
         
-        // Delete the orphaned private key first
         await supabase
           .from('user_private_keys')
           .delete()

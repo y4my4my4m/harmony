@@ -1,8 +1,3 @@
-/**
- * Layout-aware 404 utilities
- * Provides smart routing and layout detection for 404 pages
- */
-
 import type { RouteLocationNormalized } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
@@ -13,9 +8,6 @@ export interface NotFoundContext {
   previousRoute?: RouteLocationNormalized
 }
 
-/**
- * Determines the appropriate 404 handling based on user state and route context
- */
 export function getNotFoundContext(
   currentRoute: RouteLocationNormalized,
   previousRoute?: RouteLocationNormalized
@@ -23,23 +15,18 @@ export function getNotFoundContext(
   const authStore = useAuthStore()
   const isAuthenticated = authStore.isLoggedIn
 
-  // Default suggestions based on authentication
   let suggestedRoute = isAuthenticated ? '/chat' : '/login'
   let layoutType: NotFoundContext['layoutType'] = isAuthenticated ? 'base' : 'auth'
 
-  // Smart routing based on what the user was trying to access
   if (isAuthenticated && currentRoute.path) {
-    // If they were trying to access social features
     if (currentRoute.path.startsWith('/social/')) {
       suggestedRoute = '/social/home'
       layoutType = 'social'
     }
-    // If they were trying to access chat features
     else if (currentRoute.path.startsWith('/chat/') || currentRoute.path.startsWith('/dm/')) {
       suggestedRoute = '/chat'
       layoutType = 'chat'
     }
-    // If they were trying to access settings or admin
     else if (currentRoute.path.startsWith('/settings/') || currentRoute.path.startsWith('/admin')) {
       suggestedRoute = '/settings/account'
       layoutType = 'base'
@@ -64,9 +51,6 @@ export function getNotFoundContext(
   }
 }
 
-/**
- * Gets appropriate quick navigation links based on context
- */
 export function getQuickNavigationLinks(context: NotFoundContext) {
   if (!context.isAuthenticated) {
     return [
@@ -75,7 +59,6 @@ export function getQuickNavigationLinks(context: NotFoundContext) {
     ]
   }
 
-  // Authenticated user quick links
   const baseLinks = [
     { to: '/chat', label: 'Chat', icon: 'message-circle' },
     { to: '/social/home', label: 'Social', icon: 'users' },
@@ -87,16 +70,12 @@ export function getQuickNavigationLinks(context: NotFoundContext) {
   return baseLinks.filter(link => link.to !== context.suggestedRoute)
 }
 
-/**
- * Get user-friendly error messages based on the attempted route
- */
 export function getContextualErrorMessage(route: RouteLocationNormalized): {
   title: string
   description: string
 } {
   const path = route.path.toLowerCase()
 
-  // Specific error messages for common scenarios
   if (path.includes('/user/') || path.includes('/profile/')) {
     return {
       title: 'User not found',
@@ -132,7 +111,6 @@ export function getContextualErrorMessage(route: RouteLocationNormalized): {
     }
   }
 
-  // Default generic message
   return {
     title: 'Page not found',
     description: 'The page you\'re looking for doesn\'t exist or has been moved.'

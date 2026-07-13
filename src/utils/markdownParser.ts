@@ -111,11 +111,9 @@ export function parseMarkdownToNodes(text: string): MarkdownNode[] {
   }
 
   for (const match of filteredMatches) {
-    // Add any plain text before this match
     if (match.start > processedUntil) {
       const plainText = text.substring(processedUntil, match.start);
       if (plainText) {
-        // Split by newlines and create separate nodes
         const textParts = plainText.split('\n');
         textParts.forEach((part, index) => {
           if (part) {
@@ -169,7 +167,6 @@ export function parseMarkdownToNodes(text: string): MarkdownNode[] {
   if (processedUntil < text.length) {
     const remainingText = text.substring(processedUntil);
     if (remainingText) {
-      // Split by newlines and create separate nodes
       const textParts = remainingText.split('\n');
       textParts.forEach((part, index) => {
         if (part) {
@@ -408,7 +405,6 @@ export function parseMarkdownWithMarkers(text: string): MarkdownToken[] {
   lastIndex = 0;
 
   filteredMatches.forEach(match => {
-    // Add text before this match
     if (match.start > lastIndex) {
       const textContent = text.slice(lastIndex, match.start);
       if (textContent) {

@@ -1,8 +1,6 @@
 # API Reference
 
-## Overview
-
-This document provides comprehensive API documentation for Harmony's internal APIs, service interfaces, and integration points. The APIs are organized by domain and follow REST and GraphQL conventions where applicable.
+Harmony's internal APIs, service interfaces, and integration points, organized by domain. Endpoints follow REST conventions; some use GraphQL where noted.
 
 ## API Architecture
 

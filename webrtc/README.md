@@ -4,12 +4,12 @@ Centralized WebRTC server for Harmony voice/video channels using [LiveKit](https
 
 ## Features
 
-- **SFU (Selective Forwarding Unit)** - Efficient media routing for large rooms
-- **End-to-End Encryption (E2EE)** - Server only forwards encrypted frames
-- **Stage Mode** - Support for 1-3 speakers with 500K+ listeners
-- **NAT Traversal** - Built-in TURN server for connectivity
-- **Federation Ready** - Cross-instance voice/video calls
-- **Recording** - Optional egress service for recording/streaming
+- **SFU (Selective Forwarding Unit)** - media routing for large rooms
+- **End-to-End Encryption (E2EE)** - server only forwards encrypted frames
+- **Stage Mode** - 1-3 speakers with 500K+ listeners
+- **NAT Traversal** - built-in TURN server for connectivity
+- **Federation** - cross-instance voice/video calls
+- **Recording** - optional egress service for recording/streaming
 
 ## Quick Start
 

@@ -45,7 +45,6 @@ import {
   getLiveKitToken,
 } from './livekitTokens';
 
-// FEDERATED IDENTITY HELPERS
 
 // Cache for federated ID to profile UUID mappings
 const federatedIdToUuidCache = new Map<string, string>();
@@ -232,7 +231,6 @@ async function resolveFederatedId(federatedId: string, originalIdentity: string)
 
 setLogLevel(import.meta.env.DEV ? LogLevel.debug : LogLevel.warn);
 
-// TYPES
 
 /** Which of a participant's video publications to target (camera and screenshare can be live concurrently). */
 export type VideoSource = 'camera' | 'screen' | 'auto';
@@ -264,7 +262,6 @@ interface TokenResponse {
   identity: string;
 }
 
-// LIVEKIT WEBRTC SERVICE
 
 export class LiveKitWebRTCService {
   private room: Room | null = null;
@@ -390,7 +387,6 @@ export class LiveKitWebRTCService {
     return Math.round(base * fpsScale);
   }
   
-  // CONFIGURATION
   
   /**
    * Get LiveKit configuration from the backend
@@ -407,7 +403,6 @@ export class LiveKitWebRTCService {
     return config.enabled && !!config.wsUrl;
   }
   
-  // TOKEN MANAGEMENT
   
   /**
    * Get a room token from the backend
@@ -428,7 +423,6 @@ export class LiveKitWebRTCService {
     return getFederatedLiveKitToken(instanceUrl, actorId, roomName, roomType);
   }
   
-  // CHANNEL MANAGEMENT
   
   /**
    * Join a voice channel using LiveKit SFU
@@ -707,7 +701,6 @@ export class LiveKitWebRTCService {
     this.emit('channel-left', { channelId: oldChannelId });
   }
   
-  // MEDIA CONTROLS
   
   /**
    * Publish local audio track
@@ -1095,7 +1088,6 @@ export class LiveKitWebRTCService {
     return this.localMediaState.isDeafened;
   }
   
-  // STREAM QUALITY CONTROL
   
   /**
    * Update stream quality settings (resolution, framerate, and audio bitrate)
@@ -1218,7 +1210,6 @@ export class LiveKitWebRTCService {
     }
   }
   
-  // VOLUME CONTROL
   
   /**
    * Mute/unmute all remote mic audio elements.
@@ -1306,7 +1297,6 @@ export class LiveKitWebRTCService {
            !!this.findAudioElementByResolvedId(participantId, 'screenshare');
   }
   
-  // STREAM ACCESS
   
   /**
    * Get local media stream (combined audio/video)
@@ -1500,7 +1490,6 @@ export class LiveKitWebRTCService {
     return result;
   }
   
-  // ROOM EVENT HANDLING
   
   /**
    * Sync existing participants in the room (called after connecting)
@@ -2037,7 +2026,6 @@ export class LiveKitWebRTCService {
     }
   }
   
-  // DEVICE MANAGEMENT
   
   /**
    * Load audio settings from centralized VoiceSettingsService
@@ -2390,7 +2378,6 @@ export class LiveKitWebRTCService {
     }
   }
 
-  // EVENT SYSTEM
   
   /**
    * Subscribe to an event
@@ -2431,7 +2418,6 @@ export class LiveKitWebRTCService {
     }
   }
   
-  // UTILITY METHODS
   
   /**
    * Check if currently connected to a channel
@@ -2460,7 +2446,6 @@ export class LiveKitWebRTCService {
   }
 }
 
-// SINGLETON INSTANCE
 
 export const livekitWebRTC = new LiveKitWebRTCService();
 export default livekitWebRTC;

@@ -230,7 +230,6 @@ const memberStats = ref({
   percentage: 0
 })
 
-// Encryption mode options
 const encryptionModes = [
   {
     value: 'disabled',
@@ -254,8 +253,7 @@ const encryptionModes = [
 
 const canModify = computed(() => {
   const currentUser = userDataService.getCurrentUser()
-  // Only server owner/admins can modify
-  // TODO: Check actual permissions
+  // TODO: check actual owner/admin permissions
   return !!currentUser
 })
 
@@ -380,12 +378,10 @@ function selectMode(mode: 'disabled' | 'optional' | 'required') {
   if (!canModify.value) return
   currentMode.value = mode
 
-  // Auto-enable force key setup for required mode
   if (mode === 'required') {
     forceKeySetup.value = true
   }
 
-  // Disable options if encryption is disabled
   if (mode === 'disabled') {
     forceKeySetup.value = false
     encryptAttachments.value = false
@@ -460,7 +456,6 @@ function resetSettings() {
   successMessage.value = null
 }
 
-// Expose for parent component
 defineExpose({
   hasChanges,
   saveSettings,

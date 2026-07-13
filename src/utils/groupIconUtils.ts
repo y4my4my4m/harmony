@@ -2,15 +2,7 @@ import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
 import { validateImageUpload, humanizeUploadError } from '@/utils/uploadValidation'
 
-/**
- * Group Icon Utilities
- * 
- * Follows the same pattern as server icons:
- * - Store relative path in database
- * - Fetch from bucket with transforms for optimization
- * - Support resizing and quality optimization
- */
-
+// Follows the same pattern as server icons: store relative path in DB, fetch from bucket with transforms.
 const BUCKET_NAME = 'group-icons'
 const DEFAULT_QUALITY = 80
 const DEFAULT_SIZE = 128
@@ -64,7 +56,6 @@ export function getGroupIconUrl(
         }
       })
 
-    // Ensure we have a valid URL before returning
     if (!data.publicUrl) {
       debug.warn('No public URL returned for icon path:', iconPath)
       return getDefaultGroupIcon(conversationId, size)
@@ -77,9 +68,7 @@ export function getGroupIconUrl(
   }
 }
 
-/**
- * Generate a default group icon (similar to Discord's algorithm)
- */
+// Generate a default group icon (Discord-style, hash-based color).
 export function getDefaultGroupIcon(conversationId: string, size: number = DEFAULT_SIZE): string {
   const hash = conversationId.split('').reduce((a, b) => {
     a = ((a << 5) - a) + b.charCodeAt(0)
@@ -113,9 +102,6 @@ export function getDefaultGroupIcon(conversationId: string, size: number = DEFAU
   return `data:image/svg+xml;base64,${btoa(svg)}`
 }
 
-/**
- * Upload a group icon file
- */
 export async function uploadGroupIcon(
   conversationId: string,
   file: File,
@@ -131,7 +117,6 @@ export async function uploadGroupIcon(
     const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`
     const filePath = `${conversationId}/${fileName}`
 
-    // Upload to storage
     const { error: uploadError } = await supabase.storage
       .from(BUCKET_NAME)
       .upload(filePath, file, {
@@ -179,9 +164,6 @@ export async function uploadGroupIcon(
   }
 }
 
-/**
- * Delete a group icon
- */
 export async function deleteGroupIcon(conversationId: string): Promise<{ success: boolean; error?: string }> {
   try {
     const { data: conversation, error: fetchError } = await supabase
@@ -238,23 +220,16 @@ export async function deleteGroupIcon(conversationId: string): Promise<{ success
   }
 }
 
-/**
- * Get optimized group icon URL for different contexts
- */
 export const GroupIconPresets = {
-  /** Small icons for sidebar/lists (32px) */
-  small: (conversationId: string, iconPath?: string) => 
+  small: (conversationId: string, iconPath?: string) =>
     getGroupIconUrl(conversationId, iconPath, { size: 32, quality: 75 }),
-  
-  /** Medium icons for headers (48px) */
-  medium: (conversationId: string, iconPath?: string) => 
+
+  medium: (conversationId: string, iconPath?: string) =>
     getGroupIconUrl(conversationId, iconPath, { size: 48, quality: 80 }),
-  
-  /** Large icons for modals/settings (128px) */
-  large: (conversationId: string, iconPath?: string) => 
+
+  large: (conversationId: string, iconPath?: string) =>
     getGroupIconUrl(conversationId, iconPath, { size: 128, quality: 85 }),
-  
-  /** Profile display (256px) */
-  profile: (conversationId: string, iconPath?: string) => 
+
+  profile: (conversationId: string, iconPath?: string) =>
     getGroupIconUrl(conversationId, iconPath, { size: 256, quality: 90 })
 }

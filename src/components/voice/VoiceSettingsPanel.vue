@@ -297,35 +297,30 @@ export default defineComponent({
   components: { Icon, VoiceInputModeSettings },
   emits: ['close', 'update-settings'],
   setup(props, { emit }) {
-    // Device lists
     const inputDevices = ref<MediaDeviceInfo[]>([]);
     const outputDevices = ref<MediaDeviceInfo[]>([]);
     const videoDevices = ref<MediaDeviceInfo[]>([]);
 
-    // Selected devices
     const selectedInputDevice = ref('');
     const selectedOutputDevice = ref('');
     const selectedVideoDevice = ref('');
 
-    // Audio settings
     const inputVolume = ref(75);
     const outputVolume = ref(75);
     const echoCancellation = ref(true);
     const noiseSuppression = ref(true);
     const autoGainControl = ref(true);
 
-    // Video/Stream settings
     const videoQuality = ref('720p');
     const frameRate = ref('30');
     const audioBitrate = ref('128');
 
-    // Testing
     const isTesting = ref(false);
     const testLevel = ref(0);
     const previewStream = ref<MediaStream | null>(null);
     const previewVideo = ref<HTMLVideoElement | null>(null);
 
-    // Touch device detection (hide keybinds on touch devices)
+    // Hide keybinds section on touch devices
     const { isMobileViewport, isTouchOnly } = useViewport();
     const isTouchDevice = computed(() => isMobileViewport.value || isTouchOnly);
 
@@ -342,14 +337,13 @@ export default defineComponent({
           videos: videoDevices.value.length
         });
 
-        // Now that we have devices, load and validate stored settings
         await loadStoredSettings();
       } catch (error) {
         debug.error('Error getting devices:', error);
       }
     };
 
-    // Load stored settings - called AFTER devices are enumerated
+    // Called AFTER devices are enumerated
     const loadStoredSettings = async () => {
       try {
         const settings = VoiceSettingsService.getAll();
@@ -408,7 +402,6 @@ export default defineComponent({
       }
     };
 
-    // Test microphone
     const testMicrophone = async () => {
       if (isTesting.value) {
         stopTesting();
@@ -484,7 +477,6 @@ export default defineComponent({
       }
     };
 
-    // Settings update handlers
     const updateInputDevice = async () => {
       if (!selectedInputDevice.value) return;
       
@@ -535,8 +527,7 @@ export default defineComponent({
       };
       
       unifiedWebRTC.updateAudioConstraints(audioConstraints);
-      
-      // Also emit for any parent components that might be listening
+
       emit('update-settings', {
         type: 'audioConstraints',
         value: audioConstraints

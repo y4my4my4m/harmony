@@ -9,7 +9,6 @@ import {
   messageTextLength,
 } from '@/utils/messageContentUtils'
 
-// Thread Types
 
 export interface CreateThreadParams {
   message_id: string
@@ -45,7 +44,6 @@ export interface ThreadMessagesResult {
   oldest_id?: string
 }
 
-// Thread Service Class
 
 interface ThreadMessageCache {
   messages: Message[]
@@ -93,7 +91,6 @@ class ThreadService {
     }
   }
 
-  // Thread CRUD Operations
 
   /**
    * Create a new thread from a message
@@ -454,7 +451,6 @@ class ThreadService {
     return result !== null
   }
 
-  // Thread Membership
 
   /**
    * Join a thread
@@ -587,7 +583,6 @@ class ThreadService {
     }
   }
 
-  // Thread Messages
 
   /**
    * Check if thread messages are cached and valid
@@ -1036,7 +1031,6 @@ class ThreadService {
     return message
   }
 
-  // Utility Methods
 
   /**
    * Get thread for a message (if exists)

@@ -240,7 +240,6 @@ const reportFilters = [
   { key: 'dismissed', label: 'Dismissed' },
 ]
 
-// Reports & Moderation methods
 const loadReports = async () => {
   try {
     const statusParam = activeReportFilter.value === 'all' ? null : activeReportFilter.value

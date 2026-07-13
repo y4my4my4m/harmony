@@ -113,7 +113,6 @@ const { confirm } = useConfirmDialog()
 const loadingStates = ref({ announcements: false })
 
 
-// Announcements
 const announcements = ref<Announcement[]>([])
 const showAnnouncementForm = ref(false)
 const editingAnnouncementId = ref<string | null>(null)

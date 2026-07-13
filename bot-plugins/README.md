@@ -58,12 +58,12 @@ Cross-platform bridge connecting Discord and Harmony servers.
 
 1. Create your plugin following the [Plugin System Guide](../docs/PLUGIN_SYSTEM.md)
 2. Test thoroughly
-3. Add comprehensive README
+3. Add a README
 4. Submit PR to `community/your-plugin/`
 
 ### Submission Requirements
 
-- Complete README with setup instructions
+- README with setup instructions
 - Example configuration file
 - Error handling and logging
 - Graceful shutdown
@@ -84,8 +84,6 @@ Cross-platform bridge connecting Discord and Harmony servers.
 - **Documentation:** https://docs.harmonyapp.dev
 
 ## Plugin Ideas
-
-Looking for inspiration? Try building:
 
 - **RSS Feed Bot** - Post updates from RSS feeds
 - **GitHub Bot** - Repository notifications

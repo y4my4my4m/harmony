@@ -81,8 +81,6 @@ export class CoreMessageService {
     return this.instance
   }
 
-  // MESSAGE CREATION (PURE LOCAL)
-
   /**
    * Fetch the admin-configured max message length from `instance_config`.
    * Falls back to `DEFAULT_MAX_MESSAGE_TEXT_LENGTH` if the row is missing
@@ -187,7 +185,6 @@ export class CoreMessageService {
         throw this.createError('AUTH_REQUIRED', 'User not authenticated')
       }
 
-      // Check server encryption settings first
       let finalContent = content
       let encrypted = false
       let encryptionMetadata = null
@@ -202,7 +199,6 @@ export class CoreMessageService {
       const encryptionMode = serverSettings?.encryption_mode || 'disabled'
       debug.log(`Server encryption mode: ${encryptionMode}`)
 
-      // Skip encryption if server has it disabled
       if (encryptionMode === 'disabled') {
         debug.log('ℹServer has encryption disabled - sending plaintext')
       } else {
@@ -495,8 +491,6 @@ export class CoreMessageService {
     }
   }
 
-  // MESSAGE EDITING (PURE LOCAL)
-
   /**
    * Edit a message (pure local update)
    */
@@ -518,7 +512,6 @@ export class CoreMessageService {
         throw this.createError('AUTH_REQUIRED', 'User not authenticated')
       }
 
-      // First, get the original message to check if it's encrypted
       const { data: originalMessage, error: fetchError } = await supabase
         .from('messages')
         .select('*')
@@ -532,7 +525,6 @@ export class CoreMessageService {
       let encrypted = false
       let encryptionMetadata = null
 
-      // If the original message was encrypted, re-encrypt the edited content
       if (originalMessage.encrypted && originalMessage.encryption_metadata) {
         debug.log('Original message was encrypted - re-encrypting edited content')
         
@@ -576,7 +568,6 @@ export class CoreMessageService {
 
             debug.log(`Re-encrypting with Megolm for room ${roomId.substring(0, 8)}...`)
             
-            // Encrypt the new content with Megolm
             const encryptedData = await encryptionService.encryptMessage(newContent, roomId, recipientIds)
             finalContent = encryptedData.content
             encrypted = true
@@ -617,9 +608,6 @@ export class CoreMessageService {
     }
   }
 
-  /**
-   * Delete a message (soft delete, pure local)
-   */
   async deleteMessage(messageId: string): Promise<void> {
     try {
       const { error } = await supabase
@@ -639,25 +627,13 @@ export class CoreMessageService {
     }
   }
 
-  // REACTION MANAGEMENT (PURE LOCAL)
-
-  /**
-   * Toggle emoji reaction on a message (pure local database operation)
-   */
-  /**
-   * Check if a string is a valid UUID
-   * Uses permissive regex to handle Supabase-generated UUIDs which may not strictly follow RFC 4122
-   */
+  // Permissive regex: Supabase-generated UUIDs may not strictly follow RFC 4122.
   private isValidUUID(str: string): boolean {
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
     return uuidRegex.test(str)
   }
 
-  /**
-   * Toggle reaction on a message
-   * Uses AuthContextService for efficient auth lookup
-   * Supports both server emojis (UUID) and native Unicode emojis
-   */
+  // Supports both server emojis (UUID) and native Unicode emojis.
   async toggleReaction(
     messageId: string, 
     emojiId: string
@@ -724,7 +700,6 @@ export class CoreMessageService {
             debug.log('Core: Race condition detected in reaction toggle')
             
             // Double-check current state after race condition
-            // Double-check using the same query style as above
             let raceCheckQuery = supabase
               .from('reactions')
               .select('id')
@@ -761,9 +736,6 @@ export class CoreMessageService {
     }
   }
 
-  /**
-   * Get reactions for a message using optimized database function (pure local)
-   */
   async getMessageReactions(messageId: string): Promise<any[]> {
     try {
       debug.log(`Core: Fetching reactions for message: ${messageId}`)
@@ -808,10 +780,7 @@ export class CoreMessageService {
     }
   }
 
-  /**
-   * Get reactions for multiple messages using optimized database function (pure local)
-   * PERFORMANCE: Uses database function to eliminate N+1 query problem
-   */
+  // Uses a database function to avoid an N+1 query per message.
   async getBatchMessageReactions(messageIds: string[]): Promise<Record<string, any[]>> {
     try {
       if (messageIds.length === 0) {
@@ -819,8 +788,7 @@ export class CoreMessageService {
       }
 
       debug.log(`Core: Batch fetching reactions for ${messageIds.length} messages`)
-      
-      // Use the optimized database function
+
       const { data: reactions, error } = await supabase
         .rpc('get_batch_message_reactions', { message_ids: messageIds })
 
@@ -918,18 +886,12 @@ export class CoreMessageService {
     }
   }
 
-  // REACTIONS STORE INTEGRATION
-
-    /**
-   * This unifies CoreMessageService and ReactionsStore to work together
-   */
   private async populateReactionsStoreCache(reactionsByMessage: Record<string, any[]>): Promise<void> {
     try {
       // Dynamically import to avoid circular dependencies
       const { useReactionsStore } = await import('@/stores/useReactions')
       const reactionsStore = useReactionsStore()
       
-      // Use the store's bulk set method to populate cache
       reactionsStore.bulkSetReactions(reactionsByMessage)
       
       debug.log(`Core: Synced ${Object.keys(reactionsByMessage).length} message reactions to store cache`)
@@ -938,8 +900,6 @@ export class CoreMessageService {
       // Don't throw - this is not critical to core functionality
     }
   }
-
-  // MESSAGE LOADING (PURE LOCAL)
 
   /**
    * Load channel messages with pagination
@@ -983,7 +943,6 @@ export class CoreMessageService {
         // Remote channel detection: is_remote flag, else check the server row
         isRemoteChannel = channel?.is_remote === true
 
-        // Also check if the server is remote
         if (!isRemoteChannel && channel?.server_id) {
           const { data: server } = await supabase
             .from('servers')
@@ -1061,7 +1020,6 @@ export class CoreMessageService {
       // Reverse to get oldest-first for display (since query returns newest-first)
       const orderedMessages = messageList.reverse()
 
-      // Batch load reactions for all messages
       if (orderedMessages.length > 0) {
         const messageIds = orderedMessages.map(m => m.id)
         const reactionsByMessage = await this.getBatchMessageReactions(messageIds)
@@ -1086,9 +1044,6 @@ export class CoreMessageService {
     }
   }
 
-  /**
-   * Load messages from a remote (federated) channel via federation backend
-   */
   private async loadRemoteChannelMessages(
     channelId: string,
     options: {
@@ -1107,7 +1062,6 @@ export class CoreMessageService {
     if (localMessages.length > 0) {
       debug.log(`Using ${localMessages.length} locally-synced messages for remote channel (AP federation)`)
 
-      // Batch load reactions from local DB
       const messageIds = localMessages.map(m => m.id).filter(Boolean)
       if (messageIds.length > 0) {
         const reactionsByMessage = await this.getBatchMessageReactions(messageIds)
@@ -1120,7 +1074,6 @@ export class CoreMessageService {
       return localMessages
     }
 
-    // No local messages - fetch from remote server API
     try {
       const params = new URLSearchParams()
       params.append('limit', String(limit))
@@ -1152,7 +1105,6 @@ export class CoreMessageService {
 
       debug.log(`Fetched ${remoteMessages.length} messages from remote channel (source: ${data.source})`)
 
-      // Transform to our message format
       const messages = remoteMessages.map((msg: any) => ({
         id: msg.id,
         channel_id: channelId,
@@ -1165,10 +1117,8 @@ export class CoreMessageService {
         reactions: msg.reactions || [],
       }))
 
-      // Reverse to get oldest-first for display
       const orderedMessages = messages.reverse()
 
-      // Populate reactions store with data from response or local cache
       const messageIds = orderedMessages.map((m: Message) => m.id).filter((id: string) => id)
       
       if (messageIds.length > 0) {
@@ -1209,9 +1159,6 @@ export class CoreMessageService {
     }
   }
 
-  /**
-   * Load cached messages for a remote channel (fallback)
-   */
   private async loadCachedRemoteMessages(
     channelId: string,
     options: { limit?: number; before?: string } = {}
@@ -1243,20 +1190,16 @@ export class CoreMessageService {
    * Preserves custom emojis as images and converts common HTML to our format
    */
   private parseRemoteContent(content: string | any[]): any[] {
-    // If already in our format, return as-is
     if (Array.isArray(content)) {
       return content
     }
 
-    // If null/undefined, return empty
     if (!content) {
       debug.log('parseRemoteContent received null/undefined content')
       return [{ type: 'text', text: '' }]
     }
 
-    // If HTML string, convert to our format while preserving important elements
     if (typeof content === 'string') {
-      // Debug log if content has emojis
       if (content.includes('<img') || content.includes('emoji')) {
         debug.log('parseRemoteContent input (first 300 chars):', content.substring(0, 300))
       }
@@ -1264,19 +1207,12 @@ export class CoreMessageService {
       
       let processedContent = content
       
-      // Replace <br> with newlines
       processedContent = processedContent.replace(/<br\s*\/?>/gi, '\n')
       
-      // Replace <p> tags with newlines
       processedContent = processedContent.replace(/<\/p>\s*<p>/gi, '\n\n')
       processedContent = processedContent.replace(/<\/?p>/gi, '')
       
-      // Extract ALL img tags that look like emojis (any img with src and reasonable attributes)
-      // More permissive pattern to catch various emoji formats:
-      // - <img class="emoji" src="..." alt=":name:" />
-      // - <img src="..." title=":name:" />
-      // - <img alt=":name:" src="..." />
-      // - <img data-emoji="name" src="..." />
+      // Matches emoji img tags across formats (class="emoji", title/alt/data-emoji attrs).
       const imgRegex = /<img\s+([^>]*)>/gi
       
       processedContent = processedContent.replace(imgRegex, (match, attrs) => {
@@ -1307,14 +1243,12 @@ export class CoreMessageService {
         return emojiCode // Keep the :emoji_name: text for now
       })
       
-      // Strip remaining HTML tags
       const text = processedContent.replace(/<[^>]*>/g, '').trim()
       
       if (text.includes('[REMOTE_EMOJI:')) {
         // Split while keeping the delimiter
         const parts = text.split(/(\[REMOTE_EMOJI:[^\]]+\])/g)
         for (const part of parts) {
-          // Match: [REMOTE_EMOJI:name:url]
           const emojiMatch = part.match(/\[REMOTE_EMOJI:([^:]+):(.+)\]/)
           if (emojiMatch) {
             const emojiName = emojiMatch[1].replace(/:/g, '').trim()
@@ -1417,7 +1351,6 @@ export class CoreMessageService {
       // Reverse to get oldest-first for display (since query returns newest-first)
       const orderedMessages = messageList.reverse()
 
-      // Batch load reactions for all messages
       if (orderedMessages.length > 0) {
         const messageIds = orderedMessages.map(m => m.id)
         const reactionsByMessage = await this.getBatchMessageReactions(messageIds)
@@ -1442,9 +1375,6 @@ export class CoreMessageService {
     }
   }
 
-  /**
-   * Load a single message by ID (pure local)
-   */
   async loadMessage(messageId: string): Promise<Message | null> {
     try {
       debug.log(`Core: Loading message: ${messageId}`)
@@ -1471,12 +1401,6 @@ export class CoreMessageService {
     }
   }
 
-  // HELPER METHODS (PURE LOCAL)
-
-  /**
-   * Get current user's profile ID
-   * Uses centralized AuthContextService to avoid duplicate auth lookups
-   */
   private async getCurrentUserProfileId(): Promise<string> {
     try {
       return await authContextService.getCurrentProfileId()

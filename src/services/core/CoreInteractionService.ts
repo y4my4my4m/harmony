@@ -52,7 +52,6 @@ export interface PaginatedUsers {
 export class CoreInteractionService {
   private static instance: CoreInteractionService
   
-  // Security constants
   private readonly MAX_RELATIONSHIP_BATCH_SIZE = 100
   private readonly MAX_PAGINATION_LIMIT = 50
   
@@ -63,29 +62,20 @@ export class CoreInteractionService {
     return this.instance
   }
 
-  // FOLLOW MANAGEMENT (SECURE LOCAL OPERATIONS)
-
-  /**
-   * Follow/unfollow a user (pure local, secure)
-   */
   async toggleFollow(targetUserId: string): Promise<FollowResult> {
     try {
-      // Authentication verification via centralized service
       const profileId = await this.getCurrentUserProfileId()
 
-      // Input validation
       if (!targetUserId || typeof targetUserId !== 'string') {
         throw this.createError('INVALID_INPUT', 'Target user ID is required')
       }
 
-      // Self-follow prevention
       if (profileId === targetUserId) {
         throw this.createError('INVALID_ACTION', 'Cannot follow yourself')
       }
 
       debug.log(`Core: Toggling follow for user: ${targetUserId}`)
 
-      // Check current follow status
       const { data: existingFollow, error: followError } = await supabase
         .from('follows')
         .select('id, status')
@@ -110,7 +100,6 @@ export class CoreInteractionService {
       }
 
       if (existingFollow && existingFollow.status !== 'rejected') {
-        // Unfollow - secure deletion with ownership verification
         const { error } = await supabase
           .from('follows')
           .delete()
@@ -181,22 +170,16 @@ export class CoreInteractionService {
     }
   }
 
-  /**
-   * Accept a follow request (secure authorization)
-   */
   async acceptFollowRequest(followerUserId: string): Promise<void> {
     try {
-      // Authentication verification via centralized service
       const profileId = await this.getCurrentUserProfileId()
 
-      // Input validation
       if (!followerUserId || typeof followerUserId !== 'string') {
         throw this.createError('INVALID_INPUT', 'Follower user ID is required')
       }
 
       debug.log(`Core: Accepting follow request from: ${followerUserId}`)
 
-      // Secure update with authorization verification
       const { data, error } = await supabase
         .from('follows')
         .update({
@@ -221,15 +204,10 @@ export class CoreInteractionService {
     }
   }
 
-  /**
-   * Reject a follow request (secure authorization)
-   */
   async rejectFollowRequest(followerUserId: string): Promise<void> {
     try {
-      // Authentication verification via centralized service
       const profileId = await this.getCurrentUserProfileId()
 
-      // Input validation
       if (!followerUserId || typeof followerUserId !== 'string') {
         throw this.createError('INVALID_INPUT', 'Follower user ID is required')
       }
@@ -260,29 +238,20 @@ export class CoreInteractionService {
     }
   }
 
-  // BLOCK MANAGEMENT (SECURE OPERATIONS)
-
-  /**
-   * Block/unblock a user (secure with relationship cleanup)
-   */
   async toggleBlock(targetUserId: string): Promise<BlockResult> {
     try {
-      // Authentication verification via centralized service
       const profileId = await this.getCurrentUserProfileId()
 
-      // Input validation
       if (!targetUserId || typeof targetUserId !== 'string') {
         throw this.createError('INVALID_INPUT', 'Target user ID is required')
       }
 
-      // Self-block prevention
       if (profileId === targetUserId) {
         throw this.createError('INVALID_ACTION', 'Cannot block yourself')
       }
 
       debug.log(`Core: Toggling block for user: ${targetUserId}`)
 
-      // Check current block status
       const { data: existingBlock, error: blockError } = await supabase
         .from('user_blocks')
         .select('id')
@@ -295,7 +264,6 @@ export class CoreInteractionService {
       let blocked: boolean
 
       if (existingBlock) {
-        // Unblock - secure deletion with ownership verification
         const { error } = await supabase
           .from('user_blocks')
           .delete()
@@ -338,29 +306,20 @@ export class CoreInteractionService {
     }
   }
 
-  // MUTE MANAGEMENT (SECURE OPERATIONS)
-
-  /**
-   * Mute/unmute a user (pure local, affects notifications only)
-   */
   async toggleMute(targetUserId: string): Promise<MuteResult> {
     try {
-      // Authentication verification via centralized service
       const profileId = await this.getCurrentUserProfileId()
 
-      // Input validation
       if (!targetUserId || typeof targetUserId !== 'string') {
         throw this.createError('INVALID_INPUT', 'Target user ID is required')
       }
 
-      // Self-mute prevention
       if (profileId === targetUserId) {
         throw this.createError('INVALID_ACTION', 'Cannot mute yourself')
       }
 
       debug.log(`Core: Toggling mute for user: ${targetUserId}`)
 
-      // Check current mute status
       const { data: existingMute, error: muteError } = await supabase
         .from('user_mutes')
         .select('id')
@@ -373,7 +332,6 @@ export class CoreInteractionService {
       let muted: boolean
 
       if (existingMute) {
-        // Unmute - secure deletion with ownership verification
         const { error } = await supabase
           .from('user_mutes')
           .delete()
@@ -384,7 +342,6 @@ export class CoreInteractionService {
         muted = false
         debug.log(`Core: Successfully unmuted user: ${targetUserId}`)
       } else {
-        // Mute user with secure insertion
         const { error } = await supabase
           .from('user_mutes')
           .insert({
@@ -413,14 +370,8 @@ export class CoreInteractionService {
     }
   }
 
-  // RELATIONSHIP QUERIES (SECURE AGGREGATION)
-
-  /**
-   * Get user relationships with secure batch processing
-   */
   async getUserRelationships(targetUserIds: string[]): Promise<Record<string, UserRelationship>> {
     try {
-      // Authentication verification via centralized service
       let profileId: string
       try {
         profileId = await this.getCurrentUserProfileId()
@@ -428,7 +379,6 @@ export class CoreInteractionService {
         return {} // Not authenticated - return empty
       }
 
-      // Input validation and security limits
       if (!Array.isArray(targetUserIds) || targetUserIds.length === 0) {
         throw this.createError('INVALID_INPUT', 'Target user IDs array is required')
       }
@@ -437,7 +387,6 @@ export class CoreInteractionService {
         throw this.createError('BATCH_TOO_LARGE', `Cannot query more than ${this.MAX_RELATIONSHIP_BATCH_SIZE} relationships at once`)
       }
 
-      // Sanitize user IDs
       const sanitizedUserIds = targetUserIds.filter(id => id && typeof id === 'string')
       if (sanitizedUserIds.length === 0) {
         throw this.createError('INVALID_INPUT', 'No valid user IDs provided')
@@ -457,7 +406,6 @@ export class CoreInteractionService {
         }
       })
 
-      // Secure batch queries with error handling
       const [followingData, followersData, blocksData, mutesData] = await Promise.allSettled([
         supabase
           .from('follows')
@@ -518,19 +466,14 @@ export class CoreInteractionService {
     }
   }
 
-  /**
-   * Get follow requests with secure pagination
-   */
   async getFollowRequests(limit: number = 20, cursor?: string): Promise<{
     requests: FollowRequestUser[]
     hasMore: boolean
     nextCursor?: string
   }> {
     try {
-      // Authentication verification via centralized service
       const profileId = await this.getCurrentUserProfileId()
 
-      // Input validation and security limits
       const secureLimit = Math.min(Math.max(1, limit), this.MAX_PAGINATION_LIMIT)
 
       debug.log(`Core: Getting follow requests (limit: ${secureLimit})`)
@@ -596,12 +539,8 @@ export class CoreInteractionService {
     }
   }
 
-  /**
-   * Get followers with secure pagination
-   */
   async getFollowers(userId: string, limit: number = 20, cursor?: string): Promise<PaginatedUsers> {
     try {
-      // Input validation
       if (!userId || typeof userId !== 'string') {
         throw this.createError('INVALID_INPUT', 'User ID is required')
       }
@@ -665,12 +604,8 @@ export class CoreInteractionService {
     }
   }
 
-  /**
-   * Get following with secure pagination
-   */
   async getFollowing(userId: string, limit: number = 20, cursor?: string): Promise<PaginatedUsers> {
     try {
-      // Input validation
       if (!userId || typeof userId !== 'string') {
         throw this.createError('INVALID_INPUT', 'User ID is required')
       }
@@ -734,12 +669,6 @@ export class CoreInteractionService {
     }
   }
 
-  // SECURITY HELPER METHODS
-
-  /**
-   * Get current user's profile ID
-   * Uses centralized AuthContextService to avoid duplicate auth lookups
-   */
   private async getCurrentUserProfileId(): Promise<string> {
     try {
       return await authContextService.getCurrentProfileId()

@@ -9,9 +9,6 @@ import { getSupabaseClient } from '../config/supabase.js';
 import { PushNotificationService } from '../services/PushNotificationService.js';
 import { logger } from '../utils/logger.js';
 
-/**
- * Start listening for notifications and send push notifications
- */
 export async function startPushNotificationListener(): Promise<void> {
   if (!PushNotificationService.initialize()) {
     logger.warn('⚠️ Push notification listener not started (VAPID not configured)');

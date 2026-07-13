@@ -12,7 +12,6 @@
         </div>
 
         <div class="modal-body">
-          <!-- Target info -->
           <div v-if="targetUser" class="target-info">
             <Avatar :src="targetUser.avatar_url" :alt="targetUser.username" size="sm" class="target-avatar" />
             <div>
@@ -28,19 +27,16 @@
             </div>
           </div>
 
-          <!-- Proof: message preview -->
           <div v-if="reportType === 'message' && targetMessagePreview" class="proof-section">
             <label>Reported message</label>
             <blockquote class="proof-quote">{{ targetMessagePreview }}</blockquote>
           </div>
 
-          <!-- Proof: post preview -->
           <div v-if="reportType === 'post' && targetPostPreview" class="proof-section">
             <label>Reported post</label>
             <blockquote class="proof-quote">{{ targetPostPreview }}</blockquote>
           </div>
 
-          <!-- Reason selection -->
           <div class="form-group">
             <label>Why are you reporting this?</label>
             <div class="reason-options">
@@ -60,7 +56,6 @@
             </div>
           </div>
 
-          <!-- Additional comment -->
           <div class="form-group">
             <label>Additional details (optional)</label>
             <textarea
@@ -84,7 +79,6 @@
           </button>
         </div>
 
-        <!-- Success state -->
         <div v-if="submitted" class="success-overlay">
           <div class="success-content">
             <span class="success-icon">✓</span>
@@ -167,7 +161,6 @@ const submitReport = async () => {
       submitted.value = true
     }
   } catch {
-    // error handled by service
   } finally {
     isSubmitting.value = false
   }

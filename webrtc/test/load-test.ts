@@ -1,45 +1,21 @@
 /**
- * LiveKit Load Testing Script
- * 
- * Tests the LiveKit server with simulated participants.
- * Useful for stress testing before production deployment.
- * 
- * Usage:
- *   npx tsx test/load-test.ts
- * 
- * Requirements:
- *   - LiveKit server running (docker-compose up)
- *   - Node.js 18+
+ * LiveKit load test: simulates publishers/subscribers against a running server.
+ * Usage: npx tsx test/load-test.ts (requires `docker-compose up` LiveKit server)
  */
 
 import { Room, RoomEvent, createLocalAudioTrack } from 'livekit-client';
 import { AccessToken } from 'livekit-server-sdk';
 
-// =============================================================================
-// CONFIGURATION
-// =============================================================================
-
 const config = {
-  // LiveKit server URL
   wsUrl: process.env.LIVEKIT_URL || 'ws://localhost:7880',
-  
-  // API credentials
   apiKey: process.env.LIVEKIT_API_KEY || 'devkey',
   apiSecret: process.env.LIVEKIT_API_SECRET || 'secret',
-  
-  // Test parameters
   roomName: process.env.ROOM_NAME || 'load-test-room',
   numPublishers: parseInt(process.env.NUM_PUBLISHERS || '5'),
   numSubscribers: parseInt(process.env.NUM_SUBSCRIBERS || '20'),
   testDurationMs: parseInt(process.env.TEST_DURATION_MS || '60000'),
-  
-  // Metrics
   metricsIntervalMs: 5000,
 };
-
-// =============================================================================
-// TYPES
-// =============================================================================
 
 interface Metrics {
   connectedParticipants: number;
@@ -51,32 +27,22 @@ interface Metrics {
   connectTimes: number[];
 }
 
-// =============================================================================
-// HELPERS
-// =============================================================================
-
-/**
- * Generate a room token
- */
 async function generateToken(identity: string, canPublish: boolean): Promise<string> {
   const at = new AccessToken(config.apiKey, config.apiSecret, {
     identity,
     ttl: '1h',
   });
-  
+
   at.addGrant({
     roomJoin: true,
     room: config.roomName,
     canPublish,
     canSubscribe: true,
   });
-  
+
   return at.toJwt();
 }
 
-/**
- * Create a simulated participant
- */
 async function createParticipant(
   identity: string,
   canPublish: boolean,
@@ -110,7 +76,6 @@ async function createParticipant(
       
       if (canPublish) {
         try {
-          // Create a silent audio track (simulated)
           const audioTrack = await createLocalAudioTrack({
             noiseSuppression: true,
             echoCancellation: true,
@@ -146,9 +111,6 @@ async function createParticipant(
   });
 }
 
-/**
- * Print current metrics
- */
 function printMetrics(metrics: Metrics): void {
   const avgConnectTime = metrics.connectTimes.length > 0
     ? metrics.connectTimes.reduce((a, b) => a + b, 0) / metrics.connectTimes.length
@@ -163,10 +125,6 @@ function printMetrics(metrics: Metrics): void {
   console.log(`   Avg Connect Time: ${avgConnectTime.toFixed(0)}ms`);
   console.log('');
 }
-
-// =============================================================================
-// MAIN
-// =============================================================================
 
 async function main(): Promise<void> {
   console.log('🚀 LiveKit Load Test');
@@ -189,56 +147,48 @@ async function main(): Promise<void> {
   };
   
   const rooms: Room[] = [];
-  
-  // Start metrics reporting
+
   const metricsInterval = setInterval(() => {
     printMetrics(metrics);
   }, config.metricsIntervalMs);
-  
+
   try {
-    // Create publishers
     console.log('📤 Creating publishers...');
     for (let i = 0; i < config.numPublishers; i++) {
       try {
         const room = await createParticipant(`publisher-${i}`, true, metrics);
         rooms.push(room);
-        
-        // Stagger connections slightly
+
         await new Promise(resolve => setTimeout(resolve, 100));
       } catch (error) {
         console.error(`Failed to create publisher ${i}`);
       }
     }
-    
-    // Create subscribers
+
     console.log('📥 Creating subscribers...');
     for (let i = 0; i < config.numSubscribers; i++) {
       try {
         const room = await createParticipant(`subscriber-${i}`, false, metrics);
         rooms.push(room);
-        
-        // Stagger connections
+
         await new Promise(resolve => setTimeout(resolve, 50));
       } catch (error) {
         console.error(`Failed to create subscriber ${i}`);
       }
     }
-    
+
     console.log('\n✅ All participants connected. Running test...\n');
-    
-    // Wait for test duration
+
     await new Promise(resolve => setTimeout(resolve, config.testDurationMs));
-    
+
   } finally {
     clearInterval(metricsInterval);
-    
-    // Disconnect all participants
+
     console.log('\n👋 Disconnecting participants...');
     for (const room of rooms) {
       await room.disconnect();
     }
-    
-    // Final metrics
+
     console.log('\n📊 Final Results:');
     console.log('=================');
     printMetrics(metrics);

@@ -18,13 +18,11 @@ export function invalidateBannerCache(): void {
  */
 export function getBannerUrl(bannerUrl?: string | null, options?: { width?: number; height?: number; quality?: number }): string | null {
   if (!bannerUrl) return null
-  
-  // If it's already a full URL (external), return as-is
+
   if (bannerUrl.startsWith('http')) {
     return bannerUrl
   }
-  
-  // If it's a storage path, get the public URL with optional optimization
+
   return getPublicBannerUrl(bannerUrl, options)
 }
 
@@ -58,21 +56,18 @@ export function getPublicBannerUrl(storagePath: string, _options?: { width?: num
  */
 export function normalizeBannerForStorage(bannerUrl?: string | null): string | null {
   if (!bannerUrl) return null
-  
-  // If it's a signed URL from our storage, extract the path
+
   if (bannerUrl.includes('/storage/v1/object/sign/banners/')) {
     const pathMatch = bannerUrl.match(/\/storage\/v1\/object\/sign\/banners\/([^?]+)/)
     if (pathMatch) {
       return pathMatch[1]
     }
   }
-  
-  // If it's a direct storage path, return as-is
+
   if (!bannerUrl.startsWith('http')) {
     return bannerUrl
   }
-  
-  // External URL, return as-is
+
   return bannerUrl
 }
 

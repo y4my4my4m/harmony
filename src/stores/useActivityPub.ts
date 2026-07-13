@@ -3457,7 +3457,6 @@ export const useActivityPubStore = defineStore('activitypub', {
      /**
       * Cleanup store - clean and simple
       */
-     // CONVERSATION MANAGEMENT
 
      /**
       * Get conversation context for a post

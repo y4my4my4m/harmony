@@ -317,10 +317,3 @@ yay -S k6
 brew install k6
 ```
 
-## Next Steps
-
-1. Test with real users in staging
-2. Configure monitoring/alerting
-3. Set up regional deployment if needed
-4. Document your specific load limits
-

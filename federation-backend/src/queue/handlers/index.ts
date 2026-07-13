@@ -1,9 +1,3 @@
-/**
- * Job Handlers Index
- * 
- * Export all federation job handlers
- */
-
 export { handlePostJob } from './postHandler.js';
 export { handleReactionJob } from './reactionHandler.js';
 export { handleFollowJob } from './followHandler.js';

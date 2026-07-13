@@ -5,9 +5,7 @@ import { logger } from '../utils/logger.js';
 import { safeFetch } from '../utils/ssrfProtection.js';
 
 // In-memory LRU of raw PEM strings keyed by actorUrl, in front of fetchActorPublicKey's
-// DB caches - avoids a DB roundtrip per inbound signature verify (N per federation
-// event with N inbox deliveries). TTL 1h matches ap_actor_cache.cache_expires_at
-// so invalidation semantics stay consistent.
+// DB caches. TTL 1h matches ap_actor_cache.cache_expires_at.
 interface CachedKey {
   pem: string;
   expiresAt: number;
@@ -178,14 +176,13 @@ export class SignatureService {
     
     const signingString = signingParts.join('\n');
 
-    // Sign the string
     const sign = crypto.createSign('SHA256');
     sign.update(signingString);
     sign.end();
 
     const signature = sign.sign(privateKey, 'base64');
 
-    // Create signature header (must include (request-target) for Misskey)
+    // Must include (request-target) for Misskey
     const keyId = `https://${user.domain}/users/${user.username}#main-key`;
     const signatureHeader = [
       `keyId="${keyId}"`,
@@ -201,17 +198,6 @@ export class SignatureService {
     return { headers, digest };
   }
 
-  /**
-   * Verify an incoming HTTP signature
-   * 
-   * Security model:
-   * 1. Parse signature header to get keyId, signed headers, and signature
-   * 2. Extract actor URL from keyId (e.g., https://remote.server/users/alice#main-key -> https://remote.server/users/alice)
-   * 3. Fetch actor's public key from their server (over HTTPS)
-   * 4. Rebuild the signing string from the signed headers
-   * 5. Verify the signature matches using the public key
-   * 6. Optionally verify the Digest header matches the body hash
-   */
   /**
    * Parse a Signature header (draft-cavage / RFC 9421 legacy form) into its
    * parameters. Quoted values may legally contain commas and `=` (keyId is a
@@ -303,12 +289,10 @@ export class SignatureService {
         if (headerName === '(request-target)') {
           signingParts.push(`(request-target): ${requestTarget}`);
         } else {
-          // Try both lowercase and capitalized versions
-          // Express normalizes headers to lowercase
+          // Express normalizes headers to lowercase; try both forms.
           const value = headers[headerName.toLowerCase()] || headers[headerName];
           if (value) {
-            // Use the lowercase header name as per HTTP Signature spec
-            // The signing string should use lowercase header names
+            // Signing string uses lowercase header names per HTTP Signature spec.
             signingParts.push(`${headerName.toLowerCase()}: ${value}`);
           } else {
             logger.warn(`Missing header in signature verification: ${headerName}`);
@@ -324,21 +308,18 @@ export class SignatureService {
 
       const verified = verify.verify(publicKey, sig, 'base64');
 
-      // If verification failed, try refreshing the public key and retry ONCE
-      // This handles cases where the remote user regenerated their keys
+      // Verification failure may mean the remote user regenerated their keys; retry once with a fresh fetch.
       if (!verified) {
         logger.info(`⚠️ Signature verification failed for ${actorUrl}, attempting key refresh...`);
         logger.debug(`Signed headers: ${signedHeaders}`);
         logger.debug(`Signing string:\n${signingString}`);
         logger.debug(`Public key (first 100 chars): ${publicKey.substring(0, 100)}...`);
         
-        // Try fetching a fresh public key from the remote server
         const freshPublicKey = await this.fetchActorPublicKey(actorUrl, true);
-        
+
         if (freshPublicKey && freshPublicKey !== publicKey) {
           logger.info(`🔑 Got different public key for ${actorUrl}, retrying verification...`);
-          
-          // Retry verification with fresh key
+
           const retryVerify = crypto.createVerify('SHA256');
           retryVerify.update(signingString);
           retryVerify.end();
@@ -440,18 +421,17 @@ export class SignatureService {
    */
   private static async fetchActorPublicKey(actorUrl: string, forceRefresh = false): Promise<string | null> {
     const supabase = getSupabaseClient();
-    
-    // Declare cachedActor outside the if block so it's in scope for fallback logic
+
+    // Kept in scope for fetch-failure fallback below.
     let cachedActorData: any = null;
-    
+
     if (!forceRefresh) {
-      // 0. In-memory LRU. Skips two DB roundtrips per verify on warm cache.
+      // In-memory LRU. Skips two DB roundtrips per verify on warm cache.
       const memHit = getCachedPublicKey(actorUrl);
       if (memHit) {
         return memHit;
       }
-      
-      // First, check if we have this actor in our profiles table
+
       const { data: profile } = await supabase
         .from('profiles')
         .select('public_key')
@@ -464,7 +444,7 @@ export class SignatureService {
         return profile.public_key;
       }
       
-      // Second, check actor cache table (also check expired cache for fallback)
+      // Actor cache table; also check expired entries for fallback.
       const { data: cachedActor } = await supabase
         .from('ap_actor_cache')
         .select('actor_data, cache_expires_at')
@@ -488,10 +468,7 @@ export class SignatureService {
       invalidatePublicKey(actorUrl);
     }
     
-    // Finally, fetch from remote server.
-    // safeFetch handles URL+DNS validation, manual redirect re-validation,
-    // and the 10s timeout - supersedes the previous `validateExternalUrl` +
-    // raw fetch + `AbortSignal.timeout` pattern. BUGS.md H15.
+    // safeFetch handles URL+DNS validation, redirect re-validation, and timeout. BUGS.md H15.
     try {
       const response = await safeFetch(actorUrl, {
         headers: {
@@ -532,8 +509,7 @@ export class SignatureService {
         } catch (profileError) {
           logger.debug('Failed to update profile public key:', profileError);
         }
-        
-        // Cache the actor data for future use
+
         try {
           const actorUrlObj = new URL(actorUrl);
           await supabase
@@ -619,9 +595,6 @@ export class SignatureService {
     });
   }
 
-  /**
-   * Create digest header for request body
-   */
   static createDigest(body: any): string {
     // Accept Buffer (raw bytes), string, or object
     const data = Buffer.isBuffer(body) ? body

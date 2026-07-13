@@ -24,8 +24,6 @@ export class FederationDecisionService {
     return this.instance
   }
 
-  // REACTION FEDERATION DECISIONS (LOCAL-FIRST)
-
   /**
    * Decide if a reaction should be federated (clean local-first logic)
    */
@@ -123,7 +121,6 @@ export class FederationDecisionService {
     }
   }
 
-  // POST FEDERATION DECISIONS
 
   /**
    * Decide if a post should be federated
@@ -190,7 +187,6 @@ export class FederationDecisionService {
     }
   }
 
-  // FOLLOW FEDERATION DECISIONS
 
   /**
    * Decide if a follow should be federated
@@ -249,7 +245,6 @@ export class FederationDecisionService {
     }
   }
 
-  // PROFILE UPDATE FEDERATION DECISIONS
 
   /**
    * Decide if a profile update should be federated
@@ -298,8 +293,6 @@ export class FederationDecisionService {
       }
     }
   }
-
-  // HELPER METHODS (CLEAN DECISION LOGIC)
 
   /**
    * Check if federation is enabled for a specific user

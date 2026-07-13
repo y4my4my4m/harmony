@@ -113,7 +113,6 @@ export class RouteAwareInitialization {
       }
     }
 
-    // Default/fallback strategy (conservative approach)
     debug.log('RouteAwareInitialization: Unknown route, using conservative loading strategy')
     return {
       shouldLoadDMs: false,

@@ -15,9 +15,6 @@ export interface PushNotificationJobData {
   data: Record<string, any>;
 }
 
-/**
- * Handle push notification job
- */
 export async function handlePushNotificationJob(data: PushNotificationJobData): Promise<void> {
   const { notification_id, user_id, type, data: notificationData } = data;
   

@@ -247,20 +247,12 @@ const INSTANCE_DESCRIPTION_ALLOWED_ATTRS = ['href', 'rel', 'target'];
 
 function sanitizeHtml(raw: string): string {
   if (!raw) return 'No description available';
-  // Hand off to DOMPurify with a narrow allowlist. The previous hand-rolled
-  // walker inlined attribute values into a template string without escaping
-  // (` ${attr.name}="${attr.value}"`), so a federated server could break
-  // out of any attribute by including an unescaped `"` in e.g. a
-  // `title` value. DOMPurify handles attribute escaping internally.
   return DOMPurify.sanitize(raw, {
     ALLOWED_TAGS: INSTANCE_DESCRIPTION_ALLOWED_TAGS,
     ALLOWED_ATTR: INSTANCE_DESCRIPTION_ALLOWED_ATTRS,
     ALLOW_DATA_ATTR: false,
     ADD_ATTR: ['target', 'rel'],
-    // Restrict href schemes - DOMPurify's default allows quite a few
-    // (tel:, mailto:, callto:, sms:, etc). For instance descriptions we
-    // only want http(s) links since this is shown in an admin / discovery
-    // context.
+    // restrict to http(s) links only
     ALLOWED_URI_REGEXP: /^https?:/i,
   });
 }

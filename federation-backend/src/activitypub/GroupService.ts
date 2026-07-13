@@ -68,13 +68,11 @@ function serverToGroup(
     members: `${serverUrl}/members`,
     followers: `${serverUrl}/followers`,
     
-    // Server owner
     attributedTo: ownerApId,
-    
+
     published: server.created_at,
     updated: server.updated_at || server.created_at,
-    
-    // Member count for discovery
+
     'harmony:memberCount': memberCount,
     
     // Icon - omit default so remote instances use their own fallback
@@ -89,7 +87,6 @@ function serverToGroup(
       return url ? { type: 'Image', url } : undefined;
     })(),
     
-    // Harmony extension: Channel structure
     'harmony:channels': channels.map(c => {
       let channelType: string;
       if (c.type === CHANNEL_TYPE_CATEGORY) {
@@ -111,15 +108,13 @@ function serverToGroup(
         category: c.category ? `${serverUrl}/channels/${c.category}` : null,
         categoryId: c.category,
         description: c.description || undefined,
-        channelType, // 'text', 'voice', or 'category'
+        channelType,
       };
     }),
-    
-    // Discoverability and federation settings
+
     discoverable: server.public === true,
     manuallyApprovesFollowers: false, // Auto-accept joins for public servers
-    
-    // Public key for verification
+
     publicKey: server.public_key ? {
       id: `${serverUrl}#main-key`,
       owner: serverUrl,
@@ -207,8 +202,6 @@ router.get(
     );
 
     res.setHeader('Content-Type', 'application/activity+json');
-    // Server info (name, channels, member count) - cache for 60 seconds
-    // Balances freshness with efficiency for federated discovery
     res.setHeader('Cache-Control', 'public, max-age=60');
     res.json(group);
   })
@@ -268,13 +261,10 @@ router.get(
       type: channelType,
       name: channel.name,
       summary: channel.description || undefined,
-      // The server this channel belongs to
       context: serverUrl,
       attributedTo: serverUrl,
-      // Channel metadata
       position: channel.order || 0,
       published: channel.created_at,
-      // Collection of messages in this channel
       replies: `${channelUrl}/messages`,
     });
   })
@@ -311,8 +301,7 @@ router.get(
         .eq('is_deleted', false);
 
       res.setHeader('Content-Type', 'application/activity+json');
-      // Short cache for message collection metadata - real-time messages are PUSHED
-      // This cache helps when many instances backfill simultaneously
+      // Short cache: messages are pushed in real-time, this covers backfill
       res.setHeader('Cache-Control', 'public, max-age=10');
       return res.json({
         '@context': 'https://www.w3.org/ns/activitystreams',
@@ -358,8 +347,7 @@ router.get(
     });
 
     res.setHeader('Content-Type', 'application/activity+json');
-    // Short cache for message pages - balances near-real-time feel with efficiency
-    // Real-time messages are PUSHED, this is for backfill/sync
+    // Short cache: messages are pushed in real-time, this covers backfill/sync
     res.setHeader('Cache-Control', 'public, max-age=10');
     res.json({
       '@context': 'https://www.w3.org/ns/activitystreams',
@@ -380,7 +368,6 @@ router.get(
 router.get(
   '/servers/:serverId/channels/:channelId/outbox',
   asyncHandler(async (req: Request, res: Response) => {
-    // Redirect to messages endpoint
     const { serverId, channelId } = req.params;
     const page = req.query.page;
     const hostDomain = config.INSTANCE_DOMAIN;
@@ -421,7 +408,6 @@ router.get(
       });
     }
 
-    // Paginated member list
     const limit = 50;
     const offset = (page - 1) * limit;
 
@@ -628,10 +614,9 @@ router.post(
       }
     }
 
-    // Store + claim for idempotency, same machinery as the user inbox: a
-    // redelivered activity must not run its side effects twice. Activities
-    // that can't be stored (missing id, ap_type outside the DB constraint)
-    // are processed without a claim rather than dropped.
+    // Store + claim for idempotency (same machinery as user inbox), so a
+    // redelivered activity can't run its side effects twice. Activities that
+    // can't be stored (missing id, ap_type outside DB constraint) process without a claim.
     const supabase = getSupabaseClient();
     let claimedForProcessing = false;
     if (typeof activity.id === 'string' && activity.id) {

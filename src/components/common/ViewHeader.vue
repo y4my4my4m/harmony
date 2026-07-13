@@ -34,7 +34,6 @@ defineEmits<{
   'clear-all': []
 }>()
 
-// Helper functions
 const getViewIcon = (viewType: string) => {
   switch (viewType) {
     case 'explore':

@@ -53,12 +53,10 @@ export function decodeHtmlEntities(text: string): string {
  * @returns HTML string for ActivityPub
  */
 export function convertContentToHTML(content: any): string {
-  // Plain string
   if (typeof content === 'string') {
     return escapeHtml(content);
   }
-  
-  // Array of content parts
+
   if (Array.isArray(content)) {
     return content.map(part => {
       switch (part.type) {
@@ -119,7 +117,6 @@ export function convertContentToHTML(content: any): string {
     }).join('');
   }
   
-  // Object with text property (simple format)
   if (content?.text) {
     return escapeHtml(content.text);
   }
@@ -156,7 +153,6 @@ export function extractActivityPubTags(content: any): any[] {
         name: `#${part.tag}`
       });
     } else if (part.type === 'emoji' && part.emoji && typeof part.emoji === 'object') {
-      // Add custom emoji as ActivityPub Emoji tag
       const emoji = part.emoji;
       if (emoji.url && (emoji.name || emoji.display_name)) {
         const emojiName = emoji.name || emoji.display_name;

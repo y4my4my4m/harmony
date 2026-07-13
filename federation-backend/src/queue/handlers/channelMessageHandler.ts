@@ -12,9 +12,6 @@ import { handleNewChannelMessage, enrichMessageLinkPreviews } from '../../listen
 import { logger } from '../../utils/logger.js';
 import type { FederationJobData } from '../BullMQManager.js';
 
-/**
- * Handle new channel message federation
- */
 export async function handleChannelMessageJob(data: FederationJobData): Promise<void> {
   const supabase = getSupabaseClient();
   const { type, message_id } = data;
@@ -34,9 +31,7 @@ export async function handleChannelMessageJob(data: FederationJobData): Promise<
       return;
     }
 
-    // Enrich link previews FIRST, for every message. The federated
-    // early-return below also matches bridged (Discord) messages, which used
-    // to skip enrichment entirely and render bare links.
+    // Enrich before the federated-check below, since bridged (Discord) messages also match it.
     try {
       await enrichMessageLinkPreviews(message);
     } catch (err) {
@@ -51,8 +46,6 @@ export async function handleChannelMessageJob(data: FederationJobData): Promise<
 
     await updateFederationStatus(message_id, 'messages', 'processing');
 
-    // Use the existing handleNewChannelMessage function from DatabaseListener
-    // It handles federation to remote server members
     await handleNewChannelMessage(message);
 
     // Check what the inner handler set - it may have skipped federation
@@ -78,9 +71,6 @@ export async function handleChannelMessageJob(data: FederationJobData): Promise<
   }
 }
 
-/**
- * Handle channel message edit federation
- */
 export async function handleChannelMessageEditJob(data: FederationJobData): Promise<void> {
   const supabase = getSupabaseClient();
   const { message_id } = data;
@@ -128,9 +118,6 @@ export async function handleChannelMessageEditJob(data: FederationJobData): Prom
   }
 }
 
-/**
- * Handle channel message delete federation
- */
 export async function handleChannelMessageDeleteJob(data: FederationJobData): Promise<void> {
   const supabase = getSupabaseClient();
   const { message_id, channel_id, ap_id } = data;

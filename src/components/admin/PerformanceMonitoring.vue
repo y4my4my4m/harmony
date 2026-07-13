@@ -256,7 +256,6 @@ onUnmounted(() => {
   document.removeEventListener('fullscreenchange', handleFullscreenChange)
 })
 
-// Metrics data
 const metrics = ref({
   totalRequests: 0,
   requestsTrend: 0,

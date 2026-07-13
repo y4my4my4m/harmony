@@ -324,7 +324,6 @@ const toast = useToast()
 const voiceStore = useUnifiedVoiceChannelStore()
 const authStore = useAuthStore()
 
-// Caller ringing state
 let callerRingtoneInterval: ReturnType<typeof setInterval> | null = null
 let callerRingtoneCap: ReturnType<typeof setTimeout> | null = null
 const CALLER_RING_MAX_MS = 45000
@@ -384,7 +383,6 @@ const emit = defineEmits<{
   'incoming-call': [payload: { callerId: string, callType: 'voice' | 'video', conversationId: string }]
 }>()
 
-// Voice/Video Call State - synced with voice store
 const isInVoiceCall = computed(() => voiceStore.isConnected && (voiceStore.currentChannelId?.startsWith('dm-') || voiceStore.currentChannelId?.startsWith('federated-dm-')))
 const isInVideoCall = computed(() => voiceStore.localState.isVideoEnabled)
 
@@ -398,8 +396,7 @@ const hasActiveCallNotJoined = computed(() => {
   return hasActiveCall && !isUserInCall
 })
 
-// Use clean status system
-const { 
+const {
   getUserDisplayName,
   subscribeToProfilePresence,
   unsubscribeFromProfilePresence,
@@ -412,15 +409,12 @@ const presenceInitialized = ref(false)
 const showEncryptionSetupModal = ref(false)
 const optionsMenuRef = ref<HTMLElement>()
 
-// Group chat state
 const showGroupSettings = ref(false)
 
-// Encryption state
 const encryptionEnabled = ref(false)
 const encryptionLoading = ref(false)
 const userHasEncryption = ref(false)
 
-// Conversation mute state
 const isConversationMuted = ref(false)
 
 const canToggleEncryption = computed(() => userHasEncryption.value && !encryptionLoading.value)
@@ -467,7 +461,6 @@ async function toggleEncryption() {
   
   const newState = !encryptionEnabled.value
 
-  // Warn about federated users when enabling encryption
   if (newState && isFederatedUser.value) {
     const confirmed = await confirm({
       title: 'Enable encryption',
@@ -484,8 +477,7 @@ async function toggleEncryption() {
   encryptionLoading.value = true
   try {
     debug.log('Setting encryption to:', newState)
-    
-    // Upsert the setting
+
     const { error } = await supabase
       .from('conversation_encryption_settings')
       .upsert({
@@ -521,7 +513,6 @@ function handleGroupUpdated() {
   emit('group-updated')
 }
 
-// Professional presence management for DM header
 // Always ensure the conversation partner is tracked for presence
 let profileContextId: string | null = null
 

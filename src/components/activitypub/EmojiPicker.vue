@@ -4,7 +4,6 @@
       <div class="emoji-picker-header">
         <h3>Choose a reaction</h3>
         <div class="header-actions">
-          <!-- Pack Switcher -->
           <div class="pack-switcher">
             <button 
               class="pack-btn"
@@ -44,14 +43,12 @@
       </div>
       
       <div class="emoji-picker-content">
-        <!-- Loading state -->
         <div v-if="isLoading" class="emoji-loading">
           <LoadingSpinner :size="20" />
           <span>Loading emojis...</span>
         </div>
 
         <template v-else>
-          <!-- Frequently used emojis (personalized) -->
           <div v-if="hasFrequentEmojis" class="quick-reactions frequent-section">
             <div class="quick-reactions-title">Frequently used</div>
             <div class="quick-reactions-grid">
@@ -74,7 +71,6 @@
             </div>
           </div>
           
-          <!-- Quick reaction emojis (common ones) -->
           <div class="quick-reactions">
             <div class="quick-reactions-title">Quick reactions</div>
             <div class="quick-reactions-grid">
@@ -97,7 +93,6 @@
             </div>
           </div>
           
-          <!-- Emoji categories -->
           <div class="emoji-categories">
             <div class="category-tabs">
               <button
@@ -137,7 +132,6 @@
         </template>
       </div>
 
-      <!-- Emoji preview bar -->
       <div class="emoji-preview-bar">
         <span v-if="hoveredEmojiName" class="emoji-preview-name">:{{ hoveredEmojiName }}:</span>
       </div>
@@ -208,7 +202,6 @@ const displayedCategories = computed(() => {
   return EMOJI_CATEGORIES;
 });
 
-// Get emojis for current category with SVG URLs resolved
 const currentCategoryEmojis = computed((): DisplayEmoji[] => {
   const emojis = getEmojisByCategory(selectedCategory.value);
   return emojis.map(emoji => ({
@@ -219,7 +212,6 @@ const currentCategoryEmojis = computed((): DisplayEmoji[] => {
   }));
 });
 
-// Quick reaction emojis with SVG URLs
 const quickReactionEmojis = computed((): DisplayEmoji[] => {
   return QUICK_REACTION_EMOJIS.map(qe => ({
     unicode: qe.unicode,
@@ -229,7 +221,6 @@ const quickReactionEmojis = computed((): DisplayEmoji[] => {
   }));
 });
 
-// Frequent emojis with SVG URLs
 const frequentEmojiItems = computed((): DisplayEmoji[] => {
   return topEmojisForPicker.value.map(e => {
     const unicode = e.native || e.name;
@@ -258,17 +249,14 @@ function getEmojiSvgUrl(emoji: EmojiEntry): string | undefined {
   return undefined;
 }
 
-// Switch pack
 function switchPack(packId: EmojiPack) {
   setEmojiPack(packId);
   showPackMenu.value = false;
 }
 
-// Select emoji
 function selectEmoji(emoji: DisplayEmoji) {
   triggerReaction();
-  
-  // Record usage for frequently used emojis
+
   recordEmojiUsage({
     native: emoji.unicode,
     name: emoji.name

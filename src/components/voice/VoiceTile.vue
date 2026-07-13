@@ -207,10 +207,8 @@ const handleContextMenu = (event: MouseEvent) => {
   showContextMenu.value = true;
 };
 
-// VIDEO ATTACHMENT
 // Uses LiveKit's track.attach() (via the store) so adaptive streaming keeps
 // working; srcObject is only a fallback for the P2P transport.
-
 let isAttached = false;
 let retryCount = 0;
 let retryTimer: ReturnType<typeof setTimeout> | null = null;

@@ -147,7 +147,6 @@ watch(() => props.server.banner, (bannerPath) => {
   img.src = transformed
 }, { immediate: true })
 
-// Local state to track if we're loading owner data
 const loadingOwnerData = ref(false)
 
 onMounted(async () => {
@@ -155,7 +154,7 @@ onMounted(async () => {
     debug.log('ServerCard: Owner not in cache, fetching from database...')
     loadingOwnerData.value = true
     try {
-      await fetchUserProfile(props.server.owner, true) // Force refresh
+      await fetchUserProfile(props.server.owner, true)
       debug.log('ServerCard: Owner profile fetched successfully')
     } catch (error) {
       debug.error('ServerCard: Failed to fetch owner profile:', error)

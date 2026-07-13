@@ -234,7 +234,6 @@ const MESSAGE_TEMPLATES = {
     shortTitle: (_data: any) => `New emoji`
   },
 
-  // ActivityPub notification templates
   activitypub_follow: {
     title: (data: any) => {
       const displayName = data.follower.display_name || data.follower.username
@@ -399,14 +398,10 @@ const MESSAGE_TEMPLATES = {
 } as const
 
 export class NotificationFormatter {
-  /**
-   * Format a notification into user-facing messages
-   */
   static formatNotification(notification: Notification): NotificationMessage {
     const template = MESSAGE_TEMPLATES[notification.type as keyof typeof MESSAGE_TEMPLATES]
-    
+
     if (!template) {
-      // Fallback for unknown notification types
       return {
         title: 'New notification',
         message: 'You have a new notification',
@@ -506,24 +501,17 @@ export class NotificationFormatter {
     return { actorUserId, titleSuffix: suffix }
   }
 
-  /**
-   * Get a short preview text for the notification
-   */
   static getPreviewText(notification: Notification): string {
     const formatted = this.formatNotification(notification)
     return formatted.message
   }
   
-  /**
-   * Get username from notification data (includes domain for remote users)
-   * Handles both structured format (sender object) and legacy format
-   */
+  /** Includes domain for remote users; handles both structured (sender object) and legacy data formats */
   static getUsername(notification: Notification): string {
     const data = notification.data
-    
+
     // For ActivityPub notifications, prioritize the handle (includes domain)
     if (notification.type.startsWith('activitypub_')) {
-      // Check sender first (for reactions)
       if (data.sender?.handle) return data.sender.handle
       if (data.follower?.handle) return data.follower.handle
       if (data.actor?.handle) return data.actor.handle
@@ -551,12 +539,10 @@ export class NotificationFormatter {
       return displayName || 'Unknown'
     }
     
-    // Legacy format fallbacks
     if (data.sender_username || data.sender_display_name) {
       return data.sender_display_name || data.sender_username || 'Unknown'
     }
-    
-    // Other notification types
+
     if (data.reactor) {
       return data.reactor.display_name || data.reactor.username || 'Unknown'
     }
@@ -576,17 +562,12 @@ export class NotificationFormatter {
     return 'Unknown'
   }
   
-  /**
-   * Get avatar URL from notification data
-   * Handles both structured format (sender object) and legacy format
-   */
+  /** Handles both structured (sender object) and legacy data formats */
   static getAvatarUrl(notification: Notification): string {
     const data = notification.data
-    
-    // Prioritize structured sender object
+
     let avatar = data.sender?.avatar_url
-    
-    // ActivityPub notifications (sender is already checked above, but check others too)
+
     if (!avatar && notification.type.startsWith('activitypub_')) {
       avatar = data.sender?.avatar_url ||
                data.actor?.avatar_url ||
@@ -594,14 +575,12 @@ export class NotificationFormatter {
                data.user?.avatar_url ||
                data.author?.avatar_url
     }
-    
-    // Other notification types
+
     if (!avatar) {
       avatar = data.reactor?.avatar_url ||
                data.inviter?.avatar_url
     }
-    
-    // Legacy format fallback
+
     if (!avatar && data.sender_avatar_url) {
       avatar = data.sender_avatar_url
     }
@@ -617,28 +596,16 @@ export class NotificationFormatter {
     return utilGetAvatarUrl(avatar) || '/default_avatar.webp'
   }
   
-  /**
-   * Get server name from notification data
-   * Handles both structured format and legacy format
-   */
   static getServerName(notification: Notification): string | null {
     const data = notification.data
     return (data.location as any)?.server_name || data.server_name || null
   }
   
-  /**
-   * Get channel name from notification data
-   * Handles both structured format and legacy format
-   */
   static getChannelName(notification: Notification): string | null {
     const data = notification.data
     return (data.location as any)?.channel_name || data.channel_name || null
   }
   
-  /**
-   * Check if notification is clickable (has navigation target)
-   * Handles both structured format and legacy format
-   */
   static isClickable(notification: Notification): boolean {
     const data = notification.data
     return !!(
@@ -648,7 +615,6 @@ export class NotificationFormatter {
       (data.server_id && data.channel_id) ||
       data.location?.server_id ||
       data.server_id ||
-      // ActivityPub notifications with post IDs
       (notification.type.startsWith('activitypub_') && data.post_id) ||
       // Follow notifications navigate to the follower's profile
       (notification.type === 'activitypub_follow' && data.follower) ||
@@ -657,13 +623,9 @@ export class NotificationFormatter {
     )
   }
   
-  /**
-   * Get navigation data for clicking notification
-   * Handles both structured format and legacy format
-   */
   static getNavigationData(notification: Notification) {
     const data = notification.data
-    
+
     // ActivityPub follow → navigate to follower's profile
     if (notification.type === 'activitypub_follow' || notification.type === 'activitypub_follow_request') {
       const follower = data.follower

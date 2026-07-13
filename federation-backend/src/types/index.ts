@@ -85,10 +85,7 @@ export interface RequestContext {
 
 // VOICE/VIDEO ACTIVITY TYPES (Harmony Extensions)
 
-/**
- * Voice call invitation activity
- * Used for federated DM voice/video calls
- */
+// Federated DM voice/video call invitation.
 export interface VoiceCallInvite {
   '@context': string[];
   id: string;
@@ -106,9 +103,6 @@ export interface VoiceCallInvite {
   published: string;
 }
 
-/**
- * Voice call acceptance activity
- */
 export interface VoiceCallAccept {
   '@context': string[];
   id: string;
@@ -119,9 +113,6 @@ export interface VoiceCallAccept {
   published: string;
 }
 
-/**
- * Voice call rejection activity
- */
 export interface VoiceCallReject {
   '@context': string[];
   id: string;
@@ -132,9 +123,6 @@ export interface VoiceCallReject {
   published: string;
 }
 
-/**
- * Voice call ended activity
- */
 export interface VoiceCallEnd {
   '@context': string[];
   id: string;
@@ -145,9 +133,6 @@ export interface VoiceCallEnd {
   published: string;
 }
 
-/**
- * Voice channel join activity (for server voice channels)
- */
 export interface VoiceChannelJoin {
   '@context': string[];
   id: string;
@@ -164,9 +149,6 @@ export interface VoiceChannelJoin {
   published: string;
 }
 
-/**
- * Voice channel leave activity
- */
 export interface VoiceChannelLeave {
   '@context': string[];
   id: string;
@@ -179,10 +161,7 @@ export interface VoiceChannelLeave {
   published: string;
 }
 
-/**
- * Voice channel join accept activity (response with LiveKit token)
- * Sent by the server owner's instance back to the joining user's instance
- */
+// Sent by the server owner's instance back to the joining user's instance.
 export interface VoiceChannelJoinAccept {
   '@context': string[];
   id: string;
@@ -200,10 +179,7 @@ export interface VoiceChannelJoinAccept {
   published: string;
 }
 
-/**
- * Voice channel join reject activity
- * Sent when user doesn't have permission to join
- */
+// Sent when user doesn't have permission to join.
 export interface VoiceChannelJoinReject {
   '@context': string[];
   id: string;
@@ -215,10 +191,7 @@ export interface VoiceChannelJoinReject {
   published: string;
 }
 
-/**
- * Union type for all voice activities
- */
-export type VoiceActivity = 
+export type VoiceActivity =
   | VoiceCallInvite 
   | VoiceCallAccept 
   | VoiceCallReject 

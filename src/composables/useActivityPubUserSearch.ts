@@ -17,7 +17,6 @@ export function useActivityPubUserSearch() {
       isSearching.value = true;
       const suggestions: SuggestionItem[] = [];
 
-      // First search for local users
       const { data: localUsers, error: localError } = await supabase
         .from('profiles')
         .select('id, username, display_name, avatar_url, domain, is_local')
@@ -39,13 +38,11 @@ export function useActivityPubUserSearch() {
         });
       }
 
-      // If query contains @, search for federated users
       if (query.includes('@') && suggestions.length < 10) {
         try {
           const federatedUsers = await activityPubService.searchFederatedUsers(query, 5);
           federatedUsers.forEach((user: any) => {
-            // More robust duplicate check using multiple criteria
-            const isDuplicate = suggestions.find(s => 
+            const isDuplicate = suggestions.find(s =>
               s.id === user.id || 
               (s.username === user.username && s.domain === user.domain)
             );
@@ -74,22 +71,20 @@ export function useActivityPubUserSearch() {
         const aUsername = (a.username || '').toLowerCase();
         const bUsername = (b.username || '').toLowerCase();
 
-        // Exact matches first
         if (aDisplay === queryLower || aUsername === queryLower) {
-          if (bDisplay === queryLower || bUsername === queryLower) return 0; // Both exact, keep order
+          if (bDisplay === queryLower || bUsername === queryLower) return 0;
           return -1;
         }
         if (bDisplay === queryLower || bUsername === queryLower) return 1;
 
-        // Starts with query
         const aStartsWith = aDisplay.startsWith(queryLower) || aUsername.startsWith(queryLower);
         const bStartsWith = bDisplay.startsWith(queryLower) || bUsername.startsWith(queryLower);
-        
+
         if (aStartsWith && !bStartsWith) return -1;
         if (bStartsWith && !aStartsWith) return 1;
-        if (aStartsWith && bStartsWith) return 0; // Both start with, keep order
+        if (aStartsWith && bStartsWith) return 0;
 
-        return 0; // Keep original order for equal items
+        return 0;
       });
 
       const uniqueSuggestions = suggestions.filter((item, index, self) => 

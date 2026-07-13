@@ -4,7 +4,6 @@ import { debug } from '@/utils/debug';
 import { userStorage } from '@/utils/userScopedStorage';
 import { VoiceSettingsService } from './VoiceSettingsService';
 
-// TYPES & INTERFACES
 
 export interface UserMediaState {
   userId: string;
@@ -54,7 +53,6 @@ export interface ChannelState {
   channelId: string;
 }
 
-// MAIN WEBRTC SERVICE
 
 export class UnifiedWebRTCService {
   private channelId: string | null = null;
@@ -217,7 +215,6 @@ export class UnifiedWebRTCService {
     debug.log('[P2P] Stream quality updated:', this.streamQualitySettings);
   }
 
-  // PUBLIC API
 
   /**
    * Update input device and restart audio stream
@@ -885,7 +882,6 @@ export class UnifiedWebRTCService {
     return this.localMediaState.isDeafened;
   }
 
-  // GETTERS
 
   getLocalStream(): MediaStream | null {
     return this.localStream;
@@ -936,7 +932,6 @@ export class UnifiedWebRTCService {
     return connection ? connection.audioElement : null;
   }
 
-  // EVENT SYSTEM
 
   on(event: string, callback: Function): void {
     if (!this.eventListeners.has(event)) {
@@ -968,7 +963,6 @@ export class UnifiedWebRTCService {
     }
   }
 
-  // PRIVATE METHODS
 
   /**
    * Calculate speaking state based on audio level and mute status
@@ -1490,7 +1484,7 @@ export class UnifiedWebRTCService {
       // BUGS.md H20 v2: cap the queue. An authenticated peer in the same
       // Supabase voice channel can flood `ice-candidate` messages without
       // ever sending an offer, growing this array indefinitely. 100 is
-      // generous (real-world ICE candidate counts per peer are <30) and
+      // real-world ICE candidate counts per peer are <30, so this
       // turns a memory-DoS into a noisy warning.
       const MAX_PENDING_ICE = 100;
       if (connection.pendingIceCandidates.length >= MAX_PENDING_ICE) {
@@ -1765,7 +1759,6 @@ export class UnifiedWebRTCService {
     });
   }
 
-  // AUDIO SETTINGS MANAGEMENT
 
   /**
    * Get selected devices
@@ -1912,6 +1905,5 @@ export class UnifiedWebRTCService {
   }
 }
 
-// SINGLETON EXPORT
 
 export const unifiedWebRTC = new UnifiedWebRTCService();

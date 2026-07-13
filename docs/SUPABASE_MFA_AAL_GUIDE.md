@@ -229,7 +229,7 @@ Having multiple `onAuthStateChange` listeners can cause race conditions. Only se
 2. **Proper AAL Access**: Always use `session.user.aal`
 3. **Special Case MFA Events**: Allow `MFA_CHALLENGE_VERIFIED` through
 4. **Defensive Defaults**: Use `|| 'aal1'` as fallback
-5. **Comprehensive Logging**: Log AAL at every critical point
+5. **Logging**: Log AAL at every critical point
 6. **Don't Over-Refresh**: Avoid unnecessary `refreshSession()` calls
 
 ## RLS Policy Example

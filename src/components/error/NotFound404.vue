@@ -119,9 +119,7 @@ const isAuthenticated = computed(() => authStore.isLoggedIn)
 
 const canGoBack = computed(() => window.history.length > 1)
 
-// Smart context awareness using existing utilities
 const notFoundContext = computed(() => {
-  // Fallback context - can be enhanced later with utilities if needed
   return {
     isAuthenticated: isAuthenticated.value,
     suggestedRoute: isAuthenticated.value ? '/chat' : '/',
@@ -137,7 +135,6 @@ const computedTitle = computed(() => {
 const computedDescription = computed(() => {
   if (props.description) return props.description
   
-  // Context-aware description based on the route
   if (route.path.startsWith('/social/')) {
     return "This social content doesn't exist or has been removed."
   } else if (route.path.startsWith('/chat/') || route.path.startsWith('/dm/')) {
@@ -153,7 +150,6 @@ const computedHomeButtonText = computed(() => {
   if (props.homeButtonText) return props.homeButtonText
   
   if (isAuthenticated.value) {
-    // Context-aware button text
     if (route.path.startsWith('/social/')) {
       return 'Back to Social'
     } else if (route.path.startsWith('/chat/') || route.path.startsWith('/dm/')) {
@@ -177,7 +173,6 @@ const selectRandomImage = async () => {
     selectedImage.value = await getRandom404Image()
   } catch (error) {
     debug.warn('Failed to load 404 image from manifest, using fallback:', error)
-    // Fallback to legacy images
     const legacyImages = ['/backgrounds/404/1.webp', '/backgrounds/404/2.webp']
     const randomIndex = Math.floor(Math.random() * legacyImages.length)
     selectedImage.value = legacyImages[randomIndex]
@@ -187,7 +182,6 @@ const selectRandomImage = async () => {
 const handleImageError = () => {
   debug.warn('Failed to load 404 image:', selectedImage.value)
   imageError.value = true
-  // Try fallback legacy images
   const legacyImages = ['/backgrounds/404/1.webp', '/backgrounds/404/2.webp']
   const currentIndex = legacyImages.indexOf(selectedImage.value)
   const fallbackIndex = currentIndex === 0 ? 1 : 0

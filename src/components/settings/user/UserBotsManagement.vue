@@ -355,10 +355,12 @@ import BotAvatar from '@/components/common/BotAvatar.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import BridgeBotGuide from '@/components/settings/BridgeBotGuide.vue'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
+import { useProfileStore } from '@/stores/useProfile'
 
 defineProps<{ loading: boolean }>()
 const toast = useToast()
 const { confirm } = useConfirmDialog()
+const profileStore = useProfileStore()
 
 const isLoading = ref(false)
 const creating = ref(false)
@@ -405,21 +407,26 @@ async function loadMyBots() {
   isLoading.value = true
 
   try {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw new Error('Not authenticated')
+    let profileId = profileStore.profileId
+    if (!profileId) {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('Not authenticated')
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('auth_user_id', user.id)
-      .single()
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('auth_user_id', user.id)
+        .single()
 
-    if (!profile) throw new Error('Profile not found')
+      if (profileError) throw profileError
+      if (!profile) throw new Error('Profile not found')
+      profileId = profile.id
+    }
 
     const { data: bots, error } = await supabase
       .from('bots')
       .select('*')
-      .eq('owner_id', profile.id)
+      .eq('owner_id', profileId)
       .order('created_at', { ascending: false })
 
     if (error) throw error
@@ -429,6 +436,7 @@ async function loadMyBots() {
   } catch (error: any) {
     debug.error('Failed to load bots:', error)
     toast.error(error.message || 'Failed to load bots')
+    myBots.value = []
   } finally {
     isLoading.value = false
   }
@@ -546,7 +554,6 @@ async function regenerateToken() {
     const token = generateBotToken()
     const tokenHash = await hashBotToken(token)
 
-    // Revoke old tokens
     await supabase
       .from('bot_tokens')
       .update({ is_active: false, revoked_at: new Date().toISOString() })

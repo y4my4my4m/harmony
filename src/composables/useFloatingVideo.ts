@@ -1,8 +1,4 @@
-/**
- * Floating Video Player Composable
- * Manages floating video state for YouTube and native video elements
- */
-
+// Floating video state for YouTube and native video elements.
 import { ref, computed } from 'vue'
 
 interface VideoElement {
@@ -69,24 +65,17 @@ if (typeof localStorage !== 'undefined') {
 export function useFloatingVideo() {
   const isEnabled = computed(() => isUserSetting.value)
 
-  /**
-   * Toggle floating video feature
-   */
   const setEnabled = (enabled: boolean) => {
     isUserSetting.value = enabled
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem('floatingVideoEnabled', String(enabled))
     }
-    
-    // If disabling, clear any floating video
+
     if (!enabled && currentFloatingVideo.value) {
       returnToOriginalPosition()
     }
   }
 
-  /**
-   * Register a video element for floating
-   */
   const registerVideo = (
     element: HTMLElement,
     originalParent: HTMLElement,
@@ -106,7 +95,6 @@ export function useFloatingVideo() {
 
           const isPlaying = checkIfPlaying(element, type)
 
-          // If video is playing and less than 20% visible, float it
           if (
             isPlaying &&
             entry.intersectionRatio < 0.2 &&
@@ -114,15 +102,13 @@ export function useFloatingVideo() {
             Date.now() - lastReturnAt > REFLOAT_COOLDOWN_MS
           ) {
             floatVideo(element, originalParent, messageId, type, sourceUrl)
-          }
-          // If video is back in view and is floating, return it
-          else if (entry.intersectionRatio > 0.8 && currentFloatingVideo.value?.messageId === messageId) {
+          } else if (entry.intersectionRatio > 0.8 && currentFloatingVideo.value?.messageId === messageId) {
             returnToOriginalPosition()
           }
         })
       },
       {
-        root: null, // Use viewport as root
+        root: null,
         rootMargin: '0px',
         threshold: [0, 0.2, 0.8, 1.0]
       }
@@ -146,16 +132,12 @@ export function useFloatingVideo() {
     }
   }
 
-  /**
-   * Check if video is currently playing
-   */
   const checkIfPlaying = (element: HTMLElement, type: 'youtube' | 'video'): boolean => {
     if (type === 'video') {
       const video = element.querySelector('video')
       return video ? !video.paused : false
     } else if (type === 'youtube') {
-      // YouTube play state comes via the postMessage API
-      // This requires the iframe to have enablejsapi=1
+      // requires the iframe to have enablejsapi=1
       const iframe = element.querySelector('iframe')
       if (!iframe) return false
       
@@ -164,9 +146,6 @@ export function useFloatingVideo() {
     return false
   }
 
-  /**
-   * Float the video to top-right corner
-   */
   const floatVideo = (
     element: HTMLElement,
     originalParent: HTMLElement,
@@ -174,16 +153,15 @@ export function useFloatingVideo() {
     type: 'youtube' | 'video',
     sourceUrl?: string
   ) => {
-    // If another video is already floating, return it first
     if (currentFloatingVideo.value && currentFloatingVideo.value.messageId !== messageId) {
       returnToOriginalPosition()
     }
 
-    // Temporarily disconnect observer to prevent feedback loop
+    // Disconnect observer to prevent feedback loop while we float this element
     videoObservers.get(element)?.disconnect()
 
     const videoEl = element.querySelector('video') || element.querySelector('iframe')
-    let aspectRatio = 16 / 9 // Default fallback
+    let aspectRatio = 16 / 9
 
     if (videoEl) {
       const rect = videoEl.getBoundingClientRect()
@@ -284,9 +262,6 @@ export function useFloatingVideo() {
     makeResizable(element)
   }
 
-  /**
-   * Return video to original position
-   */
   const returnToOriginalPosition = (options: { scrollIntoView?: boolean } = {}) => {
     if (!currentFloatingVideo.value) return
 
@@ -354,9 +329,7 @@ export function useFloatingVideo() {
     }, REFLOAT_COOLDOWN_MS)
   }
 
-  /**
-   * Hover chrome: one top bar with drag space + open / dock / close actions
-   */
+  // Hover chrome: one top bar with drag space + open / dock / close actions
   const buildChrome = (element: HTMLElement, sourceUrl?: string) => {
     const bar = document.createElement('div')
     bar.className = 'floating-video-chrome'
@@ -414,7 +387,6 @@ export function useFloatingVideo() {
       'Close and pause',
       '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>',
       () => {
-        // Close means stop watching: pause, then dock
         if (currentFloatingVideo.value?.type === 'video') {
           element.querySelector('video')?.pause()
         } else if (currentFloatingVideo.value?.type === 'youtube') {
@@ -432,9 +404,6 @@ export function useFloatingVideo() {
     element.appendChild(bar)
   }
 
-  /**
-   * Make video draggable
-   */
   const makeDraggable = (element: HTMLElement) => {
     let startX = 0
     let startY = 0
@@ -446,7 +415,6 @@ export function useFloatingVideo() {
     const onMouseDown = (e: MouseEvent) => {
       const target = e.target as HTMLElement
 
-      // Don't drag from action buttons or resize handles
       if (target.closest('.floating-video-chrome__btn') || target.closest('.resize-handle')) {
         return
       }
@@ -469,8 +437,7 @@ export function useFloatingVideo() {
     const onMouseMove = (e: MouseEvent) => {
       const deltaX = e.clientX - startX
       const deltaY = e.clientY - startY
-      
-      // Consider it a drag if moved more than 3 pixels
+
       if (Math.abs(deltaX) > 3 || Math.abs(deltaY) > 3) {
         isDragging.value = true
         hasMoved = true
@@ -481,7 +448,6 @@ export function useFloatingVideo() {
       const newX = initialX + deltaX
       const newY = initialY + deltaY
 
-      // Constrain to viewport
       const maxX = window.innerWidth - element.offsetWidth
       const maxY = window.innerHeight - element.offsetHeight
 
@@ -507,9 +473,6 @@ export function useFloatingVideo() {
     dragState.set(element, { onMouseDown })
   }
 
-  /**
-   * Remove drag handlers
-   */
   const removeDragHandlers = (element: HTMLElement) => {
     const handlers = dragState.get(element)
     if (handlers) {
@@ -519,9 +482,6 @@ export function useFloatingVideo() {
     }
   }
 
-  /**
-   * Make video resizable
-   */
   const makeResizable = (element: HTMLElement) => {
     const resizeHandles: { position: string; cursor: string }[] = [
       { position: 'top-left', cursor: 'nwse-resize' },
@@ -549,7 +509,6 @@ export function useFloatingVideo() {
         pointer-events: all;
       `
 
-      // Position the handle
       if (position.includes('top')) handle.style.top = '-6px'
       if (position.includes('bottom')) handle.style.bottom = '-6px'
       if (position.includes('left')) handle.style.left = '-6px'
@@ -570,9 +529,6 @@ export function useFloatingVideo() {
     resizeHandleState.set(element, handles)
   }
 
-  /**
-   * Start resizing video
-   */
   const startResize = (e: MouseEvent, element: HTMLElement, position: string) => {
     if (!currentFloatingVideo.value) return
     
@@ -598,39 +554,33 @@ export function useFloatingVideo() {
       const isHorizontalPrimary = Math.abs(deltaX) > Math.abs(deltaY)
 
       if (isHorizontalPrimary) {
-        // Resize based on width, calculate height from aspect ratio
         if (position.includes('right')) {
           newWidth = startWidth + deltaX
         } else if (position.includes('left')) {
           newWidth = startWidth - deltaX
           newLeft = startLeft + deltaX
         }
-        
-        // Constrain width
+
         newWidth = Math.max(200, Math.min(1200, newWidth))
-        
+
         newHeight = newWidth / aspectRatio
-        
-        // Adjust position for top corners
+
         if (position.includes('top')) {
           newTop = startTop + startHeight - newHeight
         }
       } else {
-        // Resize based on height, calculate width from aspect ratio
         if (position.includes('bottom')) {
           newHeight = startHeight + deltaY
         } else if (position.includes('top')) {
           newHeight = startHeight - deltaY
           newTop = startTop + deltaY
         }
-        
+
         newWidth = newHeight * aspectRatio
-        
-        // Constrain width
+
         newWidth = Math.max(200, Math.min(1200, newWidth))
         newHeight = newWidth / aspectRatio
-        
-        // Recalculate position
+
         if (position.includes('top')) {
           newTop = startTop + startHeight - newHeight
         }
@@ -639,12 +589,10 @@ export function useFloatingVideo() {
         }
       }
 
-      // Final position adjustment for left corners
       if (position.includes('left')) {
         newLeft = startLeft + startWidth - newWidth
       }
 
-      // Constrain to viewport
       const maxX = window.innerWidth - newWidth
       const maxY = window.innerHeight - newHeight
       newLeft = Math.max(0, Math.min(newLeft, maxX))
@@ -668,9 +616,6 @@ export function useFloatingVideo() {
     document.addEventListener('mouseup', onMouseUp)
   }
 
-  /**
-   * Remove resize handles
-   */
   const removeResizeHandles = (element: HTMLElement) => {
     const handles = resizeHandleState.get(element)
     if (handles) {
@@ -679,19 +624,10 @@ export function useFloatingVideo() {
     }
   }
 
-  /**
-   * Get current floating video
-   */
   const getCurrentFloatingVideo = computed(() => currentFloatingVideo.value)
 
-  /**
-   * Check if a video is currently floating
-   */
   const hasFloatingVideo = computed(() => currentFloatingVideo.value !== null)
 
-  /**
-   * Get the messageId of the currently floating video
-   */
   const getFloatingVideoMessageId = () => {
     return currentFloatingVideo.value?.messageId || null
   }

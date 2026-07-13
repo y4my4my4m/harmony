@@ -58,7 +58,6 @@ export class AuthContextService {
         return this.cachedContext
       }
 
-      // Resolve profile ID from auth user ID
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('id')
@@ -184,7 +183,6 @@ export class AuthContextService {
     })
   }
 
-  // Private helper methods
   private createUnauthenticatedContext(): UnauthenticatedContext {
     return {
       authUser: null,

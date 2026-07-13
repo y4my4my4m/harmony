@@ -66,7 +66,7 @@
       </div>
     </div>
 
-    <!-- Installed Bots -->
+    <!-- Installed Bots (skip rows whose nested bot embed was RLS-filtered) -->
     <div v-if="!loading && installedBots.length > 0" class="settings-card">
       <div class="card-header">
         <h3>Installed Bots ({{ installedBots.length }})</h3>
@@ -81,8 +81,8 @@
           <BotAvatar :bot="installation.bot" :size="40" :show-status="true" />
 
           <div class="bot-info">
-            <h4>{{ installation.bot.username }}</h4>
-            <p>{{ installation.bot.bio || 'No description' }}</p>
+            <h4>{{ installation.bot?.username || 'Unknown bot' }}</h4>
+            <p>{{ installation.bot?.bio || 'No description' }}</p>
             <span class="install-date">Added {{ formatDate(installation.installed_at) }}</span>
           </div>
 
@@ -161,7 +161,7 @@
           <div class="bot-preview">
             <BotAvatar :bot="selectedInstallation.bot" :size="56" />
             <div class="bot-preview-text">
-              <h4>{{ selectedInstallation.bot.username }}</h4>
+              <h4>{{ selectedInstallation.bot?.username || 'Unknown bot' }}</h4>
               <p>Manage permissions for this bot</p>
             </div>
           </div>
@@ -239,7 +239,6 @@ const botStatuses = ref<Record<string, boolean>>({})
 const selectedPermissions = ref<Record<string, boolean>>({})
 const editingPermissions = ref<Record<string, boolean>>({})
 
-// Available permissions
 const availablePermissions = [
   { key: 'read_messages', label: 'Read Messages', description: 'View channels and read message history', required: true },
   { key: 'send_messages', label: 'Send Messages', description: 'Send messages in channels', required: true },
@@ -258,7 +257,7 @@ const filteredAvailableBots = computed(() => {
 
   const query = searchQuery.value.toLowerCase()
   return availableBots.value.filter(bot =>
-    bot.username.toLowerCase().includes(query) ||
+    (bot.username || '').toLowerCase().includes(query) ||
     bot.bio?.toLowerCase().includes(query) ||
     bot.tags?.some((tag: string) => tag.toLowerCase().includes(query))
   )
@@ -297,9 +296,18 @@ async function loadBots() {
       .eq('is_active', true)
 
     if (installError) throw installError
-    installedBots.value = installations || []
+    // Nested `bot:bots(*)` is null when RLS hides the bot row (e.g. private
+    // bot owned by someone else). Accessing `.username` on null used to throw
+    // and wipe this whole component (Discord Bridge sibling still rendered).
+    installedBots.value = (installations || []).filter(
+      (row: { bot?: { username?: string } | null }) => row?.bot && typeof row.bot === 'object' && !Array.isArray(row.bot)
+    )
 
-    debug.log('Bots loaded:', { available: bots?.length, installed: installations?.length })
+    debug.log('Bots loaded:', {
+      available: bots?.length,
+      installed: installedBots.value.length,
+      installedRaw: installations?.length,
+    })
   } catch (error: any) {
     debug.error('Failed to load bots:', error)
     showMessage('error', error.message || 'Failed to load bots')
@@ -424,7 +432,8 @@ async function updatePermissions() {
 }
 
 async function removeBot(installation: any) {
-  const confirmed = await confirm({ title: 'Remove bot', message: `Remove ${installation.bot.username} from this server?`, confirmButtonText: 'Remove', dangerAction: true })
+  const label = installation.bot?.username || 'this bot'
+  const confirmed = await confirm({ title: 'Remove bot', message: `Remove ${label} from this server?`, confirmButtonText: 'Remove', dangerAction: true })
   if (!confirmed) return
 
   try {
@@ -435,7 +444,7 @@ async function removeBot(installation: any) {
 
     if (error) throw error
 
-    showMessage('success', `${installation.bot.username} removed from server`)
+    showMessage('success', `${label} removed from server`)
     await loadBots()
   } catch (error: any) {
     debug.error('Failed to remove bot:', error)
@@ -443,8 +452,11 @@ async function removeBot(installation: any) {
   }
 }
 
-function formatDate(date: string): string {
-  return formatDistanceToNow(new Date(date), { addSuffix: true })
+function formatDate(date: string | null | undefined): string {
+  if (!date) return 'unknown'
+  const parsed = new Date(date)
+  if (Number.isNaN(parsed.getTime())) return 'unknown'
+  return formatDistanceToNow(parsed, { addSuffix: true })
 }
 
 function showMessage(type: string, text: string) {

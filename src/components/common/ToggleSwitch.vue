@@ -23,16 +23,14 @@ const emit = defineEmits<{
   'change': [value: boolean]
 }>()
 
-// Haptics
 const { triggerToggle } = useHapticSettings()
 
 const toggle = () => {
   if (props.disabled) return
-  
+
   const newValue = !props.modelValue
   emit('update:modelValue', newValue)
   emit('change', newValue)
-  // Haptic feedback
   triggerToggle()
 }
 </script>

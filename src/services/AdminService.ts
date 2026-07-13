@@ -1,7 +1,4 @@
-/**
- * AdminService - Professional service for admin panel operations
- * Handles all admin-related database queries and operations
- */
+// Admin panel database queries and operations.
 
 import { supabase } from '@/supabase';
 import { apiUrl } from '@/services/instanceConfig';
@@ -154,9 +151,6 @@ export interface InstanceStats {
 }
 
 class AdminService {
-  /**
-   * Get comprehensive system statistics
-   */
   async getSystemStats(): Promise<SystemStats> {
     try {
       const today = new Date();
@@ -203,9 +197,6 @@ class AdminService {
     }
   }
 
-  /**
-   * Get federation health statistics
-   */
   async getFederationStats(): Promise<FederationStats> {
     try {
       const [
@@ -311,9 +302,6 @@ class AdminService {
     }
   }
 
-  /**
-   * Fetch all dead endpoints with details for the admin UI
-   */
   async getDeadEndpoints(): Promise<DeadEndpoint[]> {
     try {
       const { data, error } = await supabase
@@ -330,9 +318,6 @@ class AdminService {
     }
   }
 
-  /**
-   * Purge a single dead endpoint by ID and its failed deliveries
-   */
   async purgeSingleEndpoint(endpointId: string, endpointUrl: string): Promise<void> {
     try {
       await supabase
@@ -353,14 +338,10 @@ class AdminService {
     }
   }
 
-  /**
-   * Get system health metrics
-   */
   async getSystemHealth(): Promise<SystemHealth> {
     try {
       const federationStats = await this.getFederationStats();
       
-      // Measure database response time
       const start = Date.now();
       await supabase.from('profiles').select('id').limit(1);
       const dbResponseTime = Date.now() - start;
@@ -395,9 +376,6 @@ class AdminService {
     }
   }
 
-  /**
-   * Get users with admin-relevant information (paginated)
-   */
   async getUsers(
     limit: number = 25,
     offset: number = 0,
@@ -490,9 +468,6 @@ class AdminService {
     }
   }
 
-  /**
-   * Get total user counts by category (for admin User Management filter stats)
-   */
   async getUserCounts(): Promise<{ total: number; local: number; federated: number; suspended: number }> {
     try {
       const [totalRes, localRes, federatedRes, suspendedRes] = await Promise.all([
@@ -514,9 +489,6 @@ class AdminService {
     }
   }
 
-  /**
-   * Get recent admin activity from audit log
-   */
   async getRecentActivity(limit: number = 20): Promise<AdminActivity[]> {
     try {
       const { data, error } = await supabase
@@ -547,7 +519,6 @@ class AdminService {
         created_at: entry.created_at
       }));
 
-      // Resolve target usernames for user moderation actions
       const userTargetIds = entries
         .filter((e: AdminActivity) => e.target_type === 'user' && e.target_id)
         .map((e: AdminActivity) => e.target_id!)
@@ -575,9 +546,6 @@ class AdminService {
     }
   }
 
-  /**
-   * Log an admin action to the audit log
-   */
   async logAdminAction(params: {
     action: string;
     targetType: string;
@@ -689,9 +657,6 @@ class AdminService {
     }
   }
 
-  /**
-   * Moderate an instance (block, unblock)
-   */
   async moderateInstance(
     domain: string,
     action: 'block' | 'unblock',
@@ -735,9 +700,6 @@ class AdminService {
     }
   }
 
-  /**
-   * Get blocked instances
-   */
   async getBlockedInstances(): Promise<BlockedInstance[]> {
     try {
       const { data, error } = await supabase
@@ -760,12 +722,8 @@ class AdminService {
     }
   }
 
-  /**
-   * Get instance configuration
-   */
   async getInstanceConfig(): Promise<any> {
     try {
-      // Try to fetch WebRTC settings from database
       let webrtcSettings = {
         mode: 'hybrid' as 'sfu' | 'p2p' | 'hybrid',
         livekitUrl: '',
@@ -845,7 +803,6 @@ class AdminService {
                 // Try to parse if it's a JSON string (might be double-quoted)
                 try {
                   const parsed = JSON.parse(value)
-                  // Always use the parsed value if parsing succeeds
                   value = parsed
                 } catch {
                   // If parsing fails, remove surrounding quotes if present
@@ -854,7 +811,6 @@ class AdminService {
                 }
               }
               
-              // Ensure we have a clean string value (not double-quoted)
               if (typeof value === 'string') {
                 value = value.replace(/\\"/g, '"')
               }
@@ -1021,9 +977,6 @@ class AdminService {
     }
   }
   
-  /**
-   * Update WebRTC settings
-   */
   async updateWebRTCSettings(settings: {
     mode?: 'sfu' | 'p2p' | 'hybrid';
     livekitUrl?: string;
@@ -1039,7 +992,6 @@ class AdminService {
         updated_at: new Date().toISOString()
       };
 
-      // Singleton table - fetch the existing row and update, or insert if empty
       const { data: existing } = await supabase
         .from('instance_webrtc_settings')
         .select('id')
@@ -1071,10 +1023,6 @@ class AdminService {
     }
   }
 
-  /**
-   * Update federation settings
-   * Uses the update_federation_settings RPC function
-   */
   async updateFederationSettings(settings: {
     userId: string;
     federationEnabled?: boolean;
@@ -1115,11 +1063,7 @@ class AdminService {
     description?: string
   ): Promise<void> {
     try {
-      // Convert value to JSONB format
-      // The RPC function expects JSONB, which Supabase will convert automatically
-      // For strings, pass directly - Supabase will convert to JSONB string (with quotes)
-      // For arrays/objects, pass as-is - Supabase will convert to JSONB
-      // DO NOT JSON.stringify strings as that causes double-quoting
+      // DO NOT JSON.stringify - Supabase converts values to JSONB automatically and stringifying causes double-quoting.
       const jsonbValue: any = value
 
       const { data, error } = await supabase.rpc('set_instance_config', {
@@ -1179,9 +1123,6 @@ class AdminService {
     }
   }
 
-  /**
-   * Check if user is admin
-   */
   async checkAdminPermissions(userId: string): Promise<boolean> {
     try {
       // BUGS.md Pattern A: the existing callers (e.g. router admin guard,
@@ -1205,9 +1146,6 @@ class AdminService {
     }
   }
 
-  /**
-   * Check if user is instance moderator
-   */
   async checkModeratorPermissions(userId: string): Promise<boolean> {
     try {
       // BUGS.md Pattern A: same fix as checkAdminPermissions - callers pass
@@ -1227,9 +1165,6 @@ class AdminService {
     }
   }
 
-  /**
-   * Check if user is admin or moderator
-   */
   async checkAdminOrModPermissions(userId: string): Promise<boolean> {
     try {
       // BUGS.md Pattern A: callers historically pass either the auth UUID or
@@ -1250,9 +1185,6 @@ class AdminService {
     }
   }
 
-  /**
-   * Set moderator status for a user (admin only)
-   */
   async setModeratorStatus(userId: string, isModerator: boolean): Promise<void> {
     try {
       const { error } = await supabase
@@ -1267,9 +1199,7 @@ class AdminService {
     }
   }
 
-  /**
-   * Export system logs (placeholder for now)
-   */
+  // Placeholder - full log export not yet implemented.
   async exportLogs(): Promise<Blob> {
     try {
       const activity = await this.getRecentActivity(1000);
@@ -1294,9 +1224,6 @@ class AdminService {
     }
   }
 
-  /**
-   * Update instance trust status
-   */
   async updateInstanceTrust(instanceId: string, trusted: boolean, adminId: string): Promise<void> {
     try {
       const { data: instance } = await supabase
@@ -1324,9 +1251,6 @@ class AdminService {
     }
   }
 
-  /**
-   * Update instance block status
-   */
   async updateInstanceBlock(instanceId: string, blocked: boolean, reason: string, adminId: string): Promise<void> {
     try {
       const { data: instance } = await supabase
@@ -1363,9 +1287,6 @@ class AdminService {
     }
   }
 
-  /**
-   * Delete instance
-   */
   async deleteInstance(instanceId: string, _adminId: string): Promise<void> {
     try {
       const { error } = await supabase
@@ -1380,9 +1301,6 @@ class AdminService {
     }
   }
 
-  /**
-   * Add instance from domain
-   */
   async addInstanceFromDomain(domain: string, trusted: boolean, adminId: string): Promise<void> {
     try {
       const cleanDomain = domain.replace(/^https?:\/\//, '').replace(/\/$/, '').toLowerCase();
@@ -1427,9 +1345,6 @@ class AdminService {
     }
   }
 
-  /**
-   * Get all federated instances with optional filtering
-   */
   async getFederatedInstances(options: {
     limit?: number;
     offset?: number;
@@ -1475,9 +1390,6 @@ class AdminService {
     }
   }
 
-  /**
-   * Get federated instance statistics
-   */
   async getInstanceStats(): Promise<InstanceStats> {
     try {
       const [totalResult, blockedResult, trustedResult, activeResult, recentResult] = await Promise.all([
@@ -1509,9 +1421,6 @@ class AdminService {
     }
   }
 
-  /**
-   * Add a new federated instance manually
-   */
   async addFederatedInstance(
     domain: string, 
     adminId: string,
@@ -1533,7 +1442,6 @@ class AdminService {
         throw new Error('Instance already exists');
       }
 
-      // Discover instance info
       const instanceInfo = await this.discoverInstance(cleanDomain);
       
       if (!instanceInfo && !options.forceAdd) {
@@ -1615,9 +1523,6 @@ class AdminService {
     }
   }
 
-  /**
-   * Update federated instance settings
-   */
   async updateFederatedInstance(
     instanceId: string,
     updates: {
@@ -1649,12 +1554,8 @@ class AdminService {
     }
   }
 
-  /**
-   * Delete/remove a federated instance
-   */
   async deleteFederatedInstance(instanceId: string, adminId: string): Promise<void> {
     try {
-      // Get instance info first for logging
       const { data: instance } = await supabase
         .from('federated_instances')
         .select('domain')
@@ -1737,15 +1638,10 @@ class AdminService {
     }
   }
 
-  /**
-   * Get popular/recommended instances (now returns empty - use direct discovery)
-   * Previously used 3rd party APIs which we've removed
-   */
   async getPopularInstances(limit: number = 20): Promise<InstanceSearchResult[]> {
     try {
       debug.log('Fetching popular instances...');
       
-      // Try to get popular instances from fediverse.observer
       const response = await fetch('https://api.fediverse.observer/', {
         method: 'POST',
         headers: {
@@ -1801,9 +1697,6 @@ class AdminService {
     }
   }
 
-  /**
-   * Get instances by software type (mastodon, pleroma, misskey, etc.)
-   */
   async getInstancesBySoftware(software: string, limit: number = 20): Promise<InstanceSearchResult[]> {
     try {
       debug.log(`Fetching ${software} instances...`);
@@ -1875,11 +1768,10 @@ class AdminService {
         .from('profiles')
         .select('domain')
         .not('domain', 'is', null)
-        .neq('domain', import.meta.env.VITE_DOMAIN as string) // Exclude local domain
-        
+        .neq('domain', import.meta.env.VITE_DOMAIN as string)
+
       if (error) throw error;
 
-      // Count instances and interactions, excluding already-known
       const instanceCounts = new Map<string, number>();
       
       data?.forEach(profile => {
@@ -1907,9 +1799,6 @@ class AdminService {
     }
   }
 
-  /**
-   * Refresh instance information
-   */
   async refreshInstanceInfo(instanceId: string): Promise<FederatedInstance> {
     try {
       const { data: instance, error: fetchError } = await supabase
@@ -1964,9 +1853,6 @@ class AdminService {
     }
   }
 
-  /**
-   * Get servers that a user is a member of
-   */
   async getUserServers(userId: string): Promise<{
     id: string;
     name: string;
@@ -2030,9 +1916,6 @@ class AdminService {
     }
   }
 
-  /**
-   * Get public servers for admin (featured communities management)
-   */
   async getPublicServersForAdmin(): Promise<Array<{
     id: string;
     name: string;
@@ -2077,9 +1960,6 @@ class AdminService {
     }
   }
 
-  /**
-   * Set server featured status (instance admin only)
-   */
   async setServerFeatured(
     serverId: string,
     isFeatured: boolean,
@@ -2093,12 +1973,6 @@ class AdminService {
     if (error) throw error;
   }
 
-  // FEDERATION MAINTENANCE
-
-  /**
-   * Get key consistency report for local users
-   * Returns users with missing or inconsistent key pairs
-   */
   async getKeyConsistencyReport(): Promise<{
     users_missing_keys: number;
     users_with_inconsistent_keys: number;
@@ -2141,10 +2015,6 @@ class AdminService {
     }
   }
 
-  /**
-   * Trigger a maintenance task via the federation backend
-   * @param task - The maintenance task to run
-   */
   async triggerMaintenanceTask(
     task: 'keygen-sweep' | 'cleanup-orphans'
   ): Promise<{ success: boolean; job_id?: string; message: string }> {
@@ -2185,16 +2055,10 @@ class AdminService {
     }
   }
 
-  /**
-   * Run key generation sweep - generates missing keys for local users
-   */
   async runKeyGenerationSweep(): Promise<{ success: boolean; message: string }> {
     return this.triggerMaintenanceTask('keygen-sweep');
   }
 
-  /**
-   * Run orphan cleanup - fixes inconsistent key states
-   */
   async runOrphanedKeyCleanup(): Promise<{ success: boolean; message: string }> {
     return this.triggerMaintenanceTask('cleanup-orphans');
   }

@@ -499,7 +499,6 @@ import { useToast } from 'vue-toastification'
 import QRCode from 'qrcode'
 import { isUrlTrackingStrippingEnabled, setUrlTrackingStrippingEnabled } from '@/utils/urlTrackerStripper'
 
-// Components
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
 import Avatar from '@/components/common/Avatar.vue'
@@ -523,7 +522,6 @@ const emit = defineEmits<{
 const authStore = useAuthStore()
 const toast = useToast()
 
-// Password Change State
 const passwordForm = ref({
   currentPassword: '',
   newPassword: '',
@@ -541,7 +539,6 @@ const showCurrentPassword = ref(false)
 const showNewPassword = ref(false)
 const showConfirmPassword = ref(false)
 
-// 2FA State
 const twoFactorEnabled = ref(false)
 const twoFactorLoading = ref(false)
 const showEnroll2FA = ref(false)
@@ -567,7 +564,6 @@ const isDisable2FACodeValid = computed(() => {
   return /^\d{6}$/.test(disable2FACode.value)
 })
 
-// Privacy State
 // `allowDMFromServerMembers`/`allowDMFromFollows` are "Coming soon": no DB column in
 // notification_preferences and no server-side gate yet. Kept in state for when wired up.
 const settings = ref({
@@ -588,9 +584,7 @@ const hasChanges = computed(() => {
 })
 
 // eslint-disable-next-line unused-imports/no-unused-vars
-const onSettingChange = () => {
-  // Settings changed, enable save button
-}
+const onSettingChange = () => {}
 
 // The URL-tracker toggle persists to localStorage and is read by the
 // message-send pipeline (`unifiedContentProcessing.ts`) on every send.
@@ -656,7 +650,6 @@ const unmuteUser = async (userId: string) => {
   }
 }
 
-// Password Change Methods
 const clearPasswordError = (field: 'currentPassword' | 'newPassword' | 'confirmPassword') => {
   passwordErrors.value[field] = ''
 }
@@ -728,7 +721,6 @@ const handlePasswordChange = async () => {
     debug.log('Password updated successfully:', data)
     toast.success('Password updated successfully!')
     
-    // Clear form after successful update
     passwordForm.value = {
       currentPassword: '',
       newPassword: '',
@@ -746,7 +738,6 @@ const handlePasswordChange = async () => {
   }
 }
 
-// 2FA Methods
 const clearTwoFactorError = () => {
   twoFactorError.value = ''
 }
@@ -814,7 +805,6 @@ const startEnroll2FA = async () => {
     debug.error('2FA enrollment error:', error)
     toast.error('Failed to start 2FA enrollment')
     showEnroll2FA.value = false
-    // Re-check status on error
     await check2FAStatus()
   } finally {
     twoFactorLoading.value = false
@@ -928,7 +918,6 @@ const cancelEnroll2FA = async () => {
   qrCodeDataUrl.value = ''
   totpSecret.value = ''
   factorId.value = ''
-  // Re-check status to ensure UI is correct
   await check2FAStatus()
 }
 
@@ -951,21 +940,11 @@ const closeDisable2FAModal = () => {
 }
 
 /**
- * Disable 2FA by stepping the current session up to AAL2 (so Supabase will
- * accept the `mfa.unenroll` call), then unenrolling the verified factor and
- * clearing recovery codes.
- *
- * The previous version asked for the user's password and then bailed out
- * with "log out and log back in" because it never completed the AAL2
- * upgrade. Supabase's `challengeAndVerify` is the canonical step-up path:
- * it creates a fresh challenge for the existing factor and verifies the
- * supplied TOTP in one call, leaving the session at AAL2.
- *
- * For users who lost their authenticator, the modal also accepts a
- * recovery code; we verify it via the existing `verify_recovery_code` RPC
- * (which atomically marks the code as used) and then unenroll the factor.
- * Recovery-code unenroll matches the same flow used by `AuthComponent`'s
- * recovery-code login path.
+ * Disable 2FA by stepping the current session up to AAL2 via
+ * `challengeAndVerify` (required before `mfa.unenroll`), then unenrolling
+ * the verified factor and clearing recovery codes. Also accepts a recovery
+ * code instead of TOTP, verified via `verify_recovery_code` RPC (same flow
+ * as `AuthComponent`'s recovery-code login path).
  */
 const disable2FA = async () => {
   if (!isDisable2FACodeValid.value) {
@@ -1143,7 +1122,6 @@ onMounted(async () => {
 
   originalSettings.value = { ...settings.value }
 
-  // Check 2FA status
   check2FAStatus()
 })
 </script>

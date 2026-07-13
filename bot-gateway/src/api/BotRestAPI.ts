@@ -25,8 +25,6 @@ export class BotRestAPI {
   }
   
   private setupRoutes() {
-    // CHANNEL ENDPOINTS
-    
     this.router.post('/channels/:channelId/messages', this.sendMessage.bind(this))
     
     this.router.get('/channels/:channelId/messages', this.getMessages.bind(this))
@@ -47,11 +45,9 @@ export class BotRestAPI {
     this.router.put('/messages/:messageId/reactions/:emoji', this.addReaction.bind(this))
     
     this.router.delete('/messages/:messageId/reactions/:emoji', this.removeReaction.bind(this))
-    
+
     this.router.post('/channels/:channelId/typing', this.triggerTyping.bind(this))
-    
-    // SERVER ENDPOINTS (Harmony terminology)
-    
+
     this.router.get('/servers/:serverId', this.getGuild.bind(this))
     
     this.router.get('/servers/:serverId/members', this.getGuildMembers.bind(this))
@@ -81,15 +77,13 @@ export class BotRestAPI {
     this.router.put('/channels/:channelId/permission-overrides', this.upsertChannelPermissionOverride.bind(this))
     this.router.delete('/channels/:channelId/permission-overrides/role/:roleId', this.deleteChannelPermissionOverrideForRole.bind(this))
 
-    // Legacy aliases (Discord terminology - deprecated)
+    // Legacy Discord-terminology aliases, deprecated.
     this.router.get('/guilds/:guildId', this.getGuild.bind(this))
     this.router.get('/guilds/:guildId/members', this.getGuildMembers.bind(this))
     this.router.get('/guilds/:guildId/channels', this.getGuildChannels.bind(this))
-    
-    // EMOJI ENDPOINTS
-    
+
     this.router.get('/emojis', this.getEmojis.bind(this))
-    
+
     this.router.post('/emojis', this.createEmoji.bind(this))
 
     // Silent content patch (e.g. refresh attachment URLs without "(edited)")
@@ -97,15 +91,11 @@ export class BotRestAPI {
 
     // Merge bridge metadata (e.g. discord_message_id) without bumping updated_at
     this.router.patch('/messages/:messageId/metadata', this.mergeMessageMetadata.bind(this))
-    
-    // USER ENDPOINTS
-    
+
     this.router.get('/users/:userId', this.getUser.bind(this))
-    
+
     this.router.get('/users/@me', this.getCurrentBot.bind(this))
   }
-  
-  // MEDIA
 
   private async silentUpdateMessageContent(req: BotRequest, res: Response) {
     try {
@@ -149,34 +139,30 @@ export class BotRestAPI {
     }
   }
 
-  // MESSAGE ENDPOINTS
-  
   private async sendMessage(req: BotRequest, res: Response) {
     try {
       const { channelId } = req.params
       const { content, embeds, reply_to, metadata } = req.body
       const botId = req.bot!.id
-      
+
       console.log(`🔍 Bot ${req.bot!.username} (${botId}) attempting to send message to channel ${channelId}`)
       console.log(`🔍 Received metadata:`, JSON.stringify(metadata, null, 2))
-      
-      // Check permissions
+
       const canSend = await this.checkChannelPermission(botId, channelId, 'send_messages')
       console.log(`🔍 Permission check result: ${canSend}`)
-      
+
       if (!canSend) {
         console.log(`❌ Permission denied for bot ${botId} in channel ${channelId}`)
         return res.status(403).json({ error: 'Missing permission: send_messages' })
       }
-      
+
       // Format content, then apply the instance attachment policy (e.g. mirror
       // Discord CDN URLs into user_media). Resolved here so bots stay policy-agnostic.
       const messageContent = await applyBridgeAttachmentPolicy(
         this.formatContent(content, embeds),
         botId,
       )
-      
-      // Merge metadata with bot flag and any custom metadata from bridge
+
       const messageMetadata = {
         bot: true,
         created_via: 'bot_api',
@@ -340,13 +326,12 @@ export class BotRestAPI {
       const { channelId } = req.params
       const { limit = 50, before, after } = req.query
       const botId = req.bot!.id
-      
-      // Check permissions
+
       const canRead = await this.checkChannelPermission(botId, channelId, 'read_messages')
       if (!canRead) {
         return res.status(403).json({ error: 'Missing permission: read_messages' })
       }
-      
+
       let query = supabase
         .from('messages')
         .select(`
@@ -631,8 +616,6 @@ export class BotRestAPI {
     }
   }
   
-  // GUILD ENDPOINTS
-  
   private async getGuild(req: BotRequest, res: Response) {
     try {
       const serverId = req.params.serverId || req.params.guildId
@@ -732,12 +715,9 @@ export class BotRestAPI {
     }
   }
   
-  // USER ENDPOINTS
-  
-  // CHANNEL / CATEGORY CREATION (used by bridges to mirror server structure)
-  //
+  // Channel/category creation (used by bridges to mirror server structure).
   // Authorization is `manage_channels` via bot_server_permissions only; no
-  // separate "is invoker server owner" check here — that gate belongs to the
+  // separate "is invoker server owner" check — that gate belongs to the
   // calling tool (e.g. /bridge clone-server), not the API.
 
   private async createCategory(req: BotRequest, res: Response) {
@@ -1311,10 +1291,9 @@ export class BotRestAPI {
       .single()
     
     console.log(`🔍 Channel lookup: channelId=${channelId}, serverId=${channel?.server_id}, error=${channelError?.message}`)
-    
+
     if (!channel) return false
-    
-    // Check bot permission
+
     const { data, error } = await supabase.rpc('check_bot_permission', {
       p_bot_id: botId,
       p_server_id: channel.server_id,
@@ -1355,43 +1334,32 @@ export class BotRestAPI {
     
     return !!data
   }
-  
-  // FORMATTERS
-  
-  /**
-   * Convert a relative avatar path to a full URL
-   * Handles both Supabase storage paths and external URLs
-   * Uses PUBLIC_URL for external-facing URLs (for Discord, ActivityPub, etc.)
-   */
+
+  /** Uses PUBLIC_URL for external-facing URLs (Discord, ActivityPub, etc.), falls back to SUPABASE_URL. */
   private formatAvatarUrl(avatarPath: string | null | undefined): string | undefined {
     if (!avatarPath) return undefined
-    
-    // If already a full URL, return as-is
+
     if (avatarPath.startsWith('http://') || avatarPath.startsWith('https://')) {
       return avatarPath
     }
-    
-    // Use PUBLIC_URL for external-facing resources, fallback to SUPABASE_URL
+
     const publicUrl = process.env.PUBLIC_URL || process.env.SUPABASE_URL
     if (!publicUrl) {
       console.warn('PUBLIC_URL or SUPABASE_URL not set, cannot construct avatar URL')
       return undefined
     }
-    
+
     const cleanPath = avatarPath.startsWith('/') ? avatarPath.slice(1) : avatarPath
-    
-    // Construct full URL with image optimization params
+
     return `${publicUrl}/storage/v1/render/image/public/avatars/${cleanPath}?width=256&height=256&resize=contain&quality=80`
   }
-  
+
   private formatContent(content: string | any[], embeds?: any[]): any[] {
     const parts: any[] = []
-    
-    // If content is already an array of MessageParts, use it directly
+
     if (Array.isArray(content)) {
       parts.push(...content)
     } else if (content) {
-      // If content is a string, wrap it in a text part
       parts.push({ type: 'text', text: content })
     }
     
@@ -1403,9 +1371,8 @@ export class BotRestAPI {
   }
   
   private formatMessage(message: any) {
-    // Use bot if present, otherwise use user
     const author = message.bot || message.user
-    
+
     return {
       id: message.id,
       channel_id: message.channel_id,
@@ -1414,14 +1381,14 @@ export class BotRestAPI {
         username: author.username,
         display_name: author.display_name,
         avatar: this.formatAvatarUrl(author.avatar_url),
-        bot: !!message.bot  // Flag to indicate if this is a bot message
+        bot: !!message.bot
       } : null,
       content: this.contentToText(message.content),
       reply_to: message.reply_to ?? null,
       timestamp: message.created_at,
       edited_timestamp: message.updated_at,
       mentions: this.extractMentions(message.content),
-      metadata: message.metadata // Include metadata in response
+      metadata: message.metadata
     }
   }
   
@@ -1509,8 +1476,6 @@ export class BotRestAPI {
       .filter(Boolean)
   }
   
-  // INVITE PREVIEW (public invite cards for bridge embeds)
-
   private async getInvitePreview(req: BotRequest, res: Response) {
     try {
       const { code } = req.params
@@ -1573,15 +1538,12 @@ export class BotRestAPI {
     }
   }
 
-  // EMOJI METHODS
-  
   private async getEmojis(req: BotRequest, res: Response) {
     try {
       const { url } = req.query
-      
+
       let query = supabase.from('emojis').select('*')
-      
-      // If URL is provided, filter by it (for checking if Discord emoji exists)
+
       if (url && typeof url === 'string') {
         query = query.eq('url', url)
       }
@@ -1641,8 +1603,6 @@ export class BotRestAPI {
       res.status(500).json({ error: error.message })
     }
   }
-  
-  // AUDIT LOGGING
   
   private async logBotAction(botId: string, action: string, metadata: any) {
     try {

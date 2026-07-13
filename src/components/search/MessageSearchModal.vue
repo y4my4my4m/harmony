@@ -320,7 +320,6 @@ const {
 
 const serverChannelStore = useServerChannelStore()
 
-// Component state
 const searchInputRef = ref<HTMLInputElement>()
 const showFilters = ref(false)
 const channelFilterInput = ref('')
@@ -332,8 +331,6 @@ const userSuggestions = ref<any[]>([])
 
 watch(() => props.show, (newVal, oldVal) => {
   if (newVal && !oldVal) {
-    // Modal is being opened (was false, now true)
-    // Only set initial values if provided
     if (props.initialQuery) {
       setQuery(props.initialQuery)
     }
@@ -346,20 +343,16 @@ watch(() => props.show, (newVal, oldVal) => {
     if (props.initialServerId) {
       setFilter('serverId', props.initialServerId)
     }
-    
-    // Focus input when modal opens
+
     nextTick(() => {
       searchInputRef.value?.focus()
     })
   } else if (!newVal && oldVal) {
-    // Modal is being closed (was true, now false)
-    // Reset when closing
     clearAllFilters()
     showFilters.value = false
   }
 })
 
-// Watch date inputs
 watch([fromDateInput, toDateInput], ([from, to]) => {
   setFilter('fromDate', from ? new Date(from) : null)
   setFilter('toDate', to ? new Date(to) : null)
@@ -422,9 +415,7 @@ const handleOverlayClick = () => {
   handleClose()
 }
 
-const handleSearchInput = () => {
-  // Debounced search is handled by composable
-}
+const handleSearchInput = () => {}
 
 const clearQuery = () => {
   setQuery('')
@@ -455,8 +446,7 @@ const handleUserFilterInput = async () => {
     return
   }
   
-  // TODO: Implement user search
-  // For now, use users from current context
+  // TODO: implement user search
   userSuggestions.value = []
 }
 

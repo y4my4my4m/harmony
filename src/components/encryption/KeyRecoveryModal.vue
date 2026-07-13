@@ -178,15 +178,12 @@ const isScanning = ref(false)
 const validationMessage = ref('')
 const isValid = ref(false)
 
-// Import validation wordlist from recovery service
 // eslint-disable-next-line unused-imports/no-unused-vars
 let WORDLIST: string[] = []
 import('@/services/encryption/RecoveryKeyService').then(_module => {
-  // The wordlist is embedded in the service
-  // We'll validate by trying to derive keys
+  // Validation happens by attempting to derive keys, not by checking against the wordlist here.
 })
 
-// Can restore?
 const canRestore = computed(() => {
   return recoveryWords.value.every(w => w.trim().length > 0) && isValid.value
 })
@@ -229,7 +226,6 @@ async function handlePaste(event: ClipboardEvent) {
   }
 }
 
-// Paste from clipboard button
 async function pasteFromClipboard() {
   try {
     const text = await navigator.clipboard.readText()
@@ -325,7 +321,6 @@ async function parseQRData() {
   }
 }
 
-// Restore encryption
 async function restoreEncryption() {
   if (!canRestore.value) return
 

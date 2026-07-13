@@ -285,7 +285,6 @@ export class MessageService {
     }
   }
 
-  // MESSAGE PINNING
 
   /**
    * Pin a message in a channel or DM

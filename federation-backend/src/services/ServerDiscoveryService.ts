@@ -20,8 +20,6 @@ import {
 
 const router = Router();
 
-// API ROUTES
-
 /**
  * GET /servers/discover
  * Discover a remote server by URL or handle
@@ -39,10 +37,9 @@ router.get(
     let serverData: any = null;
 
     if (url) {
-      // Direct URL discovery
       serverData = await ServerDiscoveryService.fetchServerByUrl(url as string);
     } else if (handle) {
-      // WebFinger discovery (format: server@domain.com or harmony://server@domain.com/name)
+      // format: server@domain.com or harmony://server@domain.com/name
       serverData = await ServerDiscoveryService.discoverByWebFinger(handle as string);
     }
 
@@ -107,8 +104,7 @@ router.post(
     logger.info(`🎟️ Proxying invite resolution: ${code} from ${instance}`);
 
     try {
-      // Fetch invite info from the remote instance
-      // Use /api/federation/invites/:code since remote instance also proxies through nginx
+      // /api/federation/invites/:code since remote instance also proxies through nginx
       const remoteResponse = await safeFetch(`https://${instance}/api/federation/invites/${code}`, {
         method: 'GET',
         headers: {

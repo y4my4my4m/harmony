@@ -1,8 +1,6 @@
 # Development Guide
 
-## Overview
-
-Welcome to the Harmony development guide! This document provides everything you need to know to contribute to Harmony, from setting up your development environment to understanding our coding standards and deployment processes.
+Setting up a development environment, coding standards, and deployment processes for contributing to Harmony.
 
 ## Quick Start
 
@@ -328,8 +326,6 @@ export const useExampleStore = defineStore('example', () => {
 ## Testing
 
 ### Testing Strategy
-
-We use a comprehensive testing approach:
 
 - **Unit Tests**: Individual functions and components
 - **Integration Tests**: Component interactions and API calls

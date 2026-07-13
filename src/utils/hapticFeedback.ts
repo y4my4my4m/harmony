@@ -1,8 +1,3 @@
-/**
- * Haptic Feedback Utility for Native App Feel
- * Provides tactile feedback on supported devices
- */
-
 import { isMobileUserAgent } from '@/utils/pwaUtils'
 
 export type HapticPattern = 'light' | 'medium' | 'heavy' | 'success' | 'warning' | 'error' | 'selection' | 'impact' | 'notification'
@@ -38,8 +33,7 @@ class HapticFeedbackManager {
   }
 
   private loadPreferences(): void {
-    // Note: This is a global setting, not user-specific
-    // Haptic feedback preference doesn't need to be per-user
+    // Global setting, not per-user.
     try {
       const stored = localStorage.getItem('harmony-haptics-enabled')
       this.isEnabled = stored !== null ? stored === 'true' : true
@@ -63,21 +57,16 @@ class HapticFeedbackManager {
     return patterns[pattern] || 20
   }
 
-  /**
-   * Trigger haptic feedback
-   */
   trigger(options: HapticOptions = {}): void {
     if (!this.isEnabled || !this.isSupported) return
 
     const { pattern = 'light', duration } = options
-    
+
     try {
-      // Use modern Vibration API if available
       if ('vibrate' in navigator) {
         const vibrationPattern = duration || this.getPatternDuration(pattern)
         navigator.vibrate(vibrationPattern)
       }
-      // Fallback for older browsers
       else if ('mozVibrate' in (navigator as any)) {
         const vibrationPattern = duration || this.getPatternDuration(pattern)
         ;(navigator as any).mozVibrate(vibrationPattern)
@@ -91,9 +80,6 @@ class HapticFeedbackManager {
     }
   }
 
-  /**
-   * Quick trigger methods for common patterns
-   */
   light(): void {
     this.trigger({ pattern: 'light' })
   }
@@ -130,17 +116,11 @@ class HapticFeedbackManager {
     this.trigger({ pattern: 'notification' })
   }
 
-  /**
-   * Enable/disable haptic feedback
-   */
   setEnabled(enabled: boolean): void {
     this.isEnabled = enabled
     localStorage.setItem('harmony-haptics-enabled', enabled.toString())
   }
 
-  /**
-   * Check if haptic feedback is enabled and supported
-   */
   get enabled(): boolean {
     return this.isEnabled && this.isSupported
   }
@@ -152,7 +132,6 @@ class HapticFeedbackManager {
 
 export const hapticManager = new HapticFeedbackManager()
 
-// Vue directive for haptic feedback
 export const vHaptic = {
   mounted(el: HTMLElement, binding: any) {
     const { value = 'light', modifiers } = binding

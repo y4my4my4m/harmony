@@ -154,8 +154,7 @@ const filteredThreads = computed(() => {
   )
 })
 
-// Split into joined and older threads
-const joinedThreads = computed(() => 
+const joinedThreads = computed(() =>
   filteredThreads.value.filter(t => t.is_member)
 )
 

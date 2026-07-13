@@ -1,7 +1,6 @@
 <!-- UserCard - Display federated user information with actions -->
 <template>
   <div class="user-card" :class="{ compact: isCompact, 'has-corner-badge': showRemoteInstanceBadge }">
-    <!-- User Avatar and Basic Info -->
     <div class="user-info" @click="handleUserClick">
       <Avatar 
         :src="user.avatar_url" 
@@ -24,9 +23,7 @@
         </div>
         <div class="user-handle">@{{ handle }}</div>
         
-        <!-- Bio (for non-compact view) -->
         <div v-if="!isCompact && user.bio" class="user-bio" v-html="bioHtml"></div>
-        <!-- Stats (for non-compact view) -->
         <div class="user-stats">
           <span class="stat">
             <strong>{{ formatNumber(user.followers_count || 0) }}</strong> {{ $t('activitypub.followers') }}
@@ -42,9 +39,7 @@
         
     </div>
 
-    <!-- Actions -->
     <div v-if="showActions" class="user-actions">
-      <!-- Follow/Unfollow Button -->
       <button
         v-if="showFollowBtn && !isCurrentUser"
         @click="handleFollowToggle"
@@ -57,7 +52,6 @@
         <span>{{ followButtonText }}</span>
       </button>
 
-      <!-- More Actions Menu -->
       <div v-if="showMoreActions" class="more-actions">
         <button
           @click="showActionsMenu = !showActionsMenu"
@@ -112,7 +106,6 @@
       :compact="isCompact"
     />
 
-    <!-- Report Modal -->
     <ReportModal
       v-if="showReportModal"
       report-type="user"
@@ -172,7 +165,6 @@ const emit = defineEmits<{
 const activityPubStore = useActivityPubStore();
 const authStore = useAuthStore();
 
-// Composables for clean interaction handling  
 const { toggleFollow, getLoadingState } = usePostInteractions();
 
 const showActionsMenu = ref(false);
@@ -593,7 +585,6 @@ onBeforeUnmount(() => {
   to { transform: rotate(360deg); }
 }
 
-/* Mobile responsiveness */
 @media (max-width: 768px) {
   .user-card {
     padding: 0.75rem;

@@ -1,12 +1,4 @@
-/**
- * NotificationService - Professional unified notification management
- * 
- * Integrates with database's unified notification system while providing:
- * - Local-first notification operations
- * - Consistent error handling and loading states
- * - Integration with send_notification_to_user() database function
- * - Type-safe notification interfaces
- */
+// Wraps the database's unified notification system: local-first ops, and integration with send_notification_to_user().
 
 import { supabase } from '@/supabase'
 import type { Notification, NotificationType, NotificationPreferences } from '@/types'
@@ -33,11 +25,6 @@ export class NotificationService {
     return this.instance
   }
 
-  // NOTIFICATION OPERATIONS (LOCAL-FIRST)
-
-  /**
-   * Send notification using unified database system
-   */
   async sendNotification(
     type: NotificationType,
     toUserId: string,
@@ -114,9 +101,6 @@ export class NotificationService {
     }
   }
 
-  /**
-   * Fallback direct query method
-   */
   private async _fetchNotificationsDirect(
     userId: string,
     options?: {
@@ -163,9 +147,6 @@ export class NotificationService {
     return notifications || []
   }
 
-  /**
-   * Mark notification as read
-   */
   async markAsRead(notificationId: string): Promise<boolean> {
     try {
       debug.log('Marking notification as read:', notificationId)
@@ -187,9 +168,6 @@ export class NotificationService {
     }
   }
 
-  /**
-   * Mark notification as unread
-   */
   async markAsUnread(notificationId: string): Promise<boolean> {
     try {
       debug.log('Marking notification as unread:', notificationId)
@@ -211,9 +189,6 @@ export class NotificationService {
     }
   }
 
-  /**
-   * Mark all notifications as read for user
-   */
   async markAllAsRead(userId: string): Promise<boolean> {
     try {
       debug.log('Marking all notifications as read for user:', userId)
@@ -236,9 +211,6 @@ export class NotificationService {
     }
   }
 
-  /**
-   * Delete notification
-   */
   async deleteNotification(notificationId: string): Promise<boolean> {
     try {
       debug.log('Deleting notification:', notificationId)
@@ -403,7 +375,6 @@ export class NotificationService {
     }
   }
 
-  // HELPER METHODS
 
   private createError(code: string, message: string, details?: any): NotificationServiceError {
     return {

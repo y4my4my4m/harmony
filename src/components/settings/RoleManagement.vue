@@ -367,7 +367,6 @@ const availableMembers = ref<any[]>([])
 const allServerMembers = ref<any[]>([])
 let searchTimeout: ReturnType<typeof setTimeout> | null = null
 
-// Form state
 const editForm = ref({
   name: '',
   color: '#99AAB5',
@@ -376,14 +375,12 @@ const editForm = ref({
   permissions: [] as string[],
 })
 
-// Tabs
 const editorTabs = [
   { id: 'display', label: 'Display' },
   { id: 'permissions', label: 'Permissions' },
   { id: 'members', label: 'Members' },
 ]
 
-// Color presets ()
 const colorPresets = [
   '#1ABC9C', '#2ECC71', '#3498DB', '#9B59B6', '#E91E63',
   '#F1C40F', '#E67E22', '#E74C3C', '#95A5A6', '#607D8B',
@@ -391,7 +388,6 @@ const colorPresets = [
   '#C27C0E', '#A84300', '#992D22', '#979C9F', '#546E7A',
 ]
 
-// Permission sections - matches Harmony's actual features
 const permissionSections = [
   {
     id: 'general',
@@ -495,13 +491,8 @@ const hasChanges = computed(() => {
   return isThisRoleDirty(selectedRole.value.id)
 })
 
-/**
- * Per-role dirty check used both by the editor footer ("Save Changes"
- * enabled?) and by the role rail ("show unsaved dot?"). We compare against
- * the canonical role record in `roles.value`, NOT the in-form snapshot,
- * because a role can be inspected without being selected and we still want
- * the dot to disappear after save / reset.
- */
+// Compares against canonical roles.value, not the in-form snapshot, so the
+// unsaved dot clears after save/reset even for a role that isn't selected.
 function isThisRoleDirty(roleId: string): boolean {
   if (!selectedRole.value || selectedRole.value.id !== roleId) return false
   const role = roles.value.find(r => r.id === roleId)
@@ -790,15 +781,13 @@ const searchAvailableMembers = () => {
   const roleMemberIds = new Set(roleMembers.value.map(m => m.id))
   
   availableMembers.value = allServerMembers.value.filter(member => {
-    // Exclude members who already have this role
     if (roleMemberIds.has(member.id)) return false
-    
-    // Match by username or display name
+
     const username = (member.username || '').toLowerCase()
     const displayName = (member.display_name || '').toLowerCase()
-    
+
     return username.includes(query) || displayName.includes(query)
-  }).slice(0, 10) // Limit to 10 results
+  }).slice(0, 10)
   
   searchingMembers.value = false
 }

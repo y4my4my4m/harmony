@@ -111,7 +111,6 @@ const hueHex = computed(() => hsvToHex(hue.value, 1, 1))
 const localColor = computed(() => hsvToHex(hue.value, sat.value, val.value))
 const hexInput = ref(props.color)
 
-// ---- color math -------------------------------------------------------------
 function clamp(n: number, min: number, max: number) {
   return Math.min(max, Math.max(min, n))
 }
@@ -177,7 +176,6 @@ function sameColor(a: string, b: string): boolean {
   return normalizeHex(a) === normalizeHex(b)
 }
 
-// ---- syncing ----------------------------------------------------------------
 function setFromHex(hex: string, silent = false) {
   const hsv = hexToHsv(hex)
   if (!hsv) return
@@ -207,7 +205,6 @@ onMounted(() => {
   setFromHex(props.color || '#0EA5E9', true)
 })
 
-// ---- interactions -----------------------------------------------------------
 const selectColor = (color: string) => {
   setFromHex(color)
 }
@@ -227,7 +224,6 @@ const commitHexInput = () => {
   }
 }
 
-// SV field drag
 let svDragging = false
 function updateSvFromEvent(e: PointerEvent) {
   const el = svFieldRef.value
@@ -250,7 +246,6 @@ const onSvPointerUp = () => {
   window.removeEventListener('pointerup', onSvPointerUp)
 }
 
-// Hue track drag
 let hueDragging = false
 function updateHueFromEvent(e: PointerEvent) {
   const el = hueTrackRef.value

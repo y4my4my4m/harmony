@@ -1,9 +1,3 @@
-/**
- * Easter Egg Service
- * 
- * Manages easter egg effects and animations
- */
-
 import { debug } from '@/utils/debug'
 import { supabase } from '@/supabase'
 
@@ -28,12 +22,9 @@ class EasterEggService {
   private channel: ReturnType<typeof supabase.channel> | null = null
   private channelName: string | null = null
 
-  /**
-   * Initialize easter egg service for a voice channel
-   */
   initialize(channelId: string, _userId: string): void {
     if (this.channelName === `easter-egg:${channelId}`) {
-      return // Already initialized for this channel
+      return
     }
 
     this.cleanup()
@@ -54,11 +45,11 @@ class EasterEggService {
           userId: string
         }
         debug.log('[EasterEgg] Received activation:', type, 'from', activatorId)
-        this.activate(type, activatorId, false) // Don't broadcast again
+        this.activate(type, activatorId, false)
       })
       .on('broadcast', { event: 'deactivate' }, () => {
         debug.log('[EasterEgg] Received deactivation')
-        this.deactivate(false) // Don't broadcast again
+        this.deactivate(false)
       })
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
@@ -67,12 +58,9 @@ class EasterEggService {
       })
   }
 
-  /**
-   * Activate an easter egg
-   */
   activate(type: EasterEggType, userId: string, broadcast: boolean = true): void {
     if (this.state.isActive && this.state.type === type) {
-      return // Already active
+      return
     }
 
     this.state = {
@@ -96,9 +84,6 @@ class EasterEggService {
     }
   }
 
-  /**
-   * Deactivate easter egg
-   */
   deactivate(broadcast: boolean = true): void {
     if (!this.state.isActive) {
       return
@@ -125,12 +110,8 @@ class EasterEggService {
     }
   }
 
-  /**
-   * Subscribe to state changes
-   */
   subscribe(listener: (state: EasterEggState) => void): () => void {
     this.listeners.add(listener)
-    // Immediately notify with current state
     listener(this.state)
 
     return () => {
@@ -155,21 +136,17 @@ class EasterEggService {
     this.listeners.forEach((listener) => listener(state))
   }
 
-  /**
-   * Cleanup
-   */
   cleanup(): void {
     if (this.channel) {
       this.channel.unsubscribe()
       this.channel = null
     }
     this.channelName = null
-    this.listeners.clear() // Clear all listeners to prevent memory leaks
-    this.deactivate(false) // Reset state without broadcasting
+    this.listeners.clear()
+    this.deactivate(false)
     debug.log('[EasterEgg] Cleaned up')
   }
 }
 
-// Singleton instance
 export const easterEggService = new EasterEggService()
 

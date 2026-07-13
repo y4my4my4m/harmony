@@ -15,9 +15,7 @@
         </div>
 
         <!-- Reply Context (for modal replies only) -->
-        <!-- Bound to `effectiveReplyToPost` so reblog wrappers show the
-             original author / content in the preview, matching what the
-             submitted reply will actually target. -->
+        <!-- Bound to `effectiveReplyToPost` so reblog wrappers show the original post, not the Announce wrapper -->
         <div v-if="type === 'reply' && effectiveReplyToPost && mode === 'modal'" class="reply-context">
           <div class="reply-thread-line"></div>
           <div class="reply-to-post">
@@ -335,11 +333,9 @@ import { useComposerActions } from '@/composables/useComposerActions';
 import { useAutoSuggest } from '@/composables/useAutoSuggest';
 import type { SuggestionItem } from '@/components/AutoSuggest.vue';
 
-// Utils
 import { getOriginalPost, getOriginalPostId, getReplyMentionAuthor } from '@/utils/postReblog';
 import { messagePartsToRawText } from '@/utils/messageContentUtils';
 
-// Components
 import MonyContent from './MonyContent.vue';
 import MonyMediaUpload from './MonyMediaUpload.vue';
 import MediaPickerPopup from '@/components/MediaPickerPopup.vue';
@@ -351,7 +347,6 @@ import DisplayName from '@/components/DisplayName.vue';
 import AutoSuggest from '@/components/AutoSuggest.vue';
 import RichTextEditor from '@/components/RichTextEditor.vue';
 
-// I18n
 const { t } = useI18n();
 const toast = useToast();
 
@@ -359,8 +354,7 @@ interface Props {
   mode: 'modal' | 'inline';
   type: 'post' | 'reply' | 'quote' | 'edit';
   replyToPost?: TimelinePost;
-  // Quoting a reblog targets the inner post - a bare ActivityPubPost without
-  // the enhanced interaction fields (matches PostComposerState).
+  // Quoting a reblog targets the inner post - bare ActivityPubPost, matches PostComposerState.
   quotePost?: TimelinePost | ActivityPubPost;
   quoteAuthor?: FederatedUser | PostAuthor;
   editPost?: TimelinePost;
@@ -394,7 +388,6 @@ const mediaPickerTriggerRef = computed(() => gifTriggerRef.value || emojiTrigger
 const isPosting = ref(false);
 const isDragging = ref(false);
 
-// Direct state management (no composable to avoid ref confusion)
 const content = ref('');
 const contentWarning = ref('');
 const visibility = ref<Post['visibility']>(props.defaultVisibility || 'public');
@@ -414,9 +407,7 @@ const characterLimit = 500;
 
 const maxMediaAttachments = computed(() => instanceSettings.settings.maxMediaAttachmentsPerPost ?? 20);
 
-// For reblog targets, the actual reply-to is the original post, not the
-// Announce wrapper. Used by the modal preview block above so the displayed
-// author/content matches what the submitted reply will thread under.
+// Reply threads under the original post, not the Announce wrapper.
 const effectiveReplyToPost = computed(() =>
   props.replyToPost ? getOriginalPost(props.replyToPost) : undefined
 );
@@ -442,7 +433,6 @@ const visibilityOptions = [
   { value: 'direct' as const, label: t('activitypub.direct'), description: t('activitypub.onlyMentionedUsers'), icon: 'mail' }
 ];
 
-// AutoSuggest setup
 const getCurrentText = () => content.value || '';
 const updateText = (newText: string, cursorPosition?: number) => {
   if (cursorPosition !== undefined && richEditorRef.value) {
@@ -458,11 +448,8 @@ const updateText = (newText: string, cursorPosition?: number) => {
 
       nextTick(() => {
         if (richEditorRef.value) {
-          // Mention display normalization (e.g. @user@localhost → @user for local)
-          // can shorten the rendered text vs. the raw text. Recalculate cursor
-          // position by anchoring from the end: the suffix after the cursor is
-          // unaffected by mention rendering, so we can subtract it from the
-          // rendered length to find the correct cursor position.
+          // Mention rendering (e.g. @user@localhost → @user) can shorten rendered
+          // text vs raw text; anchor cursor from the end using the unaffected suffix.
           const renderedText = richEditorRef.value.getPlainText?.() || '';
           const suffixLen = newText.length - cursorPosition;
           const adjustedCursor = Math.max(0, renderedText.length - suffixLen);
@@ -491,7 +478,6 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText, {
   maxSuggestions: 10
 });
 
-// Actions using composable
 const actions = useComposerActions({
   content,
   richEditorRef,
@@ -616,7 +602,6 @@ const triggerFileUpload = () => {
   fileInputRef.value?.click();
 };
 
-// Drag and drop handlers
 const handleDragEnter = (event: DragEvent) => {
   event.preventDefault();
   // Only show overlay for image/video files
@@ -789,9 +774,7 @@ const handleSubmit = async () => {
         isSensitive.value
       );
     } else {
-      // For reblogs, thread the reply under the *original* post - never under
-      // the Announce wrapper. Callers should already pass the unwrapped post,
-      // but unwrap defensively here so future call sites can't regress this.
+      // Thread reply under the original post, never the Announce wrapper; unwrap defensively.
       const replyToId = props.type === 'reply' && props.replyToPost
         ? getOriginalPostId(props.replyToPost)
         : undefined;
@@ -808,9 +791,7 @@ const handleSubmit = async () => {
     emit('close');
   } catch (error: any) {
     debug.error('Failed to create post:', error);
-    // Surface failures as a toast rather than inline text that would shove the
-    // action buttons around / overflow the toolbar. Content is preserved since
-    // we don't reset the composer on error.
+    // Toast instead of inline text to avoid shoving toolbar layout; composer not reset on error.
     toast.error(error?.message || t('activitypub.failedToSendPost'));
   } finally {
     isPosting.value = false;
@@ -835,10 +816,8 @@ onMounted(() => {
       }));
     }
   } else if (props.type === 'reply' && props.replyToPost) {
-    // Mention whichever author the reply should reach. `getReplyMentionAuthor`
-    // returns the original post's author for pure reblogs, the quoter for
-    // quote posts, and `undefined` for unhydrated reblogs (so we skip the
-    // prefill rather than mention the booster, which would mislead the user).
+    // `getReplyMentionAuthor`: original post's author for pure reblogs, quoter for
+    // quote posts, undefined for unhydrated reblogs (skip prefill, don't mention booster).
     const author = getReplyMentionAuthor(props.replyToPost);
     if (author) {
       const username = author.username || '';
@@ -913,7 +892,6 @@ watch(() => props.replyToPost, (replyPost) => {
   }
 });
 
-// Click outside directive
 const vClickOutside = {
   mounted(el: HTMLElement & { _clickOutsideHandler?: (event: Event) => void }, binding: any) {
     el._clickOutsideHandler = (event: Event) => {

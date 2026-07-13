@@ -371,7 +371,6 @@ import type { User } from '@/types'
 import { format } from 'date-fns'
 import { getBannerUrl } from '@/utils/bannerUtils'
 
-// Components
 import ColorPicker from '@/components/common/ColorPicker.vue'
 import Avatar from '@/components/common/Avatar.vue'
 import Icon from '@/components/common/Icon.vue'
@@ -587,9 +586,7 @@ const syncLocalProfile = () => {
   }
 }
 
-const onProfileChange = () => {
-  // Debounce could be added here if needed
-}
+const onProfileChange = () => {}
 
 const onDisplayNameInput = () => {
   const el = displayNameInput.value
@@ -749,14 +746,12 @@ const vClickOutside = {
 
 watch(() => props.profile, syncLocalProfile, { immediate: true })
 
-// Watch for banner URL changes to trigger UI refresh
 watch(() => props.profile?.banner_url, (newBannerUrl, oldBannerUrl) => {
   if (newBannerUrl !== oldBannerUrl) {
     bannerKey.value++
   }
 }, { immediate: false })
 
-// Supporter section
 const supporterLoading = ref(true)
 const supporterBadge = ref<SupporterBadge | null>(null)
 const supporterDonations = ref<DonationRecord[]>([])

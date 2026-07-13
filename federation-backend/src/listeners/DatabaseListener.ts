@@ -20,9 +20,6 @@ import { linkPreviewService } from '../services/LinkPreviewService.js';
 import { ActivityProcessor } from '../activitypub/ActivityProcessor.js';
 import { getFullServerBannerUrl, getFullServerIconUrl } from '../utils/urlUtils.js';
 
-/**
- * Start listening to database notifications
- */
 export async function startDatabaseListener(): Promise<void> {
   logger.info('🔊 Starting database notification listener...');
 
@@ -432,9 +429,6 @@ export async function startDatabaseListener(): Promise<void> {
   }, 2000);
 }
 
-/**
- * Handle new reaction
- */
 async function handleNewReaction(interaction: any): Promise<void> {
   try {
     const supabase = getSupabaseClient();
@@ -503,9 +497,6 @@ async function handleNewReaction(interaction: any): Promise<void> {
   }
 }
 
-/**
- * Handle new follow
- */
 async function handleNewFollow(follow: any): Promise<void> {
   try {
     const supabase = getSupabaseClient();
@@ -548,9 +539,6 @@ async function handleNewFollow(follow: any): Promise<void> {
   }
 }
 
-/**
- * Handle profile update
- */
 async function handleProfileUpdate(oldProfile: any, newProfile: any): Promise<void> {
   try {
     // Only federate updates for local users
@@ -615,9 +603,6 @@ async function handleProfileUpdate(oldProfile: any, newProfile: any): Promise<vo
   }
 }
 
-/**
- * Handle unfollow - send Undo Follow activity
- */
 async function handleUnfollow(deletedFollow: any): Promise<void> {
   try {
     if (!deletedFollow) {
@@ -664,9 +649,6 @@ async function handleUnfollow(deletedFollow: any): Promise<void> {
   }
 }
 
-/**
- * Handle interaction removal - send Undo Like for reactions
- */
 async function handleInteractionRemoval(deletedInteraction: any): Promise<void> {
   try {
     if (!deletedInteraction) {
@@ -735,9 +717,6 @@ async function handleInteractionRemoval(deletedInteraction: any): Promise<void> 
   }
 }
 
-/**
- * Handle pin/unpin changes - send Add/Remove activity
- */
 // eslint-disable-next-line unused-imports/no-unused-vars
 async function handlePinChange(post: any, oldPost: any): Promise<void> {
   try {
@@ -810,9 +789,6 @@ async function handlePinChange(post: any, oldPost: any): Promise<void> {
   }
 }
 
-/**
- * Handle new block - send Block activity
- */
 async function handleNewBlock(block: any): Promise<void> {
   try {
     const supabase = getSupabaseClient();
@@ -852,9 +828,6 @@ async function handleNewBlock(block: any): Promise<void> {
   }
 }
 
-/**
- * Handle unblock - send Undo Block activity
- */
 async function handleUnblock(block: any): Promise<void> {
   try {
     if (!block) return;
@@ -894,9 +867,6 @@ async function handleUnblock(block: any): Promise<void> {
   }
 }
 
-/**
- * Handle new report - send Flag activity to remote instance
- */
 async function handleNewReport(report: any): Promise<void> {
   try {
     // Skip if this report came from federation (source === 'federation')
@@ -958,9 +928,6 @@ async function handleNewReport(report: any): Promise<void> {
 
 // CHANNEL CRUD FEDERATION HANDLERS
 
-/**
- * Handle channel creation - federate to remote server members
- */
 export async function handleChannelCreated(channel: any): Promise<void> {
   try {
     const supabase = getSupabaseClient();
@@ -1025,9 +992,6 @@ export async function handleChannelCreated(channel: any): Promise<void> {
   }
 }
 
-/**
- * Handle channel update - federate to remote server members
- */
 export async function handleChannelUpdated(channel: any, _oldChannel: any): Promise<void> {
   try {
     const supabase = getSupabaseClient();
@@ -1089,9 +1053,6 @@ export async function handleChannelUpdated(channel: any, _oldChannel: any): Prom
   }
 }
 
-/**
- * Handle channel deletion - federate to remote server members
- */
 export async function handleChannelDeleted(channel: any): Promise<void> {
   try {
     const supabase = getSupabaseClient();
@@ -1146,9 +1107,6 @@ export async function handleChannelDeleted(channel: any): Promise<void> {
   }
 }
 
-/**
- * Handle server update - federate to remote members
- */
 export async function handleServerUpdated(server: any, _oldServer: any): Promise<void> {
   try {
     // eslint-disable-next-line unused-imports/no-unused-vars
@@ -1206,9 +1164,6 @@ export async function handleServerUpdated(server: any, _oldServer: any): Promise
   }
 }
 
-/**
- * Get remote member groups for a server (helper function)
- */
 async function getRemoteMemberGroups(serverId: string): Promise<any[]> {
   const supabase = getSupabaseClient();
   const hostDomain = config.INSTANCE_DOMAIN;
@@ -1267,9 +1222,6 @@ async function getRemoteMemberGroups(serverId: string): Promise<any[]> {
 
 // CHANNEL MESSAGE FEDERATION HANDLERS
 
-/**
- * Handle new channel message - federate to remote server members
- */
 export async function handleNewChannelMessage(message: any): Promise<void> {
   try {
     const supabase = getSupabaseClient();
@@ -1298,9 +1250,6 @@ export async function handleNewChannelMessage(message: any): Promise<void> {
   }
 }
 
-/**
- * Handle channel message update - federate edit to remote server members
- */
 async function handleChannelMessageUpdate(message: any): Promise<void> {
   try {
     const supabase = getSupabaseClient();
@@ -1326,9 +1275,6 @@ async function handleChannelMessageUpdate(message: any): Promise<void> {
   }
 }
 
-/**
- * Handle channel message deletion - federate delete to remote server members
- */
 async function handleChannelMessageDeletion(message: any): Promise<void> {
   try {
     const supabase = getSupabaseClient();
@@ -1357,10 +1303,7 @@ async function handleChannelMessageDeletion(message: any): Promise<void> {
 
 // DM MESSAGE FEDERATION HANDLERS
 
-/**
- * Handle new DM messages - federate to remote recipients
- * This replaces the database trigger handle_outgoing_messages for DMs
- */
+// Replaces the database trigger handle_outgoing_messages for DMs.
 export async function handleNewDM(message: any): Promise<void> {
   try {
     if (message.is_system) {
@@ -1567,10 +1510,6 @@ export async function handleNewDM(message: any): Promise<void> {
   }
 }
 
-/**
- * Handle new message reaction (DM reaction federation)
- * When a local user reacts to a DM, federate the Like activity to all remote participants
- */
 export async function handleNewMessageReaction(reaction: any): Promise<void> {
   try {
     const supabase = getSupabaseClient();
@@ -1658,10 +1597,6 @@ export async function handleNewMessageReaction(reaction: any): Promise<void> {
   }
 }
 
-/**
- * Handle message reaction removal (Undo Like for DMs)
- * When a local user removes a reaction from a DM, federate Undo Like to all remote participants
- */
 export async function handleMessageReactionRemoval(deletedReaction: any): Promise<void> {
   try {
     if (!deletedReaction) {
@@ -1892,6 +1827,3 @@ export async function enrichPostLinkPreviews(post: any): Promise<boolean> {
   logger.info(`🔗 Enriched post ${post.id} with ${Object.keys(newEmbeds).length} link preview(s)`);
   return true;
 }
-
-// Content conversion functions are now in utils/contentUtils.ts
-// Used by: DMs, Channel Messages, Posts - ensuring consistent federation output

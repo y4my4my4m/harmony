@@ -39,7 +39,6 @@ export interface UserStats {
 export class CoreProfileService {
   private static instance: CoreProfileService
   
-  // Security constants
   private readonly MAX_SEARCH_LIMIT = 50
   private readonly MAX_USERNAME_LENGTH = 30
   private readonly MAX_DISPLAY_NAME_LENGTH = 50
@@ -53,14 +52,8 @@ export class CoreProfileService {
     return this.instance
   }
 
-  // PROFILE LOADING (SECURE & PRIVACY-AWARE)
-
-  /**
-   * Load profile by ID with privacy controls (pure local, secure)
-   */
   async loadProfile(profileId: string): Promise<Profile | null> {
     try {
-      // Input validation
       if (!profileId || typeof profileId !== 'string') {
         throw this.createError('INVALID_INPUT', 'Profile ID is required')
       }
@@ -108,12 +101,8 @@ export class CoreProfileService {
     }
   }
 
-  /**
-   * Load profile by auth user ID (secure ownership lookup)
-   */
   async loadProfileByAuthUserId(authUserId: string): Promise<Profile | null> {
     try {
-      // Input validation
       if (!authUserId || typeof authUserId !== 'string') {
         throw this.createError('INVALID_INPUT', 'Auth user ID is required')
       }
@@ -143,9 +132,6 @@ export class CoreProfileService {
     }
   }
 
-  /**
-   * Search profiles with security filtering (pure local, secure)
-   */
   async searchProfiles(
     query: string,
     options: ProfileSearchOptions = {}
@@ -153,7 +139,6 @@ export class CoreProfileService {
     try {
       const { limit = 20, signal } = options
 
-      // Security validation
       if (!query || typeof query !== 'string') {
         throw this.createError('INVALID_INPUT', 'Search query is required')
       }
@@ -189,16 +174,10 @@ export class CoreProfileService {
         .or(`username.ilike.%${sanitizedQuery}%,display_name.ilike.%${sanitizedQuery}%`)
         .limit(secureLimit)
 
-      // Privacy filtering - removed (column doesn't exist yet)
-      // if (!includePrivate) {
-      //   queryBuilder = queryBuilder.or('is_private.is.null,is_private.eq.false')
-      // }
-
       const { data: profiles, error } = await queryBuilder
 
       if (error) throw this.createError('SEARCH_FAILED', 'Failed to search profiles', error)
 
-      // Additional privacy filtering
       const filteredProfiles = profiles?.map(profile => 
         this.sanitizeProfileForPublicView(profile)
       ) || []
@@ -211,23 +190,16 @@ export class CoreProfileService {
     }
   }
 
-  // PROFILE MANAGEMENT (SECURE OWNERSHIP VERIFICATION)
-
-  /**
-   * Update current user profile (SECURE ownership verification)
-   */
   async updateProfile(profileData: ProfileData): Promise<Profile> {
     try {
       const profileId = await authContextService.getCurrentProfileId()
       const authUser = await authContextService.getCurrentAuthUser()
 
-      // Input validation and sanitization
       const sanitizedData = this.sanitizeProfileData(profileData)
       this.validateProfileData(sanitizedData)
 
       debug.log('Core: Updating profile with secure validation')
 
-      // Secure database update with ownership verification
       const { data: profile, error } = await supabase
         .from('profiles')
         .update({
@@ -239,7 +211,6 @@ export class CoreProfileService {
         .single()
 
       if (error) {
-        // Check for unique constraint violations
         if (error.code === '23505') {
           if (error.message.includes('username')) {
             throw this.createError('USERNAME_TAKEN', 'Username is already taken')
@@ -260,25 +231,20 @@ export class CoreProfileService {
     }
   }
 
-  /**
-   * Create new user profile (SECURE registration)
-   */
   async createProfile(profileData: Profile): Promise<Profile> {
     try {
       const authUser = await authContextService.getCurrentAuthUser()
 
-      // Input validation and sanitization
       const sanitizedData = this.sanitizeProfileCreationData(profileData)
       this.validateProfileCreationData(sanitizedData)
 
       debug.log('Core: Creating profile with security validation')
 
-      // Secure profile creation
       const { data: profile, error } = await supabase
         .from('profiles')
         .insert({
           ...sanitizedData,
-          auth_user_id: authUser.id, // Secure user association
+          auth_user_id: authUser.id,
           is_local: true
         })
         .select()
@@ -304,21 +270,14 @@ export class CoreProfileService {
     }
   }
 
-  // USER STATISTICS (SECURE AGGREGATION)
-
-  /**
-   * Get user statistics with secure aggregation
-   */
   async getUserStats(profileId: string): Promise<UserStats> {
     try {
-      // Input validation
       if (!profileId || typeof profileId !== 'string') {
         throw this.createError('INVALID_INPUT', 'Profile ID is required')
       }
 
       debug.log(`Core: Loading user stats: ${profileId}`)
 
-      // Secure aggregation query
       const { data: profile, error } = await supabase
         .from('profiles')
         .select(`
@@ -354,8 +313,6 @@ export class CoreProfileService {
       throw error
     }
   }
-
-  // SECURITY HELPER METHODS
 
   private sanitizeProfileData(data: ProfileData): ProfileData {
     return {

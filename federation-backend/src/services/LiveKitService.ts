@@ -4,8 +4,6 @@ import { getSupabaseClient } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
 import { pgrstOrValue } from '../utils/postgrestFilter.js';
 
-// TYPES
-
 export interface TokenRequest {
   userId: string;
   roomName: string;
@@ -47,14 +45,9 @@ export interface LiveKitConfig {
   allowFederatedVoice: boolean;
 }
 
-// LIVEKIT SERVICE
-
 class LiveKitService {
   private roomService: RoomServiceClient | null = null;
-  
-  /**
-   * Get LiveKit configuration
-   */
+
   getConfig(): LiveKitConfig {
     const isConfigured = !!(config.LIVEKIT_API_KEY && config.LIVEKIT_API_SECRET && config.LIVEKIT_URL);
     
@@ -69,16 +62,10 @@ class LiveKitService {
     };
   }
   
-  /**
-   * Check if LiveKit is properly configured
-   */
   isConfigured(): boolean {
     return this.getConfig().isConfigured;
   }
-  
-  /**
-   * Get RoomServiceClient instance (lazy initialization)
-   */
+
   private getRoomService(): RoomServiceClient {
     if (!this.roomService) {
       const cfg = this.getConfig();
@@ -103,7 +90,6 @@ class LiveKitService {
       throw new Error('LiveKit is not configured');
     }
     
-    // Validate user has permission to join this room
     // request.userId is auth_user_id (from Supabase auth)
     const hasPermission = await this.validateRoomPermission(request.userId, request.roomName, request.roomType);
     if (!hasPermission) {
@@ -117,9 +103,8 @@ class LiveKitService {
       .eq('auth_user_id', request.userId)
       .single();
     
-    // AUTHORIZATION: the caller must actually belong to the room they're asking
-    // for a publish/subscribe token for. Without this, any authenticated user
-    // could mint a token for any voice channel / DM call and join it.
+    // AUTHORIZATION: caller must belong to the room they're requesting a token for,
+    // otherwise any authenticated user could mint a token for any voice channel / DM call.
     const allowed = await this.validateRoomPermission(
       request.userId,
       request.roomName,
@@ -129,32 +114,26 @@ class LiveKitService {
       throw new Error('permission denied: not a member of this room');
     }
 
-    // Create access token
-    // Use federated identity format for consistency across federation
     const profileId = profile?.id || request.userId;
     const username = profile?.username || 'unknown';
-    
-    // Build the federated identity - use existing federated_id if present (for federated users)
-    // or construct one for local users based on instance domain
+
+    // Use federated identity format for consistency across federation
     let identity: string;
     if (profile?.federated_id) {
-      // User already has a federated ID (they're a federated user synced to this instance)
       identity = `federated:${profile.federated_id}`;
     } else if (config.INSTANCE_DOMAIN) {
-      // Local user - construct federated identity
       identity = `federated:https://${config.INSTANCE_DOMAIN}/users/${username}`;
     } else {
-      // Fallback for non-federated instances - just use UUID
       identity = profileId;
     }
-    
+
     const at = new AccessToken(cfg.apiKey, cfg.apiSecret, {
       identity,
       name: profile?.display_name || profile?.username || 'Unknown User',
-      ttl: '24h', // Token valid for 24 hours
+      ttl: '24h',
       metadata: JSON.stringify({
         ...request.metadata,
-        profileId, // Include the local UUID for quick lookup
+        profileId,
         avatarUrl: profile?.avatar_url,
         username: profile?.username,
         roomType: request.roomType,
@@ -183,9 +162,6 @@ class LiveKitService {
     return { token, profileId };
   }
   
-  /**
-   * Generate a token for a federated user
-   */
   async generateFederatedToken(request: FederatedTokenRequest): Promise<string> {
     const cfg = this.getConfig();
     if (!cfg.isConfigured) {
@@ -196,12 +172,10 @@ class LiveKitService {
       throw new Error('Federated voice is not enabled on this instance');
     }
 
-    // NOTE: the HTTP Signature (and the actorId<->signer binding) is verified by
-    // the caller of this method (POST /api/livekit/federated-token). That proves
-    // "this remote actor is who they claim". It does NOT prove the actor belongs
-    // to the requested room - we must still authorize room access below, or any
-    // actor on a non-blocked instance could mint a token to join ANY voice
-    // channel / DM call and (for non-E2EE rooms) eavesdrop on the SFU media.
+    // The HTTP Signature (actorId<->signer binding) is verified by the caller
+    // (POST /api/livekit/federated-token), proving actor identity only. Room
+    // access must still be authorized below, or any actor on a non-blocked
+    // instance could mint a token to join any voice channel / DM call.
 
     const actorUrl = new URL(request.actorId);
     const remoteDomain = actorUrl.hostname;
@@ -232,7 +206,7 @@ class LiveKitService {
     const at = new AccessToken(cfg.apiKey, cfg.apiSecret, {
       identity: federatedIdentity,
       name: request.actorId.split('@').pop() || 'Remote User',
-      ttl: '4h', // Shorter TTL for federated users
+      ttl: '4h',
       metadata: JSON.stringify({
         actorId: request.actorId,
         remoteDomain,
@@ -262,9 +236,6 @@ class LiveKitService {
     return token;
   }
   
-  /**
-   * Validate that a user has permission to join a room
-   */
   private async validateRoomPermission(
     authUserId: string,
     roomName: string,
@@ -294,9 +265,7 @@ class LiveKitService {
       // Room name format: channel-{channelId} or stage-{channelId}
       const channelId = roomName.replace(/^(channel|stage)-/, '');
       logger.debug(`Extracted channelId: ${channelId}`);
-      
-      // Check if user has access to the channel
-      // First get the server this channel belongs to
+
       const { data: channel, error: channelError } = await supabase
         .from('channels')
         .select('server_id')

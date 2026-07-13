@@ -105,9 +105,6 @@ const nativeUnicodePack: EmojiPack = {
   isBuiltIn: true
 }
 
-/**
- * Load emoji pack preference from localStorage
- */
 function loadPackPreference(): void {
   try {
     let stored = userStorage.getItem(STORAGE_KEY)
@@ -130,9 +127,6 @@ function loadPackPreference(): void {
   }
 }
 
-/**
- * Save emoji pack preference to localStorage
- */
 function savePackPreference(): void {
   try {
     userStorage.setItem(STORAGE_KEY, currentPackId.value)
@@ -189,25 +183,16 @@ export function isEmojiPackAvailable(packId: string): boolean {
   return availablePacks.value.has(packId)
 }
 
-/**
- * Get the current emoji pack
- */
 export function getCurrentPack(): EmojiPack {
   initializeEmojiPacks()
   return availablePacks.value.get(currentPackId.value) || twemojiPack
 }
 
-/**
- * Get all available emoji packs
- */
 export function getAvailablePacks(): EmojiPack[] {
   initializeEmojiPacks()
   return Array.from(availablePacks.value.values())
 }
 
-/**
- * Set the current emoji pack
- */
 export function setCurrentPack(packId: string): boolean {
   initializeEmojiPacks()
   
@@ -223,28 +208,21 @@ export function setCurrentPack(packId: string): boolean {
   return true
 }
 
-/**
- * Register a custom emoji pack
- */
 export function registerEmojiPack(pack: EmojiPack): void {
   initializeEmojiPacks()
   availablePacks.value.set(pack.id, pack)
   debug.log('Registered emoji pack:', pack.name)
 }
 
-/**
- * Load emoji index for a pack (fetches the pre-generated JSON)
- */
 export async function loadPackEmojiIndex(packId: string): Promise<EmojiPackItem[]> {
   initializeEmojiPacks()
-  
+
   const pack = availablePacks.value.get(packId)
   if (!pack || pack.isBuiltIn) {
     return []
   }
-  
+
   try {
-    // Try to load the pre-generated index
     const indexPath = `${pack.basePath}/emoji-index.json`
     const response = await fetch(indexPath)
     
@@ -265,9 +243,6 @@ export async function loadPackEmojiIndex(packId: string): Promise<EmojiPackItem[
   }
 }
 
-/**
- * Get emoji URL for a pack item
- */
 export function getEmojiPackUrl(emoji: EmojiPackItem, pack?: EmojiPack): string {
   const currentPack = pack || getCurrentPack()
   if (currentPack.isBuiltIn) {
@@ -276,9 +251,6 @@ export function getEmojiPackUrl(emoji: EmojiPackItem, pack?: EmojiPack): string 
   return `${currentPack.basePath}/${emoji.path}`
 }
 
-/**
- * Search emojis across the current pack
- */
 export function searchPackEmojis(query: string): EmojiPackItem[] {
   const pack = getCurrentPack()
   if (!pack.emojis.length) return []
@@ -291,17 +263,11 @@ export function searchPackEmojis(query: string): EmojiPackItem[] {
   ).slice(0, 50) // Limit results
 }
 
-/**
- * Get emojis by category
- */
 export function getEmojisByCategory(categoryId: string): EmojiPackItem[] {
   const pack = getCurrentPack()
   return pack.emojis.filter(emoji => emoji.category === categoryId)
 }
 
-/**
- * Composable for emoji packs
- */
 export { currentPackId }
 
 export function useEmojiPacks() {

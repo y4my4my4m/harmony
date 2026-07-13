@@ -77,7 +77,6 @@ export class NativeLiveKitService {
     };
   }
 
-  // TAURI EVENT BRIDGE
 
   private ensureListeners(): Promise<void> {
     if (this.listenersReady) return this.listenersReady;
@@ -214,13 +213,11 @@ export class NativeLiveKitService {
     });
   }
 
-  // CONFIG
 
   async isAvailable(): Promise<boolean> {
     return isLiveKitAvailable();
   }
 
-  // CONNECTION
 
   async joinChannel(
     channelId: string,
@@ -298,7 +295,6 @@ export class NativeLiveKitService {
     return this.channelId;
   }
 
-  // MEDIA CONTROLS
 
   toggleMute(): boolean {
     const next = !this.localMediaState.isMuted;
@@ -441,7 +437,6 @@ export class NativeLiveKitService {
     return false;
   }
 
-  // STATE
 
   getLocalState(): UserMediaState {
     return { ...this.localMediaState };
@@ -521,7 +516,6 @@ export class NativeLiveKitService {
     }
   }
 
-  // EVENTS
 
   on(event: string, callback: Function): void {
     if (!this.eventListeners.has(event)) {

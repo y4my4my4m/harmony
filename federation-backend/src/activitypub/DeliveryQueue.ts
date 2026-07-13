@@ -67,8 +67,7 @@ export class DeliveryQueue {
     priority: number = 5
   ): Promise<void> {
     logger.info(`📤 Attempting immediate delivery to ${targetInbox}`);
-    
-    // Try immediate delivery first (realtime!)
+
     try {
       const success = await this.deliverActivityDirect(
         activityData,
@@ -78,13 +77,12 @@ export class DeliveryQueue {
       
       if (success) {
         logger.info(`✅ Immediate delivery succeeded to ${targetInbox}`);
-        return; // Success! No need to queue
+        return;
       }
     } catch (error) {
       logger.warn(`⚠️ Immediate delivery failed, queuing for retry:`, error);
     }
-    
-    // Immediate delivery failed - queue it for retry
+
     const supabase = getSupabaseClient();
 
     const targetDomain = parseInboxDomain(targetInbox);
@@ -141,7 +139,6 @@ export class DeliveryQueue {
       return { processed: 0, succeeded: 0, failed: 0 };
     }
 
-    // Group items by domain for concurrent-by-domain processing
     const byDomain = new Map<string, QueueItem[]>();
     for (const item of items) {
       try {
@@ -160,7 +157,6 @@ export class DeliveryQueue {
     let succeeded = 0;
     let failed = 0;
 
-    // Each task delivers all items for one domain sequentially
     const domainEntries = Array.from(byDomain.entries());
     const domainTasks = domainEntries.map(
       ([_domain, domainItems]) => async () => {
@@ -330,7 +326,6 @@ export class DeliveryQueue {
       return false;
     }
 
-    // Check if endpoint is dead before attempting delivery
     const isDead = await this.isEndpointDead(targetInbox);
     if (isDead) {
       logger.info(`⏭️ Skipping delivery to dead endpoint: ${targetInbox}`);
@@ -348,7 +343,6 @@ export class DeliveryQueue {
     const startedAt = process.hrtime.bigint();
 
     try {
-      // Sign the request
       const { headers } = await SignatureService.signRequest(
         targetInbox,
         'POST',
@@ -358,10 +352,8 @@ export class DeliveryQueue {
 
       headers['Content-Type'] = 'application/activity+json';
 
-      // Send request. safeFetch additionally re-validates URL+DNS per
-      // redirect hop and bounds the attempt with a timeout - the outer
-      // `validateExternalUrl(targetInbox)` above is kept for the clearer
-      // pre-flight log message but is now strictly defense-in-depth.
+      // safeFetch re-validates URL+DNS per redirect hop and applies a timeout;
+      // the validateExternalUrl() check above is defense-in-depth.
       const response = await safeFetch(targetInbox, {
         method: 'POST',
         headers,

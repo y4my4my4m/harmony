@@ -36,13 +36,9 @@ router.get(
       });
     }
 
-    // A handle can name a user (Person) AND/OR a chat server (Group). They are
-    // distinct actor types that may share a localpart, exactly like Lemmy's
-    // users vs communities. WebFinger has no type field in the acct: URI, so we
-    // return one rel="self" link PER matching actor, each tagged with its
-    // ActivityStreams type in `properties`. The requester filters by the type
-    // it wants (Mastodon-style consumers that ignore properties just take the
-    // first link - fine, since collisions are rare and servers aren't @-mentioned).
+    // A handle may name a user (Person) and/or a server (Group) sharing a localpart.
+    // acct: has no type field, so return one rel="self" link per matching actor,
+    // tagged with ActivityStreams type in `properties`.
     const AS_TYPE = 'https://www.w3.org/ns/activitystreams#type';
     const supabase = getSupabaseClient();
 
@@ -53,9 +49,7 @@ router.get(
         .ilike('username', username)
         .eq('is_local', true)
         .maybeSingle(),
-      // Only public, federation-enabled local servers are discoverable by
-      // handle. Private servers stay invite-only (reached by Group-actor URL
-      // through the invite flow), never by guessing a handle.
+      // Only public, federation-enabled local servers are discoverable by handle.
       supabase
         .from('servers')
         .select('id, slug')

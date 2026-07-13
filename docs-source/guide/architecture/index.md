@@ -1,6 +1,6 @@
 # System Architecture Overview
 
-Harmony is built using modern web technologies with a focus on performance, scalability, and developer experience.
+Harmony's frontend is Vue 3 + TypeScript, backed by Supabase, with ActivityPub federation and Docker-based infrastructure.
 
 ## Technology Stack
 
@@ -121,22 +121,13 @@ graph TB
 ## Key Design Decisions
 
 ### TypeScript First
-All code is written in TypeScript for:
-- **Type Safety**: Catch errors at compile time
-- **Better IDE Support**: Enhanced autocomplete and refactoring
-- **Self-Documenting Code**: Types serve as documentation
+All code is written in TypeScript for compile-time type checking and IDE support.
 
 ### Composition API
-Vue 3's Composition API provides:
-- **Better Logic Reuse**: Share logic between components
-- **Type Inference**: Better TypeScript integration
-- **Performance**: More efficient reactivity
+Used throughout for logic reuse across components and TypeScript inference.
 
 ### Modular Architecture
-The codebase is organized into modules:
-- **Clear Separation**: Each module has a specific responsibility
-- **Easy Testing**: Modules can be tested in isolation
-- **Scalability**: New features can be added without affecting existing code
+Each module has a single responsibility, so it can be tested in isolation and extended without touching unrelated code.
 
 ---
 

@@ -28,9 +28,6 @@ interface ReactionDeletePayload {
 
 // ADD REACTION HANDLER
 
-/**
- * Handle channel message reaction federation
- */
 export async function handleChannelReactionFederation(
   payload: ReactionPayload
 ): Promise<void> {
@@ -156,9 +153,6 @@ export async function handleChannelReactionFederation(
 
 // REMOVE REACTION HANDLER
 
-/**
- * Handle channel message reaction removal federation
- */
 export async function handleChannelReactionRemoval(
   payload: ReactionDeletePayload
 ): Promise<void> {
@@ -266,9 +260,6 @@ interface RemoteMemberGroup {
   shared_inbox?: string;
 }
 
-/**
- * Get remote member groups for a server
- */
 async function getRemoteMemberGroups(serverId: string): Promise<RemoteMemberGroup[]> {
   const supabase = getSupabaseClient();
   const hostDomain = config.INSTANCE_DOMAIN;

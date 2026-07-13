@@ -305,7 +305,6 @@ export class RecoveryKeyService {
     return RecoveryKeyService.instance
   }
 
-  // MNEMONIC GENERATION
 
   /**
    * Generate a new 12-word recovery mnemonic.
@@ -472,7 +471,6 @@ export class RecoveryKeyService {
       .filter(word => word.length > 0)
   }
 
-  // KEY DERIVATION
 
   /**
    * Derive encryption keys from mnemonic
@@ -612,7 +610,6 @@ export class RecoveryKeyService {
     this.mnemonic = null
   }
 
-  // BACKUP ENCRYPTION
 
   /**
    * Encrypt data with the backup key (for server storage)
@@ -663,7 +660,6 @@ export class RecoveryKeyService {
     return decoder.decode(decrypted)
   }
 
-  // QR CODE SUPPORT
 
   /**
    * Generate data for QR code (for cross-device sharing)
@@ -704,7 +700,6 @@ export class RecoveryKeyService {
     }
   }
 
-  // RECOVERY KEY VERIFICATION
 
   /**
    * Generate a verification code from the mnemonic
@@ -744,7 +739,6 @@ export class RecoveryKeyService {
     return code === expectedCode.toUpperCase()
   }
 
-  // UTILITY METHODS
 
   private arrayBufferToBase64(buffer: ArrayBuffer): string {
     const bytes = new Uint8Array(buffer)

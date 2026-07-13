@@ -30,7 +30,6 @@ const emit = defineEmits<{
 }>();
 
 const handleMentionClick = (userId: string, event: Event) => {
-  // Extract handle from the mention element for backwards compatibility
   const target = event.target as HTMLElement;
   const handle = target.getAttribute('data-handle') || `@${userId}`;
   emit('user-mention-click', handle);
@@ -46,5 +45,4 @@ const handleImageClick = (url: string) => {
 </script>
 
 <style scoped>
-/* Styles are now handled by UnifiedContentRenderer */
 </style>

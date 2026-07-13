@@ -1,7 +1,5 @@
 # Data Flow Architecture
 
-Understanding how data flows through Harmony is crucial for effective development. This document outlines the data flow patterns used throughout the application.
-
 ## Overall Data Flow
 
 ```mermaid
@@ -27,8 +25,6 @@ sequenceDiagram
 `
 
 ## Message Flow Example
-
-Here's how a chat message flows through the system:
 
 ```mermaid
 graph TB

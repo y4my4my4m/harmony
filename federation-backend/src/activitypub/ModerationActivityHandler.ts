@@ -15,8 +15,6 @@ import { DeliveryQueue } from '../activitypub/DeliveryQueue.js';
 import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
 
-// TYPES
-
 interface KickPayload {
   server_id: string;
   user_id: string;
@@ -37,8 +35,6 @@ interface UnbanPayload {
   user_id: string;
   moderator_id: string;
 }
-
-// KICK HANDLER
 
 /**
  * Federate a kick action (Remove activity)
@@ -112,8 +108,6 @@ export async function federateKick(payload: KickPayload): Promise<void> {
     logger.error('Error federating kick:', error);
   }
 }
-
-// BAN HANDLER
 
 /**
  * Federate a ban action (harmony:Ban activity)
@@ -198,8 +192,6 @@ export async function federateBan(payload: BanPayload): Promise<void> {
   }
 }
 
-// UNBAN HANDLER
-
 /**
  * Federate an unban action (Undo harmony:Ban activity)
  */
@@ -271,11 +263,6 @@ export async function federateUnban(payload: UnbanPayload): Promise<void> {
   }
 }
 
-// INCOMING MODERATION HANDLER
-
-/**
- * Process incoming ban activity from remote server
- */
 export async function processIncomingBan(activity: any): Promise<void> {
   const supabase = getSupabaseClient();
   
@@ -311,7 +298,6 @@ export async function processIncomingBan(activity: any): Promise<void> {
     return;
   }
 
-  // If user is local, remove them from the server
   if (user.is_local) {
     await supabase
       .from('user_servers')
@@ -323,9 +309,6 @@ export async function processIncomingBan(activity: any): Promise<void> {
   }
 }
 
-/**
- * Process incoming Remove activity (kick) from remote server
- */
 export async function processIncomingKick(activity: any): Promise<void> {
   const supabase = getSupabaseClient();
   
@@ -367,9 +350,6 @@ export async function processIncomingKick(activity: any): Promise<void> {
   logger.info(`👢 Local user ${user.id} kicked from remote server ${server.id}`);
 }
 
-/**
- * Process incoming Undo Ban activity
- */
 export async function processIncomingUnban(activity: any): Promise<void> {
   const supabase = getSupabaseClient();
   const object = activity.object;

@@ -104,7 +104,7 @@ curl http://localhost:5173/.well-known/nodeinfo
 1. Register an account
 2. Configure Admin Panel
 3. Follow federated users
-4. Create posts!
+4. Create posts
 
 See the [self-hosting guide](./self-hosting.md) for installation and deployment detail.
 

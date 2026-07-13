@@ -1,51 +1,10 @@
-/**
- * Professional Spatial Audio Service
- * 
- * This service provides high-quality 2D spatial audio processing for WebRTC voice chat.
- * It creates an AudioContext only when spatial audio is enabled and uses MediaStreams
- * directly for optimal performance and low latency.
- * 
- * Architecture:
- * - AudioContext created on-demand (lazy initialization)
- * - Professional audio chain: MediaStreamSource → Gain → [Convolver] → Panner → MasterGain → Compressor → Destination
- * - Supports reverb via impulse response convolution
- * - Throttled position updates (~60fps) for smooth performance
- * - Clean integration with Pinia stores and WebRTC service
- * 
- * Key Features:
- * - Direct MediaStream processing (no HTMLAudioElement)
- * - Impulse response-based reverb system
- * - Distance-based attenuation and panning
- * - Professional dynamic range compression
- * - Memory efficient with proper cleanup
- * - Prevents double audio output when switching modes
- * 
- * Integration:
- * - Use spatialAudioService.initialize() before first use
- * - Call setupSpatialForUser(userId, mediaStream) for each remote user
- * - Update positions via updateUserPosition(userId, x, y)
- * - Toggle via enable/disable methods
- * - Cleanup via cleanup() when done
- * 
- * @example
- * ```typescript
- * // Initialize the service
- * await spatialAudioService.initialize();
- * spatialAudioService.setListener('currentUserId');
- * 
- * // Setup spatial audio for a remote user
- * const userStream = webrtc.getUserStream('remoteUserId');
- * spatialAudioService.setupSpatialForUser('remoteUserId', userStream);
- * 
- * // Update user position
- * spatialAudioService.updateUserPosition('remoteUserId', 100, 50);
- * ```
- */
+// 2D spatial audio for WebRTC voice chat. AudioContext created only when enabled; processes MediaStreams directly (no HTMLAudioElement).
+// Chain: MediaStreamSource -> Gain -> [Convolver] -> Panner -> MasterGain -> Compressor -> Destination. Reverb via impulse response convolution; position updates throttled to ~60fps.
+// Usage: initialize() once, setupSpatialForUser(userId, stream) per remote user, updateUserPosition(userId, x, y) on move, cleanup() when done.
 
 import { useSpatialAudioStore } from '@/stores/spatialAudio';
 import { debug } from '@/utils/debug'
 
-// TYPES
 
 interface SpatialAudioNode {
   userId: string;
@@ -64,7 +23,6 @@ interface ImpulseResponseCache {
   [roomSize: string]: AudioBuffer;
 }
 
-// SPATIAL AUDIO SERVICE
 
 export class SpatialAudioService {
   private audioContext: AudioContext | null = null;
@@ -81,7 +39,6 @@ export class SpatialAudioService {
   private readonly updateThrottleMs = 16; // ~60fps updates
   private animationFrameId: number | null = null;
 
-  // INITIALIZATION
 
   /**
    * Initialize spatial audio system with optimized audio context
@@ -174,7 +131,6 @@ export class SpatialAudioService {
     }
   }
 
-  // USER MANAGEMENT
 
   /**
    * Set the listener (local user) for spatial audio calculations
@@ -382,7 +338,6 @@ export class SpatialAudioService {
     }
   }
 
-  // SPATIAL EFFECTS
 
   /**
    * Update spatial effects for all users with optimized performance
@@ -605,7 +560,6 @@ export class SpatialAudioService {
     }
   }
 
-  // POSITION MANAGEMENT
 
   /**
    * Update user position and trigger spatial effects recalculation
@@ -648,7 +602,6 @@ export class SpatialAudioService {
     }
   }
 
-  // AUDIO NODE CREATION
 
   /**
    * Create optimized panner node based on settings and browser capabilities
@@ -801,7 +754,6 @@ export class SpatialAudioService {
     }
   }
 
-  // CONTROL METHODS
 
   /**
    * Enable spatial audio effects with proper initialization
@@ -1074,7 +1026,6 @@ export class SpatialAudioService {
     });
   }
 
-  // CLEANUP
 
   /**
    * Destroy spatial audio service and cleanup all resources

@@ -73,7 +73,7 @@ export const useProfileStore = defineStore('profile', {
           message: error.message || 'Failed to update profile',
           details: error
         });
-        throw error; // Re-throw to allow proper error handling in components
+        throw error;
       }
     },
 
@@ -96,7 +96,7 @@ export const useProfileStore = defineStore('profile', {
           message: error.message || 'Failed to create profile', 
           details: error
         });
-        throw error; // Re-throw to allow proper error handling in components
+        throw error;
       }
     },
 

@@ -218,4 +218,4 @@ services:
 
 ## Contributing
 
-We welcome plugin contributions! Follow the template, write clear docs, test thoroughly, and submit a PR.
+Follow the project structure above, write clear docs, test thoroughly, and submit a PR.

@@ -805,7 +805,6 @@ import {
 import { useEmojiPacks } from '@/services/emojiPackService'
 import { useQuickReactSettings } from '@/composables/useQuickReactSettings'
 
-// Components
 import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
 import ColorPicker from '@/components/common/ColorPicker.vue'
 import Icon from '@/components/common/Icon.vue'
@@ -838,7 +837,6 @@ const openLiveEditor = () => {
 const instanceSettings = useInstanceSettingsStore()
 const quickReact = useQuickReactSettings()
 
-// Quick-react emoji chooser popup
 const showQuickReactPicker = ref(false)
 const quickReactBtn = ref<HTMLElement | null>(null)
 const quickReactTrigger = computed(() => quickReactBtn.value || undefined)
@@ -919,7 +917,6 @@ const savedThemeName = ref('')
 const importFileInput = ref<HTMLInputElement | null>(null)
 const toast = useToast()
 
-// Saved themes
 const savedThemesList = ref(visualTheme.getSavedCustomThemes())
 const activeSavedThemeId = ref<string | null>(null)
 const themeToDelete = ref<{ id: string; name: string } | null>(null)
@@ -1079,7 +1076,6 @@ const resetAllOverrides = () => {
   settings.value.customCssOverrides = {}
 }
 
-// Theme options
 const themes = [
   {
     id: 'dark',
@@ -1282,15 +1278,12 @@ const onEmojiPackChange = () => {
   setCurrentPack(settings.value.emojiPack)
 }
 
-const onSettingChange = () => {
-  // Settings changed - will auto-save via composable
-}
+const onSettingChange = () => {}
 
 const saveSettings = () => {
   emit('update-appearance', settings.value)
   originalSettings.value = { ...settings.value }
-  
-  // Now actually save to composable (persists to localStorage and Supabase)
+
   visualTheme.updateSettings({
     theme: settings.value.theme,
     customThemeMode: settings.value.customThemeMode,
@@ -1320,8 +1313,7 @@ const saveSettings = () => {
 
 const resetSettings = () => {
   settings.value = { ...originalSettings.value }
-  
-  // Reapply original settings as preview
+
   if (originalSettings.value.theme === 'custom') {
     previewTheme()
   } else {

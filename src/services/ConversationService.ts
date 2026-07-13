@@ -1,52 +1,37 @@
 import { supabase } from '@/supabase';
 import type { ActivityPubPost, ConversationThread } from '@/types';
 import { debug } from '@/utils/debug'
-/**
- * ConversationService - Professional ActivityPub conversation threading system
- * 
- * Uses conversation_root_id for O(1) lookups like Twitter/X, Mastodon, Misskey
- * No more recursive CTEs - all operations are highly optimized
- * Separate from DM conversations table - this is for ActivityPub posts only
- */
+// Uses denormalized conversation_root_id for indexed thread lookups (no recursive CTEs).
+// Separate from the DM conversations table - this is for ActivityPub posts only.
 export class ConversationService {
-  
-  /**
-   * Find the root post of an ActivityPub conversation thread - O(1) operation
-   * Uses denormalized conversation_root_id for instant lookups
-   */
+
   static async findConversationRoot(postId: string): Promise<string> {
     debug.log(`Finding ActivityPub conversation root for post: ${postId} (O(1) lookup)`);
-    
+
     try {
-      // O(1) lookup using conversation_root_id - no recursive queries!
       const { data, error } = await supabase.rpc('get_activitypub_conversation_root', {
         post_id: postId
       });
-      
+
       if (error) {
         debug.error('Error finding ActivityPub conversation root:', error);
-        return postId; // Fallback to original post
+        return postId;
       }
-      
+
       const rootId = data?.[0]?.root_id || postId;
       debug.log(`Found ActivityPub conversation root: ${rootId} (instant lookup)`);
       return rootId;
-      
+
     } catch (error) {
       debug.error('Exception finding ActivityPub conversation root:', error);
-      return postId; // Fallback to original post
+      return postId;
     }
   }
-  
-  /**
-   * Get the complete ActivityPub conversation thread - O(log n) operation
-   * Uses indexed conversation_root_id for fast retrieval
-   */
+
   static async getConversationThread(conversationRootId: string): Promise<ConversationThread> {
     debug.log(`Loading ActivityPub conversation thread: ${conversationRootId} (indexed lookup)`);
-    
+
     try {
-      // O(log n) lookup using indexed conversation_root_id
       const { data, error } = await supabase.rpc('get_activitypub_conversation_thread', {
         in_conversation_root_id: conversationRootId
       });
@@ -74,10 +59,6 @@ export class ConversationService {
     }
   }
   
-  /**
-   * Get ActivityPub conversation context and metadata - O(1) operation
-   * Fast statistics lookup using conversation_root_id index
-   */
   static async getConversationContext(postId: string) {
     debug.log(`Getting ActivityPub conversation context for: ${postId}`);
     
@@ -101,10 +82,7 @@ export class ConversationService {
     }
   }
   
-  /**
-   * Build a hierarchical tree structure from flat thread posts
-   * Organizes replies under their parent posts for nested display
-   */
+  // Organizes flat thread posts into a hierarchy of replies under their parent posts.
   static buildThreadHierarchy(posts: ActivityPubPost[]): ActivityPubPost[] {
     if (!posts.length) return [];
     
@@ -149,10 +127,7 @@ export class ConversationService {
     return rootPosts;
   }
   
-  /**
-   * Generate ActivityPub conversation navigation context
-   * Preserves which post was originally clicked for highlighting
-   */
+  // Preserves which post was originally clicked, for highlighting.
   static createNavigationContext(
     conversationRootId: string, 
     clickedPostId?: string,
@@ -166,10 +141,7 @@ export class ConversationService {
     };
   }
   
-  /**
-   * Get ActivityPub conversation navigation data
-   * Returns the data needed for navigation without handling routing
-   */
+  // Returns the data needed for navigation without handling the routing itself.
   static async getConversationNavigationData(
     postId: string,
     options: {
@@ -197,7 +169,6 @@ export class ConversationService {
     debug.log(`Getting conversation navigation data for post: ${postId}`);
     
     try {
-      // O(1) lookup to get conversation_root_id
       const conversationRootId = await this.findConversationRoot(postId);
 
       debug.log(`Conversation root ID: ${conversationRootId}`);
@@ -242,10 +213,6 @@ export class ConversationService {
     }
   }
   
-  /**
-   * Get ActivityPub conversation context from route query parameters
-   * Extracts navigation context for highlighting and scrolling
-   */
   static getRouteContext(route: any) {
     return {
       highlightPostId: route.query.highlight as string || null,

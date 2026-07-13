@@ -80,7 +80,6 @@ const fixedVideoElement = ref<HTMLVideoElement | null>(null);
 const draggableVideoElement = ref<HTMLVideoElement | null>(null);
 const isMinimized = ref(false);
 
-// Draggable state
 const position = ref({ x: window.innerWidth - 420, y: window.innerHeight - 320 });
 const size = ref({ width: 400, height: 300 });
 const isDragging = ref(false);
@@ -118,7 +117,6 @@ const toggleMinimize = () => {
   isMinimized.value = !isMinimized.value;
 };
 
-// Draggable functionality
 const startDrag = (event: MouseEvent) => {
   isDragging.value = true;
   dragStart.value = {
@@ -144,7 +142,6 @@ const stopDrag = () => {
   document.removeEventListener('mouseup', stopDrag);
 };
 
-// Resizable functionality
 const startResize = (event: MouseEvent) => {
   isResizing.value = true;
   resizeStart.value = {
@@ -177,7 +174,6 @@ const stopResize = () => {
 
 watch(() => [voiceStore.pipActive, voiceStore.pipMode, pipStream.value], async ([active, mode, stream]) => {
   if (active && mode === 'native' && stream) {
-    // Use browser's native PIP API
     try {
       const videoEl = document.createElement('video');
       // Prefer LiveKit attach so we get the screenshare track specifically
@@ -195,11 +191,9 @@ watch(() => [voiceStore.pipActive, voiceStore.pipMode, pipStream.value], async (
         videoEl.addEventListener('loadedmetadata', resolve, { once: true });
       });
       
-      // Enter PIP mode
       if (document.pictureInPictureEnabled && !document.pictureInPictureElement) {
         await videoEl.requestPictureInPicture();
-        
-        // Listen for PIP close
+
         videoEl.addEventListener('leavepictureinpicture', () => {
           voiceStore.togglePIP(null);
           videoEl.srcObject = null;
@@ -208,14 +202,12 @@ watch(() => [voiceStore.pipActive, voiceStore.pipMode, pipStream.value], async (
       }
     } catch (error) {
       debug.error('Failed to enter native PIP:', error);
-      // Fall back to fixed mode
       voiceStore.togglePIP(voiceStore.pipUserId, 'fixed');
     }
   }
 }, { immediate: true });
 
-// Attach video to fixed PIP element using LiveKit's proper method
-// Watch streamUpdateCounter to react to stream changes
+// Watches streamUpdateCounter to react to stream changes; attaches via LiveKit's method.
 watch(
   [() => voiceStore.pipActive, () => voiceStore.pipMode, () => voiceStore.pipUserId, fixedVideoElement, () => voiceStore.streamUpdateCounter],
   ([active, mode, userId, videoEl, _counter]) => {
@@ -230,8 +222,7 @@ watch(
   { immediate: true }
 );
 
-// Attach video to draggable PIP element using LiveKit's proper method
-// Watch streamUpdateCounter to react to stream changes
+// Watches streamUpdateCounter to react to stream changes; attaches via LiveKit's method.
 watch(
   [() => voiceStore.pipActive, () => voiceStore.pipMode, () => voiceStore.pipUserId, draggableVideoElement, () => voiceStore.streamUpdateCounter],
   ([active, mode, userId, videoEl, _counter]) => {
