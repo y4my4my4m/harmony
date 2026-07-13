@@ -284,8 +284,6 @@ import Icon from '@/components/common/Icon.vue';
 import Avatar from '../common/Avatar.vue';
 import DisplayName from '@/components/DisplayName.vue';
 
-// PROPS & EMITS
-
 interface Props {
   isUnderOverlay?: boolean;
   isUnderDock?: boolean;
@@ -295,8 +293,6 @@ withDefaults(defineProps<Props>(), {
   isUnderOverlay: false,
   isUnderDock: false
 });
-
-// STORES & STATE
 
 const spatialStore = useSpatialAudioStore();
 const voiceStore = useUnifiedVoiceChannelStore();
@@ -309,7 +305,6 @@ const gridSize = ref({ width: 600, height: 400 });
 const isUpdatingSpatialAudio = ref(false);
 const showUpdatedMessage = ref(false);
 
-// --- Panel dragging state ---
 const panelPosition = ref<{ x: number; y: number } | null>(null);
 const isPanelDragging = ref(false);
 let panelDragStartPos = { x: 0, y: 0 };
@@ -416,7 +411,6 @@ function handlePanelTouchStart(e: TouchEvent) {
 // Local visual positions for smooth dragging (separate from store)
 const localVisualPositions = ref<Map<string, { x: number, y: number }>>(new Map());
 
-// Local settings for smooth updates
 const localSettings = ref({ ...spatialStore.settings });
 
 
@@ -428,15 +422,12 @@ const otherParticipants = computed(() =>
   allParticipants.value.filter(p => p.userId !== currentUserId.value)
 );
 
-// POSITION MANAGEMENT
-
 const getPosition = (userId: string) => {
-  // During drag, use local visual position for smooth movement
+  // During drag, use local visual position for smooth movement; otherwise store position.
   if (spatialStore.isDragging && localVisualPositions.value.has(userId)) {
     return localVisualPositions.value.get(userId)!;
   }
-  
-  // Otherwise use store position
+
   const position = spatialStore.getUserPosition(userId);
   if (position) return position;
   
@@ -470,8 +461,6 @@ const getDistanceOpacity = (userId: string): number => {
   return Math.max(0.2, 1 - (distance / maxDistance));
 };
 
-// USER INTERACTION
-
 const isSpeaking = (participant: any): boolean => {
   return participant.isSpeaking || (participant.audioLevel > 20 && !participant.isMuted);
 };
@@ -486,13 +475,10 @@ const getUserProfile = (userId: string) => {
   };
 };
 
-// DRAG & DROP
-
-// Debounce timer for spatial audio updates during drag
 let spatialUpdateTimer: number | null = null;
 let settingsUpdateTimer: number | null = null;
-const SPATIAL_UPDATE_INTERVAL = 100; // Update every 100ms while dragging
-const SETTINGS_UPDATE_DELAY = 300; // Delay settings updates by 300ms
+const SPATIAL_UPDATE_INTERVAL = 100;
+const SETTINGS_UPDATE_DELAY = 300;
 
 const handleAvatarMouseDown = (event: MouseEvent, userId: string) => {
   event.preventDefault();
@@ -505,18 +491,14 @@ const handleAvatarMouseDown = (event: MouseEvent, userId: string) => {
   const startY = event.clientY - rect.top;
   
   spatialStore.startDrag(userId, startX, startY);
-  
-  // Start debounced spatial audio updates
+
   if (spatialStore.settings.enabled) {
     startSpatialUpdateTimer();
   }
 };
 
 const handleGridMouseDown = (event: MouseEvent) => {
-  // Only handle if clicking on empty grid (not on avatar)
   if ((event.target as HTMLElement).closest('.spatial-avatar')) return;
-  
-  // Could implement creating new position markers here in the future
 };
 
 const handleGridMouseMove = (event: MouseEvent) => {
@@ -533,16 +515,13 @@ const handleGridMouseMove = (event: MouseEvent) => {
   const newY = Math.max(20, Math.min(rect.height - 20, y - dragOffset.y));
   
   localVisualPositions.value.set(spatialStore.draggedUserId, { x: newX, y: newY });
-  
   // Store position is updated by the debounced timer or on release
 };
 
 const handleGridMouseUp = () => {
   if (spatialStore.isDragging && spatialStore.draggedUserId) {
-    // Stop the debounced timer
     stopSpatialUpdateTimer();
-    
-    // Sync local visual position to store
+
     const localPos = localVisualPositions.value.get(spatialStore.draggedUserId);
     if (localPos) {
       spatialStore.setUserPosition(spatialStore.draggedUserId, localPos.x, localPos.y);
@@ -563,11 +542,8 @@ const handleGridMouseUp = () => {
   }
 };
 
-// TOUCH EVENT HANDLERS (Mobile support)
-
 const handleAvatarTouchStart = (event: TouchEvent, userId: string) => {
-  // Prevent sidebar swipe gestures from interfering
-  event.stopPropagation();
+  event.stopPropagation(); // prevent sidebar swipe gestures from interfering
   
   const touch = event.touches[0];
   if (!touch) return;
@@ -579,16 +555,14 @@ const handleAvatarTouchStart = (event: TouchEvent, userId: string) => {
   const startY = touch.clientY - rect.top;
   
   spatialStore.startDrag(userId, startX, startY);
-  
-  // Start debounced spatial audio updates
+
   if (spatialStore.settings.enabled) {
     startSpatialUpdateTimer();
   }
 };
 
 const handleGridTouchStart = (event: TouchEvent) => {
-  // Prevent sidebar gestures when touching the grid
-  event.stopPropagation();
+  event.stopPropagation(); // prevent sidebar gestures when touching the grid
 };
 
 const handleGridTouchMove = (event: TouchEvent) => {
@@ -611,7 +585,6 @@ const handleGridTouchMove = (event: TouchEvent) => {
 };
 
 const handleGridTouchEnd = () => {
-  // Reuse the same logic as mouse up
   handleGridMouseUp();
 };
 
@@ -622,7 +595,6 @@ const startSpatialUpdateTimer = () => {
   
   spatialUpdateTimer = window.setInterval(() => {
     if (spatialStore.isDragging && spatialStore.settings.enabled && spatialStore.draggedUserId) {
-      // Sync local visual position to store for spatial audio calculations
       const localPos = localVisualPositions.value.get(spatialStore.draggedUserId);
       if (localPos) {
         spatialStore.setUserPosition(spatialStore.draggedUserId, localPos.x, localPos.y);
@@ -649,11 +621,8 @@ const stopSettingsUpdateTimer = () => {
 };
 
 const handleAvatarRightClick = (event: MouseEvent, userId: string) => {
-  // Could show context menu for avatar-specific actions
   debug.log('Right clicked on user:', userId);
 };
-
-// PANEL ACTIONS
 
 const toggleSettings = () => {
   showSettings.value = !showSettings.value;
@@ -665,8 +634,7 @@ const updateSettings = () => {
   }
   
   spatialStore.updateSettings(localSettings.value);
-  
-  // Debounce the spatial audio updates
+
   settingsUpdateTimer = window.setTimeout(() => {
     if (spatialStore.settings.enabled) {
       spatialAudioService.updateSettings();
@@ -695,8 +663,6 @@ const randomizePositions = () => {
     spatialAudioService.updateSpatialEffects();
   }
 };
-
-// LIFECYCLE & WATCHERS
 
 const updateGridSize = () => {
   if (gridContainer.value) {

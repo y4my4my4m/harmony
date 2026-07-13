@@ -246,7 +246,6 @@ const loadSettings = async () => {
       settings.value = { ...serverSettings }
       originalSettings.value = { ...serverSettings }
     } else {
-      // Use defaults
       const defaults = getDefaultServerSettings(props.serverId)
       settings.value = defaults
       originalSettings.value = { ...defaults }
@@ -262,8 +261,7 @@ const loadSettings = async () => {
 }
 
 const loadServerRoles = async (): Promise<ServerRole[]> => {
-  // This would typically fetch from your roles API
-  // For now, return mock data
+  // TODO: fetch from roles API; mock data for now
   return [
     { id: '1', name: 'Moderator', color: '#0EA5E9', member_count: 5 },
     { id: '2', name: 'Trusted Member', color: '#57f287', member_count: 12 },
@@ -288,8 +286,7 @@ const saveSettings = async () => {
         type: 'success',
         text: 'Invite settings saved successfully!'
       }
-      
-      // Clear success message after 3 seconds
+
       setTimeout(() => {
         saveMessage.value = null
       }, 3000)
@@ -312,7 +309,6 @@ const resetSettings = () => {
   saveMessage.value = null
 }
 
-// Expose for parent component
 defineExpose({
   hasChanges: hasUnsavedChanges,
   saveSettings,

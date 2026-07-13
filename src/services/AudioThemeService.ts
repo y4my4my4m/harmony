@@ -16,21 +16,10 @@ function normalizeAudioThemeId(themeId: string | undefined | null): string {
   return themeId
 }
 
-/**
- * Professional Audio Theme Service
- * 
- * A modern, scalable audio theme management system that provides:
- * - Theme management with hot swapping
- * - Intelligent audio caching and preloading
- * - Fallback system for missing sounds
- * - Performance optimized playback
- * - Rate limiting and audio queue management
- * - Professional error handling
- */
+// Manages audio themes with hot swapping, caching/preloading, fallback for missing sounds, and rate limiting.
 export class AudioThemeService {
   private static instance: AudioThemeService | null = null
   
-  // Core state
   private audioCache = new Map<string, HTMLAudioElement>()
   private audioQueue = new Map<string, Promise<void>>()
   private settings: AudioThemeSettings = {
@@ -39,19 +28,16 @@ export class AudioThemeService {
     lastUpdated: new Date().toISOString()
   }
   
-  // Performance optimizations
   private lastPlayTime = new Map<string, number>()
   private readonly RATE_LIMIT_MS = 50 // Prevent audio spam
   private readonly MAX_CACHE_SIZE = 100
   private readonly PRELOAD_TIMEOUT = 5000
   
-  // Theme registry
   private themes = new Map<string, AudioTheme>()
   private loadedThemes = new Set<string>()
   private pendingPackThemes: Array<{ id: string; name: string; description?: string; author?: string; version?: string; soundsMap: Record<string, string> }> = []
   private packsLoadPromise: Promise<void> | null = null
   
-  // Events
   private eventListeners = new Map<string, Array<(...args: any[]) => void>>()
 
   private static readonly CUSTOM_THEMES_KEY = 'audio_custom_themes'
@@ -143,11 +129,6 @@ export class AudioThemeService {
     return AudioThemeService.instance
   }
 
-  // THEME MANAGEMENT
-
-  /**
-   * Initialize built-in audio themes
-   */
   private initializeBuiltInThemes(): void {
     // Default theme (fallback for all missing sounds)
     this.registerTheme({
@@ -271,9 +252,6 @@ export class AudioThemeService {
     })
   }
 
-  /**
-   * Register a new theme
-   */
   public registerTheme(theme: AudioTheme): void {
     this.themes.set(theme.id, theme)
     this.emit('themeRegistered', theme)
@@ -416,9 +394,6 @@ export class AudioThemeService {
     return toRegister
   }
 
-  /**
-   * Remove a custom theme by ID
-   */
   public async unregisterCustomTheme(themeId: string): Promise<boolean> {
     const theme = this.themes.get(themeId)
     if (!theme || theme.isBuiltIn) return false
@@ -432,33 +407,19 @@ export class AudioThemeService {
     return true
   }
 
-  /**
-   * Get all available themes
-   */
   public getThemes(): AudioTheme[] {
     return Array.from(this.themes.values())
   }
 
-  /**
-   * Get current active theme
-   */
   public getCurrentTheme(): AudioTheme | null {
     const themeId = normalizeAudioThemeId(this.settings.selectedTheme)
     return this.themes.get(themeId) || null
   }
 
-  /**
-   * Get theme by ID
-   */
   public getTheme(themeId: string): AudioTheme | null {
     return this.themes.get(themeId) || null
   }
 
-  // THEME SWITCHING
-
-  /**
-   * Set active theme with hot swapping
-   */
   public async setTheme(themeId: string): Promise<boolean> {
     themeId = normalizeAudioThemeId(themeId)
     const theme = this.themes.get(themeId)
@@ -490,11 +451,6 @@ export class AudioThemeService {
     }
   }
 
-  // AUDIO PLAYBACK
-
-  /**
-   * Play audio for a specific action with intelligent fallback
-   */
   public async playAudio(action: AudioAction): Promise<void> {
     // Rate limiting per action
     const now = Date.now()
@@ -520,9 +476,6 @@ export class AudioThemeService {
     }
   }
 
-  /**
-   * Internal audio playback with fallback chain
-   */
   private async performAudioPlayback(action: AudioAction): Promise<void> {
     try {
       // Fast path: try cached audio first (stays within user gesture window)
@@ -560,9 +513,6 @@ export class AudioThemeService {
     }
   }
 
-  /**
-   * Resolve the sound file path for an action without loading it
-   */
   private resolveSoundPath(action: AudioAction): string | null {
     const currentTheme = this.getCurrentTheme()
     const currentSound = currentTheme?.sounds[action]
@@ -607,9 +557,6 @@ export class AudioThemeService {
     }
   }
 
-  /**
-   * Get audio with smart fallback loading
-   */
   private async getAudioWithFallback(action: AudioAction): Promise<HTMLAudioElement | null> {
     // Step 1: Try current theme path
     const currentTheme = this.getCurrentTheme()
@@ -636,9 +583,6 @@ export class AudioThemeService {
     return null
   }
 
-  /**
-   * Get or create audio element with caching
-   */
   private async getOrCreateAudio(path: string): Promise<HTMLAudioElement> {
     if (this.audioCache.has(path)) {
       return this.audioCache.get(path)!
@@ -647,11 +591,6 @@ export class AudioThemeService {
     return this.preloadAudio(path)
   }
 
-  // AUDIO CACHING & PRELOADING
-
-  /**
-   * Preload audio file with timeout
-   */
   private async preloadAudio(path: string): Promise<HTMLAudioElement> {
     return new Promise((resolve, reject) => {
       const audio = new Audio()
@@ -686,9 +625,6 @@ export class AudioThemeService {
     })
   }
 
-  /**
-   * Preload entire theme
-   */
   public async preloadTheme(themeId: string): Promise<void> {
     const theme = this.themes.get(themeId)
     if (!theme || this.loadedThemes.has(themeId)) {
@@ -714,9 +650,6 @@ export class AudioThemeService {
     }
   }
 
-  /**
-   * Add audio to cache with size management
-   */
   private addToCache(path: string, audio: HTMLAudioElement): void {
     // Manage cache size
     if (this.audioCache.size >= this.MAX_CACHE_SIZE) {
@@ -729,9 +662,6 @@ export class AudioThemeService {
     this.audioCache.set(path, audio)
   }
 
-  /**
-   * Clear cache for specific theme
-   */
   private clearCacheForTheme(themeId: string): void {
     const theme = this.themes.get(themeId)
     if (!theme) return
@@ -744,11 +674,6 @@ export class AudioThemeService {
     this.loadedThemes.delete(themeId)
   }
 
-  // SETTINGS MANAGEMENT
-
-  /**
-   * Load settings from localStorage
-   */
   private loadSettings(): void {
     try {
       const stored = userStorage.getItem('audio_theme_settings')
@@ -768,9 +693,6 @@ export class AudioThemeService {
     }
   }
 
-  /**
-   * Save settings to localStorage
-   */
   private saveSettings(): void {
     try {
       this.settings.lastUpdated = new Date().toISOString()
@@ -781,42 +703,25 @@ export class AudioThemeService {
     }
   }
 
-  /**
-   * Get current volume (0.0 to 1.0)
-   */
   public getVolume(): number {
     return this.settings.volume
   }
 
-  /**
-   * Set volume with validation
-   */
   public setVolume(volume: number): void {
     this.settings.volume = Math.max(0, Math.min(1, volume))
     this.saveSettings()
   }
 
-  /**
-   * Get current settings
-   */
   public getSettings(): AudioThemeSettings {
     return { ...this.settings }
   }
 
-  // TESTING & DEBUGGING
-
-  /**
-   * Test audio playback for action
-   */
   public async testAudio(action: AudioAction): Promise<void> {
     // Bypass rate limiting for testing
     this.lastPlayTime.delete(action)
     return this.playAudio(action)
   }
 
-  /**
-   * Get cache information for debugging
-   */
   public getCacheInfo(): {
     size: number
     paths: string[]
@@ -831,20 +736,12 @@ export class AudioThemeService {
     }
   }
 
-  /**
-   * Clear all audio cache
-   */
   public clearCache(): void {
     this.audioCache.clear()
     this.loadedThemes.clear()
     this.emit('cacheCleared')
   }
 
-  // EVENT SYSTEM
-
-  /**
-   * Add event listener
-   */
   public on(event: string, listener: (...args: any[]) => void): void {
     if (!this.eventListeners.has(event)) {
       this.eventListeners.set(event, [])
@@ -852,9 +749,6 @@ export class AudioThemeService {
     this.eventListeners.get(event)!.push(listener)
   }
 
-  /**
-   * Remove event listener
-   */
   public off(event: string, listener: (...args: any[]) => void): void {
     const listeners = this.eventListeners.get(event)
     if (listeners) {
@@ -865,9 +759,6 @@ export class AudioThemeService {
     }
   }
 
-  /**
-   * Emit event
-   */
   private emit(event: string, ...args: any[]): void {
     const listeners = this.eventListeners.get(event)
     if (listeners) {
@@ -881,11 +772,6 @@ export class AudioThemeService {
     }
   }
 
-  // CLEANUP
-
-  /**
-   * Cleanup resources
-   */
   public destroy(): void {
     this.clearCache()
     this.eventListeners.clear()

@@ -1,12 +1,4 @@
-/**
- * User Data Service
- * 
- * Discord/Slack-style user data management with:
- * - Smart fetching and caching
- * - Real-time presence sync
- * - Single source of truth for all user data
- * - Efficient context-based subscriptions
- */
+// Single source of truth for user data: fetching/caching, realtime presence sync, context-based subscriptions.
 
 import { supabase } from '@/supabase'
 import { UserStatus, type UserData, type UserContext, type CustomUserStatus, type DisplayNamePart } from '@/types'
@@ -730,7 +722,6 @@ class UserDataService extends EventTarget {
     const existing = this.users.get(userId)
     const userStatus = presence.status ?? existing?.status ?? UserStatus.Online
     
-    // PROFESSIONAL INVISIBLE IMPLEMENTATION
     // If user has status set to Offline (invisible), don't show them as online
     // This should never happen due to trackCurrentUserGlobally() checks, but handle it as safety net
     if (userStatus === UserStatus.Offline) {
@@ -2004,22 +1995,11 @@ class UserDataService extends EventTarget {
     }
   }
 
-  /**
-   * Refresh global presence - now a no-op
-   * 
-   * NOTE: This used to re-track on route changes, but that caused churn.
-   * Once you're tracked on initial connection, you stay tracked.
-   * Supabase presence maintains connection automatically.
-   * Only actual status/profile changes should update presence.
-   */
+  // No-op: used to re-track on route changes, but that caused join/leave churn.
+  // Presence stays tracked after initial connection; only status/profile changes should update it.
   async refreshGlobalPresence(): Promise<void> {
-    // No-op - presence is maintained by Supabase automatically
-    // Calling trackCurrentUserGlobally() on route changes causes join/leave churn
   }
-  
-  /**
-   * Cleanup and reset
-   */
+
   async cleanup(): Promise<void> {
     debug.log('Cleaning up User Data Service')
     

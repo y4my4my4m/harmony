@@ -97,7 +97,6 @@ export async function handleGroupUpdateJob(data: {
     'harmony:updateType': update_type,
   };
 
-  // Deliver to each remote participant's inbox
   const deliveredDomains = new Set<string>();
   for (const remoteUser of remoteUsers) {
     // Avoid sending to the same domain twice (shared inbox optimization)

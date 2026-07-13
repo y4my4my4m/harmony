@@ -1,10 +1,10 @@
 # System Architecture & Flow Diagrams
 
-This section provides comprehensive visual documentation of how Harmony's systems interconnect and operate.
+Visual documentation of how Harmony's systems interconnect and operate.
 
 ## Overview
 
-Harmony is a complex federated social platform that combines Discord-like chat functionality with ActivityPub federation. Understanding the system flows is crucial for development, debugging, and extending the platform.
+Harmony is a federated social platform combining Discord-like chat with ActivityPub federation.
 
 ```mermaid
 graph TB

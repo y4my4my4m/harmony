@@ -22,14 +22,12 @@
         ref="inputRef"
       />
       <div class="input-accent"></div>
-      
-      <!-- Character count for text inputs -->
+
       <div v-if="showCharCount && maxLength" class="char-count">
         {{ currentLength }} / {{ maxLength }}
       </div>
     </div>
     
-    <!-- Error message -->
     <div v-if="hasError" class="error-message">
       <svg class="error-icon" viewBox="0 0 20 20">
         <path d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" fill="currentColor"/>
@@ -37,7 +35,6 @@
       {{ errorMessage }}
     </div>
     
-    <!-- Success message -->
     <div v-if="successMessage && !hasError" class="success-message">
       <svg class="success-icon" viewBox="0 0 20 20">
         <path d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" fill="currentColor"/>
@@ -45,7 +42,6 @@
       {{ successMessage }}
     </div>
     
-    <!-- Hint text -->
     <div v-if="hint && !hasError && !successMessage" class="hint-text">
       {{ hint }}
     </div>
@@ -124,7 +120,6 @@ const focus = () => {
   })
 }
 
-// Auto-focus if specified
 if (props.autofocus) {
   nextTick(() => {
     focus()

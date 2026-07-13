@@ -34,9 +34,7 @@ export async function handleDMJob(data: FederationJobData): Promise<void> {
       return;
     }
 
-    // Enrich link previews FIRST, for every message. The federated
-    // early-return below also matches bridged (Discord) messages, which used
-    // to skip enrichment entirely and render bare links.
+    // Enrich before the federated-check below, since bridged (Discord) messages also match it.
     try {
       await enrichMessageLinkPreviews(message);
     } catch (err) {
@@ -51,8 +49,6 @@ export async function handleDMJob(data: FederationJobData): Promise<void> {
 
     await updateFederationStatus(message_id, 'messages', 'processing');
 
-    // Use the existing handleNewDM function from FederationHandlers
-    // It already handles finding remote participants and creating the DM activity
     await handleNewDM(message);
 
     await updateFederationStatus(message_id, 'messages', 'completed');

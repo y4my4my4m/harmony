@@ -57,12 +57,10 @@ docs/
    npm run docs:dev
    ```
 
-## Benefits
+## Notes
 
-- **Fast**: Vite-powered static site generation
-- **Vue 3 Integration**: Perfect match for your tech stack
-- **TypeScript Support**: Full type safety in documentation
-- **Auto-Generated**: API docs from your TypeScript code
-- **Search**: Built-in local search functionality
-- **Responsive**: Mobile-friendly documentation
-- **Professional**: Modern, clean design out of the box
+- Vite-powered static site generation
+- Vue 3, matching the app's stack
+- API docs generated from TypeScript
+- Built-in local search
+- Mobile-friendly layout

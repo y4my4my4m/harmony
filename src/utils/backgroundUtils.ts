@@ -50,7 +50,6 @@ async function loadManifest(): Promise<{ login: string[]; offline: string[]; not
  * Uses manifest if available, falls back to legacy /img/login_bg*.webp pattern
  */
 export async function getRandomLoginBackground(): Promise<string> {
-  // Try to load manifest first (most efficient)
   const manifest = await loadManifest()
   
   if (manifest && manifest.login.length > 0) {
@@ -58,7 +57,6 @@ export async function getRandomLoginBackground(): Promise<string> {
     return `url('${manifest.login[randomIndex]}')`
   }
 
-  // Fallback to legacy pattern
   const randomNum = Math.floor(Math.random() * 65) + 1
   return `url('/img/login_bg${randomNum}.webp')`
 }
@@ -68,7 +66,6 @@ export async function getRandomLoginBackground(): Promise<string> {
  * Uses manifest if available, falls back to legacy /img/offline_bg*.webp pattern
  */
 export async function getRandomOfflineBackground(): Promise<string> {
-  // Try to load manifest first (most efficient)
   const manifest = await loadManifest()
   
   if (manifest && manifest.offline.length > 0) {
@@ -76,7 +73,6 @@ export async function getRandomOfflineBackground(): Promise<string> {
     return `url('${manifest.offline[randomIndex]}')`
   }
 
-  // Fallback to legacy pattern
   const randomNum = Math.floor(Math.random() * 2) + 1
   return `url('/img/offline_bg${randomNum}.webp')`
 }
@@ -86,7 +82,6 @@ export async function getRandomOfflineBackground(): Promise<string> {
  * Uses manifest if available, falls back to legacy /404*.webp pattern
  */
 export async function getRandom404Image(): Promise<string> {
-  // Try to load manifest first (most efficient)
   const manifest = await loadManifest()
   
   if (manifest && manifest.notFound.length > 0) {
@@ -94,7 +89,6 @@ export async function getRandom404Image(): Promise<string> {
     return manifest.notFound[randomIndex]
   }
 
-  // Fallback to legacy pattern
   const legacyImages = ['/backgrounds/404/1.webp', '/backgrounds/404/2.webp']
   const randomIndex = Math.floor(Math.random() * legacyImages.length)
   return legacyImages[randomIndex]

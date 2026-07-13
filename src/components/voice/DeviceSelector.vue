@@ -132,12 +132,10 @@ const dropdownRef = ref<HTMLElement | null>(null);
 const isOpen = ref(false);
 const dropdownPosition = ref({ x: 0, y: 0 });
 
-// Device lists
 const inputDevices = ref<MediaDeviceInfo[]>([]);
 const outputDevices = ref<MediaDeviceInfo[]>([]);
 const videoDevices = ref<MediaDeviceInfo[]>([]);
 
-// Selected devices
 const selectedInputDevice = ref<string | null>(null);
 const selectedOutputDevice = ref<string | null>(null);
 const selectedVideoDevice = ref<string | null>(null);
@@ -347,7 +345,6 @@ onUnmounted(() => {
   window.removeEventListener('harmony-device-changed', handleExternalDeviceChange);
 });
 
-// Watch for window resize to reposition dropdown
 watch(isOpen, (newVal) => {
   if (newVal) {
     window.addEventListener('resize', positionDropdown);

@@ -167,7 +167,6 @@ interface Props {
   // call sites that pass `mode="chat"` / `mode="activitypub"` still type-check.
   mode: ViewMode | 'chat' | 'activitypub';
 
-  // Chat mode props
   chatMessages?: Message[];
   isLoading?: boolean;
   isDM?: boolean;
@@ -184,13 +183,11 @@ interface Props {
   isLoadingFeed?: boolean;
   hasMorePosts?: boolean;
 
-  // Special view props (profile, bookmarks, etc.)
   profileUser?: FederatedUser | null;
   profileHandle?: string;
   specialViewData?: TimelinePost[]; // Generic data for bookmarks, lists, etc.
   hasMoreSpecialData?: boolean;
 
-  // Post detail props
   postId?: string;
 }
 
@@ -210,12 +207,10 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 defineEmits<{
-  // Chat mode events
   'load-more-messages': []
   'update:is-at-bottom': [value: boolean]
   'show-all-threads': []
   
-  // Essential ActivityPub events (interactions now handled by composable)
   'post-created': [post: TimelinePost]
   'switch-feed': [feedType: 'home' | 'local' | 'public']
   'load-more-posts': []
@@ -241,7 +236,6 @@ defineEmits<{
   'posts-visible': [postIds: string[]]
 }>()
 
-// Navigation handlers
 const handleHashtagClick = (tag: string) => {
   router.push({ name: 'HashtagView', params: { tag } })
 }
@@ -259,10 +253,8 @@ const handleEditPost = (postId: string) => {
   }
 }
 
-// Use the post interactions composable for all post-related actions
 const { t } = useI18n()
 
-// Helper functions for timeline states
 const getTimelineLoadingMessage = () => {
   switch (props.currentView) {
     case 'home': return t('common.loading') + '...'
@@ -290,7 +282,6 @@ const getTimelineEmptyMessage = () => {
   }
 }
 
-// Helper functions for special views
 const getViewIcon = (viewType: any) => {
   const typeStr = typeof viewType === 'string' ? viewType : viewType?.toLowerCase?.() || 'home'
   switch (typeStr) {

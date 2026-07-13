@@ -1,6 +1,6 @@
 # State Management with Pinia
 
-Harmony uses Pinia for centralized state management, providing a reactive and type-safe way to manage application state.
+Harmony uses Pinia for centralized, type-safe state management.
 
 ## Store Architecture
 

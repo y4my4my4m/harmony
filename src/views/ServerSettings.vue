@@ -121,6 +121,21 @@
             :server-id="serverId"
           />
 
+          <!-- Bots Section -->
+          <template v-if="activeSection === 'bots'">
+            <ServerBotsSettings
+              v-if="permissions.canEditBasicInfo"
+              :server-id="serverId"
+            />
+            <DiscordBridgeSetup
+              v-if="permissions.canEditBasicInfo"
+              :server-id="serverId"
+            />
+            <div v-else class="permission-notice-inline">
+              <p>You need Manage Server permission to install bots.</p>
+            </div>
+          </template>
+
           <!-- Emoji Management Section -->
           <ServerEmojiManagement
             v-if="activeSection === 'emoji'"
@@ -160,14 +175,6 @@
               :created-at="server.created_at"
               :loading="loading"
               :permissions="{ canDeleteServer: permissions.canDeleteServer }"
-            />
-            <ServerBotsSettings
-              v-if="permissions.canEditBasicInfo"
-              :server-id="serverId"
-            />
-            <DiscordBridgeSetup
-              v-if="permissions.canEditBasicInfo"
-              :server-id="serverId"
             />
           </template>
         </div>
@@ -265,6 +272,7 @@ const availableSections = computed(() => {
     { id: 'overview', label: t('server.overview') },
     { id: 'roles', label: t('server.roles', 'Roles') },
     { id: 'bans', label: 'Bans' },
+    { id: 'bots', label: 'Bots' },
     { id: 'emoji', label: t('server.emoji') },
     { id: 'privacy', label: t('server.privacySettings') },
     { id: 'advanced', label: t('server.advancedSettings') }
@@ -721,6 +729,14 @@ watch(hasChanges, (newValue) => {
 .settings-container {
   max-width: 740px;
   margin: 0 auto;
+}
+
+.permission-notice-inline {
+  padding: 16px;
+  background-color: rgba(250, 166, 26, 0.1);
+  border: 1px solid rgba(250, 166, 26, 0.3);
+  border-radius: 8px;
+  color: var(--text-secondary);
 }
 
 /* Mobile Save Actions */

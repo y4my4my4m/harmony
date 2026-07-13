@@ -2,32 +2,21 @@ import { ref } from 'vue'
 import type { Message, UnreadCount } from '@/types'
 
 /**
- * useReadDivider
+ * Discord-style "New messages" divider for a channel or DM conversation.
+ * Frozen at open time so it doesn't move/disappear while reading:
  *
- * Drives the Discord-style "New messages" divider for a single message list
- * (a channel or a DM conversation). The divider is intentionally *frozen* at
- * open time so it never moves or disappears while the user is reading:
+ *   1. `captureBoundary()` runs the instant a context opens, BEFORE it's
+ *      marked read - snapshots `last_read_message_id`/`last_read_at` from
+ *      the in-memory unread row.
+ *   2. Once messages are loaded, `resolveDivider()` pins the divider above
+ *      the first unread message not authored by the current user.
+ *   3. `clear()` retires it when the user catches up (sends a message,
+ *      scrolls to bottom). Re-captured/re-resolved on every re-open; boundary
+ *      is always recomputed from the unread row, so it can't get stuck.
  *
- *   1. `captureBoundary()` is called the instant a context is opened, BEFORE
- *      that context gets marked read. It snapshots the read boundary
- *      (`last_read_message_id` / `last_read_at`) from the in-memory unread row.
- *   2. Once the context's messages are present, `resolveDivider()` pins the
- *      divider above the first *unread* message that wasn't authored by the
- *      current user.
- *   3. The divider is retired (via `clear()`) the moment the user demonstrably
- *      catches up - they send a message in the context, or they scroll to the
- *      bottom and have seen the new messages. It is also re-captured + re-
- *      resolved on every re-open. Because the boundary is recomputed from the
- *      authoritative unread row every time, it can never get "stuck": if the
- *      row says nothing is unread, no divider is shown.
- *
- * There is no user-removable state and nothing persisted, so the divider
- * cannot end up orphaned.
- *
- * Threads deliberately opt OUT (MessageDisplay `enableReadDivider=false`): they
- * have no per-thread read-state and reuse this component with their parent
- * channel id, so deriving a boundary there would place a bogus line. A real
- * thread divider needs dedicated thread read tracking first.
+ * Threads opt out (MessageDisplay `enableReadDivider=false`): no per-thread
+ * read-state exists yet, and they reuse this with the parent channel id,
+ * which would place a bogus line.
  */
 export function useReadDivider() {
   /** Id of the message the divider should render directly above (or null). */

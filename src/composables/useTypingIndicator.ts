@@ -1,19 +1,7 @@
-/**
- * useTypingIndicator - Composable for typing indicators
- * 
- * Provides a simple, DRY way to:
- * - Track typing in channels, threads, or conversations
- * - Display typing indicators
- * - Automatically handle cleanup
- */
-
 import { ref, onUnmounted, watchEffect } from 'vue'
 import { typingIndicatorService, type TypingContext, type TypingUser } from '@/services/TypingIndicatorService'
 import { useAuthStore } from '@/stores/auth'
 
-/**
- * Composable for tracking and displaying typing indicators
- */
 export function useTypingIndicator(context: TypingContext | null | (() => TypingContext | null)) {
   const typingUsers = ref<TypingUser[]>([])
   const authStore = useAuthStore()
@@ -38,34 +26,32 @@ export function useTypingIndicator(context: TypingContext | null | (() => Typing
   }
 
   const subscribeToContext = async (ctx: TypingContext | null, key: string): Promise<void> => {
-    // Skip if already subscribed to this exact context
     if (key === currentSubscribedKey && unsubscribe) {
       return
     }
-    
+
     // Queue a follow-up if context changes mid-flight (common on channel switch).
     if (isSubscribing) {
       pendingContextKey = key
       return
     }
-    
+
     if (unsubscribe) {
       unsubscribe()
       unsubscribe = null
       currentSubscribedKey = ''
     }
-    
+
     if (!ctx) {
       typingUsers.value = []
       currentSubscribedKey = ''
       return
     }
-    
-    // Ensure we have auth before subscribing
+
     if (!authStore.session?.user?.id) {
       return
     }
-    
+
     isSubscribing = true
     
     try {
@@ -91,7 +77,6 @@ export function useTypingIndicator(context: TypingContext | null | (() => Typing
     }
   }
 
-  // Use watchEffect to automatically track reactive dependencies
   watchEffect(async () => {
     const session = authStore.session
     const userId = session?.user?.id
@@ -119,9 +104,6 @@ export function useTypingIndicator(context: TypingContext | null | (() => Typing
     isSubscribing = false
   })
 
-  /**
-   * Start tracking typing (call when user types)
-   */
   const startTyping = async () => {
     const ctx = getContext()
     if (ctx) {
@@ -129,16 +111,10 @@ export function useTypingIndicator(context: TypingContext | null | (() => Typing
     }
   }
 
-  /**
-   * Stop tracking typing (call when user sends message or stops typing)
-   */
   const stopTyping = async () => {
     await typingIndicatorService.stopTyping()
   }
 
-  /**
-   * Format typing indicator text
-   */
   const formatTypingText = (users: TypingUser[], getUserDisplayName: (userId: string) => string): string => {
     if (users.length === 0) return ''
     if (users.length === 1) {

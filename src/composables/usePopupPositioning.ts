@@ -1,8 +1,4 @@
-/**
- * Professional popup positioning system
- * Provides dynamic positioning calculations for popups relative to trigger elements
- */
-
+// Dynamic positioning calculations for popups relative to trigger elements.
 import { computed, ref, type Ref } from 'vue';
 import { debug } from '@/utils/debug'
 
@@ -37,9 +33,6 @@ export interface UsePopupPositioningOptions {
   fallbackPositions?: PopupPositionKey[];
 }
 
-/**
- * Calculate optimal popup position relative to trigger element
- */
 export function calculatePopupPosition(
   triggerElement: HTMLElement,
   popupDimensions: PopupDimensions,
@@ -52,7 +45,6 @@ export function calculatePopupPosition(
     fallbackPositions = ['above', 'below', 'right', 'left']
   } = options;
 
-  // Safety check for trigger element
   if (!triggerElement || typeof triggerElement.getBoundingClientRect !== 'function') {
     debug.warn('Invalid trigger element provided to calculatePopupPosition');
     return {
@@ -95,7 +87,6 @@ export function calculatePopupPosition(
            pos.y + popupHeight <= window.innerHeight - viewport.padding;
   };
 
-  // If specific position requested and it fits, use it
   if (position !== 'auto' && positions[position] && fitsInViewport(positions[position])) {
     const result = positions[position];
     return {
@@ -105,17 +96,15 @@ export function calculatePopupPosition(
     };
   }
 
-  // Auto positioning - try fallback positions
   const positionsToTry: PopupPositionKey[] = position === 'auto' ? fallbackPositions : [position as PopupPositionKey, ...fallbackPositions];
-  
+
   for (const pos of positionsToTry) {
     if (positions[pos] && fitsInViewport(positions[pos])) {
       return positions[pos];
     }
   }
 
-  // No position fits perfectly, use the best fit with viewport clamping
-  const bestFit = positions.above; // Default to above
+  const bestFit = positions.above;
   return {
     x: Math.max(viewport.padding, Math.min(bestFit.x, window.innerWidth - popupWidth - viewport.padding)),
     y: Math.max(viewport.padding, Math.min(bestFit.y, window.innerHeight - popupHeight - viewport.padding)),
@@ -123,9 +112,6 @@ export function calculatePopupPosition(
   };
 }
 
-/**
- * Composable for dynamic popup positioning
- */
 export function usePopupPositioning(
   triggerElement: Ref<HTMLElement | null>,
   popupDimensions: PopupDimensions,

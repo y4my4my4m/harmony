@@ -1,4 +1,3 @@
-// emojiService.ts
 import { supabase } from '@/supabase';
 import { apiUrl } from '@/services/instanceConfig';
 import { v4 as uuidv4 } from 'uuid';
@@ -16,7 +15,7 @@ const cleanFileName = (originalName: string) => {
 
     // Handle multiple extensions: keep the last part after splitting by '.'
     const parts = name.split('.');
-    const extension = parts.pop(); // Extract the extension
+    const extension = parts.pop();
     let fileNameWithoutExtension = parts.join('.').trim();
 
     fileNameWithoutExtension = fileNameWithoutExtension.replace(/\s+/g, '');
@@ -47,7 +46,6 @@ async function cleanupEmojiReferences(emoji: Emoji): Promise<void> {
     invalidateEmojiResolverCache(emoji.name);
 }
 
-// Enhanced emoji usage tracking with context
 async function recordEmojiUsage(
     emojiId: string, 
     userId: string, 
@@ -119,7 +117,6 @@ async function getUserEmojiStats(userId: string, serverId?: string, limit = 20) 
     }
 }
 
-// Enhanced emoji retrieval with context-aware usage tracking
 async function getEmoji(emojiId: string, trackUsage?: {
     userId: string;
     serverId: string;
@@ -127,11 +124,9 @@ async function getEmoji(emojiId: string, trackUsage?: {
     contextId?: string;
 }): Promise<Emoji | null> {
     const emojiCache = useEmojiCacheStore();
-    
-    // Try cache first
+
     const cachedEmoji = emojiCache.getEmojiById(emojiId);
     if (cachedEmoji) {
-        // Record usage if tracking info provided
         if (trackUsage) {
             await recordEmojiUsage(
                 emojiId,
@@ -143,8 +138,7 @@ async function getEmoji(emojiId: string, trackUsage?: {
         }
         return cachedEmoji;
     }
-    
-    // Fall back to database
+
     try {
         const { data, error } = await supabase
             .from('emojis')
@@ -157,7 +151,6 @@ async function getEmoji(emojiId: string, trackUsage?: {
             return null;
         }
         
-        // Record usage if tracking info provided
         if (trackUsage && data) {
             await recordEmojiUsage(
                 emojiId,
@@ -168,7 +161,6 @@ async function getEmoji(emojiId: string, trackUsage?: {
             );
         }
         
-        // Cache the result for future use
         if (data) {
             await emojiCache.invalidate({ emojiId });
         }
@@ -213,7 +205,6 @@ async function upscalePixelArt(file: File): Promise<File> {
     return new File([blob], newName, { type: 'image/png' });
 }
 
-// Enhanced emoji upload with cache invalidation
 async function uploadEmoji(serverId: string, userId: string, file: File): Promise<Emoji | null> {
     const emojiCache = useEmojiCacheStore();
     
@@ -233,7 +224,6 @@ async function uploadEmoji(serverId: string, userId: string, file: File): Promis
         const uniqueEmojiName = `${uuidv4()}.${extension}`;
         const filePath = `${serverId}/${userId}/${uniqueEmojiName}`;
         
-        // Upload the file
         const { error } = await supabase.storage
             .from('emojis')
             .upload(filePath, file);
@@ -262,7 +252,6 @@ async function uploadEmoji(serverId: string, userId: string, file: File): Promis
 
         if (fetchError) throw fetchError;
 
-        // Invalidate cache to pick up the new emoji
         await emojiCache.invalidate({ serverId });
 
         return emojiData;
@@ -272,10 +261,8 @@ async function uploadEmoji(serverId: string, userId: string, file: File): Promis
     }
 }
 
-// Enhanced emoji deletion with cache invalidation
 async function deleteEmoji(emojiId: string): Promise<boolean> {
     try {
-        // Get emoji details before deletion for cache invalidation
         const emoji = await getEmoji(emojiId);
         if (!emoji) {
             debug.error('Emoji not found for deletion:', emojiId);
@@ -316,7 +303,6 @@ async function deleteEmoji(emojiId: string): Promise<boolean> {
     }
 }
 
-// Rename emoji with cache invalidation
 async function renameEmoji(emojiId: string, newName: string, serverId: string): Promise<boolean> {
     const emojiCache = useEmojiCacheStore();
     
@@ -326,14 +312,12 @@ async function renameEmoji(emojiId: string, newName: string, serverId: string): 
             throw new Error('Emoji not found');
         }
         
-        // Clean and validate the new name
         const { name: cleanedName } = cleanFileName(`${newName}.png`);
-        
+
         if (!cleanedName || cleanedName.length === 0) {
             throw new Error('Invalid emoji name');
         }
-        
-        // If the name isn't changing, just return success
+
         if (currentEmoji.name === cleanedName) {
             debug.log('Emoji name unchanged:', cleanedName);
             return true;
@@ -350,7 +334,6 @@ async function renameEmoji(emojiId: string, newName: string, serverId: string): 
 
         if (error) throw error;
 
-        // Invalidate cache to reflect the changes
         await emojiCache.invalidate({ serverId });
 
         debug.log('Emoji renamed successfully:', cleanedName);
@@ -361,7 +344,6 @@ async function renameEmoji(emojiId: string, newName: string, serverId: string): 
     }
 }
 
-// Bulk delete emojis with cache invalidation
 async function bulkDeleteEmojis(emojiIds: string[]): Promise<{ success: string[], failed: string[] }> {
     const results = { success: [] as string[], failed: [] as string[] };
     
@@ -397,7 +379,6 @@ async function bulkDeleteEmojis(emojiIds: string[]): Promise<{ success: string[]
         }
     }
 
-    // Batch delete from database
     const foundIds = (emojis || []).map(e => e.id);
     if (foundIds.length > 0) {
         const { error: dbError } = await supabase
@@ -428,19 +409,16 @@ async function bulkDeleteEmojis(emojiIds: string[]): Promise<{ success: string[]
     return results;
 }
 
-// Enhanced name existence check with caching
 async function doesEmojiNameExist(serverId: string, name: string): Promise<boolean> {
     const emojiCache = useEmojiCacheStore();
-    
-    // Check cache first for performance
+
     const serverEmojis = emojiCache.getServerEmojis(serverId);
     const existsInCache = serverEmojis.some(emoji => emoji.name === name);
-    
+
     if (existsInCache) {
         return true;
     }
-    
-    // Fall back to database check
+
     try {
         const { data, error } = await supabase
             .from('emojis')
@@ -507,7 +485,6 @@ async function bulkUploadEmojis(
     return results;
 }
 
-// Search emojis with advanced filtering
 async function searchEmojis(query: string, options: {
     serverId?: string;
     limit?: number;
@@ -517,7 +494,6 @@ async function searchEmojis(query: string, options: {
     const { serverId, limit = 20, includeServerName = false } = options;
     
     if (serverId) {
-        // Search within specific server
         const serverEmojis = emojiCache.getServerEmojis(serverId);
         return serverEmojis
             .filter(emoji => emoji.name.toLowerCase().includes(query.toLowerCase()))
@@ -527,7 +503,6 @@ async function searchEmojis(query: string, options: {
                 serverName: includeServerName ? emojiCache.serverCaches.get(serverId)?.serverName : undefined
             }));
     } else {
-        // Search across all servers
         return emojiCache.searchEmojisByName(query, limit);
     }
 }
@@ -568,7 +543,6 @@ async function getServerEmojiAnalytics(serverId: string) {
     return analytics;
 }
 
-// Preload frequently used emojis
 async function preloadFrequentEmojis(serverIds: string[] = []) {
     try {
         const { data, error } = await supabase
@@ -582,10 +556,9 @@ async function preloadFrequentEmojis(serverIds: string[] = []) {
             return;
         }
         
-        // Ensure these emojis are cached
         const emojiIds = data.map((item: any) => item.emoji_id);
         for (const emojiId of emojiIds) {
-            await getEmoji(emojiId); // This will cache them
+            await getEmoji(emojiId);
         }
         
         debug.log(`Preloaded ${emojiIds.length} frequent emojis`);

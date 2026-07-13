@@ -129,7 +129,6 @@ import { activityPubService } from '@/services/activityPubService';
 import { getOriginalPost } from '@/utils/postReblog';
 import type { TimelinePost } from '@/types';
 
-// Components
 import MonyPost from '@/components/activitypub/MonyPost.vue';
 import Composer from '@/components/activitypub/Composer.vue';
 import Icon from '@/components/common/Icon.vue';
@@ -165,7 +164,7 @@ const totalReplies = ref(0);
 // Twitter-style: show inline (without header) if 5 or fewer replies
 const INLINE_REPLY_THRESHOLD = 5;
 
-// Computed: should show replies inline (without "Replies" header)
+// Should show replies inline (without "Replies" header)
 const shouldShowInline = computed(() => {
   return totalReplies.value <= INLINE_REPLY_THRESHOLD;
 });
@@ -184,7 +183,6 @@ const loadPost = async () => {
   try {
     debug.log('Loading post via service layer:', props.postId);
     
-    // Use service layer directly for post loading with optimistic updates
     const loadedPost = await services.posts.loadPost(props.postId);
     
     if (!loadedPost) {
@@ -209,9 +207,7 @@ const loadReplies = async () => {
 
   isLoadingReplies.value = true;
   try {
-    // Load replies using the activityPubService
-    // If <= 5 total replies, load them all at once
-    // Otherwise load first batch (20)
+    // If <= 5 total replies, load them all at once; otherwise load first batch (20)
     const limit = totalReplies.value <= INLINE_REPLY_THRESHOLD 
       ? totalReplies.value 
       : 20;

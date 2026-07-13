@@ -56,13 +56,11 @@ export default defineComponent({
         await navigator.clipboard.writeText(props.code);
         copied.value = true;
         
-        // Reset copied state after 2 seconds
         setTimeout(() => {
           copied.value = false;
         }, 2000);
       } catch (error) {
         debug.error('Failed to copy code:', error);
-        // Fallback for older browsers
         fallbackCopyTextToClipboard(props.code);
       }
     };
@@ -96,7 +94,6 @@ export default defineComponent({
       return highlightCode(props.code, props.language);
     });
 
-    // Enhanced syntax highlighting function
     const highlightCode = (code: string, language: string): string => {
       if (!code) return '';
       
@@ -131,35 +128,26 @@ export default defineComponent({
       }
     };
 
-    // Helper function to escape HTML
     const escapeHtml = (text: string): string => {
       return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     };
 
     const highlightJavaScript = (code: string): string => {
-      // Keywords
       code = code.replace(/\b(const|let|var|function|return|if|else|for|while|do|switch|case|default|break|continue|class|extends|implements|export|import|from|as|async|await|try|catch|finally|throw|new|this|typeof|instanceof|in|of|delete|void|null|undefined|true|false)\b/g, '___KEYWORD_START___$1___KEYWORD_END___');
       
-      // Function names
       code = code.replace(/\b([a-zA-Z_$][a-zA-Z0-9_$]*)\s*(?=\()/g, '___FUNCTION_START___$1___FUNCTION_END___');
       
-      // Strings (handle template literals, single and double quotes)
       code = code.replace(/(["'`])((?:\\.|(?!\1)[^\\])*?)\1/g, '___STRING_START___$1$2$1___STRING_END___');
       
-      // Numbers
       code = code.replace(/\b(\d+(?:\.\d+)?(?:[eE][-+]?\d+)?)\b/g, '___NUMBER_START___$1___NUMBER_END___');
       
-      // Comments
       code = code.replace(/(\/\/.*$)/gm, '___COMMENT_START___$1___COMMENT_END___');
       code = code.replace(/(\/\*[\s\S]*?\*\/)/g, '___COMMENT_START___$1___COMMENT_END___');
       
-      // Operators
       code = code.replace(/([+\-*/%=<>!&|?:;,])/g, '___OPERATOR_START___$1___OPERATOR_END___');
       
-      // Now escape HTML
       code = escapeHtml(code);
       
-      // Replace placeholders with HTML tags
       code = code.replace(/___KEYWORD_START___(.*?)___KEYWORD_END___/g, '<span class="hl-keyword">$1</span>');
       code = code.replace(/___FUNCTION_START___(.*?)___FUNCTION_END___/g, '<span class="hl-function">$1</span>');
       code = code.replace(/___STRING_START___(.*?)___STRING_END___/g, '<span class="hl-string">$1</span>');
@@ -171,45 +159,34 @@ export default defineComponent({
     };
 
     const highlightTypeScript = (code: string): string => {
-      // Use JavaScript highlighting as base
       code = highlightJavaScript(code);
       
-      // TypeScript specific keywords (after HTML escaping)
       code = code.replace(/\b(interface|type|enum|namespace|declare|abstract|implements|extends|public|private|protected|readonly|static|readonly|keyof|infer|never|unknown)\b/g, '<span class="hl-keyword">$1</span>');
       
       return code;
     };
 
     const highlightHTML = (code: string): string => {
-      // Escape HTML first
       code = escapeHtml(code);
       
-      // Tags
       code = code.replace(/(&lt;\/?)([\w-]+)([^&gt;]*?)(&gt;)/g, '<span class="hl-tag">$1</span><span class="hl-tag-name">$2</span><span class="hl-attr">$3</span><span class="hl-tag">$4</span>');
       
-      // Attributes
       code = code.replace(/(\w+)=(["'])([^"']*?)\2/g, '<span class="hl-attr-name">$1</span>=<span class="hl-string">$2$3$2</span>');
       
       return code;
     };
 
     const highlightCSS = (code: string): string => {
-      // Properties
       code = code.replace(/([a-zA-Z-]+)\s*:/g, '___PROPERTY_START___$1___PROPERTY_END___:');
       
-      // Values and colors
       code = code.replace(/:\s*([^;{]+)/g, ': ___VALUE_START___$1___VALUE_END___');
       
-      // Selectors
       code = code.replace(/([.#]?[a-zA-Z-_][a-zA-Z0-9-_]*)\s*{/g, '___SELECTOR_START___$1___SELECTOR_END___ {');
       
-      // Comments
       code = code.replace(/(\/\*[\s\S]*?\*\/)/g, '___COMMENT_START___$1___COMMENT_END___');
       
-      // Escape HTML
       code = escapeHtml(code);
       
-      // Replace placeholders
       code = code.replace(/___PROPERTY_START___(.*?)___PROPERTY_END___/g, '<span class="hl-property">$1</span>');
       code = code.replace(/___VALUE_START___(.*?)___VALUE_END___/g, '<span class="hl-value">$1</span>');
       code = code.replace(/___SELECTOR_START___(.*?)___SELECTOR_END___/g, '<span class="hl-selector">$1</span>');
@@ -219,22 +196,16 @@ export default defineComponent({
     };
 
     const highlightJSON = (code: string): string => {
-      // Keys
       code = code.replace(/"([^"]+)"(\s*:)/g, '___KEY_START___"$1"___KEY_END___$2');
       
-      // String values
       code = code.replace(/:\s*"([^"]*?)"/g, ': ___STRING_START___"$1"___STRING_END___');
       
-      // Numbers
       code = code.replace(/:\s*(\d+(?:\.\d+)?)/g, ': ___NUMBER_START___$1___NUMBER_END___');
       
-      // Booleans and null
       code = code.replace(/:\s*(true|false|null)/g, ': ___KEYWORD_START___$1___KEYWORD_END___');
       
-      // Escape HTML
       code = escapeHtml(code);
       
-      // Replace placeholders
       code = code.replace(/___KEY_START___(.*?)___KEY_END___/g, '<span class="hl-property">$1</span>');
       code = code.replace(/___STRING_START___(.*?)___STRING_END___/g, '<span class="hl-string">$1</span>');
       code = code.replace(/___NUMBER_START___(.*?)___NUMBER_END___/g, '<span class="hl-number">$1</span>');
@@ -244,26 +215,19 @@ export default defineComponent({
     };
 
     const highlightPython = (code: string): string => {
-      // Keywords
       code = code.replace(/\b(def|class|if|elif|else|for|while|try|except|finally|with|as|import|from|return|yield|lambda|and|or|not|in|is|True|False|None|pass|break|continue|global|nonlocal|assert|del|raise)\b/g, '___KEYWORD_START___$1___KEYWORD_END___');
       
-      // Function names
       code = code.replace(/\bdef\s+([a-zA-Z_][a-zA-Z0-9_]*)/g, 'def <span class="hl-function">$1</span>');
       
-      // Strings
       code = code.replace(/(["'])((?:\\.|(?!\1)[^\\])*?)\1/g, '___STRING_START___$1$2$1___STRING_END___');
       code = code.replace(/("""[\s\S]*?""")/g, '___STRING_START___$1___STRING_END___');
       
-      // Numbers
       code = code.replace(/\b(\d+(?:\.\d+)?)\b/g, '___NUMBER_START___$1___NUMBER_END___');
       
-      // Comments
       code = code.replace(/(#.*$)/gm, '___COMMENT_START___$1___COMMENT_END___');
       
-      // Escape HTML
       code = escapeHtml(code);
       
-      // Replace placeholders
       code = code.replace(/___KEYWORD_START___(.*?)___KEYWORD_END___/g, '<span class="hl-keyword">$1</span>');
       code = code.replace(/___STRING_START___(.*?)___STRING_END___/g, '<span class="hl-string">$1</span>');
       code = code.replace(/___NUMBER_START___(.*?)___NUMBER_END___/g, '<span class="hl-number">$1</span>');
@@ -273,22 +237,16 @@ export default defineComponent({
     };
 
     const highlightBash = (code: string): string => {
-      // Commands
       code = code.replace(/\b(ls|cd|pwd|mkdir|rmdir|rm|cp|mv|cat|grep|find|chmod|chown|ps|top|kill|sudo|apt|yum|git|npm|yarn|docker|kubectl)\b/g, '___KEYWORD_START___$1___KEYWORD_END___');
       
-      // Strings
       code = code.replace(/(["'])((?:\\.|(?!\1)[^\\])*?)\1/g, '___STRING_START___$1$2$1___STRING_END___');
       
-      // Comments
       code = code.replace(/(#.*$)/gm, '___COMMENT_START___$1___COMMENT_END___');
       
-      // Variables
       code = code.replace(/(\$\w+)/g, '___VARIABLE_START___$1___VARIABLE_END___');
       
-      // Escape HTML
       code = escapeHtml(code);
       
-      // Replace placeholders
       code = code.replace(/___KEYWORD_START___(.*?)___KEYWORD_END___/g, '<span class="hl-keyword">$1</span>');
       code = code.replace(/___STRING_START___(.*?)___STRING_END___/g, '<span class="hl-string">$1</span>');
       code = code.replace(/___COMMENT_START___(.*?)___COMMENT_END___/g, '<span class="hl-comment">$1</span>');
@@ -298,23 +256,17 @@ export default defineComponent({
     };
 
     const highlightSQL = (code: string): string => {
-      // Keywords
       code = code.replace(/\b(SELECT|FROM|WHERE|JOIN|INNER|LEFT|RIGHT|FULL|OUTER|ON|GROUP|BY|ORDER|HAVING|INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|TABLE|INDEX|DATABASE|SCHEMA|PRIMARY|KEY|FOREIGN|REFERENCES|NOT|NULL|UNIQUE|DEFAULT|AUTO_INCREMENT|CONSTRAINT)\b/gi, '___KEYWORD_START___$1___KEYWORD_END___');
       
-      // Strings
       code = code.replace(/(["'])((?:\\.|(?!\1)[^\\])*?)\1/g, '___STRING_START___$1$2$1___STRING_END___');
       
-      // Comments
       code = code.replace(/(--.*$)/gm, '___COMMENT_START___$1___COMMENT_END___');
       code = code.replace(/(\/\*[\s\S]*?\*\/)/g, '___COMMENT_START___$1___COMMENT_END___');
       
-      // Numbers
       code = code.replace(/\b(\d+(?:\.\d+)?)\b/g, '___NUMBER_START___$1___NUMBER_END___');
       
-      // Escape HTML
       code = escapeHtml(code);
       
-      // Replace placeholders
       code = code.replace(/___KEYWORD_START___(.*?)___KEYWORD_END___/g, '<span class="hl-keyword">$1</span>');
       code = code.replace(/___STRING_START___(.*?)___STRING_END___/g, '<span class="hl-string">$1</span>');
       code = code.replace(/___COMMENT_START___(.*?)___COMMENT_END___/g, '<span class="hl-comment">$1</span>');
@@ -324,12 +276,10 @@ export default defineComponent({
     };
 
     const highlightVue = (code: string): string => {
-      // Use HTML highlighting for Vue files
       return highlightHTML(code);
     };
 
     const highlightXML = (code: string): string => {
-      // Use HTML highlighting for XML files
       return highlightHTML(code);
     };
 

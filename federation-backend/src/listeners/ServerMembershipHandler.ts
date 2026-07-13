@@ -9,9 +9,6 @@ import { DeliveryQueue } from '../activitypub/DeliveryQueue.js';
 import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
 
-/**
- * Handle user joining remote server
- */
 export async function handleUserJoinRemoteServer(payload: any): Promise<void> {
   try {
     const { user_id, server_id, server_ap_id, server_inbox } = payload;
@@ -47,9 +44,6 @@ export async function handleUserJoinRemoteServer(payload: any): Promise<void> {
   }
 }
 
-/**
- * Handle user leaving remote server
- */
 export async function handleUserLeaveRemoteServer(payload: any): Promise<void> {
   try {
     const { user_id, server_id, server_ap_id, server_inbox } = payload;
@@ -85,9 +79,6 @@ export async function handleUserLeaveRemoteServer(payload: any): Promise<void> {
   }
 }
 
-/**
- * Handle remote user leaving local server
- */
 export async function handleRemoteUserLeftServer(payload: any): Promise<void> {
   try {
     const { user_id, user_ap_id, server_id } = payload;
@@ -136,9 +127,6 @@ export async function handleRemoteUserLeftServer(payload: any): Promise<void> {
   }
 }
 
-/**
- * Export handler for all membership events
- */
 export function handleServerMembershipEvents(event: string, payload: any): void {
   switch (event) {
     case 'user_join_remote_server':

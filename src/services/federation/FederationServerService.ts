@@ -88,7 +88,6 @@ export class FederationServerService {
     return this.instance
   }
 
-  // DISCOVER REMOTE SERVER
 
   /**
    * Discover a remote server by URL, handle, or invite link
@@ -171,7 +170,6 @@ export class FederationServerService {
     }
   }
 
-  // RESOLVE INVITE LINK
 
   /**
    * Resolve an invite link from a remote instance
@@ -255,7 +253,6 @@ export class FederationServerService {
     }
   }
 
-  // JOIN REMOTE SERVER
 
   /**
    * Join a remote server (via direct URL or invite)
@@ -320,7 +317,6 @@ export class FederationServerService {
     }
   }
 
-  // LEAVE REMOTE SERVER
 
   /**
    * Leave a remote server
@@ -374,7 +370,6 @@ export class FederationServerService {
     }
   }
 
-  // SYNC REMOTE SERVER
 
   /**
    * Sync remote server metadata (channels, icon, etc.)

@@ -322,8 +322,7 @@ const users = ref<Record<string, { display_name: string; avatar_url: string }>>(
 
 const filteredInvites = computed(() => {
   let filtered = [...allInvites.value]
-  
-  // Status filter
+
   if (statusFilter.value !== 'all') {
     filtered = filtered.filter(invite => {
       switch (statusFilter.value) {
@@ -341,12 +340,10 @@ const filteredInvites = computed(() => {
     })
   }
   
-  // Creator filter
   if (creatorFilter.value !== 'all') {
     filtered = filtered.filter(invite => invite.created_by === creatorFilter.value)
   }
-  
-  // Search filter
+
   if (searchQuery.value) {
     const query = searchQuery.value.toLowerCase()
     filtered = filtered.filter(invite => 
@@ -430,7 +427,7 @@ const refreshInvites = () => {
 }
 
 const applyFilters = () => {
-  currentPage.value = 1 // Reset to first page when filtering
+  currentPage.value = 1
 }
 
 const isInviteExpired = (invite: Invite): boolean => {

@@ -31,10 +31,7 @@ function imageMediaTypeFromUrl(url: string): string | undefined {
   }
 }
 
-/**
- * Convert internal post format to ActivityPub Note
- * Supports quote posts via quoteUrl (Fediverse) and _misskey_quote (Misskey)
- */
+// Supports quote posts via quoteUrl (Fediverse) and _misskey_quote (Misskey).
 export function postToNote(post: any, author: any, quoteUrl?: string): any {
   const domain = config.INSTANCE_DOMAIN;
   const authorUrl = `https://${domain}/users/${author.username}`;
@@ -94,10 +91,8 @@ export function postToNote(post: any, author: any, quoteUrl?: string): any {
   }
 
   if (post.in_reply_to) {
-    // in_reply_to is a UUID - need to get the ap_id of the parent post
-    // For federated posts, this is their original ActivityPub URL
-    // For local posts, this is our generated URL
-    note.inReplyTo = post.in_reply_to; // Will be resolved in createPostActivity
+    // UUID; resolved to the parent's ap_id in createPostActivity.
+    note.inReplyTo = post.in_reply_to;
   }
 
   if (quoteUrl) {
@@ -108,9 +103,6 @@ export function postToNote(post: any, author: any, quoteUrl?: string): any {
   return note;
 }
 
-/**
- * Convert internal message format to ActivityPub Note (for DMs)
- */
 export function messageToNote(message: any, author: any): any {
   const domain = config.INSTANCE_DOMAIN;
   const authorUrl = `https://${domain}/users/${author.username}`;
@@ -130,9 +122,6 @@ export function messageToNote(message: any, author: any): any {
   return note;
 }
 
-/**
- * Convert user profile to ActivityPub Actor
- */
 export function profileToActor(profile: any): any {
   const domain = config.INSTANCE_DOMAIN;
   const userUrl = `https://${domain}/users/${profile.username}`;
@@ -285,9 +274,6 @@ export function profileToActor(profile: any): any {
   return actor;
 }
 
-/**
- * Create a Follow activity
- */
 export function createFollowActivity(follower: any, following: any): any {
   const domain = config.INSTANCE_DOMAIN;
   const followerUrl = `https://${domain}/users/${follower.username}`;
@@ -302,9 +288,6 @@ export function createFollowActivity(follower: any, following: any): any {
   };
 }
 
-/**
- * Create an Accept activity (for follow requests)
- */
 export function createAcceptActivity(actor: any, followActivity: any): any {
   const domain = config.INSTANCE_DOMAIN;
   const actorUrl = `https://${domain}/users/${actor.username}`;
@@ -319,9 +302,6 @@ export function createAcceptActivity(actor: any, followActivity: any): any {
   };
 }
 
-/**
- * Create a Reject activity (for follow requests)
- */
 export function createRejectActivity(actor: any, followActivity: any): any {
   const domain = config.INSTANCE_DOMAIN;
   const actorUrl = `https://${domain}/users/${actor.username}`;
@@ -411,9 +391,6 @@ export function createLikeActivity(
   return activity;
 }
 
-/**
- * Create an Announce activity (for reblogs/boosts)
- */
 export function createAnnounceActivity(user: any, objectUrl: string): any {
   const domain = config.INSTANCE_DOMAIN;
   const userUrl = `https://${domain}/users/${user.username}`;
@@ -431,9 +408,6 @@ export function createAnnounceActivity(user: any, objectUrl: string): any {
   };
 }
 
-/**
- * Create a Delete activity
- */
 export function createDeleteActivity(user: any, objectUrl: string): any {
   const domain = config.INSTANCE_DOMAIN;
   const userUrl = `https://${domain}/users/${user.username}`;
@@ -448,9 +422,6 @@ export function createDeleteActivity(user: any, objectUrl: string): any {
   };
 }
 
-/**
- * Create an Update activity (for profile updates)
- */
 export function createUpdateActivity(profile: any): any {
   const domain = config.INSTANCE_DOMAIN;
   const userUrl = `https://${domain}/users/${profile.username}`;
@@ -470,10 +441,6 @@ export function createUpdateActivity(profile: any): any {
   };
 }
 
-/**
- * Helper: Extract HTML content from JSONB content (MessagePart[])
- * Converts to ActivityPub-compatible HTML with mentions, hashtags, and emojis
- */
 /**
  * Full HTML attribute / text escape. Covers the five characters that
  * have special meaning in HTML (`& < > " '`). Anything we splice into
@@ -572,9 +539,6 @@ function extractContentAsHtml(content: any): string {
     .join('');
 }
 
-/**
- * Helper: Extract attachments from JSONB content
- */
 function extractAttachments(content: any): any[] {
   if (!Array.isArray(content)) {
     return [];
@@ -604,9 +568,6 @@ function extractAttachments(content: any): any[] {
     });
 }
 
-/**
- * Helper: Get proper MIME type from fileType or URL
- */
 function getMediaType(fileType?: string, mimeType?: string, url?: string): string {
   // If we already have a proper MIME type, use it
   if (mimeType && mimeType.includes('/')) {
@@ -656,9 +617,6 @@ function getMediaType(fileType?: string, mimeType?: string, url?: string): strin
   return 'application/octet-stream';
 }
 
-/**
- * Helper: Extract tags (mentions, hashtags) from JSONB content
- */
 function extractTags(content: any): any[] {
   if (!Array.isArray(content)) {
     return [];
@@ -717,9 +675,6 @@ function extractTags(content: any): any[] {
   return tags;
 }
 
-/**
- * Helper: Get 'to' addresses based on visibility
- */
 function getToAddresses(visibility: string, authorUrl: string): string[] {
   switch (visibility) {
     case 'public':
@@ -736,9 +691,6 @@ function getToAddresses(visibility: string, authorUrl: string): string[] {
   }
 }
 
-/**
- * Helper: Get 'cc' addresses based on visibility
- */
 function getCcAddresses(visibility: string, authorUrl: string): string[] {
   switch (visibility) {
     case 'public':

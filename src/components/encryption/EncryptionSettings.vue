@@ -339,14 +339,12 @@ const sessionStats = ref({ outbound: 0, inbound: 0 })
 const lastBackupTime = ref<string | null>(null)
 const recoveryMetadata = ref<any>(null)
 
-// UI State
 const showSetupWizard = ref(false)
 const showRecoveryModal = ref(false)
 const showViewRecoveryInfo = ref(false)
 const showImportModal = ref(false)
 const confirmReset = ref(false)
 
-// Loading states
 const isSyncing = ref(false)
 const isBackingUp = ref(false)
 const isResetting = ref(false)
@@ -355,7 +353,6 @@ const isImporting = ref(false)
 const selectedFile = ref<File | null>(null)
 const importError = ref('')
 
-// Computed status display
 const statusClass = computed(() => {
   if (!encryptionStatus.value.hasRecoveryKey) return 'not-setup'
   if (!encryptionStatus.value.enabled) return 'locked'
@@ -445,7 +442,6 @@ function formatTime(isoString: string): string {
   return date.toLocaleDateString()
 }
 
-// Sync keys
 const diagnostics = ref<Array<{ label: string; ok: boolean | null; detail: string }>>([])
 const isDiagnosing = ref(false)
 
@@ -523,7 +519,6 @@ async function createBackup() {
   }
 }
 
-// Export backup file
 async function exportBackupFile() {
   try {
     const { megolmKeyBackupService } = await import('@/services/encryption/MegolmKeyBackupService')

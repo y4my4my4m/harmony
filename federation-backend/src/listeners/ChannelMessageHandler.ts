@@ -43,10 +43,7 @@ interface ChannelMessageDeletePayload {
 
 // CREATE MESSAGE HANDLER
 
-/**
- * Handle channel message federation (Create)
- * Called when database trigger detects remote members
- */
+// Called when the database trigger detects remote members.
 export async function handleChannelMessageFederation(
   payload: ChannelMessagePayload
 ): Promise<void> {
@@ -218,9 +215,6 @@ export async function handleChannelMessageFederation(
 
 // UPDATE MESSAGE HANDLER
 
-/**
- * Handle channel message update federation
- */
 export async function handleChannelMessageUpdate(
   payload: ChannelMessageUpdatePayload
 ): Promise<void> {
@@ -314,9 +308,6 @@ export async function handleChannelMessageUpdate(
 
 // DELETE MESSAGE HANDLER
 
-/**
- * Handle channel message deletion federation
- */
 export async function handleChannelMessageDelete(
   payload: ChannelMessageDeletePayload
 ): Promise<void> {
@@ -385,9 +376,6 @@ export async function handleChannelMessageDelete(
 
 // HELPER FUNCTIONS
 
-/**
- * Create ActivityPub activity for a message
- */
 function createMessageActivity(
   message: any,
   server: any,
@@ -512,9 +500,6 @@ function createMessageActivity(
   };
 }
 
-/**
- * Deliver activity to remote instances
- */
 async function deliverToRemoteInstances(
   groups: RemoteMemberGroup[],
   activity: any,

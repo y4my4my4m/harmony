@@ -30,9 +30,6 @@ const federatedTokenRequestSchema = z.object({
 
 // MIDDLEWARE
 
-/**
- * Middleware to verify user authentication via Supabase JWT
- */
 const requireAuth = async (req: Request, res: Response, next: Function) => {
   const authHeader = req.headers.authorization;
   
@@ -58,9 +55,7 @@ const requireAuth = async (req: Request, res: Response, next: Function) => {
   }
 };
 
-/**
- * Is the given auth user an instance admin? (auth.uid -> profiles.is_admin)
- */
+// auth.uid -> profiles.is_admin
 const isAdmin = async (authUserId: string): Promise<boolean> => {
   try {
     const supabase = getSupabaseClient();
@@ -75,9 +70,6 @@ const isAdmin = async (authUserId: string): Promise<boolean> => {
   }
 };
 
-/**
- * Check if LiveKit is configured
- */
 const requireLiveKit = (req: Request, res: Response, next: Function) => {
   if (!livekitService.isConfigured()) {
     return res.status(503).json({ 

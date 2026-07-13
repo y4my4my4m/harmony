@@ -10,7 +10,6 @@ export interface BotConnection {
   sessionId: string
 }
 
-// Bridged user info (from Discord bridge)
 export interface BridgedDiscordRole {
   id: string
   name: string
@@ -34,7 +33,6 @@ export interface BridgedUser {
   source: 'discord'
 }
 
-// Channel bridge data
 export interface ChannelBridgeData {
   botId: string
   harmonyChannelId: string
@@ -78,9 +76,7 @@ export class WebSocketGateway {
             
           case 6: // REGISTER_BRIDGE_DATA
             if (botConnection) {
-              // Fire-and-forget; the registration is best-effort caching and
-              // an unhandled rejection here would otherwise crash the gateway
-              // worker (see BUGS.md M47 - unhandled rejection policy).
+              // Fire-and-forget: unhandled rejection would crash the worker (BUGS.md M47).
               this.handleBridgeDataRegistration(botConnection, payload.d).catch(err => {
                 console.error('Error handling bridge data registration:', err)
               })
@@ -127,7 +123,6 @@ export class WebSocketGateway {
       return null
     }
     
-    // Hash token for lookup
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex')
     
     const { data: verification } = await supabase.rpc('verify_bot_token', {
@@ -212,11 +207,6 @@ export class WebSocketGateway {
     }, config.websocket.heartbeatInterval)
   }
   
-  // EVENT BROADCASTING
-  
-  /**
-   * Send event to a specific bot
-   */
   sendToBot(botId: string, event: any) {
     let sent = 0
     
@@ -232,18 +222,12 @@ export class WebSocketGateway {
     }
   }
   
-  /**
-   * Send event to multiple bots
-   */
   sendToMultipleBots(botIds: string[], event: any) {
     for (const botId of botIds) {
       this.sendToBot(botId, event)
     }
   }
   
-  /**
-   * Broadcast event to all connected bots
-   */
   broadcast(event: any) {
     let sent = 0
     
@@ -257,32 +241,18 @@ export class WebSocketGateway {
     console.log(`📣 Broadcast event to ${sent} bots`)
   }
   
-  // STATUS & MANAGEMENT
-  
-  /**
-   * Get connected bot count
-   */
   getConnectedBotCount(): number {
     return new Set([...this.connections.values()].map(c => c.botId)).size
   }
-  
-  /**
-   * Get total connection count
-   */
+
   getTotalConnectionCount(): number {
     return this.connections.size
   }
-  
-  /**
-   * Get bots by connection
-   */
+
   getConnectedBots(): BotConnection[] {
     return Array.from(this.connections.values())
   }
-  
-  /**
-   * Check if bot is connected
-   */
+
   isBotConnected(botId: string): boolean {
     for (const conn of this.connections.values()) {
       if (conn.botId === botId) {
@@ -292,24 +262,10 @@ export class WebSocketGateway {
     return false
   }
   
-  // BRIDGE DATA MANAGEMENT
-  
-  /**
-   * Handle bridge data registration from Discord bridge.
-   *
-   * BUGS.md H40: previously this trusted whatever `harmonyChannelId`s the bot
-   * sent us and cached the member list under those IDs. A compromised or
-   * malicious bot token could therefore inject fake Discord member lists into
-   * `bridgedUsersByChannel` for ANY channel, including channels in servers
-   * the bot is not installed on. The cached lists are then served back to the
-   * Harmony frontend via `/bridged-users/:channelId` (used for mention
-   * autosuggest) - so the attack surface includes both fabricated mention
-   * pings and impersonation by way of crafted Discord user metadata.
-   *
-   * Fix: for each `harmonyChannelId`, resolve `channels.server_id` and verify
-   * that the bot has an active `bot_server_permissions` row for that server.
-   * Channels failing the check are silently dropped from the registration.
-   */
+  // BUGS.md H40: a malicious bot token could inject fake member lists into
+  // bridgedUsersByChannel for channels in servers it isn't installed on. For
+  // each harmonyChannelId, resolve channels.server_id and require an active
+  // bot_server_permissions row for that server; failing channels are dropped.
   private async handleBridgeDataRegistration(botConnection: BotConnection, data: any) {
     if (!data.channels || !Array.isArray(data.channels)) {
       console.warn('⚠️ Invalid bridge data registration - missing channels array')
@@ -330,8 +286,6 @@ export class WebSocketGateway {
     }
     const botChannels = this.channelsByBot.get(botConnection.botId)!
 
-    // Collect candidate harmony channel IDs up-front so we can batch the
-    // server lookup and permission check (one DB round-trip instead of N).
     // Members may be sent once at the root (guild-wide) or per-channel (legacy).
     const sharedMembers: BridgedUser[] = Array.isArray(data.members) ? data.members as BridgedUser[] : []
     const candidates: Array<{ harmonyChannelId: string; members: BridgedUser[] }> = []
@@ -393,9 +347,6 @@ export class WebSocketGateway {
     console.log('╚════════════════════════════════════════╝')
   }
   
-  /**
-   * Clean up bridge data when a bot disconnects
-   */
   private cleanupBotBridgeData(botId: string) {
     const botChannels = this.channelsByBot.get(botId)
     if (botChannels) {
@@ -407,9 +358,6 @@ export class WebSocketGateway {
     }
   }
   
-  /**
-   * Get bridged users for a channel (used by REST API)
-   */
   getBridgedUsers(channelId: string): BridgedUser[] {
     return this.bridgedUsersByChannel.get(channelId) || []
   }
@@ -431,16 +379,10 @@ export class WebSocketGateway {
     return channelIds.some(id => (this.bridgedUsersByChannel.get(id)?.length ?? 0) > 0)
   }
   
-  /**
-   * Check if a channel has bridged users
-   */
   hasChannelBridge(channelId: string): boolean {
     return (this.bridgedUsersByChannel.get(channelId)?.length ?? 0) > 0
   }
   
-  /**
-   * Clean up
-   */
   shutdown() {
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval)

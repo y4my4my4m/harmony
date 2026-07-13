@@ -120,10 +120,8 @@ const isMinimized = ref(false)
 let ringtoneInterval: number | null = null
 
 const startRingtone = () => {
-  // Play ringtone immediately
   themeStore.playAudio('call_incoming')
 
-  // Play ringtone every 3 seconds
   ringtoneInterval = window.setInterval(() => {
     themeStore.playAudio('call_incoming')
   }, 3000)

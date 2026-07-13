@@ -24,7 +24,7 @@
         <router-link to="/settings/bots">User Settings → My Bots</router-link>
         (<code>bot_type: bridge</code>) — its <strong>View Details</strong> page walks you through the
         Discord application setup — then add it under
-        <strong>Server Settings → Advanced → Server Bots</strong>.
+        <strong>Server Settings → Bots</strong>.
         The server-specific pairing code and config appear here once it's installed.
       </div>
     </div>
@@ -197,8 +197,13 @@ async function loadInstalledBridgeBot() {
   if (error) throw error
 
   const rows = (data ?? []) as BotInstallRow[]
-  const bridgeInstall = rows.find(row => row.bot && isBridgeBot(row.bot))
-  installedBridgeBot.value = bridgeInstall?.bot?.username
+  const bridgeInstall = rows.find(row => {
+    const bot = row.bot
+    // PostgREST may return null when RLS hides the nested bots row.
+    if (!bot || Array.isArray(bot)) return false
+    return isBridgeBot(bot)
+  })
+  installedBridgeBot.value = bridgeInstall?.bot && !Array.isArray(bridgeInstall.bot) && bridgeInstall.bot.username
     ? { bot: { username: bridgeInstall.bot.username } }
     : null
 }

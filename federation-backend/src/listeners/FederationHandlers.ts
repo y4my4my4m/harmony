@@ -13,10 +13,7 @@ import config from '../config/index.js';
 import { getSupabaseClient } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
 
-/**
- * Create a Create activity for a new post
- * Handles quote posts by adding quoteUrl to the Note
- */
+// Handles quote posts by adding quoteUrl to the Note.
 export async function createPostActivity(post: any, author: any): Promise<any> {
   const domain = config.INSTANCE_DOMAIN;
   const authorUrl = `https://${domain}/users/${author.username}`;
@@ -48,7 +45,7 @@ export async function createPostActivity(post: any, author: any): Promise<any> {
     if (parentPost?.ap_id) {
       note.inReplyTo = parentPost.ap_id;
     } else {
-      // Parent post doesn't have ap_id (shouldn't happen with our trigger, but fallback)
+      // Fallback: shouldn't happen with our trigger, but parent post may lack ap_id.
       note.inReplyTo = `https://${domain}/posts/${post.in_reply_to}`;
     }
   }
@@ -65,22 +62,13 @@ export async function createPostActivity(post: any, author: any): Promise<any> {
   };
 }
 
-/**
- * Create a Follow activity
- */
 export function createFollowActivity(follower: any, following: any): any {
   return createFollow(follower, following);
 }
 
-/**
- * Re-export for backward compatibility. Prefer importing from toActivityPub directly.
- */
+// Re-export for backward compatibility; prefer importing from toActivityPub directly.
 export { createLikeActivity } from '../activitypub/converters/toActivityPub.js';
 
-/**
- * Create an Announce activity (reblog)
- * Gets the original post's AP ID to properly federate the boost
- */
 export async function createReblogActivity(user: any, reblogPost: any): Promise<any> {
   const domain = config.INSTANCE_DOMAIN;
   const supabase = getSupabaseClient();
@@ -103,25 +91,16 @@ export async function createReblogActivity(user: any, reblogPost: any): Promise<
   return createAnnounce(user, objectUrl);
 }
 
-/**
- * Create an Update activity (profile updates)
- */
 export function createProfileUpdateActivity(profile: any): any {
   return createUpdateActivity(profile);
 }
 
-/**
- * Create a Delete activity for a post
- */
 export function createDeleteActivity(author: any, post: any): any {
   const domain = config.INSTANCE_DOMAIN;
   const objectUrl = post.ap_id || `https://${domain}/posts/${post.id}`;
   return createDelete(author, objectUrl);
 }
 
-/**
- * Create an Undo Announce activity (unreblog)
- */
 export async function createUndoAnnounceActivity(user: any, reblogPost: any): Promise<any> {
   const domain = config.INSTANCE_DOMAIN;
   const supabase = getSupabaseClient();
@@ -161,9 +140,6 @@ export async function createUndoAnnounceActivity(user: any, reblogPost: any): Pr
   };
 }
 
-/**
- * Create an Undo Follow activity
- */
 export function createUndoFollowActivity(follower: any, following: any, followRecord: any): any {
   const domain = config.INSTANCE_DOMAIN;
   const followerUrl = `https://${domain}/users/${follower.username}`;
@@ -185,9 +161,6 @@ export function createUndoFollowActivity(follower: any, following: any, followRe
   };
 }
 
-/**
- * Create an Undo Like activity (remove reaction)
- */
 export function createUndoLikeActivity(user: any, objectUrl: string): any {
   const domain = config.INSTANCE_DOMAIN;
   const userUrl = `https://${domain}/users/${user.username}`;
@@ -209,9 +182,6 @@ export function createUndoLikeActivity(user: any, objectUrl: string): any {
   };
 }
 
-/**
- * Create an Add activity (pin post to featured collection)
- */
 export function createAddToFeaturedActivity(user: any, post: any): any {
   const domain = config.INSTANCE_DOMAIN;
   const userUrl = `https://${domain}/users/${user.username}`;
@@ -230,9 +200,6 @@ export function createAddToFeaturedActivity(user: any, post: any): any {
   };
 }
 
-/**
- * Create a Remove activity (unpin post from featured collection)
- */
 export function createRemoveFromFeaturedActivity(user: any, post: any): any {
   const domain = config.INSTANCE_DOMAIN;
   const userUrl = `https://${domain}/users/${user.username}`;
@@ -251,9 +218,6 @@ export function createRemoveFromFeaturedActivity(user: any, post: any): any {
   };
 }
 
-/**
- * Create a Block activity
- */
 export function createBlockActivity(blocker: any, blocked: any): any {
   const domain = config.INSTANCE_DOMAIN;
   const blockerUrl = `https://${domain}/users/${blocker.username}`;
@@ -268,9 +232,6 @@ export function createBlockActivity(blocker: any, blocked: any): any {
   };
 }
 
-/**
- * Create an Undo Block activity (unblock)
- */
 export function createUndoBlockActivity(blocker: any, blocked: any): any {
   const domain = config.INSTANCE_DOMAIN;
   const blockerUrl = `https://${domain}/users/${blocker.username}`;
@@ -293,9 +254,6 @@ export function createUndoBlockActivity(blocker: any, blocked: any): any {
   };
 }
 
-/**
- * Create a Flag activity (report user/post to remote instance)
- */
 export function createFlagActivity(
   reporter: any, 
   reportedUser: any, 
@@ -326,15 +284,11 @@ export function createFlagActivity(
   };
 }
 
-/**
- * Create an Update activity for an edited post
- */
 export async function createPostUpdateActivity(post: any, author: any): Promise<any> {
   const domain = config.INSTANCE_DOMAIN;
   const authorUrl = `https://${domain}/users/${author.username}`;
   const activityId = `${authorUrl}/activities/update-${post.id}-${Date.now()}`;
-  
-  // Import postToNote to create the Note object
+
   const note = postToNote(post, author);
   
   return {

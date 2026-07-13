@@ -87,7 +87,7 @@
           </div>
         </nav>
 
-        <!-- Enhanced Quick Stats with Realtime Updates (moved to bottom) -->
+        <!-- Quick Stats -->
         <div class="quick-stats">
           <div class="stats-header">
             <h4 class="stats-title">{{ $t('activitypub.yourActivity') }}</h4>
@@ -141,7 +141,6 @@ import { useNotificationStore } from '@/stores/useNotification';
 import { authContextService } from '@/services/AuthContextService';
 import type { Server, Channel, Category } from '@/types';
 
-// I18n
 const { t } = useI18n();
 import Avatar from '@/components/common/Avatar.vue';
 import DisplayName from '@/components/DisplayName.vue';
@@ -180,16 +179,11 @@ const props = withDefaults(defineProps<Props>(), {
 
 // eslint-disable-next-line unused-imports/no-unused-vars
 const emit = defineEmits<{
-  // Chat mode events
   'channel-selected': [channelId: string];
   'create-channel': [categoryId: string];
   'conversation-selected': [conversationId: string];
   'open-thread': [thread: any];
-  
-  // Mode switching
   'switch-mode': [mode: 'chat' | 'activitypub'];
-  
-  // Profile events
   'profile-click': [];
   'compose-post': [];
 }>();
@@ -342,11 +336,10 @@ const navigateToFollowers = () => {
 
 const navigateToProfile = () => {
   if (currentUserHandle.value) {
-    let handle = currentUserHandle.value.replace(/^@/, ''); // Remove leading @
-    
-    // For local users, remove domain part if present
+    let handle = currentUserHandle.value.replace(/^@/, '');
+
     if (!handle.includes('@')) {
-      // Already clean handle for local user
+      // no-op: already a clean local handle
     } else if (handle.endsWith(`@${import.meta.env.VITE_DOMAIN as string}`)) {
       handle = handle.replace(`@${import.meta.env.VITE_DOMAIN as string}`, '');
     }
@@ -364,11 +357,9 @@ const navigateToRoute = (path: string) => {
 };
 
 const handleNavItemClick = (navItem: { id: string; path: string }) => {
-  // Special handling for profile navigation
   if (navItem.id === 'profile') {
     navigateToProfile();
   } else {
-    // Use regular path navigation for other items
     navigateToRoute(navItem.path);
   }
 };
@@ -385,7 +376,6 @@ watch(() => activityPubStore.followingCount, (newCount) => {
   if (previousFollowingCount.value !== 0) {
     followingChange.value = newCount - previousFollowingCount.value;
     if (followingChange.value !== 0) {
-      // Clear the change indicator after 3 seconds
       setTimeout(() => {
         followingChange.value = 0;
       }, 3000);
@@ -398,7 +388,6 @@ watch(() => activityPubStore.followersCount, (newCount) => {
   if (previousFollowersCount.value !== 0) {
     followersChange.value = newCount - previousFollowersCount.value;
     if (followersChange.value !== 0) {
-      // Clear the change indicator after 3 seconds
       setTimeout(() => {
         followersChange.value = 0;
       }, 3000);

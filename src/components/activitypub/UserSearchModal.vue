@@ -3,7 +3,6 @@
   <Teleport to="body">
     <div class="modal-overlay" @click="handleOverlayClick">
       <div class="search-modal" @click.stop>
-        <!-- Header -->
         <div class="modal-header">
           <h2 class="modal-title">Search Users</h2>
           <button @click="$emit('close')" class="close-btn" title="Close">
@@ -11,7 +10,6 @@
           </button>
         </div>
 
-        <!-- Search Input -->
         <div class="search-container">
           <div class="search-input-wrapper">
             <Icon name="search" class="search-icon" />
@@ -34,8 +32,7 @@
               <Icon name="x" :size="16" />
             </button>
           </div>
-          
-          <!-- Search Filters -->
+
           <div class="search-filters">
             <button
               v-for="filter in searchFilters"
@@ -49,15 +46,12 @@
           </div>
         </div>
 
-        <!-- Search Results -->
         <div class="search-results">
-          <!-- Loading State -->
           <div v-if="isSearching" class="loading-state">
             <LoadingSpinner :size="32" />
             <p>{{ $t('activitypub.searchingFediverse') }}</p>
           </div>
 
-          <!-- Empty State -->
           <div v-else-if="!isSearching && searchResults.length === 0 && searchQuery" class="empty-state">
             <Icon name="users" :size="48" />
             <h3>{{ $t('activitypub.noUsersFound') }}</h3>
@@ -72,13 +66,11 @@
             </div>
           </div>
 
-          <!-- Initial State -->
           <div v-else-if="!searchQuery" class="initial-state">
             <Icon name="search" :size="48" />
             <h3>Search for Users</h3>
             <p>Find users from this instance or across the fediverse.</p>
-            
-            <!-- Recent Searches -->
+
             <div v-if="recentSearches.length > 0" class="recent-searches">
               <h4>Recent Searches</h4>
               <div class="recent-list">
@@ -101,7 +93,6 @@
               </div>
             </div>
 
-            <!-- Suggested Users -->
             <div v-if="suggestedUsers.length > 0" class="suggested-users">
               <h4>Suggested Users</h4>
               <div class="suggested-list">
@@ -117,7 +108,6 @@
             </div>
           </div>
 
-          <!-- Search Results List -->
           <div v-else class="results-list">
             <UserCard
               v-for="user in filteredResults"
@@ -130,7 +120,6 @@
           </div>
         </div>
 
-        <!-- Search Actions -->
         <div class="search-actions">
           <button
             v-if="hasMoreResults"
@@ -173,7 +162,6 @@ const activeFilter = ref('all');
 const recentSearches = ref<FederatedUser[]>([]);
 const suggestedUsers = ref<FederatedUser[]>([]);
 
-// Configuration
 const searchFilters = [
   { id: 'all', label: 'All', icon: 'users' },
   { id: 'local', label: 'Local', icon: 'home' },
@@ -216,9 +204,7 @@ const handleSearchInput = () => {
 
 let searchTimeout: number;
 
-// Monotonic sequence guard: a slow older search must not overwrite the
-// results of a newer one (type "ali", then "alice" - the "ali" response can
-// land last and clobber the "alice" results).
+// guard against slow older search response overwriting a newer one
 let searchSeq = 0;
 
 const performSearch = async () => {
@@ -262,11 +248,10 @@ const performSearch = async () => {
 
 const performRegularSearch = async (query: string, seq: number) => {
   try {
-    // Use the activityPubService to search for users
     const results = await activityPubService.searchUsers(query, 20);
     if (seq !== searchSeq) return; // stale response
     searchResults.value = results;
-    hasMoreResults.value = results.length >= 20; // More results might be available if we got the full limit
+    hasMoreResults.value = results.length >= 20;
   } catch (error) {
     debug.error('Regular search failed:', error);
     if (seq === searchSeq) searchResults.value = [];
@@ -303,8 +288,7 @@ const addToRecentSearches = (user: FederatedUser) => {
   recentSearches.value = recentSearches.value.filter(u => u.id !== user.id);
   
   recentSearches.value.unshift(user);
-  
-  // Keep only last 5
+
   recentSearches.value = recentSearches.value.slice(0, 5);
   
   try {

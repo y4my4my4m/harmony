@@ -1,7 +1,5 @@
 # Code Examples
 
-This section provides practical examples of how to use Harmony's components, services, and APIs.
-
 ## Quick Start Examples
 
 ### Basic Chat Integration
@@ -561,4 +559,4 @@ describe('Chat Store', () => {
 
 ---
 
-These examples demonstrate common patterns and best practices for building features in Harmony. For more specific use cases, check the individual component and API documentation.
+For more specific use cases, check the individual component and API documentation.

@@ -224,7 +224,6 @@ class VoiceSettingsServiceClass {
   }
 }
 
-// Singleton export
 export const VoiceSettingsService = new VoiceSettingsServiceClass();
 export default VoiceSettingsService;
 

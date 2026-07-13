@@ -215,11 +215,9 @@ const confirmDeleteServer = async () => {
       
       const availableServers = serverChannelStore.servers
       if (availableServers.length > 0) {
-        // Navigate to the first available server
         const nextServer = availableServers[0]
         router.push(`/server/${nextServer.id}`)
       } else {
-        // No servers left, go to home/DMs
         router.push('/dm')
       }
     } else {

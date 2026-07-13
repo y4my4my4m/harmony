@@ -148,8 +148,7 @@ router.post(
           logger.info(`🔄 User ${username}@${domain} has emoji patterns but no emoji metadata - forcing refresh`);
           // Don't return cached - fall through to full fetch
         } else {
-          // Check if we should trigger a background post fetch
-          // Fetch if: user has outbox_url AND (no posts yet OR last sync was over 5 minutes ago)
+          // Trigger background post fetch if outbox_url exists and no posts yet or last sync >5min ago
           const shouldFetchPosts = existingUser.outbox_url && (
             !existingUser.last_federation_sync || 
             (Date.now() - new Date(existingUser.last_federation_sync).getTime()) > 5 * 60 * 1000
@@ -185,7 +184,7 @@ router.post(
           'Accept': 'application/jrd+json, application/json',
           'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
         },
-        timeoutMs: 10000, // 10 second timeout
+        timeoutMs: 10000,
       });
 
       if (!webfingerResponse.ok) {
@@ -229,7 +228,6 @@ router.post(
         
         logger.info(`📋 Parsed XML WebFinger: found actor at ${actorHref}`);
       } else {
-        // Try to parse as JSON
         try {
           webfinger = JSON.parse(responseText);
         } catch (parseError) {
@@ -311,7 +309,6 @@ router.post(
       logger.info(`📊 Stats: ${postsCount} posts, ${followingCount} following, ${followersCount} followers`);
 
       // Step 4: Convert and store the profile
-      // Debug: log actor emoji data
       logger.debug(`📋 Actor has tag array: ${Array.isArray(actor.tag)}, length: ${actor.tag?.length || 0}`);
       logger.debug(`📋 Actor has emojis object: ${!!actor.emojis}, keys: ${actor.emojis ? Object.keys(actor.emojis).length : 0}`);
       if (actor.tag) {
@@ -564,9 +561,8 @@ router.post(
 
     const supabase = getSupabaseClient();
 
-    // SSRF gate (BUGS.md H14): never fetch a caller-supplied URL. The outbox
-    // URL is server-known state - require it to match the profile row, which
-    // reduces the client input to a mere confirmation.
+    // SSRF gate (BUGS.md H14): never fetch a caller-supplied URL directly -
+    // require it to match the stored profile row's outbox_url.
     const { data: profileRow } = await supabase
       .from('profiles')
       .select('outbox_url, is_local')

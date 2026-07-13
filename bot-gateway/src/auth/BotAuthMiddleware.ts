@@ -29,8 +29,6 @@ export async function botAuthMiddleware(
     }
     
     const token = parts[1]
-    
-    // Hash token for lookup
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex')
     
     const { data: verification, error } = await supabase.rpc('verify_bot_token', {
@@ -47,7 +45,6 @@ export async function botAuthMiddleware(
       scopes: verification.scopes || []
     }
     
-    // Check rate limits
     const isRateLimited = await checkRateLimit(verification.bot_id, req.path)
     if (isRateLimited) {
       return res.status(429).json({ 
@@ -64,25 +61,11 @@ export async function botAuthMiddleware(
 }
 
 /**
- * Atomic rate-limit check + increment.
- *
- * Replaces the previous read-modify-write implementation which had a
- * documented race condition (BUGS.md M37): under burst load, two
- * concurrent requests could both observe `request_count = N`, both pass
- * the `< max_requests` threshold, then both write `N + 1`, letting
- * through ~2× the allowed burst. The new path delegates to the SQL
- * function `check_and_increment_bot_rate_limit`, which combines the
- * UPSERT, window-reset, and limit check into a single statement under
- * an exclusive row lock.
- *
- * Window and limit defaults come from `config.rateLimit`
- * (`RATE_LIMIT_WINDOW_MS` / `RATE_LIMIT_MAX_REQUESTS` env vars). Callers
- * with bucket-specific needs can pass overrides directly.
- *
- * Returns `true` if the request must be rejected with HTTP 429, `false`
- * if it may proceed. On any RPC error we fail open (return `false`) to
- * avoid a database hiccup taking down the bot API; this matches the
- * prior behaviour but the surface area is now much smaller.
+ * Atomic rate-limit check + increment via `check_and_increment_bot_rate_limit`
+ * (UPSERT + window-reset + limit check under one row lock). Fixes a
+ * read-modify-write race (BUGS.md M37) where concurrent requests could both
+ * pass the threshold before either wrote back, letting through ~2x burst.
+ * Fails open (returns false) on RPC error.
  */
 async function checkRateLimit(botId: string, bucket: string): Promise<boolean> {
   try {
@@ -104,7 +87,7 @@ async function checkRateLimit(botId: string, bucket: string): Promise<boolean> {
     return data === true
   } catch (error) {
     console.error('Rate limit check error:', error)
-    return false // Allow request on error (matches pre-existing fail-open behaviour)
+    return false
   }
 }
 

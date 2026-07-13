@@ -1,7 +1,3 @@
-/**
- * URL utilities for handling local and remote media URLs
- */
-
 import config from '../config/index.js';
 import { getSupabaseClient } from '../config/supabase.js';
 
@@ -12,9 +8,6 @@ interface StorageTransform {
   quality?: number;
 }
 
-/**
- * Replace internal Supabase URL with public URL
- */
 function makeUrlPublic(url: string): string {
   const internalUrl = config.SUPABASE_URL;
   const publicUrl = config.PUBLIC_SUPABASE_URL;

@@ -8,7 +8,6 @@
         :key="attachment.id || index"
         class="media-preview-item"
       >
-        <!-- Image/Video Preview -->
         <template v-if="attachment.type === 'image' || attachment.type === 'video'">
           <div v-if="attachment.type === 'image'" class="image-preview">
             <img
@@ -24,14 +23,12 @@
               muted
             />
           </div>
-          
-          <!-- Media Info -->
+
           <div class="media-info">
             <div class="media-name">{{ attachment.filename || (attachment.type === 'image' ? 'Image' : 'Video') }}</div>
             <div class="media-size">{{ formatFileSize(attachment.size) }}</div>
           </div>
-          
-          <!-- Remove Button -->
+
           <button
             @click="$emit('remove', index)"
             class="remove-btn"
@@ -41,18 +38,16 @@
           </button>
         </template>
 
-        <!-- Audio Preview -->
         <template v-else-if="attachment.type === 'audio'">
           <div class="audio-preview">
             <Icon name="music" class="audio-icon" />
           </div>
-          
+
           <div class="media-info">
             <div class="media-name">{{ attachment.filename || 'Audio file' }}</div>
             <div class="media-size">{{ formatFileSize(attachment.size) }}</div>
           </div>
-          
-          <!-- Remove Button -->
+
           <button
             @click="$emit('remove', index)"
             class="remove-btn"
@@ -62,18 +57,16 @@
           </button>
         </template>
 
-        <!-- Generic File Preview -->
         <template v-else>
           <div class="file-preview">
             <Icon name="file" />
           </div>
-          
+
           <div class="media-info">
             <div class="media-name">{{ attachment.filename || 'File' }}</div>
             <div class="media-size">{{ formatFileSize(attachment.size) }}</div>
           </div>
-          
-          <!-- Remove Button -->
+
           <button
             @click="$emit('remove', index)"
             class="remove-btn"
@@ -83,7 +76,6 @@
           </button>
         </template>
 
-        <!-- Upload Progress -->
         <div v-if="attachment.uploading" class="upload-progress">
           <div class="progress-bar">
             <div 

@@ -1,6 +1,6 @@
 # Contributing to Harmony
 
-Thank you for your interest in contributing to Harmony! This document covers everything you need to get a working dev environment, find something useful to work on, and get changes merged.
+This document covers setting up a dev environment, finding something to work on, and getting changes merged.
 
 The project lives at <https://mony.lol>; the canonical instance is <https://har.mony.lol>. Drop in there for real-time chat with maintainers and other contributors.
 

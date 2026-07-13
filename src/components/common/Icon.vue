@@ -1,16 +1,8 @@
 <template>
   <!--
-    The wrapper `<span>` is what carries the `icon icon-${name}` class. We
-    can't put those classes on the SVG itself because pseudo-elements
-    (::after, ::before) don't render on SVG root elements, which means
-    theme skins like SDR-001 can't paint a mask-image overlay to swap the
-    icon's appearance globally without this wrapper. The SVG stays as a
-    child and renders normally; the skin's CSS hides it with
-    `visibility: hidden` and paints a pixel-art mask on the wrapper.
-
-    `display: inline-flex; line-height: 0` keeps the box flush around the
-    SVG so this wrapper introduces zero layout shift in the default
-    (no-skin) rendering.
+    Wrapper span carries `icon icon-${name}` since pseudo-elements (::after/::before)
+    don't render on SVG root elements; theme skins hide the SVG via visibility:hidden
+    and paint a mask-image on this wrapper instead.
   -->
   <span :class="['icon-wrap', ...wrapperClass]" :style="wrapperStyle">
   <component
@@ -304,8 +296,7 @@ const ICON_MAP: Record<string, Component> = {
 
 const FILLED_ICONS = new Set(['heart-filled', 'bookmark-filled'])
 
-// Icons with true filled SVG variants (solid shapes, Material Design style)
-// mic/mic-off are always rendered as filled (no Lucide component)
+// Solid-shape SVG variants; mic/mic-off have no Lucide component and are always filled
 const FILLED_SVG_ICONS = new Set(['music', 'activity', 'volume-2', 'headphones', 'mic', 'mic-off'])
 const ALWAYS_FILLED_SVG = new Set(['mic', 'mic-off'])
 const FILLED_SVG_PATHS: Record<string, string> = {
@@ -410,10 +401,6 @@ export default defineComponent({
       return classes;
     });
 
-    // The wrapper span carries the addressable classes (`icon icon-${name}`)
-    // and is sized to match the SVG below. Theme skins target the wrapper
-    // via `[data-skin="..."] .icon-${name}` so their `::after` mask layer
-    // can render properly (pseudo-elements don't render on SVG elements).
     const wrapperClass = computed(() => {
       const classes = ['icon', `icon-${props.name}`];
       if (typeof props.size === 'string') classes.push(`icon-${props.size}`);
@@ -421,9 +408,7 @@ export default defineComponent({
     });
 
     const wrapperStyle = computed(() => {
-      // Numeric / px sizes need to be reflected on the wrapper so skin
-      // masks render at the right dimensions. String sizes (xs/sm/md/...) are
-      // already handled by the `icon-${size}` class rules below.
+      // numeric sizes need explicit px on the wrapper for skin masks to size correctly
       if (typeof props.size === 'number') {
         return { width: `${props.size}px`, height: `${props.size}px` };
       }

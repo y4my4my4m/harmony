@@ -331,12 +331,10 @@ export class EventDispatcher {
   
   private async pollEditsAndDeletes() {
     try {
-      // Only check if we have known messages to track
       if (this.knownMessageIds.size === 0) return
-      
-      // Check the NEWEST messages first (most likely to be edited)
+
       const allIds = Array.from(this.knownMessageIds)
-      const idsToCheck = allIds.slice(-100) // Last 100 = newest
+      const idsToCheck = allIds.slice(-100)
       
       const { data: currentMessages, error } = await supabase
         .from('messages')
@@ -350,8 +348,7 @@ export class EventDispatcher {
       
       for (const msg of currentMessages || []) {
         const cached = this.messageVersions.get(msg.id)
-        
-        // Check for soft-deletes (is_deleted = true)
+
         if (msg.is_deleted && cached) {
           console.log(`🗑️ Message deleted: ${msg.id}`)
           await this.handleMessageDelete({ 
@@ -366,7 +363,6 @@ export class EventDispatcher {
           continue
         }
         
-        // Check for content changes (edits)
         if (cached && this.contentChanged(cached.content, msg.content)) {
           console.log(`📝 Message edited: ${msg.id}`)
         }
@@ -379,7 +375,6 @@ export class EventDispatcher {
         const current = currentById.get(id)
         
         if (!current) {
-          // Message was DELETED
           if (cached?.channel_id) {
             console.log(`🗑️ Detected message delete: ${id}`)
             await this.handleMessageDelete({ 
@@ -393,7 +388,6 @@ export class EventDispatcher {
           this.knownMessageIds.delete(id)
           this.messageVersions.delete(id)
         } else if (cached && this.contentChanged(cached.content, current.content)) {
-          // Message was EDITED (content changed)
           try {
             await this.handleMessageUpdate({ new: current, old: { id } })
           } catch (err) {
@@ -413,7 +407,6 @@ export class EventDispatcher {
     }
   }
   
-  // Helper to safely compare content (handles string, object, null)
   private contentChanged(a: any, b: any): boolean {
     const strA = typeof a === 'string' ? a : JSON.stringify(a)
     const strB = typeof b === 'string' ? b : JSON.stringify(b)
@@ -435,7 +428,6 @@ export class EventDispatcher {
       }
       
       if (messages && messages.length > 0) {
-        // Only log if we have NEW unprocessed messages
         const newMessages = messages.filter(m => !this.processedMessageIds.has(m.id))
         
         if (newMessages.length > 0) {
@@ -454,13 +446,11 @@ export class EventDispatcher {
               metadata: message.metadata
             })
             
-            // Keep set size reasonable (only keep last 10000 IDs)
             if (this.processedMessageIds.size > 10000) {
               const idsArray = Array.from(this.processedMessageIds);
               this.processedMessageIds = new Set(idsArray.slice(-10000));
             }
-            
-            // Also prune version cache
+
             if (this.messageVersions.size > 10000) {
               const entries = Array.from(this.messageVersions.entries());
               const toKeep = entries.slice(-10000);
@@ -486,15 +476,15 @@ export class EventDispatcher {
       encrypted: message.encrypted
     });
     
-    // Skip encrypted messages (bots can't read them)
+    // Bots can't read encrypted messages.
     if (message.encrypted) {
       console.log('⏭️  Skipping encrypted message');
       return
     }
-    
-    // Note: We DO dispatch bot messages so other bots can see them
-    // Each bot should filter out its own messages using the author.id
-    
+
+    // Bot-authored messages ARE dispatched so other bots can see them;
+    // each bot filters out its own messages via author.id.
+
     const serverId = await this.resolveServerId(message.channel_id)
     if (!serverId) {
       console.log('⚠️  No server ID found, skipping dispatch');
@@ -582,31 +572,22 @@ export class EventDispatcher {
     console.log(`📨 Dispatched MESSAGE_DELETE to ${botIds.length} bots`)
   }
   
-  // FORMATTERS
-  
-  /**
-   * Convert a relative avatar path to a full URL
-   * Handles both Supabase storage paths and external URLs
-   * Uses PUBLIC_URL for external-facing URLs (for Discord, ActivityPub, etc.)
-   */
+  // Uses PUBLIC_URL for external-facing URLs (Discord, ActivityPub, etc.), falling back to SUPABASE_URL.
   private formatAvatarUrl(avatarPath: string | null | undefined): string | undefined {
     if (!avatarPath) return undefined
-    
-    // If already a full URL, return as-is
+
     if (avatarPath.startsWith('http://') || avatarPath.startsWith('https://')) {
       return avatarPath
     }
-    
-    // Use PUBLIC_URL for external-facing resources, fallback to SUPABASE_URL
+
     const publicUrl = process.env.PUBLIC_URL || process.env.SUPABASE_URL
     if (!publicUrl) {
       console.warn('PUBLIC_URL or SUPABASE_URL not set, cannot construct avatar URL')
       return undefined
     }
-    
+
     const cleanPath = avatarPath.startsWith('/') ? avatarPath.slice(1) : avatarPath
-    
-    // Construct full URL with image optimization params
+
     return `${publicUrl}/storage/v1/render/image/public/avatars/${cleanPath}?width=256&height=256&resize=contain&quality=80`
   }
   
@@ -721,8 +702,6 @@ export class EventDispatcher {
       .map(part => part.user_id)
       .filter(Boolean)
   }
-  
-  // SHUTDOWN
   
   async shutdown() {
     if (this.pollingInterval) {

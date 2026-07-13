@@ -1,7 +1,4 @@
-/**
- * User Activity Tracker - Professional Discord/Slack-style presence system
- * Tracks user activity and manages automatic status transitions
- */
+// Tracks user activity and manages automatic status transitions (away/offline).
 
 import { UserStatus } from '@/types'
 import { debug } from '@/utils/debug'
@@ -19,12 +16,10 @@ class ActivityTracker extends EventTarget {
   private activityCheckTimer: number | null = null
   private isTracking: boolean = false
   
-  // Timing constants (in milliseconds)
   private readonly AWAY_THRESHOLD = 5 * 60 * 1000  // 5 minutes
-  private readonly OFFLINE_THRESHOLD = 15 * 60 * 1000  // 15 minutes  
+  private readonly OFFLINE_THRESHOLD = 15 * 60 * 1000  // 15 minutes
   private readonly CHECK_INTERVAL = 30 * 1000  // 30 seconds
-  
-  // Activity tracking
+
   private activityEvents = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart']
   private boundActivityHandler: () => void
 
@@ -33,17 +28,13 @@ class ActivityTracker extends EventTarget {
     this.boundActivityHandler = this.onActivity.bind(this)
   }
 
-  /**
-   * Start tracking user activity
-   */
   startTracking(): void {
     if (this.isTracking) return
-    
+
     debug.log('Starting activity tracking')
     this.isTracking = true
     this.lastActivity = Date.now()
-    
-    // Listen for user activity
+
     this.activityEvents.forEach(event => {
       document.addEventListener(event, this.boundActivityHandler, { passive: true })
     })
@@ -53,9 +44,6 @@ class ActivityTracker extends EventTarget {
     }, this.CHECK_INTERVAL)
   }
 
-  /**
-   * Stop tracking user activity
-   */
   stopTracking(): void {
     if (!this.isTracking) return
     
@@ -72,16 +60,12 @@ class ActivityTracker extends EventTarget {
     }
   }
 
-  /**
-   * Handle user activity event
-   */
   private onActivity(): void {
     const now = Date.now()
     const wasInactive = this.isInactive()
-    
+
     this.lastActivity = now
-    
-    // If user was inactive and now active, emit activity resumed
+
     if (wasInactive) {
       debug.log('User activity resumed')
       this.dispatchEvent(new CustomEvent('activity-resumed', {
@@ -90,9 +74,6 @@ class ActivityTracker extends EventTarget {
     }
   }
 
-  /**
-   * Check current activity status and emit events if changed
-   */
   private checkActivityStatus(): void {
     const now = Date.now()
     const inactiveTime = now - this.lastActivity
@@ -135,23 +116,14 @@ class ActivityTracker extends EventTarget {
     this.wasOffline = false
   }
 
-  /**
-   * Check if user is currently inactive
-   */
   isInactive(): boolean {
     return Date.now() - this.lastActivity >= this.AWAY_THRESHOLD
   }
 
-  /**
-   * Get time since last activity
-   */
   getTimeSinceLastActivity(): number {
     return Date.now() - this.lastActivity
   }
 
-  /**
-   * Get current activity state
-   */
   getActivityState(): ActivityState {
     const inactiveTime = Date.now() - this.lastActivity
     

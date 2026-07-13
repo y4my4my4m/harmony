@@ -45,9 +45,6 @@ export interface ThreadMembershipActivity {
   relationship: 'memberOf';
 }
 
-/**
- * Convert database thread to ActivityPub Thread object
- */
 export function threadToActivityPub(
   thread: any,
   channelApId: string,
@@ -82,9 +79,6 @@ export function threadToActivityPub(
   return obj as ThreadObject;
 }
 
-/**
- * Convert ActivityPub Thread object to database format
- */
 export function activityPubToThread(
   apThread: ThreadObject,
   channelId: string,
@@ -107,9 +101,6 @@ export function activityPubToThread(
   };
 }
 
-/**
- * Handle incoming thread activities from federated servers
- */
 export async function handleThreadActivity(
   activity: ThreadActivity,
 ): Promise<{ success: boolean; error?: string }> {
@@ -125,9 +116,7 @@ export async function handleThreadActivity(
 
         logger.info(`📋 Thread Create: name="${threadObject.name}", context=${threadObject.context}, inReplyTo=${threadObject.inReplyTo}, attributedTo=${threadObject.attributedTo}, harmony:serverId=${harmonyServerId}`);
 
-        // --- Resolve channel ---
-        // Try multiple strategies: ap_id match, UUID from URL, server_id scoped lookup,
-        // channel name, and parent message fallback
+        // Resolve channel: try ap_id match, UUID from URL, server-scoped lookup, name, then parent-message fallback.
         let channel: { id: string; server_id: string } | null = null;
         const harmonyChannelName = (threadObject as any)['harmony:channelName'];
         const harmonyChannelId = (threadObject as any)['harmony:channelId'];
@@ -236,7 +225,7 @@ export async function handleThreadActivity(
           return { success: false, error: 'Channel not found' };
         }
 
-        // --- Resolve parent message ---
+        // Resolve parent message
         let parentMessageId: string | null = null;
 
         // Strategy 1: metadata.ap_id match
@@ -289,7 +278,7 @@ export async function handleThreadActivity(
           return { success: false, error: 'Parent message not found' };
         }
 
-        // --- Resolve creator ---
+        // Resolve creator
         let creatorId: string | null = null;
 
         const { data: creatorByFedId } = await supabase
@@ -321,7 +310,7 @@ export async function handleThreadActivity(
           return { success: false, error: 'Creator not found' };
         }
 
-        // --- Check for existing thread (idempotent) ---
+        // Check for existing thread (idempotent)
         const threadApId = threadObject.id;
         let existingThread: { id: string } | null = null;
 
@@ -403,7 +392,7 @@ export async function handleThreadActivity(
           return { success: true };
         }
 
-        // --- Insert new thread ---
+        // Insert new thread
         const threadData = activityPubToThread(
           threadObject,
           channel.id,
@@ -541,7 +530,6 @@ export async function handleThreadActivity(
       }
 
       case 'Add': {
-        // User joining a thread
         const membership = activity.object as ThreadMembershipActivity;
 
         const [{ data: thread }, { data: user }] = await Promise.all([
@@ -581,7 +569,6 @@ export async function handleThreadActivity(
       }
 
       case 'Remove': {
-        // User leaving a thread
         const membership = activity.object as ThreadMembershipActivity;
 
         const [{ data: thread }, { data: user }] = await Promise.all([
@@ -626,9 +613,6 @@ export async function handleThreadActivity(
   }
 }
 
-/**
- * Create a thread activity for federation
- */
 export function createThreadActivity(
   type: 'Create' | 'Update' | 'Delete',
   thread: any,
@@ -675,9 +659,6 @@ export function createThreadActivity(
   };
 }
 
-/**
- * Create a thread membership activity for federation
- */
 export function createThreadMembershipActivity(
   type: 'Add' | 'Remove',
   userApId: string,

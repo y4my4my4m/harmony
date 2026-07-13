@@ -3,7 +3,6 @@ import { z } from 'zod';
 
 dotenvConfig();
 
-// Environment validation schema
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.string().transform(Number).default('3001'),
@@ -13,40 +12,31 @@ const envSchema = z.object({
   // Bump this on each release (single source of truth for the federation backend).
   VERSION: z.string().default('1.1.0'),
   
-  // Supabase
   SUPABASE_URL: z.string().url(),
   SUPABASE_ANON_KEY: z.string(),
   SUPABASE_SERVICE_ROLE_KEY: z.string(),
-  // Public Supabase URL (for federation - can be different from internal URL)
-  // If not set, defaults to SUPABASE_URL
+  // Defaults to SUPABASE_URL when unset; can differ from the internal URL for federation.
   PUBLIC_SUPABASE_URL: z.string().url().optional(),
-  
-  // Instance
+
   INSTANCE_DOMAIN: z.string(),
   INSTANCE_NAME: z.string().default('Harmony'),
   INSTANCE_DESCRIPTION: z.string().default('A federated social platform'),
-  
-  // Redis
+
   REDIS_URL: z.string().default('redis://localhost:6379'),
 
-  // Optional direct, session-mode Postgres connection used ONLY for the
-  // LISTEN/NOTIFY federation-jobs bridge (instant job pickup). Prefer a
-  // dedicated least-privilege role (harmony_listener). DATABASE_URL is still
-  // honoured for backward compatibility. Both are read via process.env in
-  // worker.ts; declared here for documentation/visibility. When neither is
-  // set the worker degrades to periodic-sweep pickup (no crash).
+  // Direct, session-mode Postgres connection for the LISTEN/NOTIFY
+  // federation-jobs bridge only; use a least-privilege role (harmony_listener).
+  // Read via process.env in worker.ts. If neither this nor DATABASE_URL is
+  // set, the worker falls back to periodic-sweep pickup.
   FEDERATION_LISTENER_URL: z.string().optional(),
   DATABASE_URL: z.string().optional(),
-  
-  // Security
+
   JWT_SECRET: z.string().optional(),
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
-  
-  // Rate Limiting
+
   RATE_LIMIT_WINDOW_MS: z.string().transform(Number).default('900000'),
   RATE_LIMIT_MAX_REQUESTS: z.string().transform(Number).default('100'),
-  
-  // Logging
+
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug']).default('info'),
   
   // Web Push (VAPID) - Required for push notifications
@@ -55,7 +45,6 @@ const envSchema = z.object({
   VAPID_PRIVATE_KEY: z.string().optional(),
   VAPID_SUBJECT: z.string().email().optional(), // mailto: email for VAPID
   
-  // LiveKit WebRTC Server
   // Generate keys with: openssl rand -hex 32
   LIVEKIT_API_KEY: z.string().optional(),
   LIVEKIT_API_SECRET: z.string().optional(),
@@ -82,18 +71,14 @@ const envSchema = z.object({
   //   'unified' - Both in one process (default, backward compatible)
   FEDERATION_MODE: z.enum(['server', 'worker', 'unified']).default('unified'),
   
-  // Federation Security
-  // When true (default), reject unsigned activities or activities with invalid signatures
-  // Set to 'false' in development to allow testing with unsigned activities
+  // When true (default), reject unsigned activities or ones with invalid signatures.
+  // Set to 'false' only in development.
   REQUIRE_VALID_SIGNATURES: z.string().transform(v => v !== 'false').default('true'),
 
-  // Klipy GIF provider (replaces Tenor). Keys live ONLY on the backend so they
-  // never reach the browser bundle. Two keys: one with ads enabled in the Klipy
-  // dashboard, one without. The proxy picks per-request based on the viewer's
-  // supporter tier, so the no-ads key is never exposed to clients.
-  //   - KLIPY_API_KEY_ADS   : ad-enabled key (monetized, served to regular users)
-  //   - KLIPY_API_KEY_NOADS : ad-free key (served to supporters whose tier removes ads)
-  // If only one is set it is used for everyone. If neither is set, GIF search is disabled.
+  // Klipy GIF provider (replaces Tenor). Keys live only on the backend. Two
+  // keys: KLIPY_API_KEY_ADS (ad-enabled, default) and KLIPY_API_KEY_NOADS
+  // (served to supporters whose tier removes ads). If only one is set it's
+  // used for everyone; if neither is set, GIF search is disabled.
   KLIPY_API_KEY_ADS: z.preprocess(
     (v) => (typeof v === 'string' && v.trim() ? v.trim() : undefined),
     z.string().optional(),

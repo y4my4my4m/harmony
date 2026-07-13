@@ -224,14 +224,12 @@ const emit = defineEmits<{
 const router = useRouter()
 const activityPubStore = useActivityPubStore()
 
-// Professional presence system
 const { getPresenceAwareStatus, getCurrentUser } = useUserData()
 
 const isFollowLoading = ref(false)
 const showActionsMenu = ref(false)
 const followInProgress = ref(false)
 
-// Type guards
 const isFederatedUser = (user: User | FederatedUser): user is FederatedUser => {
   return 'handle' in user
 }
@@ -358,7 +356,6 @@ const handleFollowToggle = async () => {
   followInProgress.value = true;
   isFollowLoading.value = true
   try {
-    // Just call toggleFollow - let it handle the logic
     const result = await services.interactions.toggleFollow(props.user.id)
     
     if (result.following) {

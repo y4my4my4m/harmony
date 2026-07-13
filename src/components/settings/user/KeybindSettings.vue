@@ -224,7 +224,6 @@ const emit = defineEmits<{
   'update-keybinds': [settings: any]
 }>()
 
-// Centralized keybind system
 const keybinds = useKeybinds()
 
 const recordingAction = ref<KeybindAction | null>(null)
@@ -239,7 +238,6 @@ const getKeybindDisplay = (action: KeybindAction): string => {
 
 const startRecording = (action: KeybindAction) => {
   if (recordingAction.value === action) {
-    // Cancel if clicking same button
     recordingAction.value = null
     return
   }
@@ -255,7 +253,6 @@ const resetAllKeybinds = () => {
   keybinds.resetAllKeybinds()
 }
 
-// Check for conflicts
 const checkConflict = (action: KeybindAction, key: string, modifiers: KeybindModifiers): string | null => {
   for (const kb of keybinds.voiceKeybinds.value) {
     if (kb.id === action) continue
@@ -276,12 +273,10 @@ const handleKeydown = (event: KeyboardEvent) => {
   event.preventDefault()
   event.stopPropagation()
   
-  // Ignore modifier-only keys
   if (['Control', 'Alt', 'Shift', 'Meta'].includes(event.key)) {
     return
   }
-  
-  // Escape cancels
+
   if (event.code === 'Escape') {
     recordingAction.value = null
     return
@@ -301,7 +296,6 @@ const handleMousedown = (event: MouseEvent) => {
   // Only capture extra mouse buttons (3, 4, 5+) by default
   // Left (0), Middle (1), Right (2) are used for UI interaction
   if (event.button < 3) {
-    // Allow capturing if user holds a modifier key
     if (!event.ctrlKey && !event.altKey && !event.shiftKey && !event.metaKey) {
       return
     }
@@ -319,11 +313,9 @@ const handleMousedown = (event: MouseEvent) => {
   })
 }
 
-// Common recording logic
 const recordKey = (key: string, modifiers: KeybindModifiers) => {
   if (!recordingAction.value) return
-  
-  // Check for conflicts
+
   const conflict = checkConflict(recordingAction.value, key, modifiers)
   if (conflict) {
     hasConflict.value = true

@@ -42,17 +42,11 @@ export const HARMONY_VOICE_TYPES = {
 // HANDLER
 
 export class VoiceActivityHandler {
-  /**
-   * Check if an activity is a Harmony voice activity
-   */
   static isVoiceActivity(activity: any): boolean {
     if (!activity?.type) return false;
     return activity.type.startsWith('harmony:Voice');
   }
 
-  /**
-   * Process incoming voice activity
-   */
   static async processVoiceActivity(activity: VoiceActivity): Promise<void> {
     const activityType = activity.type;
     
@@ -88,10 +82,6 @@ export class VoiceActivityHandler {
     }
   }
 
-  /**
-   * Handle incoming voice call invitation
-   * Stores the call invite for the recipient to see
-   */
   private static async handleVoiceCallInvite(activity: VoiceCallInvite): Promise<void> {
     const supabase = getSupabaseClient();
     
@@ -168,9 +158,6 @@ export class VoiceActivityHandler {
     }
   }
 
-  /**
-   * Handle voice call acceptance
-   */
   private static async handleVoiceCallAccept(activity: VoiceCallAccept): Promise<void> {
     const supabase = getSupabaseClient();
     
@@ -213,9 +200,6 @@ export class VoiceActivityHandler {
     }
   }
 
-  /**
-   * Handle voice call rejection
-   */
   private static async handleVoiceCallReject(activity: VoiceCallReject): Promise<void> {
     const supabase = getSupabaseClient();
     
@@ -255,9 +239,6 @@ export class VoiceActivityHandler {
     }
   }
 
-  /**
-   * Handle voice call end
-   */
   private static async handleVoiceCallEnd(activity: VoiceCallEnd): Promise<void> {
     const supabase = getSupabaseClient();
     
@@ -299,10 +280,6 @@ export class VoiceActivityHandler {
     }
   }
 
-  /**
-   * Handle voice channel join (for federated server voice channels)
-   * Tracks federated users in voice channels, generates LiveKit token, and responds
-   */
   private static async handleVoiceChannelJoin(activity: VoiceChannelJoin): Promise<void> {
     const supabase = getSupabaseClient();
     const actorUrl = activity.actor;
@@ -533,10 +510,6 @@ export class VoiceActivityHandler {
     logger.info(`✅ Federated user ${user.username} joined voice channel ${channelInfo.name}, token sent`);
   }
 
-  /**
-   * Handle voice channel join accept (response with LiveKit token)
-   * This is received when our local user's join request is accepted by a remote server
-   */
   private static async handleVoiceChannelJoinAccept(activity: VoiceChannelJoinAccept): Promise<void> {
     const supabase = getSupabaseClient();
     const result = activity.result;
@@ -574,9 +547,6 @@ export class VoiceActivityHandler {
     }
   }
 
-  /**
-   * Handle voice channel join reject
-   */
   private static async handleVoiceChannelJoinReject(activity: VoiceChannelJoinReject): Promise<void> {
     const supabase = getSupabaseClient();
 
@@ -610,27 +580,15 @@ export class VoiceActivityHandler {
     }
   }
 
-  /**
-   * Helper to send a VoiceChannelJoinReject response
-   * Note: Currently just logs the rejection. Full delivery requires server actor implementation.
-   */
+  // TODO: implement delivery once server-level activity signing exists; for now
+  // the remote client times out and handles the failure gracefully.
   private static async sendVoiceChannelJoinReject(
     originalActivity: VoiceChannelJoin,
     reason: string
   ): Promise<void> {
-    // For now, just log the rejection
-    // TODO: Implement proper reject delivery once we have server actor signing
     logger.warn(`🚫 Voice join rejected for ${originalActivity.actor}: ${reason}`);
-    
-    // Note: We don't send the reject activity because we don't have a proper
-    // signing key for server-level activities. The remote client will timeout
-    // and handle the failure gracefully.
   }
 
-  /**
-   * Handle voice channel leave
-   * Removes federated user from voice channel tracking
-   */
   private static async handleVoiceChannelLeave(activity: VoiceChannelLeave): Promise<void> {
     const supabase = getSupabaseClient();
     const actorUrl = activity.actor;
@@ -710,9 +668,7 @@ export class VoiceActivityHandler {
 
   // VOICE CHANNEL ACTIVITY CREATION
 
-  /**
-   * Create a VoiceChannelJoin activity (legacy - constructs URLs from local domain)
-   */
+  // Legacy: constructs URLs from local domain.
   static createVoiceChannelJoin(
     userFederatedId: string,
     channelId: string,
@@ -744,10 +700,7 @@ export class VoiceActivityHandler {
     };
   }
 
-  /**
-   * Create a VoiceChannelJoin activity with explicit AP IDs
-   * Used for federated joins where the channel/server AP IDs point to the remote instance
-   */
+  // For federated joins where the channel/server AP IDs point to the remote instance.
   static createVoiceChannelJoinWithApIds(
     userFederatedId: string,
     channelApId: string,
@@ -773,9 +726,7 @@ export class VoiceActivityHandler {
     };
   }
 
-  /**
-   * Create a VoiceChannelLeave activity (legacy - constructs URLs from local domain)
-   */
+  // Legacy: constructs URLs from local domain.
   static createVoiceChannelLeave(
     userFederatedId: string,
     channelId: string,
@@ -801,10 +752,7 @@ export class VoiceActivityHandler {
     };
   }
 
-  /**
-   * Create a VoiceChannelLeave activity with explicit AP ID
-   * Used for federated leaves where the channel AP ID points to the remote instance
-   */
+  // For federated leaves where the channel AP ID points to the remote instance.
   static createVoiceChannelLeaveWithApId(
     userFederatedId: string,
     channelApId: string
@@ -825,9 +773,6 @@ export class VoiceActivityHandler {
     };
   }
 
-  /**
-   * Create a VoiceChannelJoinAccept activity with LiveKit token
-   */
   static createVoiceChannelJoinAccept(
     serverActorId: string,
     userActorId: string,
@@ -860,9 +805,6 @@ export class VoiceActivityHandler {
     };
   }
 
-  /**
-   * Federate voice channel join to remote server
-   */
   static async federateVoiceChannelJoin(
     userId: string,
     channelId: string,
@@ -927,9 +869,6 @@ export class VoiceActivityHandler {
     }
   }
 
-  /**
-   * Federate voice channel leave to remote server
-   */
   static async federateVoiceChannelLeave(
     userId: string,
     channelId: string,
@@ -984,9 +923,6 @@ export class VoiceActivityHandler {
 
   // ACTIVITY CREATION HELPERS
 
-  /**
-   * Create a VoiceCallInvite activity
-   */
   static createVoiceCallInvite(
     callerFederatedId: string,
     recipientFederatedId: string,
@@ -1018,9 +954,6 @@ export class VoiceActivityHandler {
     };
   }
 
-  /**
-   * Create a VoiceCallAccept activity
-   */
   static createVoiceCallAccept(
     acceptorFederatedId: string,
     callerFederatedId: string,
@@ -1040,9 +973,6 @@ export class VoiceActivityHandler {
     };
   }
 
-  /**
-   * Create a VoiceCallReject activity
-   */
   static createVoiceCallReject(
     rejectorFederatedId: string,
     callerFederatedId: string,
@@ -1062,9 +992,6 @@ export class VoiceActivityHandler {
     };
   }
 
-  /**
-   * Create a VoiceCallEnd activity
-   */
   static createVoiceCallEnd(
     enderFederatedId: string,
     otherParticipantFederatedId: string,

@@ -105,47 +105,39 @@
 import { ref, computed } from 'vue'
 
 interface Props {
-  // Core input props
   modelValue: string | number | null | undefined
   type?: string
   placeholder?: string
   label?: string
   hint?: string
   errorMessage?: string
-  
-  // Input attributes
+
   disabled?: boolean
   readonly?: boolean
   required?: boolean
   autocomplete?: string
-  
-  // Validation & constraints
+
   maxLength?: number
   minLength?: number
   min?: number | string
   max?: number | string
   step?: number | string
-  
-  // Textarea specific
+
   rows?: number
   cols?: number
   resize?: boolean
-  
-  // Appearance
+
   size?: 'sm' | 'md' | 'lg'
   variant?: 'default' | 'filled' | 'outlined'
-  
-  // Icons and actions
+
   prefixIcon?: any
   suffixIcon?: any
   clearable?: boolean
   clearButtonLabel?: string
-  
-  // Features
+
   showCharCount?: boolean
   passwordToggle?: boolean
-  
-  // Input ID for accessibility
+
   id?: string
 }
 
@@ -195,11 +187,9 @@ const showClearButton = computed(() => {
   return props.clearable && !props.disabled && !props.readonly
 })
 
-// Validation states
 const hasError = computed(() => Boolean(props.errorMessage))
 const hasHint = computed(() => Boolean(props.hint))
 
-// Input classes
 const inputClasses = computed(() => [
   'form-input',
   `input-${props.size}`,
@@ -258,7 +248,6 @@ const clearInput = () => {
   inputRef.value?.focus()
 }
 
-// Public methods
 const focus = () => {
   inputRef.value?.focus()
 }
@@ -273,7 +262,6 @@ const select = () => {
   }
 }
 
-// Expose public methods
 defineExpose({
   focus,
   blur,

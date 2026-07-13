@@ -44,36 +44,29 @@
 import { computed } from 'vue'
 
 interface Props {
-  // Content
   text?: string
   ariaLabel?: string
-  
-  // Variants
+
   variant?: 'primary' | 'secondary' | 'success' | 'danger' | 'warning' | 'ghost' | 'link'
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl'
-  
-  // Icons
+
   iconLeft?: any
   iconRight?: any
   iconOnly?: boolean
-  
-  // States
+
   disabled?: boolean
   loading?: boolean
   active?: boolean
-  
-  // Appearance
+
   rounded?: boolean
   fullWidth?: boolean
   outline?: boolean
-  
-  // Functionality
+
   tag?: 'button' | 'a' | 'router-link'
   type?: 'button' | 'submit' | 'reset'
   href?: string
   to?: string | object
-  
-  // Additional features
+
   badge?: string | number
   tooltip?: string
 }

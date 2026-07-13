@@ -9,8 +9,8 @@ import {
 describe('settingsUtils', () => {
   describe('isValidSettingsSection', () => {
     it.each([
-      'account', 'privacy', 'appearance', 'notifications', 'announcements',
-      'voice', 'keybinds', 'language', 'advanced',
+      'account', 'privacy', 'bots', 'appearance', 'notifications', 'announcements',
+      'voice', 'keybinds', 'audio', 'language', 'advanced',
     ])('returns true for valid section: %s', (section) => {
       expect(isValidSettingsSection(section)).toBe(true)
     })

@@ -299,7 +299,6 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 import type { TimelinePost, FederatedUser } from '@/types';
 import ProfileCard from '@/components/common/ProfileCard.vue';
 
-// Router
 const router = useRouter();
 
 useI18n();
@@ -326,7 +325,6 @@ defineEmits<{
 
 const activityPubStore = useActivityPubStore();
 
-// Loading states
 const isLoading = ref(false);
 const isLoadingMore = ref(false);
 
@@ -337,7 +335,6 @@ const instanceSearchTerm = ref('');
 const instanceStatusFilter = ref('all');
 const instanceSoftwareFilter = ref('all');
 
-// Data states
 const trendingHashtags = ref<any[]>([]);
 const trendingPosts = ref<any[]>([]);
 const suggestedUsers = ref<any[]>([]);
@@ -345,7 +342,6 @@ const knownInstances = ref<any[]>([]);
 const selectedInstanceDetails = ref<any | null>(null);
 const showInstanceModal = ref(false);
 
-// Pagination
 const hasMoreContent = ref(false);
 const currentCursor = ref<string | null>(null);
 
@@ -388,9 +384,7 @@ const filteredInstances = computed(() => {
   return filtered;
 });
 
-// Hide muted/blocked users from trending. Trending is fetched via a direct
-// PostgREST query that doesn't know about the viewer's mutes, so filter here
-// (mirrors the timeline behaviour) using the store's muted/blocked sets.
+// Trending query bypasses viewer mutes/blocks (direct PostgREST); filter here.
 const authorIdOf = (entry: any): string | undefined => {
   const post = entry?.post || entry;
   return post?.author_id || post?.author?.id;
@@ -444,9 +438,8 @@ const currentTabData = computed(() => {
 });
 
 const trendingFilters = () => {
-  // "local" is a pseudo-instance meaning "this instance only". Express it via
-  // is_local scoping (includeFederated:false) rather than a domain match, since
-  // local rows can have a NULL domain and would be missed by author.domain = X.
+  // "local" pseudo-instance: scope via includeFederated:false, not domain match
+  // (local rows can have NULL domain, missed by author.domain = X).
   const sel = selectedInstance.value;
   const isLocalOnly = sel === 'local';
   return {
@@ -465,8 +458,6 @@ const showTrendingPosts = computed(() => {
 
 const showTrendingHashtags = computed(() => {
   const type = selectedContentType.value;
-  // Hashtags are post-discovery aids; show them with the post views, not for
-  // the media-uploads view or the users view.
   return type === 'all' || type === 'posts';
 });
 
@@ -600,7 +591,6 @@ const enrichMissingInstanceMetadata = async () => {
 };
 
 const loadHashtagPosts = (hashtag: string) => {
-  // Navigate to hashtag view
   router.push({ name: 'HashtagView', params: { tag: hashtag } });
 };
 
@@ -797,11 +787,7 @@ watch(() => props.currentView, async (newTab) => {
   }
 }, { immediate: true });
 
-// Always load the instance list so the "Filter by instance" dropdown is
-// populated regardless of which trending tab the user is on. The
-// instances tab itself still calls `loadInstances()` directly so this is
-// a no-op extra fetch when the user lands on that tab - small payload,
-// no UX impact.
+// Preload instance list for "Filter by instance" dropdown regardless of active tab.
 watch(() => props.currentView, (newTab) => {
   if (newTab !== 'instances' && knownInstances.value.length === 0) {
     void loadInstances();

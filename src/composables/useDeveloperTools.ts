@@ -1,10 +1,4 @@
-/**
- * Developer Tools Composable
- *
- * Manages the "Developer tools" / "Developer Mode" setting from advanced user settings.
- * When enabled, unlocks extra debugging actions (e.g. "Copy raw data" in message context menu).
- */
-
+// "Developer tools" / "Developer Mode" setting; enables extra debug actions (e.g. "Copy raw data").
 import { ref, watch } from 'vue'
 import { userStorage } from '@/utils/userScopedStorage'
 import { debug } from '@/utils/debug'
@@ -39,9 +33,6 @@ function saveToStorage(): void {
   }
 }
 
-/**
- * Composable for developer tools setting
- */
 export function useDeveloperTools() {
   if (!isInitialized.value) {
     loadFromStorage()

@@ -24,13 +24,7 @@ const props = defineProps<Props>()
 
 const { resolveEmoji } = useUnifiedEmoji()
 
-/**
- * Custom (uploaded/AI) emoji render as their hosted image with a `:shortcode:`
- * label. Native unicode reactions are identified inconsistently across the
- * optimistic vs reconciled paths (optimistic carries the shortcode in `name`,
- * the server returns the unicode glyph), so we resolve them through the unified
- * service to always show the glyph + canonical `:shortcode:` regardless.
- */
+// Optimistic path carries shortcode in `name`, server returns unicode glyph; resolve via unified service to normalize
 const isCustom = computed(() => !!props.emoji?.url && !props.emoji?.is_native)
 
 const resolved = computed(() => {
@@ -44,7 +38,6 @@ const resolved = computed(() => {
   }
 })
 
-/** Clean `:shortcode:` label, falling back to the raw name only if unresolved. */
 const label = computed(() => {
   if (isCustom.value) return `:${props.emoji?.name}:`
   const shortcode = resolved.value?.shortcode

@@ -1,13 +1,4 @@
-/**
- * Emoji Constants
- * 
- * Single source of truth for emoji category definitions.
- * Used across all emoji pickers (Chat, DMs, ActivityPub).
- */
-
-/**
- * Emoji category definition
- */
+// Single source of truth for emoji category definitions, used across all emoji pickers.
 export interface EmojiCategory {
   id: string;
   name: string;
@@ -15,10 +6,7 @@ export interface EmojiCategory {
   order: number;
 }
 
-/**
- * Standard Unicode emoji categories in display order.
- * Order matches the Unicode standard and Discord's emoji picker.
- */
+// Order matches the Unicode standard and Discord's emoji picker.
 export const EMOJI_CATEGORIES: EmojiCategory[] = [
   { id: 'people', name: 'People', icon: '😀', order: 0 },
   { id: 'nature', name: 'Nature', icon: '🐱', order: 1 },
@@ -30,33 +18,18 @@ export const EMOJI_CATEGORIES: EmojiCategory[] = [
   { id: 'flags', name: 'Flags', icon: '🏳️', order: 7 }
 ] as const;
 
-/**
- * Category order array for sorting
- */
 export const CATEGORY_ORDER = ['people', 'nature', 'food', 'activities', 'travel', 'objects', 'symbols', 'flags'] as const;
 
-/**
- * Type for valid category IDs
- */
 export type CategoryId = typeof CATEGORY_ORDER[number];
 
-/**
- * Get category by ID
- */
 export function getCategoryById(id: string): EmojiCategory | undefined {
   return EMOJI_CATEGORIES.find(cat => cat.id === id);
 }
 
-/**
- * Get category icon by ID
- */
 export function getCategoryIcon(id: string): string {
   return getCategoryById(id)?.icon ?? '📦';
 }
 
-/**
- * Sort categories by their defined order
- */
 export function sortCategoriesByOrder<T extends { id?: string; category?: string }>(items: T[]): T[] {
   return [...items].sort((a, b) => {
     const catA = a.id || a.category || '';
@@ -67,9 +40,6 @@ export function sortCategoriesByOrder<T extends { id?: string; category?: string
   });
 }
 
-/**
- * Quick reaction emojis - commonly used for reactions
- */
 export const QUICK_REACTION_EMOJIS = [
   { unicode: '👍', shortcode: 'thumbs_up', name: 'thumbs up' },
   { unicode: '❤️', shortcode: 'heart', name: 'red heart' },
@@ -94,26 +64,14 @@ export const QUICK_REACTION_EMOJIS = [
  */
 export type EmojiPack = string;
 
-/**
- * Built-in emoji pack ids that ship with Harmony itself.
- * Custom packs registered by an instance operator are not listed here.
- */
+// Built-in ids only; custom packs registered by an instance operator are not listed here.
 export const KNOWN_EMOJI_PACKS = ['twemoji', 'native'] as const;
 export type KnownEmojiPack = (typeof KNOWN_EMOJI_PACKS)[number];
 
-/**
- * Default emoji pack
- */
 export const DEFAULT_EMOJI_PACK: KnownEmojiPack = 'twemoji';
 
-/**
- * Twemoji base URL for SVGs
- */
 export const TWEMOJI_BASE_URL = '/assets/emojis/twemoji';
 
-/**
- * Get Twemoji SVG URL from codepoint
- */
 export function getTwemojiUrl(codepoint: string): string {
   return `${TWEMOJI_BASE_URL}/${codepoint}.svg`;
 }

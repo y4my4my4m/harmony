@@ -220,28 +220,23 @@ function onInputModeChange(mode: 'voice_activity' | 'push_to_talk') {
   emit('update-voice-settings', { type: 'inputMode', value: mode });
 }
 
-// Device lists
 const inputDevices = ref<MediaDeviceInfo[]>([]);
 const outputDevices = ref<MediaDeviceInfo[]>([]);
 const videoDevices = ref<MediaDeviceInfo[]>([]);
 
-// Selected devices
 const selectedInputDevice = ref('');
 const selectedOutputDevice = ref('');
 const selectedVideoDevice = ref('');
 
-// Audio settings
 const inputVolume = ref(75);
 const outputVolume = ref(75);
 const echoCancellation = ref(true);
 const noiseSuppression = ref(true);
 const autoGainControl = ref(true);
 
-// Video settings
 const videoQuality = ref('720p');
 const frameRate = ref('30');
 
-// Testing
 const isTesting = ref(false);
 const testLevel = ref(0);
 const previewStream = ref<MediaStream | null>(null);
@@ -261,7 +256,6 @@ const getDevices = async () => {
       videos: videoDevices.value.length
     });
 
-    // Now that we have devices, load and validate stored settings
     await loadStoredSettings();
   } catch (error) {
     debug.error('Error getting devices:', error);
@@ -283,7 +277,6 @@ const loadStoredSettings = async () => {
     if (settings.videoQuality) videoQuality.value = settings.videoQuality;
     if (settings.frameRate) frameRate.value = settings.frameRate;
     
-    // Validate and apply device selections
     // Only select stored device if it exists in current device list
     const storedInputDevice = settings.selectedInputDevice;
     const storedOutputDevice = settings.selectedOutputDevice;
@@ -293,7 +286,6 @@ const loadStoredSettings = async () => {
       selectedInputDevice.value = storedInputDevice;
       debug.log('[VoiceSettingsInline] Using stored input device:', storedInputDevice);
     } else if (inputDevices.value.length > 0) {
-      // Fallback to first available device
       selectedInputDevice.value = inputDevices.value[0].deviceId;
       if (storedInputDevice) {
         debug.warn('[VoiceSettingsInline] Stored input device not found, using default');
@@ -305,7 +297,6 @@ const loadStoredSettings = async () => {
       selectedOutputDevice.value = storedOutputDevice;
       debug.log('[VoiceSettingsInline] Using stored output device:', storedOutputDevice);
     } else if (outputDevices.value.length > 0) {
-      // Fallback to first available device
       selectedOutputDevice.value = outputDevices.value[0].deviceId;
       if (storedOutputDevice) {
         debug.warn('[VoiceSettingsInline] Stored output device not found, using default');
@@ -317,7 +308,6 @@ const loadStoredSettings = async () => {
       selectedVideoDevice.value = storedVideoDevice;
       debug.log('[VoiceSettingsInline] Using stored video device:', storedVideoDevice);
     } else if (videoDevices.value.length > 0) {
-      // Fallback to first available device
       selectedVideoDevice.value = videoDevices.value[0].deviceId;
       if (storedVideoDevice) {
         debug.warn('[VoiceSettingsInline] Stored video device not found, using default');
@@ -331,7 +321,6 @@ const loadStoredSettings = async () => {
   }
 };
 
-// Test microphone
 const testMicrophone = async () => {
   if (isTesting.value) {
     stopTesting();
@@ -407,7 +396,6 @@ const updateVideoPreview = async () => {
   }
 };
 
-// Settings update handlers
 const updateInputDevice = async () => {
   if (!selectedInputDevice.value) return;
   
@@ -457,8 +445,7 @@ const updateAudioSettings = () => {
   
   unifiedWebRTC.updateAudioConstraints(audioConstraints);
   saveSettings();
-  
-  // Also emit for any parent components that might be listening
+
   emit('update-voice-settings', {
     type: 'audioConstraints',
     value: audioConstraints

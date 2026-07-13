@@ -340,8 +340,6 @@ const removeLanguage = (langCode: string) => {
 };
 
 const updateFilters = () => {
-  // Emit filter changes to parent component
-  // This would be used by the ExploreView to apply filters
   debug.log('Filters updated:', filters);
 };
 

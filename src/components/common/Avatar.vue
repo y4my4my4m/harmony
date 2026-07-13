@@ -67,7 +67,6 @@ import CameraIcon from '@/components/icons/Camera.vue'
 
 const toast = useToast()
 
-// Types
 type AvatarSize = 'mini' | 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl'
 type UserStatus = 'online' | 'away' | 'busy' | 'offline' | 'invisible'
 
@@ -109,7 +108,7 @@ const fileInput = ref<HTMLInputElement>()
 const sizeMap: Record<AvatarSize, number> = {
   mini: 16,
   xs: 24,
-  sm: 48, // should be 40px but 48 looks better because power of two value properly resize
+  sm: 48, // power-of-two size avoids resize artifacts vs. the visually-accurate 40px
   md: 96,
   lg: 128,
   xl: 156,
@@ -142,8 +141,6 @@ const handleFileSelect = async (event: Event) => {
   const file = target.files?.[0]
   
   if (file) {
-    // Validate against the avatars bucket's real size/type limits and surface
-    // any problem through the toast system (not a native alert).
     const validationError = await validateImageUpload(file, 'avatars')
     if (validationError) {
       toast.error(validationError)
@@ -157,11 +154,8 @@ const handleFileSelect = async (event: Event) => {
   target.value = ''
 }
 
-// Transient network failures (imgproxy/R2 latency) should not permanently
-// show the default avatar. We retry a few times with backoff before giving up.
-// only reset retry state on successful load of the REAL image, and
-// never schedule a retry when the fallback itself just failed - otherwise we'd
-// flip-flop between broken-real and broken-fallback forever.
+// Retry transient image load failures (imgproxy/R2 latency) with backoff;
+// never retry when the fallback image itself fails, to avoid flip-flopping.
 const MAX_RETRIES = 3
 const RETRY_DELAYS_MS = [400, 1200, 3000]
 const retryCount = ref(0)
@@ -181,15 +175,13 @@ const scheduleRetry = () => {
   retryTimer = setTimeout(() => {
     retryTimer = null
     retryCount.value++
-    // Flipping imageError back to false makes the computed return the real URL
-    // again, which re-issues the network request through the same <img> tag.
+    // resetting to false re-issues the request through the same <img> tag
     imageError.value = false
   }, delay)
 }
 
 const handleImageError = () => {
-  // If imageError was already true, this @error is from the fallback default
-  // image itself failing - don't loop, just stay on the broken-image state.
+  // already true means this error is from the fallback image itself; don't loop
   if (imageError.value) {
     debug.warn('Avatar fallback image failed to load:', avatarUrl.value)
     clearRetryTimer()
@@ -201,10 +193,8 @@ const handleImageError = () => {
 }
 
 const handleImageLoad = () => {
-  // Do NOT reset imageError here - the fallback image loading successfully
-  // would re-trigger the broken src, causing an infinite loop.
-  // Only "forgive" past failures when the REAL image loads (imageError is
-  // false at this point because the computed returned the real URL).
+  // Only clears retry state when the real image loads (imageError is false here);
+  // the fallback's own load must not reset it, or it'd re-trigger the broken src.
   if (!imageError.value && retryCount.value > 0) {
     retryCount.value = 0
     clearRetryTimer()

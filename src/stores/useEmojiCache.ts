@@ -291,7 +291,6 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
           this.updateServerCache(serverId, emojis, server);
         }
 
-        // Rebuild resolved emojis
         this.rebuildResolvedEmojis();
       } finally {
         serversToUpdate.forEach(id => this._loadingServerIds.delete(id));

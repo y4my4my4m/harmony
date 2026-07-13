@@ -20,7 +20,6 @@ import { nativeLiveKit, isNativeMediaSupported } from './nativeLiveKit';
 import { VoiceSettingsService } from './VoiceSettingsService';
 import { debug } from '@/utils/debug';
 
-// TYPES
 
 export type WebRTCMode = 'sfu' | 'p2p' | 'hybrid';
 export type ActiveWebRTCService = 'livekit' | 'p2p' | 'native' | null;
@@ -68,7 +67,6 @@ export interface WebRTCManager {
   getActiveService(): ActiveWebRTCService;
 }
 
-// WEBRTC MANAGER SERVICE
 
 class WebRTCManagerService implements WebRTCManager {
   private currentMode: WebRTCMode = 'hybrid';
@@ -195,7 +193,6 @@ class WebRTCManagerService implements WebRTCManager {
     }
   }
   
-  // CONNECTION METHODS
   
   /**
    * Join a voice channel
@@ -442,7 +439,6 @@ class WebRTCManagerService implements WebRTCManager {
     this.activeService = null;
   }
   
-  // MEDIA CONTROLS
   
   /**
    * Toggle video
@@ -527,7 +523,6 @@ class WebRTCManagerService implements WebRTCManager {
     return false;
   }
   
-  // STREAM ACCESS
   
   /**
    * Get local stream
@@ -656,7 +651,6 @@ class WebRTCManagerService implements WebRTCManager {
     return [];
   }
   
-  // STATUS
   
   /**
    * Check if connected
@@ -672,7 +666,6 @@ class WebRTCManagerService implements WebRTCManager {
     return false;
   }
   
-  // DEVICE MANAGEMENT
   
   /**
    * Update input device
@@ -839,7 +832,6 @@ class WebRTCManagerService implements WebRTCManager {
     return false;
   }
   
-  // EVENT SYSTEM
   
   /**
    * Subscribe to an event
@@ -881,7 +873,6 @@ class WebRTCManagerService implements WebRTCManager {
   }
 }
 
-// SINGLETON INSTANCE
 
 export const webrtcManager = new WebRTCManagerService();
 export default webrtcManager;

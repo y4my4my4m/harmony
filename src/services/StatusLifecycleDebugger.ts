@@ -166,7 +166,6 @@ if (typeof window !== 'undefined') {
     return `⏰ Simulated ${minutes} minutes of inactivity`
   }
   
-  // Additional helpful functions
   ;(window as any).resetActivity = () => {
     ;(activityTracker as any).lastActivity = Date.now()
     activityTracker.resetStatusTracking()

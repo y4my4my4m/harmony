@@ -1,12 +1,4 @@
-/**
- * Visual Theme Composable
- * 
- * Manages visual theme settings including:
- * - Preset themes (dark, light, midnight)
- * - Custom OKLCH-based themes
- * - Real-time theme application
- * - Persistence to localStorage and Supabase
- */
+/** Visual theme: preset/custom (OKLCH) themes, applied live, persisted to localStorage + Supabase. */
 
 import { ref, computed, watch } from 'vue'
 import {
@@ -224,7 +216,6 @@ export const COMMUNITY_PRESETS: ThemePreset[] = [
   }
 ]
 
-// Preset theme color mappings
 const PRESET_THEMES = {
   dark: {
     primary: '#0EA5E9',
@@ -261,7 +252,6 @@ const PRESET_THEMES = {
   },
 }
 
-// Global state (singleton pattern)
 const settings = ref<VisualThemeSettings>({
   theme: 'dark',
   customThemeMode: 'dark',
@@ -293,14 +283,10 @@ const isSaving = ref(false)
 
 let saveTimeout: ReturnType<typeof setTimeout> | null = null
 
-/**
- * Apply preset theme styles
- */
 function applyPresetTheme(themeName: 'dark' | 'light' | 'midnight') {
   const root = document.documentElement
   const theme = PRESET_THEMES[themeName]
   
-  // Primary colors
   root.style.setProperty('--harmony-primary', theme.primary)
   root.style.setProperty('--harmony-primary-hover', '#0284C7')
   root.style.setProperty('--harmony-primary-light', 'rgba(14, 165, 233, 0.1)')
@@ -324,15 +310,12 @@ function applyPresetTheme(themeName: 'dark' | 'light' | 'midnight') {
   root.style.setProperty('--h-primary-dark', '#0369A1')
   root.style.setProperty('--h-brand', theme.primary)
   
-  // Background colors - use proper defaults based on theme
   if (themeName === 'dark') {
-    // Background system colors
     root.style.setProperty('--background-primary', '#1a1a1e')
     root.style.setProperty('--background-secondary', '#17181a')
     root.style.setProperty('--background-tertiary', '#121214')
     root.style.setProperty('--background-quaternary', '#222327')
     root.style.setProperty('--background-quinary', '#202024')
-    // Alpha variants
     root.style.setProperty('--background-primary-alpha', '#1a1a1eaa')
     root.style.setProperty('--background-secondary-alpha', '#17181aaa')
     root.style.setProperty('--background-tertiary-alpha', '#121214aa')
@@ -344,7 +327,6 @@ function applyPresetTheme(themeName: 'dark' | 'light' | 'midnight') {
     root.style.setProperty('--background-tertiary', '#f2f3f5')
     root.style.setProperty('--background-quaternary', '#ebedef')
     root.style.setProperty('--background-quinary', '#e3e5e8')
-    // Alpha variants (lighter for light theme)
     root.style.setProperty('--background-primary-alpha', 'rgba(255, 255, 255, 0.85)')
     root.style.setProperty('--background-secondary-alpha', 'rgba(246, 246, 247, 0.85)')
     root.style.setProperty('--background-tertiary-alpha', 'rgba(242, 243, 245, 0.85)')
@@ -356,33 +338,28 @@ function applyPresetTheme(themeName: 'dark' | 'light' | 'midnight') {
     root.style.setProperty('--background-tertiary', '#0f1012')
     root.style.setProperty('--background-quaternary', '#1a1d20')
     root.style.setProperty('--background-quinary', '#13151a')
-    // Alpha variants
     root.style.setProperty('--background-primary-alpha', '#1e2124aa')
     root.style.setProperty('--background-secondary-alpha', '#13151aaa')
     root.style.setProperty('--background-tertiary-alpha', '#0f1012aa')
     root.style.setProperty('--background-senary', '#0a0b0d')
     root.style.setProperty('--background-senary-alpha', '#0a0b0dc7')
   }
-  
-  // Text colors
+
   root.style.setProperty('--text-primary', theme.textPrimary)
   root.style.setProperty('--text-secondary', theme.textSecondary)
   root.style.setProperty('--text-tertiary', theme.isLightTheme ? '#6e7178' : '#80848e')
   root.style.setProperty('--text-muted', theme.isLightTheme ? '#5e6168' : '#6d6f78')
   
-  // Border colors - different alpha values for light vs dark themes
   root.style.setProperty('--border-primary', theme.borderPrimary)
   root.style.setProperty('--border-secondary', theme.isLightTheme ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.06)')
   root.style.setProperty('--border-hover', theme.isLightTheme ? 'rgba(0, 0, 0, 0.15)' : 'rgba(255, 255, 255, 0.12)')
   root.style.setProperty('--border-focus', theme.primary)
   root.style.setProperty('--border-color', theme.isLightTheme ? 'rgba(0, 0, 0, 0.12)' : '#232529')
   
-  // Icon colors for light/dark
   root.style.setProperty('--icon-primary', theme.isLightTheme ? '#5e6168' : '#9999a0')
   root.style.setProperty('--icon-secondary', theme.isLightTheme ? '#80838a' : '#66666b')
   root.style.setProperty('--icon-active', theme.isLightTheme ? '#2e3338' : '#fbfbfb')
 
-  // Shadow adjustments for light theme
   root.style.setProperty('--shadow-small', theme.isLightTheme
     ? '0 2px 4px rgba(0, 0, 0, 0.06)' : '0 2px 4px rgba(0, 0, 0, 0.1)')
   root.style.setProperty('--shadow-medium', theme.isLightTheme
@@ -396,9 +373,6 @@ function applyPresetTheme(themeName: 'dark' | 'light' | 'midnight') {
   debug.log(`Applied ${themeName} theme`)
 }
 
-/**
- * Apply all visual settings to DOM
- */
 function applySettings(settings: VisualThemeSettings) {
   const root = document.documentElement
   
@@ -546,9 +520,6 @@ function migrateLegacyBlurSetting(loaded: Partial<VisualThemeSettings> & { disab
   }
 }
 
-/**
- * Save settings to localStorage
- */
 function saveToLocalStorage(settings: VisualThemeSettings) {
   try {
     userStorage.setItem('visual-theme', JSON.stringify(settings))
@@ -557,9 +528,6 @@ function saveToLocalStorage(settings: VisualThemeSettings) {
   }
 }
 
-/**
- * Load settings from localStorage
- */
 function loadFromLocalStorage(): Partial<VisualThemeSettings> | null {
   try {
     const saved = userStorage.getItem('visual-theme')
@@ -572,9 +540,6 @@ function loadFromLocalStorage(): Partial<VisualThemeSettings> | null {
   return null
 }
 
-/**
- * Get saved custom themes from localStorage
- */
 function getSavedCustomThemes(): SavedCustomTheme[] {
   try {
     const saved = userStorage.getItem(SAVED_THEMES_KEY)
@@ -587,9 +552,6 @@ function getSavedCustomThemes(): SavedCustomTheme[] {
   return []
 }
 
-/**
- * Persist saved custom themes to localStorage
- */
 function saveCustomThemesToStorage(themes: SavedCustomTheme[]) {
   try {
     userStorage.setItem(SAVED_THEMES_KEY, JSON.stringify(themes))
@@ -598,9 +560,6 @@ function saveCustomThemesToStorage(themes: SavedCustomTheme[]) {
   }
 }
 
-/**
- * Save settings to Supabase (debounced)
- */
 async function saveToSupabase(settings: VisualThemeSettings) {
   const authStore = useAuthStore()
   const userId = authStore.session?.user?.id
@@ -628,10 +587,7 @@ async function saveToSupabase(settings: VisualThemeSettings) {
   }
 }
 
-/**
- * Load settings from Supabase
- * OPTIMIZED: First checks profile store to avoid redundant queries
- */
+/** Checks profile store cache before querying Supabase directly. */
 async function loadFromSupabase(): Promise<Partial<VisualThemeSettings> | null> {
   const authStore = useAuthStore()
   const profileStore = useProfileStore()
@@ -661,9 +617,6 @@ async function loadFromSupabase(): Promise<Partial<VisualThemeSettings> | null> 
   }
 }
 
-/**
- * Debounced save to Supabase
- */
 function debouncedSaveToSupabase(settings: VisualThemeSettings) {
   if (saveTimeout) {
     clearTimeout(saveTimeout)
@@ -674,14 +627,8 @@ function debouncedSaveToSupabase(settings: VisualThemeSettings) {
   }, 1000)
 }
 
-/**
- * Main composable
- */
 export function useVisualTheme() {
-  /**
-   * Initialize theme system
-   */
-  async function initialize() {
+    async function initialize() {
     if (isInitialized.value) return
     
     debug.log('Initializing visual theme system...')
@@ -734,10 +681,7 @@ export function useVisualTheme() {
     debug.log('Visual theme system initialized')
   }
   
-  /**
-   * Update theme
-   */
-  function setTheme(theme: 'dark' | 'light' | 'midnight' | 'custom', customColor?: string, customBgColor?: string) {
+    function setTheme(theme: 'dark' | 'light' | 'midnight' | 'custom', customColor?: string, customBgColor?: string) {
     const previousTheme = settings.value.theme
     settings.value.theme = theme
     if (theme === 'custom') {
@@ -752,40 +696,25 @@ export function useVisualTheme() {
     }
   }
   
-  /**
-   * Update custom theme mode
-   */
-  function setCustomThemeMode(mode: 'dark' | 'light') {
+    function setCustomThemeMode(mode: 'dark' | 'light') {
     settings.value.customThemeMode = mode
   }
   
-  /**
-   * Update custom accent color
-   */
-  function setCustomAccentColor(color: string) {
+    function setCustomAccentColor(color: string) {
     settings.value.theme = 'custom'
     settings.value.customAccentColor = color
   }
   
-  /**
-   * Update custom background color
-   */
-  function setCustomBackgroundColor(color: string) {
+    function setCustomBackgroundColor(color: string) {
     settings.value.theme = 'custom'
     settings.value.customBackgroundColor = color
   }
   
-  /**
-   * Update font size
-   */
-  function setFontSize(size: number) {
+    function setFontSize(size: number) {
     settings.value.fontSize = Math.max(12, Math.min(20, size))
   }
   
-  /**
-   * Update zoom level
-   */
-  function setZoomLevel(zoom: number) {
+    function setZoomLevel(zoom: number) {
     settings.value.zoomLevel = Math.max(50, Math.min(200, zoom))
   }
 
@@ -798,10 +727,7 @@ export function useVisualTheme() {
     settings.value.fontFamily = family
   }
 
-  /**
-   * Toggle the glass effects (blur / translucency) preference.
-   */
-  function setGlassEffectsEnabled(enabled: boolean) {
+    function setGlassEffectsEnabled(enabled: boolean) {
     settings.value.glassEffectsEnabled = !!enabled
   }
 
@@ -887,22 +813,10 @@ export function useVisualTheme() {
   }
 
   /**
-   * Apply a skin by id. Merges the skin's `themeOverrides` into the live
-   * settings, sets `activeSkinId`, and stashes the skin's `globalCss` in
-   * `customSkinCss` so it round-trips through the `appearance_settings`
-   * sync flow without needing the skin registry on the receiving device.
-   *
-   * The pre-skin snapshot is stored alongside the rest of settings in
-   * `_preSkinSnapshot`, so it persists through reloads and across
-   * devices via the `appearance_settings` JSONB column. This means
-   * `clearSkin` can faithfully revert font / theme / colours even after
-   * a fresh page load with a persisted active skin.
-   *
-   * The skin deliberately does NOT touch the user's `glassEffectsEnabled`
-   * preference - any "this skin needs blur off" requirements are
-   * enforced by the skin's own scoped CSS (`[data-skin="..."] *
-   * { backdrop-filter: none }`) so the user's separate opt-out toggle
-   * is preserved when they go back to "None".
+   * Apply a skin by id. Merges `themeOverrides` into live settings and stashes
+   * `globalCss` in `customSkinCss` so it round-trips via `appearance_settings`
+   * without needing the skin registry on the receiving device. Skin does not
+   * touch `glassEffectsEnabled` - blur-off skins enforce that via scoped CSS.
    */
   function applySkin(skinId: string | null) {
     if (!skinId) {
@@ -928,13 +842,8 @@ export function useVisualTheme() {
   }
 
   /**
-   * Remove the active skin's contribution AND restore the pre-skin
-   * snapshot. The snapshot is stored on `settings._preSkinSnapshot`
-   * so it survives page reloads / cross-device sync.
-   *
-   * If no snapshot exists (e.g. a skin somehow ended up active without
-   * one), fall back to the static defaults for the skin-affected keys
-   * so the user still gets a clean revert.
+   * Restore the pre-skin snapshot (`settings._preSkinSnapshot`, survives
+   * reloads/cross-device sync). Falls back to static defaults if missing.
    */
   function clearSkin() {
     const snapshot = settings.value._preSkinSnapshot
@@ -952,10 +861,7 @@ export function useVisualTheme() {
     restorePreSkinAudioTheme()
   }
   
-  /**
-   * Toggle settings
-   */
-  function toggleShowTimestamps() {
+    function toggleShowTimestamps() {
     settings.value.showTimestamps = !settings.value.showTimestamps
   }
   
@@ -979,17 +885,11 @@ export function useVisualTheme() {
     settings.value.screenReaderSupport = !settings.value.screenReaderSupport
   }
   
-  /**
-   * Bulk update settings
-   */
-  function updateSettings(newSettings: Partial<VisualThemeSettings>) {
+    function updateSettings(newSettings: Partial<VisualThemeSettings>) {
     Object.assign(settings.value, newSettings)
   }
   
-  /**
-   * Set a single CSS variable override
-   */
-  function setCssOverride(varName: string, value: string) {
+    function setCssOverride(varName: string, value: string) {
     if (!settings.value.customCssOverrides) {
       settings.value.customCssOverrides = {}
     }
@@ -997,20 +897,14 @@ export function useVisualTheme() {
     document.documentElement.style.setProperty(varName, value)
   }
   
-  /**
-   * Remove a CSS variable override
-   */
-  function removeCssOverride(varName: string) {
+    function removeCssOverride(varName: string) {
     if (settings.value.customCssOverrides) {
       delete settings.value.customCssOverrides[varName]
     }
     document.documentElement.style.removeProperty(varName)
   }
   
-  /**
-   * Clear all CSS variable overrides
-   */
-  function clearCssOverrides() {
+    function clearCssOverrides() {
     if (settings.value.customCssOverrides) {
       for (const varName of Object.keys(settings.value.customCssOverrides)) {
         document.documentElement.style.removeProperty(varName)
@@ -1019,10 +913,7 @@ export function useVisualTheme() {
     settings.value.customCssOverrides = {}
   }
   
-  /**
-   * Apply a community preset
-   */
-  function applyPreset(preset: ThemePreset) {
+    function applyPreset(preset: ThemePreset) {
     const previousOverrides = { ...(settings.value.customCssOverrides || {}) }
     const newOverrides = preset.settings.customCssOverrides
       ? { ...preset.settings.customCssOverrides }
@@ -1052,10 +943,7 @@ export function useVisualTheme() {
     }
   }
   
-  /**
-   * Get all available CSS variable names for theming
-   */
-  function getThemableVariables(): { category: string; vars: string[] }[] {
+    function getThemableVariables(): { category: string; vars: string[] }[] {
     return [
       {
         category: 'Navigation Rail',
@@ -1145,10 +1033,7 @@ export function useVisualTheme() {
     debug.log('Visual theme reset for new user')
   }
 
-  /**
-   * Reset to defaults
-   */
-  function resetToDefaults() {
+    function resetToDefaults() {
     settings.value = {
       theme: 'dark',
       customThemeMode: 'dark',
@@ -1177,37 +1062,22 @@ export function useVisualTheme() {
     }
   }
   
-  /**
-   * Update custom primary color
-   */
-  function setCustomPrimaryColor(color: string) {
+    function setCustomPrimaryColor(color: string) {
     settings.value.theme = 'custom'
     settings.value.customPrimaryColor = color
   }
   
-  /**
-   * Update custom background lightness
-   */
-  function setCustomBackgroundLightness(lightness: number) {
+    function setCustomBackgroundLightness(lightness: number) {
     settings.value.customBackgroundLightness = Math.max(-50, Math.min(50, lightness))
   }
   
-  /**
-   * Update custom background chroma (saturation)
-   */
-  function setCustomBackgroundChroma(chroma: number) {
+    function setCustomBackgroundChroma(chroma: number) {
     settings.value.customBackgroundChroma = Math.max(-30, Math.min(30, chroma))
   }
   
-  /**
-   * Get current settings
-   */
-  const currentSettings = computed(() => ({ ...settings.value }))
+    const currentSettings = computed(() => ({ ...settings.value }))
   
-  /**
-   * Export current theme as JSON string (for custom themes)
-   */
-  function exportThemeAsJson(): string {
+    function exportThemeAsJson(): string {
     const themeOnly: Partial<VisualThemeSettings> = {
       theme: settings.value.theme,
       customThemeMode: settings.value.customThemeMode,
@@ -1222,10 +1092,7 @@ export function useVisualTheme() {
     return JSON.stringify(themeOnly, null, 2)
   }
   
-  /**
-   * Import and apply theme from JSON string
-   */
-  function importThemeFromJson(json: string): boolean {
+    function importThemeFromJson(json: string): boolean {
     try {
       const parsed = JSON.parse(json) as Partial<VisualThemeSettings>
       if (!parsed || typeof parsed !== 'object') return false
@@ -1248,10 +1115,7 @@ export function useVisualTheme() {
     }
   }
   
-  /**
-   * Save current theme to "My themes" in localStorage
-   */
-  function saveCurrentThemeAsCustom(name: string): SavedCustomTheme | null {
+    function saveCurrentThemeAsCustom(name: string): SavedCustomTheme | null {
     if (!name?.trim()) return null
     const theme: SavedCustomTheme = {
       id: crypto.randomUUID(),
@@ -1275,10 +1139,7 @@ export function useVisualTheme() {
     return theme
   }
   
-  /**
-   * Load and apply a saved custom theme
-   */
-  function loadSavedTheme(id: string): boolean {
+    function loadSavedTheme(id: string): boolean {
     const list = getSavedCustomThemes()
     const found = list.find(t => t.id === id)
     if (!found?.settings) return false
@@ -1287,10 +1148,7 @@ export function useVisualTheme() {
     return true
   }
   
-  /**
-   * Delete a saved custom theme
-   */
-  function deleteSavedTheme(id: string): void {
+    function deleteSavedTheme(id: string): void {
     const list = getSavedCustomThemes().filter(t => t.id !== id)
     saveCustomThemesToStorage(list)
   }

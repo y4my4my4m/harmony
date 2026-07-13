@@ -234,7 +234,6 @@ const isProcessing = ref(false)
 const searchInput = ref<HTMLInputElement>()
 const searchTimeout = ref<NodeJS.Timeout>()
 
-// Group settings (for new groups)
 const groupName = ref('')
 const isPrivateGroup = ref(false)
 

@@ -152,7 +152,6 @@ function onVideoLoadedMetadata() {
   const vid = videoRef.value;
   const src = currentSrc.value;
   if (!vid || !src) return;
-  // Restore position only for non-GIF videos
   if (!isGifv.value) {
     const pos = playbackPositions.value[src];
     if (pos != null && pos > 0) {

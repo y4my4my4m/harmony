@@ -288,9 +288,6 @@ router.get(
   })
 );
 
-/**
- * Common inbox handler
- */
 async function handleInbox(
   req: Request,
   res: Response,
@@ -324,13 +321,8 @@ async function handleInbox(
     logger.debug(`Could not check instance block status: ${error}`);
   }
 
-  // HTTP Signature Verification (SECURITY CRITICAL)
-  // ActivityPub uses HTTP Signatures to authenticate requests.
-  // 1. Remote server signs the request with their private key
-  // 2. We fetch their public key from their actor document (over HTTPS)
-  // 3. We verify the signature matches
-  // 4. We verify the actor in the activity matches the signing key's owner
-  
+  // HTTP Signature verification: authenticates the request, then confirms
+  // activity.actor matches the signing key's owner.
   const signature = req.headers.signature as string;
   const actorUrl = typeof activity.actor === 'string' ? activity.actor : activity.actor?.id;
   
@@ -343,10 +335,7 @@ async function handleInbox(
       logger.warn(`⚠️ Accepting unsigned activity from ${actorUrl} (REQUIRE_VALID_SIGNATURES=false)`);
     }
   } else {
-    // Verify the HTTP signature
-    // Use req.originalUrl to get the full path as signed by the remote server
-    // req.path may be relative to a mounted router and not match what was signed
-    // Use the raw body buffer for digest verification to avoid JSON re-serialization differences
+    // req.path can be relative to a mounted router and miss the signed request-target.
     const rawBody = (req as any).rawBody as Buffer | undefined;
     const verification = await SignatureService.verifySignature(
       signature,

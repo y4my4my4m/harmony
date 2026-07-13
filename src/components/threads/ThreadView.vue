@@ -328,21 +328,18 @@ const effectiveThreadIdForTyping = computed(() => {
   return undefined
 })
 
-// Reply state
 const replyingToMessageId = ref<string>('')
 const replyingToUserName = ref<string>('')
 const replyingToUserId = ref<string>('')
 const messageInputRef = ref<any>(null)
 const threadMessageDisplayRef = ref<InstanceType<typeof MessageDisplay> | null>(null)
 
-// Emoji popup state for reactions
 const reactionEmojiOpen = ref(false)
 const reactionTriggerElement = ref<HTMLElement | null>(null)
 const selectedMessageId = ref<string>('')
 const isPopupForReaction = ref(false)
 const emojiIconClicked = ref(false)
 
-// Media picker state (for GIFs + Emoji in message input)
 const mediaPickerOpen = ref(false)
 const mediaPickerInitialTab = ref<'gifs' | 'emoji'>('gifs')
 
@@ -364,7 +361,6 @@ const showOptions = ref(false)
 const messageText = ref('')
 const sending = ref(false)
 
-// Draft persistence for threads
 const threadDraftKey = computed(() => {
   const id = props.threadId || props.initialThread?.id
   return id ? draftsStore.makeKey('thread', id) : null
@@ -385,10 +381,8 @@ watch(messageText, (val) => {
 const messagesContainer = ref<HTMLElement | null>(null)
 const threadSubscription = ref<(() => void) | null>(null)
 
-// Draft mode - thread not yet created
 const isDraftMode = computed(() => !props.threadId && !props.initialThread && !!props.draftParentMessage)
 
-// Parent message to display (from thread or draft)
 const displayParentMessage = computed(() => {
   if (isDraftMode.value) {
     return props.draftParentMessage
@@ -396,7 +390,6 @@ const displayParentMessage = computed(() => {
   return thread.value?.parent_message
 })
 
-// Thread name (or generate from parent message in draft mode)
 const displayThreadName = computed(() => {
   if (thread.value?.name) return thread.value.name
   if (isDraftMode.value && props.draftParentMessage) {
@@ -411,7 +404,6 @@ const displayThreadName = computed(() => {
 
 
 const loadThread = async () => {
-  // In draft mode, don't load - just show parent message
   if (isDraftMode.value) {
     thread.value = null
     loading.value = false
@@ -422,24 +414,20 @@ const loadThread = async () => {
   const threadId = props.threadId || props.initialThread?.id
   if (!threadId) return
   
-  // Check if we have cached messages - if so, show instantly without loading indicator
   const cachedMessages = threadService.getCachedMessages(threadId)
   if (cachedMessages) {
-    // Use cached data instantly - no loading indicator
     messages.value = cachedMessages.messages
     hasMore.value = cachedMessages.has_more
-    
-    // Still load thread metadata in background (for fresh membership status, etc.)
-    thread.value = await threadService.getThread(threadId, false) // use cache if available
+
+    // Metadata (membership status etc.) still loads in background even with cached messages.
+    thread.value = await threadService.getThread(threadId, false)
     isMember.value = thread.value?.is_member ?? true
-    
-    // Scroll to bottom
+
     await nextTick()
     scrollToBottom()
     return
   }
-  
-  // No cache - show loading indicator
+
   loading.value = true
   try {
     thread.value = await threadService.getThread(threadId, false)
@@ -450,8 +438,7 @@ const loadThread = async () => {
       const result = await threadService.getThreadMessages(thread.value.id)
       messages.value = result.messages
       hasMore.value = result.has_more
-      
-      // Scroll to bottom after loading
+
       await nextTick()
       scrollToBottom()
     }
@@ -636,14 +623,10 @@ const copyThreadId = async () => {
   await navigator.clipboard.writeText(thread.value.id)
 }
 
-// Use unified content parsing system (DRY - same as ChatComponent)
 const parseMessageInput = async (input: string): Promise<MessagePart[]> => {
   debug.log('ThreadView: Using unified content parsing for:', input)
-  
-  // Use efficient batch mention resolution
+
   const userDataMap = await resolveMentionsUserData(input)
-  
-  // Use unified emoji resolution - includes both server emojis AND unified pack
   const emojiDataMap = await resolveEmojisData(input)
   
   debug.log('Emoji data map size:', Object.keys(emojiDataMap).length)
@@ -684,8 +667,7 @@ const handleSendMessage = async (content: string, files: FilePreviewData[] = [],
   
   try {
     let targetThreadId = thread.value?.id
-    
-    // If in draft mode, create the thread first
+
     if (isDraftMode.value && props.draftParentMessage) {
       const threadName = displayThreadName.value
       const newThread = await threadService.createThread({
@@ -736,7 +718,6 @@ const handleSendMessage = async (content: string, files: FilePreviewData[] = [],
     }
     
     if (messageParts.length > 0) {
-      // Optimistic: add a temporary message immediately
       const tempId = `temp-${crypto.randomUUID()}`
       const { authContextService } = await import('@/services/AuthContextService')
       const profileId = await authContextService.getCurrentProfileId()
@@ -756,8 +737,7 @@ const handleSendMessage = async (content: string, files: FilePreviewData[] = [],
         metadata: undefined,
       }
       messages.value.push(optimisticMessage)
-      
-      // Optimistic thread count update
+
       if (thread.value) {
         thread.value.message_count = (thread.value.message_count || 0) + 1
         thread.value.last_message_at = new Date().toISOString()
@@ -776,7 +756,6 @@ const handleSendMessage = async (content: string, files: FilePreviewData[] = [],
 
       if (sendResult.status === 'ok' && sendResult.result) {
         const newMessage = sendResult.result
-        // Replace optimistic message with real one
         const tempIndex = messages.value.findIndex(m => m.id === tempId)
         if (tempIndex !== -1) {
           messages.value[tempIndex] = newMessage
@@ -834,11 +813,10 @@ const formatTimestamp = (date: Date | string) => {
 
 
 const close = () => {
-  cleanupSubscription() // Unsubscribe when closing
+  cleanupSubscription()
   emit('close')
 }
 
-// MessageDisplay event handlers
 const handleSendReaction = async (messageId: string, emoji: Emoji) => {
   if (!currentUserId.value) return
   try {
@@ -853,7 +831,6 @@ const handleSendReaction = async (messageId: string, emoji: Emoji) => {
 
 const handleToggleEmojiList = (isReaction: boolean, message?: Message, triggerElement?: HTMLElement) => {
   if (isReaction) {
-    // Reaction emoji - use separate popup positioned on the message
     if (message) selectedMessageId.value = message.id
     if (triggerElement) reactionTriggerElement.value = triggerElement
     isPopupForReaction.value = true
@@ -885,7 +862,6 @@ watch(reactionEmojiOpen, () => {
   }
 })
 
-// Media picker handlers (GIF + Emoji for message input)
 const toggleGiphy = () => {
   mediaPickerInitialTab.value = 'gifs'
   mediaPickerOpen.value = !mediaPickerOpen.value
@@ -896,7 +872,6 @@ const toggleGiphy = () => {
 
 const toggleEmojiListForInput = (isReaction: boolean, _message?: Message) => {
   if (!isReaction) {
-    // Regular emoji input - use unified media picker
     mediaPickerInitialTab.value = 'emoji'
     mediaPickerOpen.value = !mediaPickerOpen.value
     if (mediaPickerOpen.value) {
@@ -1025,8 +1000,7 @@ const handleSendGif = async (gif: Gif) => {
   sending.value = true
   try {
     let targetThreadId = thread.value?.id
-    
-    // If in draft mode, create the thread first
+
     if (isDraftMode.value && props.draftParentMessage) {
       const threadName = displayThreadName.value
       const newThread = await threadService.createThread({
@@ -1092,7 +1066,6 @@ const handleReplyingTo = (messageId: string, displayName?: string, userId?: stri
   if (displayName) {
     replyingToUserName.value = displayName
   } else {
-    // Fallback: find the message and get user display name
     const replyMessage = messages.value.find(m => m.id === messageId)
     if (replyMessage) {
       replyingToUserName.value = getDisplayName(replyMessage.user_id).value
@@ -1109,7 +1082,6 @@ const handleCancelReply = (value: string) => {
   }
 }
 
-// Clean up subscription helper (defined before use)
 const cleanupSubscription = () => {
   if (threadSubscription.value) {
     threadSubscription.value()
@@ -1234,7 +1206,6 @@ watch(() => props.isVisible, (visible) => {
   if (visible) {
     loadThread()
   } else {
-    // When thread becomes invisible, cleanup subscription immediately
     cleanupSubscription()
   }
 })
@@ -1253,12 +1224,10 @@ watch(() => [thread.value?.id, props.isVisible] as const, ([threadId, isVisible]
   }
 }, { immediate: true })
 
-// Also watch isVisible separately to unsubscribe immediately when closed
 watch(() => props.isVisible, (isVisible) => {
   if (!isVisible) {
     cleanupSubscription()
   } else if (thread.value?.id) {
-    // If becoming visible and thread is loaded, subscribe
     setupRealtimeSubscription()
   }
 })

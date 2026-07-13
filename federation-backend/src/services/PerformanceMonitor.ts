@@ -1,11 +1,6 @@
 import { getSupabaseClient } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
 
-/**
- * Performance Monitor Service
- * Tracks request latency, query times, federation health, and more
- */
-
 export interface MetricOptions {
   labels?: Record<string, any>;
   source?: 'frontend' | 'backend' | 'federation-backend';
@@ -44,9 +39,6 @@ class PerformanceMonitor {
     this.startFlushTimer();
   }
 
-  /**
-   * Enable/disable performance monitoring
-   */
   setEnabled(enabled: boolean): void {
     this.enabled = enabled;
     if (!enabled) {
@@ -54,9 +46,6 @@ class PerformanceMonitor {
     }
   }
 
-  /**
-   * Record a metric
-   */
   recordMetric(
     type: string,
     name: string,
@@ -82,9 +71,6 @@ class PerformanceMonitor {
     }
   }
 
-  /**
-   * Record request latency
-   */
   recordRequestLatency(
     method: string,
     path: string,
@@ -108,9 +94,6 @@ class PerformanceMonitor {
     }
   }
 
-  /**
-   * Record database query time
-   */
   recordQueryTime(
     tableName: string,
     operation: string,
@@ -132,9 +115,6 @@ class PerformanceMonitor {
     }
   }
 
-  /**
-   * Record a slow query
-   */
   async recordSlowQuery(durationMs: number, options: SlowQueryOptions = {}): Promise<void> {
     if (!this.enabled) return;
 
@@ -157,9 +137,6 @@ class PerformanceMonitor {
     }
   }
 
-  /**
-   * Record federation delivery time
-   */
   recordFederationDelivery(
     targetDomain: string,
     success: boolean,
@@ -177,18 +154,12 @@ class PerformanceMonitor {
     this.updateFederationHealth(targetDomain, success, durationMs);
   }
 
-  /**
-   * Record queue processing time
-   */
   recordQueueProcessing(queueName: string, durationMs: number, success: boolean): void {
     this.recordMetric('queue_processing', queueName, durationMs, 'ms', {
       labels: { queue: queueName, success },
     });
   }
 
-  /**
-   * Update federation health status
-   */
   async updateFederationHealth(
     instanceDomain: string,
     success: boolean,
@@ -210,9 +181,6 @@ class PerformanceMonitor {
     }
   }
 
-  /**
-   * Start a timer for measuring operation duration
-   */
   startTimer(): () => number {
     const start = process.hrtime.bigint();
     return () => {
@@ -221,9 +189,6 @@ class PerformanceMonitor {
     };
   }
 
-  /**
-   * Flush buffered metrics to database
-   */
   async flush(): Promise<void> {
     if (this.metricsBuffer.length === 0) return;
 
@@ -258,18 +223,12 @@ class PerformanceMonitor {
     }
   }
 
-  /**
-   * Start periodic flush timer
-   */
   private startFlushTimer(): void {
     this.flushTimer = setInterval(() => {
       this.flush();
     }, this.FLUSH_INTERVAL);
   }
 
-  /**
-   * Stop the flush timer (for graceful shutdown)
-   */
   async shutdown(): Promise<void> {
     if (this.flushTimer) {
       clearInterval(this.flushTimer);
@@ -277,9 +236,6 @@ class PerformanceMonitor {
     await this.flush();
   }
 
-  /**
-   * Get metrics summary (for admin dashboard)
-   */
   async getMetricsSummary(): Promise<any> {
     try {
       const supabase = getSupabaseClient();
@@ -296,9 +252,6 @@ class PerformanceMonitor {
     }
   }
 
-  /**
-   * Get slow queries summary
-   */
   async getSlowQueriesSummary(): Promise<any> {
     try {
       const supabase = getSupabaseClient();
@@ -315,9 +268,6 @@ class PerformanceMonitor {
     }
   }
 
-  /**
-   * Get federation health status
-   */
   async getFederationHealth(): Promise<any> {
     try {
       const supabase = getSupabaseClient();
@@ -334,9 +284,6 @@ class PerformanceMonitor {
     }
   }
 
-  /**
-   * Get hourly metrics for dashboard charts
-   */
   async getHourlyMetrics(
     metricType: string,
     hours: number = 24
@@ -358,9 +305,6 @@ class PerformanceMonitor {
     }
   }
 
-  /**
-   * Trigger hourly aggregation (called by cron)
-   */
   async runHourlyAggregation(): Promise<number> {
     try {
       const supabase = getSupabaseClient();
@@ -375,9 +319,6 @@ class PerformanceMonitor {
     }
   }
 
-  /**
-   * Cleanup old metrics (called by cron)
-   */
   async runCleanup(
     rawRetentionDays: number = 7,
     hourlyRetentionDays: number = 90,
@@ -404,9 +345,6 @@ class PerformanceMonitor {
 // Singleton instance
 export const performanceMonitor = new PerformanceMonitor();
 
-/**
- * Express middleware for request latency tracking
- */
 export function performanceMiddleware() {
   return (req: any, res: any, next: any) => {
     const stopTimer = performanceMonitor.startTimer();

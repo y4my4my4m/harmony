@@ -1,11 +1,6 @@
 import { supabase } from '@/supabase'
 import { canonicalSquareSize } from '@/utils/imageTransformUtils'
 
-/**
- * Normalizes avatar URL to ensure consistent display across the application
- * Handles both full URLs and path-only formats
- * Always returns the proper public URL for Supabase storage paths with optimization
- */
 // Storage paths arrive in inconsistent shapes: already percent-encoded
 // (getPublicUrl double-encodes them -> 400) or with a trailing slash (-> 400).
 function cleanStoragePath(path: string): string {
@@ -29,7 +24,6 @@ export function getAvatarUrl(avatarUrl: string | null | undefined, size: number 
     return '/default_avatar.webp'
   }
 
-  // If it's already a full URL, check if it's a Supabase storage URL
   if (avatarUrl.startsWith('http://') || avatarUrl.startsWith('https://')) {
     let urlObj: URL
     try {
@@ -56,7 +50,6 @@ export function getAvatarUrl(avatarUrl: string | null | undefined, size: number 
       if (isRemote) {
         return avatarUrl
       }
-      // Local Supabase URL - extract path and use local storage transformation
       const { data } = supabase.storage
         .from('avatars')
         .getPublicUrl(cleanStoragePath(pathMatch[1]), {
@@ -64,11 +57,9 @@ export function getAvatarUrl(avatarUrl: string | null | undefined, size: number 
         })
       return data.publicUrl
     }
-    // External URLs (not Supabase storage) - return as-is
     return avatarUrl
   }
 
-  // If it's a Supabase storage path (contains user ID folder structure)
   if (avatarUrl.includes('/') && !avatarUrl.startsWith('/')) {
     const { data } = supabase.storage
       .from('avatars')
@@ -79,35 +70,27 @@ export function getAvatarUrl(avatarUrl: string | null | undefined, size: number 
     return data.publicUrl
   }
 
-  // If it's a local path (starts with /), return as-is
   if (avatarUrl.startsWith('/')) {
     return avatarUrl
   }
 
-  // If it's just a filename or doesn't match expected patterns, return default
   return '/default_avatar.webp'
 }
 
-/**
- * Normalizes avatar URL for storage - ensures we store paths, not full URLs
- * This should be used before saving avatar URLs to the database
- */
+// Ensures the DB stores paths, not full URLs.
 export function normalizeAvatarForStorage(avatarUrl: string | null | undefined): string | null {
   if (!avatarUrl) return null
-  
-  // If it's already a path (not a full URL), return as-is
+
   if (!avatarUrl.startsWith('http://') && !avatarUrl.startsWith('https://')) {
     return avatarUrl
   }
-  
-  // If it's a Supabase storage URL, extract the path
+
   if (avatarUrl.includes('/storage/v1/object/public/avatars/')) {
     const pathMatch = avatarUrl.match(/\/storage\/v1\/object\/public\/avatars\/(.+)$/)
     if (pathMatch) {
       return pathMatch[1]
     }
   }
-  
-  // External URL: stored as-is, full URL
+
   return avatarUrl
 }

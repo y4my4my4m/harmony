@@ -97,7 +97,6 @@ const emit = defineEmits<{
 }>()
 
 
-// Stores & Composables
 const dmStore = useDMStore()
 const authStore = useAuthStore()
 const { getCurrentUser, isUserOnline } = useUserData()
@@ -159,7 +158,6 @@ const startConversation = async (user: Profile) => {
     )
 
     if (existingConversation) {
-      // Navigate to existing conversation
       router.push(`/dm/${existingConversation.id}`)
       emit('conversationStarted', existingConversation.id)
       return

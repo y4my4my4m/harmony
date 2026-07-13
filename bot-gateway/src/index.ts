@@ -19,7 +19,6 @@ app.use(compression())
 app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ extended: true }))
 
-// Health check endpoint
 app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
@@ -43,17 +42,11 @@ eventDispatcher.start().catch(error => {
   process.exit(1)
 })
 
-// Bot API routes (authenticated)
 const botAPI = new BotRestAPI()
 app.use('/api/v1', botAPI.router)
 
-// USER-AUTHENTICATED ENDPOINTS
-//
-// These endpoints used to be public, which let any unauthenticated caller
-// enumerate connected bots (`/status`) and bridged Discord users for any
-// channel ID (`/bridged-users/:channelId` - see BUGS.md C4). They now require
-// a valid Supabase user JWT, and `/bridged-users` additionally checks that
-// the caller is a member of the channel's server.
+// Below endpoints require a valid Supabase user JWT (see BUGS.md C4);
+// `/bridged-users` additionally checks caller membership in the channel's server.
 
 /**
  * Validate a Supabase user JWT from the `Authorization: Bearer <token>` header.
@@ -78,7 +71,7 @@ async function getCallerProfileId(req: express.Request): Promise<string | null> 
   return profile.id as string
 }
 
-// Public bridge onboarding lookup - pairing codes only resolve non-secret metadata.
+// Pairing codes only resolve non-secret metadata; safe without auth.
 app.get('/bridge-setup/:pairingCode', async (req, res): Promise<void> => {
   const pairingCode = String(req.params.pairingCode ?? '').trim().toUpperCase()
   if (!/^HRM-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(pairingCode)) {
@@ -122,8 +115,6 @@ app.get('/bridge-setup/:pairingCode', async (req, res): Promise<void> => {
   })
 })
 
-// Gateway status - admin-style endpoint; require authentication so we don't leak
-// connected bot inventory to arbitrary callers.
 app.get('/status', async (req, res): Promise<void> => {
   const callerProfileId = await getCallerProfileId(req)
   if (!callerProfileId) {
@@ -141,9 +132,8 @@ app.get('/status', async (req, res): Promise<void> => {
   })
 })
 
-// Bridged users for Discord bridge - used by the Harmony frontend for mention
-// autosuggest. Requires the caller to be a member of the channel's server so
-// you can't enumerate Discord user lists for arbitrary channel IDs.
+// Used by mention autosuggest; requires channel-server membership to prevent
+// enumerating Discord user lists for arbitrary channel IDs.
 app.get('/bridged-users/:channelId', async (req, res): Promise<void> => {
   const callerProfileId = await getCallerProfileId(req)
   if (!callerProfileId) {
@@ -153,8 +143,7 @@ app.get('/bridged-users/:channelId', async (req, res): Promise<void> => {
 
   const { channelId } = req.params
 
-  // Resolve channel → server_id, then check the caller is in user_servers for
-  // that server. Service role bypasses RLS, so this is the authoritative check.
+  // Service role bypasses RLS, so this membership check is authoritative.
   const { data: channel } = await supabase
     .from('channels')
     .select('server_id')
@@ -227,11 +216,8 @@ app.get('/bridged-users/server/:serverId', async (req, res): Promise<void> => {
   })
 })
 
-// On-demand attachment refresh (bridge_attachment_mode = 'refresh'). When a
-// user views a bridged message whose external CDN URL has expired, the frontend
-// calls this; we forward a REFRESH_ATTACHMENTS request to the owning bot (the
-// bridge), which re-signs the URLs and silently patches the message. Deduped so
-// many simultaneous viewers don't fan out into many Discord API calls.
+// bridge_attachment_mode = 'refresh': forwards REFRESH_ATTACHMENTS to the owning bot
+// to re-sign expired Discord CDN URLs. Deduped to avoid fan-out from concurrent viewers.
 const refreshDedupe = new TTLCache<string, true>(5_000, 15_000)
 
 app.post('/attachments/refresh', async (req, res): Promise<void> => {
@@ -247,13 +233,11 @@ app.post('/attachments/refresh', async (req, res): Promise<void> => {
     return
   }
 
-  // Feature must be enabled by the instance admin.
   if ((await getBridgeAttachmentMode()) !== 'refresh') {
     res.json({ refreshing: false, reason: 'not_enabled' })
     return
   }
 
-  // Already kicked off a refresh for this message very recently - no-op.
   if (refreshDedupe.get(messageId)) {
     res.json({ refreshing: true, deduped: true })
     return
@@ -265,13 +249,11 @@ app.post('/attachments/refresh', async (req, res): Promise<void> => {
     .eq('id', messageId)
     .maybeSingle()
 
-  // Only bridged (bot-authored) messages with expirable Discord CDN parts qualify.
   if (!message?.bot_id || !message.channel_id || !hasDiscordCdnFilePart(message.content)) {
     res.json({ refreshing: false, reason: 'not_applicable' })
     return
   }
 
-  // Caller must be a member of the channel's server (same gate as bridged-users).
   const { data: channel } = await supabase
     .from('channels')
     .select('server_id')
@@ -311,7 +293,6 @@ app.post('/attachments/refresh', async (req, res): Promise<void> => {
   res.json({ refreshing: true })
 })
 
-// Error handling middleware
 app.use((err: any, req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error('Unhandled error:', err)
   res.status(500).json({
@@ -320,12 +301,10 @@ app.use((err: any, req: express.Request, res: express.Response, _next: express.N
   })
 })
 
-// 404 handler
 app.use((req, res) => {
   res.status(404).json({ error: 'Not found' })
 })
 
-// Graceful shutdown
 process.on('SIGTERM', shutdown)
 process.on('SIGINT', shutdown)
 
@@ -340,8 +319,7 @@ async function shutdown() {
     console.log('👋 Server shut down gracefully')
     process.exit(0)
   })
-  
-  // Force close after 10 seconds
+
   setTimeout(() => {
     console.error('⚠️ Forced shutdown after timeout')
     process.exit(1)
@@ -359,7 +337,6 @@ server.listen(PORT, () => {
   console.log('╚════════════════════════════════════════╝')
 })
 
-// Unhandled rejection handler
 process.on('unhandledRejection', (reason, promise) => {
   console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason)
 })

@@ -109,7 +109,6 @@ export async function handleGroupParticipantChangeJob(data: {
     published: new Date().toISOString(),
   };
 
-  // Deliver to each remote participant's inbox
   const deliveredDomains = new Set<string>();
   for (const remoteUser of remoteUsers) {
     const userDomain = remoteUser.domain;

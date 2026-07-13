@@ -508,7 +508,6 @@ import { useConfirmDialog } from '@/composables/useConfirmDialog'
 const toast = useToast()
 const { confirm } = useConfirmDialog()
 
-// Funding management data
 const fundingChanged = ref(false)
 const fundingEnabled = ref(false)
 const fundingShowInBar = ref(false)
@@ -524,7 +523,6 @@ const newLinkPlatform = ref('')
 const newLinkUrl = ref('')
 const newLinkLabel = ref('')
 
-// Ko-fi webhook config
 const kofiWebhookToken = ref('')
 const kofiAutoAssignTier = ref(true)
 const showKofiToken = ref(false)
@@ -539,7 +537,6 @@ const instanceDomain = computed(() =>
   (import.meta.env.VITE_DOMAIN as string | undefined) || 'your-domain'
 )
 
-// Pending donations (webhooks awaiting admin resolution)
 const pendingDonations = ref<PendingDonation[]>([])
 const pendingDonationCount = ref(0)
 const pendingResolveSearch = ref<Record<string, string>>({})
@@ -556,7 +553,6 @@ const newTierIcon = ref('⭐')
 const newTierColor = ref('#0EA5E9')
 const newTierRemovesAds = ref(false)
 
-// Tier editing
 const editingTierId = ref<string | null>(null)
 const editTierName = ref('')
 const editTierMinAmount = ref<number>(0)
@@ -569,7 +565,6 @@ const showEditTierEmojiPicker = ref(false)
 const newTierEmojiButtonRef = ref<HTMLElement | null>(null)
 const editTierEmojiButtonRef = ref<HTMLElement | null>(null)
 
-// Supporter CRUD
 const addSupporterSearch = ref('')
 const addSupporterSelectedUserId = ref<string | null>(null)
 const addSupporterTierId = ref('')
@@ -585,14 +580,12 @@ const editSupporterTierId = ref('')
 const editSupporterAmount = ref<number>(0)
 const editSupporterPlatform = ref('')
 
-// Record donation
 const recordDonationSupporter = ref<Supporter | null>(null)
 const recordDonationAmount = ref<number>(0)
 const recordDonationCurrency = ref('USD')
 const recordDonationPlatform = ref('')
 const recordDonationNote = ref('')
 
-// Donation editing
 const editingDonation = ref<DonationRecord | null>(null)
 const editDonationAmount = ref<number>(0)
 const editDonationCurrency = ref('USD')
@@ -605,7 +598,6 @@ watch(
   { deep: true }
 )
 
-// Funding management methods
 const loadFundingData = async () => {
   const config = await fundingService.getFundingConfig()
   if (config) {
@@ -764,7 +756,6 @@ const addTier = async () => {
   }
 }
 
-// Tier CRUD
 const startEditTier = (tier: SupporterTier) => {
   editingTierId.value = tier.id
   editTierName.value = tier.name
@@ -810,7 +801,6 @@ const deleteTier = async (tierId: string) => {
   }
 }
 
-// Supporter search & autocomplete
 const onSupporterSearchInput = () => {
   addSupporterSelectedUserId.value = null
   supporterSelectedIdx.value = 0
@@ -930,7 +920,6 @@ const onSupporterSearchBlur = () => {
   setTimeout(() => { supporterSearchFocused.value = false }, 150)
 }
 
-// Supporter CRUD
 const addNewSupporter = async () => {
   if (!addSupporterSearch.value) return
 
@@ -991,7 +980,6 @@ const removeSupporter = async (userId: string) => {
   }
 }
 
-// Donation CRUD
 const openRecordDonation = (supporter: Supporter) => {
   recordDonationSupporter.value = supporter
   recordDonationAmount.value = 0

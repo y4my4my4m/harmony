@@ -1,12 +1,10 @@
 <template>
   <div v-if="reactions.length > 0" class="post-reactions" data-testid="post-reactions">
     <TransitionGroup name="reaction-list" tag="div" class="reactions-container">
-      <!-- Loading state -->
       <div v-if="isLoadingReactions && reactions.length === 0" key="loading" class="reaction-loading">
         <LoadingSpinner :size="16" />
       </div>
-      
-      <!-- Reaction groups -->
+
       <div
         v-for="reaction in reactions"
         :key="(reaction.emoji_id || reaction.emoji_name || reaction.custom_emoji_content) ?? undefined"
@@ -118,7 +116,6 @@ const normalizeEmojiKey = (name: string | null | undefined): string => {
   return name.replace(/@[\w.-]+(?=:$)/, '');
 };
 
-// Use store-based reactions with safety checks, also include remote reactions from metadata
 const reactions = computed(() => {
   if (!props.post?.id) return [];
   
@@ -148,9 +145,7 @@ const reactions = computed(() => {
     };
   });
   
-  // Merge: local reactions take priority, add remote ones that don't exist locally.
-  // Normalize emoji keys so ":name@domain:" matches ":name:" and plain names
-  // match their shortcoded equivalents.
+  // Local reactions take priority; emoji keys normalized so ":name@domain:" matches ":name:".
   const mergedReactions = [...localReactions];
   for (const remote of remoteReactionGroups) {
     const remoteKey = normalizeEmojiKey(remote.emoji_name);
@@ -189,25 +184,20 @@ const currentUserId = computed(() =>
   profileStore.profileId
 );
 
-// REMOVED: Individual reaction loading - now handled by batch fetch from timeline
-
 const handleReactionClick = async (reaction: PostEmojiReaction) => {
   if (!currentUserId.value) {
     debug.warn('User not authenticated');
     return;
   }
   
-  // Safety check for reaction object
   if (!reaction || typeof reaction !== 'object') {
     debug.warn('Invalid reaction object:', reaction);
     return;
   }
   
   try {
-    // Haptic feedback on reaction
     triggerReaction();
-    
-    // Record emoji usage for frequently used emojis
+
     recordEmojiUsage({
       id: reaction.emoji_id || reaction.emoji_name || '',
       native: reaction.custom_emoji_content || undefined,
@@ -215,16 +205,13 @@ const handleReactionClick = async (reaction: PostEmojiReaction) => {
       url: reaction.emoji_url || undefined
     });
     
-    // Play audio feedback immediately for better UX
     try {
       await themeStore.playAudio('reaction');
     } catch (audioError) {
       debug.warn('Failed to play reaction audio:', audioError);
-      // Don't block the reaction if audio fails
     }
-    
-    // Use the store to toggle the reaction. Some fields can be null from the
-    // remote/legacy data shape; coerce to undefined to match the store API.
+
+    // Fields may be null from remote/legacy data shape; coerce to undefined for store API.
     const emoji = {
       id: reaction.emoji_id ?? undefined,
       native: reaction.custom_emoji_content ?? undefined,
@@ -247,7 +234,6 @@ const handleReactionClick = async (reaction: PostEmojiReaction) => {
     
   } catch (error) {
     debug.error('Failed to toggle reaction:', error);
-    // Play error sound if available
     try {
       await themeStore.playAudio('ui_error');
     } catch (audioError) {
@@ -306,15 +292,6 @@ onUnmounted(() => {
   postReactionsRealtime.unsubscribe(props.post.id);
 });
 
-// REMOVED: Individual loading on post change - batch fetch handles this
-// Reload reactions when post changes
-// watch(() => props.post.id, () => {
-//   if (props.post.id) {
-//     loadReactions();
-//   }
-// });
-
-// Expose methods for parent components (removed loadReactions since it's handled by batch fetch)
 defineExpose({
   handleEmojiSelected
 });

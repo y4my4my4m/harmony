@@ -633,7 +633,6 @@ const configChanged = ref(false)
 const instanceBrandingChanged = ref(false)
 const savingBranding = ref(false)
 const configTab = ref<'general' | 'federation' | 'branding' | 'oauth' | 'webrtc'>('general')
-// Instance configuration
 const instanceConfig = ref({
   name: 'Harmony Instance',
   domain: import.meta.env.VITE_DOMAIN as string,
@@ -654,7 +653,6 @@ const instanceBannerFile = ref<File | null>(null)
 // One rule per line in the editor; persisted as a jsonb string array
 const instanceRulesText = ref('')
 
-// OAuth provider configuration
 const oauthProviders = ref({
   google: false,
   twitch: false,
@@ -662,7 +660,6 @@ const oauthProviders = ref({
 })
 const oauthProvidersChanged = ref(false)
 const savingOAuthProviders = ref(false)
-// Configuration
 const config = ref({
   chat: {
     maxServerSize: 1000,

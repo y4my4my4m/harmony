@@ -425,5 +425,4 @@ class GlobalDMCallListenerService {
   }
 }
 
-// Singleton instance
 export const globalDMCallListener = new GlobalDMCallListenerService()

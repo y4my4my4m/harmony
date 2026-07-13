@@ -1,9 +1,4 @@
-/**
- * App Initialization Service
- * 
- * Handles initialization of all app-wide settings and features on startup
- * OPTIMIZED: Uses profile store to avoid redundant database queries
- */
+// Initializes app-wide settings/features on startup, using the profile store cache.
 
 import { useVisualTheme } from '@/composables/useVisualTheme'
 import { setLocale } from '@/i18n'
@@ -13,9 +8,6 @@ import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import { ensureEmojiDataLoaded } from '@/composables/useEmojiLoader'
 import { debug } from '@/utils/debug'
 
-/**
- * Initialize all app settings
- */
 export async function initializeAppSettings() {
   debug.log('Initializing app settings...')
   
@@ -42,10 +34,6 @@ export async function initializeAppSettings() {
   }
 }
 
-/**
- * Load user-specific settings from profile store
- * OPTIMIZED: Uses cached profile data instead of separate queries
- */
 async function loadUserSettings() {
   try {
     const profileStore = useProfileStore()
@@ -72,18 +60,12 @@ async function loadUserSettings() {
   }
 }
 
-/**
- * Apply default settings for new users or fallback
- */
 export async function applyDefaultSettings() {
   const visualTheme = useVisualTheme()
   visualTheme.resetToDefaults()
   await setLocale('en')
 }
 
-/**
- * Export user settings for backup
- */
 export async function exportUserSettings() {
   const visualTheme = useVisualTheme()
   const settings = visualTheme.currentSettings.value
@@ -95,9 +77,6 @@ export async function exportUserSettings() {
   }
 }
 
-/**
- * Import user settings from backup
- */
 export async function importUserSettings(settings: any) {
   try {
     const visualTheme = useVisualTheme()

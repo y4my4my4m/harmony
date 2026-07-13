@@ -12,7 +12,6 @@
         </div>
 
         <div class="modal-body">
-          <!-- Member selector (when no user pre-selected) -->
           <div v-if="needsMemberSelect && !selectedMember" class="form-group">
             <label for="member-search">Member</label>
             <div class="member-search-wrapper">
@@ -44,7 +43,6 @@
             </div>
           </div>
 
-          <!-- User preview (when user is known) -->
           <div v-if="targetUser" class="user-preview">
             <Avatar
               :src="targetUser.avatar_url"
@@ -181,7 +179,6 @@ function clearSelectedMember() {
 
 watch(() => props.show, async (visible) => {
   if (visible && needsMemberSelect.value && serverMembers.value.length === 0) {
-    // Try cached context first
     const contextUsers = userDataService.getUsersInContext(props.serverId);
     if (contextUsers.length > 0) {
       serverMembers.value = contextUsers.map(u => ({
@@ -191,7 +188,6 @@ watch(() => props.show, async (visible) => {
         avatar_url: u.avatarUrl
       }));
     } else {
-      // Fallback: fetch from DB
       const userIds = await getUserIdsForServer(props.serverId);
       if (userIds.length > 0) {
         const profiles = await getProfiles(userIds);

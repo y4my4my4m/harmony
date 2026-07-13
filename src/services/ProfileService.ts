@@ -517,14 +517,11 @@ export class ProfileService {
   }
 }
 
-// Singleton instance
 const profileServiceInstance = ProfileService.getInstance()
 
-// Export singleton as default and named export
 export const profileService = profileServiceInstance
 
-// Direct function exports for legacy compatibility
-// These proxy to the singleton instance methods
+// Legacy function exports proxying to the singleton instance
 export const updateUserStatus = profileServiceInstance.updateUserStatus.bind(profileServiceInstance)
 export const getProfile = profileServiceInstance.fetchProfile.bind(profileServiceInstance)
 export const getProfileWithAvatarUrl = profileServiceInstance.getProfileWithAvatarUrl.bind(profileServiceInstance)

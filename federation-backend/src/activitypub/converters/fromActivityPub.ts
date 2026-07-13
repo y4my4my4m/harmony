@@ -50,8 +50,7 @@ export function noteToContent(note: any): any[] {
   // This is common in outbox items where emoji definitions aren't in the tag array
   if (note.emojis && typeof note.emojis === 'object' && !Array.isArray(note.emojis)) {
     for (const [name, url] of Object.entries(note.emojis)) {
-      // Only add if not already in tags
-      const alreadyInTags = allTags.some(t => 
+      const alreadyInTags = allTags.some(t =>
         t.type === 'Emoji' && t.name?.replace(/:/g, '') === name
       );
       if (!alreadyInTags && url) {
@@ -90,15 +89,12 @@ export function noteToContent(note: any): any[] {
       position = cleanText.indexOf(searchText);
     }
     else if (tag.type === 'Mention') {
-      // Try different mention formats
       let username = tag.name || '';
       if (username.startsWith('@')) username = username.slice(1);
-      
-      // Try @username@domain first
+
       searchText = `@${username}`;
       position = cleanText.indexOf(searchText);
-      
-      // If not found, try just username
+
       if (position === -1) {
         searchText = username.split('@')[0];
         position = cleanText.indexOf(searchText);
@@ -243,21 +239,16 @@ function splitTextWithUrls(parts: any[], text: string): void {
   }
 }
 
-/**
- * Helper: Add media attachments to parts array
- */
 function addAttachments(parts: any[], attachments: any): void {
   if (attachments && Array.isArray(attachments)) {
     attachments.forEach((attachment: any) => {
       const mediaType = attachment.mediaType || '';
       const url = attachment.url || '';
       let fileType = 'file';
-      
-      // Check MIME type first
+
       if (mediaType.startsWith('image/')) fileType = 'image';
       else if (mediaType.startsWith('video/')) fileType = 'video';
       else if (mediaType.startsWith('audio/')) fileType = 'audio';
-      // Fallback to URL extension if MIME type not provided
       else if (url) {
         const ext = url.split('?')[0].split('.').pop()?.toLowerCase();
         if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'svg', 'bmp'].includes(ext || '')) {
@@ -273,9 +264,9 @@ function addAttachments(parts: any[], attachments: any): void {
         type: 'file',
         url: attachment.url,
         fileType: fileType,
-        mimeType: mediaType, // Store the full MIME type
+        mimeType: mediaType,
         fileName: attachment.name,
-        altText: attachment.name, // Alt text for accessibility
+        altText: attachment.name,
       };
       
       if (attachment.width) filePart.width = attachment.width;
@@ -440,9 +431,6 @@ export function actorToProfile(actor: any): {
   return profile;
 }
 
-/**
- * Extract data from Follow activity
- */
 export function extractFollowData(activity: any): {
   followerUrl: string;
   followingUrl: string;
@@ -455,9 +443,6 @@ export function extractFollowData(activity: any): {
   };
 }
 
-/**
- * Extract data from Like activity
- */
 export function extractLikeData(activity: any): {
   actorUrl: string;
   objectUrl: string;
@@ -487,9 +472,6 @@ export function extractLikeData(activity: any): {
   return data;
 }
 
-/**
- * Extract data from Announce activity (reblog/boost)
- */
 export function extractAnnounceData(activity: any): {
   actorUrl: string;
   objectUrl: string;
@@ -502,9 +484,6 @@ export function extractAnnounceData(activity: any): {
   };
 }
 
-/**
- * Extract data from Delete activity
- */
 export function extractDeleteData(activity: any): {
   actorUrl: string;
   objectUrl: string;
@@ -515,9 +494,6 @@ export function extractDeleteData(activity: any): {
   };
 }
 
-/**
- * Extract data from Update activity
- */
 export function extractUpdateData(activity: any): {
   actorUrl: string;
   object: any;

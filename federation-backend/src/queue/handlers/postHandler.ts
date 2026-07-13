@@ -13,9 +13,6 @@ import config from '../../config/index.js';
 import { logger } from '../../utils/logger.js';
 import type { FederationJobData } from '../BullMQManager.js';
 
-/**
- * Handle a post federation job
- */
 export async function handlePostJob(data: FederationJobData): Promise<void> {
   const supabase = getSupabaseClient();
   const { type, post_id, author_id } = data;
@@ -165,9 +162,6 @@ export async function handlePostJob(data: FederationJobData): Promise<void> {
   }
 }
 
-/**
- * Deliver post to mentioned users who might not be followers
- */
 async function deliverToMentionedUsers(
   post: any,
   activity: any,
@@ -202,9 +196,6 @@ async function deliverToMentionedUsers(
   }));
 }
 
-/**
- * Update federation status in database
- */
 async function updateFederationStatus(
   id: string,
   table: string,

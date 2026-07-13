@@ -4,7 +4,7 @@
       This bot bridges a Discord guild with a Harmony server. Each community runs its
       <strong>own</strong> Discord application (you keep the bot token). Set the Discord side up
       here, then wire it to a specific server under
-      <strong>Server Settings → Advanced → Discord Bridge</strong>.
+      <strong>Server Settings → Bots → Discord Bridge</strong>.
     </p>
 
     <!-- Harmony bot permissions -->
@@ -26,7 +26,7 @@
       </ul>
 
       <p class="hint">
-        Add this bot under <strong>Server Settings → Advanced → Server Bots</strong>
+        Add this bot under <strong>Server Settings → Bots</strong>
         with at least Read + Send Messages.
       </p>
     </div>

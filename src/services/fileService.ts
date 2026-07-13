@@ -29,7 +29,6 @@ async function handleFileDrop(userId: string, file: any) {
         const uniqueFileName = `${uuidv4()}.${file.name.split('.').pop()}`;
         const filePath = `${userId}/${uniqueFileName}`;
 
-        // Upload the file
         const { error } = await supabase.storage
         .from('user_media')
         .upload(filePath, file);
@@ -71,7 +70,6 @@ async function handleFileUploadWithProgress(
             }
         }, 200);
 
-        // Upload the file
         const { error } = await supabase.storage
             .from('user_media')
             .upload(filePath, file);
@@ -83,7 +81,6 @@ async function handleFileUploadWithProgress(
             throw error;
         }
 
-        // Complete the progress
         if (onProgress) onProgress(100);
 
         const { data } = await supabase.storage
@@ -98,7 +95,6 @@ async function handleFileUploadWithProgress(
     }
 }
 
-// Background upload manager
 class BackgroundUploadManager {
     private uploads = new Map<string, Promise<string | null>>();
     private callbacks = new Map<string, UploadProgressCallback>();

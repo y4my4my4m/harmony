@@ -43,7 +43,6 @@ export async function handleMessageReactionJob(data: FederationJobData): Promise
     await updateFederationStatus(reaction_id, 'reactions', 'processing');
 
     if (type === 'create') {
-      // Use existing handler
       await handleNewMessageReaction(reaction);
     } else if (type === 'delete') {
       await handleMessageReactionRemoval({

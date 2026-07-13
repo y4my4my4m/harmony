@@ -115,9 +115,6 @@ export async function actorOwnsMessage(
   return !!ownerUrl && SignatureService.verifyActorMatch(actorUrl, ownerUrl);
 }
 
-/**
- * Resolve a thread ID from an AP URL. Tries ap_id match first, then UUID extraction.
- */
 async function resolveThreadIdFromAp(supabase: any, threadApIdValue: string): Promise<string | null> {
   const { data: threadByApId } = await supabase
     .from('threads')
@@ -154,11 +151,6 @@ function normalizeMentionDomains(content: any[]): any[] {
   });
 }
 
-// MAIN HANDLER
-
-/**
- * Process activity sent to server inbox
- */
 export async function processServerInboxActivity(
   serverId: string,
   activity: any
@@ -300,9 +292,6 @@ export async function processServerInboxActivity(
 
 // JOIN / LEAVE HANDLERS
 
-/**
- * Process Join activity (remote user wants to join server)
- */
 async function processJoinServer(
   serverId: string,
   server: any,
@@ -438,9 +427,6 @@ async function processJoinServer(
   logger.info(`✅ Sent Accept to ${user.username}`);
 }
 
-/**
- * Process Leave activity (remote user leaving server)
- */
 async function processLeaveServer(
   serverId: string,
   server: any,
@@ -478,9 +464,6 @@ async function processLeaveServer(
   }
 }
 
-/**
- * Process Accept activity (remote server accepted our join request)
- */
 async function processAcceptActivity(
   serverId: string,
   activity: any
@@ -523,9 +506,6 @@ async function processAcceptActivity(
   }
 }
 
-/**
- * Process Reject activity (remote server rejected our join request)
- */
 async function processRejectActivity(
   serverId: string,
   activity: any
@@ -560,9 +540,6 @@ async function processRejectActivity(
 
 // MESSAGE HANDLERS
 
-/**
- * Process Create activity (message in server channel)
- */
 async function processCreateActivity(
   serverId: string,
   server: any,
@@ -985,9 +962,7 @@ async function processCreateActivity(
   }
 }
 
-/**
- * Process Update activity (message edit OR channel update)
- */
+// Handles both message edits and channel/category/server structural updates.
 async function processUpdateActivity(
   serverId: string,
   server: any,
@@ -1273,9 +1248,6 @@ async function processUpdateActivity(
   }
 }
 
-/**
- * Process Delete activity (message deletion)
- */
 async function processDeleteActivity(
   serverId: string,
   server: any,
@@ -1357,9 +1329,6 @@ async function processDeleteActivity(
   }
 }
 
-/**
- * Process Like/EmojiReaction activity
- */
 async function processReactionActivity(
   serverId: string,
   server: any,
@@ -1538,9 +1507,6 @@ async function processReactionActivity(
   }
 }
 
-/**
- * Process Add activity (channel or category creation)
- */
 async function processAddActivity(
   serverId: string,
   server: any,
@@ -1656,9 +1622,7 @@ async function processAddActivity(
   }
 }
 
-/**
- * Process Remove activity (kick from server OR channel deletion)
- */
+// Handles both channel/category deletion and member kicks.
 async function processRemoveActivity(
   serverId: string,
   server: any,
@@ -1744,9 +1708,6 @@ async function processRemoveActivity(
   logger.info(`👢 Kicked ${user.username} from server ${serverId}`);
 }
 
-/**
- * Process Undo activity
- */
 async function processUndoActivity(
   serverId: string,
   server: any,
@@ -1810,9 +1771,6 @@ async function processUndoActivity(
 
 // HELPER FUNCTIONS
 
-/**
- * Send Accept activity for a Join request
- */
 async function sendAcceptActivity(
   serverId: string,
   server: any,
@@ -1836,9 +1794,6 @@ async function sendAcceptActivity(
   await DeliveryQueue.sendToInbox(targetInbox, acceptActivity, server.owner);
 }
 
-/**
- * Send Reject activity for a Join request
- */
 async function sendRejectActivity(
   serverId: string,
   server: any,
@@ -1864,9 +1819,6 @@ async function sendRejectActivity(
   await DeliveryQueue.sendToInbox(targetInbox, rejectActivity, server.owner);
 }
 
-/**
- * Strip HTML tags from content
- */
 // eslint-disable-next-line unused-imports/no-unused-vars
 function stripHtml(html: string): string {
   const text = html

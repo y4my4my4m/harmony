@@ -961,11 +961,6 @@ class RoleService {
     }
   }
 
-  // Helper Methods
-
-  /**
-   * Get the highest role for a user (for display purposes)
-   */
   async getHighestRole(userId: string, serverId: string): Promise<ServerRole | null> {
     const roles = await this.getUserRoles(userId, serverId)
     return roles.length > 0 ? roles[0] : null

@@ -1,15 +1,6 @@
 import type { MessagePart, MentionContent } from '@/types';
 import { userDataService } from '@/services/userDataService';
 
-/**
- * Utility functions for migrating and validating mention data structures
- */
-
-/**
- * Migrates legacy mention format to new structured format
- * @param content MessagePart array that might contain legacy mentions
- * @returns Updated MessagePart array with structured mentions
- */
 export function migrateLegacyMentions(content: MessagePart[]): MessagePart[] {
   return content.map(part => {
     if (part.type === 'mention') {
@@ -39,11 +30,6 @@ export function migrateLegacyMentions(content: MessagePart[]): MessagePart[] {
   });
 }
 
-/**
- * Validates that a mention object has all required fields
- * @param mention MentionContent object to validate
- * @returns boolean indicating if the mention is valid
- */
 export function validateMentionStructure(mention: MentionContent): boolean {
   return !!(
     mention.type === 'mention' &&
@@ -54,12 +40,6 @@ export function validateMentionStructure(mention: MentionContent): boolean {
   );
 }
 
-/**
- * Creates a properly structured mention object from user data
- * @param userId User ID
- * @param userProfile User profile data (optional, will be fetched if not provided)
- * @returns MentionContent object or null if user not found
- */
 export function createMentionFromUser(userId: string, userProfile?: any): MentionContent | null {
   const profile = userProfile || userDataService.getUserProfile(userId);
   
@@ -76,11 +56,6 @@ export function createMentionFromUser(userId: string, userProfile?: any): Mentio
   };
 }
 
-/**
- * Formats mention for display based on local/remote status
- * @param mention MentionContent object
- * @returns Display string (@username or @username@domain)
- */
 export function formatMentionForDisplay(mention: MentionContent): string {
   if (mention.isLocal) {
     return `@${mention.username}`;
@@ -89,15 +64,9 @@ export function formatMentionForDisplay(mention: MentionContent): string {
   }
 }
 
-/**
- * Converts display format mention (@username or @username@domain) to structured mention
- * @param displayMention Display format mention string
- * @returns MentionContent object or null if user not found
- */
 export function parseDisplayMention(displayMention: string): MentionContent | null {
   const cleanMention = displayMention.startsWith('@') ? displayMention.slice(1) : displayMention;
-  
-  // Split by @ to get username and domain
+
   const parts = cleanMention.split('@');
   const username = parts[0];
   const domain = parts[1]; // undefined if local user

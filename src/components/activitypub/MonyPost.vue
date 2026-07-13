@@ -1,7 +1,5 @@
-<!-- MonyPost Component - Individual post display -->
 <template>
-  <!-- FIXED: Use v-show instead of v-if to prevent post disappearing on re-render -->
-  <!-- Also added fallback for missing author to prevent complete disappearance -->
+  <!-- v-show (not v-if) + author fallback avoids post disappearing on re-render -->
   <article class="mony-post" data-testid="post-item"
   v-show="post && (author || authorFallback)" :class="{ 'is-reply': post.reply_context, 'is-reblog': isPureReblog, 'is-pinned': showPinnedHeader && post.is_pinned }">
     
@@ -131,17 +129,15 @@
 
         <!-- Quote Post: Show user's comment first, then quoted content -->
         <div v-else-if="isQuotePost" class="quote-post-layout">
-          <!-- User's comment on the quote -->
           <div class="quote-comment">
-            <MonyContent 
+            <MonyContent
               :content="userQuoteContent" 
               @user-mention-click="handleMentionClick"
               @hashtag-click="handleHashtagClick"
               @image-click="handleImageClick"
             />
           </div>
-          
-          <!-- Quoted post content -->
+
           <div class="quoted-post">
             <div v-if="quotedAuthor" class="quoted-post-header">
               <Avatar
@@ -269,8 +265,7 @@
         </div>
       </div>
 
-      <!-- Post Reactions (Emoji Reactions) - Above action buttons -->
-      <!-- For reblogs, we need to show reactions for the ORIGINAL post -->
+      <!-- For reblogs, reactions target the ORIGINAL post -->
       <PostReactions
         ref="postReactionsRef"
         :post="displayPostForReactions"
@@ -278,7 +273,6 @@
         @hide-reaction-tooltip="handleHideReactionTooltip"
       />
 
-      <!-- Action Buttons -->
       <div class="post-actions">
         <button 
           class="action-button reply-button"
@@ -306,7 +300,6 @@
             <span v-if="displayInteractionCounts.reblogs_count > 0">{{ formatCount(displayInteractionCounts.reblogs_count) }}</span>
           </button>
           
-          <!-- Reblog dropdown menu -->
           <div v-if="showReblogMenu && canReblog" class="reblog-dropdown">
             <button 
               class="reblog-option"
@@ -516,7 +509,6 @@
     </div>
     </div>
 
-    <!-- Report Modal -->
     <ReportModal
       v-if="showReportModal"
       report-type="post"
@@ -527,10 +519,9 @@
       @close="showReportModal = false"
     />
 
-    <!-- Inline Reply Composer -->
-    <!-- For reblogs, reply to the ORIGINAL post (not the boost wrapper) so the
+    <!-- For reblogs, reply targets the ORIGINAL post (not the boost wrapper) so the
          mention targets the original author and threads under the original note. -->
-    <Composer 
+    <Composer
       v-if="showInlineReply"
       mode="inline"
       type="reply"
@@ -539,7 +530,6 @@
       @close="showInlineReply = false"
     />
 
-    <!-- Delete Confirmation Modal -->
     <ConfirmationModal
       :show="showDeleteConfirmation"
       title="Confirm Delete"
@@ -562,7 +552,6 @@
       />
     </Teleport>
 
-    <!-- Tooltip for reactions -->
     <div
       v-if="tooltip.visible"
       class="reaction-tooltip"
@@ -641,7 +630,6 @@ import { getOriginalPost } from '@/utils/postReblog';
 import { supabase } from '@/supabase';
 import type { TimelinePost, DisplayNamePart } from '@/types';
 
-// Components
 import MonyContent from './MonyContent.vue';
 import LinkEmbedCard from '@/components/embeds/LinkEmbedCard.vue';
 import { parseEmbedUrl, isYouTubeUrl } from '@/utils/embedDetection';
@@ -695,17 +683,14 @@ const emit = defineEmits<{
   'open-lightbox': [url: string];
 }>();
 
-// Stores and composables
 const { getCurrentUser, getUserProfile } = useUserData();
 const activityPubStore = useActivityPubStore();
 const notificationStore = useNotificationStore();
 const themeStore = useThemeStore();
 const toast = useToast();
 
-// Composables for clean interaction handling
 const { toggleFavorite, toggleReblog, toggleBookmark, togglePinPost } = usePostInteractions();
 
-// Local state (removed isToggling since composable handles loading)
 const showSensitiveContent = ref(false);
 const sensitiveRevealedForTouch = ref(false); // On mobile: first tap reveals blur, second tap opens lightbox
 const { isTouchOnly: isTouchDevice } = useViewport();
@@ -718,16 +703,13 @@ const showDeleteConfirmation = ref(false);
 const isDeleting = ref(false);
 const isRefetchingContent = ref(false);
 
-// Emoji picker state
 const emojiTriggerRef = ref<HTMLElement>();
 const postReactionsRef = ref<InstanceType<typeof PostReactions>>();
 const showEmojiPopup = ref(false);
 
-// Lightbox state
 const showLightbox = ref(false);
 const currentLightboxImage = ref<string>('');
 
-// Tooltip state for reaction tooltips
 const tooltip = ref({
   visible: false,
   content: [] as {
@@ -761,7 +743,7 @@ const author = computed(() => {
   return props.post.author;
 });
 
-// Fallback author for edge cases where author is temporarily unavailable
+// Fallback for edge cases where author is temporarily unavailable
 const authorFallback = computed(() => {
   if (author.value) return null;
   return {
@@ -774,7 +756,6 @@ const authorFallback = computed(() => {
   };
 });
 
-// Use the actual author if available, otherwise use fallback
 const displayAuthorSafe = computed(() => {
   return author.value || authorFallback.value;
 });
@@ -790,12 +771,10 @@ const instanceDomain = computed(() => {
   return domain || import.meta.env.VITE_DOMAIN as string;
 });
 
-// Remote post detection (for fetching reactions)
 const isRemotePost = computed<boolean>(() => {
   return !props.post.is_local && !!props.post.ap_id;
 });
 
-// Remote post sync (reactions/replies) via composable
 const {
   isFetchingReactions,
   isFetchingReplies,
@@ -838,9 +817,7 @@ const {
   }
 );
 
-// Reblog-related computed properties
 const isReblog = computed(() => {
-  // Check for hydrated reblog data OR metadata reference
   return !!(
     (props.post.reblog && props.post.reblog_author) ||
     props.post.metadata?.is_reblog ||
@@ -869,7 +846,6 @@ const isQuotePost = computed(() => {
   const content = props.post.content;
   const reblogContent = props.post.reblog?.content;
   
-  // If no content, it's a pure reblog
   if (!content || !Array.isArray(content) || content.length === 0) {
     return false;
   }
@@ -880,8 +856,7 @@ const isQuotePost = computed(() => {
   
   if (!hasUserContent) return false;
   
-  // Additional check: if content is identical to reblog content, it's a pure reblog
-  // (This catches cases where content was incorrectly duplicated)
+  // Identical content to reblog content means pure reblog, not quote
   if (reblogContent && Array.isArray(reblogContent)) {
     const contentText = content
       .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
@@ -892,7 +867,6 @@ const isQuotePost = computed(() => {
       .map(p => p.text.trim())
       .join(' ');
     
-    // If the content is the same as the reblogged content, it's NOT a quote
     if (contentText === reblogText) {
       return false;
     }
@@ -966,7 +940,7 @@ const isEdited = computed(() => {
   return updated - created > 2000;
 });
 
-// For quote posts, we show both the user's content AND the quoted content
+// Quote posts show both user content and the quoted content
 const userQuoteContent = computed(() => {
   return isQuotePost.value ? props.post.content : null;
 });
@@ -1090,15 +1064,12 @@ const loadedReplyContext = ref<any>(null);
 const isLoadingReplyContext = ref(false);
 
 const displayReplyContext = computed(() => {
-  // For pure reblogs, check the reblogged post's reply context
   if (isPureReblog.value && props.post.reblog?.reply_context) {
     return props.post.reblog.reply_context;
   }
-  // First check if we have reply_context in the post itself
   if (props.post.reply_context) {
     return props.post.reply_context;
   }
-  // Use dynamically loaded context if available
   if (loadedReplyContext.value) {
     return loadedReplyContext.value;
   }
@@ -1110,7 +1081,6 @@ const showReplyContextCard = computed(() => {
 });
 
 const loadReplyContext = async () => {
-  // For pure reblogs, use the reblogged post's in_reply_to
   const inReplyTo = isPureReblog.value
     ? props.post.reblog?.in_reply_to
     : props.post.in_reply_to;
@@ -1213,19 +1183,17 @@ const loadOriginalPostInteractions = async () => {
 };
 
 onMounted(() => {
-  // Check for reply context in post or reblog
   const inReplyTo = isPureReblog.value
     ? props.post.reblog?.in_reply_to
     : props.post.in_reply_to;
   const hasReplyContext = isPureReblog.value
     ? props.post.reblog?.reply_context
     : props.post.reply_context;
-    
+
   if (inReplyTo && !hasReplyContext) {
     loadReplyContext();
   }
 
-  // For pure reblogs, fetch the user's interaction state with the original post
   if (isPureReblog.value) {
     loadOriginalPostInteractions();
   }
@@ -1241,17 +1209,12 @@ const originalPostId = computed(() => {
   return props.post.id;
 });
 
-// The post that "Reply" should address. For *pure* reblogs we hand the
-// original post to the Composer so the mention targets the original author
-// and the reply is threaded under the original note (Mastodon/Pleroma/Misskey
-// behavior). For quote posts and regular posts, the reply targets the post
-// itself - quote posts are first-class user posts whose replies belong on
-// them, not on the post they quote. The shared util encodes this rule so
-// every reply call site agrees.
+// Reply target: pure reblogs target the original post (Mastodon/Pleroma/Misskey
+// behavior); quote posts and regular posts target themselves. getOriginalPost
+// encodes this rule so every reply call site agrees.
 const replyTarget = computed<TimelinePost>(() => getOriginalPost(props.post));
 
-// Reblogs: reactions belong to the ORIGINAL post
-// Create a post-like object with the correct ID for PostReactions component
+// Reblogs: reactions belong to the ORIGINAL post; build a post-like object with its id
 const displayPostForReactions = computed((): TimelinePost => {
   if (isPureReblog.value && props.post.reblog?.id) {
     return {
@@ -1325,7 +1288,6 @@ const isCurrentUserAdminOrMod = computed(() => {
   return profile?.is_admin || profile?.is_moderator || false;
 });
 
-// Report
 const showReportModal = ref(false);
 const postTextPreview = computed(() => {
   const content = props.post.content;
@@ -1367,7 +1329,7 @@ const visibilityTitle = computed(() => {
   }
 });
 
-// Check if post can be reblogged (Mastodon behavior: only public/unlisted posts can be reblogged)
+// Mastodon behavior: only public/unlisted posts can be reblogged
 const canReblog = computed(() => {
   const originalVisibility = props.post.reblog?.visibility || props.post.visibility;
   return originalVisibility === 'public' || originalVisibility === 'unlisted';
@@ -1410,7 +1372,6 @@ const formatCount = (count: number) => {
 
 const onReply = () => {
   showInlineReply.value = !showInlineReply.value;
-  // Don't emit to parent - we handle replies inline now
 };
 
 const handleReplySent = (reply: any) => {
@@ -1418,9 +1379,8 @@ const handleReplySent = (reply: any) => {
   showInlineReply.value = false;
   // Bump reply count optimistically (displayInteractionCounts reads the override).
   repliesCountOverride.value = displayInteractionCounts.value.replies_count + 1;
-  // Notify containers (e.g. PostView thread) so they can append the reply
-  // without waiting for a reload. We thread under the *original* post id so
-  // reblog wrappers attribute the reply to the correct note.
+  // Notify containers (e.g. PostView thread) to append reply without reload;
+  // threads under the original post id so reblog wrappers attribute correctly.
   if (reply) {
     emit('reply-created', reply as TimelinePost, replyTarget.value.id);
   }
@@ -1448,15 +1408,12 @@ const handleEmojiSelected = async (emoji: any) => {
   }
   
   try {
-    // Play audio feedback immediately for better UX
     try {
       await themeStore.playAudio('reaction');
     } catch (audioError) {
       debug.warn('Failed to play reaction audio:', audioError);
-      // Don't block the reaction if audio fails
     }
-    
-    // Use the PostReactions composable instead of direct Supabase calls
+
     if (postReactionsRef.value?.handleEmojiSelected) {
       const success = await postReactionsRef.value.handleEmojiSelected(emoji);
       if (success) {
@@ -1464,7 +1421,6 @@ const handleEmojiSelected = async (emoji: any) => {
         closeEmojiPopup();
       }
     } else {
-      // Fallback to direct API call
       // Check if emoji.id is a valid UUID (server custom emoji) or native unicode
       const isUuid = emoji.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(emoji.id);
       const emojiId = isUuid ? emoji.id : null;
@@ -1479,7 +1435,6 @@ const handleEmojiSelected = async (emoji: any) => {
 
       if (error) {
         debug.error('Failed to add emoji reaction:', error);
-        // Play error sound if available
         try {
           await themeStore.playAudio('ui_error');
         } catch (audioError) {
@@ -1495,7 +1450,6 @@ const handleEmojiSelected = async (emoji: any) => {
     }
   } catch (error) {
     debug.error('Error adding emoji reaction:', error);
-    // Play error sound if available
     try {
       await themeStore.playAudio('ui_error');
     } catch (audioError) {
@@ -1529,35 +1483,27 @@ const formatRemoteHandle = (username: string | undefined, domain: string | undef
   return d ? `@${username}@${d}` : `@${username}`;
 };
 
-/**
- * Render a display name with custom emojis as HTML
- * Replaces :emoji: patterns with <img> tags
- */
+// Replaces :emoji: patterns (incl. :emoji@domain:, :emoji@.:, zero-width-space wrapped) with <img> tags.
 // eslint-disable-next-line unused-imports/no-unused-vars
 const renderDisplayNameWithEmojis = (displayName: string, emojis?: Array<{name: string, url: string}>): string => {
   if (!displayName) return '';
   if (!emojis || emojis.length === 0) return escapeHtml(displayName);
-  
+
   const emojiMap = new Map<string, string>();
   for (const e of emojis) {
     if (!e.name || !e.url) continue;
     emojiMap.set(e.name, e.url);
-    // Also store without colons if present
     const cleanName = e.name.replace(/^:|:$/g, '');
     emojiMap.set(cleanName, e.url);
-    // Also store without @domain suffix
     const nameWithoutDomain = cleanName.replace(/@[^@]*$/, '');
     emojiMap.set(nameWithoutDomain, e.url);
   }
-  
-  // Replace :emoji: patterns with img tags
-  // Handle: :emoji:, :emoji@domain:, :emoji@.:, and zero-width space wrapped
+
   let result = displayName;
   const emojiRegex = /\u200b?:([a-zA-Z0-9_]+(?:@[a-zA-Z0-9._-]*)?):?\u200b?/g;
-  
+
   result = result.replace(emojiRegex, (match, name) => {
-    // Try different name formats to find a match
-    const cleanName = name.replace(/@[^@]*$/, ''); // Remove @domain
+    const cleanName = name.replace(/@[^@]*$/, '');
     const url = emojiMap.get(name) || emojiMap.get(cleanName);
     if (url) {
       const alt = escapeHtml(cleanName);
@@ -1569,7 +1515,6 @@ const renderDisplayNameWithEmojis = (displayName: string, emojis?: Array<{name: 
   return result;
 };
 
-// Simple HTML escape helper
 const escapeHtml = (text: string): string => {
   const div = document.createElement('div');
   div.textContent = text;
@@ -1578,16 +1523,14 @@ const escapeHtml = (text: string): string => {
 
 const handleShowReactionTooltip = (event: MouseEvent, reaction: any) => {
   if (tooltipTimer.value) clearTimeout(tooltipTimer.value);
-  
-  // Debug: log reaction data
+
   debug.log('Reaction tooltip data:', {
     emoji_name: reaction.emoji_name,
     reactors: reaction.reactors,
     user_reactions: reaction.user_reactions,
     full_reaction: reaction
   });
-  
-  // Transform local user_reactions to the format needed for tooltip
+
   const localUsers = (reaction.user_reactions || []).map((ur: any) => ({
     id: ur.user_id,
     displayName: ur.display_name || ur.username || 'Unknown User',
@@ -1624,12 +1567,10 @@ const handleShowReactionTooltip = (event: MouseEvent, reaction: any) => {
     };
   });
   
-  // Combine local and remote users
   const usersDetails = [...localUsers, ...remoteUsers];
-  
+
   const anchor = getReactionTooltipAnchor(event);
 
-  // Show tooltip after a delay
   tooltipTimer.value = setTimeout(() => {
     tooltip.value = { 
       visible: true, 
@@ -1744,9 +1685,6 @@ const onBlockAuthor = async () => {
   }
 };
 
-/**
- * Handle undo reblog action - removes the reblog post and updates state
- */
 const onUndoReblog = async () => {
   closeMenu();
   
@@ -1754,7 +1692,6 @@ const onUndoReblog = async () => {
     const originalPostId = props.post.reblog?.id || props.post.metadata?.reblog_of;
     
     if (originalPostId) {
-      // Use toggleReblog which handles the undo
       await toggleReblog(originalPostId);
       
       notificationStore.showToast(
@@ -1775,9 +1712,6 @@ const onUndoReblog = async () => {
   }
 };
 
-/**
- * Handle confirmed delete action - professional with feedback
- */
 const handleDeleteConfirm = async () => {
   if (isDeleting.value) return;
   
@@ -1810,9 +1744,6 @@ const handleDeleteConfirm = async () => {
   }
 };
 
-/**
- * Handle delete confirmation cancel
- */
 const handleDeleteCancel = () => {
   showDeleteConfirmation.value = false;
 };
@@ -1828,15 +1759,11 @@ const showReplyTarget = async () => {
         await router.push(navigationData.route);
       } else {
         debug.error('Failed to get conversation navigation data:', navigationData.error);
-        
-        // Use fallback route
         await router.push(navigationData.fallbackRoute);
       }
-      
+
     } catch (error) {
       debug.error('Failed to navigate to conversation:', error);
-      
-      // Fallback: emit the event as before
       emit('show-conversation', props.post.id);
     }
   } else {
@@ -1944,9 +1871,7 @@ const handleToggleFavorite = async () => {
   }
 }
 
-// Reblog menu handlers
 const handleReblogClick = async () => {
-  // If already reblogged, undo the reblog directly
   if (displayInteractionCounts.value.is_reblogged) {
     const postId = originalPostId.value;
     if (!postId) return;
@@ -1954,7 +1879,6 @@ const handleReblogClick = async () => {
     return;
   }
 
-  // Otherwise show the menu with options
   showReblogMenu.value = !showReblogMenu.value;
 };
 

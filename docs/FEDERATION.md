@@ -1,8 +1,6 @@
 # Federation Documentation
 
-## Overview
-
-Harmony implements ActivityPub federation, enabling cross-platform communication with other federated platforms like Mastodon, Pleroma, and other ActivityPub-compatible services. This document covers the federation architecture, implementation details, and developer guidelines.
+Harmony implements ActivityPub federation, enabling cross-platform communication with other federated platforms like Mastodon, Pleroma, and other ActivityPub-compatible services.
 
 ## ActivityPub Implementation
 

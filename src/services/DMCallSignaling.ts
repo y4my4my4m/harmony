@@ -103,7 +103,6 @@ class DMCallSignalingService {
   private readonly RING_WATCHDOG_MS = 45000
   private readonly EMPTY_CALL_GRACE_MS = 5000
 
-  // CHANNEL LIFECYCLE
   // One channel per conversation, shared by signal listeners (DMHeader) and
   // presence tracking (while in the call). Released when neither needs it.
 
@@ -180,9 +179,6 @@ class DMCallSignalingService {
     }
   }
 
-  /**
-   * Subscribe to call signals for a conversation
-   */
   subscribeToConversation(conversationId: string, onSignal: (signal: CallSignal) => void): () => void {
     if (!this.listeners.has(conversationId)) {
       this.listeners.set(conversationId, new Set())
@@ -204,8 +200,6 @@ class DMCallSignalingService {
       }
     }
   }
-
-  // PRESENCE
 
   /**
    * Announce ourselves as an active call participant. Called when the voice
@@ -438,9 +432,6 @@ class DMCallSignalingService {
     }
   }
   
-  /**
-   * Send signal to a specific user's channel
-   */
   private async sendSignalToUser(userId: string, signal: CallSignal): Promise<void> {
     const channelName = `dm-calls:${userId}`
     debug.log(`Sending call signal to user ${userId} on channel ${channelName}`)
@@ -505,9 +496,6 @@ class DMCallSignalingService {
     }
   }
 
-  /**
-   * Accept a call
-   */
   async acceptCall(
     conversationId: string,
     userId: string
@@ -545,9 +533,6 @@ class DMCallSignalingService {
     debug.log('Accept signal sent on conversation channel:', conversationId)
   }
 
-  /**
-   * Decline a call
-   */
   async declineCall(
     conversationId: string,
     userId: string,
@@ -573,9 +558,6 @@ class DMCallSignalingService {
     this.deleteActiveCall(conversationId)
   }
 
-  /**
-   * End a call
-   */
   async endCall(
     conversationId: string,
     userId: string
@@ -606,9 +588,6 @@ class DMCallSignalingService {
     await this.sendSignal(conversationId, signal)
   }
 
-  /**
-   * Join an ongoing call (for group DMs)
-   */
   async joinCall(
     conversationId: string,
     userId: string
@@ -707,23 +686,14 @@ class DMCallSignalingService {
     await this.sendSignal(conversationId, signal)
   }
 
-  /**
-   * Get active call for conversation (exposed for timeout clearing)
-   */
   getActiveCall(conversationId: string): ActiveCall | undefined {
     return this.activeCalls.get(conversationId)
   }
 
-  /**
-   * Check if there's an active call
-   */
   hasActiveCall(conversationId: string): boolean {
     return this.activeCalls.has(conversationId)
   }
 
-  /**
-   * Get participants in call
-   */
   getCallParticipants(conversationId: string): string[] {
     return this.activeCalls.get(conversationId)?.participants || []
   }
@@ -868,8 +838,6 @@ class DMCallSignalingService {
     }
   }
 
-  // FEDERATED CALL METHODS
-
   /**
    * Initiate a federated call (to a user on a remote instance)
    * Uses ActivityPub voice extensions instead of Supabase Realtime
@@ -979,9 +947,6 @@ class DMCallSignalingService {
     }
   }
 
-  /**
-   * Accept a federated call
-   */
   async acceptFederatedCall(
     conversationId: string,
     userId: string,
@@ -1036,9 +1001,6 @@ class DMCallSignalingService {
     }
   }
 
-  /**
-   * Decline a federated call
-   */
   async declineFederatedCall(
     conversationId: string,
     userId: string,
@@ -1073,9 +1035,6 @@ class DMCallSignalingService {
     }
   }
 
-  /**
-   * End a federated call
-   */
   async endFederatedCall(
     conversationId: string,
     _userId: string
@@ -1111,9 +1070,6 @@ class DMCallSignalingService {
     }
   }
 
-  /**
-   * Handle federated call timeout
-   */
   private handleFederatedCallTimeout(conversationId: string, callerId: string): void {
     debug.log('⏰ [Federated] Call timeout for:', conversationId)
     
@@ -1139,10 +1095,7 @@ class DMCallSignalingService {
     }
   }
 
-  /**
-   * Subscribe to incoming federated calls (via Supabase Realtime)
-   * The federation backend broadcasts to this channel
-   */
+  // The federation backend broadcasts to this channel via Supabase Realtime.
   subscribeToFederatedCalls(userId: string, onIncomingCall: (callInfo: {
     callId: string
     callerId: string
@@ -1188,16 +1141,10 @@ class DMCallSignalingService {
     }
   }
 
-  /**
-   * Check if a call is federated
-   */
   isFederatedCall(conversationId: string): boolean {
     return this.activeCalls.get(conversationId)?.isFederated ?? false
   }
 
-  /**
-   * Cleanup all channels
-   */
   cleanup(): void {
     this.activeCalls.forEach(call => {
       if (call.timeoutTimer) {
@@ -1218,6 +1165,5 @@ class DMCallSignalingService {
   }
 }
 
-// Singleton instance
 export const dmCallSignaling = new DMCallSignalingService()
 

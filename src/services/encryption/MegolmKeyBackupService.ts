@@ -105,8 +105,6 @@ export class MegolmKeyBackupService {
     return MegolmKeyBackupService.instance
   }
 
-  // INITIALIZATION
-
   async initialize(userId: string): Promise<void> {
     if (this.userId && this.userId !== userId) {
       this.cleanup()
@@ -602,17 +600,12 @@ export class MegolmKeyBackupService {
     return () => this.keyReceivedCallbacks.delete(callback)
   }
 
-  /**
-   * Clean up subscriptions
-   */
   cleanup(): void {
     for (const unsub of this.broadcastUnsubs) unsub()
     this.broadcastUnsubs = []
     this.keyReceivedCallbacks.clear()
     this.pendingRequests.clear()
   }
-
-  // BACKUP OPERATIONS
 
   /**
    * Create or update the encrypted backup on server
@@ -775,9 +768,6 @@ export class MegolmKeyBackupService {
     }
   }
 
-  /**
-   * Check if a backup exists for the user
-   */
   async hasBackup(): Promise<boolean> {
     if (!this.userId) return false
 
@@ -809,9 +799,6 @@ export class MegolmKeyBackupService {
     return data as BackupMetadata
   }
 
-  /**
-   * Delete the backup
-   */
   async deleteBackup(): Promise<void> {
     if (!this.userId) return
 
@@ -827,8 +814,6 @@ export class MegolmKeyBackupService {
 
     debug.log('Backup deleted')
   }
-
-  // AUTO-BACKUP
 
   /**
    * Enable/disable automatic backup after session changes
@@ -858,8 +843,6 @@ export class MegolmKeyBackupService {
       })
     }, this.AUTO_BACKUP_DEBOUNCE_MS)
   }
-
-  // CROSS-DEVICE KEY SHARING (with Realtime)
 
   /**
    * Request a session key from the sender
@@ -944,9 +927,6 @@ export class MegolmKeyBackupService {
     return requestId
   }
 
-  /**
-   * Check for pending key requests we've made
-   */
   async getMyPendingRequests(): Promise<KeyRequest[]> {
     if (!this.userId) return []
 
@@ -965,9 +945,6 @@ export class MegolmKeyBackupService {
     return (data || []) as KeyRequest[]
   }
 
-  /**
-   * Check for requests others have made to me
-   */
   async getRequestsToMe(): Promise<KeyRequest[]> {
     if (!this.userId) return []
 
@@ -1101,9 +1078,6 @@ export class MegolmKeyBackupService {
     return importedIds.length
   }
 
-  /**
-   * Cancel a pending key request
-   */
   async cancelKeyRequest(requestId: string): Promise<void> {
     const { error } = await supabase
       .from('megolm_key_requests')
@@ -1123,9 +1097,6 @@ export class MegolmKeyBackupService {
     }
   }
 
-  /**
-   * Check if a key request has been fulfilled
-   */
   async checkKeyRequestStatus(requestId: string): Promise<{
     status: 'pending' | 'fulfilled' | 'expired' | 'cancelled'
     encryptedKey?: string
@@ -1188,11 +1159,6 @@ export class MegolmKeyBackupService {
     debug.log(`Fulfilled key request ${requestId}`)
   }
 
-  // UTILITY METHODS
-
-  /**
-   * Calculate SHA-256 hash of data
-   */
   private async calculateHash(data: string): Promise<string> {
     const encoder = new TextEncoder()
     const dataBytes = encoder.encode(data)
@@ -1224,9 +1190,6 @@ export class MegolmKeyBackupService {
     return await recoveryKeyService.encryptForBackup(json)
   }
 
-  /**
-   * Import backup from local file
-   */
   async importFromFile(encryptedData: string): Promise<{
     outboundCount: number
     inboundCount: number

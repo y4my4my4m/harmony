@@ -25,10 +25,6 @@ export interface CallPermissionCheck {
 }
 
 class DMCallPermissionService {
-  /**
-   * Check if user can receive calls (comprehensive check)
-   * Now fully enabled with proper RLS policies on user_blocks table
-   */
   async canReceiveCall(
     callerId: string,
     receiverId: string,
@@ -127,9 +123,6 @@ class DMCallPermissionService {
     }
   }
 
-  /**
-   * Check if user A has blocked user B
-   */
   private async isUserBlocked(blockerId: string, blockedUserId: string): Promise<boolean> {
     try {
       const { data, error } = await supabase
@@ -153,9 +146,6 @@ class DMCallPermissionService {
     }
   }
 
-  /**
-   * Check if user is in Do Not Disturb mode (Busy status)
-   */
   private async isUserInDND(userId: string): Promise<boolean> {
     const userData = userDataService.getUser(userId)
     
@@ -178,9 +168,6 @@ class DMCallPermissionService {
     return userData.status === UserStatus.Busy
   }
 
-  /**
-   * Check if user is already in a call
-   */
   private async isUserBusy(userId: string): Promise<boolean> {
     try {
       const { data, error } = await supabase
@@ -196,9 +183,6 @@ class DMCallPermissionService {
     }
   }
 
-  /**
-   * Check if conversation is muted by user
-   */
   private async isConversationMuted(userId: string, conversationId: string): Promise<boolean> {
     try {
       const { data, error } = await supabase
@@ -215,9 +199,6 @@ class DMCallPermissionService {
     }
   }
 
-  /**
-   * Check if user has call notifications enabled
-   */
   private async areCallNotificationsEnabled(userId: string): Promise<boolean> {
     try {
       const { data, error } = await supabase
@@ -238,9 +219,6 @@ class DMCallPermissionService {
     }
   }
 
-  /**
-   * Get friendly decline reason message for caller
-   */
   getDeclineReasonMessage(reason?: string): string {
     switch (reason) {
       case 'blocked':
@@ -261,6 +239,5 @@ class DMCallPermissionService {
   }
 }
 
-// Singleton instance
 export const dmCallPermissions = new DMCallPermissionService()
 

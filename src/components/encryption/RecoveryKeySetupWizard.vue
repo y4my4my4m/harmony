@@ -249,12 +249,10 @@ const toast = useToast()
 // eslint-disable-next-line unused-imports/no-unused-vars
 const emit = defineEmits(['close', 'complete'])
 
-// Wizard state
 const currentStep = ref(0)
 const isProcessing = ref(false)
 const isGenerating = ref(false)
 
-// Recovery key state
 const recoveryWords = ref<string[]>([])
 const verificationCode = ref('')
 
@@ -281,16 +279,13 @@ const toggleQRCode = async () => {
   showQRCode.value = true
 }
 
-// Verification state
 const verifyPositions = ref<number[]>([])
 const verifyInputs = ref<Record<number, string>>({})
 const verificationError = ref('')
 const isVerified = ref(false)
 
-// Steps
 const steps = ['Introduction', 'Recovery Key', 'Verify', 'Complete']
 
-// Can proceed to next step?
 const canProceed = computed(() => {
   switch (currentStep.value) {
     case 0:
@@ -330,7 +325,6 @@ function checkVerification() {
   isVerified.value = allCorrect
 }
 
-// Copy recovery key to clipboard
 async function copyRecoveryKey() {
   try {
     const text = recoveryWords.value.join(' ')
@@ -341,7 +335,6 @@ async function copyRecoveryKey() {
   }
 }
 
-// Download recovery key as file
 function downloadRecoveryKey() {
   const text = `Harmony Recovery Key
 ====================
@@ -367,7 +360,6 @@ Anyone with these words can access your encrypted messages.
   toast.success('Recovery key downloaded')
 }
 
-// Navigate steps
 async function nextStep() {
   if (!canProceed.value) return
 
@@ -410,7 +402,6 @@ async function generateRecoveryKey() {
   }
 }
 
-// Complete the setup
 async function completeSetup() {
   if (!isVerified.value) {
     verificationError.value = 'Please verify all words correctly'
@@ -431,8 +422,7 @@ async function completeSetup() {
 
     await megolmMessageEncryptionService.initialize(user.id)
 
-    // Complete setup with the words we've already generated
-    // This does everything: initializes Megolm, creates identity key, registers metadata, creates backup
+    // Initializes Megolm, creates identity key, registers metadata, creates backup
     await megolmMessageEncryptionService.completeSetupWithWords(recoveryWords.value)
 
     currentStep.value = 3

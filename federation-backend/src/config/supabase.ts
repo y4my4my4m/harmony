@@ -4,9 +4,6 @@ import { logger } from '../utils/logger.js';
 
 let supabaseInstance: SupabaseClient | null = null;
 
-/**
- * Get Supabase client instance (singleton)
- */
 export const getSupabaseClient = (): SupabaseClient => {
   if (!supabaseInstance) {
     const realtimeConfig: any = {
@@ -40,9 +37,6 @@ export const getSupabaseClient = (): SupabaseClient => {
   return supabaseInstance;
 };
 
-/**
- * Get Supabase client with user context (for RLS)
- */
 export const getSupabaseClientWithAuth = (accessToken: string): SupabaseClient => {
   return createClient(
     config.SUPABASE_URL,

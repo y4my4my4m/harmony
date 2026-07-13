@@ -28,7 +28,6 @@ export function extractMessageId(url: string): string | null {
 
 /**
  * Determine post visibility from ActivityPub 'to' and 'cc' fields.
- * Exported for direct testing.
  */
 export function determineVisibility(object: any): string {
   const to = Array.isArray(object.to) ? object.to : [object.to].filter(Boolean);
@@ -112,9 +111,6 @@ export class ActivityProcessor {
    */
   private static readonly MAX_REPLY_CHAIN_DEPTH = 10;
 
-  /**
-   * Check if an actor is suspended on our instance
-   */
   private static async isActorSuspended(actorUrl: string): Promise<boolean> {
     const supabase = getSupabaseClient();
     const { data } = await supabase
@@ -126,9 +122,6 @@ export class ActivityProcessor {
     return data?.is_suspended === true;
   }
 
-  /**
-   * Process incoming ActivityPub activity
-   */
   static async processIncomingActivity(activity: any): Promise<void> {
     const actorUrl = normalizeActor(activity.actor);
     if (actorUrl && await this.isActorSuspended(actorUrl)) {
@@ -188,9 +181,6 @@ export class ActivityProcessor {
     }
   }
 
-  /**
-   * Process Follow activity
-   */
   private static async processFollow(activity: any): Promise<void> {
     const { followerUrl, followingUrl } = extractFollowData(activity);
     const supabase = getSupabaseClient();
@@ -274,9 +264,6 @@ export class ActivityProcessor {
     }
   }
 
-  /**
-   * Process Accept activity
-   */
   private static async processAccept(activity: any): Promise<void> {
     const supabase = getSupabaseClient();
 
@@ -333,9 +320,6 @@ export class ActivityProcessor {
     }
   }
 
-  /**
-   * Process Reject activity
-   */
   private static async processReject(activity: any): Promise<void> {
     const supabase = getSupabaseClient();
 
@@ -390,9 +374,6 @@ export class ActivityProcessor {
     }
   }
 
-  /**
-   * Process Create activity (new post/message/poll)
-   */
   private static async processCreate(activity: any): Promise<void> {
     const object = activity.object;
     const supabase = getSupabaseClient();
@@ -594,9 +575,6 @@ export class ActivityProcessor {
     }
   }
 
-  /**
-   * Resolve a quoted post - fetch if not local
-   */
   private static async resolveQuotedPost(quoteUrl: string): Promise<any | null> {
     const supabase = getSupabaseClient();
 
@@ -639,10 +617,6 @@ export class ActivityProcessor {
     return fetchedPost;
   }
 
-  /**
-   * Resolve reply chain - fetch missing parent posts and find conversation root
-   * Returns the parent post ID and conversation root ID
-   */
   private static async resolveReplyChain(inReplyToRef: string, depth = 0): Promise<{
     parentPostId: string | null;
     conversationRootId: string | null;
@@ -1018,11 +992,7 @@ export class ActivityProcessor {
   }
 
   /**
-   * Process Update activity (profile update, post edit).
-   *
-   * Each branch verifies that `activity.actor` actually owns the object being
-   * modified before writing anything. Without this guard a remote signer can
-   * Update someone else's profile or edit any post by URL (BUGS.md C2).
+   * Each branch verifies `activity.actor` owns the object before writing (BUGS.md C2).
    */
   private static async processUpdate(activity: any): Promise<void> {
     const object = activity.object;
@@ -1194,11 +1164,7 @@ export class ActivityProcessor {
   }
 
   /**
-   * Process Delete activity.
-   *
-   * Verifies that `activity.actor` owns the object before soft-deleting.
-   * Without this guard any signed remote actor could delete any post/message
-   * by URL (BUGS.md C2).
+   * Verifies `activity.actor` owns the object before soft-deleting (BUGS.md C2).
    */
   private static async processDelete(activity: any): Promise<void> {
     const object = activity.object;
@@ -1270,9 +1236,6 @@ export class ActivityProcessor {
     }
   }
 
-  /**
-   * Process Like activity (including emoji reactions)
-   */
   private static async processLike(activity: any): Promise<void> {
     const { actorUrl, objectUrl, emoji, emojiUrl, emojiName } = extractLikeData(activity);
     const supabase = getSupabaseClient();
@@ -1480,9 +1443,6 @@ export class ActivityProcessor {
     }
   }
 
-  /**
-   * Process Announce activity (reblog/boost)
-   */
   private static async processAnnounce(activity: any): Promise<void> {
     const { actorUrl, objectUrl, published } = extractAnnounceData(activity);
     const supabase = getSupabaseClient();
@@ -1670,9 +1630,6 @@ export class ActivityProcessor {
     }
   }
 
-  /**
-   * Process Undo activity
-   */
   private static async processUndo(activity: any): Promise<void> {
     const object = activity.object;
     const supabase = getSupabaseClient();
@@ -1805,9 +1762,6 @@ export class ActivityProcessor {
     }
   }
 
-  /**
-   * Process Undo for Like/EmojiReaction (supports both posts and messages/DMs)
-   */
   private static async processUndoReaction(object: any, _actorUrl: string): Promise<void> {
     const supabase = getSupabaseClient();
     const { actorUrl: likeActorUrl, objectUrl } = extractLikeData(object);
@@ -1890,9 +1844,6 @@ export class ActivityProcessor {
     }
   }
 
-  /**
-   * Process Undo by looking up the original activity type
-   */
   private static async processUndoByType(activityType: string, activityData: any, actorUrl: string): Promise<void> {
     logger.info(`🔄 Processing Undo by type: ${activityType}`);
     
@@ -1943,10 +1894,6 @@ export class ActivityProcessor {
     }
   }
 
-  /**
-   * Process Create activity for polls (Question type)
-   * Stores the poll as a post with poll data in metadata
-   */
   private static async processCreatePoll(activity: any, object: any): Promise<void> {
     const supabase = getSupabaseClient();
 
@@ -2038,10 +1985,6 @@ export class ActivityProcessor {
     }
   }
 
-  /**
-   * Extract server ID from a Harmony server URL and find the local (remote-copy) server.
-   * Returns the server row or null.
-   */
   private static async resolveRemoteServer(serverUrl: string): Promise<any | null> {
     const supabase = getSupabaseClient();
     const serverIdMatch = serverUrl.match(/\/servers\/([a-f0-9-]{36})$/i);
@@ -2057,9 +2000,6 @@ export class ActivityProcessor {
     return server;
   }
 
-  /**
-   * Handle Harmony channel/category Add activities received on the shared inbox.
-   */
   private static async processHarmonyChannelAdd(activity: any, object: any): Promise<void> {
     const supabase = getSupabaseClient();
     const actorUrl = typeof activity.actor === 'string' ? activity.actor : activity.actor?.id;
@@ -2153,10 +2093,7 @@ export class ActivityProcessor {
     }
   }
 
-  /**
-   * Handle Harmony channel/category Update activities received on the shared inbox.
-   * Auto-creates the entity if it doesn't exist (missed Add / source-of-truth sync).
-   */
+  // Auto-creates the entity if missing (missed Add / source-of-truth sync).
   private static async processHarmonyChannelUpdate(activity: any, object: any): Promise<void> {
     const supabase = getSupabaseClient();
     const actorUrl = typeof activity.actor === 'string' ? activity.actor : activity.actor?.id;
@@ -2262,9 +2199,6 @@ export class ActivityProcessor {
     }
   }
 
-  /**
-   * Handle Harmony channel/category Remove activities received on the shared inbox.
-   */
   private static async processHarmonyChannelRemove(activity: any, objectUrl: string): Promise<void> {
     const supabase = getSupabaseClient();
     const uuidMatch = objectUrl.match(/\/channels\/([a-f0-9-]{36})$/i);
@@ -2309,9 +2243,6 @@ export class ActivityProcessor {
     logger.warn(`Channel/category not found for Remove: ${objectUrl}`);
   }
 
-  /**
-   * Process Add activity (pinning posts to featured collection)
-   */
   private static async processAdd(activity: any): Promise<void> {
     const supabase = getSupabaseClient();
     // eslint-disable-next-line unused-imports/no-unused-vars
@@ -2351,9 +2282,6 @@ export class ActivityProcessor {
     logger.info(`📌 Pinned post: ${objectUrl}`);
   }
 
-  /**
-   * Process Remove activity (unpinning posts, group participant removal)
-   */
   private static async processRemove(activity: any): Promise<void> {
     const supabase = getSupabaseClient();
     const target = activity.target;
@@ -2388,9 +2316,6 @@ export class ActivityProcessor {
     }
   }
 
-  /**
-   * Process Flag activity (reports from other instances)
-   */
   private static async processFlag(activity: any): Promise<void> {
     const supabase = getSupabaseClient();
     const actorUrl = normalizeActor(activity.actor);
@@ -2466,9 +2391,6 @@ export class ActivityProcessor {
     }
   }
 
-  /**
-   * Process Block activity (federated blocks)
-   */
   private static async processBlock(activity: any): Promise<void> {
     const supabase = getSupabaseClient();
     const actorUrl = normalizeActor(activity.actor);
@@ -2520,10 +2442,6 @@ export class ActivityProcessor {
     logger.info(`🚫 Blocked: ${actorUrl} → ${blockedUrl}`);
   }
 
-  /**
-   * Resolve an inbound emoji into an emoji_id, creating entries as needed.
-   * Works for both custom emojis (with URL) and standard unicode emojis.
-   */
   private static async resolveInboundEmojiId(
     supabase: any,
     emojiName: string | undefined,
@@ -2572,11 +2490,6 @@ export class ActivityProcessor {
     return created?.id ?? null;
   }
 
-  /**
-   * Ensure remote user exists in database (fetch if needed)
-   * @param actorUrl - The ActivityPub actor URL
-   * @param forceRefresh - If true, refresh profile even if user exists (for stale data)
-   */
   // Dedup concurrent fetches per actor: a burst of activities from a new (or
   // stale) sender otherwise triggers N identical remote actor fetches.
   private static inflightActorFetches = new Map<string, Promise<any | null>>();
@@ -2751,9 +2664,6 @@ export class ActivityProcessor {
     }
   }
 
-  /**
-   * Process channel message (Harmony server channel message, not regular post)
-   */
   private static async processChannelMessage(activity: any, object: any): Promise<void> {
     const supabase = getSupabaseClient();
     const actorUrl = normalizeActor(activity.actor);
@@ -3045,9 +2955,6 @@ export class ActivityProcessor {
     }
   }
 
-  /**
-   * Resolve a thread ID from an AP URL. Tries ap_id match first, then UUID extraction.
-   */
   private static async resolveThreadId(supabase: any, threadApIdValue: string): Promise<string | null> {
     const { data: threadByApId } = await supabase
       .from('threads')
@@ -3070,9 +2977,6 @@ export class ActivityProcessor {
     return null;
   }
 
-  /**
-   * Handle direct message (store in messages table instead of posts)
-   */
   private static async handleDirectMessage(
     object: any,
     authorId: string,
@@ -3181,9 +3085,6 @@ export class ActivityProcessor {
     }
   }
 
-  /**
-   * Handle group invite (remote user added to group) - create conversation + notification
-   */
   private static async handleGroupInvite(object: any, authorId: string): Promise<void> {
     const supabase = getSupabaseClient();
 
@@ -3252,13 +3153,7 @@ export class ActivityProcessor {
     logger.info(`Group invite processed: conversation ${conversationId}, ${recipientIds.length} recipient(s)`);
   }
 
-  /**
-   * Handle group conversation Update (name, icon changes from remote instance)
-   */
-  /**
-   * Resolve a remote conversation ID to the local conversation row.
-   * Tries direct UUID match first, then falls back to metadata mapping.
-   */
+  // Tries direct UUID match first, then falls back to metadata mapping.
   private static async resolveGroupConversation(
     remoteConversationId: string
   ): Promise<{ id: string; type: string; metadata: any } | null> {
@@ -3338,9 +3233,6 @@ export class ActivityProcessor {
     }
   }
 
-  /**
-   * Handle group conversation participant removal (from remote instance)
-   */
   private static async handleGroupConversationParticipantRemove(activity: any, target: any): Promise<void> {
     const supabase = getSupabaseClient();
     const remoteConversationId = target['harmony:conversationId'];
@@ -3384,10 +3276,6 @@ export class ActivityProcessor {
     }
   }
 
-  /**
-   * Determine post visibility from ActivityPub 'to' and 'cc' fields.
-   * Delegates to the module-level exported function.
-   */
   private static determineVisibility(object: any): string {
     return determineVisibility(object);
   }

@@ -238,8 +238,6 @@ import { useThemeStore } from '@/stores/useTheme'
 import { useAudioThemeCommon } from '@/composables/useAudioThemeCommon'
 import Icon from '@/components/common/Icon.vue'
 
-// PROPS & EMITS
-
 interface Props {
   showTestButton?: boolean
   showVolumeControl?: boolean
@@ -266,11 +264,8 @@ const emit = defineEmits<{
   tested: [themeId: string]
 }>()
 
-// STORE & STATE
-
 const themeStore = useThemeStore()
 
-// Use shared composable for common functionality
 const {
   localVolume,
   isTesting,
@@ -293,11 +288,9 @@ const {
   resetToDefaults
 } = useAudioThemeCommon()
 
-// UI State specific to manager
 const showAdvancedOptions = ref(false)
 const cacheInfo = ref<any>(null)
 
-// Volume presets
 const volumePresets = [
   { label: 'Low', value: 25 },
   { label: 'Medium', value: 50 },
@@ -326,8 +319,6 @@ const volumeSliderStyle = computed(() => ({
   '--volume-percentage': `${localVolume.value}%`
 }))
 
-// METHODS - Wrapper methods that emit events
-
 const selectTheme = async (themeId: string): Promise<void> => {
   const success = await baseSelectTheme(themeId)
   if (success) {
@@ -345,7 +336,6 @@ const onVolumeChange = (): void => {
   emit('volumeChanged', localVolume.value / 100)
 }
 
-// Status helpers
 const getStatusIcon = (): string => {
   const status = themeStore.systemStatus
   const icons = {
@@ -372,12 +362,9 @@ const getStatusText = (): string => {
   return texts[status] || 'Unknown status'
 }
 
-// Cache management
 const updateCacheInfo = (): void => {
   cacheInfo.value = themeStore.getCacheInfo()
 }
-
-// LIFECYCLE
 
 onMounted(async () => {
   if (!themeStore.isInitialized) {

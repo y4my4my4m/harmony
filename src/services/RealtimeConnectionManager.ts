@@ -154,7 +154,7 @@ const RETRY_CONFIG = {
 
 // Health check is now minimal - Supabase handles its own reconnection
 const HEALTH_CHECK_INTERVAL = 60000  // 60 seconds - just a safety net, not aggressive
-const STALE_CONNECTION_THRESHOLD = 5 * 60 * 1000  // 5 minutes - very conservative
+const STALE_CONNECTION_THRESHOLD = 5 * 60 * 1000  // 5 minutes
 
 // RealtimeConnectionManager Service
 
@@ -277,12 +277,10 @@ class RealtimeConnectionManagerService {
     this.initialized = false
   }
 
-  // Subscription Methods
-
   /**
-   * Subscribe to a table with multiple event handlers (Professional API)
+   * Subscribe to a table with multiple event handlers.
    * Use this for most subscriptions - supports INSERT, UPDATE, DELETE
-   * 
+   *
    * @example
    * const unsubscribe = realtimeConnectionManager.subscribeToTable({
    *   channelName: 'channel-messages-123',
@@ -374,9 +372,9 @@ class RealtimeConnectionManagerService {
   }
 
   /**
-   * Subscribe to multiple tables on a single channel (Advanced API)
+   * Subscribe to multiple tables on a single channel.
    * More efficient when you need to subscribe to related tables
-   * 
+   *
    * @example
    * const unsubscribe = realtimeConnectionManager.subscribeToMultipleTables({
    *   channelName: 'dm-conversation-123',

@@ -1785,7 +1785,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
       }
     },
 
-    // REAL-TIME SUBSCRIPTIONS
 
     /**
      * Subscribe to real-time updates for server structure (channels & categories)
@@ -2217,7 +2216,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
       await this.unsubscribeFromUserServers();
     },
 
-    // SERVER FOLDER MANAGEMENT
 
     /**
      * Fetch all folders for a user

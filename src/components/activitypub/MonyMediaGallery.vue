@@ -223,8 +223,6 @@ function onVideoVolumeChange() {
   }
 }
 
-// -- Playback position persistence --
-
 function saveCurrentVideoPosition() {
   const video = lightboxVideoRef.value;
   const src = currentVideoSrc.value;
@@ -249,8 +247,6 @@ function onLightboxIndexChange(_oldIdx: number, newIdx: number) {
   resetVideoTransforms();
   currentMediaIndex.value = newIdx;
 }
-
-// -- Video transform controls (self-contained zoom/rotate applied directly to the video) --
 
 const videoZoom = ref(1);
 const videoRotation = ref(0);

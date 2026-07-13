@@ -128,8 +128,6 @@ export class MegolmMessageEncryptionService {
     return MegolmMessageEncryptionService.instance
   }
 
-  // INITIALIZATION
-
   /**
    * Initialize the service for a user
    */
@@ -877,8 +875,6 @@ export class MegolmMessageEncryptionService {
     } catch { /* non-fatal */ }
   }
 
-  // ENCRYPTION / DECRYPTION
-
   /**
    * Encrypt a message for a room (channel or conversation).
    *
@@ -1530,9 +1526,6 @@ export class MegolmMessageEncryptionService {
     return imported
   }
 
-
-  // SESSION SHARING
-
   /**
    * Ensure our session is shared with all recipients
    * OPTIMIZED: Batch DB queries and parallelize operations
@@ -2057,8 +2050,6 @@ export class MegolmMessageEncryptionService {
     return new TextDecoder().decode(decrypted)
   }
 
-  // STATUS & UTILITIES
-
   /**
    * Get encryption status
    */
@@ -2100,9 +2091,6 @@ export class MegolmMessageEncryptionService {
     return megolmService.isInitialized()
   }
 
-  /**
-   * Check if user has recovery key set up
-   */
   /**
    * Structured self-test of the whole encryption stack, for the settings UI.
    * ok: true = pass, false = fail, null = not applicable / unknown.
@@ -2203,23 +2191,14 @@ export class MegolmMessageEncryptionService {
     return hasKey
   }
 
-  /**
-   * Trigger backup of current sessions
-   */
   async backupSessions(): Promise<void> {
     await megolmKeyBackupService.createBackup()
   }
 
-  /**
-   * Get the current user ID
-   */
   getCurrentUserId(): string | null {
     return this.currentUserId
   }
 
-  /**
-   * Check if service is initialized
-   */
   isInitialized(): boolean {
     return this.initialized
   }

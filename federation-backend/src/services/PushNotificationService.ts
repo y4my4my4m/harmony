@@ -70,9 +70,6 @@ const NOTIFICATION_TYPE_PREFERENCES: Record<string, { enabled: string; desktop?:
 class PushNotificationServiceClass {
   private isInitialized = false;
 
-  /**
-   * Initialize VAPID keys for web push
-   */
   initialize(): boolean {
     if (this.isInitialized) {
       return true;
@@ -104,23 +101,14 @@ class PushNotificationServiceClass {
     }
   }
 
-  /**
-   * Check if push notifications are available
-   */
   isAvailable(): boolean {
     return this.isInitialized;
   }
 
-  /**
-   * Get the VAPID public key for frontend subscription
-   */
   getPublicKey(): string | null {
     return config.VAPID_PUBLIC_KEY || null;
   }
 
-  /**
-   * Save a push subscription for a user
-   */
   async saveSubscription(
     userId: string,
     subscription: PushSubscription,
@@ -134,9 +122,8 @@ class PushNotificationServiceClass {
         return { success: false, error: 'Invalid subscription data' };
       }
 
-      // Clean up old subscriptions from the same browser/device
-      // This handles the case where site data was cleared but old subscription exists
-      // We identify "same device" by matching user_agent
+      // Clean up old subscriptions from the same device (identified by user_agent)
+      // in case site data was cleared but the old subscription still exists.
       if (userAgent) {
         const { data: existingSubs } = await supabaseAdmin
           .from('push_subscriptions')
@@ -185,9 +172,6 @@ class PushNotificationServiceClass {
     }
   }
 
-  /**
-   * Remove a push subscription
-   */
   async removeSubscription(
     userId: string,
     endpoint: string
@@ -212,9 +196,7 @@ class PushNotificationServiceClass {
     }
   }
 
-  /**
-   * Remove subscription by endpoint (for 410 Gone responses)
-   */
+  // For 410 Gone responses.
   async removeSubscriptionByEndpoint(endpoint: string): Promise<void> {
     try {
       await supabaseAdmin.rpc('delete_push_subscription_by_endpoint', {
@@ -226,9 +208,6 @@ class PushNotificationServiceClass {
     }
   }
 
-  /**
-   * Get all subscriptions for a user
-   */
   async getUserSubscriptions(userId: string): Promise<PushSubscriptionData[]> {
     try {
       const { data, error } = await supabaseAdmin
@@ -246,9 +225,6 @@ class PushNotificationServiceClass {
     }
   }
 
-  /**
-   * Send push notification to a specific subscription
-   */
   async sendToSubscription(
     subscriptionData: PushSubscriptionData,
     payload: PushPayload
@@ -303,9 +279,6 @@ class PushNotificationServiceClass {
     }
   }
 
-  /**
-   * Send push notification to all of a user's devices
-   */
   async sendToUser(
     userId: string,
     payload: PushPayload,
@@ -351,10 +324,7 @@ class PushNotificationServiceClass {
     return { sent, failed };
   }
 
-  /**
-   * Check if user has any active sessions (Discord-like smart push)
-   * Returns true if user is actively using the app on any device
-   */
+  // True if the user is actively using the app on any device (Discord-like smart push).
   async hasActiveSession(userId: string): Promise<boolean> {
     try {
       const { data, error } = await supabaseAdmin
@@ -372,10 +342,8 @@ class PushNotificationServiceClass {
     }
   }
 
-  /**
-   * Check if user is viewing the specific context of the notification
-   * (e.g., they're looking at the channel where the message was sent)
-   */
+  // True if the user is currently viewing the notification's context (e.g.
+  // the channel where the message was sent).
   async isUserViewingContext(
     userId: string,
     serverId?: string,
@@ -404,13 +372,9 @@ class PushNotificationServiceClass {
   }
 
   /**
-   * Send push notification for a database notification
-   * This is called when a new notification is created in the notifications table
-   * 
-   * Smart behavior (Discord-like):
-   * - If user has active session AND push_offline_only is true → don't send
-   * - If user is viewing the exact context of notification → don't send
-   * - Otherwise → send push
+   * Called when a new row lands in the notifications table. Skips sending when
+   * the user has an active session with push_offline_only set, or is already
+   * viewing the notification's context.
    */
   async sendForNotification(notification: {
     id: string;
@@ -565,10 +529,7 @@ class PushNotificationServiceClass {
     }
   }
 
-  /**
-   * Extract content preview from various message formats
-   * Handles JSON strings, MessagePart[] arrays, and plain strings
-   */
+  // Handles JSON strings, MessagePart[] arrays, and plain strings.
   private extractContentPreview(data: Record<string, any>, maxLength = 100): string {
     // Try structured content_preview first
     let preview = data.message?.content_preview || data.content_preview || data.preview;
@@ -609,9 +570,6 @@ class PushNotificationServiceClass {
     return preview || '';
   }
 
-  /**
-   * Build push payload from notification data
-   */
   private buildPayloadFromNotification(notification: {
     id: string;
     user_id: string;
@@ -739,9 +697,6 @@ class PushNotificationServiceClass {
     };
   }
 
-  /**
-   * Cleanup stale subscriptions
-   */
   async cleanupStaleSubscriptions(): Promise<number> {
     try {
       const { data, error } = await supabaseAdmin

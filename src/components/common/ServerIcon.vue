@@ -57,7 +57,6 @@ import CameraIcon from '@/components/icons/Camera.vue'
 
 const toast = useToast()
 
-// Types
 type serverSize = 'mini' | 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl'
 type UserStatus = 'online' | 'away' | 'busy' | 'offline'
 type ImageShape = 'square' | 'rounded' | 'big-rounded' | 'round'
@@ -113,10 +112,8 @@ const sizeMap: Record<serverSize, number> = {
 
 const sizeClass = computed(() => `server-${props.size}`)
 
-// --- Fallback image logic ---
 const fallbackImage = '/default_server.webp'
 
-// Use a local ref for the img src to allow error handling
 const imgSrc = ref<string>(fallbackImage)
 // The "real" URL we last computed from props; needed so retries can restore
 // the real URL after we temporarily swapped in the fallback on @error.
@@ -163,7 +160,6 @@ watch(
   { immediate: true }
 )
 
-// Error handler for <img>
 const onImgError = () => {
   // If we're already on the fallback, the fallback itself failed - don't loop.
   if (imgSrc.value === fallbackImage) {

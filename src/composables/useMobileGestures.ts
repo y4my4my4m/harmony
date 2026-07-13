@@ -47,25 +47,23 @@ export function useMobileGestures() {
   })
 
   const config: SwipeConfig = {
-    swipeThreshold: 50,         // Reduced for easier activation
-    directionThreshold: 12,      // Slightly reduced for faster response
-    edgeZone: 80,               // Expanded from 30px for easier sidebar activation
-    velocityThreshold: 0.25,    // px/ms for quick flick (lowered for easier trigger)
+    swipeThreshold: 50,
+    directionThreshold: 12,
+    edgeZone: 80,
+    velocityThreshold: 0.25,    // px/ms for quick flick
     sidebarWidth: 280,
-    completionThreshold: 0.35   // 35% to auto-complete (easier to complete)
+    completionThreshold: 0.35   // 35% to auto-complete
   }
 
-  // Raw deltaX from start position
   const deltaX = computed(() => {
     return touchState.value.currentX - touchState.value.startX
   })
 
-  // Calculate instantaneous velocity (px/ms)
   // eslint-disable-next-line unused-imports/no-unused-vars
   const getVelocity = () => {
     const now = Date.now()
     const timeDelta = now - touchState.value.lastMoveTime
-    if (timeDelta === 0 || timeDelta > 100) return 0 // Ignore if too old
+    if (timeDelta === 0 || timeDelta > 100) return 0
     const posDelta = touchState.value.currentX - touchState.value.lastMoveX
     return posDelta / timeDelta
   }
@@ -120,26 +118,22 @@ export function useMobileGestures() {
     const isFastHorizontalSwipe = instantVelocity > config.velocityThreshold * 1.2 && 
                                    Math.abs(currentDeltaX) > Math.abs(currentDeltaY) * 2
 
-    // Handle swipes from edge zones, when sidebars are open, OR with fast horizontal velocity
     const shouldHandleSwipe = touchState.value.isEdgeSwipe || hasOpenSidebars || isFastHorizontalSwipe
 
-    if (touchState.value.initialDirection === 'horizontal' && 
-        shouldHandleSwipe && 
+    if (touchState.value.initialDirection === 'horizontal' &&
+        shouldHandleSwipe &&
         Math.abs(currentDeltaX) > config.directionThreshold) {
-      event.preventDefault() // Prevent scrolling
-      
+      event.preventDefault()
+
       if (!touchState.value.isDragging) {
         touchState.value.isDragging = true
-        
+
         if (!touchState.value.dragDirection) {
           if (touchState.value.startX <= config.edgeZone) {
             touchState.value.dragDirection = 'left'
           } else if (typeof window !== 'undefined' && touchState.value.startX >= window.innerWidth - config.edgeZone) {
             touchState.value.dragDirection = 'right'
           } else if (hasOpenSidebars || isFastHorizontalSwipe) {
-            // Determine direction based on swipe movement
-            // Swiping left → closing left sidebar or opening right sidebar
-            // Swiping right → opening left sidebar or closing right sidebar
             touchState.value.dragDirection = currentDeltaX < 0 ? 'left' : 'right'
           }
         }
@@ -177,26 +171,21 @@ export function useMobileGestures() {
         callbacks.onDragEnd(velocity, direction)
       }
     } else {
-      // Enhanced swipe detection - works from edge zone OR with fast velocity from anywhere
       const absVelocity = Math.abs(velocity)
-      const isFastSwipe = absVelocity > config.velocityThreshold * 1.5 // Higher velocity threshold for anywhere swipes
+      const isFastSwipe = absVelocity > config.velocityThreshold * 1.5
       // eslint-disable-next-line unused-imports/no-unused-vars
-      const isFromEdge = touchState.value.startX <= config.edgeZone || 
+      const isFromEdge = touchState.value.startX <= config.edgeZone ||
                          (typeof window !== 'undefined' && touchState.value.startX >= window.innerWidth - config.edgeZone)
-      
-      if (touchState.value.initialDirection === 'horizontal' && 
-          (Math.abs(finalDeltaX) > config.swipeThreshold || absVelocity > config.velocityThreshold) && 
+
+      if (touchState.value.initialDirection === 'horizontal' &&
+          (Math.abs(finalDeltaX) > config.swipeThreshold || absVelocity > config.velocityThreshold) &&
           Math.abs(finalDeltaY) < 100) {
-        
+
         if (finalDeltaX > 0) {
-          // Swipe right - open left sidebar
-          // Works from left edge zone OR with fast velocity from anywhere
           if (touchState.value.startX <= config.edgeZone || isFastSwipe) {
             callbacks.onSwipeRight()
           }
         } else {
-          // Swipe left - open right sidebar
-          // Works from right edge zone OR with fast velocity from anywhere
           if ((typeof window !== 'undefined' && touchState.value.startX >= window.innerWidth - config.edgeZone) || isFastSwipe) {
             callbacks.onSwipeLeft()
           }

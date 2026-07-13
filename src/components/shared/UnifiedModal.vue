@@ -154,11 +154,9 @@ const previousActiveElement = ref<HTMLElement>()
 
 const handleOpen = () => {
   previousActiveElement.value = document.activeElement as HTMLElement
-  
-  // Prevent body scroll
+
   document.body.style.overflow = 'hidden'
-  
-  // Focus the modal for accessibility
+
   nextTick(() => {
     overlayRef.value?.focus()
   })
@@ -201,10 +199,8 @@ watch(() => props.modelValue, (isOpen) => {
   if (isOpen) {
     handleOpen()
   } else {
-    // Restore body scroll
     document.body.style.overflow = ''
-    
-    // Restore focus
+
     if (previousActiveElement.value) {
       previousActiveElement.value.focus()
     }
@@ -227,7 +223,6 @@ const handleKeydown = (event: KeyboardEvent) => {
     return
   }
 
-  // Trap focus within modal
   if (event.key === 'Tab') {
     const focusableElements = containerRef.value?.querySelectorAll(
       'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
@@ -258,7 +253,6 @@ onMounted(() => {
 
 onUnmounted(() => {
   document.removeEventListener('keydown', handleKeydown)
-  // Ensure body scroll is restored
   document.body.style.overflow = ''
 })
 </script>

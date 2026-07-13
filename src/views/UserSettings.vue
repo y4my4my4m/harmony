@@ -125,13 +125,13 @@
 
           <!-- My Bots -->
           <UserBotsManagement
-            v-else-if="activeSection === 'bots'"
+            v-if="activeSection === 'bots'"
             :loading="loading"
           />
 
           <!-- Appearance Section -->
           <AppearanceSettings 
-            v-else-if="activeSection === 'appearance'"
+            v-if="activeSection === 'appearance'"
             :profile="profile"
             :loading="loading"
             @update-appearance="handleAppearanceUpdate"
@@ -139,47 +139,47 @@
 
           <!-- Audio Themes Section -->
           <AudioThemeSettings 
-            v-else-if="activeSection === 'audio'"
+            v-if="activeSection === 'audio'"
             :loading="loading"
           />
 
           <!-- Unified Notifications Section -->
           <NotificationSettings 
-            v-else-if="activeSection === 'notifications'"
+            v-if="activeSection === 'notifications'"
             :loading="loading"
             @update-notifications="handleNotificationsUpdate"
           />
 
           <!-- Instance Announcements Archive -->
           <AnnouncementsSettings
-            v-else-if="activeSection === 'announcements'"
+            v-if="activeSection === 'announcements'"
             :loading="loading"
           />
 
           <!-- Voice & Video Section -->
           <VoiceVideoSettings 
-            v-else-if="activeSection === 'voice'"
+            v-if="activeSection === 'voice'"
             :loading="loading"
             @update-voice-settings="handleVoiceSettingsUpdate"
           />
 
           <!-- Keybinds Section -->
           <KeybindSettings 
-            v-else-if="activeSection === 'keybinds'"
+            v-if="activeSection === 'keybinds'"
             :loading="loading"
             @update-keybinds="handleKeybindsUpdate"
           />
 
           <!-- Language Section -->
           <LanguageSettings 
-            v-else-if="activeSection === 'language'"
+            v-if="activeSection === 'language'"
             :loading="loading"
             @update-language="handleLanguageUpdate"
           />
 
           <!-- Advanced Settings -->
           <AdvancedSettings 
-            v-else-if="activeSection === 'advanced'"
+            v-if="activeSection === 'advanced'"
             :loading="loading"
             @update-advanced="handleAdvancedUpdate"
           />

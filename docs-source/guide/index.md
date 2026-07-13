@@ -43,4 +43,4 @@ Documentation for understanding, developing, and deploying Harmony, a federated 
 
 ---
 
-> 📝 **Note**: This guide is protected from auto-generation. To edit any guide content, modify the files in `docs-source/guide/` and run `npm run docs:generate-guide`.
+> **Note**: This guide is protected from auto-generation. To edit any guide content, modify the files in `docs-source/guide/` and run `npm run docs:generate-guide`.

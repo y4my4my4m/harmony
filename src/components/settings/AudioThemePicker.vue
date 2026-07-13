@@ -79,7 +79,6 @@ withDefaults(defineProps<Props>(), {
   compact: false
 })
 
-// Use shared composable
 const {
   localVolume,
   themes,

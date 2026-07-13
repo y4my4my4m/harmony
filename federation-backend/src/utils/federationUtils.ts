@@ -1,9 +1,3 @@
-/**
- * Shared federation utilities
- * 
- * Functions used across multiple federation handlers (channel messages, threads, profiles, etc.)
- */
-
 import { getSupabaseClient } from '../config/supabase.js';
 import config from '../config/index.js';
 
@@ -14,10 +8,6 @@ export interface RemoteMemberGroup {
   shared_inbox?: string;
 }
 
-/**
- * Get remote member groups for a server, grouped by instance.
- * Used to determine which remote instances need to receive federated activities.
- */
 export async function getRemoteMemberGroups(serverId: string): Promise<RemoteMemberGroup[]> {
   const supabase = getSupabaseClient();
   const hostDomain = config.INSTANCE_DOMAIN;
@@ -72,10 +62,7 @@ export async function getRemoteMemberGroups(serverId: string): Promise<RemoteMem
   return Array.from(instanceMap.values());
 }
 
-/**
- * Get all unique remote instances the user shares servers with.
- * Returns deduplicated shared inbox URLs mapped by instance.
- */
+// Deduplicated shared inbox URLs, mapped by instance.
 export async function getServerCoMemberInstances(profileId: string): Promise<RemoteMemberGroup[]> {
   const supabase = getSupabaseClient();
 

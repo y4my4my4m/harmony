@@ -115,16 +115,13 @@ interface Props {
   rightSidebarOpen?: boolean;
   voicePanelOpen?: boolean;
   
-  // Chat mode props
   currentServer?: Server | null;
   currentChannel?: Channel | null;
   isDM?: boolean;
   
-  // ActivityPub mode props
   currentView?: 'home' | 'local' | 'public' | 'trending' | 'instances';
   instanceDomain?: string;
 
-  // Funding
   fundingConfig?: (FundingConfig & { displayed_amount?: number }) | null;
 }
 

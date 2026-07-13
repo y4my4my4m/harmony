@@ -123,8 +123,6 @@ import AudioThemeManager from '@/components/settings/AudioThemeManager.vue'
 import Icon from '@/components/common/Icon.vue'
 import type { AudioAction } from '@/types'
 
-// STATE
-
 const themeStore = useThemeStore()
 const notificationStore = useNotificationStore()
 
@@ -132,7 +130,6 @@ const isLoading = ref(false)
 const showAdvanced = ref(false)
 const isExportingPack = ref(false)
 
-// Test actions for sound preview
 const testActions = [
   { id: 'mention', label: 'Mention', icon: 'at-sign', category: 'notification' },
   { id: 'dm', label: 'Message', icon: 'message-circle', category: 'notification' },
@@ -148,8 +145,6 @@ const testActions = [
 const cacheInfo = computed(() => {
   return themeStore.getCacheInfo()
 })
-
-// METHODS
 
 const testSound = async (actionId: string): Promise<void> => {
   try {
@@ -275,8 +270,6 @@ const importThemePack = (): void => {
   }
   input.click()
 }
-
-// LIFECYCLE
 
 onMounted(async () => {
   try {

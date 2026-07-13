@@ -1,15 +1,8 @@
 /**
- * AI emoji generation - resilient, app-global state.
- *
- * Generation is asynchronous (webhook-driven on the backend): we POST to start
- * the job, then wait for an `ai_emoji:generated` (or `ai_emoji:failed`) event
- * on the user's realtime channel. This composable owns the in-flight state at
- * module scope (not tied to any component), so the spinner survives the
- * picker/popup closing and the result is handled wherever the user is.
- *
- * It also tracks the user's daily generation quota so the picker can show how
- * many generations are left (auto-bounded by the instance-wide cap, and skipped
- * for instance admins/owners).
+ * AI emoji generation. Backend is webhook-driven: POST starts the job, then
+ * wait for `ai_emoji:generated`/`ai_emoji:failed` on the user's realtime
+ * channel. State is module-scoped (not component-tied) so the spinner
+ * survives the picker/popup closing.
  */
 import { ref, computed } from 'vue'
 import { useToast } from 'vue-toastification'
@@ -23,18 +16,16 @@ import {
 import { userEventChannel } from '@/services/UserEventChannel'
 import type { Emoji } from '@/types'
 
-// Module-level shared state (one in-flight generation at a time).
+// One in-flight generation at a time.
 const isGenerating = ref(false)
 const lastError = ref<string | null>(null)
 const quota = ref<AiEmojiQuota | null>(null)
 let quotaLoaded = false
 
-// Webhook delivery can lag; give it a generous window before giving up so the
-// spinner doesn't stop while Klipy is still rendering.
+// Webhook delivery can lag; wide timeout so spinner doesn't stop early.
 const GENERATION_TIMEOUT_MS = 130_000
 
-// Resolver for the in-flight job, keyed by the backend job id. The realtime
-// listeners (registered once below) settle this when the event arrives.
+// Keyed by backend job id; realtime listeners below settle this on event.
 interface InflightJob {
   jobId: string
   resolve: (emoji: Emoji | null) => void
@@ -58,7 +49,6 @@ function ensureListeners(): void {
   listenersBound = true
 
   userEventChannel.on('ai_emoji:generated', (payload) => {
-    // Ignore events for a different job than the one we're awaiting.
     if (inflight && payload.jobId && payload.jobId !== inflight.jobId) return
     const raw = payload.emoji as { id: string; name: string; url: string } | undefined
     if (!raw?.id) return settle(null)
@@ -115,10 +105,8 @@ export function useAiEmojiGeneration() {
 
     if (started.quota) quota.value = started.quota
 
-    // Wait for the realtime result (or timeout). The listeners call settle().
     return new Promise<Emoji | null>((resolve) => {
       const timer = setTimeout(() => {
-        // wrapResolve (invoked by settle) shows the error toast from lastError.
         lastError.value = 'AI emoji generation timed out — please try again'
         settle(null)
         refreshQuota(true).catch(() => {})

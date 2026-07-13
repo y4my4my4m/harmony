@@ -1,7 +1,6 @@
 import { supabase } from '@/supabase';
 import type { Profile } from '@/types';
 
-// Cache for server member IDs with TTL
 const serverMemberCache = new Map<string, { userIds: string[], timestamp: number }>()
 const pendingServerMemberRequests = new Map<string, Promise<string[]>>()
 const MEMBER_CACHE_TTL = 2 * 60 * 1000 // 2 minutes
@@ -10,14 +9,11 @@ const MEMBER_CACHE_TTL = 2 * 60 * 1000 // 2 minutes
 // they belong to (see migration 20260323_fix_user_servers_select_rls.sql).
 const getUserIdsForServer = async (serverId: string): Promise<string[]> => {
   const now = Date.now()
-  
-  // Check cache first
   const cached = serverMemberCache.get(serverId)
   if (cached && (now - cached.timestamp) < MEMBER_CACHE_TTL) {
     return cached.userIds
   }
-  
-  // Deduplicate concurrent requests
+
   if (pendingServerMemberRequests.has(serverId)) {
     return pendingServerMemberRequests.get(serverId)!
   }
@@ -32,8 +28,6 @@ const getUserIdsForServer = async (serverId: string): Promise<string[]> => {
       if (error) throw error;
       
       const userIds = data.map(item => item.user_id)
-      
-      // Cache the result
       serverMemberCache.set(serverId, { userIds, timestamp: Date.now() })
       
       return userIds
@@ -95,9 +89,6 @@ const invalidateServerMemberCache = (serverId: string): void => {
   serverMemberCache.delete(serverId)
 }
 
-/**
- * Clear all member caches
- */
 const clearAllMemberCaches = (): void => {
   serverMemberCache.clear()
 }

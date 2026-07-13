@@ -362,7 +362,6 @@ const UnifiedVoiceOverlay = defineAsyncComponent(() => import('./UnifiedVoiceOve
 const VoiceSettingsPanel = defineAsyncComponent(() => import('./VoiceSettingsPanel.vue'));
 const VoiceChannelParticipants = defineAsyncComponent(() => import('./VoiceChannelParticipants.vue'));
 
-// Centralized keybind system
 const keybinds = useKeybinds();
 const isPTTMode = keybinds.isPTTMode;
 const isPTTActive = keybinds.isPTTActive;
@@ -373,15 +372,12 @@ const SpatialAudioPanel = defineAsyncComponent(() => import('./SpatialAudioPanel
 const RecentSpeakers = defineAsyncComponent(() => import('./RecentSpeakers.vue'));
 const ScreensharePIP = defineAsyncComponent(() => import('./ScreensharePIP.vue'));
 
-// STORE INSTANCES
-// The original used `any` to avoid leaking private store types, which is preserved here.
 const voiceStore: any = useUnifiedVoiceChannelStore();
 const spatialStore = useSpatialAudioStore();
 const authStore = useAuthStore();
 const { isMobileViewport } = useViewport();
 const { getUser } = useUserData();
 
-// STATE
 const currentMode = ref<'dock' | 'minimized' | 'overlay'>('dock');
 const showSettings = ref(false);
 const showParticipantsDropdown = ref(false);
@@ -389,32 +385,28 @@ const minimizedVideoRef = ref<HTMLVideoElement | null>(null);
 const dockVideoRef = ref<HTMLVideoElement | null>(null);
 const minimizedContainerRef = ref<HTMLElement | null>(null);
 
-// Drag state for minimized dock
 const isDragging = ref(false);
 const dragStartPos = ref({ x: 0, y: 0 });
-const dragInitialMousePos = ref({ x: 0, y: 0 }); // Track initial mouse position
-const hasMoved = ref(false); // Track if mouse moved significantly during drag
+const dragInitialMousePos = ref({ x: 0, y: 0 });
+const hasMoved = ref(false); // moved significantly during drag, vs. a click
 const minimizedPosition = ref({ left: 10, bottom: 90 });
 const containerDimensions = ref({ width: 0, height: 0 });
 let rafId: number | null = null;
-const CLICK_THRESHOLD = 5; // Pixels - if moved less than this, it's a click
+const CLICK_THRESHOLD = 5; // px; below this it's treated as a click, not a drag
 
-// Drag state for standard dock
 const isDockDragging = ref(false);
 const dockDragStartPos = ref({ x: 0, y: 0 });
 const dockDragInitialMousePos = ref({ x: 0, y: 0 });
 const dockHasMoved = ref(false);
-const dockPosition = ref({ left: 0, bottom: 80 }); // Default: centered (left will be calculated)
+const dockPosition = ref({ left: 0, bottom: 80 }); // left: 0 means centered
 const dockContainerRef = ref<HTMLElement | null>(null);
 const dockContainerDimensions = ref({ width: 0, height: 0 });
 let dockRafId: number | null = null;
 let dockShouldPreventClick = false;
 
-// Default dock position (centered at bottom)
 const DEFAULT_DOCK_POSITION = { left: 0, bottom: 80 }; // left: 0 means centered (handled by CSS transform)
 
 const channelName = computed(() => {
-  // Use effective channel name which includes optimistic state
   return voiceStore.effectiveChannelName || 'Voice Channel';
 });
 
@@ -450,7 +442,6 @@ const voiceIntensity = computed(() => {
   return Math.min(voiceStore.localState.audioLevel / 100, 1);
 });
 
-// Voice ring animation
 const voiceRingOffset = computed(() => {
   const circumference = 2 * Math.PI * 45; // 2 * pi * radius
   const progress = voiceIntensity.value;
@@ -575,7 +566,6 @@ const activeVideoUserName = computed(() => {
   return profile?.displayName || profile?.username || 'User';
 });
 
-// METHODS
 const expandToOverlay = () => {
   currentMode.value = 'overlay';
   voiceStore.isOverlayVisible = true;
@@ -633,16 +623,12 @@ const activatePIPForActiveVideo = () => {
   }
 };
 
-// DRAG FUNCTIONALITY FOR MINIMIZED DOCK
 const STORAGE_KEY_MINIMIZED_POSITION = 'voice-dock-minimized-position';
 const STORAGE_KEY_DOCK_POSITION = 'voice-dock-position';
 
-// Default position (matches CSS default)
-const DEFAULT_POSITION = { left: 10, bottom: 90 };
-// Magnetic snap threshold (pixels) - snap if within this distance
-const SNAP_THRESHOLD = 80; // Increased from 30 to 80 for better snap range
-// Only enable magnetic snap on desktop (not mobile)
-const isDesktop = computed(() => !isMobileViewport.value);
+const DEFAULT_POSITION = { left: 10, bottom: 90 }; // matches CSS default
+const SNAP_THRESHOLD = 80; // px; magnetic snap to default position within this distance
+const isDesktop = computed(() => !isMobileViewport.value); // magnetic snap is desktop-only
 
 const loadMinimizedPosition = () => {
   try {
@@ -716,40 +702,36 @@ const saveDockPosition = () => {
 };
 
 const startDrag = (e: MouseEvent | TouchEvent) => {
-  // Prevent click event from firing
   e.preventDefault();
   e.stopPropagation();
-  
+
   isDragging.value = true;
-  hasMoved.value = false; // Reset movement tracking
-  
+  hasMoved.value = false;
+
   // Cache container dimensions to avoid recalculating on every move
   const container = minimizedContainerRef.value;
   if (container) {
     const rect = container.getBoundingClientRect();
     containerDimensions.value = { width: rect.width, height: rect.height };
   }
-  
+
   const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
   const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-  
+
   dragInitialMousePos.value = { x: clientX, y: clientY };
-  
+
   dragStartPos.value = {
     x: clientX - minimizedPosition.value.left,
     y: window.innerHeight - clientY - minimizedPosition.value.bottom
   };
-  
-  // Use passive: false to allow preventDefault
+
   document.addEventListener('mousemove', handleDrag, { passive: false });
   document.addEventListener('mouseup', stopDrag);
   document.addEventListener('touchmove', handleDrag, { passive: false });
   document.addEventListener('touchend', stopDrag);
-  
-  // Prevent text selection while dragging using CSS class
+
   document.body.classList.add('is-dragging-voice-dock');
-  
-  // Disable transitions during drag for smooth movement
+
   if (container) {
     container.style.transition = 'none';
   }
@@ -757,192 +739,163 @@ const startDrag = (e: MouseEvent | TouchEvent) => {
 
 const handleDrag = (e: MouseEvent | TouchEvent) => {
   if (!isDragging.value) return;
-  
+
   e.preventDefault();
-  
+
   const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
   const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-  
+
   const deltaX = Math.abs(clientX - dragInitialMousePos.value.x);
   const deltaY = Math.abs(clientY - dragInitialMousePos.value.y);
   const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-  
+
   if (distance > CLICK_THRESHOLD) {
-    hasMoved.value = true; // Mark as moved if beyond threshold
+    hasMoved.value = true;
   }
-  
-  // Cancel any pending animation frame
+
   if (rafId !== null) {
     cancelAnimationFrame(rafId);
   }
-  
-  // Use requestAnimationFrame for smooth updates
+
   rafId = requestAnimationFrame(() => {
     if (!isDragging.value) return;
-    
+
     const newLeft = clientX - dragStartPos.value.x;
     const newBottom = window.innerHeight - clientY - dragStartPos.value.y;
-    
-    // Constrain to viewport bounds using cached dimensions
+
     const maxLeft = window.innerWidth - containerDimensions.value.width;
     const maxBottom = window.innerHeight - containerDimensions.value.height;
-    
+
     minimizedPosition.value = {
       left: Math.max(0, Math.min(newLeft, maxLeft)),
       bottom: Math.max(0, Math.min(newBottom, maxBottom))
     };
-    
+
     rafId = null;
   });
 };
 
 const stopDrag = () => {
   if (!isDragging.value) return;
-  
-  // Cancel any pending animation frame
+
   if (rafId !== null) {
     cancelAnimationFrame(rafId);
     rafId = null;
   }
-  
-  // If we moved, prevent the click event from firing
+
   if (hasMoved.value) {
     shouldPreventClick = true;
-    // Use a small timeout to ensure click event is prevented
+    // Small timeout to ensure the click event that follows mouseup is suppressed
     setTimeout(() => {
       shouldPreventClick = false;
-      hasMoved.value = false; // Reset for next interaction
+      hasMoved.value = false;
     }, 100);
   }
-  
+
   isDragging.value = false;
-  
+
   document.body.classList.remove('is-dragging-voice-dock');
-  
-  // Re-enable transitions after drag for smooth magnetic snap animation
+
   const container = minimizedContainerRef.value;
   if (container) {
     container.style.transition = 'left 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94), bottom 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
   }
-  
-  // Magnetic snap check on release (desktop only) - smoothly animate to default if close enough
+
   if (isDesktop.value) {
     const distanceToDefault = Math.sqrt(
-      Math.pow(minimizedPosition.value.left - DEFAULT_POSITION.left, 2) + 
+      Math.pow(minimizedPosition.value.left - DEFAULT_POSITION.left, 2) +
       Math.pow(minimizedPosition.value.bottom - DEFAULT_POSITION.bottom, 2)
     );
-    
+
     if (distanceToDefault < SNAP_THRESHOLD) {
-      // Smoothly animate to default position (transition is now enabled)
       minimizedPosition.value = { ...DEFAULT_POSITION };
-      
-      // Disable transition after animation completes
+
       setTimeout(() => {
         if (container) {
           container.style.transition = '';
         }
-      }, 300); // Match transition duration
-    } else {
-      // Not close enough - disable transition immediately
-      if (container) {
-        container.style.transition = '';
-      }
-    }
-  } else {
-    // Mobile - disable transition immediately
-    if (container) {
+      }, 300); // match transition duration
+    } else if (container) {
       container.style.transition = '';
     }
+  } else if (container) {
+    container.style.transition = '';
   }
-  
+
   saveMinimizedPosition();
-  
+
   document.removeEventListener('mousemove', handleDrag);
   document.removeEventListener('mouseup', stopDrag);
   document.removeEventListener('touchmove', handleDrag);
   document.removeEventListener('touchend', stopDrag);
-  
-  // Restore text selection
+
   document.body.style.userSelect = '';
   document.body.style.cursor = '';
 };
 
-// Track if we should prevent the click event
 let shouldPreventClick = false;
 
 const handleMinimizedMouseDown = (e: MouseEvent) => {
-  // If mousedown is on the drag handle or info area, don't prevent click yet
-  // We'll check in handleDrag if movement occurred
+  // Movement is checked later in handleDrag; only clicks outside the drag area pass through immediately.
   const target = e.target as HTMLElement;
   const isOnDragArea = target.closest('.minimized-info') !== null;
-  
+
   if (!isOnDragArea) {
-    // If clicking outside drag area, allow normal click behavior
     shouldPreventClick = false;
   }
 };
 
 const handleMinimizedClick = (e: MouseEvent) => {
-  // Prevent click if we just finished dragging
   if (shouldPreventClick || hasMoved.value) {
     e.preventDefault();
     e.stopPropagation();
-    shouldPreventClick = false; // Reset for next interaction
+    shouldPreventClick = false;
     return;
   }
-  
-  // Only expand if it was a genuine click (no drag occurred)
+
   expandToDock();
 };
 
-// DRAG FUNCTIONALITY FOR STANDARD DOCK
-
 const startDockDrag = (e: MouseEvent | TouchEvent) => {
-  // Don't start drag if clicking on interactive elements (buttons, etc.)
   const target = e.target as HTMLElement;
   if (target.closest('button') || target.closest('.dock-video-preview')) {
-    return; // Let buttons and video preview handle their own clicks
+    return; // let buttons and video preview handle their own clicks
   }
-  
-  // Prevent click event from firing
+
   e.preventDefault();
   e.stopPropagation();
-  
+
   isDockDragging.value = true;
   dockHasMoved.value = false;
-  
-  // Cache container dimensions
+
   const container = dockContainerRef.value;
   if (container) {
     const rect = container.getBoundingClientRect();
     dockContainerDimensions.value = { width: rect.width, height: rect.height };
   }
-  
+
   const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
   const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-  
+
   dockDragInitialMousePos.value = { x: clientX, y: clientY };
-  
-  const currentLeft = dockPosition.value.left === 0 
+
+  const currentLeft = dockPosition.value.left === 0
     ? window.innerWidth / 2 - (dockContainerDimensions.value.width / 2)
     : dockPosition.value.left;
-  
+
   dockDragStartPos.value = {
     x: clientX - currentLeft,
     y: window.innerHeight - clientY - dockPosition.value.bottom
   };
-  
-  // Use passive: false to allow preventDefault
+
   document.addEventListener('mousemove', handleDockDrag, { passive: false });
   document.addEventListener('mouseup', stopDockDrag);
   document.addEventListener('touchmove', handleDockDrag, { passive: false });
   document.addEventListener('touchend', stopDockDrag);
-  
-  // Prevent text selection while dragging
+
   document.body.style.userSelect = 'none';
   document.body.style.cursor = 'grabbing';
-  
-  // Disable transitions during drag
+
   if (container) {
     container.style.transition = 'none';
   }
@@ -950,55 +903,50 @@ const startDockDrag = (e: MouseEvent | TouchEvent) => {
 
 const handleDockDrag = (e: MouseEvent | TouchEvent) => {
   if (!isDockDragging.value) return;
-  
+
   e.preventDefault();
-  
+
   const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
   const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-  
+
   const deltaX = Math.abs(clientX - dockDragInitialMousePos.value.x);
   const deltaY = Math.abs(clientY - dockDragInitialMousePos.value.y);
   const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-  
+
   if (distance > CLICK_THRESHOLD) {
     dockHasMoved.value = true;
   }
-  
-  // Cancel any pending animation frame
+
   if (dockRafId !== null) {
     cancelAnimationFrame(dockRafId);
   }
-  
-  // Use requestAnimationFrame for smooth updates
+
   dockRafId = requestAnimationFrame(() => {
     if (!isDockDragging.value) return;
-    
+
     const newLeft = clientX - dockDragStartPos.value.x;
     const newBottom = window.innerHeight - clientY - dockDragStartPos.value.y;
-    
-    // Constrain to viewport bounds
+
     const maxLeft = window.innerWidth - dockContainerDimensions.value.width;
     const maxBottom = window.innerHeight - dockContainerDimensions.value.height;
-    
+
     dockPosition.value = {
       left: Math.max(0, Math.min(newLeft, maxLeft)),
       bottom: Math.max(0, Math.min(newBottom, maxBottom))
     };
-    
+
     dockRafId = null;
   });
 };
 
 const stopDockDrag = () => {
   if (!isDockDragging.value) return;
-  
-  // Cancel any pending animation frame
+
   if (dockRafId !== null) {
     cancelAnimationFrame(dockRafId);
     dockRafId = null;
   }
-  
-  // If we moved, prevent the click event from firing
+
   if (dockHasMoved.value) {
     dockShouldPreventClick = true;
     setTimeout(() => {
@@ -1006,16 +954,14 @@ const stopDockDrag = () => {
       dockHasMoved.value = false;
     }, 100);
   }
-  
+
   isDockDragging.value = false;
-  
-  // Re-enable transitions for smooth magnetic snap animation
+
   const container = dockContainerRef.value;
   if (container) {
     container.style.transition = 'left 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94), bottom 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94), transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
   }
-  
-  // Magnetic snap check on release (desktop only)
+
   if (isDesktop.value) {
     const currentLeft = dockPosition.value.left === 0 
       ? window.innerWidth / 2 - (dockContainerDimensions.value.width / 2)
@@ -1028,48 +974,37 @@ const stopDockDrag = () => {
     );
     
     if (distanceToDefault < SNAP_THRESHOLD) {
-      // Smoothly animate to default position (centered, left: 0 means centered)
       dockPosition.value = { left: 0, bottom: DEFAULT_DOCK_POSITION.bottom };
-      
-      // Disable transition after animation completes
+
       setTimeout(() => {
         if (container) {
           container.style.transition = '';
         }
       }, 300);
-    } else {
-      // Not close enough - disable transition immediately
-      if (container) {
-        container.style.transition = '';
-      }
-    }
-  } else {
-    // Mobile - disable transition immediately
-    if (container) {
+    } else if (container) {
       container.style.transition = '';
     }
+  } else if (container) {
+    container.style.transition = '';
   }
-  
+
   saveDockPosition();
-  
+
   document.removeEventListener('mousemove', handleDockDrag);
   document.removeEventListener('mouseup', stopDockDrag);
   document.removeEventListener('touchmove', handleDockDrag);
   document.removeEventListener('touchend', stopDockDrag);
-  
-  // Restore text selection
+
   document.body.style.userSelect = '';
   document.body.style.cursor = '';
 };
 
 const handleDockClick = (e: MouseEvent) => {
-  // Don't prevent clicks on buttons or interactive elements
   const target = e.target as HTMLElement;
   if (target.closest('button') || target.closest('.dock-video-preview')) {
-    return; // Let these elements handle their own clicks
+    return; // let these elements handle their own clicks
   }
-  
-  // Prevent click if we just finished dragging
+
   if (dockShouldPreventClick || dockHasMoved.value) {
     e.preventDefault();
     e.stopPropagation();
@@ -1077,8 +1012,6 @@ const handleDockClick = (e: MouseEvent) => {
     return;
   }
 };
-
-// WATCHERS
 
 // Track last attached user to prevent flashing from repeated attachments
 let lastAttachedUserId: string | null = null;
@@ -1169,13 +1102,11 @@ watch(
   { immediate: true }
 );
 
-// LIFECYCLE & EVENT LISTENERS
 // Close participants dropdown when clicking outside
 let handleClickOutside: ((e: MouseEvent) => void) | null = null;
 
 onMounted(() => {
-  // Start in dock mode ONLY if the store doesn't want overlay visible
-  // (e.g., when auto-opening for video detection)
+  // Start in dock mode only if the store doesn't want overlay visible (e.g. auto-opening for video detection)
   if (!voiceStore.isOverlayVisible) {
     currentMode.value = 'dock';
   } else {
@@ -1196,20 +1127,15 @@ onMounted(() => {
   };
   
   document.addEventListener('click', handleClickOutside);
-  
-  // Keybind handlers are registered in UnifiedVoiceOverlay when overlay is open
-  // When in dock mode (not overlay), we still want these shortcuts to work
-  // The keybind system handles this through context - 'voice-connected' is active here
-  
-  // Note: Keybind handlers are registered once globally in the voice store when connected.
-  // The dock doesn't need its own handlers - the centralized system handles everything.
+
+  // Keybind handlers are registered once globally in the voice store when connected;
+  // the dock doesn't need its own (works in both dock and overlay mode via context).
 });
 
 onUnmounted(() => {
   stopDrag();
   stopDockDrag();
-  
-  // Cancel any pending animation frames
+
   if (rafId !== null) {
     cancelAnimationFrame(rafId);
     rafId = null;

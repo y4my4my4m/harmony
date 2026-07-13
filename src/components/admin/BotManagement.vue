@@ -209,7 +209,6 @@ async function loadBots() {
     
     bots.value = data || []
     
-    // Check bot statuses
     for (const bot of bots.value) {
       const { data: presence } = await supabase
         .from('bot_presence')
@@ -294,7 +293,6 @@ async function regenerateToken(bot: any) {
     const tokenHash = await hashBotToken(token)
     const tokenPrefix = token.substring(0, 8)
     
-    // Revoke old tokens
     await supabase
       .from('bot_tokens')
       .update({ is_active: false, revoked_at: new Date().toISOString() })

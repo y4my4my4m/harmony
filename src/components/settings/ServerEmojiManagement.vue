@@ -300,16 +300,13 @@ const uploadingEmoji = ref(false)
 const deletingEmoji = ref<string | null>(null)
 const isDragOver = ref(false)
 
-// Selection mode state
 const selectionMode = ref(false)
 const selectedEmojis = ref<string[]>([])
 
-// Renaming state  
 const renamingEmoji = ref<string | null>(null)
 const tempEmojiName = ref('')
 const emojiRenameInput = ref<HTMLInputElement>()
 
-// Upload progress tracking
 const uploadProgress = ref({
   total: 0,
   current: 0,
@@ -508,7 +505,6 @@ const handleBulkEmojiUpload = async (files: File[]) => {
   }
 }
 
-// Selection mode methods
 const enterSelectionMode = () => {
   selectionMode.value = true
   selectedEmojis.value = []
@@ -557,7 +553,6 @@ const bulkDeleteSelected = async () => {
       }))
     }
 
-    // Exit selection mode
     exitSelectionMode()
   } catch (error) {
     debug.error('Error in bulk emoji deletion:', error)
@@ -567,7 +562,6 @@ const bulkDeleteSelected = async () => {
   }
 }
 
-// Renaming methods
 const startEmojiRename = async (emoji: Emoji) => {
   if (!props.permissions.canRename) return
   
@@ -627,13 +621,11 @@ const formatDate = (dateString: string): string => {
   return new Date(dateString).toLocaleDateString()
 }
 
-// Get cache statistics
 // eslint-disable-next-line unused-imports/no-unused-vars
 const getCacheStats = () => {
   return emojiCache.getCacheStats
 }
 
-// Get emoji analytics for this server
 // eslint-disable-next-line unused-imports/no-unused-vars
 const getEmojiAnalytics = () => {
   return emojiCache.getServerEmojis(props.serverId).length

@@ -440,7 +440,6 @@ const authStore = useAuthStore()
 const toast = useToast()
 const { confirm } = useConfirmDialog()
 
-// Federation management data
 const instanceStats = ref<InstanceStats>({
   total_instances: 0,
   blocked_instances: 0,
@@ -491,7 +490,6 @@ const instancePagination = ref({
   total: 0
 })
 
-// Federation management methods
 const refreshFederationData = async () => {
   loadingStates.value.federationStats = true
   try {
@@ -562,7 +560,6 @@ const purgeSingleEndpoint = async (endpoint: DeadEndpoint) => {
   }
 }
 
-// Federation maintenance methods
 const refreshKeyConsistency = async () => {
   loadingStates.value.keyConsistency = true
   try {

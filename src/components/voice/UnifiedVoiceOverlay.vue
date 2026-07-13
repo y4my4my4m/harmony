@@ -262,7 +262,6 @@ import ConfettiEffect from '../easteregg/ConfettiEffect.vue';
 import Icon from '@/components/common/Icon.vue';
 import DisplayName from '@/components/DisplayName.vue';
 
-// Centralized keybind system
 const keybinds = useKeybinds();
 const isPTTMode = keybinds.isPTTMode;
 const isPTTActive = keybinds.isPTTActive;
@@ -294,7 +293,6 @@ const isFilmstripCollapsed = ref(false);
 const containerEl = ref<HTMLElement | null>(null);
 const gridEl = ref<HTMLElement | null>(null);
 
-// Easter egg state
 const easterEggState = ref<EasterEggState>({
   isActive: false,
   type: null,
@@ -302,10 +300,8 @@ const easterEggState = ref<EasterEggState>({
   activatedAt: null,
 });
 
-// TILE MODEL
 // Every participant gets a camera tile (video or avatar); screensharers get
 // an additional dedicated screen tile, exactly like Discord's stream tiles.
-
 interface VoiceTileModel {
   id: string;
   userState: UserMediaState;
@@ -338,8 +334,6 @@ const filmstripTiles = computed(() =>
 );
 
 const connectionStats = computed(() => voiceStore.connectionStats);
-
-// FOCUS / FULLSCREEN
 
 const focusTile = (tile: VoiceTileModel) => {
   if (focusedTile.value?.id === tile.id) {
@@ -396,8 +390,6 @@ watch(
   { immediate: true }
 );
 
-// NATIVE FULLSCREEN
-
 const isNativeFullscreen = ref(false);
 
 const toggleNativeFullscreen = async () => {
@@ -447,10 +439,7 @@ const pokeControls = () => {
 // the focused tile covers the viewport without the browser fullscreen API
 const isFullWindowActive = computed(() => voiceStore.isFullWindowMode && !!focusedTile.value);
 
-// ADAPTIVE GRID
-// Best-fit solver: pick the column count that maximizes 16:9 tile size
-// within the observed stage dimensions.
-
+// Best-fit solver: pick the column count that maximizes 16:9 tile size within the observed stage dimensions.
 const stageSize = ref({ width: 0, height: 0 });
 let resizeObserver: ResizeObserver | null = null;
 
@@ -499,8 +488,6 @@ const tileStyle = computed(() => {
     height: `${Math.max(Math.floor(best.h), 68)}px`,
   };
 });
-
-// METHODS
 
 const handleBackdropClick = () => {
   minimizeOverlay();
@@ -551,7 +538,6 @@ const handleSettingsUpdate = (event: { type: string; value: any }) => {
         });
       }
       break;
-    // Other event types can be handled here if needed
   }
 };
 
@@ -559,9 +545,6 @@ const toggleSpatialPanel = () => {
   spatialStore.togglePanel();
 };
 
-// LIFECYCLE
-
-// Konami code and easter egg
 const konamiEnabled = ref(true)
 let konamiDetector: ReturnType<typeof useKonamiCode> | null = null
 
@@ -627,7 +610,6 @@ watch(
   { immediate: true }
 )
 
-// Konami code detector
 konamiDetector = useKonamiCode(handleKonamiActivate)
 
 onMounted(() => {

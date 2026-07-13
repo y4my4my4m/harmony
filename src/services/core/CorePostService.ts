@@ -42,16 +42,10 @@ export class CorePostService {
     return this.instance
   }
 
-  // POST CREATION & MANAGEMENT (PURE LOCAL)
-
-  /**
-   * Create a post (pure local database operation)
-   */
   async createPost(data: CreatePostData): Promise<TimelinePost> {
     try {
       debug.log('Core: createPost starting...')
-      
-      // Use AuthContextService for auth check (cached)
+
       const authUser = await authContextService.getCurrentAuthUser()
       if (!authUser) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
       debug.log('Core: Auth user verified')
@@ -59,7 +53,6 @@ export class CorePostService {
       const profileId = await this.getCurrentUserProfileId()
       debug.log('Core: Profile ID retrieved:', profileId)
 
-      // Enterprise-grade content validation
       if (!Array.isArray(data.content)) {
         throw this.createError('INVALID_CONTENT', 'Content must be an array of MessageParts')
       }
@@ -148,10 +141,6 @@ export class CorePostService {
     }
   }
 
-  /**
-   * Update a post (pure local update)
-   * Uses AuthContextService for efficient auth lookup
-   */
   async updatePost(postId: string, updates: UpdatePostData): Promise<TimelinePost> {
     try {
       const profileId = await this.getCurrentUserProfileId()
@@ -205,10 +194,6 @@ export class CorePostService {
     }
   }
 
-  /**
-   * Delete a post (soft delete, pure local)
-   * Uses AuthContextService for efficient auth lookup
-   */
   async deletePost(postId: string): Promise<void> {
     try {
       const profileId = await this.getCurrentUserProfileId()
@@ -240,12 +225,6 @@ export class CorePostService {
     }
   }
 
-  // POST INTERACTIONS (PURE LOCAL)
-
-  /**
-   * Toggle like on a post (pure local)
-   * Uses AuthContextService for efficient auth lookup
-   */
   async toggleLike(postId: string): Promise<{ liked: boolean; newCount: number }> {
     try {
       const profileId = await this.getCurrentUserProfileId()
@@ -307,10 +286,6 @@ export class CorePostService {
     }
   }
 
-  /**
-   * Toggle share/reblog on a post (pure local)
-   * Uses AuthContextService for efficient auth lookup
-   */
   async toggleShare(postId: string): Promise<{ shared: boolean; newCount: number }> {
     try {
       const profileId = await this.getCurrentUserProfileId()
@@ -371,10 +346,6 @@ export class CorePostService {
     }
   }
 
-  /**
-   * Toggle bookmark on a post (pure local)
-   * Uses AuthContextService for efficient auth lookup
-   */
   async toggleBookmark(postId: string): Promise<{ bookmarked: boolean }> {
     try {
       const profileId = await this.getCurrentUserProfileId()
@@ -429,10 +400,7 @@ export class CorePostService {
 
   private static readonly MAX_PINNED_POSTS = 5
 
-  /**
-   * Toggle pin on a post (pin/unpin to profile).
-   * Only the author can pin their own public/unlisted posts, up to MAX_PINNED_POSTS.
-   */
+  // Only the author can pin their own public/unlisted posts, up to MAX_PINNED_POSTS.
   async togglePinPost(postId: string): Promise<{ pinned: boolean }> {
     try {
       const profileId = await this.getCurrentUserProfileId()
@@ -490,9 +458,6 @@ export class CorePostService {
     }
   }
 
-  /**
-   * Get pinned posts for a user profile (includes author join for display)
-   */
   async getPinnedPosts(authorId: string): Promise<any[]> {
     try {
       const { data, error } = await supabase
@@ -513,10 +478,6 @@ export class CorePostService {
     }
   }
 
-  /**
-   * Toggle reaction on a post
-   * Uses AuthContextService for efficient auth lookup
-   */
   async toggleReaction(
     postId: string, 
     emojiId: string
@@ -599,9 +560,6 @@ export class CorePostService {
     }
   }
 
-  /**
-   * Get reactions for a post using database function (pure local)
-   */
   async getPostReactions(postId: string): Promise<any[]> {
     try {
       debug.log(`Core: Fetching reactions for post: ${postId}`)
@@ -622,11 +580,8 @@ export class CorePostService {
     }
   }
 
-  // POST LOADING (PURE LOCAL)
-
   /**
-   * Get reactions for multiple posts using optimized database function (pure local)
-   * PERFORMANCE: Uses database function to eliminate N+1 query problem
+   * Get reactions for multiple posts using a single batch DB function call (avoids N+1).
    */
   private async getBatchPostReactions(postIds: string[]): Promise<Record<string, any[]>> {
     try {
@@ -635,8 +590,7 @@ export class CorePostService {
       }
 
       debug.log(`Core: Batch fetching reactions for ${postIds.length} posts`)
-      
-      // Use the optimized database function
+
       const { data: reactions, error } = await supabase
         .rpc('get_batch_post_reactions', { post_ids: postIds })
 
@@ -645,14 +599,12 @@ export class CorePostService {
         throw this.createError('BATCH_FETCH_POST_REACTIONS_FAILED', error.message, error)
       }
 
-      // Group reactions by post_id
       const groupedReactions: Record<string, any[]> = {}
-      
+
       postIds.forEach(postId => {
         groupedReactions[postId] = []
       })
 
-      // Group reactions by post
       reactions?.forEach((reaction: any) => {
         const postId = reaction.post_id
         
@@ -680,9 +632,6 @@ export class CorePostService {
     }
   }
 
-  /**
-   * Load timeline posts with pagination (pure local)
-   */
   async loadTimelinePosts(
     timeline: 'public' | 'home' | 'local',
     options: {
@@ -722,7 +671,6 @@ export class CorePostService {
 
       const postList = posts || []
 
-      // Batch load reactions for all posts
       if (postList.length > 0) {
         const postIds = postList.map(p => p.id)
         const reactionsByPost = await this.getBatchPostReactions(postIds)
@@ -740,9 +688,6 @@ export class CorePostService {
     }
   }
 
-  /**
-   * Load a single post by ID (pure local)
-   */
   async loadPost(postId: string): Promise<TimelinePost | null> {
     try {
       debug.log(`Core: Loading post: ${postId}`)
@@ -794,13 +739,10 @@ export class CorePostService {
     }
   }
 
-  // HELPER METHODS (PURE LOCAL)
-
   private async getCurrentUserProfileId(): Promise<string> {
     try {
       debug.log('Core: Getting current user profile ID...')
-      
-      // Use cached profile ID from AuthContextService
+
       const profileId = await authContextService.getCurrentProfileId()
       
       if (!profileId) {

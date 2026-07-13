@@ -15,9 +15,6 @@ class BlockedInstancesCacheService {
   
   private readonly REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 
-  /**
-   * Initialize cache - call at startup
-   */
   async initialize(): Promise<void> {
     await this.refresh();
     
@@ -32,9 +29,6 @@ class BlockedInstancesCacheService {
     logger.info(`🚫 Blocked instances cache initialized (${this.blockedDomains.size} domains, refreshes every 5 min)`);
   }
 
-  /**
-   * Refresh the cache from database
-   */
   async refresh(): Promise<void> {
     const supabase = getSupabaseClient();
     
@@ -87,16 +81,10 @@ class BlockedInstancesCacheService {
     logger.info(`✅ Removed from block cache: ${domain}`);
   }
 
-  /**
-   * Get all blocked domains (for debugging)
-   */
   getBlockedDomains(): string[] {
     return [...this.blockedDomains];
   }
 
-  /**
-   * Get cache stats
-   */
   getStats(): { count: number; lastRefresh: Date | null } {
     return {
       count: this.blockedDomains.size,
@@ -104,9 +92,6 @@ class BlockedInstancesCacheService {
     };
   }
 
-  /**
-   * Stop the refresh interval
-   */
   stop(): void {
     if (this.refreshIntervalId) {
       clearInterval(this.refreshIntervalId);

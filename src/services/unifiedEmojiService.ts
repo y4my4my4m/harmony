@@ -1,14 +1,5 @@
-/**
- * Unified Emoji Service
- * 
- * A professional, DRY emoji system that:
- * - Stores reactions as standard unicode (portable across packs)
- * - Renders emojis based on user's selected pack (twemoji or native)
- * - Provides lookup between shortcode ↔ unicode ↔ codepoint
- * - Works seamlessly when switching emoji packs
- * 
- * Data source: unicode-emoji-data.json (single source of truth)
- */
+// Stores reactions as standard unicode (portable across packs), renders per user's selected pack
+// (twemoji or native), and looks up shortcode <-> unicode <-> codepoint. Data source: unicode-emoji-data.json.
 
 import { ref, computed } from 'vue'
 import { debug } from '@/utils/debug'
@@ -193,7 +184,6 @@ function setEmojiPack(pack: EmojiPack): void {
   debug.log(`Switched to emoji pack: ${pack}`)
 }
 
-// CONVERSION UTILITIES
 
 /**
  * Convert shortcode to unicode emoji
@@ -474,7 +464,6 @@ function normalizeToUnicode(input: string): string {
   return input
 }
 
-// SEARCH
 
 /**
  * Search emojis by query
@@ -525,7 +514,6 @@ function getAllEmojis(): EmojiEntry[] {
   return emojiData.value?.emojis || []
 }
 
-// COMPOSABLE
 
 /**
  * Unified emoji composable

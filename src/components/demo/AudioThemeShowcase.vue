@@ -136,15 +136,12 @@ import type { AudioAction } from '@/types'
 import AudioThemeManager from '@/components/settings/AudioThemeManager.vue'
 import Icon from '@/components/common/Icon.vue'
 
-// STATE
-
 const themeStore = useThemeStore()
 
 const toasts = ref<Array<{ id: string, type: string, message: string }>>([])
 const showDebugInfo = ref(false)
 const cacheInfo = ref<any>(null)
 
-// Test actions for demonstration
 const testActions = [
   { id: 'mention', label: 'Mention', icon: 'at-sign', category: 'notification' },
   { id: 'dm', label: 'Direct Message', icon: 'message-circle', category: 'notification' },
@@ -170,8 +167,6 @@ const debugInfo = computed(() => ({
   cacheInfo: cacheInfo.value,
   availableThemes: themeStore.audioThemes.map(t => ({ id: t.id, name: t.name }))
 }))
-
-// METHODS
 
 const testAction = async (actionId: string): Promise<void> => {
   try {
@@ -238,7 +233,6 @@ const updateCacheInfo = (): void => {
   }
 }
 
-// Toast system
 const showToast = (type: string, message: string): void => {
   const id = `toast-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
   toasts.value.push({ id, type, message })
@@ -264,8 +258,6 @@ const getToastIcon = (type: string): string => {
   }
   return icons[type] || 'info'
 }
-
-// LIFECYCLE
 
 onMounted(async () => {
   try {

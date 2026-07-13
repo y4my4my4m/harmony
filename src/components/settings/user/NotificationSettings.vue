@@ -634,7 +634,6 @@ const isMobileClient = isMobileDevice()
 const hapticsAvailable = supportsHaptics()
 const systemNotificationsAvailable = isNativeClient || typeof Notification !== 'undefined'
 
-// Test haptic feedback
 const testHaptic = () => {
   hapticSettings.hapticManager.trigger({ pattern: 'success' })
   toast.success('Haptic feedback triggered!')
@@ -702,7 +701,6 @@ const isTestingType = ref<string | null>(null)
 const soundVolume = ref(70)
 const isTestingPush = ref(false)
 
-// Notification type configurations
 const chatNotificationTypes = [
   {
     key: 'desktop_chat_messages',
@@ -924,8 +922,7 @@ const testNotification = async (type: NotificationType) => {
       3000,
       testData.avatar
     )
-    
-    // Play sound
+
     await notificationStore.playNotificationSound(type)
     
     if (hasNotificationPermission.value) {
@@ -959,8 +956,6 @@ const testNotification = async (type: NotificationType) => {
         })
       }
     }
-    
-    // toast.success(`Test notification sent for ${type}`)
   } catch (error) {
     debug.error('Failed to test notification:', error)
     toast.error('Failed to test notification')
@@ -971,7 +966,6 @@ const testNotification = async (type: NotificationType) => {
   }
 }
 
-// Helper function to create test notification data
 const createTestNotificationData = (type: NotificationType) => {
   const testMessages = {
     mention: {
@@ -1067,11 +1061,10 @@ const testAllNotifications = async () => {
     const allTypes = [...chatNotificationTypes, ...activityPubNotificationTypes]
     
     for (const type of allTypes) {
-      // Type-safe access to preferences
       const isEnabled = (preferences as any)[type.key]
       if (isEnabled) {
         await testNotification(type.testType as NotificationType)
-        await new Promise(resolve => setTimeout(resolve, 500)) // Delay between tests
+        await new Promise(resolve => setTimeout(resolve, 500))
       }
     }
     
@@ -1173,7 +1166,6 @@ const handleRemoveDevice = async (sub: { id: string; endpoint: string }) => {
   }
 }
 
-// Helper functions for device display
 const getDeviceIcon = (userAgent?: string): string => {
   if (!userAgent) return 'smartphone'
   const ua = userAgent.toLowerCase()
@@ -1213,7 +1205,6 @@ const formatDate = (dateStr: string): string => {
   return date.toLocaleDateString()
 }
 
-// Check notification permission on mount
 onMounted(async () => {
   if (isNativeClient) {
     try {

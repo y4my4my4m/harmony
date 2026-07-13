@@ -116,9 +116,6 @@ export function messagePartsToMarkdown(
   }).join('');
 }
 
-/**
- * Extract the `file` (attachment) parts from a message's content array.
- */
 export function extractFileParts(parts: MessagePart[]): import('@/types').FileContent[] {
   if (!Array.isArray(parts)) return [];
   return parts.filter(
@@ -158,9 +155,6 @@ export function removeFilePartByUrl(parts: MessagePart[], url: string): MessageP
   });
 }
 
-/**
- * Extract plain text from MessagePart[] for previews
- */
 export function messagePartsToPlainText(parts: MessagePart[]): string {
   if (!Array.isArray(parts)) {
     return '';
@@ -313,9 +307,6 @@ export function coalesceInlineContentForMarkdown(
   return result;
 }
 
-/**
- * Check if message content contains only a single emoji
- */
 export function isSingleEmojiMessage(parts: MessagePart[]): boolean {
   if (!Array.isArray(parts) || parts.length !== 1) {
     return false;
@@ -326,7 +317,6 @@ export function isSingleEmojiMessage(parts: MessagePart[]): boolean {
     return false;
   }
   
-  // Traditional emoji type
   if (part.type === 'emoji') {
     return true;
   }

@@ -179,12 +179,9 @@ function extractContentHtml(content: any): string {
         }
         return `<a href="${escapeHtml(safeUrl)}" rel="nofollow noopener" target="_blank">${escapeHtml(label)}</a>`;
       }
-      // `url` and `embed` are the actual MessagePart shapes a Harmony
-      // composer emits when a user pastes a bare URL (the previous
-      // implementation only handled the `link` variant, which left
-      // URL-only posts rendering an empty `.content` div on the public
-      // post page). Strip tracking params for the visible href so the
-      // SSR page matches what the in-app renderer shows.
+      // `url` and `embed` are the MessagePart shapes emitted when a user
+      // pastes a bare URL. Strip tracking params so the SSR href matches
+      // what the in-app renderer shows.
       if (item.type === 'url' || item.type === 'embed') {
         const rawUrl = typeof item.url === 'string' ? item.url : '';
         if (!rawUrl) return '';

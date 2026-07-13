@@ -6,13 +6,9 @@
 import { computed } from 'vue'
 
 /**
- * The one canonical loading spinner. Always uses the active theme's primary
- * colour so it stays on-brand across every instance/theme. Use this everywhere
- * instead of hand-rolled `.loading-spinner` / `.spinner` divs.
- *
- * Note: spinners that sit INSIDE a coloured button should keep using a
- * contrast colour (white / currentColor) for legibility - this component is for
- * standalone loading states on the app background.
+ * Canonical loading spinner; uses the active theme's primary colour.
+ * Spinners inside a coloured button should use a contrast colour
+ * (white / currentColor) instead - this one is for standalone loading states.
  *
  * Pair with a label inside `.loading-state`, `.loading-spinner-container`,
  * `.loading-indicator`, or `div.loading` so design-system `gap: 1rem` applies.
@@ -24,7 +20,7 @@ const props = withDefaults(defineProps<{
   /** Border thickness in px. */
   thickness?: number
 }>(), {
-  // Matches the original app-boot / design-system `.loading-spinner` (BaseLayout).
+  // Matches design-system `.loading-spinner` defaults (BaseLayout).
   size: 32,
   thickness: 3,
 })

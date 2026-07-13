@@ -1,13 +1,4 @@
-/**
- * Session Heartbeat Service
- * 
- * DISABLED: This service was causing connection issues.
- * Supabase handles connection keepalive internally.
- * Push notifications are not configured, so session tracking is not needed.
- * 
- * If smart push notifications are implemented in the future,
- * this can be re-enabled with a more conservative approach.
- */
+// DISABLED: caused connection issues. Supabase handles keepalive internally; no push notifications configured, so session tracking is unneeded.
 
 import { debug } from '@/utils/debug'
 
