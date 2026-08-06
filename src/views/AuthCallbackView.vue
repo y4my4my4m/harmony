@@ -27,8 +27,8 @@
             type="text"
             class="code-input"
             :class="{ 'error': mfaError }"
-            :placeholder="useRecoveryCode ? 'XXXXXXXX' : '000000'"
-            :maxlength="useRecoveryCode ? 8 : 6"
+            :placeholder="useRecoveryCode ? RECOVERY_CODE_PLACEHOLDER : '000000'"
+            :maxlength="useRecoveryCode ? RECOVERY_CODE_MAX_LENGTH : 6"
             :inputmode="useRecoveryCode ? 'text' : 'numeric'"
             autocomplete="one-time-code"
             autofocus
@@ -39,7 +39,7 @@
           <button
             type="submit"
             class="btn-primary"
-            :disabled="mfaLoading || (useRecoveryCode ? mfaCode.length !== 8 : mfaCode.length !== 6)"
+            :disabled="mfaLoading || (useRecoveryCode ? mfaCode.length < RECOVERY_CODE_MIN_LENGTH : mfaCode.length !== 6)"
           >
             <span v-if="!mfaLoading">{{ $t('auth.verify') || 'Verify' }}</span>
             <span v-else>...</span>
@@ -105,6 +105,7 @@ import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
 import { isTauriRuntime } from '@/services/instanceConfig'
 import type { Session } from '@supabase/supabase-js'
+import { RECOVERY_CODE_MIN_LENGTH, RECOVERY_CODE_MAX_LENGTH, RECOVERY_CODE_PLACEHOLDER } from '@/utils/mfaConstants'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -183,9 +184,15 @@ const finalizeLoginAndRedirect = async (session: Session) => {
 }
 
 const handleMFAVerification = async () => {
-  const expectedLength = useRecoveryCode.value ? 8 : 6
-  if (mfaCode.value.length !== expectedLength) {
-    mfaError.value = `Please enter a ${expectedLength}-${useRecoveryCode.value ? 'character' : 'digit'} code`
+  // Recovery codes are 10 hex chars since 2026-06; codes issued before that are
+  // 8. The verify RPC accepts either, so the client only enforces the minimum.
+  if (useRecoveryCode.value) {
+    if (mfaCode.value.length < RECOVERY_CODE_MIN_LENGTH) {
+      mfaError.value = `Please enter a recovery code of at least ${RECOVERY_CODE_MIN_LENGTH} characters`
+      return
+    }
+  } else if (mfaCode.value.length !== 6) {
+    mfaError.value = 'Please enter a 6-digit code'
     return
   }
 
@@ -194,10 +201,14 @@ const handleMFAVerification = async () => {
 
   try {
     if (useRecoveryCode.value) {
-      // Recovery-code path: verify the code, then unenroll the factor.
-      // Mirrors `AuthComponent.handle2FAVerification`'s recovery flow. The
+      // Recovery-code path: verify the code, then unenroll the factor. The
       // authenticator is presumed lost, so MFA is disabled and re-enabled
       // later from settings.
+      //
+      // BUGS.md H8 / C11: this verifies and unenrolls client-side from an AAL1
+      // session, so the security boundary is in the client. AuthComponent's
+      // password-login path uses the atomic `redeem_recovery_code_and_disable_mfa`
+      // RPC instead; this path has not been migrated to it.
       const { data: sessionData } = await supabase.auth.getSession()
       const userId = sessionData.session?.user?.id
       if (!userId) throw new Error('User session not found')

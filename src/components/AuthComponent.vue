@@ -329,8 +329,8 @@
                     type="text"
                     class="code-input"
                     :class="{ 'error': twoFactorError }"
-                    :placeholder="useRecoveryCode ? 'XXXXXXXX' : '000000'"
-                    :maxlength="useRecoveryCode ? 8 : 6"
+                    :placeholder="useRecoveryCode ? RECOVERY_CODE_PLACEHOLDER : '000000'"
+                    :maxlength="useRecoveryCode ? RECOVERY_CODE_MAX_LENGTH : 6"
                     :inputmode="useRecoveryCode ? 'text' : 'numeric'"
                     autocomplete="one-time-code"
                     autofocus
@@ -346,7 +346,7 @@
                   <button 
                     type="submit" 
                     class="btn-primary" 
-                    :disabled="twoFactorLoading || (useRecoveryCode ? twoFactorCode.length !== 8 : twoFactorCode.length !== 6)"
+                    :disabled="twoFactorLoading || (useRecoveryCode ? twoFactorCode.length < RECOVERY_CODE_MIN_LENGTH : twoFactorCode.length !== 6)"
                   >
                     <span v-if="!twoFactorLoading">{{ $t('auth.verify') }}</span>
                     <span v-else class="btn-loader"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span>
@@ -384,6 +384,7 @@ import { adminService } from '@/services/AdminService'
 import { getStoredInstance } from '@/services/instanceConfig'
 import { isTauriDesktop } from '@/utils/platform'
 import type { Provider } from '@supabase/supabase-js'
+import { RECOVERY_CODE_MIN_LENGTH, RECOVERY_CODE_MAX_LENGTH, RECOVERY_CODE_PLACEHOLDER } from '@/utils/mfaConstants'
 
 // Props
 interface Props {
@@ -680,9 +681,15 @@ const handleSubmit = async () => {
 
 // 2FA Verification
 const handle2FAVerification = async () => {
-  const expectedLength = useRecoveryCode.value ? 8 : 6
-  if (twoFactorCode.value.length !== expectedLength) {
-    twoFactorError.value = `Please enter a ${expectedLength}-${useRecoveryCode.value ? 'character' : 'digit'} code`
+  // Recovery codes are 10 hex chars since 2026-06; codes issued before that are
+  // 8. The redeem RPC accepts either, so the client only enforces the minimum.
+  if (useRecoveryCode.value) {
+    if (twoFactorCode.value.length < RECOVERY_CODE_MIN_LENGTH) {
+      twoFactorError.value = `Please enter a recovery code of at least ${RECOVERY_CODE_MIN_LENGTH} characters`
+      return
+    }
+  } else if (twoFactorCode.value.length !== 6) {
+    twoFactorError.value = 'Please enter a 6-digit code'
     return
   }
 

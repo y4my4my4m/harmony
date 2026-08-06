@@ -208,12 +208,12 @@
             <input 
               v-model="mfaCode" 
               type="text"
-              :maxlength="useRecoveryCode ? 8 : 6"
+              :maxlength="useRecoveryCode ? RECOVERY_CODE_MAX_LENGTH : 6"
               class="form-input"
               :class="{ 'error': mfaError }"
               @input="mfaError = ''"
               required
-              :placeholder="useRecoveryCode ? 'XXXXXXXX' : '000000'"
+              :placeholder="useRecoveryCode ? RECOVERY_CODE_PLACEHOLDER : '000000'"
               autocomplete="off"
             />
             <span v-if="mfaError" class="error-message">{{ mfaError }}</span>
@@ -258,6 +258,7 @@ import { supabase } from '@/supabase'
 import { useToast } from 'vue-toastification'
 import { useAuthStore } from '@/stores/auth'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
+import { RECOVERY_CODE_MIN_LENGTH, RECOVERY_CODE_MAX_LENGTH, RECOVERY_CODE_PLACEHOLDER } from '@/utils/mfaConstants'
 
 const router = useRouter()
 const toast = useToast()
@@ -535,9 +536,15 @@ const goToLogin = async () => {
 }
 
 const handleMFAVerification = async () => {
-  const expectedLength = useRecoveryCode.value ? 8 : 6
-  if (mfaCode.value.length !== expectedLength) {
-    mfaError.value = `Please enter a ${expectedLength}-${useRecoveryCode.value ? 'character' : 'digit'} code`
+  // Recovery codes are 10 hex chars since 2026-06; codes issued before that are
+  // 8. The verify RPC accepts either, so the client only enforces the minimum.
+  if (useRecoveryCode.value) {
+    if (mfaCode.value.length < RECOVERY_CODE_MIN_LENGTH) {
+      mfaError.value = `Please enter a recovery code of at least ${RECOVERY_CODE_MIN_LENGTH} characters`
+      return
+    }
+  } else if (mfaCode.value.length !== 6) {
+    mfaError.value = 'Please enter a 6-digit code'
     return
   }
 

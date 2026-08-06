@@ -448,8 +448,8 @@
               :type="useDisableRecoveryCode ? 'text' : 'tel'"
               :inputmode="useDisableRecoveryCode ? 'text' : 'numeric'"
               class="form-input"
-              :placeholder="useDisableRecoveryCode ? 'XXXXXXXX' : '123456'"
-              :maxlength="useDisableRecoveryCode ? 8 : 6"
+              :placeholder="useDisableRecoveryCode ? RECOVERY_CODE_PLACEHOLDER : '123456'"
+              :maxlength="useDisableRecoveryCode ? RECOVERY_CODE_MAX_LENGTH : 6"
               :pattern="useDisableRecoveryCode ? undefined : '[0-9]*'"
               autocomplete="one-time-code"
               @input="onDisable2FACodeInput"
@@ -506,6 +506,7 @@ import EyeIcon from '@/components/icons/Eye.vue'
 import EyeOffIcon from '@/components/icons/EyeOff.vue'
 import CopyIcon from '@/components/icons/Copy.vue'
 import EncryptionSettings from '@/components/encryption/EncryptionSettings.vue'
+import { RECOVERY_CODE_MIN_LENGTH, RECOVERY_CODE_MAX_LENGTH, RECOVERY_CODE_PLACEHOLDER } from '@/utils/mfaConstants'
 
 // Props
 interface Props {
@@ -563,7 +564,7 @@ const disable2FAError = ref('')
 
 const isDisable2FACodeValid = computed(() => {
   if (useDisableRecoveryCode.value) {
-    return disable2FACode.value.trim().length === 8
+    return disable2FACode.value.trim().length >= RECOVERY_CODE_MIN_LENGTH
   }
   return /^\d{6}$/.test(disable2FACode.value)
 })

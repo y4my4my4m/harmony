@@ -26,7 +26,13 @@ SECURITY.md and they will be shared with the reporter.
 
 ### Pattern C - MFA bypass via recovery code
 
-Fixed July 2026: recovery-code login now calls the atomic SECURITY DEFINER RPC `redeem_recovery_code_and_disable_mfa` (migration `20260703_recovery_code_mfa_unenroll_rpc.sql`, also in init), which verifies AND consumes the code server-side before deleting `auth.mfa_factors`. The client-side `verify_recovery_code` + AAL1 `mfa.unenroll()` flow is gone. `validateSessionForMFA()` remains on every session path.
+Partially fixed July 2026. The primary password-login path now calls the atomic SECURITY DEFINER RPC `redeem_recovery_code_and_disable_mfa` (migration `20260703_recovery_code_mfa_unenroll_rpc.sql`, also in init), which verifies AND consumes the code server-side before deleting `auth.mfa_factors`.
+
+**Still open:** the OAuth-callback and password-reset paths (`src/views/`) retain the original pattern - `verify_recovery_code` followed by a client-side `mfa.unenroll()` from an AAL1 session. The security boundary sits in the client on both. Migrate them to the same RPC. `validateSessionForMFA()` remains on every session path.
+
+### Pattern D - recovery codes were unenterable (fixed August 2026)
+
+Enrolment has generated 10-character recovery codes since 2026-06-02, stored as a SHA-256 of the full string. Every entry field capped input at 8 characters and every submit guard required exactly 8, so the hash could never match: anyone who enrolled after that date could not use their recovery codes at all, on any path. Bounds now live in `src/utils/mfaConstants.ts`; the minimum matches the RPC's own `length >= 8` guard, so codes issued before 2026-06 still work.
 
 ### Init / migration parity
 
@@ -52,7 +58,7 @@ All three 20260520 security migrations are now mirrored in `db_schema/init/` (C8
 |---|-----|----------|
 | H6 | `isUserBusy` only queries server voice; ignores DM/LiveKit | `src/services/` |
 | H7 | DM call **decline** path only toasts; ring/teardown still tied to `DMHeader` mount | `src/services/`, `src/components/dm/` |
-| H8 | Recovery-code login disables MFA without AAL2 step-up (= C11) | `src/components/` |
+| H8 | Recovery-code login disables MFA without AAL2 step-up on the OAuth-callback and password-reset paths (= C11; the password-login path is fixed) | `src/views/` |
 
 ### Encryption
 
