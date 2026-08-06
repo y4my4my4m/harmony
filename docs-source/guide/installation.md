@@ -2,8 +2,8 @@
 
 ## Prerequisites
 
-- **Node.js** 18+ (20 recommended)
-- **npm** (Bun also works as a drop-in if you prefer; the repo standardises on npm scripts)
+- **Node.js** 24 (the version in `.nvmrc`)
+- **npm** - the supported package manager; all scripts and the lockfile assume it
 - **Git**
 - A **Supabase** project (cloud or self-hosted)
 
@@ -80,7 +80,15 @@ npm install
 npm run dev
 ```
 
-The federation backend runs on port 3001 by default.
+The federation backend runs on port 3001 by default. Minimum `.env`:
+
+```env
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+DATABASE_URL=postgresql://...
+INSTANCE_DOMAIN=your-domain.com
+CORS_ORIGIN=https://your-domain.com
+```
 
 ## Desktop App (Tauri)
 
@@ -130,7 +138,13 @@ docker compose -f docker-compose.full.yml up -d
 3. Create a server and channel
 4. Send a message
 
-If federation is enabled, verify it by checking `https://your-domain/.well-known/webfinger?resource=acct:username@your-domain`.
+With the federation backend running:
+
+```bash
+curl http://localhost:3001/health
+curl 'http://localhost:5173/.well-known/webfinger?resource=acct:username@your-domain'
+curl http://localhost:5173/.well-known/nodeinfo
+```
 
 ---
 

@@ -44,7 +44,7 @@ All three 20260520 security migrations are now mirrored in `db_schema/init/` (C8
 
 *(C5, C6, C7 - resolved July 2026: the legacy Signal-Protocol client stack was deleted outright (`MessageEncryptionService`, `SignalProtocolService(Browser)`, `EncryptionKeyStore(Browser)`, `WebRTCEncryptionService`, `FrameEncryptor`, `KeySetupWizard.vue`). The live app is Megolm-only. P2P calls now honestly rely on DTLS-SRTP transport encryption - the dormant, broken frame-encryption layer and its false E2EE indicator are gone. LiveKit voice E2EE (Megolm-wrapped room keys) is unaffected.)*
 
-*(C8, C9, C10 - init/migration parity - and C11 - recovery-code MFA bypass - were fixed July 2026; see the Pattern C / Init parity notes above.)*
+*(C8, C9, C10 - init/migration parity - were fixed July 2026; see the Init parity note above. C11 - recovery-code MFA bypass - is only partially fixed; see Pattern C.)*
 
 ---
 
@@ -146,9 +146,9 @@ Also fixed (same pass):
 
 ### Encryption
 
-- **M1.** Hybrid encrypt marks message encrypted even when some recipients have no key - `MessageEncryptionService.ts`
+*(M1, M3 no longer apply: both were in `MessageEncryptionService`, deleted with the Signal stack - see C5/C6/C7 above.)*
+
 - **M2.** Megolm encrypt proceeds after `ensureSessionShared` failures (new members get undecryptable messages) - `MegolmMessageEncryptionService.ts`
-- **M3.** Prekey rotation: delete-then-upload TOCTOU window - `MessageEncryptionService.ts`
 - **M5.** `messageDecryption` overloads `sender_verified: false` on any decrypt error - `src/utils/messageDecryption.ts`
 - **M6.** No replay resistance for Megolm v2 at application layer
 
@@ -200,7 +200,8 @@ Also fixed (same pass):
 
 ## Low
 
-- **L1.** Debug logging may leak encryption metadata fragments - `MessageEncryptionService.ts`
+*(L1 no longer applies: it was in `MessageEncryptionService`, deleted with the Signal stack.)*
+
 - **L2.** HKDF ratchet uses fixed all-zero salt - `MegolmService.ts`
 - **L4.** Thread views lack `onReconnected` gap-fill - `ThreadFullView.vue`
 - ~~**L5.**~~ Resolved July 2026: `MonyFeed.vue` was dead (never routed/imported, referenced nonexistent child components) and was deleted.

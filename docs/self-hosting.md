@@ -35,7 +35,20 @@ Typical production layout:
 
 ## Quick Start
 
-For automated setup, run the interactive installer:
+The shortest path is the all-in-one Docker stack in `self-host/` - app, trimmed
+Supabase, federation, and a reverse proxy with automatic HTTPS, no host
+toolchain beyond Docker:
+
+```bash
+cd self-host
+bash configure.sh && docker compose up -d && bash bootstrap.sh
+```
+
+See [`self-host/README.md`](https://github.com/y4my4my4m/harmony/blob/master/self-host/README.md)
+for what it runs, TLS options, and troubleshooting.
+
+For a host-native install (nginx + certbot on the machine itself), run the
+interactive installer:
 
 ```bash
 bash scripts/install.sh
@@ -85,8 +98,8 @@ apt install docker-compose-plugin -y
 # Install Nginx and Certbot
 apt install nginx certbot python3-certbot-nginx -y
 
-# Install Node.js (for building frontend)
-curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+# Install Node.js (for building frontend; matches .nvmrc)
+curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
 apt install -y nodejs
 
 # Create app directory

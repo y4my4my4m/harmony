@@ -8,12 +8,10 @@ Welcome to the Harmony development guide! This document provides everything you 
 
 ### Prerequisites
 
-- **Node.js**: Version 18 or higher (20 recommended)
-- **npm**: Bundled with Node (project standardised on npm scripts)
+- **Node.js**: Version 24, as pinned in `.nvmrc`
+- **npm**: Bundled with Node; the only supported package manager (scripts and `package-lock.json` assume it)
 - **Git**: For version control
 - **VS Code**: Recommended editor with suggested extensions
-
-> Bun works as a drop-in if you prefer (`bun install`, `bun run dev`, etc.); the scripts are written for npm, so use whichever you have installed.
 
 ### Installation
 

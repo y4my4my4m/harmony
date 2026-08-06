@@ -28,6 +28,10 @@ docs/components/
 docs/generated/
 docs/guide/
 
+# Internal orientation notes, not part of the published site
+docs/SETTINGS_NAVIGATION_GUIDE.md
+docs/VITEPRESS_SETUP.md
+
 /cypress/videos/
 /cypress/screenshots/
 

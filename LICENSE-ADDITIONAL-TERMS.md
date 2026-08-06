@@ -31,8 +31,9 @@ interface within at most one click.
 ### 2. Trademark notice (AGPL §7(e))
 
 The name "Harmony" and the project's polar-bear logo (🐻‍❄️ and the icon
-files under `public/icon_3d.webp`, `public/favicon/`, and
-`src-tauri/icons/`) are **trademarks** (common-law) of y4my4my4m. The
+files under `public/icon_3d.webp`, `public/favicon/`, `src-tauri/icons/`,
+`public/img/app_icon*`, `public/default_avatar.webp`, and
+`public/default_server.webp`) are **trademarks** (common-law) of y4my4my4m. The
 AGPL does not grant you a license to use these marks. See
 [TRADEMARK.md](./TRADEMARK.md) for the project's name and logo policy.
 

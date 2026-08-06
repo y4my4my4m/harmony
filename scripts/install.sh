@@ -528,7 +528,7 @@ configure_supabase() {
             SUPABASE_MODE="cloud"  # reuse cloud path for existing local
             echo ""
             SUPABASE_URL=$(prompt_input "Supabase URL" "http://localhost:54321")
-            SUPABASE_ANON_KEY=$(prompt_input "Anon key" "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICAicm9sZSI6ICJhbm9uIiwKICAgICJpc3MiOiAic3VwYWJhc2UtZGVtbyIsCiAgICAiaWF0IjogMTY0MTc2OTIwMCwKICAgICJleHAiOiAxNzk5NTM1NjAwCn0.dc_X5iR_VP_qT0zsiyj_I_OZ2T9FtRU2BBNWN8Bu4GE")
+            SUPABASE_ANON_KEY=$(prompt_input "Anon key (from your Supabase instance)" "")
             SUPABASE_SERVICE_KEY=$(prompt_input "Service role key" "")
             DATABASE_URL=$(prompt_input "Database URL (for BullMQ LISTEN/NOTIFY)" "postgresql://postgres:postgres@localhost:54322/postgres")
         else
@@ -546,7 +546,7 @@ configure_supabase() {
             echo ""
 
             SUPABASE_URL=$(prompt_input "Supabase URL (once running)" "http://localhost:54321")
-            SUPABASE_ANON_KEY=$(prompt_input "Anon key" "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICAicm9sZSI6ICJhbm9uIiwKICAgICJpc3MiOiAic3VwYWJhc2UtZGVtbyIsCiAgICAiaWF0IjogMTY0MTc2OTIwMCwKICAgICJleHAiOiAxNzk5NTM1NjAwCn0.dc_X5iR_VP_qT0zsiyj_I_OZ2T9FtRU2BBNWN8Bu4GE")
+            SUPABASE_ANON_KEY=$(prompt_input "Anon key (from your Supabase instance)" "")
             SUPABASE_SERVICE_KEY=""
             DATABASE_URL="postgresql://postgres:postgres@localhost:54322/postgres"
         fi

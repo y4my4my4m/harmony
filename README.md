@@ -67,6 +67,7 @@ setups: [docs/self-hosting.md](docs/self-hosting.md).
 |--------|------|
 | One-command self-host (Docker + Caddy + trimmed Supabase) | [self-host/README.md](self-host/README.md) |
 | Self-hosting / Docker / Redis / federation-server & worker | [docs/self-hosting.md](docs/self-hosting.md) |
+| Federation / ActivityPub interop | [docs/FEDERATION.md](docs/FEDERATION.md) |
 | Roadmap | [ROADMAP.md](ROADMAP.md) |
 | DB init | [db_schema/init/README.md](db_schema/init/README.md) |
 | Contributing | [CONTRIBUTING.md](CONTRIBUTING.md) |

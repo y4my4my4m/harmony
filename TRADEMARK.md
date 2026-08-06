@@ -1,8 +1,9 @@
 # Harmony - Trademark Policy
 
 The name **"Harmony"** and the project's **polar-bear logo** (🐻‍❄️ and the
-icon files under `public/icon_3d.webp`, `public/favicon/`, and
-`src-tauri/icons/`) are common-law trademarks of y4my4my4m, the original
+icon files under `public/icon_3d.webp`, `public/favicon/`,
+`src-tauri/icons/`, `public/img/app_icon*`, `public/default_avatar.webp`,
+and `public/default_server.webp`) are common-law trademarks of y4my4my4m, the original
 author of the project. They are **not** licensed to you under the AGPL.
 
 The source code is free and open. The brand is not. This separation lets

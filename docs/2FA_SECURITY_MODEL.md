@@ -1,289 +1,236 @@
-# 2FA Security Model - Final Implementation
+# 2FA Security Model
 
-## Overview
+Scope: TOTP second factor and recovery codes for Harmony's Supabase-backed auth.
+Covers what is enforced at each entry point, what a session is allowed to do
+afterwards, and where enforcement is currently incomplete.
 
-This document explains how 2FA (Two-Factor Authentication) works in Harmony after implementing the balanced security approach.
+## Assurance levels
 
-## How It Works
+Supabase encodes the assurance level in the access token, not on the user
+object. `authStore.getAAL()` (`src/stores/auth.ts`) decodes the JWT and reads
+the `aal` claim.
 
-### At Login ✅
-```
-User enters email + password
-↓
-Has 2FA enabled?
-├─ NO  → Login successful (AAL1 session)
-└─ YES → MUST enter 2FA code (can't skip!)
-         ↓
-         Enter 6-digit code
-         ↓
-         Login successful (AAL2 session)
-```
+- `aal1` - password, OAuth, or recovery-link sign-in.
+- `aal2` - `aal1` plus a verified TOTP challenge.
 
-**Key Point:** If you have 2FA enabled, **you MUST enter your 2FA code at login**. No exceptions.
+The JWT also carries `amr` (Authentication Methods References), a list of the
+methods the session was authenticated with: `password`, `oauth`, `totp`.
+`authStore.getAMR()` normalises both the GoTrue object form
+(`{ method, timestamp }`) and the plain-string form. AMR is session metadata and
+survives token refresh, so a session that once completed TOTP keeps `totp` in
+`amr` after its AAL drops back to `aal1`.
 
-### After Login (Session Persistence) ✅
+Supabase requires `aal2` for `mfa.unenroll`. It rejects lower-AAL calls with
+`error_code: 'insufficient_aal'`.
 
-```
-Login with 2FA → AAL2 session created (24 hours)
-↓
-After 24 hours → AAL2 expires, downgrades to AAL1
-↓
-But refresh token keeps you logged in!
-↓
-User stays logged in (weeks/months until manual logout or token expiry)
-```
+## Session admission: validateSessionForMFA
 
-**Key Point:** You stay logged in even after AAL2 expires. You only need to log in again (with 2FA) when you:
-- Manually log out
-- Refresh token expires (default: 60 days in Supabase)
-- Clear browser storage
+`validateSessionForMFA(session)` in `src/stores/auth.ts` decides whether a
+session found in storage may be adopted into the Pinia store. It runs on
+`initializeAuth`, and on the `SIGNED_IN`, `INITIAL_SESSION`, and catch-all
+(`TOKEN_REFRESHED`) branches of `onAuthStateChange`.
 
-## Security Model
+Accepted:
 
-### What We Check
+- `aal2`.
+- `aal1` and `amr` contains `totp` - MFA was completed on this session and the
+  AAL2 window has since lapsed.
+- `aal1`, no `totp` in `amr`, and `mfa.listFactors()` reports no verified TOTP
+  factor - the user has no second factor.
 
-#### During Login Flow ✅
-- **Password required** (AAL1)
-- **2FA code required** if 2FA is enabled (upgrades to AAL2)
-- Cannot bypass 2FA if it's enabled
+Rejected:
 
-#### After Login (Session Validation) ✅
-- **Any valid session is accepted** (AAL1 or AAL2)
-- No AAL level checking on page refresh
-- Refresh tokens keep users logged in
+- `aal1`, no `totp` in `amr`, and a verified TOTP factor exists. This is a
+  sign-in that has not completed its challenge.
+- Any error from `listFactors`. Fails closed.
 
-### What We Don't Check
+Rejection tears the session down: `supabase.auth.signOut()`, `session = null`.
+Leaving it in storage would let another tab adopt it.
 
-#### We DON'T Check AAL Level After Login ❌
-```typescript
-// ❌ OLD (BAD): Logged users out after 24 hours
-if (has2FA && session.aal !== 'aal2') {
-  signOut(); // This forced re-login every 24 hours!
-}
+The AMR test is what separates a long-lived post-MFA session from a mid-login
+AAL1 session. Without it, the cross-tab sequence - tab B starts a password login
+for an MFA user, tab A refreshes and picks the AAL1 token out of shared storage -
+grants tab A access as the MFA user. With it, tab A sees `amr` without `totp` and
+signs out.
 
-// ✅ NEW (GOOD): Accept any valid session
-if (session) {
-  this.session = session; // AAL1 or AAL2 - doesn't matter!
-}
-```
+`_pendingMFAVerification` suppresses these checks while a challenge is in
+flight; see the ordering constraint below.
 
-## User Experience
+## Password login
 
-### First-Time Login
-1. User enables 2FA in settings
-2. Saves recovery codes
-3. Logs out
-4. **Next login requires 2FA** ✅
+`AuthComponent.vue` -> `authStore.login()`.
 
-### Daily Usage
-1. Login once with password + 2FA
-2. **Stay logged in for weeks/months** ✅
-3. AAL2 expires after 24h, downgrade to AAL1
-4. User doesn't notice - stays logged in!
-5. Only re-login if they manually log out
+1. `_pendingMFAVerification = true`.
+2. `signInWithPassword` - yields an `aal1` session.
+3. Suspension check against `profiles.is_suspended`; suspended users are signed
+   out.
+4. `mfa.listFactors()`. No verified TOTP factor: the store adopts the session,
+   runs post-login setup, returns `requires2FA: false`.
+5. A verified factor: `mfa.challenge(factorId)`, return
+   `{ requires2FA: true, factorId, challengeId }`. The view opens the 2FA modal.
+   The session is not adopted.
 
-### Benefits
-- **Security:** 2FA required at login (can't bypass)
-- **Convenience:** Don't need to re-enter 2FA daily
-- **Industry Standard:** How Discord, GitHub, Google, etc. work
-- **Long Sessions:** Like Reddit - login once, stay logged in
+### Flag ordering
 
-## Technical Details
+`_pendingMFAVerification` must be set before `signInWithPassword`, not inside the
+`if (totpFactor)` branch. `signInWithPassword` queues `SIGNED_IN` as a microtask;
+the awaits for the suspension query and `listFactors` yield to it. With the flag
+still false, the `SIGNED_IN` handler runs `validateSessionForMFA` against a fresh
+`aal1` session for an MFA-enrolled user, rejects it, and signs out. `listFactors`
+then finds nothing, `login()` reports `requires2FA: false`, and the caller
+navigates to `/chat` with a null session. The same ordering applies in
+`AuthCallbackView.vue` before its inline challenge.
 
-### AAL Levels
+Every failure path in `login()` clears the flag. `verify2FA()` clears it once
+verification completes.
 
-**AAL1 (Authentication Assurance Level 1)**
-- Password-only authentication
-- Standard security
-- No expiration (refresh token handles this)
+### TOTP verification
 
-**AAL2 (Authentication Assurance Level 2)**
-- Password + 2FA authentication
-- Enhanced security
-- **Expires after 24 hours** (Supabase default)
+`authStore.verify2FA()` calls `mfa.verify` under a 30s timeout race, waits 500ms,
+re-reads the session (now `aal2`), and adopts it. It repeats the work the
+`SIGNED_IN` handler would have done - `userStorage.setCurrentUser`,
+offline handlers, user settings, ActivityPub init - because the
+`MFA_CHALLENGE_VERIFIED` event handler only installs offline handlers.
 
-### Session Lifecycle
+Cancelling the modal signs the pending `aal1` session out immediately rather than
+waiting for the next page load to reject it.
 
-```
-Day 0:  Login with password + 2FA → AAL2 session
-Day 1:  AAL2 expires → Automatic downgrade to AAL1
-        ↓
-        Session continues (refresh token still valid)
-        ↓
-        User stays logged in
-Day 60: Refresh token expires (Supabase default)
-        ↓
-        User logged out
-        ↓
-        Must login again with password + 2FA
-```
+### Recovery code
 
-### Code Implementation
+`AuthComponent.vue` calls the SECURITY DEFINER RPC
+`redeem_recovery_code_and_disable_mfa(p_code)`
+(`db_schema/migrations/20260703_recovery_code_mfa_unenroll_rpc.sql`). In one
+transaction it hashes the code, claims a matching unused row with
+`UPDATE ... RETURNING` over `SELECT ... FOR UPDATE SKIP LOCKED`, and only on a
+successful claim runs `DELETE FROM auth.mfa_factors WHERE user_id = auth.uid()`.
+No factor is removed unless a valid code was burned in the same transaction, so
+the enforcement point is server-side. The client then refreshes the session and
+routes to `/settings/privacy` to re-enrol.
 
-**Auth Store (`src/stores/auth.ts`):**
+## OAuth callback
 
-```typescript
-// During login - check if 2FA is required
-async login(email: string, password: string) {
-  const { data } = await supabase.auth.signInWithPassword({ email, password });
-  
-  // Check if user has 2FA enabled
-  const { data: factors } = await supabase.auth.mfa.listFactors();
-  const has2FA = factors?.totp?.some(f => f.status === 'verified');
-  
-  if (has2FA) {
-    // User MUST complete 2FA
-    const { data: challenge } = await supabase.auth.mfa.challenge({
-      factorId: totpFactor.id
-    });
-    
-    return {
-      requires2FA: true,
-      factorId: totpFactor.id,
-      challengeId: challenge.id
-    };
-  }
-  
-  // No 2FA needed
-  return { requires2FA: false };
-}
+`initializeAuth` does not adopt sessions on `/auth/callback`. Supabase's
+`detectSessionInUrl` exchanges the code at client-construction time, before the
+store initialises, so the session already exists at `aal1`; validating it there
+would sign MFA users out before `AuthCallbackView` could challenge them. The
+store sets `_pendingMFAVerification` and leaves the token in storage for the view
+to read.
 
-// After login - accept any session
-async initializeAuth() {
-  const { data } = await supabase.auth.getSession();
-  
-  // Accept session regardless of AAL level
-  // 2FA is enforced at LOGIN time, not on refresh
-  this.session = data.session;
-}
-```
+`AuthCallbackView.vue` runs the suspension check, then
+`validateSessionForMFA`. On rejection it lists factors: a verified TOTP factor
+means the recoverable "needs MFA" state and the view challenges inline; anything
+else signs out and routes to login. TOTP verification goes through
+`authStore.verify2FA`, same as password login.
 
-## Recovery Codes
+The recovery-code branch calls `verify_recovery_code` and then
+`supabase.auth.mfa.unenroll()` from the client on an `aal1` session.
 
-Users get 10 recovery codes when enabling 2FA:
-- Each code can be used **once**
-- Using a recovery code **disables 2FA** (they lost their authenticator)
-- User is redirected to settings to re-enable 2FA
-- Recovery codes are stored as **SHA-256 hashes** in the database
+## Password reset
 
-## Comparison with Other Apps
+`ResetPasswordView.vue` holds a recovery-token session. `checkMFAStatus()` sets
+`requiresMFA` from `listFactors`; a `listFactors` error is treated as "not
+enrolled". With MFA required, submitting the new password opens a challenge modal
+instead of calling `updateUser` directly.
 
-### Discord
-- 2FA required at login
-- Stay logged in indefinitely
-- Same as our implementation
+TOTP branch: `mfa.verify` raises the session to `aal2`, then
+`performPasswordReset()` runs `updateUser`. On success the recovery session is
+signed out and the user logs in again with the new password.
 
-### GitHub
-- 2FA required at login
-- Stay logged in for weeks
-- Optional: "Step up" to 2FA for sensitive operations
-- We don't have "step up" yet (future enhancement)
+Recovery-code branch: `verify_recovery_code`, then client-side
+`mfa.unenroll()`, then the password reset. Same shape as the OAuth callback.
 
-### Google
-- 2FA required at login
-- Stay logged in until you log out
-- "Remember this device" option
-- We don't have device memory yet (future enhancement)
+## Disabling 2FA from settings
 
-## Future Enhancements
+`src/components/settings/user/PrivacySettings.vue`, `disable2FA()`.
 
-### Possible Improvements:
-1. **Step-Up Authentication** - Require 2FA again for sensitive operations:
-   - Changing password
-   - Changing email  
-   - Modifying 2FA settings
-   - Deleting account
+TOTP branch: `mfa.challengeAndVerify` creates a challenge for the existing factor
+and verifies it in one call, leaving the session at `aal2` - the level
+`mfa.unenroll` requires.
 
-2. **Trusted Devices** - "Remember this device for 30 days"
-   - Store device fingerprint
-   - Skip 2FA on trusted devices
-   - Still require password
+Recovery-code branch: `verify_recovery_code` marks the code used, then unenroll
+proceeds without a step-up. If the session is below `aal2`, Supabase rejects the
+unenroll with `insufficient_aal` and the user is told to sign in again with 2FA.
 
-3. **Session Activity Log** - Show users:
-   - Active sessions
-   - Device info
-   - Last activity
-   - Ability to revoke sessions
+Both branches delete `mfa_recovery_codes` rows before `mfa.unenroll`. Reversing
+that order can leave codes behind that no longer correspond to any factor and
+cannot be regenerated.
 
-## Testing Checklist
+## Enrolment and recovery codes
 
-### 2FA Required at Login ✅
-- [ ] Enable 2FA on test account
-- [ ] Log out
-- [ ] Try to log in with just password
-- [ ] ✅ Should show 2FA modal (can't skip!)
-- [ ] Enter wrong code
-- [ ] ✅ Should show error
-- [ ] Enter correct code
-- [ ] ✅ Should login successfully
+`mfa.enroll({ factorType: 'totp' })` produces the secret and otpauth URI; the URI
+is rendered as a QR code. `challengeAndVerify` confirms the first code, and the
+factor status is re-read from `listFactors` because `challengeAndVerify` can
+return without error on an unverified factor.
 
-### Long Session Persistence ✅
-- [ ] Login with 2FA
-- [ ] Note the time
-- [ ] Wait 24+ hours
-- [ ] Refresh the page
-- [ ] ✅ Should still be logged in (no 2FA prompt!)
-- [ ] Check developer tools → Application → Local Storage
-- [ ] ✅ Should see `sb-*-auth-token` still present
+Ten recovery codes are then generated client-side from
+`crypto.getRandomValues(new Uint8Array(5))`, rendered as uppercase hex: 40 bits
+of entropy each. `save_recovery_codes(p_user_id, p_codes)` replaces any existing
+batch and stores `encode(digest(code, 'sha256'), 'hex')` - plaintext codes exist
+only in the browser at enrolment time.
 
-### Manual Logout ✅
-- [ ] Login with 2FA
-- [ ] Use the app normally
-- [ ] Click "Log Out"
-- [ ] ✅ Should be logged out
-- [ ] Try to login again
-- [ ] ✅ Should require 2FA again
+`public.mfa_recovery_codes` (`db_schema/init/09_tables_encryption.sql`) keys on
+`profiles(id)`, not `auth.users(id)`, and carries `code_hash`, `used_at`,
+`is_used`, `batch_id`. RLS restricts rows to their owner.
 
-### Recovery Codes ✅
-- [ ] Enable 2FA
-- [ ] ✅ Should see 10 recovery codes
-- [ ] Save one recovery code
-- [ ] Log out
-- [ ] Click "Use recovery code instead"
-- [ ] Enter the saved code
-- [ ] ✅ Should login successfully
-- [ ] ✅ Should see warning about re-enabling 2FA
-- [ ] ✅ 2FA should be disabled
-- [ ] Try to use same code again
-- [ ] ✅ Should fail (already used)
+`verify_recovery_code(p_user_id, p_code)` is SECURITY DEFINER and raises when
+`p_user_id` differs from `auth.uid()`; the definer context bypasses RLS, so the
+identity check is explicit. It marks the matching unused row used and returns
+whether one was found. It does not touch MFA factors.
 
-## Database Schema
+Note: generated codes are 10 hex characters, while every entry field and length
+check in the UI expects 8.
 
-**Recovery Codes Table:**
-```sql
-CREATE TABLE mfa_recovery_codes (
-  id UUID PRIMARY KEY,
-  user_id UUID REFERENCES auth.users(id),
-  code_hash TEXT NOT NULL, -- SHA-256 hash
-  used_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-```
+## Session lifetime
 
-**Helper Functions:**
-- `verify_recovery_code(user_id, code)` - Verify and mark as used
-- `save_recovery_codes(user_id, codes[])` - Save hashed codes
-- `count_unused_recovery_codes(user_id)` - Count remaining codes
+`src/supabase.ts` configures `persistSession: true` and `autoRefreshToken: true`
+over a custom storage adapter. The adapter routes the session token to
+`localStorage` when "remember me" is on and `sessionStorage` when it is off; the
+preference itself lives in `localStorage` and is read on every write. The login
+form must call `setRememberMe()` before `signInWithPassword`, otherwise the
+freshly issued token lands in the wrong store.
 
-## Related Files
+2FA gates sign-in, not the session that follows. Once a session has completed
+TOTP verification, it keeps `totp` in `amr` and is admitted at `aal1` for as long
+as its refresh token stays valid. Re-authentication is required after an explicit
+logout, refresh-token expiry, or cleared browser storage. Concrete AAL2 and
+refresh-token lifetimes are Supabase project settings and are not asserted here.
 
-- `src/stores/auth.ts` - Auth store with session management
-- `src/components/AuthComponent.vue` - Login UI with 2FA modal
-- `src/components/settings/user/PrivacySettings.vue` - 2FA setup UI
-- `db_schema/mfa_recovery_codes.sql` - Recovery codes database schema
-- `db_schema/mfa_aal2_helpers.sql` - AAL checking SQL functions
-- `docs/2FA_RECOVERY_IMPLEMENTATION.md` - Recovery code details
-- `docs/SUPABASE_MFA_AAL_GUIDE.md` - Technical AAL guide
-- `docs/2FA_LOGIN_FIX.md` - MFA_CHALLENGE_VERIFIED race condition fix
+There is no step-up requirement for sensitive operations outside the 2FA settings
+themselves, and no trusted-device mechanism.
 
-## Summary
+## Verifying the behaviour
 
-**The Perfect Balance:**
-- **Secure:** 2FA is REQUIRED at login (can't bypass)
-- **Convenient:** Stay logged in for weeks (no daily 2FA prompts)
-- **Industry Standard:** How all major apps work
-- **User-Friendly:** Login once, use the app
+For a manual pass, enrol an account and confirm each of:
 
-**Key Takeaway:** 2FA protects your **login**, not your **session**. Once you're in, you stay in until you log out or your refresh token expires (60 days default).
+- Signing in with the password alone stops at the challenge modal; cancelling it
+  leaves no `sb-*-auth-token` in storage.
+- After a successful TOTP login, decoding the access token shows `aal2` and an
+  `amr` containing `totp`; reloading the page does not re-prompt.
+- Forcing an `aal1` token whose `amr` lacks `totp` into storage and reloading
+  results in a signed-out tab.
+- A recovery code used at password login is rejected on second use, and the
+  account's TOTP factor is gone from settings afterwards.
 
+## Known gap
 
+Recovery-code redemption on the OAuth-callback and password-reset paths verifies
+the code and then unenrols the factor from the client on an `aal1` session, so
+the enforcement point is the client rather than the database. Tracked as
+BUGS.md H8 (= C11); the fix is to route both through
+`redeem_recovery_code_and_disable_mfa`, as the password-login path already does.
+
+## Related files
+
+- `src/stores/auth.ts` - AAL/AMR decoding, `validateSessionForMFA`, login,
+  `verify2FA`, auth-state handling
+- `src/components/AuthComponent.vue` - password login and 2FA modal
+- `src/views/AuthCallbackView.vue` - OAuth callback MFA challenge
+- `src/views/ResetPasswordView.vue` - password reset MFA challenge
+- `src/components/settings/user/PrivacySettings.vue` - enrolment and disable
+- `src/supabase.ts` - session storage adapter
+- `db_schema/init/09_tables_encryption.sql` - `mfa_recovery_codes`
+- `db_schema/init/13_functions_rpc_extended.sql` - `save_recovery_codes`,
+  `verify_recovery_code`
+- `db_schema/migrations/20260703_recovery_code_mfa_unenroll_rpc.sql` -
+  `redeem_recovery_code_and_disable_mfa`
+- `docs/SUPABASE_MFA_AAL_GUIDE.md`

@@ -1,8 +1,12 @@
 # System Flow Documentation
 
-## Overview
+How data moves through Harmony: user interactions, database writes, realtime
+synchronization, and federation.
 
-This document provides a comprehensive view of how data flows through the Harmony system, from user interactions to database updates, real-time synchronization, and federation with external services.
+The narrative walkthroughs of the four main flows (auth, chat, federation,
+realtime) live under [System Flows](./flows/) in the docs site. This page is the
+wide-angle diagram set - request paths, component and store wiring, and the
+storage model.
 
 ## Core Application Flows
 
@@ -115,32 +119,32 @@ sequenceDiagram
     participant HarmonyUser
     participant ActivityPubStore
     participant FederationService
-    participant EdgeFunction
+    participant FederationBackend
     participant RemoteInstance
     participant RemoteUser
 
     HarmonyUser->>ActivityPubStore: Create federated post
     ActivityPubStore->>FederationService: createPost(content)
-    FederationService->>EdgeFunction: POST /api/activities
+    FederationService->>FederationBackend: POST /api/activities
     
-    Note over EdgeFunction: Generate ActivityPub activity
+    Note over FederationBackend: Generate ActivityPub activity
     
-    EdgeFunction->>EdgeFunction: Sign HTTP request
-    EdgeFunction->>RemoteInstance: POST /inbox (ActivityPub)
+    FederationBackend->>FederationBackend: Sign HTTP request
+    FederationBackend->>RemoteInstance: POST /inbox (ActivityPub)
     
     RemoteInstance->>RemoteInstance: Verify signature
     RemoteInstance->>RemoteInstance: Process Create activity
-    RemoteInstance-->>EdgeFunction: 202 Accepted
+    RemoteInstance-->>FederationBackend: 202 Accepted
     
-    EdgeFunction-->>FederationService: Delivery confirmed
+    FederationBackend-->>FederationService: Delivery confirmed
     FederationService-->>ActivityPubStore: Post federated
     
     RemoteInstance->>RemoteUser: Show federated post
     
     opt User Interaction (Like/Reply)
         RemoteUser->>RemoteInstance: Interact with post
-        RemoteInstance->>EdgeFunction: POST /inbox (Like/Reply)
-        EdgeFunction->>ActivityPubStore: Process interaction
+        RemoteInstance->>FederationBackend: POST /inbox (Like/Reply)
+        FederationBackend->>ActivityPubStore: Process interaction
         ActivityPubStore-->>HarmonyUser: Notification
     end
 ```
@@ -363,7 +367,7 @@ graph TB
     subgraph "Harmony Instance"
         USER[Harmony User]
         HARMONY_API[Harmony API]
-        EDGE_FUNC[Edge Functions]
+        FEDERATION_SVC[federation-backend]
         DB[Database]
     end
     
@@ -381,17 +385,17 @@ graph TB
     end
     
     USER --> HARMONY_API
-    HARMONY_API --> EDGE_FUNC
-    EDGE_FUNC --> DB
+    HARMONY_API --> FEDERATION_SVC
+    FEDERATION_SVC --> DB
     
-    EDGE_FUNC <--> WEBFINGER
-    EDGE_FUNC <--> NODEINFO
-    EDGE_FUNC <--> WELL_KNOWN
+    FEDERATION_SVC <--> WEBFINGER
+    FEDERATION_SVC <--> NODEINFO
+    FEDERATION_SVC <--> WELL_KNOWN
     
-    EDGE_FUNC <--> MASTODON
-    EDGE_FUNC <--> PLEROMA
-    EDGE_FUNC <--> PIXELFED
-    EDGE_FUNC <--> OTHER
+    FEDERATION_SVC <--> MASTODON
+    FEDERATION_SVC <--> PLEROMA
+    FEDERATION_SVC <--> PIXELFED
+    FEDERATION_SVC <--> OTHER
 ```
 
 ### Cross-Instance Communication
@@ -579,16 +583,212 @@ stateDiagram-v2
     end note
 ```
 
-This comprehensive flow documentation provides a complete picture of how Harmony's complex systems work together. Each flow diagram shows the interaction patterns, data movement, and system integration points that make up the application's architecture.
+## Component Interconnection Map
 
-The documentation covers:
+### Layout hierarchy
 
-1. **User interaction flows** - How users interact with the system
-2. **Data flows** - How data moves through the system
-3. **Real-time synchronization** - How changes propagate
-4. **Federation** - How external systems integrate
-5. **Performance optimization** - How the system maintains speed
-6. **Error handling** - How problems are managed
-7. **State management** - How application state is maintained
+```mermaid
+graph TB
+    subgraph "Layout Hierarchy"
+        BASE[BaseLayout.vue]
+        CHAT[ChatLayout.vue]
+        SOCIAL[SocialLayout.vue]
+    end
+    
+    subgraph "View Components"
+        CHATVIEW[ChatView.vue]
+        DMVIEW[DMView.vue]
+        TIMELINE[TimelineView.vue]
+        EXPLORE[ExploreView.vue]
+        PROFILE[UserProfileView.vue]
+    end
+    
+    subgraph "Shared Components"
+        SIDEBAR[AdaptiveChannelSidebar.vue]
+        CONTEXTBAR[UnifiedContextBar.vue]
+        COMPOSER[MonyComposer.vue]
+        MODAL[UserProfileModal.vue]
+    end
+    
+    BASE --> CHAT
+    BASE --> SOCIAL
+    CHAT --> CHATVIEW
+    CHAT --> DMVIEW
+    SOCIAL --> TIMELINE
+    SOCIAL --> EXPLORE
+    SOCIAL --> PROFILE
+    
+    CHAT --> SIDEBAR
+    SOCIAL --> SIDEBAR
+    CHAT --> CONTEXTBAR
+    SOCIAL --> CONTEXTBAR
+    SOCIAL --> COMPOSER
+    CHAT --> MODAL
+    SOCIAL --> MODAL
+```
 
-This serves as both a development reference and architectural documentation for understanding the complete system behavior.
+### Store interconnections
+
+```mermaid
+graph TB
+    subgraph "Authentication Layer"
+        AUTH[auth.ts]
+        PROFILE[useProfile.ts]
+    end
+    
+    subgraph "Chat Domain"
+        CHAT[useChat.ts]
+        DM[useDM.ts]
+        SERVERCHAN[useServerChannel.ts]
+        SERVERUSERS[useServerUsers.ts]
+        REACTIONS[useReactions.ts]
+    end
+    
+    subgraph "Social Domain"
+        ACTIVITYPUB[useActivityPub.ts]
+        NOTIFICATIONS[useNotification.ts]
+        PUBLICSERVERS[usePublicServers.ts]
+    end
+    
+    subgraph "Infrastructure"
+        THEME[useTheme.ts]
+        EMOJI[useEmojiCache.ts]
+        SERVER[server.ts]
+        VOICE[unifiedVoiceChannel.ts]
+        SPATIAL[spatialAudio.ts]
+    end
+    
+    AUTH --> PROFILE
+    AUTH --> CHAT
+    AUTH --> ACTIVITYPUB
+    
+    CHAT --> SERVERCHAN
+    CHAT --> SERVERUSERS
+    CHAT --> REACTIONS
+    DM --> SERVERUSERS
+    
+    ACTIVITYPUB --> NOTIFICATIONS
+    ACTIVITYPUB --> PUBLICSERVERS
+    
+    SERVERCHAN --> EMOJI
+    CHAT --> VOICE
+    VOICE --> SPATIAL
+```
+
+### Service layer dependencies
+
+```mermaid
+graph TB
+    subgraph "Core Services"
+        ACTIVITYPUB_SVC[activityPubService.ts]
+        CHAT_SVC[ChatService]
+        USER_SVC[userDataService.ts]
+        PROFILE_SVC[profileService.ts]
+    end
+    
+    subgraph "Specialized Services"
+        ADMIN_SVC[AdminService.ts]
+        CONVERSATION_SVC[ConversationService.ts]
+        TRENDING_SVC[TrendingService.ts]
+        EMOJI_SVC[emojiService.ts]
+        FILE_SVC[fileService.ts]
+    end
+    
+    subgraph "Infrastructure Services"
+        PWA_MGR[PWAManager.ts]
+        SW_MGR[ServiceWorkerManager.ts]
+        AUDIO_SVC[AudioThemeService.ts]
+        WEBRTC_SVC[unifiedWebRTC.ts]
+    end
+    
+    subgraph "Utility Services"
+        PERMISSIONS[permissionsService.ts]
+        MEMBERSHIP[membershipService.ts]
+        INVITE[inviteService.ts]
+        PERSISTENCE[StatePersistence.ts]
+    end
+    
+    ACTIVITYPUB_SVC --> USER_SVC
+    ACTIVITYPUB_SVC --> CONVERSATION_SVC
+    CHAT_SVC --> USER_SVC
+    CHAT_SVC --> EMOJI_SVC
+    CHAT_SVC --> FILE_SVC
+    
+    ADMIN_SVC --> USER_SVC
+    ADMIN_SVC --> PERMISSIONS
+    
+    USER_SVC --> PROFILE_SVC
+    USER_SVC --> MEMBERSHIP
+    
+    PWA_MGR --> SW_MGR
+    WEBRTC_SVC --> AUDIO_SVC
+```
+
+## Realtime Subscription Architecture
+
+```mermaid
+graph TB
+    subgraph "Supabase Real-time"
+        CHANNELS[Realtime Channels]
+        PRESENCE[Presence System]
+        BROADCAST[Broadcast Events]
+    end
+    
+    subgraph "Chat Subscriptions"
+        CHAT_SUB[Message Subscriptions]
+        DM_SUB[DM Subscriptions]
+        VOICE_SUB[Voice Channel Subscriptions]
+    end
+    
+    subgraph "Social Subscriptions"
+        ACTIVITY_SUB[ActivityPub Subscriptions]
+        NOTIF_SUB[Notification Subscriptions]
+        FOLLOW_SUB[Follow/Unfollow Events]
+    end
+    
+    subgraph "System Subscriptions"
+        USER_SUB[User Presence]
+        SERVER_SUB[Server Events]
+        MEMBER_SUB[Membership Changes]
+    end
+    
+    CHANNELS --> CHAT_SUB
+    CHANNELS --> DM_SUB
+    CHANNELS --> VOICE_SUB
+    CHANNELS --> ACTIVITY_SUB
+    CHANNELS --> NOTIF_SUB
+    CHANNELS --> FOLLOW_SUB
+    
+    PRESENCE --> USER_SUB
+    BROADCAST --> SERVER_SUB
+    BROADCAST --> MEMBER_SUB
+```
+
+## Data Storage Model
+
+```mermaid
+erDiagram
+    USERS ||--o{ PROFILES : has
+    USERS ||--o{ SERVERS : owns
+    USERS ||--o{ MESSAGES : sends
+    USERS ||--o{ ACTIVITYPUB_POSTS : creates
+    
+    SERVERS ||--o{ CHANNELS : contains
+    SERVERS ||--o{ CATEGORIES : organizes
+    SERVERS ||--o{ SERVER_USERS : members
+    SERVERS ||--o{ EMOJIS : custom_emojis
+    
+    CHANNELS ||--o{ MESSAGES : contains
+    CHANNELS ||--o{ VOICE_SESSIONS : hosts
+    
+    MESSAGES ||--o{ REACTIONS : receives
+    MESSAGES ||--o{ ATTACHMENTS : includes
+    
+    ACTIVITYPUB_POSTS ||--o{ AP_ACTIVITIES : generates
+    ACTIVITYPUB_POSTS ||--o{ AP_REACTIONS : receives
+    
+    PROFILES ||--o{ FOLLOWS : social_connections
+    PROFILES ||--o{ NOTIFICATIONS : receives
+    
+    STORAGE_OBJECTS ||--o{ FILE_UPLOADS : stores
+```

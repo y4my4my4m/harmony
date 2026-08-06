@@ -19,6 +19,9 @@ To update later:
 bash update.sh           # git pull + rebuild + migrate + restart
 ```
 
+For a host-native install (nginx + certbot), or for scaling, queue monitoring
+and migration detail, see [`docs/self-hosting.md`](../docs/self-hosting.md).
+
 ## What it runs
 
 | Component | Container(s) | Notes |

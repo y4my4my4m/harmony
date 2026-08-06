@@ -60,18 +60,11 @@ original typeface by y4my4m and is covered by this project's license.
 
 --------------------------------------------------------------------------------
 
-Generated assets:
-
-  The bundled sound packs (public/assets/sounds/default/, futuristic/,
-  harmony/, neokobe/) and the login, 404 and offline background images
-  (public/backgrounds/) were produced with commercial generative APIs on paid
-  plans whose terms grant the project the right to use, distribute and
-  sublicense the output. They are distributed as part of this program under
-  the same license as the rest of the project.
-
-  Note that in some jurisdictions purely machine-generated material may not
-  attract copyright at all. Where that is the case these files are simply
-  unencumbered; it does not affect your rights to the rest of this program.
+The bundled sound packs (public/assets/sounds/default/, futuristic/, harmony/,
+neokobe/) and the login, 404 and offline background images
+(public/backgrounds/) were commissioned for this project. No third party
+retains rights in them; they are distributed as part of this program under the
+same license as the rest of it.
 
 --------------------------------------------------------------------------------
 

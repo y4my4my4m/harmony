@@ -251,7 +251,7 @@ Conceptually attractive (Matrix already does federated E2EE) but in practice E2E
 - Phase 1 schema: new tables for device key bundles + cross-instance Olm session state
 - Phase 1 federation backend: new inbox/outbox handlers for `EncryptedMessage` activities
 
-See `FEDERATION.md` → Future Enhancements for related federation work.
+See [Federation → Future enhancements](./FEDERATION.md#future-enhancements) for related federation work.
 
 ## Encryption Services Reference
 

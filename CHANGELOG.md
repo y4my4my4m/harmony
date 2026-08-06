@@ -7,10 +7,30 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
-## [1.4.0] - 2026-08-06
+### Changed
+- Comments across the codebase rewritten as terse declarative notes; emoji
+  removed from log output.
+- Documentation consolidated: `docs/FEDERATION.md` rewritten to describe the
+  Node/Express federation backend it actually has, duplicate guides merged,
+  `ROADMAP.md` reconciled against the open set in `BUGS.md`.
+- `COPYRIGHT`, `TRADEMARK.md` and `LICENSE-ADDITIONAL-TERMS.md` completed and
+  made consistent.
+- `VERSION` corrected to match `package.json`.
 
-Covers 1.2.0 and 1.3.0, which were version bumps without changelog entries.
-Ninety-seven commits since 1.1.0.
+### Fixed
+- **MFA recovery codes were unusable.** Enrolment has produced 10-character
+  codes since 1.2.0, but every entry field capped input at 8 characters, so
+  the stored hash could never match. Anyone who enrolled after 2026-06-02 and
+  lost their authenticator could not recover.
+
+### Removed
+- Deployment configs carrying real hostnames and certificate paths; only the
+  `dev/*.template.conf` files ship now.
+
+## [1.4.0] - 2026-07-06
+
+Covers 1.2.0, 1.3.0 and 1.3.1, which shipped as GitHub releases without
+changelog entries. Ninety-one commits since 1.1.0.
 
 ### Added
 - **Tauri desktop and Android builds** from the same codebase, with release
@@ -43,8 +63,7 @@ Ninety-seven commits since 1.1.0.
 - Recovered stranded link-preview and media commits.
 
 ### Notes for self-hosters
-- `VERSION`, `package.json` and the federation backend's `VERSION` default
-  are now all `1.4.0`. The backend surfaces this via `/health` and
+- The federation backend surfaces its version via `/health` and
   `/.well-known/nodeinfo`.
 
 ## [1.1.0] - 2026-05-27
@@ -165,6 +184,7 @@ Key features at this snapshot:
 - Self-hosting via Docker Compose; install script under `scripts/install.sh`
 
 [Unreleased]: https://github.com/y4my4my4m/harmony/compare/v1.4.0...HEAD
-[1.4.0]: https://github.com/y4my4my4m/harmony/releases/tag/v1.4.0
+[1.4.0]: https://github.com/y4my4my4m/harmony/compare/v1.1.0...v1.4.0
+[1.1.0]: https://github.com/y4my4my4m/harmony/releases/tag/v1.1.0
 
-1.0.1 and 1.1.0 predate release tagging and have no tag to link to.
+1.0.1 predates release tagging and has no tag to link to.

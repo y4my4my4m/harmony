@@ -18,7 +18,7 @@ The dev server listens on port 3001 - same port as `federation-backend`, so don'
 | Typedoc bundle | `typedoc.json` | `npm run docs:generate` |
 | VitePress nav/sidebar | After changing generated trees | `npm run docs:sync-config` |
 
-Full pipeline (guides + API + components + sync + typedoc + static build): `npm run docs:generate-all`. Setup details: [VITEPRESS_SETUP.md](./VITEPRESS_SETUP.md).
+Full pipeline (guides + API + components + sync + typedoc + static build): `npm run docs:generate-all`. VitePress config lives in `docs/.vitepress/config.ts`; the theme is in `docs/.vitepress/theme/`.
 
 **Do not edit `docs/guide/` by hand** - change `docs-source/guide/` and run `docs:generate-guide`. `docs/guide/`, `docs/api/`, `docs/components/`, and `docs/generated/` are all `.gitignore`d and regenerated on demand.
 
@@ -29,6 +29,7 @@ Full pipeline (guides + API + components + sync + typedoc + static build): `npm 
 - [API Reference](./API_REFERENCE.md)
 - [Federation System](./FEDERATION.md)
 - [Component Library](./COMPONENTS.md)
+- [System Flows](./SYSTEM_FLOWS.md)
 - [State Management](./STATE_MANAGEMENT.md)
 - [Service Layer](./SERVICES.md)
 - [E2EE Implementation](./E2EE_IMPLEMENTATION.md)
@@ -40,6 +41,8 @@ Full pipeline (guides + API + components + sync + typedoc + static build): `npm 
 - [OpenStatus Setup](./OPENSTATUS_SETUP.md)
 
 ## Quick start (app)
+
+Requires Node.js 24 (see `.nvmrc`) and npm - the only supported package manager.
 
 ```bash
 npm install
@@ -58,7 +61,8 @@ Desktop (Tauri):
 npm run tauri:dev
 ```
 
-`bun` works too if you prefer it (`bun install`, `bun run dev`); the scripts are written for npm but Bun runs them fine.
+Full setup, including the federation backend and database, is in the Installation
+guide (`/guide/installation`, sourced from `docs-source/guide/installation.md`).
 
 ## Project layout
 
