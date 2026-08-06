@@ -41,14 +41,15 @@ jobs:
         with:
           workspaces: src-tauri
       - run: npm ci
-      - name: Build Windows installers
-        run: npx tauri build --target x86_64-pc-windows-msvc
+      # NSIS only. The WiX .msi is a second installer for the same payload and
+      # is not published, so building it wastes several minutes per run.
+      - name: Build Windows installer
+        run: npx tauri build --target x86_64-pc-windows-msvc --bundles nsis
       - uses: actions/upload-artifact@v4
         with:
           name: harmony-windows
           path: |
             src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
-            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi
           if-no-files-found: error
 
   macos:
@@ -83,6 +84,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       NDK_VERSION: 28.2.13676358
+      HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -103,10 +105,33 @@ jobs:
         with:
           workspaces: src-tauri
       - run: npm ci
-      - name: Build debug APK
+      # Mirrors release.yml so the signing path is exercised before a release is
+      # cut, not for the first time during one.
+      - name: Configure release signing
+        if: env.HAS_KEYSTORE == 'true'
+        run: |
+          cd src-tauri/gen/android/app
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > release.keystore
+          cat > keystore.properties <<EOF
+          storeFile=release.keystore
+          storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
+          keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
+          EOF
+
+      - name: Build signed release APK
+        if: env.HAS_KEYSTORE == 'true'
         run: |
           export NDK_HOME="$ANDROID_HOME/ndk/$NDK_VERSION"
+          npx tauri android build --target aarch64
+
+      - name: Build debug APK (no keystore configured)
+        if: env.HAS_KEYSTORE != 'true'
+        run: |
+          echo "::warning::No ANDROID_KEYSTORE_BASE64 secret - building a debug-signed APK. Add signing secrets for proper release builds."
+          export NDK_HOME="$ANDROID_HOME/ndk/$NDK_VERSION"
           npx tauri android build --debug --target aarch64
+
       - uses: actions/upload-artifact@v4
         with:
           name: harmony-android
