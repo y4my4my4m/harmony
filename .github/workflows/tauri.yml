@@ -107,16 +107,28 @@ jobs:
       - run: npm ci
       # Mirrors release.yml so the signing path is exercised before a release is
       # cut, not for the first time during one.
+      # Secrets are passed via env, not inline ${{ }}, so quoting in a password
+      # cannot break the shell. Whitespace is stripped before decoding: base64
+      # -d rejects the whole input on a stray CR or wrapped line.
       - name: Configure release signing
         if: env.HAS_KEYSTORE == 'true'
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           cd src-tauri/gen/android/app
-          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > release.keystore
+          printf '%s' "$KEYSTORE_B64" | tr -d '[:space:]' | base64 -d > release.keystore
+          if ! keytool -list -keystore release.keystore -storepass "$KEYSTORE_PASSWORD" >/dev/null 2>&1; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 did not decode to a keystore readable with ANDROID_KEYSTORE_PASSWORD."
+            exit 1
+          fi
           cat > keystore.properties <<EOF
           storeFile=release.keystore
-          storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
-          keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
+          storePassword=$KEYSTORE_PASSWORD
+          keyAlias=$KEY_ALIAS
+          keyPassword=$KEY_PASSWORD
           EOF
 
       - name: Build signed release APK
