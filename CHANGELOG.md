@@ -7,7 +7,16 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-08-06
+
+### Added
+- **Server and instance rules management**, plus follow requests and public
+  instance settings backed by RLS policies.
+- **ActivityPub favorites and reblogs** surfaced in notifications.
+- Floating video placeholder and invite-modal settings.
+
 ### Changed
+- Server icon cache invalidation and realtime server-update propagation.
 - Comments across the codebase rewritten as terse declarative notes; emoji
   removed from log output.
 - Documentation consolidated: `docs/FEDERATION.md` rewritten to describe the
@@ -27,6 +36,11 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - Deployment configs carrying real hostnames and certificate paths; only the
   `dev/*.template.conf` files ship now.
 
+### Notes for self-hosters
+- Android release APKs are signed again. The signing step decoded its keystore
+  with `base64 -d`, which rejects the input outright on a stray carriage return
+  or wrapped line, so every build since 1.4.0 silently fell back to a debug APK.
+
 ## [1.4.0] - 2026-07-06
 
 Covers 1.2.0, 1.3.0 and 1.3.1, which shipped as GitHub releases without
@@ -35,8 +49,6 @@ changelog entries. Ninety-one commits since 1.1.0.
 ### Added
 - **Tauri desktop and Android builds** from the same codebase, with release
   signing wired into CI and a version-stamping script.
-- **Server and instance rules management**, plus follow requests and public
-  instance settings backed by RLS policies.
 - **Discord bridge**: attachment relay, bot gateway improvements, and
   puppeting via webhooks.
 - **Klipy** GIF integration with attribution watermark.
@@ -47,13 +59,10 @@ changelog entries. Ninety-one commits since 1.1.0.
 - `FEDERATION.md` describing the ActivityPub implementation.
 
 ### Changed
-- Video chat reworked; floating video placeholder and invite modal settings.
+- Video chat reworked.
 - Design system and component styles reworked for theming; appearance context
   now resolves per route.
 - `is_private` removed from the channel model.
-- Server icon cache invalidation and realtime server-update propagation.
-- Comments across the codebase rewritten as terse declarative notes; emoji
-  removed from log output.
 
 ### Fixed
 - Federation no longer drops inbound activities; reactions and counters
@@ -183,7 +192,8 @@ Key features at this snapshot:
 - Tauri desktop app and web app from the same codebase
 - Self-hosting via Docker Compose; install script under `scripts/install.sh`
 
-[Unreleased]: https://github.com/y4my4my4m/harmony/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/y4my4my4m/harmony/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/y4my4my4m/harmony/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/y4my4my4m/harmony/compare/v1.1.0...v1.4.0
 [1.1.0]: https://github.com/y4my4my4m/harmony/releases/tag/v1.1.0
 
