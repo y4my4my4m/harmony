@@ -25,23 +25,20 @@ export class BotRestAPI {
   }
   
   private setupRoutes() {
-    // =====================================================
     // CHANNEL ENDPOINTS
-    // =====================================================
     
     this.router.post('/channels/:channelId/messages', this.sendMessage.bind(this))
     
     this.router.get('/channels/:channelId/messages', this.getMessages.bind(this))
 
-    // Lookup a message by bridged Discord message ID (stored in metadata.discord_message_id)
+    // Lookup by bridged Discord message ID, stored in metadata.discord_message_id.
     this.router.get('/channels/:channelId/messages/lookup', this.lookupMessageByDiscordId.bind(this))
     
     this.router.get('/messages/:messageId', this.getMessage.bind(this))
 
-    // Public invite preview (for Discord bridge embed cards)
+    // Public invite preview; feeds Discord bridge embed cards.
     this.router.get('/invites/:code/preview', this.getInvitePreview.bind(this))
     
-    // Edit message
     this.router.patch('/messages/:messageId', this.editMessage.bind(this))
     
     this.router.delete('/messages/:messageId', this.deleteMessage.bind(this))
@@ -52,9 +49,7 @@ export class BotRestAPI {
     
     this.router.post('/channels/:channelId/typing', this.triggerTyping.bind(this))
     
-    // =====================================================
     // SERVER ENDPOINTS (Harmony terminology)
-    // =====================================================
     
     this.router.get('/servers/:serverId', this.getGuild.bind(this))
     
@@ -62,60 +57,54 @@ export class BotRestAPI {
     
     this.router.get('/servers/:serverId/channels', this.getGuildChannels.bind(this))
 
-    // Create channel / category (bot must have manage_channels)
+    // Requires manage_channels.
     this.router.post('/servers/:serverId/channels', this.createChannel.bind(this))
     this.router.post('/servers/:serverId/categories', this.createCategory.bind(this))
     this.router.patch('/servers/:serverId/categories/:categoryId', this.updateCategory.bind(this))
 
-    // List categories (for clone/diff)
+    // Category list; consumed by clone/diff.
     this.router.get('/servers/:serverId/categories', this.getCategories.bind(this))
 
     this.router.patch('/channels/:channelId', this.updateChannel.bind(this))
 
-    // Roles: list + create (bot must have manage_channels - role creation is
-    // part of the same admin clone flow as channel creation; there is no
-    // separate manage_roles bot permission).
+    // Role routes gate on manage_channels: role creation belongs to the same
+    // admin clone flow as channel creation, and no manage_roles bot permission
+    // exists.
     this.router.get('/servers/:serverId/roles', this.getRoles.bind(this))
     this.router.post('/servers/:serverId/roles', this.createRole.bind(this))
     this.router.patch('/servers/:serverId/roles/:roleId', this.updateRole.bind(this))
     this.router.delete('/servers/:serverId/roles/:roleId', this.deleteRole.bind(this))
 
-    // Channel permission overrides (for Discord bridge permission sync)
+    // Channel permission overrides; used by Discord bridge permission sync.
     this.router.get('/channels/:channelId/permission-overrides', this.getChannelPermissionOverrides.bind(this))
     this.router.put('/channels/:channelId/permission-overrides', this.upsertChannelPermissionOverride.bind(this))
     this.router.delete('/channels/:channelId/permission-overrides/role/:roleId', this.deleteChannelPermissionOverrideForRole.bind(this))
 
-    // Legacy aliases (Discord terminology - deprecated)
+    // Deprecated aliases using Discord terminology.
     this.router.get('/guilds/:guildId', this.getGuild.bind(this))
     this.router.get('/guilds/:guildId/members', this.getGuildMembers.bind(this))
     this.router.get('/guilds/:guildId/channels', this.getGuildChannels.bind(this))
     
-    // =====================================================
     // EMOJI ENDPOINTS
-    // =====================================================
     
     this.router.get('/emojis', this.getEmojis.bind(this))
     
     this.router.post('/emojis', this.createEmoji.bind(this))
 
-    // Silent content patch (e.g. refresh attachment URLs without "(edited)")
+    // Content patch that leaves updated_at alone; no "(edited)" marker.
     this.router.patch('/messages/:messageId/content-silent', this.silentUpdateMessageContent.bind(this))
 
-    // Merge bridge metadata (e.g. discord_message_id) without bumping updated_at
+    // Merges bridge metadata (e.g. discord_message_id) without bumping updated_at.
     this.router.patch('/messages/:messageId/metadata', this.mergeMessageMetadata.bind(this))
     
-    // =====================================================
     // USER ENDPOINTS
-    // =====================================================
     
     this.router.get('/users/:userId', this.getUser.bind(this))
     
     this.router.get('/users/@me', this.getCurrentBot.bind(this))
   }
   
-  // =====================================================
   // MEDIA
-  // =====================================================
 
   private async silentUpdateMessageContent(req: BotRequest, res: Response) {
     try {
@@ -159,9 +148,7 @@ export class BotRestAPI {
     }
   }
 
-  // =====================================================
   // MESSAGE ENDPOINTS
-  // =====================================================
   
   private async sendMessage(req: BotRequest, res: Response) {
     try {
@@ -169,26 +156,24 @@ export class BotRestAPI {
       const { content, embeds, reply_to, metadata } = req.body
       const botId = req.bot!.id
       
-      console.log(`🔍 Bot ${req.bot!.username} (${botId}) attempting to send message to channel ${channelId}`)
-      console.log(`🔍 Received metadata:`, JSON.stringify(metadata, null, 2))
+      console.log(`Bot ${req.bot!.username} (${botId}) attempting to send message to channel ${channelId}`)
+      console.log(`Received metadata:`, JSON.stringify(metadata, null, 2))
       
-      // Check permissions
       const canSend = await this.checkChannelPermission(botId, channelId, 'send_messages')
-      console.log(`🔍 Permission check result: ${canSend}`)
+      console.log(`Permission check result: ${canSend}`)
       
       if (!canSend) {
-        console.log(`❌ Permission denied for bot ${botId} in channel ${channelId}`)
+        console.log(`Permission denied for bot ${botId} in channel ${channelId}`)
         return res.status(403).json({ error: 'Missing permission: send_messages' })
       }
       
-      // Format content, then apply the instance attachment policy (e.g. mirror
-      // Discord CDN URLs into user_media). Resolved here so bots stay policy-agnostic.
+      // Instance attachment policy (e.g. mirroring Discord CDN URLs into
+      // user_media) is applied here, keeping bots policy-agnostic.
       const messageContent = await applyBridgeAttachmentPolicy(
         this.formatContent(content, embeds),
         botId,
       )
       
-      // Merge metadata with bot flag and any custom metadata from bridge
       const messageMetadata = {
         bot: true,
         created_via: 'bot_api',
@@ -227,10 +212,9 @@ export class BotRestAPI {
   }
 
   /**
-   * Ask the federation backend to enrich a message's link previews.
-   * Best-effort. Auth: INTERNAL_API_SECRET when configured (scoped secret,
-   * preferred), otherwise the service-role key. Only send either over
-   * localhost or HTTPS - never a plain-http remote URL.
+   * Asks the federation backend to enrich a message's link previews.
+   * Best-effort. Auth uses INTERNAL_API_SECRET when set (scoped), otherwise
+   * the service-role key. Either secret travels only over localhost or HTTPS.
    */
   private triggerLinkPreviewEnrichment(messageId: string): void {
     const federationUrl = process.env.FEDERATION_BACKEND_URL || 'http://localhost:3001'
@@ -353,7 +337,6 @@ export class BotRestAPI {
       const { limit = 50, before, after } = req.query
       const botId = req.bot!.id
       
-      // Check permissions
       const canRead = await this.checkChannelPermission(botId, channelId, 'read_messages')
       if (!canRead) {
         return res.status(403).json({ error: 'Missing permission: read_messages' })
@@ -444,13 +427,11 @@ export class BotRestAPI {
         return res.status(403).json({ error: 'Cannot edit messages from other bots or users' })
       }
 
-      // BUGS.md H38: editing your OWN message should only require `send_messages`
-      // (the permission to post in that channel) - requiring `manage_messages`
-      // here broke Discord bridge edit-sync because bridge bots typically only
-      // hold `send_messages`. The ownership check above already guarantees the
-      // bot is the author. `deleteMessage` already follows this pattern (line
-      // 307: own-message delete is allowed; `manage_messages` only required for
-      // OTHER bots' messages).
+      // BUGS.md H38: editing one's own message requires only `send_messages`.
+      // Bridge bots hold `send_messages` alone, so gating on `manage_messages`
+      // breaks Discord edit-sync. The ownership check above guarantees the bot
+      // is the author. `deleteMessage` mirrors this: `manage_messages` is
+      // required only for other bots' messages.
       const canSend = await this.checkChannelPermission(botId, message.channel_id, 'send_messages')
       if (!canSend) {
         return res.status(403).json({ error: 'Missing permission: send_messages' })
@@ -555,28 +536,26 @@ export class BotRestAPI {
       }
       
       if (isUUID) {
-        // Custom emoji - use emoji_id
         insertData.emoji_id = emoji
       } else {
-        // Unicode/native emoji - use custom_emoji_content
         insertData.custom_emoji_content = emoji
         insertData.emoji_id = null
       }
       
-      console.log(`🎭 Adding reaction: ${isUUID ? 'custom' : 'native'} emoji "${emoji}" to message ${messageId}`)
+      console.log(`Adding reaction: ${isUUID ? 'custom' : 'native'} emoji "${emoji}" to message ${messageId}`)
       
       const { error } = await supabase
         .from('reactions')
         .insert(insertData)
       
       if (error) {
-        console.error('❌ Reaction insert error:', error);
+        console.error('Reaction insert error:', error);
         return res.status(500).json({ error: error.message })
       }
       
       res.status(204).send()
     } catch (error: any) {
-      console.error('❌ Add reaction exception:', error);
+      console.error('Add reaction exception:', error);
       res.status(500).json({ error: error.message })
     }
   }
@@ -620,34 +599,32 @@ export class BotRestAPI {
         query = query.filter('metadata->discord_user->>id', 'eq', discord_user_id)
       }
       
-      console.log(`🎭 Removing reaction: ${isUUID ? 'custom' : 'native'} emoji "${emoji}" from message ${messageId}`)
+      console.log(`Removing reaction: ${isUUID ? 'custom' : 'native'} emoji "${emoji}" from message ${messageId}`)
       
       const { error } = await query
       
       if (error) {
-        console.error('❌ Reaction delete error:', error);
+        console.error('Reaction delete error:', error);
         return res.status(500).json({ error: error.message })
       }
       
       res.status(204).send()
     } catch (error: any) {
-      console.error('❌ Remove reaction exception:', error);
+      console.error('Remove reaction exception:', error);
       res.status(500).json({ error: error.message })
     }
   }
   
   private async triggerTyping(req: BotRequest, res: Response) {
     try {
-      // This is a no-op in the database but returns success for API compatibility
+      // No database effect; returns success for API compatibility.
       res.status(204).send()
     } catch (error: any) {
       res.status(500).json({ error: error.message })
     }
   }
   
-  // =====================================================
   // GUILD ENDPOINTS
-  // =====================================================
   
   private async getGuild(req: BotRequest, res: Response) {
     try {
@@ -687,7 +664,7 @@ export class BotRestAPI {
   
   private async getGuildMembers(req: BotRequest, res: Response) {
     try {
-      // Support both /servers/:serverId and /guilds/:guildId
+      // Route registered under both /servers/:serverId and /guilds/:guildId.
       const serverId = req.params.serverId || req.params.guildId
       const { limit = 100, after } = req.query
       const botId = req.bot!.id
@@ -748,20 +725,13 @@ export class BotRestAPI {
     }
   }
   
-  // =====================================================
   // USER ENDPOINTS
-  // =====================================================
   
-  // =====================================================
   // CHANNEL / CATEGORY CREATION (used by bridges to mirror server structure)
-  // =====================================================
   //
-  // These two endpoints intentionally trust the `manage_channels` permission
-  // already enforced via bot_server_permissions; we do NOT re-implement a
-  // separate "is the invoker server owner" check here because that gate
-  // belongs to the *calling tool* (e.g. the /bridge clone-server slash
-  // command), not the API. If the bot has `manage_channels` for this server
-  // (granted by the server owner during install), it can create channels.
+  // Authorization is `manage_channels` from bot_server_permissions, granted by
+  // the server owner at install time. No server-owner check here: that gate
+  // belongs to the calling tool (e.g. the /bridge clone-server slash command).
 
   private async createCategory(req: BotRequest, res: Response) {
     try {
@@ -813,8 +783,8 @@ export class BotRestAPI {
       if (!name || typeof name !== 'string' || !name.trim()) {
         return res.status(400).json({ error: 'name is required' })
       }
-      // Harmony channel types: 0=text, 1=voice, 2=category
-      // We don't accept category here (use /categories endpoint).
+      // Harmony channel types: 0=text, 1=voice, 2=category.
+      // Category is rejected here; use the /categories endpoint.
       const channelType = type === 1 ? 1 : 0
 
       const allowed = await this.checkServerPermission(botId, serverId, 'manage_channels')
@@ -990,9 +960,9 @@ export class BotRestAPI {
         return res.status(403).json({ error: 'Missing permission: manage_channels' })
       }
 
-      // Permissions arrive as a bigint bitmask in string form (JS can't safely
-      // carry 53+ bit ints). Store as-is; never let a bot mint ADMINISTRATOR
-      // (bit 0) - that must be granted by a human in the Harmony UI.
+      // Permissions arrive as a bigint bitmask in string form; JS numbers
+      // cannot carry 53+ bit ints. Stored as-is. ADMINISTRATOR (bit 0) is
+      // stripped: it is granted only through the Harmony UI.
       let permMask = 0n
       try {
         permMask = BigInt(permissions ?? 0)
@@ -1324,9 +1294,7 @@ export class BotRestAPI {
     }
   }
   
-  // =====================================================
   // PERMISSION HELPERS
-  // =====================================================
   
   private async checkChannelPermission(botId: string, channelId: string, permission: string): Promise<boolean> {
     const { data: channel, error: channelError } = await supabase
@@ -1335,26 +1303,24 @@ export class BotRestAPI {
       .eq('id', channelId)
       .single()
     
-    console.log(`🔍 Channel lookup: channelId=${channelId}, serverId=${channel?.server_id}, error=${channelError?.message}`)
+    console.log(`Channel lookup: channelId=${channelId}, serverId=${channel?.server_id}, error=${channelError?.message}`)
     
     if (!channel) return false
     
-    // Check bot permission
     const { data, error } = await supabase.rpc('check_bot_permission', {
       p_bot_id: botId,
       p_server_id: channel.server_id,
       p_permission: permission
     })
     
-    console.log(`🔍 Permission RPC result: permission=${permission}, result=${data}, error=${error?.message}`)
+    console.log(`Permission RPC result: permission=${permission}, result=${data}, error=${error?.message}`)
     
     return data === true
   }
   
   /**
-   * Server-scoped permission check (no channelId required).
-   * Used for actions like channel/category creation that are server-wide,
-   * not channel-specific.
+   * Server-scoped permission check for server-wide actions such as
+   * channel/category creation.
    */
   private async checkServerPermission(botId: string, serverId: string, permission: string): Promise<boolean> {
     const { data, error } = await supabase.rpc('check_bot_permission', {
@@ -1381,24 +1347,20 @@ export class BotRestAPI {
     return !!data
   }
   
-  // =====================================================
   // FORMATTERS
-  // =====================================================
   
   /**
-   * Convert a relative avatar path to a full URL
-   * Handles both Supabase storage paths and external URLs
-   * Uses PUBLIC_URL for external-facing URLs (for Discord, ActivityPub, etc.)
+   * Resolves a Supabase storage path to an absolute URL; external URLs pass
+   * through. Base is PUBLIC_URL so the result is reachable by external
+   * consumers (Discord, ActivityPub).
    */
   private formatAvatarUrl(avatarPath: string | null | undefined): string | undefined {
     if (!avatarPath) return undefined
     
-    // If already a full URL, return as-is
     if (avatarPath.startsWith('http://') || avatarPath.startsWith('https://')) {
       return avatarPath
     }
     
-    // Use PUBLIC_URL for external-facing resources, fallback to SUPABASE_URL
     const publicUrl = process.env.PUBLIC_URL || process.env.SUPABASE_URL
     if (!publicUrl) {
       console.warn('PUBLIC_URL or SUPABASE_URL not set, cannot construct avatar URL')
@@ -1407,18 +1369,15 @@ export class BotRestAPI {
     
     const cleanPath = avatarPath.startsWith('/') ? avatarPath.slice(1) : avatarPath
     
-    // Construct full URL with image optimization params
     return `${publicUrl}/storage/v1/render/image/public/avatars/${cleanPath}?width=256&height=256&resize=contain&quality=80`
   }
   
   private formatContent(content: string | any[], embeds?: any[]): any[] {
     const parts: any[] = []
     
-    // If content is already an array of MessageParts, use it directly
     if (Array.isArray(content)) {
       parts.push(...content)
     } else if (content) {
-      // If content is a string, wrap it in a text part
       parts.push({ type: 'text', text: content })
     }
     
@@ -1430,7 +1389,6 @@ export class BotRestAPI {
   }
   
   private formatMessage(message: any) {
-    // Use bot if present, otherwise use user
     const author = message.bot || message.user
     
     return {
@@ -1536,9 +1494,7 @@ export class BotRestAPI {
       .filter(Boolean)
   }
   
-  // =====================================================
   // INVITE PREVIEW (public invite cards for bridge embeds)
-  // =====================================================
 
   private async getInvitePreview(req: BotRequest, res: Response) {
     try {
@@ -1602,9 +1558,7 @@ export class BotRestAPI {
     }
   }
 
-  // =====================================================
   // EMOJI METHODS
-  // =====================================================
   
   private async getEmojis(req: BotRequest, res: Response) {
     try {
@@ -1612,7 +1566,7 @@ export class BotRestAPI {
       
       let query = supabase.from('emojis').select('*')
       
-      // If URL is provided, filter by it (for checking if Discord emoji exists)
+      // Filtering by url answers "does this Discord emoji already exist".
       if (url && typeof url === 'string') {
         query = query.eq('url', url)
       }
@@ -1638,12 +1592,12 @@ export class BotRestAPI {
         return res.status(400).json({ error: 'Missing required fields: name, url' })
       }
       
-      // Only allow federated emojis (server_id must be null) from bots
+      // Bots may create federated emojis only; server_id must be null.
       if (server_id !== null && server_id !== undefined) {
         return res.status(403).json({ error: 'Bots can only create federated emojis (server_id must be null)' })
       }
       
-      // Use RPC function to create emoji (bypasses RLS with SECURITY DEFINER)
+      // RPC is SECURITY DEFINER; it bypasses RLS.
       const { data: newEmoji, error: insertError } = await supabase
         .rpc('create_federated_emoji', {
           p_name: name,
@@ -1653,11 +1607,11 @@ export class BotRestAPI {
         })
       
       if (insertError) {
-        console.error('❌ Emoji insert error:', insertError);
+        console.error('Emoji insert error:', insertError);
         return res.status(500).json({ error: insertError.message })
       }
       
-      // RPC returns an array, get first result
+      // RPC returns an array.
       const emoji = Array.isArray(newEmoji) && newEmoji.length > 0 ? newEmoji[0] : null
       
       if (!emoji) {
@@ -1668,14 +1622,12 @@ export class BotRestAPI {
       
       res.status(201).json(emoji)
     } catch (error: any) {
-      console.error('❌ Create emoji exception:', error);
+      console.error('Create emoji exception:', error);
       res.status(500).json({ error: error.message })
     }
   }
   
-  // =====================================================
   // AUDIT LOGGING
-  // =====================================================
   
   private async logBotAction(botId: string, action: string, metadata: any) {
     try {

@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 /**
- * Move Background Images to Organized Folders
- * 
- * Moves existing background images from /public/img/ to organized folders:
- * - login_bg*.webp -> /public/backgrounds/login/
- * - offline_bg*.webp -> /public/backgrounds/offline/
+ * Copies background images into per-purpose folders, renaming to a bare index:
+ * - /public/img/login_bg<n>.*   -> /public/backgrounds/login/<n>.*
+ * - /public/img/offline_bg<n>.* -> /public/backgrounds/offline/<n>.*
+ * - /public/404[_<n>].*         -> /public/backgrounds/404/<n>.*
+ *
+ * Sources are copied, not deleted.
  */
 
 import fs from 'fs';
@@ -19,35 +20,31 @@ const BACKGROUNDS_DIR = path.join(__dirname, '../public/backgrounds');
 const LOGIN_DIR = path.join(BACKGROUNDS_DIR, 'login');
 const OFFLINE_DIR = path.join(BACKGROUNDS_DIR, 'offline');
 
-/**
- * Move background images to organized folders
- */
 function moveBackgroundImages() {
-  console.log('📁 Moving background images to organized folders...\n');
+  console.log('Moving background images to organized folders...\n');
   
-  // Ensure destination directories exist
   if (!fs.existsSync(LOGIN_DIR)) {
     fs.mkdirSync(LOGIN_DIR, { recursive: true });
-    console.log('✅ Created /public/backgrounds/login/');
+    console.log('Created /public/backgrounds/login/');
   }
   
   if (!fs.existsSync(OFFLINE_DIR)) {
     fs.mkdirSync(OFFLINE_DIR, { recursive: true });
-    console.log('✅ Created /public/backgrounds/offline/');
+    console.log('Created /public/backgrounds/offline/');
   }
   
   const NOTFOUND_DIR = path.join(BACKGROUNDS_DIR, '404');
   if (!fs.existsSync(NOTFOUND_DIR)) {
     fs.mkdirSync(NOTFOUND_DIR, { recursive: true });
-    console.log('✅ Created /public/backgrounds/404/');
+    console.log('Created /public/backgrounds/404/');
   }
   
   if (!fs.existsSync(IMG_DIR)) {
-    console.log('❌ /public/img/ directory not found');
+    console.log('/public/img/ directory not found');
     return;
   }
   
-  // Also check public root for 404 images
+  // 404 images live in the public root, not /public/img.
   const PUBLIC_DIR = path.join(__dirname, '../public');
   const files = fs.readdirSync(IMG_DIR);
   const publicFiles = fs.readdirSync(PUBLIC_DIR);
@@ -60,22 +57,18 @@ function moveBackgroundImages() {
     const sourcePath = path.join(IMG_DIR, file);
     const stats = fs.statSync(sourcePath);
     
-    // Only process files (not directories)
     if (!stats.isFile()) {
       continue;
     }
     
-    // Check if it's a login background
     if (file.match(/^login_bg\d+\.(webp|png|jpg|jpeg)$/i)) {
-      // Extract the number and extension
       const match = file.match(/^login_bg(\d+)\.(.+)$/i);
       if (match) {
         const [, number, ext] = match;
-        // Use just the number as the filename (e.g., 1.webp, 2.webp)
+        // Destination filename is the bare index: 1.webp, 2.webp.
         const destFileName = `${number}.${ext}`;
         const destPath = path.join(LOGIN_DIR, destFileName);
         
-        // Only move if destination doesn't exist
         if (!fs.existsSync(destPath)) {
           fs.copyFileSync(sourcePath, destPath);
           console.log(`   Moved: ${file} -> /backgrounds/login/${destFileName}`);
@@ -86,17 +79,14 @@ function moveBackgroundImages() {
         }
       }
     }
-    // Check if it's an offline background
     else if (file.match(/^offline_bg\d+\.(webp|png|jpg|jpeg)$/i)) {
-      // Extract the number and extension
       const match = file.match(/^offline_bg(\d+)\.(.+)$/i);
       if (match) {
         const [, number, ext] = match;
-        // Use just the number as the filename (e.g., 1.webp, 2.webp)
+        // Destination filename is the bare index: 1.webp, 2.webp.
         const destFileName = `${number}.${ext}`;
         const destPath = path.join(OFFLINE_DIR, destFileName);
         
-        // Only move if destination doesn't exist
         if (!fs.existsSync(destPath)) {
           fs.copyFileSync(sourcePath, destPath);
           console.log(`   Moved: ${file} -> /backgrounds/offline/${destFileName}`);
@@ -109,27 +99,21 @@ function moveBackgroundImages() {
     }
   }
   
-  // Process 404 images from public root
   for (const file of publicFiles) {
     const sourcePath = path.join(PUBLIC_DIR, file);
     const stats = fs.statSync(sourcePath);
     
-    // Only process files (not directories)
     if (!stats.isFile()) {
       continue;
     }
     
-    // Check if it's a 404 image
     if (file.match(/^404(_\d+)?\.(webp|png|jpg|jpeg)$/i)) {
-      // Extract the number and extension
       const match = file.match(/^404(?:_(\d+))?\.(.+)$/i);
       if (match) {
         const [, number, ext] = match;
-        // Use number if present, otherwise use 1
         const destFileName = number ? `${number}.${ext}` : `1.${ext}`;
         const destPath = path.join(NOTFOUND_DIR, destFileName);
         
-        // Only move if destination doesn't exist
         if (!fs.existsSync(destPath)) {
           fs.copyFileSync(sourcePath, destPath);
           console.log(`   Moved: ${file} -> /backgrounds/404/${destFileName}`);
@@ -142,18 +126,17 @@ function moveBackgroundImages() {
     }
   }
   
-  console.log(`\n✅ Done!`);
+  console.log(`\nDone!`);
   console.log(`   Moved ${movedLogin} login backgrounds`);
   console.log(`   Moved ${movedOffline} offline backgrounds`);
   console.log(`   Moved ${moved404} 404 backgrounds`);
   if (skipped > 0) {
     console.log(`   Skipped ${skipped} files (already exist in destination)`);
   }
-  console.log(`\n💡 Note: Original files were copied, not moved.`);
+  console.log(`\nNote: Original files were copied, not moved.`);
   console.log(`   You can manually delete them after verifying the move was successful.\n`);
 }
 
-// Run if called directly
 if (import.meta.url === `file://${process.argv[1]}`) {
   moveBackgroundImages();
 }

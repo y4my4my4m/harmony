@@ -6,7 +6,6 @@
     </div>
     
     <div v-else>
-      <!-- Encryption Status Overview -->
       <div class="subsection">
         <h4 class="subsection-title">Encryption Status</h4>
         <p class="subsection-description">
@@ -36,7 +35,6 @@
         </div>
       </div>
       
-      <!-- Recovery Key Info -->
       <div v-if="encryptionStatus.hasRecoveryKey" class="subsection">
         <h4 class="subsection-title">Recovery Key</h4>
         
@@ -62,7 +60,6 @@
         </div>
       </div>
       
-      <!-- Session Keys Info -->
       <div v-if="encryptionStatus.enabled" class="subsection">
         <h4 class="subsection-title">Session Keys</h4>
         
@@ -89,7 +86,6 @@
         </button>
       </div>
 
-      <!-- Diagnostics -->
       <div v-if="encryptionStatus.hasRecoveryKey" class="subsection">
         <h4 class="subsection-title">Diagnostics</h4>
         <p class="subsection-description">
@@ -109,7 +105,6 @@
         </ul>
       </div>
       
-      <!-- Devices -->
       <div v-if="encryptionStatus.hasRecoveryKey" class="subsection">
         <h4 class="subsection-title">Your Devices</h4>
         <p class="subsection-description">
@@ -119,7 +114,6 @@
         <DeviceManager />
       </div>
 
-      <!-- Backup & Recovery -->
       <div v-if="encryptionStatus.hasRecoveryKey" class="subsection">
         <h4 class="subsection-title">Backup & Recovery</h4>
         
@@ -168,7 +162,6 @@
         </div>
       </div>
 
-      <!-- Recovery Options (when no encryption set up) -->
       <div v-if="!encryptionStatus.hasRecoveryKey" class="subsection">
         <h4 class="subsection-title">Recovery</h4>
         
@@ -195,7 +188,6 @@
         </div>
       </div>
       
-      <!-- Danger Zone -->
       <div v-if="encryptionStatus.hasRecoveryKey" class="subsection danger-zone">
         <h4 class="subsection-title">Danger Zone</h4>
         
@@ -210,7 +202,6 @@
       </div>
     </div>
     
-    <!-- Recovery Key Setup Wizard -->
     <Teleport to="body">
       <RecoveryKeySetupWizard 
         v-if="showSetupWizard"
@@ -219,7 +210,6 @@
       />
     </Teleport>
     
-    <!-- Key Recovery Modal -->
     <Teleport to="body">
       <KeyRecoveryModal
         v-if="showRecoveryModal"
@@ -228,7 +218,6 @@
       />
     </Teleport>
     
-    <!-- View Recovery Info Modal -->
     <Teleport to="body">
       <div v-if="showViewRecoveryInfo" class="modal-overlay" @click.self="showViewRecoveryInfo = false">
         <div class="modal">
@@ -262,7 +251,6 @@
       </div>
     </Teleport>
     
-    <!-- Reset Confirmation -->
     <Teleport to="body">
       <div v-if="confirmReset" class="modal-overlay" @click.self="confirmReset = false">
         <div class="modal">
@@ -284,7 +272,6 @@
       </div>
     </Teleport>
     
-    <!-- Import Modal -->
     <Teleport to="body">
       <div v-if="showImportModal" class="modal-overlay" @click.self="showImportModal = false">
         <div class="modal">
@@ -327,7 +314,6 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 
 const toast = useToast()
 
-// State
 const isInitialized = ref(false)
 const encryptionStatus = ref({
   enabled: false,
@@ -340,14 +326,12 @@ const sessionStats = ref({ outbound: 0, inbound: 0 })
 const lastBackupTime = ref<string | null>(null)
 const recoveryMetadata = ref<any>(null)
 
-// UI State
 const showSetupWizard = ref(false)
 const showRecoveryModal = ref(false)
 const showViewRecoveryInfo = ref(false)
 const showImportModal = ref(false)
 const confirmReset = ref(false)
 
-// Loading states
 const isSyncing = ref(false)
 const isBackingUp = ref(false)
 const isResetting = ref(false)
@@ -356,7 +340,6 @@ const isImporting = ref(false)
 const selectedFile = ref<File | null>(null)
 const importError = ref('')
 
-// Computed status display
 const statusClass = computed(() => {
   if (!encryptionStatus.value.hasRecoveryKey) return 'not-setup'
   if (!encryptionStatus.value.enabled) return 'locked'
@@ -403,7 +386,7 @@ async function loadEncryptionStatus() {
     const status = await megolmMessageEncryptionService.getEncryptionStatus()
     encryptionStatus.value = status
 
-    // Get recovery metadata (use maybeSingle to avoid error on 0 rows)
+    // maybeSingle: the metadata row may not exist.
     if (status.hasRecoveryKey) {
       const { data: metadata } = await supabase
         .from('recovery_key_metadata')
@@ -446,7 +429,6 @@ function formatTime(isoString: string): string {
   return date.toLocaleDateString()
 }
 
-// Sync keys
 const diagnostics = ref<Array<{ label: string; ok: boolean | null; detail: string }>>([])
 const isDiagnosing = ref(false)
 
@@ -492,10 +474,8 @@ async function syncKeys() {
       toast.info('No new keys to sync')
     }
 
-    // Re-decrypt anything currently on screen. Claiming keys without
-    // reprocessing left visible messages stuck as glyphs ("clicked sync,
-    // nothing happened"). Always reprocess: even claimed==0, an unlock that
-    // just restored sessions from backup may now be able to decrypt.
+    // Re-decrypt visible messages. Runs even when claimed == 0: an unlock may
+    // have restored sessions from backup.
     try {
       const { useChatStore } = await import('@/stores/useChat')
       useChatStore().reprocessEncryptedMessages()
@@ -524,7 +504,6 @@ async function createBackup() {
   }
 }
 
-// Export backup file
 async function exportBackupFile() {
   try {
     const { megolmKeyBackupService } = await import('@/services/encryption/MegolmKeyBackupService')
@@ -580,15 +559,14 @@ function closeImportModal() {
 async function resetEncryption() {
   isResetting.value = true
   try {
-    // If we're in an end-to-end encrypted voice call, drop it first. The
-    // LiveKit worker holds the voice key independently of the Megolm stores
-    // we're about to wipe, so the call would otherwise keep running with a key
-    // we can no longer rotate into - leaving a misleading "encrypted" shield
-    // and breaking on the next membership change. Leaving is the honest move.
+    // Leave any end-to-end encrypted voice call before wiping keys. The LiveKit
+    // worker holds the voice key independently of the Megolm stores, so the call
+    // would keep running with a key that can no longer be rotated - a misleading
+    // "encrypted" shield that breaks on the next membership change.
     const { useUnifiedVoiceChannelStore } = await import('@/stores/unifiedVoiceChannel')
     const voiceStore = useUnifiedVoiceChannelStore()
     if (voiceStore.isConnected && voiceStore.isEncrypted) {
-      debug.log('🔐 Reset encryption: leaving active encrypted voice call first')
+      debug.log('Reset encryption: leaving active encrypted voice call first')
       await voiceStore.leaveVoiceChannel()
       toast.info('Left the encrypted voice call (its keys were reset)')
     }
@@ -628,7 +606,6 @@ async function autoSyncAfterEnable() {
       toast.info(`Synced ${claimed} session key${claimed > 1 ? 's' : ''}`)
     }
 
-    // Re-decrypt any encrypted messages that are currently visible
     const { useChatStore } = await import('@/stores/useChat')
     const chatStore = useChatStore()
     await chatStore.reprocessEncryptedMessages()
@@ -681,7 +658,6 @@ onMounted(() => {
   line-height: 1.5;
 }
 
-/* Status Card */
 .status-card {
   display: flex;
   align-items: center;
@@ -728,7 +704,6 @@ onMounted(() => {
   margin: 0;
 }
 
-/* Info Card */
 .info-card {
   display: flex;
   align-items: center;
@@ -782,7 +757,6 @@ onMounted(() => {
   color: var(--text-secondary, #888);
 }
 
-/* Stats Grid */
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -815,7 +789,6 @@ onMounted(() => {
   color: var(--text-secondary, #888);
 }
 
-/* Backup Options */
 .backup-options {
   display: flex;
   flex-direction: column;
@@ -857,12 +830,10 @@ onMounted(() => {
   margin: 0;
 }
 
-/* Danger Zone */
 .danger-zone .subsection-title {
   color: var(--danger, #e74c3c);
 }
 
-/* Modal */
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -930,7 +901,6 @@ onMounted(() => {
   margin-top: 24px;
 }
 
-/* Recovery Info Modal */
 .recovery-info-content {
   margin-bottom: 20px;
 }
@@ -982,7 +952,6 @@ onMounted(() => {
   margin-top: 8px;
 }
 
-/* Form Group */
 .form-group {
   margin-bottom: 16px;
 }
@@ -1005,7 +974,6 @@ onMounted(() => {
   cursor: pointer;
 }
 
-/* Buttons */
 .btn {
   padding: 12px 24px;
   border-radius: 8px;

@@ -1,8 +1,6 @@
-// Enhanced Service Worker for Discord-like Notifications and PWA Features
-// Version: 3.5 - Canonical imgproxy transform sizes + stale-while-revalidate
-//                cache for emoji/avatar/server icon/banner/attachment render
-//                URLs so reaction tooltips, server switches, and message
-//                galleries reuse cached, downscaled images.
+// Service worker: push notifications and PWA caching.
+// Version 3.5 - canonical imgproxy transform sizes; stale-while-revalidate
+// cache for emoji/avatar/server icon/banner/attachment render URLs.
 
 const CACHE_NAME = 'harmony-v5-mobile'
 const NOTIFICATION_CACHE = 'harmony-notifications-v2'
@@ -11,7 +9,6 @@ const API_CACHE = 'harmony-api-v3'
 const EMOJI_CACHE = 'harmony-emoji-v2'
 const TRANSFORM_CACHE = 'harmony-transform-v1'
 
-// Cache strategies
 const STATIC_RESOURCES = [
   '/',
   '/manifest.json',
@@ -19,23 +16,22 @@ const STATIC_RESOURCES = [
   '/favicon/android-icon-192x192.png'
 ]
 
-// Install event - precache critical resources
 self.addEventListener('install', (event) => {
-  console.log('🔧 Service Worker: Installing...')
+  console.log('Service Worker: Installing...')
   
   event.waitUntil(
     caches.open(STATIC_CACHE).then((cache) => {
-      console.log('📦 Service Worker: Precaching static resources')
+      console.log('Service Worker: Precaching static resources')
       return cache.addAll(STATIC_RESOURCES)
     })
-    // Don't skip waiting - let the user control updates
-    // This prevents aggressive takeover on mobile
+    // No skipWaiting: activation is user-driven. Immediate takeover breaks
+    // in-flight mobile sessions.
   )
 })
 
-// Activate event - clean old caches
+// Activate: drop caches not in the current set.
 self.addEventListener('activate', (event) => {
-  console.log('✅ Service Worker: Activating...')
+  console.log('Service Worker: Activating...')
   
   event.waitUntil(
     caches.keys().then((cacheNames) => {
@@ -47,14 +43,14 @@ self.addEventListener('activate', (event) => {
               cacheName !== NOTIFICATION_CACHE &&
               cacheName !== EMOJI_CACHE &&
               cacheName !== TRANSFORM_CACHE) {
-            console.log('🗑️ Service Worker: Deleting old cache:', cacheName)
+            console.log('Service Worker: Deleting old cache:', cacheName)
             return caches.delete(cacheName)
           }
         })
       )
     }).then(() => {
-      // Only claim clients if explicitly requested - prevents aggressive takeover
-      // This helps with mobile reload issues
+      // Claim clients only when an update is pending; unconditional claim
+      // causes mobile reload loops.
       if (self.registration?.waiting) {
         return self.clients.claim()
       }
@@ -62,18 +58,15 @@ self.addEventListener('activate', (event) => {
   )
 })
 
-// Note: Main fetch event handler is implemented later in the file with enhanced logic
+// Fetch handler and caching strategies are defined further down.
 
-// Note: Caching strategies are implemented later in the file with enhanced versions
-
-// Enhanced notification handling with proper Discord-like behavior
-// event.waitUntil() must be called synchronously (before any await)
-// or the browser may terminate the service worker before the notification is shown.
+// event.waitUntil() must be called synchronously, before any await, or the
+// browser may terminate the worker before the notification is shown.
 self.addEventListener('push', (event) => {
-  console.log('🔔 Service Worker: Push event received', event)
+  console.log('Service Worker: Push event received', event)
   
   if (!event.data) {
-    console.log('⚠️ Service Worker: No data in push event')
+    console.log('Service Worker: No data in push event')
     return
   }
 
@@ -83,14 +76,14 @@ self.addEventListener('push', (event) => {
 async function handlePushEvent(event) {
   try {
     const data = event.data.json()
-    console.log('📨 Service Worker: Notification data:', data)
+    console.log('Service Worker: Notification data:', data)
 
-    // Skip push notification if any app window is focused - the realtime
-    // subscription already handles desktop notifications in that case
+    // A focused window already raises desktop notifications from the
+    // realtime subscription.
     const windowClients = await self.clients.matchAll({ type: 'window', includeUncontrolled: false })
     const hasFocusedClient = windowClients.some(client => client.focused)
     if (hasFocusedClient) {
-      console.log('🔕 Service Worker: App is focused, skipping push notification')
+      console.log('Service Worker: App is focused, skipping push notification')
       return
     }
 
@@ -114,10 +107,9 @@ async function handlePushEvent(event) {
       color: '#0EA5E9'
     }
 
-    // Store notification for later retrieval
     await storeNotification(data)
 
-    // Update app icon badge count (works from service worker on Android Chrome)
+    // Badging API works from the worker on Android Chrome.
     try {
       const notifications = await self.registration.getNotifications()
       const badgeCount = notifications.length + 1
@@ -125,21 +117,19 @@ async function handlePushEvent(event) {
         await navigator.setAppBadge(badgeCount)
       }
     } catch (e) {
-      // Badging API not supported in this context - safe to ignore
+      // Badging API unsupported here.
     }
 
-    // Show notification with proper title
     const title = data.title || getDefaultTitle(data.type)
     await self.registration.showNotification(title, notificationOptions)
 
   } catch (error) {
-    console.error('❌ Service Worker: Error handling push event:', error)
+    console.error('Service Worker: Error handling push event:', error)
   }
 }
 
-// Enhanced notification click handling
 self.addEventListener('notificationclick', (event) => {
-  console.log('🖱️ Service Worker: Notification clicked', event)
+  console.log('Service Worker: Notification clicked', event)
   event.notification.close()
   event.waitUntil(handleNotificationClick(event))
 })
@@ -148,7 +138,6 @@ async function handleNotificationClick(event) {
   const data = event.notification.data
   const action = event.action
 
-  // Update badge count after closing
   await updateBadgeCount()
 
   if (action === 'reply' && (data.conversation_id || data.server_id)) {
@@ -164,8 +153,8 @@ async function handleNotificationClick(event) {
     return
   }
 
-  // Default click behavior: focus an existing app window (tab or installed
-  // PWA) and navigate it in-place; only open a new window when none exists.
+  // Default click: focus an existing same-origin window and navigate it in
+  // place; open a new window only when none exists.
   const url = getNavigationUrl(data)
   const clientList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
   const sameOriginClients = clientList.filter(client => {
@@ -189,7 +178,7 @@ async function handleNotificationClick(event) {
   }
 }
 
-// Update badge when notifications are swiped away
+// Swipe-away also lands here.
 self.addEventListener('notificationclose', (event) => {
   event.waitUntil(updateBadgeCount())
 })
@@ -205,54 +194,51 @@ async function updateBadgeCount() {
       }
     }
   } catch (e) {
-    // Badging API not available - safe to ignore
+    // Badging API unavailable.
   }
 }
 
-// Handle background sync for offline notifications
 self.addEventListener('sync', (event) => {
-  console.log('🔄 Service Worker: Background sync event', event.tag)
+  console.log('Service Worker: Background sync event', event.tag)
   
   if (event.tag === 'send-notification') {
     event.waitUntil(processPendingNotifications())
   }
 })
 
-// Handle messages from main app - Mobile friendly update control
 self.addEventListener('message', (event) => {
-  console.log('📧 Service Worker: Received message', event.data)
+  console.log('Service Worker: Received message', event.data)
   
   switch (event.data.type) {
     case 'SKIP_WAITING':
-      // Only skip waiting when explicitly requested by user
-      console.log('⏭️ Service Worker: Manual skip waiting requested')
+      // Sole path to activation; the install handler never skips waiting.
+      console.log('Service Worker: Manual skip waiting requested')
       self.skipWaiting()
       break
     case 'GET_VERSION':
-      // Handle version requests
       event.ports[0]?.postMessage({
         version: '3.5',
         updated: new Date().toISOString()
       })
       break
+    // PREFETCH_CRITICAL, UPDATE_NOTIFICATION_SETTINGS and CLEAR_NOTIFICATIONS
+    // log only; no implementation behind them.
     case 'PREFETCH_CRITICAL':
-      // Handle prefetch requests
-      console.log('📦 Service Worker: Prefetch critical resources requested')
+      console.log('Service Worker: Prefetch critical resources requested')
       break
     case 'UPDATE_NOTIFICATION_SETTINGS':
-      // Handle notification settings
-      console.log('⚙️ Service Worker: Notification settings updated')
+      console.log('Service Worker: Notification settings updated')
       break
     case 'CLEAR_NOTIFICATIONS':
-      // Handle notification clearing
-      console.log('🗑️ Service Worker: Clearing notifications')
+      console.log('Service Worker: Clearing notifications')
       break
     case 'DISMISS_NOTIFICATIONS':
-      // Dismiss specific notifications by tag or notificationId (cross-device sync)
+      // Matches by notificationId, tag, conversation or channel; used for
+      // cross-device dismissal.
       event.waitUntil(handleDismissNotifications(event.data))
       break
     default:
-      console.log('⚠️ Service Worker: Unknown message type:', event.data.type)
+      console.log('Service Worker: Unknown message type:', event.data.type)
   }
 })
 
@@ -308,13 +294,12 @@ function getDefaultTitle(type) {
 function getNavigationUrl(data) {
   const baseUrl = self.location.origin
 
-  // If URL was pre-computed by the notification store, use it
+  // The notification store pre-computes `url`; it may be absolute or relative.
   if (data.url) {
-    // Handle both absolute and relative URLs
     return data.url.startsWith('/') ? `${baseUrl}${data.url}` : data.url
   }
 
-  // Fallback for push notifications from backend (which use different field names)
+  // Backend push payloads carry ids instead, under different field names.
   if (data.conversation_id) {
     let url = `${baseUrl}/dm/${data.conversation_id}`
     if (data.message_id) {
@@ -352,23 +337,15 @@ async function storeNotification(data) {
       }))
     )
   } catch (error) {
-    console.error('❌ Service Worker: Error storing notification:', error)
+    console.error('Service Worker: Error storing notification:', error)
   }
 }
 
-// ============================================================================
 // Quick-reply queue (IndexedDB)
-// ----------------------------------------------------------------------------
-// Replies typed into a notification text input must NEVER be lost. The legacy
-// flow tried to postMessage() to a focused client and fell back to "open a
-// window" without persisting the typed text, so a user who replied to a
-// notification with no app window open got their message silently dropped.
-// We now durably queue every reply here, then have the frontend
-// (ServiceWorkerManager.drainQuickReplyQueue) flush them via the real
-// messageService - which preserves encryption, optimistic UI, and federation
-// handling. The "open the window" step is just to give the frontend a chance
-// to run; the queue is the source of truth.
-// ============================================================================
+// The queue is the source of truth for text typed into a notification input.
+// ServiceWorkerManager.drainQuickReplyQueue flushes it through messageService,
+// which owns encryption, optimistic UI and federation. Focusing or opening a
+// window only gives the frontend a chance to run; nothing is sent from here.
 
 const QUICK_REPLY_DB_NAME = 'harmony-sw'
 const QUICK_REPLY_DB_VERSION = 1
@@ -400,21 +377,19 @@ async function enqueueQuickReply(entry) {
     })
     db.close()
   } catch (error) {
-    console.error('❌ Service Worker: Failed to enqueue quick reply:', error)
+    console.error('Service Worker: Failed to enqueue quick reply:', error)
   }
 }
 
 async function handleQuickReply(data, replyText) {
   try {
-    // Without typed text there's nothing to send - just navigate to the
-    // conversation as if the user had clicked the notification body.
+    // No typed text: behave as a click on the notification body.
     if (!replyText || !replyText.trim()) {
       const url = getNavigationUrl(data)
       return self.clients.openWindow(url)
     }
 
-    // Persist FIRST so we never lose the user's typed text, even if every
-    // subsequent step (postMessage / focus / openWindow) fails.
+    // Persist BEFORE postMessage/focus/openWindow; those may all fail.
     await enqueueQuickReply({
       replyText,
       data,
@@ -422,9 +397,8 @@ async function handleQuickReply(data, replyText) {
       queuedAt: Date.now(),
     })
 
-    // Best-effort: nudge a live client so it drains immediately instead of
-    // waiting for its next page load. Whether or not this succeeds, the
-    // queued entry will be processed by ServiceWorkerManager on app boot.
+    // Nudge a live client to drain now rather than on its next page load.
+    // On failure the entry is drained at app boot.
     const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
     const focusedClient = clients.find(c => c.focused) || clients[0]
 
@@ -432,27 +406,23 @@ async function handleQuickReply(data, replyText) {
       try {
         focusedClient.postMessage({ type: 'QUICK_REPLY_QUEUED' })
       } catch (e) {
-        // postMessage shouldn't throw, but defend against it anyway -
-        // the queue is durable and will be drained later regardless.
+        // Queue is durable; a failed postMessage costs only latency.
       }
-      // Don't navigate the focused client - the user might be in another
-      // conversation and we shouldn't yank them out of context. Just
-      // surface the window so the toast/state update is visible.
+      // No navigation: the client may be in another conversation. Focus
+      // only, so the state update is visible.
       return focusedClient.focus()
     }
 
-    // No live client: open a window so the frontend boots and drains the
-    // queue. We deliberately point at the conversation/channel so the
-    // reply lands in a useful context if the user wants to follow up.
+    // No live client: open the conversation/channel so the frontend boots
+    // and drains the queue in context.
     return self.clients.openWindow(getNavigationUrl(data))
   } catch (error) {
-    console.error('❌ Service Worker: Error handling quick reply:', error)
+    console.error('Service Worker: Error handling quick reply:', error)
   }
 }
 
 async function markAsRead(data) {
   try {
-    // Send message to main app to mark notification as read
     const clients = await self.clients.matchAll({ type: 'window' })
     clients.forEach(client => {
       client.postMessage({
@@ -461,7 +431,7 @@ async function markAsRead(data) {
       })
     })
   } catch (error) {
-    console.error('❌ Service Worker: Error marking as read:', error)
+    console.error('Service Worker: Error marking as read:', error)
   }
 }
 
@@ -470,16 +440,13 @@ async function processPendingNotifications() {
     const cache = await caches.open(NOTIFICATION_CACHE)
     const requests = await cache.keys()
     
-    // Process any pending notifications that failed to send
     for (const request of requests) {
       const response = await cache.match(request)
       const data = await response.json()
       
       if (!data.processed) {
-        // Attempt to process the notification
         await processNotification(data)
         
-        // Mark as processed
         await cache.put(
           request,
           new Response(JSON.stringify({ ...data, processed: true }))
@@ -487,7 +454,7 @@ async function processPendingNotifications() {
       }
     }
   } catch (error) {
-    console.error('❌ Service Worker: Error processing pending notifications:', error)
+    console.error('Service Worker: Error processing pending notifications:', error)
   }
 }
 
@@ -509,69 +476,67 @@ async function handleDismissNotifications(data) {
     }
     
     if (dismissed > 0) {
-      console.log(`🔕 Service Worker: Dismissed ${dismissed} notification(s) via cross-device sync`)
+      console.log(`Service Worker: Dismissed ${dismissed} notification(s) via cross-device sync`)
       await updateBadgeCount()
     }
   } catch (error) {
-    console.error('❌ Service Worker: Error dismissing notifications:', error)
+    console.error('Service Worker: Error dismissing notifications:', error)
   }
 }
 
 async function processNotification(data) {
-  // Implementation for processing individual notifications
-  console.log('🔄 Service Worker: Processing notification:', data)
+  // Logging only; no processing implemented.
+  console.log('Service Worker: Processing notification:', data)
 }
 
-// Note: Install and activate event listeners are defined at the top of the file
+// Install and activate listeners are at the top of the file.
 
-// Supabase imgproxy render URLs for storage-backed images. Scoped narrowly so we
-// do not intercept arbitrary cross-origin images (the old avatar-loop issue).
+// Supabase imgproxy render URLs for storage-backed images. Scoped to known
+// buckets; broader matching reintroduces the avatar fetch loop.
 function isStorageTransformRequest(url) {
   return /\/storage\/v1\/render\/image\/public\/(emojis|avatars|server_icons|server_banners|user_media)\//.test(url.pathname)
 }
 
-// Enhanced fetch handling with offline support - Mobile optimized
 self.addEventListener('fetch', (event) => {
-  // Skip unsupported schemes
+  // Non-http schemes (chrome-extension:, blob:) are not cacheable.
   const requestUrl = new URL(event.request.url)
   if (!requestUrl.protocol.startsWith('http')) {
     return
   }
 
-  // Emoji assets: cache-first for SVGs and JSON in /assets/emojis/
-  // These are immutable static assets that should be served from cache
+  // /assets/emojis/ SVG and JSON are immutable: cache-first.
   if (requestUrl.hostname === self.location.hostname &&
       requestUrl.pathname.startsWith('/assets/emojis/')) {
     event.respondWith(emojiCacheFirst(event.request))
     return
   }
 
-  // Storage transform images (emoji/avatar/server icon/banner): serve cached
-  // immediately, refresh in background so uploads still propagate.
+  // Storage transform images: serve cached, refresh in background so
+  // re-uploads propagate.
   if (isStorageTransformRequest(requestUrl)) {
     event.respondWith(transformImageStaleWhileRevalidate(event.request))
     return
   }
 
-  // Skip ALL other image requests to prevent avatar loops (transforms handled above)
+  // All other images pass through; intercepting them causes avatar loops.
   if (event.request.destination === 'image' || 
       requestUrl.pathname.match(/\.(jpg|jpeg|png|gif|webp|svg|ico|bmp)$/i)) {
     return
   }
 
-  // Only handle same-origin requests - this prevents external avatar loops
+  // Same-origin only; cross-origin interception loops on avatars.
   if (requestUrl.hostname !== self.location.hostname) {
     return
   }
 
-  // Skip Supabase storage URLs (these are external and cause loops)
+  // Supabase storage objects are served directly.
   if (requestUrl.hostname.includes('supabase') || 
       requestUrl.hostname.includes('storage') ||
       requestUrl.pathname.includes('storage/v1/object/public')) {
     return
   }
 
-  // Skip requests that might cause loops (additional safety)
+  // Avatar/profile paths loop when intercepted.
   if (requestUrl.pathname.includes('avatar') || 
       requestUrl.pathname.includes('profile') || 
       requestUrl.searchParams.has('avatar') ||
@@ -579,22 +544,20 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  // MOBILE FIX: Skip navigation requests to prevent aggressive reloading
-  // Only handle specific resource types, not page navigation
+  // Navigations pass through to the browser; intercepting them causes
+  // repeated reloads on mobile.
   if (event.request.mode === 'navigate' || event.request.destination === 'document') {
-    return // Let the browser handle navigation naturally
+    return
   }
 
-  // Enhanced request categorization (more selective for mobile)
   const url = new URL(event.request.url)
   const isAPIRequest = url.pathname.startsWith('/api/')
   const isAuthRequest = url.pathname.includes('/auth/')
   const isCSSRequest = url.pathname.endsWith('.css')
   const isJSRequest = url.pathname.endsWith('.js') || url.pathname.endsWith('.ts')
   
-  // FIX: Skip all JS module requests to prevent caching HTML responses as JS
-  // Dynamic imports from Vite code splitting are in /assets/ and should be handled by browser
-  // This prevents the issue where 404 JS files return index.html, which gets cached as JS
+  // Vite code-split chunks live under /assets/. A 404 there returns
+  // index.html, which would be cached as JS.
   const isViteModule = url.pathname.startsWith('/assets/') && isJSRequest
   const isModuleRequest = event.request.destination === 'script' || 
                           event.request.mode === 'cors' ||
@@ -602,39 +565,31 @@ self.addEventListener('fetch', (event) => {
                           event.request.headers.get('accept')?.includes('application/javascript') ||
                           event.request.headers.get('accept')?.includes('text/javascript')
   
-  // PERFORMANCE: Skip modulepreload requests to prevent duplicate fetches
-  // The browser handles these efficiently, and intercepting causes duplicates
+  // Intercepting modulepreload duplicates the fetch.
   const isModulePreload = event.request.headers.get('purpose') === 'modulepreload' ||
                           event.request.headers.get('X-Purpose') === 'modulepreload'
 
-  // Only intercept specific types of requests
   if (isModulePreload || isViteModule || (isJSRequest && isModuleRequest)) {
-    // Let browser handle module requests naturally - don't intercept
-    // This prevents caching HTML responses (from 404s) as JS modules
     return
   } else if (isAPIRequest || isAuthRequest) {
-    // Critical API requests - network first with enhanced error handling
     event.respondWith(enhancedNetworkFirst(event.request, API_CACHE))
   } else if (isCSSRequest) {
-    // Vite dev serves imported *.css as JS modules (Content-Type: text/javascript).
-    // Caching those as CSS breaks validation and spams the console; let the dev server handle them.
+    // Vite dev serves imported *.css as JS modules
+    // (Content-Type: text/javascript); caching those as CSS fails validation.
     const isViteSourceStyle =
       url.pathname.startsWith('/src/') || url.pathname.includes('/node_modules/')
     if (isViteSourceStyle) {
       return
     }
-    // Static CSS assets - stale while revalidate (better for mobile)
     event.respondWith(staleWhileRevalidate(event.request, STATIC_CACHE))
   }
-  // Remove the 'else' case that was intercepting ALL other requests
+  // Everything else is left to the browser.
 })
 
-// Enhanced caching strategies - Mobile optimized
 async function enhancedNetworkFirst(request, cacheName) {
   try {
-    // Add timeout for mobile connections
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 5000) // 5 second timeout
+    const timeoutId = setTimeout(() => controller.abort(), 5000) // 5s
     
     const networkResponse = await fetch(request, {
       signal: controller.signal
@@ -644,7 +599,7 @@ async function enhancedNetworkFirst(request, cacheName) {
     
     if (networkResponse.status === 200 && networkResponse.ok && request.method === 'GET') {
       const contentLength = networkResponse.headers.get('content-length')
-      const isSmallResponse = !contentLength || parseInt(contentLength) < 1024 * 1024 // 1MB limit
+      const isSmallResponse = !contentLength || parseInt(contentLength) < 1024 * 1024 // 1 MiB cap
       
       if (isSmallResponse) {
         const cache = await caches.open(cacheName)
@@ -657,7 +612,7 @@ async function enhancedNetworkFirst(request, cacheName) {
     
     return networkResponse
   } catch (error) {
-    console.log('🌐 Service Worker: Network failed, trying cache:', error.message)
+    console.log('Service Worker: Network failed, trying cache:', error.message)
     
     if (request.method !== 'GET') {
       return new Response('Network unavailable', { 
@@ -671,7 +626,6 @@ async function enhancedNetworkFirst(request, cacheName) {
       return cachedResponse
     }
     
-    // Simplified offline fallback for mobile
     return new Response('Network unavailable', { 
       status: 503,
       headers: { 'Content-Type': 'text/plain' }
@@ -682,18 +636,17 @@ async function enhancedNetworkFirst(request, cacheName) {
 async function staleWhileRevalidate(request, cacheName) {
   const cachedResponse = await caches.match(request)
   
-  // Always fetch in background to update cache
   const fetchPromise = fetch(request).then(response => {
-    // FIX: Validate response MIME type before caching
-    // Only cache if response is actually the expected type (not HTML from 404s)
+    // MIME check: a 404 returns index.html, which must not be cached under
+    // a .css/.js URL.
     const contentType = response.headers.get('content-type') || ''
     const isExpectedType = 
       (request.url.endsWith('.css') && contentType.includes('text/css')) ||
       (request.url.endsWith('.js') && (contentType.includes('application/javascript') || contentType.includes('text/javascript'))) ||
-      (!request.url.match(/\.(css|js)$/)) // Non-CSS/JS files
+      (!request.url.match(/\.(css|js)$/))
     
     if (response.status === 200 && response.ok && isExpectedType) {
-      // Clone the response BEFORE using it
+      // Clone before the body is consumed.
       const responseClone = response.clone()
       caches.open(cacheName).then(cache => {
         cache.put(request, responseClone)
@@ -701,8 +654,7 @@ async function staleWhileRevalidate(request, cacheName) {
         console.warn('Failed to cache response in background:', err)
       })
     } else if (response.status === 200 && !isExpectedType) {
-      // If we got a 200 but wrong content type (e.g., HTML for a JS file), don't cache
-      console.warn('⚠️ Service Worker: Skipping cache for wrong content type:', request.url, contentType)
+      console.warn('Service Worker: Skipping cache for wrong content type:', request.url, contentType)
     }
     return response
   }).catch(err => {
@@ -710,20 +662,18 @@ async function staleWhileRevalidate(request, cacheName) {
     return null
   })
   
-  // Return cached version immediately if available
   if (cachedResponse) {
-    // Start background update but don't wait for it
+    // fetchPromise runs unawaited; the cache updates in the background.
     fetchPromise
     return cachedResponse
   }
   
-  // Otherwise wait for network
   const networkResponse = await fetchPromise
   return networkResponse || new Response('Resource not available', { status: 503 })
 }
 
-// Stale-while-revalidate for imgproxy render URLs. Validates image/* so a 404
-// HTML page never gets pinned in cache (the old avatar-loop failure mode).
+// Stale-while-revalidate for imgproxy render URLs. Requires image/* so a 404
+// HTML page is never pinned in the cache.
 async function transformImageStaleWhileRevalidate(request) {
   const cachedResponse = await caches.match(request)
 
@@ -748,8 +698,7 @@ async function transformImageStaleWhileRevalidate(request) {
   return networkResponse || new Response('Image unavailable', { status: 503 })
 }
 
-// Cache-first strategy for emoji assets (SVGs and JSON in /assets/emojis/)
-// These are static and rarely change, so we serve from cache and update in background.
+// Cache-first for /assets/emojis/ SVG and JSON; these assets rarely change.
 async function emojiCacheFirst(request) {
   try {
     const cached = await caches.match(request)
@@ -770,4 +719,4 @@ async function emojiCacheFirst(request) {
   }
 }
 
-console.log('🚀 Service Worker: Script loaded successfully')
+console.log('Service Worker: Script loaded successfully')

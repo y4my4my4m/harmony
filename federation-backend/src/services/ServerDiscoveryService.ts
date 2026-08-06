@@ -1,7 +1,6 @@
 /**
- * ServerDiscoveryService - Discover and fetch remote Harmony servers
- * 
- * Enables users to find and join servers on other Harmony instances
+ * ServerDiscoveryService - discovery, join and sync for servers hosted on
+ * other Harmony instances.
  */
 
 import { Router, Request, Response } from 'express';
@@ -20,9 +19,7 @@ import {
 
 const router = Router();
 
-// =============================================================================
 // API ROUTES
-// =============================================================================
 
 /**
  * GET /servers/discover
@@ -106,7 +103,7 @@ router.post(
       return res.status(400).json({ error: `Invalid instance: ${err.message}` });
     }
 
-    logger.info(`🎟️ Proxying invite resolution: ${code} from ${instance}`);
+    logger.info(`Proxying invite resolution: ${code} from ${instance}`);
 
     try {
       // Fetch invite info from the remote instance
@@ -133,11 +130,11 @@ router.post(
 
       const data = await remoteResponse.json();
 
-      // The invite blob is attacker-controlled JSON. Before we surface a
-      // convincing preview, confirm the advertised server is a genuine
-      // ActivityPub Group actor living on the same instance the invite came
-      // from — a hostile host can't fake the card, nor point us at someone
-      // else's real Group. safeFetch (inside fetchServerByUrl) re-guards SSRF.
+      // The invite blob is attacker-controlled JSON. Before rendering a
+      // preview, confirm the advertised server is a genuine ActivityPub Group
+      // actor on the same instance the invite came from: a hostile host can
+      // then neither fake the card nor point at someone else's real Group.
+      // safeFetch (inside fetchServerByUrl) re-guards SSRF.
       const actorId: unknown = data?.server?.id;
       let actorVerified = false;
       if (typeof actorId === 'string') {
@@ -160,7 +157,7 @@ router.post(
       }
 
       if (!actorVerified) {
-        logger.warn(`🚫 Invite actor verification failed: code=${code} instance=${instance} id=${String(actorId)}`);
+        logger.warn(`Invite actor verification failed: code=${code} instance=${instance} id=${String(actorId)}`);
         return res.status(422).json({
           error: 'Could not verify this as a genuine federated server',
         });
@@ -454,7 +451,7 @@ router.post(
         .limit(1)
         .maybeSingle();
 
-      logger.info(`🎯 Join complete: server=${localServer.id}, status=${initialStatus}, defaultChannel=${defaultChannel?.id || 'none'}`);
+      logger.info(`Join complete: server=${localServer.id}, status=${initialStatus}, defaultChannel=${defaultChannel?.id || 'none'}`);
 
       if (remoteServer.members) {
         ServerDiscoveryService.syncRemoteServerMembers(localServer.id, remoteServer.members)
@@ -588,7 +585,7 @@ router.get(
     const { channelId } = req.params;
     const { before, limit = 50 } = req.query;
     
-    logger.info(`📥 GET /channels/${channelId}/messages (limit: ${limit}, before: ${before || 'none'})`);
+    logger.info(`GET /channels/${channelId}/messages (limit: ${limit}, before: ${before || 'none'})`);
     
     const supabase = getSupabaseClient();
 
@@ -607,7 +604,7 @@ router.get(
       return res.status(404).json({ error: 'Channel not found' });
     }
 
-    // For local channels, just return local messages
+    // Local channels serve messages straight from the local table
     if (!channel.is_remote) {
       let query = supabase
         .from('messages')
@@ -639,7 +636,7 @@ router.get(
       const channelMessagesUrl = `${channel.ap_id}/messages`;
       const fetchUrl = `${channelMessagesUrl}?page=1`;
 
-      logger.info(`📨 Fetching messages from remote channel: ${fetchUrl}`);
+      logger.info(`Fetching messages from remote channel: ${fetchUrl}`);
 
       // BUGS.md H15: fetchUrl is constructed from remote AP response data.
       const response = await safeFetch(fetchUrl, {
@@ -686,8 +683,8 @@ router.get(
         }
       }
 
-      // Fetch all unique authors in parallel (deduplicated)
-      // ensureRemoteUser now returns the profile directly
+      // Fetch all unique authors in parallel.
+      // ensureRemoteUser returns the profile directly.
       const { ActivityProcessor } = await import('../activitypub/ActivityProcessor.js');
       const authorMap = new Map<string, any>();
       
@@ -695,14 +692,14 @@ router.get(
         try {
           const profile = await ActivityProcessor['ensureRemoteUser'](url);
           if (profile) {
-            logger.debug(`✅ Got profile for ${url}: id=${profile.id}, username=${profile.username}`);
+            logger.debug(`Got profile for ${url}: id=${profile.id}, username=${profile.username}`);
             return { url, profile };
           } else {
-            logger.warn(`❌ ensureRemoteUser returned null for ${url}`);
+            logger.warn(`ensureRemoteUser returned null for ${url}`);
             return null;
           }
         } catch (err) {
-          logger.warn(`❌ Could not fetch author ${url}: ${err}`);
+          logger.warn(`Could not fetch author ${url}: ${err}`);
           return null;
         }
       }));
@@ -877,9 +874,7 @@ router.get(
   })
 );
 
-// =============================================================================
 // SERVICE CLASS
-// =============================================================================
 
 export class ServerDiscoveryService {
   /**
@@ -969,7 +964,7 @@ export class ServerDiscoveryService {
    */
   static async fetchServerByUrl(url: string): Promise<any | null> {
     try {
-      logger.info(`🔍 Fetching remote server: ${url}`);
+      logger.info(`Fetching remote server: ${url}`);
 
       const response = await safeFetch(url, {
         headers: {
@@ -997,7 +992,7 @@ export class ServerDiscoveryService {
         server.icon = undefined;
       }
 
-      logger.info(`✅ Found remote server: ${server.name}`);
+      logger.info(`Found remote server: ${server.name}`);
       return server;
     } catch (error) {
       logger.error('Error fetching server by URL:', error);
@@ -1117,7 +1112,7 @@ export class ServerDiscoveryService {
         throw serverError;
       }
 
-      logger.info(`✅ Created local reference for remote server: ${remoteServer.name} (id: ${serverRef.id})`);
+      logger.info(`Created local reference for remote server: ${remoteServer.name} (id: ${serverRef.id})`);
 
       // Helper to extract UUID from AP ID
       const extractUuid = (apId: string): string | null => {
@@ -1127,9 +1122,9 @@ export class ServerDiscoveryService {
 
       const categoryMap = new Map<string, string>();
 
-      // First pass: Create categories in channel_categories table (NOT channels table!)
-      // Local servers use channel_categories table, so federated servers must too
-      // Handles multiple type formats: 'category', 2, 'harmony:Category', or channelType: 'category'
+      // First pass: categories go in channel_categories, not channels. Local
+      // servers use channel_categories, so federated servers must match.
+      // Type arrives as 'category', 2, 'harmony:Category', or channelType: 'category'.
       const categories = channels.filter((c: any) => 
         c.type === 'category' || 
         c.type === 2 || 
@@ -1143,8 +1138,8 @@ export class ServerDiscoveryService {
           server_id: serverRef.id,
           name: cat.name,
           order: cat.order || cat.position || 0,
-          // Note: channel_categories table doesn't have ap_id or is_remote columns
-          // We track the mapping in memory during this transaction
+          // NOTE: channel_categories has no ap_id or is_remote column; the
+          // ap_id -> local id mapping is held in categoryMap for this pass only.
         };
         
         // Use remote UUID if available for consistency
@@ -1161,7 +1156,7 @@ export class ServerDiscoveryService {
         if (catError) {
           logger.error(`Failed to create category ${cat.name}:`, catError);
         } else if (catRef) {
-          logger.info(`📁 Created category: ${cat.name} (id: ${catRef.id})`);
+          logger.info(`Created category: ${cat.name} (id: ${catRef.id})`);
           categoryMap.set(cat.id, catRef.id);
           if (cat.localId) {
             categoryMap.set(cat.localId, catRef.id);
@@ -1218,11 +1213,11 @@ export class ServerDiscoveryService {
         if (channelError) {
           logger.error(`Failed to bulk-create channels:`, channelError);
         } else {
-          logger.info(`📝 Created ${channelRows.length} channels`);
+          logger.info(`Created ${channelRows.length} channels`);
         }
       }
 
-      logger.info(`✅ Created ${regularChannels.length} channels and ${categories.length} categories for remote server`);
+      logger.info(`Created ${regularChannels.length} channels and ${categories.length} categories for remote server`);
 
       return serverRef;
     } catch (error) {
@@ -1286,7 +1281,7 @@ export class ServerDiscoveryService {
   ): Promise<void> {
     const { DeliveryQueue } = await import('../activitypub/DeliveryQueue.js');
     await DeliveryQueue.sendToInbox(inboxUrl, activity, senderId);
-    logger.info(`📤 Sent Join request to ${inboxUrl}`);
+    logger.info(`Sent Join request to ${inboxUrl}`);
   }
 
   /**
@@ -1299,7 +1294,7 @@ export class ServerDiscoveryService {
   ): Promise<void> {
     const { DeliveryQueue } = await import('../activitypub/DeliveryQueue.js');
     await DeliveryQueue.sendToInbox(inboxUrl, activity, senderId);
-    logger.info(`📤 Sent Leave request to ${inboxUrl}`);
+    logger.info(`Sent Leave request to ${inboxUrl}`);
   }
 
   /**
@@ -1374,7 +1369,7 @@ export class ServerDiscoveryService {
         await supabase.from('channels').upsert(upsertRows, { onConflict: 'ap_id' });
       }
 
-      logger.info(`✅ Synced remote server: ${remoteServer.name}`);
+      logger.info(`Synced remote server: ${remoteServer.name}`);
     } catch (error) {
       logger.error('Error syncing remote server:', error);
     }
@@ -1388,7 +1383,7 @@ export class ServerDiscoveryService {
     const supabase = getSupabaseClient();
 
     try {
-      logger.info(`👥 Syncing remote server members from: ${membersUrl}`);
+      logger.info(`Syncing remote server members from: ${membersUrl}`);
 
       // Fetch members collection (public endpoint, no signature needed).
       // BUGS.md H15: membersUrl is from remote AP response.
@@ -1407,7 +1402,7 @@ export class ServerDiscoveryService {
       const membersPage = await response.json();
       const members = membersPage.orderedItems || [];
 
-      logger.info(`👥 Found ${members.length} remote members`);
+      logger.info(`Found ${members.length} remote members`);
 
       const { ActivityProcessor } = await import('../activitypub/ActivityProcessor.js');
 
@@ -1447,7 +1442,7 @@ export class ServerDiscoveryService {
               });
 
             if (!error) {
-              logger.debug(`✅ Added remote member: ${profile.username}`);
+              logger.debug(`Added remote member: ${profile.username}`);
             }
           }
         } catch (memberError) {
@@ -1455,7 +1450,7 @@ export class ServerDiscoveryService {
         }
       }
 
-      logger.info(`✅ Synced remote server members for server: ${serverId}`);
+      logger.info(`Synced remote server members for server: ${serverId}`);
     } catch (error) {
       logger.error('Error syncing remote server members:', error);
     }

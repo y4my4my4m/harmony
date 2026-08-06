@@ -1,7 +1,6 @@
 <template>
-  <!-- Unified Voice Dock - Combines best of both old and new systems -->
   <div v-if="voiceStore.isConnectedOrJoining" class="unified-voice-dock" :class="[dockMode, { 'is-connecting': voiceStore.isConnecting }]">
-    <!-- Compact Mode (floating bar at bottom) -->
+    <!-- Compact mode: floating bar at bottom -->
     <div 
       v-if="currentMode === 'dock'" 
       ref="dockContainerRef"
@@ -12,7 +11,7 @@
       @touchstart="startDockDrag"
       @click="handleDockClick"
     >
-      <!-- User Info - Tappable on mobile to expand -->
+      <!-- Tapping expands to overlay on viewports <= 480px -->
       <div 
         class="user-section" 
         @click="handleUserSectionClick"
@@ -25,7 +24,6 @@
             class="user-avatar"
             :class="{ speaking: isCurrentUserSpeaking }"
           />
-          <!-- Voice activity ring -->
           <div v-if="isCurrentUserSpeaking" class="voice-ring" :style="{ '--intensity': voiceIntensity }">
             <svg class="voice-ring-svg" viewBox="0 0 100 100">
               <circle cx="50" cy="50" r="45" class="voice-ring-bg" />
@@ -53,7 +51,6 @@
         </div>
       </div>
 
-      <!-- Voice Controls -->
       <div class="voice-controls" @mousedown.stop @touchstart.stop>
         <button
           @click="voiceStore.toggleMute"
@@ -124,7 +121,7 @@
         </button>
       </div>
 
-      <!-- On-screen PTT for touch devices (Discord mobile style) -->
+      <!-- On-screen PTT for touch devices -->
       <PushToTalkButton
         v-if="isPTTMode && isTouchDevice"
         class="dock-ptt-btn"
@@ -133,7 +130,6 @@
         @touchstart.stop
       />
 
-      <!-- Video Preview Thumbnail (when someone has video/screenshare) -->
       <div 
         v-if="activeVideoUser && !voiceStore.pipActive" 
         class="dock-video-preview"
@@ -154,7 +150,6 @@
         </div>
       </div>
 
-      <!-- Action Controls -->
       <div class="action-controls" @mousedown.stop @touchstart.stop>
         <button
           @click.stop="toggleParticipantsDropdown"
@@ -191,7 +186,7 @@
       </div>
     </div>
 
-    <!-- Minimized Mode (tiny dock in channel sidebar) -->
+    <!-- Minimized mode: tiny dock in channel sidebar -->
     <div 
       v-else-if="currentMode === 'minimized'" 
       ref="minimizedContainerRef"
@@ -201,7 +196,6 @@
       @mousedown="handleMinimizedMouseDown"
       @click="handleMinimizedClick"
     >
-      <!-- Mini Video Preview (when someone is sharing video/screen) - hide if PIP is active -->
       <div v-if="activeVideoUser && !voiceStore.pipActive" class="minimized-video-preview" @click.stop="expandToOverlay">
         <video
           ref="minimizedVideoRef"
@@ -238,7 +232,6 @@
           </span>
           <span class="participant-count">{{ voiceStore.connectionStats.total }}</span>
           <VoiceEncryptionBadge v-if="voiceStore.connectionMode" :encrypted="voiceStore.isEncrypted" />
-          <!-- Recent Speakers -->
           <RecentSpeakers class="recent-speakers-container" :max-speakers="4" />
         </div>
         
@@ -274,7 +267,7 @@
       </div>
     </div>
     
-    <!-- Participants Dropdown for Minimized Mode (only shown when not at default position, outside container) -->
+    <!-- Rendered outside .minimized-container so dragging does not clip it -->
     <div 
       v-if="currentMode === 'minimized' && !isAtDefaultPosition" 
       class="participants-dropdown-container"
@@ -299,7 +292,7 @@
       </Transition>
     </div>
 
-    <!-- Participants Dropdown for Dock Mode (positioned above the dock) -->
+    <!-- Positioned above the dock -->
     <div 
       v-if="currentMode === 'dock' && showParticipantsDropdown" 
       class="participants-dropdown-container dock-participants-dropdown"
@@ -315,19 +308,17 @@
       </Transition>
     </div>
 
-    <!-- Voice Settings Panel -->
     <VoiceSettingsPanel 
       v-if="showSettings"
       @close="showSettings = false"
     />
 
-    <!-- Spatial Audio Panel (only when NOT in overlay mode; overlay renders its own) -->
+    <!-- Overlay mode renders its own spatial audio panel -->
     <SpatialAudioPanel 
       v-if="currentMode !== 'overlay'"
       :is-under-dock="currentMode === 'dock'"
     />
 
-    <!-- Full Overlay Mode -->
     <UnifiedVoiceOverlay
       v-if="currentMode === 'overlay'"
       :channel-name="channelName"
@@ -335,8 +326,7 @@
       @minimize="collapseToDock"
     />
     
-    <!-- Screenshare PIP - Always rendered when connected, regardless of dock mode -->
-    <!-- This allows PIP to work even when dock is minimized -->
+    <!-- Rendered for every dock mode so PIP survives minimize -->
     <ScreensharePIP />
   </div>
 </template>
@@ -362,7 +352,6 @@ const UnifiedVoiceOverlay = defineAsyncComponent(() => import('./UnifiedVoiceOve
 const VoiceSettingsPanel = defineAsyncComponent(() => import('./VoiceSettingsPanel.vue'));
 const VoiceChannelParticipants = defineAsyncComponent(() => import('./VoiceChannelParticipants.vue'));
 
-// Centralized keybind system
 const keybinds = useKeybinds();
 const isPTTMode = keybinds.isPTTMode;
 const isPTTActive = keybinds.isPTTActive;
@@ -374,7 +363,7 @@ const RecentSpeakers = defineAsyncComponent(() => import('./RecentSpeakers.vue')
 const ScreensharePIP = defineAsyncComponent(() => import('./ScreensharePIP.vue'));
 
 // STORE INSTANCES
-// The original used `any` to avoid leaking private store types, which is preserved here.
+// Store typed `any` to avoid leaking private store types.
 const voiceStore: any = useUnifiedVoiceChannelStore();
 const spatialStore = useSpatialAudioStore();
 const authStore = useAuthStore();
@@ -392,30 +381,29 @@ const minimizedContainerRef = ref<HTMLElement | null>(null);
 // Drag state for minimized dock
 const isDragging = ref(false);
 const dragStartPos = ref({ x: 0, y: 0 });
-const dragInitialMousePos = ref({ x: 0, y: 0 }); // Track initial mouse position
-const hasMoved = ref(false); // Track if mouse moved significantly during drag
+const dragInitialMousePos = ref({ x: 0, y: 0 });
+const hasMoved = ref(false);
 const minimizedPosition = ref({ left: 10, bottom: 90 });
 const containerDimensions = ref({ width: 0, height: 0 });
 let rafId: number | null = null;
-const CLICK_THRESHOLD = 5; // Pixels - if moved less than this, it's a click
+const CLICK_THRESHOLD = 5; // px; movement below this counts as a click
 
 // Drag state for standard dock
 const isDockDragging = ref(false);
 const dockDragStartPos = ref({ x: 0, y: 0 });
 const dockDragInitialMousePos = ref({ x: 0, y: 0 });
 const dockHasMoved = ref(false);
-const dockPosition = ref({ left: 0, bottom: 80 }); // Default: centered (left will be calculated)
+const dockPosition = ref({ left: 0, bottom: 80 }); // left 0 means centered
 const dockContainerRef = ref<HTMLElement | null>(null);
 const dockContainerDimensions = ref({ width: 0, height: 0 });
 let dockRafId: number | null = null;
 let dockShouldPreventClick = false;
 
-// Default dock position (centered at bottom)
-const DEFAULT_DOCK_POSITION = { left: 0, bottom: 80 }; // left: 0 means centered (handled by CSS transform)
+const DEFAULT_DOCK_POSITION = { left: 0, bottom: 80 }; // left 0 means centered via CSS transform
 
 // COMPUTED PROPERTIES
 const channelName = computed(() => {
-  // Use effective channel name which includes optimistic state
+  // effectiveChannelName includes optimistic state
   return voiceStore.effectiveChannelName || 'Voice Channel';
 });
 
@@ -451,9 +439,8 @@ const voiceIntensity = computed(() => {
   return Math.min(voiceStore.localState.audioLevel / 100, 1);
 });
 
-// Voice ring animation
 const voiceRingOffset = computed(() => {
-  const circumference = 2 * Math.PI * 45; // 2 * pi * radius
+  const circumference = 2 * Math.PI * 45; // r=45
   const progress = voiceIntensity.value;
   return circumference - progress * circumference;
 });
@@ -470,7 +457,6 @@ const isAtDefaultPosition = computed(() => {
   return leftDiff < 1 && bottomDiff < 1;
 });
 
-// Computed style for minimized dock position
 const minimizedPositionStyle = computed((): Record<string, string> => {
   if (currentMode.value !== 'minimized') return {};
   return {
@@ -481,10 +467,9 @@ const minimizedPositionStyle = computed((): Record<string, string> => {
   };
 });
 
-// Computed style for dock position
 const dockPositionStyle = computed((): Record<string, string> => {
   if (currentMode.value !== 'dock') return {};
-  // If left is 0, use centered positioning (default)
+  // left 0: centered
   if (dockPosition.value.left === 0) {
     return {
       left: '50%',
@@ -493,7 +478,6 @@ const dockPositionStyle = computed((): Record<string, string> => {
       position: 'fixed',
     };
   }
-  // Otherwise use fixed positioning at the specific location
   return {
     left: `${dockPosition.value.left}px`,
     bottom: `${dockPosition.value.bottom}px`,
@@ -502,54 +486,47 @@ const dockPositionStyle = computed((): Record<string, string> => {
   };
 });
 
-// Computed style for participants dropdown (positioned below the minimized dock)
 const participantsDropdownStyle = computed((): Record<string, string> => {
   if (currentMode.value !== 'minimized') return {};
-  // Position it below the dock, centered
   return {
-    left: `${minimizedPosition.value.left + 171.5}px`, // 343px / 2 = 171.5px (center of dock)
+    left: `${minimizedPosition.value.left + 171.5}px`, // half the 343px dock width
     bottom: `${minimizedPosition.value.bottom - 16}px`, // 8px below the dock
     transform: 'translateX(-50%)',
     position: 'fixed',
   };
 });
 
-// Computed style for participants dropdown in dock mode (positioned above the dock)
 const dockParticipantsDropdownStyle = computed((): Record<string, string> => {
   if (currentMode.value !== 'dock') return {};
   
-  const dockHeight = dockContainerDimensions.value.height || 80; // Default height estimate
+  const dockHeight = dockContainerDimensions.value.height || 80; // px fallback
   const dockBottom = dockPosition.value.bottom;
   
-  // Position it above the dock, centered
   if (dockPosition.value.left === 0) {
-    // Centered dock
     return {
       left: '50%',
-      bottom: `${dockBottom + dockHeight + 12}px`, // 12px above the dock
+      bottom: `${dockBottom + dockHeight + 12}px`, // 12px gap above the dock
       transform: 'translateX(-50%)',
       position: 'fixed',
     };
   } else {
-    // Positioned dock
-    const dockWidth = dockContainerDimensions.value.width || 600; // Default width estimate
+    const dockWidth = dockContainerDimensions.value.width || 600; // px fallback
     return {
       left: `${dockPosition.value.left + dockWidth / 2}px`,
-      bottom: `${dockBottom + dockHeight + 12}px`, // 12px above the dock
+      bottom: `${dockBottom + dockHeight + 12}px`, // 12px gap above the dock
       transform: 'translateX(-50%)',
       position: 'fixed',
     };
   }
 });
 
-// Get the best user to show in the minimized preview.
-// Prefer remote participants -- showing your own camera in a tiny preview is rarely useful.
+// Remote participants outrank local: a self-view thumbnail carries no information.
 const activeVideoUser = computed(() => {
   const localId = voiceStore.localState?.userId;
   const all = voiceStore.allParticipants;
   const remote = all.filter((p: any) => p.userId !== localId);
   
-  // 1. Remote screenshare (highest priority)
+  // 1. Remote screenshare
   const remoteScreen = remote.find((p: any) => p.isScreenSharing);
   if (remoteScreen) return remoteScreen;
   
@@ -557,11 +534,11 @@ const activeVideoUser = computed(() => {
   const remoteVideo = remote.find((p: any) => p.isVideoEnabled && !p.isScreenSharing);
   if (remoteVideo) return remoteVideo;
   
-  // 3. Local screenshare (useful to confirm what you're sharing)
+  // 3. Local screenshare
   const local = all.find((p: any) => p.userId === localId);
   if (local?.isScreenSharing) return local;
   
-  // 4. Local camera only if no one else has video
+  // 4. Local camera
   if (local?.isVideoEnabled) return local;
   
   return null;
@@ -613,11 +590,10 @@ const toggleSpatialPanel = () => {
 
 const leaveChannel = async () => {
   await voiceStore.leaveVoiceChannel();
-  currentMode.value = 'dock'; // Reset to default state after leaving
+  currentMode.value = 'dock';
 };
 
 const handleOverlayClosed = () => {
-  // When the overlay is closed, return to the docked mode.
   currentMode.value = 'dock';
 };
 
@@ -629,9 +605,7 @@ const handleUserSectionClick = () => {
 
 const activatePIPForActiveVideo = () => {
   if (activeVideoUser.value) {
-    // Activate PIP directly - works from any mode (minimized, dock, or overlay)
-    // The floating video will appear while keeping current dock state
-    // Use 'draggable' mode so users can move and resize it
+    // 'draggable' permits move and resize; dock mode is left unchanged.
     voiceStore.togglePIP(activeVideoUser.value.userId, 'draggable');
   }
 };
@@ -642,9 +616,9 @@ const STORAGE_KEY_DOCK_POSITION = 'voice-dock-position';
 
 // Default position (matches CSS default)
 const DEFAULT_POSITION = { left: 10, bottom: 90 };
-// Magnetic snap threshold (pixels) - snap if within this distance
-const SNAP_THRESHOLD = 80; // Increased from 30 to 80 for better snap range
-// Only enable magnetic snap on desktop (not mobile)
+// Magnetic snap radius, px.
+const SNAP_THRESHOLD = 80;
+// Snap is desktop-only.
 const isDesktop = computed(() => !isMobileViewport.value);
 
 const loadMinimizedPosition = () => {
@@ -656,7 +630,6 @@ const loadMinimizedPosition = () => {
         minimizedPosition.value = { left: parsed.left, bottom: parsed.bottom };
       }
     } else {
-      // Use default position if no saved position
       minimizedPosition.value = { ...DEFAULT_POSITION };
     }
   } catch (error) {
@@ -674,7 +647,6 @@ const loadDockPosition = () => {
         dockPosition.value = { left: parsed.left, bottom: parsed.bottom };
       }
     } else {
-      // Use default position (centered)
       dockPosition.value = { ...DEFAULT_DOCK_POSITION };
     }
   } catch (error) {
@@ -685,7 +657,7 @@ const loadDockPosition = () => {
 
 const saveMinimizedPosition = () => {
   try {
-    // Only save if position is different from default (user has moved it)
+    // Default position is stored as absence of the key.
     const isAtDefault = 
       Math.abs(minimizedPosition.value.left - DEFAULT_POSITION.left) < 1 &&
       Math.abs(minimizedPosition.value.bottom - DEFAULT_POSITION.bottom) < 1;
@@ -702,8 +674,7 @@ const saveMinimizedPosition = () => {
 
 const saveDockPosition = () => {
   try {
-    // Only save if position is different from default (centered)
-    // left: 0 means centered, so check for that
+    // Default position is stored as absence of the key. left 0 means centered.
     const isAtDefault = 
       (dockPosition.value.left === 0 || Math.abs(dockPosition.value.left) < 1) &&
       Math.abs(dockPosition.value.bottom - DEFAULT_DOCK_POSITION.bottom) < 1;
@@ -719,14 +690,14 @@ const saveDockPosition = () => {
 };
 
 const startDrag = (e: MouseEvent | TouchEvent) => {
-  // Prevent click event from firing
+  // Suppress the click that would follow this mousedown.
   e.preventDefault();
   e.stopPropagation();
   
   isDragging.value = true;
-  hasMoved.value = false; // Reset movement tracking
+  hasMoved.value = false;
   
-  // Cache container dimensions to avoid recalculating on every move
+  // Dimensions cached once; move handler must not hit the layout.
   const container = minimizedContainerRef.value;
   if (container) {
     const rect = container.getBoundingClientRect();
@@ -743,16 +714,16 @@ const startDrag = (e: MouseEvent | TouchEvent) => {
     y: window.innerHeight - clientY - minimizedPosition.value.bottom
   };
   
-  // Use passive: false to allow preventDefault
+  // passive: false is required for preventDefault in the move handler.
   document.addEventListener('mousemove', handleDrag, { passive: false });
   document.addEventListener('mouseup', stopDrag);
   document.addEventListener('touchmove', handleDrag, { passive: false });
   document.addEventListener('touchend', stopDrag);
   
-  // Prevent text selection while dragging using CSS class
+  // Class blocks text selection during drag.
   document.body.classList.add('is-dragging-voice-dock');
   
-  // Disable transitions during drag for smooth movement
+  // Transitions off during drag.
   if (container) {
     container.style.transition = 'none';
   }
@@ -771,22 +742,20 @@ const handleDrag = (e: MouseEvent | TouchEvent) => {
   const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
   
   if (distance > CLICK_THRESHOLD) {
-    hasMoved.value = true; // Mark as moved if beyond threshold
+    hasMoved.value = true;
   }
   
-  // Cancel any pending animation frame
   if (rafId !== null) {
     cancelAnimationFrame(rafId);
   }
   
-  // Use requestAnimationFrame for smooth updates
   rafId = requestAnimationFrame(() => {
     if (!isDragging.value) return;
     
     const newLeft = clientX - dragStartPos.value.x;
     const newBottom = window.innerHeight - clientY - dragStartPos.value.y;
     
-    // Constrain to viewport bounds using cached dimensions
+    // Clamp to viewport.
     const maxLeft = window.innerWidth - containerDimensions.value.width;
     const maxBottom = window.innerHeight - containerDimensions.value.height;
     
@@ -802,19 +771,18 @@ const handleDrag = (e: MouseEvent | TouchEvent) => {
 const stopDrag = () => {
   if (!isDragging.value) return;
   
-  // Cancel any pending animation frame
   if (rafId !== null) {
     cancelAnimationFrame(rafId);
     rafId = null;
   }
   
-  // If we moved, prevent the click event from firing
+  // A drag swallows the trailing click.
   if (hasMoved.value) {
     shouldPreventClick = true;
-    // Use a small timeout to ensure click event is prevented
+    // 100ms covers the click that follows mouseup.
     setTimeout(() => {
       shouldPreventClick = false;
-      hasMoved.value = false; // Reset for next interaction
+      hasMoved.value = false;
     }, 100);
   }
   
@@ -822,13 +790,13 @@ const stopDrag = () => {
   
   document.body.classList.remove('is-dragging-voice-dock');
   
-  // Re-enable transitions after drag for smooth magnetic snap animation
+  // Transitions back on for the snap animation.
   const container = minimizedContainerRef.value;
   if (container) {
     container.style.transition = 'left 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94), bottom 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
   }
   
-  // Magnetic snap check on release (desktop only) - smoothly animate to default if close enough
+  // Snap to default on release, desktop only.
   if (isDesktop.value) {
     const distanceToDefault = Math.sqrt(
       Math.pow(minimizedPosition.value.left - DEFAULT_POSITION.left, 2) + 
@@ -836,23 +804,21 @@ const stopDrag = () => {
     );
     
     if (distanceToDefault < SNAP_THRESHOLD) {
-      // Smoothly animate to default position (transition is now enabled)
       minimizedPosition.value = { ...DEFAULT_POSITION };
       
-      // Disable transition after animation completes
       setTimeout(() => {
         if (container) {
           container.style.transition = '';
         }
-      }, 300); // Match transition duration
+      }, 300); // Matches the transition duration set above.
     } else {
-      // Not close enough - disable transition immediately
+      // No snap; drop the transition immediately.
       if (container) {
         container.style.transition = '';
       }
     }
   } else {
-    // Mobile - disable transition immediately
+    // Mobile: no snap.
     if (container) {
       container.style.transition = '';
     }
@@ -865,56 +831,51 @@ const stopDrag = () => {
   document.removeEventListener('touchmove', handleDrag);
   document.removeEventListener('touchend', stopDrag);
   
-  // Restore text selection
   document.body.style.userSelect = '';
   document.body.style.cursor = '';
 };
 
-// Track if we should prevent the click event
 let shouldPreventClick = false;
 
 const handleMinimizedMouseDown = (e: MouseEvent) => {
-  // If mousedown is on the drag handle or info area, don't prevent click yet
-  // We'll check in handleDrag if movement occurred
+  // Movement past CLICK_THRESHOLD is detected in handleDrag.
   const target = e.target as HTMLElement;
   const isOnDragArea = target.closest('.minimized-info') !== null;
   
   if (!isOnDragArea) {
-    // If clicking outside drag area, allow normal click behavior
+    // Outside the drag area a click is always a click.
     shouldPreventClick = false;
   }
 };
 
 const handleMinimizedClick = (e: MouseEvent) => {
-  // Prevent click if we just finished dragging
+  // A drag swallows the trailing click.
   if (shouldPreventClick || hasMoved.value) {
     e.preventDefault();
     e.stopPropagation();
-    shouldPreventClick = false; // Reset for next interaction
+    shouldPreventClick = false;
     return;
   }
   
-  // Only expand if it was a genuine click (no drag occurred)
   expandToDock();
 };
 
 // DRAG FUNCTIONALITY FOR STANDARD DOCK
 
 const startDockDrag = (e: MouseEvent | TouchEvent) => {
-  // Don't start drag if clicking on interactive elements (buttons, etc.)
   const target = e.target as HTMLElement;
   if (target.closest('button') || target.closest('.dock-video-preview')) {
-    return; // Let buttons and video preview handle their own clicks
+    return; // Buttons and the video preview own their clicks.
   }
   
-  // Prevent click event from firing
+  // Suppress the click that would follow this mousedown.
   e.preventDefault();
   e.stopPropagation();
   
   isDockDragging.value = true;
   dockHasMoved.value = false;
   
-  // Cache container dimensions
+  // Dimensions cached once; move handler must not hit the layout.
   const container = dockContainerRef.value;
   if (container) {
     const rect = container.getBoundingClientRect();
@@ -935,17 +896,16 @@ const startDockDrag = (e: MouseEvent | TouchEvent) => {
     y: window.innerHeight - clientY - dockPosition.value.bottom
   };
   
-  // Use passive: false to allow preventDefault
+  // passive: false is required for preventDefault in the move handler.
   document.addEventListener('mousemove', handleDockDrag, { passive: false });
   document.addEventListener('mouseup', stopDockDrag);
   document.addEventListener('touchmove', handleDockDrag, { passive: false });
   document.addEventListener('touchend', stopDockDrag);
   
-  // Prevent text selection while dragging
   document.body.style.userSelect = 'none';
   document.body.style.cursor = 'grabbing';
   
-  // Disable transitions during drag
+  // Transitions off during drag.
   if (container) {
     container.style.transition = 'none';
   }
@@ -967,19 +927,17 @@ const handleDockDrag = (e: MouseEvent | TouchEvent) => {
     dockHasMoved.value = true;
   }
   
-  // Cancel any pending animation frame
   if (dockRafId !== null) {
     cancelAnimationFrame(dockRafId);
   }
   
-  // Use requestAnimationFrame for smooth updates
   dockRafId = requestAnimationFrame(() => {
     if (!isDockDragging.value) return;
     
     const newLeft = clientX - dockDragStartPos.value.x;
     const newBottom = window.innerHeight - clientY - dockDragStartPos.value.y;
     
-    // Constrain to viewport bounds
+    // Clamp to viewport.
     const maxLeft = window.innerWidth - dockContainerDimensions.value.width;
     const maxBottom = window.innerHeight - dockContainerDimensions.value.height;
     
@@ -995,13 +953,12 @@ const handleDockDrag = (e: MouseEvent | TouchEvent) => {
 const stopDockDrag = () => {
   if (!isDockDragging.value) return;
   
-  // Cancel any pending animation frame
   if (dockRafId !== null) {
     cancelAnimationFrame(dockRafId);
     dockRafId = null;
   }
   
-  // If we moved, prevent the click event from firing
+  // A drag swallows the trailing click.
   if (dockHasMoved.value) {
     dockShouldPreventClick = true;
     setTimeout(() => {
@@ -1012,13 +969,13 @@ const stopDockDrag = () => {
   
   isDockDragging.value = false;
   
-  // Re-enable transitions for smooth magnetic snap animation
+  // Transitions back on for the snap animation.
   const container = dockContainerRef.value;
   if (container) {
     container.style.transition = 'left 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94), bottom 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94), transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
   }
   
-  // Magnetic snap check on release (desktop only)
+  // Snap to default on release, desktop only.
   if (isDesktop.value) {
     const currentLeft = dockPosition.value.left === 0 
       ? window.innerWidth / 2 - (dockContainerDimensions.value.width / 2)
@@ -1031,23 +988,22 @@ const stopDockDrag = () => {
     );
     
     if (distanceToDefault < SNAP_THRESHOLD) {
-      // Smoothly animate to default position (centered, left: 0 means centered)
+      // left 0 means centered.
       dockPosition.value = { left: 0, bottom: DEFAULT_DOCK_POSITION.bottom };
       
-      // Disable transition after animation completes
       setTimeout(() => {
         if (container) {
           container.style.transition = '';
         }
-      }, 300);
+      }, 300); // Matches the transition duration set above.
     } else {
-      // Not close enough - disable transition immediately
+      // No snap; drop the transition immediately.
       if (container) {
         container.style.transition = '';
       }
     }
   } else {
-    // Mobile - disable transition immediately
+    // Mobile: no snap.
     if (container) {
       container.style.transition = '';
     }
@@ -1060,19 +1016,17 @@ const stopDockDrag = () => {
   document.removeEventListener('touchmove', handleDockDrag);
   document.removeEventListener('touchend', stopDockDrag);
   
-  // Restore text selection
   document.body.style.userSelect = '';
   document.body.style.cursor = '';
 };
 
 const handleDockClick = (e: MouseEvent) => {
-  // Don't prevent clicks on buttons or interactive elements
   const target = e.target as HTMLElement;
   if (target.closest('button') || target.closest('.dock-video-preview')) {
-    return; // Let these elements handle their own clicks
+    return; // Buttons and the video preview own their clicks.
   }
   
-  // Prevent click if we just finished dragging
+  // A drag swallows the trailing click.
   if (dockShouldPreventClick || dockHasMoved.value) {
     e.preventDefault();
     e.stopPropagation();
@@ -1083,19 +1037,18 @@ const handleDockClick = (e: MouseEvent) => {
 
 // WATCHERS
 
-// Track last attached user to prevent flashing from repeated attachments
+// Repeated attach calls flash the video element; track what is already attached.
 let lastAttachedUserId: string | null = null;
 let lastAttachedElement: HTMLVideoElement | null = null;
 let lastDockAttachedUserId: string | null = null;
 
-// Attach video to minimized preview using LiveKit's proper method
-// Only re-attach when the user actually changes, not on every counter update
+// Attach through LiveKit. Re-attach only on user change, not on every counter tick.
 watch(
   [activeVideoUser, minimizedVideoRef],
   ([user, videoEl]) => {
     const userId = user?.userId || null;
     
-    // Skip if same user is already attached to same element
+    // Already attached to this element.
     if (userId === lastAttachedUserId && videoEl === lastAttachedElement && videoEl?.srcObject) {
       return;
     }
@@ -1103,7 +1056,7 @@ watch(
     if (user && videoEl) {
       const attached = voiceStore.attachVideoToElement(user.userId, videoEl);
       if (!attached && activeVideoStream.value) {
-        // Fallback to srcObject if attach fails (P2P mode)
+        // P2P has no LiveKit track; fall back to srcObject.
         (videoEl as HTMLVideoElement).srcObject = activeVideoStream.value;
       }
       lastAttachedUserId = userId;
@@ -1123,7 +1076,7 @@ watch(
   ([user, videoEl]) => {
     const userId = user?.userId || null;
     
-    // Skip if same user is already attached
+    // Already attached.
     if (userId === lastDockAttachedUserId && videoEl?.srcObject) {
       return;
     }
@@ -1143,14 +1096,13 @@ watch(
   { immediate: true }
 );
 
-// Only react to stream counter when user changes or stream is lost
+// Counter ticks only matter when the element lost its stream.
 watch(
   () => voiceStore.streamUpdateCounter,
   () => {
     const user = activeVideoUser.value;
     const videoEl = minimizedVideoRef.value;
     
-    // Only re-attach if we have a user but no video is playing
     if (user && videoEl && !videoEl.srcObject) {
       const attached = voiceStore.attachVideoToElement(user.userId, videoEl);
       if (!attached && activeVideoStream.value) {
@@ -1160,13 +1112,13 @@ watch(
   }
 );
 
-// Sync store's isOverlayVisible with local currentMode
+// Store's isOverlayVisible drives currentMode.
 watch(
   () => voiceStore.isOverlayVisible,
   (shouldShowOverlay) => {
     if (shouldShowOverlay && currentMode.value !== 'overlay') {
       currentMode.value = 'overlay';
-      debug.log('📺 [Dock] Auto-switching to overlay mode from store');
+      debug.log('[Dock] Auto-switching to overlay mode from store');
     }
   },
   { immediate: true }
@@ -1177,8 +1129,7 @@ watch(
 let handleClickOutside: ((e: MouseEvent) => void) | null = null;
 
 onMounted(() => {
-  // Start in dock mode ONLY if the store doesn't want overlay visible
-  // (e.g., when auto-opening for video detection)
+  // Store's isOverlayVisible wins over the default dock mode.
   if (!voiceStore.isOverlayVisible) {
     currentMode.value = 'dock';
   } else {
@@ -1200,19 +1151,14 @@ onMounted(() => {
   
   document.addEventListener('click', handleClickOutside);
   
-  // Keybind handlers are registered in UnifiedVoiceOverlay when overlay is open
-  // When in dock mode (not overlay), we still want these shortcuts to work
-  // The keybind system handles this through context - 'voice-connected' is active here
-  
-  // Note: Keybind handlers are registered once globally in the voice store when connected.
-  // The dock doesn't need its own handlers - the centralized system handles everything.
+  // NOTE: keybind handlers are registered once in the voice store on connect. The
+  // 'voice-connected' context keeps them active here, so the dock registers none.
 });
 
 onUnmounted(() => {
   stopDrag();
   stopDockDrag();
   
-  // Cancel any pending animation frames
   if (rafId !== null) {
     cancelAnimationFrame(rafId);
     rafId = null;
@@ -1236,21 +1182,21 @@ onUnmounted(() => {
   z-index: 1000;
 }
 
-/* Compact Mode - floating bar centered at bottom */
+/* Compact mode: floating bar centered at bottom */
 .unified-voice-dock.dock-mode {
   position: fixed;
   /* Position is set dynamically via inline styles */
 }
 
-/* Minimized Mode - tiny dock in channel sidebar */
+/* Minimized mode: tiny dock in channel sidebar */
 .unified-voice-dock.minimized-mode {
-  width: 343px; /* Width of channel sidebar */
+  width: 343px; /* Channel sidebar width */
   transform: none;
   z-index: 10;  /* Above UserProfileComponent but below global overlays */
   /* Position is set dynamically via inline styles */
 }
 
-/* Overlay Mode - full screen view with all participants */
+/* Overlay mode: full screen, all participants */
 .unified-voice-dock.overlay-mode {
   top: 0;
   left: 0;
@@ -1280,12 +1226,12 @@ onUnmounted(() => {
   backdrop-filter: blur(20px);
   transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
   margin-bottom: 80px;
-  cursor: grab; /* Default cursor for entire dock */
-  user-select: none; /* Prevent text selection while dragging */
+  cursor: grab;
+  user-select: none; /* Text selection breaks dragging */
 }
 
 .dock-container * {
-  cursor: inherit; /* All children inherit grab cursor */
+  cursor: inherit;
 }
 
 .dock-container:hover:not(.is-dragging) {
@@ -1304,7 +1250,6 @@ onUnmounted(() => {
   will-change: transform;
 }
 
-/* User Section */
 .user-section {
   display: flex;
   align-items: center;
@@ -1417,7 +1362,6 @@ onUnmounted(() => {
 }
 
 
-/* Voice Controls */
 .voice-controls {
   display: flex;
   gap: 8px;
@@ -1431,7 +1375,7 @@ onUnmounted(() => {
   background: rgba(0, 0, 0, 0.3);
   /* color: var(--text-secondary); */
   color: var(--text-secondary);
-  cursor: pointer !important; /* Override parent grab cursor for buttons */
+  cursor: pointer !important; /* Overrides the dock's grab cursor */
   transition: all 0.2s ease;
   display: flex;
   align-items: center;
@@ -1461,7 +1405,6 @@ onUnmounted(() => {
   box-shadow: 0 4px 12px rgba(237, 66, 69, 0.3);
 }
 
-/* PTT Mode Styles */
 .control-btn.ptt-mode {
   position: relative;
 }
@@ -1518,7 +1461,6 @@ onUnmounted(() => {
   box-shadow: 0 4px 12px rgba(250, 166, 26, 0.3);
 }
 
-/* Spatial audio button with indicator */
 .control-btn.spatial-btn {
   position: relative;
 }
@@ -1534,7 +1476,6 @@ onUnmounted(() => {
   background: linear-gradient(145deg, #00e5b8, #00c9a0);
 }
 
-/* Dock Video Preview (small thumbnail in dock mode) */
 .dock-video-preview {
   position: relative;
   width: 64px;
@@ -1579,7 +1520,6 @@ onUnmounted(() => {
   height: 10px;
 }
 
-/* Action Controls */
 .action-controls {
   display: flex;
   gap: 6px;
@@ -1618,12 +1558,12 @@ onUnmounted(() => {
   padding: 12px 16px;
   cursor: pointer;
   transition: all 0.3s ease;
-  width: 343px; /* Use full width of minimized dock container */
-  box-sizing: border-box; /* Include padding in width calculation */
+  width: 343px; /* Channel sidebar width */
+  box-sizing: border-box;
   box-shadow: 
     0 6px 20px rgba(0, 0, 0, 0.4),
     0 2px 8px rgba(0, 0, 0, 0.3);
-  margin-bottom: 0; /* Remove bottom margin for tight positioning */
+  margin-bottom: 0;
 }
 
 .minimized-container:hover:not(.is-dragging) {
@@ -1637,12 +1577,11 @@ onUnmounted(() => {
 
 .minimized-container.is-dragging {
   cursor: grabbing !important;
-  transition: none !important; /* Disable all transitions during drag */
+  transition: none !important;
   z-index: 10000; /* Above everything while dragging */
-  will-change: transform; /* Optimize for position changes */
+  will-change: transform;
 }
 
-/* Minimized Video Preview */
 .minimized-video-preview {
   position: relative;
   width: 100%;
@@ -1819,10 +1758,10 @@ onUnmounted(() => {
   border-color: rgba(237, 66, 69, 0.6);
 }
 
-/* Participants Dropdown - positioned outside and below the container */
+/* Participants dropdown: sits outside and below the container */
 .participants-dropdown-container {
   z-index: 100;
-  pointer-events: none; /* Allow clicks to pass through container, but not button/dropdown */
+  pointer-events: none; /* Container is inert; button and dropdown re-enable */
 }
 
 .participants-dropdown-btn {
@@ -1841,7 +1780,7 @@ onUnmounted(() => {
   transition: all 0.2s ease;
   padding: 0;
   font-size: 10px;
-  pointer-events: auto; /* Button is clickable */
+  pointer-events: auto;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
@@ -1879,11 +1818,11 @@ onUnmounted(() => {
     0 4px 16px rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(20px);
   z-index: 101;
-  pointer-events: auto; /* Dropdown is clickable */
-  margin-top: 4px; /* Small gap from button */
+  pointer-events: auto;
+  margin-top: 4px;
 }
 
-/* Dock mode participants dropdown - positioned above the dock */
+/* Dock mode: dropdown sits above the dock */
 .dock-participants-dropdown {
   pointer-events: none;
   z-index: 100;
@@ -1901,7 +1840,7 @@ onUnmounted(() => {
   background: none;
 }
 
-/* Dropdown transition - slides down from under */
+/* Dropdown slides down from under the button */
 .participants-dropdown-enter-active {
   transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
@@ -2011,7 +1950,7 @@ onUnmounted(() => {
     position: relative;
   }
   
-  /* User info centered above buttons on mobile - tappable to expand */
+  /* Centered above the buttons; tap expands to overlay */
   .user-section {
     width: 100%;
     flex-direction: column;
@@ -2054,7 +1993,6 @@ onUnmounted(() => {
     color: #00d4aa;
   }
   
-  /* Controls centered below user info */
   .voice-controls {
     justify-content: center;
     gap: 8px;
@@ -2066,12 +2004,10 @@ onUnmounted(() => {
     font-size: 15px;
   }
   
-  /* Hide video preview on mobile dock - save space */
   .dock-video-preview {
     display: none;
   }
   
-  /* Action controls row */
   .action-controls {
     position: absolute;
     top: 8px;
@@ -2085,14 +2021,13 @@ onUnmounted(() => {
     font-size: 11px;
   }
   
-  /* Show expand button on mobile, hide minimize */
   .expand-btn {
     display: flex;
   }
   
 }
 
-/* Connecting state - subtle pulse animation */
+/* Connecting state */
 .unified-voice-dock.is-connecting {
   animation: connecting-pulse 1.5s ease-in-out infinite;
 }
@@ -2130,7 +2065,7 @@ onUnmounted(() => {
 </style>
 
 <style>
-/* Global style for voice dock dragging - prevents interference with other components */
+/* Unscoped: applied to <body> while the dock is dragged */
 body.is-dragging-voice-dock {
   user-select: none;
   cursor: grabbing;

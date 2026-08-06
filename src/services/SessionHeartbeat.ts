@@ -1,12 +1,10 @@
 /**
  * Session Heartbeat Service
  * 
- * DISABLED: This service was causing connection issues.
- * Supabase handles connection keepalive internally.
- * Push notifications are not configured, so session tracking is not needed.
- * 
- * If smart push notifications are implemented in the future,
- * this can be re-enabled with a more conservative approach.
+ * Disabled: the heartbeat caused connection issues. Supabase handles
+ * connection keepalive internally, and push notifications are not configured,
+ * so session tracking is unused. Every method is a no-op apart from local
+ * context storage.
  */
 
 import { debug } from '@/utils/debug'
@@ -28,7 +26,7 @@ class SessionHeartbeatService {
   async initialize(_userId: string): Promise<void> {
     if (this.isInitialized) return
     this.isInitialized = true
-    debug.log('🫀 Session Heartbeat: Disabled - Supabase handles connections internally')
+    debug.log('Session Heartbeat: Disabled - Supabase handles connections internally')
   }
 
   /**
@@ -43,7 +41,7 @@ class SessionHeartbeatService {
    */
   updateContext(context: ViewContext): void {
     this.currentContext = context
-    debug.log('📍 Session Heartbeat: Context updated', context)
+    debug.log('Session Heartbeat: Context updated', context)
   }
 
   /**

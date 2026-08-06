@@ -11,11 +11,10 @@ import { debug } from '@/utils/debug'
 class StatusLifecycleDebugger {
   private isDebugging = false
   private logHistory: string[] = []
-  // BUGS.md M12: stopDebugging() used to reference `this.statusChangedListener`
-  // etc., but `startDebugging()` registered ANONYMOUS callbacks and never
-  // stored them. Every start/stop pair therefore leaked listeners on
-  // userDataService + activityTracker. Store bound references explicitly so
-  // removeEventListener actually matches.
+  // BUGS.md M12: startDebugging() must store the callbacks it registers so
+  // stopDebugging() passes the same references to removeEventListener.
+  // Anonymous callbacks leak one listener per start/stop pair on
+  // userDataService + activityTracker.
   private statusChangedListener: ((event: any) => void) | null = null
   private activityResumedListener: ((event: any) => void) | null = null
   private statusShouldChangeListener: ((event: any) => void) | null = null
@@ -26,7 +25,7 @@ class StatusLifecycleDebugger {
   startDebugging(): void {
     if (this.isDebugging) return
     
-    debug.log('🔍 Starting status lifecycle debugging')
+    debug.log('Starting status lifecycle debugging')
     this.isDebugging = true
     this.logHistory = []
 
@@ -56,7 +55,7 @@ class StatusLifecycleDebugger {
    * Stop debug monitoring
    */
   stopDebugging(): void {
-    debug.log('⏹️ Stopping status lifecycle debugging')
+    debug.log('Stopping status lifecycle debugging')
     this.isDebugging = false
 
     if (this.statusChangedListener) {
@@ -104,12 +103,12 @@ class StatusLifecycleDebugger {
    * Test manual status changes
    */
   async testManualStatusChange(status: UserStatus): Promise<void> {
-    debug.log(`🧪 Testing manual status change to: ${UserStatus[status]}`)
+    debug.log(`Testing manual status change to: ${UserStatus[status]}`)
     try {
       await userDataService.updateCurrentUserStatus(status)
-      debug.log('✅ Manual status change successful')
+      debug.log('Manual status change successful')
     } catch (error) {
-      debug.error('❌ Manual status change failed:', error)
+      debug.error('Manual status change failed:', error)
     }
   }
 
@@ -117,9 +116,9 @@ class StatusLifecycleDebugger {
    * Simulate inactivity for testing
    */
   simulateInactivity(minutes: number): void {
-    debug.log(`🕐 Simulating ${minutes} minutes of inactivity...`)
+    debug.log(`Simulating ${minutes} minutes of inactivity...`)
     
-    // Hack the activity tracker's last activity time
+    // Rewind the activity tracker's last-activity timestamp.
     const millisecondsAgo = minutes * 60 * 1000
     ;(activityTracker as any).lastActivity = Date.now() - millisecondsAgo
     
@@ -132,7 +131,7 @@ class StatusLifecycleDebugger {
   showDebugPanel(): void {
     const info = this.getCurrentStatusInfo()
     
-    console.group('🔍 Status Lifecycle Debug Panel')
+    console.group('Status Lifecycle Debug Panel')
     debug.log('Current User:', info.user)
     debug.log('Activity State:', info.activity)
     debug.log('Recent Log History:')
@@ -160,7 +159,7 @@ if (typeof window !== 'undefined') {
   ;(window as any).showStatusDebug = () => statusDebugger.showDebugPanel()
   ;(window as any).simulateInactivity = (minutes: number = 6) => {
     if (!minutes || isNaN(minutes)) {
-      debug.log('❌ Please provide a number of minutes. Example: simulateInactivity(6)')
+      debug.log('Please provide a number of minutes. Example: simulateInactivity(6)')
       return
     }
     statusDebugger.simulateInactivity(minutes)
@@ -175,7 +174,7 @@ if (typeof window !== 'undefined') {
   }
   
   ;(window as any).showHelp = () => {
-    console.group('🔍 Status Debug Commands')
+    console.group('Status Debug Commands')
     debug.log('showStatusDebug() - Show current status and activity info')
     debug.log('testStatus("Away") - Test manual status change')
     debug.log('simulateInactivity(6) - Simulate 6 minutes of inactivity')

@@ -255,7 +255,7 @@ const getDevices = async () => {
     outputDevices.value = devices.filter(d => d.kind === 'audiooutput');
     videoDevices.value = devices.filter(d => d.kind === 'videoinput');
     
-    debug.log('🎛️ [VoiceSettingsInline] Enumerated devices:', {
+    debug.log('[VoiceSettingsInline] Enumerated devices:', {
       inputs: inputDevices.value.length,
       outputs: outputDevices.value.length,
       videos: videoDevices.value.length
@@ -291,43 +291,43 @@ const loadStoredSettings = async () => {
     
     if (storedInputDevice && inputDevices.value.some(d => d.deviceId === storedInputDevice)) {
       selectedInputDevice.value = storedInputDevice;
-      debug.log('🎤 [VoiceSettingsInline] Using stored input device:', storedInputDevice);
+      debug.log('[VoiceSettingsInline] Using stored input device:', storedInputDevice);
     } else if (inputDevices.value.length > 0) {
       // Fallback to first available device
       selectedInputDevice.value = inputDevices.value[0].deviceId;
       if (storedInputDevice) {
-        debug.warn('⚠️ [VoiceSettingsInline] Stored input device not found, using default');
+        debug.warn('[VoiceSettingsInline] Stored input device not found, using default');
         VoiceSettingsService.setInputDevice(selectedInputDevice.value);
       }
     }
     
     if (storedOutputDevice && outputDevices.value.some(d => d.deviceId === storedOutputDevice)) {
       selectedOutputDevice.value = storedOutputDevice;
-      debug.log('🔊 [VoiceSettingsInline] Using stored output device:', storedOutputDevice);
+      debug.log('[VoiceSettingsInline] Using stored output device:', storedOutputDevice);
     } else if (outputDevices.value.length > 0) {
       // Fallback to first available device
       selectedOutputDevice.value = outputDevices.value[0].deviceId;
       if (storedOutputDevice) {
-        debug.warn('⚠️ [VoiceSettingsInline] Stored output device not found, using default');
+        debug.warn('[VoiceSettingsInline] Stored output device not found, using default');
         VoiceSettingsService.setOutputDevice(selectedOutputDevice.value);
       }
     }
     
     if (storedVideoDevice && videoDevices.value.some(d => d.deviceId === storedVideoDevice)) {
       selectedVideoDevice.value = storedVideoDevice;
-      debug.log('📹 [VoiceSettingsInline] Using stored video device:', storedVideoDevice);
+      debug.log('[VoiceSettingsInline] Using stored video device:', storedVideoDevice);
     } else if (videoDevices.value.length > 0) {
       // Fallback to first available device
       selectedVideoDevice.value = videoDevices.value[0].deviceId;
       if (storedVideoDevice) {
-        debug.warn('⚠️ [VoiceSettingsInline] Stored video device not found, using default');
+        debug.warn('[VoiceSettingsInline] Stored video device not found, using default');
         VoiceSettingsService.setVideoDevice(selectedVideoDevice.value);
       }
     }
     
-    debug.log('🎛️ [VoiceSettingsInline] Loaded settings:', settings);
+    debug.log('[VoiceSettingsInline] Loaded settings:', settings);
   } catch (error) {
-    debug.warn('⚠️ Failed to load stored settings:', error);
+    debug.warn('Failed to load stored settings:', error);
   }
 };
 
@@ -413,10 +413,10 @@ const updateInputDevice = async () => {
   
   try {
     await webrtcManager.updateInputDevice(selectedInputDevice.value);
-    debug.log('✅ Successfully switched to new input device');
+    debug.log('Successfully switched to new input device');
     window.dispatchEvent(new CustomEvent('harmony-device-changed', { detail: { type: 'input', deviceId: selectedInputDevice.value } }));
   } catch (error) {
-    debug.error('❌ Failed to switch input device:', error);
+    debug.error('Failed to switch input device:', error);
   }
   
   saveSettings();
@@ -428,10 +428,10 @@ const updateOutputDevice = async () => {
   
   try {
     await webrtcManager.updateOutputDevice(selectedOutputDevice.value);
-    debug.log('🔊 Successfully switched to new output device');
+    debug.log('Successfully switched to new output device');
     window.dispatchEvent(new CustomEvent('harmony-device-changed', { detail: { type: 'output', deviceId: selectedOutputDevice.value } }));
   } catch (error) {
-    debug.error('❌ Failed to switch output device:', error);
+    debug.error('Failed to switch output device:', error);
   }
   
   saveSettings();
@@ -469,9 +469,9 @@ const updateVideoSettings = async () => {
   if (selectedVideoDevice.value) {
     try {
       await webrtcManager.updateVideoDevice(selectedVideoDevice.value);
-      debug.log('📹 Successfully switched to new video device');
+      debug.log('Successfully switched to new video device');
     } catch (error) {
-      debug.error('❌ Failed to switch video device:', error);
+      debug.error('Failed to switch video device:', error);
     }
   }
   saveSettings();
@@ -500,9 +500,9 @@ const saveSettings = () => {
       frameRate: frameRate.value
     });
 
-    debug.log('💾 [VoiceSettingsInline] Saved settings via VoiceSettingsService');
+    debug.log('[VoiceSettingsInline] Saved settings via VoiceSettingsService');
   } catch (error) {
-    debug.warn('⚠️ Failed to save settings:', error);
+    debug.warn('Failed to save settings:', error);
   }
 };
 
@@ -523,7 +523,7 @@ const handleExternalDeviceChange = (e: Event) => {
 }
 
 onMounted(() => {
-  debug.log('🎛️ [VoiceSettingsInline] Component mounted, loading settings...');
+  debug.log('[VoiceSettingsInline] Component mounted, loading settings...');
   getDevices();
   navigator.mediaDevices.addEventListener('devicechange', getDevices);
   window.addEventListener('harmony-device-changed', handleExternalDeviceChange);

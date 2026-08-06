@@ -51,9 +51,9 @@ export function determineVisibility(object: any): string {
 
 /**
  * Resolve an actor URL to a profile ID.
- * Tries federated_id first; falls back to extracting username from
- * our own domain's URL pattern (handles local users whose federated_id
- * was never set).
+ * Tries federated_id first; falls back to extracting the username from the
+ * instance domain's URL pattern (covers local users whose federated_id was
+ * never set).
  */
 async function resolveProfileByActorUrl(actorUrl: string): Promise<{ id: string } | null> {
   const supabase = getSupabaseClient();
@@ -66,7 +66,7 @@ async function resolveProfileByActorUrl(actorUrl: string): Promise<{ id: string 
     .maybeSingle();
   if (byFedId) return byFedId;
 
-  // 2) Fallback: if the URL matches our domain, extract username
+  // 2) Fallback: if the URL matches the instance domain, extract username
   const localPattern = new RegExp(
     `^https?://${config.INSTANCE_DOMAIN.replace(/\./g, '\\.')}/users/([^/]+)$`,
     'i'
@@ -112,9 +112,6 @@ export class ActivityProcessor {
    */
   private static readonly MAX_REPLY_CHAIN_DEPTH = 10;
 
-  /**
-   * Check if an actor is suspended on our instance
-   */
   private static async isActorSuspended(actorUrl: string): Promise<boolean> {
     const supabase = getSupabaseClient();
     const { data } = await supabase
@@ -126,13 +123,10 @@ export class ActivityProcessor {
     return data?.is_suspended === true;
   }
 
-  /**
-   * Process incoming ActivityPub activity
-   */
   static async processIncomingActivity(activity: any): Promise<void> {
     const actorUrl = normalizeActor(activity.actor);
     if (actorUrl && await this.isActorSuspended(actorUrl)) {
-      logger.info(`🚫 Ignoring activity from suspended user: ${actorUrl}`);
+      logger.info(`Ignoring activity from suspended user: ${actorUrl}`);
       return;
     }
 
@@ -179,7 +173,6 @@ export class ActivityProcessor {
         await this.processBlock(activity);
         break;
       default:
-        // Check for Harmony voice activities
         if (VoiceActivityHandler.isVoiceActivity(activity)) {
           await VoiceActivityHandler.processVoiceActivity(activity);
         } else {
@@ -188,17 +181,13 @@ export class ActivityProcessor {
     }
   }
 
-  /**
-   * Process Follow activity
-   */
   private static async processFollow(activity: any): Promise<void> {
     const { followerUrl, followingUrl } = extractFollowData(activity);
     const supabase = getSupabaseClient();
 
-    // Ensure remote user exists
     await this.ensureRemoteUser(followerUrl);
 
-    // Get follower and following IDs (resolveProfileByActorUrl handles local users without federated_id)
+    // resolveProfileByActorUrl covers local users without federated_id.
     const follower = await resolveProfileByActorUrl(followerUrl);
     const following = await resolveProfileByActorUrl(followingUrl);
 
@@ -207,16 +196,16 @@ export class ActivityProcessor {
       return;
     }
 
-    // Respect the target's follow-approval preference. When they manually
-    // approve followers we store the request as `pending` and do NOT emit an
-    // Accept - the local user approves later (which sends the Accept then).
+    // Follow-approval preference of the target. With manual approval the
+    // request is stored as `pending` and no Accept is emitted; the Accept is
+    // sent when the local user approves.
     const { data: followingUser } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', following.id)
       .single();
 
-    // Duplicate Follow from an existing accepted follower must never downgrade
+    // A duplicate Follow from an already-accepted follower must not downgrade
     // the relationship to pending (Mastodon re-sends Follow after migrations);
     // re-accept and resend the Accept instead.
     const { data: existingFollow } = await supabase
@@ -269,14 +258,11 @@ export class ActivityProcessor {
 
       if (followerUser?.inbox_url) {
         await DeliveryQueue.sendToInbox(followerUser.inbox_url, acceptActivity, followingUser.id);
-        logger.info(`✅ Sent Accept activity to ${followerUrl}`);
+        logger.info(`Sent Accept activity to ${followerUrl}`);
       }
     }
   }
 
-  /**
-   * Process Accept activity
-   */
   private static async processAccept(activity: any): Promise<void> {
     const supabase = getSupabaseClient();
 
@@ -328,14 +314,11 @@ export class ActivityProcessor {
       if (error) {
         logger.error('Accept(Join): failed to update membership:', error);
       } else {
-        logger.info(`✅ Join accepted for user ${userProfile.id} in server ${server.id}`);
+        logger.info(`Join accepted for user ${userProfile.id} in server ${server.id}`);
       }
     }
   }
 
-  /**
-   * Process Reject activity
-   */
   private static async processReject(activity: any): Promise<void> {
     const supabase = getSupabaseClient();
 
@@ -385,29 +368,29 @@ export class ActivityProcessor {
       if (error) {
         logger.error('Reject(Join): failed to remove membership:', error);
       } else {
-        logger.info(`❌ Join rejected for user ${userProfile.id} in server ${server.id}`);
+        logger.info(`Join rejected for user ${userProfile.id} in server ${server.id}`);
       }
     }
   }
 
   /**
-   * Process Create activity (new post/message/poll)
+   * Create activity: post, DM, channel message, or poll.
    */
   private static async processCreate(activity: any): Promise<void> {
     const object = activity.object;
     const supabase = getSupabaseClient();
 
-    logger.info(`📨 processCreate: object.type=${object?.type}, id=${object?.id?.substring?.(0, 80)}`);
+    logger.info(`processCreate: object.type=${object?.type}, id=${object?.id?.substring?.(0, 80)}`);
 
-    // Handle Question type (polls) - store as Note with poll metadata
+    // Question is a poll; stored as a post carrying poll metadata.
     if (object.type === 'Question') {
-      logger.info(`📊 Processing poll: ${object.id}`);
+      logger.info(`Processing poll: ${object.id}`);
       await this.processCreatePoll(activity, object);
       return;
     }
 
     if (object.type === 'ChatThread') {
-      logger.info(`📋 Routing Create ChatThread to handler: ${object.id}`);
+      logger.info(`Routing Create ChatThread to handler: ${object.id}`);
       const { handleThreadActivity } = await import('./ThreadActivityHandler.js');
       const result = await handleThreadActivity({ ...activity, object });
       if (!result.success) {
@@ -417,13 +400,13 @@ export class ActivityProcessor {
     }
 
     if (object.type === 'Note' || object.type === 'Article') {
-      // Reject our own posts echoed back (federation round-trip)
+      // Drop posts originating from this instance echoed back by a peer.
       const ownDomain = config.INSTANCE_DOMAIN;
       if (object.id && typeof object.id === 'string') {
         try {
           const objectHost = new URL(object.id).hostname;
           if (objectHost === ownDomain) {
-            logger.info(`⏭️ Ignoring own post echoed back: ${object.id}`);
+            logger.info(`Ignoring own post echoed back: ${object.id}`);
             return;
           }
         } catch { /* not a valid URL, continue */ }
@@ -433,13 +416,11 @@ export class ActivityProcessor {
       const harmonyChannelName = object['harmony:channelName'];
       
       if (harmonyServerId) {
-        // This is a channel message - route to ServerInboxHandler
-        logger.info(`📨 Detected channel message for server ${harmonyServerId}, channel: ${harmonyChannelName}`);
+        logger.info(`Detected channel message for server ${harmonyServerId}, channel: ${harmonyChannelName}`);
         await this.processChannelMessage(activity, object);
         return;
       }
 
-      // Ensure author exists
       await this.ensureRemoteUser(normalizeActor(activity.actor));
 
       const author = await resolveProfileByActorUrl(normalizeActor(activity.actor));
@@ -451,10 +432,10 @@ export class ActivityProcessor {
 
       const rawContent = noteToContent(object);
       
-      // Check for quote post (quoteUrl for Fediverse, _misskey_quote for Misskey)
+      // Quote target: `quoteUrl` is the Fediverse form, `_misskey_quote` Misskey's.
       const quoteUrl = object.quoteUrl || object._misskey_quote;
       
-      logger.info('📝 Processing ActivityPub Note: ' + JSON.stringify({
+      logger.info('Processing ActivityPub Note: ' + JSON.stringify({
         id: object.id,
         inReplyTo: object.inReplyTo,
         quoteUrl: quoteUrl,
@@ -465,17 +446,17 @@ export class ActivityProcessor {
 
       const visibility = this.determineVisibility(object);
 
-      // Route group invite notifications (sent when remote user is added to group)
+      // Group invite notification, sent when a remote user is added to a group.
       if (object.metadata?.type === 'group_invite') {
         await this.handleGroupInvite(object, author.id);
         return;
       }
 
-      // Route direct messages to messages table, everything else to posts
+      // Direct messages go to `messages`; everything else to `posts`.
       if (visibility === 'direct' || visibility === 'private') {
         await this.handleDirectMessage(object, author.id, content);
       } else {
-        // Handle reply threading - fetch parent posts if missing and find conversation root
+        // Reply threading: fetch missing parents and locate the conversation root.
         let parentPostId: string | null = null;
         let conversationRootId: string | null = null;
 
@@ -487,7 +468,7 @@ export class ActivityProcessor {
 
         let quotedPostData: any = null;
         if (quoteUrl) {
-          logger.info(`📝 Processing quote post, quoted URL: ${quoteUrl}`);
+          logger.info(`Processing quote post, quoted URL: ${quoteUrl}`);
           quotedPostData = await this.resolveQuotedPost(quoteUrl);
         }
 
@@ -501,8 +482,7 @@ export class ActivityProcessor {
           metadata.quote_ap_url = quoteUrl;
         }
 
-        // Create post with proper reply threading and quote support
-        // in_reply_to is a UUID column for the parent post ID
+        // `in_reply_to` is a UUID column holding the parent post id.
         const postData: any = {
           ap_id: object.id,
           author_id: author.id,
@@ -547,7 +527,7 @@ export class ActivityProcessor {
           .maybeSingle();
 
         if (existingPost) {
-          logger.info(`⏭️ Post already exists for ${object.id}, skipping duplicate`);
+          logger.info(`Post already exists for ${object.id}, skipping duplicate`);
           return;
         }
 
@@ -555,19 +535,18 @@ export class ActivityProcessor {
 
         if (error) {
           if ((error as { code?: string }).code === '23505') {
-            logger.info(`⏭️ Post ${object.id} lost insert race (already exists), skipping duplicate`);
+            logger.info(`Post ${object.id} lost insert race (already exists), skipping duplicate`);
             return;
           }
           logger.error('Failed to create post from activity:', error);
         } else {
           const postType = quotedPostData ? 'quote post' : 'post';
-          logger.info(`✅ Created ${postType} from ${object.id}${parentPostId ? ` (reply to ${parentPostId})` : ''}${quotedPostData ? ` (quoting ${quotedPostData.id})` : ''}`);
+          logger.info(`Created ${postType} from ${object.id}${parentPostId ? ` (reply to ${parentPostId})` : ''}${quotedPostData ? ` (quoting ${quotedPostData.id})` : ''}`);
 
           if (insertedPost) {
-            // Heal any orphan replies that were waiting on this post (children
-            // that arrived before their parent and got stamped with
-            // metadata.in_reply_to_ap_url = object.id). Pass `object.url`
-            // too so orphans stamped with the alternate URL form match.
+            // Re-link orphan replies that arrived before this parent and were
+            // stamped with metadata.in_reply_to_ap_url = object.id. `object.url`
+            // is passed too so orphans stamped with the alternate URL form match.
             await this.relinkPendingChildren(
               object.id,
               insertedPost.id,
@@ -595,12 +574,11 @@ export class ActivityProcessor {
   }
 
   /**
-   * Resolve a quoted post - fetch if not local
+   * Resolve a quoted post, fetching from the origin instance if not stored locally.
    */
   private static async resolveQuotedPost(quoteUrl: string): Promise<any | null> {
     const supabase = getSupabaseClient();
 
-    // First check if quoted post exists locally by ap_id
     const { data: existingPost } = await supabase
       .from('posts')
       .select('id, content, created_at, visibility, author_id')
@@ -608,7 +586,7 @@ export class ActivityProcessor {
       .maybeSingle();
 
     if (existingPost) {
-      logger.info(`📝 Found quoted post locally: ${existingPost.id}`);
+      logger.info(`Found quoted post locally: ${existingPost.id}`);
       return existingPost;
     }
 
@@ -623,25 +601,24 @@ export class ActivityProcessor {
           .maybeSingle();
         
         if (postById) {
-          logger.info(`📝 Found quoted post by UUID: ${postById.id}`);
+          logger.info(`Found quoted post by UUID: ${postById.id}`);
           return postById;
         }
       }
     }
 
-    logger.info(`📝 Fetching quoted post from remote: ${quoteUrl}`);
+    logger.info(`Fetching quoted post from remote: ${quoteUrl}`);
     const fetchedPost = await this.fetchAndCreateRemotePost(quoteUrl);
     
     if (fetchedPost) {
-      logger.info(`📝 Created quoted post from remote: ${fetchedPost.id}`);
+      logger.info(`Created quoted post from remote: ${fetchedPost.id}`);
     }
     
     return fetchedPost;
   }
 
   /**
-   * Resolve reply chain - fetch missing parent posts and find conversation root
-   * Returns the parent post ID and conversation root ID
+   * Walk a reply chain: fetch missing parent posts and locate the conversation root.
    */
   private static async resolveReplyChain(inReplyToRef: string, depth = 0): Promise<{
     parentPostId: string | null;
@@ -695,7 +672,7 @@ export class ActivityProcessor {
       // chain walk done by fetchAndCreateRemotePost shares the same depth
       // budget (otherwise mutual recursion could exceed MAX_DEPTH).
       if (!parentPost) {
-        logger.info(`🔍 Parent post not found locally, fetching: ${inReplyToRef}`);
+        logger.info(`Parent post not found locally, fetching: ${inReplyToRef}`);
         parentPost = await this.fetchAndCreateRemotePost(inReplyToRef, depth + 1);
       }
     }
@@ -739,11 +716,10 @@ export class ActivityProcessor {
    * Re-link orphan replies whose `metadata.in_reply_to_ap_url` matches the
    * given parent ap_id but whose `in_reply_to` foreign key is still NULL.
    *
-   * This happens when a child reply arrives (via inbox or /resolve-post)
-   * before its parent - we stamp `metadata.in_reply_to_ap_url` so the link
-   * isn't lost, but the child stays orphaned in the thread RPC until the
-   * parent shows up. Calling this every time we import or look up a post
-   * means the thread "self-heals" as soon as the parent arrives.
+   * A child reply can arrive (via inbox or /resolve-post) before its parent.
+   * `metadata.in_reply_to_ap_url` is stamped so the link is not lost, but the
+   * child stays orphaned in the thread RPC until the parent exists. Called on
+   * every post import and lookup, so the thread heals once the parent lands.
    */
   private static async relinkPendingChildren(
     parentApId: string,
@@ -754,12 +730,12 @@ export class ActivityProcessor {
     if (!parentLocalId) return;
     const supabase = getSupabaseClient();
 
-    // Match orphans by *every* known URL form for this post - Mastodon
+    // Match orphans against every known URL form for this post: Mastodon
     // canonical id (`/users/x/statuses/N`), pretty url (`/@x/N`), GoToSocial
-    // (`/users/x/statuses/N` ↔ `/@x/statuses/N`), Pleroma `/objects/UUID`,
-    // etc. all surface in different `inReplyTo` payloads, and an orphan
-    // could have stamped any of them. PostgREST `.or()` syntax lets us OR
-    // multiple jsonb-arrow-extracted comparisons in a single query.
+    // (`/users/x/statuses/N` ↔ `/@x/statuses/N`), Pleroma `/objects/UUID`.
+    // Each surfaces in different `inReplyTo` payloads, so an orphan may hold
+    // any of them. PostgREST `.or()` ORs several jsonb-arrow comparisons in
+    // one query.
     const candidateUrls = Array.from(
       new Set(
         [parentApId, parentApUrl ?? undefined].filter(
@@ -786,8 +762,8 @@ export class ActivityProcessor {
     }
     if (!orphans || orphans.length === 0) return;
 
-    // The conversation root: prefer the parent's root if known, else the
-    // parent itself (matches `resolveReplyChain`'s convention).
+    // Conversation root: the parent's root if known, else the parent itself
+    // (matches `resolveReplyChain`'s convention).
     const conversationRootId = parentConversationRootId || parentLocalId;
     const orphanIds = orphans.map((o: { id: string }) => o.id);
 
@@ -803,7 +779,7 @@ export class ActivityProcessor {
       logger.warn(`Failed to re-link ${orphans.length} orphan(s) → ${parentLocalId}:`, updateError);
       return;
     }
-    logger.info(`🔗 Re-linked ${orphans.length} orphan reply(s) → parent ${parentLocalId} (${parentApId})`);
+    logger.info(`Re-linked ${orphans.length} orphan reply(s) → parent ${parentLocalId} (${parentApId})`);
   }
 
   /**
@@ -812,13 +788,12 @@ export class ActivityProcessor {
    * If the post is a reply, the parent chain is walked recursively (sharing
    * the depth budget with `resolveReplyChain`) so the imported post lands
    * with `in_reply_to` and `conversation_root_id` populated, and any missing
-   * ancestors are imported alongside it. Without this, calling /resolve-post
-   * for a federated reply leaves it as a floating post - the local thread
-   * RPC then has nothing to walk and the user sees no context.
+   * ancestors are imported alongside it. Without the walk, /resolve-post on a
+   * federated reply leaves a floating post and the local thread RPC has
+   * nothing to traverse.
    *
-   * Whether the post was freshly imported or already cached, we also re-link
-   * any orphaned local replies whose `metadata.in_reply_to_ap_url` points at
-   * this post's ap_id (children that arrived before their parent).
+   * Whether freshly imported or already cached, orphaned local replies whose
+   * `metadata.in_reply_to_ap_url` points at this post's ap_id are re-linked.
    */
   public static async fetchAndCreateRemotePost(postUrl: string, depth = 0): Promise<{
     id: string;
@@ -849,10 +824,10 @@ export class ActivityProcessor {
         .maybeSingle();
 
       if (existing) {
-        logger.info(`⏭️ Post already exists for ${postUrl} → ${existing.id}, skipping fetch`);
-        // Heal any orphan replies that arrived before this post got stored.
-        // Pass both the canonical ap_id AND the alternate url so an orphan
-        // stamped with either form gets matched.
+        logger.info(`Post already exists for ${postUrl} → ${existing.id}, skipping fetch`);
+        // Re-link orphan replies that arrived before this post was stored.
+        // Both the canonical ap_id and the alternate url are passed so an
+        // orphan stamped with either form matches.
         await this.relinkPendingChildren(
           existing.ap_id || postUrl,
           existing.id,
@@ -876,8 +851,8 @@ export class ActivityProcessor {
         },
       });
 
-      // Retry with HTTP signature for instances requiring authorized fetch.
-      // signedApFetch now also routes through safeFetch internally.
+      // Retry signed for instances requiring authorized fetch.
+      // signedApFetch routes through safeFetch internally.
       if (response.status === 401 || response.status === 403) {
         logger.debug(`AP fetch got ${response.status}, retrying with HTTP signature: ${postUrl}`);
         response = await SignatureService.signedApFetch(postUrl);
@@ -896,7 +871,7 @@ export class ActivityProcessor {
         return null;
       }
 
-      // Deduplicate by the canonical AP id (may differ from the URL we fetched)
+      // Deduplicate by the canonical AP id; it may differ from the fetched URL.
       const apId = remoteObject.id;
       const apUrl = remoteObject.url || apId;
       if (apId !== postUrl || apUrl !== postUrl) {
@@ -909,7 +884,7 @@ export class ActivityProcessor {
           .maybeSingle();
 
         if (existingByApId) {
-          logger.info(`⏭️ Post already exists for AP id ${apId} → ${existingByApId.id}, skipping create`);
+          logger.info(`Post already exists for AP id ${apId} → ${existingByApId.id}, skipping create`);
           await this.relinkPendingChildren(
             apId,
             existingByApId.id,
@@ -920,7 +895,6 @@ export class ActivityProcessor {
         }
       }
 
-      // Ensure author exists
       const authorUrl = normalizeActor(remoteObject.attributedTo || remoteObject.actor);
       await this.ensureRemoteUser(authorUrl);
 
@@ -939,9 +913,9 @@ export class ActivityProcessor {
       const visibility = this.determineVisibility(remoteObject);
 
       // Walk the reply chain so the imported post lands with `in_reply_to`
-      // and `conversation_root_id` correctly set, AND any missing ancestors
-      // are imported alongside it. We share `depth` with the caller so a
-      // mutually-recursive walk stops at MAX_DEPTH overall (not per-frame).
+      // and `conversation_root_id` set, and missing ancestors are imported
+      // alongside it. `depth` is shared with the caller so the mutually
+      // recursive walk stops at MAX_DEPTH overall, not per frame.
       let resolvedInReplyTo: string | null = null;
       let conversationRootId: string | null = null;
       if (remoteObject.inReplyTo) {
@@ -950,9 +924,9 @@ export class ActivityProcessor {
         conversationRootId = replyResult.conversationRootId;
       }
 
-      // Always stamp the AP url of the parent in metadata so we have a paper
-      // trail even if resolution failed (e.g. parent server unreachable). The
-      // client-side ancestor walker can retry from this hint later.
+      // The parent AP url is always stamped in metadata, even when resolution
+      // failed (parent server unreachable). The client-side ancestor walker
+      // retries from this hint.
       const metadata: Record<string, any> = {};
       if (remoteObject.inReplyTo) {
         metadata.in_reply_to_ap_url = remoteObject.inReplyTo;
@@ -981,7 +955,7 @@ export class ActivityProcessor {
         .single();
 
       if (error) {
-        // Handle unique constraint violation gracefully (concurrent insert race)
+        // 23505: unique violation from a concurrent insert of the same ap_id.
         if (error.code === '23505') {
           const { data: raced } = await supabase
             .from('posts')
@@ -989,7 +963,7 @@ export class ActivityProcessor {
             .eq('ap_id', apId)
             .maybeSingle();
           if (raced) {
-            logger.info(`⏭️ Concurrent insert resolved for ${apId} → ${raced.id}`);
+            logger.info(`Concurrent insert resolved for ${apId} → ${raced.id}`);
             await this.relinkPendingChildren(apId, raced.id, raced.conversation_root_id, apUrl);
             return raced;
           }
@@ -998,14 +972,14 @@ export class ActivityProcessor {
         return null;
       }
 
-      logger.info(`✅ Fetched and created remote post: ${apId}`);
+      logger.info(`Fetched and created remote post: ${apId}`);
 
-      // Heal any orphan replies that were waiting for this post to land.
+      // Re-link orphan replies that were waiting for this post.
       if (newPost) {
         await this.relinkPendingChildren(apId, newPost.id, newPost.conversation_root_id, apUrl);
       }
 
-      // Enrich link previews asynchronously
+      // Link previews are enriched out of band; failures do not block import.
       if (newPost) {
         const { enrichPostLinkPreviews } = await import('../listeners/DatabaseListener.js');
         enrichPostLinkPreviews({ id: newPost.id, content, metadata: {} }).catch(err =>
@@ -1021,11 +995,11 @@ export class ActivityProcessor {
   }
 
   /**
-   * Process Update activity (profile update, post edit).
+   * Update activity: profile update or post edit.
    *
-   * Each branch verifies that `activity.actor` actually owns the object being
-   * modified before writing anything. Without this guard a remote signer can
-   * Update someone else's profile or edit any post by URL (BUGS.md C2).
+   * Every branch verifies `activity.actor` owns the object being modified
+   * before writing. Without the guard a remote signer can Update another
+   * actor's profile or edit any post by URL (BUGS.md C2).
    */
   private static async processUpdate(activity: any): Promise<void> {
     const object = activity.object;
@@ -1033,8 +1007,7 @@ export class ActivityProcessor {
     const actorUrl = normalizeActor(activity.actor);
 
     if (object.type === 'Person') {
-      // The object IS the actor being updated. Refuse unless the activity
-      // signer == the actor being updated.
+      // The object is the actor being updated; the signer must equal it.
       if (!SignatureService.verifyActorMatch(actorUrl, object.id || '')) {
         logger.warn(
           `🚫 Update Person rejected: actor ${actorUrl} cannot update ${object.id}`,
@@ -1052,7 +1025,6 @@ export class ActivityProcessor {
         public_key: profileData.public_key,
       };
 
-      // Include custom_status if present
       if (profileData.custom_status) {
         updateData.custom_status = profileData.custom_status;
       }
@@ -1086,10 +1058,10 @@ export class ActivityProcessor {
 
       logger.info(`Updated profile: ${object.id}`);
     } else if (object.type === 'Note' || object.type === 'Article') {
-      logger.info(`✏️ Processing post edit: ${object.id}`);
+      logger.info(`Processing post edit: ${object.id}`);
       
-      // Find the existing post + author actor URL (joined via profiles.federated_id)
-      // so we can verify the editor owns the post.
+      // Existing post plus author actor URL (joined via profiles.federated_id),
+      // needed to verify the editor owns the post.
       const { data: existingPost } = await supabase
         .from('posts')
         .select('id, author_id, profiles:author_id(federated_id)')
@@ -1124,10 +1096,10 @@ export class ActivityProcessor {
       if (updateError) {
         logger.error('Failed to update post:', updateError);
       } else {
-        logger.info(`✏️ Updated post: ${object.id}`);
+        logger.info(`Updated post: ${object.id}`);
       }
     } else if (object.type === 'ChatThread') {
-      logger.info(`📋 Routing Update ChatThread to handler: ${object.id}`);
+      logger.info(`Routing Update ChatThread to handler: ${object.id}`);
       const { handleThreadActivity } = await import('./ThreadActivityHandler.js');
       const result = await handleThreadActivity({ ...activity, object });
       if (!result.success) {
@@ -1138,7 +1110,7 @@ export class ActivityProcessor {
     } else if (['harmony:TextChannel', 'harmony:VoiceChannel', 'harmony:Category'].includes(object.type)) {
       await this.processHarmonyChannelUpdate(activity, object);
     } else if (object.type === 'Group' || object['harmony:ChatServer']) {
-      logger.info(`🏠 Processing server update: ${object.id}`);
+      logger.info(`Processing server update: ${object.id}`);
       
       const serverIdMatch = object.id?.match(/\/servers\/([a-f0-9-]{36})$/i);
       if (!serverIdMatch) {
@@ -1191,22 +1163,22 @@ export class ActivityProcessor {
       if (updateError) {
         logger.error(`Failed to update server ${existingServer.id}:`, updateError);
       } else {
-        logger.info(`🏠 Updated remote server: ${object.name || existingServer.id}`);
+        logger.info(`Updated remote server: ${object.name || existingServer.id}`);
       }
     }
   }
 
   /**
-   * Process Delete activity.
+   * Delete activity.
    *
-   * Verifies that `activity.actor` owns the object before soft-deleting.
-   * Without this guard any signed remote actor could delete any post/message
-   * by URL (BUGS.md C2).
+   * Verifies `activity.actor` owns the object before soft-deleting. Without
+   * the guard any signed remote actor can delete any post or message by URL
+   * (BUGS.md C2).
    */
   private static async processDelete(activity: any): Promise<void> {
     const object = activity.object;
     if (object && typeof object === 'object' && object.type === 'ChatThread') {
-      logger.info(`📋 Routing Delete ChatThread to handler: ${object.id}`);
+      logger.info(`Routing Delete ChatThread to handler: ${object.id}`);
       const { handleThreadActivity } = await import('./ThreadActivityHandler.js');
       const result = await handleThreadActivity({ ...activity, object });
       if (!result.success) {
@@ -1219,9 +1191,9 @@ export class ActivityProcessor {
     const supabase = getSupabaseClient();
     const actorUrl = normalizeActor(activity.actor);
 
-    // Look up the post first and check that the deleting actor is the author.
-    // We do post and message independently so a Delete that targets one of the
-    // two doesn't fail-open on the other.
+    // Look up the post and check the deleting actor is the author. Post and
+    // message are handled independently so a Delete targeting one does not
+    // fail open on the other.
     const { data: existingPost } = await supabase
       .from('posts')
       .select('id, profiles:author_id(federated_id)')
@@ -1274,15 +1246,14 @@ export class ActivityProcessor {
   }
 
   /**
-   * Process Like activity (including emoji reactions)
+   * Like activity, including emoji reactions.
    */
   private static async processLike(activity: any): Promise<void> {
     const { actorUrl, objectUrl, emoji, emojiUrl, emojiName } = extractLikeData(activity);
     const supabase = getSupabaseClient();
     
-    logger.info(`📊 Extracted Like data: emoji="${emoji}", emojiUrl="${emojiUrl}", emojiName="${emojiName}"`);
+    logger.info(`Extracted Like data: emoji="${emoji}", emojiUrl="${emojiUrl}", emojiName="${emojiName}"`);
 
-    // Ensure user exists
     await this.ensureRemoteUser(actorUrl);
 
     const { data: user } = await supabase
@@ -1299,8 +1270,7 @@ export class ActivityProcessor {
     let post = null;
     let message = null;
     
-    // Check if this is a message (DM) reaction - try multiple methods
-    // Method 1: Local message URL with UUID
+    // Message (DM) reaction lookup, method 1: local message URL with UUID.
     if (objectUrl.includes('/messages/')) {
       const uuidMatch = objectUrl.match(/\/messages\/([a-f0-9-]{36})/);
       if (uuidMatch) {
@@ -1313,13 +1283,13 @@ export class ActivityProcessor {
         message = messageById;
         
         if (message) {
-          logger.info(`📨 Found message for reaction by local ID: ${messageId}`);
+          logger.info(`Found message for reaction by local ID: ${messageId}`);
         }
       }
     }
     
-    // Method 2: Try finding message by ap_id in metadata (for remote DMs)
-    // This handles when a remote user reacts to their own message they sent us
+    // Method 2: by ap_id in metadata, for remote DMs. Covers a remote user
+    // reacting to a message they themselves sent to this instance.
     if (!message) {
       const { data: messageByApId } = await supabase
         .from('messages')
@@ -1329,13 +1299,13 @@ export class ActivityProcessor {
       
       if (messageByApId) {
         message = messageByApId;
-        logger.info(`📨 Found message for reaction by ap_id: ${objectUrl}`);
+        logger.info(`Found message for reaction by ap_id: ${objectUrl}`);
       }
     }
     
-    // If still not a message, try to find as a post
+    // Not a message: resolve as a post instead.
     if (!message) {
-      // Method 1: Try by ap_id
+      // Method 1: by ap_id.
       const { data: postByApId } = await supabase
         .from('posts')
         .select('id')
@@ -1344,7 +1314,7 @@ export class ActivityProcessor {
       
       post = postByApId;
       
-      // Method 2: If not found, try extracting UUID from URL
+      // Method 2: UUID extracted from the URL.
       if (!post && objectUrl.includes('/posts/')) {
         const uuidMatch = objectUrl.match(/\/posts\/([a-f0-9-]{36})/);
         if (uuidMatch) {
@@ -1368,25 +1338,24 @@ export class ActivityProcessor {
       };
 
       if (isCustomEmoji) {
-        // Custom emoji with URL - resolve to an emoji_id in the emojis table
+        // Image-backed custom emoji resolve to a row in `emojis`.
         const emojiId = await this.resolveInboundEmojiId(
           supabase, emojiName, emojiUrl, user.id,
         );
         if (!emojiId) {
-          logger.error('❌ Could not find or create emoji for message reaction');
+          logger.error('Could not find or create emoji for message reaction');
           return;
         }
         reactionData.emoji_id = emojiId;
       } else {
-        // Native/unicode emoji - store as custom_emoji_content with null emoji_id
-        // This matches how local reactions are stored and groups correctly
+        // Unicode emoji: stored as custom_emoji_content with a null emoji_id,
+        // matching local reactions so grouping is consistent.
         let normalizedEmoji = emoji || '❤️';
         if (normalizedEmoji === '❤') normalizedEmoji = '❤️';
         reactionData.emoji_id = null;
         reactionData.custom_emoji_content = normalizedEmoji;
       }
 
-      // Deduplicate check
       let dupQuery = supabase
         .from('reactions')
         .select('id')
@@ -1403,7 +1372,7 @@ export class ActivityProcessor {
       const { data: existing } = await dupQuery.maybeSingle();
 
       if (existing) {
-        logger.info(`🔄 Reaction already exists for user ${user.id} on message ${message.id}`);
+        logger.info(`Reaction already exists for user ${user.id} on message ${message.id}`);
         return;
       }
 
@@ -1413,14 +1382,14 @@ export class ActivityProcessor {
       const { error: reactionError } = await supabase.from('reactions').insert(reactionData);
 
       if (reactionError) {
-        // Handle unique constraint violation gracefully (concurrent insert race)
+        // 23505: unique violation from a concurrent insert.
         if (reactionError.code === '23505') {
-          logger.info(`🔄 Reaction already exists (constraint): ${reactionError.message}`);
+          logger.info(`Reaction already exists (constraint): ${reactionError.message}`);
         } else {
-          logger.error('❌ Failed to insert message reaction:', reactionError);
+          logger.error('Failed to insert message reaction:', reactionError);
         }
       } else {
-        logger.info(`✅ Added reaction to message ${message.id}: ${emoji || '❤️'}`);
+        logger.info(`Added reaction to message ${message.id}: ${emoji || ''}`);
       }
       return;
     }
@@ -1434,16 +1403,16 @@ export class ActivityProcessor {
         ? await this.resolveInboundEmojiId(supabase, emojiName, emojiUrl, user.id)
         : null;
       
-      // Normalize heart variants so Mastodon plain-Likes group consistently
+      // Normalize heart variants so Mastodon plain Likes group together.
       let normalizedEmoji = emoji || '❤️';
       if (!emoji || normalizedEmoji === '❤' || normalizedEmoji === '❤️') {
         normalizedEmoji = '❤️';
       }
       
-      logger.info(`💾 Inserting reaction: emoji_id=${emojiId}, custom_content=${normalizedEmoji}`);
+      logger.info(`Inserting reaction: emoji_id=${emojiId}, custom_content=${normalizedEmoji}`);
       
-      // Duplicate check - match on user + post + specific emoji to allow
-      // multiple different reactions from the same user
+      // Duplicate check matches user + post + specific emoji, so one user can
+      // hold several distinct reactions on a post.
       const duplicateQuery = supabase
         .from('post_interactions')
         .select('id')
@@ -1460,7 +1429,7 @@ export class ActivityProcessor {
       const { data: existing } = await duplicateQuery.maybeSingle();
       
       if (existing) {
-        logger.info(`🔄 Reaction already exists for user ${user.id} on post ${post.id}`);
+        logger.info(`Reaction already exists for user ${user.id} on post ${post.id}`);
         return;
       }
       
@@ -1474,9 +1443,9 @@ export class ActivityProcessor {
       });
 
       if (interactionError) {
-        logger.error('❌ Failed to insert reaction:', interactionError);
+        logger.error('Failed to insert reaction:', interactionError);
       } else {
-        logger.info(`✅ Added reaction to post ${post.id}: ${normalizedEmoji}${emojiUrl ? ` with URL: ${emojiUrl}` : ' (no URL)'}`);
+        logger.info(`Added reaction to post ${post.id}: ${normalizedEmoji}${emojiUrl ? ` with URL: ${emojiUrl}` : ' (no URL)'}`);
       }
     } else {
       logger.warn(`Post or message not found for like: ${objectUrl}`);
@@ -1484,15 +1453,14 @@ export class ActivityProcessor {
   }
 
   /**
-   * Process Announce activity (reblog/boost)
+   * Announce activity: reblog/boost.
    */
   private static async processAnnounce(activity: any): Promise<void> {
     const { actorUrl, objectUrl, published } = extractAnnounceData(activity);
     const supabase = getSupabaseClient();
 
-    logger.info(`📢 Processing Announce: ${actorUrl} reblogged ${objectUrl}`);
+    logger.info(`Processing Announce: ${actorUrl} reblogged ${objectUrl}`);
 
-    // Ensure user exists
     await this.ensureRemoteUser(actorUrl);
 
     const { data: user } = await supabase
@@ -1506,12 +1474,11 @@ export class ActivityProcessor {
       return;
     }
 
-    // Find original post - try ap_id first (correct column), then by UUID extraction
     let originalPost: any = null;
     
     const originalPostColumns = 'id, content, visibility, author_id, created_at, ap_id, is_sensitive, content_warning, favorites_count, replies_count, reblogs_count, media_attachments, url';
 
-    // Method 1: Try by ap_id (correct column name)
+    // Original post lookup, method 1: by ap_id.
     const { data: postByApId } = await supabase
       .from('posts')
       .select(originalPostColumns)
@@ -1520,13 +1487,13 @@ export class ActivityProcessor {
     
     originalPost = postByApId;
     
-    // Method 2: If not found, try extracting UUID from URL
-    // Support both /posts/{uuid} and /activities/{uuid} URL formats
+    // Method 2: UUID extracted from the URL. Both /posts/{uuid} and
+    // /activities/{uuid} forms are accepted.
     if (!originalPost) {
       const uuidMatch = objectUrl.match(/\/(?:posts|activities)\/([a-f0-9-]{36})/);
       if (uuidMatch) {
         const postId = uuidMatch[1];
-        logger.info(`🔍 Trying to find post by UUID: ${postId}`);
+        logger.info(`Trying to find post by UUID: ${postId}`);
         const { data: postById } = await supabase
           .from('posts')
           .select(originalPostColumns)
@@ -1534,12 +1501,12 @@ export class ActivityProcessor {
           .maybeSingle();
         originalPost = postById;
         if (postById) {
-          logger.info(`✅ Found post by UUID: ${postId}`);
+          logger.info(`Found post by UUID: ${postId}`);
         }
       }
     }
 
-    // Method 3: If still not found, try to fetch and create the remote post
+    // Method 3: fetch the post from its origin instance and import it.
     if (!originalPost) {
       logger.info(`Original post not found locally, attempting to fetch: ${objectUrl}`);
       try {
@@ -1553,7 +1520,6 @@ export class ActivityProcessor {
         if (response.ok) {
           const remotePost = await response.json();
           if (remotePost.type === 'Note' || remotePost.type === 'Article') {
-            // Ensure the remote author exists
             const authorUrl = normalizeActor(remotePost.attributedTo || remotePost.actor);
             await this.ensureRemoteUser(authorUrl);
             
@@ -1602,7 +1568,7 @@ export class ActivityProcessor {
       return;
     }
 
-    // Check if reblog already exists to avoid duplicates
+    // Deduplicate by the Announce activity id.
     const { data: existingReblog } = await supabase
       .from('posts')
       .select('id')
@@ -1620,17 +1586,15 @@ export class ActivityProcessor {
       .eq('id', originalPost.author_id)
       .single();
 
-    // Create reblog post with proper metadata and reblog fields
-    // The database constraint requires either content OR reblog to be non-null
     const { error: insertError } = await supabase.from('posts').insert({
-      ap_id: activity.id, // Set ap_id for the reblog itself
+      ap_id: activity.id,
       author_id: user.id,
-      content: [], // Reblogs have no content of their own
+      content: [], // Reblogs carry no content of their own
       visibility: 'public',
       is_local: false,
       is_federated: true,
       ap_type: 'Announce',
-      // The reblog field is required for the posts_content_not_empty constraint
+      // posts_content_not_empty requires content or reblog to be non-null.
       reblog: {
         id: originalPost.id,
         content: originalPost.content,
@@ -1657,7 +1621,6 @@ export class ActivityProcessor {
     if (insertError) {
       logger.error('Failed to create reblog post:', insertError);
     } else {
-      // Also create a post_interaction record for the reblog
       await supabase.from('post_interactions').insert({
         user_id: user.id,
         post_id: originalPost.id,
@@ -1669,18 +1632,15 @@ export class ActivityProcessor {
       await supabase.rpc('increment_post_reblogs', { p_post_id: originalPost.id })
         .catch(err => logger.warn('Failed to increment reblog count:', err));
 
-      logger.info(`✅ Created reblog of ${originalPost.id} by ${user.id}`);
+      logger.info(`Created reblog of ${originalPost.id} by ${user.id}`);
     }
   }
 
-  /**
-   * Process Undo activity
-   */
   private static async processUndo(activity: any): Promise<void> {
     const object = activity.object;
     const supabase = getSupabaseClient();
 
-    logger.info(`🔄 Processing Undo activity from ${activity.actor}`);
+    logger.info(`Processing Undo activity from ${activity.actor}`);
     logger.debug(`Undo object: ${JSON.stringify(object)?.substring(0, 500)}`);
 
     if (!object) {
@@ -1692,8 +1652,7 @@ export class ActivityProcessor {
     
     // String object refs need a lookup to determine their original type
     if (typeof object === 'string') {
-      logger.info(`🔍 Undo object is a string ID: ${object}`);
-      // Try to find the original activity by its ID
+      logger.info(`Undo object is a string ID: ${object}`);
       const { data: originalActivity } = await supabase
         .from('ap_activities')
         .select('ap_type, activity_data')
@@ -1713,7 +1672,7 @@ export class ActivityProcessor {
     switch (objectType) {
       case 'Follow': {
         const { followerUrl, followingUrl } = extractFollowData(object);
-        logger.info(`🔄 Undoing follow: ${followerUrl} → ${followingUrl}`);
+        logger.info(`Undoing follow: ${followerUrl} → ${followingUrl}`);
         
         const { data: follower } = await supabase
           .from('profiles')
@@ -1744,7 +1703,7 @@ export class ActivityProcessor {
           if (error) {
             logger.error(`Failed to delete follow:`, error);
           } else {
-            logger.info(`✅ Undid follow: ${followerUrl} → ${followingUrl}`);
+            logger.info(`Undid follow: ${followerUrl} → ${followingUrl}`);
           }
         }
         break;
@@ -1758,9 +1717,9 @@ export class ActivityProcessor {
 
       case 'Announce': {
         const announceId = typeof object === 'string' ? object : object.id;
-        logger.info(`🔄 Undoing announce: ${announceId}`);
+        logger.info(`Undoing announce: ${announceId}`);
         
-        // First get the reblog post to find the original
+        // The reblog post carries metadata.reblog_of pointing at the original.
         const { data: reblogPost } = await supabase
           .from('posts')
           .select('id, metadata')
@@ -1796,7 +1755,7 @@ export class ActivityProcessor {
                 .eq('interaction_type', 'reblog');
             }
           }
-          logger.info(`✅ Undid announce: ${announceId}`);
+          logger.info(`Undid announce: ${announceId}`);
         } else {
           logger.warn(`Reblog post not found for Undo: ${announceId}`);
         }
@@ -1809,13 +1768,13 @@ export class ActivityProcessor {
   }
 
   /**
-   * Process Undo for Like/EmojiReaction (supports both posts and messages/DMs)
+   * Undo of Like/EmojiReaction. Handles both posts and messages/DMs.
    */
   private static async processUndoReaction(object: any, _actorUrl: string): Promise<void> {
     const supabase = getSupabaseClient();
     const { actorUrl: likeActorUrl, objectUrl } = extractLikeData(object);
     
-    logger.info(`🔄 Undoing reaction from ${likeActorUrl} on ${objectUrl}`);
+    logger.info(`Undoing reaction from ${likeActorUrl} on ${objectUrl}`);
     
     const { data: user } = await supabase
       .from('profiles')
@@ -1832,7 +1791,7 @@ export class ActivityProcessor {
       const uuidMatch = objectUrl.match(/\/messages\/([a-f0-9-]{36})/);
       if (uuidMatch) {
         const messageId = uuidMatch[1];
-        logger.info(`🔄 Undoing message reaction on ${messageId}`);
+        logger.info(`Undoing message reaction on ${messageId}`);
         
         const { error, count } = await supabase
           .from('reactions')
@@ -1843,7 +1802,7 @@ export class ActivityProcessor {
         if (error) {
           logger.error(`Failed to delete message reaction:`, error);
         } else {
-          logger.info(`✅ Undid message reaction on ${objectUrl} (deleted ${count || 'unknown'} records)`);
+          logger.info(`Undid message reaction on ${objectUrl} (deleted ${count || 'unknown'} records)`);
         }
       }
       return;
@@ -1860,11 +1819,11 @@ export class ActivityProcessor {
     
     post = postByApId;
     
-    // Fallback: try extracting UUID from URL (for local posts)
+    // Fallback: UUID extracted from the URL, for local posts.
     if (!post && objectUrl.includes('/posts/')) {
       const uuidMatch = objectUrl.match(/\/posts\/([a-f0-9-]{36})/);
       if (uuidMatch) {
-        logger.info(`🔍 Trying to find local post by UUID: ${uuidMatch[1]}`);
+        logger.info(`Trying to find local post by UUID: ${uuidMatch[1]}`);
         const { data: postById } = await supabase
           .from('posts')
           .select('id')
@@ -1889,7 +1848,7 @@ export class ActivityProcessor {
     if (error) {
       logger.error(`Failed to delete reaction:`, error);
     } else {
-      logger.info(`✅ Undid reaction on ${objectUrl} (deleted ${count || 'unknown'} records)`);
+      logger.info(`Undid reaction on ${objectUrl} (deleted ${count || 'unknown'} records)`);
     }
   }
 
@@ -1897,7 +1856,7 @@ export class ActivityProcessor {
    * Process Undo by looking up the original activity type
    */
   private static async processUndoByType(activityType: string, activityData: any, actorUrl: string): Promise<void> {
-    logger.info(`🔄 Processing Undo by type: ${activityType}`);
+    logger.info(`Processing Undo by type: ${activityType}`);
     
     switch (activityType) {
       case 'Like':
@@ -1927,7 +1886,7 @@ export class ActivityProcessor {
                 .delete()
               .eq('follower_id', follower.id)
               .eq('following_id', following.id);
-            logger.info(`✅ Undid follow: ${followerUrl} → ${followingUrl}`);
+            logger.info(`Undid follow: ${followerUrl} → ${followingUrl}`);
           }
         }
         break;
@@ -1938,7 +1897,7 @@ export class ActivityProcessor {
             .from('posts')
             .delete()
             .eq('ap_id', activityData.id);
-          logger.info(`✅ Undid announce: ${activityData.id}`);
+          logger.info(`Undid announce: ${activityData.id}`);
         }
         break;
       default:
@@ -1947,13 +1906,11 @@ export class ActivityProcessor {
   }
 
   /**
-   * Process Create activity for polls (Question type)
-   * Stores the poll as a post with poll data in metadata
+   * Create of a Question. The poll is stored as a post with poll data in metadata.
    */
   private static async processCreatePoll(activity: any, object: any): Promise<void> {
     const supabase = getSupabaseClient();
 
-    // Ensure author exists
     await this.ensureRemoteUser(normalizeActor(activity.actor));
 
     const { data: author } = await supabase
@@ -2014,7 +1971,7 @@ export class ActivityProcessor {
       if (error) {
         logger.error('Failed to update poll:', error);
       } else {
-        logger.info(`📊 Updated poll: ${object.id}`);
+        logger.info(`Updated poll: ${object.id}`);
       }
     } else {
       const { error } = await supabase.from('posts').insert({
@@ -2036,14 +1993,14 @@ export class ActivityProcessor {
       if (error) {
         logger.error('Failed to create poll post:', error);
       } else {
-        logger.info(`📊 Created poll: ${object.id} with ${options.length} options`);
+        logger.info(`Created poll: ${object.id} with ${options.length} options`);
       }
     }
   }
 
   /**
-   * Extract server ID from a Harmony server URL and find the local (remote-copy) server.
-   * Returns the server row or null.
+   * Extract the server UUID from a Harmony server URL and find the local
+   * remote-copy server row.
    */
   private static async resolveRemoteServer(serverUrl: string): Promise<any | null> {
     const supabase = getSupabaseClient();
@@ -2061,7 +2018,7 @@ export class ActivityProcessor {
   }
 
   /**
-   * Handle Harmony channel/category Add activities received on the shared inbox.
+   * Harmony channel/category Add activities received on the shared inbox.
    */
   private static async processHarmonyChannelAdd(activity: any, object: any): Promise<void> {
     const supabase = getSupabaseClient();
@@ -2105,7 +2062,7 @@ export class ActivityProcessor {
       if (error) {
         logger.error(`Failed to create category ${object.name}:`, error);
       } else {
-        logger.info(`📁 Created remote category: ${object.name}`);
+        logger.info(`Created remote category: ${object.name}`);
       }
     } else {
       const channelType = object.type === 'harmony:VoiceChannel' ? 1 : 0;
@@ -2151,14 +2108,14 @@ export class ActivityProcessor {
       if (error) {
         logger.error(`Failed to create channel ${object.name}:`, error);
       } else {
-        logger.info(`📢 Created remote channel: ${object.name} (${object.type})`);
+        logger.info(`Created remote channel: ${object.name} (${object.type})`);
       }
     }
   }
 
   /**
-   * Handle Harmony channel/category Update activities received on the shared inbox.
-   * Auto-creates the entity if it doesn't exist (missed Add / source-of-truth sync).
+   * Harmony channel/category Update activities received on the shared inbox.
+   * Creates the entity when absent, covering a missed Add.
    */
   private static async processHarmonyChannelUpdate(activity: any, object: any): Promise<void> {
     const supabase = getSupabaseClient();
@@ -2186,7 +2143,7 @@ export class ActivityProcessor {
             order: object.position || object.order,
           })
           .eq('id', entityUuid);
-        logger.info(`✏️ Updated remote category: ${object.name}`);
+        logger.info(`Updated remote category: ${object.name}`);
       } else {
         const server = await this.resolveRemoteServer(actorUrl);
         if (!server) {
@@ -2202,7 +2159,7 @@ export class ActivityProcessor {
         if (error) {
           logger.error(`Failed to auto-create category ${object.name}:`, error);
         } else {
-          logger.info(`📁 Auto-created remote category on Update: ${object.name}`);
+          logger.info(`Auto-created remote category on Update: ${object.name}`);
         }
       }
     } else {
@@ -2235,7 +2192,7 @@ export class ActivityProcessor {
             category: categoryId,
           })
           .eq('id', channel.id);
-        logger.info(`✏️ Updated remote channel: ${object.name}`);
+        logger.info(`Updated remote channel: ${object.name}`);
       } else {
         const server = await this.resolveRemoteServer(actorUrl);
         if (!server) {
@@ -2259,14 +2216,14 @@ export class ActivityProcessor {
         if (error) {
           logger.error(`Failed to auto-create channel ${object.name}:`, error);
         } else {
-          logger.info(`📢 Auto-created remote channel on Update: ${object.name}`);
+          logger.info(`Auto-created remote channel on Update: ${object.name}`);
         }
       }
     }
   }
 
   /**
-   * Handle Harmony channel/category Remove activities received on the shared inbox.
+   * Harmony channel/category Remove activities received on the shared inbox.
    */
   private static async processHarmonyChannelRemove(activity: any, objectUrl: string): Promise<void> {
     const supabase = getSupabaseClient();
@@ -2279,7 +2236,6 @@ export class ActivityProcessor {
       return;
     }
 
-    // Try channels table first
     const { data: deletedChannel } = await supabase
       .from('channels')
       .delete()
@@ -2289,11 +2245,11 @@ export class ActivityProcessor {
       .maybeSingle();
 
     if (deletedChannel) {
-      logger.info(`🗑️ Removed remote channel: ${objectUrl}`);
+      logger.info(`Removed remote channel: ${objectUrl}`);
       return;
     }
 
-    // Try channel_categories by UUID
+    // Not a channel; the same URL may name a category, keyed by UUID.
     if (uuidMatch) {
       const { data: deletedCat } = await supabase
         .from('channel_categories')
@@ -2304,7 +2260,7 @@ export class ActivityProcessor {
         .maybeSingle();
 
       if (deletedCat) {
-        logger.info(`🗑️ Removed remote category: ${uuidMatch[1]}`);
+        logger.info(`Removed remote category: ${uuidMatch[1]}`);
         return;
       }
     }
@@ -2313,7 +2269,8 @@ export class ActivityProcessor {
   }
 
   /**
-   * Process Add activity (pinning posts to featured collection)
+   * Add activity: pins a post to the featured collection, or adds a Harmony
+   * channel/category.
    */
   private static async processAdd(activity: any): Promise<void> {
     const supabase = getSupabaseClient();
@@ -2333,7 +2290,7 @@ export class ActivityProcessor {
       return;
     }
 
-    logger.info(`📌 Processing Add to featured: ${objectUrl}`);
+    logger.info(`Processing Add to featured: ${objectUrl}`);
 
     const { data: post, error } = await supabase
       .from('posts')
@@ -2351,11 +2308,12 @@ export class ActivityProcessor {
       .update({ is_pinned: true })
       .eq('id', post.id);
 
-    logger.info(`📌 Pinned post: ${objectUrl}`);
+    logger.info(`Pinned post: ${objectUrl}`);
   }
 
   /**
-   * Process Remove activity (unpinning posts, group participant removal)
+   * Remove activity: unpins a post, removes a Harmony channel/category, or
+   * drops a group conversation participant.
    */
   private static async processRemove(activity: any): Promise<void> {
     const supabase = getSupabaseClient();
@@ -2379,7 +2337,7 @@ export class ActivityProcessor {
       return;
     }
 
-    logger.info(`📌 Processing Remove from featured: ${objectUrl}`);
+    logger.info(`Processing Remove from featured: ${objectUrl}`);
 
     const { error } = await supabase
       .from('posts')
@@ -2387,12 +2345,12 @@ export class ActivityProcessor {
       .eq('ap_id', objectUrl);
 
     if (!error) {
-      logger.info(`📌 Unpinned post: ${objectUrl}`);
+      logger.info(`Unpinned post: ${objectUrl}`);
     }
   }
 
   /**
-   * Process Flag activity (reports from other instances)
+   * Flag activity: a report from another instance.
    */
   private static async processFlag(activity: any): Promise<void> {
     const supabase = getSupabaseClient();
@@ -2400,9 +2358,8 @@ export class ActivityProcessor {
     const objects = Array.isArray(activity.object) ? activity.object : [activity.object];
     const content = activity.content || 'No reason provided';
 
-    logger.info(`🚩 Processing Flag from ${actorUrl}: ${objects.length} objects`);
+    logger.info(`Processing Flag from ${actorUrl}: ${objects.length} objects`);
 
-    // Ensure reporter exists
     await this.ensureRemoteUser(actorUrl);
 
     const { data: reporter } = await supabase
@@ -2423,7 +2380,6 @@ export class ActivityProcessor {
       const isUserReport = objectUrl.includes('/users/');
       
       if (isUserReport) {
-        // User report
         const { data: reportedUser } = await supabase
           .from('profiles')
           .select('id')
@@ -2441,10 +2397,9 @@ export class ActivityProcessor {
             status: 'pending',
             ap_id: activity.id,
           });
-          logger.info(`🚩 Created user report for ${objectUrl}`);
+          logger.info(`Created user report for ${objectUrl}`);
         }
       } else {
-        // Post report
         const { data: reportedPost } = await supabase
           .from('posts')
           .select('id, author_id')
@@ -2463,14 +2418,14 @@ export class ActivityProcessor {
             status: 'pending',
             ap_id: activity.id,
           });
-          logger.info(`🚩 Created post report for ${objectUrl}`);
+          logger.info(`Created post report for ${objectUrl}`);
         }
       }
     }
   }
 
   /**
-   * Process Block activity (federated blocks)
+   * Block activity: a federated block.
    */
   private static async processBlock(activity: any): Promise<void> {
     const supabase = getSupabaseClient();
@@ -2482,9 +2437,9 @@ export class ActivityProcessor {
       return;
     }
 
-    logger.info(`🚫 Processing Block: ${actorUrl} → ${blockedUrl}`);
+    logger.info(`Processing Block: ${actorUrl} → ${blockedUrl}`);
 
-    // Ensure both users exist
+    // Only the blocker is fetched; the blocked profile must already be known.
     await this.ensureRemoteUser(actorUrl);
 
     const { data: blocker } = await supabase
@@ -2514,18 +2469,18 @@ export class ActivityProcessor {
       onConflict: 'blocker_id,blocked_user_id',
     });
 
-    // Also remove any follow relationships
+    // Follow relationships are dropped in both directions.
     await supabase
       .from('follows')
       .delete()
       .or(`and(follower_id.eq.${blocker.id},following_id.eq.${blocked.id}),and(follower_id.eq.${blocked.id},following_id.eq.${blocker.id})`);
 
-    logger.info(`🚫 Blocked: ${actorUrl} → ${blockedUrl}`);
+    logger.info(`Blocked: ${actorUrl} → ${blockedUrl}`);
   }
 
   /**
-   * Resolve an inbound emoji into an emoji_id, creating entries as needed.
-   * Works for both custom emojis (with URL) and standard unicode emojis.
+   * Resolve an inbound emoji into an emoji_id, creating the row when absent.
+   * Returns null for anything without both a name and a URL.
    */
   private static async resolveInboundEmojiId(
     supabase: any,
@@ -2534,8 +2489,8 @@ export class ActivityProcessor {
     userId: string,
   ): Promise<string | null> {
     // Only image-backed custom emoji get an `emojis` row. Unicode reactions are
-    // stored via `custom_emoji_content` by the caller and must never create a row
-    // here (doing so pollutes the instance emoji picker with url-less entries).
+    // stored via `custom_emoji_content` by the caller; creating a row for them
+    // pollutes the instance emoji picker with url-less entries.
     if (!emojiUrl || !emojiName) return null;
 
     const cleanName = emojiName.replace(/:/g, '');
@@ -2576,12 +2531,11 @@ export class ActivityProcessor {
   }
 
   /**
-   * Ensure remote user exists in database (fetch if needed)
-   * @param actorUrl - The ActivityPub actor URL
-   * @param forceRefresh - If true, refresh profile even if user exists (for stale data)
+   * Ensure a remote user row exists, fetching the actor when missing or stale.
+   * `forceRefresh` re-fetches even when the profile is present and fresh.
    */
-  // Dedup concurrent fetches per actor: a burst of activities from a new (or
-  // stale) sender otherwise triggers N identical remote actor fetches.
+  // Dedup concurrent fetches per actor: a burst of activities from a new or
+  // stale sender otherwise triggers N identical remote actor fetches.
   private static inflightActorFetches = new Map<string, Promise<any | null>>();
 
   private static async ensureRemoteUser(actorUrl: string, forceRefresh: boolean = false): Promise<any | null> {
@@ -2611,18 +2565,17 @@ export class ActivityProcessor {
       const updatedAt = new Date(existing.updated_at);
       const hoursSinceUpdate = (Date.now() - updatedAt.getTime()) / (1000 * 60 * 60);
       
+      // Profiles are considered fresh for 24h.
       if (hoursSinceUpdate < 24) {
-        return existing; // User exists and is fresh enough
+        return existing;
       }
-      // Profile is stale, refresh it
       logger.info(`Profile for ${actorUrl} is stale (${Math.round(hoursSinceUpdate)}h old), refreshing...`);
     } else if (existing && forceRefresh) {
       logger.info(`Force refreshing profile for ${actorUrl}`);
     }
 
-    // Fetch actor from remote server.
     // BUGS.md H15: actorUrl is attacker-influenced (from inbox or Follow
-    // activity); safeFetch handles SSRF + redirect re-validation + timeout.
+    // activity); safeFetch handles SSRF, redirect re-validation, and timeout.
     try {
       let response = await safeFetch(actorUrl, {
         headers: {
@@ -2630,7 +2583,7 @@ export class ActivityProcessor {
         },
       });
 
-      // Retry with HTTP signature for instances requiring authorized fetch.
+      // Retry signed for instances requiring authorized fetch.
       if (response.status === 401 || response.status === 403) {
         logger.debug(`Actor fetch got ${response.status}, retrying with HTTP signature: ${actorUrl}`);
         response = await SignatureService.signedApFetch(actorUrl);
@@ -2644,16 +2597,16 @@ export class ActivityProcessor {
       const actor = await response.json();
       const profileData = actorToProfile(actor);
 
-      // SECURITY: Check if this actor claims to be from our local domain
-      // This could be a spoofing attack from a malicious remote server
+      // SECURITY: a remote actor claiming the instance domain is a spoofing
+      // attempt; refuse the upsert.
       const { config } = await import('../config/index.js');
       if (profileData.domain.toLowerCase() === config.INSTANCE_DOMAIN.toLowerCase()) {
-        logger.warn(`🚨 SECURITY: Remote actor ${actorUrl} claims local domain ${profileData.domain}! Refusing to upsert.`);
+        logger.warn(`SECURITY: Remote actor ${actorUrl} claims local domain ${profileData.domain}! Refusing to upsert.`);
         return existing || null;
       }
 
-      // SECURITY: Check if there's an existing LOCAL user with this username/domain
-      // The federated_id conflict should prevent this, but belt-and-suspenders
+      // SECURITY: second guard against overwriting a local user with the same
+      // username/domain. The federated_id conflict normally prevents this.
       const { data: existingLocalUser } = await supabase
         .from('profiles')
         .select('id, is_local')
@@ -2663,12 +2616,12 @@ export class ActivityProcessor {
         .maybeSingle();
       
       if (existingLocalUser) {
-        logger.warn(`🚨 SECURITY: Refusing to overwrite local user ${profileData.username}@${profileData.domain} via ensureRemoteUser`);
+        logger.warn(`SECURITY: Refusing to overwrite local user ${profileData.username}@${profileData.domain} via ensureRemoteUser`);
         return existing || null;
       }
 
-      // Upsert remote user - map field names to database columns
-      // This handles both initial creation and refreshing stale profiles
+      // Maps actor field names onto database columns. Serves both initial
+      // creation and stale-profile refresh.
       const profileRecord: any = {
         username: profileData.username,
         domain: profileData.domain,
@@ -2683,11 +2636,11 @@ export class ActivityProcessor {
         followers_url: profileData.followers_url,
         following_url: profileData.following_url,
         is_local: false,
-        updated_at: new Date().toISOString(), // Track when we last synced
-        last_synced_at: new Date().toISOString(), // Also update last_synced_at
+        updated_at: new Date().toISOString(),
+        last_synced_at: new Date().toISOString(),
       };
 
-      // Include Harmony extension: profile color
+      // Harmony extension: profile color.
       if (profileData.color) {
         profileRecord.color = profileData.color;
       }
@@ -2697,7 +2650,7 @@ export class ActivityProcessor {
         profileRecord.profile_fields = profileData.profile_fields;
       }
 
-      // Persist shared inbox URL for delivery optimization
+      // Shared inbox URL, used to batch delivery.
       if (actor.endpoints?.sharedInbox) {
         profileRecord.shared_inbox_url = actor.endpoints.sharedInbox;
       }
@@ -2715,7 +2668,6 @@ export class ActivityProcessor {
         profileRecord.federation_metadata = meta;
       }
 
-      // Upsert the profile
       const { error: upsertError } = await supabase
         .from('profiles')
         .upsert(profileRecord, {
@@ -2727,7 +2679,7 @@ export class ActivityProcessor {
         return existing || null;
       }
 
-      // Query the profile after upsert (upsert().select() doesn't reliably return data)
+      // Re-query after upsert; upsert().select() does not reliably return rows.
       const { data: savedProfile, error: queryError } = await supabase
         .from('profiles')
         .select('id, username, display_name, avatar_url, federated_id, color')
@@ -2755,7 +2707,7 @@ export class ActivityProcessor {
   }
 
   /**
-   * Process channel message (Harmony server channel message, not regular post)
+   * Harmony server channel message, distinct from a regular post.
    */
   private static async processChannelMessage(activity: any, object: any): Promise<void> {
     const supabase = getSupabaseClient();
@@ -2789,7 +2741,6 @@ export class ActivityProcessor {
       return;
     }
 
-    // Ensure author exists
     const author = await this.ensureRemoteUser(actorUrl);
     if (!author) {
       logger.error(`Could not ensure remote user for channel message: ${actorUrl}`);
@@ -2832,14 +2783,14 @@ export class ActivityProcessor {
       content = [{ type: 'text', text: String(object.content || '') }];
     }
 
-    // Resolve mention userIds from origin-instance UUIDs to local profile UUIDs
+    // Mention userIds arrive as origin-instance UUIDs; map to local profile UUIDs.
     if (Array.isArray(content)) {
       const { resolveMentionUserIds } = await import('../utils/mentionResolver.js');
       content = await resolveMentionUserIds(content);
     }
     
-    // Convert remote emojis to URL-based format (like Discord bridge)
-    // Remote emoji UUIDs won't exist locally, so we need their URLs instead
+    // Remote emoji UUIDs do not exist locally, so emojis are rewritten to the
+    // URL-based form used by the Discord bridge.
     const instanceDomain = new URL(actorUrl).hostname;
     if (Array.isArray(content)) {
       content = content.map((item: any) => {
@@ -2848,8 +2799,8 @@ export class ActivityProcessor {
             type: 'emoji',
             emoji: {
               name: item.emoji.name || 'emoji',
-              url: item.emoji.url, // Keep the original URL
-              domain: instanceDomain, // Mark as remote
+              url: item.emoji.url,
+              domain: instanceDomain,
               is_remote: true,
             }
           };
@@ -2869,8 +2820,8 @@ export class ActivityProcessor {
       return;
     }
 
-    // Resolve reply_to: the inReplyTo URL contains the remote AP ID or UUID,
-    // which may not exist locally. Look up by ap_id in metadata first, then by UUID.
+    // inReplyTo holds a remote AP id or UUID that may not exist locally.
+    // Resolved by metadata ap_id first, then by extracted UUID.
     let resolvedReplyTo: string | null = null;
     if (object.inReplyTo) {
       const { data: parentByApId } = await supabase
@@ -2943,16 +2894,16 @@ export class ActivityProcessor {
       return;
     }
 
-    logger.info(`✅ Created channel message ${messageId} in #${channelName} from ${author.username}`);
+    logger.info(`Created channel message ${messageId} in #${channelName} from ${author.username}`);
 
-    // If message belongs to a thread that doesn't exist yet, create a stub thread
+    // Message names a thread that does not exist yet; create a stub.
     if (threadApIdValue && !resolvedThreadId && insertedMsg) {
       try {
         const threadUuidMatch = threadApIdValue.match(/\/threads\/([a-f0-9-]{36})/);
         const stubThreadId = threadUuidMatch ? threadUuidMatch[1] : randomUUID();
 
-        // Resolve the correct parent message if provided by the origin
-        let parentMessageId = insertedMsg.id; // fallback: use this message
+        // Parent message named by the origin, if any.
+        let parentMessageId = insertedMsg.id; // fallback: this message
         const parentMessageApId = object['harmony:parentMessageId'];
         if (parentMessageApId) {
           const { data: parentByApId } = await supabase
@@ -3001,15 +2952,15 @@ export class ActivityProcessor {
 
         if (stubError) {
           if (stubError.code === '23505') {
-            // Thread was just created (race condition) - resolve and assign
+            // 23505: the thread was created concurrently; adopt that row.
             resolvedThreadId = stubThreadId;
-            logger.info(`🧵 Stub thread ${stubThreadId} already exists (race condition), assigning message`);
+            logger.info(`Stub thread ${stubThreadId} already exists (race condition), assigning message`);
           } else {
             logger.warn(`Failed to create stub thread: ${stubError.message}`);
           }
         } else {
           resolvedThreadId = stubThreadId;
-          logger.info(`🧵 Created stub thread ${stubThreadId} for AP ID ${threadApIdValue}`);
+          logger.info(`Created stub thread ${stubThreadId} for AP ID ${threadApIdValue}`);
         }
 
         if (resolvedThreadId) {
@@ -3018,7 +2969,7 @@ export class ActivityProcessor {
             .update({ thread_id: resolvedThreadId })
             .eq('id', insertedMsg.id);
 
-          // Also pick up any other orphaned messages with the same pending_thread_ap_id
+          // Adopt other orphaned messages carrying the same pending_thread_ap_id.
           const { data: orphans } = await supabase
             .from('messages')
             .select('id')
@@ -3032,7 +2983,7 @@ export class ActivityProcessor {
               .from('messages')
               .update({ thread_id: resolvedThreadId })
               .in('id', orphans.map((m: any) => m.id));
-            logger.info(`🧵 Assigned ${orphans.length} additional orphaned messages to stub thread ${resolvedThreadId}`);
+            logger.info(`Assigned ${orphans.length} additional orphaned messages to stub thread ${resolvedThreadId}`);
           }
         }
       } catch (err) {
@@ -3049,7 +3000,7 @@ export class ActivityProcessor {
   }
 
   /**
-   * Resolve a thread ID from an AP URL. Tries ap_id match first, then UUID extraction.
+   * Resolve a thread ID from an AP URL: ap_id match first, then UUID extraction.
    */
   private static async resolveThreadId(supabase: any, threadApIdValue: string): Promise<string | null> {
     const { data: threadByApId } = await supabase
@@ -3074,7 +3025,7 @@ export class ActivityProcessor {
   }
 
   /**
-   * Handle direct message (store in messages table instead of posts)
+   * Direct message. Stored in `messages`, not `posts`.
    */
   private static async handleDirectMessage(
     object: any,
@@ -3101,7 +3052,7 @@ export class ActivityProcessor {
       return;
     }
 
-    // Decide group vs 1:1 based on sender metadata or recipient count
+    // Group vs 1:1 is decided by sender metadata or recipient count.
     const isGroup = object['harmony:conversationType'] === 'group' || recipientIds.length > 1;
     let conversationId: string | null = null;
 
@@ -3133,7 +3084,7 @@ export class ActivityProcessor {
       logger.info(`Using conversation ${conversationId} for DM`);
     };
 
-    // Deduplicate: skip if we already stored a message with this ap_id
+    // Deduplicate by ap_id within the conversation.
     const { data: existing } = await supabase
       .from('messages')
       .select('id')
@@ -3142,7 +3093,7 @@ export class ActivityProcessor {
       .limit(1);
 
     if (existing && existing.length > 0) {
-      logger.info(`⏭️ DM already exists for ${object.id}, skipping duplicate`);
+      logger.info(`DM already exists for ${object.id}, skipping duplicate`);
       return;
     }
 
@@ -3174,7 +3125,7 @@ export class ActivityProcessor {
     if (messageError) {
       logger.error(`Failed to create DM from activity:`, messageError)
     } else {
-      logger.info(`✅ Created DM in conversation ${conversationId} from ${object.id}`)
+      logger.info(`Created DM in conversation ${conversationId} from ${object.id}`)
       if (insertedDM) {
         const { enrichMessageLinkPreviews } = await import('../listeners/DatabaseListener.js');
         enrichMessageLinkPreviews(insertedDM).catch(err =>
@@ -3185,7 +3136,7 @@ export class ActivityProcessor {
   }
 
   /**
-   * Handle group invite (remote user added to group) - create conversation + notification
+   * Group invite: creates the conversation and notifies local recipients.
    */
   private static async handleGroupInvite(object: any, authorId: string): Promise<void> {
     const supabase = getSupabaseClient();
@@ -3256,18 +3207,15 @@ export class ActivityProcessor {
   }
 
   /**
-   * Handle group conversation Update (name, icon changes from remote instance)
-   */
-  /**
    * Resolve a remote conversation ID to the local conversation row.
-   * Tries direct UUID match first, then falls back to metadata mapping.
+   * Direct UUID match first, then the metadata mapping.
    */
   private static async resolveGroupConversation(
     remoteConversationId: string
   ): Promise<{ id: string; type: string; metadata: any } | null> {
     const supabase = getSupabaseClient();
 
-    // 1. Direct ID match (same-instance or lucky UUID collision)
+    // 1. Direct ID match; holds when the conversation is same-instance.
     const { data: direct } = await supabase
       .from('conversations')
       .select('id, type, metadata')
@@ -3277,7 +3225,7 @@ export class ActivityProcessor {
 
     if (direct) return direct;
 
-    // 2. Look up by remote_conversation_id stored in metadata
+    // 2. Fall back to metadata.remote_conversation_id.
     const { data: mapped } = await supabase
       .from('conversations')
       .select('id, type, metadata')
@@ -3298,7 +3246,7 @@ export class ActivityProcessor {
       return;
     }
 
-    logger.info(`📝 Processing group conversation update: ${updateType} for ${remoteConversationId}`);
+    logger.info(`Processing group conversation update: ${updateType} for ${remoteConversationId}`);
 
     const conversation = await this.resolveGroupConversation(remoteConversationId);
 
@@ -3315,7 +3263,7 @@ export class ActivityProcessor {
         .from('conversations')
         .update({ name: newName, updated_at: new Date().toISOString() })
         .eq('id', localId);
-      logger.info(`✅ Updated group conversation name: ${newName}`);
+      logger.info(`Updated group conversation name: ${newName}`);
     } else if (updateType === 'icon') {
       const iconUrl = object.icon?.url || null;
       if (iconUrl) {
@@ -3327,7 +3275,7 @@ export class ActivityProcessor {
             updated_at: new Date().toISOString(),
           })
           .eq('id', localId);
-        logger.info(`✅ Updated group conversation icon: ${iconUrl}`);
+        logger.info(`Updated group conversation icon: ${iconUrl}`);
       }
     } else if (updateType === 'icon_removed') {
       const currentMetadata = (conversation.metadata as any) || {};
@@ -3337,12 +3285,12 @@ export class ActivityProcessor {
         .from('conversations')
         .update({ metadata: currentMetadata, updated_at: new Date().toISOString() })
         .eq('id', localId);
-      logger.info(`✅ Removed group conversation icon`);
+      logger.info(`Removed group conversation icon`);
     }
   }
 
   /**
-   * Handle group conversation participant removal (from remote instance)
+   * Group conversation participant removal driven by a remote instance.
    */
   private static async handleGroupConversationParticipantRemove(activity: any, target: any): Promise<void> {
     const supabase = getSupabaseClient();
@@ -3354,7 +3302,7 @@ export class ActivityProcessor {
       return;
     }
 
-    logger.info(`👥 Processing group participant removal: ${removedUserUrl} from ${remoteConversationId}`);
+    logger.info(`Processing group participant removal: ${removedUserUrl} from ${remoteConversationId}`);
 
     const conversation = await this.resolveGroupConversation(remoteConversationId);
     if (!conversation) {
@@ -3383,13 +3331,12 @@ export class ActivityProcessor {
     if (error) {
       logger.error('Failed to remove participant from group conversation:', error);
     } else {
-      logger.info(`✅ Removed ${removedUserUrl} from group conversation ${conversation.id}`);
+      logger.info(`Removed ${removedUserUrl} from group conversation ${conversation.id}`);
     }
   }
 
   /**
-   * Determine post visibility from ActivityPub 'to' and 'cc' fields.
-   * Delegates to the module-level exported function.
+   * Delegates to the module-level `determineVisibility`.
    */
   private static determineVisibility(object: any): string {
     return determineVisibility(object);

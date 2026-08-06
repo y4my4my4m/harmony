@@ -12,9 +12,9 @@ import { pgrstEscape } from '../utils/postgrestFilter.js';
 const router = Router();
 
 /**
- * Resolve the caller's PROFILE id from a Supabase Bearer token, or null if the
- * request is unauthenticated / invalid. Used to gate private inbox reads to the
- * inbox owner. Returns the profile id (profiles.id), not the auth uid.
+ * Returns profiles.id for the Supabase Bearer token, not the auth uid.
+ * Null when the request is unauthenticated or the token is invalid.
+ * Gates private inbox reads to the inbox owner.
  */
 async function resolveBearerProfileId(req: Request): Promise<string | null> {
   const authHeader = req.headers.authorization;
@@ -36,16 +36,13 @@ async function resolveBearerProfileId(req: Request): Promise<string | null> {
   }
 }
 
-/**
- * Shared inbox endpoint (standard location)
- * POST /inbox
- */
+// Shared inbox at the ActivityPub-standard location.
 router.post(
   '/inbox',
   inboxLimiter,
   instanceInboxLimiter,
   asyncHandler(async (req: Request, res: Response) => {
-    logger.info(`📮 POST to /inbox (shared inbox) from ${req.ip}`);
+    logger.info(`POST to /inbox (shared inbox) from ${req.ip}`);
     logger.info(`Headers:`, {
       'content-type': req.headers['content-type'],
       'signature': req.headers.signature ? 'present' : 'missing',
@@ -56,16 +53,12 @@ router.post(
   })
 );
 
-/**
- * User inbox endpoint
- * POST /users/:username/inbox
- */
 router.post(
   '/users/:username/inbox',
   inboxLimiter,
   instanceInboxLimiter,
   asyncHandler(async (req: Request, res: Response) => {
-    logger.info(`📮 POST to /users/${req.params.username}/inbox from ${req.ip}`);
+    logger.info(`POST to /users/${req.params.username}/inbox from ${req.ip}`);
     logger.info(`Headers:`, {
       'content-type': req.headers['content-type'],
       'signature': req.headers.signature ? 'present' : 'missing',
@@ -77,14 +70,12 @@ router.post(
 );
 
 /**
- * User inbox collection endpoint with cursor-based pagination
- * GET /users/:username/inbox
  * Query params:
- *   - cursor: ID of last activity (for cursor-based pagination)
- *   - page: Page number (legacy, for backwards compatibility)
- *   - limit: Items per page (default 20, max 100)
- *   - type: Filter by activity type (optional: 'Create', 'Follow', 'Like', 'Announce', etc.)
- *   - min_date / max_date: Date range filter (ISO strings)
+ *   cursor: id of the last activity; cursor pagination.
+ *   page: page number; legacy offset pagination.
+ *   limit: items per page, default 20, max 100.
+ *   type: activity type filter ('Create', 'Follow', 'Like', 'Announce', ...).
+ *   min_date / max_date: ISO date range.
  */
 router.get(
   '/users/:username/inbox',
@@ -125,11 +116,11 @@ router.get(
     const baseUrl = `https://${config.INSTANCE_DOMAIN}`;
     const inboxUrl = `${baseUrl}/users/${username}/inbox`;
 
-    // AUTHORIZATION: inbox contents (and their counts) are private. ActivityPub
-    // delivery is POST-based, so remote servers never need to GET another
-    // user's inbox. Only the owner (or an admin) sees real data; everyone else
-    // gets an empty, correctly-shaped collection instead of an error, which
-    // avoids leaking whether the inbox exists or how active it is.
+    // AUTHORIZATION: inbox contents and counts are private. ActivityPub
+    // delivery is POST-based, so remote servers never GET another user's
+    // inbox. Only the owner or an admin sees real data; others get an empty,
+    // correctly-shaped collection rather than an error, which leaks neither
+    // the inbox's existence nor its activity level.
     const authedProfileId = await resolveBearerProfileId(req);
     const isOwner = authedProfileId !== null && authedProfileId === user.id;
     let isAdmin = false;
@@ -156,9 +147,9 @@ router.get(
         });
         return;
       }
-      // Query activities where user's federated_id is in to_addresses or cc_addresses
-      // Use PostgreSQL array contains operator (cs) via or() filter
-      // Escape double quotes for PostgreSQL array syntax (array values are double-quoted)
+      // Match activities whose to_addresses or cc_addresses contain the user's
+      // federated_id, via the PostgreSQL array-contains operator (cs).
+      // Array values are double-quoted, so embedded quotes are escaped.
       const escapedId = pgrstEscape(user.federated_id);
       let countQuery = supabase
         .from('ap_activities')
@@ -173,7 +164,6 @@ router.get(
       const { count } = await countQuery;
 
       res.setHeader('Content-Type', 'application/activity+json');
-      // Allow caching for 5 minutes
       res.setHeader('Cache-Control', 'private, max-age=300');
       res.json({
         '@context': 'https://www.w3.org/ns/activitystreams',
@@ -197,10 +187,9 @@ router.get(
       return;
     }
 
-    // Build paginated query
-    // Query activities where user's federated_id is in to_addresses or cc_addresses
-    // Use PostgreSQL array contains operator (cs) via or() filter
-    // Escape for PostgreSQL array syntax (array values are double-quoted)
+    // Match activities whose to_addresses or cc_addresses contain the user's
+    // federated_id, via the PostgreSQL array-contains operator (cs).
+    // Array values are double-quoted, so embedded quotes are escaped.
     const escapedId = pgrstEscape(user.federated_id);
     let query = supabase
       .from('ap_activities')
@@ -255,9 +244,7 @@ router.get(
       return {
         '@context': activityData['@context'] || 'https://www.w3.org/ns/activitystreams',
         ...activityData,
-        // Ensure id is present (use ap_id if not in activity_data)
         id: activityData.id || activity.ap_id,
-        // Ensure type is present
         type: activityData.type || activity.ap_type,
       };
     });
@@ -282,15 +269,11 @@ router.get(
     }
 
     res.setHeader('Content-Type', 'application/activity+json');
-    // Allow caching for 5 minutes
     res.setHeader('Cache-Control', 'private, max-age=300');
     res.json(response);
   })
 );
 
-/**
- * Common inbox handler
- */
 async function handleInbox(
   req: Request,
   res: Response,
@@ -307,7 +290,7 @@ async function handleInbox(
     return;
   }
 
-  logger.info(`📥 Received ${activity.type} activity from ${activity.actor}`);
+  logger.info(`Received ${activity.type} activity from ${activity.actor}`);
 
   try {
     const actorUrl = new URL(activity.actor);
@@ -315,41 +298,36 @@ async function handleInbox(
     
     const { BlockedInstancesCache } = await import('../services/BlockedInstancesCache.js');
     if (BlockedInstancesCache.isBlocked(actorDomain)) {
-      logger.info(`🚫 Rejecting activity from blocked instance: ${actorDomain}`);
+      logger.info(`Rejecting activity from blocked instance: ${actorDomain}`);
       res.status(403).json({ error: 'Instance is blocked' });
       return;
     }
   } catch (error) {
-    // If we can't parse the actor URL, continue processing
+    // Unparseable actor URL: processing continues.
     logger.debug(`Could not check instance block status: ${error}`);
   }
 
-  // ============================================
-  // HTTP Signature Verification (SECURITY CRITICAL)
-  // ============================================
-  // ActivityPub uses HTTP Signatures to authenticate requests.
-  // 1. Remote server signs the request with their private key
-  // 2. We fetch their public key from their actor document (over HTTPS)
-  // 3. We verify the signature matches
-  // 4. We verify the actor in the activity matches the signing key's owner
-  // ============================================
+  // CRITICAL: ActivityPub authenticates requests with HTTP Signatures.
+  // 1. Remote server signs the request with its private key.
+  // 2. Public key is fetched from the actor document over HTTPS.
+  // 3. Signature is verified against the request.
+  // 4. activity.actor must match the signing key's owner.
   
   const signature = req.headers.signature as string;
   const actorUrl = typeof activity.actor === 'string' ? activity.actor : activity.actor?.id;
   
   if (!signature) {
     if (config.REQUIRE_VALID_SIGNATURES) {
-      logger.warn(`🚫 Rejecting unsigned activity from ${actorUrl}`);
+      logger.warn(`Rejecting unsigned activity from ${actorUrl}`);
       res.status(401).json({ error: 'Missing HTTP Signature - all ActivityPub requests must be signed' });
       return;
     } else {
-      logger.warn(`⚠️ Accepting unsigned activity from ${actorUrl} (REQUIRE_VALID_SIGNATURES=false)`);
+      logger.warn(`Accepting unsigned activity from ${actorUrl} (REQUIRE_VALID_SIGNATURES=false)`);
     }
   } else {
-    // Verify the HTTP signature
-    // Use req.originalUrl to get the full path as signed by the remote server
-    // req.path may be relative to a mounted router and not match what was signed
-    // Use the raw body buffer for digest verification to avoid JSON re-serialization differences
+    // req.originalUrl carries the full path as signed; req.path is relative to
+    // the mounted router and would not match the signature. Digest is checked
+    // against the raw body buffer to avoid JSON re-serialization differences.
     const rawBody = (req as any).rawBody as Buffer | undefined;
     const verification = await SignatureService.verifySignature(
       signature,
@@ -361,27 +339,26 @@ async function handleInbox(
 
     if (!verification.verified) {
       if (config.REQUIRE_VALID_SIGNATURES) {
-        logger.warn(`🚫 Rejecting activity with invalid signature from ${actorUrl}: ${verification.error}`);
+        logger.warn(`Rejecting activity with invalid signature from ${actorUrl}: ${verification.error}`);
         res.status(401).json({ error: `Invalid HTTP Signature: ${verification.error}` });
         return;
       } else {
-        logger.warn(`⚠️ Accepting activity with invalid signature from ${actorUrl} (REQUIRE_VALID_SIGNATURES=false)`);
+        logger.warn(`Accepting activity with invalid signature from ${actorUrl} (REQUIRE_VALID_SIGNATURES=false)`);
       }
     } else {
-      // Verify the actor in the activity matches the signing key's owner
       if (verification.actorUrl && actorUrl) {
         const actorMatch = SignatureService.verifyActorMatch(actorUrl, verification.actorUrl);
         if (!actorMatch) {
           if (config.REQUIRE_VALID_SIGNATURES) {
-            logger.warn(`🚫 Rejecting activity: actor mismatch. Activity actor: ${actorUrl}, Signing key: ${verification.actorUrl}`);
+            logger.warn(`Rejecting activity: actor mismatch. Activity actor: ${actorUrl}, Signing key: ${verification.actorUrl}`);
             res.status(403).json({ error: 'Actor mismatch - activity.actor must match the signing key owner' });
             return;
           } else {
-            logger.warn(`⚠️ Actor mismatch but accepting (REQUIRE_VALID_SIGNATURES=false)`);
+            logger.warn(`Actor mismatch but accepting (REQUIRE_VALID_SIGNATURES=false)`);
           }
         }
       }
-      logger.info(`✅ Signature verified for ${actorUrl}`);
+      logger.info(`Signature verified for ${actorUrl}`);
     }
   }
 
@@ -389,7 +366,6 @@ async function handleInbox(
     FederatedInstanceService.touchFromUrl(actorUrl);
   }
 
-  // If username specified, verify activity is addressed to them
   if (username) {
     const supabase = getSupabaseClient();
     const { data: user } = await supabase
@@ -404,8 +380,8 @@ async function handleInbox(
       return;
     }
 
-    // Check if activity is addressed to this user
-    // Like/Undo/Accept/Reject are implicitly addressed (they reference the user's content)
+    // Like/Undo/Accept/Reject/Follow are implicitly addressed: they reference
+    // the user's own content.
     const implicitTypes = ['Like', 'Undo', 'Accept', 'Reject', 'Follow'];
     if (!implicitTypes.includes(activity.type)) {
       const to = Array.isArray(activity.to) ? activity.to : [activity.to].filter(Boolean);
@@ -418,7 +394,7 @@ async function handleInbox(
         r === user.federated_id || r === canonicalUrl
       );
 
-      // Also accept if the activity is public or the object mentions this user
+      // Public addressing or a Mention tag also counts as addressed.
       let mentionedInTags = false;
       if (!directlyAddressed) {
         const isPublic = recipients.some((r: string) =>
@@ -443,7 +419,7 @@ async function handleInbox(
   }
 
   const supabase = getSupabaseClient();
-  // actorUrl already extracted above during signature verification
+  // actorUrl extracted above during signature verification.
   let originDomain: string | null = null;
   try {
     originDomain = actorUrl ? new URL(actorUrl).hostname.toLowerCase() : null;
@@ -451,8 +427,7 @@ async function handleInbox(
     originDomain = null;
   }
 
-  // Normalize activity type for database storage
-  // Some instances send "EmojiReact" but our constraint expects "EmojiReaction"
+  // Some instances send "EmojiReact"; the DB constraint expects "EmojiReaction".
   let normalizedType = activity.type;
   if (normalizedType === 'EmojiReact') {
     normalizedType = 'EmojiReaction';
@@ -479,7 +454,7 @@ async function handleInbox(
     p_ap_id: activity.id,
   });
   if (!claimError && claimed === false) {
-    logger.info(`↩️ Skipping already-processed ${activity.type} activity ${activity.id}`);
+    logger.info(`Skipping already-processed ${activity.type} activity ${activity.id}`);
     res.status(202).json({ message: 'Activity already processed' });
     return;
   }
@@ -492,7 +467,7 @@ async function handleInbox(
 
   try {
     await ActivityProcessor.processIncomingActivity(activity);
-    logger.info(`✅ Processed ${activity.type} activity`);
+    logger.info(`Processed ${activity.type} activity`);
     if (claimActive) {
       await supabase.rpc('complete_ap_activity', { p_ap_id: activity.id, p_success: true });
     }
@@ -510,7 +485,7 @@ async function handleInbox(
           if (rpcError) logger.error('Failed to mark activity failed:', rpcError);
         });
     }
-    // Still return success to sender (we've stored it)
+    // Activity is stored; the sender gets 202 regardless of processing outcome.
     res.status(202).json({ message: 'Activity accepted' });
   }
 }

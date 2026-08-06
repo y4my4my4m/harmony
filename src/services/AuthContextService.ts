@@ -1,22 +1,9 @@
 /**
- * AuthContextService - Centralized authentication and profile resolution
- * 
- * This service solves the massive problem of every service doing the same auth lookup:
- * - Single source of truth for current user authentication
- * - Caches auth_user_id → profile.id mapping
- * - Provides global access to current user context
- * - Eliminates hundreds of duplicate database queries
- * 
- * BEFORE: 21+ services all doing:
- * ```
- * const { data: { user } } = await supabase.auth.getUser()
- * const { data: profile } = await supabase.from('profiles').select('id').eq('auth_user_id', user.id).single()
- * ```
- * 
- * AFTER: One lookup, cached globally:
- * ```
- * const profileId = await authContextService.getCurrentProfileId()
- * ```
+ * Single source of truth for the current auth user and the
+ * auth_user_id → profiles.id mapping. Cached process-wide.
+ *
+ * Callers use `authContextService.getCurrentProfileId()` rather than issuing
+ * their own `supabase.auth.getUser()` + profiles lookup.
  */
 
 import { supabase } from '@/supabase'
@@ -49,16 +36,13 @@ export class AuthContextService {
     return this.instance
   }
 
-  /**
-   * Get current user context (auth + profile ID)
-   * Caches the result to avoid repeated database queries
-   */
+  /** Resolves and caches the auth user plus profile id. */
   async getCurrentContext(): Promise<UserContext> {
     if (this.cachedContext) {
       return this.cachedContext
     }
 
-    // Prevent concurrent requests
+    // Concurrent callers wait on the in-flight resolution.
     if (this.isLoading) {
       await this.waitForLoading()
       return this.cachedContext || this.createUnauthenticatedContext()
@@ -74,7 +58,6 @@ export class AuthContextService {
         return this.cachedContext
       }
 
-      // Resolve profile ID from auth user ID
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('id')
@@ -83,26 +66,20 @@ export class AuthContextService {
 
       if (profileError && profileError.code !== 'PGRST116') {
         debug.error('Error loading profile:', profileError)
-        // Transient DB error - don't cache. The next call should retry.
+        // Transient DB error; not cached, so the next call retries.
         return this.createUnauthenticatedContext()
       }
 
       if (!profile) {
-        // The auth user exists but the profile row doesn't yet (e.g. brand-new
-        // signup that hasn't completed the NewProfile.vue flow, or a refresh
-        // landing on /new-profile). This is a TRANSIENT state - the profile
-        // will be created moments later when the user submits the form.
+        // Auth user exists without a profile row during signup, before the
+        // NewProfile.vue flow completes. Transient.
         //
-        // We must NOT cache `unauthenticated` here, because any code that
-        // races and populates the cache before profile creation (e.g.
-        // `activityPubStore.loadBlockingData()` called from auth.ts SIGNED_IN
-        // / initializeAuth) would poison the cache. The next call after
-        // profile creation would then return the stale `unauthenticated`
-        // state, causing `ProfileService.updateCurrentProfile` to throw
-        // AUTH_REQUIRED. Result: avatar upload succeeds (file lands in R2)
-        // but the avatar_url UPDATE never runs, so profiles.avatar_url stays
-        // at its DB DEFAULT (`/default_avatar.webp`). See investigation
-        // around 2026-05-27.
+        // CRITICAL: this state must not be cached. A racing caller such as
+        // `activityPubStore.loadBlockingData()` (from auth.ts SIGNED_IN /
+        // initializeAuth) would pin `unauthenticated` in the cache; after
+        // profile creation `ProfileService.updateCurrentProfile` then throws
+        // AUTH_REQUIRED, so an uploaded avatar lands in R2 while
+        // profiles.avatar_url keeps its DB default `/default_avatar.webp`.
         debug.warn('Auth user found but no profile exists (transient, not caching):', user.id)
         return this.createUnauthenticatedContext()
       }
@@ -113,22 +90,19 @@ export class AuthContextService {
         isAuthenticated: true
       }
 
-      debug.log(`✅ Auth context resolved: ${user.id} → ${profile.id}`)
+      debug.log(`Auth context resolved: ${user.id} → ${profile.id}`)
       return this.cachedContext
 
     } catch (error) {
-      debug.error('❌ Failed to resolve auth context:', error)
-      // Don't cache on unexpected failure - let the next call retry.
+      debug.error('Failed to resolve auth context:', error)
+      // Unexpected failure; not cached, so the next call retries.
       return this.createUnauthenticatedContext()
     } finally {
       this.isLoading = false
     }
   }
 
-  /**
-   * Get current profile ID (the most commonly needed value)
-   * Throws if user is not authenticated
-   */
+  /** Throws when unauthenticated. */
   async getCurrentProfileId(): Promise<string> {
     const context = await this.getCurrentContext()
     
@@ -139,10 +113,7 @@ export class AuthContextService {
     return context.profileId
   }
 
-  /**
-   * Get current auth user
-   * Throws if user is not authenticated
-   */
+  /** Throws when unauthenticated. */
   async getCurrentAuthUser(): Promise<User> {
     const context = await this.getCurrentContext()
     
@@ -153,64 +124,52 @@ export class AuthContextService {
     return context.authUser
   }
 
-  /**
-   * Check if user is authenticated without throwing
-   */
   async isAuthenticated(): Promise<boolean> {
     const context = await this.getCurrentContext()
     return context.isAuthenticated
   }
 
-  /**
-   * Clear cached context (call on auth state changes)
-   */
   clearCache(): void {
     this.cachedContext = null
-    debug.log('🧹 Auth context cache cleared')
+    debug.log('Auth context cache cleared')
   }
 
   /**
-   * Initialize auth state listener to automatically clear cache
-   * ONLY clears on actual user changes, not token refreshes or tab visibility changes
+   * Clears the cache only when the identity changes.
+   * TOKEN_REFRESHED and tab-visibility SIGNED_IN events keep the same user, so
+   * the cache survives them.
    */
   initializeAuthListener(): void {
     supabase.auth.onAuthStateChange((event, session) => {
-      // Only clear cache when the ACTUAL USER changes
-      // TOKEN_REFRESHED just refreshes the access token - same user, keep cache
-      // SIGNED_IN on tab visible is just Supabase reconnecting - same user, keep cache
-      
       if (event === 'SIGNED_OUT') {
-        debug.log('🔄 Auth state: SIGNED_OUT - clearing cache')
+        debug.log('Auth state: SIGNED_OUT - clearing cache')
         this.clearCache()
         return
       }
       
       if (event === 'USER_UPDATED') {
-        debug.log('🔄 Auth state: USER_UPDATED - clearing cache')
+        debug.log('Auth state: USER_UPDATED - clearing cache')
         this.clearCache()
         return
       }
       
-      // For SIGNED_IN, clear cache if:
-      // 1. Cache contains unauthenticated state (user was logged out)
-      // 2. Different user is signing in
+      // SIGNED_IN clears the cache when it holds an unauthenticated state or a
+      // different user id.
       if (event === 'SIGNED_IN') {
         const newUserId = session?.user?.id
         const cachedUserId = this.cachedContext?.authUser?.id
         
         if (!this.cachedContext?.isAuthenticated || (cachedUserId && cachedUserId !== newUserId)) {
-          debug.log('🔐 SIGNED_IN - clearing cache (unauthenticated or different user)')
+          debug.log('SIGNED_IN - clearing cache (unauthenticated or different user)')
           this.clearCache()
         }
         return
       }
       
-      // TOKEN_REFRESHED, INITIAL_SESSION, etc: No action needed
-      // These don't change who the user is
+      // TOKEN_REFRESHED, INITIAL_SESSION and the rest do not change identity.
     })
   }
 
-  // Private helper methods
   private createUnauthenticatedContext(): UnauthenticatedContext {
     return {
       authUser: null,
@@ -226,7 +185,6 @@ export class AuthContextService {
   }
 }
 
-// Export singleton instance
 export const authContextService = AuthContextService.getInstance()
 
 authContextService.initializeAuthListener()

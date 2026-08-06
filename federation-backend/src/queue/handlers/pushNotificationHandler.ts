@@ -21,7 +21,7 @@ export interface PushNotificationJobData {
 export async function handlePushNotificationJob(data: PushNotificationJobData): Promise<void> {
   const { notification_id, user_id, type, data: notificationData } = data;
   
-  logger.debug(`📱 Processing push notification: ${type} for user ${user_id}`);
+  logger.debug(`Processing push notification: ${type} for user ${user_id}`);
   
   try {
     await PushNotificationService.sendForNotification({
@@ -32,9 +32,9 @@ export async function handlePushNotificationJob(data: PushNotificationJobData): 
       is_read: false,
     });
     
-    logger.info(`✅ Push notification sent: ${type} to user ${user_id}`);
+    logger.info(`Push notification sent: ${type} to user ${user_id}`);
   } catch (error) {
-    logger.error(`❌ Failed to send push notification: ${notification_id}`, error);
+    logger.error(`Failed to send push notification: ${notification_id}`, error);
     throw error; // BullMQ will retry
   }
 }

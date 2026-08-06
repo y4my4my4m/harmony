@@ -20,7 +20,7 @@ export async function handleGroupUpdateJob(data: {
   const domain = config.INSTANCE_DOMAIN;
   const { conversation_id, updater_id, update_type } = data;
 
-  logger.info(`📝 Processing federate-group-update: ${update_type} for conversation ${conversation_id}`);
+  logger.info(`Processing federate-group-update: ${update_type} for conversation ${conversation_id}`);
 
   const { data: updater } = await supabase
     .from('profiles')
@@ -107,7 +107,7 @@ export async function handleGroupUpdateJob(data: {
 
     try {
       await DeliveryQueue.sendToInbox(remoteUser.inbox_url, activity, updater_id);
-      logger.info(`📤 Group update (${update_type}) sent to ${remoteUser.inbox_url}`);
+      logger.info(`Group update (${update_type}) sent to ${remoteUser.inbox_url}`);
     } catch (error) {
       logger.error(`Failed to send group update to ${remoteUser.inbox_url}:`, error);
     }

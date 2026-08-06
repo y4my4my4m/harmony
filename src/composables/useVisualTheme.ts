@@ -393,7 +393,7 @@ function applyPresetTheme(themeName: 'dark' | 'light' | 'midnight') {
 
   applySurfaceSemanticTokens(theme.isLightTheme, themeName)
   
-  debug.log(`🎨 Applied ${themeName} theme`)
+  debug.log(`Applied ${themeName} theme`)
 }
 
 /**
@@ -620,7 +620,7 @@ async function saveToSupabase(settings: VisualThemeSettings) {
     
     if (error) throw error
     
-    debug.log('✅ Visual theme settings saved to Supabase')
+    debug.log('Visual theme settings saved to Supabase')
   } catch (error) {
     debug.error('Failed to save theme to Supabase:', error)
   } finally {
@@ -641,7 +641,7 @@ async function loadFromSupabase(): Promise<Partial<VisualThemeSettings> | null> 
   
   try {
     if (profileStore.profile?.appearance_settings) {
-      debug.log('✅ Using cached appearance_settings from profile store')
+      debug.log('Using cached appearance_settings from profile store')
       return profileStore.profile.appearance_settings as Partial<VisualThemeSettings>
     }
     
@@ -684,7 +684,7 @@ export function useVisualTheme() {
   async function initialize() {
     if (isInitialized.value) return
     
-    debug.log('🎨 Initializing visual theme system...')
+    debug.log('Initializing visual theme system...')
     
     // Try to load from localStorage first (instant)
     const localSettings = loadFromLocalStorage()
@@ -700,7 +700,7 @@ export function useVisualTheme() {
     const supabaseSettings = await loadFromSupabase()
     if (supabaseSettings) {
       migrateLegacyBlurSetting(supabaseSettings)
-      // Only re-apply if settings are actually different from localStorage
+      // Re-apply only when the remote settings differ from localStorage.
       const needsUpdate = !appliedFromLocal || 
         supabaseSettings.theme !== localSettings?.theme ||
         supabaseSettings.customAccentColor !== localSettings?.customAccentColor
@@ -731,7 +731,7 @@ export function useVisualTheme() {
     syncLinkedAudioOnInit(settings.value.activeSkinId)
 
     isInitialized.value = true
-    debug.log('✅ Visual theme system initialized')
+    debug.log('Visual theme system initialized')
   }
   
   /**
@@ -1142,7 +1142,7 @@ export function useVisualTheme() {
       customSkinCss: '',
     }
     applyPresetTheme('dark')
-    debug.log('🎨 Visual theme reset for new user')
+    debug.log('Visual theme reset for new user')
   }
 
   /**

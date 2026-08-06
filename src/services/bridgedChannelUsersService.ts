@@ -193,7 +193,7 @@ export async function fetchBridgedChannelUsers(
         headers: await authHeaders(),
       })
       if (!response.ok) {
-        debug.log(`🌉 Failed to fetch bridged users: ${response.status}`)
+        debug.log(`Failed to fetch bridged users: ${response.status}`)
         return { users: [], hasBridge: false, timestamp: Date.now() }
       }
 
@@ -209,10 +209,10 @@ export async function fetchBridgedChannelUsers(
       cache.set(channelId, entry)
       indexBridgedUsers(users)
       pruneCache(cache)
-      debug.log(`🌉 Loaded ${users.length} bridged users for channel ${channelId}`)
+      debug.log(`Loaded ${users.length} bridged users for channel ${channelId}`)
       return entry
     } catch (error) {
-      debug.log('🌉 Bridge API not available:', error)
+      debug.log('Bridge API not available:', error)
       return { users: [], hasBridge: false, timestamp: Date.now() }
     } finally {
       pending.delete(channelId)
@@ -252,7 +252,7 @@ export async function fetchBridgedServerUsers(
         headers: await authHeaders(),
       })
       if (!response.ok) {
-        debug.log(`🌉 Failed to fetch server bridged users: ${response.status}`)
+        debug.log(`Failed to fetch server bridged users: ${response.status}`)
         return { users: [], hasBridge: false, timestamp: Date.now() }
       }
 
@@ -270,7 +270,7 @@ export async function fetchBridgedServerUsers(
       pruneCache(serverCache)
       return entry
     } catch (error) {
-      debug.log('🌉 Server bridge API not available:', error)
+      debug.log('Server bridge API not available:', error)
       return { users: [], hasBridge: false, timestamp: Date.now() }
     } finally {
       serverPending.delete(serverId)

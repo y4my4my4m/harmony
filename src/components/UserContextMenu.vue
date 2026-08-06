@@ -1,10 +1,9 @@
 <template>
   <!--
-    Discord-style user context menu - opened by right-click (desktop) or
-    long-press (mobile) on a user in the member list. Only renders items
-    the app actually supports; emits high-level events that the parent
-    wires to existing flows (UserProfileModal, KickBanModal, InviteModal,
-    activityPub store, etc.) so we don't reimplement those actions here.
+    User context menu - opened by right-click (desktop) or long-press
+    (mobile) on a member-list user. Emits high-level events; the parent
+    owns the flows (UserProfileModal, KickBanModal, InviteModal,
+    activityPub store).
   -->
   <Teleport to="body">
     <div
@@ -58,8 +57,8 @@
         <span class="menu-item-label">Start a Call</span>
       </button>
 
-      <!-- Add Note (just opens the profile modal where the note section lives) -->
-      <!-- TEMPORARILY HIDDEN: notes feature is shelved (see UserProfileModal). Restore once notes ship.
+      <!-- Add Note - opens the profile modal containing the note section -->
+      <!-- Hidden: notes feature not shipped (see UserProfileModal).
       <button
         v-if="!isSelf"
         class="menu-item with-subtitle"
@@ -71,7 +70,7 @@
       </button>
       -->
 
-      <!-- Change Server Nickname (own profile, in server) - uses Edit Profile flow -->
+      <!-- Change Server Nickname (own profile, in server) - routes through Edit Profile -->
       <button
         v-if="canEditOwnProfile"
         class="menu-item"
@@ -113,7 +112,7 @@
         <span class="menu-item-label">{{ isBlocked ? 'Unblock' : 'Block' }}</span>
       </button>
 
-      <!-- Moderation section: only render when there's something to show -->
+      <!-- Moderation -->
       <template v-if="canKick || canBan">
         <div class="menu-divider"></div>
 
@@ -138,7 +137,7 @@
 
       <div class="menu-divider"></div>
 
-      <!-- Copy User ID - always available -->
+      <!-- Copy User ID -->
       <button
         class="menu-item with-trailing"
         role="menuitem"
@@ -155,15 +154,14 @@
 
 <script setup lang="ts">
 /**
- * Discord-style context menu for users in the member list.
+ * Context menu for users in the member list.
  *
- * Visibility rules:
- *  - The component is fully self-contained for *display* and *permission
- *    gating* (it lazy-loads server-scoped role permissions for kick/ban/
- *    invite when opened), but it emits high-level events for *actions*
- *    so the parent owns the modals/routing.
- *  - We intentionally don't surface features that aren't implemented
- *    yet (Friend Nickname, Apps, granular Roles management UI, Mod View).
+ * Display and permission gating are self-contained: server-scoped role
+ * permissions for kick/ban/invite are lazy-loaded on open. Actions are
+ * emitted as events; the parent owns modals and routing.
+ *
+ * Friend Nickname, Apps, Roles management and Mod View are absent - not
+ * implemented in the app.
  */
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import { useRoute } from 'vue-router';
@@ -211,10 +209,8 @@ const { getCurrentUser, getUserDisplayName } = useUserData();
 const menuRef = ref<HTMLElement | null>(null);
 const adjustedPosition = ref({ x: 0, y: 0 });
 
-// Permission state - lazy-loaded each time the menu opens for the
-// current (user, server) tuple so we don't show actions the user can't
-// actually perform. Defaults are pessimistic (false) so the menu won't
-// flash kick/ban entries while loading.
+// Permission state - reloaded on each open for the current (user, server)
+// pair. Defaults false so kick/ban entries never flash while loading.
 const canKick = ref(false);
 const canBan = ref(false);
 const canInvite = ref(false);
@@ -224,17 +220,15 @@ const isSelf = computed(() => {
   return props.user.id === getCurrentUser.value?.id;
 });
 
-// We're in a server context when the route is a server chat path with a
-// concrete current server. DM routes (`/dm/...`) deliberately don't
-// surface server-scoped actions even if the user happens to be a member
-// of one of our servers.
+// Server context requires a `/chat/` route plus a concrete current server.
+// DM routes (`/dm/...`) never surface server-scoped actions.
 const isInServerContext = computed(() => {
   return route.path.startsWith('/chat/') && !route.path.startsWith('/dm')
     && !!serverChannelStore.currentServerId;
 });
 
-// Chat context covers both server channels and DMs - that's where it
-// makes sense to insert a mention into the active message input.
+// Chat context covers server channels and DMs - both have a message input
+// a mention can be inserted into.
 const isInChatContext = computed(() => {
   return route.path.startsWith('/chat/') || route.path.startsWith('/dm');
 });
@@ -244,9 +238,8 @@ const displayName = computed(() => {
   return getUserDisplayName(props.user.id).value || props.user.display_name || props.user.username || 'User';
 });
 
-// Treat anything without an explicit `is_local: false` as local - same
-// rule as UserProfileModal - so DM/Call only show when we can actually
-// route to a local conversation.
+// Absent `is_local` counts as local - same rule as UserProfileModal.
+// DM/Call require a local conversation target.
 const isLocalUser = computed(() => {
   const u: any = props.user;
   return u?.is_local ?? true;
@@ -263,33 +256,32 @@ const isMuted = computed(() => {
 });
 
 const canMention = computed(() => {
-  // Mention only makes sense if there's a chat input to insert into.
+  // Requires a chat input to insert into.
   return !isSelf.value && isInChatContext.value;
 });
 
 const canMessage = computed(() => {
-  // DMs only work locally and not against blocked users (matches the
-  // gating in UserProfileModal.sendDirectMessage).
+  // DMs are local-only and disallowed for blocked users - mirrors
+  // UserProfileModal.sendDirectMessage.
   return !isSelf.value && isLocalUser.value && !isBlocked.value;
 });
 
 const canCall = computed(() => {
-  // Same rules as Message - calling routes through the DM flow.
+  // Calls route through the DM flow, so same rules as Message.
   return canMessage.value;
 });
 
-// Show "Change Nickname" only for the current user, only in a server
-// context (server nicknames are scoped to a server in `user_servers`).
+// Nicknames are scoped per server in `user_servers`, so this applies only
+// to the current user inside a server context.
 const canEditOwnProfile = computed(() => {
   return isSelf.value && isInServerContext.value;
 });
 
 const hasAnyMidSectionItem = computed(() => {
   return canMention.value || canMessage.value || canCall.value || canEditOwnProfile.value;
-  // Note: profile is always shown above the divider so we don't gate the divider on it.
+  // Profile sits above the divider and does not gate it.
 });
 
-/** Load kick/ban/invite permissions for the open menu. */
 async function loadModerationPermissions() {
   canKick.value = false;
   canBan.value = false;
@@ -322,9 +314,9 @@ const menuStyle = computed(() => ({
 }));
 
 /**
- * Reposition the menu so it stays within the viewport. Runs after the
- * menu is in the DOM so we can use `getBoundingClientRect()` to know
- * its actual size - items are conditional so we can't hard-code it.
+ * Clamps the menu into the viewport. Runs after the menu is in the DOM;
+ * size comes from `getBoundingClientRect()` since the item set is
+ * conditional and cannot be hard-coded.
  */
 async function repositionMenu() {
   adjustedPosition.value = { ...props.position };
@@ -361,8 +353,7 @@ function emitAction(action: UserContextAction) {
   close();
 }
 
-// Escape closes the menu - matches behaviour of MessageContextMenu /
-// VoiceUserContextMenu.
+// Escape-to-close matches MessageContextMenu and VoiceUserContextMenu.
 function handleKeydown(event: KeyboardEvent) {
   if (event.key === 'Escape' && props.visible) close();
 }
@@ -379,9 +370,8 @@ watch(
   () => props.visible,
   async (visible) => {
     if (visible) {
-      // Ensure block/mute state is up-to-date before deciding whether to
-      // hide Message/Call - the store loads this lazily on first
-      // open of any feature that needs it, and we may be the first.
+      // Block/mute state gates Message/Call. The store loads it lazily on
+      // first use, which may be here.
       if (activityPubStore.blockedUsers.size === 0 && activityPubStore.mutedUsers.size === 0) {
         activityPubStore.loadBlockingData();
       }
@@ -391,8 +381,8 @@ watch(
   }
 );
 
-// Track changes in target user / position while open (e.g. opening on
-// another user without closing first).
+// Target user or position can change while open - reopening on another
+// user without closing first.
 watch(
   () => [props.user?.id, props.position.x, props.position.y],
   async () => {
@@ -409,10 +399,9 @@ watch(
   position: fixed;
   inset: 0;
   z-index: 1099;
-  /* Backdrop is invisible - it just gives us a click target that closes
-     the menu when the user taps outside it. Critically, it does NOT
-     have `pointer-events: none` so a stray tap doesn't fall through
-     onto the user-item beneath. */
+  /* Transparent click target that closes the menu on outside tap.
+     No `pointer-events: none`: taps must not fall through to the
+     user-item beneath. */
   background: transparent;
 }
 
@@ -516,8 +505,7 @@ watch(
   margin: 4px 8px;
 }
 
-/* Mobile sizing - touch targets are larger and font scaled up a bit
-   so the menu reads comfortably under a finger after long-press. */
+/* Mobile sizing - larger touch targets and scaled-up font for long-press. */
 @media (max-width: 768px) {
   .user-context-menu {
     min-width: 220px;

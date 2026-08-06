@@ -1,11 +1,6 @@
 /**
- * NotificationService - Professional unified notification management
- * 
- * Integrates with database's unified notification system while providing:
- * - Local-first notification operations
- * - Consistent error handling and loading states
- * - Integration with send_notification_to_user() database function
- * - Type-safe notification interfaces
+ * Notification CRUD over the `notifications` table, plus sends through the
+ * send_notification_to_user() database function.
  */
 
 import { supabase } from '@/supabase'
@@ -33,11 +28,6 @@ export class NotificationService {
     return this.instance
   }
 
-  // NOTIFICATION OPERATIONS (LOCAL-FIRST)
-
-  /**
-   * Send notification using unified database system
-   */
   async sendNotification(
     type: NotificationType,
     toUserId: string,
@@ -51,7 +41,7 @@ export class NotificationService {
     }
   ): Promise<NotificationResult> {
     try {
-      debug.log('🔔 Sending notification via unified system:', { type, toUserId, data })
+      debug.log('Sending notification via unified system:', { type, toUserId, data })
 
       const { data: result, error } = await supabase.rpc('send_notification_to_user', {
         notification_type: type,
@@ -68,17 +58,16 @@ export class NotificationService {
         throw this.createError('SEND_FAILED', error.message, error)
       }
 
-      debug.log('✅ Notification sent successfully via unified system')
+      debug.log('Notification sent successfully via unified system')
       return { success: true, notificationIds: result ? [result] : [] }
     } catch (error) {
-      debug.error('❌ Failed to send notification:', error)
+      debug.error('Failed to send notification:', error)
       throw error
     }
   }
 
   /**
-   * Fetch notifications with pagination
-   * Note: Block/mute filtering should be handled by database function get_user_notifications
+   * NOTE: block/mute filtering lives in get_user_notifications, not here.
    */
   async fetchNotifications(
     userId: string,
@@ -89,9 +78,8 @@ export class NotificationService {
     }
   ): Promise<Notification[]> {
     try {
-      debug.log('🔄 Fetching notifications via service layer:', { userId, options })
+      debug.log('Fetching notifications via service layer:', { userId, options })
 
-      // Fetch notifications using RPC function (should filter blocks/mutes at DB level)
       const { data: notifications, error } = await supabase.rpc('get_user_notifications', {
         p_user_id: userId,
         p_limit: options?.limit || 50,
@@ -101,22 +89,18 @@ export class NotificationService {
       })
 
       if (error) {
-        // Fallback to direct query if RPC fails
         debug.warn('RPC get_user_notifications failed, falling back to direct query:', error)
         return await this._fetchNotificationsDirect(userId, options)
       }
 
-      debug.log(`✅ Fetched ${notifications?.length || 0} notifications`)
+      debug.log(`Fetched ${notifications?.length || 0} notifications`)
       return notifications || []
     } catch (error) {
-      debug.error('❌ Failed to fetch notifications:', error)
+      debug.error('Failed to fetch notifications:', error)
       throw error
     }
   }
 
-  /**
-   * Fallback direct query method
-   */
   private async _fetchNotificationsDirect(
     userId: string,
     options?: {
@@ -163,12 +147,9 @@ export class NotificationService {
     return notifications || []
   }
 
-  /**
-   * Mark notification as read
-   */
   async markAsRead(notificationId: string): Promise<boolean> {
     try {
-      debug.log('🔄 Marking notification as read:', notificationId)
+      debug.log('Marking notification as read:', notificationId)
 
       const { error } = await supabase
         .from('notifications')
@@ -179,20 +160,17 @@ export class NotificationService {
         throw this.createError('UPDATE_FAILED', error.message, error)
       }
 
-      debug.log('✅ Notification marked as read')
+      debug.log('Notification marked as read')
       return true
     } catch (error) {
-      debug.error('❌ Failed to mark notification as read:', error)
+      debug.error('Failed to mark notification as read:', error)
       throw error
     }
   }
 
-  /**
-   * Mark notification as unread
-   */
   async markAsUnread(notificationId: string): Promise<boolean> {
     try {
-      debug.log('🔄 Marking notification as unread:', notificationId)
+      debug.log('Marking notification as unread:', notificationId)
 
       const { error } = await supabase
         .from('notifications')
@@ -203,20 +181,17 @@ export class NotificationService {
         throw this.createError('UPDATE_FAILED', error.message, error)
       }
 
-      debug.log('✅ Notification marked as unread')
+      debug.log('Notification marked as unread')
       return true
     } catch (error) {
-      debug.error('❌ Failed to mark notification as unread:', error)
+      debug.error('Failed to mark notification as unread:', error)
       throw error
     }
   }
 
-  /**
-   * Mark all notifications as read for user
-   */
   async markAllAsRead(userId: string): Promise<boolean> {
     try {
-      debug.log('🔄 Marking all notifications as read for user:', userId)
+      debug.log('Marking all notifications as read for user:', userId)
 
       const { error } = await supabase
         .from('notifications')
@@ -228,20 +203,17 @@ export class NotificationService {
         throw this.createError('UPDATE_FAILED', error.message, error)
       }
 
-      debug.log('✅ All notifications marked as read')
+      debug.log('All notifications marked as read')
       return true
     } catch (error) {
-      debug.error('❌ Failed to mark all notifications as read:', error)
+      debug.error('Failed to mark all notifications as read:', error)
       throw error
     }
   }
 
-  /**
-   * Delete notification
-   */
   async deleteNotification(notificationId: string): Promise<boolean> {
     try {
-      debug.log('🔄 Deleting notification:', notificationId)
+      debug.log('Deleting notification:', notificationId)
 
       const { error } = await supabase
         .from('notifications')
@@ -252,24 +224,23 @@ export class NotificationService {
         throw this.createError('DELETE_FAILED', error.message, error)
       }
 
-      debug.log('✅ Notification deleted')
+      debug.log('Notification deleted')
       return true
     } catch (error) {
-      debug.error('❌ Failed to delete notification:', error)
+      debug.error('Failed to delete notification:', error)
       throw error
     }
   }
 
   /**
-   * Mark every notification for these `(profileId, post_id, type)` tuples
-   * as read. Used by the Mentions view to clear notifications as the user
-   * actually sees the corresponding posts come into view.
+   * Marks read every notification matching `(profileId, post_id, type)`.
+   * The Mentions view calls this as posts scroll into view.
    *
-   * Both `activitypub_mention` and `activitypub_reply` triggers store the
-   * referenced post's id at `data.post_id` (see 11_functions_triggers.sql).
-   * `.filter(...,'in','(a,b,c)')` is the PostgREST escape hatch for JSON
-   * path columns that `.in()` doesn't support directly. Post ids are UUIDs
-   * (regex-validated upstream), so no quoting is required.
+   * `activitypub_mention` and `activitypub_reply` triggers store the
+   * referenced post id at `data.post_id` (11_functions_triggers.sql).
+   * `.filter(...,'in','(a,b,c)')` is the PostgREST form for JSON path
+   * columns, which `.in()` does not support. Post ids are UUIDs,
+   * regex-validated upstream, so no quoting is required.
    */
   async markMentionNotificationsForPostsAsRead(
     profileId: string,
@@ -291,20 +262,19 @@ export class NotificationService {
       }
       return true
     } catch (error) {
-      debug.error('❌ Failed to mark mention notifications as read:', error)
+      debug.error('Failed to mark mention notifications as read:', error)
       return false
     }
   }
 
   /**
-   * Delete every notification for the given profile id.
-   * RLS already restricts to the caller's notifications, but we also scope
-   * by `user_id` so an `eq('user_id', ...)` mismatch fails loudly instead
-   * of silently wiping rows for the wrong account.
+   * RLS already restricts deletes to the caller's own notifications; the
+   * explicit `user_id` filter makes a profile-id mismatch delete nothing
+   * rather than rows of another account.
    */
   async deleteAllNotifications(profileId: string): Promise<boolean> {
     try {
-      debug.log('🔄 Deleting all notifications for profile:', profileId)
+      debug.log('Deleting all notifications for profile:', profileId)
 
       const { error } = await supabase
         .from('notifications')
@@ -315,17 +285,14 @@ export class NotificationService {
         throw this.createError('DELETE_ALL_FAILED', error.message, error)
       }
 
-      debug.log('✅ All notifications deleted')
+      debug.log('All notifications deleted')
       return true
     } catch (error) {
-      debug.error('❌ Failed to delete all notifications:', error)
+      debug.error('Failed to delete all notifications:', error)
       throw error
     }
   }
 
-  /**
-   * Get unread notification count
-   */
   async getUnreadCount(userId: string): Promise<number> {
     try {
       const { count, error } = await supabase
@@ -340,17 +307,14 @@ export class NotificationService {
 
       return count || 0
     } catch (error) {
-      debug.error('❌ Failed to get unread count:', error)
+      debug.error('Failed to get unread count:', error)
       return 0
     }
   }
 
-  /**
-   * Load user notification preferences
-   */
   async loadPreferences(userId: string): Promise<NotificationPreferences | null> {
     try {
-      debug.log('🔄 Loading notification preferences:', userId)
+      debug.log('Loading notification preferences:', userId)
 
       const { data: preferences, error } = await supabase
         .from('notification_preferences')
@@ -362,23 +326,20 @@ export class NotificationService {
         throw this.createError('LOAD_PREFERENCES_FAILED', error.message, error)
       }
 
-      debug.log('✅ Notification preferences loaded')
+      debug.log('Notification preferences loaded')
       return preferences
     } catch (error) {
-      debug.error('❌ Failed to load notification preferences:', error)
+      debug.error('Failed to load notification preferences:', error)
       return null
     }
   }
 
-  /**
-   * Update user notification preferences
-   */
   async updatePreferences(
     userId: string, 
     preferences: Partial<NotificationPreferences>
   ): Promise<NotificationPreferences | null> {
     try {
-      debug.log('🔄 Updating notification preferences:', { userId, preferences })
+      debug.log('Updating notification preferences:', { userId, preferences })
 
       const { data: updated, error } = await supabase
         .from('notification_preferences')
@@ -395,15 +356,13 @@ export class NotificationService {
         throw this.createError('UPDATE_PREFERENCES_FAILED', error.message, error)
       }
 
-      debug.log('✅ Notification preferences updated')
+      debug.log('Notification preferences updated')
       return updated
     } catch (error) {
-      debug.error('❌ Failed to update notification preferences:', error)
+      debug.error('Failed to update notification preferences:', error)
       throw error
     }
   }
-
-  // HELPER METHODS
 
   private createError(code: string, message: string, details?: any): NotificationServiceError {
     return {
@@ -414,6 +373,5 @@ export class NotificationService {
   }
 }
 
-// Export singleton instance
 export const notificationService = NotificationService.getInstance()
 export default NotificationService

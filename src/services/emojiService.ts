@@ -16,7 +16,7 @@ const cleanFileName = (originalName: string) => {
 
     // Handle multiple extensions: keep the last part after splitting by '.'
     const parts = name.split('.');
-    const extension = parts.pop(); // Extract the extension
+    const extension = parts.pop();
     let fileNameWithoutExtension = parts.join('.').trim();
 
     fileNameWithoutExtension = fileNameWithoutExtension.replace(/\s+/g, '');
@@ -48,7 +48,7 @@ async function cleanupEmojiReferences(emoji: Emoji): Promise<void> {
     invalidateEmojiResolverCache(emoji.name);
 }
 
-// Enhanced emoji usage tracking with context
+// Records emoji usage with the surrounding context (message or reaction).
 async function recordEmojiUsage(
     emojiId: string, 
     userId: string, 
@@ -60,7 +60,7 @@ async function recordEmojiUsage(
         // Skip recording for native Unicode emojis (non-UUID emoji IDs)
         // Native emojis use the unicode character as their ID
         if (!isValidUUID(emojiId)) {
-            debug.log('📊 Skipping emoji usage tracking for native emoji:', emojiId);
+            debug.log('Skipping emoji usage tracking for native emoji:', emojiId);
             return;
         }
         
@@ -120,7 +120,7 @@ async function getUserEmojiStats(userId: string, serverId?: string, limit = 20) 
     }
 }
 
-// Enhanced emoji retrieval with context-aware usage tracking
+// Cache-first emoji lookup; records usage when tracking info is supplied.
 async function getEmoji(emojiId: string, trackUsage?: {
     userId: string;
     serverId: string;
@@ -214,7 +214,7 @@ async function upscalePixelArt(file: File): Promise<File> {
     return new File([blob], newName, { type: 'image/png' });
 }
 
-// Enhanced emoji upload with cache invalidation
+// Uploads an emoji and invalidates the cache.
 async function uploadEmoji(serverId: string, userId: string, file: File): Promise<Emoji | null> {
     const emojiCache = useEmojiCacheStore();
     
@@ -234,7 +234,6 @@ async function uploadEmoji(serverId: string, userId: string, file: File): Promis
         const uniqueEmojiName = `${uuidv4()}.${extension}`;
         const filePath = `${serverId}/${userId}/${uniqueEmojiName}`;
         
-        // Upload the file
         const { error } = await supabase.storage
             .from('emojis')
             .upload(filePath, file);
@@ -273,7 +272,7 @@ async function uploadEmoji(serverId: string, userId: string, file: File): Promis
     }
 }
 
-// Enhanced emoji deletion with cache invalidation
+// Deletes an emoji and invalidates the cache.
 async function deleteEmoji(emojiId: string): Promise<boolean> {
     try {
         // Get emoji details before deletion for cache invalidation
@@ -429,7 +428,7 @@ async function bulkDeleteEmojis(emojiIds: string[]): Promise<{ success: string[]
     return results;
 }
 
-// Enhanced name existence check with caching
+// Name-collision check; cache first, database second.
 async function doesEmojiNameExist(serverId: string, name: string): Promise<boolean> {
     const emojiCache = useEmojiCacheStore();
     
@@ -589,7 +588,7 @@ async function preloadFrequentEmojis(serverIds: string[] = []) {
             await getEmoji(emojiId); // This will cache them
         }
         
-        debug.log(`🚀 Preloaded ${emojiIds.length} frequent emojis`);
+        debug.log(`Preloaded ${emojiIds.length} frequent emojis`);
     } catch (error) {
         debug.error('Error preloading frequent emojis:', error);
     }
@@ -597,8 +596,8 @@ async function preloadFrequentEmojis(serverIds: string[] = []) {
 
 /**
  * Generate an AI emoji from a text prompt via the federation backend (Klipy).
- * The backend hosts the image and creates a per-user custom emoji; we drop the
- * result straight into the picker's AI Generated group so it's usable at once.
+ * The backend hosts the image and creates a per-user custom emoji; the result
+ * lands in the picker's AI Generated group and is usable at once.
  */
 export interface AiEmojiQuota {
     enabled: boolean;

@@ -134,7 +134,7 @@ class WebRTCManagerService implements WebRTCManager {
    * Set the WebRTC mode
    */
   setMode(mode: WebRTCMode): void {
-    debug.log(`🔧 [WebRTCManager] Setting mode to: ${mode}`);
+    debug.log(`[WebRTCManager] Setting mode to: ${mode}`);
     this.currentMode = mode;
   }
   
@@ -162,8 +162,7 @@ class WebRTCManagerService implements WebRTCManager {
   
   /**
    * Whether media for the active connection is end-to-end encrypted.
-   * Currently only the LiveKit (SFU) transport encrypts media; P2P E2EE
-   * activation is a follow-up.
+   * Only the LiveKit (SFU) transport encrypts media; P2P does not.
    */
   isE2EEEnabled(): boolean {
     if (this.activeService === 'livekit') {
@@ -187,10 +186,10 @@ class WebRTCManagerService implements WebRTCManager {
     // Hybrid mode: check if LiveKit is available
     try {
       const isAvailable = await livekitWebRTC.isAvailable();
-      debug.log(`🔧 [WebRTCManager] LiveKit available: ${isAvailable}`);
+      debug.log(`[WebRTCManager] LiveKit available: ${isAvailable}`);
       return isAvailable;
     } catch (error) {
-      debug.warn('⚠️ [WebRTCManager] Failed to check LiveKit availability:', error);
+      debug.warn('[WebRTCManager] Failed to check LiveKit availability:', error);
       return false;
     }
   }
@@ -208,11 +207,11 @@ class WebRTCManagerService implements WebRTCManager {
     abortSignal?: AbortSignal,
     requireE2EE = false
   ): Promise<boolean> {
-    debug.log(`🎯 [WebRTCManager] Joining channel: ${channelId} as: ${userId}, E2EE: ${requireE2EE}`);
+    debug.log(`[WebRTCManager] Joining channel: ${channelId} as: ${userId}, E2EE: ${requireE2EE}`);
     
-    // Voice E2EE is currently implemented only on the LiveKit (SFU) transport.
-    // If a channel requires it, the P2P fallback can't satisfy the guarantee,
-    // so we force SFU and refuse rather than silently downgrading.
+    // Voice E2EE exists only on the LiveKit (SFU) transport. A channel that
+    // requires it cannot be served by the P2P fallback, so refuse rather than
+    // silently downgrade.
     if (requireE2EE && this.currentMode === 'p2p') {
       this.emit('error', new Error('This channel requires end-to-end encrypted voice, which needs the SFU transport.'));
       return false;
@@ -220,7 +219,7 @@ class WebRTCManagerService implements WebRTCManager {
     
     // Check for cancellation before starting
     if (abortSignal?.aborted) {
-      debug.log('🚫 [WebRTCManager] Connection cancelled before starting');
+      debug.log('[WebRTCManager] Connection cancelled before starting');
       return false;
     }
 
@@ -231,7 +230,7 @@ class WebRTCManagerService implements WebRTCManager {
 
     // Check for cancellation after cleanup
     if (abortSignal?.aborted) {
-      debug.log('🚫 [WebRTCManager] Connection cancelled after cleanup');
+      debug.log('[WebRTCManager] Connection cancelled after cleanup');
       return false;
     }
 
@@ -242,11 +241,11 @@ class WebRTCManagerService implements WebRTCManager {
         return false;
       }
       if (abortSignal?.aborted) {
-        debug.log('🚫 [WebRTCManager] Connection cancelled before native attempt');
+        debug.log('[WebRTCManager] Connection cancelled before native attempt');
         return false;
       }
 
-      debug.log('🦀 [WebRTCManager] Using native media engine');
+      debug.log('[WebRTCManager] Using native media engine');
       this.activeService = 'native';
       nativeLiveKit.setTransmitGate(this.transmitGateOpen);
       try {
@@ -259,11 +258,11 @@ class WebRTCManagerService implements WebRTCManager {
           return false;
         }
         if (success) {
-          debug.log('✅ [WebRTCManager] Connected via native LiveKit');
+          debug.log('[WebRTCManager] Connected via native LiveKit');
           return true;
         }
       } catch (error) {
-        debug.error('❌ [WebRTCManager] Native connection failed:', error);
+        debug.error('[WebRTCManager] Native connection failed:', error);
         this.emit('error', error);
       }
       this.activeService = null;
@@ -274,13 +273,13 @@ class WebRTCManagerService implements WebRTCManager {
     
     // Check for cancellation after checking SFU availability
     if (abortSignal?.aborted) {
-      debug.log('🚫 [WebRTCManager] Connection cancelled after SFU check');
+      debug.log('[WebRTCManager] Connection cancelled after SFU check');
       return false;
     }
     
     if (useSFU) {
       // Try LiveKit first
-      debug.log('🔄 [WebRTCManager] Attempting LiveKit connection...');
+      debug.log('[WebRTCManager] Attempting LiveKit connection...');
       
       // Set activeService BEFORE joining so events are forwarded during connection
       this.activeService = 'livekit';
@@ -295,12 +294,12 @@ class WebRTCManagerService implements WebRTCManager {
             await livekitWebRTC.leaveChannel();
           }
           this.activeService = null;
-          debug.log('🚫 [WebRTCManager] Connection cancelled after LiveKit join');
+          debug.log('[WebRTCManager] Connection cancelled after LiveKit join');
           return false;
         }
         
         if (success) {
-          debug.log('✅ [WebRTCManager] Connected via LiveKit SFU');
+          debug.log('[WebRTCManager] Connected via LiveKit SFU');
           return true;
         }
         
@@ -309,16 +308,16 @@ class WebRTCManagerService implements WebRTCManager {
       } catch (error) {
         if (error instanceof Error && error.name === 'AbortError') {
           this.activeService = null;
-          debug.log('🚫 [WebRTCManager] LiveKit connection cancelled');
+          debug.log('[WebRTCManager] LiveKit connection cancelled');
           return false;
         }
-        debug.warn('⚠️ [WebRTCManager] LiveKit connection failed:', error);
+        debug.warn('[WebRTCManager] LiveKit connection failed:', error);
         this.activeService = null;
       }
       
       // If SFU-only mode, don't fallback
       if (this.currentMode === 'sfu') {
-        debug.error('❌ [WebRTCManager] SFU connection failed and mode is sfu-only');
+        debug.error('[WebRTCManager] SFU connection failed and mode is sfu-only');
         this.emit('error', new Error('SFU connection failed'));
         return false;
       }
@@ -326,17 +325,17 @@ class WebRTCManagerService implements WebRTCManager {
       // E2EE-required channels must not fall back to the (currently
       // unencrypted) P2P transport.
       if (requireE2EE) {
-        debug.error('❌ [WebRTCManager] SFU failed and channel requires E2EE; not falling back to P2P');
+        debug.error('[WebRTCManager] SFU failed and channel requires E2EE; not falling back to P2P');
         this.emit('error', new Error('Could not establish an end-to-end encrypted call'));
         return false;
       }
       
-      debug.log('🔄 [WebRTCManager] Falling back to P2P...');
+      debug.log('[WebRTCManager] Falling back to P2P...');
     }
     
     // Check for cancellation before trying P2P
     if (abortSignal?.aborted) {
-      debug.log('🚫 [WebRTCManager] Connection cancelled before P2P attempt');
+      debug.log('[WebRTCManager] Connection cancelled before P2P attempt');
       return false;
     }
     
@@ -354,12 +353,12 @@ class WebRTCManagerService implements WebRTCManager {
           await unifiedWebRTC.leaveChannel();
         }
         this.activeService = null;
-        debug.log('🚫 [WebRTCManager] Connection cancelled after P2P join');
+        debug.log('[WebRTCManager] Connection cancelled after P2P join');
         return false;
       }
       
       if (success) {
-        debug.log('✅ [WebRTCManager] Connected via P2P');
+        debug.log('[WebRTCManager] Connected via P2P');
         return true;
       }
       
@@ -367,10 +366,10 @@ class WebRTCManagerService implements WebRTCManager {
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
         this.activeService = null;
-        debug.log('🚫 [WebRTCManager] P2P connection cancelled');
+        debug.log('[WebRTCManager] P2P connection cancelled');
         return false;
       }
-      debug.error('❌ [WebRTCManager] P2P connection failed:', error);
+      debug.error('[WebRTCManager] P2P connection failed:', error);
       this.activeService = null;
       this.emit('error', error);
     }
@@ -388,7 +387,7 @@ class WebRTCManagerService implements WebRTCManager {
     channelId: string,
     userId: string
   ): Promise<boolean> {
-    debug.log(`🌐 [WebRTCManager] Joining federated channel: ${channelId} with remote token`);
+    debug.log(`[WebRTCManager] Joining federated channel: ${channelId} with remote token`);
     
     // Leave any existing connection
     if (this.activeService) {
@@ -406,7 +405,7 @@ class WebRTCManagerService implements WebRTCManager {
       const success = await service.joinWithToken(wsUrl, token, channelId, userId);
 
       if (success) {
-        debug.log('✅ [WebRTCManager] Connected to federated LiveKit server');
+        debug.log('[WebRTCManager] Connected to federated LiveKit server');
         return true;
       }
 
@@ -414,7 +413,7 @@ class WebRTCManagerService implements WebRTCManager {
       this.activeService = null;
       return false;
     } catch (error) {
-      debug.error('❌ [WebRTCManager] Federated connection failed:', error);
+      debug.error('[WebRTCManager] Federated connection failed:', error);
       this.activeService = null;
       this.emit('error', error);
       return false;
@@ -425,7 +424,7 @@ class WebRTCManagerService implements WebRTCManager {
    * Leave current voice channel
    */
   async leaveChannel(): Promise<void> {
-    debug.log('👋 [WebRTCManager] Leaving channel');
+    debug.log('[WebRTCManager] Leaving channel');
     
     try {
       if (this.activeService === 'livekit') {
@@ -436,7 +435,7 @@ class WebRTCManagerService implements WebRTCManager {
         await nativeLiveKit.leaveChannel();
       }
     } catch (e) {
-      debug.warn('⚠️ [WebRTCManager] Error during leaveChannel (forcing cleanup):', e);
+      debug.warn('[WebRTCManager] Error during leaveChannel (forcing cleanup):', e);
     }
     
     this.activeService = null;
@@ -615,7 +614,7 @@ class WebRTCManagerService implements WebRTCManager {
     } else if (this.activeService === 'native') {
       await nativeLiveKit.updateStreamQuality(settings);
     } else {
-      debug.warn('⚠️ No active WebRTC service to update stream quality');
+      debug.warn('No active WebRTC service to update stream quality');
     }
   }
   
@@ -689,7 +688,7 @@ class WebRTCManagerService implements WebRTCManager {
       await nativeLiveKit.updateInputDevice(deviceId);
     }
     
-    debug.log('🎤 [WebRTCManager] Updated input device:', deviceId);
+    debug.log('[WebRTCManager] Updated input device:', deviceId);
   }
   
   /**
@@ -707,7 +706,7 @@ class WebRTCManagerService implements WebRTCManager {
       await nativeLiveKit.updateOutputDevice(deviceId);
     }
     
-    debug.log('🔊 [WebRTCManager] Updated output device:', deviceId);
+    debug.log('[WebRTCManager] Updated output device:', deviceId);
   }
   
   /**
@@ -725,7 +724,7 @@ class WebRTCManagerService implements WebRTCManager {
       await nativeLiveKit.updateVideoDevice(deviceId);
     }
     
-    debug.log('📹 [WebRTCManager] Updated video device:', deviceId);
+    debug.log('[WebRTCManager] Updated video device:', deviceId);
   }
   
   /**

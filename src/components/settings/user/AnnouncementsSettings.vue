@@ -204,9 +204,9 @@ const isScheduled = (a: Announcement): boolean => {
 }
 
 const sortedAnnouncements = computed<Announcement[]>(() => {
-  // Stable, opinionated order: unread first, then pinned, then most recent.
-  // We deliberately use a single sort with a composite comparator rather
-  // than multiple passes so the order is deterministic across renders.
+  // Order: unread first, then pinned, then most recent. A single sort with a
+  // composite comparator, not multiple passes, keeps order deterministic
+  // across renders.
   return [...announcements.value].sort((a, b) => {
     const aUnread = unreadIds.value.has(a.id) ? 1 : 0
     const bUnread = unreadIds.value.has(b.id) ? 1 : 0
@@ -265,8 +265,8 @@ async function loadAnnouncements(): Promise<void> {
     announcements.value = all
     unreadIds.value = new Set(unread.map(u => u.id))
 
-    // Keep the shared unread count in sync with what we just fetched so
-    // the Settings sidebar badge and any open popup link reflect reality.
+    // Resync the shared unread count so the Settings sidebar badge and any
+    // open popup link match the fetched set.
     await refreshUnreadCount()
 
     // Prime the user cache so DisplayName can resolve author identities
@@ -288,8 +288,8 @@ async function handleMarkRead(id: string): Promise<void> {
   if (!unreadIds.value.has(id)) return
   if (markingIds.value.has(id)) return
   markingIds.value.add(id)
-  // Optimistic: drop from unread set + decrement the shared count up front
-  // so the UI updates instantly. If the request fails we revert.
+  // Optimistic: drop from the unread set and decrement the shared count up
+  // front; reverted below if the request fails.
   unreadIds.value.delete(id)
   unreadIds.value = new Set(unreadIds.value)
   decrementUnreadCount(1)

@@ -872,7 +872,6 @@ class RoleService {
       const allowMask = permissionsToBitmask(allow)
       const denyMask = permissionsToBitmask(deny)
 
-      // ---------------------------------------------------------------------
       // Why this isn't an upsert (anymore):
       //
       // PostgreSQL's `ON CONFLICT (channel_id, role_id)` needs a NON-partial
@@ -885,12 +884,11 @@ class RoleService {
       //
       // The composite `UNIQUE(channel_id, role_id, user_id)` doesn't help
       // because Postgres treats NULL as distinct, so role-only and user-only
-      // rows aren't actually unique-constrained.
+      // rows are not unique-constrained.
       //
-      // Cleanest fix without changing the schema: do a manual lookup +
-      // INSERT-or-UPDATE. Two roundtrips instead of one, but this is admin
-      // UI traffic - frequency is negligible.
-      // ---------------------------------------------------------------------
+      // Workaround without a schema change: manual lookup + INSERT-or-UPDATE.
+      // Two roundtrips instead of one; admin UI traffic, so frequency is
+      // negligible.
 
       const baseQuery = supabase
         .from('channel_permission_overrides')

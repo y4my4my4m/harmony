@@ -368,7 +368,7 @@ watch(
   () => {
     if (voiceStore.viewMode !== 'fullscreen' || !voiceStore.fullscreenUserId) return;
     if (!focusedTile.value) {
-      debug.log('🖼️ [Focus] Focused tile gone, exiting focus view');
+      debug.log('[Focus] Focused tile gone, exiting focus view');
       voiceStore.exitFullscreen();
     }
   },
@@ -389,7 +389,7 @@ watch(
       t => t.id === fresh[0] && t.userState.userId !== voiceStore.localState.userId
     );
     if (newTile) {
-      debug.log('🖼️ [Focus] Auto-focusing new remote screenshare:', newTile.id);
+      debug.log('[Focus] Auto-focusing new remote screenshare:', newTile.id);
       voiceStore.enterFullscreen(newTile.userState.userId, 'screen');
     }
   },
@@ -408,7 +408,7 @@ const toggleNativeFullscreen = async () => {
       await containerEl.value.requestFullscreen();
     }
   } catch (error) {
-    debug.warn('🖼️ [Fullscreen] Native fullscreen request failed:', error);
+    debug.warn('[Fullscreen] Native fullscreen request failed:', error);
   }
 };
 
@@ -573,11 +573,11 @@ const handleKonamiActivate = () => {
 
   const currentUserId = voiceStore.localState.userId || authStore.session?.user?.id
   if (!currentUserId) {
-    debug.warn('🎮 [Konami] No user ID available')
+    debug.warn('[Konami] No user ID available')
     return
   }
 
-  debug.log('🎮 [Konami] Activating rainbow party!')
+  debug.log('[Konami] Activating rainbow party!')
   konamiEnabled.value = false // Disable konami code detection
 
   if (konamiDetector) {
@@ -599,7 +599,7 @@ watch(() => easterEggState.value.isActive, (isActive) => {
     if (konamiDetector) {
       konamiDetector.reset()
     }
-    debug.log('🎮 [Konami] Rainbow party closed, re-enabling konami code detection')
+    debug.log('[Konami] Rainbow party closed, re-enabling konami code detection')
   }
 })
 

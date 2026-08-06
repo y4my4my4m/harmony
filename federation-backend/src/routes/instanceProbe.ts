@@ -229,7 +229,7 @@ router.get(
       return res.status(400).json({ error: `Invalid domain: ${err.message}` });
     }
 
-    logger.info(`🔍 Probing instance: ${cleanDomain}`);
+    logger.info(`Probing instance: ${cleanDomain}`);
 
     const [nodeinfoResult, mastodonResult, actorResult] = await Promise.all([
       probeNodeinfo(cleanDomain),
@@ -257,7 +257,7 @@ router.get(
       base.description = misskeyResult.description;
     }
 
-    logger.info(`✅ Instance probed: ${cleanDomain} (${base.software})`);
+    logger.info(`Instance probed: ${cleanDomain} (${base.software})`);
 
     return res.json(base);
   })
@@ -265,7 +265,7 @@ router.get(
 
 /**
  * GET /instances/health?domain=mastodon.social
- * Lightweight health check - just verifies nodeinfo is reachable.
+ * Lightweight health check - verifies nodeinfo is reachable.
  */
 router.get(
   '/instances/health',

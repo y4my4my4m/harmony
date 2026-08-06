@@ -20,7 +20,7 @@ export interface MaintenanceJobData {
  * Handle maintenance jobs
  */
 export async function handleMaintenanceJob(data: MaintenanceJobData): Promise<void> {
-  logger.info(`🔧 Running maintenance task: ${data.task}`);
+  logger.info(`Running maintenance task: ${data.task}`);
 
   switch (data.task) {
     case 'keygen-sweep':
@@ -56,23 +56,23 @@ async function sweepMissingKeys(): Promise<void> {
     .limit(50); // Process in batches
 
   if (queryError) {
-    logger.error('❌ Failed to query users without keys:', queryError);
+    logger.error('Failed to query users without keys:', queryError);
     return;
   }
 
   if (!usersWithoutKeys || usersWithoutKeys.length === 0) {
-    logger.info('✅ All local users have public keys');
+    logger.info('All local users have public keys');
     return;
   }
 
-  logger.info(`🔐 Found ${usersWithoutKeys.length} local users without keys`);
+  logger.info(`Found ${usersWithoutKeys.length} local users without keys`);
 
   let successCount = 0;
   let failCount = 0;
 
   for (const user of usersWithoutKeys) {
     try {
-      logger.info(`  🔑 Generating keys for: ${user.username}@${user.domain}`);
+      logger.info(`  Generating keys for: ${user.username}@${user.domain}`);
 
       const keys = await SignatureService.generateKeyPair();
 
@@ -85,7 +85,7 @@ async function sweepMissingKeys(): Promise<void> {
         });
 
       if (privateKeyError) {
-        logger.error(`  ❌ Failed to store private key for ${user.username}:`, privateKeyError);
+        logger.error(`  Failed to store private key for ${user.username}:`, privateKeyError);
         failCount++;
         continue;
       }
@@ -101,20 +101,20 @@ async function sweepMissingKeys(): Promise<void> {
           .delete()
           .eq('user_id', user.id);
 
-        logger.error(`  ❌ Failed to store public key for ${user.username}:`, publicKeyError);
+        logger.error(`  Failed to store public key for ${user.username}:`, publicKeyError);
         failCount++;
         continue;
       }
 
-      logger.info(`  ✅ ${user.username}@${user.domain}`);
+      logger.info(`  ${user.username}@${user.domain}`);
       successCount++;
     } catch (err) {
-      logger.error(`  ❌ Failed for ${user.username}:`, err);
+      logger.error(`  Failed for ${user.username}:`, err);
       failCount++;
     }
   }
 
-  logger.info(`🔐 Key generation sweep complete: ${successCount} succeeded, ${failCount} failed`);
+  logger.info(`Key generation sweep complete: ${successCount} succeeded, ${failCount} failed`);
 }
 
 /**
@@ -126,22 +126,22 @@ async function cleanupOrphanedKeys(): Promise<void> {
   const { data: inconsistentUsers, error: queryError } = await supabase.rpc('check_key_consistency');
 
   if (queryError) {
-    logger.error('❌ Failed to check key consistency:', queryError);
+    logger.error('Failed to check key consistency:', queryError);
     return;
   }
 
   if (!inconsistentUsers || inconsistentUsers.length === 0) {
-    logger.info('✅ All local users have consistent key state');
+    logger.info('All local users have consistent key state');
     return;
   }
 
-  logger.info(`🔧 Found ${inconsistentUsers.length} users with inconsistent keys`);
+  logger.info(`Found ${inconsistentUsers.length} users with inconsistent keys`);
 
   for (const user of inconsistentUsers) {
     try {
       if (user.has_public_key && !user.has_private_key) {
         // Has public key but no private key - clear public key so it can be regenerated
-        logger.info(`  🧹 Clearing orphaned public key for: ${user.username}`);
+        logger.info(`  Clearing orphaned public key for: ${user.username}`);
         
         const { error: clearError } = await supabase
           .from('profiles')
@@ -149,13 +149,13 @@ async function cleanupOrphanedKeys(): Promise<void> {
           .eq('id', user.user_id);
 
         if (clearError) {
-          logger.error(`  ❌ Failed to clear public key for ${user.username}:`, clearError);
+          logger.error(`  Failed to clear public key for ${user.username}:`, clearError);
         } else {
-          logger.info(`  ✅ Cleared orphaned public key for ${user.username}`);
+          logger.info(`  Cleared orphaned public key for ${user.username}`);
         }
       } else if (!user.has_public_key && user.has_private_key) {
         // Has private key but no public key - regenerate both
-        logger.info(`  🔑 Regenerating keys for: ${user.username} (had orphaned private key)`);
+        logger.info(`  Regenerating keys for: ${user.username} (had orphaned private key)`);
         
         // Delete the orphaned private key first
         await supabase
@@ -173,7 +173,7 @@ async function cleanupOrphanedKeys(): Promise<void> {
           });
 
         if (privateKeyError) {
-          logger.error(`  ❌ Failed to store new private key for ${user.username}:`, privateKeyError);
+          logger.error(`  Failed to store new private key for ${user.username}:`, privateKeyError);
           continue;
         }
 
@@ -187,25 +187,25 @@ async function cleanupOrphanedKeys(): Promise<void> {
             .from('user_private_keys')
             .delete()
             .eq('user_id', user.user_id);
-          logger.error(`  ❌ Failed to store new public key for ${user.username}:`, publicKeyError);
+          logger.error(`  Failed to store new public key for ${user.username}:`, publicKeyError);
           continue;
         }
 
-        logger.info(`  ✅ Regenerated keys for ${user.username}`);
+        logger.info(`  Regenerated keys for ${user.username}`);
       }
     } catch (err) {
-      logger.error(`  ❌ Failed cleanup for ${user.username}:`, err);
+      logger.error(`  Failed cleanup for ${user.username}:`, err);
     }
   }
 
-  logger.info('🧹 Orphaned key cleanup complete');
+  logger.info('Orphaned key cleanup complete');
 }
 
 /**
  * Verify federation health (placeholder for future implementation)
  */
 async function verifyFederationHealth(): Promise<void> {
-  logger.info('📊 Federation health check - not yet implemented');
+  logger.info('Federation health check - not yet implemented');
   // Future: Check inbox delivery success rates, remote actor availability, etc.
 }
 

@@ -1,15 +1,11 @@
 /**
- * Unified Content Renderer Composable
- * 
- * This composable provides a DRY, unified approach to content rendering
- * across all components (ActivityPub, chat, DMs, etc.)
- * 
- * Features:
- * - Centralized emoji resolution using existing cache
- * - Consistent mention formatting and handling
- * - Unified URL detection and media preview
- * - Single source of truth for content styling
- * - Pluggable rendering modes (inline, display, edit)
+ * Content renderer shared by ActivityPub, chat and DM views.
+ *
+ * - Emoji resolution against the existing cache
+ * - Mention formatting
+ * - URL detection and media preview
+ * - Content styling
+ * - Rendering modes: inline, display, edit
  */
 
 import { computed, type Ref } from 'vue';
@@ -80,7 +76,7 @@ export function useContentRenderer(
     
     // Already MessagePart[]
     if (Array.isArray(rawContent)) {
-      // No need to parse here anymore - backend does it
+      // Backend parses; no client-side parse.
       return rawContent;
     }
     
@@ -427,12 +423,12 @@ export function useContentRenderer(
           
           if (hasCustomUrl) {
             const url = getEmojiUrl(emoji.url, 96);
-            // `emoji.name` is user/federated-server-controlled. Inlining it
-            // into attributes requires HTML-escaping, and into the previously
-            // present `onerror` JavaScript also required JS-string escaping -
-            // we now just rely on browser-native alt fallback for broken
-            // images. `sanitizeFormattedHtml` (applied to this output) also
-            // strips inline event handlers as defense-in-depth.
+            // `emoji.name` is user/federated-server-controlled and requires
+            // HTML-escaping when inlined into attributes. Broken images fall
+            // back to the browser-native alt rendering; no `onerror` handler,
+            // which would additionally need JS-string escaping.
+            // `sanitizeFormattedHtml` (applied to this output) also strips
+            // inline event handlers as defense-in-depth.
             const safeName = escapeHtml(String(emoji.name ?? ''));
             const safeUrl = escapeHtml(url);
             return `<img src="${safeUrl}" alt=":${safeName}:" title=":${safeName}:" class="emoji-icon ${sizeClass}" draggable="false" />`;

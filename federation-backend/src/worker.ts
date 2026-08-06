@@ -40,14 +40,14 @@ export async function startWorker(): Promise<void> {
 
     // LISTEN/NOTIFY bridge for instant (sub-second) job pickup. This needs a
     // direct, session-mode Postgres connection (LISTEN cannot go through
-    // PostgREST/poolers). It is an OPTIMIZATION, not a hard requirement:
+    // PostgREST/poolers). An optimization, not a hard requirement.
     // FEDERATION_LISTENER_URL is preferred (a dedicated least-privilege
     // `harmony_listener` role - see 20260607_federation_listener_role.sql),
     // with DATABASE_URL accepted for backward compatibility.
     //
-    // When no listener connection is available we degrade gracefully: the
-    // 60s periodic sweep + 30s delivery-queue retry below still pick jobs up,
-    // just at higher latency. We do NOT crash - federation keeps working.
+    // Without a listener connection the 60s periodic sweep and 30s
+    // delivery-queue retry below still pick jobs up, at higher latency.
+    // Absence is not fatal.
     const connectionString =
       process.env.FEDERATION_LISTENER_URL || process.env.DATABASE_URL;
 

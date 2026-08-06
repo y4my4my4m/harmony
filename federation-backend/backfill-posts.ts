@@ -97,7 +97,7 @@ async function backfillContent() {
 
       const remoteObject = await fetchApObject(post.ap_id);
       if (!remoteObject || !remoteObject.content) {
-        console.log(`  ⏭️ Could not fetch remote Note, skipping`);
+        console.log(`  Could not fetch remote Note, skipping`);
         totalFailed++;
         await sleep(FETCH_DELAY_MS);
         continue;
@@ -108,9 +108,9 @@ async function backfillContent() {
       const newText = JSON.stringify(newContent);
 
       if (oldText === newText) {
-        console.log(`  ✅ Content unchanged, skipping`);
+        console.log(`  Content unchanged, skipping`);
       } else {
-        console.log(`  📝 Content differs - updating`);
+        console.log(`  Content differs - updating`);
         if (!DRY_RUN) {
           const { error: updateError } = await supabase
             .from('posts')
@@ -118,7 +118,7 @@ async function backfillContent() {
             .eq('id', post.id);
 
           if (updateError) {
-            console.error(`  ❌ Update failed:`, updateError.message);
+            console.error(`  Update failed:`, updateError.message);
             totalFailed++;
           } else {
             totalUpdated++;
@@ -184,7 +184,7 @@ async function backfillLinkPreviews() {
           await enrichPostLinkPreviews(post);
           totalEnriched++;
         } catch (err: any) {
-          console.error(`  ❌ Enrichment failed:`, err.message);
+          console.error(`  Enrichment failed:`, err.message);
         }
       } else {
         const urls = content.filter((p: any) => p.type === 'url').map((p: any) => p.url);

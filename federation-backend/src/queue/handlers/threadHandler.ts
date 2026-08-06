@@ -18,7 +18,7 @@ export async function handleThreadJob(data: FederationJobData): Promise<void> {
   const { thread_id, server_id, type } = data;
   const hostDomain = config.INSTANCE_DOMAIN;
 
-  logger.info(`📋 Processing thread ${type} job for thread: ${thread_id}, server: ${server_id}`);
+  logger.info(`Processing thread ${type} job for thread: ${thread_id}, server: ${server_id}`);
 
   try {
     const { data: thread, error: threadError } = await supabase
@@ -73,7 +73,7 @@ export async function handleThreadJob(data: FederationJobData): Promise<void> {
       return;
     }
 
-    logger.info(`📋 Thread "${thread.name}" data: creator.is_local=${creator.is_local}, server.is_local=${server.is_local_server}, federation_enabled=${server.federation_enabled}, channel=${channel.name} (${channel.id})`);
+    logger.info(`Thread "${thread.name}" data: creator.is_local=${creator.is_local}, server.is_local=${server.is_local_server}, federation_enabled=${server.federation_enabled}, channel=${channel.name} (${channel.id})`);
 
     if (!creator.is_local) {
       logger.info('Thread creator is not local, skipping federation');
@@ -90,11 +90,11 @@ export async function handleThreadJob(data: FederationJobData): Promise<void> {
     const parentMessageApId = parentMessage.metadata?.ap_id || 
       `https://${hostDomain}/messages/${parentMessage.id}`;
 
-    logger.info(`📋 Thread AP IDs: channelApId=${channelApId}, parentMessageApId=${parentMessageApId}, creatorApId=${creatorApId}`);
+    logger.info(`Thread AP IDs: channelApId=${channelApId}, parentMessageApId=${parentMessageApId}, creatorApId=${creatorApId}`);
 
     // CASE 1: Remote server - federate thread to that server's inbox
     if (!server.is_local_server && server.federation_inbox_url) {
-      logger.info(`📤 Federating thread to remote server inbox: ${server.federation_inbox_url}`);
+      logger.info(`Federating thread to remote server inbox: ${server.federation_inbox_url}`);
       
       const threadActivity = createThreadActivity(
         type === 'create' ? 'Create' : 'Update',
@@ -120,7 +120,7 @@ export async function handleThreadJob(data: FederationJobData): Promise<void> {
         .update({ federation_status: 'completed' })
         .eq('id', thread_id);
 
-      logger.info(`✅ Thread federated to ${server.federation_inbox_url}`);
+      logger.info(`Thread federated to ${server.federation_inbox_url}`);
       return;
     }
 
@@ -157,7 +157,7 @@ export async function handleThreadJob(data: FederationJobData): Promise<void> {
           cc: threadActivity.cc,
         };
         await DeliveryQueue.enqueue(activityWithRecipients, inbox, creator.id, 5);
-        logger.info(`📤 Thread queued for ${group.instance} (${group.member_count} members)`);
+        logger.info(`Thread queued for ${group.instance} (${group.member_count} members)`);
       }
 
       await supabase
@@ -165,7 +165,7 @@ export async function handleThreadJob(data: FederationJobData): Promise<void> {
         .update({ federation_status: 'completed' })
         .eq('id', thread_id);
 
-      logger.info(`✅ Thread federated to ${remoteMemberGroups.length} instances`);
+      logger.info(`Thread federated to ${remoteMemberGroups.length} instances`);
     } else {
       await supabase
         .from('threads')

@@ -13,7 +13,7 @@ export async function handleDMJob(data: FederationJobData): Promise<void> {
   const supabase = getSupabaseClient();
   const { type, message_id } = data;
 
-  logger.info(`💬 Processing DM job: ${type} for message ${message_id}`);
+  logger.info(`Processing DM job: ${type} for message ${message_id}`);
 
   try {
     const { data: message } = await supabase
@@ -56,7 +56,7 @@ export async function handleDMJob(data: FederationJobData): Promise<void> {
     await handleNewDM(message);
 
     await updateFederationStatus(message_id, 'messages', 'completed');
-    logger.info(`✅ DM ${message_id} federated successfully`);
+    logger.info(`DM ${message_id} federated successfully`);
 
   } catch (error) {
     logger.error(`Failed to federate DM ${message_id}:`, error);

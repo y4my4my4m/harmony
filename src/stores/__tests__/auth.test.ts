@@ -167,11 +167,9 @@ describe('useAuthStore', () => {
       expect(ok).toBe(false)
     })
 
-    // Regression: prior to the AMR-aware fix, MFA users got logged out on
-    // every device after Supabase's ~24h AAL2 grace period expired. The
-    // fix accepts AAL1 sessions whose JWT amr already records a `totp`
-    // verification, matching the documented "stay logged in for weeks"
-    // model in `docs/2FA_SECURITY_MODEL.md`.
+    // AAL1 sessions whose JWT amr already records a `totp` verification are
+    // accepted after Supabase's ~24h AAL2 grace period expires. Matches the
+    // long-session model in `docs/2FA_SECURITY_MODEL.md`.
     it('accepts AAL1 session when amr already records totp (post-AAL2-expiry long session)', async () => {
       const store = useAuthStore()
       const listFactors = vi.fn().mockResolvedValue({
@@ -184,8 +182,8 @@ describe('useAuthStore', () => {
       } as any
       const ok = await store.validateSessionForMFA(session)
       expect(ok).toBe(true)
-      // The amr-fast-path means we don't even need to call listFactors -
-      // the JWT alone tells us MFA was completed on this session.
+      // The amr fast path skips listFactors; the JWT alone records that MFA
+      // completed for this session.
       expect(listFactors).not.toHaveBeenCalled()
     })
 
@@ -269,8 +267,8 @@ describe('useAuthStore', () => {
       await store.initializeAuth()
       expect(handler).not.toBeNull()
 
-      // Simulate Supabase firing SIGNED_IN with a brand-new AAL1 session for a
-      // user that has MFA enrolled. The store must NOT adopt this session.
+      // Supabase fires SIGNED_IN with a brand-new AAL1 session for an
+      // MFA-enrolled user. The store must not adopt it.
       await handler!('SIGNED_IN', {
         access_token: jwtWithAAL('aal1'),
         user: { id: 'new-user' },
@@ -305,12 +303,11 @@ describe('useAuthStore', () => {
     })
   })
 
-  // Regression test for the OAuth callback / MFA-handoff race. Before this fix,
-  // `initializeAuth` ran `validateSessionForMFA` on the AAL1 session that
-  // Supabase's `detectSessionInUrl: true` had already exchanged for us, hit the
-  // "MFA enrolled, no totp in amr" reject branch, and called `signOut()` -
-  // which destroyed the session before `AuthCallbackView` mounted. The view's
-  // `getSession()` then returned null and the user saw "Authentication failed".
+  // On /auth/callback, `initializeAuth` must not run `validateSessionForMFA`.
+  // `detectSessionInUrl: true` has already exchanged the code for an AAL1
+  // session; the "MFA enrolled, no totp in amr" reject branch would `signOut()`
+  // it before `AuthCallbackView` mounts, leaving that view's `getSession()`
+  // with nothing.
   describe('initializeAuth - /auth/callback deferral', () => {
     let originalLocation: any
     beforeEach(() => {
@@ -343,8 +340,8 @@ describe('useAuthStore', () => {
       })
       const signOutSpy = vi.fn().mockResolvedValue({ error: null })
       ;(supabase.auth as any).signOut = signOutSpy
-      // listFactors WOULD return a verified factor - proving the path-check
-      // bypasses MFA validation regardless of the user's MFA state.
+      // listFactors returns a verified factor: the path check bypasses MFA
+      // validation regardless of the user's MFA state.
       ;(supabase.auth as any).mfa = {
         listFactors: vi.fn().mockResolvedValue({
           data: { totp: [{ status: 'verified' }] },
@@ -355,24 +352,21 @@ describe('useAuthStore', () => {
       const store = useAuthStore()
       await store.initializeAuth()
 
-      // The whole point: no signOut, so AuthCallbackView's getSession()
-      // will still find the AAL1 session and can run its MFA challenge.
+      // No signOut, so AuthCallbackView's getSession() still finds the AAL1
+      // session and can run its MFA challenge.
       expect(signOutSpy).not.toHaveBeenCalled()
-      // We don't adopt yet either - that's AuthCallbackView's job after
-      // it either passes validation or completes the MFA challenge.
+      // Adoption is AuthCallbackView's job, once validation passes or the MFA
+      // challenge completes.
       expect(store.session).toBeNull()
-      // And the flag is set so any in-flight SIGNED_IN / INITIAL_SESSION
-      // events from the OAuth code-exchange don't run the same reject
-      // path inside `onAuthStateChange`.
+      // Flag set so in-flight SIGNED_IN / INITIAL_SESSION events from the
+      // OAuth code exchange skip the reject path in `onAuthStateChange`.
       expect((store as any)._pendingMFAVerification).toBe(true)
     })
 
-    // Regression test for the bug the code-reviewer flagged: gotrue-js fires
-    // INITIAL_SESSION as a microtask immediately after `detectSessionInUrl`
-    // exchanges the OAuth code, BEFORE `AuthCallbackView` mounts. The
-    // previous version of the SIGNED_IN-only flag check would let
-    // INITIAL_SESSION's reject branch run, signOut() the AAL1 session, and
-    // leave the callback view with no session to challenge against.
+    // gotrue-js fires INITIAL_SESSION as a microtask right after
+    // `detectSessionInUrl` exchanges the OAuth code, before `AuthCallbackView`
+    // mounts. The flag check must cover every event type, not only SIGNED_IN,
+    // or INITIAL_SESSION's reject branch signs out the AAL1 session.
     it('INITIAL_SESSION during /auth/callback is skipped, not validated', async () => {
       const oauthSession = {
         access_token: jwtWithAALAndAMR('aal1', ['oauth']),
@@ -403,8 +397,8 @@ describe('useAuthStore', () => {
       // `_pendingMFAVerification` is still set by the callback path-check.
       await stateChangeHandler!('INITIAL_SESSION', oauthSession)
 
-      // The handler must have early-returned. NO signOut, NO listFactors
-      // call (the early return is BEFORE `validateSessionForMFA`).
+      // The handler early-returns before `validateSessionForMFA`: no signOut,
+      // no listFactors call.
       expect(signOutSpy).not.toHaveBeenCalled()
       expect(listFactorsSpy).not.toHaveBeenCalled()
       expect(store.session).toBeNull()
@@ -412,9 +406,8 @@ describe('useAuthStore', () => {
       expect((store as any)._pendingMFAVerification).toBe(true)
     })
 
-    // Same blocker, different event type. Belt-and-suspenders for the
-    // catch-all branch - TOKEN_REFRESHED can fire if the OAuth flow takes
-    // longer than the access-token TTL.
+    // TOKEN_REFRESHED fires when the OAuth flow outlasts the access-token TTL;
+    // the catch-all branch must skip it as well.
     it('TOKEN_REFRESHED during /auth/callback is skipped, not validated', async () => {
       const refreshedSession = {
         access_token: jwtWithAALAndAMR('aal1', ['oauth']),
@@ -450,18 +443,16 @@ describe('useAuthStore', () => {
     })
   })
 
-  // Regression test for the race condition where SIGNED_IN's `validateSessionForMFA`
-  // fired BEFORE `login()` had time to flag the in-flight MFA attempt, causing the
-  // freshly-issued AAL1 session to be torn down - `listFactors` then ran against a
-  // dead session, returned empty, and `login()` reported "no 2FA needed" even though
-  // the user had a verified TOTP factor. The login UI navigated to the home route
-  // with no session and the page rendered blank.
+  // `login()` sets the pending-MFA flag before `signInWithPassword` resolves.
+  // Otherwise SIGNED_IN's `validateSessionForMFA` tears down the freshly-issued
+  // AAL1 session, `listFactors` runs against a dead session and returns empty,
+  // and `login()` reports "no 2FA needed" for a user with a verified TOTP
+  // factor.
   describe('login() - concurrent SIGNED_IN handling', () => {
     it('keeps the AAL1 session alive across SIGNED_IN microtask so listFactors can detect 2FA', async () => {
-      // Mocks: a 2FA-enrolled user. signInWithPassword resolves and would
-      // normally fire SIGNED_IN on the global handler - we simulate that
-      // mid-login by invoking the captured handler ourselves between the
-      // `signInWithPassword` resolution and the rest of `login()` running.
+      // 2FA-enrolled user. SIGNED_IN normally fires on the global handler when
+      // signInWithPassword resolves; the captured handler is invoked directly
+      // to reproduce that mid-login ordering.
       let stateChangeHandler: ((event: string, session: any) => Promise<void>) | null = null
       ;(supabase.auth as any).onAuthStateChange = vi.fn((fn: any) => {
         stateChangeHandler = fn
@@ -477,11 +468,10 @@ describe('useAuthStore', () => {
       ;(supabase.auth as any).signOut = signOutSpy
       ;(supabase.auth as any).getSession = vi.fn().mockResolvedValue({ data: { session: null } })
 
-      // signInWithPassword: race the SIGNED_IN handler in *before* returning.
-      // This reproduces the real-world ordering where Supabase fires SIGNED_IN
-      // as a microtask while login() is awaiting its next `await`.
+      // SIGNED_IN is raced in before signInWithPassword returns, matching
+      // Supabase firing it as a microtask while login() awaits.
       ;(supabase.auth as any).signInWithPassword = vi.fn(async () => {
-        // Schedule the SIGNED_IN dispatch to run as soon as login() yields.
+        // SIGNED_IN dispatch runs as soon as login() yields.
         Promise.resolve().then(() => stateChangeHandler?.('SIGNED_IN', aal1Session))
         return { data: { user: aal1Session.user, session: aal1Session }, error: null }
       })
@@ -511,15 +501,13 @@ describe('useAuthStore', () => {
 
       const result = await store.login('mfa@example.com', 'pw')
 
-      // The whole point: we get the MFA-required signal back, NOT a silent
-      // "{ requires2FA: false }" caused by the SIGNED_IN handler having
-      // already destroyed the session.
+      // MFA-required signal, not a silent `{ requires2FA: false }` from the
+      // SIGNED_IN handler having already destroyed the session.
       expect(result.requires2FA).toBe(true)
       expect(result.factorId).toBe('factor-1')
       expect(result.challengeId).toBe('challenge-1')
-      // And critically, the SIGNED_IN handler did NOT sign us out: the
-      // pending-MFA flag was set before signInWithPassword resolved, so
-      // the handler's early return triggered.
+      // The pending-MFA flag was set before signInWithPassword resolved, so
+      // the SIGNED_IN handler early-returned instead of signing out.
       expect(signOutSpy).not.toHaveBeenCalled()
     })
 
@@ -541,10 +529,9 @@ describe('useAuthStore', () => {
       await store.initializeAuth()
 
       await expect(store.login('bad@example.com', 'wrong')).rejects.toThrow()
-      // The flag must be cleared on the error path. If it leaked, the next
-      // SIGNED_IN event (e.g. from a successful retry) would be silently
-      // skipped and the user would be stuck looking at a "logged in but
-      // empty" state.
+      // The flag must be cleared on the error path. A leaked flag silently
+      // skips the next SIGNED_IN event (e.g. a successful retry), leaving a
+      // "logged in but empty" state.
       expect((store as any)._pendingMFAVerification).toBe(false)
     })
   })

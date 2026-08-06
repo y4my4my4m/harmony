@@ -18,7 +18,7 @@ export class ReactionCacheManager {
     if (map instanceof Map) {
       map.clear();
     }
-    debug.log('🧹 Cleared all reaction cache data');
+    debug.log('Cleared all reaction cache data');
   }
 
   startCleanup() {
@@ -54,7 +54,7 @@ export class ReactionCacheManager {
       }
 
       if (pruned > 0) {
-        debug.log(`🧹 Pruned ${pruned} stale reaction cache entries`);
+        debug.log(`Pruned ${pruned} stale reaction cache entries`);
       }
     } catch (e) {
       debug.error('Reaction cache cleanup error:', e);

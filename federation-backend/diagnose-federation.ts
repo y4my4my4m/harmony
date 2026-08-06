@@ -11,7 +11,7 @@ const supabase = getSupabaseClient();
 const username = process.argv[2] || 'y4my4m';
 
 async function diagnose() {
-  console.log('🔍 Federation Diagnostics\n');
+  console.log('Federation Diagnostics\n');
   
   // Get user ID
   const { data: localUser } = await supabase
@@ -54,10 +54,10 @@ async function diagnose() {
     const profile = f.profiles;
     console.log(`User: ${profile.username}@${profile.domain}`);
     console.log(`  Is Local: ${profile.is_local}`);
-    console.log(`  Inbox URL: ${profile.inbox_url || '❌ MISSING'}`);
-    console.log(`  Shared Inbox: ${profile.shared_inbox_url || '⚠️  MISSING'}`);
-    console.log(`  Federated ID: ${profile.federated_id || '❌ MISSING'}`);
-    console.log(`  AP Activity ID: ${f.ap_activity_id || '⚠️  MISSING'}`);
+    console.log(`  Inbox URL: ${profile.inbox_url || 'MISSING'}`);
+    console.log(`  Shared Inbox: ${profile.shared_inbox_url || 'MISSING'}`);
+    console.log(`  Federated ID: ${profile.federated_id || 'MISSING'}`);
+    console.log(`  AP Activity ID: ${f.ap_activity_id || 'MISSING'}`);
     console.log('');
   });
   
@@ -87,11 +87,11 @@ async function diagnose() {
     const profile = f.profiles;
     console.log(`User: ${profile.username}@${profile.domain}`);
     console.log(`  Is Local: ${profile.is_local}`);
-    console.log(`  Inbox URL: ${profile.inbox_url || '❌ MISSING'}`);
-    console.log(`  Shared Inbox: ${profile.shared_inbox_url || '⚠️  MISSING'}`);
-    console.log(`  Outbox URL: ${profile.outbox_url || '❌ MISSING'}`);
-    console.log(`  Federated ID: ${profile.federated_id || '❌ MISSING'}`);
-    console.log(`  AP Activity ID: ${f.ap_activity_id || '⚠️  MISSING'}`);
+    console.log(`  Inbox URL: ${profile.inbox_url || 'MISSING'}`);
+    console.log(`  Shared Inbox: ${profile.shared_inbox_url || 'MISSING'}`);
+    console.log(`  Outbox URL: ${profile.outbox_url || 'MISSING'}`);
+    console.log(`  Federated ID: ${profile.federated_id || 'MISSING'}`);
+    console.log(`  AP Activity ID: ${f.ap_activity_id || 'MISSING'}`);
     console.log('');
   });
   
@@ -110,16 +110,16 @@ async function diagnose() {
   console.log(`  Missing inbox URL: ${withoutInbox}`);
   
   if (withoutInbox > 0) {
-    console.log('\n⚠️  WARNING: Some remote users missing inbox URLs!');
+    console.log('\nWARNING: Some remote users missing inbox URLs!');
     console.log('Run: npm run refresh-users');
   }
 }
 
 diagnose().then(() => {
-  console.log('\n✅ Diagnostics complete');
+  console.log('\nDiagnostics complete');
   process.exit(0);
 }).catch(err => {
-  console.error('❌ Error:', err);
+  console.error('Error:', err);
   process.exit(1);
 });
 

@@ -53,7 +53,7 @@ function scanDirectory(dirPath, relativePath = '') {
  * Build the manifest
  */
 function buildManifest() {
-  console.log('📁 Scanning background images...');
+  console.log('Scanning background images...');
   
   const manifest = {
     login: [],
@@ -96,7 +96,7 @@ function buildManifest() {
   
   // Write manifest
   fs.writeFileSync(OUTPUT_FILE, JSON.stringify(manifest, null, 2));
-  console.log(`✅ Manifest written to ${OUTPUT_FILE}\n`);
+  console.log(`Manifest written to ${OUTPUT_FILE}\n`);
   
   return manifest;
 }

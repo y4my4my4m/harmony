@@ -8,7 +8,7 @@
 </template>
 
 <script setup lang="ts">
-// No additional logic needed for auth layout - just a simple wrapper
+// Wrapper only; no logic.
 </script>
 
 <style scoped>

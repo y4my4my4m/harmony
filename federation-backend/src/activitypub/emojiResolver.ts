@@ -1,5 +1,4 @@
 /**
- * @deprecated Import from '../utils/emojiResolvers.js' instead.
- * This file is kept for backward compatibility.
+ * @deprecated Re-export shim. Import from '../utils/emojiResolvers.js'.
  */
 export { resolveLocalProfileEmojis } from '../utils/emojiResolvers.js';

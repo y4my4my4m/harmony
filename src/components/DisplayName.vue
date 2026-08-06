@@ -121,8 +121,8 @@ const finalParts = computed<RenderPart[] | undefined>(() => {
 function processTextForUnicodeEmojis(text: string): RenderPart[] {
   if (!text) return []
 
-  // If native pack or emoji data not loaded, just return text as-is
-  // (browser will render unicode emojis natively)
+  // Native pack or unloaded emoji data: pass text through and let the browser
+  // render unicode emojis itself.
   if (isNativePack.value || !emojiPackLoaded.value) {
     return [{ type: 'text' as const, text }]
   }

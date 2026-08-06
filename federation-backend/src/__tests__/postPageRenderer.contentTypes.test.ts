@@ -1,17 +1,13 @@
 /**
- * Content-type coverage tests for `postPageRenderer.ts`.
+ * Content-type coverage for `postPageRenderer.ts`.
  *
- * Background: the `MessagePart` discriminated union in `src/types.ts`
- * declares nine `type` literals (text, mention, hashtag, link, url,
- * embed, emoji, role_mention, file, system). The original renderer only
- * handled the first four, so a post whose entire content was a single
- * `{ type: 'url', url: '...' }` part (the shape produced when a user
- * pastes a bare URL into the composer) rendered an empty `.content`
- * div and an empty OG description on `/posts/:id`.
+ * The `MessagePart` discriminated union in `src/types.ts` declares text,
+ * mention, hashtag, link, url, embed, emoji, role_mention, file, system.
+ * Each part type is pinned to its expected HTML here.
  *
- * These tests pin every part type to its expected HTML, and lock in
- * the specific regression: a URL-only post renders a non-empty
- * `<a href>` with tracking params stripped.
+ * Regression: a post whose whole content is one `{ type: 'url' }` part -
+ * the shape a bare pasted URL produces - renders a non-empty `<a href>`
+ * with tracking params stripped, and a non-empty og:description.
  */
 
 import { describe, it, expect, vi } from 'vitest';
@@ -48,9 +44,9 @@ function basePost(content: any) {
 }
 
 /**
- * Slice the user-content island out of the rendered page. Mirrors the
- * helper in `postPageRenderer.xss.test.ts` - we want to assert against
- * the `<div class="content">` body only, not the page's `<head>`.
+ * Slice the user-content island out of the rendered page. Mirrors the helper
+ * in `postPageRenderer.xss.test.ts`. Covers the `<div class="content">` body
+ * only, not the page's `<head>`.
  */
 function userContent(html: string): string {
   const m = /<div class="content">([\s\S]*?)<\/div>\s*(?:<div class="media-grid|<div class="stats-bar|<div class="meta)/i.exec(html);
@@ -81,7 +77,7 @@ describe('postPageRenderer - content-type coverage', () => {
       expect(island).toMatch(/<a [^>]*href="https:\/\/arstechnica\.com\/security\/2026\/01\/foo"/);
       expect(island).toMatch(/rel="nofollow noopener"/);
       expect(island).toMatch(/target="_blank"/);
-      // The visible label and the href should both be tracking-free.
+      // Label and href are both tracking-free.
       expect(island).not.toContain('utm_source');
       expect(island).not.toContain('utm_medium');
     });
@@ -98,8 +94,8 @@ describe('postPageRenderer - content-type coverage', () => {
         baseAuthor,
       );
 
-      // The og:description must not be empty (was the original bug - empty
-      // description meant Mastodon/Discord previews showed no excerpt).
+      // An empty og:description suppresses the excerpt in Mastodon/Discord
+      // link previews.
       const m = /<meta property="og:description" content="([^"]*)"/.exec(html);
       expect(m, 'og:description meta tag').not.toBeNull();
       expect(m![1]).toBe('https://arstechnica.com/x');
@@ -169,11 +165,10 @@ describe('postPageRenderer - content-type coverage', () => {
         baseAuthor,
       );
       const island = userContent(html);
-      // Attribute order isn't load-bearing; just assert both made it on.
+      // Attribute order is not load-bearing.
       expect(island).toMatch(/<img\b[^>]*class="custom-emoji"/);
       expect(island).toMatch(/<img\b[^>]*alt=":blobcat:"/);
-      // The renderer routes bucket-relative URLs through the imgproxy
-      // render path; assert the bucket made it into the resolved src.
+      // Bucket-relative URLs resolve through the imgproxy render path.
       expect(island).toContain('/storage/v1/render/image/public/emojis/blobcat.png');
     });
 
@@ -219,7 +214,7 @@ describe('postPageRenderer - content-type coverage', () => {
             type: 'role_mention',
             roleId: 'r1',
             roleName: 'admins',
-            // Attacker-controlled federated payload tries to escape the value.
+            // Federated payload attempting to escape the style value.
             roleColor: 'red; background: url(http://evil/x)',
           },
         ]),
@@ -229,7 +224,7 @@ describe('postPageRenderer - content-type coverage', () => {
       expect(island).toContain('@admins');
       expect(island).not.toContain('background:');
       expect(island).not.toContain('url(');
-      // No `style=` attribute at all when the color failed validation.
+      // No `style=` attribute at all when color validation fails.
       expect(island).not.toMatch(/<span class="mention"[^>]*style=/);
     });
 
@@ -246,7 +241,6 @@ describe('postPageRenderer - content-type coverage', () => {
         baseAuthor,
       );
       const island = userContent(html);
-      // Nothing in the content island for images.
       expect(island.trim()).toBe('');
     });
 
@@ -286,7 +280,6 @@ describe('postPageRenderer - content-type coverage', () => {
       const url = 'https://example.com/abc';
       const htmlUrl = renderPostPage(basePost([{ type: 'url', url, preview: true }]), baseAuthor);
       const htmlLink = renderPostPage(basePost([{ type: 'link', url, text: url }]), baseAuthor);
-      // Both produce the same anchor (same href, same visible label).
       expect(userContent(htmlUrl)).toMatch(/<a [^>]*href="https:\/\/example\.com\/abc"[^>]*>https:\/\/example\.com\/abc<\/a>/);
       expect(userContent(htmlLink)).toMatch(/<a [^>]*href="https:\/\/example\.com\/abc"[^>]*>https:\/\/example\.com\/abc<\/a>/);
     });
@@ -299,7 +292,7 @@ describe('postPageRenderer - content-type coverage', () => {
         baseAuthor,
       );
       const island = userContent(html);
-      // The visible label still surfaces, but never as a live <a href>.
+      // The label surfaces as text, never as a live <a href>.
       expect(island).not.toMatch(/href="javascript:/i);
     });
 

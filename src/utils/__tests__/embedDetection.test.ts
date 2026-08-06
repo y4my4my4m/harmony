@@ -5,8 +5,8 @@ vi.stubGlobal('import', { meta: { env: { VITE_DOMAIN: 'harmony.test', VITE_HARMO
 // Must re-mock import.meta.env before importing the module
 vi.mock('@/types', () => ({}))
 
-// We need to test the functions in isolation. Since embedDetection.ts reads
-// import.meta.env at module load time, we mock it via the setup file.
+// embedDetection.ts reads import.meta.env at module load time, so the env is
+// mocked via the setup file.
 import {
   normalizeEmbedUrl,
   parseEmbedUrl,

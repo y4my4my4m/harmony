@@ -29,7 +29,7 @@ class BlockedInstancesCacheService {
       }
     }, this.REFRESH_INTERVAL_MS);
     
-    logger.info(`🚫 Blocked instances cache initialized (${this.blockedDomains.size} domains, refreshes every 5 min)`);
+    logger.info(`Blocked instances cache initialized (${this.blockedDomains.size} domains, refreshes every 5 min)`);
   }
 
   /**
@@ -54,10 +54,10 @@ class BlockedInstancesCacheService {
     const removed = [...this.blockedDomains].filter(d => !newBlockedDomains.has(d));
     
     if (added.length > 0) {
-      logger.info(`🚫 Newly blocked instances: ${added.join(', ')}`);
+      logger.info(`Newly blocked instances: ${added.join(', ')}`);
     }
     if (removed.length > 0) {
-      logger.info(`✅ Unblocked instances: ${removed.join(', ')}`);
+      logger.info(`Unblocked instances: ${removed.join(', ')}`);
     }
     
     this.blockedDomains = newBlockedDomains;
@@ -76,7 +76,7 @@ class BlockedInstancesCacheService {
    */
   addBlocked(domain: string): void {
     this.blockedDomains.add(domain.toLowerCase());
-    logger.info(`🚫 Added to block cache: ${domain}`);
+    logger.info(`Added to block cache: ${domain}`);
   }
 
   /**
@@ -84,7 +84,7 @@ class BlockedInstancesCacheService {
    */
   removeBlocked(domain: string): void {
     this.blockedDomains.delete(domain.toLowerCase());
-    logger.info(`✅ Removed from block cache: ${domain}`);
+    logger.info(`Removed from block cache: ${domain}`);
   }
 
   /**

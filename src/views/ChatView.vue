@@ -127,8 +127,9 @@ const loadMessages = async () => {
     const serverId = route.params.serverId as string
 
     // Server switched but the default channel isn't resolved yet
-    // (/chat/:serverId without :channelId): clear NOW, otherwise the previous
-    // server's messages stay on screen for the whole channel-list round trip.
+    // (/chat/:serverId without :channelId): clear immediately, otherwise the
+    // previous server's messages stay on screen for the whole channel-list
+    // round trip.
     if (serverId && serverId !== lastSeenServerId) {
       if (lastSeenServerId !== null && !chatStore.isMessageCached(channelId || '')) {
         chatStore.clearMessages()
@@ -176,39 +177,39 @@ onUnmounted(() => {
 })
 
 const fetchMoreMessages = async () => {
-  debug.log('📜 fetchMoreMessages called, isDM:', props.isDM)
+  debug.log('fetchMoreMessages called, isDM:', props.isDM)
   
   if (props.isDM) {
     const conversationId = route.params.conversationId as string
     if (conversationId && dmStore.currentDMMessages.length > 0) {
       const oldestMessage = dmStore.currentDMMessages[0]
-      debug.log('📜 Fetching older DM messages before:', oldestMessage.id)
+      debug.log('Fetching older DM messages before:', oldestMessage.id)
       await dmStore.fetchConversationMessages(conversationId, oldestMessage.id)
     } else {
-      debug.log('📜 Cannot fetch DM messages: no conversation or no messages yet')
+      debug.log('Cannot fetch DM messages: no conversation or no messages yet')
     }
   } else {
     const channelId = route.params.channelId as string
-    debug.log('📜 Current channel:', channelId, 'Message count:', chatStore.messages.length)
-    debug.log('📜 allMessagesLoaded:', chatStore.allMessagesLoaded)
-    debug.log('📜 loadingOlderMessages:', chatStore.loadingOlderMessages)
+    debug.log('Current channel:', channelId, 'Message count:', chatStore.messages.length)
+    debug.log('allMessagesLoaded:', chatStore.allMessagesLoaded)
+    debug.log('loadingOlderMessages:', chatStore.loadingOlderMessages)
     
     if (chatStore.allMessagesLoaded) {
-      debug.log('📜 All messages already loaded, not fetching more')
+      debug.log('All messages already loaded, not fetching more')
       return
     }
     
     if (chatStore.loadingOlderMessages) {
-      debug.log('📜 Already loading older messages, skipping')
+      debug.log('Already loading older messages, skipping')
       return
     }
     
     if (channelId && chatStore.messages.length > 0) {
       const oldestMessage = chatStore.messages[0]
-      debug.log('📜 Fetching older messages before message:', oldestMessage.id, oldestMessage.created_at)
+      debug.log('Fetching older messages before message:', oldestMessage.id, oldestMessage.created_at)
       await chatStore.fetchMessages(channelId, oldestMessage.id)
     } else {
-      debug.log('📜 Cannot fetch messages: no channel or no messages yet')
+      debug.log('Cannot fetch messages: no channel or no messages yet')
     }
   }
 }
@@ -363,8 +364,8 @@ const highlightSearchText = (messageElement: HTMLElement, query: string) => {
             // DECODED text - if the message renderer escaped `<style>foo`
             // into `&lt;style&gt;foo`, the DOM has `<style>foo` as text
             // content here, and assigning that back via innerHTML would
-            // re-parse it as a real <style> tag and re-introduce the XSS
-            // that the message renderer just defended against.
+            // re-parse it as a real <style> tag and re-introduce the XSS the
+            // message renderer defends against.
             const wrapper = document.createElement('span')
             let lastIndex = 0
             let match: RegExpExecArray | null
@@ -407,10 +408,7 @@ const highlightSearchText = (messageElement: HTMLElement, query: string) => {
   })
 }
 
-// Remove onMounted since the watcher with immediate: true handles initial load
-// onMounted(() => {
-//   loadMessages()
-// })
+// Initial load runs through the watcher's `immediate: true`; no onMounted.
 </script>
 
 <style scoped>

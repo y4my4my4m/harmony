@@ -1,18 +1,16 @@
 /**
  * Regression test for the home-timeline realtime path.
  *
- * Bug history: `20260322_broadcast_post_follow_interaction.sql` replaced the
- * firehose `postgres_changes` subscription on `posts` with a targeted
- * `realtime.send()` that only delivered `post:new` to the AUTHOR's
- * `user:{author_id}` channel - so followers' home feeds stopped prepending
- * posts in real time (the user complaint: "I'm not seeing posts appearing
- * in realtime btw"). The DB-side fix broadcasts a new `home_feed:new_post`
- * event on each home-timeline recipient's channel; the frontend-side fix
- * (which this file exercises) is to route that event type through the
- * existing `UserEventChannel` dispatch path so registered handlers fire.
+ * `20260322_broadcast_post_follow_interaction.sql` replaced the firehose
+ * `postgres_changes` subscription on `posts` with a targeted `realtime.send()`
+ * delivering `post:new` only to the author's `user:{author_id}` channel, which
+ * stopped followers' home feeds from prepending posts in real time. The DB
+ * side broadcasts `home_feed:new_post` on each home-timeline recipient's
+ * channel; the frontend side, exercised here, routes that event type through
+ * the existing `UserEventChannel` dispatch path so registered handlers fire.
  *
- * The test mocks the Supabase client so we exercise the in-process
- * dispatch logic without opening a real broadcast channel.
+ * The Supabase client is mocked: this covers in-process dispatch without
+ * opening a real broadcast channel.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'

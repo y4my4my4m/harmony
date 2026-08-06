@@ -66,7 +66,7 @@ export class DeliveryQueue {
     senderId: string,
     priority: number = 5
   ): Promise<void> {
-    logger.info(`📤 Attempting immediate delivery to ${targetInbox}`);
+    logger.info(`Attempting immediate delivery to ${targetInbox}`);
     
     // Try immediate delivery first (realtime!)
     try {
@@ -77,11 +77,11 @@ export class DeliveryQueue {
       );
       
       if (success) {
-        logger.info(`✅ Immediate delivery succeeded to ${targetInbox}`);
+        logger.info(`Immediate delivery succeeded to ${targetInbox}`);
         return; // Success! No need to queue
       }
     } catch (error) {
-      logger.warn(`⚠️ Immediate delivery failed, queuing for retry:`, error);
+      logger.warn(`Immediate delivery failed, queuing for retry:`, error);
     }
     
     // Immediate delivery failed - queue it for retry
@@ -111,7 +111,7 @@ export class DeliveryQueue {
       throw error;
     }
 
-    logger.info(`📋 Queued for retry: ${targetInbox} (will retry in 5 minutes)`);
+    logger.info(`Queued for retry: ${targetInbox} (will retry in 5 minutes)`);
   }
 
   /**
@@ -326,14 +326,14 @@ export class DeliveryQueue {
     }
 
     if (BlockedInstancesCache.isBlocked(targetDomain)) {
-      logger.info(`🚫 Skipping delivery to blocked instance: ${targetDomain}`);
+      logger.info(`Skipping delivery to blocked instance: ${targetDomain}`);
       return false;
     }
 
     // Check if endpoint is dead before attempting delivery
     const isDead = await this.isEndpointDead(targetInbox);
     if (isDead) {
-      logger.info(`⏭️ Skipping delivery to dead endpoint: ${targetInbox}`);
+      logger.info(`Skipping delivery to dead endpoint: ${targetInbox}`);
       return false;
     }
 
@@ -341,7 +341,7 @@ export class DeliveryQueue {
     try {
       validateExternalUrl(targetInbox);
     } catch (err: any) {
-      logger.warn(`🚫 SSRF: Blocked delivery to unsafe inbox URL: ${targetInbox} - ${err.message}`);
+      logger.warn(`SSRF: Blocked delivery to unsafe inbox URL: ${targetInbox} - ${err.message}`);
       return false;
     }
 
@@ -372,7 +372,7 @@ export class DeliveryQueue {
         const durationMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
         await this.updateEndpointHealth(targetInbox, targetDomain, true, response.status);
         this.recordDeliveryOutcome(targetDomain, true, durationMs, activityData);
-        logger.info(`✅ Delivered to ${targetInbox} (${response.status})`);
+        logger.info(`Delivered to ${targetInbox} (${response.status})`);
         return true;
       } else {
         const durationMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
@@ -390,7 +390,7 @@ export class DeliveryQueue {
           activityData,
           `HTTP ${response.status}`
         );
-        logger.warn(`❌ Failed to deliver to ${targetInbox}: ${response.status}`);
+        logger.warn(`Failed to deliver to ${targetInbox}: ${response.status}`);
         return false;
       }
     } catch (error) {
@@ -398,7 +398,7 @@ export class DeliveryQueue {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       await this.updateEndpointHealth(targetInbox, targetDomain, false, undefined, errorMessage);
       this.recordDeliveryOutcome(targetDomain, false, durationMs, activityData, errorMessage);
-      logger.error(`❌ Delivery error to ${targetInbox}:`, error);
+      logger.error(`Delivery error to ${targetInbox}:`, error);
       return false;
     }
   }
@@ -423,7 +423,7 @@ export class DeliveryQueue {
     }
 
     if (BlockedInstancesCache.isBlocked(targetDomain)) {
-      logger.info(`🚫 Skipping delivery to blocked instance: ${targetDomain}`);
+      logger.info(`Skipping delivery to blocked instance: ${targetDomain}`);
       await supabase
         .from('federation_delivery_queue')
         .update({
@@ -438,7 +438,7 @@ export class DeliveryQueue {
     // Check if endpoint is dead before attempting delivery
     const isDead = await this.isEndpointDead(item.target_inbox_url);
     if (isDead) {
-      logger.info(`⏭️ Skipping delivery to dead endpoint: ${item.target_inbox_url}`);
+      logger.info(`Skipping delivery to dead endpoint: ${item.target_inbox_url}`);
       await supabase
         .from('federation_delivery_queue')
         .update({
@@ -454,7 +454,7 @@ export class DeliveryQueue {
       // Resolve sender_id if missing (legacy items don't have it)
       let senderId = item.sender_id;
       if (!senderId && item.actor_username) {
-        logger.info(`🔍 Resolving sender_id from actor_username: ${item.actor_username}`);
+        logger.info(`Resolving sender_id from actor_username: ${item.actor_username}`);
         const { data: profile } = await supabase
           .from('profiles')
           .select('id')
@@ -468,7 +468,7 @@ export class DeliveryQueue {
             .from('federation_delivery_queue')
             .update({ sender_id: senderId })
             .eq('id', item.id);
-          logger.info(`✅ Resolved sender_id: ${senderId}`);
+          logger.info(`Resolved sender_id: ${senderId}`);
         }
       }
 
@@ -480,7 +480,7 @@ export class DeliveryQueue {
       try {
         validateExternalUrl(item.target_inbox_url);
       } catch (ssrfErr: any) {
-        logger.warn(`🚫 SSRF: Blocked queue delivery to unsafe inbox URL: ${item.target_inbox_url} - ${ssrfErr.message}`);
+        logger.warn(`SSRF: Blocked queue delivery to unsafe inbox URL: ${item.target_inbox_url} - ${ssrfErr.message}`);
         await supabase
           .from('federation_delivery_queue')
           .update({ status: 'failed', error_message: `SSRF blocked: ${ssrfErr.message}`, last_attempt_at: new Date().toISOString() })
@@ -528,7 +528,7 @@ export class DeliveryQueue {
         const durationMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
         this.recordDeliveryOutcome(targetDomain, true, durationMs, item.activity_data);
 
-        logger.info(`✅ Delivered to ${item.target_inbox_url} (${response.status})`);
+        logger.info(`Delivered to ${item.target_inbox_url} (${response.status})`);
         return true;
       } else {
         // Failed - update health tracking and handle failure
@@ -548,7 +548,7 @@ export class DeliveryQueue {
           `HTTP ${response.status}`
         );
         await this.handleDeliveryFailure(item, `HTTP ${response.status}`, response.status);
-        logger.warn(`❌ Failed to deliver to ${item.target_inbox_url}: ${response.status}`);
+        logger.warn(`Failed to deliver to ${item.target_inbox_url}: ${response.status}`);
         return false;
       }
     } catch (error) {
@@ -563,7 +563,7 @@ export class DeliveryQueue {
       );
       this.recordDeliveryOutcome(targetDomain, false, 0, item.activity_data, errorMessage);
       await this.handleDeliveryFailure(item, errorMessage);
-      logger.error(`❌ Delivery error to ${item.target_inbox_url}:`, error);
+      logger.error(`Delivery error to ${item.target_inbox_url}:`, error);
       return false;
     }
   }

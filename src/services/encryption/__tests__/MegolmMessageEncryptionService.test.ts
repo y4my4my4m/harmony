@@ -323,9 +323,8 @@ describe('MegolmMessageEncryptionService', () => {
         }
         return builder
       })
-      // Make sure RPC and any other supabase calls don't blow up the test -
-      // claimPendingSessionShares() should never run on the v2 fast path, but
-      // we're defensive in case a future code change starts touching it.
+      // claimPendingSessionShares() does not run on the v2 fast path; stub the
+      // RPC anyway so any incidental supabase call resolves.
       ;(supabase.rpc as any).mockResolvedValue({ data: [], error: null })
 
       // Mint a real signing keypair, push the public key into the "DB"
@@ -371,10 +370,10 @@ describe('MegolmMessageEncryptionService', () => {
       const content: MessagePart[] = [{ type: 'text', text: 'this is from alice' }]
       const encrypted = await messageService.encryptMessage(content, TEST_ROOM_ID, [])
 
-      // The server pretends Alice's ciphertext was actually sent by Mallory.
-      // We publish Mallory's (different) signing key so the verifier can
-      // even attempt the check - it must still fail because the signature
-      // was over `sender_user_id: alice`.
+      // The server pretends Alice's ciphertext was sent by Mallory. Mallory's
+      // (different) signing key is published so the verifier can attempt the
+      // check at all; it must still fail because the signature covers
+      // `sender_user_id: alice`.
       const malloryId = '00000000-0000-0000-0000-cafecafecafe'
       const mallory = await generateSigningKeyPair()
       publicLookup.set(malloryId, await exportPublicSigningKey(mallory.publicKey))
@@ -544,8 +543,8 @@ describe('MegolmMessageEncryptionService', () => {
       upsertOptions = null
       recipientPublicB64 = null
 
-      // Our own ECDH identity keypair - repair seals the session key with
-      // ECDH(our private, recipient public), loaded from identityKeyStore.
+      // Local ECDH identity keypair - repair seals the session key with
+      // ECDH(local private, recipient public), loaded from identityKeyStore.
       const myKp = await crypto.subtle.generateKey(
         { name: 'ECDH', namedCurve: 'P-256' }, false, ['deriveKey', 'deriveBits'],
       ) as CryptoKeyPair

@@ -81,7 +81,7 @@ class UserScopedStorage {
       const storedUserId = localStorage.getItem(USER_ID_KEY)
       if (storedUserId) {
         this.currentUserId = storedUserId
-        debug.log('🔐 User-scoped storage initialized for user:', storedUserId)
+        debug.log('User-scoped storage initialized for user:', storedUserId)
       }
     } catch (error) {
       debug.error('Failed to initialize user-scoped storage:', error)
@@ -104,7 +104,7 @@ class UserScopedStorage {
     this.currentUserId = userId
     try {
       localStorage.setItem(USER_ID_KEY, userId)
-      debug.log('🔐 User-scoped storage set for user:', userId)
+      debug.log('User-scoped storage set for user:', userId)
     } catch (error) {
       debug.error('Failed to set current user in storage:', error)
     }
@@ -126,7 +126,7 @@ class UserScopedStorage {
       this.currentUserId = null
       try {
         localStorage.removeItem(USER_ID_KEY)
-        debug.log('🔐 Cleared user-scoped storage for user')
+        debug.log('Cleared user-scoped storage for user')
       } catch (error) {
         debug.error('Failed to clear current user from storage:', error)
       }
@@ -154,7 +154,7 @@ class UserScopedStorage {
       keysToRemove.forEach(key => localStorage.removeItem(key))
       
       if (keysToRemove.length > 0) {
-        debug.log(`🧹 Cleared ${keysToRemove.length} localStorage items for user ${userId}`)
+        debug.log(`Cleared ${keysToRemove.length} localStorage items for user ${userId}`)
       }
     } catch (error) {
       debug.error('Failed to clear user data:', error)
@@ -169,7 +169,7 @@ class UserScopedStorage {
       // If no user is set, use an instance-global key (still per-instance).
       // Only warn once per key to avoid excessive logs
       if (!this.warnedKeys.has(key)) {
-        debug.warn('⚠️ Using instance-global localStorage key (no user set):', key)
+        debug.warn('Using instance-global localStorage key (no user set):', key)
         this.warnedKeys.add(key)
       }
       return `${STORAGE_PREFIX}${SCOPE_SEGMENT}${key}`
@@ -294,7 +294,7 @@ class UserScopedStorage {
       keysToRemove.forEach(key => localStorage.removeItem(key))
       this.currentUserId = null
       
-      debug.log(`🧹 Cleared all user-scoped storage (${keysToRemove.length} items)`)
+      debug.log(`Cleared all user-scoped storage (${keysToRemove.length} items)`)
     } catch (error) {
       debug.error('Failed to clear all user storage:', error)
     }

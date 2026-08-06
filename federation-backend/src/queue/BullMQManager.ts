@@ -102,8 +102,8 @@ class BullMQManagerService {
 
   /**
    * BullMQ connection options derived from RedisService.
-   * BullMQ manages its own ioredis connections internally, so we pass
-   * the raw connection config rather than the RedisService client itself.
+   * BullMQ manages its own ioredis connections internally, so this is the
+   * raw connection config rather than the RedisService client itself.
    */
   private getConnectionOpts(): ConnectionOptions {
     const client = redis.getClient();

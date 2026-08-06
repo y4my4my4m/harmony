@@ -1,5 +1,5 @@
-// ActivityPub Service - Database operations for posts, interactions, and follows
-// Triggers handle federation automatically - no client-side federation needed
+// ActivityPub: database operations for posts, interactions, and follows.
+// Federation is driven by database triggers, not from the client.
 import { supabase } from '@/supabase';
 import { apiUrl } from '@/services/instanceConfig';
 import { trendingService } from './TrendingService';
@@ -29,17 +29,12 @@ import type {
 } from '@/types';
 import { debug } from '@/utils/debug'
 
-/**
- * Core ActivityPub service for database operations
- * Handles posts, follows, and interactions - federation is automatic via triggers
- */
-// Cache entry interface for profile caching
 interface ProfileCacheEntry {
   profile: FederatedUser;
   timestamp: number;
 }
 
-// In-flight request tracking to prevent duplicate concurrent requests
+// Deduplicates concurrent fetches of the same profile.
 interface InFlightRequest {
   promise: Promise<FederatedUser | null>;
 }
@@ -49,7 +44,6 @@ export class ActivityPubService {
   private currentDomain: string;
   private instanceUrl: string;
   
-  // Profile cache with TTL to prevent repeated lookups
   private profileCache: Map<string, ProfileCacheEntry> = new Map();
   private inFlightRequests: Map<string, InFlightRequest> = new Map();
   private readonly PROFILE_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
@@ -66,9 +60,7 @@ export class ActivityPubService {
     return ActivityPubService.instance;
   }
   
-  /**
-   * Get cached profile or null if not cached/expired
-   */
+  // Null when absent or past PROFILE_CACHE_TTL; expired entries are evicted.
   private getCachedProfile(cacheKey: string): FederatedUser | null {
     const entry = this.profileCache.get(cacheKey);
     if (!entry) return null;
@@ -82,9 +74,6 @@ export class ActivityPubService {
     return entry.profile;
   }
   
-  /**
-   * Cache a profile
-   */
   private cacheProfile(cacheKey: string, profile: FederatedUser): void {
     this.profileCache.set(cacheKey, {
       profile,
@@ -92,9 +81,7 @@ export class ActivityPubService {
     });
   }
   
-  /**
-   * Clear profile cache (useful for force refresh)
-   */
+  // Clears one key, or the whole cache when cacheKey is omitted.
   clearProfileCache(cacheKey?: string): void {
     if (cacheKey) {
       this.profileCache.delete(cacheKey);
@@ -105,12 +92,9 @@ export class ActivityPubService {
 
   // POST MANAGEMENT
 
-  // NOTE: createPost is now handled by CorePostService/PostService
-  // This dead code was removed - use services.posts.createPost() instead
+  // NOTE: post creation lives in CorePostService/PostService; call
+  // services.posts.createPost().
 
-  /**
-   * Get timeline posts
-   */
   async getTimeline(
     timelineType: 'home' | 'public' | 'local' = 'home',
     options: TimelineOptions = {}
@@ -143,16 +127,13 @@ export class ActivityPubService {
     return (data?.map((entry: any) => entry.posts).filter(Boolean) || []) as unknown as TimelinePost[];
   }
 
-  /**
-   * Get public timeline - clean and professional
-   */
+  // public + unlisted, newest first.
   async getPublicTimeline(options: TimelineOptions = {}): Promise<TimelinePost[]> {
     // post_interactions.user_id FKs to profiles(id)
     const userId = await this.getCurrentProfileId();
 
     const limit = options.limit || 20;
 
-    // Direct query with user interactions
     let query = supabase
       .from('posts')
       .select(`
@@ -175,7 +156,7 @@ export class ActivityPubService {
     if (error) throw error;
 
     const posts = (data || [])
-      .filter((post: any) => !post.author?.is_suspended) // Exclude posts from suspended users
+      .filter((post: any) => !post.author?.is_suspended)
       .map((post: any) => {
         const interactions = post.my_interactions || [];
         return {
@@ -186,14 +167,12 @@ export class ActivityPubService {
         };
       });
 
-    debug.log(`📊 Public timeline loaded: ${posts.length} posts (with user interactions)`);
+    debug.log(`Public timeline loaded: ${posts.length} posts (with user interactions)`);
     
     return posts;
   }
 
-  /**
-   * Get public timeline with enhanced federation support and user interaction states
-   */
+  // As getPublicTimeline, plus a fullPage flag for pagination.
   async getEnhancedPublicTimeline(options: TimelineOptions = {}): Promise<TimelineResult> {
     // post_interactions.user_id FKs to profiles(id)
     const userId = await this.getCurrentProfileId();
@@ -201,7 +180,6 @@ export class ActivityPubService {
     const limit = options.limit || 20;
     
     try {
-      // Direct query with user interactions
       let query = supabase
         .from('posts')
         .select(`
@@ -237,7 +215,7 @@ export class ActivityPubService {
       
       const localCount = posts.filter((p: any) => p.is_local).length;
       const federatedCount = posts.filter((p: any) => !p.is_local).length;
-      debug.log(`🌐 Enhanced public timeline: ${localCount} local + ${federatedCount} federated = ${posts.length} total posts`);
+      debug.log(`Enhanced public timeline: ${localCount} local + ${federatedCount} federated = ${posts.length} total posts`);
       
       const rawCount = (data || []).length;
       return { posts: posts as TimelinePost[], fullPage: rawCount >= limit };
@@ -248,9 +226,9 @@ export class ActivityPubService {
   }
 
   /**
-   * Get federated timeline - ALL public posts from remote instances the server knows about
-   * This includes posts from searched users, not just followed users
-   * Uses RPC for proper server-side filtering of deleted posts and suspended users
+   * All public posts from remote instances known to this server, including
+   * instances reached only through search rather than follows. The RPC does
+   * the is_deleted and suspended-user filtering server-side.
    */
   async getFederatedTimeline(options: TimelineOptions = {}): Promise<TimelinePost[]> {
     // RPC compares p_user_id against post_interactions.user_id (profiles FK)
@@ -259,7 +237,6 @@ export class ActivityPubService {
     const limit = options.limit || 20;
 
     try {
-      // Use RPC for proper server-side filtering (is_deleted, suspended users, etc.)
       const { data, error } = await supabase.rpc('get_federated_timeline', {
         p_user_id: profileId,
         p_limit: limit,
@@ -268,7 +245,7 @@ export class ActivityPubService {
 
       if (error) throw error;
 
-      debug.log(`🌐 Federated timeline loaded: ${(data || []).length} posts from remote instances`);
+      debug.log(`Federated timeline loaded: ${(data || []).length} posts from remote instances`);
       return (data || []) as TimelinePost[];
     } catch (error) {
       debug.error('Failed to load federated timeline:', error);
@@ -276,20 +253,16 @@ export class ActivityPubService {
     }
   }
 
-  /**
-   * Get local timeline - ALL public posts from local users on this instance
-   * Uses RPC for proper server-side filtering
-   */
+  // All public posts from local users on this instance, filtered server-side.
   async getLocalTimeline(options: TimelineOptions = {}): Promise<TimelinePost[]> {
     // RPC compares p_user_id against timeline_entries/post_interactions (profiles FK)
     const profileId = await this.getCurrentProfileId();
 
     const limit = options.limit || 20;
 
-    debug.log('🔄 Loading local timeline via RPC');
+    debug.log('Loading local timeline via RPC');
 
     try {
-      // Use existing RPC that properly handles local timeline
       const { data, error } = await supabase.rpc('get_enhanced_timeline_posts', {
         p_user_id: profileId,
         p_timeline_type: 'local',
@@ -299,22 +272,21 @@ export class ActivityPubService {
 
       if (error) throw error;
 
-      // Filter out suspended users (TODO: add to RPC)
+      // get_enhanced_timeline_posts does not filter suspended authors.
       const posts = (data || []).filter((post: any) => {
         const author = post.author;
         return !author?.is_suspended;
       });
-    
-      // DEBUG: Verify all posts are truly local
+
       const localCount = posts.filter((p: any) => p.is_local).length || 0;
       const federatedCount = posts.filter((p: any) => !p.is_local).length || 0;
-      debug.log(`📊 Local timeline loaded: ${posts.length} posts total (${localCount} local, ${federatedCount} federated) with user interactions`);
+      debug.log(`Local timeline loaded: ${posts.length} posts total (${localCount} local, ${federatedCount} federated) with user interactions`);
       
       if (federatedCount > 0) {
-        debug.warn(`⚠️ WARNING: Local timeline contains ${federatedCount} federated posts! These should be filtered out.`);
+        debug.warn(`WARNING: Local timeline contains ${federatedCount} federated posts! These should be filtered out.`);
         const federatedPosts = data?.filter((p: any) => !p.is_local) || [];
         federatedPosts.forEach((post: any) => {
-          debug.warn(`🌐 Federated post in local timeline:`, {
+          debug.warn(`Federated post in local timeline:`, {
             id: post.id,
             author: post.author?.username,
             domain: post.author?.domain,
@@ -333,15 +305,16 @@ export class ActivityPubService {
   // POST CONTEXT METHODS (NEW ARCHITECTURE)
 
   /**
-   * Get post with configurable context - main method that replaces separate post/thread methods
-   * Supports all context scenarios: minimal, full thread, ancestors only, descendants only
+   * Context types: minimal, thread, ancestors, descendants. The getPost /
+   * getConversationThread / getConversationContext wrappers below all route
+   * through here.
    */
   async getPostWithContext(
     postId: string, 
     options: PostContextOptions = {}
   ): Promise<PostWithContext> {
-    // RPC computes is_favorited/is_reblogged/is_bookmarked against
-    // post_interactions.user_id (profiles FK) - must be the PROFILE id.
+    // The RPC computes is_favorited/is_reblogged/is_bookmarked against
+    // post_interactions.user_id, which FKs to profiles(id), not auth.users.
     const profileId = await this.getCurrentProfileId();
 
     const {
@@ -352,7 +325,7 @@ export class ActivityPubService {
     } = options;
 
     try {
-      debug.log(`🔄 Loading post with context: ${postId} (${context})`);
+      debug.log(`Loading post with context: ${postId} (${context})`);
       
       const { data, error } = await supabase.rpc('get_post_with_context', {
         p_context_type: context,
@@ -364,7 +337,7 @@ export class ActivityPubService {
       });
 
       if (error) {
-        debug.error('❌ Failed to get post with context:', error);
+        debug.error('Failed to get post with context:', error);
         throw error;
       }
 
@@ -372,7 +345,7 @@ export class ActivityPubService {
         throw new Error(data.error);
       }
 
-      debug.log(`✅ Post with context loaded: ${data.ancestors?.length || 0} ancestors, ${data.descendants?.length || 0} descendants`);
+      debug.log(`Post with context loaded: ${data.ancestors?.length || 0} ancestors, ${data.descendants?.length || 0} descendants`);
       
       return {
         mainPost: data.mainPost,
@@ -389,14 +362,11 @@ export class ActivityPubService {
         contextType: context
       };
     } catch (error) {
-      debug.error('❌ Failed to get post with context:', error);
+      debug.error('Failed to get post with context:', error);
       throw error;
     }
   }
 
-  /**
-   * Get post in minimal context (just the post itself) - convenience method
-   */
   async getPost(postId: string, includeInteractions: boolean = true): Promise<TimelinePost> {
     const result = await this.getPostWithContext(postId, {
       context: 'minimal',
@@ -405,9 +375,6 @@ export class ActivityPubService {
     return result.mainPost;
   }
 
-  /**
-   * Get full conversation thread - convenience method
-   */
   async getConversationThread(postId: string): Promise<PostWithContext> {
     return this.getPostWithContext(postId, {
       context: 'thread',
@@ -415,9 +382,7 @@ export class ActivityPubService {
     });
   }
 
-  /**
-   * Get conversation context (ancestors + descendants) - convenience method for compatibility
-   */
+  // Drops mainPost/threadInfo; kept for the older ConversationContext shape.
   async getConversationContext(postId: string): Promise<ConversationContext> {
     const result = await this.getPostWithContext(postId, {
       context: 'thread',
@@ -430,18 +395,13 @@ export class ActivityPubService {
     };
   }
 
-  /**
-   * Get replies to a specific post
-   */
   async getPostReplies(postId: string, options: TimelineOptions = {}): Promise<TimelinePost[]> {
-    // Use cached auth context
     const user = await this.getCurrentAuthUser();
     if (!user) throw new Error('User not authenticated');
 
     const limit = options.limit || 20;
 
     try {
-      // Direct query for replies - posts where in_reply_to matches the postId
       let query = supabase
         .from('posts')
         .select(`
@@ -454,7 +414,7 @@ export class ActivityPubService {
         .order('created_at', { ascending: true })
         .limit(limit);
 
-      // Pagination using max_id
+      // max_id is a post id; the cursor is that post's created_at.
       if (options.max_id) {
         const { data: cursorPost } = await supabase
           .from('posts')
@@ -471,7 +431,6 @@ export class ActivityPubService {
 
       if (error) throw error;
       
-      // Transform replies to TimelinePost format
       const replies = (data || []).map(post => this.transformDatabasePostToTimelinePost(post));
       
       return replies;
@@ -483,16 +442,10 @@ export class ActivityPubService {
 
   // EXPLORE AND DISCOVERY METHODS
 
-  /**
-   * Get trending hashtags
-   */
   async getTrendingHashtags(limit: number = 20): Promise<any[]> {
     return await trendingService.getTrendingHashtags({ limit });
   }
 
-  /**
-   * Get trending posts
-   */
   async getTrendingPosts(options: {
     limit?: number;
     timeframe?: 'hourly' | 'daily' | 'weekly';
@@ -502,16 +455,11 @@ export class ActivityPubService {
     return await trendingService.getTrendingPosts(options);
   }
 
-  /**
-   * Get suggested users to follow
-   */
+  // Backed by trending users; no follow-graph component.
   async getSuggestedUsers(limit: number = 10): Promise<any[]> {
     return await trendingService.getTrendingUsers({ limit });
   }
 
-  /**
-   * Get federated instances for discovery
-   */
   async getDiscoverableInstances(options: {
     limit?: number;
     filter?: 'all' | 'active' | 'trusted';
@@ -524,9 +472,6 @@ export class ActivityPubService {
     return trendingService.getFederatedInstanceByDomain(domain);
   }
 
-  /**
-   * Get posts by hashtag
-   */
   async getPostsByHashtag(
     hashtag: string, 
     options: { limit?: number; cursor?: string } = {}
@@ -534,9 +479,6 @@ export class ActivityPubService {
     return await trendingService.getPostsByHashtag(hashtag, options);
   }
 
-  /**
-   * Get comprehensive explore content
-   */
   async getExploreContent(filters: {
     contentType?: 'all' | 'posts' | 'media' | 'users';
     timeRange?: '1h' | '6h' | '24h' | '7d' | '30d';
@@ -551,9 +493,6 @@ export class ActivityPubService {
     return await trendingService.getExploreContent(filters);
   }
 
-  /**
-   * Search content across the fediverse
-   */
   async searchContent(
     query: string, 
     type: 'posts' | 'users' | 'hashtags' = 'posts',
@@ -573,12 +512,9 @@ export class ActivityPubService {
     }
   }
 
-  /**
-   * Search posts by content
-   */
+  // Postgres full-text search over posts.content; public posts only.
   async searchPosts(query: string, limit: number = 20): Promise<TimelinePost[]> {
     try {
-      // Simple text search in post content
       const { data, error } = await supabase
         .from('posts')
         .select(`
@@ -600,16 +536,14 @@ export class ActivityPubService {
     }
   }
 
-  /**
-   * Get instance statistics
-   */
   async getInstanceStats(domain: string): Promise<any | null> {
     return await trendingService.getInstanceStats(domain);
   }
 
   /**
-   * Probe instance health via the federation backend proxy.
-   * Returns 'online' if nodeinfo fetch succeeds, 'offline' otherwise.
+   * Probes instance health through the federation backend proxy. 'online'
+   * when the nodeinfo fetch succeeds, 'offline' otherwise, including on the
+   * 15s timeout.
    */
   async probeInstanceHealth(domain: string): Promise<'online' | 'offline'> {
     try {
@@ -626,9 +560,7 @@ export class ActivityPubService {
     }
   }
 
-  /**
-   * Get recent activity from an instance
-   */
+  // Public posts by profiles on `domain`, capped at the first 100 profiles.
   async getInstanceActivity(
     domain: string, 
     options: { limit?: number; cursor?: string } = {}
@@ -636,7 +568,6 @@ export class ActivityPubService {
     try {
       const { limit = 20, cursor } = options;
 
-      // First, get profile IDs from users of this domain
       const { data: profiles, error: profileError } = await supabase
         .from('profiles')
         .select('id')
@@ -651,7 +582,7 @@ export class ActivityPubService {
 
       const profileIds = profiles.map(p => p.id);
 
-      // Now query posts from those profiles
+      // limit + 1 rows: the extra row signals hasMore.
       let query = supabase
         .from('posts')
         .select(`
@@ -682,16 +613,10 @@ export class ActivityPubService {
     }
   }
 
-  /**
-   * Update trending scores (maintenance method)
-   */
   async updateTrendingScores(): Promise<void> {
     await trendingService.updateTrendingScores();
   }
 
-  /**
-   * Get user's posts
-   */
   async getUserPosts(userId: string, options: TimelineOptions = {}): Promise<Post[]> {
     const limit = options.limit || 20;
     // post_interactions.user_id FKs to profiles(id)
@@ -733,9 +658,7 @@ export class ActivityPubService {
     return posts as Post[];
   }
 
-  /**
-   * Delete a post
-   */
+  // Soft delete; the Delete activity is emitted by a database trigger.
   async deletePost(postId: string): Promise<void> {
     const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
     if (!user) throw new Error('User not authenticated');
@@ -754,7 +677,6 @@ export class ActivityPubService {
       throw new Error('Post not found or not owned by user');
     }
 
-    // Soft delete the post
     const { error } = await supabase
       .from('posts')
       .update({
@@ -765,15 +687,11 @@ export class ActivityPubService {
       .eq('id', postId);
 
     if (error) throw error;
-
-    // Federation is handled automatically by database triggers
   }
 
   // FOLLOW MANAGEMENT
 
-  /**
-   * Follow a user
-   */
+  // Follow activity is emitted by a database trigger.
   async followUser(targetUserId: string): Promise<Follow> {
     const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
     if (!user) throw new Error('User not authenticated');
@@ -788,8 +706,8 @@ export class ActivityPubService {
       follower_id: user.id,
       following_id: targetUserId,
       ap_id: ap_id,
-      status: 'accepted', // Auto-accept for now, can be changed for locked accounts
-      is_local: true, // Database triggers will determine the correct value
+      status: 'accepted', // Locked accounts are not supported; all follows auto-accept.
+      is_local: true, // Overwritten by a database trigger.
       metadata: {}
     };
 
@@ -814,14 +732,10 @@ export class ActivityPubService {
       throw error;
     }
 
-    // Federation is handled automatically by database triggers
-
     return data as Follow;
   }
 
-  /**
-   * Unfollow a user
-   */
+  // Undo activity is emitted by a database trigger.
   async unfollowUser(targetUserId: string): Promise<void> {
     const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
     if (!user) throw new Error('User not authenticated');
@@ -833,13 +747,8 @@ export class ActivityPubService {
       .eq('following_id', targetUserId);
 
     if (error) throw error;
-
-    // Federation is handled automatically by database triggers
   }
 
-  /**
-   * Get user's followers
-   */
   async getFollowers(userId: string, options: TimelineOptions = {}): Promise<FederatedUser[]> {
     const limit = options.limit || 20;
     const offset = options.offset || 0;
@@ -867,9 +776,7 @@ export class ActivityPubService {
       })) || []) as unknown as FederatedUser[];
   }
 
-  /**
-   * Get pending follow requests for a user (manual approval mode)
-   */
+  // status = 'pending' follows, i.e. manual-approval mode.
   async getFollowRequests(userId: string, options: TimelineOptions = {}): Promise<FederatedUser[]> {
     const limit = options.limit || 20;
     const offset = options.offset || 0;
@@ -897,9 +804,6 @@ export class ActivityPubService {
       })) || []) as unknown as FederatedUser[];
   }
 
-  /**
-   * Get count of pending follow requests for a user
-   */
   async getFollowRequestsCount(userId: string): Promise<number> {
     const { count, error } = await supabase
       .from('follows')
@@ -911,9 +815,6 @@ export class ActivityPubService {
     return count || 0;
   }
 
-  /**
-   * Get users that a user is following
-   */
   async getFollowing(userId: string, options: TimelineOptions = {}): Promise<FederatedUser[]> {
     const limit = options.limit || 20;
     const offset = options.offset || 0;
@@ -941,9 +842,7 @@ export class ActivityPubService {
       })) || []) as unknown as FederatedUser[];
   }
 
-  /**
-   * Check if user is following another user
-   */
+  // Accepted follows only; PGRST116 (no rows) reads as false.
   async isFollowing(targetUserId: string): Promise<boolean> {
     const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
     if (!user) return false;
@@ -962,14 +861,11 @@ export class ActivityPubService {
 
   // POST INTERACTIONS
 
-  /**
-   * Toggle favorite (like) status for a post
-   */
   async toggleFavorite(postId: string): Promise<{ favorited: boolean; interaction?: PostInteraction }> {
     const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
     if (!user) throw new Error('User not authenticated');
 
-    // Check if already favorited - use maybeSingle to handle 0 rows gracefully
+    // maybeSingle: zero rows is the common case, not an error.
     const { data: existing, error: existingError } = await supabase
       .from('post_interactions')
       .select('id')
@@ -984,22 +880,13 @@ export class ActivityPubService {
 
     if (existing) {
       await this.unfavoritePost(postId);
-      
-      // Federation is handled automatically by database triggers
-      
       return { favorited: false };
     } else {
       const interaction = await this.favoritePost(postId);
-      
-      // Federation is handled automatically by database triggers
-      
       return { favorited: true, interaction };
     }
   }
 
-  /**
-   * Favorite (like) a post
-   */
   async favoritePost(postId: string): Promise<PostInteraction> {
     const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
     if (!user) throw new Error('User not authenticated');
@@ -1011,7 +898,7 @@ export class ActivityPubService {
       post_id: postId,
       interaction_type: 'favorite' as const,
       ap_id: ap_id,
-      is_local: true, // Database triggers will determine the correct value
+      is_local: true, // Overwritten by a database trigger.
       metadata: {}
     };
 
@@ -1031,9 +918,6 @@ export class ActivityPubService {
     return data as PostInteraction;
   }
 
-  /**
-   * Unfavorite a post
-   */
   async unfavoritePost(postId: string): Promise<void> {
     const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
     if (!user) throw new Error('User not authenticated');
@@ -1049,8 +933,8 @@ export class ActivityPubService {
   }
 
   /**
-   * Toggle reblog (share) status for a post - creates actual reblog posts with federation
-   * Always operates on the ORIGINAL post, not a reblog
+   * Toggles reblog state and the backing reblog post. Always operates on the
+   * original post, never on a reblog.
    */
   async toggleReblog(postId: string): Promise<{ reblogged: boolean; reblogPost?: any }> {
     const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
@@ -1058,14 +942,14 @@ export class ActivityPubService {
 
     const profileId = await this.getCurrentUserProfileId();
 
-    // First, resolve to the original post ID (in case this is a reblog)
+    // `reblog.id` is set when postId names a reblog; interactions attach to
+    // the original.
     const { data: targetPost } = await supabase
       .from('timeline_posts')
       .select('id, reblog')
       .eq('id', postId)
       .single();
 
-    // Use the original post ID if this is a reblog
     const actualPostId = targetPost?.reblog?.id || postId;
 
     const { data: existingInteraction } = await supabase
@@ -1082,7 +966,7 @@ export class ActivityPubService {
         .delete()
         .eq('id', existingInteraction.id);
 
-      // Also remove any reblog post we created
+      // The reblog post itself is identified by metadata.reblog_of.
       const { data: reblogPost } = await supabase
         .from('posts')
         .select('id')
@@ -1093,8 +977,6 @@ export class ActivityPubService {
       if (reblogPost) {
         await this.unreblogPost(reblogPost.id);
       }
-
-      // Federation is handled automatically by database triggers
 
       return { reblogged: false };
     } else {
@@ -1110,15 +992,13 @@ export class ActivityPubService {
 
       const reblogPost = await this.reblogPost(actualPostId);
 
-      // Federation is handled automatically by database triggers
-
       return { reblogged: true, reblogPost };
     }
   }
 
   /**
-   * Reblog (share) a post - creates an actual reblog post
-   * Always reblogs the ORIGINAL post, not a reblog of a reblog (like Twitter)
+   * Inserts a reblog post of type Announce. Reblogging a reblog resolves to
+   * the original post, so reblog chains do not nest.
    */
   async reblogPost(postId: string): Promise<any> {
     const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
@@ -1134,12 +1014,11 @@ export class ActivityPubService {
 
     if (postError) throw postError;
 
-    // If the target is itself a reblog, get the ORIGINAL post instead
+    // A non-null reblog.id means targetPost is itself a reblog.
     let originalPost = targetPost;
     let actualOriginalId = postId;
-    
+
     if (targetPost.reblog && targetPost.reblog.id) {
-      // This is a reblog - get the original post
       actualOriginalId = targetPost.reblog.id;
       const { data: rootPost, error: rootError } = await supabase
         .from('timeline_posts')
@@ -1150,7 +1029,7 @@ export class ActivityPubService {
       if (!rootError && rootPost) {
         originalPost = rootPost;
       } else {
-        // Fallback: use the reblog data we already have
+        // Original row unreadable; the embedded reblog snapshot stands in.
         originalPost = {
           ...targetPost.reblog,
           author: targetPost.reblog_author || targetPost.reblog.author
@@ -1205,13 +1084,13 @@ export class ActivityPubService {
       throw error;
     }
 
-    debug.log(`📍 Created reblog post ${data.id} for original post ${postId}`);
+    debug.log(`Created reblog post ${data.id} for original post ${postId}`);
     return data;
   }
 
   /**
-   * Create a quote reblog - reblog with user's own comment
-   * Always quotes the ORIGINAL post, not a reblog
+   * Reblog carrying the reblogger's own content. Quoting a reblog resolves
+   * to the original post.
    */
   async createQuoteReblog(
     postId: string, 
@@ -1233,10 +1112,10 @@ export class ActivityPubService {
 
     if (postError) throw postError;
 
-    // If the target is itself a reblog, get the ORIGINAL post instead
+    // A non-null reblog.id means targetPost is itself a reblog.
     let originalPost = targetPost;
     let actualOriginalId = postId;
-    
+
     if (targetPost.reblog && targetPost.reblog.id) {
       actualOriginalId = targetPost.reblog.id;
       const { data: rootPost, error: rootError } = await supabase
@@ -1261,7 +1140,7 @@ export class ActivityPubService {
     
     const quotePost = {
       author_id: profileId,
-      content: parsedContent, // User's comment, not the original content
+      content: parsedContent, // The quote text; the original is under `reblog`.
       visibility: visibility,
       is_local: true,
       is_federated: true,
@@ -1287,7 +1166,7 @@ export class ActivityPubService {
         in_reply_to: originalPost.in_reply_to
       },
       reblog_author: originalPost.author,
-      ap_type: 'Announce', // Still an Announce but with content
+      ap_type: 'Announce', // Announce with a content body; no Quote type exists.
       metadata: { 
         reblog_of: actualOriginalId,
         original_author: originalPost.author?.id,
@@ -1315,13 +1194,11 @@ export class ActivityPubService {
         metadata: { is_quote: true }
       });
 
-    debug.log(`📝 Created quote reblog post ${data.id} for original post ${actualOriginalId}`);
+    debug.log(`Created quote reblog post ${data.id} for original post ${actualOriginalId}`);
     return data;
   }
 
-  /**
-   * Un-reblog a post - removes the reblog post
-   */
+  // Soft-deletes the reblog post row; the interaction row is removed by the caller.
   async unreblogPost(reblogPostId: string): Promise<void> {
     const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
     if (!user) throw new Error('User not authenticated');
@@ -1340,9 +1217,6 @@ export class ActivityPubService {
     if (error) throw error;
   }
 
-  /**
-   * Toggle bookmark status for a post
-   */
   async toggleBookmark(postId: string): Promise<{ bookmarked: boolean; interaction?: PostInteraction }> {
     const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
     if (!user) throw new Error('User not authenticated');
@@ -1366,9 +1240,6 @@ export class ActivityPubService {
     }
   }
 
-  /**
-   * Bookmark a post
-   */
   async bookmarkPost(postId: string): Promise<PostInteraction> {
     const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
     if (!user) throw new Error('User not authenticated');
@@ -1382,7 +1253,7 @@ export class ActivityPubService {
       post_id: postId,
       interaction_type: 'bookmark' as const,
       ap_id: ap_id,
-      is_local: true, // Database triggers will determine the correct value
+      is_local: true, // Overwritten by a database trigger.
       metadata: {}
     };
 
@@ -1402,9 +1273,6 @@ export class ActivityPubService {
     return data as PostInteraction;
   }
 
-  /**
-   * Remove bookmark from post
-   */
   async unbookmarkPost(postId: string): Promise<void> {
     const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
     if (!user) throw new Error('User not authenticated');
@@ -1423,9 +1291,6 @@ export class ActivityPubService {
 
   // USER SEARCH AND DISCOVERY
 
-  /**
-   * Search for federated users
-   */
   async searchUsers(query: string, limit: number = 10): Promise<FederatedUser[]> {
     const { data, error } = await supabase
       .rpc('search_federated_users', {
@@ -1447,9 +1312,9 @@ export class ActivityPubService {
   }
 
   /**
-   * Get user profile by handle (@username@domain)
-   * Will attempt to fetch from remote if not found locally
-   * OPTIMIZED: Uses in-memory cache with TTL and request deduplication
+   * Resolves `@username@domain`, falling back to a remote fetch when the
+   * profile is not stored locally. Reads pass through the TTL cache and
+   * concurrent calls for the same handle share one in-flight promise.
    */
   async getUserByHandle(handle: string, forceRefresh: boolean = false): Promise<FederatedUser | null> {
     const cleanHandle = handle.startsWith('@') ? handle.slice(1) : handle;
@@ -1460,18 +1325,17 @@ export class ActivityPubService {
     const cacheKey = `${username}@${domain}`;
     const isRemote = domain !== this.currentDomain;
 
-    // Check cache first (unless force refresh)
     if (!forceRefresh) {
       const cachedProfile = this.getCachedProfile(cacheKey);
       if (cachedProfile) {
-        debug.log(`✅ Using cached profile for: ${cacheKey}`);
+        debug.log(`Using cached profile for: ${cacheKey}`);
         return cachedProfile;
       }
     } else {
       this.clearProfileCache(cacheKey);
     }
     
-    // Deduplicate concurrent requests for same profile
+    // A forceRefresh caller never joins an in-flight request.
     const inFlight = this.inFlightRequests.get(cacheKey);
     if (inFlight && !forceRefresh) {
       debug.log(`⏳ Waiting for in-flight request: ${cacheKey}`);
@@ -1490,9 +1354,6 @@ export class ActivityPubService {
     }
   }
   
-  /**
-   * Internal method to actually fetch user by handle
-   */
   private async _fetchUserByHandle(
     username: string, 
     domain: string, 
@@ -1500,9 +1361,9 @@ export class ActivityPubService {
     forceRefresh: boolean,
     cacheKey: string
   ): Promise<FederatedUser | null> {
-    // If force refresh on a remote user, skip local lookup
+    // A forced refresh of a remote user skips the local row.
     if (!forceRefresh || !isRemote) {
-      // Use maybeSingle() to avoid 406 error when user doesn't exist
+      // maybeSingle: single() returns 406 when the row is absent.
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -1544,22 +1405,19 @@ export class ActivityPubService {
           fields: data.profile_fields || [],
         } as FederatedUser;
         
-        // Cache the profile
         this.cacheProfile(cacheKey, profile);
         return profile;
       }
     }
 
-    // If remote user not found locally (or force refresh), try to fetch from federation
     if (isRemote) {
-      debug.log(`🌐 ${forceRefresh ? 'Force refreshing' : 'Fetching'} remote user: ${username}@${domain}`);
+      debug.log(`${forceRefresh ? 'Force refreshing' : 'Fetching'} remote user: ${username}@${domain}`);
       
       const { resolveRemoteMention } = await import('@/utils/mentionUtils');
       const remoteUser = await resolveRemoteMention(username, domain, forceRefresh);
       
       if (remoteUser) {
-        debug.log(`✅ Successfully ${forceRefresh ? 'refreshed' : 'fetched'} remote user: @${username}@${domain}`);
-        // Cache the remote profile
+        debug.log(`Successfully ${forceRefresh ? 'refreshed' : 'fetched'} remote user: @${username}@${domain}`);
         this.cacheProfile(cacheKey, remoteUser);
         return remoteUser;
       }
@@ -1568,17 +1426,12 @@ export class ActivityPubService {
     return null;
   }
 
-  /**
-   * Resolve a user handle to a user object
-   */
-  /** @deprecated Use getUserByHandle instead - it has caching and deduplication */
+  /** @deprecated Use getUserByHandle; it caches and deduplicates. */
   async resolveUserByHandle(handle: string): Promise<FederatedUser | null> {
     return this.getUserByHandle(handle);
   }
 
-  /**
-   * Fetch and create a remote actor profile by ActivityPub ID
-   */
+  // Returns the existing profiles row when federated_id already matches.
   async fetchRemoteActor(actorId: string): Promise<FederatedUser | null> {
     try {
       debug.log(`Fetching remote actor: ${actorId}`);
@@ -1645,7 +1498,7 @@ export class ActivityPubService {
           p_display_name: actor.name || username,
           p_domain: domain,
           p_avatar_url: actor.icon?.url || null,
-          p_banner_url: actor.image?.url || null, // Include banner
+          p_banner_url: actor.image?.url || null,
           p_bio: actor.summary || null,
           p_federated_id: actor.id,
           p_inbox_url: actor.inbox || null,
@@ -1707,9 +1560,7 @@ export class ActivityPubService {
     }
   }
 
-  /**
-   * Get user by ID (for navigation from UUIDs)
-   */
+  // userId is a profiles.id. Null on PGRST116 (no rows).
   async getUserById(userId: string): Promise<FederatedUser | null> {
     try {
       const { data, error } = await supabase
@@ -1756,9 +1607,6 @@ export class ActivityPubService {
     }
   }
 
-  /**
-   * Get user's timeline using SQL helper function
-   */
   async getUserTimeline(
     userId: string,
     timelineType: 'home' | 'public' | 'local' = 'home',
@@ -1768,17 +1616,16 @@ export class ActivityPubService {
     // eslint-disable-next-line unused-imports/no-unused-vars
     const max_id = options.max_id || null;
 
-    // Build query based on timeline type.
-    // Typed as `any` because the Postgrest chain returns a different builder
-    // type per chained call (`PostgrestQueryBuilder` -> `PostgrestFilterBuilder`),
-    // and reassigning back to the same `let` variable would otherwise mismatch.
+    // Typed `any`: the Postgrest chain returns a different builder type per
+    // call (`PostgrestQueryBuilder` -> `PostgrestFilterBuilder`), which does
+    // not reassign back to the same `let`.
     let query: any = supabase.from('posts');
 
     if (timelineType === 'home') {
-      // Fast path: server-side follows join in ONE round trip. Also avoids
-      // inlining the entire follow list into the request URL, which degrades
-      // with follow count. Falls back to the legacy two-query path when the
-      // RPC is unavailable (self-hosted instance without the migration).
+      // Server-side follows join in one round trip; keeps the follow list out
+      // of the request URL, whose length otherwise grows with follow count.
+      // Falls back to the two-query path when the RPC is missing (self-hosted
+      // instance without the migration).
       const { data: rpcData, error: rpcError } = await supabase.rpc('get_home_timeline_page', {
         p_limit: limit,
         p_before: options.before ?? null,
@@ -1796,14 +1643,13 @@ export class ActivityPubService {
               is_reblogged: interactions.some((i: any) => i.interaction_type === 'reblog'),
             };
           });
-        // Raw count for pagination - suspended-user filtering shrinks
-        // posts.length and would incorrectly stop pagination.
+        // fullPage uses the raw row count: suspended-author filtering shrinks
+        // posts.length and would end pagination early.
         return { posts: posts as TimelinePost[], fullPage: rawData.length >= limit };
       }
       debug.warn('get_home_timeline_page RPC unavailable, using legacy two-query load:', rpcError?.message);
 
-      // Get following list - include both accepted AND pending follows
-      // Pending follows should still show PUBLIC posts (they're public anyway)
+      // Pending follows are included: their public posts are visible anyway.
       const { data: follows } = await supabase
         .from('follows')
         .select('following_id, status')
@@ -1869,13 +1715,11 @@ export class ActivityPubService {
         };
       });
 
-    // Use raw DB count for pagination - filtering suspended users reduces posts.length, which would incorrectly stop pagination
+    // fullPage uses the raw row count: suspended-author filtering shrinks
+    // posts.length and would end pagination early.
     return { posts, fullPage: rawData.length >= limit };
   }
 
-  /**
-   * Get user handle using SQL helper function
-   */
   async getUserHandle(userId: string): Promise<string | null> {
     const { data, error } = await supabase
       .rpc('get_user_handle', {
@@ -1886,69 +1730,52 @@ export class ActivityPubService {
     return data;
   }
 
-  /**
-   * Search federated users using SQL helper function
-   */
-  /** @deprecated Use searchUsers instead */
+  /** @deprecated Use searchUsers. */
   async searchFederatedUsers(query: string, limit: number = 10): Promise<FederatedUser[]> {
     return this.searchUsers(query, limit);
   }
 
   // UTILITY METHODS
 
-  /**
-   * Get the user's profile ID from their auth user ID
-   * OPTIMIZED: Uses AuthContextService for centralized caching
-   */
+  // profiles.id, from the userDataService cache when populated.
   private async getCurrentUserProfileId(): Promise<string> {
-    // First try to get from userDataService cache (fastest)
     const { userDataService } = await import('@/services/userDataService');
     const currentUser = userDataService.getCurrentUser();
-    
+
     if (currentUser?.id) {
       return currentUser.id;
     }
-    
-    // Use AuthContextService which caches auth + profile ID
+
     const { authContextService } = await import('@/services/AuthContextService');
     return await authContextService.getCurrentProfileId();
   }
 
-  /**
-   * Get the current auth user - uses cached AuthContextService
-   * OPTIMIZED: Avoids repeated supabase.auth.getUser() calls
-   */
+  // AuthContextService caches this; supabase.auth.getUser() is not called per use.
   private async getCurrentAuthUser() {
     const { authContextService } = await import('@/services/AuthContextService');
     return await authContextService.getCurrentAuthUser();
   }
 
-  /**
-   * Get the current auth user's ID (auth_user_id, not profile_id)
-   * OPTIMIZED: Uses cached AuthContextService
-   */
+  // auth.users(id), not profiles(id).
   private async getCurrentAuthUserId(): Promise<string> {
     const user = await this.getCurrentAuthUser();
     return user.id;
   }
 
   /**
-   * Get the current user's PROFILE id (profiles.id).
+   * profiles.id for the current user.
    *
-   * Pattern A guard: `post_interactions.user_id`, `timeline_entries.user_id`,
-   * `follows.follower_id` and the timeline/context RPCs all FK to profiles(id),
-   * NOT auth.users(id). Passing the auth UUID there silently matches nothing,
-   * which surfaced as "my favorites/boosts/bookmarks disappear on refresh" and
-   * an empty home timeline. Always use this for those columns.
+   * `post_interactions.user_id`, `timeline_entries.user_id`,
+   * `follows.follower_id` and the timeline/context RPCs all FK to
+   * profiles(id), not auth.users(id). An auth UUID matches nothing there and
+   * fails silently: empty home timeline, missing favorites/boosts/bookmarks.
    */
   private async getCurrentProfileId(): Promise<string> {
     const { authContextService } = await import('@/services/AuthContextService');
     return await authContextService.getCurrentProfileId();
   }
 
-  /**
-   * Format user handle consistently
-   */
+  // Local handles omit the domain: @user, not @user@thisdomain.
   formatUserHandle(username: string, domain: string): string {
     if (domain === this.currentDomain) {
       return `@${username}`;
@@ -1956,9 +1783,7 @@ export class ActivityPubService {
     return `@${username}@${domain}`;
   }
 
-  /**
-   * Parse user handle into username and domain
-   */
+  // A handle without a domain part resolves to the current domain.
   parseUserHandle(handle: string): { username: string; domain: string } {
     const cleanHandle = handle.startsWith('@') ? handle.slice(1) : handle;
     const [username, domain] = cleanHandle.includes('@') 
@@ -1968,23 +1793,15 @@ export class ActivityPubService {
     return { username, domain };
   }
 
-  /**
-   * Generate ActivityPub actor URL
-   */
   generateActorUrl(username: string, domain: string = this.currentDomain): string {
     return `https://${domain}/users/${username}`;
   }
 
-  /**
-   * Generate post URL
-   */
   generatePostUrl(postId: string, domain: string = this.currentDomain): string {
     return `https://${domain}/posts/${postId}`;
   }
 
-  /**
-   * Get current interaction state for a post and user
-   */
+  // emoji_reaction counts as favorited.
   async getPostInteractionState(postId: string): Promise<{
     is_favorited: boolean;
     is_reblogged: boolean;
@@ -2018,9 +1835,7 @@ export class ActivityPubService {
 
   // ENHANCED ACTIVITY HANDLING
 
-  /**
-   * Update (edit) a post
-   */
+  // Emits an Update activity; this path does not rely on a trigger.
   async updatePost(postId: string, updates: {
     content?: string;
     content_warning?: string;
@@ -2087,9 +1902,7 @@ export class ActivityPubService {
     return updatedPost;
   }
 
-  /**
-   * Accept a follow request
-   */
+  // Only transitions a pending follow the current profile is the target of.
   async acceptFollowRequest(followId: string): Promise<void> {
     const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
     if (!user) throw new Error('User not authenticated');
@@ -2132,9 +1945,7 @@ export class ActivityPubService {
     });
   }
 
-  /**
-   * Reject a follow request
-   */
+  // Only transitions a pending follow the current profile is the target of.
   async rejectFollowRequest(followId: string): Promise<void> {
     const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
     if (!user) throw new Error('User not authenticated');
@@ -2174,9 +1985,7 @@ export class ActivityPubService {
     });
   }
 
-  /**
-   * Undo an action (unfollow, unfavorite, etc.)
-   */
+  // Wraps a prior ap_activities row owned by the caller in an Undo.
   async undoActivity(originalActivityId: string): Promise<void> {
     const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
     if (!user) throw new Error('User not authenticated');
@@ -2209,9 +2018,7 @@ export class ActivityPubService {
 
   // VOICE CHAT FEDERATION (Harmony Extensions)
 
-  /**
-   * Join a voice channel (federated)
-   */
+  // VoiceJoin is a Harmony extension type under the har.mony.lol/ns/harmony context.
   async joinVoiceChannel(serverId: string, channelId: string, voiceState?: {
     muted?: boolean;
     deafened?: boolean;
@@ -2261,14 +2068,11 @@ export class ActivityPubService {
     });
   }
 
-  /**
-   * Leave a voice channel (federated)
-   */
+  // VoiceLeave carries no voiceState, unlike joinVoiceChannel.
   async leaveVoiceChannel(serverId: string, channelId: string): Promise<void> {
     const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
     if (!user) throw new Error('User not authenticated');
 
-    // Similar to joinVoiceChannel but with VoiceLeave type
     await this.createActivity({
       type: 'VoiceLeave',
       actor_id: user.id,
@@ -2287,9 +2091,6 @@ export class ActivityPubService {
     });
   }
 
-  /**
-   * Update voice state (mute, deafen, video, etc.)
-   */
   async updateVoiceState(serverId: string, channelId: string, voiceState: {
     muted?: boolean;
     deafened?: boolean;
@@ -2321,9 +2122,6 @@ export class ActivityPubService {
 
   // SERVER FEDERATION (Harmony Extensions)
 
-  /**
-   * Join a federated server
-   */
   async joinFederatedServer(serverDomain: string, inviteCode?: string): Promise<void> {
     const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
     if (!user) throw new Error('User not authenticated');
@@ -2350,9 +2148,6 @@ export class ActivityPubService {
     });
   }
 
-  /**
-   * Leave a federated server
-   */
   async leaveFederatedServer(serverDomain: string): Promise<void> {
     const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
     if (!user) throw new Error('User not authenticated');
@@ -2377,9 +2172,7 @@ export class ActivityPubService {
 
   // ACTIVITY CREATION HELPER
 
-  /**
-   * Create and queue an ActivityPub activity
-   */
+  // Inserts an ap_activities row with status 'pending'; delivery is external.
   private async createActivity(activity: {
     type: ActivityPubActivityType;
     actor_id: string;
@@ -2411,14 +2204,10 @@ export class ActivityPubService {
       throw error;
     }
 
-    // Queue for delivery to federated instances
-    // This would be handled by a background job in production
-    debug.log(`📤 Queued ${activity.type} activity for federation:`, ap_id);
+    debug.log(`Queued ${activity.type} activity for federation:`, ap_id);
   }
 
-  /**
-   * Helper: Get user's ActivityPub ID
-   */
+  // Actor URL form: https://{domain}/users/{username}
   private async getUserActivityPubId(userId: string): Promise<string> {
     const { data: profile } = await supabase
       .from('profiles')
@@ -2432,9 +2221,7 @@ export class ActivityPubService {
     return `https://${domain}/users/${profile.username}`;
   }
 
-  /**
-   * Helper: Convert post to ActivityPub object
-   */
+  // `updated` is omitted when it equals `created_at`.
   private async postToActivityPubObject(post: any): Promise<any> {
     const author = await this.getUserActivityPubId(post.author_id);
     
@@ -2455,9 +2242,7 @@ export class ActivityPubService {
     };
   }
 
-  /**
-   * Helper: Get post audience based on visibility
-   */
+  // Maps visibility to the activity `to` addressing.
   private getPostAudience(visibility: string): string[] {
     switch (visibility) {
       case 'public':
@@ -2467,20 +2252,17 @@ export class ActivityPubService {
       case 'followers':
         return [`${this.instanceUrl}/users/followers`];
       case 'direct':
-        return []; // Would include specific users
+        return []; // Per-recipient addressing for direct posts is absent.
       default:
         return ['https://www.w3.org/ns/activitystreams#Public'];
     }
   }
 
-  /**
-   * Format post content for storage with mention detection and unified format
-   */
+  // Plain text to MessagePart[], resolving mentions and emojis.
   private async formatPostContent(content: string): Promise<any> {
-    // Use the centralized unified content processing utility
     const { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData } = await import('@/utils/unifiedContentProcessing');
-    
-    // Efficiently resolve all mention and emoji data in batch
+
+    // Both resolvers batch their lookups; run them concurrently.
     const [usernameToUserDataMap, emojiDataMap] = await Promise.all([
       resolveMentionsUserData(content),
       resolveEmojisData(content)
@@ -2489,27 +2271,21 @@ export class ActivityPubService {
     return parseContentToMessageParts(content, usernameToUserDataMap, emojiDataMap);
   }
 
-  /**
-   * Helper: Convert MessagePart[] content to HTML for federation
-   */
+  // MessagePart[] to the HTML body sent over federation.
   private async contentToHtml(content: any): Promise<string> {
     if (typeof content === 'string') return content;
     if (!Array.isArray(content)) return '';
-    
-    // Use the centralized unified content processing utility
+
     const { convertMessagePartsToActivityPubHTML } = await import('@/utils/unifiedContentProcessing');
     return convertMessagePartsToActivityPubHTML(content);
   }
 
-  /**
-   * Transform a database post object to a TimelinePost object
-   */
   private transformDatabasePostToTimelinePost(post: any): TimelinePost {
-    // Keep content in proper format
+    // content is MessagePart[]; string rows may hold either serialized
+    // MessagePart[] or raw text.
     let processedContent = post.content;
     if (typeof post.content === 'string') {
       try {
-        // Try to parse as JSON first in case it's a JSON string
         const parsed = JSON.parse(post.content);
         if (Array.isArray(parsed)) {
           processedContent = parsed;
@@ -2517,7 +2293,6 @@ export class ActivityPubService {
           processedContent = [{ type: 'text', text: post.content }];
         }
       } catch {
-        // Not valid JSON, treat as plain text
         processedContent = [{ type: 'text', text: post.content }];
       }
     } else if (!Array.isArray(post.content)) {
@@ -2556,9 +2331,10 @@ export class ActivityPubService {
         domain: post.author.domain || import.meta.env.VITE_DOMAIN as string,
         bio: post.author.bio || '',
         is_local: post.author.is_local !== false,
-        followers_count: 0, // Would need separate query
-        following_count: 0, // Would need separate query
-        posts_count: 0, // Would need separate query
+        // Counts are not in the post embed; a separate profile query supplies them.
+        followers_count: 0,
+        following_count: 0,
+        posts_count: 0,
         created_at: post.author.created_at,
         updated_at: post.author.updated_at || post.author.created_at
       } : {
@@ -2575,19 +2351,17 @@ export class ActivityPubService {
         created_at: post.created_at,
         updated_at: post.created_at
       },
-      // Reblog data (stored as JSONB in database)
+      // JSONB columns.
       reblog: post.reblog || undefined,
       reblog_author: post.reblog_author || undefined,
-      // Use provided interaction states if available (from RPC functions), otherwise false
+      // Present only on rows from the interaction-aware RPCs.
       is_favorited: post.is_favorited || false,
       is_reblogged: post.is_reblogged || false,
       is_bookmarked: post.is_bookmarked || false
     };
   }
 
-  /**
-   * Load post with complete author information
-   */
+  // Embeds the full profiles row; interaction flags are always false here.
   async loadPostWithAuthor(postId: string): Promise<TimelinePost | null> {
     try {
       const { data, error } = await supabase
@@ -2602,7 +2376,6 @@ export class ActivityPubService {
       if (error) throw error;
       if (!data) return null;
 
-      // Transform to TimelinePost format
       return {
         id: data.id,
         created_at: data.created_at,
@@ -2644,7 +2417,7 @@ export class ActivityPubService {
             ? `@${data.author.username}@${data.author.domain}` 
             : `@${data.author.username}`
         },
-        // Reblog data (stored as JSONB in database)
+        // JSONB columns.
         reblog: data.reblog || undefined,
         reblog_author: data.reblog_author || undefined,
         is_favorited: false,
@@ -2657,9 +2430,7 @@ export class ActivityPubService {
     }
   }
 
-  // ---------------------------------------------------------------------------
   // Federation proxy helpers
-  // ---------------------------------------------------------------------------
 
   private getFederationApiUrl(): string {
     try {
@@ -2701,5 +2472,4 @@ export class ActivityPubService {
   }
 }
 
-// Export singleton instance
 export const activityPubService = ActivityPubService.getInstance();

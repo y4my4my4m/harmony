@@ -1,6 +1,5 @@
 <template>
   <div class="message-input" :class="{'replying': replyMessageId, 'has-files': attachedFiles.length > 0}" data-testid="message-input">
-    <!-- Typing Indicator - positioned absolutely above input -->
     <TypingIndicator
       :typing-users="typingUsers"
       class="typing-indicator-wrapper"
@@ -18,14 +17,14 @@
       :files="attachedFiles"
       @remove-file="removeFile"
     />
-    <!-- Inline media results (live search during /gif, /sticker, /clip, /meme, /aiemoji) -->
+    <!-- Live media results for /gif, /sticker, /clip, /meme, /aiemoji -->
     <InlineGifPicker
       v-if="inlineMediaType"
       :query="modelValue || ''"
       :media-type="inlineMediaType"
       @selectGif="handleInlineGifSelect"
     />
-    <!-- Command parameter hint bar (Discord-style) -->
+    <!-- Command parameter hint bar; mirrors Discord. -->
     <div v-if="autoSuggest.activeCommand.value" class="command-param-bar">
       <div class="command-param-info">
         <span class="command-badge">/{{ autoSuggest.activeCommand.value.name }}</span>
@@ -45,7 +44,7 @@
       </button>
     </div>
     <!-- Read-only state: user lacks SEND_MESSAGES on this channel.
-         Backend RLS / triggers still enforce - this is UX, not security. -->
+         Backend RLS and triggers enforce it; this is UX, not security. -->
     <div v-if="!canSendMessages" class="message-readonly-banner" role="status">
       <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">
         <path d="M12 1a4.5 4.5 0 0 0-4.5 4.5V9H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V11a2 2 0 0 0-2-2h-1.5V5.5A4.5 4.5 0 0 0 12 1zm-2.5 4.5a2.5 2.5 0 0 1 5 0V9h-5V5.5z"/>
@@ -60,7 +59,7 @@
          @dragover.prevent="handleDragOver"
          @dragleave.prevent="handleDragLeave"
          @drop.prevent="handleDrop">
-      <!-- Voice recording mode: replaces the normal input -->
+      <!-- Voice recording replaces the normal input. -->
       <div v-if="isVoiceRecording" class="voice-recording-wrapper">
         <VoiceRecorder
           auto-start
@@ -70,7 +69,6 @@
         />
       </div>
 
-      <!-- Normal input mode -->
       <template v-else>
         <div class="left-icons">
           <div class="plus-icon-container">
@@ -113,10 +111,8 @@
             <span v-if="slowmodeRemaining > 0">{{ slowmodeRemaining }}s</span>
           </span>
           <!--
-            Character count: only shown when approaching / over the limit
-            so it doesn't clutter the input for short messages. Red when
-            over the limit; the send button is disabled separately via
-            `hasContent`.
+            Character count shows only near or past the limit. Red when over.
+            Send-button state comes from `hasContent`, not from this.
           -->
           <span
             v-if="showCharCount"
@@ -152,7 +148,6 @@
       </template>
     </div>
     
-    <!-- Auto-suggest component -->
     <AutoSuggest
       :isVisible="autoSuggest.state.value.isActive"
       :suggestions="autoSuggest.suggestions.value"
@@ -224,7 +219,7 @@ const props = withDefaults(defineProps<Props>(), {
   serverId: undefined,
 });
 
-// Dynamic placeholder target (channel or DM user)
+// Placeholder target: DM username or channel name.
 const placeholderTarget = computed(() => {
   if (props.username) return `@${props.username}`;
   if (props.channelName) return `#${props.channelName}`;
@@ -238,12 +233,10 @@ interface VoiceMessageData {
   mimeType: string
 }
 
-// Tuple-based defineEmits is the modern Vue 3 syntax and plays better
-// with vue-tsc's `(...args: any[]) => any` listener-prop type than the
-// older call-signature interface form, which produced contravariance
-// errors at every parent's `@sendMessage="..."` / `@toggleEmojiList="..."`
-// binding site (TS2322: "Target requires N element(s) but source may have
-// fewer"). See the matching note in MessageContextMenu.vue.
+// Tuple-form defineEmits matches vue-tsc's `(...args: any[]) => any`
+// listener-prop type. The call-signature interface form emits contravariance
+// errors at every parent binding site (TS2322: "Target requires N element(s)
+// but source may have fewer"). Same note in MessageContextMenu.vue.
 const emit = defineEmits<{
   'update:modelValue': [value: string]
   sendMessage: [content: string, files: FilePreviewData[], replyMessageId?: string]
@@ -270,23 +263,22 @@ const gifTriggerRef = ref<HTMLElement | null>(null);
 const emojiTriggerRef = ref<HTMLElement | null>(null);
 const isVoiceRecording = ref(false);
 const voiceUploading = ref(false);
-// Flips for ~400ms whenever the user tries to send an over-limit message -
-// drives the .buzz CSS animation on the container so the user sees the
-// message wasn't sent, without losing their draft.
+// Set for ~450ms on an over-limit send attempt; drives the .buzz animation on
+// the container. The draft is left intact.
 const overLimitBuzz = ref(false);
 
 const serverChannelStore = useServerChannelStore()
 
-// Send permission gating (channel-level role permissions)
-// must be declared AFTER `authStore` / `serverChannelStore` above
-// because the immediate-watch resolves synchronously and would otherwise hit a
-// temporal-dead-zone (`Cannot access 'authStore' before initialization`).
+// Channel-level send permission gating. Must be declared after `authStore` and
+// `serverChannelStore`: the immediate watch resolves synchronously and would
+// otherwise hit the temporal dead zone
+// (`Cannot access 'authStore' before initialization`).
 const canSendMessages = ref(true); // optimistic until first resolution
 const isResolvingPermissions = ref(false);
 
 // --- Channel slowmode ---
 // DB trigger `enforce_channel_slowmode` is the source of truth; this is the
-// matching client UX (countdown + disabled send). MANAGE_MESSAGES is exempt.
+// matching client UX (countdown, disabled send). MANAGE_MESSAGES is exempt.
 const slowmodeExempt = ref(false);
 const slowmodeRemaining = ref(0);
 let slowmodeTimer: ReturnType<typeof setInterval> | null = null;
@@ -315,7 +307,7 @@ function startSlowmodeCooldown(seconds: number) {
 }
 
 // The DB rejects too-fast sends with SLOWMODE_ACTIVE:<n>; the chat store
-// broadcasts it so the countdown resyncs to the authoritative value.
+// rebroadcasts it and the countdown resyncs to that authoritative value.
 const handleSlowmodeHit = (event: Event) => {
   const seconds = (event as CustomEvent<{ seconds?: number; channelId?: string }>).detail?.seconds;
   const channelId = (event as CustomEvent<{ seconds?: number; channelId?: string }>).detail?.channelId;
@@ -371,8 +363,7 @@ const readOnlyPlaceholder = computed(() => {
   return 'You do not have permission to send messages in this channel.';
 });
 
-// Typing context - use props first, fall back to store
-// This is a computed that Vue can properly track for reactivity
+// Typing context: props first, store as fallback.
 const typingContext = computed(() => {
   if (props.threadId) {
     return { type: 'thread' as const, threadId: props.threadId }
@@ -380,8 +371,8 @@ const typingContext = computed(() => {
   if (props.conversationId) {
     return { type: 'conversation' as const, conversationId: props.conversationId }
   }
-  // Use props.channelId first, fall back to store's currentChannelId
-  // The store is set in ChatView's loadMessages which fires with immediate: true
+  // Store's currentChannelId is set by ChatView's loadMessages watch, which
+  // runs with immediate: true.
   const channelId = props.channelId || serverChannelStore.currentChannelId
   if (channelId) {
     return { type: 'channel' as const, channelId }
@@ -389,37 +380,31 @@ const typingContext = computed(() => {
   return null
 })
 
-// Pass the computed getter - this properly tracks all reactive dependencies
+// Getter form so the composable tracks the computed's dependencies.
 const { typingUsers, startTyping, stopTyping } = useTypingIndicator(() => typingContext.value)
 
-// DEBUG: Track context changes for typing indicator debugging
 watch(typingContext, (newCtx, oldCtx) => {
-  debug.log('🔍 MessageInput: typingContext changed:', newCtx, 'from:', oldCtx)
+  debug.log('MessageInput: typingContext changed:', newCtx, 'from:', oldCtx)
 }, { immediate: true })
 
-// Track if we've started typing (to avoid sending multiple "on" events)
+// Guards against repeated "typing on" events.
 let hasStartedTyping = false
 let typingResetTimeout: number | null = null
-const TYPING_RESET_MS = 2000 // Reset after 2 seconds of no typing to allow re-triggering
+const TYPING_RESET_MS = 2000 // Idle window after which typing can re-trigger.
 
 // Mobile = small screen OR touch-only device (no mouse)
 const { isMobileViewport, isTouchOnly } = useViewport();
 const isMobile = computed(() => isMobileViewport.value || isTouchOnly);
 
-// Character count of the raw editor text. Used to surface a counter when
-// the user is close to / over the limit. We count the raw editor string
-// (which includes markdown markers like `**`); the backend counts the
-// parsed text part lengths and is the authoritative limit, but the two
-// values are close enough that this is a useful UX guide.
+// Counts the raw editor string, markdown markers (`**`) included. The backend
+// counts parsed text part lengths and is authoritative; the two values track
+// closely enough to drive the counter.
 const characterCount = computed(() => (props.modelValue || '').length);
 
-// Authoritative soft limit. Comes from the admin's
-// `instance_config.max_message_length` (loaded by `useInstanceSettings`).
-// We fall back to the default for the brief period before the settings
-// store has loaded, and clamp to the DB-side hard ceiling so a
-// misconfigured admin can't push the soft limit past what the DB will
-// accept. The store is already instantiated below for the
-// `allowCustomEmojisInDisplayNames` / `maxMediaAttachmentsPerPost` reads.
+// Soft limit from `instance_config.max_message_length`, owned by
+// `useInstanceSettings`. Falls back to the default until the store loads, and
+// clamps to the DB hard ceiling so a misconfigured value can't exceed what the
+// DB accepts.
 const instanceSettingsStore = useInstanceSettingsStore();
 const maxMessageLength = computed(() => {
   const v = instanceSettingsStore.settings.maxMessageLength;
@@ -431,10 +416,9 @@ const showCharCount = computed(
   () => characterCount.value > maxMessageLength.value * 0.85,
 );
 
-// Check if there's content to send. Over-limit messages STILL count as
-// "having content" so the send button stays enabled - clicking it (or
-// pressing Enter) routes through `send()` which buzzes the input and
-// toasts an error, instead of silently dropping the user's draft.
+// Over-limit drafts still count as content, keeping the send button enabled.
+// The press routes through `send()`, which buzzes the input and toasts an
+// error rather than dropping the draft.
 const hasContent = computed(() => {
   return (props.modelValue?.trim().length ?? 0) > 0 || attachedFiles.value.length > 0;
 });
@@ -443,7 +427,7 @@ const handleVoiceRecordingComplete = async (result: VoiceRecordingResult) => {
   const userId = authStore.session?.user?.id
   if (!userId) return
 
-  debug.log('🎙️ Voice recording complete:', { duration: result.duration, blobSize: result.blob.size, mimeType: result.mimeType, waveformLength: result.waveform?.length })
+  debug.log('Voice recording complete:', { duration: result.duration, blobSize: result.blob.size, mimeType: result.mimeType, waveformLength: result.waveform?.length })
 
   voiceUploading.value = true
   try {
@@ -455,10 +439,10 @@ const handleVoiceRecordingComplete = async (result: VoiceRecordingResult) => {
       .upload(filePath, result.blob, { contentType: result.mimeType })
 
     if (error) throw error
-    debug.log('🎙️ Voice upload success:', { path: uploadData?.path || filePath })
+    debug.log('Voice upload success:', { path: uploadData?.path || filePath })
 
     const { data } = supabase.storage.from('user_media').getPublicUrl(filePath)
-    debug.log('🎙️ Voice public URL:', data.publicUrl)
+    debug.log('Voice public URL:', data.publicUrl)
 
     if (data.publicUrl) {
       emit('sendVoiceMessage', {
@@ -468,7 +452,7 @@ const handleVoiceRecordingComplete = async (result: VoiceRecordingResult) => {
         mimeType: result.mimeType,
       })
     } else {
-      debug.error('🎙️ No public URL returned for voice message')
+      debug.error('No public URL returned for voice message')
     }
   } catch (err) {
     debug.error('Failed to upload voice message:', err)
@@ -495,50 +479,46 @@ onUnmounted(() => {
   }
 });
 
-// Auto-suggest setup
-// Read straight from the editor - `props.modelValue` lags by one keystroke
-// because `update:modelValue` round-trips through the parent's v-model
-// before the prop binding is patched back down. Using the editor ref means
-// autosuggest sees the value as of *this* tick, which matters when handlers
-// fire synchronously after a keystroke (e.g. `cursor-position-changed`
-// arriving immediately after `update:modelValue`). The `props.modelValue`
-// fallback covers the brief window before `richEditorRef.value` mounts.
+// Reads from the editor: `props.modelValue` lags one keystroke because
+// `update:modelValue` round-trips through the parent's v-model before the prop
+// is patched back down. The editor ref gives the value as of this tick, which
+// matters for handlers firing synchronously after a keystroke
+// (`cursor-position-changed` follows `update:modelValue`). The
+// `props.modelValue` fallback covers the window before `richEditorRef` mounts.
 const getCurrentText = () => richEditorRef.value?.getPlainText?.() ?? props.modelValue;
 const updateText = (newText: string, cursorPosition?: number) => {
-  debug.log('🔧 MessageInput updateText called:', { newText, cursorPosition });
+  debug.log('MessageInput updateText called:', { newText, cursorPosition });
   
-  // Set cursor position after text update if provided
   if (cursorPosition !== undefined && richEditorRef.value) {
-    // Set the skip flag BEFORE emitting the update
-    debug.log('🔧 Setting skipNextWatch to true');
+    // Skip flag must be set before the update is emitted.
+    debug.log('Setting skipNextWatch to true');
     richEditorRef.value.skipNextWatch = true;
     
     emit('update:modelValue', newText);
     
     nextTick(() => {
-      // Now render the content manually with skip cursor restore
       if (richEditorRef.value?.renderContent) {
-        debug.log('🔧 Calling manual renderContent with skipCursorRestore=true');
-        richEditorRef.value.renderContent(newText, true); // Skip cursor restore
+        debug.log('Calling manual renderContent with skipCursorRestore=true');
+        richEditorRef.value.renderContent(newText, true); // true = skip cursor restore
       }
       
-      // Focus FIRST, then set cursor position
+      // Focus precedes setCursorPosition.
       nextTick(() => {
         if (richEditorRef.value) {
-          debug.log('🔧 Focusing editor FIRST');
+          debug.log('Focusing editor FIRST');
           richEditorRef.value.focus();
           
-          // Wait longer to ensure focus and DOM are stable
+          // Two frames: focus and DOM settle before the caret moves.
           requestAnimationFrame(() => {
             requestAnimationFrame(() => {
               if (richEditorRef.value) {
-                debug.log('🔧 Now setting cursor position to:', cursorPosition);
+                debug.log('Now setting cursor position to:', cursorPosition);
                 richEditorRef.value.setCursorPosition(cursorPosition);
-                debug.log('🔧 Verifying final state:');
+                debug.log('Verifying final state:');
                 debug.log('  - activeElement:', document.activeElement);
                 debug.log('  - selection:', window.getSelection());
                 debug.log('  - rangeCount:', window.getSelection()?.rangeCount);
-                debug.log('🔧 Cursor should now be visible and ready for typing');
+                debug.log('Cursor should now be visible and ready for typing');
               }
             });
           });
@@ -546,7 +526,6 @@ const updateText = (newText: string, cursorPosition?: number) => {
       });
     });
   } else {
-    // Normal text update without cursor control
     emit('update:modelValue', newText);
   }
 };
@@ -575,8 +554,8 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
     }
 
     const handleEditorInput = () => {
-      // The model value is handled by the update:model-value event
-      // Typing indicator is triggered in handleModelValueUpdate to avoid duplicate calls
+      // Model value arrives via update:model-value; handleModelValueUpdate owns
+      // the typing indicator, so triggering here would double-fire it.
     };
 
     const handleTyping = () => {
@@ -589,28 +568,24 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
         typingResetTimeout = null
       }
       
-      // Only send "on" event if we haven't started typing yet
       if (!hasStartedTyping) {
         hasStartedTyping = true
         startTyping()
       }
       
-      // Reset flag after inactivity (allows re-triggering if user pauses then continues)
       typingResetTimeout = window.setTimeout(() => {
         hasStartedTyping = false
       }, TYPING_RESET_MS)
     };
 
     const handleCursorPositionChanged = (position: number) => {
-      // Handle auto-suggest based on cursor position and current text.
-      // Pull the text from the editor ref instead of `props.modelValue`:
+      // Text comes from the editor ref, not `props.modelValue`.
       // `RichTextEditor.handleInput` emits `update:modelValue` and
-      // `cursor-position-changed` synchronously back-to-back, but the prop
-      // only refreshes after the parent's v-model round-trip - so reading
-      // the prop here gives us the value from BEFORE the keystroke. That
-      // caused queries like `:+1` to be evaluated as `:+`, and the
-      // unified-emoji search (which is gated on `query.length >= 2`) was
-      // silently skipped, so `+1` never resolved to thumbs_up.
+      // `cursor-position-changed` synchronously back-to-back; the prop only
+      // refreshes after the parent's v-model round-trip, so it holds the value
+      // from before the keystroke. Reading the prop truncates queries by one
+      // character (`:+1` → `:+`), which falls under the unified-emoji search's
+      // `query.length >= 2` gate.
       if (richEditorRef.value) {
         const text = richEditorRef.value.getPlainText?.() ?? props.modelValue;
         autoSuggest.handleInput(text, position);
@@ -618,14 +593,13 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Let auto-suggest handle all its own keys (including Enter for selection)
+      // Auto-suggest claims its own keys, Enter included.
       const autoSuggestHandled = autoSuggest.handleKeyDown(event);
       
       if (autoSuggestHandled) {
-        return; // Auto-suggest handled the event
+        return;
       }
       
-      // Escape dismisses active command mode
       if (event.key === 'Escape' && autoSuggest.activeCommand.value) {
         event.preventDefault();
         dismissCommand();
@@ -639,14 +613,13 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
         return;
       }
 
-      // Handle Enter key for sending messages (only if auto-suggest is not active)
-      // On mobile, Enter creates a new line - user must tap the send button
-      // On desktop, Enter sends (Shift+Enter for new line)
+      // Desktop: Enter sends, Shift+Enter newlines.
+      // Mobile: Enter newlines; sending requires the send button.
       if (event.key === 'Enter' && !event.isComposing && !event.shiftKey && !isMobile.value) {
         event.preventDefault();
 
-        // If a parameterized command is active, Enter doesn't send
-        // (user picks results by clicking, e.g. GIF grid)
+        // Enter does not send while a parameterized command is active;
+        // results are picked by click (GIF grid).
         if (autoSuggest.activeCommand.value) {
           return;
         }
@@ -656,13 +629,11 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
     };
 
     const handleSuggestionSelect = (suggestion: SuggestionItem) => {
-      // Use the autoSuggest system's built-in selection method
-      // This handles both emojis and mentions correctly, including the @ symbol for mentions
-      // The selectSuggestion method already includes the space in the inserted text
+      // selectSuggestion handles emojis and mentions, inserting the leading @
+      // and the trailing space itself.
       autoSuggest.selectSuggestion(suggestion);
       
-      // Return focus to the rich text editor after text update and DOM rendering
-      // Use nextTick to wait for Vue's reactivity cycle to complete
+      // Refocus after the DOM write; nextTick waits for the render.
       nextTick(() => {
         if (richEditorRef.value?.focus) {
           richEditorRef.value.focus();
@@ -682,16 +653,13 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
       autoSuggest.closeSuggestions();
       autoSuggest.dismissActiveCommand();
 
-      // Hard refuse over-limit sends: do NOT emit, do NOT clear the editor,
-      // shake the input, surface a toast, and refocus so the user can
-      // trim and retry. Previously the over-limit message was emitted,
-      // bounced from the backend, and the optimistic-removal path wiped
-      // the user's draft - which is terrible UX if they actually wrote
-      // 4000+ characters.
+      // Over-limit sends are refused here: no emit, no editor clear. Shake the
+      // input, toast, and refocus. Emitting instead means a backend rejection
+      // and the optimistic-removal path wipes the draft.
       if (messageTooLong.value) {
         overLimitBuzz.value = false;
-        // Toggle next frame so re-presses re-trigger the animation even
-        // if the previous one is still running.
+        // Toggled on the next frame so re-presses restart the animation
+        // while a previous run is still in flight.
         nextTick(() => {
           overLimitBuzz.value = true;
           window.setTimeout(() => { overLimitBuzz.value = false; }, 450);
@@ -710,14 +678,12 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
 
       if (props.modelValue?.trim() || attachedFiles.value.length > 0) {
         const content = props.modelValue || '';
-        // URL tracking parameter stripping is handled in unifiedContentProcessing.ts
-        // This covers the entire app (ActivityPub, DMs, chat, etc.)
-        // Pass reply message ID as third parameter
+        // URL tracking-parameter stripping lives in unifiedContentProcessing.ts
+        // and covers ActivityPub, DMs, and chat alike.
         emit('sendMessage', content, attachedFiles.value, props.replyMessageId || undefined);
         if (slowmodeActive.value) {
           startSlowmodeCooldown(slowmodeSeconds.value);
         }
-        // Haptic feedback on message send
         triggerMessage();
         emit('update:modelValue', '');
 
@@ -725,7 +691,6 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
           richEditorRef.value.clear();
         }
 
-        // Clear files after sending
         attachedFiles.value.forEach(file => {
           if (file.preview) {
             URL.revokeObjectURL(file.preview);
@@ -761,7 +726,7 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
 
     const handleInlineGifSelect = (gif: Gif) => {
       autoSuggest.dismissActiveCommand();
-      // AI emoji behave like emoji: insert into the composer (no autosend).
+      // AI emoji insert into the composer like emoji; no autosend.
       if (parseKlipyKind(gif.media_formats?.gif?.url || '') === 'ai-emoji') {
         const emoji = buildEphemeralEmojiFromGif(gif);
         registerEphemeralEmoji(emoji);
@@ -909,7 +874,6 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
       emit('upload-status-changed', hasActiveUploads());
     };
 
-    // Drag and drop handlers
     const handleDragEnter = (event: DragEvent) => {
       event.preventDefault();
       isDragging.value = true;
@@ -954,7 +918,6 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
     onUnmounted(() => {
       document.removeEventListener('external-file-drop', handleExternalFileDrop as EventListener);
       
-      // Clean up any remaining object URLs
       attachedFiles.value.forEach(file => {
         if (file.preview) {
           URL.revokeObjectURL(file.preview);
@@ -962,7 +925,6 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
       });
     });
 
-    // Auto-focus editor when replying
     watch(() => props.replyMessageId, (newId) => {
       if (newId) {
         nextTick(() => {
@@ -971,7 +933,7 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
       }
     });
 
-    // Auto-focus editor when navigating to a new channel/DM/group
+    // Desktop only: focus follows channel/DM navigation.
     watch(
       () => [props.channelId, props.conversationId],
       () => {
@@ -983,32 +945,28 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
       }
     );
 
-    // Watch for changes in attached files to emit to parent
     watch(attachedFiles, (newFiles) => {
       emit('files-attached', newFiles);
     }, { deep: true });
 
-    // Watch modelValue for typing detection
     watch(() => props.modelValue, (newValue, oldValue) => {
       if (newValue && newValue.trim().length > 0 && isEditorFocused.value && newValue !== oldValue) {
-        debug.log('⌨️ MessageInput: modelValue changed, triggering typing:', newValue.length, 'chars')
+        debug.log('MessageInput: modelValue changed, triggering typing:', newValue.length, 'chars')
         handleTyping()
       }
     });
     
-    // Also trigger on input events from RichTextEditor
+    // Focusing an editor that already holds content counts as typing.
     watch(() => isEditorFocused.value, (focused) => {
       if (focused && props.modelValue && props.modelValue.trim().length > 0) {
-        // User focused the editor with content, might be typing
         handleTyping()
       }
     });
 
     /**
-     * Kinetic rejection feedback for the parent: shake the input and refocus.
-     * Reuses the over-limit buzz animation. Called by ChatComponent when a send
-     * is refused by server policy (e.g. required E2EE) so the rejection feels
-     * the same as the over-limit case instead of a silent failure.
+     * Shakes the input and refocuses, reusing the over-limit buzz animation.
+     * ChatComponent calls this when server policy refuses a send (required
+     * E2EE), matching the over-limit feedback instead of failing silently.
      */
     const flashRejection = () => {
       overLimitBuzz.value = false;
@@ -1019,7 +977,6 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
       if (richEditorRef.value?.focus) richEditorRef.value.focus();
     };
 
-    // Expose refs for parent component
     defineExpose({
       gifTriggerRef,
       emojiTriggerRef,
@@ -1035,16 +992,16 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
     padding: 24px 12px 12px 12px;
     /* background-color: var(--background-secondary); */
     flex-direction: column;
-    flex-shrink: 0; /* Prevent the input from shrinking */
-    position: relative; /* For absolute positioning of typing indicator */
+    flex-shrink: 0;
+    position: relative; /* Containing block for the typing indicator. */
   }
   
   .typing-indicator-wrapper {
     position: absolute;
-    bottom: calc(100% - 22px); /* Position above the input, in padding area */
+    bottom: calc(100% - 22px); /* Sits above the input, inside its padding. */
     left: 12px;
     right: 12px;
-    pointer-events: none; /* Don't interfere with interactions */
+    pointer-events: none;
     z-index: 1;
   }
   
@@ -1066,8 +1023,8 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
     border-top-right-radius: 0;
   }
 
-  /* Read-only state when user lacks SEND_MESSAGES on the current channel.
-     Mirrors Discord's "You don't have permission to send messages in this channel" UI. */
+  /* Read-only state when the user lacks SEND_MESSAGES on the current channel.
+     Mirrors Discord's no-permission banner. */
   .message-readonly-banner {
     display: flex;
     align-items: center;
@@ -1088,7 +1045,6 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
     color: var(--text-tertiary, var(--text-secondary));
   }
 
-  /* Command parameter hint bar */
   .command-param-bar {
     display: flex;
     align-items: center;
@@ -1098,13 +1054,11 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
     border-bottom: 1px solid color-mix(in srgb, var(--text-primary) 10%, transparent);
   }
 
-  /* When inline GIF picker is above, hint bar loses top radius */
   .inline-gif-picker + .command-param-bar {
     border-top-left-radius: 0;
     border-top-right-radius: 0;
   }
 
-  /* When hint bar has no picker above, keep top radius */
   .command-param-bar:first-child,
   .command-param-bar:not(.inline-gif-picker + .command-param-bar) {
     border-top-left-radius: 8px;
@@ -1242,17 +1196,15 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
     transition: .2s;
   }
 
-  /* Over-limit visual cue: red outline whenever the draft exceeds the
-   * character cap so the user sees they're over before they try to send. */
+  /* Red outline while the draft exceeds the character cap, before any send
+   * attempt. */
   .message-container.has-over-limit {
     outline: 1px solid var(--color-danger, #ed4245);
     outline-offset: 0;
   }
 
-  /* "Buzz" animation fired when the user tries to send an over-limit
-   * draft. Quick horizontal shake - visible, dismissable, doesn't move
-   * adjacent UI (transform-only). The toast carries the explanation;
-   * this is just kinetic feedback that the click was acknowledged. */
+  /* Buzz fires on an over-limit send attempt. Transform-only horizontal
+   * shake, so adjacent UI does not move. The toast carries the explanation. */
   .message-container.buzz-over-limit {
     animation: message-input-buzz 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
   }
@@ -1264,7 +1216,7 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
     40%, 60% { transform: translate3d(4px, 0, 0); }
   }
 
-  /* Respect prefers-reduced-motion: skip the shake, keep the outline. */
+  /* prefers-reduced-motion: no shake, outline stays. */
   @media (prefers-reduced-motion: reduce) {
     .message-container.buzz-over-limit {
       animation: none;
@@ -1285,7 +1237,6 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
     align-items: center;
   }
 
-  /* Focus styling */
   .message-container:has(.rich-text-editor.is-focused) {
     box-shadow: inset 0 0 5px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,.15)
   }
@@ -1335,7 +1286,7 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
       margin-right: 0;
     }
 
-    /* Enhanced touch targets for mobile */
+    /* Touch targets. */
     .left-icons > *,
     .right-icons > * {
       min-width: 24px;
@@ -1367,7 +1318,7 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
     background-color: rgba(255, 255, 255, 0.1);
   }
 
-  /* Send button - mobile only */
+  /* Send button; rendered on mobile only. */
   .send-button {
     background-color: var(--harmony--primary, #0EA5E9) !important;
     border-radius: 50% !important;
@@ -1392,6 +1343,6 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
   }
 
   .send-button svg {
-    margin-left: 2px; /* Slight offset to center the arrow visually */
+    margin-left: 2px; /* Optical centering for the arrow glyph. */
   }
 </style>

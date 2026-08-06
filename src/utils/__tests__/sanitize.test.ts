@@ -1,15 +1,13 @@
 /**
- * Tests covering the XSS vectors that motivated the centralized sanitizer:
+ * XSS vectors covered by the centralized sanitizer:
  *
- *  1. Users sending `<style>body{display:none}</style>` to break the UI.
- *  2. Users sending `<img src=x onerror=alert(1)>` to run JS.
- *  3. Users sending `<script>` directly (Vue's `v-html` skips script
- *     execution but other vectors still apply).
- *  4. Inline event handlers (`onerror`, `onclick`, ...) on otherwise-allowed
- *     tags.
+ *  1. `<style>body{display:none}</style>` repainting the host page.
+ *  2. `<img src=x onerror=alert(1)>` executing JS.
+ *  3. `<script>` sent directly (Vue's `v-html` skips script execution,
+ *     other vectors still apply).
+ *  4. Inline event handlers (`onerror`, `onclick`, ...) on allowed tags.
  *
- * If anything in this file regresses, the chat XSS issue from the audit
- * (`messages_rows_xss_issue.json`) is back.
+ * Vectors come from the audit record `messages_rows_xss_issue.json`.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -37,15 +35,12 @@ describe('sanitizeMessageHtml', () => {
   });
 
   it('strips <iframe>', () => {
-    // Surround with safe text so happy-dom's fragment parser recognizes
-    // the tag. The other dangerous "void / raw-text" tags (`<object>`,
-    // `<embed>`, `<script>` outside a block element, etc.) are not parsed
-    // as elements by happy-dom when they appear at the top of a fragment,
-    // so DOMPurify cannot strip them in the test environment. This is a
-    // happy-dom limitation, not a real-world issue: when `v-html` mounts
-    // the output into a real DOM, the browser's HTML parser handles them
-    // correctly and DOMPurify's allowlist applies as expected. See the
-    // raw-tag suite below for the configuration-level guarantee.
+    // Surrounding safe text makes happy-dom's fragment parser recognize the
+    // tag. happy-dom does not parse the other void / raw-text tags
+    // (`<object>`, `<embed>`, `<script>` outside a block element) as elements
+    // at the top of a fragment, so DOMPurify cannot strip them under test.
+    // A real DOM parses them and the allowlist applies. The raw-tag suite
+    // below covers the configuration-level guarantee.
     const cleaned = sanitizeMessageHtml(
       'before <iframe src="x"></iframe> after',
     );
@@ -55,13 +50,10 @@ describe('sanitizeMessageHtml', () => {
   });
 
   it('refuses to allowlist any dangerous tag in its config', () => {
-    // Whitebox: read the ALLOWED_TAGS the sanitizer was configured with
-    // and assert none of the dangerous structural tags are in it. This
-    // catches a future "let me just add <iframe> to the allowlist"
-    // regression without depending on happy-dom's parser.
-    // We can't import the constants directly (they're module-private),
-    // but we can probe by feeding a tag we know browsers parse correctly
-    // and assert the sanitizer preserves only safe constructs.
+    // Whitebox probe of the configured ALLOWED_TAGS. The constants are
+    // module-private, so feed tags browsers parse correctly and assert only
+    // safe constructs survive. Catches allowlist regressions without
+    // depending on happy-dom's parser.
     const sample = sanitizeMessageHtml(
       '<p>x</p><strong>b</strong><em>i</em><a href="https://e/">l</a>',
     );
@@ -76,7 +68,7 @@ describe('sanitizeMessageHtml', () => {
     const cleaned = sanitizeMessageHtml(malicious);
     expect(cleaned.toLowerCase()).not.toContain('onerror');
     expect(cleaned.toLowerCase()).not.toContain('onload');
-    // The img tag itself is kept (emojis use img), just the handler stripped.
+    // <img> is kept - emoji rendering depends on it. Only handlers are stripped.
     expect(cleaned).toContain('<img');
   });
 
@@ -94,9 +86,9 @@ describe('sanitizeMessageHtml', () => {
   });
 
   it('preserves the markdown classes our renderers produce', () => {
-    // These are the tags / classes that `renderTextContent` in
-    // `UnifiedMessageContent.vue` emits - if the sanitizer strips them,
-    // every message in the app renders as plain text.
+    // Tags and classes emitted by `renderTextContent` in
+    // `UnifiedMessageContent.vue`. Stripping them renders every message
+    // as plain text.
     const trusted =
       '<strong class="md-bold">b</strong>' +
       '<em class="md-italic">i</em>' +
@@ -129,8 +121,8 @@ describe('sanitizeMessageHtml', () => {
 
 describe('sanitizeFormattedHtml', () => {
   it('allows the wider tag set the HTML-mode renderer emits', () => {
-    // formattedHTML uses <div> for media grids, <video>/<audio> for media,
-    // and <iframe> for YouTube embeds.
+    // formattedHTML emits <div> for media grids, <video>/<audio> for media,
+    // <iframe> for YouTube embeds.
     const trusted =
       '<div class="media-gallery"><img src="https://example.com/a.png" alt="x"></div>' +
       '<video controls src="https://example.com/v.mp4"></video>' +
@@ -145,10 +137,9 @@ describe('sanitizeFormattedHtml', () => {
   });
 
   it('strips <style> in formatted mode', () => {
-    // happy-dom doesn't recognize a top-level <script> tag inside an
-    // innerHTML fragment, so we can't reliably assert it gets stripped
-    // in this environment. <style> works though, and is the actual XSS
-    // vector reported in the audit (`<style>body{display:none}</style>`).
+    // happy-dom does not recognize a top-level <script> inside an innerHTML
+    // fragment, so stripping it is not asserted here. <style> is parsed, and
+    // is the vector reported in the audit.
     const cleaned = sanitizeFormattedHtml(
       '<p>a <style>body{display:none}</style> b</p>',
     );
@@ -169,7 +160,6 @@ describe('sanitizeInlineHtml', () => {
     const malicious = '<a href="https://example.com">click</a>';
     const cleaned = sanitizeInlineHtml(malicious).toLowerCase();
     expect(cleaned).not.toContain('<a');
-    // text content is preserved
     expect(cleaned).toContain('click');
   });
 

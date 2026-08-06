@@ -44,9 +44,8 @@ export function stripSingleQuotePrefix(line: string): string {
 
 export function isMultiQuoteStart(line: string): boolean {
   // Match `>>> something` with at least one trailing non-space char.
-  // A bare `>>>` or `>>> ` with no content is incomplete - see the
-  // rationale on `isSingleQuoteLine` above for why we don't promote
-  // it eagerly.
+  // A bare `>>>` or `>>> ` with no content is incomplete - see
+  // `isSingleQuoteLine` above for why it is not promoted eagerly.
   return /^>>> .+/.test(line);
 }
 

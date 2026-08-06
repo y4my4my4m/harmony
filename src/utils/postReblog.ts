@@ -10,7 +10,7 @@
  *   - Thread context (ancestors / descendants) only exists relative to the
  *     original note; the Announce has no replies of its own.
  *   - Background remote fetches (replies / reactions) must use the original
- *     `ap_id`, otherwise we'd hit the Announce's collection (usually empty).
+ *     `ap_id`; the Announce's own collection is usually empty.
  *
  * A *quote post*, by contrast, is a first-class user post that *references*
  * another note. It carries its own content, its own author, its own replies,
@@ -44,7 +44,7 @@ export function isQuotePost(post: TimelinePost | ActivityPubPost | null | undefi
   }
 
   // Inferred fallback for older data without metadata: a post is a quote if
-  // it has BOTH a `reblog` reference AND its own non-empty user content that
+  // it has both a `reblog` reference and its own non-empty user content that
   // differs from the quoted post's content. Pure reblogs duplicate the
   // wrapped note's content (no user authored anything).
   if (!p.reblog) return false;
@@ -73,7 +73,7 @@ export function isQuotePost(post: TimelinePost | ActivityPubPost | null | undefi
  * `true` if the post is a *pure* reblog / Announce wrapper.
  *
  * A pure reblog has no user-authored content of its own - the timeline row
- * exists only to surface the reblogged note. Quote posts are NOT pure
+ * exists only to surface the reblogged note. Quote posts are not pure
  * reblogs (they carry the quoter's commentary), so this returns `false` for
  * them even though they share the same `reblog` column.
  */
@@ -94,9 +94,9 @@ export function isReblogPost(post: TimelinePost | ActivityPubPost | null | undef
 
 /**
  * `true` if the post is a reblog wrapper but the wrapped note isn't
- * hydrated (no `post.reblog` / `post.reblog_author`). We can't unwrap in
- * that case, so callers should avoid attributing actions to the booster
- * (e.g. don't prefill an `@booster` mention in a reply composer).
+ * hydrated (no `post.reblog` / `post.reblog_author`). Unwrapping is
+ * impossible; callers must not attribute actions to the booster (e.g. no
+ * `@booster` mention prefill in a reply composer).
  */
 export function isUnhydratedReblog(post: TimelinePost | null | undefined): boolean {
   if (!post) return false;
@@ -150,7 +150,7 @@ export function getOriginalPostId(post: TimelinePost): string {
  * ActivityPub `ap_id` of the post that user actions should target.
  *
  * Use this for federation backend calls (`/fetch-replies`, `/fetch-reactions`,
- * `/resolve-post`) so we hit the right origin instance's `Note`.
+ * `/resolve-post`) to target the origin instance's `Note`.
  */
 export function getOriginalApId(post: TimelinePost): string | undefined {
   if (!isReblogPost(post)) return post.ap_id;
@@ -164,13 +164,12 @@ export function getOriginalApId(post: TimelinePost): string | undefined {
  * Author to mention when prefilling a reply composer.
  *
  * - Regular post: the author.
- * - Pure reblog (hydrated): the original author (so we mention whoever wrote
- *   the boosted note, not the booster).
- * - Quote post: the quoter (we're replying to their commentary, not the
- *   quoted post).
- * - Unhydrated reblog: `undefined` - we don't know the original author and
- *   silently mentioning the booster would mislead the user. Callers should
- *   skip mention prefill in this case.
+ * - Pure reblog (hydrated): the author of the boosted note, not the booster.
+ * - Quote post: the quoter - the reply targets their commentary, not the
+ *   quoted post.
+ * - Unhydrated reblog: `undefined`. The original author is unknown and
+ *   mentioning the booster would misattribute the reply; callers skip
+ *   mention prefill.
  */
 export function getReplyMentionAuthor(post: TimelinePost): FederatedUser | undefined {
   if (isUnhydratedReblog(post)) return undefined;

@@ -1,13 +1,11 @@
 /**
- * Unified Emoji Service
- * 
- * A professional, DRY emoji system that:
- * - Stores reactions as standard unicode (portable across packs)
- * - Renders emojis based on user's selected pack (twemoji or native)
- * - Provides lookup between shortcode ↔ unicode ↔ codepoint
- * - Works seamlessly when switching emoji packs
- * 
- * Data source: unicode-emoji-data.json (single source of truth)
+ * Emoji storage, lookup and rendering.
+ *
+ * Reactions are stored as unicode so they survive a pack switch. Rendering
+ * follows the selected pack (twemoji or native). Lookups map
+ * shortcode <-> unicode <-> codepoint.
+ *
+ * Data source: unicode-emoji-data.json.
  */
 
 import { ref, computed } from 'vue'
@@ -23,10 +21,8 @@ import {
   setCachedStaticEmojiData,
 } from '@/services/emojiIndexedDBCache'
 
-// Re-export type for convenience
 export type { EmojiPack } from '@/utils/emojiConstants'
 
-// Types
 export interface EmojiLookups {
   shortcodeToUnicode: Record<string, string>
   unicodeToShortcode: Record<string, string>
@@ -72,36 +68,28 @@ const lookups = ref<EmojiLookups | null>(null)
 const isLoaded = ref(false)
 const isLoading = ref(false)
 
-// Twemoji file map for accurate SVG path resolution
+// Set of twemoji SVG filenames; used for exact path resolution.
 const twemojiFileMap = ref<Record<string, boolean> | null>(null)
 
-// Cache version - bump this when the static JSON files change to bust the IndexedDB cache.
+// Bump when the static JSON files change; busts the IndexedDB cache and forces
+// a one-time refetch on the next loader run.
 //
-// v2 (2026-05-21): `unicode-emoji-data.json` was regenerated on 2026-05-20 to
-// include keyword aliases (`+1`, `thumbsup`, etc.). Users whose IndexedDB
-// still holds the v1 blob would not see `:+1` resolve to thumbs_up in
-// autosuggest or in the emoji-picker search, because the keyword check
-// can't match a field that isn't in the cached payload. Bumping forces a
-// one-time refetch the next time the emoji loader runs.
+// v2 (2026-05-21): unicode-emoji-data.json regenerated 2026-05-20 with keyword
+// aliases (`+1`, `thumbsup`). A stale v1 blob has no keyword field, so `:+1`
+// does not resolve to thumbs_up in autosuggest or picker search.
 //
-// v3 (2026-05-25): The data was regenerated to merge ~884 GitHub/Discord-style
-// shortcode aliases (from `gemoji`) directly into `shortcodeToUnicode`. This
-// is what makes `:joy:`, `:heart:`, `:thumbsup:`, etc. resolve as standalone
-// shortcodes (not just keyword fuzzy-matches inside the picker). Without
-// bumping, users still see the v2 blob where only the picker's keyword
-// search could find these aliases.
+// v3 (2026-05-25): ~884 GitHub/Discord shortcode aliases from `gemoji` merged
+// into `shortcodeToUnicode`, making `:joy:`, `:heart:`, `:thumbsup:` resolve as
+// standalone shortcodes rather than picker-only keyword matches.
 const EMOJI_DATA_CACHE_VERSION = '4'
 
-/**
- * Load the unified emoji data.
- * Tries IndexedDB first for instant hydration, then falls back to network fetch.
- */
+/** Loads emoji data from IndexedDB, falling back to a network fetch. */
 async function loadEmojiData(): Promise<void> {
   if (isLoaded.value || isLoading.value) return
   
   isLoading.value = true
   try {
-    // --- Try IndexedDB cache first (instant, no network) ---
+    // IndexedDB first: no network round-trip.
     let loadedFromCache = false
     try {
       const [cachedData, cachedFileMap] = await Promise.all([
@@ -113,13 +101,13 @@ async function loadEmojiData(): Promise<void> {
         emojiData.value = cachedData
         lookups.value = cachedData.lookups || null
         loadedFromCache = true
-        debug.log(`⚡ Loaded emoji data from IndexedDB cache: ${cachedData.totalCount} emojis`)
+        debug.log(`Loaded emoji data from IndexedDB cache: ${cachedData.totalCount} emojis`)
       }
 
       if (cachedFileMap) {
         twemojiFileMap.value = cachedFileMap
         if (loadedFromCache) {
-          debug.log(`⚡ Loaded Twemoji file map from IndexedDB cache`)
+          debug.log(`Loaded Twemoji file map from IndexedDB cache`)
         }
       }
     } catch (e) {
@@ -131,16 +119,16 @@ async function loadEmojiData(): Promise<void> {
       return
     }
 
-    // --- Fetch from network and populate IndexedDB cache ---
+    // Network fetch, repopulating the IndexedDB cache.
     if (!emojiData.value) {
       const dataResponse = await fetch('/assets/emojis/unicode-emoji-data.json')
       if (dataResponse.ok) {
         emojiData.value = await dataResponse.json()
         lookups.value = emojiData.value?.lookups || null
-        debug.log(`📦 Loaded unified emoji data: ${emojiData.value?.totalCount} emojis`)
+        debug.log(`Loaded unified emoji data: ${emojiData.value?.totalCount} emojis`)
         setCachedStaticEmojiData('unicode-emoji-data', emojiData.value, EMOJI_DATA_CACHE_VERSION)
       } else {
-        debug.warn('⚠️ unicode-emoji-data.json not found')
+        debug.warn('unicode-emoji-data.json not found')
       }
     }
     
@@ -149,7 +137,7 @@ async function loadEmojiData(): Promise<void> {
         const fileMapResponse = await fetch('/assets/emojis/twemoji-file-map.json')
         if (fileMapResponse.ok) {
           twemojiFileMap.value = await fileMapResponse.json()
-          debug.log(`📦 Loaded Twemoji file map: ${Object.keys(twemojiFileMap.value || {}).length} entries`)
+          debug.log(`Loaded Twemoji file map: ${Object.keys(twemojiFileMap.value || {}).length} entries`)
           setCachedStaticEmojiData('twemoji-file-map', twemojiFileMap.value, EMOJI_DATA_CACHE_VERSION)
         }
       } catch (e) {
@@ -159,7 +147,7 @@ async function loadEmojiData(): Promise<void> {
     
     isLoaded.value = true
 
-    // Re-resolve display name emojis now that shortcode lookups are available
+    // Shortcode lookups now exist; re-resolve emojis in cached display names.
     import('@/services/userDataService').then(({ userDataService }) => {
       userDataService.reResolveAllDisplayNames()
     }).catch(() => { /* userDataService not ready yet */ })
@@ -170,9 +158,6 @@ async function loadEmojiData(): Promise<void> {
   }
 }
 
-/**
- * Load user's emoji pack preference
- */
 function loadPackPreference(): void {
   try {
     const stored = localStorage.getItem(PACK_STORAGE_KEY)
@@ -184,9 +169,6 @@ function loadPackPreference(): void {
   }
 }
 
-/**
- * Save user's emoji pack preference
- */
 function savePackPreference(): void {
   try {
     localStorage.setItem(PACK_STORAGE_KEY, currentPack.value)
@@ -195,52 +177,37 @@ function savePackPreference(): void {
   }
 }
 
-/**
- * Set the current emoji pack
- */
 function setEmojiPack(pack: EmojiPack): void {
   currentPack.value = pack
   savePackPreference()
-  debug.log(`📦 Switched to emoji pack: ${pack}`)
+  debug.log(`Switched to emoji pack: ${pack}`)
 }
 
 // CONVERSION UTILITIES
 
 /**
- * Convert shortcode to unicode emoji
- * e.g., "grinning_face" → "😀"
- * Case insensitive lookup
+ * "grinning_face" -> "😀". Case-insensitive: exact match, then lowercase.
  */
 function shortcodeToUnicode(shortcode: string): string | null {
   if (!lookups.value || shortcode == null || shortcode === '') return null
-  // Try exact match first, then lowercase
   const key = String(shortcode)
   return lookups.value.shortcodeToUnicode[key] || 
          lookups.value.shortcodeToUnicode[key.toLowerCase()] || 
          null
 }
 
-/**
- * Convert unicode emoji to shortcode
- * e.g., "😀" → "grinning_face"
- */
+/** "😀" -> "grinning_face". */
 function unicodeToShortcode(unicode: string): string | null {
   if (!lookups.value) return null
   return lookups.value.unicodeToShortcode[unicode] || null
 }
 
-/**
- * Convert unicode emoji to hex codepoint
- * e.g., "😀" → "1f600"
- */
+/** "😀" -> "1f600" (hex, dash-joined for sequences). */
 function unicodeToCodepoint(unicode: string): string | null {
   if (!lookups.value) return null
   return lookups.value.unicodeToCodepoint?.[unicode] || null
 }
 
-/**
- * Get emoji codepoint from shortcode
- */
 function shortcodeToCodepoint(shortcode: string): string | null {
   const unicode = shortcodeToUnicode(shortcode)
   if (!unicode) return null
@@ -248,26 +215,25 @@ function shortcodeToCodepoint(shortcode: string): string | null {
 }
 
 /**
- * Find a Twemoji file by trying different fe0f variations
- * Returns the actual filename if found, or null
+ * Resolves a codepoint sequence to an existing Twemoji filename by trying
+ * fe0f (variation selector) placements. Returns null when none match.
  */
 function findTwemojiFile(codepoint: string): string | null {
   if (!twemojiFileMap.value) return null
   
-  // Try exact match first
   if (twemojiFileMap.value[codepoint]) {
     return codepoint
   }
   
   const parts = codepoint.split('-')
   
-  // Try without all fe0f
+  // All fe0f stripped.
   const withoutFe0f = parts.filter(p => p !== 'fe0f').join('-')
   if (twemojiFileMap.value[withoutFe0f]) {
     return withoutFe0f
   }
   
-  // Try with fe0f only after gender symbols
+  // fe0f kept only after gender/directional symbols (2640, 2642, 27a1).
   const withGenderFe0f: string[] = []
   for (let i = 0; i < parts.length; i++) {
     const part = parts[i]
@@ -285,7 +251,7 @@ function findTwemojiFile(codepoint: string): string | null {
     return genderVariant
   }
   
-  // Try with all fe0f at the end stripped
+  // Trailing fe0f stripped.
   if (parts[parts.length - 1] === 'fe0f') {
     const withoutTrailing = parts.slice(0, -1).join('-')
     if (twemojiFileMap.value[withoutTrailing]) {
@@ -293,7 +259,7 @@ function findTwemojiFile(codepoint: string): string | null {
     }
   }
   
-  // Try with fe0f added after base emoji (for emojis like 26f9-fe0f-200d-...)
+  // fe0f inserted after the base emoji of a ZWJ sequence, e.g. 26f9-fe0f-200d-...
   if (parts.length >= 2 && parts[1] === '200d') {
     const withBaseFe0f = [parts[0], 'fe0f', ...parts.slice(1)].join('-')
     if (twemojiFileMap.value[withBaseFe0f]) {
@@ -305,21 +271,18 @@ function findTwemojiFile(codepoint: string): string | null {
 }
 
 /**
- * Get Twemoji SVG URL from unicode emoji
- * Uses file map for accurate resolution, with fallback to heuristic normalization
+ * Twemoji SVG URL for a unicode emoji. Resolves via the file map; falls back
+ * to heuristic fe0f normalization when the map is unloaded or has no entry.
  */
 function getTwemojiUrl(unicode: string): string | null {
-  // First try from lookups
   let codepoint = unicodeToCodepoint(unicode)
   
   if (!codepoint) {
-    // Fallback: compute codepoint directly from unicode
     codepoint = unicodeToCodepointDirect(unicode)
   }
   
   if (!codepoint) return null
   
-  // Try to find the exact file using the file map
   if (twemojiFileMap.value) {
     const found = findTwemojiFile(codepoint)
     if (found) {
@@ -327,14 +290,13 @@ function getTwemojiUrl(unicode: string): string | null {
     }
   }
   
-  // Fallback: use heuristic normalization (strip most fe0f except after gender symbols)
+  // Heuristic: strip fe0f except after gender/directional symbols.
   const parts = codepoint.split('-')
   const normalized: string[] = []
   for (let i = 0; i < parts.length; i++) {
     const part = parts[i]
     if (part === 'fe0f') {
       const prev = parts[i - 1]
-      // Keep fe0f after gender/directional symbols
       if (prev === '2640' || prev === '2642' || prev === '27a1') {
         normalized.push(part)
       }
@@ -346,10 +308,7 @@ function getTwemojiUrl(unicode: string): string | null {
   return `${TWEMOJI_BASE_URL}/${normalized.join('-')}.svg`
 }
 
-/**
- * Convert unicode directly to codepoint (without lookup)
- * Used as fallback when lookups aren't loaded
- */
+/** Codepoint from the string itself. Used when lookups are not loaded. */
 function unicodeToCodepointDirect(unicode: string): string | null {
   if (!unicode) return null
   const codepoints: string[] = []
@@ -362,9 +321,7 @@ function unicodeToCodepointDirect(unicode: string): string | null {
   return codepoints.length > 0 ? codepoints.join('-') : null
 }
 
-/**
- * Get full SVG URL for a shortcode (twemoji only; native renders as text).
- */
+/** SVG URL for a shortcode. Null under the native pack, which renders text. */
 function getSvgUrl(shortcode: string): string | null {
   if (currentPack.value === 'twemoji') {
     const unicode = shortcodeToUnicode(shortcode)
@@ -375,9 +332,7 @@ function getSvgUrl(shortcode: string): string | null {
   return null
 }
 
-/**
- * Get SVG URL from unicode emoji (twemoji only; native renders as text).
- */
+/** SVG URL for a unicode emoji. Null under the native pack. */
 function unicodeToSvgUrl(unicode: string): string | null {
   if (currentPack.value === 'twemoji') {
     return getTwemojiUrl(unicode)
@@ -397,9 +352,8 @@ export interface ResolvedEmoji {
 }
 
 /**
- * Resolve emoji from input (unicode, shortcode, or name) for display.
- * LAZY: callers decide when the emoji data is loaded.
- *
+ * Resolves unicode, shortcode or name input for display.
+ * Does not load emoji data; callers control when that happens.
  */
 function resolveEmoji(input: string): ResolvedEmoji {
 
@@ -408,7 +362,6 @@ function resolveEmoji(input: string): ResolvedEmoji {
   if (isShortcode) {
     const unicode = shortcodeToUnicode(input)
     
-    // Native pack
     if (currentPack.value === 'native') {
       return {
         unicode: unicode || input,
@@ -419,7 +372,6 @@ function resolveEmoji(input: string): ResolvedEmoji {
       }
     }
     
-    // Twemoji pack
     if (currentPack.value === 'twemoji' && unicode) {
       const twemojiUrl = getTwemojiUrl(unicode)
       if (twemojiUrl) {
@@ -431,7 +383,6 @@ function resolveEmoji(input: string): ResolvedEmoji {
       }
     }
     
-    // Ultimate fallback to native
     return {
       unicode: unicode || input,
       shortcode: input,
@@ -442,7 +393,6 @@ function resolveEmoji(input: string): ResolvedEmoji {
   // Input is unicode emoji
   const shortcode = unicodeToShortcode(input)
   
-  // Native pack
   if (currentPack.value === 'native') {
     return {
       unicode: input,
@@ -451,7 +401,6 @@ function resolveEmoji(input: string): ResolvedEmoji {
     }
   }
   
-  // Twemoji pack
   if (currentPack.value === 'twemoji') {
     const twemojiUrl = getTwemojiUrl(input)
     if (twemojiUrl) {
@@ -463,7 +412,6 @@ function resolveEmoji(input: string): ResolvedEmoji {
     }
   }
   
-  // Fallback to native
   return {
     unicode: input,
     shortcode,
@@ -471,10 +419,7 @@ function resolveEmoji(input: string): ResolvedEmoji {
   }
 }
 
-/**
- * Normalize emoji input to unicode for storage
- * This ensures reactions are stored as standard unicode
- */
+/** Normalizes input to unicode; reactions are stored in that form. */
 function normalizeToUnicode(input: string): string {
   const isShortcode = /^[a-z0-9_+-]+$/i.test(input)
   if (isShortcode) {
@@ -487,12 +432,8 @@ function normalizeToUnicode(input: string): string {
 
 // SEARCH
 
-/**
- * Search emojis by query
- * LAZY: Triggers background load if not already loaded
- */
+/** Returns [] until the background load started here completes. */
 function searchEmojis(query: string, limit: number = 50): EmojiEntry[] {
-  // Lazy load emoji data in background if not loaded (non-blocking)
   if (!isLoaded.value && !isLoading.value) {
     loadEmojiData().catch(err => {
       debug.warn('Failed to lazy load emoji data:', err)
@@ -513,44 +454,29 @@ function searchEmojis(query: string, limit: number = 50): EmojiEntry[] {
     .slice(0, limit)
 }
 
-/**
- * Get emojis by category
- */
 function getEmojisByCategory(categoryId: string): EmojiEntry[] {
   if (!emojiData.value) return []
   return emojiData.value.emojis.filter(e => e.category === categoryId)
 }
 
-/**
- * Get all categories (sorted by order)
- */
+/** Categories sorted by `order`; falls back to EMOJI_CATEGORIES when unloaded. */
 function getCategories(): EmojiCategory[] {
   if (!emojiData.value?.categories) return EMOJI_CATEGORIES as unknown as EmojiCategory[]
   return [...emojiData.value.categories].sort((a, b) => (a.order || 0) - (b.order || 0))
 }
 
-/**
- * Get all emojis
- */
 function getAllEmojis(): EmojiEntry[] {
   return emojiData.value?.emojis || []
 }
 
 // COMPOSABLE
 
-/**
- * Unified emoji composable
- * LAZY: Only loads emoji data when actually needed (emoji picker, search, etc.)
- */
+/** Emoji data is not loaded here; see the note in the body. */
 export function useUnifiedEmoji() {
   loadPackPreference()
   
-  // LAZY: Don't auto-load emoji data - only load when needed
-  // This saves 712KB on initial page load
-  // Emoji data will be loaded when:
-  // - Emoji picker is opened
-  // - Emoji search is performed
-  // - Emojis need to be resolved (with check to avoid duplicate loads)
+  // Emoji data stays unloaded on mount: 712KB off the initial page load.
+  // Loaded on picker open, on search, and on resolution.
   
   const isNativePack = computed(() => currentPack.value === 'native')
   const isTwemojiPack = computed(() => currentPack.value === 'twemoji')
@@ -590,7 +516,7 @@ export function useUnifiedEmoji() {
   }
 }
 
-// Export singleton functions for use outside Vue components
+// Direct exports for non-component consumers.
 export {
   loadEmojiData,
   setEmojiPack,

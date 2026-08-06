@@ -174,7 +174,7 @@ describe('messageContentUtils', () => {
     it('counts unicode characters not UTF-16 code units', () => {
       // 5 visible characters even though astral chars take 2 code units
       const parts = [{ type: 'text', text: 'a😀b😀c' }]
-      // JavaScript .length is UTF-16 code units = 7 for "a😀b😀c"; we
+      // JavaScript .length is UTF-16 code units = 7 for "abc"; we
       // accept that limit because the DB-side function uses char_length
       // which is also code-point-aware but PostgreSQL's char_length is on
       // characters, not code points. Keeping client+server in agreement

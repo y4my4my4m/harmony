@@ -207,9 +207,9 @@ const inputClasses = computed(() => [
   {
     'input-focused': isFocused.value,
     'input-error': hasError.value,
-    // Reading $slots from `props` is non-standard; defineProps in <script setup>
-    // doesn't carry $slots. Reading via useSlots() / `getCurrentInstance()` would
-    // be cleaner; for now, cast to bypass.
+    // defineProps in <script setup> does not carry $slots; the cast reads it
+    // off props anyway. useSlots() / `getCurrentInstance()` are the supported
+    // accessors.
     'input-with-prefix': props.prefixIcon || (props as any).$slots?.prefix,
     'input-with-suffix': props.suffixIcon || (props as any).$slots?.suffix || showPasswordToggle.value || showClearButton.value,
     'input-no-resize': props.type === 'textarea' && !props.resize

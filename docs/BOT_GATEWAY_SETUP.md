@@ -148,7 +148,7 @@ After=network.target
 [Service]
 Type=simple
 User=username
-WorkingDirectory=/home/harmony/bot-gateway
+WorkingDirectory=/path/to/harmony/bot-gateway
 ExecStart=/usr/bin/node dist/index.js
 Restart=always
 Environment=NODE_ENV=production

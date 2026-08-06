@@ -21,9 +21,7 @@ import {
 
 const { isBlockedIPv4, isBlockedIPv6 } = __test__;
 
-// ---------------------------------------------------------------------------
 // Pure IP-range predicates
-// ---------------------------------------------------------------------------
 describe('isBlockedIPv4', () => {
   it.each([
     ['127.0.0.1'],     // loopback
@@ -82,9 +80,7 @@ describe('isBlockedIPv6', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // validateExternalUrl
-// ---------------------------------------------------------------------------
 describe('validateExternalUrl', () => {
   it('accepts plain https public URLs', () => {
     const u = validateExternalUrl('https://example.com/path?q=1');
@@ -131,9 +127,7 @@ describe('validateExternalUrl', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // validateExternalHostname
-// ---------------------------------------------------------------------------
 describe('validateExternalHostname', () => {
   it('accepts public hostnames', () => {
     expect(() => validateExternalHostname('example.com')).not.toThrow();
@@ -149,9 +143,7 @@ describe('validateExternalHostname', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // validateResolvedAddress  - these tests mock dns.resolve4 / dns.resolve6
-// ---------------------------------------------------------------------------
 describe('validateResolvedAddress', () => {
   let resolve4Spy: ReturnType<typeof vi.spyOn>;
   let resolve6Spy: ReturnType<typeof vi.spyOn>;
@@ -206,9 +198,7 @@ describe('validateResolvedAddress', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // safeFetch
-// ---------------------------------------------------------------------------
 describe('safeFetch', () => {
   let fetchSpy: ReturnType<typeof vi.spyOn>;
   let resolve4Spy: ReturnType<typeof vi.spyOn>;

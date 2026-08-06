@@ -107,9 +107,7 @@ async function idbGetAll<T>(storeName: string): Promise<T[]> {
   })
 }
 
-// ---------------------------------------------------------------------------
 // Static emoji data (JSON files)
-// ---------------------------------------------------------------------------
 
 interface CachedStaticData {
   key: string
@@ -130,7 +128,7 @@ export async function getCachedStaticEmojiData<T>(
     const entry = await idbGet<CachedStaticData>(STORES.STATIC_DATA, key)
     if (!entry) return undefined
     if (entry.version !== expectedVersion) {
-      debug.log(`🔄 Emoji cache version mismatch for ${key}, will re-fetch`)
+      debug.log(`Emoji cache version mismatch for ${key}, will re-fetch`)
       return undefined
     }
     return entry.data as T
@@ -157,9 +155,7 @@ export async function setCachedStaticEmojiData(
   }
 }
 
-// ---------------------------------------------------------------------------
 // Custom server emojis (from Supabase)
-// ---------------------------------------------------------------------------
 
 export interface CachedServerEmojiData {
   serverId: string

@@ -19,11 +19,11 @@ export const getSupabaseClient = (): SupabaseClient => {
     // Check for custom Realtime URL (for Docker environments)
     const realtimeUrl = process.env.SUPABASE_REALTIME_URL;
     if (realtimeUrl) {
-      logger.info(`📡 Using custom Realtime URL: ${realtimeUrl}`);
+      logger.info(`Using custom Realtime URL: ${realtimeUrl}`);
       realtimeConfig.url = realtimeUrl;
     }
     
-    logger.debug(`📡 Supabase URL: ${config.SUPABASE_URL}`);
+    logger.debug(`Supabase URL: ${config.SUPABASE_URL}`);
     
     supabaseInstance = createClient(
       config.SUPABASE_URL,

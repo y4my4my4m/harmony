@@ -280,11 +280,9 @@
         </div>
 
         <!--
-          Note Section temporarily hidden - the localStorage-based note flow
-          isn't wired up to anything yet (no sync, no surfacing elsewhere) so
-          we don't want to expose a half-finished feature. Keep the markup
-          around so we can flip it back on once notes are persisted server-
-          side and shown in the right places.
+          Note section hidden: the localStorage note flow has no sync and is
+          not surfaced anywhere else. Markup kept for re-enabling once notes
+          are persisted server-side.
 
         <div v-if="!isCurrentUser" class="note-section">
           <h3 class="section-title">Note</h3>
@@ -462,20 +460,18 @@ const isInServerContext = computed(() => {
     && !!serverChannelStore.currentServerId
 })
 
-// Reactive computed to track blocked/muted user counts for change detection
+// Set sizes act as the reactive trigger for block/mute state changes.
 const blockedUsersCount = computed(() => activityPubStore.blockedUsers.size)
 const mutedUsersCount = computed(() => activityPubStore.mutedUsers.size)
 
-// Watch for changes to blocked/muted users counts
 watch(blockedUsersCount, (newVal) => {
-  debug.log('👁️ UserProfileModal: blockedUsers changed, size:', newVal)
+  debug.log('UserProfileModal: blockedUsers changed, size:', newVal)
 }, { immediate: true })
 
 watch(mutedUsersCount, (newVal) => {
-  debug.log('👁️ UserProfileModal: mutedUsers changed, size:', newVal)
+  debug.log('UserProfileModal: mutedUsers changed, size:', newVal)
 }, { immediate: true })
 
-// Use professional presence system
 const { 
   getUser,
   getUserStatusText,
@@ -503,7 +499,7 @@ const fetchedActivity = ref<{ message_count: number; voice_minutes: number } | n
 const isLoadingUserStats = ref(false)
 const isLoadingActivity = ref(false)
 
-// Server roles for the user (from current server context)
+// Server roles scoped to the current server context.
 const fetchedUserRoles = ref<ServerRole[]>([])
 const isLoadingRoles = ref(false)
 
@@ -523,9 +519,6 @@ const availableServers = computed(() => {
 
 const currentDomain = import.meta.env.VITE_DOMAIN as string
 
-/**
- * Fetch user stats and profile data via CoreProfileService
- */
 function applyActivityFromStats(stats: { message_count?: number; voice_minutes?: number } | null | undefined) {
   if (stats == null) return
   if (stats.message_count === undefined && stats.voice_minutes === undefined) return
@@ -544,7 +537,6 @@ async function loadUserStats(userId: string) {
 
   isLoadingUserStats.value = true
   try {
-    // Use CoreProfileService for proper stats fetching
     const stats = await coreProfileService.getUserStats(userId)
     if (stats) {
       fetchedUserStats.value = {
@@ -553,15 +545,15 @@ async function loadUserStats(userId: string) {
         followers: stats.followers_count || 0
       }
       applyActivityFromStats(stats)
-      debug.log('👤 Loaded user stats:', fetchedUserStats.value)
+      debug.log('Loaded user stats:', fetchedUserStats.value)
     }
 
-    // Also fetch created_at if not on user object
+    // created_at is not always present on the user object.
     const { profileService } = await import('@/services/ProfileService')
     const profile = await profileService.fetchProfile(userId)
     if (profile?.created_at) {
       fetchedCreatedAt.value = profile.created_at
-      debug.log('👤 Loaded user created_at:', fetchedCreatedAt.value)
+      debug.log('Loaded user created_at:', fetchedCreatedAt.value)
     }
   } catch (error) {
     debug.error('Failed to load user stats:', error)
@@ -575,9 +567,9 @@ async function loadUserStats(userId: string) {
 /**
  * Activity counters (denormalized columns on `profiles`, maintained by
  * triggers - see migrations/20260524_bot_grants_and_activity_counters.sql).
- * One tiny SELECT on PK; no count(*) scans. Separate function so we can
- * also call it when the rest of `loadUserStats` is skipped because the
- * caller already had post/follow counts.
+ * One SELECT on the PK; no count(*) scans. Kept separate so it still runs
+ * when `loadUserStats` is skipped because the caller already had
+ * post/follow counts.
  */
 async function loadUserActivity(userId: string) {
   if (!userId) return
@@ -598,7 +590,7 @@ async function loadUserActivity(userId: string) {
         message_count: Number(data.message_count ?? 0),
         voice_minutes: Number(data.voice_minutes ?? 0),
       }
-      debug.log('👤 Loaded user activity:', fetchedActivity.value)
+      debug.log('Loaded user activity:', fetchedActivity.value)
     }
   } catch (err) {
     debug.error('Failed to load user activity counters:', err)
@@ -607,9 +599,6 @@ async function loadUserActivity(userId: string) {
   }
 }
 
-/**
- * Fetch user roles for the current server context
- */
 async function loadUserRoles(userId: string) {
   if (!isInServerContext.value || isLoadingRoles.value) return
   const serverId = serverChannelStore.currentServerId!
@@ -618,7 +607,7 @@ async function loadUserRoles(userId: string) {
   try {
     const roles = await roleService.getUserRoles(userId, serverId)
     fetchedUserRoles.value = roles.filter(r => !r.is_default) // Exclude @everyone
-    debug.log('🎭 Loaded user roles:', fetchedUserRoles.value.length)
+    debug.log('Loaded user roles:', fetchedUserRoles.value.length)
   } catch (error) {
     debug.error('Failed to load user roles:', error)
     fetchedUserRoles.value = []
@@ -629,14 +618,14 @@ async function loadUserRoles(userId: string) {
 
 /**
  * Fetch instance info for a domain via nodeinfo.
- * Skips when domain is the current instance (we already know it) or when the fetch
- * would be cross-origin (causes CORS errors, e.g. app on https://har.mony.local
- * fetching from http://localhost).
+ * Skipped when the domain is the current instance, or when the fetch would
+ * be cross-origin (CORS error, e.g. app on https://har.mony.local fetching
+ * from http://localhost).
  */
 async function loadInstanceInfo(domain: string) {
   if (!domain || isLoadingInstanceInfo.value) return
 
-  // Skip for current instance - no need to fetch our own nodeinfo
+  // Current instance: nodeinfo is known locally.
   const currentHost = typeof window !== 'undefined' ? window.location.host : currentDomain
   const domainNorm = domain.split(':')[0].toLowerCase()
   const currentHostNorm = (currentHost?.split(':')[0] || currentDomain || '').toLowerCase()
@@ -645,7 +634,7 @@ async function loadInstanceInfo(domain: string) {
     return
   }
 
-  // Skip when cross-origin would fail (e.g. HTTPS page fetching HTTP localhost)
+  // HTTPS page fetching HTTP localhost is blocked as mixed content.
   if (typeof window !== 'undefined') {
     const pageProtocol = window.location.protocol
     const targetProtocol = (domain === 'localhost' || domain.startsWith('localhost:')) ? 'http:' : 'https:'
@@ -657,7 +646,7 @@ async function loadInstanceInfo(domain: string) {
 
   isLoadingInstanceInfo.value = true
   try {
-    // Proxy through federation backend to avoid browser CORS blocking
+    // Proxied through the federation backend to avoid browser CORS blocking.
     const probeRes = await fetch(apiUrl(`/api/federation/instances/probe?domain=${encodeURIComponent(domain)}`), {
       headers: { Accept: 'application/json' },
       signal: AbortSignal.timeout(15000),
@@ -685,7 +674,7 @@ const isFederatedUser = (user: User | FederatedUser | null): user is FederatedUs
   if (!user) return false;
   if (isBridgedDiscordProfileUser(user)) return false;
   const u = user as any;
-  // Explicitly remote (is_local === false) is the strongest signal
+  // is_local === false is the strongest signal.
   if (u.is_local === false) return true;
   // Has a handle like @user@remote.server
   if (u.handle && u.handle.includes('@') && u.handle.split('@').filter(Boolean).length >= 2) return true;
@@ -697,21 +686,21 @@ const isFederatedUser = (user: User | FederatedUser | null): user is FederatedUs
 }
 
 /**
- * Get the appropriate profile URL for viewing on the user's instance
- * For remote users: use federated_id (their canonical ActivityPub URL)
- * For local users: link to our profile page
+ * Profile URL on the user's own instance. Remote users get the AP actor's
+ * `url`, falling back to `federated_id`; local users get this frontend's
+ * profile page.
  */
 function getProfileUrl(user: FederatedUser | User | null): string {
   if (!user) return '#'
   
   const fed = user as FederatedUser
   
-  // For local users, link to our frontend profile page
+  // Local users: this frontend's profile page.
   if (fed.is_local || fed.domain === currentDomain || !fed.domain) {
     return `https://${currentDomain}/social/profile/${fed.username || (user as User).username}`
   }
   
-  // For remote users, prefer the human-readable 'url' field from the AP actor
+  // Remote users: the AP actor's human-readable 'url' field.
   if ((fed as any).url) {
     return (fed as any).url
   }
@@ -727,17 +716,11 @@ function getProfileUrl(user: FederatedUser | User | null): string {
 
 // Computed properties
 //
-// `props.user.id` is a PROFILE id, but `authStore.session.user.id` is the
-// Supabase AUTH user id - the two are different UUIDs in this codebase
-// (BUGS.md Pattern A). Comparing them used to always return false, which
-// caused two regressions:
-//   1. Looking at your OWN profile would show "Send Message" / "Follow" /
-//      "Invite to Server" instead of "Edit Profile".
-//   2. The DM button on your own card would call create_or_get_direct_
-//      conversation with self as both participants → RPC accepted it and
-//      silently swallowed the click.
-// Compare against the cached current-user profile id from userDataService
-// (kept in sync by useUserData) so the check is reactive and id-correct.
+// `props.user.id` is a PROFILE id; `authStore.session.user.id` is the
+// Supabase AUTH user id. The two are different UUIDs (BUGS.md Pattern A).
+// Identity checks compare against the cached current-user profile id from
+// userDataService (kept in sync by useUserData), which is reactive and
+// id-correct.
 const isBridgedDiscord = computed(() => isBridgedDiscordProfileUser(props.user))
 
 const bridgedProfile = computed((): User | null => {
@@ -782,13 +765,13 @@ const displayAbout = computed(() => {
 const socialStats = computed(() => {
   if (!props.user) return null;
   
-  // Check if user has any social stats (works for both federated and local users with AP integration)
+  // Social counts appear on federated users and AP-integrated local users.
   const user = props.user as any;
   const hasSocialStats = user.posts_count !== undefined || 
                          user.following_count !== undefined || 
                          user.followers_count !== undefined;
   
-  // Use fetched stats as fallback if user object doesn't have them
+  // Fetched stats stand in when the user object carries none.
   if (!hasSocialStats && fetchedUserStats.value) {
     return fetchedUserStats.value;
   }
@@ -816,7 +799,7 @@ const userStatus = computed(() => {
   
   const fed = props.user as FederatedUser
   
-  // Remote federated users (is_local explicitly false) don't have real-time presence
+  // Remote federated users (is_local === false) have no real-time presence.
   if (fed.is_local === false) {
     const lastStatus = fed.last_status_at
     if (lastStatus) {
@@ -829,7 +812,7 @@ const userStatus = computed(() => {
     return 'offline'
   }
   
-  // Local users - use presence-aware status for real-time accuracy
+  // Local users: presence-aware status.
   const status = getPresenceAwareStatus(props.user.id).value
   return status || 'offline'
 })
@@ -848,7 +831,7 @@ const userStatusText = computed(() => {
   
   const fed = props.user as FederatedUser
   
-  // Remote federated users (is_local explicitly false)
+  // Remote federated users (is_local === false).
   if (fed.is_local === false) {
     const lastStatus = fed.last_status_at
     if (lastStatus) {
@@ -862,7 +845,7 @@ const userStatusText = computed(() => {
     return 'Unknown'
   }
   
-  // Local users - use real-time status text
+  // Local users: real-time status text.
   const statusText = getUserStatusText(props.user.id).value
   return statusText || 'Offline'
 })
@@ -880,7 +863,6 @@ const customStatusDisplay = computed(() => {
   return formatCustomStatusDisplay(status)
 })
 
-// Reactive computed properties using useUserData
 const displayName = computed(() => {
   if (!props.user) return 'Unknown User'
   if (isBridgedDiscord.value) {
@@ -939,7 +921,7 @@ const handleAvatarError = (event: Event) => {
 }
 
 const formatJoinDate = (dateString: string | undefined) => {
-  // Use fetched created_at as fallback if user object doesn't have it
+  // Fetched created_at stands in when the user object carries none.
   const effectiveDate = dateString || fetchedCreatedAt.value
   if (!effectiveDate) return 'Unknown'
   const date = new Date(effectiveDate)
@@ -977,21 +959,18 @@ const formatLastSeen = (dateString: string) => {
 }
 
 const formatFieldValue = (value: any) => {
-  // Profile fields can come from a federated server (ActivityPub
-  // `PropertyValue`) as HTML (e.g. `<a href="..." rel="me">...</a>`), or
-  // from a local profile as a plain string. We run BOTH cases through
-  // DOMPurify with the same allowlist as `UserProfileView.vue` so the
-  // profile modal and the standalone profile page render identically,
-  // and so a malicious federated PropertyValue can't smuggle a
-  // `<style>` / `<img onerror>` / `javascript:` href past the modal.
-  // The newline -> <br> conversion preserves how local multi-line
-  // plain-text values used to render (the previous `escapeHtml +
-  // replace(/\n/g, '<br>')` flow).
+  // Profile fields arrive either as HTML from a federated server
+  // (ActivityPub `PropertyValue`, e.g. `<a href="..." rel="me">...</a>`) or
+  // as a plain string from a local profile. Both paths go through DOMPurify
+  // with the same allowlist as `UserProfileView.vue`, so modal and profile
+  // page render identically and a hostile PropertyValue cannot smuggle a
+  // `<style>` / `<img onerror>` / `javascript:` href through.
+  // The newline -> <br> conversion preserves rendering of local multi-line
+  // plain-text values.
   if (value == null) return ''
   const text = typeof value === 'string' ? value : String(value)
-  // If the value doesn't already look like HTML, escape it so newlines
-  // can be turned into <br>s without corrupting embedded `<a>` tags
-  // produced by the storage encoder.
+  // Non-HTML values are escaped first so newlines can become <br> without
+  // corrupting `<a>` tags produced by the storage encoder.
   const looksLikeHtml = /<[a-z][\s\S]*>/i.test(text)
   const html = looksLikeHtml ? text : escapeHtml(text).replace(/\n/g, '<br>')
   return DOMPurify.sanitize(html, {
@@ -1040,12 +1019,10 @@ const sendDirectMessage = async () => {
     return
   }
 
-  // Capture user data BEFORE emit('close'). The parent sets
-  // `selectedUser = null` synchronously on close, which makes `props.user`
-  // null. Any subsequent `props.user.id` access after an `await` here would
-  // throw and get silently swallowed by the try/catch below - leaving the
-  // user staring at no navigation. (Symptom of the closed-prop access issue
-  // we hit in UnifiedProfileCard too.)
+  // Ordering: capture the id before emit('close'). The parent sets
+  // `selectedUser = null` synchronously on close, so `props.user` is null
+  // afterwards; a `props.user.id` access past an `await` throws and is
+  // swallowed by the try/catch below, leaving navigation stalled.
   const targetUserId = props.user.id
 
   emit('close')
@@ -1061,14 +1038,15 @@ const sendDirectMessage = async () => {
     const { useDMStore } = await import('@/stores/useDM')
     const dmStore = useDMStore()
 
-    // Quick check: if conversations are already loaded, look for an existing one
+    // Loaded conversations are searched first to skip the RPC.
     const existing = dmStore.conversations.find(c => c.other_user?.id === targetUserId)
     if (existing) {
       router.push(`/dm/${existing.id}`)
       return
     }
 
-    // RPC handles find-or-create; store now navigates first, refreshes in background
+    // RPC handles find-or-create; the store navigates first and refreshes in
+    // the background.
     const conversationId = await dmStore.createOrGetConversation(currentProfileId, targetUserId)
     if (conversationId) {
       router.push(`/dm/${conversationId}`)
@@ -1117,12 +1095,11 @@ const mentionUser = () => {
     mentionHandle = `@${username}`
   }
 
-  // Context-aware behavior:
-  //   - In chat/DM/server view → just emit('mention') so the parent inserts
-  //     the mention into its message input. Don't touch the AP composer and
-  //     don't navigate away.
-  //   - In ActivityPub/social view (or anywhere else) → open the AP composer
-  //     with the mention prefilled and navigate to the social home.
+  // Context-dependent:
+  //   - chat/DM/server view → emit('mention'); the parent inserts it into
+  //     its message input. The AP composer is untouched, no navigation.
+  //   - elsewhere → open the AP composer with the mention prefilled and
+  //     navigate to the social home.
   const inChatContext = route.path.startsWith('/chat/') || route.path.startsWith('/dm')
 
   if (inChatContext) {
@@ -1188,14 +1165,12 @@ const inviteToServer = async (server: any) => {
   }
 }
 
-// Check if the current user has blocked this user (uses store getter for reactivity)
 const isBlocked = computed(() => {
   if (!props.user) return false
-  // Access the count to ensure reactivity when blocked users change
+  // Touch the count so the computed re-runs when the blocked set changes.
   blockedUsersCount.value
-  // Use store getter for reliable check
   const blocked = activityPubStore.isBlocked(props.user.id)
-  debug.log(`🔍 isBlocked check: userId=${props.user.id}, blocked=${blocked}, blockedUsers size=${activityPubStore.blockedUsers.size}`)
+  debug.log(`isBlocked check: userId=${props.user.id}, blocked=${blocked}, blockedUsers size=${activityPubStore.blockedUsers.size}`)
   return blocked
 })
 
@@ -1216,14 +1191,12 @@ const toggleBlock = async () => {
   }
 }
 
-// Check if the current user has muted this user (uses store getter for reactivity)
 const isMuted = computed(() => {
   if (!props.user) return false
-  // Access the count to ensure reactivity when muted users change
+  // Touch the count so the computed re-runs when the muted set changes.
   mutedUsersCount.value
-  // Use store getter for reliable check
   const muted = activityPubStore.isMuted(props.user.id)
-  debug.log(`🔍 isMuted check: userId=${props.user.id}, muted=${muted}, mutedUsers size=${activityPubStore.mutedUsers.size}`)
+  debug.log(`isMuted check: userId=${props.user.id}, muted=${muted}, mutedUsers size=${activityPubStore.mutedUsers.size}`)
   return muted
 })
 
@@ -1343,7 +1316,7 @@ const getUserMessageCount = (user: any) => {
 }
 
 const getUserVoiceTime = (user: any) => {
-  // DB stores minutes; older code used `voice_time` so we keep both as fallbacks.
+  // Unit is minutes. `voice_time` is the legacy column name, kept as fallback.
   return (
     fetchedActivity.value?.voice_minutes
     ?? user?.voice_minutes
@@ -1358,20 +1331,19 @@ const getUserIsLocal = (user: any) => {
   return user?.is_local ?? true // Default to local if not specified
 }
 
-// Computed property for reactive follow state
 const isFollowingUser = computed(() => {
   if (!props.user) return false
   
-  // First check the ActivityPub store's reactive state (for real-time updates)
+  // Store state carries real-time follow updates.
   if (activityPubStore.isFollowing(props.user.id)) {
     return true
   }
   
-  // Fall back to user object property
+  // Fallback: the user object's own property.
   return (props.user as any)?.is_following || false
 })
 
-// Keep helper for backwards compatibility with template
+// Retained for the template's existing call sites.
 const getUserIsFollowing = (_user: any) => {
   return isFollowingUser.value
 }
@@ -1379,7 +1351,6 @@ const getUserIsFollowing = (_user: any) => {
 const saveUserNote = () => {
   if (!props.user) return
   
-  // Save note about this user to local storage or database
   const notes = JSON.parse(localStorage.getItem('userNotes') || '{}')
   notes[props.user.id] = userNote.value
   localStorage.setItem('userNotes', JSON.stringify(notes))
@@ -1392,14 +1363,13 @@ const loadUserNote = () => {
   userNote.value = notes[props.user.id] || ''
 }
 
-// Professional presence management for profile modal
 let profileContextId: string | null = null
 
 const initializeProfilePresence = async () => {
   if (props.user?.id && props.show && !profileContextId) {
     try {
       profileContextId = await subscribeToProfilePresence(props.user.id)
-      debug.log(`👤 ProfileModal: Tracking presence for user ${props.user.id}`)
+      debug.log(`ProfileModal: Tracking presence for user ${props.user.id}`)
     } catch (error) {
       debug.error('Failed to subscribe to profile presence:', error)
     }
@@ -1411,18 +1381,17 @@ const cleanupProfilePresence = async () => {
     try {
       await unsubscribeFromProfilePresence(props.user.id)
       profileContextId = null
-      debug.log(`👤 ProfileModal: Stopped tracking presence for user ${props.user.id}`)
+      debug.log(`ProfileModal: Stopped tracking presence for user ${props.user.id}`)
     } catch (error) {
       debug.error('Failed to unsubscribe from profile presence:', error)
     }
   }
 }
 
-// Watch for modal show/hide and user changes
 watch(() => ({ show: props.show, userId: props.user?.id }), async (newVal, oldVal) => {
   if (!newVal.show || !newVal.userId) {
-    // Modal closed or no user - cleanup. Reset the dropdown too so the next
-    // open of the modal doesn't restore a stale "..." menu state.
+    // Modal closed or no user: tear down. The dropdown is reset so the next
+    // open does not restore a stale "..." menu state.
     showActionsMenu.value = false
     discordIdCopied.value = false
     if (discordIdCopiedTimer) {
@@ -1437,9 +1406,9 @@ watch(() => ({ show: props.show, userId: props.user?.id }), async (newVal, oldVa
     isLoadingActivity.value = false
     fetchedUserRoles.value = []
   } else if (newVal.show && newVal.userId && (newVal.userId !== oldVal?.userId || !oldVal?.show)) {
-    // Modal opened or user switched - ensure the dropdown isn't carried over.
+    // Modal opened or user switched: the dropdown must not carry over, and
+    // the previous presence subscription is torn down before the new one.
     showActionsMenu.value = false
-    // Modal opened with user or user changed - cleanup old and setup new
     await cleanupProfilePresence()
 
     if (props.user && isBridgedDiscordProfileUser(props.user)) {
@@ -1451,13 +1420,13 @@ watch(() => ({ show: props.show, userId: props.user?.id }), async (newVal, oldVa
 
     await initializeProfilePresence()
     
-    // Auto-close mobile profile/status menu when profile modal opens
+    // The mobile profile/status menu closes when the modal opens.
     if (isMobile.value) {
       closeMobileSidebars()
     }
     
-    // Load user stats if not already available on user object
-    // Load for ALL users, not just federated - local users have stats too
+    // Stats load for every user, not only federated ones; local users have
+    // stats too.
     if (props.user) {
       const user = props.user as any
       const hasStats = user.posts_count !== undefined || user.following_count !== undefined
@@ -1467,18 +1436,17 @@ watch(() => ({ show: props.show, userId: props.user?.id }), async (newVal, oldVa
         void loadUserStats(props.user.id)
       }
       
-      // Load user roles for current server context
-      // This shows the user's roles in the server where the modal was opened
+      // Roles are scoped to the server the modal was opened in.
       loadUserRoles(props.user.id)
 
       loadModerationPermissions()
       
-      // Ensure followed users are loaded in the store for accurate follow button state
+      // Follow button state needs the store's followed-user set loaded.
       if (!activityPubStore.followsLoaded) {
         activityPubStore.loadFollowedUsers()
       }
 
-      // Ensure blocked/muted users are loaded for accurate mute/block button state
+      // Mute/block button state needs the blocked and muted sets loaded.
       if (activityPubStore.blockedUsers.size === 0 && activityPubStore.mutedUsers.size === 0) {
         activityPubStore.loadBlockingData()
       }
@@ -1532,11 +1500,9 @@ onMounted(() => {
 
 .action-button,
 .close-button {
-  /* `flex: 0 0 32px` keeps both buttons exact 32px squares even when the
-     icon inside happens to come in slightly larger/smaller - that's what
-     was making the two buttons render at noticeably different widths and
-     heights, since the parent flex container would otherwise size each
-     button to its own content. */
+  /* `flex: 0 0 32px` holds both buttons at exact 32px squares regardless of
+     icon size. Without it the parent flex container sizes each button to its
+     own content, giving the two buttons different widths and heights. */
   flex: 0 0 32px;
   width: 32px;
   height: 32px;
@@ -1568,11 +1534,10 @@ onMounted(() => {
 
 .action-icon,
 .close-icon {
-  /* The Icon component is given `:size="16"` explicitly so the inner SVG
-     is already exactly 16x16 - these rules just guarantee the wrapper
-     span doesn't grow/shrink from inherited skin or icon-size classes
-     (e.g. .icon-md from Icon.vue's scoped styles) and end up
-     visually off-centre. Keep them in sync with the :size prop above. */
+  /* Icon is passed `:size="16"`, so the inner SVG is 16x16. These rules stop
+     the wrapper span being resized by inherited skin or icon-size classes
+     (e.g. .icon-md from Icon.vue's scoped styles), which shifts the glyph
+     off-centre. Keep in sync with the :size prop. */
   width: 16px !important;
   height: 16px !important;
   display: inline-flex;

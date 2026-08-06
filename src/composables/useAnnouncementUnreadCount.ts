@@ -1,24 +1,17 @@
 /**
  * Reactive unread instance-announcement count.
  *
- * Shared across the Settings sidebar badge and the AnnouncementPopup
- * "View past announcements" link. The count is a module-level singleton so
- * multiple consumers see the same value, and refreshing it after a
- * mark-as-read (or after dismissing the popup) updates every consumer at
- * once.
+ * Module-level singleton: the Settings sidebar badge and the AnnouncementPopup
+ * share one count, so a refresh after mark-as-read updates both.
  *
- * The composable is intentionally light:
- *   - `refresh()` re-queries the service (debounced via the in-flight flag).
- *   - `decrement(by)` lets callers optimistically subtract after they mark
- *     items as read locally, so the UI updates instantly without waiting on
- *     the round-trip.
- *   - `reset()` zeros the count (used when the popup's "mark all read"
- *     button fires, since we know the unread set is empty afterwards).
+ * - `refresh()` re-queries the service; concurrent calls collapse via the
+ *   in-flight flag.
+ * - `decrement(by)` subtracts optimistically for callers that marked items
+ *   read locally.
+ * - `reset()` zeros the count after "mark all read".
  *
- * No realtime subscription is wired up here - `instance_announcements` is
- * a low-volume admin surface and the existing popup-on-load + manual refresh
- * are enough. If we later want push-style updates we can plug them in here
- * without touching consumers.
+ * No realtime subscription: `instance_announcements` is low-volume, and
+ * popup-on-load plus manual refresh cover it.
  */
 
 import { ref, readonly, onMounted, onBeforeUnmount } from 'vue'
@@ -36,7 +29,7 @@ async function refresh(): Promise<void> {
     unreadCount.value = await announcementService.getUnreadCount()
     hasLoaded.value = true
   } catch (err) {
-    debug.warn('⚠️ useAnnouncementUnreadCount: refresh failed', err)
+    debug.warn('useAnnouncementUnreadCount: refresh failed', err)
   } finally {
     inFlight = false
   }
@@ -52,9 +45,7 @@ function reset(): void {
 }
 
 /**
- * Use the reactive unread count in a component. Pass `autoRefresh: true` to
- * trigger a fetch on mount; otherwise the caller is responsible for calling
- * `refresh()` at the right time.
+ * `autoRefresh` fetches on mount; otherwise the caller drives `refresh()`.
  */
 export function useAnnouncementUnreadCount(options: { autoRefresh?: boolean } = {}) {
   const { autoRefresh = false } = options

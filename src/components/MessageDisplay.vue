@@ -691,20 +691,19 @@ const serverUsersStore = useServerUsersStore();
 const serverChannelStore = useServerChannelStore();
 const serverRolesStore = useServerRolesStore();
 
-// Server whose role colors are currently applied to the rendered messages.
-// This is deliberately decoupled from `serverChannelStore.currentServerId`:
-// on a server switch, `currentServerId` flips synchronously while the old
-// server's messages are still on screen, which would briefly repaint those
-// names with the new server's role lookup (-> usually a fallback to profile
-// color = the visible "color flash"). Instead we only advance
-// `coloringServerId` once the new channel's messages have actually rendered
-// (see the initial-load block in the message watcher), by which point the
-// new server's roles have been requested below.
+// Server whose role colors are applied to the rendered messages. Decoupled
+// from `serverChannelStore.currentServerId`: on a server switch
+// `currentServerId` flips synchronously while the old server's messages are
+// still on screen, repainting those names through the new server's role
+// lookup, which usually falls back to profile color - the visible "color
+// flash". `coloringServerId` advances only once the new channel's messages
+// have rendered (see the initial-load block in the message watcher), by
+// which point the new server's roles have been requested below.
 const coloringServerId = ref<string | null>(serverChannelStore.currentServerId);
 
-// Ensure role data is loaded for the current server so message author colors
-// reflect their highest colored role (Discord behavior). DMs and contexts
-// without a server fall back to user.color via `getUserColor` below.
+// Role data is loaded for the current server so author colors reflect the
+// highest colored role. DMs and contexts without a server fall back to
+// user.color via `getUserColor` below.
 watch(
   () => serverChannelStore.currentServerId,
   (serverId) => {
@@ -718,8 +717,8 @@ watch(
  * colored role within the server the rendered messages belong to. Falls back
  * to the user's profile color (and ultimately the default in `getUserColor`).
  *
- * `coloringServerId` is null for DMs and ActivityPub contexts, in which case
- * there's no role to look up and we fall through to the profile color.
+ * `coloringServerId` is null for DMs and ActivityPub contexts; with no role
+ * to look up, the profile color applies.
  */
 const resolveChatUserColor = (userId: string | null | undefined): string => {
   if (!userId) return '#ffffff';
@@ -734,10 +733,9 @@ const { getUnreadCount } = useUnreadCounts();
 const { dividerBeforeMessageId, captureBoundary, resolveDivider, clear: clearReadDivider } = useReadDivider();
 
 /**
- * Retire the "New messages" divider when the user clicks a message at or after
- * it - that's an explicit "I've read past this" signal. Scrolling alone never
- * clears it (that would defeat the purpose), and clicking an older message
- * above the divider leaves it in place.
+ * Retires the "New messages" divider when the user clicks a message at or
+ * after it, which signals the content has been read. Scrolling alone never
+ * clears it, and clicking an older message above the divider leaves it.
  */
 const clearDividerIfMessageRead = (message: Message) => {
   const dividerId = dividerBeforeMessageId.value;
@@ -759,8 +757,8 @@ const currentUnreadContext = (): { channelId?: string; conversationId?: string }
 
 // Snapshot the read boundary for the active context BEFORE it gets marked read.
 const captureReadBoundary = () => {
-  // Divider disabled for this context (e.g. threads) - never capture a boundary
-  // so resolveDivider has nothing to place and no "NEW" line can appear.
+  // Divider disabled for this context (e.g. threads): with no boundary
+  // captured, resolveDivider has nothing to place and no "NEW" line appears.
   if (!props.enableReadDivider) {
     captureBoundary(null);
     return;
@@ -783,8 +781,8 @@ const onShiftUp = (e: KeyboardEvent) => { if (e.key === 'Shift') isShiftHeld.val
 // Track which blocked message groups the user has chosen to reveal (by first message ID in group)
 const revealedBlockedGroups = ref<Set<string>>(new Set());
 
-// Force reactivity counter - increment when blocked users change
-// This is updated by watching the store's blockedUsers size
+// Bumped by the watcher on the store's blockedUsers size, to force
+// re-evaluation of block checks.
 const blockCheckVersion = ref(0);
 
 // Reactive computed that tracks the blocked users count for change detection
@@ -793,7 +791,7 @@ const blockedUsersCount = computed(() => activityPubStore.blockedUsers.size);
 // Watch for changes to blocked users count and force re-evaluation
 watch(blockedUsersCount, (newCount, _oldCount) => {
   blockCheckVersion.value++;
-  debug.log('🔄 Blocked users changed, forcing re-render. Count:', newCount);
+  debug.log('Blocked users changed, forcing re-render. Count:', newCount);
 });
 
 const getDisplayContent = (message: Message): MessagePart[] => {
@@ -813,13 +811,12 @@ const isMessageFromBlockedUser = (message: Message): boolean => {
   const authorId = message.user_id || message.bot_id;
   if (!authorId) return false;
   
-  // Use the store getter for reliable reactive access
   const isBlocked = activityPubStore.isBlocked(authorId);
   
-  // Debug: log check for first few messages (debug helper short-circuits on
-  // its own when debug logging is disabled - no `isEnabled` flag needed).
+  // First few messages only. debug.log short-circuits when debug logging is
+  // disabled.
   if (props.messages.indexOf(message) < 3) {
-    debug.log(`🔍 Block check: author=${authorId}, blocked=${isBlocked}, blockedUsers size=${activityPubStore.blockedUsers.size}`);
+    debug.log(`Block check: author=${authorId}, blocked=${isBlocked}, blockedUsers size=${activityPubStore.blockedUsers.size}`);
   }
   
   return isBlocked;
@@ -883,7 +880,7 @@ const processedMessages = computed((): ProcessedMessage[] => {
     }
   });
   
-  // Don't forget the last blocked group
+  // Flush the trailing blocked group.
   if (currentBlockedGroup) {
     result.push({
       type: 'blocked-group',
@@ -895,13 +892,11 @@ const processedMessages = computed((): ProcessedMessage[] => {
   return result;
 });
 
-// Check if a blocked group has been revealed
 // eslint-disable-next-line unused-imports/no-unused-vars
 const isBlockedGroupRevealed = (firstMessageId: string): boolean => {
   return revealedBlockedGroups.value.has(firstMessageId);
 };
 
-// Reveal a blocked message group
 const revealBlockedGroup = (firstMessageId: string) => {
   revealedBlockedGroups.value.add(firstMessageId);
   // Force re-computation
@@ -914,7 +909,6 @@ const hideBlockedGroup = (firstMessageId: string) => {
   blockCheckVersion.value++;
 };
 
-// Get messages in a revealed blocked group
 // eslint-disable-next-line unused-imports/no-unused-vars
 const getRevealedBlockedMessages = (messageIds: string[]): Message[] => {
   return props.messages.filter(m => messageIds.includes(m.id));
@@ -1103,9 +1097,9 @@ const getThreadForMessage = (messageId: string): ThreadWithDetails | undefined =
   return threadsByMessageId.value.get(messageId);
 };
 
-// Open a thread (accepts the lighter `ThreadData` shape emitted by
-// `<ThreadIndicator>` as well as the full `ThreadWithDetails` from
-// `threadService`; we just forward it to the parent via emit).
+// Accepts the lighter `ThreadData` shape emitted by `<ThreadIndicator>` as
+// well as the full `ThreadWithDetails` from `threadService`; the value is
+// forwarded to the parent unchanged.
 const openThread = (thread: unknown) => {
   emit('createThread', { thread } as any);
 };
@@ -1133,10 +1127,10 @@ const handleThreadBroadcast = () => {
 // Re-check unlock state whenever the encryption service signals progress.
 // The mount-time check races the service's lazy init/auto-unlock: on a
 // direct page load into a DM this component mounts BEFORE auto-unlock
-// completes, cached `false`, and click-to-decrypt never enabled (while
-// navigating chat -> DM happened to work because encryption was already
-// unlocked by then). `megolm-key-received` fires on auto-unlock, manual
-// unlock, and every received key.
+// completes, caches `false`, and click-to-decrypt never enables. Navigating
+// chat -> DM works only because encryption is already unlocked by then.
+// `megolm-key-received` fires on auto-unlock, manual unlock, and every
+// received key.
 const refreshCanDecrypt = async () => {
   try {
     const { megolmMessageEncryptionService } = await import('@/services/encryption/MegolmMessageEncryptionService');
@@ -1165,9 +1159,9 @@ onMounted(async () => {
 
   loadChannelThreads();
   window.addEventListener('server-structure:thread-change', handleThreadBroadcast);
-  // Bot owners can change avatar/display_name in settings; UserBotsManagement
-  // fires `bot:updated` after a successful save so we can refresh the in-memory
-  // cache instead of waiting for a full re-render.
+  // Bot owners can change avatar/display_name in settings. UserBotsManagement
+  // fires `bot:updated` after a successful save, which refreshes the
+  // in-memory cache instead of waiting for a full re-render.
   window.addEventListener('bot:updated', handleBotUpdated as EventListener);
 });
 
@@ -1179,7 +1173,7 @@ const handleBotUpdated = (event: CustomEvent) => {
   const updated = event.detail as { id: string; display_name?: string | null; avatar_url?: string | null; bio?: string | null } | null
   if (!updated?.id) return
   const existing = botDataCache.value.get(updated.id)
-  // Merge so we keep any fields the event doesn't carry (e.g. username).
+  // Merged so fields the event omits (e.g. username) survive.
   botDataCache.value.set(updated.id, {
     username: existing?.username ?? '',
     display_name: updated.display_name ?? existing?.display_name ?? '',
@@ -1211,23 +1205,21 @@ const fetchBotData = async (botId: string) => {
   }
 };
 
-// Helper function to get author ID from message (handles both users and bots)
+// Users and bots.
 const getMessageAuthorId = (message: Message): string | null => {
   return message.user_id || message.bot_id || null;
 };
 
-// Helper function to check if message is from a bot
 const isMessageFromBot = (message: Message): boolean => {
   return !!message.bot_id;
 };
 
-// Helper function to check if message is from Discord bridge (has Discord user metadata)
+// Discord bridge messages carry discord_user metadata.
 const hasDiscordUserMetadata = (message: Message): boolean => {
   const hasMetadata = !!message.metadata?.discord_user;
   return hasMetadata;
 };
 
-// Helper function to get Discord user info from metadata
 // eslint-disable-next-line unused-imports/no-unused-vars
 const getDiscordUserInfo = (message: Message): { username: string; display_name: string; avatar_url: string } | null => {
   return message.metadata?.discord_user || null;
@@ -1546,14 +1538,13 @@ const rowVirtualizer = useVirtualizer<HTMLDivElement, Element>(
     estimateSize: () => 60,
     overscan: 15,
     initialOffset: frozenInitialOffset.value,
-    // Stable per-item keys. Without this the measurement cache is keyed by
+    // Stable per-item keys. Otherwise the measurement cache is keyed by
     // INDEX: prepending a history page shifts every row's index, so each row
-    // inherits a stale height from the row previously at that index. The
-    // cascade of corrective re-measurements as rows re-render is what made
-    // the viewport visibly bounce while loading history. With stable keys,
-    // existing measurements survive the prepend and only the genuinely new
-    // rows measure in (and the virtualizer's built-in scroll adjustment
-    // compensates for those above the viewport).
+    // inherits a stale height from the row previously at that index, and the
+    // cascade of corrective re-measurements bounces the viewport. With stable
+    // keys, existing measurements survive the prepend and only new rows
+    // measure in; the virtualizer's scroll adjustment compensates for those
+    // above the viewport.
     getItemKey: (index: number) => displayItems.value[index]?.key ?? index,
   })) as any
 );
@@ -1643,12 +1634,12 @@ const lastKnownDisplayItemCount = ref(0);
 
 // --- WATCHERS ---
 let hasInitiallyScrolled = false;
-// Just after a context opens we scroll to the bottom, but late-arriving
-// messages (the stale-while-revalidate catch-up fetch, or a realtime insert)
-// land a beat later. During this grace window we keep following the bottom so
-// the user ends up at the true end of the conversation rather than floating
-// above the messages that arrived while they were away. Suppressed when a NEW
-// divider is shown (then we intentionally rest at the divider instead).
+// A context open scrolls to the bottom, but late-arriving messages (the
+// stale-while-revalidate catch-up fetch, or a realtime insert) land a beat
+// later. During this grace window the view keeps following the bottom so the
+// user ends at the true end of the conversation rather than above the
+// messages that arrived while away. Suppressed when a NEW divider is shown;
+// the view rests at the divider instead.
 let openFollowBottomUntil = 0;
 
 watch([() => props.channelId, () => props.conversationId], () => {
@@ -1686,11 +1677,10 @@ watch(() => props.messages, (newMessages) => {
   lastKnownMessageCount.value = newMessages.length;
   lastKnownFirstMessageId.value = newMessages[0]?.id ?? null;
 
-  // Retire the "New messages" divider as soon as the current user sends a
-  // message in this context. This is an append (front unchanged) whose tail
-  // contains an own message; sending implies they've seen everything above, so
-  // the divider must never linger (the screenshot bug where "NEW" stayed put
-  // after the viewer replied).
+  // Retires the "New messages" divider as soon as the current user sends a
+  // message in this context: an append (front unchanged) whose tail contains
+  // an own message. Sending implies everything above has been seen, so the
+  // divider must not linger.
   if (
     dividerBeforeMessageId.value &&
     newMessages.length > prevCount &&
@@ -1706,10 +1696,10 @@ watch(() => props.messages, (newMessages) => {
   }
 
   const oldScrollHeight = messageDisplayContainer.value?.scrollHeight ?? 0;
-  // Snapshot scrollTop alongside scrollHeight so the prepend handler below can
-  // pin the viewport by height-delta (see the "Load older messages (prepend)"
-  // branch). Reading from the DOM here, BEFORE Vue patches in the new rows,
-  // gives us the exact pre-prepend offset.
+  // scrollTop is snapshotted alongside scrollHeight so the prepend handler
+  // below can pin the viewport by height-delta (see the "Load older messages
+  // (prepend)" branch). Read from the DOM BEFORE Vue patches in the new rows,
+  // so it is the exact pre-prepend offset.
   const oldScrollTopForPrepend = messageDisplayContainer.value?.scrollTop ?? 0;
 
   const newMessageIds = new Set(newMessages.map(m => m.id));
@@ -1806,22 +1796,22 @@ watch(() => props.messages, (newMessages) => {
             : -1;
           const hasDivider = dividerIndex >= 0;
 
-          // Freeze the initial offset for this channel. When there's a divider we
-          // seed the offset near it (instead of the bottom) so the virtualizer
-          // starts close to its final resting place - minimal visible motion.
+          // Freezes the initial offset for this channel. With a divider the
+          // offset is seeded near it rather than at the bottom, so the
+          // virtualizer starts close to its final resting place.
           if (!hasSetInitialOffset) {
             hasSetInitialOffset = true;
             frozenInitialOffset.value = (hasDivider ? dividerIndex : displayItems.value.length) * 60;
           }
-          debug.log(hasDivider ? '📜 Initial load - scrolling to NEW divider' : '📜 Initial load - scrolling to bottom');
+          debug.log(hasDivider ? 'Initial load - scrolling to NEW divider' : 'Initial load - scrolling to bottom');
 
-          // When landing on a divider we are NOT at the bottom; don't let the
-          // image-load handler yank the view down.
+          // Landing on a divider is not the bottom; the image-load handler
+          // must not pull the view down.
           shouldBeAtBottom.value = !hasDivider;
 
-          // No divider => we're heading to the bottom. Keep following any
-          // messages that arrive in the next couple seconds (revalidate
-          // catch-up / realtime) so we settle on the real end of the channel.
+          // No divider means the target is the bottom. Messages arriving in
+          // the next couple of seconds (revalidate catch-up / realtime) are
+          // followed so the view settles on the real end of the channel.
           openFollowBottomUntil = hasDivider ? 0 : Date.now() + 2500;
           
           const imageUrlsInMessages = new Set<string>();
@@ -1863,8 +1853,8 @@ watch(() => props.messages, (newMessages) => {
           });
           
           const totalEmbeds = Array.from(embedCountsByMessage.values()).reduce((sum, count) => sum + count, 0);
-          debug.log('📜 Pending images to load:', pendingImages.length, 'out of', imageUrlsInMessages.size);
-          debug.log('📜 Total embeds to load:', totalEmbeds);
+          debug.log('Pending images to load:', pendingImages.length, 'out of', imageUrlsInMessages.size);
+          debug.log('Total embeds to load:', totalEmbeds);
           
           let scrollAttempts = 0;
           const scrollToBottom = () => {
@@ -1884,15 +1874,14 @@ watch(() => props.messages, (newMessages) => {
                 if (!isAtBottom && scrollAttempts < 8) {
                   setTimeout(() => scrollToBottom(), scrollAttempts < 3 ? 50 : 150);
                 }
-                // else: settled (or gave up retrying). Intentionally KEEP
-                // `shouldBeAtBottom` true. Late content grows the list AFTER
-                // this initial scroll - the stale-while-revalidate catch-up
-                // append and image/embed loads - and the ResizeObserver only
-                // re-pins to the bottom while `shouldBeAtBottom` is true.
-                // Releasing it here (the old 500ms timeout) is exactly what
-                // left the user scrolled up when messages arrived during a
-                // channel switch. The scroll handler flips it false the moment
-                // the user scrolls up themselves.
+                // else: settled, or retries exhausted. `shouldBeAtBottom`
+                // stays true: late content grows the list after this initial
+                // scroll (stale-while-revalidate catch-up append, image and
+                // embed loads) and the ResizeObserver re-pins to the bottom
+                // only while the flag is true. Releasing it here leaves the
+                // user scrolled up when messages arrive during a channel
+                // switch. The scroll handler clears it when the user scrolls
+                // up.
               }
             });
           };
@@ -1908,7 +1897,7 @@ watch(() => props.messages, (newMessages) => {
               it => it.type === 'message' && it.message.id === dividerMsgId
             );
             if (idx < 0) {
-              // Divider message no longer present (shouldn't happen) - fall back.
+              // Divider message no longer present; fall back.
               scrollToBottom();
               return;
             }
@@ -1917,10 +1906,10 @@ watch(() => props.messages, (newMessages) => {
             requestAnimationFrame(() => {
               const c = messageDisplayContainer.value;
               if (!c) return;
-              // Position using the divider's REAL rendered position rather than the
-              // virtualizer's height estimate (which lands us above it when rows are
-              // taller than estimated). Measuring the DOM node keeps it reliably in
-              // view with a little read context above the line.
+              // Positioned from the divider's REAL rendered position, not the
+              // virtualizer's height estimate, which lands above the divider
+              // when rows are taller than estimated. Measuring the DOM node
+              // keeps it in view with some read context above the line.
               const dividerEl = c.querySelector('.new-messages-divider') as HTMLElement | null;
               if (dividerEl) {
                 const delta = dividerEl.getBoundingClientRect().top - c.getBoundingClientRect().top - CONTEXT_NUDGE_PX;
@@ -1961,7 +1950,7 @@ watch(() => props.messages, (newMessages) => {
               
               // Scroll if all content loaded or timeout reached
               if ((allImagesLoaded && allEmbedsLoaded) || elapsed >= maxWaitTime) {
-                debug.log(`📜 Images loaded: ${imagesLoadedCount}/${pendingImages.length}, Embeds loaded: ${embedsLoadedCount}/${totalEmbeds}, elapsed: ${elapsed}ms`);
+                debug.log(`Images loaded: ${imagesLoadedCount}/${pendingImages.length}, Embeds loaded: ${embedsLoadedCount}/${totalEmbeds}, elapsed: ${elapsed}ms`);
                 scrollToTarget();
               } else {
                 // Check again after a short delay
@@ -1976,13 +1965,13 @@ watch(() => props.messages, (newMessages) => {
         // New messages appended at bottom (sent or received) - scroll if user was at bottom
         else if (prevCount > 0 && newMessages.length > prevCount && oldScrollHeight > 0) {
           const isAppend = prevFirstId != null && newMessages[0]?.id === prevFirstId;
-          // Follow the bottom if the user was already there, OR we're still in
-          // the post-open grace window (catch-up messages from revalidate /
-          // realtime) and no divider is anchoring the view.
+          // The bottom is followed when the user was already there, or while
+          // the post-open grace window is active (catch-up messages from
+          // revalidate / realtime) and no divider anchors the view.
           const followBottom = userWasAtBottom.value ||
             (Date.now() < openFollowBottomUntil && !dividerBeforeMessageId.value);
           if (isAppend && followBottom) {
-            debug.log('📜 New messages - scrolling to bottom (at bottom / open grace)');
+            debug.log('New messages - scrolling to bottom (at bottom / open grace)');
             shouldBeAtBottom.value = true;
             const scrollNewToBottom = (attempt = 0) => {
               const count = displayItems.value.length;
@@ -2000,26 +1989,22 @@ watch(() => props.messages, (newMessages) => {
           } else if (isAppend && !userWasAtBottom.value) {
             shouldBeAtBottom.value = false;
           }
-          // Load older messages (prepend) - pin viewport by scroll-height delta.
-          //
-          // The previous approach called `scrollToIndex(targetIndex, 'start')`
-          // + a sub-item offset correction on each of 5 RAFs. That visibly jumped
-          // because `scrollToIndex` issues a *new* scroll command instead of just
-          // adjusting `scrollTop`, and each retry re-fired it as the virtualizer
-          // re-measured. Standard chat-scroll pattern is cleaner: snapshot
-          // `scrollHeight` + `scrollTop` BEFORE prepend, then after prepend set
-          // `scrollTop = newScrollHeight - oldScrollHeight + oldScrollTop`. The
-          // virtualizer's `totalSize` reflects newly added items, so the delta
-          // is exactly how much we need to push down to keep the same content
-          // under the user's eye. No jumps, no scrollToIndex thrash.
+          // Load older messages (prepend): the viewport is pinned by
+          // scroll-height delta. `scrollHeight` + `scrollTop` are snapshotted
+          // BEFORE the prepend, then after it
+          // `scrollTop = newScrollHeight - oldScrollHeight + oldScrollTop`.
+          // The virtualizer's `totalSize` reflects newly added items, so the
+          // delta is exactly the push-down needed to keep the same content
+          // under the user's eye. `scrollToIndex` is not used here: it issues
+          // a new scroll command rather than adjusting `scrollTop`, and
+          // re-fires on each retry as the virtualizer re-measures, which
+          // jumps.
           else if (!isAppend) {
             shouldBeAtBottom.value = false;
-            // Re-read the ref locally with a null guard - match the defensive
-            // style used throughout this watcher (lines 1435, 1440, 1646, 1680).
-            // The outer `if (messageDisplayContainer.value)` at the top of the
-            // nextTick is enough at runtime today, but binding `container` once
-            // here keeps the property accesses below from depending on TS
-            // narrowing flowing across nested branches.
+            // The outer `if (messageDisplayContainer.value)` at the top of
+            // the nextTick suffices at runtime; binding `container` here keeps
+            // the accesses below from depending on TS narrowing across nested
+            // branches.
             const container = messageDisplayContainer.value;
             if (container) {
               const newHeight = container.scrollHeight;
@@ -2039,10 +2024,9 @@ watch(() => props.messages, (newMessages) => {
                 });
               }
             }
-            // Note: prevDisplayItemCount is no longer needed here since we
-            // pin by height-delta instead of by displayItems index. Leaving
-            // the variable read in scope is harmless; the unused-var lint is
-            // fine because the watcher above still uses it.
+            // prevDisplayItemCount is unused here because the pin is by
+            // height-delta, not by displayItems index. The read keeps the
+            // unused-var lint quiet.
             void prevDisplayItemCount;
           }
         }
@@ -2058,9 +2042,9 @@ watch(() => props.messages, (newMessages) => {
   }
 }, { immediate: true, deep: true });
 
-// After loading older messages finishes, if the sentinel is still visible (content
-// still doesn't fill the viewport), load another batch. IntersectionObserver only
-// fires on intersection *changes*, so we need to re-trigger manually.
+// After older messages finish loading, a still-visible sentinel (content not
+// filling the viewport) triggers another batch. IntersectionObserver fires
+// only on intersection *changes*, so the re-trigger is manual.
 watch(isLoadingOlderMessages, (loading, wasLoading) => {
   if (wasLoading && !loading && !isAllMessagesLoaded.value && props.loadMoreMessages) {
     // Delay to let virtualizer measure new elements before checking overflow
@@ -2068,7 +2052,7 @@ watch(isLoadingOlderMessages, (loading, wasLoading) => {
       if (!messageDisplayContainer.value) return;
       const { scrollHeight, clientHeight } = messageDisplayContainer.value;
       if (scrollHeight <= clientHeight + 5) {
-        debug.log('📜 Still no scrollbar after loading - auto-loading more');
+        debug.log('Still no scrollbar after loading - auto-loading more');
         props.loadMoreMessages?.();
       }
     }, 300);
@@ -2176,9 +2160,9 @@ const clearUnreadCount = async (messageId: string) => {
   if (!props.channelId && !props.conversationId) return;
 
   try {
-    // unread_counts.user_id is a profile id (not an auth user id). Using the
-    // wrong identity here silently no-ops the UPDATE, which used to leave the
-    // sidebar badge "stuck" until the next fetch.
+    // unread_counts.user_id is a profile id, not an auth user id. The wrong
+    // identity silently no-ops the UPDATE and leaves the sidebar badge stuck
+    // until the next fetch.
     const { authContextService } = await import('@/services/AuthContextService');
     const ctx = await authContextService.getCurrentContext();
     if (!ctx.isAuthenticated) return;
@@ -2207,7 +2191,7 @@ const clearUnreadCount = async (messageId: string) => {
     if (error) {
       debug.error('Failed to clear unread count:', error);
     } else {
-      debug.log('✅ Cleared unread count for', channelId ? 'channel' : 'conversation', channelId || conversationId);
+      debug.log('Cleared unread count for', channelId ? 'channel' : 'conversation', channelId || conversationId);
     }
     
     // Batch mark related notifications as read
@@ -2269,12 +2253,10 @@ onUnmounted(() => {
     unreadUpdateTimeout = null;
   }
   
-  // Flush any pending unread update before unmounting
-  // Note: We can't truly await in onUnmounted, but we capture the data and let it complete
-  // The flushUnreadUpdate function captures pendingUnreadUpdate at the start, so it will
-  // complete even after we clear the local state
+  // onUnmounted cannot await. flushUnreadUpdate captures pendingUnreadUpdate
+  // at its start, so it completes even after the local state is cleared.
   if (pendingUnreadUpdate && hasUnreadUpdatePending) {
-    // Fire and forget with error handling - the function already captures the data it needs
+    // Fire and forget; the data is already captured.
     flushUnreadUpdate().catch((err) => {
       console.warn('Failed to flush unread update on unmount:', err);
     });
@@ -2316,7 +2298,7 @@ const setupTopSentinelObserver = () => {
     (entries) => {
       const entry = entries[0];
       if (entry?.isIntersecting && hasInitiallyScrolled && !isAllMessagesLoaded.value && !isLoadingOlderMessages.value && props.loadMoreMessages) {
-        debug.log('📜 Top sentinel visible (prefetch zone) - auto-loading older messages');
+        debug.log('Top sentinel visible (prefetch zone) - auto-loading older messages');
         props.loadMoreMessages?.();
       }
     },
@@ -2492,10 +2474,10 @@ const handleScroll = throttle(() => {
     // measuring, the revalidate catch-up append) isn't mistaken for the user
     // deliberately scrolling up.
     const intentionalScrollUp = distanceFromBottom > 200;
-    // During the post-open settling window we keep the bottom pin even if late
-    // content briefly puts us a little above the bottom; only a real scroll-up
-    // releases it. This is what keeps a channel switch (with messages arriving)
-    // settled at the true bottom instead of floating just above them.
+    // During the post-open settling window the bottom pin holds even if late
+    // content briefly puts the view above the bottom; only a real scroll-up
+    // releases it. This keeps a channel switch with messages arriving settled
+    // at the true bottom.
     if (intentionalScrollUp || Date.now() >= openFollowBottomUntil) {
       shouldBeAtBottom.value = false;
     }
@@ -2607,8 +2589,8 @@ const formatCallDuration = (seconds: number): string => {
   return remainMins > 0 ? `${hours}h ${remainMins}m` : `${hours}h`;
 };
 
-// A "started a call" message only offers Join while the call is actually
-// live (presence-derived); old messages whose call died stay inert
+// A "started a call" message offers Join only while the call is live
+// (presence-derived); messages whose call ended stay inert.
 const isCallJoinable = (message: any): boolean => {
   dmCallSignaling.callStateVersion.value;
   const conversationId = message.conversation_id || props.conversationId;
@@ -3005,7 +2987,7 @@ const correctScrollAfterResize = (callback: () => void) => {
   if (!container) { callback(); return; }
   
   // Pinned to bottom: remeasure first, then re-seat so totalSize includes
-  // the new height (reactions, embeds, images) before we scroll.
+  // the new height (reactions, embeds, images) before scrolling.
   if (shouldBeAtBottom.value || userWasAtBottom.value) {
     callback();
     scrollToBottomIfPinned();
@@ -3046,12 +3028,11 @@ const correctScrollAfterResize = (callback: () => void) => {
       }
 
       if (Math.abs(delta) > 1) {
-        // Apply the correction RELATIVE to the live scroll position rather than
-        // re-seating from the (now stale) `scrollTopBefore`. If the user kept
+        // The correction is RELATIVE to the live scroll position, not a
+        // re-seat from the now-stale `scrollTopBefore`. If the user kept
         // scrolling while an image/embed finished loading, seating from the
-        // stale value would yank the viewport - the "scroll skips around when
-        // new elements load" bug. A relative nudge cancels the size change
-        // above the viewport without fighting the user's own scrolling.
+        // stale value yanks the viewport. A relative nudge cancels the size
+        // change above the viewport without fighting the user's scrolling.
         container.scrollTop += delta;
       }
     });
@@ -3091,22 +3072,20 @@ const handleEmbedLoaded = (messageId: string) => {
 };
 
 const handleDecryptMessage = async (message: Message) => {
-  debug.log('🔓 Attempting to decrypt message on click:', message.id);
+  debug.log('Attempting to decrypt message on click:', message.id);
   
   try {
-    // Dynamically import the encryption service
     const { megolmMessageEncryptionService } = await import('@/services/encryption/MegolmMessageEncryptionService');
     
     if (!megolmMessageEncryptionService.isUnlocked()) {
-      debug.log('🔒 Encryption not unlocked - cannot decrypt');
+      debug.log('Encryption not unlocked - cannot decrypt');
       return;
     }
     
-    // First, try to claim any pending session shares
     await megolmMessageEncryptionService.claimPendingSessionShares();
     
-    // Check if we have the original encrypted content (not replaced with glyphs)
-    // If content is preserved, use it directly - no DB reload needed
+    // Preserved original ciphertext (not replaced with glyphs) is used
+    // directly, with no DB reload.
     const hasOriginalContent = message.encryption_metadata && 
       Array.isArray(message.content) && 
       message.content[0]?.type === 'text' &&
@@ -3116,8 +3095,8 @@ const handleDecryptMessage = async (message: Message) => {
     let messageToDecrypt = message;
     
     if (!hasOriginalContent) {
-      // Content was replaced with glyphs (legacy) - reload from DB
-      debug.log('🔐 Content was replaced with glyphs, reloading from database...');
+      // Legacy path: content was replaced with glyphs, so reload from DB.
+      debug.log('Content was replaced with glyphs, reloading from database...');
       const { data: freshMessage } = await supabase
         .from('messages')
         .select('*')
@@ -3125,7 +3104,7 @@ const handleDecryptMessage = async (message: Message) => {
         .single();
       
       if (!freshMessage?.encryption_metadata || !freshMessage.encrypted) {
-        debug.log('❌ Message has no encryption metadata in database');
+        debug.log('Message has no encryption metadata in database');
         return;
       }
       
@@ -3139,7 +3118,7 @@ const handleDecryptMessage = async (message: Message) => {
     }
     
     const roomId = messageToDecrypt.channel_id || messageToDecrypt.conversation_id || props.channelId || props.conversationId || '';
-    debug.log('🔐 Decrypting with roomId:', roomId);
+    debug.log('Decrypting with roomId:', roomId);
     
     const messageForDecryption = {
       content: messageToDecrypt.content,
@@ -3160,14 +3139,11 @@ const handleDecryptMessage = async (message: Message) => {
       : Boolean(decryptResult.senderVerified);
 
     if (decryptedContent) {
-      // NOTE: previous code called `resolveMentionsUserData(decryptedContent)`
-      // and assigned its return value to `content`, but-
-      // `resolveMentionsUserData` returns a Record<string, {userId, isLocal}>
-      // lookup map (not MessagePart[]). That was a latent bug - assigning the
-      // lookup map to `content` would render nothing. The decrypted content
+      // NOTE: `resolveMentionsUserData` returns a
+      // Record<string, {userId, isLocal}> lookup map, not MessagePart[], so
+      // its result must not be assigned to `content`. The decrypted content
       // is already a parsed `MessagePart[]` from
-      // `megolmMessageEncryptionService.decryptMessage`, so we use it directly.
-      // Create updated message object
+      // `megolmMessageEncryptionService.decryptMessage` and is used as-is.
       const updatedMessage: Message = {
         ...messageToDecrypt,
         content: decryptedContent,
@@ -3182,20 +3158,19 @@ const handleDecryptMessage = async (message: Message) => {
         dmStore.updateMessageInCache(messageToDecrypt.id, updatedMessage);
       }
       
-      debug.log('✅ Message decrypted successfully on click');
+      debug.log('Message decrypted successfully on click');
 
-      // Trigger reprocessing of other encrypted messages (we may now have the session key)
+      // Reprocesses other encrypted messages now that the session key is held.
       window.dispatchEvent(new CustomEvent('megolm-key-received', {
         detail: { roomId: messageToDecrypt.channel_id || messageToDecrypt.conversation_id, sessionId: messageToDecrypt.encryption_metadata?.session_id }
       }));
     }
   } catch (error: any) {
-    // Surface the real reason. This used to be a silent debug.log, which made
-    // "click the glyph -> nothing happens" impossible to diagnose. The message
-    // distinguishes the common failure modes (missing session key, locked keys,
-    // signature mismatch) so it's actionable.
+    // Surfaces the real reason, distinguishing the common failure modes
+    // (missing session key, locked keys, signature mismatch). Without it,
+    // clicking the glyph appears to do nothing.
     const reason = error?.message || String(error);
-    debug.error('❌ Could not decrypt message:', error);
+    debug.error('Could not decrypt message:', error);
     try {
       useNotificationStore().showToast(
         'server_update',
@@ -3205,9 +3180,9 @@ const handleDecryptMessage = async (message: Message) => {
       );
     } catch { /* toast best-effort */ }
   } finally {
-    // Tell the glyph component the attempt settled so its spinner stops NOW.
-    // It previously relied only on a fixed 5s timeout, so a fast failure
-    // showed the error toast while the lock kept spinning for seconds.
+    // Tells the glyph component the attempt settled so its spinner stops.
+    // A fixed 5s timeout alone leaves the lock spinning after a fast failure
+    // has already shown the error toast.
     window.dispatchEvent(new CustomEvent('harmony-decrypt-finished', {
       detail: { messageId: message.id },
     }));
@@ -3239,11 +3214,10 @@ const openContextMenu = (message: Message, event: MouseEvent) => {
   // Haptic feedback for context menu
   triggerInteraction();
 
-  // On mobile the (...) button in the floating toolbar opens this menu.
-  // The toolbar itself remains pinned ~48px above the original tap point,
-  // which visually clashes (and z-stacks) with the menu we're about to
-  // render. Dismiss the toolbar so the user sees exactly one surface -
-  // the menu - rooted at the tap.
+  // On mobile the (...) button in the floating toolbar opens this menu. The
+  // toolbar stays pinned ~48px above the original tap point, where it clashes
+  // and z-stacks with the menu. Dismissing it leaves one surface, rooted at
+  // the tap.
   if (isMobile.value) {
     hoveredMessageId.value = null;
     mobileActionTapPosition.value = null;
@@ -3257,20 +3231,18 @@ const openContextMenu = (message: Message, event: MouseEvent) => {
   contextMenuVisible.value = true;
 };
 
-// Native right-click on a message row opens the same context menu the
-// "more" button does. We deliberately let the browser's native menu
-// take over for media (images, video, audio) and links so users can
-// still "Save image as", "Copy link address", etc. - that matches
-// Discord/Slack behaviour.
+// Native right-click on a message row opens the same context menu as the
+// "more" button. The browser's native menu takes over for media (images,
+// video, audio) and links so "Save image as", "Copy link address", etc.
+// remain available.
 const handleMessageContextMenu = (message: Message, event: MouseEvent) => {
-  // On mobile the OS fires a synthetic `contextmenu` event after a
-  // long-press. We already handle long-press explicitly via the
-  // touchstart timer (which shows the floating message-actions toolbar),
-  // so opening the full context menu on top of it produces two competing
-  // surfaces. Swallow the synthetic event so only the toolbar shows;
-  // the user can then tap the (...) button to get the full menu.
-  // Exception: selected text or native media/link targets should keep
-  // the browser/OS copy menu.
+  // On mobile the OS fires a synthetic `contextmenu` after a long-press.
+  // Long-press is already handled by the touchstart timer, which shows the
+  // floating message-actions toolbar, so the full context menu on top of it
+  // produces two competing surfaces. The synthetic event is swallowed and
+  // only the toolbar shows; the (...) button opens the full menu.
+  // Exception: selected text and native media/link targets keep the
+  // browser/OS copy menu.
   if (isMobile.value && !shouldAllowNativeContextMenu(event)) {
     event.preventDefault();
     return;
@@ -3305,9 +3277,9 @@ const resolveNonUuidProfile = async (userId: string): Promise<any | null> => {
       return getUserProfile(data.id).value || data;
     }
   }
-  // Handle plain "@user@domain" / "user@domain" / "@user" handles from
-  // chat mentions. Routes through activityPubService so federated users we
-  // haven't seen yet get fetched from their origin instance.
+  // Handles plain "@user@domain" / "user@domain" / "@user" from chat
+  // mentions. Routes through activityPubService so unseen federated users are
+  // fetched from their origin instance.
   const handleMatch = userId.match(/^@?([^@\s]+)(?:@([^\s]+))?$/);
   if (
     handleMatch

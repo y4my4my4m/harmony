@@ -19,7 +19,7 @@ export async function handleChannelMessageJob(data: FederationJobData): Promise<
   const supabase = getSupabaseClient();
   const { type, message_id } = data;
 
-  logger.info(`📨 Processing channel message job: ${type} for message ${message_id}`);
+  logger.info(`Processing channel message job: ${type} for message ${message_id}`);
 
   try {
     const { data: message } = await supabase
@@ -65,10 +65,10 @@ export async function handleChannelMessageJob(data: FederationJobData): Promise<
     const status = updated?.federation_status || 'completed';
     if (status !== 'completed') {
       await updateFederationStatus(message_id, 'messages', status);
-      logger.info(`⏭️ Channel message ${message_id} federation skipped (${status})`);
+      logger.info(`Channel message ${message_id} federation skipped (${status})`);
     } else {
       await updateFederationStatus(message_id, 'messages', 'completed');
-      logger.info(`✅ Channel message ${message_id} federated successfully`);
+      logger.info(`Channel message ${message_id} federated successfully`);
     }
 
   } catch (error) {
@@ -85,7 +85,7 @@ export async function handleChannelMessageEditJob(data: FederationJobData): Prom
   const supabase = getSupabaseClient();
   const { message_id } = data;
 
-  logger.info(`✏️ Processing channel message edit job for message ${message_id}`);
+  logger.info(`Processing channel message edit job for message ${message_id}`);
 
   try {
     const { data: message } = await supabase
@@ -119,7 +119,7 @@ export async function handleChannelMessageEditJob(data: FederationJobData): Prom
     }
 
     await updateFederationStatus(message_id, 'messages', 'completed');
-    logger.info(`✅ Channel message edit ${message_id} federated successfully`);
+    logger.info(`Channel message edit ${message_id} federated successfully`);
 
   } catch (error) {
     logger.error(`Failed to federate channel message edit ${message_id}:`, error);
@@ -135,7 +135,7 @@ export async function handleChannelMessageDeleteJob(data: FederationJobData): Pr
   const supabase = getSupabaseClient();
   const { message_id, channel_id, ap_id } = data;
 
-  logger.info(`🗑️ Processing channel message delete job for message ${message_id}`);
+  logger.info(`Processing channel message delete job for message ${message_id}`);
 
   try {
     await updateFederationStatus(message_id, 'messages', 'processing');
@@ -159,7 +159,7 @@ export async function handleChannelMessageDeleteJob(data: FederationJobData): Pr
     }
 
     await updateFederationStatus(message_id, 'messages', 'completed');
-    logger.info(`✅ Channel message delete ${message_id} federated successfully`);
+    logger.info(`Channel message delete ${message_id} federated successfully`);
 
   } catch (error) {
     logger.error(`Failed to federate channel message delete ${message_id}:`, error);

@@ -490,14 +490,12 @@ const renderTextWithMarkdown = (text: string | undefined): string => {
 
   const isSingle = renderer.isSingleEmoji.value;
 
-  // ESCAPE the raw user text FIRST. Every transform below operates on
-  // already-escaped text, so it can safely splice in trusted tags without
-  // letting user-supplied HTML (e.g. `<style>`, `<img onerror=...>`) survive.
-  // The previous implementation "protected" user HTML tags from the escape
-  // pass which let arbitrary tags through verbatim - see the XSS audit issue.
+  // Escape the raw user text before any other transform. Every transform below
+  // operates on already-escaped text and splices in trusted tags only, so
+  // user-supplied HTML (e.g. `<style>`, `<img onerror=...>`) cannot survive.
   let rendered = escapeHtml(text);
 
-  // Now splice in our own emoji <img>/<span> markup using sources we own.
+  // Splice in emoji <img>/<span> markup from trusted sources.
   if (!isNativePack.value && emojiServiceLoaded.value) {
     const emojiRegex = /[\u{1F1E6}-\u{1F1FF}]{2}|(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(\u200D(\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*/gu;
     rendered = rendered.replace(emojiRegex, (match) => {
@@ -518,7 +516,7 @@ const renderTextWithMarkdown = (text: string | undefined): string => {
 
   if (!props.enableMarkdown) {
     // Even with markdown disabled, run DOMPurify so any malformed input that
-    // sneaks past our escape (e.g. via emoji SVG content) is stripped.
+    // sneaks past the escape (e.g. via emoji SVG content) is stripped.
     return sanitizeMessageHtml(rendered);
   }
 

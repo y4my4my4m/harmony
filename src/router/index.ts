@@ -318,7 +318,7 @@ const router = createRouter({
         }
       ]
     },
-    // ActivityPub User Profile Routes (handled by nginx, this is just for browser fallback)
+    // ActivityPub User Profile Routes (served by nginx; browser fallback only)
     {
       path: '/users/:username',
       name: 'ActivityPubUser',
@@ -454,11 +454,10 @@ router.beforeEach(async (to, from, next) => {
     const profileStore = useProfileStore();
     if (!profileStore.profileFetched) {
       const authStore2 = useAuthStore();
-      // BUGS.md Pattern A: there is no `authStore.user` - the auth store
-      // exposes `session.user`. Reading `authStore2.user?.id` always
-      // produced `undefined`, so the profile fetch was skipped and the
-      // admin gate fell back to a (possibly stale) `profileStore.profile`
-      // from a prior session.
+      // BUGS.md Pattern A: the auth store exposes `session.user`; there is no
+      // `authStore.user`. Reading `authStore2.user?.id` yields `undefined`,
+      // skipping the profile fetch and leaving the admin gate on a stale
+      // `profileStore.profile` from a prior session.
       const authUserId = authStore2.session?.user?.id;
       if (authUserId) {
         await profileStore.fetchProfileByAuthUserId(authUserId);

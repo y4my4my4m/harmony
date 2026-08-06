@@ -61,7 +61,7 @@ export function useServerPermissions() {
         fetchedProfileId.value = context.profileId
         profileIdLoaded.value = true
         cacheVersion.value++ // Force re-evaluation of permission computed properties
-        debug.log('🔐 Profile ID loaded:', context.profileId)
+        debug.log('Profile ID loaded:', context.profileId)
       } else {
         fetchedProfileId.value = null
       }
@@ -92,7 +92,7 @@ export function useServerPermissions() {
       fetchedProfileId.value = userId
       profileIdLoaded.value = true
       cacheVersion.value++ // Force re-evaluation of permission computed properties
-      debug.log('🔐 Profile ID from getCurrentUser:', userId)
+      debug.log('Profile ID from getCurrentUser:', userId)
     }
   }, { immediate: true })
 
@@ -165,7 +165,7 @@ export function useServerPermissions() {
     void cacheVersion.value
     
     if (!currentProfileId.value || !currentServer.value) {
-      debug.log('🔐 Owner check: missing profile or server', { 
+      debug.log('Owner check: missing profile or server', { 
         profileId: currentProfileId.value, 
         serverId: currentServer.value?.id 
       })
@@ -175,7 +175,7 @@ export function useServerPermissions() {
     const server = serverChannelStore.servers.find(s => s.id === currentServer.value?.id)
     const isOwner = server?.owner === currentProfileId.value
     
-    debug.log('🔐 Owner check:', { 
+    debug.log('Owner check:', { 
       profileId: currentProfileId.value, 
       serverOwner: server?.owner,
       isOwner 
@@ -286,7 +286,7 @@ export function useServerPermissions() {
   const isLocalServer = computed(() => {
     if (!currentServer.value) return false
     const isLocal = currentServer.value.is_local_server !== false
-    debug.log('🔐 isLocalServer:', { is_local_server: currentServer.value.is_local_server, result: isLocal })
+    debug.log('isLocalServer:', { is_local_server: currentServer.value.is_local_server, result: isLocal })
     return isLocal
   })
 
@@ -298,7 +298,7 @@ export function useServerPermissions() {
   const canManageChannels = computed(() => {
     const local = isLocalServer.value
     const hasPerms = hasCurrentUserPermission(Permission.MANAGE_CHANNELS)
-    debug.log('🔐 canManageChannels:', { isLocal: local, hasPermission: hasPerms })
+    debug.log('canManageChannels:', { isLocal: local, hasPermission: hasPerms })
     return local && hasPerms
   })
 

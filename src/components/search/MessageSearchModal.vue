@@ -333,8 +333,6 @@ const userSuggestions = ref<any[]>([])
 
 watch(() => props.show, (newVal, oldVal) => {
   if (newVal && !oldVal) {
-    // Modal is being opened (was false, now true)
-    // Only set initial values if provided
     if (props.initialQuery) {
       setQuery(props.initialQuery)
     }
@@ -353,8 +351,6 @@ watch(() => props.show, (newVal, oldVal) => {
       searchInputRef.value?.focus()
     })
   } else if (!newVal && oldVal) {
-    // Modal is being closed (was true, now false)
-    // Reset when closing
     clearAllFilters()
     showFilters.value = false
   }
@@ -458,8 +454,7 @@ const handleUserFilterInput = async () => {
     return
   }
   
-  // TODO: Implement user search
-  // For now, use users from current context
+  // User search is not implemented; suggestions stay empty.
   userSuggestions.value = []
 }
 

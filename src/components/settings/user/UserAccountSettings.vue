@@ -413,15 +413,12 @@ const toast = useToast()
 const localProfile = ref<Partial<User>>({})
 const bannerKey = ref(0) // For forcing banner reload
 
-// ---------------------------------------------------------------------------
 // Profile fields editor state
-// ---------------------------------------------------------------------------
-// Editable mirror of `profile_fields`. We DECODE the stored HTML on load
-// (extracting the bare URL out of any `<a href="...">...</a>` wrapper) so the
-// user sees the plain value they originally typed, and ENCODE on save
-// (wrapping URL-shaped values in an <a> tag) so federated instances render
-// them as clickable links. This matches Mastodon's storage format and keeps
-// the editing UX as "type a URL, hit save" without exposing HTML to the user.
+// Editable mirror of `profile_fields`. Stored HTML is decoded on load (the
+// bare URL is extracted from any `<a href="...">...</a>` wrapper) and encoded
+// on save (URL-shaped values wrapped in an <a> tag) so federated instances
+// render them as clickable links. Matches Mastodon's storage format; the
+// editing UX stays "type a URL, hit save" with no HTML exposed to the user.
 const PROFILE_FIELDS_MAX = 4
 const PROFILE_FIELD_NAME_MAX = 255
 const PROFILE_FIELD_VALUE_MAX = 255
@@ -447,23 +444,22 @@ function encodeFieldValueForStorage(value: string): string {
   if (!trimmed) return ''
   if (URL_REGEX.test(trimmed)) {
     const safe = escapeHtmlAttribute(trimmed)
-    // `rel="me"` is the Mastodon convention for link verification (rel=me
-    // back from the destination would mark the field as verified). We keep
-    // noopener/noreferrer/nofollow so the link follows the same security
-    // posture as the rest of our outbound profile links.
+    // `rel="me"` is the Mastodon convention for link verification (a rel=me
+    // back from the destination marks the field as verified).
+    // noopener/noreferrer/nofollow match the security posture of the other
+    // outbound profile links.
     return `<a href="${safe}" target="_blank" rel="me nofollow noopener noreferrer">${safe}</a>`
   }
-  // Plain text value: HTML-escape so the v-html-based display layer
-  // doesn't accidentally execute or render it as markup.
+  // Plain text value: HTML-escape so the v-html-based display layer does not
+  // execute or render it as markup.
   return escapeHtmlAttribute(trimmed)
 }
 
 function decodeFieldValueForEditing(value: string): string {
   if (!value) return ''
-  // Strip a single outer <a> wrapper around a URL - the most common shape,
-  // and what we write back in encodeFieldValueForStorage. Anything more
-  // complex (mixed HTML / multiple anchors) falls through unchanged; the
-  // user can still edit it as raw text if they want.
+  // Strip a single outer <a> wrapper around a URL - the common shape, and what
+  // encodeFieldValueForStorage writes back. Anything more complex (mixed HTML,
+  // multiple anchors) falls through unchanged and is edited as raw text.
   const match = value.match(URL_HREF_REGEX)
   if (match) return match[1]
   return value
@@ -502,10 +498,9 @@ const displayNameAutoSuggest = useAutoSuggest(
 // Computed
 const userEmail = computed(() => authStore.session?.user?.email)
 
-// Snapshot of the editable fields as they were when the form was last
-// synced from props. Used purely for the dirty check; we compare the
-// JSON-stringified form because the array shape is small and a deep-equal
-// dependency isn't worth pulling in for this one place.
+// Snapshot of the editable fields at the last sync from props. Dirty check
+// only; comparison is on the JSON-stringified form because the array is small
+// and no deep-equal dependency is pulled in for this one site.
 const initialProfileFieldsJson = ref('[]')
 
 const hasChanges = computed(() => {
@@ -517,11 +512,12 @@ const hasChanges = computed(() => {
     localProfile.value.color !== props.profile.color
   if (baseChanged) return true
 
-  // Compare the editable mirror against the snapshot taken at sync time
-  // so adding an empty row OR clearing an existing field both register as
-  // dirty (and so re-saving without changes correctly disables the button).
+  // Comparing the editable mirror against the sync-time snapshot makes both
+  // adding an empty row and clearing an existing field register as dirty, and
+  // leaves the button disabled when nothing changed.
   return JSON.stringify(localProfileFields.value) !== initialProfileFieldsJson.value
-  // Note: username is excluded from changes - it cannot be edited until federation is fixed
+  // NOTE: username is excluded; it is not editable until federation username
+  // updates are implemented.
 })
 
 const emojiCacheStore = useEmojiCacheStore()
@@ -589,8 +585,8 @@ const syncLocalProfile = () => {
       bio: props.profile.bio || '',
       color: props.profile.color || '#0EA5E9'
     }
-    // Decode any stored HTML wrappers (e.g. `<a href="...">URL</a>`) back
-    // to bare plain text so the user edits what they originally typed.
+    // Decode stored HTML wrappers (e.g. `<a href="...">URL</a>`) back to bare
+    // plain text so the user edits what was originally typed.
     const incoming = ((props.profile as any).profile_fields ?? []) as Array<{ name: string; value: string }>
     localProfileFields.value = incoming.map((f) => ({
       name: f.name ?? '',
@@ -601,7 +597,7 @@ const syncLocalProfile = () => {
 }
 
 const onProfileChange = () => {
-  // Debounce could be added here if needed
+  // No debounce; saving is explicit.
 }
 
 const onDisplayNameInput = () => {
@@ -662,20 +658,20 @@ const handleAvatarUpload = (file: File) => {
 }
 
 const triggerBannerUpload = () => {
-  debug.log('🖼️ Banner upload triggered')
+  debug.log('Banner upload triggered')
   bannerInput.value?.click()
 }
 
 const handleBannerFileSelect = (event: Event) => {
-  debug.log('📁 Banner file selected')
+  debug.log('Banner file selected')
   const target = event.target as HTMLInputElement
   const file = target.files?.[0]
   if (file) {
-    debug.log('📤 Emitting banner upload event:', file.name, file.size)
+    debug.log('Emitting banner upload event:', file.name, file.size)
     emit('upload-banner', file)
     target.value = ''
   } else {
-    debug.log('❌ No file selected')
+    debug.log('No file selected')
   }
 }
 
@@ -683,20 +679,18 @@ const DISPLAY_NAME_EMOJI_REGEX = /:([a-zA-Z0-9_+-]+):/
 const saveChanges = () => {
   if (!hasChanges.value) return
 
-  // Require a non-empty display name. Otherwise the user shows up as
-  // `Unknown User` everywhere via the `getUserDisplayName` fallback - bad
-  // UX and a confusing impersonation surface. Both the service-layer
-  // validation (`CoreProfileService.validateProfileData`) and the DB
-  // CHECK constraint (`profiles_display_name_not_blank`) also enforce
-  // this; surfacing it here turns the trip into a one-step toast rather
-  // than a roundtrip + generic error.
+  // Require a non-empty display name; a blank one renders as `Unknown User`
+  // everywhere via the `getUserDisplayName` fallback, which is an
+  // impersonation surface. Also enforced by
+  // `CoreProfileService.validateProfileData` and the DB CHECK constraint
+  // `profiles_display_name_not_blank`. Checking here yields a toast instead of
+  // a roundtrip plus generic error.
   const trimmedDisplayName = (localProfile.value.display_name || '').trim()
   if (trimmedDisplayName.length === 0) {
     toast.error('Display name cannot be empty.')
     return
   }
-  // Persist the trimmed value so we don't store leading/trailing
-  // whitespace.
+  // Persist the trimmed value; no leading/trailing whitespace is stored.
   localProfile.value.display_name = trimmedDisplayName
 
   if (!instanceSettings.settings.allowCustomEmojisInDisplayNames && localProfile.value.display_name && DISPLAY_NAME_EMOJI_REGEX.test(localProfile.value.display_name)) {
@@ -705,10 +699,10 @@ const saveChanges = () => {
   }
 
   // Build the persistable profile_fields array:
-  //   - drop completely-empty rows (both name and value blank) so the user
-  //     can leave an unused row visible without it being persisted;
-  //   - reject rows that have only one of (name, value) - partial rows
-  //     wouldn't render anything useful on the profile page;
+  //   - drop rows with both name and value blank, so an unused row can stay
+  //     visible without being persisted;
+  //   - reject rows with only one of (name, value); partial rows render
+  //     nothing useful on the profile page;
   //   - encode URL-shaped values into <a> wrappers so federated renderers
   //     produce clickable links.
   const cleanedFields: Array<{ name: string; value: string }> = []

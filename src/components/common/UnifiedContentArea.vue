@@ -236,8 +236,8 @@ defineEmits<{
   'delete-post': [post: TimelinePost]
   'show-user-profile': [user: any]
 
-  // Visibility (used by MentionsView to clear notifications for posts the
-  // user actually scrolls past - see PostsContainer.posts-visible)
+  // MentionsView clears notifications for posts scrolled past.
+  // See PostsContainer.posts-visible.
   'posts-visible': [postIds: string[]]
 }>()
 

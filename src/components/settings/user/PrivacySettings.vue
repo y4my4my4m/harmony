@@ -426,12 +426,10 @@
       </button>
     </div>
 
-    <!-- Disable 2FA Confirmation Modal -->
-    <!-- Asks for the current TOTP code (or a recovery code). Verifying the
-         code via `mfa.challengeAndVerify` upgrades the session to AAL2,
-         which is what Supabase requires before `mfa.unenroll` will accept
-         the call. This replaces the previous password-only flow that
-         couldn't actually complete the unenroll from an AAL1 session. -->
+    <!-- Disable 2FA Confirmation Modal.
+         Takes the current TOTP code or a recovery code. Verifying via
+         `mfa.challengeAndVerify` upgrades the session to AAL2, which
+         Supabase requires before `mfa.unenroll` is accepted. -->
     <div v-if="showDisable2FAModal" class="modal-overlay" @click="closeDisable2FAModal">
       <div class="modal-content" @click.stop>
         <h3 class="modal-title">Disable Two-Factor Authentication?</h3>
@@ -557,8 +555,8 @@ const verificationCode = ref('')
 const recoveryCodes = ref<string[]>([])
 const twoFactorError = ref('')
 const showDisable2FAModal = ref(false)
-// Code the user types to authorize the unenroll. 6 digits for TOTP, 8 chars
-// for recovery code - `useDisableRecoveryCode` toggles which one we expect.
+// Authorizes the unenroll: 6 digits for TOTP, 8 chars for a recovery code.
+// `useDisableRecoveryCode` selects which form is expected.
 const disable2FACode = ref('')
 const useDisableRecoveryCode = ref(false)
 const disable2FAError = ref('')
@@ -572,15 +570,13 @@ const isDisable2FACodeValid = computed(() => {
 
 // Privacy State
 //
-// `allowDMFromServerMembers` and `allowDMFromFollows` are visible in the UI
-// but currently flagged as "Coming soon" - there is no DB column for either
-// (the `notification_preferences` table does not store them) and no
-// server-side gate consumes them yet. Keep them in state so when we do
-// wire them up, persisting works straight away.
+// `allowDMFromServerMembers` and `allowDMFromFollows` are UI placeholders:
+// `notification_preferences` has no column for either and no server-side
+// gate reads them. They stay in state so persistence works once wired up.
 const settings = ref({
   allowDMFromServerMembers: true,
   allowDMFromFollows: true,
-  stripUrlTrackers: true, // Default ON
+  stripUrlTrackers: true,
 })
 
 const originalSettings = ref({ ...settings.value })
@@ -598,13 +594,12 @@ const hasChanges = computed(() => {
 // Methods
 // eslint-disable-next-line unused-imports/no-unused-vars
 const onSettingChange = () => {
-  // Settings changed, enable save button
+  // Empty: the template binds it to enable the save button via hasChanges.
 }
 
-// The URL-tracker toggle persists to localStorage and is read by the
-// message-send pipeline (`unifiedContentProcessing.ts`) on every send.
-// Apply it immediately on toggle so users see the effect on the very
-// next message, rather than only after pressing Save Changes.
+// The URL-tracker flag lives in localStorage and is read by the message-send
+// pipeline (`unifiedContentProcessing.ts`) on every send. Applied on toggle
+// rather than on Save Changes so the next message reflects it.
 const onUrlStripChange = () => {
   setUrlTrackingStrippingEnabled(settings.value.stripUrlTrackers)
   originalSettings.value.stripUrlTrackers = settings.value.stripUrlTrackers
@@ -712,10 +707,9 @@ const handlePasswordChange = async () => {
   passwordLoading.value = true
 
   try {
-    // Supabase updateUser will handle password update if user has valid session
-    // Note: Supabase doesn't provide a way to verify old password client-side
-    // The security relies on having a valid authenticated session
-    
+    // NOTE: the current password is not verified. Supabase exposes no
+    // client-side check for it; authorization rests on the active session.
+
     const { data, error: updateError } = await supabase.auth.updateUser({
       password: passwordForm.value.newPassword
     })
@@ -734,10 +728,9 @@ const handlePasswordChange = async () => {
       return
     }
 
-    debug.log('✅ Password updated successfully:', data)
+    debug.log('Password updated successfully:', data)
     toast.success('Password updated successfully!')
     
-    // Clear form after successful update
     passwordForm.value = {
       currentPassword: '',
       newPassword: '',
@@ -765,8 +758,8 @@ const check2FAStatus = async () => {
     const { data, error } = await supabase.auth.mfa.listFactors()
     if (error) throw error
 
-    // Only count VERIFIED factors - unverified factors from incomplete
-    // enrollments should never gate enable/disable UI.
+    // Only verified factors count; unverified ones are leftovers from
+    // incomplete enrollments and must not gate the enable/disable UI.
     const totpFactor = data?.totp?.find((f: any) => f.status === 'verified')
     twoFactorEnabled.value = !!totpFactor
 
@@ -779,14 +772,11 @@ const check2FAStatus = async () => {
     factorId.value = totpFactor?.id ?? ''
   } catch (error: any) {
     debug.error('2FA status check error:', error)
-    // Surface the failure instead of silently flipping the UI to "disabled"
-    // - a transient `listFactors` error used to make 2FA appear off when
-    // it was actually still enabled, which then cascaded into broken
-    // enable/disable UI (the disable button would be hidden, the enable
-    // flow would race against an existing factor, etc.).
+    // A transient `listFactors` error must not read as "2FA disabled": that
+    // hides the disable button and races the enable flow against the
+    // existing factor.
     toast.error(`Could not check 2FA status: ${error?.message ?? 'unknown error'}`)
-    // Intentionally do NOT mutate `twoFactorEnabled` / `factorId` here -
-    // keep whatever state we had before so the user's UI doesn't jitter.
+    // `twoFactorEnabled` and `factorId` keep their previous values here.
   }
 }
 
@@ -823,7 +813,6 @@ const startEnroll2FA = async () => {
     debug.error('2FA enrollment error:', error)
     toast.error('Failed to start 2FA enrollment')
     showEnroll2FA.value = false
-    // Re-check status on error
     await check2FAStatus()
   } finally {
     twoFactorLoading.value = false
@@ -851,7 +840,7 @@ const verifyAndEnable2FA = async () => {
       throw error
     }
 
-    // Verify the factor is actually verified before proceeding
+    // challengeAndVerify can return without error; re-read the factor status.
     const { data: factorsAfter } = await supabase.auth.mfa.listFactors()
     const verifiedFactor = factorsAfter?.totp?.find((f: any) => f.id === factorId.value && f.status === 'verified')
     
@@ -859,10 +848,10 @@ const verifyAndEnable2FA = async () => {
       throw new Error('2FA verification failed - factor not verified')
     }
 
-    // Generate recovery codes (10 codes) using a CSPRNG. Math.random() is not
-    // cryptographically secure and made the codes guessable.
+    // CSPRNG only. Math.random() is not cryptographically secure and yields
+    // guessable codes.
     const generateRecoveryCode = (): string => {
-      // 5 random bytes -> 10 hex chars, uppercased. ~40 bits of entropy each.
+      // 5 random bytes -> 10 uppercase hex chars, 40 bits of entropy.
       const bytes = crypto.getRandomValues(new Uint8Array(5))
       return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('').toUpperCase()
     }
@@ -892,7 +881,8 @@ const verifyAndEnable2FA = async () => {
         const { data: factors } = await supabase.auth.mfa.listFactors()
         const factor = factors?.totp?.find((f: any) => f.id === factorId.value)
         
-        // Only try to unenroll if factor exists and is unverified
+        // Unenroll only unverified factors; a verified one predates this
+        // enrollment attempt.
         if (factor && (factor.status as string) === 'unverified') {
           await supabase.auth.mfa.unenroll({ factorId: factorId.value })
           debug.log('Cleaned up unverified factor')
@@ -922,7 +912,7 @@ const cancelEnroll2FA = async () => {
       const { data: factors } = await supabase.auth.mfa.listFactors()
       const factor = factors?.totp?.find((f: any) => f.id === factorId.value)
       
-      // Only unenroll if factor is unverified (enrollment in progress)
+      // Unverified means enrollment is still in progress.
       if (factor && factor.status !== 'verified') {
       await supabase.auth.mfa.unenroll({ factorId: factorId.value })
       }
@@ -937,7 +927,6 @@ const cancelEnroll2FA = async () => {
   qrCodeDataUrl.value = ''
   totpSecret.value = ''
   factorId.value = ''
-  // Re-check status to ensure UI is correct
   await check2FAStatus()
 }
 
@@ -960,21 +949,15 @@ const closeDisable2FAModal = () => {
 }
 
 /**
- * Disable 2FA by stepping the current session up to AAL2 (so Supabase will
- * accept the `mfa.unenroll` call), then unenrolling the verified factor and
- * clearing recovery codes.
+ * Steps the session up to AAL2, unenrolls the verified factor, and clears
+ * recovery codes. `mfa.unenroll` is rejected below AAL2.
  *
- * The previous version asked for the user's password and then bailed out
- * with "log out and log back in" because it never completed the AAL2
- * upgrade. Supabase's `challengeAndVerify` is the canonical step-up path:
- * it creates a fresh challenge for the existing factor and verifies the
- * supplied TOTP in one call, leaving the session at AAL2.
+ * TOTP path: `challengeAndVerify` creates a fresh challenge for the existing
+ * factor and verifies the code in one call, leaving the session at AAL2.
  *
- * For users who lost their authenticator, the modal also accepts a
- * recovery code; we verify it via the existing `verify_recovery_code` RPC
- * (which atomically marks the code as used) and then unenroll the factor.
- * Recovery-code unenroll matches the same flow used by `AuthComponent`'s
- * recovery-code login path.
+ * Recovery-code path, for a lost authenticator: the `verify_recovery_code`
+ * RPC atomically marks the code used, then the factor is unenrolled. Mirrors
+ * `AuthComponent`'s recovery-code login path.
  */
 const disable2FA = async () => {
   if (!isDisable2FACodeValid.value) {
@@ -984,8 +967,8 @@ const disable2FA = async () => {
     return
   }
   if (!factorId.value) {
-    // `factorId` is populated by `check2FAStatus`. If it's empty here the
-    // status check probably failed silently; surface that explicitly.
+    // `factorId` is populated by `check2FAStatus`; empty means that check
+    // failed.
     toast.error('No active 2FA factor found. Try refreshing the page.')
     return
   }
@@ -995,8 +978,7 @@ const disable2FA = async () => {
 
   try {
     if (useDisableRecoveryCode.value) {
-      // Recovery-code path: verify the code server-side, then unenroll.
-      // The `verify_recovery_code` RPC atomically marks the code as used.
+      // `verify_recovery_code` marks the code used atomically.
       const userId = authStore.session?.user?.id
       if (!userId) throw new Error('User session not found')
 
@@ -1011,8 +993,7 @@ const disable2FA = async () => {
         return
       }
     } else {
-      // TOTP path: `challengeAndVerify` upgrades the session to AAL2 in
-      // one round-trip. This is what Supabase requires before unenroll.
+      // `challengeAndVerify` raises the session to AAL2 in one round trip.
       const { error: verifyError } = await supabase.auth.mfa.challengeAndVerify({
         factorId: factorId.value,
         code: disable2FACode.value,
@@ -1030,8 +1011,8 @@ const disable2FA = async () => {
       }
     }
 
-    // Clear recovery codes BEFORE unenroll so that even if unenroll fails
-    // partway, we don't leave dangling codes that can't be regenerated.
+    // Recovery codes are deleted BEFORE unenroll; a partial failure would
+    // otherwise leave codes that cannot be regenerated.
     const userId = authStore.session?.user?.id
     if (userId) {
       const { error: deleteError } = await supabase
@@ -1039,7 +1020,7 @@ const disable2FA = async () => {
         .delete()
         .eq('user_id', userId)
       if (deleteError) {
-        // Non-fatal - user can retry, and unenroll will still proceed.
+        // Non-fatal; unenroll still proceeds.
         debug.error('Error deleting recovery codes:', deleteError)
       }
     }
@@ -1050,8 +1031,8 @@ const disable2FA = async () => {
 
     if (unenrollError) {
       if ((unenrollError as any).error_code === 'insufficient_aal') {
-        // Should be unreachable with the `challengeAndVerify` step-up, but
-        // surface a helpful message rather than the raw Supabase code.
+        // Unreachable after a successful step-up; message replaces the raw
+        // Supabase error code.
         toast.error('Session security level expired. Please log out and log back in with 2FA, then try again.')
       } else {
         throw unenrollError
@@ -1147,13 +1128,12 @@ onMounted(async () => {
     blocksMutesLastFetchedAt = Date.now()
   }
 
-  // The DM-from-server-members / DM-from-follows preferences will be loaded
-  // from `notification_preferences` once the columns are added; for now the
-  // toggles are disabled UI placeholders so we skip the read.
+  // No read for the DM-from-server-members / DM-from-follows toggles:
+  // `notification_preferences` has no columns for them and the controls are
+  // disabled placeholders.
 
   originalSettings.value = { ...settings.value }
 
-  // Check 2FA status
   check2FAStatus()
 })
 </script>
@@ -1329,13 +1309,11 @@ onMounted(async () => {
 .user-name {
   font-size: 14px;
   font-weight: 500;
-  /* color: var(--text-primary); */
   color: var(--text-primary);
 }
 
 .user-username {
   font-size: 12px;
-  /* color: var(--text-secondary); */
   color: var(--text-secondary);
 }
 
@@ -1763,9 +1741,8 @@ onMounted(async () => {
   font-size: 13px;
 }
 
-/* Subtle "Use a recovery code instead" toggle in the disable-2FA modal -
-   matches the visual weight of the equivalent toggle in the login MFA
-   modal so the two flows feel consistent. */
+/* "Use a recovery code instead" toggle in the disable-2FA modal. Matches the
+   visual weight of the equivalent toggle in the login MFA modal. */
 .link-button {
   background: none;
   border: none;

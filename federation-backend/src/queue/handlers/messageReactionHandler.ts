@@ -13,7 +13,7 @@ export async function handleMessageReactionJob(data: FederationJobData): Promise
   const supabase = getSupabaseClient();
   const { type, reaction_id, message_id, user_id, emoji } = data;
 
-  logger.info(`💬❤️ Processing message reaction job: ${type} for reaction ${reaction_id}`);
+  logger.info(`Processing message reaction job: ${type} for reaction ${reaction_id}`);
 
   try {
     const { data: reaction } = await supabase
@@ -55,7 +55,7 @@ export async function handleMessageReactionJob(data: FederationJobData): Promise
     }
 
     await updateFederationStatus(reaction_id, 'reactions', 'completed');
-    logger.info(`✅ Message reaction ${reaction_id} federated successfully`);
+    logger.info(`Message reaction ${reaction_id} federated successfully`);
 
   } catch (error) {
     logger.error(`Failed to federate message reaction ${reaction_id}:`, error);

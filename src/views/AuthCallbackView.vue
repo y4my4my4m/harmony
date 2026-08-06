@@ -1,7 +1,6 @@
 <template>
   <div class="callback-wrapper">
     <div class="callback-card">
-      <!-- Loading State -->
       <div v-if="status === 'loading'" class="callback-content">
         <div class="loader">
           <div class="loader-ring"></div>
@@ -11,7 +10,7 @@
         <p>{{ $t('auth.callback.pleaseWait') || 'Please wait while we complete your authentication.' }}</p>
       </div>
 
-      <!-- MFA Challenge State (OAuth user with 2FA enrolled) -->
+      <!-- MFA challenge: OAuth user enrolled in 2FA -->
       <div v-else-if="status === 'mfa'" class="callback-content mfa">
         <div class="mfa-icon shield">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -66,7 +65,6 @@
         </form>
       </div>
 
-      <!-- Error State -->
       <div v-else-if="status === 'error'" class="callback-content error">
         <div class="error-icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -82,7 +80,7 @@
         </button>
       </div>
 
-      <!-- Success State (brief flash before redirect) -->
+      <!-- Success: brief flash before redirect -->
       <div v-else-if="status === 'success'" class="callback-content success">
         <div class="success-icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -95,7 +93,6 @@
       </div>
     </div>
 
-    <!-- Background -->
     <div class="bg-gradient"></div>
   </div>
 </template>
@@ -112,13 +109,12 @@ import type { Session } from '@supabase/supabase-js'
 const router = useRouter()
 const authStore = useAuthStore()
 
-// Added 'mfa' state: an OAuth user who is MFA-enrolled lands at AAL1
-// after the provider redirect; we challenge them inline here rather than
-// the previous behavior of signing them out with a confusing error toast.
+// An MFA-enrolled OAuth user lands at AAL1 after the provider redirect.
+// The 'mfa' state challenges them inline instead of signing them out.
 const status = ref<'loading' | 'mfa' | 'success' | 'error'>('loading')
 const errorMessage = ref('')
 
-// MFA challenge state (only used when status === 'mfa')
+// MFA challenge state; valid only when status === 'mfa'.
 const pendingFactorId = ref('')
 const pendingChallengeId = ref('')
 const mfaCode = ref('')
@@ -144,12 +140,9 @@ const toggleRecoveryCodeMode = () => {
 }
 
 const cancelMfaAndGoToLogin = async () => {
-  // The user clicked "Cancel" instead of completing MFA. Tear down the
-  // AAL1 session - leaving it in storage means a different tab on the
-  // same browser would pick it up via INITIAL_SESSION, hit
-  // validateSessionForMFA's reject branch, and call signOut anyway, but
-  // doing it here makes the intent explicit and avoids the brief window
-  // where the stale token sits around.
+  // Tear down the AAL1 session. Left in storage, another tab picks it up via
+  // INITIAL_SESSION, hits validateSessionForMFA's reject branch and signs out
+  // anyway; clearing here closes the window where the stale token lives.
   authStore._pendingMFAVerification = false
   try { await supabase.auth.signOut() } catch (err) {
     debug.error('Failed to sign out AAL1 session on MFA cancel:', err)
@@ -159,12 +152,10 @@ const cancelMfaAndGoToLogin = async () => {
 }
 
 /**
- * Final post-login navigation: profile-existence check, then redirect.
- * Called from BOTH the no-MFA path (validateSessionForMFA returned true
- * directly) and the post-MFA path (after successful verify2FA). The
- * `authStore.session` must already be populated at this point -
- * `verify2FA` updates it itself, and the no-MFA path sets it explicitly
- * just before calling this helper.
+ * Post-login navigation: profile-existence check, then redirect.
+ * Called from both the no-MFA path (validateSessionForMFA returned true) and
+ * the post-MFA path (after verify2FA). `authStore.session` must already be
+ * populated: verify2FA updates it, the no-MFA path sets it before calling.
  */
 const finalizeLoginAndRedirect = async (session: Session) => {
   status.value = 'success'
@@ -177,7 +168,7 @@ const finalizeLoginAndRedirect = async (session: Session) => {
   const next = !existingProfile || !existingProfile.username ? '/new-profile' : '/chat'
 
   // Native OAuth popup: the session is already persisted to storage shared
-  // with the main window. Hand off and let the main window close us.
+  // with the main window. Hand off; the main window closes the popup.
   if (isTauriRuntime()) {
     const { isOAuthPopup, notifyOAuthComplete } = await import('@/services/tauriOAuth')
     if (await isOAuthPopup()) {
@@ -203,11 +194,10 @@ const handleMFAVerification = async () => {
 
   try {
     if (useRecoveryCode.value) {
-      // Recovery-code path: verify the code, then unenroll the factor
-      // (mirroring `AuthComponent.handle2FAVerification`'s recovery flow).
-      // The user is in a recovery scenario - they presumably lost their
-      // authenticator - so it makes sense to disable MFA and route them
-      // to settings to re-enable it later.
+      // Recovery-code path: verify the code, then unenroll the factor.
+      // Mirrors `AuthComponent.handle2FAVerification`'s recovery flow. The
+      // authenticator is presumed lost, so MFA is disabled and re-enabled
+      // later from settings.
       const { data: sessionData } = await supabase.auth.getSession()
       const userId = sessionData.session?.user?.id
       if (!userId) throw new Error('User session not found')
@@ -225,7 +215,7 @@ const handleMFAVerification = async () => {
       await supabase.auth.mfa.unenroll({ factorId: pendingFactorId.value })
 
       const { data: refreshed } = await supabase.auth.getSession()
-      // Adopt the (now-unenrolled, AAL1-OK-because-no-MFA) session.
+      // Adopt the session; no factor remains, so AAL1 suffices.
       authStore.session = refreshed.session
       authStore._pendingMFAVerification = false
 
@@ -234,9 +224,8 @@ const handleMFAVerification = async () => {
       }
       await finalizeLoginAndRedirect(refreshed.session)
     } else {
-      // TOTP path: `verify2FA` runs `mfa.verify`, awaits the AAL2 session,
-      // and (post-fix) runs the same post-login setup that the SIGNED_IN
-      // handler would have run. We just need to navigate after it.
+      // TOTP path: `verify2FA` runs `mfa.verify`, awaits the AAL2 session, and
+      // runs the post-login setup the SIGNED_IN handler would have run.
       const { session: verifiedSession } = await authStore.verify2FA(
         pendingFactorId.value,
         pendingChallengeId.value,
@@ -257,9 +246,8 @@ const handleMFAVerification = async () => {
 
 onMounted(async () => {
   try {
-    // The OAuth callback will have the code in the URL
-    // Supabase client handles the token exchange automatically
-    // when detectSessionInUrl is true (which it is in our config)
+    // The callback URL carries the code; the Supabase client performs the
+    // token exchange automatically under detectSessionInUrl.
 
     const { data: { session }, error } = await supabase.auth.getSession()
 
@@ -278,12 +266,12 @@ onMounted(async () => {
       throw new Error('No session found after authentication')
     }
 
-    // Debug: Log user info and identities to understand account linking
+    // Log identities to diagnose account linking.
     if (session.user) {
       const identities = session.user.identities || []
       const primaryEmail = session.user.email
 
-      debug.log('🔐 OAuth callback - User info:', {
+      debug.log('OAuth callback - User info:', {
         userId: session.user.id,
         email: primaryEmail,
         emailVerified: session.user.email_confirmed_at,
@@ -304,7 +292,7 @@ onMounted(async () => {
         )
 
         if (!allEmailsMatch) {
-          debug.error('⚠️ UNEXPECTED ACCOUNT LINKING DETECTED!', {
+          debug.error('UNEXPECTED ACCOUNT LINKING DETECTED!', {
             primaryEmail,
             linkedEmails: identityEmails,
             identities: identities.map((id: any) => ({
@@ -312,9 +300,9 @@ onMounted(async () => {
               email: id.email || id.identity_data?.email,
             })),
           })
-          debug.warn('⚠️ Accounts with different emails were linked. This should only happen when emails match!')
+          debug.warn('Accounts with different emails were linked. This should only happen when emails match!')
         } else {
-          debug.log('✅ Account linking detected with matching emails:', identityEmails.join(', '))
+          debug.log('Account linking detected with matching emails:', identityEmails.join(', '))
         }
       }
 
@@ -334,17 +322,15 @@ onMounted(async () => {
       }
     }
 
-    // BUGS.md C11: Don't bypass MFA validation. The OAuth callback used to
-    // assign `authStore.session = session` directly, which skips both
-    // `onAuthStateChange`'s SIGNED_IN MFA check and the on-init validation -
-    // any MFA-enrolled user could land here at AAL1 and gain full app access.
+    // BUGS.md C11: MFA validation must not be bypassed. Assigning
+    // `authStore.session = session` directly skips both `onAuthStateChange`'s
+    // SIGNED_IN MFA check and the on-init validation, letting an MFA-enrolled
+    // user gain full app access at AAL1.
     const isValid = await authStore.validateSessionForMFA(session)
     if (!isValid) {
-      // The session is AAL1; figure out WHY validateSessionForMFA rejected.
-      // If the user has a verified TOTP factor, this is a recoverable
-      // "MFA needed" state - challenge them inline. If listFactors fails
-      // or returns empty (some other validation failure path), give up
-      // and redirect to login.
+      // The session is AAL1. A verified TOTP factor means the recoverable
+      // "MFA needed" state - challenge inline. A listFactors error or an
+      // empty result is some other failure path: redirect to login.
       const { data: factors, error: factorsError } = await supabase.auth.mfa.listFactors()
       if (factorsError) {
         debug.error('Failed to list factors after AAL1 rejection:', factorsError)
@@ -356,18 +342,17 @@ onMounted(async () => {
       const totpFactor = factors?.totp?.find((f: any) => f.status === 'verified')
       if (!totpFactor) {
         // No factor → not the "needs MFA" case. Bail.
-        debug.warn('🚨 OAuth callback rejected at AAL1 with no MFA factor - unexpected, signing out')
+        debug.warn('OAuth callback rejected at AAL1 with no MFA factor - unexpected, signing out')
         try { await supabase.auth.signOut() } catch { /* ignore */ }
         authStore.session = null
         throw new Error('Authentication failed. Please try again.')
       }
 
-      // Issue a challenge against the user's verified factor. Set the
-      // pending-MFA flag BEFORE the challenge call so any incidental
-      // SIGNED_IN/INITIAL_SESSION events that arrive while we're waiting
-      // for user input don't trigger validateSessionForMFA's reject path
-      // and tear down the AAL1 session out from under us. (Same pattern
-      // as `authStore.login()` - see `src/stores/auth.ts:540`.)
+      // Challenge the verified factor. The pending-MFA flag must be set before
+      // the challenge call: SIGNED_IN/INITIAL_SESSION events arriving while
+      // awaiting user input would otherwise hit validateSessionForMFA's reject
+      // path and tear down the AAL1 session. Same pattern as
+      // `authStore.login()` - see `src/stores/auth.ts:540`.
       authStore._pendingMFAVerification = true
 
       const { data: challengeData, error: challengeError } = await supabase.auth.mfa.challenge({
@@ -384,39 +369,36 @@ onMounted(async () => {
 
       pendingFactorId.value = totpFactor.id
       pendingChallengeId.value = challengeData.id
-      // Show the challenge form and wait for `handleMFAVerification` to
-      // finish the login. We do NOT set `authStore.session` here - it
-      // gets set by `verify2FA` (or by the recovery-code branch).
+      // `handleMFAVerification` finishes the login. `authStore.session` is not
+      // set here - `verify2FA` or the recovery-code branch sets it.
       status.value = 'mfa'
       return
     }
 
-    // No MFA needed. Adopt session, clear the deferral flag set by
-    // initializeAuth, and proceed to redirect.
+    // No MFA. Adopt the session and clear the deferral flag set by
+    // initializeAuth.
     authStore.session = session
     authStore._pendingMFAVerification = false
     await finalizeLoginAndRedirect(session)
   } catch (error: any) {
     debug.error('OAuth callback error:', error)
-    // Always clear the deferral flag on the error exit so a subsequent
-    // login attempt isn't stuck in the "skip SIGNED_IN" state set by
-    // initializeAuth's /auth/callback branch.
+    // Clear the deferral flag on the error exit; otherwise a subsequent login
+    // stays stuck in the "skip SIGNED_IN" state set by initializeAuth's
+    // /auth/callback branch.
     authStore._pendingMFAVerification = false
     status.value = 'error'
     errorMessage.value = error.message || 'An error occurred during authentication'
   }
 })
 
-// Belt-and-suspenders cleanup: if the user navigates away mid-challenge
-// (browser back, manual URL change, accidental tab close), the explicit
-// exit handlers (`cancelMfaAndGoToLogin`, the success/error branches) may
-// not run. Without this `onBeforeUnmount`, `_pendingMFAVerification`
-// would stay true for the rest of the page's lifetime and silently
-// suppress every SIGNED_IN / INITIAL_SESSION / TOKEN_REFRESHED for the
-// session - including legitimate cross-user logins.
+// Navigating away mid-challenge (browser back, manual URL change, tab close)
+// skips the explicit exit handlers (`cancelMfaAndGoToLogin`, the success/error
+// branches). Without this, `_pendingMFAVerification` stays true for the page's
+// lifetime and suppresses every SIGNED_IN / INITIAL_SESSION / TOKEN_REFRESHED,
+// including legitimate cross-user logins.
 onBeforeUnmount(() => {
   if (authStore._pendingMFAVerification) {
-    debug.log('🔒 AuthCallbackView unmounting with pending-MFA flag set - clearing')
+    debug.log('AuthCallbackView unmounting with pending-MFA flag set - clearing')
     authStore._pendingMFAVerification = false
   }
 })
@@ -476,7 +458,6 @@ onBeforeUnmount(() => {
   max-width: 280px;
 }
 
-/* Loader */
 .loader {
   position: relative;
   width: 80px;
@@ -506,7 +487,6 @@ onBeforeUnmount(() => {
   to { transform: rotate(360deg); }
 }
 
-/* Error State */
 .error-icon {
   width: 64px;
   height: 64px;
@@ -528,7 +508,6 @@ onBeforeUnmount(() => {
   color: #ef4444;
 }
 
-/* Success State */
 .success-icon {
   width: 64px;
   height: 64px;
@@ -552,7 +531,6 @@ onBeforeUnmount(() => {
   100% { transform: scale(1); opacity: 1; }
 }
 
-/* Button */
 .btn-primary {
   margin-top: 16px;
   padding: 14px 32px;
@@ -576,7 +554,6 @@ onBeforeUnmount(() => {
   cursor: not-allowed;
 }
 
-/* MFA challenge state */
 .mfa-icon {
   width: 64px;
   height: 64px;
@@ -602,9 +579,8 @@ onBeforeUnmount(() => {
   margin-top: 8px;
 }
 
-/* The TOTP input matches the visual style of the login modal's code-input
-   for cross-flow consistency - same monospace, centered digits, large
-   tap target on mobile. */
+/* Matches the login modal's code-input: same monospace, centered digits,
+   large tap target on mobile. */
 .code-input {
   width: 100%;
   text-align: center;

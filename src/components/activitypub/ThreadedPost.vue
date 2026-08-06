@@ -115,8 +115,7 @@ const handleReplyCreated = (newReply: ActivityPubPost) => {
 };
 
 const expandThread = () => {
-  // TODO: Navigate to a dedicated expanded thread view
-  // For now, we could emit an event or navigate to the conversation root
+  // No expanded thread view exists; this only logs.
   debug.log(`Expanding thread for post: ${props.post.id}`);
 };
 </script>

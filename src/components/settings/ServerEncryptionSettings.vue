@@ -338,9 +338,9 @@ async function loadSettings() {
 
     await loadMemberStats()
 
-    debug.log('✅ Encryption settings loaded')
+    debug.log('Encryption settings loaded')
   } catch (err: any) {
-    debug.error('❌ Failed to load encryption settings:', err)
+    debug.error('Failed to load encryption settings:', err)
     error.value = err.message || 'Failed to load settings'
   } finally {
     loading.value = false
@@ -445,9 +445,9 @@ async function saveSettings() {
       successMessage.value = null
     }, 3000)
 
-    debug.log('✅ Encryption settings saved')
+    debug.log('Encryption settings saved')
   } catch (err: any) {
-    debug.error('❌ Failed to save encryption settings:', err)
+    debug.error('Failed to save encryption settings:', err)
     error.value = err.message || 'Failed to save settings'
   } finally {
     saving.value = false

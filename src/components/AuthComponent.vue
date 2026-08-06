@@ -401,7 +401,8 @@ const themeStore = useThemeStore()
 const instanceSettings = useInstanceSettingsStore()
 const toast = useToast()
 
-// All available OAuth Providers (removed Apple - requires paid $99/year developer account)
+// Supported OAuth providers. Apple is absent: it requires a paid Apple
+// developer account ($99/year).
 const allOAuthProviders = [
   {
     id: 'google',
@@ -426,10 +427,9 @@ const enabledOAuthProviders = ref<typeof allOAuthProviders>([])
 // Reactive state
 const email = ref('')
 const password = ref('')
-// Initialize from the persisted preference so the checkbox reflects the
-// user's last choice across visits to the login page (defaults to `true`
-// for first-time visitors, matching the pre-fix hardcoded `persistSession`
-// behavior - see `src/supabase.ts`).
+// Seeded from the persisted preference so the checkbox carries the last
+// choice across visits. Defaults to `true` for first-time visitors, matching
+// `persistSession` in `src/supabase.ts`.
 const rememberMe = ref(getRememberMe())
 const showPassword = ref(false)
 const isLoading = ref(false)
@@ -473,8 +473,8 @@ const letterOffsets = ref<Record<number, { x: number; y: number }>>({})
 // Instance branding
 const instanceName = ref('Harmony')
 const instanceDescription = ref('Connect, communicate, and create together')
-// Native/universal client picks an instance explicitly — show its domain so it's
-// clear which server you're signing into. Web/PWA falls back to the brand name.
+// The native/universal client picks an instance explicitly, so the title shows
+// that domain. Web/PWA has no stored instance and falls back to the brand name.
 const displayTitle = computed(() => {
   const stored = getStoredInstance()
   if (stored) {
@@ -568,18 +568,18 @@ const validatePassword = () => {
 const handleOAuthLogin = async (providerId: string) => {
   oauthLoading.value = providerId
 
-  // Persist the remember-me preference BEFORE the OAuth redirect. The
-  // session won't actually be created until the OAuth callback returns,
-  // but the storage adapter consults this preference at write-time, so
-  // it has to be set in the originating tab's localStorage *now* - the
-  // callback runs after a full page navigation and reads the same key.
+  // Persist the remember-me preference BEFORE the OAuth redirect. The session
+  // is not created until the OAuth callback returns, but the storage adapter
+  // consults this preference at write-time, so it must already be in the
+  // originating tab's localStorage - the callback runs after a full page
+  // navigation and reads the same key.
   setRememberMe(rememberMe.value)
 
   try {
     // Check if user is already logged in - if so, warn them about potential account linking
     const { data: { session } } = await supabase.auth.getSession()
     if (session) {
-      debug.warn('⚠️ User is already logged in when initiating OAuth. This may cause account linking.')
+      debug.warn('User is already logged in when initiating OAuth. This may cause account linking.')
       debug.log('Current session:', {
         userId: session.user.id,
         email: session.user.email,
@@ -699,9 +699,9 @@ const handle2FAVerification = async () => {
       }
 
       // Atomic server-side redeem: verifies AND consumes the recovery code,
-      // then removes the MFA factors in the same transaction. The old flow
-      // (verify_recovery_code + client-side mfa.unenroll from an AAL1
-      // session) made the client the security boundary - see BUGS.md C11.
+      // then removes the MFA factors in the same transaction. Verifying and
+      // unenrolling client-side from an AAL1 session would put the security
+      // boundary in the client - see BUGS.md C11.
       const { data: redeemed, error } = await supabase.rpc('redeem_recovery_code_and_disable_mfa', {
         p_code: twoFactorCode.value
       })
@@ -757,10 +757,9 @@ const close2FAModal = async () => {
   // Defense-in-depth: sign out the AAL1 session that signInWithPassword
   // wrote to localStorage. Without this, the unfinished MFA session
   // lingers in shared browser storage until the next page load triggers
-  // INITIAL_SESSION → validateSessionForMFA → signOut. While that
-  // self-heal is enough to prevent any actual access (validateSessionForMFA
-  // still rejects the AAL1+MFA combination), it's cleaner to clear the
-  // token immediately when the user explicitly cancels the flow.
+  // INITIAL_SESSION → validateSessionForMFA → signOut. That self-heal already
+  // blocks access (validateSessionForMFA rejects the AAL1+MFA combination);
+  // this clears the token at cancel time instead of at next load.
   try {
     await supabase.auth.signOut()
   } catch (err) {
@@ -824,10 +823,10 @@ const loadEnabledOAuthProviders = async () => {
         .eq('config_key', 'oauth_providers')
         .maybeSingle()
 
-      debug.log('🔍 OAuth config query result:', { data: oauthConfig, error: oauthError })
+      debug.log('OAuth config query result:', { data: oauthConfig, error: oauthError })
 
       if (oauthError) {
-        debug.warn('❌ Error querying oauth_providers from instance_config:', oauthError)
+        debug.warn('Error querying oauth_providers from instance_config:', oauthError)
         debug.warn('Error details:', {
           message: oauthError.message,
           code: oauthError.code,
@@ -837,38 +836,38 @@ const loadEnabledOAuthProviders = async () => {
       }
 
       if (oauthConfig?.config_value) {
-        debug.log('📦 Found oauth_providers config:', oauthConfig.config_value)
+        debug.log('Found oauth_providers config:', oauthConfig.config_value)
         let providers = oauthConfig.config_value
-        debug.log('📦 Raw providers value type:', typeof providers, providers)
+        debug.log('Raw providers value type:', typeof providers, providers)
         
         if (typeof providers === 'string') {
           try {
             providers = JSON.parse(providers)
-            debug.log('📦 Parsed JSON string:', providers)
+            debug.log('Parsed JSON string:', providers)
           } catch {
             // If not JSON, try splitting by comma
             providers = providers.split(',').map((p: string) => p.trim())
-            debug.log('📦 Split comma string:', providers)
+            debug.log('Split comma string:', providers)
           }
         }
         
         if (Array.isArray(providers)) {
           enabledProviders = providers.map((p: string) => p.toLowerCase())
-          debug.log('✅ Parsed as array:', enabledProviders)
+          debug.log('Parsed as array:', enabledProviders)
         } else if (typeof providers === 'object' && providers !== null) {
           // If it's an object like { google: true, twitch: false, github: true }
           enabledProviders = Object.entries(providers)
             .filter(([_, enabled]) => enabled === true || enabled === 'true')
             .map(([provider]) => provider.toLowerCase())
-          debug.log('✅ Parsed as object:', enabledProviders)
+          debug.log('Parsed as object:', enabledProviders)
         } else {
-          debug.warn('⚠️ Unknown providers format:', providers)
+          debug.warn('Unknown providers format:', providers)
         }
       } else {
-        debug.log('ℹ️ No oauth_providers config found in database')
+        debug.log('ℹNo oauth_providers config found in database')
       }
     } catch (dbError) {
-      debug.error('❌ Exception querying instance_config for OAuth providers:', dbError)
+      debug.error('Exception querying instance_config for OAuth providers:', dbError)
     }
 
     // Method 2: Fallback to AdminService config
@@ -904,9 +903,9 @@ const loadEnabledOAuthProviders = async () => {
       enabledProviders.includes(provider.id.toLowerCase())
     )
 
-    debug.log('✅ OAuth providers loaded:', enabledOAuthProviders.value.map(p => p.id))
+    debug.log('OAuth providers loaded:', enabledOAuthProviders.value.map(p => p.id))
     if (enabledOAuthProviders.value.length === 0) {
-      debug.log('ℹ️ No OAuth providers enabled - hiding OAuth section')
+      debug.log('ℹNo OAuth providers enabled - hiding OAuth section')
     }
   } catch (error) {
     debug.warn('Failed to load OAuth provider config, hiding OAuth providers:', error)

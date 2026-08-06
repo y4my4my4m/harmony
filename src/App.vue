@@ -42,8 +42,8 @@
     @cancel="handleClose"
   />
 
-  <!-- Discord-style "new login - was this you?" device-approval prompt. Gentle,
-       non-blocking, and skippable; never a mandatory verification wall. -->
+  <!-- Discord-style "new login - was this you?" device-approval prompt.
+       Non-blocking and skippable; not a mandatory verification wall. -->
   <DeviceApprovalPrompt v-if="!isAuthRoute" />
   
   <!-- Persistent Voice Connection (only when authenticated) -->
@@ -171,17 +171,15 @@ const handleSwitchToChat = () => {
 }
 
 onMounted(() => {
-  // Initialize app settings in background (non-blocking)
-  // This loads theme/language settings but doesn't block rendering
+  // Theme/language settings load in the background; rendering does not wait.
   initializeAppSettings().catch(err => {
-    debug.error('❌ Failed to initialize app settings:', err)
+    debug.error('Failed to initialize app settings:', err)
   })
   
-  // Haptic feedback for interactive elements: ONE delegated listener that
-  // resolves the strongest matching pattern. The previous version stacked four
-  // document-level click listeners per mount and never removed them (H44) -
-  // remounts kept piling handlers on, and a single tap could fire several
-  // haptic triggers.
+  // Haptic feedback for interactive elements: exactly one delegated click
+  // listener, resolving the strongest matching pattern and returning after the
+  // first hit. Per-selector listeners would fire several triggers on one tap
+  // and accumulate across remounts (H44). Removed on unmount.
   const hapticSelectors: Array<{ selector: string; pattern: string }> = [
     { selector: '.card-interactive', pattern: 'medium' },
     { selector: 'a[href]', pattern: 'selection' },
@@ -203,16 +201,15 @@ onMounted(() => {
   if (import.meta.env.DEV) {
     import('@/services/StatusLifecycleDebugger').then(({ statusDebugger }) => {
       statusDebugger.startDebugging()
-      debug.log('🔍 Status lifecycle debugger started. Type showHelp() for available commands.')
+      debug.log('Status lifecycle debugger started. Type showHelp() for available commands.')
     })
   }
 
-  // Gentle, non-blocking notice when a contact's encryption identity changes
-  // (TOFU). We deliberately do NOT show a blocking verification modal - just a
-  // dismissible toast, framed in plain language for non-technical users.
+  // Non-blocking notice when a contact's encryption identity changes (TOFU).
+  // A dismissible toast, not a blocking verification modal.
   identityChangedHandler = (e: Event) => {
     handleIdentityChanged(e as CustomEvent).catch(err =>
-      debug.warn('⚠️ Failed to surface identity-change notice:', err),
+      debug.warn('Failed to surface identity-change notice:', err),
     )
   }
   window.addEventListener('harmony-identity-changed', identityChangedHandler)

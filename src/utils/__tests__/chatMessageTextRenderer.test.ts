@@ -32,10 +32,9 @@ const defaultOptions: ChatMessageRendererOptions = {
  * Mount the rendered HTML into a DOM and assert there is NO
  * `HTMLStyleElement`, `HTMLScriptElement`, `HTMLIFrameElement`,
  * `HTMLObjectElement`, `HTMLEmbedElement`, or `HTMLLinkElement` in the
- * resulting tree. This is the actual security invariant we care about -
- * "the malicious string round-trips intact in the HTML stream but the
- * browser parses it as text". Substring matching can miss bypasses;
- * parsing the DOM cannot.
+ * resulting tree. That is the security invariant: the malicious string may
+ * round-trip intact in the HTML stream, but the browser must parse it as
+ * text. Substring matching can miss bypasses; parsing the DOM cannot.
  */
 function assertNoExecutableHtml(html: string) {
   const container = document.createElement('div');
@@ -161,10 +160,8 @@ describe('renderChatMessageText - XSS regression suite', () => {
     });
   }
 
-  // ---------------------------------------------------------------------------
   // Additional XSS vectors that didn't appear in the audit but the same
   // pipeline must defend against.
-  // ---------------------------------------------------------------------------
 
   it('neutralizes <script> injection', () => {
     const { renderedText } = renderChatMessageText(
@@ -271,8 +268,8 @@ describe('renderChatMessageText - XSS regression suite', () => {
     // (note: NO leading `<`, no trailing `>` - the user wrapped a partial
     // tag in backticks, hoping the backtick parsing would strip the
     // backticks and the surrounding HTML would close an earlier tag).
-    // Our pipeline parses backticks AFTER escaping, so the embedded `<`
-    // is already `&lt;`. There's no way to break out.
+    // The pipeline parses backticks after escaping, so the embedded `<` is
+    // already `&lt;` and cannot break out.
     const { renderedText } = renderChatMessageText(
       '`style>body{display:block}</style`',
       defaultOptions,
@@ -284,9 +281,8 @@ describe('renderChatMessageText - XSS regression suite', () => {
     // Polyglot designed to exercise the historical DOMPurify mXSS
     // class - the embedded tags get parsed differently depending on
     // whether they're inside an `<svg>` or `<math>` foreign-content
-    // context. Even though we don't allow `<svg>` in the message
-    // allowlist, this guarantees regressions in DOMPurify's escaping
-    // surface here.
+    // context. `<svg>` is not in the message allowlist, but this catches
+    // regressions in DOMPurify's escaping surface.
     const { renderedText } = renderChatMessageText(
       '<svg><style>x</style><img src=x onerror=alert(1)></svg>',
       defaultOptions,

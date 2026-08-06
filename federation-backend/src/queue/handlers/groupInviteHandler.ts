@@ -20,7 +20,7 @@ export async function handleGroupInviteJob(data: {
 
   const { conversation_id, inviter_id, invited_user_id } = data;
 
-  logger.info(`📨 Processing federate-group-invite for conversation ${conversation_id}, invited user ${invited_user_id}`);
+  logger.info(`Processing federate-group-invite for conversation ${conversation_id}, invited user ${invited_user_id}`);
 
   const { data: inviter } = await supabase
     .from('profiles')
@@ -83,7 +83,7 @@ export async function handleGroupInviteJob(data: {
   };
 
   await DeliveryQueue.sendToInbox(invitedUser.inbox_url, activity, inviter_id);
-  logger.info(`✅ Group invite sent to ${invitedUser.inbox_url}`);
+  logger.info(`Group invite sent to ${invitedUser.inbox_url}`);
 }
 
 function escapeHtml(s: string): string {

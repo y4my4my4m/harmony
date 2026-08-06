@@ -3,10 +3,9 @@ import { useRoute } from 'vue-router'
 import { debug } from '@/utils/debug'
 
 const STORAGE_KEY_ACTIVITYPUB_RIGHT_SIDEBAR = 'harmony_activitypub_right_sidebar_open'
-// Server chat (member list) right sidebar is remembered independently from the
-// ActivityPub right sidebar, so collapsing one context doesn't collapse the
-// other - and bouncing through a DM (which has no right sidebar) no longer
-// leaves the chat member list stuck collapsed.
+// Chat (member list) right sidebar persists independently of the ActivityPub
+// right sidebar; collapsing one context leaves the other untouched, and passing
+// through a DM (no right sidebar) does not strand the member list collapsed.
 const STORAGE_KEY_CHAT_RIGHT_SIDEBAR = 'harmony_chat_right_sidebar_open'
 
 // Global layout state
@@ -17,7 +16,7 @@ const profileOpen = ref(false)
 const mobileProfileOpen = ref(false)
 const isMobile = ref(false)
 
-// Mobile drag state for native-feeling gestures
+// Mobile drag gesture state
 const isDragging = ref(false)
 const dragDirection = ref<'left' | 'right' | null>(null)
 const leftSidebarDragOffset = ref(0)
@@ -30,12 +29,10 @@ const rightSidebarWasOpen = ref(false)
 const SIDEBAR_WIDTH = 280
 const SERVER_SIDEBAR_WIDTH = 72
 
-// Mobile detection
-//
-// only mutate sidebar state on *transitions* (desktop⇄mobile) and on
-// first mount. Every keystroke on mobile triggers a `resize` event because the
-// soft keyboard changes viewport height - if we closed sidebars on every call,
-// the DM search input would dismiss its own surrounding sidebar mid-typing.
+// Mobile breakpoint: 768px.
+// Sidebar state is mutated only on desktop<->mobile transitions and first mount.
+// The mobile soft keyboard fires `resize` on every keystroke; closing sidebars
+// on each call would dismiss the sidebar around the DM search input mid-typing.
 let hasInitialized = false
 const checkMobileDevice = () => {
   const wasMobile = isMobile.value
@@ -67,7 +64,6 @@ const checkMobileDevice = () => {
   // Same-mode resize (e.g. mobile keyboard show/hide): leave sidebars alone.
 }
 
-// Resize handler
 const handleResize = () => {
   checkMobileDevice()
 }
@@ -80,9 +76,9 @@ export function useLayoutState() {
     return p.startsWith('/social') || p.startsWith('/posts')
   }
 
-  // DM routes have no right sidebar (no member/details panel). Used to suppress
-  // the right-sidebar toggle/gesture/overlay so the mobile backdrop blur never
-  // appears on a screen that has nothing to reveal.
+  // DM routes have no right sidebar. Suppresses the right-sidebar
+  // toggle/gesture/overlay so the mobile backdrop blur never covers a screen
+  // with nothing to reveal.
   const isDMRoute = (): boolean => route.path.startsWith('/dm')
   const isChatRoute = (): boolean => route.path.startsWith('/chat')
   const hasRightSidebar = computed(() => !isDMRoute())
@@ -103,7 +99,7 @@ export function useLayoutState() {
   const restoreChatRightSidebar = () => {
     if (typeof window === 'undefined' || isMobile.value) return
     const saved = localStorage.getItem(STORAGE_KEY_CHAT_RIGHT_SIDEBAR)
-    // Default to open (member list visible) on first run, matching desktop default.
+    // First run defaults to open (member list visible), matching desktop.
     rightSidebarOpen.value = saved === null ? true : saved === 'true'
   }
 
@@ -129,13 +125,12 @@ export function useLayoutState() {
     }
   })
 
-  // Restore ActivityPub right sidebar when navigating to social/posts
   watch(
     () => route.path,
     (path) => {
-      // DM has no right sidebar - collapse it so the mobile backdrop blur
-      // doesn't linger over a panel-less screen. The chat member-list state is
-      // preserved in localStorage and restored when returning to /chat.
+      // DM has no right sidebar; collapse it so the mobile backdrop blur does
+      // not linger over a panel-less screen. Chat member-list state stays in
+      // localStorage and is restored on return to /chat.
       if (path.startsWith('/dm')) {
         rightSidebarOpen.value = false
         return
@@ -150,14 +145,13 @@ export function useLayoutState() {
     { immediate: true }
   )
 
-  // Persist whichever context's right sidebar was just toggled. Each persist
-  // helper guards on its own route, so the active context is the only one saved.
+  // Each persist helper guards on its own route, so only the active context
+  // is written.
   watch(rightSidebarOpen, () => {
     persistActivityPubRightSidebar()
     persistChatRightSidebar()
   })
 
-  // Restore the active context's right sidebar when resizing from mobile to desktop
   watch(isMobile, (mobile, wasMobile) => {
     if (wasMobile && !mobile) {
       if (isActivityPubRoute()) restoreActivityPubRightSidebar()
@@ -176,8 +170,8 @@ export function useLayoutState() {
   }
 
   const toggleRightSidebar = () => {
-    // No right sidebar exists on DM routes; ignore so we don't strand state
-    // that would trigger the mobile overlay blur.
+    // No right sidebar on DM routes; ignoring avoids stranding state that
+    // would trigger the mobile overlay blur.
     if (!hasRightSidebar.value) return
     if (isMobile.value) {
       leftSidebarOpen.value = false
@@ -190,9 +184,9 @@ export function useLayoutState() {
   }
 
   const toggleMobileProfile = () => {
-    debug.log('🔄 toggleMobileProfile called, current state:', mobileProfileOpen.value)
+    debug.log('toggleMobileProfile called, current state:', mobileProfileOpen.value)
     mobileProfileOpen.value = !mobileProfileOpen.value
-    debug.log('🔄 toggleMobileProfile new state:', mobileProfileOpen.value)
+    debug.log('toggleMobileProfile new state:', mobileProfileOpen.value)
   }
 
   const closeMobileSidebars = () => {
@@ -228,17 +222,13 @@ export function useLayoutState() {
 
   // ===== DRAG GESTURE FUNCTIONS =====
   
-  /**
-   * Start a drag operation for native-feeling sidebar gestures
-   * Tracks initial state to determine if we're opening or closing
-   */
   const startDrag = (direction: 'left' | 'right') => {
     // Right-edge drag would reveal a non-existent right sidebar on DM routes.
     if (direction === 'right' && !hasRightSidebar.value) return
     isDragging.value = true
     dragDirection.value = direction
     
-    // Remember initial state to determine open/close behavior
+    // Initial state decides whether the gesture opens or closes.
     if (direction === 'left') {
       leftSidebarWasOpen.value = leftSidebarOpen.value
       leftSidebarDragOffset.value = leftSidebarOpen.value ? SIDEBAR_WIDTH : 0
@@ -249,64 +239,51 @@ export function useLayoutState() {
       leftSidebarOpen.value = false // Close other sidebar
     }
     
-    debug.log('📱 startDrag:', { 
+    debug.log('startDrag:', { 
       direction, 
       leftWasOpen: leftSidebarWasOpen.value, 
       rightWasOpen: rightSidebarWasOpen.value 
     })
   }
 
-  /**
-   * Update drag offset during touch move
-   * Now properly handles both opening and closing
-   */
   const updateDragOffset = (deltaX: number, direction: 'left' | 'right') => {
     if (!isDragging.value) return
     
     if (direction === 'left') {
-      // Left sidebar: opening = drag right (+deltaX), closing = drag left (-deltaX)
+      // Left sidebar: +deltaX opens, -deltaX closes.
       let newOffset: number
       if (leftSidebarWasOpen.value) {
-        // Was open, so we're potentially closing
-        // deltaX negative = closing, positive = no change (already open)
+        // Started open: offset shrinks as deltaX goes negative.
         newOffset = SIDEBAR_WIDTH + deltaX
       } else {
-        // Was closed, so we're potentially opening
-        // deltaX positive = opening
+        // Started closed: offset grows with positive deltaX.
         newOffset = deltaX
       }
       leftSidebarDragOffset.value = Math.max(0, Math.min(SIDEBAR_WIDTH, newOffset))
     } else {
-      // Right sidebar: opening = drag left (-deltaX), closing = drag right (+deltaX)
+      // Right sidebar: -deltaX opens, +deltaX closes.
       let newOffset: number
       if (rightSidebarWasOpen.value) {
-        // Was open, so we're potentially closing
-        // deltaX positive = closing
+        // Started open: offset shrinks as deltaX goes positive.
         newOffset = SIDEBAR_WIDTH - deltaX
       } else {
-        // Was closed, so we're potentially opening
-        // deltaX negative = opening
+        // Started closed: offset grows with negative deltaX.
         newOffset = -deltaX
       }
       rightSidebarDragOffset.value = Math.max(0, Math.min(SIDEBAR_WIDTH, newOffset))
     }
   }
 
-  /**
-   * End drag operation and determine final state based on current offset
-   * Uses threshold to decide whether to complete or cancel the gesture
-   */
+  // Final state is decided by drag position alone; see endDragWithVelocity for
+  // the flick-aware variant.
   const endDrag = (direction: 'left' | 'right') => {
-    const COMPLETION_THRESHOLD = 0.4 // 40% threshold
+    const COMPLETION_THRESHOLD = 0.4 // fraction of SIDEBAR_WIDTH
     
     if (direction === 'left') {
       const progress = leftSidebarDragOffset.value / SIDEBAR_WIDTH
-      // If we dragged past the threshold, toggle the state
-      // If was closed and progress > threshold → open
-      // If was open and progress < threshold → close
       const shouldBeOpen = progress > COMPLETION_THRESHOLD
       
-      debug.log('📱 endDrag left:', { 
+      debug.log('endDrag left:', { 
         progress, 
         wasOpen: leftSidebarWasOpen.value, 
         shouldBeOpen 
@@ -320,7 +297,7 @@ export function useLayoutState() {
       const progress = rightSidebarDragOffset.value / SIDEBAR_WIDTH
       const shouldBeOpen = progress > COMPLETION_THRESHOLD
       
-      debug.log('📱 endDrag right:', { 
+      debug.log('endDrag right:', { 
         progress, 
         wasOpen: rightSidebarWasOpen.value, 
         shouldBeOpen 
@@ -337,29 +314,24 @@ export function useLayoutState() {
     rightSidebarWasOpen.value = false
   }
 
-  /**
-   * End drag with velocity consideration
-   * @param velocity - The velocity of the swipe (px/ms), positive = right, negative = left
-   * @param direction - Which sidebar was being dragged
-   */
+  // velocity is px/ms; positive = swipe right, negative = swipe left.
   const endDragWithVelocity = (velocity: number, direction: 'left' | 'right') => {
-    const COMPLETION_THRESHOLD = 0.4 // 40% position threshold
-    const VELOCITY_THRESHOLD = 0.3 // px/ms velocity threshold
+    const COMPLETION_THRESHOLD = 0.4 // fraction of SIDEBAR_WIDTH
+    const VELOCITY_THRESHOLD = 0.3 // px/ms
     
     if (direction === 'left') {
       const progress = leftSidebarDragOffset.value / SIDEBAR_WIDTH
       
       let shouldBeOpen: boolean
       if (Math.abs(velocity) > VELOCITY_THRESHOLD) {
-        // Fast swipe - use velocity direction
-        // Positive velocity (swipe right) = open, negative = close
+        // Flick: direction wins over position. Rightward opens the left sidebar.
         shouldBeOpen = velocity > 0
       } else {
-        // Slow drag - use position threshold
+        // Slow drag: position threshold decides.
         shouldBeOpen = progress > COMPLETION_THRESHOLD
       }
       
-      debug.log('📱 endDragWithVelocity left:', { 
+      debug.log('endDragWithVelocity left:', { 
         velocity, 
         progress, 
         wasOpen: leftSidebarWasOpen.value, 
@@ -375,13 +347,13 @@ export function useLayoutState() {
       
       let shouldBeOpen: boolean
       if (Math.abs(velocity) > VELOCITY_THRESHOLD) {
-        // Fast swipe - negative velocity (swipe left) = open right sidebar
+        // Flick: leftward opens the right sidebar.
         shouldBeOpen = velocity < 0
       } else {
         shouldBeOpen = progress > COMPLETION_THRESHOLD
       }
       
-      debug.log('📱 endDragWithVelocity right:', { 
+      debug.log('endDragWithVelocity right:', { 
         velocity, 
         progress, 
         wasOpen: rightSidebarWasOpen.value, 
@@ -399,11 +371,8 @@ export function useLayoutState() {
     rightSidebarWasOpen.value = false
   }
 
-  /**
-   * Cancel drag and restore previous state
-   */
   const cancelDrag = () => {
-    // Restore to initial state
+    // Restore the pre-drag state.
     if (dragDirection.value === 'left') {
       leftSidebarOpen.value = leftSidebarWasOpen.value
     } else if (dragDirection.value === 'right') {
@@ -418,13 +387,11 @@ export function useLayoutState() {
     rightSidebarWasOpen.value = false
   }
 
-  // Computed styles for real-time drag transforms
   const leftSidebarDragStyle = computed(() => {
     if (!isMobile.value) return {}
     
     if (isDragging.value && dragDirection.value === 'left') {
-      // During drag: apply direct transform based on offset
-      // Left sidebar slides from -SIDEBAR_WIDTH (closed) to 0 (open)
+      // Left sidebar translateX: -SIDEBAR_WIDTH closed, 0 open.
       const translateX = leftSidebarDragOffset.value - SIDEBAR_WIDTH
       return {
         transform: `translateX(${translateX}px)`,
@@ -439,8 +406,7 @@ export function useLayoutState() {
     if (!isMobile.value) return {}
     
     if (isDragging.value && dragDirection.value === 'right') {
-      // During drag: apply direct transform based on offset
-      // Right sidebar slides from SIDEBAR_WIDTH (closed) to 0 (open)
+      // Right sidebar translateX: SIDEBAR_WIDTH closed, 0 open.
       const translateX = SIDEBAR_WIDTH - rightSidebarDragOffset.value
       return {
         transform: `translateX(${translateX}px)`,
@@ -451,12 +417,11 @@ export function useLayoutState() {
     return {}
   })
 
-  // Server sidebar (always on left, slides with channel sidebar on mobile)
+  // Server sidebar sits left of the channel sidebar and slides with it on mobile.
   const serverSidebarDragStyle = computed(() => {
     if (!isMobile.value) return {}
     
     if (isDragging.value && dragDirection.value === 'left') {
-      // Server sidebar follows the left sidebar drag
       const translateX = leftSidebarDragOffset.value - SIDEBAR_WIDTH
       return {
         transform: `translateX(${translateX}px)`,
@@ -482,7 +447,7 @@ export function useLayoutState() {
     leftSidebarDragOffset: computed(() => leftSidebarDragOffset.value),
     rightSidebarDragOffset: computed(() => rightSidebarDragOffset.value),
     
-    // Initial state tracking (for components that need it)
+    // Pre-drag state
     leftSidebarWasOpen: computed(() => leftSidebarWasOpen.value),
     rightSidebarWasOpen: computed(() => rightSidebarWasOpen.value),
 

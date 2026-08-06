@@ -38,11 +38,11 @@ router.get(
 
     // A handle can name a user (Person) AND/OR a chat server (Group). They are
     // distinct actor types that may share a localpart, exactly like Lemmy's
-    // users vs communities. WebFinger has no type field in the acct: URI, so we
-    // return one rel="self" link PER matching actor, each tagged with its
-    // ActivityStreams type in `properties`. The requester filters by the type
-    // it wants (Mastodon-style consumers that ignore properties just take the
-    // first link - fine, since collisions are rare and servers aren't @-mentioned).
+    // users vs communities. WebFinger has no type field in the acct: URI, so
+    // the response carries one rel="self" link PER matching actor, each tagged
+    // with its ActivityStreams type in `properties`. The requester filters by
+    // the type it wants; Mastodon-style consumers that ignore properties take
+    // the first link. Collisions are rare and servers aren't @-mentioned.
     const AS_TYPE = 'https://www.w3.org/ns/activitystreams#type';
     const supabase = getSupabaseClient();
 

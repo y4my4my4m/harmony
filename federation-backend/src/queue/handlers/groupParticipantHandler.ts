@@ -19,7 +19,7 @@ export async function handleGroupParticipantChangeJob(data: {
   const domain = config.INSTANCE_DOMAIN;
   const { conversation_id, user_id, change_type } = data;
 
-  logger.info(`👥 Processing federate-group-participant-change: ${change_type} for user ${user_id} in conversation ${conversation_id}`);
+  logger.info(`Processing federate-group-participant-change: ${change_type} for user ${user_id} in conversation ${conversation_id}`);
 
   const { data: leavingUser } = await supabase
     .from('profiles')
@@ -118,7 +118,7 @@ export async function handleGroupParticipantChangeJob(data: {
 
     try {
       await DeliveryQueue.sendToInbox(remoteUser.inbox_url, activity, signingUser.id);
-      logger.info(`📤 Group participant change sent to ${remoteUser.inbox_url}`);
+      logger.info(`Group participant change sent to ${remoteUser.inbox_url}`);
     } catch (error) {
       logger.error(`Failed to send participant change to ${remoteUser.inbox_url}:`, error);
     }

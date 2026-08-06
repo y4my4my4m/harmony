@@ -1,11 +1,6 @@
 /**
- * useLoadingState - Professional loading state management composable
- * 
- * Provides consistent patterns for:
- * - Loading states with error handling
- * - Optimistic UI updates with rollback capability
- * - Toast notifications for service operations
- * - Type-safe service error handling
+ * Loading state, optimistic updates with rollback, and service-error
+ * formatting shared by the composable layer.
  */
 
 import { ref, computed } from 'vue'
@@ -42,12 +37,9 @@ export interface OptimisticUpdateComposable<T> {
   ) => Promise<T | undefined>
 }
 
-/**
- * Professional loading state management
- */
 export function useLoadingState<T>(initialData: T | null = null): LoadingStateComposable<T> {
-  // Vue's ref wraps T into UnwrapRef<T>, but the helpers operate on the raw T.
-  // Cast through any so we can use the standard helpers without fighting UnwrapRef.
+  // Vue's ref wraps T into UnwrapRef<T>; the helpers operate on raw T.
+  // Cast through any to keep the helper signatures usable.
   const state = ref(createLoadingState<T>(initialData)) as any
 
   const isLoading = computed(() => state.value.loading)
@@ -63,7 +55,7 @@ export function useLoadingState<T>(initialData: T | null = null): LoadingStateCo
     } catch (error) {
       const serviceError = formatServiceError(error)
       state.value = setError(state.value, serviceError)
-      debug.error('❌ Operation failed:', serviceError)
+      debug.error('Operation failed:', serviceError)
       throw serviceError
     }
   }
@@ -82,12 +74,8 @@ export function useLoadingState<T>(initialData: T | null = null): LoadingStateCo
   }
 }
 
-/**
- * Professional optimistic updates with rollback
- */
 export function useOptimisticUpdate<T>(initialData: T | null = null): OptimisticUpdateComposable<T> {
-  // Vue ref unwraps T into UnwrapRef<T>; cast through any so we can store T
-  // directly without juggling UnwrapRef in every assignment.
+  // Vue ref unwraps T into UnwrapRef<T>; cast through any to store T directly.
   const optimistic = ref<OptimisticState<T>>({
     data: initialData,
     isOptimistic: false,
@@ -130,31 +118,25 @@ export function useOptimisticUpdate<T>(initialData: T | null = null): Optimistic
     onError?: (error: ServiceError) => void
   ): Promise<T | undefined> => {
     try {
-      // 1. Apply optimistic update
       setOptimistic(optimisticData)
       
-      // 2. Execute actual operation
       const result = await operation()
       
-      // 3. Replace optimistic with real data
       optimistic.value = {
         data: result,
         isOptimistic: false,
         originalData: null
       }
       
-      // 4. Call success handler
       onSuccess?.(result)
       
       return result
     } catch (error) {
-      // 5. Rollback optimistic update on error
       rollback()
       
       const serviceError = formatServiceError(error)
-      debug.error('❌ Optimistic operation failed:', serviceError)
+      debug.error('Optimistic operation failed:', serviceError)
       
-      // 6. Call error handler
       onError?.(serviceError)
       
       throw serviceError
@@ -170,9 +152,6 @@ export function useOptimisticUpdate<T>(initialData: T | null = null): Optimistic
   }
 }
 
-/**
- * Combined loading state + optimistic updates for advanced scenarios
- */
 export function useAdvancedLoadingState<T>(
   initialData: T | null = null
 ): LoadingStateComposable<T> & OptimisticUpdateComposable<T> {
@@ -185,9 +164,6 @@ export function useAdvancedLoadingState<T>(
   }
 }
 
-/**
- * Toast notification helpers for service operations
- */
 export interface ToastComposable {
   showSuccessToast: (message: string, details?: string) => void
   showErrorToast: (error: ServiceError) => void
@@ -195,25 +171,18 @@ export interface ToastComposable {
 }
 
 export function useServiceToasts(): ToastComposable {
-  // Note: This would integrate with your actual toast system
-  // For now, using console logs as placeholder
-  
+  // NOTE: no toast backend is wired up; these log through `debug`.
+
   const showSuccessToast = (message: string, details?: string) => {
-    debug.log('✅ Success:', message, details || '')
-    // TODO: Integrate with actual toast system
-    // toast.success(message, { description: details })
+    debug.log('Success:', message, details || '')
   }
 
   const showErrorToast = (error: ServiceError) => {
-    debug.error('❌ Error:', error.message)
-    // TODO: Integrate with actual toast system
-    // toast.error(error.message, { description: error.details })
+    debug.error('Error:', error.message)
   }
 
   const showLoadingToast = (message: string) => {
-    debug.log('🔄 Loading:', message)
-    // TODO: Integrate with actual toast system
-    // toast.loading(message)
+    debug.log('Loading:', message)
   }
 
   return {
@@ -223,9 +192,6 @@ export function useServiceToasts(): ToastComposable {
   }
 }
 
-/**
- * Utility function to format errors consistently
- */
 function formatServiceError(error: any): ServiceError {
   if (error && typeof error === 'object' && error.code && error.message) {
     return error as ServiceError
@@ -246,28 +212,20 @@ function formatServiceError(error: any): ServiceError {
   }
 }
 
-/**
- * Professional error boundary for service operations
- */
 export function useServiceErrorBoundary() {
   const handleServiceError = (error: any, context: string) => {
     const formattedError = formatServiceError(error)
-    debug.error(`❌ Service error in ${context}:`, formattedError)
+    debug.error(`Service error in ${context}:`, formattedError)
     
-    // TODO: Send to error reporting service
-    // errorReporting.captureException(formattedError, { context })
-    
+    // No external error-reporting sink is attached.
+
     return formattedError
   }
 
   return { handleServiceError }
 }
 
-// Export commonly used patterns for convenience
 export const LoadingPatterns = {
-  /**
-   * Standard pattern for service operations with loading states
-   */
   async executeServiceOperation<T>(
     operation: () => Promise<T>,
     options?: {

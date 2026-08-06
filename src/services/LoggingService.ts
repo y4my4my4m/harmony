@@ -444,7 +444,7 @@ class LoggingService {
       if (!error) {
         this.buffer = this.buffer.filter(e => !entriesToSend.includes(e))
         this.saveBufferToStorage()
-        debug.log(`📊 Flushed ${filtered.length} logs to server`)
+        debug.log(`Flushed ${filtered.length} logs to server`)
       }
     } catch (error) {
       debug.error('Failed to flush logs to server:', error)

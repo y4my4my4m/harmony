@@ -1,11 +1,7 @@
 /**
- * Database Listener - Listens for PostgreSQL NOTIFY events
- * 
- * This is how the federation backend knows when to federate content:
- * 1. User creates post → Supabase
- * 2. Database trigger → NOTIFY 'post_created'
- * 3. This listener receives notification
- * 4. Process and federate
+ * Federation entry point driven by PostgreSQL NOTIFY.
+ *
+ * Insert into Supabase → database trigger → NOTIFY → this listener → federate.
  */
 
 import crypto from 'crypto';
@@ -20,11 +16,8 @@ import { linkPreviewService } from '../services/LinkPreviewService.js';
 import { ActivityProcessor } from '../activitypub/ActivityProcessor.js';
 import { getFullServerBannerUrl, getFullServerIconUrl } from '../utils/urlUtils.js';
 
-/**
- * Start listening to database notifications
- */
 export async function startDatabaseListener(): Promise<void> {
-  logger.info('🔊 Starting database notification listener...');
+  logger.info('Starting database notification listener...');
 
   const supabase = getSupabaseClient();
 
@@ -42,14 +35,14 @@ export async function startDatabaseListener(): Promise<void> {
       async (payload) => {
         const noisyTables = ['timeline_entries', 'notifications', 'ap_activities'];
         if (noisyTables.includes(payload.table)) {
-          logger.debug(`🔔 REALTIME EVENT: ${payload.eventType} on ${payload.table}`, {
+          logger.debug(`REALTIME EVENT: ${payload.eventType} on ${payload.table}`, {
             id: payload.new?.id || payload.old?.id,
             table: payload.table
           });
           return;
         }
         
-        logger.info(`🔔 REALTIME EVENT: ${payload.eventType} on ${payload.table}`, {
+        logger.info(`REALTIME EVENT: ${payload.eventType} on ${payload.table}`, {
           id: payload.new?.id || payload.old?.id,
           table: payload.table
         });
@@ -57,15 +50,13 @@ export async function startDatabaseListener(): Promise<void> {
     );
   }
 
-  // NOTE: Post create/update/delete/pin federation runs exclusively through
-  // BullMQ (`federate-post` job → `postHandler.handlePostJob`). The DB
-  // trigger `trigger_queue_post_federation` queues the job via pg_notify on
-  // every INSERT/UPDATE/soft-delete/pin change, so we don't need a
-  // postgres_changes subscription on `posts` here. The previous CDC-based
-  // path used to handle these events but was unreliable (Supabase Realtime
-  // doesn't fire consistently for every row) and racy against the BullMQ
-  // path - `enrichPostLinkPreviews` and the home-feed realtime push now
-  // both live inside `handlePostJob`.
+  // NOTE: post create/update/delete/pin federation runs only through BullMQ
+  // (`federate-post` job → `postHandler.handlePostJob`). Trigger
+  // `trigger_queue_post_federation` queues the job via pg_notify on every
+  // INSERT/UPDATE/soft-delete/pin change, so `posts` has no postgres_changes
+  // subscription here. Supabase Realtime does not fire for every row, and a
+  // CDC path races BullMQ. `enrichPostLinkPreviews` and the home-feed realtime
+  // push live in `handlePostJob`.
   channel = channel
     .on(
       'postgres_changes',
@@ -77,9 +68,9 @@ export async function startDatabaseListener(): Promise<void> {
       },
       async (payload) => {
         if (config.USE_BULLMQ_QUEUE) {
-          logger.debug('❤️ Post reaction detected - handled by BullMQ:', payload.new.id);
+          logger.debug('Post reaction detected - handled by BullMQ:', payload.new.id);
         } else {
-          logger.info('❤️  New reaction detected:', payload.new.id);
+          logger.info('New reaction detected:', payload.new.id);
           await handleNewReaction(payload.new);
         }
       }
@@ -94,9 +85,9 @@ export async function startDatabaseListener(): Promise<void> {
       },
       async (payload) => {
         if (config.USE_BULLMQ_QUEUE) {
-          logger.debug('⭐ Post favorite detected - handled by BullMQ:', payload.new.id);
+          logger.debug('Post favorite detected - handled by BullMQ:', payload.new.id);
         } else {
-          logger.info('⭐ New favorite/like detected:', payload.new.id);
+          logger.info('New favorite/like detected:', payload.new.id);
           await handleNewReaction(payload.new);
         }
       }
@@ -109,7 +100,7 @@ export async function startDatabaseListener(): Promise<void> {
         table: 'follows',
       },
       async (payload) => {
-        logger.info('👥 New follow detected:', payload.new.id);
+        logger.info('New follow detected:', payload.new.id);
         await handleNewFollow(payload.new);
       }
     )
@@ -121,11 +112,10 @@ export async function startDatabaseListener(): Promise<void> {
         table: 'profiles',
       },
       async (payload) => {
-        logger.info('📝 Profile update detected:', payload.new.id);
+        logger.info('Profile update detected:', payload.new.id);
         await handleProfileUpdate(payload.old, payload.new);
       }
     )
-    // Listen for new blocks
     .on(
       'postgres_changes',
       {
@@ -134,11 +124,10 @@ export async function startDatabaseListener(): Promise<void> {
         table: 'user_blocks',
       },
       async (payload) => {
-        logger.info('🚫 New block detected:', payload.new.id);
+        logger.info('New block detected:', payload.new.id);
         await handleNewBlock(payload.new);
       }
     )
-    // Listen for block removals (unblock)
     .on(
       'postgres_changes',
       {
@@ -147,11 +136,10 @@ export async function startDatabaseListener(): Promise<void> {
         table: 'user_blocks',
       },
       async (payload) => {
-        logger.info('✅ Unblock detected:', payload.old?.id);
+        logger.info('Unblock detected:', payload.old?.id);
         await handleUnblock(payload.old);
       }
     )
-    // Listen for new reports
     .on(
       'postgres_changes',
       {
@@ -160,11 +148,10 @@ export async function startDatabaseListener(): Promise<void> {
         table: 'reports',
       },
       async (payload) => {
-        logger.info('🚩 New report detected:', payload.new.id);
+        logger.info('New report detected:', payload.new.id);
         await handleNewReport(payload.new);
       }
     )
-    // Listen for unfollow events
     .on(
       'postgres_changes',
       {
@@ -173,11 +160,10 @@ export async function startDatabaseListener(): Promise<void> {
         table: 'follows',
       },
       async (payload) => {
-        logger.info('👤 Unfollow detected:', payload.old?.id);
+        logger.info('Unfollow detected:', payload.old?.id);
         await handleUnfollow(payload.old);
       }
     )
-    // Listen for reaction/reblog removals
     .on(
       'postgres_changes',
       {
@@ -186,11 +172,10 @@ export async function startDatabaseListener(): Promise<void> {
         table: 'post_interactions',
       },
       async (payload) => {
-        logger.info('↩️ Interaction removal detected:', payload.old?.id);
+        logger.info('Interaction removal detected:', payload.old?.id);
         await handleInteractionRemoval(payload.old);
       }
     )
-    // Listen for DM messages - federate to remote recipients
     .on(
       'postgres_changes',
       {
@@ -199,34 +184,31 @@ export async function startDatabaseListener(): Promise<void> {
         table: 'messages',
       },
       async (payload) => {
-        // Enrich external link previews asynchronously for all local messages
-        // Skip when BullMQ is enabled - the job handler already calls enrichMessageLinkPreviews
+        // Skipped under BullMQ: the job handler calls enrichMessageLinkPreviews.
         if (!config.USE_BULLMQ_QUEUE && !payload.new.metadata?.federated) {
           enrichMessageLinkPreviews(payload.new).catch(err =>
             logger.warn('Link preview enrichment failed:', err)
           );
         }
 
-        // Handle DM messages (conversation_id set)
-        // When BullMQ is enabled, DMs are handled by the job queue for reliable delivery
+        // conversation_id set: DM.
         if (payload.new.conversation_id && !payload.new.metadata?.federated) {
           if (config.USE_BULLMQ_QUEUE) {
-            logger.debug('💬 DM detected - handled by BullMQ:', payload.new.id);
+            logger.debug('DM detected - handled by BullMQ:', payload.new.id);
           } else {
-            logger.info('💬 DM message detected:', {
+            logger.info('DM message detected:', {
               id: payload.new.id,
               conversation_id: payload.new.conversation_id
             });
             await handleNewDM(payload.new);
           }
         }
-        // Handle channel messages (channel_id set)
-        // When BullMQ is enabled, channel messages are handled by BullMQ for reliability
+        // channel_id set: channel message.
         else if (payload.new.channel_id && !payload.new.metadata?.federated) {
           if (config.USE_BULLMQ_QUEUE) {
-            logger.debug('📨 Channel message detected - handled by BullMQ:', payload.new.id);
+            logger.debug('Channel message detected - handled by BullMQ:', payload.new.id);
           } else {
-            logger.info('📨 Channel message detected:', {
+            logger.info('Channel message detected:', {
               id: payload.new.id,
               channel_id: payload.new.channel_id
             });
@@ -235,7 +217,6 @@ export async function startDatabaseListener(): Promise<void> {
         }
       }
     )
-    // Listen for message updates (edits) - federate to remote
     .on(
       'postgres_changes',
       {
@@ -244,13 +225,12 @@ export async function startDatabaseListener(): Promise<void> {
         table: 'messages',
       },
       async (payload) => {
-        // Only process if content changed
         if (payload.new.channel_id && 
             JSON.stringify(payload.old.content) !== JSON.stringify(payload.new.content)) {
           if (config.USE_BULLMQ_QUEUE) {
-            logger.debug('✏️ Channel message update detected - handled by BullMQ:', payload.new.id);
+            logger.debug('Channel message update detected - handled by BullMQ:', payload.new.id);
           } else {
-            logger.info('✏️ Channel message update detected:', {
+            logger.info('Channel message update detected:', {
               id: payload.new.id,
               channel_id: payload.new.channel_id
             });
@@ -259,7 +239,6 @@ export async function startDatabaseListener(): Promise<void> {
         }
       }
     )
-    // Listen for message deletions - federate to remote
     .on(
       'postgres_changes',
       {
@@ -270,9 +249,9 @@ export async function startDatabaseListener(): Promise<void> {
       async (payload) => {
         if (payload.old.channel_id) {
           if (config.USE_BULLMQ_QUEUE) {
-            logger.debug('🗑️ Channel message deletion detected - handled by BullMQ:', payload.old.id);
+            logger.debug('Channel message deletion detected - handled by BullMQ:', payload.old.id);
           } else {
-            logger.info('🗑️ Channel message deletion detected:', {
+            logger.info('Channel message deletion detected:', {
               id: payload.old.id,
               channel_id: payload.old.channel_id
             });
@@ -281,7 +260,6 @@ export async function startDatabaseListener(): Promise<void> {
         }
       }
     )
-    // Listen for channel creation - federate to remote server members
     .on(
       'postgres_changes',
       {
@@ -290,9 +268,9 @@ export async function startDatabaseListener(): Promise<void> {
         table: 'channels',
       },
       async (payload) => {
-        // Only federate local channels (not remote mirrors)
+        // is_remote rows are mirrors of channels owned elsewhere.
         if (!payload.new.is_remote) {
-          logger.info('📢 Channel created:', {
+          logger.info('Channel created:', {
             id: payload.new.id,
             name: payload.new.name,
             server_id: payload.new.server_id
@@ -301,7 +279,6 @@ export async function startDatabaseListener(): Promise<void> {
         }
       }
     )
-    // Listen for channel updates - federate to remote server members
     .on(
       'postgres_changes',
       {
@@ -310,13 +287,12 @@ export async function startDatabaseListener(): Promise<void> {
         table: 'channels',
       },
       async (payload) => {
-        // Only federate local channels and meaningful changes
         if (!payload.new.is_remote && 
             (payload.old.name !== payload.new.name || 
              payload.old.description !== payload.new.description ||
              payload.old.category !== payload.new.category ||
              payload.old.order !== payload.new.order)) {
-          logger.info('✏️ Channel updated:', {
+          logger.info('Channel updated:', {
             id: payload.new.id,
             name: payload.new.name
           });
@@ -324,7 +300,6 @@ export async function startDatabaseListener(): Promise<void> {
         }
       }
     )
-    // Listen for channel deletion - federate to remote server members
     .on(
       'postgres_changes',
       {
@@ -333,9 +308,8 @@ export async function startDatabaseListener(): Promise<void> {
         table: 'channels',
       },
       async (payload) => {
-        // Only federate local channels
         if (!payload.old.is_remote) {
-          logger.info('🗑️ Channel deleted:', {
+          logger.info('Channel deleted:', {
             id: payload.old.id,
             name: payload.old.name
           });
@@ -343,8 +317,6 @@ export async function startDatabaseListener(): Promise<void> {
         }
       }
     )
-    // Listen for new message reactions (DMs)
-    // When BullMQ is enabled, DM reactions are handled by job queue
     .on(
       'postgres_changes',
       {
@@ -354,14 +326,13 @@ export async function startDatabaseListener(): Promise<void> {
       },
       async (payload) => {
         if (config.USE_BULLMQ_QUEUE) {
-          logger.debug('💬❤️ Message reaction detected - handled by BullMQ:', payload.new.id);
+          logger.debug('Message reaction detected - handled by BullMQ:', payload.new.id);
         } else {
-          logger.info('💬❤️ New message reaction detected:', payload.new.id);
+          logger.info('New message reaction detected:', payload.new.id);
           await handleNewMessageReaction(payload.new);
         }
       }
     )
-    // Listen for message reaction removals (DMs)
     .on(
       'postgres_changes',
       {
@@ -371,14 +342,13 @@ export async function startDatabaseListener(): Promise<void> {
       },
       async (payload) => {
         if (config.USE_BULLMQ_QUEUE) {
-          logger.debug('💬💔 Message reaction removed - handled by BullMQ:', payload.old?.id);
+          logger.debug('Message reaction removed - handled by BullMQ:', payload.old?.id);
         } else {
-          logger.info('💬💔 Message reaction removed:', payload.old?.id);
+          logger.info('Message reaction removed:', payload.old?.id);
           await handleMessageReactionRemoval(payload.old);
         }
       }
     )
-    // Listen for server updates - federate to remote members
     .on(
       'postgres_changes',
       {
@@ -387,7 +357,6 @@ export async function startDatabaseListener(): Promise<void> {
         table: 'servers',
       },
       async (payload) => {
-        // Only federate local servers with federation enabled and meaningful changes
         if (payload.new.is_local_server && 
             payload.new.federation_enabled &&
             (payload.old.name !== payload.new.name || 
@@ -395,7 +364,7 @@ export async function startDatabaseListener(): Promise<void> {
              payload.old.icon !== payload.new.icon ||
              payload.old.banner !== payload.new.banner ||
              payload.old.public !== payload.new.public)) {
-          logger.info('🏠 Server updated:', {
+          logger.info('Server updated:', {
             id: payload.new.id,
             name: payload.new.name,
             changed: {
@@ -411,34 +380,30 @@ export async function startDatabaseListener(): Promise<void> {
       }
     )
     .subscribe((status, err) => {
-      logger.info(`📡 Realtime subscription status: ${status}`);
+      logger.info(`Realtime subscription status: ${status}`);
       
       if (err) {
-        logger.error('❌ Realtime subscription error:', err);
+        logger.error('Realtime subscription error:', err);
       }
       
       if (status === 'SUBSCRIBED') {
-        logger.info('✅ Database listener active - watching for federation events');
+        logger.info('Database listener active - watching for federation events');
       } else if (status === 'CHANNEL_ERROR') {
-        logger.error('❌ Database listener channel error');
+        logger.error('Database listener channel error');
       } else if (status === 'TIMED_OUT') {
-        logger.error('❌ Database listener timed out');
+        logger.error('Database listener timed out');
       } else if (status === 'CLOSED') {
-        logger.warn('⚠️  Database listener closed');
+        logger.warn('Database listener closed');
       }
     });
 
-  logger.info('🎧 Database listener subscribed to federation events');
+  logger.info('Database listener subscribed to federation events');
   
-  // Log channel state after a moment
   setTimeout(() => {
-    logger.info(`📊 Channel state: ${channel.state}`);
+    logger.info(`Channel state: ${channel.state}`);
   }, 2000);
 }
 
-/**
- * Handle new reaction
- */
 async function handleNewReaction(interaction: any): Promise<void> {
   try {
     const supabase = getSupabaseClient();
@@ -450,10 +415,10 @@ async function handleNewReaction(interaction: any): Promise<void> {
       .single();
 
     if (!post || !post.ap_id) {
-      // Note: For local posts, ap_id is set by a trigger AFTER the INSERT.
-      // This realtime listener fires before the trigger runs, so ap_id is null.
-      // The reaction federation is handled by the frontend's FederationActivityService
-      // which inserts into ap_activities, triggering separate federation.
+      // NOTE: for local posts a trigger sets ap_id after the INSERT, and this
+      // listener fires before that trigger, so ap_id is null here. Reaction
+      // federation then comes from the frontend's FederationActivityService,
+      // which inserts into ap_activities.
       logger.debug('Reaction on post without ap_id (likely handled via ap_activities table), skipping realtime handler');
       return;
     }
@@ -487,34 +452,30 @@ async function handleNewReaction(interaction: any): Promise<void> {
       targetDomain,
     );
 
-    logger.info(`🌐 Federating reaction: ${content} on post ${post.id}`);
+    logger.info(`Federating reaction: ${content} on post ${post.id}`);
 
     if (!postAuthor.is_local && postAuthor.inbox_url) {
       const authorUrl = postAuthor.federated_id
         || `https://${postAuthor.domain}/users/${postAuthor.username}`;
       const activity = createLikeActivity(user, post.ap_id, content, emojiData ?? undefined, [authorUrl]);
       await DeliveryQueue.sendToInbox(postAuthor.inbox_url, activity, user.id);
-      logger.info(`✅ Reaction sent to post author ${postAuthor.inbox_url}`);
+      logger.info(`Reaction sent to post author ${postAuthor.inbox_url}`);
     }
 
-    // Broadcast to the post author's remote followers so all instances
-    // that have a copy of the post can display the reaction.
+    // Broadcast so every instance holding a copy of the post shows the reaction.
     const broadcastActivity = createLikeActivity(user, post.ap_id, content, emojiData ?? undefined);
     await DeliveryQueue.broadcastToFollowers(post.author_id, broadcastActivity);
-    logger.info(`✅ Reaction broadcast to post author's remote followers`);
+    logger.info(`Reaction broadcast to post author's remote followers`);
   } catch (error) {
     logger.error('Failed to handle new reaction:', error);
   }
 }
 
-/**
- * Handle new follow
- */
 async function handleNewFollow(follow: any): Promise<void> {
   try {
     const supabase = getSupabaseClient();
 
-    // Get follower (must be local)
+    // Follower must be local.
     const { data: follower } = await supabase
       .from('profiles')
       .select('*')
@@ -537,34 +498,29 @@ async function handleNewFollow(follow: any): Promise<void> {
       return;
     }
 
-    logger.info(`🌐 Federating follow: ${follower.username} → ${following.username}`);
+    logger.info(`Federating follow: ${follower.username} → ${following.username}`);
 
-    // Import inside function to avoid circular dependency
+    // Imported inside the function; module-level import is circular.
     const { createFollowActivity } = await import('./FederationHandlers.js');
     const activity = createFollowActivity(follower, following);
 
     if (following.inbox_url) {
       await DeliveryQueue.sendToInbox(following.inbox_url, activity, follower.id);
-      logger.info(`✅ Follow request queued for delivery to ${following.inbox_url}`);
+      logger.info(`Follow request queued for delivery to ${following.inbox_url}`);
     }
   } catch (error) {
     logger.error('Failed to handle new follow:', error);
   }
 }
 
-/**
- * Handle profile update
- */
 async function handleProfileUpdate(oldProfile: any, newProfile: any): Promise<void> {
   try {
-    // Only federate updates for local users
     if (!newProfile.is_local) {
       logger.debug('Profile update for remote user, skipping');
       return;
     }
 
-    // Check if any federable fields changed
-    // Note: custom_status is now handled by database trigger (trigger_queue_profile_federation)
+    // custom_status is excluded; trigger_queue_profile_federation federates it.
     const fieldsChanged = 
       oldProfile.display_name !== newProfile.display_name ||
       oldProfile.bio !== newProfile.bio ||
@@ -576,7 +532,7 @@ async function handleProfileUpdate(oldProfile: any, newProfile: any): Promise<vo
       return;
     }
 
-    logger.info(`🌐 Federating profile update: ${newProfile.username}`);
+    logger.info(`Federating profile update: ${newProfile.username}`);
     logger.info('Changed fields:', {
       display_name: oldProfile.display_name !== newProfile.display_name ? `"${oldProfile.display_name}" → "${newProfile.display_name}"` : 'no change',
       bio: oldProfile.bio !== newProfile.bio ? 'changed' : 'no change',
@@ -610,18 +566,15 @@ async function handleProfileUpdate(oldProfile: any, newProfile: any): Promise<vo
       imageUrl: activity.object.image?.url,
     });
 
-    // Broadcast to followers
     await DeliveryQueue.broadcastToFollowers(profile.id, activity);
 
-    logger.info(`✅ Profile update for ${profile.username} queued for federation`);
+    logger.info(`Profile update for ${profile.username} queued for federation`);
   } catch (error) {
     logger.error('Failed to handle profile update:', error);
   }
 }
 
-/**
- * Handle unfollow - send Undo Follow activity
- */
+/** Sends Undo Follow. */
 async function handleUnfollow(deletedFollow: any): Promise<void> {
   try {
     if (!deletedFollow) {
@@ -631,7 +584,7 @@ async function handleUnfollow(deletedFollow: any): Promise<void> {
 
     const supabase = getSupabaseClient();
 
-    // Get follower (must be local)
+    // Follower must be local.
     const { data: follower } = await supabase
       .from('profiles')
       .select('*')
@@ -654,23 +607,21 @@ async function handleUnfollow(deletedFollow: any): Promise<void> {
       return;
     }
 
-    logger.info(`🌐 Federating unfollow: ${follower.username} → ${following.username}`);
+    logger.info(`Federating unfollow: ${follower.username} → ${following.username}`);
 
     const { createUndoFollowActivity } = await import('./FederationHandlers.js');
     const activity = createUndoFollowActivity(follower, following, deletedFollow);
 
     if (following.inbox_url) {
       await DeliveryQueue.sendToInbox(following.inbox_url, activity, follower.id);
-      logger.info(`✅ Undo Follow queued for delivery to ${following.inbox_url}`);
+      logger.info(`Undo Follow queued for delivery to ${following.inbox_url}`);
     }
   } catch (error) {
     logger.error('Failed to handle unfollow:', error);
   }
 }
 
-/**
- * Handle interaction removal - send Undo Like for reactions
- */
+/** Sends Undo Like for removed reactions and favorites. */
 async function handleInteractionRemoval(deletedInteraction: any): Promise<void> {
   try {
     if (!deletedInteraction) {
@@ -702,9 +653,8 @@ async function handleInteractionRemoval(deletedInteraction: any): Promise<void> 
       return;
     }
 
-    // Only federate if the post has an ap_id (is federated)
     if (!post.ap_id) {
-      // Same as handleNewReaction - ap_id might not be set yet for local posts
+      // ap_id may be unset for local posts; see handleNewReaction.
       logger.debug('Interaction removal on post without ap_id, skipping realtime handler');
       return;
     }
@@ -715,7 +665,6 @@ async function handleInteractionRemoval(deletedInteraction: any): Promise<void> 
       .eq('id', post.author_id)
       .single();
 
-    // Only need to send if author is remote
     if (!postAuthor || postAuthor.is_local) {
       logger.debug('Post author is local, no federation needed for interaction removal');
       return;
@@ -723,25 +672,23 @@ async function handleInteractionRemoval(deletedInteraction: any): Promise<void> 
 
     if (deletedInteraction.interaction_type === 'emoji_reaction' || 
         deletedInteraction.interaction_type === 'favorite') {
-      logger.info(`🌐 Federating reaction removal on post ${post.id}`);
+      logger.info(`Federating reaction removal on post ${post.id}`);
       
       const { createUndoLikeActivity } = await import('./FederationHandlers.js');
       const activity = createUndoLikeActivity(user, post.ap_id);
 
       if (postAuthor.inbox_url) {
         await DeliveryQueue.sendToInbox(postAuthor.inbox_url, activity, user.id);
-        logger.info(`✅ Undo Like queued for delivery to ${postAuthor.inbox_url}`);
+        logger.info(`Undo Like queued for delivery to ${postAuthor.inbox_url}`);
       }
     }
-    // Note: Reblog removals are handled via post deletion (Undo Announce)
+    // NOTE: reblog removals federate through post deletion as Undo Announce.
   } catch (error) {
     logger.error('Failed to handle interaction removal:', error);
   }
 }
 
-/**
- * Handle pin/unpin changes - send Add/Remove activity
- */
+/** Sends Add/Remove against the author's featured collection. */
 // eslint-disable-next-line unused-imports/no-unused-vars
 async function handlePinChange(post: any, oldPost: any): Promise<void> {
   try {
@@ -776,10 +723,10 @@ async function handlePinChange(post: any, oldPost: any): Promise<void> {
     let activity;
     if (isPinned) {
       activity = createAddToFeaturedActivity(author, fullPost);
-      logger.info(`📌 Federating pin for post ${post.id}`);
+      logger.info(`Federating pin for post ${post.id}`);
     } else if (isUnpinned) {
       activity = createRemoveFromFeaturedActivity(author, fullPost);
-      logger.info(`📌 Federating unpin for post ${post.id}`);
+      logger.info(`Federating unpin for post ${post.id}`);
     } else {
       return;
     }
@@ -795,7 +742,7 @@ async function handlePinChange(post: any, oldPost: any): Promise<void> {
       return;
     }
 
-    // Collect unique inboxes
+    // Shared inbox preferred; deduplicated per instance.
     const inboxes = new Set<string>();
     for (const follow of followers) {
       const follower = follow.follower as any;
@@ -808,15 +755,13 @@ async function handlePinChange(post: any, oldPost: any): Promise<void> {
       [...inboxes].map(inbox => DeliveryQueue.sendToInbox(inbox, activity, author.id))
     );
 
-    logger.info(`📌 Pin change federated to ${inboxes.size} inboxes`);
+    logger.info(`Pin change federated to ${inboxes.size} inboxes`);
   } catch (error) {
     logger.error('Failed to handle pin change:', error);
   }
 }
 
-/**
- * Handle new block - send Block activity
- */
+/** Sends Block to the blocked actor's inbox. */
 async function handleNewBlock(block: any): Promise<void> {
   try {
     const supabase = getSupabaseClient();
@@ -838,7 +783,6 @@ async function handleNewBlock(block: any): Promise<void> {
       return;
     }
 
-    // Only federate if blocked user is remote
     if (blocked.is_local) {
       logger.debug('Blocked user is local, no federation needed');
       return;
@@ -849,16 +793,14 @@ async function handleNewBlock(block: any): Promise<void> {
 
     if (blocked.inbox_url) {
       await DeliveryQueue.sendToInbox(blocked.inbox_url, activity, blocker.id);
-      logger.info(`🚫 Block federated to ${blocked.inbox_url}`);
+      logger.info(`Block federated to ${blocked.inbox_url}`);
     }
   } catch (error) {
     logger.error('Failed to handle new block:', error);
   }
 }
 
-/**
- * Handle unblock - send Undo Block activity
- */
+/** Sends Undo Block. */
 async function handleUnblock(block: any): Promise<void> {
   try {
     if (!block) return;
@@ -881,7 +823,6 @@ async function handleUnblock(block: any): Promise<void> {
       return;
     }
 
-    // Only federate if blocked user is remote
     if (blocked.is_local) {
       return;
     }
@@ -891,19 +832,16 @@ async function handleUnblock(block: any): Promise<void> {
 
     if (blocked.inbox_url) {
       await DeliveryQueue.sendToInbox(blocked.inbox_url, activity, blocker.id);
-      logger.info(`✅ Unblock federated to ${blocked.inbox_url}`);
+      logger.info(`Unblock federated to ${blocked.inbox_url}`);
     }
   } catch (error) {
     logger.error('Failed to handle unblock:', error);
   }
 }
 
-/**
- * Handle new report - send Flag activity to remote instance
- */
+/** Sends Flag to the reported user's instance inbox. */
 async function handleNewReport(report: any): Promise<void> {
   try {
-    // Skip if this report came from federation (source === 'federation')
     if (report.source === 'federation') {
       logger.debug('Report is from federation, not re-federating');
       return;
@@ -931,7 +869,6 @@ async function handleNewReport(report: any): Promise<void> {
       return;
     }
 
-    // Only federate if reported user is remote
     if (reportedUser.is_local) {
       logger.debug('Reported user is local, no federation needed');
       return;
@@ -954,19 +891,15 @@ async function handleNewReport(report: any): Promise<void> {
     const instanceInbox = `https://${instanceDomain}/inbox`;
 
     await DeliveryQueue.sendToInbox(instanceInbox, activity, reporter.id);
-    logger.info(`🚩 Report federated to ${instanceInbox}`);
+    logger.info(`Report federated to ${instanceInbox}`);
   } catch (error) {
     logger.error('Failed to handle new report:', error);
   }
 }
 
-// =============================================================================
 // CHANNEL CRUD FEDERATION HANDLERS
-// =============================================================================
 
-/**
- * Handle channel creation - federate to remote server members
- */
+/** Sends Add to instances hosting remote members of the server. */
 export async function handleChannelCreated(channel: any): Promise<void> {
   try {
     const supabase = getSupabaseClient();
@@ -983,7 +916,7 @@ export async function handleChannelCreated(channel: any): Promise<void> {
     }
     
     if (!server.owner) {
-      logger.warn(`⚠️ Server ${server.id} has no owner - cannot federate channel creation`);
+      logger.warn(`Server ${server.id} has no owner - cannot federate channel creation`);
       return;
     }
     
@@ -1018,22 +951,20 @@ export async function handleChannelCreated(channel: any): Promise<void> {
       published: new Date().toISOString(),
     };
     
-    // Send to remote instances (use server.owner as sender for HTTP signature)
+    // server.owner is the signing key holder for the HTTP signature.
     const { DeliveryQueue } = await import('../activitypub/DeliveryQueue.js');
     for (const group of remoteMemberGroups) {
       const inbox = group.shared_inbox || `https://${group.instance}/inbox`;
       await DeliveryQueue.enqueue(activity, inbox, server.owner);
     }
     
-    logger.info(`📢 Channel creation federated to ${remoteMemberGroups.length} instances`);
+    logger.info(`Channel creation federated to ${remoteMemberGroups.length} instances`);
   } catch (error) {
     logger.error('Failed to federate channel creation:', error);
   }
 }
 
-/**
- * Handle channel update - federate to remote server members
- */
+/** Sends Update to instances hosting remote members of the server. */
 export async function handleChannelUpdated(channel: any, _oldChannel: any): Promise<void> {
   try {
     const supabase = getSupabaseClient();
@@ -1050,7 +981,7 @@ export async function handleChannelUpdated(channel: any, _oldChannel: any): Prom
     }
     
     if (!server.owner) {
-      logger.warn(`⚠️ Server ${server.id} has no owner - cannot federate channel update`);
+      logger.warn(`Server ${server.id} has no owner - cannot federate channel update`);
       return;
     }
     
@@ -1082,22 +1013,20 @@ export async function handleChannelUpdated(channel: any, _oldChannel: any): Prom
       published: new Date().toISOString(),
     };
     
-    // Send to remote instances (use server.owner as sender for HTTP signature)
+    // server.owner is the signing key holder for the HTTP signature.
     const { DeliveryQueue } = await import('../activitypub/DeliveryQueue.js');
     for (const group of remoteMemberGroups) {
       const inbox = group.shared_inbox || `https://${group.instance}/inbox`;
       await DeliveryQueue.enqueue(activity, inbox, server.owner);
     }
     
-    logger.info(`✏️ Channel update federated to ${remoteMemberGroups.length} instances`);
+    logger.info(`Channel update federated to ${remoteMemberGroups.length} instances`);
   } catch (error) {
     logger.error('Failed to federate channel update:', error);
   }
 }
 
-/**
- * Handle channel deletion - federate to remote server members
- */
+/** Sends Remove to instances hosting remote members of the server. */
 export async function handleChannelDeleted(channel: any): Promise<void> {
   try {
     const supabase = getSupabaseClient();
@@ -1114,7 +1043,7 @@ export async function handleChannelDeleted(channel: any): Promise<void> {
     }
     
     if (!server.owner) {
-      logger.warn(`⚠️ Server ${server.id} has no owner - cannot federate channel deletion`);
+      logger.warn(`Server ${server.id} has no owner - cannot federate channel deletion`);
       return;
     }
     
@@ -1139,22 +1068,20 @@ export async function handleChannelDeleted(channel: any): Promise<void> {
       published: new Date().toISOString(),
     };
     
-    // Send to remote instances (use server.owner as sender for HTTP signature)
+    // server.owner is the signing key holder for the HTTP signature.
     const { DeliveryQueue } = await import('../activitypub/DeliveryQueue.js');
     for (const group of remoteMemberGroups) {
       const inbox = group.shared_inbox || `https://${group.instance}/inbox`;
       await DeliveryQueue.enqueue(activity, inbox, server.owner);
     }
     
-    logger.info(`🗑️ Channel deletion federated to ${remoteMemberGroups.length} instances`);
+    logger.info(`Channel deletion federated to ${remoteMemberGroups.length} instances`);
   } catch (error) {
     logger.error('Failed to federate channel deletion:', error);
   }
 }
 
-/**
- * Handle server update - federate to remote members
- */
+/** Sends Update for the server Group object to remote member instances. */
 export async function handleServerUpdated(server: any, _oldServer: any): Promise<void> {
   try {
     // eslint-disable-next-line unused-imports/no-unused-vars
@@ -1162,7 +1089,7 @@ export async function handleServerUpdated(server: any, _oldServer: any): Promise
     const hostDomain = config.INSTANCE_DOMAIN;
     
     if (!server.owner) {
-      logger.warn(`⚠️ Server ${server.id} has no owner - cannot federate server update`);
+      logger.warn(`Server ${server.id} has no owner - cannot federate server update`);
       return;
     }
     
@@ -1199,27 +1126,24 @@ export async function handleServerUpdated(server: any, _oldServer: any): Promise
       published: new Date().toISOString(),
     };
     
-    // Send to remote instances (use server.owner as sender for HTTP signature)
+    // server.owner is the signing key holder for the HTTP signature.
     const { DeliveryQueue } = await import('../activitypub/DeliveryQueue.js');
     for (const group of remoteMemberGroups) {
       const inbox = group.shared_inbox || `https://${group.instance}/inbox`;
       await DeliveryQueue.enqueue(activity, inbox, server.owner);
     }
     
-    logger.info(`🏠 Server update federated to ${remoteMemberGroups.length} instances`);
+    logger.info(`Server update federated to ${remoteMemberGroups.length} instances`);
   } catch (error) {
     logger.error('Failed to federate server update:', error);
   }
 }
 
-/**
- * Get remote member groups for a server (helper function)
- */
+/** Members of a server grouped by remote instance, excluding this host. */
 async function getRemoteMemberGroups(serverId: string): Promise<any[]> {
   const supabase = getSupabaseClient();
   const hostDomain = config.INSTANCE_DOMAIN;
 
-  // Try the RPC function first
   const { data: memberGroups, error: rpcError } = await supabase
     .rpc('get_server_members_by_instance', { p_server_id: serverId });
 
@@ -1229,7 +1153,7 @@ async function getRemoteMemberGroups(serverId: string): Promise<any[]> {
     );
   }
 
-  // Fallback: manual query
+  // Fallback when the RPC is unavailable or errors.
   const { data: members } = await supabase
     .from('user_servers')
     .select(`
@@ -1244,7 +1168,6 @@ async function getRemoteMemberGroups(serverId: string): Promise<any[]> {
     return [];
   }
 
-  // Group by instance
   const instanceMap = new Map<string, any>();
 
   for (const member of members) {
@@ -1271,13 +1194,9 @@ async function getRemoteMemberGroups(serverId: string): Promise<any[]> {
   return Array.from(instanceMap.values());
 }
 
-// =============================================================================
 // CHANNEL MESSAGE FEDERATION HANDLERS
-// =============================================================================
 
-/**
- * Handle new channel message - federate to remote server members
- */
+/** Delegates to ChannelMessageHandler.handleChannelMessageFederation. */
 export async function handleNewChannelMessage(message: any): Promise<void> {
   try {
     const supabase = getSupabaseClient();
@@ -1306,9 +1225,7 @@ export async function handleNewChannelMessage(message: any): Promise<void> {
   }
 }
 
-/**
- * Handle channel message update - federate edit to remote server members
- */
+/** Delegates to ChannelMessageHandler.handleChannelMessageUpdate. */
 async function handleChannelMessageUpdate(message: any): Promise<void> {
   try {
     const supabase = getSupabaseClient();
@@ -1334,9 +1251,7 @@ async function handleChannelMessageUpdate(message: any): Promise<void> {
   }
 }
 
-/**
- * Handle channel message deletion - federate delete to remote server members
- */
+/** Delegates to ChannelMessageHandler.handleChannelMessageDelete. */
 async function handleChannelMessageDeletion(message: any): Promise<void> {
   try {
     const supabase = getSupabaseClient();
@@ -1363,13 +1278,11 @@ async function handleChannelMessageDeletion(message: any): Promise<void> {
   }
 }
 
-// =============================================================================
 // DM MESSAGE FEDERATION HANDLERS
-// =============================================================================
 
 /**
- * Handle new DM messages - federate to remote recipients
- * This replaces the database trigger handle_outgoing_messages for DMs
+ * Federates a DM to remote recipients.
+ * Replaces the database trigger handle_outgoing_messages for DMs.
  */
 export async function handleNewDM(message: any): Promise<void> {
   try {
@@ -1391,7 +1304,6 @@ export async function handleNewDM(message: any): Promise<void> {
       return;
     }
     
-    // Only federate messages from local users
     if (!sender.is_local) {
       logger.debug('Skipping federation for message from remote user');
       return;
@@ -1431,7 +1343,7 @@ export async function handleNewDM(message: any): Promise<void> {
       profiles?.map(p => ({ username: p.username, domain: p.domain, is_local: p.is_local }))
     );
     
-    // Filter to only remote users (federated users have is_local = false and a domain)
+    // Federated users carry is_local = false and a domain.
     const remoteUsers = (profiles || []).filter(
       (p: any) => p.is_local === false && p.domain
     );
@@ -1441,7 +1353,7 @@ export async function handleNewDM(message: any): Promise<void> {
       return;
     }
     
-    logger.info(`📮 Federating DM to ${remoteUsers.length} remote recipient(s):`, 
+    logger.info(`Federating DM to ${remoteUsers.length} remote recipient(s):`, 
       remoteUsers.map((p: any) => `${p.username}@${p.domain}`)
     );
     
@@ -1459,14 +1371,14 @@ export async function handleNewDM(message: any): Promise<void> {
     const attachments = extractAttachments(message.content);
     const baseTags = extractActivityPubTags(message.content);
 
-    // Include ALL participants (local + remote) in to: so receiver can reconstruct the group
+    // to: carries every participant so the receiver can rebuild the group.
     const allParticipantProfiles = profiles || [];
     const recipientUrls = remoteUsers.map((p: any) => 
       p.federated_id || `https://${p.domain}/users/${p.username}`
     );
-    // For group conversations, also include local participants (except sender) so the
-    // receiver knows the full participant list (they appear as non-resolvable URLs, which
-    // is fine - the receiver just counts them to decide group vs direct)
+    // Group conversations also list local participants except the sender. Their
+    // URLs are not resolvable remotely; the receiver counts them to decide
+    // group versus direct.
     const localParticipantUrls = conversationType === 'group'
       ? allParticipantProfiles
           .filter((p: any) => p.is_local && p.id !== sender.id)
@@ -1479,9 +1391,8 @@ export async function handleNewDM(message: any): Promise<void> {
       name: `@${p.username}@${p.domain}`
     }));
     
-    // Check if the conversation has an established remote conversation tag
-    // (from the first incoming federated message). Use it so Mastodon groups
-    // all messages into the same thread.
+    // Reuse the conversation tag from the first incoming federated message;
+    // Mastodon threads by this tag.
     let conversationTag = `tag:${domain},${new Date(message.created_at).getFullYear()}:conversation-${message.conversation_id}`;
     const { data: existingConvMsg } = await supabase
       .from('messages')
@@ -1515,9 +1426,9 @@ export async function handleNewDM(message: any): Promise<void> {
       note['harmony:conversationType'] = 'group';
       note['harmony:conversationId'] = message.conversation_id;
 
-      // Thread group messages using linear chain: set inReplyTo to the most
-      // recent message in the conversation (preferring remote AP IDs that
-      // Mastodon can resolve, falling back to our own message URLs).
+      // Linear chain: inReplyTo points at the most recent message in the
+      // conversation, preferring a remote AP ID Mastodon can resolve over a
+      // local message URL.
       const { data: prevMsg } = await supabase
         .from('messages')
         .select('id, metadata')
@@ -1544,8 +1455,8 @@ export async function handleNewDM(message: any): Promise<void> {
       cc: []
     };
     
-    // Store conversation tag and ap_id on the message metadata so future
-    // messages can reference it and the GET /messages/:id endpoint can serve it
+    // Later messages read the conversation tag back from metadata, and
+    // GET /messages/:id serves ap_id from it.
     const updatedMetadata = {
       ...(message.metadata || {}),
       ap_id: messageUrl,
@@ -1570,17 +1481,14 @@ export async function handleNewDM(message: any): Promise<void> {
         inboxUrl = instance?.shared_inbox_url || `https://${profile.domain}/inbox`;
       }
       await DeliveryQueue.enqueue(activity, inboxUrl, sender.id);
-      logger.info(`✅ DM federated to ${profile.username}@${profile.domain}`);
+      logger.info(`DM federated to ${profile.username}@${profile.domain}`);
     }
   } catch (error) {
     logger.error('Error handling DM federation:', error);
   }
 }
 
-/**
- * Handle new message reaction (DM reaction federation)
- * When a local user reacts to a DM, federate the Like activity to all remote participants
- */
+/** Sends Like for a DM reaction to every remote participant. */
 export async function handleNewMessageReaction(reaction: any): Promise<void> {
   try {
     const supabase = getSupabaseClient();
@@ -1644,8 +1552,7 @@ export async function handleNewMessageReaction(reaction: any): Promise<void> {
       reaction.custom_emoji_content,
     );
 
-    // Use the original ap_id if the message came from a remote instance,
-    // otherwise use our local URL
+    // Remote-origin messages keep their original ap_id as the Like object.
     const objectUrl = message.metadata?.ap_id
       || `https://${domain}/messages/${message.id}`;
 
@@ -1659,7 +1566,7 @@ export async function handleNewMessageReaction(reaction: any): Promise<void> {
     await Promise.allSettled(
       remoteParticipants.map((participant: any) => {
         const inboxUrl = participant.inbox_url || `https://${participant.domain}/inbox`;
-        logger.info(`🌐 Federating message reaction: ${emojiContent} (emoji_id: ${reaction.emoji_id}) to ${participant.username}@${participant.domain}`);
+        logger.info(`Federating message reaction: ${emojiContent} (emoji_id: ${reaction.emoji_id}) to ${participant.username}@${participant.domain}`);
         return DeliveryQueue.sendToInbox(inboxUrl, activity, user.id);
       })
     );
@@ -1668,10 +1575,7 @@ export async function handleNewMessageReaction(reaction: any): Promise<void> {
   }
 }
 
-/**
- * Handle message reaction removal (Undo Like for DMs)
- * When a local user removes a reaction from a DM, federate Undo Like to all remote participants
- */
+/** Sends Undo Like for a removed DM reaction to every remote participant. */
 export async function handleMessageReactionRemoval(deletedReaction: any): Promise<void> {
   try {
     if (!deletedReaction) {
@@ -1738,7 +1642,7 @@ export async function handleMessageReactionRemoval(deletedReaction: any): Promis
     await Promise.allSettled(
       remoteParticipants.map((participant: any) => {
         const inboxUrl = participant.inbox_url || `https://${participant.domain}/inbox`;
-        logger.info(`🌐 Federating message reaction removal to ${participant.username}@${participant.domain}`);
+        logger.info(`Federating message reaction removal to ${participant.username}@${participant.domain}`);
         return DeliveryQueue.sendToInbox(inboxUrl, activity, user.id);
       })
     );
@@ -1747,17 +1651,15 @@ export async function handleMessageReactionRemoval(deletedReaction: any): Promis
   }
 }
 
-// =============================================================================
 // LINK PREVIEW ENRICHMENT
-// =============================================================================
 
 /**
- * Detect external URLs in a message and fetch previews via LinkPreviewService.
- * Local Harmony post URLs are already handled by the DB trigger (process_local_link_previews).
- * This handles everything else: YouTube, Spotify, Reddit, generic external URLs.
+ * Fetches previews for external URLs in a message via LinkPreviewService.
+ * Local Harmony post URLs are covered by the DB trigger
+ * process_local_link_previews; everything else lands here.
  *
- * Called from BullMQ job handlers (channelMessageHandler, dmHandler) for reliability,
- * since Supabase Realtime may not fire consistently for all message INSERTs.
+ * Called from the BullMQ job handlers (channelMessageHandler, dmHandler);
+ * Supabase Realtime does not fire for every message INSERT.
  */
 export async function enrichMessageLinkPreviews(message: any): Promise<void> {
   const content = message.content;
@@ -1798,7 +1700,7 @@ export async function enrichMessageLinkPreviews(message: any): Promise<void> {
           const imported = await ActivityProcessor.fetchAndCreateRemotePost(preview.fediverse.postUrl);
           if (imported) {
             preview.localPostId = imported.id;
-            logger.info(`📥 Auto-imported fediverse post ${preview.fediverse.postUrl} → ${imported.id}`);
+            logger.info(`Auto-imported fediverse post ${preview.fediverse.postUrl} → ${imported.id}`);
           }
         } catch (importErr) {
           logger.debug(`Could not auto-import fediverse post ${url}:`, importErr);
@@ -1826,23 +1728,22 @@ export async function enrichMessageLinkPreviews(message: any): Promise<void> {
   if (error) {
     logger.warn(`Failed to write embeds for message ${message.id}:`, error);
   } else {
-    logger.info(`🔗 Enriched message ${message.id} with ${Object.keys(newEmbeds).length} link preview(s)`);
+    logger.info(`Enriched message ${message.id} with ${Object.keys(newEmbeds).length} link preview(s)`);
   }
 }
 
 /**
- * Detect external URLs in a post's content and fetch previews via LinkPreviewService.
- * Same shape as enrichMessageLinkPreviews but for the posts table.
+ * enrichMessageLinkPreviews against the posts table.
  *
- * Called from:
- *   - postHandler.handlePostJob (BullMQ create/update branches) - the
- *     primary runtime path; reliable retries via BullMQ.
- *   - ActivityProcessor (federated/refetched remote posts).
- *   - federation-backend/backfill-posts.ts (--link-previews-only manual run).
+ * Callers:
+ *   - postHandler.handlePostJob (BullMQ create/update branches), the primary
+ *     runtime path, with retries.
+ *   - ActivityProcessor, for federated and refetched remote posts.
+ *   - federation-backend/backfill-posts.ts (--link-previews-only).
  *
- * Idempotent: the `existingEmbeds[part.url]` filter below makes a re-run on
- * an unchanged URL set a cheap no-op, which is why the update branch can
- * call this unconditionally without checking what actually changed.
+ * Idempotent: the `existingEmbeds[part.url]` filter reduces a re-run over an
+ * unchanged URL set to a no-op, so the update branch calls this
+ * unconditionally.
  */
 export async function enrichPostLinkPreviews(post: any): Promise<boolean> {
   const content = post.content;
@@ -1901,9 +1802,9 @@ export async function enrichPostLinkPreviews(post: any): Promise<boolean> {
     return false;
   }
 
-  logger.info(`🔗 Enriched post ${post.id} with ${Object.keys(newEmbeds).length} link preview(s)`);
+  logger.info(`Enriched post ${post.id} with ${Object.keys(newEmbeds).length} link preview(s)`);
   return true;
 }
 
-// Content conversion functions are now in utils/contentUtils.ts
-// Used by: DMs, Channel Messages, Posts - ensuring consistent federation output
+// Content conversion lives in utils/contentUtils.ts, shared by DMs, channel
+// messages and posts so federated output stays identical across them.

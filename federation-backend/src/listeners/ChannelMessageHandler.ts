@@ -1,9 +1,8 @@
 /**
  * ChannelMessageHandler - Federate server channel messages
  * 
- * Handles federation of messages in Discord-like server channels
- * with smart local-first optimization.
- * 
+ * Federates messages in Discord-like server channels, local-first.
+ *
  * Supports:
  * - Create: New messages
  * - Update: Message edits
@@ -18,9 +17,7 @@ import { convertContentToHTML, extractActivityPubTags, extractAttachments } from
 import { harmonyVoiceMessageExtension } from '../utils/voiceMessageFederation.js';
 import { getRemoteMemberGroups, type RemoteMemberGroup } from '../utils/federationUtils.js';
 
-// =============================================================================
 // TYPES
-// =============================================================================
 
 interface ChannelMessagePayload {
   message_id: string;
@@ -43,9 +40,7 @@ interface ChannelMessageDeletePayload {
   ap_id?: string;
 }
 
-// =============================================================================
 // CREATE MESSAGE HANDLER
-// =============================================================================
 
 /**
  * Handle channel message federation (Create)
@@ -58,7 +53,7 @@ export async function handleChannelMessageFederation(
     const { message_id, channel_id, server_id, channel_name } = payload;
     const supabase = getSupabaseClient();
 
-    logger.info(`📨 Federating channel message ${message_id} in #${channel_name}`);
+    logger.info(`Federating channel message ${message_id} in #${channel_name}`);
 
     const { data: message, error: messageError } = await supabase
       .from('messages')
@@ -103,10 +98,9 @@ export async function handleChannelMessageFederation(
       return;
     }
 
-    // CASE 1: User is sending message to a REMOTE server
-    // We need to forward the message to the remote server's inbox
+    // CASE 1: message addressed to a REMOTE server - forward to its inbox
     if (server.is_local_server === false && server.federation_inbox_url) {
-      logger.info(`📤 User sending message to REMOTE server: ${server.name}`);
+      logger.info(`User sending message to REMOTE server: ${server.name}`);
       
       const { data: author } = await supabase
         .from('profiles')
@@ -149,7 +143,7 @@ export async function handleChannelMessageFederation(
       })
       .eq('id', message_id);
 
-      logger.info(`🎉 Message sent to remote server inbox: ${server.federation_inbox_url}`);
+      logger.info(`Message sent to remote server inbox: ${server.federation_inbox_url}`);
       return;
     }
 
@@ -182,7 +176,7 @@ export async function handleChannelMessageFederation(
       return;
     }
 
-    logger.info(`📊 Server has members on ${remoteMemberGroups.length} remote instances`);
+    logger.info(`Server has members on ${remoteMemberGroups.length} remote instances`);
 
     // Ensure author exists for federation
     if (!message.author?.id) {
@@ -214,15 +208,13 @@ export async function handleChannelMessageFederation(
       })
       .eq('id', message_id);
 
-    logger.info(`🎉 Channel message federation complete: ${remoteMemberGroups.length} deliveries queued`);
+    logger.info(`Channel message federation complete: ${remoteMemberGroups.length} deliveries queued`);
   } catch (error) {
     logger.error('Error handling channel message federation:', error);
   }
 }
 
-// =============================================================================
 // UPDATE MESSAGE HANDLER
-// =============================================================================
 
 /**
  * Handle channel message update federation
@@ -234,7 +226,7 @@ export async function handleChannelMessageUpdate(
     const { message_id, channel_id, server_id } = payload;
     const supabase = getSupabaseClient();
 
-    logger.info(`✏️ Federating message update ${message_id}`);
+    logger.info(`Federating message update ${message_id}`);
 
     const { data: message, error: messageError } = await supabase
       .from('messages')
@@ -279,7 +271,7 @@ export async function handleChannelMessageUpdate(
 
     // CASE 1: Non-local server - forward edit to the remote server's inbox
     if (server.is_local_server === false && server.federation_inbox_url) {
-      logger.info(`📤 Forwarding message edit to remote server: ${server.name}`);
+      logger.info(`Forwarding message edit to remote server: ${server.name}`);
 
       const activity = createMessageActivity(
         message, server, channel_id,
@@ -290,7 +282,7 @@ export async function handleChannelMessageUpdate(
         activity, server.federation_inbox_url, message.author.id, 5
       );
 
-      logger.info(`✏️ Message edit forwarded to ${server.federation_inbox_url}`);
+      logger.info(`Message edit forwarded to ${server.federation_inbox_url}`);
       return;
     }
 
@@ -312,15 +304,13 @@ export async function handleChannelMessageUpdate(
 
     await deliverToRemoteInstances(remoteMemberGroups, activity, message.author.id);
 
-    logger.info(`✏️ Message update federated to ${remoteMemberGroups.length} instances`);
+    logger.info(`Message update federated to ${remoteMemberGroups.length} instances`);
   } catch (error) {
     logger.error('Error handling channel message update federation:', error);
   }
 }
 
-// =============================================================================
 // DELETE MESSAGE HANDLER
-// =============================================================================
 
 /**
  * Handle channel message deletion federation
@@ -332,7 +322,7 @@ export async function handleChannelMessageDelete(
     const { message_id, server_id, ap_id } = payload;
     const supabase = getSupabaseClient();
 
-    logger.info(`🗑️ Federating message deletion ${message_id}`);
+    logger.info(`Federating message deletion ${message_id}`);
 
     const { data: server } = await supabase
       .from('servers')
@@ -362,13 +352,13 @@ export async function handleChannelMessageDelete(
 
     // CASE 1: Non-local server - forward delete to the remote server's inbox
     if (server.is_local_server === false && server.federation_inbox_url) {
-      logger.info(`📤 Forwarding message delete to remote server: ${server.name}`);
+      logger.info(`Forwarding message delete to remote server: ${server.name}`);
 
       await DeliveryQueue.enqueue(
         activity, server.federation_inbox_url, server.owner, 5
       );
 
-      logger.info(`🗑️ Message delete forwarded to ${server.federation_inbox_url}`);
+      logger.info(`Message delete forwarded to ${server.federation_inbox_url}`);
       return;
     }
 
@@ -385,15 +375,13 @@ export async function handleChannelMessageDelete(
 
     await deliverToRemoteInstances(remoteMemberGroups, activity, server.owner);
 
-    logger.info(`🗑️ Message deletion federated to ${remoteMemberGroups.length} instances`);
+    logger.info(`Message deletion federated to ${remoteMemberGroups.length} instances`);
   } catch (error) {
     logger.error('Error handling channel message deletion federation:', error);
   }
 }
 
-// =============================================================================
 // HELPER FUNCTIONS
-// =============================================================================
 
 /**
  * Create ActivityPub activity for a message
@@ -542,6 +530,6 @@ async function deliverToRemoteInstances(
 
     await DeliveryQueue.enqueue(activityWithRecipients, inbox, senderId);
 
-    logger.info(`✅ Queued delivery to ${group.instance} for ${group.member_count} members`);
+    logger.info(`Queued delivery to ${group.instance} for ${group.member_count} members`);
   }
 }

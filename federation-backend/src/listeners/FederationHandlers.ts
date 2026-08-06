@@ -32,7 +32,7 @@ export async function createPostActivity(post: any, author: any): Promise<any> {
       .single();
     
     quoteUrl = quotedPost?.ap_id || `https://${domain}/posts/${post.metadata.reblog_of}`;
-    logger.info(`📝 Creating quote post with quoteUrl: ${quoteUrl}`);
+    logger.info(`Creating quote post with quoteUrl: ${quoteUrl}`);
   }
 
   const note = postToNote(post, author, quoteUrl);

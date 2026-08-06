@@ -41,7 +41,7 @@ function base64ToArrayBuffer(base64) {
 
 async function runTest() {
   try {
-    console.log('🔑 Generating keys...')
+    console.log('Generating keys...')
     
     // 1. Generate keys (Sender & Recipient)
     const recipientIdentity = await KeyHelper.generateIdentityKeyPair()
@@ -65,7 +65,7 @@ async function runTest() {
       }
     }
     
-    console.log('📦 Database bundle created (base64 strings)')
+    console.log('Database bundle created (base64 strings)')
 
     // 3. Setup Sender Storage
     const senderStore = new InMemoryStorage()
@@ -88,16 +88,16 @@ async function runTest() {
       }
     }
 
-    console.log('🔄 Bundle transformed back to ArrayBuffers')
+    console.log('Bundle transformed back to ArrayBuffers')
 
     // 5. Process Bundle (Establish Session)
     const recipientAddress = new SignalProtocolAddress("recipient", 1)
     const builder = new SessionBuilder(senderStore, recipientAddress)
     
-    console.log('🤝 Processing prekey bundle...')
+    console.log('Processing prekey bundle...')
     await builder.processPreKey(transformedBundle)
     
-    console.log('✅ Session established successfully!')
+    console.log('Session established successfully!')
     
     // 6. Test Encryption
     const cipher = new SessionCipher(senderStore, recipientAddress)
@@ -110,7 +110,7 @@ async function runTest() {
     console.log('Message encrypted successfully')
     
   } catch (error) {
-    console.error('❌ Test Failed:', error)
+    console.error('Test Failed:', error)
     process.exit(1)
   }
 }

@@ -104,7 +104,7 @@ class PerformanceMonitor {
     });
 
     if (durationMs > 1000) {
-      logger.warn(`⚠️ Slow request: ${method} ${path} took ${durationMs}ms`);
+      logger.warn(`Slow request: ${method} ${path} took ${durationMs}ms`);
     }
   }
 
@@ -151,7 +151,7 @@ class PerformanceMonitor {
         p_request_id: options.requestId || null,
       });
 
-      logger.warn(`🐌 Slow query recorded: ${options.operationType || 'unknown'} on ${options.tableName || 'unknown'} (${durationMs}ms)`);
+      logger.warn(`Slow query recorded: ${options.operationType || 'unknown'} on ${options.tableName || 'unknown'} (${durationMs}ms)`);
     } catch (error) {
       logger.error('Failed to record slow query:', error);
     }
@@ -251,7 +251,7 @@ class PerformanceMonitor {
         // Re-add failed metrics to buffer (up to limit)
         this.metricsBuffer = [...metricsToFlush.slice(-50), ...this.metricsBuffer];
       } else {
-        logger.debug(`📊 Flushed ${metricsToFlush.length} metrics`);
+        logger.debug(`Flushed ${metricsToFlush.length} metrics`);
       }
     } catch (error) {
       logger.error('Failed to flush metrics:', error);
@@ -367,7 +367,7 @@ class PerformanceMonitor {
       const { data, error } = await supabase.rpc('aggregate_hourly_metrics');
 
       if (error) throw error;
-      logger.info(`📊 Hourly aggregation completed: ${data} records`);
+      logger.info(`Hourly aggregation completed: ${data} records`);
       return data || 0;
     } catch (error) {
       logger.error('Failed to run hourly aggregation:', error);
@@ -392,7 +392,7 @@ class PerformanceMonitor {
       });
 
       if (error) throw error;
-      logger.info('🧹 Metrics cleanup completed:', data);
+      logger.info('Metrics cleanup completed:', data);
       return data;
     } catch (error) {
       logger.error('Failed to run metrics cleanup:', error);

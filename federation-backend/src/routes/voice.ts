@@ -38,7 +38,7 @@ router.post(
       return;
     }
 
-    logger.info(`📞 Voice join request from user ${user.id} for channel ${channelId}`);
+    logger.info(`Voice join request from user ${user.id} for channel ${channelId}`);
 
     try {
       await VoiceActivityHandler.federateVoiceChannelJoin(user.id, channelId, serverId);
@@ -81,7 +81,7 @@ router.post(
       return;
     }
 
-    logger.info(`📞 Voice leave request from user ${user.id} for channel ${channelId}`);
+    logger.info(`Voice leave request from user ${user.id} for channel ${channelId}`);
 
     try {
       await VoiceActivityHandler.federateVoiceChannelLeave(user.id, channelId, serverId);

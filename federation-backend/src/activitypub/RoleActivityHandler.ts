@@ -112,7 +112,7 @@ export async function handleRoleActivity(
   const supabase = getSupabaseClient();
 
   try {
-    logger.info(`📋 Processing ${activity.type} role activity: ${activity.id}`);
+    logger.info(`Processing ${activity.type} role activity: ${activity.id}`);
 
     switch (activity.type) {
       case 'Create': {
@@ -130,7 +130,7 @@ export async function handleRoleActivity(
           return { success: false, error: error.message };
         }
 
-        logger.info(`✅ Created federated role: ${roleObject.name}`);
+        logger.info(`Created federated role: ${roleObject.name}`);
         return { success: true };
       }
 
@@ -156,7 +156,7 @@ export async function handleRoleActivity(
           return { success: false, error: error.message };
         }
 
-        logger.info(`✅ Updated federated role: ${roleObject.name}`);
+        logger.info(`Updated federated role: ${roleObject.name}`);
         return { success: true };
       }
 
@@ -185,7 +185,7 @@ export async function handleRoleActivity(
           return { success: false, error: error.message };
         }
 
-        logger.info(`✅ Deleted federated role: ${roleObject.id}`);
+        logger.info(`Deleted federated role: ${roleObject.id}`);
         return { success: true };
       }
 
@@ -225,7 +225,7 @@ export async function handleRoleActivity(
           return { success: false, error: error.message };
         }
 
-        logger.info(`✅ Assigned role ${role.id} to user ${user.id}`);
+        logger.info(`Assigned role ${role.id} to user ${user.id}`);
         return { success: true };
       }
 
@@ -260,7 +260,7 @@ export async function handleRoleActivity(
           return { success: false, error: error.message };
         }
 
-        logger.info(`✅ Removed role ${role.id} from user ${user.id}`);
+        logger.info(`Removed role ${role.id} from user ${user.id}`);
         return { success: true };
       }
 

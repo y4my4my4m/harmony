@@ -14,11 +14,11 @@ export async function handleChannelReactionJob(data: FederationJobData): Promise
   const supabase = getSupabaseClient();
   const { type, reaction_id, message_id, user_id, emoji_id } = data;
 
-  logger.info(`💬⭐ Processing channel reaction job: ${type} for reaction ${reaction_id || 'deleted'}`);
+  logger.info(`Processing channel reaction job: ${type} for reaction ${reaction_id || 'deleted'}`);
 
   try {
     if (type === 'delete') {
-      logger.info(`↩️ Processing reaction removal for message ${message_id}`);
+      logger.info(`Processing reaction removal for message ${message_id}`);
       
       await handleChannelReactionRemoval({
         message_id,
@@ -26,7 +26,7 @@ export async function handleChannelReactionJob(data: FederationJobData): Promise
         emoji_id,
       });
       
-      logger.info(`✅ Channel reaction removal federated successfully`);
+      logger.info(`Channel reaction removal federated successfully`);
       return;
     }
 
@@ -61,7 +61,7 @@ export async function handleChannelReactionJob(data: FederationJobData): Promise
     });
 
     await updateFederationStatus(reaction_id, 'reactions', 'completed');
-    logger.info(`✅ Channel reaction ${reaction_id} federated successfully`);
+    logger.info(`Channel reaction ${reaction_id} federated successfully`);
 
   } catch (error) {
     logger.error(`Failed to federate channel reaction ${reaction_id}:`, error);

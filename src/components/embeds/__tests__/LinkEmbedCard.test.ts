@@ -84,9 +84,8 @@ describe('LinkEmbedCard', () => {
   })
 
   it('omits the description element when the payload has no description', () => {
-    // The card still needs to keep a constant height when description is
-    // absent - that's enforced by CSS (`min-height: 1em`), but at the DOM
-    // level a `v-if`-skipped <p> means the slot just isn't there.
+    // Constant card height with no description is enforced by CSS
+    // (`min-height: 1em`). At the DOM level the `v-if`-skipped <p> is absent.
     const wrapper = mount(LinkEmbedCard, {
       props: {
         payload: { ...basePayload, description: undefined },

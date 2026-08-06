@@ -134,9 +134,7 @@ const announcementForm = ref({
 })
 
 
-// ---------------------------------------------------------------------------
 // datetime-local <-> ISO helpers
-// ---------------------------------------------------------------------------
 // HTML's `datetime-local` input gives us a naive local timestamp without a
 // timezone (e.g. "2026-05-26T21:00"). We convert in both directions so the
 // admin sees their own timezone but the DB stores UTC ISO strings.

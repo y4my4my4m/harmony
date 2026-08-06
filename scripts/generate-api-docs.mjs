@@ -33,7 +33,7 @@ await fs.mkdir(`${DOCS_API_DIR}/layouts`, { recursive: true })
 await fs.mkdir(`${DOCS_API_DIR}/router`, { recursive: true })
 await fs.mkdir(`${DOCS_API_DIR}/views`, { recursive: true })
 
-console.log('🔧 Generating API documentation from TypeScript files...')
+console.log('Generating API documentation from TypeScript files...')
 
 // Track all generated files for summary
 const generatedFiles = {
@@ -64,8 +64,8 @@ await processDirectory(VIEWS_DIR, 'views', 'View', generatedFiles.views)
 // Generate API index with all files
 await generateApiIndex(generatedFiles)
 
-console.log('\n✅ API documentation generation complete!')
-console.log('\n📊 Summary:')
+console.log('\nAPI documentation generation complete!')
+console.log('\nSummary:')
 Object.entries(generatedFiles).forEach(([category, files]) => {
   if (files.length > 0) {
     console.log(`   ${category}: ${files.length} files`)
@@ -80,11 +80,11 @@ async function processDirectory(sourceDir, category, suffix, fileList) {
     })
     
     if (files.length === 0) {
-      console.log(`⚠️  No files found in ${sourceDir}`)
+      console.log(`No files found in ${sourceDir}`)
       return
     }
     
-    console.log(`\n📁 Processing ${category}: ${files.length} files`)
+    console.log(`\nProcessing ${category}: ${files.length} files`)
     
     for (const filePath of files) {
       try {
@@ -102,7 +102,7 @@ async function processDirectory(sourceDir, category, suffix, fileList) {
             line.startsWith('import')
           )
           if (hasOnlyExports) {
-            console.log(`  ⏭️  Skipping index file: ${filePath}`)
+            console.log(`  Skipping index file: ${filePath}`)
             continue
           }
         }
@@ -140,13 +140,13 @@ async function processDirectory(sourceDir, category, suffix, fileList) {
           filePath: filePath
         })
         
-        console.log(`  ✅ Generated: ${isNested ? `${outputSubDir}/` : ''}${fileName}`)
+        console.log(`  Generated: ${isNested ? `${outputSubDir}/` : ''}${fileName}`)
       } catch (error) {
-        console.error(`  ❌ Error processing ${filePath}:`, error.message)
+        console.error(`  Error processing ${filePath}:`, error.message)
       }
     }
   } catch (error) {
-    console.log(`⚠️  Directory ${sourceDir} not found or error: ${error.message}`)
+    console.log(`Directory ${sourceDir} not found or error: ${error.message}`)
   }
 }
 
@@ -701,5 +701,5 @@ ${files.map(f => `- [${f.name}](/api/${f.path})`).join('\n')}
 `
 
   await fs.writeFile(path.join(DOCS_API_DIR, 'index.md'), indexContent)
-  console.log('\n📄 Generated API index')
+  console.log('\nGenerated API index')
 }

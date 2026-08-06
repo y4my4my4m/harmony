@@ -11,7 +11,7 @@
 -- through the service-role Supabase client without having to grant direct
 -- INSERT on `realtime.messages` or invent a new channel per recipient.
 --
--- Realtime architecture compliance (.cursor/rules/realtime-architecture.mdc):
+-- Realtime architecture constraints:
 --   * reuses the existing `user:{profile_id}` topic + `user_event` event name
 --   * payload `type` field discriminates handlers on the frontend
 --   * no new Supabase channel is opened on the frontend

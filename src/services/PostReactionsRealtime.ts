@@ -40,7 +40,7 @@ class PostReactionsRealtimeService {
 
       if (data.interaction_type !== 'emoji_reaction') return;
 
-      debug.log('🔔 Post reaction via broadcast for post:', postId);
+      debug.log('Post reaction via broadcast for post:', postId);
       const store = usePostReactionsStore();
 
       if (data.op === 'INSERT') {

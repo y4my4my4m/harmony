@@ -12,16 +12,14 @@ import { logger } from '../../utils/logger.js';
 import config from '../../config/index.js';
 import type { FederationJobData } from '../BullMQManager.js';
 
-// =============================================================================
 // VOICE CHANNEL JOIN HANDLER
-// =============================================================================
 
 export async function handleVoiceJoinJob(data: FederationJobData): Promise<void> {
   const supabase = getSupabaseClient();
   const { channel_id, user_id } = data;
   const hostDomain = config.INSTANCE_DOMAIN;
 
-  logger.info(`🎤 Processing voice join federation: user ${user_id} -> channel ${channel_id}`);
+  logger.info(`Processing voice join federation: user ${user_id} -> channel ${channel_id}`);
 
   try {
     const { data: user } = await supabase
@@ -64,7 +62,7 @@ export async function handleVoiceJoinJob(data: FederationJobData): Promise<void>
 
     // CASE 1: Remote server - federate join to that server
     if (!server.is_local_server && server.federation_inbox_url) {
-      logger.info(`📤 Federating voice join to remote server: ${server.name}`);
+      logger.info(`Federating voice join to remote server: ${server.name}`);
       
       const joinActivity = VoiceActivityHandler.createVoiceChannelJoin(
         userApId,
@@ -82,7 +80,7 @@ export async function handleVoiceJoinJob(data: FederationJobData): Promise<void>
       );
 
       await updateFederationStatus(channel_id, user_id, 'completed');
-      logger.info(`✅ Voice join federated to ${server.federation_inbox_url}`);
+      logger.info(`Voice join federated to ${server.federation_inbox_url}`);
       return;
     }
 
@@ -107,11 +105,11 @@ export async function handleVoiceJoinJob(data: FederationJobData): Promise<void>
       for (const group of remoteMemberGroups) {
         const inbox = group.shared_inbox || `https://${group.instance}/inbox`;
         await DeliveryQueue.enqueue(joinActivity, inbox, user.id, 10);
-        logger.info(`📤 Voice join queued for ${group.instance}`);
+        logger.info(`Voice join queued for ${group.instance}`);
       }
 
       await updateFederationStatus(channel_id, user_id, 'completed');
-      logger.info(`✅ Voice join federated to ${remoteMemberGroups.length} instances`);
+      logger.info(`Voice join federated to ${remoteMemberGroups.length} instances`);
     } else {
       await updateFederationStatus(channel_id, user_id, 'skipped');
     }
@@ -123,16 +121,14 @@ export async function handleVoiceJoinJob(data: FederationJobData): Promise<void>
   }
 }
 
-// =============================================================================
 // VOICE CHANNEL LEAVE HANDLER
-// =============================================================================
 
 export async function handleVoiceLeaveJob(data: FederationJobData): Promise<void> {
   const supabase = getSupabaseClient();
   const { channel_id, server_id, user_id } = data;
   const hostDomain = config.INSTANCE_DOMAIN;
 
-  logger.info(`🔇 Processing voice leave federation: user ${user_id} -> channel ${channel_id}`);
+  logger.info(`Processing voice leave federation: user ${user_id} -> channel ${channel_id}`);
 
   try {
     const { data: user } = await supabase
@@ -161,7 +157,7 @@ export async function handleVoiceLeaveJob(data: FederationJobData): Promise<void
 
     // CASE 1: Remote server - federate leave to that server
     if (!server.is_local_server && server.federation_inbox_url) {
-      logger.info(`📤 Federating voice leave to remote server: ${server.name}`);
+      logger.info(`Federating voice leave to remote server: ${server.name}`);
       
       const leaveActivity = VoiceActivityHandler.createVoiceChannelLeave(
         userApId,
@@ -176,7 +172,7 @@ export async function handleVoiceLeaveJob(data: FederationJobData): Promise<void
         10 // high priority
       );
 
-      logger.info(`✅ Voice leave federated to ${server.federation_inbox_url}`);
+      logger.info(`Voice leave federated to ${server.federation_inbox_url}`);
       return;
     }
 
@@ -198,10 +194,10 @@ export async function handleVoiceLeaveJob(data: FederationJobData): Promise<void
       for (const group of remoteMemberGroups) {
         const inbox = group.shared_inbox || `https://${group.instance}/inbox`;
         await DeliveryQueue.enqueue(leaveActivity, inbox, user.id, 10);
-        logger.info(`📤 Voice leave queued for ${group.instance}`);
+        logger.info(`Voice leave queued for ${group.instance}`);
       }
 
-      logger.info(`✅ Voice leave federated to ${remoteMemberGroups.length} instances`);
+      logger.info(`Voice leave federated to ${remoteMemberGroups.length} instances`);
     }
 
   } catch (error) {
@@ -210,9 +206,7 @@ export async function handleVoiceLeaveJob(data: FederationJobData): Promise<void
   }
 }
 
-// =============================================================================
 // HELPER FUNCTIONS
-// =============================================================================
 
 async function updateFederationStatus(
   channelId: string,

@@ -9,19 +9,17 @@
 import { logger } from './logger.js';
 import dns from 'dns';
 
-// ---------------------------------------------------------------------------
 // Keep-alive dispatcher for federation outbound HTTP.
 //
 // Node 18+ native `fetch` is undici under the hood, but the default Agent has
 // a 4 s keep-alive - too short for federation delivery, where the same
 // remote instance is contacted repeatedly within seconds (fan-out) and the
-// TLS handshake dominates per-request latency. A tuned dispatcher with a
-// 30 s keep-alive + a sane per-origin connection pool gives a large latency
-// win without changing any caller code.
+// TLS handshake dominates per-request latency. A 30 s keep-alive plus a
+// per-origin connection pool cuts that latency with no caller-side change.
 //
-// We dynamic-import undici so the file still works if the dep is unavailable
-// (older Node, restricted runtime); we just fall back to the default agent.
-// ---------------------------------------------------------------------------
+// undici is imported dynamically: when the dep is unavailable (older Node,
+// restricted runtime) the dispatcher stays undefined and fetch uses the
+// default global agent.
 let federationDispatcher: any | undefined;
 try {
   // Top-level await is allowed in this ESM module.
@@ -39,7 +37,7 @@ try {
     bodyTimeout: 30_000,
     headersTimeout: 10_000,
   });
-  logger.info('🔗 safeFetch: undici keep-alive dispatcher initialized (30s idle, 50 conn/origin)');
+  logger.info('safeFetch: undici keep-alive dispatcher initialized (30s idle, 50 conn/origin)');
 } catch (err) {
   logger.warn('safeFetch: undici Agent unavailable, falling back to default fetch agent (4s keep-alive)', err);
 }
@@ -205,7 +203,7 @@ export async function validateResolvedAddress(hostname: string): Promise<void> {
   if (v4.status === 'fulfilled') {
     for (const ip of v4.value) {
       if (isBlockedIPv4(ip)) {
-        logger.warn(`🚫 SSRF: ${hostname} resolves to private IPv4 ${ip}`);
+        logger.warn(`SSRF: ${hostname} resolves to private IPv4 ${ip}`);
         throw new Error(`Hostname ${hostname} resolves to blocked private IP`);
       }
     }
@@ -213,7 +211,7 @@ export async function validateResolvedAddress(hostname: string): Promise<void> {
   if (v6.status === 'fulfilled') {
     for (const ip of v6.value) {
       if (isBlockedIPv6(ip)) {
-        logger.warn(`🚫 SSRF: ${hostname} resolves to private IPv6 ${ip}`);
+        logger.warn(`SSRF: ${hostname} resolves to private IPv6 ${ip}`);
         throw new Error(`Hostname ${hostname} resolves to blocked private IP`);
       }
     }
@@ -221,9 +219,7 @@ export async function validateResolvedAddress(hostname: string): Promise<void> {
   // If BOTH lookups failed, the upstream fetch will fail naturally.
 }
 
-// ============================================================================
 // safeFetch - the canonical helper for outbound HTTP from federation code.
-// ============================================================================
 
 export interface SafeFetchOptions extends Omit<RequestInit, 'redirect' | 'signal'> {
   /**
@@ -370,7 +366,7 @@ export async function safeFetch(urlString: string, options: SafeFetchOptions = {
         currentHeaders = stripSensitiveHeaders(currentHeaders);
       }
 
-      logger.info(`🔁 safeFetch redirect ${hop + 1}/${maxRedirects}: ${url.href} → ${nextUrl}${isCrossOrigin ? ' [cross-origin, stripped auth headers]' : ''}`);
+      logger.info(`safeFetch redirect ${hop + 1}/${maxRedirects}: ${url.href} → ${nextUrl}${isCrossOrigin ? ' [cross-origin, stripped auth headers]' : ''}`);
       currentUrl = nextUrl;
       continue;
     }

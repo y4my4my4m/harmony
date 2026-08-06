@@ -71,7 +71,7 @@ const onLanguageChange = async () => {
         .eq('id', userId)
       
       if (error) throw error
-      debug.log('✅ Language preference saved')
+      debug.log('Language preference saved')
     } catch (error) {
       debug.error('Failed to save language preference:', error)
     }

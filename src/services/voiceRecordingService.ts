@@ -94,7 +94,7 @@ export function useVoiceRecording() {
         state.value.duration = elapsed
 
         if (elapsed >= MAX_RECORDING_DURATION) {
-          debug.log('🎙️ Max recording duration reached, auto-stopping')
+          debug.log('Max recording duration reached, auto-stopping')
           autoStop()
         }
       }, 100)
@@ -122,9 +122,9 @@ export function useVoiceRecording() {
         liveWaveform.value = bars
       }, WAVEFORM_UPDATE_INTERVAL)
 
-      debug.log('🎙️ Voice recording started')
+      debug.log('Voice recording started')
     } catch (err) {
-      debug.error('🎙️ Failed to start recording:', err)
+      debug.error('Failed to start recording:', err)
       cleanup()
       throw err
     }
@@ -191,7 +191,7 @@ export function useVoiceRecording() {
       mediaRecorder.stop()
     }
     cleanup()
-    debug.log('🎙️ Voice recording cancelled')
+    debug.log('Voice recording cancelled')
   }
 
   const cleanup = () => {

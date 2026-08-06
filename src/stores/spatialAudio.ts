@@ -117,7 +117,7 @@ export const useSpatialAudioStore = defineStore('spatialAudio', {
 
       const panning = Math.max(-1, Math.min(1, dx / maxPan));
       if (Math.random() < 0.1) {
-        debug.log(`🎧 Audio panning for ${userId2}: ${panning.toFixed(3)} (dx: ${dx.toFixed(1)}px)`);
+        debug.log(`Audio panning for ${userId2}: ${panning.toFixed(3)} (dx: ${dx.toFixed(1)}px)`);
       }
       return panning;
     }
@@ -127,7 +127,7 @@ export const useSpatialAudioStore = defineStore('spatialAudio', {
     async toggleSpatialAudio(): Promise<void> {
       this.settings.enabled = !this.settings.enabled;
 
-      debug.log('🎧 Toggling spatial audio:', this.settings.enabled ? 'ON' : 'OFF');
+      debug.log('Toggling spatial audio:', this.settings.enabled ? 'ON' : 'OFF');
 
       try {
         const { spatialAudioService } = await import('@/services/spatialAudio');
@@ -135,10 +135,10 @@ export const useSpatialAudioStore = defineStore('spatialAudio', {
 
         if (this.settings.enabled) {
           webrtcManager.setTraditionalAudioEnabled(false);
-          debug.log('🔇 Traditional audio disabled');
+          debug.log('Traditional audio disabled');
 
           await spatialAudioService.enableSpatialAudio();
-          debug.log('🎧 Spatial audio enabled');
+          debug.log('Spatial audio enabled');
 
           const allUsers = webrtcManager.getAllUsers();
           const localUserId = webrtcManager.getLocalState().userId;
@@ -151,33 +151,33 @@ export const useSpatialAudioStore = defineStore('spatialAudio', {
             if (user.userId !== localUserId) {
               if (!this.userPositions.has(user.userId)) {
                 this.initializeUserPosition(user.userId, false);
-                debug.log(`🎧 Initialized position for user: ${user.userId}`);
+                debug.log(`Initialized position for user: ${user.userId}`);
               }
 
               // Mic only - the combined stream can also carry screenshare
               // audio, which must stay stereo and out of the spatial graph
               const micStream = webrtcManager.getUserMicStream(user.userId);
               if (micStream) {
-                debug.log(`🎧 Setting up spatial audio for existing user: ${user.userId}`);
+                debug.log(`Setting up spatial audio for existing user: ${user.userId}`);
                 await spatialAudioService.setupSpatialForUser(user.userId, micStream);
               }
             }
           }
 
           spatialAudioService.updateSpatialEffects();
-          debug.log('🎧 Initial spatial effects applied');
+          debug.log('Initial spatial effects applied');
 
         } else {
           spatialAudioService.disableSpatialAudio();
-          debug.log('🎧 Spatial audio disabled');
+          debug.log('Spatial audio disabled');
 
           webrtcManager.setTraditionalAudioEnabled(true);
-          debug.log('🔊 Traditional audio re-enabled');
+          debug.log('Traditional audio re-enabled');
         }
 
-        debug.log('✅ Spatial audio toggle completed');
+        debug.log('Spatial audio toggle completed');
       } catch (error) {
-        debug.error('❌ Failed to toggle spatial audio:', error);
+        debug.error('Failed to toggle spatial audio:', error);
         this.settings.enabled = !this.settings.enabled;
         throw error;
       }
@@ -185,16 +185,16 @@ export const useSpatialAudioStore = defineStore('spatialAudio', {
 
     async initializeSpatialAudio(): Promise<void> {
       if (!this.settings.enabled) {
-        debug.log('🎧 Spatial audio disabled - skipping initialization');
+        debug.log('Spatial audio disabled - skipping initialization');
         return;
       }
 
       try {
         const { spatialAudioService } = await import('@/services/spatialAudio');
         await spatialAudioService.initialize();
-        debug.log('✅ Spatial audio initialized');
+        debug.log('Spatial audio initialized');
       } catch (error) {
-        debug.error('❌ Failed to initialize spatial audio:', error);
+        debug.error('Failed to initialize spatial audio:', error);
         throw error;
       }
     },
@@ -227,7 +227,7 @@ export const useSpatialAudioStore = defineStore('spatialAudio', {
 
       if (isLocalUser) {
         this.setUserPosition(userId, centerX, centerY);
-        debug.log(`🎧 Initialized LOCAL user at center: (${centerX}, ${centerY})`);
+        debug.log(`Initialized LOCAL user at center: (${centerX}, ${centerY})`);
       } else {
         const radius = Math.min(this.panelSize.width, this.panelSize.height) / 4;
         const angle = Math.random() * 2 * Math.PI;
@@ -236,7 +236,7 @@ export const useSpatialAudioStore = defineStore('spatialAudio', {
         const y = centerY + Math.sin(angle) * distance;
 
         this.setUserPosition(userId, x, y);
-        debug.log(`🎧 Initialized remote user at random: (${x.toFixed(0)}, ${y.toFixed(0)})`);
+        debug.log(`Initialized remote user at random: (${x.toFixed(0)}, ${y.toFixed(0)})`);
       }
     },
 

@@ -4,7 +4,6 @@
  * Implements Megolm-style group encryption for Harmony.
  *
  * LICENSING / PROVENANCE
- * ----------------------
  * Independent implementation inspired by Matrix.org's Megolm
  * design (specification: https://gitlab.matrix.org/matrix-org/olm/-/blob/master/docs/megolm.md).
  * This is NOT a port of libolm/vodozemac/matrix-js-sdk - no Matrix code or
@@ -16,29 +15,22 @@
  * Matrix's Megolm. Cross-Matrix interop would require a separate adapter.
  *
  * DESIGN
- * ------
- * Unlike Signal's per-message key exchange, Megolm uses:
- * - One session key per room/conversation that rotates periodically
- * - Efficient for group messaging (one encryption, many recipients)
- * - Keys are backed up to server (encrypted with recovery key)
+ * One session key per room/conversation, rotated periodically, rather than
+ * Signal-style per-message key exchange: one encryption serves many
+ * recipients. Keys are backed up to the server encrypted with the recovery key.
  *
- * Key Concepts:
- * - Outbound Session: Your sending key for a room (you rotate it)
- * - Inbound Session: Others' keys you've received (they rotate them)
- * - Session ID: Unique identifier for each session
- * - Message Index: Ratchets forward so each message gets a distinct derived key.
+ * Terms:
+ * - Outbound session: local sending key for a room, rotated locally.
+ * - Inbound session: a sender's key received from them, rotated by them.
+ * - Session ID: unique per session.
+ * - Message index: ratchets forward; each index yields a distinct derived key.
  *
- * SECRECY PROPERTIES (read this before claiming "forward secrecy")
- * ----------------------------------------------------------------
- * Each message is encrypted under a key derived from the session key and the
- * message index, so no two messages share a key. This is NOT strong forward
- * secrecy: the per-message keys are derived deterministically from the
- * long-lived session key (HKDF, no ratchet state erasure), so anyone who
- * learns a session key can derive the keys for EVERY message in that session -
- * past and future - until the session rotates. Session rotation (every 100
- * messages or 7 days) is what bounds the blast radius of a leaked session key.
- * Describe this as "per-message keys + session rotation", never as Signal-style
- * forward secrecy.
+ * SECRECY PROPERTIES
+ * Per-message keys derive from (session key, message index), so no two
+ * messages share a key. This is not forward secrecy: derivation is
+ * deterministic HKDF with no ratchet state erasure, so a leaked session key
+ * yields every message key in that session, past and future, until rotation.
+ * Rotation (100 messages or 7 days) bounds the exposure.
  */
 
 import { debug } from '@/utils/debug'
@@ -51,11 +43,10 @@ export interface MegolmOutboundSession {
   messageIndex: number // Current message index (ratchets forward)
   createdAt: number
   rotateAt: number // When to create a new session
-  sharedWith: string[] // User IDs we've shared this session with
-  // Membership epoch this session belongs to (Phase 3b). A session is rotated
-  // when the room's epoch advances (member join/leave), so a removed member's
-  // old session cannot decrypt newer-epoch messages. Defaults to 1 for
-  // sessions created before epochs existed.
+  sharedWith: string[] // User IDs this session was shared with
+  // Membership epoch of the session (Phase 3b). The session rotates when the
+  // room epoch advances (member join/leave), so a removed member's session
+  // cannot decrypt newer-epoch messages. Sessions predating epochs default to 1.
   epoch?: number
 }
 
@@ -64,7 +55,7 @@ export interface MegolmInboundSession {
   roomId: string
   senderUserId: string
   sessionKey: string // Base64 encoded
-  firstKnownIndex: number // First message index we can decrypt from
+  firstKnownIndex: number // Lowest decryptable message index
   createdAt: number
 }
 
@@ -85,8 +76,8 @@ export interface MegolmEncryptOptions {
 }
 
 // Session rotation settings
-const SESSION_ROTATION_MESSAGE_COUNT = 100 // Rotate after 100 messages
-const SESSION_ROTATION_TIME_MS = 7 * 24 * 60 * 60 * 1000 // Rotate after 7 days
+const SESSION_ROTATION_MESSAGE_COUNT = 100
+const SESSION_ROTATION_TIME_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
 
 // IndexedDB store for sessions
 const MEGOLM_DB_NAME = 'harmony_megolm_sessions'
@@ -102,10 +93,6 @@ interface RoomKeyRecord {
   sessionId: string
 }
 
-/**
- * Megolm Service
- * Handles room-based session key encryption
- */
 export class MegolmService {
   private static instance: MegolmService
   private db: IDBDatabase | null = null
@@ -135,27 +122,24 @@ export class MegolmService {
     this.userId = userId
     this.encryptionKey = encryptionKey
     
-    debug.log(`🔐 MegolmService.initialize: userId=${userId}, hasEncryptionKey=${!!encryptionKey}`)
+    debug.log(`MegolmService.initialize: userId=${userId}, hasEncryptionKey=${!!encryptionKey}`)
 
     await this.openDatabase()
-    debug.log(`🔐 MegolmService: Database opened: ${!!this.db}`)
+    debug.log(`MegolmService: Database opened: ${!!this.db}`)
     
     await this.loadSessionsFromDB()
 
-    // Migration: ensure all outbound sessions also have inbound copies
-    // This handles existing users who have outbound sessions but no inbound copies
+    // Backfills inbound copies for accounts holding outbound-only sessions.
     await this.migrateOutboundToInbound()
 
     this.initialized = true
-    debug.log(`✅ MegolmService initialized: db=${!!this.db}, encryptionKey=${!!this.encryptionKey}, userId=${this.userId}`)
+    debug.log(`MegolmService initialized: db=${!!this.db}, encryptionKey=${!!this.encryptionKey}, userId=${this.userId}`)
   }
 
   /**
-   * Migration: Copy outbound sessions to inbound sessions
-   * 
-   * This ensures users who had sessions before this fix can still decrypt
-   * their own old messages. In the Matrix/Element model, all sessions
-   * (including your own) are stored as inbound for consistent lookup.
+   * Copies outbound sessions into the inbound store so older self-sent
+   * messages stay decryptable. Follows the Matrix/Element model: every
+   * session, including one's own, is stored as inbound for uniform lookup.
    */
   private async migrateOutboundToInbound(): Promise<void> {
     if (!this.userId) return
@@ -164,7 +148,7 @@ export class MegolmService {
     for (const [roomId, outbound] of this.outboundSessions) {
       const key = `${roomId}:${this.userId}:${outbound.sessionId}`
       
-      // Only migrate if we don't already have this as inbound
+      // Skip sessions already present as inbound.
       if (!this.inboundSessions.has(key)) {
         const inbound: MegolmInboundSession = {
           sessionId: outbound.sessionId,
@@ -182,7 +166,7 @@ export class MegolmService {
     }
 
     if (migratedCount > 0) {
-      debug.log(`🔄 Migrated ${migratedCount} outbound sessions to inbound (for self-decryption)`)
+      debug.log(`Migrated ${migratedCount} outbound sessions to inbound (for self-decryption)`)
     }
   }
 
@@ -219,13 +203,13 @@ export class MegolmService {
 
   private async loadSessionsFromDB(): Promise<void> {
     if (!this.db) {
-      debug.warn('⚠️ No database - cannot load sessions')
+      debug.warn('No database - cannot load sessions')
       return
     }
 
     try {
       const allOutbound = await this.getAllFromStore<MegolmOutboundSession>(STORES.OUTBOUND)
-      debug.log(`📦 Found ${allOutbound.length} outbound sessions in IndexedDB`)
+      debug.log(`Found ${allOutbound.length} outbound sessions in IndexedDB`)
 
       const bySessionId = new Map<string, MegolmOutboundSession>()
       for (const stored of allOutbound) {
@@ -233,7 +217,7 @@ export class MegolmService {
           const decrypted = await this.decryptSession(stored)
           bySessionId.set(decrypted.sessionId, decrypted)
         } catch (error) {
-          debug.error('❌ Failed to decrypt outbound session:', error)
+          debug.error('Failed to decrypt outbound session:', error)
         }
       }
 
@@ -270,16 +254,16 @@ export class MegolmService {
             `(${session.sessionId.substring(0, 8)}...)`,
           )
         } catch (error) {
-          debug.warn('⚠️ Failed to backfill ROOM_KEYS:', error)
+          debug.warn('Failed to backfill ROOM_KEYS:', error)
         }
       }
     } catch (error) {
-      debug.error('❌ Failed to load outbound sessions:', error)
+      debug.error('Failed to load outbound sessions:', error)
     }
 
     try {
       const inboundSessions = await this.getAllFromStore<MegolmInboundSession>(STORES.INBOUND)
-      debug.log(`📦 Found ${inboundSessions.length} inbound sessions in IndexedDB`)
+      debug.log(`Found ${inboundSessions.length} inbound sessions in IndexedDB`)
       
       for (const session of inboundSessions) {
         try {
@@ -288,24 +272,22 @@ export class MegolmService {
           this.inboundSessions.set(key, decrypted)
           debug.log(`  - Loaded inbound session from ${decrypted.senderUserId.substring(0, 8)}... for room ${decrypted.roomId.substring(0, 8)}...`)
         } catch (error) {
-          debug.error(`❌ Failed to decrypt inbound session:`, error)
+          debug.error(`Failed to decrypt inbound session:`, error)
         }
       }
     } catch (error) {
-      debug.error('❌ Failed to load inbound sessions:', error)
+      debug.error('Failed to load inbound sessions:', error)
     }
 
-    debug.log(`📦 Loaded ${this.outboundSessions.size} outbound, ${this.inboundSessions.size} inbound sessions into memory`)
+    debug.log(`Loaded ${this.outboundSessions.size} outbound, ${this.inboundSessions.size} inbound sessions into memory`)
   }
 
   // OUTBOUND SESSION MANAGEMENT
 
   /**
-   * Get or create an outbound session for a room.
-   *
-   * @param epoch the room's current membership epoch. When provided and greater
-   *   than the existing session's epoch, the session is rotated so post-change
-   *   messages use a fresh key (membership-epoch rotation, Phase 3b).
+   * @param epoch room's current membership epoch. An epoch greater than the
+   *   existing session's forces rotation so post-change messages use a fresh
+   *   key (membership-epoch rotation, Phase 3b).
    */
   async getOrCreateOutboundSession(roomId: string, epoch?: number): Promise<MegolmOutboundSession> {
     let session = this.outboundSessions.get(roomId)
@@ -324,11 +306,9 @@ export class MegolmService {
   }
 
   /**
-   * Create a new outbound session for a room
-   * 
-   * IMPORTANT: We also store a copy as an inbound session (from ourselves).
-   * This is the Matrix/Element approach - it ensures we can always decrypt our
-   * own messages even after session rotation, because we look up by sessionId.
+   * IMPORTANT: a copy is also stored as an inbound session from the local user.
+   * Matrix/Element approach: lookup is by sessionId, so self-sent messages stay
+   * decryptable across session rotation.
    */
   private async createOutboundSession(roomId: string, epoch?: number): Promise<MegolmOutboundSession> {
     const sessionKeyBytes = crypto.getRandomValues(new Uint8Array(32))
@@ -350,14 +330,14 @@ export class MegolmService {
     }
 
     this.outboundSessions.set(roomId, session)
-    debug.log(`🔑 Created new outbound Megolm session for room ${roomId.substring(0, 8)}... (sessionId: ${sessionId.substring(0, 8)}...)`)
+    debug.log(`Created new outbound Megolm session for room ${roomId.substring(0, 8)}... (sessionId: ${sessionId.substring(0, 8)}...)`)
     
-    debug.log(`💾 Attempting to save session to IndexedDB... (db=${!!this.db}, key=${!!this.encryptionKey})`)
+    debug.log(`Attempting to save session to IndexedDB... (db=${!!this.db}, key=${!!this.encryptionKey})`)
     await this.saveOutboundSessionStrict(session)
     await this.setCurrentRoomSession(roomId, sessionId)
     
-    // Also store as inbound session (for decrypting our own messages later)
-    // This is how Matrix/Element works - all sessions are stored as inbound for lookup by sessionId
+    // Stored as inbound too: all sessions are looked up as inbound by sessionId,
+    // as in Matrix/Element.
     if (this.userId) {
       await this.importInboundSession(
         roomId,
@@ -366,15 +346,12 @@ export class MegolmService {
         sessionKey,
         0 // firstKnownIndex
       )
-      debug.log(`📥 Also stored as inbound session (for own message decryption)`)
+      debug.log(`Also stored as inbound session (for own message decryption)`)
     }
     
     return session
   }
 
-  /**
-   * Check if a session should be rotated
-   */
   private shouldRotateSession(session: MegolmOutboundSession): boolean {
     const now = Date.now()
     return (
@@ -384,8 +361,8 @@ export class MegolmService {
   }
 
   /**
-   * Advance the index on the exact outbound session that produced a ciphertext.
-   * Refuses if the room's current outbound changed underneath us.
+   * Advances the index on the exact outbound session that produced a
+   * ciphertext. Throws if the room's current outbound session changed.
    */
   private async advanceOutboundSessionIndex(
     session: MegolmOutboundSession,
@@ -459,9 +436,6 @@ export class MegolmService {
 
   // INBOUND SESSION MANAGEMENT
 
-  /**
-   * Import an inbound session (received from another user)
-   */
   async importInboundSession(
     roomId: string,
     senderUserId: string,
@@ -482,24 +456,21 @@ export class MegolmService {
     this.inboundSessions.set(key, session)
     await this.saveInboundSession(session)
 
-    debug.log(`📥 Imported inbound session from ${senderUserId.substring(0, 8)}... for room ${roomId.substring(0, 8)}...`)
+    debug.log(`Imported inbound session from ${senderUserId.substring(0, 8)}... for room ${roomId.substring(0, 8)}...`)
   }
 
-  /**
-   * Get an inbound session for decryption
-   */
   getInboundSession(roomId: string, senderUserId: string, sessionId: string): MegolmInboundSession | undefined {
     const key = `${roomId}:${senderUserId}:${sessionId}`
     return this.inboundSessions.get(key)
   }
 
   /**
-   * Reload an inbound session from IndexedDB into memory.
+   * Reloads an inbound session from IndexedDB into memory.
    *
-   * The in-memory map is populated once at initialize(); a session imported by
-   * ANOTHER tab (or by a claim that raced this tab's load) exists in IndexedDB
-   * but not in this tab's memory, which used to surface as a spurious
-   * "No inbound session" → futile key request. Cheap single-key read.
+   * The in-memory map is populated once at initialize(). A session imported by
+   * another tab, or by a claim racing this tab's load, exists in IndexedDB but
+   * not in this tab's memory; without this read it reports "No inbound session"
+   * and issues a pointless key request. Single-key read.
    */
   private async reloadInboundSessionFromDB(
     roomId: string,
@@ -514,27 +485,22 @@ export class MegolmService {
       if (decrypted.roomId !== roomId || decrypted.senderUserId !== senderUserId) return undefined
       const key = `${roomId}:${senderUserId}:${sessionId}`
       this.inboundSessions.set(key, decrypted)
-      debug.log(`📥 Reloaded inbound session ${sessionId.substring(0, 8)}... from IndexedDB (cross-tab)`)
+      debug.log(`Reloaded inbound session ${sessionId.substring(0, 8)}... from IndexedDB (cross-tab)`)
       return decrypted
     } catch {
       return undefined
     }
   }
 
-  /**
-   * Check if we have an inbound session
-   */
   hasInboundSession(roomId: string, senderUserId: string, sessionId: string): boolean {
     const key = `${roomId}:${senderUserId}:${sessionId}`
     return this.inboundSessions.has(key)
   }
 
   /**
-   * Find an inbound session by sessionId only (searches all senders)
-   * Useful for fallback when we don't know the exact sender
+   * Searches all senders. Fallback for when the sender is unknown.
    */
   findInboundSessionBySessionId(roomId: string, sessionId: string): MegolmInboundSession | undefined {
-    // Look for any inbound session with matching roomId and sessionId
     for (const [_key, session] of this.inboundSessions) {
       if (session.roomId === roomId && session.sessionId === sessionId) {
         return session
@@ -543,9 +509,7 @@ export class MegolmService {
     return undefined
   }
 
-  /**
-   * Get all inbound sessions for a room (for debugging/diagnostics)
-   */
+  /** Diagnostics only. */
   getInboundSessionsForRoom(roomId: string): MegolmInboundSession[] {
     const sessions: MegolmInboundSession[] = []
     for (const [_, session] of this.inboundSessions) {
@@ -559,11 +523,11 @@ export class MegolmService {
   // ENCRYPTION / DECRYPTION
 
   /**
-   * Encrypt a message using the room's outbound session.
+   * Encrypts under the room's outbound session.
    *
-   * @param opts.epoch          current room epoch (rotates the session if it advanced)
-   * @param opts.additionalData AES-GCM AAD that binds message metadata to the
-   *                            ciphertext (v3). The SAME bytes must be supplied
+   * @param opts.epoch          current room epoch; rotates the session if advanced
+   * @param opts.additionalData AES-GCM AAD binding message metadata to the
+   *                            ciphertext (v3). Identical bytes must be passed
    *                            to decryptMessage or authentication fails.
    */
   async encryptMessage(
@@ -581,12 +545,13 @@ export class MegolmService {
     plaintext: string,
     opts: MegolmEncryptOptions = {},
   ): Promise<MegolmEncryptedMessage> {
-    // Cross-tab: reload canonical outbound state written by whichever tab last held the lock.
+    // Cross-tab: reload canonical outbound state written by the tab that last
+    // held the lock.
     await this.refreshOutboundSessionFromPersistence(roomId)
 
-    // v3 path: caller already resolved session + epoch and built AAD. Do not
-    // call getOrCreateOutboundSession again (it could rotate or pick a different
-    // epoch than the AAD encodes).
+    // v3 path: the caller resolved session and epoch and built the AAD.
+    // getOrCreateOutboundSession must not run again - it could rotate or select
+    // an epoch differing from the one the AAD encodes.
     let session: MegolmOutboundSession
     if (opts.additionalData) {
       const existing = this.outboundSessions.get(roomId)
@@ -637,14 +602,11 @@ export class MegolmService {
   }
 
   /**
-   * Decrypt a message using inbound session (Matrix/Element approach)
-   * 
-   * ALL messages (including our own) are decrypted using inbound sessions.
-   * This works because when we create an outbound session, we also store it
-   * as an inbound session from ourselves. This ensures we can decrypt old
-   * messages even after session rotation.
-   * 
-   * Lookup is by sessionId, which is preserved forever.
+   * Decrypts via inbound sessions (Matrix/Element approach).
+   *
+   * Every message, self-sent included, decrypts through an inbound session:
+   * createOutboundSession stores a self-addressed inbound copy, so old messages
+   * remain readable after rotation. Lookup is by sessionId, which is permanent.
    */
   async decryptMessage(
     roomId: string,
@@ -652,25 +614,23 @@ export class MegolmService {
     encryptedMessage: MegolmEncryptedMessage,
     additionalData?: Uint8Array
   ): Promise<string> {
-    // Always use inbound session lookup (this works for both own and others' messages)
-    // Own messages work because createOutboundSession also saves as inbound
-    debug.log(`🔓 Looking for inbound session ${encryptedMessage.sessionId.substring(0, 8)}... from ${senderUserId.substring(0, 8)}...`)
+    debug.log(`Looking for inbound session ${encryptedMessage.sessionId.substring(0, 8)}... from ${senderUserId.substring(0, 8)}...`)
     
     let inboundSession = this.getInboundSession(roomId, senderUserId, encryptedMessage.sessionId)
 
-    // Memory miss: another tab may have imported/claimed this session after our
-    // initial load. Re-check IndexedDB before treating the key as missing.
+    // Memory miss: another tab may have imported or claimed this session after
+    // this tab's load. Re-check IndexedDB before treating the key as missing.
     if (!inboundSession) {
       inboundSession = await this.reloadInboundSessionFromDB(roomId, senderUserId, encryptedMessage.sessionId)
     }
 
-    // Fallback: for own messages, also try the current outbound session if inbound not found
-    // (handles edge case during migration when old outbound sessions weren't stored as inbound)
+    // Self-sent messages fall back to the current outbound session, covering
+    // pre-migration sessions that were never stored as inbound.
     if (!inboundSession && senderUserId === this.userId) {
       const outboundSession = this.outboundSessions.get(roomId)
       if (outboundSession && outboundSession.sessionId === encryptedMessage.sessionId) {
-        debug.log(`🔓 Using current outbound session as fallback`)
-        // Also save it as inbound for future lookups
+        debug.log(`Using current outbound session as fallback`)
+        // Store as inbound so later lookups hit.
         await this.importInboundSession(
           roomId,
           this.userId,
@@ -683,7 +643,7 @@ export class MegolmService {
     }
     
     if (!inboundSession) {
-      debug.log(`❌ No session found for ${encryptedMessage.sessionId}`)
+      debug.log(`No session found for ${encryptedMessage.sessionId}`)
       debug.log(`   Available inbound sessions: ${this.inboundSessions.size}`)
       const roomSessions = Array.from(this.inboundSessions.keys())
         .filter(k => k.startsWith(roomId))
@@ -695,20 +655,17 @@ export class MegolmService {
       throw new Error(`Message index ${encryptedMessage.messageIndex} is before first known index ${inboundSession.firstKnownIndex}`)
     }
     
-    debug.log(`🔓 Decrypting with inbound session from ${senderUserId.substring(0, 8)}...`)
+    debug.log(`Decrypting with inbound session from ${senderUserId.substring(0, 8)}...`)
 
-    // Derive the ratchet key for this message index
     const ratchetKey = await this.deriveRatchetKey(inboundSession.sessionKey, encryptedMessage.messageIndex)
 
-    // Decode the ciphertext
     const combined = this.base64ToArrayBuffer(encryptedMessage.ciphertext)
     const combinedArray = new Uint8Array(combined)
     const iv = combinedArray.slice(0, 12)
     const ciphertext = combinedArray.slice(12)
 
-    // Decrypt. When AAD was supplied at encrypt time (v3), the same bytes must
-    // be provided here or GCM authentication fails (which is the point - it
-    // binds the metadata to the ciphertext).
+    // AAD supplied at encrypt time (v3) must be byte-identical here; otherwise
+    // GCM authentication fails, which is what binds metadata to the ciphertext.
     const gcmParams: AesGcmParams = { name: 'AES-GCM', iv }
     if (additionalData) gcmParams.additionalData = additionalData
 
@@ -723,11 +680,10 @@ export class MegolmService {
   }
 
   /**
-   * Derive a ratchet key from session key and message index.
-   * Each message index yields a distinct AES-GCM key, so no two messages reuse
-   * a key. Note this is deterministic from the session key (not a destructive
-   * ratchet): compromise of the session key exposes every message in the
-   * session until rotation. See the secrecy-properties note at the top of file.
+   * Derives a ratchet key from (session key, message index). Each index yields
+   * a distinct AES-GCM key. Derivation is deterministic, not a destructive
+   * ratchet: a compromised session key exposes every message in the session
+   * until rotation. See SECRECY PROPERTIES at the top of the file.
    */
   private async deriveRatchetKey(sessionKeyBase64: string, messageIndex: number): Promise<CryptoKey> {
     const sessionKeyBytes = this.base64ToArrayBuffer(sessionKeyBase64)
@@ -740,7 +696,6 @@ export class MegolmService {
       ['deriveKey']
     )
 
-    // Derive a unique key for this message index
     const encoder = new TextEncoder()
     const info = encoder.encode(`megolm_ratchet_${messageIndex}`)
 
@@ -748,7 +703,7 @@ export class MegolmService {
       {
         name: 'HKDF',
         hash: 'SHA-256',
-        salt: new Uint8Array(32), // Fixed salt
+        salt: new Uint8Array(32), // 32 zero bytes
         info
       },
       keyMaterial,
@@ -761,9 +716,9 @@ export class MegolmService {
   // SESSION SHARING
 
   /**
-   * Session key material for sharing. When `sessionId` is supplied the lookup is
-   * exact: current outbound or our own inbound copy of a prior outbound session.
-   * Never returns another sender's inbound session key.
+   * Session key material for sharing. With `sessionId` the lookup is exact:
+   * current outbound, or the local user's inbound copy of a prior outbound
+   * session. Never returns another sender's inbound session key.
    */
   getSessionKeyForSharing(
     roomId: string,
@@ -793,12 +748,12 @@ export class MegolmService {
     return null
   }
 
-  // Recipients already given a historical outbound session (room rotated since).
+  // Recipients of historical outbound sessions the room has since rotated past.
   private sessionSharedRecipients = new Map<string, string[]>()
 
   /**
-   * Mark that we've shared a session with a user.
-   * @param sessionId when set, tracks sharing for that exact session (not only the current outbound).
+   * @param sessionId when set, tracks sharing for that exact session rather
+   *   than the current outbound one.
    */
   async markSessionSharedWith(roomId: string, userId: string, sessionId?: string): Promise<void> {
     const outbound = this.outboundSessions.get(roomId)
@@ -822,7 +777,6 @@ export class MegolmService {
   }
 
   /**
-   * Get users we need to share a session with.
    * @param sessionId when set, checks share state for that exact session.
    */
   getUsersNeedingSession(roomId: string, allUserIds: string[], sessionId?: string): string[] {
@@ -839,10 +793,7 @@ export class MegolmService {
 
   // EXPORT / IMPORT FOR BACKUP
 
-  /**
-   * Export all sessions for backup
-   * Returns unencrypted data - should be encrypted with recovery key before storing
-   */
+  /** Returns plaintext session data; encrypt with the recovery key before storing. */
   async exportAllSessions(): Promise<{
     outbound: MegolmOutboundSession[]
     inbound: MegolmInboundSession[]
@@ -854,27 +805,24 @@ export class MegolmService {
   }
 
   /**
-   * Import sessions from backup (MERGES with existing, doesn't clear)
-   * 
-   * Also creates inbound copies of outbound sessions (Matrix/Element approach)
-   * to ensure self-decryption works for historical messages.
+   * Merges backup sessions into the existing set; nothing is cleared.
+   * Inbound copies of outbound sessions are created (Matrix/Element approach)
+   * so historical self-sent messages decrypt.
    */
   async importAllSessions(data: {
     outbound: MegolmOutboundSession[]
     inbound: MegolmInboundSession[]
   }): Promise<void> {
-    // Don't clear existing sessions! Merge instead.
-    
     if (data.outbound.length === 0 && data.inbound.length === 0) {
-      debug.log('ℹ️ Backup is empty, keeping existing sessions')
+      debug.log('ℹBackup is empty, keeping existing sessions')
       return
     }
 
-    debug.log(`📥 Merging ${data.outbound.length} outbound, ${data.inbound.length} inbound sessions from backup`)
+    debug.log(`Merging ${data.outbound.length} outbound, ${data.inbound.length} inbound sessions from backup`)
 
     for (const session of data.outbound) {
       const existing = this.outboundSessions.get(session.roomId)
-      // Only replace if backup session is newer or we don't have one
+      // Replace only when the backup session is newer, or none is held.
       if (!existing || session.createdAt > existing.createdAt) {
         this.outboundSessions.set(session.roomId, session)
         await this.saveOutboundSessionStrict(session)
@@ -882,8 +830,8 @@ export class MegolmService {
         debug.log(`  - Imported outbound session for room ${session.roomId.substring(0, 8)}...`)
       }
       
-      // MIGRATION: Also create inbound copy for self-decryption
-      // This handles backups created before the Matrix-style fix
+      // Inbound copy for self-decryption; backups predating inbound storage
+      // carry outbound sessions only.
       if (this.userId) {
         const inboundKey = `${session.roomId}:${this.userId}:${session.sessionId}`
         if (!this.inboundSessions.has(inboundKey)) {
@@ -911,7 +859,7 @@ export class MegolmService {
       }
     }
 
-    debug.log(`📥 Imported ${data.outbound.length} outbound, ${data.inbound.length} inbound sessions`)
+    debug.log(`Imported ${data.outbound.length} outbound, ${data.inbound.length} inbound sessions`)
   }
 
   // PERSISTENCE HELPERS
@@ -919,20 +867,20 @@ export class MegolmService {
   /** Best-effort outbound save (e.g. sharedWith bookkeeping). */
   private async saveOutboundSession(session: MegolmOutboundSession): Promise<void> {
     if (!this.db) {
-      debug.warn('⚠️ No database - cannot save outbound session')
+      debug.warn('No database - cannot save outbound session')
       return
     }
     if (!this.encryptionKey) {
-      debug.warn('⚠️ No encryption key - cannot save outbound session')
+      debug.warn('No encryption key - cannot save outbound session')
       return
     }
 
     try {
       const encrypted = await this.encryptSession(session)
       await this.putInStore(STORES.OUTBOUND, encrypted)
-      debug.log(`💾 Saved outbound session for room ${session.roomId.substring(0, 8)}... to IndexedDB`)
+      debug.log(`Saved outbound session for room ${session.roomId.substring(0, 8)}... to IndexedDB`)
     } catch (error) {
-      debug.error('❌ Failed to save outbound session:', error)
+      debug.error('Failed to save outbound session:', error)
     }
   }
 
@@ -947,25 +895,25 @@ export class MegolmService {
 
     const encrypted = await this.encryptSession(session)
     await this.putInStore(STORES.OUTBOUND, encrypted)
-    debug.log(`💾 Saved outbound session for room ${session.roomId.substring(0, 8)}... to IndexedDB`)
+    debug.log(`Saved outbound session for room ${session.roomId.substring(0, 8)}... to IndexedDB`)
   }
 
   private async saveInboundSession(session: MegolmInboundSession): Promise<void> {
     if (!this.db) {
-      debug.warn('⚠️ No database - cannot save inbound session')
+      debug.warn('No database - cannot save inbound session')
       return
     }
     if (!this.encryptionKey) {
-      debug.warn('⚠️ No encryption key - cannot save inbound session')
+      debug.warn('No encryption key - cannot save inbound session')
       return
     }
 
     try {
       const encrypted = await this.encryptSession(session)
       await this.putInStore(STORES.INBOUND, encrypted)
-      debug.log(`💾 Saved inbound session for room ${session.roomId.substring(0, 8)}... to IndexedDB`)
+      debug.log(`Saved inbound session for room ${session.roomId.substring(0, 8)}... to IndexedDB`)
     } catch (error) {
-      debug.error('❌ Failed to save inbound session:', error)
+      debug.error('Failed to save inbound session:', error)
     }
   }
 
@@ -974,7 +922,7 @@ export class MegolmService {
 
     const sessionCopy = { ...session } as any
     
-    // Encrypt the sensitive sessionKey field
+    // Only sessionKey is encrypted at rest; IV occupies the first 12 bytes.
     if (sessionCopy.sessionKey) {
       const encoder = new TextEncoder()
       const iv = crypto.getRandomValues(new Uint8Array(12))
@@ -1113,6 +1061,5 @@ export class MegolmService {
   }
 }
 
-// Export singleton
 export const megolmService = MegolmService.getInstance()
 

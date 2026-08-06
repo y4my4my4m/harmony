@@ -57,7 +57,7 @@ interface Props {
   placeholder?: string;
   maxHeight?: number;
   minHeight?: number;
-  /** When true, shows border with hover/focus states (harmony-primary-alpha on hover, harmony-primary on focus) */
+  /** Border with hover/focus states: harmony-primary-alpha on hover, harmony-primary on focus. */
   bordered?: boolean;
   autoSuggestActive?: boolean;
   autoSuggestSelectedId?: string;
@@ -87,15 +87,15 @@ const { isMobileViewport, isTouchOnly } = useViewport();
 const editorRef = ref<HTMLDivElement>();
 const isFocused = ref(false);
 const serverChannelStore = useServerChannelStore();
-// Only `unifiedLoaded` is consumed locally (watched for re-render).
-// Emoji resolution itself goes through emojiShortcodeResolver.findEmojiByName.
+// Only `unifiedLoaded` is consumed locally, watched for re-render.
+// Emoji resolution goes through emojiShortcodeResolver.findEmojiByName.
 const { isLoaded: unifiedLoaded } = useUnifiedEmoji();
 const isRendering = ref(false);
-const skipNextWatch = ref(false); // Flag to skip watch when manually rendering
+const skipNextWatch = ref(false); // Suppresses the modelValue watcher for one cycle during manual render
 const undoRedo = useUndoRedo({ maxHistory: 100, groupingDelayMs: 300 });
 const visualTheme = useVisualTheme();
 
-// Cache of role ID → { name, color } for displaying role mentions in the editor
+// Role ID → { name, color } for rendering role mentions.
 const roleDisplayCache = new Map<string, { name: string; color: string | null }>();
 
 async function resolveRoleDisplay(roleId: string): Promise<{ name: string; color: string | null }> {
@@ -147,7 +147,6 @@ const getPlainText = (): string => {
         text += ' ';
       }
       lastWasMention = false;
-      // Always add text content (including whitespace/newlines)
       text += content;
     } else if (node.nodeType === Node.ELEMENT_NODE) {
       const el = node as HTMLElement;
@@ -162,10 +161,9 @@ const getPlainText = (): string => {
         const displayText = el.getAttribute('data-display-text');
 
         if (displayText) {
-          // Use the display text (@username or @username@domain) for message parsing
+          // Message parsing consumes the display form: @username or @username@domain.
           text += displayText;
         } else {
-          // Fallback to element text content
           text += el.textContent || '';
         }
         lastWasMention = true;
@@ -183,7 +181,7 @@ const getPlainText = (): string => {
           }
         });
       } else if (el.classList.contains('editor-greentext')) {
-        // Greentext lines are stored verbatim (leading `>` is preserved)
+        // Greentext lines are verbatim; leading `>` is preserved.
         for (const child of Array.from(node.childNodes)) {
           processNode(child);
         }
@@ -192,7 +190,7 @@ const getPlainText = (): string => {
         text += '\n';
       } else if (el.tagName === 'DIV' || el.tagName === 'P') {
         lastWasMention = false;
-        // Block elements created by some browsers (Chrome uses <div> for Enter)
+        // Browsers insert block elements on Enter; Chrome uses <div>.
         if (text.length > 0 && !text.endsWith('\n')) {
           text += '\n';
         }
@@ -211,12 +209,11 @@ const getPlainText = (): string => {
     processNode(child);
   }
   
-  // Normalize non-breaking spaces back to regular spaces so they don't
-  // leak into stored content (processMentionsInText uses \u00A0 in the DOM)
+  // processMentionsInText writes \u00A0 into the DOM; map back to space so it
+  // does not reach stored content.
   text = text.replace(/\u00A0/g, ' ');
   
-  // Treat as empty when there's no actual text (trimmed is empty).
-  // Lone <br> from browser when user deletes everything → text is '\n', trimmed is '' → return ''.
+  // Deleting all content leaves a lone <br>, yielding '\n'; report empty.
   const trimmed = text.trim();
   if (trimmed.length === 0) {
     return '';
@@ -411,15 +408,15 @@ const getCursorPosition = (): number => {
 const setCursorPosition = (targetPosition: number) => {
   if (!editorRef.value) return;
 
-  debug.log('🔧 setCursorPosition called with:', targetPosition);
+  debug.log('setCursorPosition called with:', targetPosition);
   setSelectionOffsets(targetPosition, targetPosition);
 };
 
 const processMentionsInText = (text: string): DocumentFragment => {
   const fragment = document.createDocumentFragment();
   
-  // Pre-scan for URLs to avoid rendering @mentions inside them
-  // (e.g., https://mastodon.social/@user/12345)
+  // Pre-scan URL ranges; @mentions inside a URL stay plain text,
+  // e.g. https://mastodon.social/@user/12345
   const urlRanges: Array<{ start: number; end: number }> = [];
   const preUrlRegex = /\bhttps?:\/\/\S+/g;
   let urlScan;
@@ -429,10 +426,10 @@ const processMentionsInText = (text: string): DocumentFragment => {
   const isInsideUrl = (pos: number): boolean =>
     urlRanges.some(r => pos >= r.start && pos < r.end);
 
-  // Match role mentions, then user mentions
-  // @role:UUID - role mention
-  // @username@domain - remote user mention
-  // @username - local user mention
+  // Alternation order: role mention first, then user mention.
+  // @role:UUID          role
+  // @username@domain    remote user
+  // @username           local user
   const mentionRegex = /(@role:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}))|(@([a-zA-Z0-9_-]+)(?:@([a-zA-Z0-9.-]+))?)/g;
   
   let lastIndex = 0;
@@ -450,7 +447,7 @@ const processMentionsInText = (text: string): DocumentFragment => {
     }
     
     if (match[1]) {
-      // Role mention - show @RoleName visually, keep @role:UUID for extraction
+      // Displays @RoleName; @role:UUID is retained for extraction.
       const roleId = match[2];
       const cached = getCachedRoleDisplay(roleId);
       const rawName = cached?.name || 'loading...';
@@ -468,7 +465,7 @@ const processMentionsInText = (text: string): DocumentFragment => {
         span.style.backgroundColor = roleColor + '1a';
       }
 
-      // If not cached yet, resolve async and re-render
+      // Uncached: resolve asynchronously, then patch the element in place.
       if (!cached) {
         resolveRoleDisplay(roleId).then(() => {
           if (editorRef.value && !isRendering.value) {
@@ -488,12 +485,12 @@ const processMentionsInText = (text: string): DocumentFragment => {
       }
       fragment.appendChild(span);
     } else if (match[3]) {
-      // User mention - but skip if match is at the end of text (likely in-progress autosuggest query)
-      // e.g. "@username test @use" - don't convert "@use" to a pill yet, let autosuggest trigger
+      // A match ending at end-of-text is an in-progress autosuggest query and
+      // stays text: in "@username test @use", "@use" is not yet a pill.
       if (matchEnd === text.length) {
         const textNode = document.createTextNode(match[0].replace(/ /g, '\u00A0'));
         fragment.appendChild(textNode);
-        lastIndex = matchStart; // Don't advance - we're leaving it as text, will be in remaining
+        lastIndex = matchStart; // Held back so the trailing-text branch emits it
       } else {
         const username = match[4];
         const domain = match[5];
@@ -517,7 +514,7 @@ const processMentionsInText = (text: string): DocumentFragment => {
 const createMentionElementFromDisplay = (displayText: string, username: string, domain?: string): HTMLElement => {
   const span = document.createElement('span');
   span.className = 'editor-mention';
-  span.contentEditable = 'false'; // Prevent editing the mention element itself
+  span.contentEditable = 'false'; // Mention is atomic; caret cannot enter it
   
   let userId: string | null = null;
   let userProfile: any = null;
@@ -535,7 +532,7 @@ const createMentionElementFromDisplay = (displayText: string, username: string, 
     debug.error('Error looking up user for mention:', error);
   }
   
-  // Normalize display text to use @ separator (even if user typed with .)
+  // Display text uses the @ separator regardless of what the user typed.
   const normalizedDisplayText = isLocal 
     ? `@${username}` 
     : (domain ? `@${username}@${domain}` : `@${username}`);
@@ -643,22 +640,22 @@ const appendBlockquote = (
 };
 
 const renderContent = (text: string, skipCursorRestore = false) => {
-  debug.log('🔧 renderContent called with:', text, 'skipCursorRestore:', skipCursorRestore);
+  debug.log('renderContent called with:', text, 'skipCursorRestore:', skipCursorRestore);
   if (!editorRef.value || isRendering.value) {
-    debug.log('🔧 renderContent early return:', { hasEditor: !!editorRef.value, isRendering: isRendering.value });
+    debug.log('renderContent early return:', { hasEditor: !!editorRef.value, isRendering: isRendering.value });
     return;
   }
   
   isRendering.value = true;
   const currentCursorPos = getCursorPosition();
-  debug.log('🔧 Current cursor position:', currentCursorPos);
+  debug.log('Current cursor position:', currentCursorPos);
   
   editorRef.value.innerHTML = '';
-  debug.log('🔧 Cleared editor content');
+  debug.log('Cleared editor content');
   
   if (!text || text.trim().length === 0) {
-    // Keep editor truly empty (no BR tags) so placeholder shows via CSS :empty:before
-    // Use nextTick to ensure DOM is updated
+    // Editor must hold no nodes, not even <br>, for the CSS :empty:before
+    // placeholder to show.
     nextTick(() => {
       if (editorRef.value) {
         editorRef.value.innerHTML = '';
@@ -668,34 +665,32 @@ const renderContent = (text: string, skipCursorRestore = false) => {
     return;
   }
   
-  // Split into blockquote / non-blockquote segments first so markdown tokens
-  // (bold, italic, etc.) inside `> ...` lines render inside the blockquote.
-  // Lines inside a fenced ``` block can't start with `>` followed by space at
-  // column 0 in practice; if they do the user can avoid quoting by using `\>`.
+  // Blockquote segmentation runs before markdown tokenization so tokens inside
+  // `> ...` lines land inside the blockquote element.
+  // A `> ` at column 0 inside a fenced ``` block is still treated as a quote;
+  // `\>` escapes it.
   const fragment = document.createDocumentFragment();
   appendTextWithBlockquotes(text, fragment);
   
-  // Only append fragment if it has content
-  // Don't add BR when empty - let CSS :empty:before show placeholder
+  // An empty fragment leaves the editor with no nodes so the CSS
+  // :empty:before placeholder shows.
   if (fragment.hasChildNodes()) {
     editorRef.value.appendChild(fragment);
   } else {
-    // Ensure editor is truly empty (no BR tags) when no content
     editorRef.value.innerHTML = '';
   }
   
-  // Restore cursor position only if not skipping
   if (!skipCursorRestore) {
     nextTick(() => {
       if (editorRef.value && (document.activeElement === editorRef.value || 
           editorRef.value.contains(document.activeElement))) {
-        debug.log('🔧 Restoring cursor position to:', currentCursorPos);
+        debug.log('Restoring cursor position to:', currentCursorPos);
         setCursorPosition(currentCursorPos);
       }
       isRendering.value = false;
     });
   } else {
-    debug.log('🔧 Skipping cursor restore, will be set externally');
+    debug.log('Skipping cursor restore, will be set externally');
     nextTick(() => {
       isRendering.value = false;
     });
@@ -853,7 +848,6 @@ const createElementFromToken = (token: MarkdownToken): Node => {
       startMarkerContent.textContent = '```' + (token.language || '');
       startMarker.appendChild(startMarkerContent);
       
-      // Content with syntax highlighting
       const content = document.createElement('div');
       content.className = 'editor-codeblock-content';
       
@@ -880,7 +874,6 @@ const createElementFromToken = (token: MarkdownToken): Node => {
         }
       });
       
-      // End marker
       const endMarker = document.createElement('div');
       endMarker.className = 'editor-codeblock-end';
       
@@ -904,7 +897,7 @@ const createElementFromToken = (token: MarkdownToken): Node => {
         span.setAttribute('data-emoji', token.content);
         
         if (emoji.url) {
-          // SVG/Custom emoji - use image
+          // Custom or SVG emoji renders as an image.
           const img = document.createElement('img');
           img.src = getEmojiUrl(emoji.url, 48);
           img.alt = `:${token.content}:`;
@@ -912,11 +905,10 @@ const createElementFromToken = (token: MarkdownToken): Node => {
           img.draggable = false;
           span.appendChild(img);
         } else if (emoji.native) {
-          // Native unicode emoji
+          // Native unicode emoji.
           span.className = 'editor-emoji native-emoji';
           span.textContent = emoji.native;
         } else {
-          // Fallback to shortcode text
           return document.createTextNode(`:${token.content}:`);
         }
         
@@ -941,13 +933,10 @@ const applyUndoState = (state: UndoState) => {
   });
 };
 
-// Returns true if `text` likely contains markdown formatting that the
-// editor renders with extra DOM (bold, italic, underline, strikethrough,
-// inline code, blockquotes, greentext, fenced code, role mentions). We use
-// this as a guard so we only pay the renderContent cost on input events
-// that actually need to change the DOM, keeping fast typing of plain text
-// snappy. The rendered editor includes marker spans (e.g. `**` kept
-// visible), so even partial markers like a single `*` trigger a re-render.
+// Guard for renderContent: true when `text` may produce extra DOM - bold,
+// italic, underline, strikethrough, inline code, blockquote, greentext,
+// fenced code, role mention. Markers stay visible in the rendered editor, so
+// a partial marker such as a lone `*` also matches.
 const hasFormattableMarkers = (text: string): boolean => {
   if (!text) return false;
   if (/[*_~`]/.test(text)) return true;
@@ -969,20 +958,16 @@ const handleInput = (event?: Event) => {
 
   undoRedo.pushState(text, cursorPos);
 
-  // Re-render to apply markdown / blockquote / greentext styling. The
-  // watcher used to be the only call site for `renderContent`, but it
-  // short-circuits when the new value equals the editor's plain text -
-  // which is always the case immediately after the user types, so live
-  // formatting never appeared during input. We now drive the render
-  // directly from input events, gated on `hasFormattableMarkers` so plain
-  // text typing doesn't pay the rebuild cost. Cursor restore inside
-  // `renderContent` keeps the caret stable across the rebuild.
+  // Render is driven from input, not the modelValue watcher: the watcher
+  // short-circuits when the new value equals the editor's plain text, which
+  // holds immediately after a keystroke. Gated on hasFormattableMarkers so
+  // plain text typing skips the rebuild. renderContent restores the caret.
   if (hasFormattableMarkers(text)) {
     renderContent(text, false);
   }
 
-  // Ensure editor is empty when text is removed (for placeholder to show)
-  // Clear stray <br> that browsers leave when user deletes all content
+  // Browsers leave a stray <br> after deleting all content; clear it so the
+  // placeholder shows.
   const hasNoContent = !text || text.trim().length === 0;
   if (hasNoContent) {
     nextTick(() => {
@@ -995,7 +980,6 @@ const handleInput = (event?: Event) => {
     });
   }
 
-  // Auto-expand editor
   autoExpand();
 };
 
@@ -1025,7 +1009,7 @@ const toggleInlineFormat = (kind: InlineFormatKind) => {
 };
 
 const handleKeyDown = (event: KeyboardEvent) => {
-  // Undo / Redo interception (Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z, Cmd variants)
+  // Undo/redo: Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z and Cmd equivalents.
   if ((event.ctrlKey || event.metaKey) && !event.altKey) {
     if (event.key === 'z' && !event.shiftKey) {
       event.preventDefault();
@@ -1052,16 +1036,16 @@ const handleKeyDown = (event: KeyboardEvent) => {
     }
   }
 
-  // True mobile = small screen OR touch-only without mouse
+  // Mobile means small viewport or touch-only input.
   const isMobile = isMobileViewport.value || isTouchOnly;
   
-  // On mobile, Enter inserts line break (user taps send button)
-  // On desktop, emit to parent and let it handle (Enter sends, Shift+Enter for new line)
+  // Mobile: Enter inserts a line break; send is a button tap.
+  // Desktop: parent handles Enter as send, Shift+Enter as line break.
   if (event.key === 'Enter' && !event.isComposing && isMobile && !event.shiftKey) {
-    // Check if parent will handle this (e.g., auto-suggest active)
+    // Parent may consume it, e.g. while auto-suggest is open.
     emit('keydown', event);
     
-    // If parent didn't prevent default, insert a line break manually
+    // Unconsumed: insert the line break here.
     if (!event.defaultPrevented) {
       event.preventDefault();
       
@@ -1084,9 +1068,9 @@ const handleKeyDown = (event: KeyboardEvent) => {
     return;
   }
   
-  // Fallback: emit cursor-position-changed on keydown for @ or mention/emoji chars.
-  // In some browsers, input doesn't fire when typing after contenteditable=false pills.
-  // nextTick runs after the key is inserted, so autosuggest gets the correct state.
+  // Some browsers skip the input event when typing after a
+  // contenteditable=false pill, so cursor-position-changed is emitted from
+  // keydown for mention/emoji trigger chars. nextTick runs after insertion.
   const isTriggerChar = !event.isComposing &&
     (event.key === '@' || event.key === ':' ||
     (event.key.length === 1 && /[a-zA-Z0-9_+-]/.test(event.key)));
@@ -1118,7 +1102,7 @@ const handleBlur = (event: FocusEvent) => {
 const handlePaste = (event: ClipboardEvent) => {
   event.preventDefault();
 
-  // Check for image/file data in clipboard - let parent handle it
+  // Files in the clipboard are the parent's responsibility.
   const items = event.clipboardData?.items;
   if (items) {
     let hasFiles = false;
@@ -1134,7 +1118,7 @@ const handlePaste = (event: ClipboardEvent) => {
     }
   }
 
-  // Text-only paste
+  // Text-only paste.
   const text = event.clipboardData?.getData('text/plain') || '';
   insertTextAtCursor(text);
 };
@@ -1144,8 +1128,8 @@ const insertTextAtCursor = (text: string) => {
   
   const selection = window.getSelection();
   if (!selection || selection.rangeCount === 0) {
-    // Append as a text node instead of setting textContent (which would
-    // flatten all structured DOM like emojis, mentions, and formatting spans)
+    // Appending a text node preserves emoji, mention and formatting spans;
+    // setting textContent would flatten them.
     editorRef.value.appendChild(document.createTextNode(text));
   } else {
     const range = selection.getRangeAt(0);
@@ -1167,7 +1151,6 @@ const insertTextAtCursor = (text: string) => {
   });
 };
 
-// Auto-expand editor based on content
 const autoExpand = () => {
   if (!editorRef.value) return;
   
@@ -1179,31 +1162,29 @@ const autoExpand = () => {
   editorRef.value.style.overflowY = scrollHeight > props.maxHeight ? 'auto' : 'hidden';
 };
 
-// Focus the editor
 const focus = () => {
   if (editorRef.value) {
-    debug.log('🔧 focus() called, editor exists:', !!editorRef.value);
+    debug.log('focus() called, editor exists:', !!editorRef.value);
     
-    // Blur first to ensure clean state
+    // Blur first for a clean focus state.
     if (document.activeElement === editorRef.value) {
-      debug.log('🔧 Editor already focused, blurring first');
+      debug.log('Editor already focused, blurring first');
       editorRef.value.blur();
     }
     
-    // Focus the element
     editorRef.value.focus();
     
-    // Double-check focus was established
+    // Focus can fail silently; retry after a frame.
     requestAnimationFrame(() => {
       if (editorRef.value && document.activeElement !== editorRef.value) {
-        debug.warn('🔧 Focus attempt failed, trying again');
+        debug.warn('Focus attempt failed, trying again');
         editorRef.value.focus();
       }
-      debug.log('🔧 After focus(), activeElement:', document.activeElement === editorRef.value);
-      debug.log('🔧 Has selection:', !!window.getSelection()?.rangeCount);
+      debug.log('After focus(), activeElement:', document.activeElement === editorRef.value);
+      debug.log('Has selection:', !!window.getSelection()?.rangeCount);
     });
   } else {
-    debug.warn('🔧 focus() called but editorRef is null');
+    debug.warn('focus() called but editorRef is null');
   }
 };
 
@@ -1229,7 +1210,7 @@ defineExpose({
   redo: undoRedo.redo,
 });
 
-// Re-render when the emoji pack finishes lazy-loading so :shortcode: text resolves
+// Emoji pack loads lazily; re-render so :shortcode: text resolves.
 watch(unifiedLoaded, (loaded) => {
   if (loaded && editorRef.value && props.modelValue) {
     const text = getPlainText();
@@ -1239,33 +1220,32 @@ watch(unifiedLoaded, (loaded) => {
   }
 });
 
-// Clear role cache when switching servers to prevent unbounded growth
+// Role cache is per-server; clearing on switch bounds its growth.
 watch(() => serverChannelStore.currentServerId, () => {
   roleDisplayCache.clear();
 });
 
-// Watch for external model value changes
 watch(() => props.modelValue, (newValue) => {
   if (editorRef.value) {
     if (skipNextWatch.value) {
-      debug.log('🔧 Skipping watch cycle due to manual cursor control');
+      debug.log('Skipping watch cycle due to manual cursor control');
       skipNextWatch.value = false;
       return;
     }
     
     const currentText = getPlainText();
-    debug.log('🔧 RichTextEditor watch triggered:', { 
+    debug.log('RichTextEditor watch triggered:', { 
       newValue: JSON.stringify(newValue), 
       currentText: JSON.stringify(currentText), 
       different: currentText !== newValue 
     });
     if (currentText !== newValue) {
-      debug.log('🔧 Calling renderContent with:', JSON.stringify(newValue), '(from watch)');
-      // Don't skip cursor restore here - this is for normal typing
+      debug.log('Calling renderContent with:', JSON.stringify(newValue), '(from watch)');
+      // Cursor restore stays on: this path covers normal typing.
       renderContent(newValue || '', false);
       autoExpand();
       
-      // Ensure placeholder shows when empty - clear any remaining BR tags
+      // Clear leftover <br> so the placeholder shows.
       if (!newValue || newValue.trim().length === 0) {
         nextTick(() => {
           if (editorRef.value) {
@@ -1281,7 +1261,7 @@ watch(() => props.modelValue, (newValue) => {
 });
 
 onMounted(async () => {
-  // Pre-warm role cache so role mentions resolve instantly
+  // Pre-warm the role cache so mentions render without a resolve round-trip.
   const serverId = serverChannelStore.currentServerId;
   if (serverId) {
     try {
@@ -1328,7 +1308,7 @@ onMounted(async () => {
   left: 12px;
 }
 
-/* Bordered variant: border with hover/focus states for composer inline mode */
+/* Bordered variant: composer inline mode. */
 .rich-text-editor.bordered {
   border: 1px solid var(--border-color);
   border-radius: 8px;
@@ -1344,14 +1324,12 @@ onMounted(async () => {
   box-shadow: 0 0 0 2px var(--harmony-primary-light);
 }
 
-/* Markdown markers styling */
 .rich-text-editor :deep(.editor-marker) {
   color: var(--text-muted);
   opacity: 0.6;
   font-weight: normal;
 }
 
-/* Bold styling */
 .rich-text-editor :deep(.editor-bold-wrapper) {
   display: inline;
 }
@@ -1361,7 +1339,6 @@ onMounted(async () => {
   color: var(--text-primary);
 }
 
-/* Italic styling */
 .rich-text-editor :deep(.editor-italic-wrapper) {
   display: inline;
 }
@@ -1371,7 +1348,6 @@ onMounted(async () => {
   color: var(--text-primary);
 }
 
-/* Underline styling */
 .rich-text-editor :deep(.editor-underline-wrapper) {
   display: inline;
 }
@@ -1381,7 +1357,6 @@ onMounted(async () => {
   color: var(--text-primary);
 }
 
-/* Strikethrough styling */
 .rich-text-editor :deep(.editor-strikethrough-wrapper) {
   display: inline;
 }
@@ -1391,7 +1366,6 @@ onMounted(async () => {
   color: var(--text-primary);
 }
 
-/* Code styling */
 .rich-text-editor :deep(.editor-code-wrapper) {
   display: inline;
 }
@@ -1406,7 +1380,6 @@ onMounted(async () => {
   border: 1px solid #202225;
 }
 
-/* Code block styling */
 .rich-text-editor :deep(.editor-codeblock-wrapper) {
   display: block;
   margin: 6px 0;
@@ -1440,7 +1413,6 @@ onMounted(async () => {
   overflow-x: auto;
 }
 
-/* Emoji styling */
 .rich-text-editor :deep(.editor-emoji) {
   display: inline-block;
   vertical-align: text-bottom;
@@ -1460,17 +1432,11 @@ onMounted(async () => {
   margin: 0 0.05em;
 }
 
-/* Focus styling */
-/* .rich-text-editor.is-focused {
-  Add any focus-specific styling here
-} */
-
-/* Single line mode */
 .rich-text-editor.single-line {
   overflow-y: hidden;
 }
 
-/* Syntax highlighting for code blocks */
+/* Prism token classes emitted by highlightSyntax. */
 .rich-text-editor :deep(.token.comment) { color: #6272a4; }
 .rich-text-editor :deep(.token.prolog),
 .rich-text-editor :deep(.token.doctype),
@@ -1507,7 +1473,6 @@ onMounted(async () => {
 .rich-text-editor :deep(.token.italic) { font-style: italic; }
 .rich-text-editor :deep(.token.entity) { cursor: help; }
 
-/* Mention styles */
 .rich-text-editor :deep(.editor-mention) {
   color: #0EA5E9;
   background-color: rgba(14, 165, 233, 0.15);

@@ -1,13 +1,10 @@
 <template>
-  <!-- No Servers Splash -->
   <NoServersSplash 
     v-if="shouldShowNoServersSplash"
     @showPublicServers="$emit('showPublicServers')"
   />
   
-  <!-- Chat Layout -->
   <div v-else class="chat-layout" :class="{ 'is-dragging': isDragging }">
-    <!-- Context Bar -->
     <div class="context-bar-container">
       <UnifiedContextBar
         mode="chat"
@@ -27,9 +24,7 @@
       />
     </div>
 
-    <!-- Chat Layout Content (Flex Row) -->
     <div class="chat-layout-content">
-      <!-- Channel Sidebar -->
       <div 
         class="channel-sidebar-container" 
         :class="{ 
@@ -53,9 +48,8 @@
         />
       </div>
 
-      <!-- Main + Right Sidebar Container -->
       <div class="main-and-right-container">
-        <!-- Chat Header (spans across main + right sidebar) -->
+        <!-- Header spans main content + right sidebar -->
         <div v-if="!isDM" class="chat-header-container">
           <ChatHeader
             v-if="currentChannel"
@@ -85,11 +79,8 @@
           </div>
         </div>
 
-        <!-- Content Row (Main Content + Right Sidebar) -->
         <div class="content-row">
-          <!-- Main Content Area -->
           <div class="main-content-area">        
-            <!-- Chat Content (RouterView for nested chat views) -->
             <RouterView 
               :current-server="currentServer"
               :current-channel="currentChannel"
@@ -102,7 +93,6 @@
             />
           </div>
 
-          <!-- Right Sidebar (User List) -->
           <div 
             v-if="!isDM" 
             class="right-sidebar-container" 
@@ -118,7 +108,6 @@
       </div>
     </div>
     
-    <!-- Chat Modals -->
     <CreateChannel
       v-if="!isDM"
       :serverId="currentServer?.id || ''"
@@ -128,7 +117,6 @@
       @close="showCreateChannelForm = false"
     />
     
-    <!-- Message Search Modal -->
     <MessageSearchModal
       :show="showSearchModal"
       :initial-server-id="currentServer?.id"
@@ -137,7 +125,6 @@
       @message-click="handleSearchMessageClick"
     />
     
-    <!-- Pinned Messages Popup -->
     <PinnedMessagesPopup
       :is-visible="showPinnedMessages"
       :channel-id="currentChannelId"
@@ -146,7 +133,6 @@
       @jump-to-message="handleJumpToMessage"
     />
     
-    <!-- All Threads Modal -->
     <AllThreadsModal
       :is-visible="showAllThreads"
       :channel-id="currentChannelId"
@@ -155,7 +141,6 @@
       @select-thread="handleSelectThread"
     />
     
-    <!-- Thread View Sidebar -->
     <ThreadView
       :is-visible="showThreadView"
       :thread-id="selectedThreadId"
@@ -199,7 +184,6 @@ import { storeToRefs } from 'pinia'
 import { useFundingStore } from '@/stores/useFunding'
 import FundingModal from '@/components/FundingModal.vue'
 
-// Props
 interface Props {
   leftSidebarOpen: boolean
   rightSidebarOpen: boolean
@@ -228,7 +212,6 @@ const props = withDefaults(defineProps<Props>(), {
   rightSidebarDragOffset: 0
 })
 
-// Emits
 // eslint-disable-next-line unused-imports/no-unused-vars
 const emit = defineEmits<{
   toggleLeftSidebar: []
@@ -237,18 +220,14 @@ const emit = defineEmits<{
   showPublicServers: []
 }>()
 
-// Stores
 const serverChannelStore = useServerChannelStore()
 const router = useRouter()
 const route = useRoute()
 
-// Layout state
 const { SIDEBAR_WIDTH } = useLayoutState()
 
-// User data
 useUserData();
 
-// State
 const showCreateChannelForm = ref(false)
 const currentCategoryId = ref<string | undefined>()
 const showPinnedMessages = ref(false)
@@ -259,7 +238,6 @@ const selectedThread = ref<any>(null)
 const showChannelEditModal = ref(false)
 const editingChannel = ref<any>(null)
 
-// Computed
 const servers = computed(() => serverChannelStore.servers)
 const channels = computed(() => serverChannelStore.channels)
 const categories = computed(() => serverChannelStore.categories)
@@ -270,34 +248,28 @@ const currentChannel = computed(() => {
   return channels.value.find(c => c.id === currentChannelId.value)
 })
 
-// Props computed for router-view
 const serverId = computed(() => props.serverId || currentServer.value?.id)
 const channelId = computed(() => props.channelId || currentChannelId.value)
 const conversationId = computed(() => props.conversationId)
 
 const shouldShowNoServersSplash = computed(() => {
-  // Only treat an empty server list as "user has no servers" once we've
-  // confirmed the fetch actually completed. Without this guard, a failed
-  // initial fetch (network slow during PWA cold-boot, etc.) would render
-  // the onboarding splash even though the user has servers - they'd just
-  // see "join a server / create a community" while half-logged-in.
-  // `hasInitialized` is set to true only in the success path of
-  // `initializeUserEnvironment`, so it reliably distinguishes the
-  // genuine empty case from a transient failure.
+  // An empty server list means "no servers" only after the fetch completed.
+  // Without the guard, a failed initial fetch (slow network on PWA cold-boot)
+  // renders the onboarding splash to users who do have servers.
+  // `hasInitialized` is set only in the success path of
+  // `initializeUserEnvironment`, separating the genuine empty case from a
+  // transient failure.
   return !props.isDM
     && serverChannelStore.hasInitialized
     && servers.value.length === 0
 })
 
-// Computed drag styles for native-feeling gestures
 const leftSidebarStyle = computed(() => {
   if (!props.isMobile) return {}
   
   if (props.isDragging && props.dragDirection === 'left') {
-    // Left sidebar slides in from left (accounting for server sidebar at 72px)
-    // When closed: translateX(-150%) (hidden off screen)
-    // When open: translateX(72px) (visible next to server sidebar)
-    // During drag: interpolate based on offset
+    // Slides in from the left, interpolated by drag offset. Open position
+    // clears the 72px server sidebar.
     const progress = props.leftSidebarDragOffset / SIDEBAR_WIDTH
     const closedPosition = -240 // Hidden position (width of sidebar)
     const openPosition = 72 // Open position (server sidebar width)
@@ -334,16 +306,13 @@ const rightSidebarStyle = computed(() => {
   return {}
 })
 
-// State
 const showSearchModal = ref(false)
 
-// Event handlers
 const handleToggleSearch = () => {
   showSearchModal.value = true
 }
 
 const handleSearchMessageClick = (message: any, searchQuery?: string) => {
-  // Navigate to the message's channel/conversation
   if (message.channel_id) {
     router.push({
       name: 'ChatChannel',
@@ -371,13 +340,11 @@ const handleSearchMessageClick = (message: any, searchQuery?: string) => {
 }
 
 const handleJumpToMessage = (messageId: string) => {
-  // Scroll to message in current channel/conversation
   // The chat store handles message jumping via query params
   const currentQuery = { ...route.query, messageId }
   router.replace({ query: currentQuery })
 }
 
-// Thread handlers
 const handleSelectThread = (thread: any) => {
   selectedThreadId.value = thread.id
   selectedThread.value = thread
@@ -399,9 +366,8 @@ const handleEditChannel = (channel: any) => {
   showChannelEditModal.value = true
 }
 
-// Keyboard shortcut handler (Ctrl+K / Cmd+K)
+// Ctrl+K / Cmd+K opens the search modal.
 const handleKeyDown = (event: KeyboardEvent) => {
-  // Check for Ctrl+K (Windows/Linux) or Cmd+K (Mac)
   if ((event.ctrlKey || event.metaKey) && event.key === 'k') {
     event.preventDefault()
     handleToggleSearch()
@@ -418,8 +384,8 @@ onUnmounted(() => {
   const chatStore = useChatStore()
   const dmStore = useDMStore()
   chatStore.unsubscribeFromMessages()
-  // Preserve the conversation list cache (resetData: false) so navigating
-  // back to DMs renders instantly instead of flashing a loading spinner.
+  // resetData: false preserves the conversation list cache, so returning to
+  // DMs renders from cache instead of showing a loading spinner.
   dmStore.cleanup(false)
 })
 
@@ -453,14 +419,13 @@ const handleChannelCreated = (channel?: any) => {
   }
 }
 
-// Auto-navigation to default server/channel
 const navigateToDefaultIfNeeded = async () => {
-  // Only auto-navigate if we're on the bare /chat route with no params
+  // Auto-navigate only from the bare /chat route, with no params.
   if (!props.isDM && route.name === 'Chat' && !route.params.serverId && !route.params.channelId) {
-    debug.log('🔄 Auto-navigating to default server/channel')
+    debug.log('Auto-navigating to default server/channel')
     
     if (serverChannelStore.servers.length === 0) {
-      // Wait a bit for servers to load
+      // 100ms grace period for the server list to arrive.
       await new Promise(resolve => setTimeout(resolve, 100))
     }
     
@@ -468,7 +433,6 @@ const navigateToDefaultIfNeeded = async () => {
       let targetServerId = serverChannelStore.currentServerId
       let targetChannelId = serverChannelStore.currentChannelId
       
-      // If no current server, use the first server
       if (!targetServerId) {
         targetServerId = serverChannelStore.servers[0].id
         serverChannelStore.setCurrentServer(targetServerId)
@@ -476,7 +440,6 @@ const navigateToDefaultIfNeeded = async () => {
         await serverChannelStore.fetchCategoriesAndChannels(targetServerId)
       }
       
-      // If no current channel, get default channel
       if (!targetChannelId && serverChannelStore.channels.length > 0) {
         targetChannelId = serverChannelStore.getDefaultChannel()
         if (targetChannelId) {
@@ -484,9 +447,8 @@ const navigateToDefaultIfNeeded = async () => {
         }
       }
       
-      // Navigate to the server/channel
       if (targetServerId && targetChannelId) {
-        debug.log('🎯 Navigating to:', { serverId: targetServerId, channelId: targetChannelId })
+        debug.log('Navigating to:', { serverId: targetServerId, channelId: targetChannelId })
         router.replace({ 
           name: 'ChatChannel', 
           params: { 
@@ -499,7 +461,6 @@ const navigateToDefaultIfNeeded = async () => {
   }
 }
 
-// Watch for route changes and servers loading
 watch(() => [route.name, route.params, serverChannelStore.servers.length], navigateToDefaultIfNeeded, { immediate: false })
 
 // Sync route params to store when navigating to /chat/:serverId/:channelId
@@ -525,8 +486,8 @@ watch(
   { immediate: true }
 )
 
-// Funding - single source of truth in useFundingStore; load is idempotent
-// and dedup-protected so this is cheap on every mount.
+// Funding config lives in useFundingStore. load() is idempotent and
+// dedup-protected, so calling it on every mount is cheap.
 const fundingStore = useFundingStore()
 const { config: fundingConfig } = storeToRefs(fundingStore)
 const showFundingModal = ref(false)
@@ -640,7 +601,7 @@ onMounted(() => {
 
 .right-sidebar-container {
   flex-shrink: 0;
-  /* Native-feeling spring animation */
+  /* spring easing */
   transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1), width 0.35s cubic-bezier(0.32, 0.72, 0, 1);
   transform: translateX(100%);
   width: 0px;
@@ -655,7 +616,6 @@ onMounted(() => {
   border-left: 1px solid var(--border-color);
 }
 
-/* Mobile responsiveness */
 @media (max-width: 768px) {
   
   .context-bar-container {
@@ -667,7 +627,7 @@ onMounted(() => {
     top: 0;
     bottom: 0;
     z-index: 200;
-    /* Native-feeling spring animation on release */
+    /* spring easing, applied on drag release */
     transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1), width 0.2s cubic-bezier(0.32, 0.72, 0, 1);
   }
 

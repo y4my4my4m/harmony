@@ -1,14 +1,14 @@
 /**
  * DM Call Signaling Service
  *
- * Call membership is derived from Supabase Realtime *presence* on the
+ * Call membership derives from Supabase Realtime presence on the
  * per-conversation channel: participants track themselves while connected to
- * the call's voice room, so a refresh/crash drops them automatically and
- * every client converges on the true participant set (no ghost "Join Call").
- * Broadcasts are only used for transient UX: ringing, accept/decline/cancel.
+ * the call's voice room, so a refresh or crash drops them automatically and
+ * every client converges on the same participant set. Broadcasts carry only
+ * transient UX: ringing, accept, decline, cancel.
  *
- * Supports federated calls via ActivityPub voice extensions (no presence -
- * the remote party is on another instance).
+ * Federated calls run over ActivityPub voice extensions and have no presence -
+ * the remote party lives on another instance.
  */
 
 import { ref } from 'vue'
@@ -53,7 +53,7 @@ export interface ActiveCall {
   roomName?: string
 }
 
-/** Presence payload tracked by each participant while connected to the call */
+/** Presence payload tracked by each participant while connected to the call. */
 interface CallPresenceMeta {
   callType: 'voice' | 'video'
   joinedAt: string
@@ -74,15 +74,15 @@ class DMCallSignalingService {
   private channelSetup: Map<string, Promise<RealtimeChannel>> = new Map()
   private activeCalls: Map<string, ActiveCall> = new Map()
   private listeners: Map<string, Set<(signal: CallSignal) => void>> = new Map()
-  // Presence meta we're currently tracking, per conversation (set while in the call)
+  // Presence meta tracked per conversation; set while in the call.
   private trackedPresence: Map<string, CallPresenceMeta> = new Map()
-  // Debounce for "presence went empty -> call over" so a reconnect blip doesn't end a live call
+  // Debounce for "presence empty -> call over" so a reconnect blip does not end a live call.
   private emptyGraceTimers: Map<string, number> = new Map()
-  // Callee-side watchdogs: a ringing call whose caller vanished must not ring forever
+  // Callee-side watchdogs bounding a ring whose caller vanished.
   private ringWatchdogs: Map<string, number> = new Map()
 
-  // Reactive counter so Vue computeds that read call state re-evaluate on changes.
-  // Components should read callStateVersion.value inside their computed to track changes.
+  // Reactive counter. Vue computeds must read callStateVersion.value to
+  // re-evaluate on call state changes; the Maps themselves are not reactive.
   public callStateVersion = ref(0)
   private bumpVersion() { this.callStateVersion.value++ }
 
@@ -98,14 +98,14 @@ class DMCallSignalingService {
   }
 
   private readonly CALL_TIMEOUT_MS = 30000
-  // Callers get CALL_TIMEOUT_MS to cancel a no-answer ring themselves; if their
-  // client died we clean up shortly after that deadline
+  // Exceeds CALL_TIMEOUT_MS: the caller cancels its own no-answer ring first;
+  // this only fires when that client died.
   private readonly RING_WATCHDOG_MS = 45000
   private readonly EMPTY_CALL_GRACE_MS = 5000
 
   // CHANNEL LIFECYCLE
   // One channel per conversation, shared by signal listeners (DMHeader) and
-  // presence tracking (while in the call). Released when neither needs it.
+  // presence tracking. Released when neither needs it.
 
   private ensureChannel(conversationId: string): Promise<RealtimeChannel> {
     let setup = this.channelSetup.get(conversationId)
@@ -120,8 +120,7 @@ class DMCallSignalingService {
   }
 
   private async createChannel(conversationId: string): Promise<RealtimeChannel> {
-    // Presence keys must be profile ids - that's what the rest of the call
-    // code uses for participant identity
+    // Presence key is the profile id; participant identity is profile ids throughout.
     const profileId = await authContextService.getCurrentProfileId().catch(() => null)
 
     const channel = supabase.channel(`dm-call:${conversationId}`, {
@@ -131,7 +130,7 @@ class DMCallSignalingService {
     channel
       .on('broadcast', { event: 'call-signal' }, (payload) => {
         const signal = payload.payload as CallSignal
-        debug.log('📞 Received call signal:', {
+        debug.log('Received call signal:', {
           conversation: conversationId,
           type: signal.type,
           from: signal.callerId,
@@ -145,7 +144,7 @@ class DMCallSignalingService {
 
     await new Promise<void>((resolve, reject) => {
       channel.subscribe((status) => {
-        debug.log(`📡 Call channel dm-call:${conversationId} status:`, status)
+        debug.log(`Call channel dm-call:${conversationId} status:`, status)
         if (status === 'SUBSCRIBED') resolve()
         else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') reject(new Error(`Channel ${status}`))
       })
@@ -153,7 +152,7 @@ class DMCallSignalingService {
 
     this.channels.set(conversationId, channel)
 
-    // track() may have been requested while the channel was still connecting
+    // track() may have been requested while the channel was connecting.
     const pendingMeta = this.trackedPresence.get(conversationId)
     if (pendingMeta) {
       await channel.track(pendingMeta)
@@ -180,9 +179,7 @@ class DMCallSignalingService {
     }
   }
 
-  /**
-   * Subscribe to call signals for a conversation
-   */
+  /** Returns an unsubscribe function; the channel closes when the last listener leaves. */
   subscribeToConversation(conversationId: string, onSignal: (signal: CallSignal) => void): () => void {
     if (!this.listeners.has(conversationId)) {
       this.listeners.set(conversationId, new Set())
@@ -190,7 +187,7 @@ class DMCallSignalingService {
     this.listeners.get(conversationId)!.add(onSignal)
 
     this.ensureChannel(conversationId).catch(error => {
-      debug.error('📞 Failed to open call channel:', conversationId, error)
+      debug.error('Failed to open call channel:', conversationId, error)
     })
 
     return () => {
@@ -208,9 +205,9 @@ class DMCallSignalingService {
   // PRESENCE
 
   /**
-   * Announce ourselves as an active call participant. Called when the voice
-   * connection for the DM is established; presence auto-expires when the
-   * socket dies (refresh, crash), which is what keeps call state truthful.
+   * Announce this client as an active call participant. Called once the DM's
+   * voice connection is established. Presence expires when the socket dies
+   * (refresh, crash), which is what keeps call state truthful.
    */
   async trackCallPresence(conversationId: string, meta: Omit<CallPresenceMeta, 'joinedAt'>): Promise<void> {
     const fullMeta: CallPresenceMeta = { ...meta, joinedAt: new Date().toISOString() }
@@ -219,9 +216,9 @@ class DMCallSignalingService {
     try {
       const channel = await this.ensureChannel(conversationId)
       await channel.track(fullMeta)
-      debug.log('📞 Tracking call presence for conversation:', conversationId)
+      debug.log('Tracking call presence for conversation:', conversationId)
     } catch (error) {
-      debug.error('📞 Failed to track call presence:', error)
+      debug.error('Failed to track call presence:', error)
     }
   }
 
@@ -233,15 +230,15 @@ class DMCallSignalingService {
       try {
         await channel.untrack()
       } catch (error) {
-        debug.warn('📞 Failed to untrack call presence:', error)
+        debug.warn('Failed to untrack call presence:', error)
       }
     }
     this.releaseChannelIfUnused(conversationId)
   }
 
   /**
-   * Reconcile local call state with the channel's presence set - the source
-   * of truth for who is actually connected to the call.
+   * Reconcile local call state with the channel's presence set, which is
+   * authoritative for who is connected. Federated calls have no presence.
    */
   private syncFromPresence(conversationId: string): void {
     const channel = this.channels.get(conversationId)
@@ -263,7 +260,7 @@ class DMCallSignalingService {
       const metas = userIds.map(id => ({ id, meta: state[id][0] }))
 
       if (!call) {
-        // Ongoing call discovered (opened the DM late, or after a refresh)
+        // Ongoing call discovered: DM opened late, or after a refresh.
         const earliest = metas.reduce((a, b) => (a.meta.joinedAt <= b.meta.joinedAt ? a : b))
         const caller = metas.find(m => m.meta.isCaller) ?? earliest
         this.setActiveCall(conversationId, {
@@ -278,7 +275,7 @@ class DMCallSignalingService {
           ringing: false,
           systemMessageId: metas.find(m => m.meta.systemMessageId)?.meta.systemMessageId ?? null,
         })
-        debug.log('📞 Discovered ongoing call via presence:', conversationId, userIds)
+        debug.log('Discovered ongoing call via presence:', conversationId, userIds)
         return
       }
 
@@ -301,9 +298,8 @@ class DMCallSignalingService {
       return
     }
 
-    // Presence is empty. A ringing call legitimately has no presence on the
-    // callee side yet; otherwise the call is over once the grace period
-    // confirms nobody reconnects.
+    // Presence empty. A ringing call has no callee presence yet; otherwise the
+    // call ends once the grace period confirms nobody reconnects.
     if (!call || call.ringing) return
     if (this.emptyGraceTimers.has(conversationId)) return
 
@@ -313,7 +309,7 @@ class DMCallSignalingService {
       const currentChannel = this.channels.get(conversationId)
       const stillEmpty = !currentChannel || Object.keys(currentChannel.presenceState()).length === 0
       if (current && !current.ringing && stillEmpty) {
-        debug.log('📞 Call presence empty - ending call:', conversationId)
+        debug.log('Call presence empty - ending call:', conversationId)
         void this.finalizeCallMessage(current)
         this.deleteActiveCall(conversationId)
       }
@@ -330,12 +326,12 @@ class DMCallSignalingService {
   }
 
   /**
-   * Send a call signal on the conversation channel.
-   * Creates a temporary channel if no subscription exists (e.g. when
-   * accepting from the global incoming-call modal before DMHeader mounts).
+   * Broadcast a call signal on the conversation channel. Falls back to a
+   * temporary channel when no subscription exists, e.g. accepting from the
+   * global incoming-call modal before DMHeader mounts.
    */
   async sendSignal(conversationId: string, signal: CallSignal): Promise<void> {
-    debug.log('📤 Sending call signal:', {
+    debug.log('Sending call signal:', {
       conversation: conversationId,
       type: signal.type,
       from: signal.callerId,
@@ -352,7 +348,7 @@ class DMCallSignalingService {
       })
     } else {
       const channelName = `dm-call:${conversationId}`
-      debug.log(`📤 No existing subscription - using temp channel: ${channelName}`)
+      debug.log(`No existing subscription - using temp channel: ${channelName}`)
       const tempChannel = supabase.channel(channelName)
       await new Promise<void>((resolve, reject) => {
         tempChannel.subscribe((status) => {
@@ -368,12 +364,13 @@ class DMCallSignalingService {
       await tempChannel.unsubscribe()
     }
 
-    debug.log('✅ Call signal sent successfully')
+    debug.log('Call signal sent successfully')
   }
 
   /**
-   * Initiate a call with timeout
-   * Sends signal to the RECEIVER's user channel (dm-calls:{receiverId})
+   * Ring each receiver on their own user channel (dm-calls:{receiverId}) and
+   * arm the CALL_TIMEOUT_MS no-answer timer. Inserts the call system message
+   * first so its id can ride along in the signal.
    */
   async initiateCall(
     conversationId: string,
@@ -438,12 +435,9 @@ class DMCallSignalingService {
     }
   }
   
-  /**
-   * Send signal to a specific user's channel
-   */
   private async sendSignalToUser(userId: string, signal: CallSignal): Promise<void> {
     const channelName = `dm-calls:${userId}`
-    debug.log(`📤 Sending call signal to user ${userId} on channel ${channelName}`)
+    debug.log(`Sending call signal to user ${userId} on channel ${channelName}`)
     
     const tempChannel = supabase.channel(channelName)
     
@@ -460,14 +454,14 @@ class DMCallSignalingService {
       payload: signal
     })
     
-    debug.log('✅ Signal sent to user:', userId)
+    debug.log('Signal sent to user:', userId)
     
     await tempChannel.unsubscribe()
   }
   
   /**
-   * Handle call timeout (no answer after 30 seconds)
-   * Discord behavior: stop ringing on both sides, show "No Answer"
+   * No answer within CALL_TIMEOUT_MS. Mirrors Discord: ringing stops on both
+   * sides and the call reads as "No Answer".
    */
   private async handleCallTimeout(conversationId: string, callerId: string): Promise<void> {
     const call = this.activeCalls.get(conversationId)
@@ -490,11 +484,10 @@ class DMCallSignalingService {
         reason: 'timeout'
       }
       
-      // Broadcast on conversation channel (for the caller's DMHeader)
+      // Conversation channel reaches the caller's DMHeader.
       await this.sendSignal(conversationId, timeoutSignal)
       
-      // Also notify each receiver on their user channel so GlobalDMCallListener
-      // can dismiss the incoming call modal
+      // User channels reach GlobalDMCallListener, which dismisses the modal.
       for (const receiverId of call.receiverIds) {
         await this.sendSignalToUser(receiverId, timeoutSignal)
       }
@@ -505,9 +498,6 @@ class DMCallSignalingService {
     }
   }
 
-  /**
-   * Accept a call
-   */
   async acceptCall(
     conversationId: string,
     userId: string
@@ -539,15 +529,12 @@ class DMCallSignalingService {
     }
     this.bumpVersion()
 
-    // Broadcast on the conversation channel so the caller's DMHeader receives it
+    // Conversation channel reaches the caller's DMHeader.
     await this.sendSignal(conversationId, signal)
 
-    debug.log('✅ Accept signal sent on conversation channel:', conversationId)
+    debug.log('Accept signal sent on conversation channel:', conversationId)
   }
 
-  /**
-   * Decline a call
-   */
   async declineCall(
     conversationId: string,
     userId: string,
@@ -573,9 +560,6 @@ class DMCallSignalingService {
     this.deleteActiveCall(conversationId)
   }
 
-  /**
-   * End a call
-   */
   async endCall(
     conversationId: string,
     userId: string
@@ -588,7 +572,6 @@ class DMCallSignalingService {
 
     await this.untrackCallPresence(conversationId)
 
-    // Finalize system message
     if (call) {
       await this.finalizeCallMessage(call)
     }
@@ -606,9 +589,7 @@ class DMCallSignalingService {
     await this.sendSignal(conversationId, signal)
   }
 
-  /**
-   * Join an ongoing call (for group DMs)
-   */
+  /** Join an ongoing call. Group DMs only. */
   async joinCall(
     conversationId: string,
     userId: string
@@ -641,9 +622,9 @@ class DMCallSignalingService {
   }
 
   /**
-   * Leave a call (participant leaves but call continues)
-   * If the caller leaves while still ringing (no one answered), this acts as
-   * a cancel: sends 'end' to receivers so their incoming call UI dismisses.
+   * Leave a call; remaining participants continue. A caller leaving while the
+   * call is still ringing acts as a cancel: 'end' goes to the receivers so
+   * their incoming-call UI dismisses.
    */
   async leaveCall(
     conversationId: string,
@@ -664,7 +645,7 @@ class DMCallSignalingService {
     call.participants = call.participants.filter(id => id !== userId)
 
     if (isCallerCancel) {
-      // Caller hung up before anyone answered - cancel the ring everywhere
+      // Caller hung up before any answer - cancel the ring everywhere.
       await this.finalizeCallMessage(call)
       this.deleteActiveCall(conversationId)
 
@@ -678,8 +659,7 @@ class DMCallSignalingService {
 
       await this.sendSignal(conversationId, endSignal)
 
-      // Notify each receiver on their user channel so GlobalDMCallListener
-      // dismisses the incoming call modal
+      // User channels reach GlobalDMCallListener, which dismisses the modal.
       for (const receiverId of call.receiverIds) {
         await this.sendSignalToUser(receiverId, endSignal)
       }
@@ -695,42 +675,33 @@ class DMCallSignalingService {
     }
 
     if (call.participants.length === 0) {
-      // We were the last one in - the call is over
+      // Last participant out - the call is over.
       await this.finalizeCallMessage(call)
       this.deleteActiveCall(conversationId)
     } else {
-      // Others remain: the call continues without us (presence keeps our
-      // local view in sync; whoever leaves last finalizes the message)
+      // Others remain. Presence keeps the local view in sync; the last one
+      // out finalizes the system message.
       this.bumpVersion()
     }
 
     await this.sendSignal(conversationId, signal)
   }
 
-  /**
-   * Get active call for conversation (exposed for timeout clearing)
-   */
   getActiveCall(conversationId: string): ActiveCall | undefined {
     return this.activeCalls.get(conversationId)
   }
 
-  /**
-   * Check if there's an active call
-   */
   hasActiveCall(conversationId: string): boolean {
     return this.activeCalls.has(conversationId)
   }
 
-  /**
-   * Get participants in call
-   */
   getCallParticipants(conversationId: string): string[] {
     return this.activeCalls.get(conversationId)?.participants || []
   }
 
   /**
-   * Register a remote call (callee side) so hasActiveCall() works for all participants.
-   * Called by GlobalDMCallListener when an initiate signal is received.
+   * Callee-side registration so hasActiveCall() holds for every participant.
+   * Called by GlobalDMCallListener on an 'initiate' signal.
    */
   registerRemoteCall(
     conversationId: string,
@@ -753,8 +724,8 @@ class DMCallSignalingService {
       systemMessageId: systemMessageId ?? null,
     })
 
-    // If the caller's client dies mid-ring we never get a cancel/timeout
-    // signal - drop the stale ringing call after the deadline passes
+    // A caller client dying mid-ring sends no cancel or timeout; drop the
+    // stale ringing call after RING_WATCHDOG_MS.
     this.clearRingWatchdog(conversationId)
     const watchdog = window.setTimeout(() => {
       this.ringWatchdogs.delete(conversationId)
@@ -766,12 +737,12 @@ class DMCallSignalingService {
     }, this.RING_WATCHDOG_MS)
     this.ringWatchdogs.set(conversationId, watchdog)
 
-    debug.log('📞 Registered remote call for conversation:', conversationId)
+    debug.log('Registered remote call for conversation:', conversationId)
   }
 
   /**
-   * Handle an incoming signal to update local activeCalls state.
-   * Called by GlobalDMCallListener for end/leave/join signals.
+   * Apply an incoming signal to local activeCalls state.
+   * Called by GlobalDMCallListener for accept/join/leave/end/timeout.
    */
   handleRemoteSignal(signal: CallSignal): void {
     const call = this.activeCalls.get(signal.conversationId)
@@ -796,9 +767,9 @@ class DMCallSignalingService {
         }
         break
       case 'leave':
-        // Presence is authoritative for membership; the broadcast just makes
-        // the UI react instantly. Never delete the call here - if it's truly
-        // over, the empty-presence path ends it.
+        // Presence is authoritative for membership; the broadcast only makes
+        // the UI react without waiting for sync. Never delete the call here -
+        // the empty-presence path ends it.
         if (call) {
           call.participants = call.participants.filter(id => id !== signal.callerId)
           this.bumpVersion()
@@ -812,10 +783,10 @@ class DMCallSignalingService {
   }
 
   /**
-   * Update the system message to show the call has ended with duration info.
+   * Rewrite the system message metadata to call_ended with duration.
    * Uses the finalize_dm_call_message RPC (SECURITY DEFINER) so any
-   * conversation participant can finalize; falls back to a direct update
-   * (owner-only under RLS) when the RPC isn't deployed yet.
+   * conversation participant can finalize; falls back to a direct update,
+   * which RLS restricts to the message owner, when the RPC is absent.
    */
   private async finalizeCallMessage(call: ActiveCall): Promise<void> {
     if (!call.systemMessageId) return
@@ -847,13 +818,13 @@ class DMCallSignalingService {
         }).eq('id', call.systemMessageId)
       }
 
-      debug.log('📞 Finalized call system message:', call.systemMessageId, 'duration:', durationSeconds, 's')
+      debug.log('Finalized call system message:', call.systemMessageId, 'duration:', durationSeconds, 's')
     } catch (error) {
       debug.error('Failed to finalize call system message:', error)
     }
     
-    // Update the local DM message cache immediately so the UI reflects the change
-    // without waiting for Supabase realtime
+    // Patch the local DM message cache so the UI updates without waiting for
+    // the Supabase realtime echo.
     try {
       const { useDMStore } = await import('@/stores/useDM')
       const dmStore = useDMStore()
@@ -861,18 +832,18 @@ class DMCallSignalingService {
       const msgIndex = messages.findIndex((m: any) => m.id === call.systemMessageId)
       if (msgIndex !== -1) {
         messages[msgIndex] = { ...messages[msgIndex], metadata: newMetadata }
-        debug.log('📞 Updated local message cache for call system message')
+        debug.log('Updated local message cache for call system message')
       }
     } catch {
-      // cache update is best-effort
+      // Cache patch is best-effort; realtime delivers the same change.
     }
   }
 
   // FEDERATED CALL METHODS
 
   /**
-   * Initiate a federated call (to a user on a remote instance)
-   * Uses ActivityPub voice extensions instead of Supabase Realtime
+   * Call a user on a remote instance over ActivityPub voice extensions.
+   * Media runs through LiveKit; no Supabase presence exists for this path.
    */
   async initiateFederatedCall(
     conversationId: string,
@@ -881,14 +852,14 @@ class DMCallSignalingService {
     calleeFederatedId: string,
     callType: 'voice' | 'video'
   ): Promise<FederatedCallInfo | null> {
-    debug.log('📞 [Federated] Initiating federated call to:', calleeFederatedId)
+    debug.log('[Federated] Initiating federated call to:', calleeFederatedId)
     
     try {
       const configResponse = await fetch(apiUrl('/api/livekit/config'))
       const config = await configResponse.json()
       
       if (!config.enabled || !config.wsUrl) {
-        debug.error('❌ LiveKit not configured for federated calls')
+        debug.error('LiveKit not configured for federated calls')
         return null
       }
       
@@ -896,7 +867,7 @@ class DMCallSignalingService {
       
       const { data: { session } } = await supabase.auth.getSession()
       if (!session?.access_token) {
-        debug.error('❌ Not authenticated')
+        debug.error('Not authenticated')
         return null
       }
       
@@ -913,12 +884,11 @@ class DMCallSignalingService {
       })
       
       if (!tokenResponse.ok) {
-        debug.error('❌ Failed to get LiveKit token')
+        debug.error('Failed to get LiveKit token')
         return null
       }
       
-      // Send federated call invite via ActivityPub
-      // This is handled by the federation backend
+      // Federation backend relays this invite as an ActivityPub activity.
       const inviteResponse = await fetch(apiUrl('/api/livekit/federated-call/invite'), {
         method: 'POST',
         headers: {
@@ -936,7 +906,7 @@ class DMCallSignalingService {
       })
       
       if (!inviteResponse.ok) {
-        debug.error('❌ Failed to send federated call invite')
+        debug.error('Failed to send federated call invite')
         return null
       }
       
@@ -971,28 +941,25 @@ class DMCallSignalingService {
         roomName,
       })
       
-      debug.log('✅ [Federated] Call initiated, waiting for response')
+      debug.log('[Federated] Call initiated, waiting for response')
       return callInfo
     } catch (error) {
-      debug.error('❌ [Federated] Failed to initiate call:', error)
+      debug.error('[Federated] Failed to initiate call:', error)
       return null
     }
   }
 
-  /**
-   * Accept a federated call
-   */
   async acceptFederatedCall(
     conversationId: string,
     userId: string,
     callerFederatedId: string
   ): Promise<{ token: string; wsUrl: string; roomName: string } | null> {
-    debug.log('📞 [Federated] Accepting federated call from:', callerFederatedId)
+    debug.log('[Federated] Accepting federated call from:', callerFederatedId)
     
     try {
       const call = this.activeCalls.get(conversationId)
       if (!call || !call.isFederated) {
-        debug.error('❌ No federated call found for conversation')
+        debug.error('No federated call found for conversation')
         return null
       }
       
@@ -1009,7 +976,7 @@ class DMCallSignalingService {
 
       const { data: { session } } = await supabase.auth.getSession()
       if (!session?.access_token) {
-        debug.error('❌ Not authenticated')
+        debug.error('Not authenticated')
         return null
       }
       
@@ -1026,25 +993,22 @@ class DMCallSignalingService {
       })
       
       return {
-        token: '', // Token will be fetched when connecting
+        token: '', // Fetched at connect time.
         wsUrl: call.livekitUrl || '',
         roomName: call.roomName || '',
       }
     } catch (error) {
-      debug.error('❌ [Federated] Failed to accept call:', error)
+      debug.error('[Federated] Failed to accept call:', error)
       return null
     }
   }
 
-  /**
-   * Decline a federated call
-   */
   async declineFederatedCall(
     conversationId: string,
     userId: string,
     callerFederatedId: string
   ): Promise<void> {
-    debug.log('📞 [Federated] Declining federated call from:', callerFederatedId)
+    debug.log('[Federated] Declining federated call from:', callerFederatedId)
     
     try {
       const call = this.activeCalls.get(conversationId)
@@ -1069,18 +1033,15 @@ class DMCallSignalingService {
       
       this.deleteActiveCall(conversationId)
     } catch (error) {
-      debug.error('❌ [Federated] Failed to decline call:', error)
+      debug.error('[Federated] Failed to decline call:', error)
     }
   }
 
-  /**
-   * End a federated call
-   */
   async endFederatedCall(
     conversationId: string,
     _userId: string
   ): Promise<void> {
-    debug.log('📞 [Federated] Ending federated call')
+    debug.log('[Federated] Ending federated call')
     
     try {
       const call = this.activeCalls.get(conversationId)
@@ -1107,13 +1068,11 @@ class DMCallSignalingService {
       
       this.deleteActiveCall(conversationId)
     } catch (error) {
-      debug.error('❌ [Federated] Failed to end call:', error)
+      debug.error('[Federated] Failed to end call:', error)
     }
   }
 
-  /**
-   * Handle federated call timeout
-   */
+  /** Federated calls have no broadcast channel; notify local listeners directly. */
   private handleFederatedCallTimeout(conversationId: string, callerId: string): void {
     debug.log('⏰ [Federated] Call timeout for:', conversationId)
     
@@ -1140,8 +1099,8 @@ class DMCallSignalingService {
   }
 
   /**
-   * Subscribe to incoming federated calls (via Supabase Realtime)
-   * The federation backend broadcasts to this channel
+   * Listen on federated-calls:{userId}. The federation backend broadcasts
+   * remote-instance call events here over Supabase Realtime.
    */
   subscribeToFederatedCalls(userId: string, onIncomingCall: (callInfo: {
     callId: string
@@ -1155,17 +1114,17 @@ class DMCallSignalingService {
     conversationId: string
   }) => void): () => void {
     const channelName = `federated-calls:${userId}`
-    debug.log('📡 [Federated] Subscribing to:', channelName)
+    debug.log('[Federated] Subscribing to:', channelName)
     
     const channel = supabase.channel(channelName)
     
     channel
       .on('broadcast', { event: 'incoming-call' }, (payload) => {
-        debug.log('📞 [Federated] Incoming call:', payload.payload)
+        debug.log('[Federated] Incoming call:', payload.payload)
         onIncomingCall(payload.payload)
       })
       .on('broadcast', { event: 'call-accepted' }, (payload) => {
-        debug.log('📞 [Federated] Call accepted:', payload.payload)
+        debug.log('[Federated] Call accepted:', payload.payload)
         const { callId } = payload.payload
         const call = this.activeCalls.get(callId)
         if (call && call.timeoutTimer) {
@@ -1174,11 +1133,11 @@ class DMCallSignalingService {
         }
       })
       .on('broadcast', { event: 'call-rejected' }, (payload) => {
-        debug.log('📞 [Federated] Call rejected:', payload.payload)
+        debug.log('[Federated] Call rejected:', payload.payload)
         this.deleteActiveCall(payload.payload.callId)
       })
       .on('broadcast', { event: 'call-ended' }, (payload) => {
-        debug.log('📞 [Federated] Call ended:', payload.payload)
+        debug.log('[Federated] Call ended:', payload.payload)
         this.deleteActiveCall(payload.payload.callId)
       })
       .subscribe()
@@ -1188,16 +1147,11 @@ class DMCallSignalingService {
     }
   }
 
-  /**
-   * Check if a call is federated
-   */
   isFederatedCall(conversationId: string): boolean {
     return this.activeCalls.get(conversationId)?.isFederated ?? false
   }
 
-  /**
-   * Cleanup all channels
-   */
+  /** Clear every timer before dropping channels; no signals are sent. */
   cleanup(): void {
     this.activeCalls.forEach(call => {
       if (call.timeoutTimer) {
@@ -1218,6 +1172,5 @@ class DMCallSignalingService {
   }
 }
 
-// Singleton instance
 export const dmCallSignaling = new DMCallSignalingService()
 

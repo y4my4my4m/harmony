@@ -1,6 +1,5 @@
 <template>
   <div class="avatar-container" :class="[sizeClass, { 'interactive': interactive }]">
-    <!-- Avatar Image -->
     <img
       :src="avatarUrl"
       :alt="alt"
@@ -11,19 +10,17 @@
       @load="handleImageLoad"
     />
 
-    <!-- Loading State -->
     <div v-if="loading" class="avatar-loading">
       <LoadingSpinner :size="20" />
     </div>
 
-    <!-- Status Indicator -->
     <div
       v-if="status && !isMobile"
       class="avatar-status"
       :class="`status-${status}`"
     ></div>
 
-    <!-- Mobile Status Indicator (shows phone icon when on mobile) -->
+    <!-- Phone icon replaces the status dot on mobile -->
     <div
       v-if="status && isMobile"
       class="avatar-status avatar-status-mobile"
@@ -34,7 +31,6 @@
       </svg>
     </div>
 
-    <!-- Edit Button -->
     <button
       v-if="editable"
       class="avatar-edit-btn"
@@ -44,7 +40,6 @@
       <CameraIcon />
     </button>
 
-    <!-- Hidden file input -->
     <input
       v-if="editable"
       ref="fileInput"
@@ -67,24 +62,21 @@ import CameraIcon from '@/components/icons/Camera.vue'
 
 const toast = useToast()
 
-// Types
 type AvatarSize = 'mini' | 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl'
 type UserStatus = 'online' | 'away' | 'busy' | 'offline' | 'invisible'
 
-// Props
 interface Props {
   src?: string | null
   alt?: string
   size?: AvatarSize
   status?: UserStatus
-  isMobile?: boolean  // Show mobile indicator instead of regular status dot
+  isMobile?: boolean  // Phone icon in place of the status dot
   editable?: boolean
   interactive?: boolean
   loading?: boolean
-  // Decouple the imgproxy fetch resolution from the display size. When the same
-  // avatar is already rendered elsewhere at a larger size (e.g. the message list
-  // at "sm"=48px), small placements like the reaction tooltip can request that
-  // same pixel size to reuse the cached image instead of fetching a new variant.
+  // Decouples imgproxy fetch resolution from display size. A small placement
+  // (reaction tooltip) can request the pixel size already fetched elsewhere
+  // (message list uses "sm"=48px) to hit the cache instead of a new variant.
   fetchSize?: number
 }
 
@@ -97,30 +89,26 @@ const props = withDefaults(defineProps<Props>(), {
   loading: false
 })
 
-// Emits
 const emit = defineEmits<{
   'click': []
   'upload': [file: File]
   'edit': []
 }>()
 
-// State
 const imageError = ref(false)
 
-// Refs
 const fileInput = ref<HTMLInputElement>()
 
 const sizeMap: Record<AvatarSize, number> = {
   mini: 16,
   xs: 24,
-  sm: 48, // should be 40px but 48 looks better because power of two value properly resize
+  sm: 48, // Display is 40px; 48 resizes cleaner as a power of two.
   md: 96,
   lg: 128,
   xl: 156,
   '2xl': 256
 }
 
-// Computed
 const avatarUrl = computed(() => {
   if (imageError.value) return '/default_avatar.webp'
   const pixelSize = props.fetchSize ?? (sizeMap[props.size] || 48)
@@ -129,7 +117,6 @@ const avatarUrl = computed(() => {
 
 const sizeClass = computed(() => `avatar-${props.size}`)
 
-// Methods
 const handleClick = () => {
   if (props.interactive) {
     emit('click')
@@ -148,8 +135,8 @@ const handleFileSelect = async (event: Event) => {
   const file = target.files?.[0]
   
   if (file) {
-    // Validate against the avatars bucket's real size/type limits and surface
-    // any problem through the toast system (not a native alert).
+    // Validates against the avatars bucket size/type limits; errors go to the
+    // toast system, not a native alert.
     const validationError = await validateImageUpload(file, 'avatars')
     if (validationError) {
       toast.error(validationError)
@@ -163,11 +150,10 @@ const handleFileSelect = async (event: Event) => {
   target.value = ''
 }
 
-// Transient network failures (imgproxy/R2 latency) should not permanently
-// show the default avatar. We retry a few times with backoff before giving up.
-// only reset retry state on successful load of the REAL image, and
-// never schedule a retry when the fallback itself just failed - otherwise we'd
-// flip-flop between broken-real and broken-fallback forever.
+// Transient imgproxy/R2 failures must not pin the avatar to the default.
+// Retry with backoff. Retry state resets only on a successful load of the real
+// image; a failed fallback never schedules a retry, otherwise the two broken
+// states alternate forever.
 const MAX_RETRIES = 3
 const RETRY_DELAYS_MS = [400, 1200, 3000]
 const retryCount = ref(0)
@@ -187,15 +173,15 @@ const scheduleRetry = () => {
   retryTimer = setTimeout(() => {
     retryTimer = null
     retryCount.value++
-    // Flipping imageError back to false makes the computed return the real URL
-    // again, which re-issues the network request through the same <img> tag.
+    // Clearing imageError returns the real URL from the computed, which
+    // re-issues the request through the same <img> tag.
     imageError.value = false
   }, delay)
 }
 
 const handleImageError = () => {
-  // If imageError was already true, this @error is from the fallback default
-  // image itself failing - don't loop, just stay on the broken-image state.
+  // imageError already true means the fallback default image failed. Stay in
+  // the broken state rather than loop.
   if (imageError.value) {
     debug.warn('Avatar fallback image failed to load:', avatarUrl.value)
     clearRetryTimer()
@@ -207,10 +193,9 @@ const handleImageError = () => {
 }
 
 const handleImageLoad = () => {
-  // Do NOT reset imageError here - the fallback image loading successfully
-  // would re-trigger the broken src, causing an infinite loop.
-  // Only "forgive" past failures when the REAL image loads (imageError is
-  // false at this point because the computed returned the real URL).
+  // Resetting imageError here would re-trigger the broken src on a successful
+  // fallback load and loop forever. Failures clear only when the real image
+  // loads - imageError is false there because the computed returned the real URL.
   if (!imageError.value && retryCount.value > 0) {
     retryCount.value = 0
     clearRetryTimer()
@@ -254,7 +239,7 @@ onUnmounted(() => {
   border-color: #0EA5E9;
 } */
 
-/* Size classes - following voice overlay pattern */
+/* Size classes mirror the voice overlay. */
 .avatar-mini {
   width: 16px;
   height: 16px;
@@ -290,7 +275,6 @@ onUnmounted(() => {
   height: 128px;
 }
 
-/* Loading state */
 .avatar-loading {
   position: absolute;
   top: 0;
@@ -305,7 +289,7 @@ onUnmounted(() => {
   z-index: 0;
 }
 
-/* Status indicator - following voice overlay pattern */
+/* Status indicator mirrors the voice overlay. */
 .avatar-status {
   position: absolute;
   border-radius: 50%;
@@ -362,7 +346,6 @@ onUnmounted(() => {
   box-sizing: border-box;
 }
 
-/* Mobile indicator - shows phone icon */
 .avatar-status-mobile {
   display: flex;
   align-items: center;
@@ -397,7 +380,6 @@ onUnmounted(() => {
   color: var(--status-offline, #747f8d);
 }
 
-/* Edit button */
 .avatar-edit-btn {
   position: absolute;
   bottom: -2px;

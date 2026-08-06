@@ -221,10 +221,10 @@ const TRISTATE_OPTIONS: Array<{ value: TriState; label: string; icon: string }> 
   { value: 'allow', label: 'Allow', icon: '✓' },
 ]
 
-// Permissions are grouped Discord-style so the modal doesn't read as one
-// flat wall of toggles. Editing OTHER people's messages is intentionally
-// not exposed here - it's owner/admin-only and lives outside the
-// channel-override surface. MANAGE_MESSAGES is delete+pin only.
+// Permissions are grouped Discord-style rather than as one flat toggle list.
+// Editing another user's messages is owner/admin-only and lives outside the
+// channel-override surface, so it is absent here. MANAGE_MESSAGES covers
+// delete and pin only.
 const PERMISSION_GROUPS: Array<{
   id: string
   label: string
@@ -397,8 +397,8 @@ const savingPermissions = ref(false)
  * 'allow'   = bit set in allow_permissions.
  * 'deny'    = bit set in deny_permissions.
  *
- * We keep two copies (initial + working) to detect dirty state and only persist
- * roles whose permissions actually changed.
+ * Two copies are held (initial + working) so dirty state is detectable and only
+ * changed roles are persisted.
  */
 const initialPermState = ref<Record<string, Partial<Record<Permission, TriState>>>>({})
 const workingPermState = ref<Record<string, Partial<Record<Permission, TriState>>>>({})

@@ -1,13 +1,10 @@
 /**
- * GifService - User GIF favorites management
- * 
- * Handles CRUD operations for user's favorite GIFs.
- * Supports GIFs from any source (Tenor, Giphy, or direct URLs).
- * Uses Supabase for storage with RLS policies ensuring users
- * can only access their own favorites.
- * 
- * OPTIMIZED: Uses AuthContextService for auth, caches favorites globally,
- * and deduplicates concurrent requests.
+ * User GIF favorites: CRUD over the `gif_favorites` table.
+ * Accepts GIFs from any source (Tenor, Giphy, direct URLs).
+ * RLS restricts each user to their own rows.
+ *
+ * Auth goes through AuthContextService. Favorites are cached process-wide
+ * with a TTL and concurrent fetches are deduplicated.
  */
 
 import { supabase } from '@/supabase'
@@ -15,7 +12,6 @@ import { debug } from '@/utils/debug'
 import { authContextService } from '@/services/AuthContextService'
 import type { Gif } from '@/types'
 
-// Database row type for gif_favorites table
 export type GifMediaType = 'gif' | 'sticker' | 'clip' | 'meme' | 'ai-emoji'
 
 export interface GifFavorite {
@@ -28,27 +24,25 @@ export interface GifFavorite {
   /** Distinguishes GIF favorites from sticker favorites. Defaults to 'gif'. */
   media_type?: GifMediaType
   /**
-   * Tenor's stable GIF identifier. Populated for Tenor-sourced favorites;
-   * absent for direct-URL favorites. Surfaced to consumers (GifComponent)
-   * for hover-preview keying and de-duplication.
+   * Tenor's stable GIF identifier. Present for Tenor-sourced favorites,
+   * absent for direct-URL ones. GifComponent keys hover-preview and
+   * de-duplication off it.
    */
   tenor_id?: string
 }
 
-// Simplified type for favorites (same as database row)
 export type FavoriteGif = GifFavorite
 
-// Cache TTL: 5 minutes
 const CACHE_TTL = 5 * 60 * 1000
 
 export class GifService {
   private static instance: GifService
   
-  // Local cache of favorite URLs for quick lookups
+  // URL-only set backing the synchronous isFavoriteByUrl lookup.
   private favoriteUrls: Set<string> = new Set()
   private cacheInitialized = false
   
-  // Full favorites cache with TTL
+  // Full rows, valid for CACHE_TTL.
   private favoritesCache: FavoriteGif[] | null = null
   private favoritesCacheTime = 0
   private pendingFavoritesRequest: Promise<FavoriteGif[]> | null = null
@@ -60,10 +54,7 @@ export class GifService {
     return GifService.instance
   }
 
-  /**
-   * Initialize the favorites cache for quick lookups
-   * OPTIMIZED: Uses AuthContextService instead of direct auth call
-   */
+  /** Populates favoriteUrls. No-op when already initialized or unauthenticated. */
   async initializeCache(): Promise<void> {
     if (this.cacheInitialized) return
 
@@ -82,16 +73,12 @@ export class GifService {
 
       this.favoriteUrls = new Set((data || []).map(f => f.gif_url))
       this.cacheInitialized = true
-      debug.log(`✅ GIF favorites cache initialized: ${this.favoriteUrls.size} favorites`)
+      debug.log(`GIF favorites cache initialized: ${this.favoriteUrls.size} favorites`)
     } catch (error) {
       debug.error('Error initializing GIF favorites cache:', error)
     }
   }
 
-  /**
-   * Add a GIF to favorites by URL
-   * OPTIMIZED: Uses AuthContextService for cached profile ID
-   */
   async addFavoriteByUrl(
     gifUrl: string, 
     previewUrl: string, 
@@ -123,10 +110,10 @@ export class GifService {
       }
 
       this.favoriteUrls.add(gifUrl)
-      // Invalidate full cache so next getFavorites() refreshes
+      // Invalidate the full cache; next getFavorites() refetches.
       this.favoritesCache = null
       
-      debug.log(`✅ Added GIF to favorites: ${gifUrl.substring(0, 50)}...`)
+      debug.log(`Added GIF to favorites: ${gifUrl.substring(0, 50)}...`)
       return { success: true }
     } catch (error) {
       debug.error('Error adding GIF to favorites:', error)
@@ -134,10 +121,6 @@ export class GifService {
     }
   }
 
-  /**
-   * Remove a GIF from favorites by URL
-   * OPTIMIZED: Uses AuthContextService for cached auth check
-   */
   async removeFavoriteByUrl(gifUrl: string): Promise<{ success: boolean; error?: string }> {
     try {
       const isAuth = await authContextService.isAuthenticated()
@@ -156,10 +139,10 @@ export class GifService {
       }
 
       this.favoriteUrls.delete(gifUrl)
-      // Invalidate full cache so next getFavorites() refreshes
+      // Invalidate the full cache; next getFavorites() refetches.
       this.favoritesCache = null
       
-      debug.log(`✅ Removed GIF from favorites: ${gifUrl.substring(0, 50)}...`)
+      debug.log(`Removed GIF from favorites: ${gifUrl.substring(0, 50)}...`)
       return { success: true }
     } catch (error) {
       debug.error('Error removing GIF from favorites:', error)
@@ -167,9 +150,6 @@ export class GifService {
     }
   }
 
-  /**
-   * Toggle a GIF's favorite status by URL
-   */
   async toggleFavoriteByUrl(
     gifUrl: string, 
     previewUrl: string, 
@@ -187,9 +167,7 @@ export class GifService {
     }
   }
 
-  /**
-   * Legacy method: Toggle favorite for a Tenor Gif object
-   */
+  /** Legacy: takes a Tenor Gif object instead of URLs. */
   async toggleFavorite(gif: Gif): Promise<{ isFavorite: boolean; error?: string }> {
     return this.toggleFavoriteByUrl(
       gif.media_formats.gif.url,
@@ -198,9 +176,7 @@ export class GifService {
     )
   }
 
-  /**
-   * Legacy method: Add a Tenor Gif to favorites
-   */
+  /** Legacy: takes a Tenor Gif object instead of URLs. */
   async addFavorite(gif: Gif): Promise<{ success: boolean; error?: string }> {
     return this.addFavoriteByUrl(
       gif.media_formats.gif.url,
@@ -210,27 +186,21 @@ export class GifService {
   }
 
   /**
-   * Legacy method: Remove favorite by Tenor ID (now removes by URL)
+   * Deprecated. Always fails: favorites are keyed by URL and tenorId cannot be
+   * mapped back to one. Call sites must use removeFavoriteByUrl.
    */
   async removeFavorite(_tenorId: string): Promise<{ success: boolean; error?: string }> {
-    // This method is kept for backwards compatibility but should use removeFavoriteByUrl
     debug.warn('removeFavorite(tenorId) is deprecated, use removeFavoriteByUrl(gifUrl)')
-    // We can't easily map tenorId to URL, so this will need to be updated at call sites
     return { success: false, error: 'Use removeFavoriteByUrl instead' }
   }
 
-  /**
-   * Get all user's favorite GIFs
-   * OPTIMIZED: Caches results with TTL, deduplicates concurrent requests,
-   * uses AuthContextService for auth
-   */
+  /** Served from the TTL cache when warm; concurrent misses share one fetch. */
   async getFavorites(mediaType?: GifMediaType): Promise<FavoriteGif[]> {
     const now = Date.now()
     if (this.favoritesCache && (now - this.favoritesCacheTime) < CACHE_TTL) {
       return this.filterByType(this.favoritesCache, mediaType)
     }
     
-    // Deduplicate concurrent requests
     if (this.pendingFavoritesRequest) {
       return this.filterByType(await this.pendingFavoritesRequest, mediaType)
     }
@@ -251,9 +221,6 @@ export class GifService {
     return rows.filter(r => (r.media_type ?? 'gif') === mediaType)
   }
   
-  /**
-   * Internal method to actually fetch favorites from DB
-   */
   private async _fetchFavorites(): Promise<FavoriteGif[]> {
     try {
       const isAuth = await authContextService.isAuthenticated()
@@ -279,7 +246,7 @@ export class GifService {
       this.favoriteUrls = new Set(favorites.map(f => f.gif_url))
       this.cacheInitialized = true
 
-      debug.log(`📋 GIF favorites loaded: ${favorites.length} items (cached for ${CACHE_TTL / 1000}s)`)
+      debug.log(`GIF favorites loaded: ${favorites.length} items (cached for ${CACHE_TTL / 1000}s)`)
       return favorites
     } catch (error) {
       debug.error('Error getting GIF favorites:', error)
@@ -287,16 +254,12 @@ export class GifService {
     }
   }
 
-  /**
-   * Check if a GIF URL is favorited (uses local cache for speed)
-   */
+  /** Reads the local set only; stale until initializeCache or getFavorites runs. */
   isFavoriteByUrl(gifUrl: string): boolean {
     return this.favoriteUrls.has(gifUrl)
   }
 
-  /**
-   * Check if a GIF URL is favorited (async version that ensures cache is initialized)
-   */
+  /** isFavoriteByUrl, initializing the cache first. */
   async isFavoriteByUrlAsync(gifUrl: string): Promise<boolean> {
     if (!this.cacheInitialized) {
       await this.initializeCache()
@@ -304,16 +267,13 @@ export class GifService {
     return this.favoriteUrls.has(gifUrl)
   }
 
-  /**
-   * Convert a FavoriteGif to Gif format for display/sending
-   */
   favoriteToGif(favorite: FavoriteGif): Gif {
     return {
       id: favorite.id,
       media_formats: {
         gif: { url: favorite.gif_url },
         gifpreview: { url: favorite.preview_url },
-        // These won't be available for favorites, but provide fallbacks
+        // Favorites store no video variants; fall back to the GIF URL.
         mp4: { url: favorite.gif_url },
         webm: { url: favorite.gif_url }
       },
@@ -321,18 +281,15 @@ export class GifService {
     }
   }
 
-  /**
-   * Clear the local cache (useful when user logs out)
-   */
+  /** Call on logout. */
   clearCache(): void {
     this.favoriteUrls.clear()
     this.cacheInitialized = false
     this.favoritesCache = null
     this.favoritesCacheTime = 0
     this.pendingFavoritesRequest = null
-    debug.log('🧹 GIF favorites cache cleared')
+    debug.log('GIF favorites cache cleared')
   }
 }
 
-// Export singleton instance
 export const gifService = GifService.getInstance()

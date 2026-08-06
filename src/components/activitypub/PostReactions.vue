@@ -240,7 +240,7 @@ const handleReactionClick = async (reaction: PostEmojiReaction) => {
     
     if (result.success) {
       const action = reaction.current_user_reacted ? 'Removed' : 'Added';
-      debug.log(`${action === 'Added' ? '➕' : '➖'} ${action} reaction ${reaction.emoji_name} to post ${props.post.id}`);
+      debug.log(`${action === 'Added' ? '' : ''} ${action} reaction ${reaction.emoji_name} to post ${props.post.id}`);
     } else {
       debug.warn('Failed to toggle reaction:', result.reason);
     }
@@ -285,7 +285,7 @@ const handleEmojiSelected = async (emoji: any): Promise<boolean> => {
     );
     
     if (result.success) {
-      debug.log(`➕ Added reaction ${emoji.name} to post ${props.post.id}`);
+      debug.log(`Added reaction ${emoji.name} to post ${props.post.id}`);
       return true;
     } else {
       debug.warn('Failed to add reaction:', result.reason);

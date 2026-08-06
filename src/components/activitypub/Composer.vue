@@ -1,10 +1,8 @@
-<!-- Composer Component - Unified ActivityPub post/reply composer -->
-<!-- Supports both modal and inline modes, new posts and replies -->
+<!-- ActivityPub composer: modal or inline, post/reply/quote/edit. -->
 <template>
   <component :is="wrapperComponent" v-bind="wrapperProps">
     <div :class="composerClasses" @click.self="handleOverlayClick">
       <div :class="contentClasses">
-        <!-- Header (hidden for inline replies) -->
         <div v-if="!(mode === 'inline' && type === 'reply')" class="composer-header">
           <h2 class="composer-title">
             {{ headerTitle }}
@@ -14,10 +12,8 @@
           </button>
         </div>
 
-        <!-- Reply Context (for modal replies only) -->
-        <!-- Bound to `effectiveReplyToPost` so reblog wrappers show the
-             original author / content in the preview, matching what the
-             submitted reply will actually target. -->
+        <!-- Bound to `effectiveReplyToPost`: reblog wrappers preview the
+             original author/content, matching what the reply targets. -->
         <div v-if="type === 'reply' && effectiveReplyToPost && mode === 'modal'" class="reply-context">
           <div class="reply-thread-line"></div>
           <div class="reply-to-post">
@@ -39,7 +35,6 @@
           </div>
         </div>
 
-        <!-- Quote Post Preview (for quote posts) -->
         <div v-if="type === 'quote' && quotePost" class="quote-preview-section">
           <div class="quote-preview-header">
             <Icon name="edit" :size="16" />
@@ -64,7 +59,6 @@
           </div>
         </div>
 
-        <!-- Main Composer Body -->
         <div class="composer-body" data-testid="compose-post">
           <div class="composer-user">
             <Avatar 
@@ -76,7 +70,6 @@
           </div>
 
           <div class="composer-input-area">
-            <!-- Content Warning Input -->
             <div v-if="showContentWarning" class="content-warning-input">
               <input
                 v-model="contentWarning"
@@ -87,7 +80,6 @@
               />
             </div>
 
-            <!-- Main Text Input -->
             <div 
               class="text-input-container"
               :class="{ 'is-dragging': isDragging }"
@@ -109,13 +101,11 @@
                 @paste="actions.handlePaste"
               />
               
-              <!-- Drag & Drop Overlay -->
               <div v-if="isDragging" class="drag-drop-overlay">
                 <Icon name="upload" :size="32" />
                 <span>Drop images or videos here</span>
               </div>
               
-              <!-- Auto-suggest dropdown -->
               <AutoSuggest
                 :isVisible="autoSuggest.state.value.isActive"
                 :suggestions="autoSuggest.suggestions.value"
@@ -125,7 +115,6 @@
                 @select="handleSuggestionSelect"
               >
                 <template #default="{ suggestion }">
-                  <!-- Emoji Suggestion -->
                   <div v-if="suggestion.url && suggestion.emoji" class="suggest-item-content">
                     <img 
                       :src="suggestion.url" 
@@ -138,7 +127,7 @@
                     </div>
                   </div>
                   
-                  <!-- User Suggestion (display name with resolved emojis when we have profile id) -->
+                  <!-- User suggestion; display name resolves emojis when a profile id is known. -->
                   <div v-else class="suggest-item-content">
                     <Avatar 
                       v-if="suggestion.avatar || suggestion.avatar_url" 
@@ -164,7 +153,6 @@
               </AutoSuggest>
             </div>
 
-            <!-- Media Attachments Preview -->
             <MonyMediaUpload
               v-if="mediaAttachments.length > 0"
               :attachments="mediaAttachments"
@@ -176,11 +164,8 @@
               }"
             />
 
-            <!-- Compose Options Toolbar -->
             <div class="compose-options">
-              <!-- Left: Toolbar Buttons -->
               <div class="option-group">
-                <!-- Media Upload -->
                 <input
                   ref="fileInputRef"
                   type="file"
@@ -198,7 +183,6 @@
                   <Icon name="image" />
                 </button>
 
-                <!-- GIF Picker -->
                 <button
                   ref="gifTriggerRef"
                   class="option-button"
@@ -208,7 +192,6 @@
                   <GifIcon />
                 </button>
 
-                <!-- Emoji Picker -->
                 <button
                   ref="emojiTriggerRef"
                   class="option-button"
@@ -218,7 +201,6 @@
                   <EmojiUI />
                 </button>
 
-                <!-- Content Warning -->
                 <button
                   class="option-button"
                   :class="{ active: showContentWarning }"
@@ -228,7 +210,6 @@
                   <Icon name="alert-triangle" />
                 </button>
 
-                <!-- Sensitive Content -->
                 <button
                   class="option-button"
                   :class="{ active: isSensitive }"
@@ -238,7 +219,6 @@
                   <Icon name="eye-off" />
                 </button>
                 
-                <!-- Visibility Selector -->
                 <div class="visibility-selector">
                   <button
                     class="option-button"
@@ -267,20 +247,16 @@
                 </div>
               </div>
               
-              <!-- Right: Action Buttons -->
               <div class="action-group">
-                <!-- Character Counter -->
                 <span class="character-counter" :class="characterCounterClass">
                   {{ remainingCharacters }}
                 </span>
 
-                <!-- Draft Indicator -->
                 <span v-if="isDraft" class="draft-indicator">
                   <Icon name="save" />
                   Draft saved
                 </span>
                 
-                <!-- Cancel Button (modal and inline reply) -->
                 <button
                   v-if="mode === 'modal' || (mode === 'inline' && type === 'reply')"
                   class="cancel-button"
@@ -290,7 +266,6 @@
                   Cancel
                 </button>
                 
-                <!-- Submit Button -->
                 <button
                   class="post-button"
                   data-testid="compose-submit"
@@ -305,7 +280,6 @@
           </div>
         </div>
 
-        <!-- Unified Media Picker (GIFs + Emoji) -->
         <Teleport to="body">
           <MediaPickerPopup
             v-if="showMediaPicker"
@@ -331,16 +305,13 @@ import { useProfileStore } from '@/stores/useProfile';
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
 import type { TimelinePost, Post, FederatedUser, ActivityPubPost, PostAuthor } from '@/types';
 
-// Composables
 import { useComposerActions } from '@/composables/useComposerActions';
 import { useAutoSuggest } from '@/composables/useAutoSuggest';
 import type { SuggestionItem } from '@/components/AutoSuggest.vue';
 
-// Utils
 import { getOriginalPost, getOriginalPostId, getReplyMentionAuthor } from '@/utils/postReblog';
 import { messagePartsToRawText } from '@/utils/messageContentUtils';
 
-// Components
 import MonyContent from './MonyContent.vue';
 import MonyMediaUpload from './MonyMediaUpload.vue';
 import MediaPickerPopup from '@/components/MediaPickerPopup.vue';
@@ -352,17 +323,15 @@ import DisplayName from '@/components/DisplayName.vue';
 import AutoSuggest from '@/components/AutoSuggest.vue';
 import RichTextEditor from '@/components/RichTextEditor.vue';
 
-// I18n
 const { t } = useI18n();
 const toast = useToast();
 
-// Props
 interface Props {
   mode: 'modal' | 'inline';
   type: 'post' | 'reply' | 'quote' | 'edit';
   replyToPost?: TimelinePost;
-  // Quoting a reblog targets the inner post - a bare ActivityPubPost without
-  // the enhanced interaction fields (matches PostComposerState).
+  // Quoting a reblog targets the inner post: a bare ActivityPubPost without
+  // the enhanced interaction fields. Matches PostComposerState.
   quotePost?: TimelinePost | ActivityPubPost;
   quoteAuthor?: FederatedUser | PostAuthor;
   editPost?: TimelinePost;
@@ -379,7 +348,6 @@ const props = withDefaults(defineProps<Props>(), {
   initialContent: ''
 });
 
-// Emits
 const emit = defineEmits<{
   close: [];
   posted: [post: any];
@@ -389,7 +357,6 @@ const emit = defineEmits<{
 const profileStore = useProfileStore();
 const instanceSettings = useInstanceSettingsStore();
 
-// Refs
 const richEditorRef = ref<InstanceType<typeof RichTextEditor>>();
 const fileInputRef = ref<HTMLInputElement>();
 const emojiTriggerRef = ref<HTMLElement | null>(null);
@@ -398,7 +365,7 @@ const mediaPickerTriggerRef = computed(() => gifTriggerRef.value || emojiTrigger
 const isPosting = ref(false);
 const isDragging = ref(false);
 
-// Direct state management (no composable to avoid ref confusion)
+// State is held locally, not in a composable.
 const content = ref('');
 const contentWarning = ref('');
 const visibility = ref<Post['visibility']>(props.defaultVisibility || 'public');
@@ -408,26 +375,23 @@ const showVisibilityMenu = ref(false);
 const showMediaPicker = ref(false);
 const mediaPickerInitialTab = ref<'gifs' | 'emoji'>('gifs');
 
-// Legacy computed for compatibility
+// Legacy flags derived from the unified media picker state.
 const showEmojiPicker = computed(() => showMediaPicker.value && mediaPickerInitialTab.value === 'emoji');
 const showGiphyPicker = computed(() => showMediaPicker.value && mediaPickerInitialTab.value === 'gifs');
 const isDraft = ref(false);
 const mediaAttachments = ref<any[]>([]);
 
-// Constants
 const characterLimit = 500;
 
-// Computed
 const maxMediaAttachments = computed(() => instanceSettings.settings.maxMediaAttachmentsPerPost ?? 20);
 
-// For reblog targets, the actual reply-to is the original post, not the
-// Announce wrapper. Used by the modal preview block above so the displayed
-// author/content matches what the submitted reply will thread under.
+// For reblog targets the reply-to is the original post, not the Announce
+// wrapper. Drives the modal preview so the displayed author/content matches
+// what the reply threads under.
 const effectiveReplyToPost = computed(() =>
   props.replyToPost ? getOriginalPost(props.replyToPost) : undefined
 );
 
-// Computed
 const remainingCharacters = computed(() => characterLimit - content.value.length);
 const characterCounterClass = computed(() => {
   const remaining = remainingCharacters.value;
@@ -449,11 +413,10 @@ const visibilityOptions = [
   { value: 'direct' as const, label: t('activitypub.direct'), description: t('activitypub.onlyMentionedUsers'), icon: 'mail' }
 ];
 
-// AutoSuggest setup
 const getCurrentText = () => content.value || '';
 const updateText = (newText: string, cursorPosition?: number) => {
   if (cursorPosition !== undefined && richEditorRef.value) {
-    debug.log('🔧 Composer updateText:', { newText, cursorPosition });
+    debug.log('Composer updateText:', { newText, cursorPosition });
     richEditorRef.value.skipNextWatch = true;
 
     content.value = newText;
@@ -465,15 +428,14 @@ const updateText = (newText: string, cursorPosition?: number) => {
 
       nextTick(() => {
         if (richEditorRef.value) {
-          // Mention display normalization (e.g. @user@localhost → @user for local)
-          // can shorten the rendered text vs. the raw text. Recalculate cursor
-          // position by anchoring from the end: the suffix after the cursor is
-          // unaffected by mention rendering, so we can subtract it from the
-          // rendered length to find the correct cursor position.
+          // Mention normalization (@user@localhost → @user for local) shortens
+          // rendered text relative to raw text. Anchor the cursor from the end:
+          // the suffix after the cursor is unaffected by mention rendering, so
+          // rendered length minus suffix length gives the cursor offset.
           const renderedText = richEditorRef.value.getPlainText?.() || '';
           const suffixLen = newText.length - cursorPosition;
           const adjustedCursor = Math.max(0, renderedText.length - suffixLen);
-          debug.log('🔧 Composer cursor adjustment:', {
+          debug.log('Composer cursor adjustment:', {
             rawLen: newText.length, renderedLen: renderedText.length,
             rawCursor: cursorPosition, adjustedCursor
           });
@@ -498,7 +460,6 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText, {
   maxSuggestions: 10
 });
 
-// Actions using composable
 const actions = useComposerActions({
   content,
   richEditorRef,
@@ -511,7 +472,6 @@ const actions = useComposerActions({
   }
 });
 
-// Computed
 const currentUser = computed(() => profileStore.profile);
 
 const placeholder = computed(() => {
@@ -584,15 +544,14 @@ const contentClasses = computed(() => {
   };
 });
 
-// Methods
 const handleContentUpdate = (newContent: string) => {
   content.value = newContent;
 };
 
 const handleCursorPositionChanged = (position: number) => {
   if (richEditorRef.value) {
-    // Use getPlainText from editor when available - ensures we have DOM state including
-    // mention spans (content.value can lag when typing after inserted mentions)
+    // getPlainText reflects DOM state including mention spans; content.value
+    // lags when typing after an inserted mention.
     const text = typeof richEditorRef.value.getPlainText === 'function'
       ? richEditorRef.value.getPlainText()
       : content.value;
@@ -608,14 +567,12 @@ const handleKeydown = (event: KeyboardEvent) => {
   const handled = autoSuggest.handleKeyDown(event);
   if (handled) return;
   
-  // Ctrl/Cmd + Enter to post
   if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
     if (canSubmit.value) {
       handleSubmit();
     }
   }
   
-  // Escape to close
   if (event.key === 'Escape' && props.mode === 'modal') {
     handleClose();
   }
@@ -625,10 +582,9 @@ const triggerFileUpload = () => {
   fileInputRef.value?.click();
 };
 
-// Drag and drop handlers
 const handleDragEnter = (event: DragEvent) => {
   event.preventDefault();
-  // Only show overlay for image/video files
+  // Overlay appears only for image/video drags.
   const items = event.dataTransfer?.items;
   if (items) {
     for (const item of Array.from(items)) {
@@ -798,9 +754,9 @@ const handleSubmit = async () => {
         isSensitive.value
       );
     } else {
-      // For reblogs, thread the reply under the *original* post - never under
-      // the Announce wrapper. Callers should already pass the unwrapped post,
-      // but unwrap defensively here so future call sites can't regress this.
+      // Reblog replies thread under the original post, never the Announce
+      // wrapper. Callers pass the unwrapped post; unwrapping again here keeps
+      // new call sites correct.
       const replyToId = props.type === 'reply' && props.replyToPost
         ? getOriginalPostId(props.replyToPost)
         : undefined;
@@ -817,16 +773,14 @@ const handleSubmit = async () => {
     emit('close');
   } catch (error: any) {
     debug.error('Failed to create post:', error);
-    // Surface failures as a toast rather than inline text that would shove the
-    // action buttons around / overflow the toolbar. Content is preserved since
-    // we don't reset the composer on error.
+    // Failures go to a toast; inline text would shift the action buttons and
+    // overflow the toolbar. The composer is not reset, so the draft survives.
     toast.error(error?.message || t('activitypub.failedToSendPost'));
   } finally {
     isPosting.value = false;
   }
 };
 
-// Lifecycle
 onMounted(() => {
   if (props.type === 'edit' && props.editPost) {
     content.value = messagePartsToRawText(props.editPost.content);
@@ -845,10 +799,9 @@ onMounted(() => {
       }));
     }
   } else if (props.type === 'reply' && props.replyToPost) {
-    // Mention whichever author the reply should reach. `getReplyMentionAuthor`
-    // returns the original post's author for pure reblogs, the quoter for
-    // quote posts, and `undefined` for unhydrated reblogs (so we skip the
-    // prefill rather than mention the booster, which would mislead the user).
+    // `getReplyMentionAuthor` returns the original post's author for pure
+    // reblogs, the quoter for quote posts, and `undefined` for unhydrated
+    // reblogs - no prefill there, since mentioning the booster is wrong.
     const author = getReplyMentionAuthor(props.replyToPost);
     if (author) {
       const username = author.username || '';
@@ -883,7 +836,6 @@ onMounted(() => {
   });
 });
 
-// Watch for modal open state and initial content
 watch(() => props.isOpen, (isOpen) => {
   if (isOpen && props.mode === 'modal') {
     nextTick(() => {
@@ -899,10 +851,9 @@ watch(() => props.initialContent, (val) => {
   }
 }, { immediate: true });
 
-// Watch for reply context changes (when opening reply composer)
 watch(() => props.replyToPost, (replyPost) => {
   if (props.type === 'reply' && replyPost && content.value === '') {
-    // Same routing rule as onMounted - pure reblog → original author,
+    // Same routing as onMounted: pure reblog → original author,
     // quote → quoter, unhydrated reblog → no prefill.
     const author = getReplyMentionAuthor(replyPost);
     if (!author) return;
@@ -917,7 +868,7 @@ watch(() => props.replyToPost, (replyPost) => {
     
     nextTick(() => {
       richEditorRef.value?.focus();
-      // Move cursor to end of content (after the @mention and space)
+      // Cursor lands after the mention and its trailing space.
       nextTick(() => {
         richEditorRef.value?.setCursorPosition(content.value.length);
       });
@@ -925,7 +876,6 @@ watch(() => props.replyToPost, (replyPost) => {
   }
 });
 
-// Click outside directive
 const vClickOutside = {
   mounted(el: HTMLElement & { _clickOutsideHandler?: (event: Event) => void }, binding: any) {
     el._clickOutsideHandler = (event: Event) => {
@@ -944,7 +894,6 @@ const vClickOutside = {
 </script>
 
 <style scoped>
-/* Modal overlay */
 .composer-overlay {
   position: fixed;
   top: 0;
@@ -961,7 +910,6 @@ const vClickOutside = {
   padding: 1rem;
 }
 
-/* Modal content */
 .composer-modal {
   background-color: var(--background-primary);
   border-radius: 1rem;
@@ -976,7 +924,6 @@ const vClickOutside = {
   max-width: 700px;
 }
 
-/* Inline content */
 .composer-inline {
   width: 100%;
 }
@@ -990,7 +937,6 @@ const vClickOutside = {
   transition: all 0.2s ease;
 }
 
-/* Header */
 .composer-header {
   display: flex;
   align-items: center;
@@ -1026,7 +972,6 @@ const vClickOutside = {
   color: var(--text-primary);
 }
 
-/* Reply Context */
 .reply-context {
   padding: 1rem 1.5rem;
   border-bottom: 1px solid var(--border-primary);
@@ -1079,7 +1024,6 @@ const vClickOutside = {
   line-height: 1.5;
 }
 
-/* Quote Preview */
 .quote-preview-section {
   padding: 1rem 1.5rem;
   border-bottom: 1px solid var(--border-primary);
@@ -1126,7 +1070,6 @@ const vClickOutside = {
   -webkit-box-orient: vertical;
 }
 
-/* Composer Body */
 .composer-body {
   display: flex;
   gap: 0.75rem;
@@ -1149,7 +1092,6 @@ const vClickOutside = {
   min-width: 0;
 }
 
-/* Content Warning */
 .content-warning-input {
   margin-bottom: 0.75rem;
 }
@@ -1177,7 +1119,6 @@ const vClickOutside = {
   border-color: var(--harmony-primary);
 }
 
-/* Text Input */
 .text-input-container {
   position: relative;
   margin-bottom: 0.5rem;
@@ -1225,7 +1166,6 @@ const vClickOutside = {
   color: #ef4444;
 }
 
-/* Compose Options */
 .compose-options {
   display: flex;
   align-items: center;
@@ -1291,7 +1231,6 @@ const vClickOutside = {
   cursor: not-allowed;
 }
 
-/* Ensure buttons are visible in inline mode */
 .composer-inline-content .option-button {
   display: flex;
 }
@@ -1351,7 +1290,6 @@ const vClickOutside = {
   color: #9ca3af;
 }
 
-/* Footer - removed, merged with compose-options */
 
 .cancel-button {
   padding: 0.5rem 1rem;
@@ -1404,7 +1342,6 @@ const vClickOutside = {
   display: none;
 }
 
-/* AutoSuggest styling */
 .suggest-item-content {
   display: flex;
   align-items: center;
@@ -1440,12 +1377,10 @@ const vClickOutside = {
   margin-left: 0.25rem; */
 }
 
-/* Mobile responsive */
 @media (max-width: 768px) {
   /* ---------- Modal composer ---------- */
-  /* Keep the modal centered over a dimmed/blurred backdrop (like our other
-     modals) and just let it grow in height to fit its content, instead of
-     forcing a full-screen sheet that left a huge empty gap below the input. */
+  /* Modal stays centered over the dimmed backdrop and grows to fit content.
+     A full-screen sheet leaves a large empty gap below the input. */
   .composer-overlay {
     padding: 1rem;
     align-items: center;
@@ -1460,8 +1395,8 @@ const vClickOutside = {
     flex-direction: column;
   }
 
-  /* Header stays pinned at the top; only the body grows and scrolls once the
-     content exceeds the modal's max-height. */
+  /* Header pins to the top; only the body grows and scrolls past the modal's
+     max-height. */
   .composer-modal > .composer-header {
     flex-shrink: 0;
     padding: 1rem;
@@ -1487,9 +1422,8 @@ const vClickOutside = {
   }
 
   /* ---------- Inline composer ---------- */
-  /* The inline card already supplies its own padding via
-     .composer-inline-content, so we must NOT add the modal's body padding
-     on top of it (that double padding squished the inline composer). */
+  /* The inline card supplies its own padding via .composer-inline-content.
+     Adding the modal's body padding on top of it squishes the composer. */
   .composer-inline-content {
     padding: 0.75rem;
   }
@@ -1499,10 +1433,9 @@ const vClickOutside = {
     display: none;
   }
 
-  /* One-line toolbar on mobile: action icons pinned left, counter + Post
-     pinned right, never wrapping. The icon group is the flexible part - it
-     shrinks and (in the worst case) scrolls horizontally, so the counter and
-     the Post button always stay on the same row. */
+  /* One-line toolbar on mobile: action icons left, counter + Post right, no
+     wrapping. The icon group is the flexible part - it shrinks and scrolls
+     horizontally so the counter and Post button stay on the same row. */
   .compose-options {
     flex-wrap: nowrap;
     align-items: center;

@@ -15,9 +15,7 @@ import { DeliveryQueue } from '../activitypub/DeliveryQueue.js';
 import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
 
-// =============================================================================
 // TYPES
-// =============================================================================
 
 interface KickPayload {
   server_id: string;
@@ -40,9 +38,7 @@ interface UnbanPayload {
   moderator_id: string;
 }
 
-// =============================================================================
 // KICK HANDLER
-// =============================================================================
 
 /**
  * Federate a kick action (Remove activity)
@@ -54,7 +50,7 @@ export async function federateKick(payload: KickPayload): Promise<void> {
     const supabase = getSupabaseClient();
     const hostDomain = config.INSTANCE_DOMAIN;
 
-    logger.info(`👢 Federating kick: user ${user_id} from server ${server_id}`);
+    logger.info(`Federating kick: user ${user_id} from server ${server_id}`);
 
     const { data: server } = await supabase
       .from('servers')
@@ -102,7 +98,7 @@ export async function federateKick(payload: KickPayload): Promise<void> {
 
     if (user.inbox_url) {
       await DeliveryQueue.sendToInbox(user.inbox_url, removeActivity, moderator_id);
-      logger.info(`👢 Sent kick notification to ${user.inbox_url}`);
+      logger.info(`Sent kick notification to ${user.inbox_url}`);
     }
 
     // Also send to the user's home instance shared inbox
@@ -111,15 +107,13 @@ export async function federateKick(payload: KickPayload): Promise<void> {
       await DeliveryQueue.sendToInbox(sharedInbox, removeActivity, moderator_id);
     }
 
-    logger.info(`👢 Kick federated for user ${user.username}`);
+    logger.info(`Kick federated for user ${user.username}`);
   } catch (error) {
     logger.error('Error federating kick:', error);
   }
 }
 
-// =============================================================================
 // BAN HANDLER
-// =============================================================================
 
 /**
  * Federate a ban action (harmony:Ban activity)
@@ -131,7 +125,7 @@ export async function federateBan(payload: BanPayload): Promise<void> {
     const supabase = getSupabaseClient();
     const hostDomain = config.INSTANCE_DOMAIN;
 
-    logger.info(`🔨 Federating ban: user ${user_id} from server ${server_id}`);
+    logger.info(`Federating ban: user ${user_id} from server ${server_id}`);
 
     const { data: server } = await supabase
       .from('servers')
@@ -189,7 +183,7 @@ export async function federateBan(payload: BanPayload): Promise<void> {
 
     if (user.inbox_url) {
       await DeliveryQueue.sendToInbox(user.inbox_url, banActivity, moderator_id);
-      logger.info(`🔨 Sent ban notification to ${user.inbox_url}`);
+      logger.info(`Sent ban notification to ${user.inbox_url}`);
     }
 
     // Also send to the user's home instance shared inbox
@@ -198,15 +192,13 @@ export async function federateBan(payload: BanPayload): Promise<void> {
       await DeliveryQueue.sendToInbox(sharedInbox, banActivity, moderator_id);
     }
 
-    logger.info(`🔨 Ban federated for user ${user.username}`);
+    logger.info(`Ban federated for user ${user.username}`);
   } catch (error) {
     logger.error('Error federating ban:', error);
   }
 }
 
-// =============================================================================
 // UNBAN HANDLER
-// =============================================================================
 
 /**
  * Federate an unban action (Undo harmony:Ban activity)
@@ -217,7 +209,7 @@ export async function federateUnban(payload: UnbanPayload): Promise<void> {
     const supabase = getSupabaseClient();
     const hostDomain = config.INSTANCE_DOMAIN;
 
-    logger.info(`✅ Federating unban: user ${user_id} from server ${server_id}`);
+    logger.info(`Federating unban: user ${user_id} from server ${server_id}`);
 
     const { data: server } = await supabase
       .from('servers')
@@ -273,15 +265,13 @@ export async function federateUnban(payload: UnbanPayload): Promise<void> {
       await DeliveryQueue.sendToInbox(sharedInbox, undoBanActivity, moderator_id);
     }
 
-    logger.info(`✅ Unban federated for user ${user.username}`);
+    logger.info(`Unban federated for user ${user.username}`);
   } catch (error) {
     logger.error('Error federating unban:', error);
   }
 }
 
-// =============================================================================
 // INCOMING MODERATION HANDLER
-// =============================================================================
 
 /**
  * Process incoming ban activity from remote server
@@ -297,7 +287,7 @@ export async function processIncomingBan(activity: any): Promise<void> {
     return;
   }
 
-  logger.info(`🔨 Processing incoming ban from ${serverApId} for ${userApId}`);
+  logger.info(`Processing incoming ban from ${serverApId} for ${userApId}`);
 
   const { data: server } = await supabase
     .from('servers')
@@ -329,7 +319,7 @@ export async function processIncomingBan(activity: any): Promise<void> {
       .eq('server_id', server.id)
       .eq('user_id', user.id);
 
-    logger.info(`🔨 Local user ${user.id} banned from remote server ${server.id}`);
+    logger.info(`Local user ${user.id} banned from remote server ${server.id}`);
   }
 }
 
@@ -346,7 +336,7 @@ export async function processIncomingKick(activity: any): Promise<void> {
     return;
   }
 
-  logger.info(`👢 Processing incoming kick from ${serverApId} for ${userApId}`);
+  logger.info(`Processing incoming kick from ${serverApId} for ${userApId}`);
 
   const { data: server } = await supabase
     .from('servers')
@@ -374,7 +364,7 @@ export async function processIncomingKick(activity: any): Promise<void> {
     .eq('server_id', server.id)
     .eq('user_id', user.id);
 
-  logger.info(`👢 Local user ${user.id} kicked from remote server ${server.id}`);
+  logger.info(`Local user ${user.id} kicked from remote server ${server.id}`);
 }
 
 /**
@@ -395,7 +385,7 @@ export async function processIncomingUnban(activity: any): Promise<void> {
     return;
   }
 
-  logger.info(`✅ Processing incoming unban from ${serverApId} for ${userApId}`);
+  logger.info(`Processing incoming unban from ${serverApId} for ${userApId}`);
 
   const { data: server } = await supabase
     .from('servers')
@@ -423,6 +413,6 @@ export async function processIncomingUnban(activity: any): Promise<void> {
     .eq('server_id', server.id)
     .eq('user_id', user.id);
 
-  logger.info(`✅ Ban lifted for user ${user.id} on server ${server.id}`);
+  logger.info(`Ban lifted for user ${user.id} on server ${server.id}`);
 }
 

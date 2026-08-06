@@ -134,7 +134,7 @@ export function useLocalMessageSearch(
       // Skip deleted messages
       if (msg.is_system) return false
       
-      // If encrypted but not decrypted, we can't search it
+      // Encrypted and undecrypted content is not searchable.
       if (msg.encrypted && !msg.decrypted) {
         return false
       }

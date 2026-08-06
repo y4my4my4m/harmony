@@ -95,7 +95,7 @@
               @user-click="$emit('user-click', $event)"
             />
 
-            <!-- Load more replies (only show if > 5 total and we haven't loaded them all) -->
+            <!-- Load more replies: shown when > 5 total and some remain unloaded -->
             <button
               v-if="hasMoreReplies"
               @click="loadMoreReplies"
@@ -186,7 +186,7 @@ const loadPost = async () => {
   error.value = null;
 
   try {
-    debug.log('🔄 Loading post via service layer:', props.postId);
+    debug.log('Loading post via service layer:', props.postId);
     
     // Use service layer directly for post loading with optimistic updates
     const loadedPost = await services.posts.loadPost(props.postId);
@@ -198,10 +198,10 @@ const loadPost = async () => {
     post.value = loadedPost;
     totalReplies.value = post.value.replies_count || 0;
     
-    debug.log('✅ Post loaded successfully via service layer');
+    debug.log('Post loaded successfully via service layer');
     await loadReplies();
   } catch (err) {
-    debug.error('❌ Failed to load post via service layer:', err);
+    debug.error('Failed to load post via service layer:', err);
     error.value = 'Failed to load post. It might have been deleted or you might not have permission to view it.';
   } finally {
     isLoading.value = false;
@@ -228,7 +228,7 @@ const loadReplies = async () => {
     replies.value = loadedReplies;
     hasMoreReplies.value = loadedReplies.length < totalReplies.value;
     
-    debug.log(`✅ Loaded ${loadedReplies.length}/${totalReplies.value} replies`);
+    debug.log(`Loaded ${loadedReplies.length}/${totalReplies.value} replies`);
   } catch (err) {
     debug.error('Failed to load replies:', err);
   } finally {
@@ -255,7 +255,7 @@ const loadMoreReplies = async () => {
     
     hasMoreReplies.value = replies.value.length < totalReplies.value;
     
-    debug.log(`✅ Loaded ${moreReplies.length} more replies (total: ${replies.value.length}/${totalReplies.value})`);
+    debug.log(`Loaded ${moreReplies.length} more replies (total: ${replies.value.length}/${totalReplies.value})`);
   } catch (err) {
     debug.error('Failed to load more replies:', err);
   } finally {
@@ -281,12 +281,12 @@ const sharePost = async () => {
   } else {
     // Fallback: copy to clipboard
     await navigator.clipboard.writeText(url);
-    // TODO: Show toast notification
+    // No toast is shown on copy.
   }
 };
 
 const openActions = () => {
-  // TODO: Show actions menu
+  // No actions menu is wired up.
   debug.log('Open actions menu');
 };
 

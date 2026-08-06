@@ -225,7 +225,6 @@ const emit = defineEmits<{
 const router = useRouter()
 const activityPubStore = useActivityPubStore()
 
-// Professional presence system
 const { getPresenceAwareStatus, getCurrentUser } = useUserData()
 
 // State
@@ -295,7 +294,7 @@ const showRemoteInstanceBadge = computed(() => {
 })
 
 const hasSpecialBadge = computed(() => {
-  // Add logic for special badges (bot, moderator, etc.)
+  // Special badges (bot, moderator) are not implemented.
   return false
 })
 
@@ -364,7 +363,7 @@ const handleFollowToggle = async () => {
   followInProgress.value = true;
   isFollowLoading.value = true
   try {
-    // Just call toggleFollow - let it handle the logic
+    // toggleFollow owns the follow/unfollow decision.
     const result = await services.interactions.toggleFollow(props.user.id)
     
     if (result.following) {
@@ -386,10 +385,9 @@ const handleMessage = async () => {
   emit('message', props.user)
 
   try {
-    // create_or_get_direct_conversation expects PROFILE IDs on both sides.
-    // Using authStore.session.user.id here previously passed the auth UUID,
-    // which fails the RPC's participant check and silently dropped users on
-    // the DM landing page instead of the new conversation (BUGS.md Pattern A).
+    // create_or_get_direct_conversation expects profile ids on both sides.
+    // An auth UUID fails the RPC's participant check and lands the user on
+    // /dm instead of the new conversation (BUGS.md Pattern A).
     const { authContextService } = await import('@/services/AuthContextService')
     const currentProfileId = await authContextService.getCurrentProfileId()
     if (!currentProfileId) {

@@ -10,7 +10,7 @@ try {
   const vueDocgen = await import('vue-docgen-api')
   parse = vueDocgen.parse
 } catch (e) {
-  console.log('⚠️  vue-docgen-api not available, using basic parsing')
+  console.log('vue-docgen-api not available, using basic parsing')
   parse = null
 }
 
@@ -52,7 +52,7 @@ for (const filePath of componentFiles) {
       try {
         componentInfo = await parse(filePath)
       } catch (parseError) {
-        console.log(`  ⚠️  vue-docgen-api parse failed, using fallback: ${parseError.message}`)
+        console.log(`  vue-docgen-api parse failed, using fallback: ${parseError.message}`)
       }
     }
     
@@ -79,9 +79,9 @@ for (const filePath of componentFiles) {
       relativePath: relativePath
     })
     
-    console.log(`  ✅ Generated docs for ${componentName}`)
+    console.log(`  Generated docs for ${componentName}`)
   } catch (error) {
-    console.error(`  ❌ Error processing ${filePath}:`, error.message)
+    console.error(`  Error processing ${filePath}:`, error.message)
     errors.push({ file: filePath, error: error.message })
   }
 }
@@ -104,12 +104,12 @@ await fs.writeFile(
   })), null, 2)
 )
 
-console.log(`\n✅ Generated documentation for ${componentDocs.length} components`)
-console.log(`📁 Documentation files written to: ${DOCS_DIR}`)
-console.log(`📄 Component index: ${DOCS_DIR}/index.md`)
+console.log(`\nGenerated documentation for ${componentDocs.length} components`)
+console.log(`Documentation files written to: ${DOCS_DIR}`)
+console.log(`Component index: ${DOCS_DIR}/index.md`)
 
 if (errors.length > 0) {
-  console.log(`\n⚠️  ${errors.length} components had errors:`)
+  console.log(`\n${errors.length} components had errors:`)
   errors.forEach(e => console.log(`   - ${e.file}: ${e.error}`))
 }
 

@@ -1,11 +1,12 @@
 /**
- * Display helpers for custom user status (activity type prefix, etc.)
- * Activity-only (e.g. "Playing" with no text) shows just the label; with text shows "Playing: myCustomStatus".
+ * Display helpers for custom user status.
+ * Activity with no text renders the bare label ("Playing"); with text it renders
+ * "Playing: <text>". Type `custom` renders the text alone.
  */
 
 import type { CustomUserStatus } from '@/types'
 
-/** Label only when there is no custom text (e.g. "Playing", "Listening to") */
+/** Used when the status has no text. */
 const ACTIVITY_LABELS: Record<NonNullable<CustomUserStatus['type']>, string> = {
   custom: '',
   playing: 'Playing',
@@ -15,7 +16,7 @@ const ACTIVITY_LABELS: Record<NonNullable<CustomUserStatus['type']>, string> = {
   streaming: 'Streaming',
 }
 
-/** Prefix when we have custom text - results in "Playing: myCustomStatus", etc. */
+/** Used when the status has text; trailing separator included. */
 const ACTIVITY_PREFIXES_WITH_TEXT: Record<NonNullable<CustomUserStatus['type']>, string> = {
   custom: '',
   playing: 'Playing: ',
@@ -25,12 +26,6 @@ const ACTIVITY_PREFIXES_WITH_TEXT: Record<NonNullable<CustomUserStatus['type']>,
   streaming: 'Streaming: ',
 }
 
-/**
- * Returns the display string for a custom status.
- * - Activity + text: "Playing: myCustomStatus", "Listening to: Song", etc.
- * - Activity only: "Playing", "Listening to", etc. (for SDK/game/stream detection later)
- * - Custom (no activity type): just the text or emoji.
- */
 export function formatCustomStatusDisplay(status: CustomUserStatus | undefined | null): string {
   if (!status) return ''
   const type = status.type || 'custom'

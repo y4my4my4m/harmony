@@ -101,8 +101,8 @@ const isLoadingFeed = computed(() =>
 const posts = computed(() => {
   const rawPosts = activityPubStore.getTimelinePosts(props.currentView as 'home' | 'public' | 'local')
   
-  // Filter out posts from blocked users (they shouldn't see our feed at all)
-  // Also filter out posts from muted users (unless they're replies to us)
+  // Drop posts from blocked users, and from muted users unless the post is a
+  // reply to the viewer.
   return rawPosts.filter(post => {
     const authorId = post.author_id || post.author?.id
     if (!authorId) return true
@@ -112,7 +112,7 @@ const posts = computed(() => {
     }
     
     // Hide posts from muted users across every timeline (home, public/federated,
-    // local) - a muted user should not reappear just because you switched tabs.
+    // local) - a muted user must not reappear on a tab switch.
     if (mutedUsers.value.has(authorId)) {
       return false
     }
@@ -278,7 +278,7 @@ const handleOpenSearch = () => {
 // Single source of truth for timeline loading - only watch currentView prop changes
 watch(() => props.currentView, (newView, oldView) => {
   if (newView && newView !== oldView) {
-    debug.log(`🔄 Timeline view changed from ${oldView} to ${newView}, loading content`)
+    debug.log(`Timeline view changed from ${oldView} to ${newView}, loading content`)
     loadTimeline()
   }
 }, { immediate: true }) // Load on initial mount via currentView prop
@@ -291,7 +291,7 @@ onMounted(() => {
 
   // Only load if currentView is not provided (legacy support)
   if (!props.currentView) {
-    debug.log(`🔄 Timeline mounted without currentView prop, loading default timeline`)
+    debug.log(`Timeline mounted without currentView prop, loading default timeline`)
     loadTimeline()
   }
 })

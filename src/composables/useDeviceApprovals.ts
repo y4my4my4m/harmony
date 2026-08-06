@@ -1,21 +1,21 @@
 /**
  * useDeviceApprovals
  *
- * Drives the Discord-simple device-trust UX. It listens on the existing
- * per-user realtime channel (user:{profileId}, event user_event) for the three
- * device events broadcast by `broadcast_device_approval_event`:
+ * Device-trust UX. Listens on the per-user realtime channel
+ * (user:{profileId}, event user_event) for the three device events broadcast
+ * by `broadcast_device_approval_event`:
  *
- *   - device:approval_request -> another device of THIS account just logged in.
- *       Surface a gentle, non-blocking "New login on X - was this you?" prompt
- *       on already-trusted devices. (Never a hard wall - it's skippable.)
- *   - device:approved          -> THIS (requesting) device was approved from
- *       another device; claim any pending key shares and reprocess messages.
- *   - device:denied            -> the request was denied; surface a security
- *       toast so the user knows the login was rejected.
+ *   - device:approval_request -> another device of this account logged in.
+ *       Already-trusted devices show a skippable, non-blocking
+ *       "New login on X - was this you?" prompt.
+ *   - device:approved          -> this requesting device was approved from
+ *       another device; claim pending key shares and reprocess messages.
+ *   - device:denied            -> the request was denied; show a security
+ *       toast.
  *
- * The component layer (DeviceApprovalPrompt.vue) renders `pendingApprovals` on
- * established devices and `ownPendingRequest` on the fresh login; this
- * composable owns the data + actions so it can be mounted once globally.
+ * DeviceApprovalPrompt.vue renders `pendingApprovals` on established devices
+ * and `ownPendingRequest` on the fresh login. Data and actions live here so
+ * the composable can be mounted once globally.
  */
 
 import { ref, onMounted, onUnmounted } from 'vue'
@@ -34,8 +34,8 @@ async function upsertApproval(req: DeviceApprovalRequest) {
   if (req.requesting_device_id === deviceIdentityService.getDeviceId()) {
     ownPendingRequest.value = req
     ownPendingDismissed.value = false
-    // Already unlocked (e.g. recovery completed before this event landed)?
-    // Then the card has nothing left to offer - drop it immediately.
+    // Already unlocked (recovery completed before this event landed): the
+    // card has nothing left to offer.
     void maybeClearOwnPendingAfterUnlock()
     return
   }
@@ -63,10 +63,9 @@ async function refreshOwnPending(userId: string) {
 
 /**
  * The waiting card exists to unlock encrypted history via peer approval.
- * A recovery-phrase unlock is STRONGER proof and already restored the keys,
- * so once encryption is unlocked the card is pointless (and confusing -
- * "This wasn't me" on the very session that just recovered). Hide it locally.
- * The pending row stays on the server so OTHER devices still get their
+ * A recovery-phrase unlock is stronger proof and already restored the keys,
+ * so once encryption is unlocked the card is hidden locally. The pending row
+ * stays on the server so other devices still get their
  * "new login - was this you?" security prompt.
  */
 async function maybeClearOwnPendingAfterUnlock() {
@@ -80,9 +79,9 @@ async function maybeClearOwnPendingAfterUnlock() {
 }
 
 async function onApprovedForThisDevice(payload: Record<string, any>) {
-  // Only react if WE are the device that was approved.
+  // Only the approved device runs the key-sync path.
   if (payload.requesting_device_id !== deviceIdentityService.getDeviceId()) {
-    // A different device of ours was approved; just clear any local prompt.
+    // A different device of this account was approved; clear the local prompt.
     removeApproval(payload.id)
     return
   }
@@ -90,12 +89,12 @@ async function onApprovedForThisDevice(payload: Record<string, any>) {
   ownPendingDismissed.value = false
   try {
     const { megolmMessageEncryptionService } = await import('@/services/encryption/MegolmMessageEncryptionService')
-    // Approval elevates this device to a key-sync-capable state. Claim any
-    // shares waiting for us and reprocess visible encrypted messages.
+    // Approval makes this device key-sync capable. Claim waiting shares and
+    // reprocess visible encrypted messages.
     await megolmMessageEncryptionService.claimPendingSessionShares().catch(() => 0)
     window.dispatchEvent(new CustomEvent('megolm-key-received', { detail: { roomId: '*', sessionId: '*' } }))
   } catch (err) {
-    debug.warn('⚠️ Post-approval key sync failed:', err)
+    debug.warn('Post-approval key sync failed:', err)
   }
   try {
     const { useNotificationStore } = await import('@/stores/useNotification')
@@ -125,8 +124,8 @@ async function onDeniedForThisDevice(payload: Record<string, any>) {
 
 export function useDeviceApprovals() {
   const offFns: Array<() => void> = []
-  // Whether THIS composable instance owns the live channel subscriptions, so we
-  // only reset the module-global `initialized` flag when the owner unmounts.
+  // Only the instance owning the live channel subscriptions resets the
+  // module-global `initialized` flag on unmount.
   let ownsSubscriptions = false
 
   async function start(userId: string) {
@@ -138,7 +137,7 @@ export function useDeviceApprovals() {
     initialized = true
     ownsSubscriptions = true
 
-    // Seed with any already-pending requests (e.g. raised while we were offline).
+    // Seed with pending requests raised while offline.
     try {
       const existing = await deviceIdentityService.listPendingApprovals(userId)
       pendingApprovals.value = existing
@@ -153,9 +152,9 @@ export function useDeviceApprovals() {
       userEventChannel.on('device:denied', (p) => { onDeniedForThisDevice(p) }),
     )
 
-    // Encryption unlock (auto-unlock or recovery phrase) fires this event;
-    // clear our own waiting card the moment history is recoverable without
-    // peer approval.
+    // Encryption unlock (auto-unlock or recovery phrase) fires this event.
+    // The waiting card clears once history is recoverable without peer
+    // approval.
     const onUnlockSignal = () => { maybeClearOwnPendingAfterUnlock().catch(() => {}) }
     window.addEventListener('megolm-key-received', onUnlockSignal)
     offFns.push(() => window.removeEventListener('megolm-key-received', onUnlockSignal))
@@ -163,9 +162,9 @@ export function useDeviceApprovals() {
 
   async function approve(req: DeviceApprovalRequest) {
     try {
-      // Server-enforced: the RPC verifies this device may approve, resolves the
-      // request, and elevates the requesting device to 'verified'. (A future
-      // per-device ECDH fan-out can attach an encrypted_sync_bundle here.)
+      // Server-enforced: the RPC verifies this device may approve, resolves
+      // the request, and elevates the requesting device to 'verified'. No
+      // encrypted_sync_bundle is attached.
       await deviceIdentityService.approveDevice(req.id)
       try {
         const { useNotificationStore } = await import('@/stores/useNotification')
@@ -183,7 +182,7 @@ export function useDeviceApprovals() {
 
   async function deny(req: DeviceApprovalRequest) {
     try {
-      // The RPC marks the request denied AND revokes the requesting device row.
+      // The RPC marks the request denied and revokes the requesting device row.
       await deviceIdentityService.denyDevice(req.id)
       try {
         const { useNotificationStore } = await import('@/stores/useNotification')
@@ -225,7 +224,7 @@ export function useDeviceApprovals() {
         )
       } catch { /* non-fatal */ }
     } catch (err) {
-      debug.error('❌ secureThisLogin failed:', err)
+      debug.error('secureThisLogin failed:', err)
       throw err
     }
   }
@@ -238,7 +237,7 @@ export function useDeviceApprovals() {
     offFns.forEach(fn => fn())
     offFns.length = 0
     if (ownsSubscriptions) {
-      // Let a future mount re-subscribe (e.g. after navigating away and back).
+      // A later mount re-subscribes.
       initialized = false
       ownsSubscriptions = false
     }

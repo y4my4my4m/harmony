@@ -101,17 +101,17 @@ async function initializeApp() {
     // SW/PWA is web-only; skip in Tauri (has its own native notification path)
     const swChain = isTauriRuntime() ? Promise.resolve() : (async () => {
       const swSupported = await serviceWorkerManager.initialize()
-      debug.log('🔔 Service Worker supported:', swSupported)
+      debug.log('Service Worker supported:', swSupported)
       await pwaManager.initialize()
-      debug.log('🚀 PWA Manager initialized')
+      debug.log('PWA Manager initialized')
       // no auto permission request here: unprompted requests get flagged as spammy
     })()
 
     const authStore = useAuthStore()
     await Promise.all([
-      waitForInitialLocale().then(() => debug.log('🌐 Initial locale loaded')),
-      swChain.catch((err) => debug.warn('⚠️ SW/PWA init failed (non-fatal):', err)),
-      authStore.initializeAuth().then(() => debug.log('✅ Auth initialized')),
+      waitForInitialLocale().then(() => debug.log('Initial locale loaded')),
+      swChain.catch((err) => debug.warn('SW/PWA init failed (non-fatal):', err)),
+      authStore.initializeAuth().then(() => debug.log('Auth initialized')),
     ])
 
     // Mount the app AFTER auth
@@ -120,16 +120,16 @@ async function initializeApp() {
     // Emoji pack detection probes external pack availability - best-effort
     // and NOT needed for first paint; run it after mount in the background.
     detectAvailablePacks()
-      .then(() => debug.log('📦 Emoji packs detected'))
-      .catch((err) => debug.warn('⚠️ Emoji pack detection failed, using builtin packs:', err))
+      .then(() => debug.log('Emoji packs detected'))
+      .catch((err) => debug.warn('Emoji pack detection failed, using builtin packs:', err))
 
     try {
       reactionCacheManager.startCleanup()
     } catch (err) {
-      debug.error('❌ reactionCacheManager.startCleanup failed:', err)
+      debug.error('reactionCacheManager.startCleanup failed:', err)
     }
   } catch (error) {
-    debug.error('❌ Error initializing app:', error)
+    debug.error('Error initializing app:', error)
     // Still mount the app even if initialization fails (no-op if already mounted)
     mountApp()
   }

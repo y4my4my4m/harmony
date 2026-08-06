@@ -7,6 +7,46 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-08-06
+
+Covers 1.2.0 and 1.3.0, which were version bumps without changelog entries.
+Ninety-seven commits since 1.1.0.
+
+### Added
+- **Tauri desktop and Android builds** from the same codebase, with release
+  signing wired into CI and a version-stamping script.
+- **Server and instance rules management**, plus follow requests and public
+  instance settings backed by RLS policies.
+- **Discord bridge**: attachment relay, bot gateway improvements, and
+  puppeting via webhooks.
+- **Klipy** GIF integration with attribution watermark.
+- **Encryption v2 over LiveKit**, device approval and trust management,
+  offline catch-up for fulfilled key requests, and session-share repair.
+- `get_user_conversations`, `get_home_timeline_page` and `get_message_page`
+  RPCs for paged loading.
+- `FEDERATION.md` describing the ActivityPub implementation.
+
+### Changed
+- Video chat reworked; floating video placeholder and invite modal settings.
+- Design system and component styles reworked for theming; appearance context
+  now resolves per route.
+- `is_private` removed from the channel model.
+- Server icon cache invalidation and realtime server-update propagation.
+- Comments across the codebase rewritten as terse declarative notes; emoji
+  removed from log output.
+
+### Fixed
+- Federation no longer drops inbound activities; reactions and counters
+  propagate in realtime.
+- Optimistic update reconciliation, multi-span message rendering, thread
+  reply realtime, mobile composer, and media error handling.
+- Recovered stranded link-preview and media commits.
+
+### Notes for self-hosters
+- `VERSION`, `package.json` and the federation backend's `VERSION` default
+  are now all `1.4.0`. The backend surfaces this via `/health` and
+  `/.well-known/nodeinfo`.
+
 ## [1.1.0] - 2026-05-27
 
 First post-public-release iteration. Focus: a new visual skin, mobile/PWA
@@ -81,10 +121,10 @@ honest about the BullMQ migration.
   configurable `zIndex` option (default `1050`).
 - **NotificationSettings** has a `min-height` so the panel doesn't jump
   around between tabs.
-- 12 bug-bash items from the public-release polish pass (see
-  commit `a2c82b7`): chat input bug, voice UI inconsistencies, Escape
-  no longer failing to close settings, and others.
-- **Docs build no longer fails on dead links**: `docs/BOT_API.md` and
+- 12 bug-bash items from the public-release polish pass: chat input bug,
+  voice UI inconsistencies, Escape no longer failing to close settings,
+  and others.
+- **Docs build no longer fails on dead links**: `docs/bot-api.md` and
   `docs/DEVELOPMENT.md` referenced `../LICENSE`, `../COPYRIGHT`,
   `../TRADEMARK.md`, `../SECURITY.md`, `../ROADMAP.md`, `../BUGS.md`
   via VitePress relative links - VitePress can't render files outside
@@ -102,16 +142,15 @@ honest about the BullMQ migration.
 - Existing `USE_PGBOSS_QUEUE=true` env vars continue to work via the
   backward-compat shim. Update to `USE_BULLMQ_QUEUE=true` at your
   convenience.
-- Audio assets were updated (`b4b54ca`); browsers will refetch on the
-  service-worker version bump.
+- Audio assets were updated; browsers will refetch on the service-worker
+  version bump.
 
 ## [1.0.1] - 2026-05-25
 
 ### Initial public release
 
-This is the first public release of Harmony. The codebase has been developed
-privately up to this point; the full pre-release history is preserved in the
-[`harmony-archive`](https://github.com/y4my4my4m/harmony-archive) repository.
+First tagged release. Development started in January 2024; commits before this
+point are in this repository's history and predate any published release.
 
 Key features at this snapshot:
 
@@ -125,6 +164,7 @@ Key features at this snapshot:
 - Tauri desktop app and web app from the same codebase
 - Self-hosting via Docker Compose; install script under `scripts/install.sh`
 
-[Unreleased]: https://github.com/y4my4my4m/harmony/compare/v1.1.0...HEAD
-[1.1.0]: https://github.com/y4my4my4m/harmony/compare/v1.0.1...v1.1.0
-[1.0.1]: https://github.com/y4my4my4m/harmony/releases/tag/v1.0.1
+[Unreleased]: https://github.com/y4my4my4m/harmony/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/y4my4my4m/harmony/releases/tag/v1.4.0
+
+1.0.1 and 1.1.0 predate release tagging and have no tag to link to.

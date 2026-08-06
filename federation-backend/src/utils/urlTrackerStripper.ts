@@ -9,7 +9,7 @@
  * show cleaned URLs - so this duplicate keeps the two `UNIVERSAL_TRACKING_*`
  * tables in sync without dragging the browser-only opt-out code into Node.
  *
- * IMPORTANT: when you add a tracker class here, mirror it in
+ * IMPORTANT: a tracker class added here must be mirrored in
  * `src/utils/urlTrackerStripper.ts` (and vice versa) so the SSR `/posts/:id`
  * page and the in-app post renderer agree on what gets stripped.
  */
@@ -93,7 +93,7 @@ export function stripTrackingParameters(url: string): string {
   const domain = urlObj.hostname.replace(/^www\./i, '');
   const hostExtras = DOMAIN_TRACKING_PARAMS[domain] ?? [];
 
-  // Collect-then-delete so we don't mutate while iterating.
+  // Collect then delete; deleting during iteration skips entries.
   const toDelete: string[] = [];
   for (const name of urlObj.searchParams.keys()) {
     if (shouldStripParam(name, hostExtras)) toDelete.push(name);

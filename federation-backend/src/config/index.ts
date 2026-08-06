@@ -11,7 +11,7 @@ const envSchema = z.object({
 
   // Software version, surfaced via NodeInfo, /health, and the federation User-Agent.
   // Bump this on each release (single source of truth for the federation backend).
-  VERSION: z.string().default('1.1.0'),
+  VERSION: z.string().default('1.4.0'),
   
   // Supabase
   SUPABASE_URL: z.string().url(),
@@ -103,9 +103,9 @@ const envSchema = z.object({
     z.string().optional(),
   ),
   KLIPY_BASE_URL: z.string().url().default('https://api.klipy.com'),
-  // Secret embedded in the AI-emoji generation callback URL so we can verify
-  // inbound Klipy webhooks. Optional: when unset we derive a stable token from
-  // the service-role key (always present), so this needs no extra config.
+  // Secret embedded in the AI-emoji generation callback URL; authenticates
+  // inbound Klipy webhooks. Optional: when unset, a stable token is derived
+  // from the service-role key (always present), so no extra config is needed.
   AI_EMOJI_WEBHOOK_SECRET: z.preprocess(
     (v) => (typeof v === 'string' && v.trim() ? v.trim() : undefined),
     z.string().optional(),
@@ -125,7 +125,7 @@ const parseEnv = () => {
     // inbox authz gate assumes activity.actor was matched against the signer.
     // Disabling it is a dev-only escape hatch - never allow it in production.
     if (parsed.NODE_ENV === 'production' && !parsed.REQUIRE_VALID_SIGNATURES) {
-      console.error('❌ REQUIRE_VALID_SIGNATURES=false is not allowed with NODE_ENV=production:');
+      console.error('REQUIRE_VALID_SIGNATURES=false is not allowed with NODE_ENV=production:');
       console.error('   it disables all federation authentication (actor spoofing, forged deletes/blocks).');
       console.error('   Unset it, or set NODE_ENV=development.');
       process.exit(1);
@@ -134,7 +134,7 @@ const parseEnv = () => {
     return parsed;
   } catch (error) {
     if (error instanceof z.ZodError) {
-      console.error('❌ Invalid environment variables:');
+      console.error('Invalid environment variables:');
       error.errors.forEach((err) => {
         console.error(`  - ${err.path.join('.')}: ${err.message}`);
       });

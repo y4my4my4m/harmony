@@ -11,9 +11,7 @@ import { logger } from '../utils/logger.js';
 import { formatEmojiForFederation, resolveOutboundEmoji } from '../utils/emojiResolvers.js';
 import config from '../config/index.js';
 
-// =============================================================================
 // TYPES
-// =============================================================================
 
 interface ReactionPayload {
   reaction_id: string;
@@ -28,9 +26,7 @@ interface ReactionDeletePayload {
   emoji_id?: string;
 }
 
-// =============================================================================
 // ADD REACTION HANDLER
-// =============================================================================
 
 /**
  * Handle channel message reaction federation
@@ -43,7 +39,7 @@ export async function handleChannelReactionFederation(
     const supabase = getSupabaseClient();
     const hostDomain = config.INSTANCE_DOMAIN;
 
-    logger.info(`👍 Federating reaction ${reaction_id} on message ${message_id}`);
+    logger.info(`Federating reaction ${reaction_id} on message ${message_id}`);
 
     const { data: reaction, error: reactionError } = await supabase
       .from('reactions')
@@ -144,7 +140,7 @@ export async function handleChannelReactionFederation(
       
       await DeliveryQueue.enqueue(activity, inbox, reaction.user.id);
       
-      logger.info(`✅ Queued reaction delivery to ${group.instance}`);
+      logger.info(`Queued reaction delivery to ${group.instance}`);
     }
 
     await supabase
@@ -152,15 +148,13 @@ export async function handleChannelReactionFederation(
       .update({ federation_status: 'completed' })
       .eq('id', reaction_id);
 
-    logger.info(`👍 Reaction federation complete`);
+    logger.info(`Reaction federation complete`);
   } catch (error) {
     logger.error('Error handling reaction federation:', error);
   }
 }
 
-// =============================================================================
 // REMOVE REACTION HANDLER
-// =============================================================================
 
 /**
  * Handle channel message reaction removal federation
@@ -173,7 +167,7 @@ export async function handleChannelReactionRemoval(
     const supabase = getSupabaseClient();
     const hostDomain = config.INSTANCE_DOMAIN;
 
-    logger.info(`↩️ Federating reaction removal on message ${message_id}`);
+    logger.info(`Federating reaction removal on message ${message_id}`);
 
     const { data: user } = await supabase
       .from('profiles')
@@ -257,15 +251,13 @@ export async function handleChannelReactionRemoval(
       await DeliveryQueue.enqueue(undoActivity, inbox, user.id);
     }
 
-    logger.info(`↩️ Reaction removal federated to ${remoteMemberGroups.length} instances`);
+    logger.info(`Reaction removal federated to ${remoteMemberGroups.length} instances`);
   } catch (error) {
     logger.error('Error handling reaction removal federation:', error);
   }
 }
 
-// =============================================================================
 // HELPER FUNCTIONS
-// =============================================================================
 
 interface RemoteMemberGroup {
   instance: string;

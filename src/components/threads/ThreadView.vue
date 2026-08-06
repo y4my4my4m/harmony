@@ -413,7 +413,7 @@ const displayThreadName = computed(() => {
 
 
 const loadThread = async () => {
-  // In draft mode, don't load - just show parent message
+  // Draft mode: no load, parent message only.
   if (isDraftMode.value) {
     thread.value = null
     loading.value = false
@@ -424,10 +424,9 @@ const loadThread = async () => {
   const threadId = props.threadId || props.initialThread?.id
   if (!threadId) return
   
-  // Check if we have cached messages - if so, show instantly without loading indicator
+  // Cached messages render immediately, without the loading indicator.
   const cachedMessages = threadService.getCachedMessages(threadId)
   if (cachedMessages) {
-    // Use cached data instantly - no loading indicator
     messages.value = cachedMessages.messages
     hasMore.value = cachedMessages.has_more
     
@@ -638,21 +637,21 @@ const copyThreadId = async () => {
   await navigator.clipboard.writeText(thread.value.id)
 }
 
-// Use unified content parsing system (DRY - same as ChatComponent)
+// Same content parsing path as ChatComponent.
 const parseMessageInput = async (input: string): Promise<MessagePart[]> => {
-  debug.log('🔧 ThreadView: Using unified content parsing for:', input)
+  debug.log('ThreadView: Using unified content parsing for:', input)
   
-  // Use efficient batch mention resolution
+  // Batch mention resolution.
   const userDataMap = await resolveMentionsUserData(input)
   
-  // Use unified emoji resolution - includes both server emojis AND unified pack
+  // Emoji resolution covers server emojis and the unified pack.
   const emojiDataMap = await resolveEmojisData(input)
   
-  debug.log('🔧 Emoji data map size:', Object.keys(emojiDataMap).length)
+  debug.log('Emoji data map size:', Object.keys(emojiDataMap).length)
   
   const result = await parseContentToMessageParts(input, userDataMap, emojiDataMap, {}, {}, buildChatParseOptions(false))
   
-  debug.log('🔧 Final parsed message parts:', result)
+  debug.log('Final parsed message parts:', result)
   return result
 }
 
@@ -1116,7 +1115,7 @@ const cleanupSubscription = () => {
   if (threadSubscription.value) {
     threadSubscription.value()
     threadSubscription.value = null
-    debug.log('📡 Unsubscribed from thread messages')
+    debug.log('Unsubscribed from thread messages')
   }
 }
 
@@ -1181,7 +1180,7 @@ const setupRealtimeSubscription = () => {
         threadService.addMessageToCache(thread.value!.id, newMessage)
         await nextTick()
         scrollToBottom()
-        debug.log('📝 Thread message added via realtime:', newMessage.id)
+        debug.log('Thread message added via realtime:', newMessage.id)
       }
     },
     
@@ -1195,7 +1194,7 @@ const setupRealtimeSubscription = () => {
           if (thread.value?.id) {
             threadService.removeMessageFromCache(thread.value.id, payloadNew.id)
           }
-          debug.log('🗑️ Thread message soft-deleted via realtime:', payloadNew.id)
+          debug.log('Thread message soft-deleted via realtime:', payloadNew.id)
         }
         return
       }
@@ -1212,7 +1211,7 @@ const setupRealtimeSubscription = () => {
         if (thread.value?.id) {
           threadService.updateMessageInCache(thread.value.id, payloadNew.id, updatedMessage)
         }
-        debug.log('🔄 Thread message updated via realtime:', payloadNew.id)
+        debug.log('Thread message updated via realtime:', payloadNew.id)
       }
     },
     
@@ -1224,12 +1223,12 @@ const setupRealtimeSubscription = () => {
         if (thread.value?.id) {
           threadService.removeMessageFromCache(thread.value.id, payloadOld.id)
         }
-        debug.log('🗑️ Thread message deleted via realtime:', payloadOld.id)
+        debug.log('Thread message deleted via realtime:', payloadOld.id)
       }
     },
   })
   
-  debug.log(`📡 Subscribed to thread messages: ${channelName}`)
+  debug.log(`Subscribed to thread messages: ${channelName}`)
 }
 
 // Watch for visibility changes

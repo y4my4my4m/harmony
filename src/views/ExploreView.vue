@@ -122,7 +122,7 @@ const loadInstances = async () => {
   }
 }
 
-// Event handlers using composables - much cleaner!
+// Event handlers
 const handleLoadMore = async () => {
   try {
     if (props.currentView === 'trending') {
@@ -134,7 +134,7 @@ const handleLoadMore = async () => {
       )
       trendingPosts.value.push(...newPosts.slice(0, 10))
     }
-    // Instances don't need pagination for now
+    // Instances are not paginated.
   } catch (error) {
     debug.error('Failed to load more explore data:', error)
   }
@@ -144,7 +144,7 @@ const handleRefresh = () => {
   exploreContentRef.value?.refreshContent()
 }
 
-// Clean composable-based handlers
+// Composable-based handlers
 const handleFollow = async (userId: string) => {
   const result = await followUser(userId)
   if (result.success) {

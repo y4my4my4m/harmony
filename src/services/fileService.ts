@@ -9,9 +9,8 @@ export interface UploadProgressCallback {
 
 /**
  * Client-side pre-upload gate (BUGS.md H28). The bucket enforces size limits
- * server-side, but without this the user only saw a generic failure after the
- * whole upload - and SVGs (which can embed script and are served from our
- * origin) sailed through with no MIME check at all.
+ * server-side, but only after the whole upload, and applies no MIME check.
+ * SVGs are rejected here: they can embed script and are served same-origin.
  */
 async function validateChatUpload(file: File): Promise<void> {
     if (file.type === 'image/svg+xml' || /\.svg$/i.test(file.name || '')) {
@@ -29,7 +28,6 @@ async function handleFileDrop(userId: string, file: any) {
         const uniqueFileName = `${uuidv4()}.${file.name.split('.').pop()}`;
         const filePath = `${userId}/${uniqueFileName}`;
 
-        // Upload the file
         const { error } = await supabase.storage
         .from('user_media')
         .upload(filePath, file);
@@ -42,7 +40,7 @@ async function handleFileDrop(userId: string, file: any) {
 
         debug.log(data);
 
-        return data.publicUrl; // Return the public URL of the uploaded file
+        return data.publicUrl;
     } catch (error) {
         debug.error('Error uploading file:', error);
         return null;
@@ -62,7 +60,7 @@ async function handleFileUploadWithProgress(
         let uploadedBytes = 0;
         const totalBytes = file.size;
 
-        // Simulate progress for now (Supabase doesn't provide native progress callbacks)
+        // Synthetic progress; Supabase exposes no upload progress callback.
         const progressInterval = setInterval(() => {
             if (onProgress && uploadedBytes < totalBytes) {
                 uploadedBytes = Math.min(uploadedBytes + (totalBytes * 0.1), totalBytes * 0.9);
@@ -71,7 +69,6 @@ async function handleFileUploadWithProgress(
             }
         }, 200);
 
-        // Upload the file
         const { error } = await supabase.storage
             .from('user_media')
             .upload(filePath, file);
@@ -83,7 +80,6 @@ async function handleFileUploadWithProgress(
             throw error;
         }
 
-        // Complete the progress
         if (onProgress) onProgress(100);
 
         const { data } = await supabase.storage

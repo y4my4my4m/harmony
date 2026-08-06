@@ -134,10 +134,10 @@ export function useFloatingVideo() {
     observer.observe(element)
     videoObservers.set(element, observer)
 
-    // registerVideo is called from async callbacks (nextTick after mount),
-    // where onUnmounted() has no component instance and silently no-ops -
-    // that leaked one observer per rendered video (BUGS.md H43). The caller
-    // owns the lifecycle: invoke the returned cleanup in its own unmount hook.
+    // registerVideo runs from async callbacks (nextTick after mount), where
+    // onUnmounted() has no component instance and silently no-ops, leaking one
+    // observer per rendered video (BUGS.md H43). The caller owns the lifecycle:
+    // invoke the returned cleanup in its own unmount hook.
     return () => {
       observer.disconnect()
       if (videoObservers.get(element) === observer) {
@@ -565,8 +565,8 @@ export function useFloatingVideo() {
       handles.push(handle)
     })
 
-    // visibility is CSS-driven (.floating-video:hover .resize-handle) — JS hover
-    // listeners here leaked because they were re-added on every float
+    // Visibility is CSS-driven (.floating-video:hover .resize-handle). JS hover
+    // listeners here leak: this runs on every float.
     resizeHandleState.set(element, handles)
   }
 

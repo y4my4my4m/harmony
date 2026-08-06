@@ -265,8 +265,7 @@ const loadSettings = async () => {
 }
 
 const loadServerRoles = async (): Promise<ServerRole[]> => {
-  // This would typically fetch from your roles API
-  // For now, return mock data
+  // Mock data. The roles API is not wired up here.
   return [
     { id: '1', name: 'Moderator', color: '#0EA5E9', member_count: 5 },
     { id: '2', name: 'Trusted Member', color: '#57f287', member_count: 12 },

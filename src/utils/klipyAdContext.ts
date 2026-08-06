@@ -98,7 +98,7 @@ export function collectKlipyAdContext(slotWidth?: number): KlipyAdContext {
 
   const params: Record<string, string> = {
     ad_min_width: String(KLIPY_AD_MIN_SIZE),
-    // Request sizes we can actually render; Klipy matches inventory to these bounds.
+    // Request only renderable sizes; Klipy matches inventory to these bounds.
     ad_max_width: String(resolvedSlot),
     ad_min_height: String(KLIPY_AD_MIN_SIZE),
     ad_max_height: String(KLIPY_AD_MAX_HEIGHT),

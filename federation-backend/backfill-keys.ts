@@ -34,16 +34,16 @@ async function backfillKeys() {
     .is('public_key', null);
 
   if (error) {
-    console.error('❌ Failed to fetch users:', error);
+    console.error('Failed to fetch users:', error);
     process.exit(1);
   }
 
   if (!users || users.length === 0) {
-    console.log('✅ No users need key generation');
+    console.log('No users need key generation');
     process.exit(0);
   }
 
-  console.log(`🔐 Generating keys for ${users.length} users...`);
+  console.log(`Generating keys for ${users.length} users...`);
 
   let successCount = 0;
   let failCount = 0;
@@ -64,7 +64,7 @@ async function backfillKeys() {
         });
 
       if (privateKeyError) {
-        console.error(`  ❌ Failed to store private key for ${user.username}:`, privateKeyError);
+        console.error(`  Failed to store private key for ${user.username}:`, privateKeyError);
         failCount++;
         continue; // DON'T update public key if private key failed!
       }
@@ -76,7 +76,7 @@ async function backfillKeys() {
         .eq('id', user.id);
 
       if (publicKeyError) {
-        console.error(`  ❌ Failed to store public key for ${user.username}:`, publicKeyError);
+        console.error(`  Failed to store public key for ${user.username}:`, publicKeyError);
         // Try to clean up the orphaned private key
         await supabase
           .from('user_private_keys')
@@ -86,18 +86,18 @@ async function backfillKeys() {
         continue;
       }
 
-      console.log(`  ✅ ${user.username}`);
+      console.log(`  ${user.username}`);
       successCount++;
     } catch (err) {
-      console.error(`  ❌ Failed for ${user.username}:`, err);
+      console.error(`  Failed for ${user.username}:`, err);
       failCount++;
     }
   }
 
-  console.log(`\n📊 Results: ${successCount} succeeded, ${failCount} failed`);
+  console.log(`\nResults: ${successCount} succeeded, ${failCount} failed`);
   
 
-  console.log('🎉 Backfill complete!');
+  console.log('Backfill complete!');
   process.exit(0);
 }
 

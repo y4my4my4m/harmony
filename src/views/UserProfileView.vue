@@ -192,7 +192,7 @@
 
         <!-- Tab Content -->
         <div class="tab-content">
-          <!-- Blocked User Banner (like Twitter) -->
+          <!-- Blocked User Banner -->
           <div v-if="isBlocked && !isCurrentUser" class="blocked-user-banner">
             <div class="blocked-banner-content">
               <Icon name="user-x" :size="48" class="blocked-icon" />
@@ -208,10 +208,10 @@
           <div v-else-if="activeTab === 'posts'" class="posts-tab">
             <!-- Pinned Posts -->
             <div v-if="pinnedPosts.length > 0" class="pinned-posts-section">
-              <!-- MonyPost emits `delete`/`edit` as bare ids and doesn't
-                   emit favorite/reblog/bookmark at all (handled internally).
-                   Our handlers want the full post (so they can update the
-                   local list), so adapt via the loop variable here. -->
+              <!-- MonyPost emits `delete`/`edit` as bare ids and handles
+                   favorite/reblog/bookmark internally. The handlers below take
+                   the full post to update the local list, so the loop variable
+                   is passed explicitly. -->
               <MonyPost
                 v-for="post in pinnedPosts"
                 :key="post.id"
@@ -378,7 +378,7 @@ const props = withDefaults(defineProps<Props>(), {
   rightSidebarOpen: false
 });
 
-// Emits - Define the component events
+// Emits
 const emit = defineEmits<{
   toggleLeftSidebar: []
   toggleRightSidebar: []
@@ -442,13 +442,12 @@ const pinnedPosts = ref<TimelinePost[]>([]);
 const isLoadingPosts = ref(false);
 const hasMorePostsRef = ref(false);
 const remoteOutboxUrl = ref<string | null>(null); // For remote user pagination
-const oldestRemotePostId = ref<string | null>(null); // Track oldest post for pagination
+const oldestRemotePostId = ref<string | null>(null); // pagination cursor
 const isLoadingMoreRemote = ref(false);
 
-// Realtime - anyone viewing this profile (including the author on another
-// tab) gets prepends/edits/deletes via `feed:user:{profile_id}`. The DB
-// trigger publishes every post event for this author there; the kind ref
-// changes when the route param changes so navigation cleanly re-subscribes.
+// Realtime: prepends/edits/deletes arrive on `feed:user:{profile_id}`, where
+// a DB trigger publishes every post event for this author. The kind ref
+// changes with the route param, so navigation re-subscribes.
 const feedKind = computed<FeedKind>(
   () => (user.value?.id ? `user:${user.value.id}` as const : 'home')
 )
@@ -463,10 +462,9 @@ useFeedRealtime(feedKind, {
   },
   onUpdate: (event) => {
     if (event.author_id !== user.value?.id) return
-    // We don't get content in the broadcast payload, just metadata -
-    // visibility downgrades remove the post; content edits are reflected
-    // via the per-post component refetch already in place. Skip noisy
-    // count-update echoes here too.
+    // The broadcast payload carries metadata, not content. Visibility
+    // downgrades remove the post; content edits arrive through the per-post
+    // component refetch. Count-update echoes are ignored.
     if (event.visibility === 'direct' || event.visibility === 'private') {
       userPosts.value = userPosts.value.filter(p => p.id !== event.id)
     }
@@ -550,7 +548,7 @@ const bannerStyle = computed(() => {
   }
 })
 
-// Scroll handling with infinite scroll for posts
+// Infinite scroll for the posts tab.
 const handleScroll = throttle(() => {
   if (!scrollContainerRef.value) return;
   
@@ -585,8 +583,8 @@ const handleOpenSearch = () => {
 const handleRefresh = () => {
   const handle = currentHandle.value;
   const isRemote = handle.includes('@') && !handle.endsWith('@' + import.meta.env.VITE_DOMAIN as string);
-  debug.log(`🔄 Refreshing profile data...${isRemote ? ' (force refresh for remote user)' : ''}`);
-  loadUserProfile(handle, isRemote); // Force refresh for remote users
+  debug.log(`Refreshing profile data...${isRemote ? ' (force refresh for remote user)' : ''}`);
+  loadUserProfile(handle, isRemote);
 };
 
 // Computed
@@ -612,17 +610,17 @@ const isBlocked = computed(() => {
 const remoteProfileUrl = computed(() => {
   if (!user.value || user.value.is_local) return null;
   
-  // If we have a stored URL from the ActivityPub actor
+  // URL stored on the ActivityPub actor.
   if ((user.value as any).url) {
     return (user.value as any).url;
   }
   
-  // If we have the federated_id (ActivityPub actor URL)
+  // federated_id is the actor URL.
   if (user.value.federated_id) {
     return user.value.federated_id;
   }
   
-  // Fallback: construct URL (works for most Mastodon-compatible instances)
+  // Fallback shape, valid on Mastodon-compatible instances.
   return `https://${user.value.domain}/@${user.value.username}`;
 });
 
@@ -640,18 +638,18 @@ const userFields = computed(() => {
 
 const formatFieldValue = (value: string): string => {
   if (!value) return '';
-  // ActivityPub PropertyValue fields are attacker-controlled (remote profile).
-  // DOMPurify strips disallowed tags AND dangerous URI schemes (javascript:, data:, etc.)
-  // from href/src by default. ALLOWED_URI_REGEXP enforces http(s)/mailto only.
+  // PropertyValue fields come from a remote profile and are attacker-controlled.
+  // DOMPurify strips disallowed tags and dangerous URI schemes (javascript:,
+  // data:) from href/src. ALLOWED_URI_REGEXP narrows this to http(s)/mailto.
   const sanitized = DOMPurify.sanitize(value, {
     ALLOWED_TAGS: ['a', 'br', 'span', 'em', 'strong', 'b', 'i'],
     ALLOWED_ATTR: ['href', 'title'],
     ALLOWED_URI_REGEXP: /^(?:https?|mailto):/i,
     ALLOW_DATA_ATTR: false,
   });
-  // Force-add rel/target on links so external profile links don't leak window.opener
-  // and open in a new tab. DOMPurify's afterSanitizeAttributes hook would also work,
-  // but a single regex pass is fine here since the input is already sanitized.
+  // rel/target are forced onto links: external profile links open in a new tab
+  // and must not leak window.opener. A regex pass suffices because the input
+  // is already sanitized.
   return sanitized.replace(/<a\b(?![^>]*\btarget=)/gi, '<a target="_blank" rel="noopener noreferrer nofollow"');
 };
 
@@ -661,50 +659,48 @@ const formatJoinDate = (dateString: string): string => {
 };
 
 const loadUserProfile = async (handle: string, forceRefresh: boolean = false) => {
-  debug.log(`🔄 Loading profile for handle: ${handle}${forceRefresh ? ' (force refresh)' : ''}`);
+  debug.log(`Loading profile for handle: ${handle}${forceRefresh ? ' (force refresh)' : ''}`);
   isLoading.value = true;
   error.value = null;
-  user.value = null; // Clear previous user data
+  user.value = null;
   
   try {
-    // Clean the handle
     if (handle.startsWith('@')) {
       handle = handle.substring(1);
     }
     
-    debug.log(`🔍 Processing handle: ${handle}`);
+    debug.log(`Processing handle: ${handle}`);
     
     if (handle.includes('@')) {
-      debug.log(`🌐 Resolving federated user...${forceRefresh ? ' (force refresh)' : ''}`);
+      debug.log(`Resolving federated user...${forceRefresh ? ' (force refresh)' : ''}`);
       user.value = await activityPubService.getUserByHandle(handle, forceRefresh);
       
       if (user.value && !user.value.is_local && (user.value as any).outbox_url) {
         remoteOutboxUrl.value = (user.value as any).outbox_url;
-        debug.log(`📬 Saved outbox URL for remote pagination: ${remoteOutboxUrl.value}`);
+        debug.log(`Saved outbox URL for remote pagination: ${remoteOutboxUrl.value}`);
       }
     } else {
-      debug.log('👤 Looking up local user...');
+      debug.log('Looking up local user...');
       
-      // For local users, try to get from activity pub service first
+      // Local users resolve through the ActivityPub service first.
       try {
-        debug.log(`🔎 Fetching user by handle: @${handle}`);
+        debug.log(`Fetching user by handle: @${handle}`);
         user.value = await activityPubService.getUserByHandle(`@${handle}`);
       } catch (localError) {
-        debug.log('⚠️ ActivityPub lookup failed, trying profile service...');
+        debug.log('ActivityPub lookup failed, trying profile service...');
         
-        // Fallback: check if this is the current user
+        // Fallback: the handle may be the signed-in user.
         const currentUser = authStore.session?.user;
         const currentUsername = currentUser?.user_metadata?.username || currentUser?.email?.split('@')[0];
         
         if (currentUser && currentUsername === handle) {
-          debug.log('✅ Loading current user profile...');
+          debug.log('Loading current user profile...');
           
           await profileStore.fetchProfile(currentUser.id);
           const profile = profileStore.profile;
           
           if (profile) {
-            // Placeholder until the real posts load updates it - fetching a
-            // "sample" here was a wasted round-trip on every profile open.
+            // Placeholder; the posts load sets the real count.
             const posts_count = 0;
 
             user.value = {
@@ -723,15 +719,15 @@ const loadUserProfile = async (handle: string, forceRefresh: boolean = false) =>
               updated_at: profile.updated_at || new Date().toISOString()
             };
             
-            debug.log(`✅ Created user object with ActivityPub counts:`, {
+            debug.log(`Created user object with ActivityPub counts:`, {
               followers_count: user.value.followers_count,
               following_count: user.value.following_count,
               posts_count: user.value.posts_count
             });
           }
         } else {
-          // Try to find user by username in the system
-          debug.log('🔎 Searching for user in system...');
+          // Unresolved handle: synthesize a placeholder local profile.
+          debug.log('Searching for user in system...');
           
           user.value = {
             id: handle,
@@ -753,8 +749,8 @@ const loadUserProfile = async (handle: string, forceRefresh: boolean = false) =>
     }
     
     if (user.value) {
-      debug.log('✅ User profile loaded:', user.value.display_name);
-      debug.log('📊 User stats:', {
+      debug.log('User profile loaded:', user.value.display_name);
+      debug.log('User stats:', {
         posts: user.value.posts_count,
         following: user.value.following_count,
         followers: user.value.followers_count
@@ -766,11 +762,11 @@ const loadUserProfile = async (handle: string, forceRefresh: boolean = false) =>
         loadFollowers()
       ]);
     } else {
-      debug.log('❌ User not found');
+      debug.log('User not found');
       error.value = 'User not found';
     }
   } catch (err) {
-    debug.error('❌ Failed to load user profile:', err);
+    debug.error('Failed to load user profile:', err);
     error.value = 'Failed to load profile. The user might not exist or be unavailable.';
   } finally {
     isLoading.value = false;
@@ -782,14 +778,14 @@ const loadUserPosts = async (retryCount = 0) => {
   
   isLoadingPosts.value = true;
   try {
-    debug.log(`📝 Loading posts for user: ${user.value.username} (ID: ${user.value.id})${retryCount > 0 ? ` (retry ${retryCount})` : ''}`);
+    debug.log(`Loading posts for user: ${user.value.username} (ID: ${user.value.id})${retryCount > 0 ? ` (retry ${retryCount})` : ''}`);
     
-    // Use consistent getUserPosts method for all users
+    // Same path for local and remote users.
     const posts = (await activityPubService.getUserPosts(user.value.id, { limit: 20 })) as TimelinePost[] || [];
 
     // Retries poll while the backend backfills a freshly-imported remote
-    // profile; only swap the array (and refetch reactions) when the post set
-    // actually changed, so unchanged polls don't repaint the list.
+    // profile. The array is swapped, and reactions refetched, only when the
+    // post set changed; unchanged polls must not repaint the list.
     const changed =
       posts.length !== userPosts.value.length ||
       posts.some((p, i) => p.id !== userPosts.value[i]?.id);
@@ -802,23 +798,23 @@ const loadUserPosts = async (retryCount = 0) => {
       }
     }
 
-    // For remote users, always enable "load more" since we can fetch from their outbox
-    // For local users, enable if we got a full page
+    // Remote users always have "load more": the outbox can yield more.
+    // Local users get it only on a full page.
     if (!user.value.is_local && remoteOutboxUrl.value) {
-      hasMorePostsRef.value = true; // Remote users can always have more posts to fetch
-      debug.log(`📬 Remote user - enabling infinite scroll (outbox: ${remoteOutboxUrl.value})`);
+      hasMorePostsRef.value = true;
+      debug.log(`Remote user - enabling infinite scroll (outbox: ${remoteOutboxUrl.value})`);
     } else {
       hasMorePostsRef.value = posts && posts.length >= 20;
     }
-    debug.log(`📊 Loaded ${userPosts.value.length} posts for ${user.value.username}`);
+    debug.log(`Loaded ${userPosts.value.length} posts for ${user.value.username}`);
     
-    // For remote users with no posts initially, poll a few times as background fetch may still be running
+    // An empty remote profile may still be backfilling; poll a few times.
     if (!user.value.is_local && userPosts.value.length === 0 && retryCount < 3) {
-      debug.log(`📬 No posts yet for remote user, will retry in 2s (attempt ${retryCount + 1}/3)`);
+      debug.log(`No posts yet for remote user, will retry in 2s (attempt ${retryCount + 1}/3)`);
       setTimeout(() => {
         loadUserPosts(retryCount + 1);
       }, 2000);
-      return; // Don't set isLoadingPosts to false yet
+      return; // retry pending; leave isLoadingPosts set
     }
 
     // Only correct the displayed post count upward - the loaded page is
@@ -827,9 +823,8 @@ const loadUserPosts = async (retryCount = 0) => {
       user.value.posts_count = userPosts.value.length;
     }
 
-    // Safe debugging with error handling
     try {
-      debug.log('📋 Posts sample:', userPosts.value.slice(0, 3).map(p => ({ 
+      debug.log('Posts sample:', userPosts.value.slice(0, 3).map(p => ({ 
         id: p.id, 
         content: p.content ? (typeof p.content === 'string' ? (p.content as string).substring(0, 50) : JSON.stringify(p.content).substring(0, 50)) : 'No content',
         content_type: typeof p.content,
@@ -838,15 +833,15 @@ const loadUserPosts = async (retryCount = 0) => {
         created_at: p.created_at
       })));
     } catch (debugError) {
-      debug.log('📋 Posts debug error:', debugError);
-      debug.log('📋 Raw posts data:', userPosts.value.slice(0, 2));
+      debug.log('Posts debug error:', debugError);
+      debug.log('Raw posts data:', userPosts.value.slice(0, 2));
     }
   } catch (error) {
-    debug.error('❌ Failed to load user posts:', error);
+    debug.error('Failed to load user posts:', error);
     userPosts.value = [];
     hasMorePostsRef.value = false;
   } finally {
-    // Only stop loading indicator if we're not retrying
+    // Loading indicator stays on while retries are pending.
     if (retryCount >= 3 || userPosts.value.length > 0 || user.value?.is_local) {
       isLoadingPosts.value = false;
     }
@@ -857,18 +852,18 @@ const loadFollowing = async () => {
   if (!user.value) return;
   
   try {
-    debug.log(`👥 Loading following for user: ${user.value.username} (ID: ${user.value.id})`);
+    debug.log(`Loading following for user: ${user.value.username} (ID: ${user.value.id})`);
     
-    // Use consistent getFollowing method for all users
+    // Same path for local and remote users.
     const following = await activityPubService.getFollowing(user.value.id, { limit: 50 });
     followingUsers.value = following || [];
     
-    debug.log(`📊 Loaded ${followingUsers.value.length} following for ${user.value?.username || 'unknown'}`);
+    debug.log(`Loaded ${followingUsers.value.length} following for ${user.value?.username || 'unknown'}`);
 
-    // Trust profiles.following_count from the DB; the list here is capped at
-    // 50 by the page size, so its length is not the real count.
+    // following_count comes from the DB. This list is capped at the page size
+    // of 50, so its length is not the count.
   } catch (error) {
-    debug.error('❌ Failed to load following:', error);
+    debug.error('Failed to load following:', error);
     followingUsers.value = [];
   }
 };
@@ -877,19 +872,19 @@ const loadFollowers = async () => {
   if (!user.value) return;
   
   try {
-    debug.log(`👥 Loading followers for user: ${user.value.username} (ID: ${user.value.id})`);
+    debug.log(`Loading followers for user: ${user.value.username} (ID: ${user.value.id})`);
     
-    // Use consistent getFollowers method for all users
+    // Same path for local and remote users.
     const followers = await activityPubService.getFollowers(user.value.id, { limit: 50 });
     followerUsers.value = followers || [];
     
-    debug.log(`📊 Loaded ${followerUsers.value.length} followers for ${user.value?.username || 'unknown'}`);
-    debug.log('👥 Follower users:', followerUsers.value.map(u => u?.display_name || u?.username || 'Unknown'));
+    debug.log(`Loaded ${followerUsers.value.length} followers for ${user.value?.username || 'unknown'}`);
+    debug.log('Follower users:', followerUsers.value.map(u => u?.display_name || u?.username || 'Unknown'));
     
-    // Don't override the database count - trust profiles.followers_count
+    // Count comes from profiles.followers_count; it is not overwritten here.
     isLoading.value = false;
   } catch (error) {
-    debug.error('❌ Failed to load followers:', error);
+    debug.error('Failed to load followers:', error);
     followerUsers.value = [];
   }
 };
@@ -899,7 +894,7 @@ const loadPinnedPosts = async () => {
   try {
     const posts = await services.posts.getPinnedPosts(user.value.id);
     pinnedPosts.value = posts as TimelinePost[] || [];
-    debug.log(`📌 Loaded ${pinnedPosts.value.length} pinned posts for ${user.value.username}`);
+    debug.log(`Loaded ${pinnedPosts.value.length} pinned posts for ${user.value.username}`);
   } catch (err) {
     debug.error('Failed to load pinned posts:', err);
     pinnedPosts.value = [];
@@ -911,12 +906,12 @@ const loadMorePosts = async () => {
   
   isLoadingPosts.value = true;
   try {
-    debug.log(`📖 Loading more posts for user: ${user.value.username}`);
+    debug.log(`Loading more posts for user: ${user.value.username}`);
     
-    // For remote users, fetch from federation backend first
+    // Remote users page through the federation backend first.
     if (!user.value.is_local && remoteOutboxUrl.value) {
       isLoadingMoreRemote.value = true;
-      debug.log(`🌐 Fetching more posts from remote outbox...`);
+      debug.log(`Fetching more posts from remote outbox...`);
       
       try {
         const oldestPost = userPosts.value[userPosts.value.length - 1];
@@ -936,13 +931,11 @@ const loadMorePosts = async () => {
         if (response.ok) {
           const result = await response.json();
           oldestRemotePostId.value = result.oldest_id;
-          debug.log(`📬 Federation response: has_more=${result.has_more}, next_page=${result.next_page}`);
+          debug.log(`Federation response: has_more=${result.has_more}, next_page=${result.next_page}`);
 
-          // Merge newly-imported posts instead of replacing the whole list.
-          // A wholesale replace re-rendered every visible note on each page
-          // fetch, and on freshly-created federated profiles (short page →
-          // scroll handler keeps firing) that looked like the feed reloading
-          // over and over.
+          // Newly-imported posts are merged, not swapped in wholesale: a full
+          // replace re-renders every visible note on each page fetch, and on
+          // short pages the scroll handler fires repeatedly.
           const posts = await activityPubService.getUserPosts(user.value.id, { limit: 100 });
           const knownIds = new Set(userPosts.value.map(p => p.id));
           const newPosts = ((posts as TimelinePost[]) || []).filter(p => !knownIds.has(p.id));
@@ -951,16 +944,16 @@ const loadMorePosts = async () => {
             userPosts.value = [...userPosts.value, ...newPosts]
               .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
             hasMorePostsRef.value = result.has_more;
-            debug.log(`📊 Merged ${newPosts.length} new posts (total ${userPosts.value.length})`);
+            debug.log(`Merged ${newPosts.length} new posts (total ${userPosts.value.length})`);
 
             const postReactionsStore = usePostReactionsStore();
             postReactionsStore.fetchMultiplePostReactions(newPosts.map(p => p.id), true);
             activityPubStore.batchFetchRemoteReactions(newPosts);
           } else {
-            // Remote fetch produced nothing new - stop the scroll handler from
+            // Nothing new; clearing the flag stops the scroll handler from
             // re-firing this request in a loop.
             hasMorePostsRef.value = false;
-            debug.log('📭 Remote fetch returned no new posts - stopping pagination');
+            debug.log('Remote fetch returned no new posts - stopping pagination');
           }
         } else {
           debug.warn('Failed to fetch remote posts:', response.status);
@@ -978,7 +971,7 @@ const loadMorePosts = async () => {
       const cursor = oldestPost?.created_at;
 
       if (!cursor) {
-        debug.log('❌ No cursor found for pagination');
+        debug.log('No cursor found for pagination');
         hasMorePostsRef.value = false;
         return;
       }
@@ -991,18 +984,18 @@ const loadMorePosts = async () => {
       if (posts && posts.length > 0) {
         userPosts.value.push(...(posts as TimelinePost[]));
         hasMorePostsRef.value = posts.length >= 20;
-        debug.log(`📊 Loaded ${posts.length} more posts. Total: ${userPosts.value.length}`);
+        debug.log(`Loaded ${posts.length} more posts. Total: ${userPosts.value.length}`);
         
         const postReactionsStore = usePostReactionsStore();
         postReactionsStore.fetchMultiplePostReactions(posts.map(p => p.id), true);
         activityPubStore.batchFetchRemoteReactions(posts as TimelinePost[]);
       } else {
         hasMorePostsRef.value = false;
-        debug.log('📭 No more posts available');
+        debug.log('No more posts available');
       }
     }
   } catch (error) {
-    debug.error('❌ Failed to load more posts:', error);
+    debug.error('Failed to load more posts:', error);
     hasMorePostsRef.value = false;
   } finally {
     isLoadingPosts.value = false;
@@ -1035,7 +1028,6 @@ const mentionUser = () => {
     content: `${mentionText} `
   });
 
-  // Navigate to Social Home
   router.push('/social/home');
 };
 
@@ -1076,46 +1068,45 @@ const handleReport = () => {
   showActionsMenu.value = false;
 };
 
-// Accepts both `User` (chat-side) and `FederatedUser` (federation-side) since
-// the `ProfileCard` emit may emit either depending on the source list.
+// Accepts `User` (chat-side) and `FederatedUser` (federation-side): the
+// `ProfileCard` emit carries either, depending on the source list.
 const showUserProfile = (clickedUser: import('@/types').User | FederatedUser) => {
   selectedModalUser.value = clickedUser as FederatedUser;
   showProfileModal.value = true;
-  debug.log(`👤 Showing profile modal for: ${(clickedUser as FederatedUser).handle}`);
+  debug.log(`Showing profile modal for: ${(clickedUser as FederatedUser).handle}`);
 };
 
 // eslint-disable-next-line unused-imports/no-unused-vars
 const navigateToProfile = (clickedUser: FederatedUser) => {
-  // Close modal first
   showProfileModal.value = false;
   selectedModalUser.value = null;
   
-  // Clean the handle for routing - remove leading @ and ensure proper format
-  let handle = clickedUser.handle?.replace(/^@/, '') || clickedUser.username; // Remove leading @
+  // Routes take handles without the leading @.
+  let handle = clickedUser.handle?.replace(/^@/, '') || clickedUser.username;
   
-  // For routing, we need clean handles without domain for local users
+  // Local handles route without the domain suffix.
   const currentDomain = import.meta.env.VITE_DOMAIN as string;
   if (handle.endsWith(`@${currentDomain}`)) {
     handle = handle.replace(`@${currentDomain}`, '');
   }
   
-  debug.log(`🔗 Navigating to profile: ${handle} (from ${clickedUser.handle})`);
-  debug.log(`📍 Current route before navigation:`, route.path);
+  debug.log(`Navigating to profile: ${handle} (from ${clickedUser.handle})`);
+  debug.log(`Current route before navigation:`, route.path);
   
   router.push({ 
     name: 'UserProfile', 
     params: { handle } 
   }).then(() => {
-    debug.log(`✅ Navigation completed to: /social/profile/${handle}`);
+    debug.log(`Navigation completed to: /social/profile/${handle}`);
   }).catch((error) => {
-    debug.error(`❌ Navigation failed:`, error);
+    debug.error(`Navigation failed:`, error);
   });
 };
 
 const replyToPost = (post: TimelinePost) => {
-  // For reblogs, address the original author and thread under the original
-  // note (Mastodon/Pleroma/Misskey behaviour). The reblog wrapper has the
-  // booster as `author`, which isn't what the user wants to reply to.
+  // Reblogs address the original author and thread under the original note,
+  // matching Mastodon/Pleroma/Misskey. The reblog wrapper's `author` is the
+  // booster, not the reply target.
   const target = getOriginalPost(post);
   const handle = target.author?.handle || '';
   const mentionText = handle.startsWith('@') ? handle : `@${handle}`;
@@ -1126,10 +1117,9 @@ const replyToPost = (post: TimelinePost) => {
   router.push('/social/home');
 };
 
-// Handlers receive the full TimelinePost (PostsContainer forwards
-// `posts[index]` for these chains, since MonyPost handles favorite/reblog/
-// bookmark internally and only fires these as a pass-through hook for
-// consumers that need the post object).
+// Handlers take the full TimelinePost: PostsContainer forwards `posts[index]`
+// for these chains. MonyPost handles favorite/reblog/bookmark internally and
+// fires these only as a pass-through for consumers needing the post object.
 const handleFavorite = async (post: TimelinePost) => {
   try {
     await activityPubStore.toggleFavorite(post.id);
@@ -1164,17 +1154,17 @@ const handleDelete = async (post: TimelinePost) => {
 };
 
 const navigateToHashtag = (tag: string) => {
-  debug.log(`#️⃣ Navigating to hashtag: #${tag}`);
+  debug.log(`#Navigating to hashtag: #${tag}`);
   router.push({ name: 'HashtagView', params: { tag } });
 };
 
 const showConversation = (postId: string) => {
-  debug.log(`🎯 Showing conversation for post: ${postId}`);
+  debug.log(`Showing conversation for post: ${postId}`);
   router.push({ name: 'PostDetail', params: { postId } });
 };
 
-// Get the handle from props or route params, always decode URI components
-// (handles may arrive as "user%40domain" from encodeURIComponent callers)
+// Handle comes from props or route params and is always URI-decoded; callers
+// using encodeURIComponent send it as "user%40domain".
 const currentHandle = computed(() => {
   const raw = props.profileHandle || (route.params.handle as string);
   if (!raw) return raw;
@@ -1185,26 +1175,25 @@ const currentHandle = computed(() => {
   }
 });
 
-// Track current loading handle to prevent duplicate loads
+// Guards against duplicate loads of the same handle.
 let currentLoadingHandle: string | null = null;
 
-// Single consolidated watcher for handle changes
-// FIXED: Removed redundant watchers that caused 3x profile loads
+// Single watcher for handle changes. Additional watchers on the same handle
+// trigger the profile load three times.
 watch(currentHandle, async (newHandle, oldHandle) => {
-  // Skip if handle hasn't actually changed or is already loading
+  // Skip unchanged handles and loads already in flight.
   if (!newHandle || typeof newHandle !== 'string') return;
   if (newHandle === currentLoadingHandle) {
-    debug.log(`⏭️ Skipping duplicate load for handle: ${newHandle}`);
+    debug.log(`Skipping duplicate load for handle: ${newHandle}`);
     return;
   }
   
-  debug.log(`👤 Profile handle changed from ${oldHandle} to ${newHandle}`);
+  debug.log(`Profile handle changed from ${oldHandle} to ${newHandle}`);
   currentLoadingHandle = newHandle;
   
   try {
     await loadUserProfile(newHandle);
   } finally {
-    // Clear loading handle after load completes
     if (currentLoadingHandle === newHandle) {
       currentLoadingHandle = null;
     }
@@ -1212,7 +1201,7 @@ watch(currentHandle, async (newHandle, oldHandle) => {
 }, { immediate: true });
 
 onMounted(async () => {
-  debug.log(`🔄 UserProfileView mounted with handle: ${currentHandle.value}`);
+  debug.log(`UserProfileView mounted with handle: ${currentHandle.value}`);
   
   await activityPubStore.initialize();
 });
@@ -1720,7 +1709,7 @@ onUnmounted(() => {
   font-size: 1.25rem;
 }
 
-/* Blocked User Banner (Twitter-like) */
+/* Blocked User Banner */
 .blocked-user-banner {
   display: flex;
   flex-direction: column;

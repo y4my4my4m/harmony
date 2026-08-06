@@ -1,16 +1,12 @@
 /**
- * Auth E2E tests - exercises real UI flows:
- *   1. Registration via the register form
- *   2. New profile wizard (avatar, info, customization)
- *   3. Logout
- *   4. Login with the just-registered user
- *   5. Protected route access verification
+ * Auth E2E against the real UI.
  *
- * The main flow runs as a single test with test.step() sub-steps so the
- * browser session (and auth state) persists across the entire sequence.
+ * The main flow is one test with test.step() sub-steps so the browser session
+ * and auth state persist across the whole sequence.
  *
- * Uses a unique randomized email/username per run to avoid collisions.
- * Cleans up the UI-registered user in global-teardown via a persisted file.
+ * Email and username are randomized per run to avoid collisions. The
+ * UI-registered user is removed by global-teardown, which reads the file
+ * written in afterAll.
  */
 
 import { test, expect } from '@playwright/test'
@@ -119,7 +115,7 @@ test.describe('Auth flow - full lifecycle', () => {
 
       await expect(page).toHaveURL(/chat/, { timeout: 15000 })
 
-      // Dismiss announcements if they reappear (already marked read, but just in case)
+      // Announcements can resurface after re-login despite being marked read.
       const overlay = page.locator('[data-testid="announcement-overlay"]')
       if (await overlay.isVisible({ timeout: 2000 }).catch(() => false)) {
         const markAllBtn = page.locator('[data-testid="announcement-mark-all-read"]')

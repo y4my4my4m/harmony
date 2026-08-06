@@ -1,19 +1,18 @@
 /**
  * KlipyService - server-side GIF provider (Klipy native v1 API)
  *
- * Replaces the old client-side Tenor integration. Lives on the backend for two
- * reasons:
+ * Replaces the client-side Tenor integration. Server-side for two reasons:
  *   1. The Klipy app key sits in the request PATH, so calling Klipy from the
  *      browser would expose it. Here it stays in env and never reaches clients.
- *   2. Ads are a property of the key (toggled in the Klipy dashboard). We hold
- *      both an ad-enabled and an ad-free key and pick per request based on the
- *      viewer's supporter tier. The no-ads key is therefore never shippable to
- *      the frontend, and the ads decision can't be bypassed client-side.
+ *   2. Ads are a property of the key (toggled in the Klipy dashboard). Two keys
+ *      are held, ad-enabled and ad-free, selected per request from the viewer's
+ *      supporter tier. The no-ads key is therefore never shippable to the
+ *      frontend, and the ads decision can't be bypassed client-side.
  *
- * The native v1 API is used (not the Tenor-compat /v2 surface) because only the
- * native API interleaves `type: "ad"` objects, which the whole monetization
- * model depends on. Responses are normalized into a small discriminated shape so
- * the frontend keeps its existing `Gif` model and just learns about ad items.
+ * The native v1 API is used, not the Tenor-compat /v2 surface: only the native
+ * API interleaves `type: "ad"` objects, which the monetization model requires.
+ * Responses are normalized into a discriminated shape so the frontend keeps its
+ * existing `Gif` model plus ad items.
  */
 
 import config from '../config/index.js';
@@ -54,7 +53,7 @@ export interface GifFeed {
   hasNext: boolean;
 }
 
-/** Klipy native media collections we proxy. */
+/** Klipy native media collections proxied by this service. */
 export type GifMediaType = 'gifs' | 'stickers' | 'clips' | 'memes' | 'ai-emojis';
 
 /**

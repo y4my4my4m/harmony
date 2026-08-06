@@ -14,7 +14,7 @@ export async function handleFollowJob(data: FederationJobData): Promise<void> {
   const supabase = getSupabaseClient();
   const { type, follow_id, follower_id, following_id } = data;
 
-  logger.info(`👥 Processing follow job: ${type} for follow ${follow_id}`);
+  logger.info(`Processing follow job: ${type} for follow ${follow_id}`);
 
   try {
     const { data: follower } = await supabase
@@ -74,7 +74,7 @@ export async function handleFollowJob(data: FederationJobData): Promise<void> {
 
       if (following.inbox_url) {
         await DeliveryQueue.sendToInbox(following.inbox_url, followActivity, follower.id);
-        logger.info(`✅ Follow request sent to ${following.inbox_url}`);
+        logger.info(`Follow request sent to ${following.inbox_url}`);
       }
     } else if (type === 'delete') {
       const undoFollowActivity = {
@@ -91,7 +91,7 @@ export async function handleFollowJob(data: FederationJobData): Promise<void> {
 
       if (following.inbox_url) {
         await DeliveryQueue.sendToInbox(following.inbox_url, undoFollowActivity, follower.id);
-        logger.info(`✅ Unfollow sent to ${following.inbox_url}`);
+        logger.info(`Unfollow sent to ${following.inbox_url}`);
       }
     }
 
@@ -135,7 +135,7 @@ async function sendFollowResponse(
     : createRejectActivity(following, followActivity);
 
   await DeliveryQueue.sendToInbox(follower.inbox_url, activity, following.id);
-  logger.info(`✅ Follow ${status === 'accepted' ? 'Accept' : 'Reject'} sent to ${follower.inbox_url}`);
+  logger.info(`Follow ${status === 'accepted' ? 'Accept' : 'Reject'} sent to ${follower.inbox_url}`);
   return true;
 }
 

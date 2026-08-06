@@ -8,12 +8,10 @@
       'link-embed-card--media': isMediaCard,
     }"
   >
-    <!-- Big thumbnail: only the default variant. The compact variant is
-         used by MonyPost when the same URL is already represented by an
-         inline rich embed (e.g. YouTube iframe), so rendering the same
-         thumbnail again would be visually redundant. The thumbnail variant
-         still renders the image but at a small fixed size beside the
-         text. -->
+    <!-- Large thumbnail renders only in the default variant. MonyPost picks
+         the compact variant when an inline rich embed (e.g. YouTube iframe)
+         already represents the URL. The thumbnail variant renders the image
+         at a small fixed size beside the text. -->
     <div v-if="payload.image && variant !== 'compact'" class="link-embed-card__media">
       <img
         :src="payload.image"
@@ -48,17 +46,16 @@ const props = withDefaults(
      * 'default'   → full card with large thumbnail (top on mobile, left on
      *               desktop) + body. Used when the link card is the only
      *               visual representation of the URL.
-     * 'compact'   → slim caption row (no thumbnail), used as a low-visual-
-     *               weight metadata strip beneath an inline rich embed
-     *               (e.g. YouTube iframe) so we don't double-render the
-     *               same URL's preview.
+     * 'compact'   → slim caption row (no thumbnail). Metadata strip beneath
+     *               an inline rich embed (e.g. YouTube iframe); avoids
+     *               double-rendering the same URL's preview.
      * 'thumbnail' → fixed-size horizontal card (small thumbnail on left,
      *               one-line title + one-line description). Used when the
-     *               post ALSO has a media attachment - the attachment is
-     *               already the dominant visual, so the link card just
-     *               adds the title/site context without duplicating the
-     *               image size. Mirrors Mastodon/Misskey's "small card
-     *               beneath the photo" layout.
+     *               post also has a media attachment, which is already the
+     *               dominant visual; the card adds title/site context
+     *               without duplicating the image size. Mirrors
+     *               Mastodon/Misskey's "small card beneath the photo"
+     *               layout.
      */
     variant?: 'default' | 'compact' | 'thumbnail';
   }>(),
@@ -69,15 +66,13 @@ const emit = defineEmits<{
   'load': [];
 }>();
 
-// "Loaded immediately" for the no-image case AND for the compact variant
-// (which never renders the thumbnail), so the parent's load listener fires
-// without waiting on an image that will never paint.
+// Starts loaded when no image will paint (no payload image, or the compact
+// variant), so the parent's load listener fires without waiting.
 const imageLoaded = ref(!props.payload.image || props.variant === 'compact');
 
-// Media-first layout (Discord-style): when the preview is just
-// an image - e.g. a GIF page with a title and no description - the image IS
-// the content, so it renders at natural size instead of a 100px cropped
-// square thumbnail.
+// Media-first layout (Discord-style): a preview carrying an image and no
+// description (e.g. a GIF page) is the content, so it renders at natural
+// size instead of a 100px cropped square thumbnail.
 const isMediaCard = computed(() =>
   props.variant === 'default' && !!props.payload.image && !props.payload.description
 );
@@ -102,8 +97,6 @@ const handleImageLoad = () => {
 };
 
 onMounted(() => {
-  // Emit immediately when no image will paint (no payload image, or the
-  // compact variant which intentionally hides it).
   if (!props.payload.image || props.variant === 'compact') {
     emit('load');
   }

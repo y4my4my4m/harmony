@@ -126,11 +126,10 @@ class PostResolverServiceImpl {
    * (`wasImported: false`).
    *
    * Used by the PostView ancestor walker to decide whether to trigger a
-   * context reload - calling `/resolve-post` for an ancestor that already
-   * existed doesn't change anything visible to the user, so a reload would
-   * just thrash the UI. Note that even cached hits can still cause server-
-   * side orphan re-linking, so callers may want to reload anyway under some
-   * conditions (e.g. when the current post itself was orphaned).
+   * context reload: `/resolve-post` on an already-present ancestor changes
+   * nothing visible, so reloading only thrashes the UI. NOTE: cached hits can
+   * still trigger server-side orphan re-linking, so some callers reload
+   * regardless (e.g. when the current post itself was orphaned).
    */
   async resolveByApUrlWithStatus(
     url: string,

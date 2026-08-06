@@ -17,7 +17,7 @@ function editJson(path, mutate) {
   const json = JSON.parse(readFileSync(path, 'utf8'));
   mutate(json);
   writeFileSync(path, JSON.stringify(json, null, 2) + '\n');
-  console.log(`✓ ${path}`);
+  console.log(`${path}`);
 }
 
 // package.json
@@ -35,7 +35,7 @@ editJson('src-tauri/tauri.conf.json', (j) => { j.version = version; });
   if (pkgIdx === -1 || verIdx === -1) { console.error('Cargo.toml [package] version not found'); process.exit(1); }
   lines[verIdx] = `version = "${version}"`;
   writeFileSync(path, lines.join('\n'));
-  console.log(`✓ ${path}`);
+  console.log(`${path}`);
 }
 
 // Android tauri.properties
@@ -45,7 +45,7 @@ editJson('src-tauri/tauri.conf.json', (j) => { j.version = version; });
     .replace(/tauri\.android\.versionName=.*/, `tauri.android.versionName=${version}`)
     .replace(/tauri\.android\.versionCode=.*/, `tauri.android.versionCode=${versionCode}`);
   writeFileSync(path, out);
-  console.log(`✓ ${path} (versionCode ${versionCode})`);
+  console.log(`${path} (versionCode ${versionCode})`);
 }
 
 console.log(`\nVersion set to ${version} (versionCode ${versionCode}).`);

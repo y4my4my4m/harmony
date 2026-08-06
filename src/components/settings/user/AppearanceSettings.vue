@@ -402,10 +402,9 @@
         </button>
       </div>
 
-      <!-- Per-skin decorative toggles. Only shows when the active skin
-           declared `options: SkinOption[]` in its manifest. Each toggle
-           flips a `data-skin-<optionId>="on|off"` attribute on `<html>`
-           which the skin's CSS gates decorative rules on. -->
+      <!-- Shown when the active skin manifest declares `options: SkinOption[]`.
+           Each toggle flips `data-skin-<optionId>="on|off"` on `<html>`; skin
+           CSS gates its decorative rules on that attribute. -->
       <div
         v-if="activeSkinOptions.length"
         class="skin-active-options"
@@ -811,7 +810,6 @@ import ColorPicker from '@/components/common/ColorPicker.vue'
 import Icon from '@/components/common/Icon.vue'
 import EmojiPopup from '@/components/EmojiPopup.vue'
 
-// Props
 interface Props {
   profile: User | null
   loading: boolean
@@ -820,7 +818,6 @@ interface Props {
 // eslint-disable-next-line unused-imports/no-unused-vars
 const props = defineProps<Props>()
 
-// Emits
 const emit = defineEmits<{
   'update-appearance': [settings: any]
 }>()
@@ -832,8 +829,8 @@ const themeEditorPanel = useThemeEditorPanel()
 const router = useRouter()
 const { currentPackId, packs, setCurrentPack } = useEmojiPacks()
 
-// Open the floating live theme editor and close the full-screen settings so the
-// user can see the actual chat/sidebars update as they tweak colors.
+// Closes full-screen settings so colour edits are visible against the live
+// chat and sidebars.
 const openLiveEditor = () => {
   themeEditorPanel.open()
   router.back()
@@ -855,7 +852,7 @@ function onQuickReactEmojiChosen(emoji: Emoji) {
     id: emoji.id,
     name: emoji.name,
     url: emoji.url || undefined,
-    // Native emoji: id IS the unicode char (no url). Custom: leave undefined.
+    // Native emoji: id is the unicode char and url is absent. Custom: undefined.
     content: emoji.content || (emoji.url ? undefined : emoji.id),
   })
   showQuickReactPicker.value = false
@@ -890,9 +887,8 @@ const settings = ref({
   activeSkinId: null as string | null,
 })
 
-// Font picker options. The `preview` font-stack is used inline on the
-// picker buttons so each card renders in its own typeface, even before
-// the user clicks it.
+// `preview` is applied inline to each picker button so the card renders in its
+// own typeface before selection.
 const fontFamilyOptions: Array<{
   id: 'system' | 'pixel'
   label: string
@@ -902,7 +898,6 @@ const fontFamilyOptions: Array<{
   { id: 'pixel', label: 'NoRe Sans Pixel', preview: `'NoRe Sans Pixel Pro', monospace` },
 ]
 
-// Computed preview colors for custom theme
 const customPreviewColors = computed(() => {
   return generatePreviewColors(
     settings.value.customBackgroundColor,
@@ -1084,7 +1079,6 @@ const resetAllOverrides = () => {
   settings.value.customCssOverrides = {}
 }
 
-// Theme options
 const themes = [
   {
     id: 'dark',
@@ -1124,12 +1118,10 @@ const themes = [
   }
 ]
 
-// Computed
 const hasChanges = computed(() => {
   return JSON.stringify(settings.value) !== JSON.stringify(originalSettings.value)
 })
 
-// Methods
 const selectTheme = (themeId: string) => {
   settings.value.theme = themeId as 'dark' | 'light' | 'midnight' | 'custom'
   activeSavedThemeId.value = null
@@ -1223,11 +1215,10 @@ const onGlassEffectsChange = () => {
 }
 
 const onSkinChange = (skinId: string | null) => {
-  // Apply the skin to the live theme system, then mirror the resulting
-  // settings into our local form state so the rest of the form (theme
-  // cards, font picker, blur toggle, custom colour pickers) reflects what
-  // the skin just applied. The user can still tweak any of these
-  // afterwards - the skin is a one-shot bulk apply, not a lock.
+  // Applies the skin to the live theme system, then mirrors the result into
+  // local form state so theme cards, font picker, blur toggle and colour
+  // pickers agree. A skin is a one-shot bulk apply, not a lock; every mirrored
+  // field stays editable.
   visualTheme.applySkin(skinId)
   const live = visualTheme.currentSettings.value
   settings.value.activeSkinId = live.activeSkinId ?? null
@@ -1245,17 +1236,13 @@ const onSkinChange = (skinId: string | null) => {
   settings.value.glassEffectsEnabled = live.glassEffectsEnabled !== false
 }
 
-// Active skin manifest (or undefined if "None"). Used to render the
-// per-skin decoration toggles directly under the picker.
+// Active skin manifest; undefined when "None" is selected.
 const activeSkin = computed(() =>
   builtinSkins.find((s) => s.id === settings.value.activeSkinId)
 )
 const activeSkinOptions = computed(() => activeSkin.value?.options ?? [])
 
-/**
- * Read the effective value of a decoration toggle: stored override if
- * the user has flipped it, otherwise the option's declared default.
- */
+// Stored override when set, otherwise the option's declared default.
 const getActiveSkinOptionValue = (optionId: string): boolean => {
   const skinId = settings.value.activeSkinId
   if (!skinId) return false
@@ -1263,10 +1250,8 @@ const getActiveSkinOptionValue = (optionId: string): boolean => {
   return value ?? false
 }
 
-/**
- * Persist a decoration toggle. The `useVisualTheme` watcher reflects
- * the change to `<html data-skin-<optionId>="on|off">` automatically.
- */
+// The useVisualTheme watcher mirrors the stored value onto
+// `<html data-skin-<optionId>="on|off">`.
 const onSkinOptionToggle = (optionId: string, value: boolean) => {
   const skinId = settings.value.activeSkinId
   if (!skinId) return
@@ -1290,14 +1275,14 @@ const onEmojiPackChange = () => {
 }
 
 const onSettingChange = () => {
-  // Settings changed - will auto-save via composable
+  // Persistence is handled by the visual theme composable.
 }
 
 const saveSettings = () => {
   emit('update-appearance', settings.value)
   originalSettings.value = { ...settings.value }
   
-  // Now actually save to composable (persists to localStorage and Supabase)
+  // Composable persists to localStorage and Supabase.
   visualTheme.updateSettings({
     theme: settings.value.theme,
     customThemeMode: settings.value.customThemeMode,
@@ -1328,7 +1313,6 @@ const saveSettings = () => {
 const resetSettings = () => {
   settings.value = { ...originalSettings.value }
   
-  // Reapply original settings as preview
   if (originalSettings.value.theme === 'custom') {
     previewTheme()
   } else {
@@ -1670,7 +1654,6 @@ onMounted(async () => {
   color: var(--text-primary, #ffffff);
 }
 
-/* Emoji pack selector */
 .quick-react-emoji-btn {
   display: flex;
   align-items: center;
@@ -1849,9 +1832,8 @@ onMounted(async () => {
   line-height: 1.4;
 }
 
-/* Per-skin decoration toggles, rendered under the active skin card.
-   Visually a tighter version of the standard `.setting-item` rows
-   so it reads as an inline detail panel rather than a new section. */
+/* Per-skin decoration toggles under the active skin card; a tighter
+   `.setting-item` row so it reads as an inline detail panel. */
 .skin-active-options {
   margin-top: 18px;
   padding: 14px 16px;

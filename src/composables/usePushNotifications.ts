@@ -1,8 +1,6 @@
 /**
- * Push Notifications Composable
- * 
- * Handles Web Push notification subscription management for PWA
- * Supports iOS 16.4+, Android, and desktop browsers
+ * Web Push subscription management.
+ * Requires iOS 16.4+ (installed PWA only); Android and desktop browsers work directly.
  */
 
 import { ref, computed } from 'vue'
@@ -21,7 +19,7 @@ const vapidPublicKey = ref<string | null>(null)
 const subscriptions = ref<PushSubscriptionInfo[]>([])
 const error = ref<string | null>(null)
 
-// Initialization state (prevents duplicate API calls)
+// Guards against duplicate initialize() API calls.
 let isInitializing = false
 let isInitialized = false
 
@@ -35,13 +33,9 @@ export interface PushSubscriptionInfo {
   failure_count: number
 }
 
-/**
- * Check if push notifications are supported in this browser
- */
 function checkSupport(): boolean {
   if (typeof window === 'undefined') return false
   
-  // Check for required APIs
   const hasServiceWorker = 'serviceWorker' in navigator
   const hasPushManager = 'PushManager' in window
   const hasNotification = 'Notification' in window
@@ -49,17 +43,12 @@ function checkSupport(): boolean {
   return hasServiceWorker && hasPushManager && hasNotification
 }
 
-/**
- * Get auth token for API requests
- */
 async function getAuthToken(): Promise<string | null> {
   const { data: { session } } = await supabase.auth.getSession()
   return session?.access_token || null
 }
 
-/**
- * Convert base64 URL to Uint8Array for VAPID key
- */
+/** base64url to Uint8Array, as required by pushManager.subscribe applicationServerKey. */
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = '='.repeat((4 - base64String.length % 4) % 4)
   const base64 = (base64String + padding)
@@ -75,16 +64,13 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
   return outputArray
 }
 
-/** Result of fetchVapidKey - includes rate limit info when 429 */
+/** Carries retryAfter (seconds) when the server responds 429. */
 interface VapidFetchResult {
   publicKey: string | null
   rateLimited?: boolean
   retryAfter?: number
 }
 
-/**
- * Fetch VAPID public key from server
- */
 async function fetchVapidKey(): Promise<VapidFetchResult> {
   try {
     const response = await fetch(`${FEDERATION_BACKEND_URL}/push/vapid-key`)
@@ -111,9 +97,6 @@ async function fetchVapidKey(): Promise<VapidFetchResult> {
   }
 }
 
-/**
- * Get current push subscription from service worker
- */
 async function getCurrentSubscription(): Promise<PushSubscription | null> {
   try {
     const registration = await navigator.serviceWorker.ready
@@ -124,9 +107,6 @@ async function getCurrentSubscription(): Promise<PushSubscription | null> {
   }
 }
 
-/**
- * Subscribe to push notifications
- */
 async function subscribe(deviceName?: string): Promise<{ success: boolean; error?: string }> {
   if (!isSupported.value || !vapidPublicKey.value) {
     return { success: false, error: 'Push notifications not supported or not configured' }
@@ -136,7 +116,6 @@ async function subscribe(deviceName?: string): Promise<{ success: boolean; error
   error.value = null
 
   try {
-    // Request notification permission if needed
     if (Notification.permission === 'default') {
       const result = await Notification.requestPermission()
       permission.value = result
@@ -178,7 +157,7 @@ async function subscribe(deviceName?: string): Promise<{ success: boolean; error
     }
 
     isSubscribed.value = true
-    debug.log('✅ Push notification subscription successful')
+    debug.log('Push notification subscription successful')
     
     await fetchSubscriptions()
     
@@ -192,9 +171,7 @@ async function subscribe(deviceName?: string): Promise<{ success: boolean; error
   }
 }
 
-/**
- * Unsubscribe from push notifications on current device
- */
+/** Unsubscribes the current device, browser-side first, then server-side. */
 async function unsubscribe(): Promise<{ success: boolean; error?: string }> {
   isLoading.value = true
   error.value = null
@@ -209,15 +186,14 @@ async function unsubscribe(): Promise<{ success: boolean; error?: string }> {
 
     await subscription.unsubscribe()
     
-    // Browser unsubscribed successfully - update state immediately
+    // Browser-side unsubscribe succeeded; reflect it before the server round-trip.
     isSubscribed.value = false
 
     const token = await getAuthToken()
     if (!token) {
-      // Browser already unsubscribed, but couldn't notify server
-      // State is already updated, just log the issue
+      // Server keeps its record; the browser subscription is already gone.
       debug.warn('Browser unsubscribed but could not notify server (not authenticated)')
-      return { success: true } // Return success since browser is unsubscribed
+      return { success: true }
     }
 
     const response = await fetch(`${FEDERATION_BACKEND_URL}/push/unsubscribe`, {
@@ -234,7 +210,7 @@ async function unsubscribe(): Promise<{ success: boolean; error?: string }> {
     if (!response.ok) {
       const data = await response.json().catch(() => ({}))
       const errMsg = data.message || data.error || `Server error ${response.status}`
-      // Surface 429 and other errors so user knows server still has the subscription
+      // 429 is surfaced to the caller: the server still holds the subscription.
       if (response.status === 429) {
         error.value = errMsg
         return { success: false, error: error.value ?? undefined }
@@ -242,7 +218,7 @@ async function unsubscribe(): Promise<{ success: boolean; error?: string }> {
       debug.warn('Server unsubscribe failed:', errMsg)
     }
 
-    debug.log('✅ Push notification unsubscribed')
+    debug.log('Push notification unsubscribed')
     
     await fetchSubscriptions()
     
@@ -257,11 +233,9 @@ async function unsubscribe(): Promise<{ success: boolean; error?: string }> {
 }
 
 /**
- * Remove a subscription (device from list).
- * If it's the current browser's subscription, use unsubscribe() which calls
- * POST /push/unsubscribe. Otherwise use deleteSubscription() (DELETE by ID).
- * Using unsubscribe for current device avoids rate-limit issues and is the
- * canonical path for removing the active device.
+ * Removes a device from the subscription list.
+ * Current browser routes through unsubscribe() (POST /push/unsubscribe), which
+ * avoids the DELETE-by-id rate limit; other devices go to deleteSubscription().
  */
 async function removeSubscription(subscription: { id: string; endpoint: string }): Promise<{ success: boolean; error?: string }> {
   try {
@@ -271,14 +245,12 @@ async function removeSubscription(subscription: { id: string; endpoint: string }
       return unsubscribe()
     }
   } catch {
-    // Fall through to deleteSubscription if we can't determine current device
+    // Current device indeterminate; fall through to deleteSubscription.
   }
   return deleteSubscription(subscription.id)
 }
 
-/**
- * Delete a specific subscription by ID (for removing OTHER devices)
- */
+/** DELETE by subscription id. Intended for devices other than this browser. */
 async function deleteSubscription(subscriptionId: string): Promise<{ success: boolean; error?: string }> {
   isLoading.value = true
   error.value = null
@@ -315,9 +287,6 @@ async function deleteSubscription(subscriptionId: string): Promise<{ success: bo
   }
 }
 
-/**
- * Fetch all subscriptions for current user
- */
 async function fetchSubscriptions(): Promise<void> {
   try {
     const token = await getAuthToken()
@@ -339,10 +308,10 @@ async function fetchSubscriptions(): Promise<void> {
 }
 
 /**
- * Check if this browser's push subscription belongs to the current user.
- * A PushSubscription is browser-level, not user-level. When users switch
- * accounts we must verify the subscription is registered server-side for
- * the logged-in user, not a previous one.
+ * Resolves isSubscribed by matching this browser's endpoint against the
+ * server-side list for the logged-in user.
+ * A PushSubscription is browser-scoped, not user-scoped, so after an account
+ * switch it may still belong to the previous user.
  */
 async function checkSubscriptionStatus(): Promise<void> {
   try {
@@ -352,8 +321,6 @@ async function checkSubscriptionStatus(): Promise<void> {
       return
     }
 
-    // If we already fetched the user's server-side subscriptions, check
-    // whether this browser's endpoint is among them.
     if (subscriptions.value.length > 0) {
       const endpoint = subscription.endpoint
       const belongsToUser = subscriptions.value.some(s => s.endpoint === endpoint)
@@ -361,7 +328,7 @@ async function checkSubscriptionStatus(): Promise<void> {
       return
     }
 
-    // Subscriptions not loaded yet -- fetch them now and compare
+    // Subscription list not loaded yet.
     await fetchSubscriptions()
     const endpoint = subscription.endpoint
     isSubscribed.value = subscriptions.value.some(s => s.endpoint === endpoint)
@@ -370,9 +337,7 @@ async function checkSubscriptionStatus(): Promise<void> {
   }
 }
 
-/**
- * Retry initialization (e.g. after 429). Resets init state so initialize() runs again.
- */
+/** Clears the init guards so initialize() runs again, e.g. after a 429. */
 async function retryInitialize(): Promise<void> {
   isInitialized = false
   isInitializing = false
@@ -381,9 +346,9 @@ async function retryInitialize(): Promise<void> {
 }
 
 /**
- * Reset push notification state on logout.
- * Does NOT unsubscribe from the browser so the subscription can be
- * quickly re-associated when the same user logs back in.
+ * Resets push state on logout.
+ * The browser subscription is left intact so it can be re-associated when the
+ * same user logs back in.
  */
 function resetState(): void {
   isSubscribed.value = false
@@ -391,13 +356,13 @@ function resetState(): void {
   error.value = null
   isInitialized = false
   isInitializing = false
-  debug.log('🔔 Push notification state reset (logout)')
+  debug.log('Push notification state reset (logout)')
 }
 
 /**
- * Send a test push notification.
- * If the current device's subscription isn't found on the server (e.g. after
- * logout/login cycle), automatically re-register it before retrying.
+ * Sends a test push to this device.
+ * When the server has no record of this endpoint (typical after a
+ * logout/login cycle), the device is re-registered and the send retried once.
  */
 async function sendTestNotification(): Promise<{ success: boolean; error?: string }> {
   isLoading.value = true
@@ -417,7 +382,7 @@ async function sendTestNotification(): Promise<{ success: boolean; error?: strin
         currentEndpoint = subscription.endpoint
       }
     } catch {
-      // Fall back to sending to all devices
+      // Endpoint unavailable; send to all devices.
     }
 
     const sendTest = async () => {
@@ -438,10 +403,9 @@ async function sendTestNotification(): Promise<{ success: boolean; error?: strin
 
     let data = await sendTest()
 
-    // If device-specific lookup failed, re-register the browser subscription
-    // with the server and retry - covers desync after logout/login
+    // sent === 0 for a known endpoint means server/browser desync; re-register and retry once.
     if (data.sent === 0 && currentEndpoint) {
-      debug.log('🔔 Test notification found no subscription, re-registering device...')
+      debug.log('Test notification found no subscription, re-registering device...')
       const resubResult = await subscribe()
       if (resubResult.success) {
         data = await sendTest()
@@ -462,14 +426,13 @@ async function sendTestNotification(): Promise<{ success: boolean; error?: strin
 }
 
 /**
- * Initialize push notification system
- * Safe to call multiple times - will only initialize once
- * Always fetches VAPID key so the subscribe button works after removing all subscriptions
+ * Idempotent: repeat calls are no-ops once initialized.
+ * The VAPID key is fetched unconditionally so subscribe() stays available after
+ * the user removes every subscription.
  */
 async function initialize(): Promise<void> {
-  // Prevent duplicate initialization
   if (isInitialized || isInitializing) {
-    debug.log('🔔 Push notifications already initialized, skipping')
+    debug.log('Push notifications already initialized, skipping')
     return
   }
   
@@ -477,26 +440,23 @@ async function initialize(): Promise<void> {
   error.value = null
   
   try {
-    // Check browser support
     isSupported.value = checkSupport()
     
     if (!isSupported.value) {
-      // Can't subscribe here (no PushManager), but subscriptions + prefs are
-      // server-side, so still load them for cross-device management.
+      // No PushManager here, but subscriptions and prefs live server-side and
+      // remain manageable across devices.
       debug.log('Push subscribe unsupported here; loading subscriptions for management only')
       await fetchSubscriptions().catch(() => {})
       return
     }
 
-    // Check permission status
     permission.value = Notification.permission
 
-    // Always fetch VAPID key so subscribe works after user removed all subscriptions
     if (!vapidPublicKey.value) {
       const result = await fetchVapidKey()
       if (result.rateLimited) {
         error.value = `Too many requests. Please wait ${result.retryAfter ?? 60} seconds and try again.`
-        return // Don't set isInitialized so retry will work
+        return // isInitialized stays false so retryInitialize() can re-run
       }
       vapidPublicKey.value = result.publicKey
     }
@@ -506,7 +466,6 @@ async function initialize(): Promise<void> {
       return
     }
 
-    // Check current subscription status
     await checkSubscriptionStatus()
     
     if (subscriptions.value.length === 0) {
@@ -514,7 +473,7 @@ async function initialize(): Promise<void> {
     }
 
     isInitialized = true
-    debug.log('🔔 Push notification system initialized', {
+    debug.log('Push notification system initialized', {
       supported: isSupported.value,
       permission: permission.value,
       subscribed: isSubscribed.value,
@@ -526,14 +485,10 @@ async function initialize(): Promise<void> {
   }
 }
 
-/**
- * Composable for push notification management
- */
 export function usePushNotifications() {
-  // Note: Initialize is NOT auto-called anymore to prevent duplicate API calls
-  // Components should call initialize() explicitly when needed
+  // initialize() is not auto-called; callers invoke it explicitly to avoid
+  // duplicate API calls when several components mount at once.
 
-  // Computed helpers
   const canSubscribe = computed(() => {
     return isSupported.value && 
            vapidPublicKey.value && 
@@ -562,7 +517,7 @@ export function usePushNotifications() {
   })
 
   const requiresPWA = computed(() => {
-    // iOS requires PWA to be installed for push notifications
+    // iOS delivers push only to an installed PWA.
     const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent)
     return isIOS && !isPWA()
   })

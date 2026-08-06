@@ -129,7 +129,7 @@ export const usePublicServersStore = defineStore('publicServers', {
       this.error = null
 
       try {
-        debug.log('🔄 Fetching public servers...')
+        debug.log('Fetching public servers...')
 
         const { data, error } = await supabase
           .from('servers')
@@ -153,14 +153,14 @@ export const usePublicServersStore = defineStore('publicServers', {
           .limit(100)
 
         if (error) {
-          debug.error('❌ Supabase query error:', error)
+          debug.error('Supabase query error:', error)
           throw error
         }
 
-        debug.log(`📊 Fetched ${data?.length || 0} servers from database`)
+        debug.log(`Fetched ${data?.length || 0} servers from database`)
 
         if (!data && this.servers.length === 0) {
-          debug.log('⚠️ No servers in database, providing demo servers')
+          debug.log('No servers in database, providing demo servers')
           this.servers = [
             {
               id: 'demo-1',
@@ -199,7 +199,7 @@ export const usePublicServersStore = defineStore('publicServers', {
             const { getServerMemberCounts } = await import('@/services/serverMembershipService')
             memberCounts = await getServerMemberCounts(serverList.map(s => s.id))
           } catch (memberError) {
-            debug.warn('⚠️ Could not batch get member counts:', memberError)
+            debug.warn('Could not batch get member counts:', memberError)
           }
 
           this.servers = serverList.map(server => {
@@ -219,9 +219,9 @@ export const usePublicServersStore = defineStore('publicServers', {
         this.hasLoaded = true
         this.lastFetchTime = Date.now()
         
-        debug.log(`✅ Successfully loaded ${this.servers.length} public servers`)
+        debug.log(`Successfully loaded ${this.servers.length} public servers`)
       } catch (error) {
-        debug.error('❌ Error fetching public servers:', error)
+        debug.error('Error fetching public servers:', error)
         this.error = 'Failed to load servers. Please try again.'
       } finally {
         this.isLoading = false
@@ -241,7 +241,7 @@ export const usePublicServersStore = defineStore('publicServers', {
       this.error = null
 
       try {
-        debug.log(`🔍 Searching for "${this.searchQuery}"...`)
+        debug.log(`Searching for "${this.searchQuery}"...`)
 
         const { data, error } = await supabase
           .from('servers')
@@ -261,7 +261,7 @@ export const usePublicServersStore = defineStore('publicServers', {
           .limit(50)
 
         if (error) {
-          debug.error('❌ Search query error:', error)
+          debug.error('Search query error:', error)
           throw error
         }
 
@@ -274,9 +274,9 @@ export const usePublicServersStore = defineStore('publicServers', {
           allow_cross_server_emojis: server.allow_cross_server_emojis || false
         }))
 
-        debug.log(`🔍 Found ${this.searchResults.length} servers matching "${this.searchQuery}"`)
+        debug.log(`Found ${this.searchResults.length} servers matching "${this.searchQuery}"`)
       } catch (error) {
-        debug.error('❌ Error searching servers:', error)
+        debug.error('Error searching servers:', error)
         this.error = 'Search failed. Please try again.'
       } finally {
         this.isSearching = false

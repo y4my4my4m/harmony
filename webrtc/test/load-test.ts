@@ -15,9 +15,7 @@
 import { Room, RoomEvent, createLocalAudioTrack } from 'livekit-client';
 import { AccessToken } from 'livekit-server-sdk';
 
-// =============================================================================
 // CONFIGURATION
-// =============================================================================
 
 const config = {
   // LiveKit server URL
@@ -37,9 +35,7 @@ const config = {
   metricsIntervalMs: 5000,
 };
 
-// =============================================================================
 // TYPES
-// =============================================================================
 
 interface Metrics {
   connectedParticipants: number;
@@ -51,9 +47,7 @@ interface Metrics {
   connectTimes: number[];
 }
 
-// =============================================================================
 // HELPERS
-// =============================================================================
 
 /**
  * Generate a room token
@@ -106,7 +100,7 @@ async function createParticipant(
       metrics.connectTimes.push(connectTime);
       metrics.connectedParticipants++;
       
-      console.log(`✅ ${identity} connected in ${connectTime}ms`);
+      console.log(`${identity} connected in ${connectTime}ms`);
       
       if (canPublish) {
         try {
@@ -121,10 +115,10 @@ async function createParticipant(
           });
           
           metrics.publishingParticipants++;
-          console.log(`📤 ${identity} publishing audio`);
+          console.log(`${identity} publishing audio`);
         } catch (error) {
           metrics.publishErrors++;
-          console.error(`❌ ${identity} failed to publish:`, error);
+          console.error(`${identity} failed to publish:`, error);
         }
       } else {
         metrics.subscribingParticipants++;
@@ -135,7 +129,7 @@ async function createParticipant(
     
     room.on(RoomEvent.Disconnected, () => {
       metrics.connectedParticipants--;
-      console.log(`👋 ${identity} disconnected`);
+      console.log(`${identity} disconnected`);
     });
     
     room.on(RoomEvent.MediaDevicesError, (error) => {
@@ -154,7 +148,7 @@ function printMetrics(metrics: Metrics): void {
     ? metrics.connectTimes.reduce((a, b) => a + b, 0) / metrics.connectTimes.length
     : 0;
   
-  console.log('\n📊 Current Metrics:');
+  console.log('\nCurrent Metrics:');
   console.log(`   Connected: ${metrics.connectedParticipants}`);
   console.log(`   Publishers: ${metrics.publishingParticipants}`);
   console.log(`   Subscribers: ${metrics.subscribingParticipants}`);
@@ -164,12 +158,10 @@ function printMetrics(metrics: Metrics): void {
   console.log('');
 }
 
-// =============================================================================
 // MAIN
-// =============================================================================
 
 async function main(): Promise<void> {
-  console.log('🚀 LiveKit Load Test');
+  console.log('LiveKit Load Test');
   console.log('====================');
   console.log(`Server: ${config.wsUrl}`);
   console.log(`Room: ${config.roomName}`);
@@ -197,7 +189,7 @@ async function main(): Promise<void> {
   
   try {
     // Create publishers
-    console.log('📤 Creating publishers...');
+    console.log('Creating publishers...');
     for (let i = 0; i < config.numPublishers; i++) {
       try {
         const room = await createParticipant(`publisher-${i}`, true, metrics);
@@ -211,7 +203,7 @@ async function main(): Promise<void> {
     }
     
     // Create subscribers
-    console.log('📥 Creating subscribers...');
+    console.log('Creating subscribers...');
     for (let i = 0; i < config.numSubscribers; i++) {
       try {
         const room = await createParticipant(`subscriber-${i}`, false, metrics);
@@ -224,7 +216,7 @@ async function main(): Promise<void> {
       }
     }
     
-    console.log('\n✅ All participants connected. Running test...\n');
+    console.log('\nAll participants connected. Running test...\n');
     
     // Wait for test duration
     await new Promise(resolve => setTimeout(resolve, config.testDurationMs));
@@ -233,13 +225,13 @@ async function main(): Promise<void> {
     clearInterval(metricsInterval);
     
     // Disconnect all participants
-    console.log('\n👋 Disconnecting participants...');
+    console.log('\nDisconnecting participants...');
     for (const room of rooms) {
       await room.disconnect();
     }
     
     // Final metrics
-    console.log('\n📊 Final Results:');
+    console.log('\nFinal Results:');
     console.log('=================');
     printMetrics(metrics);
     

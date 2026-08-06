@@ -7,7 +7,7 @@ import { getSupabaseClient } from './src/config/supabase.js';
 const supabase = getSupabaseClient();
 
 async function checkMisskey() {
-  console.log('🔍 Checking Misskey Follow Relationship\n');
+  console.log('Checking Misskey Follow Relationship\n');
   
   // Get y4my4m's user ID
   const { data: localUser } = await supabase
@@ -61,7 +61,7 @@ async function checkMisskey() {
     console.log(`AP Activity ID: ${followRelationship.ap_activity_id || 'MISSING'}`);
     console.log(`Is Local: ${followRelationship.is_local}`);
   } else {
-    console.log('❌ NO FOLLOW RELATIONSHIP FOUND!');
+    console.log('NO FOLLOW RELATIONSHIP FOUND!');
     console.log('You need to follow this user for their posts to appear.');
   }
   console.log('');
@@ -81,7 +81,7 @@ async function checkMisskey() {
       console.log(`- ${post.created_at} | ${post.visibility} | local: ${post.is_local}`);
     });
   } else {
-    console.log('❌ NO POSTS FOUND from this Misskey user');
+    console.log('NO POSTS FOUND from this Misskey user');
     console.log('Either they haven\'t posted, or posts aren\'t being received.');
   }
   console.log('');
@@ -97,7 +97,7 @@ async function checkMisskey() {
         .eq('user_id', localUser.id);
       
       const types = timelineEntries?.map(te => te.timeline_type).join(', ') || 'NONE';
-      console.log(`Post ${post.id.substring(0, 8)}... → Timelines: ${types || '❌ MISSING'}`);
+      console.log(`Post ${post.id.substring(0, 8)}... → Timelines: ${types || 'MISSING'}`);
     }
   }
   console.log('');
@@ -117,38 +117,38 @@ async function checkMisskey() {
       console.log(`- ${act.created_at.substring(0, 19)} | ${act.ap_type}`);
     });
   } else {
-    console.log('❌ NO ACTIVITIES from this Misskey user');
+    console.log('NO ACTIVITIES from this Misskey user');
     console.log('Federation backend is not receiving activities from them.');
   }
   
   console.log('\n=== DIAGNOSIS ===');
   if (!followRelationship) {
-    console.log('❌ You are not following this Misskey user.');
+    console.log('You are not following this Misskey user.');
     console.log('   Solution: Follow them from Harmony UI');
   } else if (followRelationship.status !== 'accepted') {
-    console.log('⚠️  Follow status is:', followRelationship.status);
+    console.log('Follow status is:', followRelationship.status);
     console.log('   It should be "accepted"');
   } else if (!misskeyActivities || misskeyActivities.length === 0) {
-    console.log('❌ Not receiving activities from Misskey');
+    console.log('Not receiving activities from Misskey');
     console.log('   Possible causes:');
     console.log('   1. Misskey doesn\'t know about your follow (check their side)');
     console.log('   2. Their posts aren\'t reaching your inbox');
     console.log('   3. Federation backend not processing them');
   } else if (!misskeyPosts || misskeyPosts.length === 0) {
-    console.log('⚠️  Activities received but posts not created');
+    console.log('Activities received but posts not created');
     console.log('   Check federation backend logs for errors');
   } else {
-    console.log('✅ Everything looks correct!');
+    console.log('Everything looks correct!');
     console.log('   If posts still not in home timeline, run:');
     console.log('   psql ... -f ~/harmony/db_schema/fix_timeline_for_federated_posts.sql');
   }
 }
 
 checkMisskey().then(() => {
-  console.log('\n✅ Check complete\n');
+  console.log('\nCheck complete\n');
   process.exit(0);
 }).catch(err => {
-  console.error('❌ Error:', err);
+  console.error('Error:', err);
   process.exit(1);
 });
 

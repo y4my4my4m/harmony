@@ -442,8 +442,7 @@ const fetchLatencyData = async () => {
 }
 
 const fetchEndpointStats = async () => {
-  // This would typically come from performance_metrics_raw aggregated by endpoint
-  // Using placeholder data for now
+  // Placeholder data. Real source is performance_metrics_raw aggregated by endpoint.
   endpointStats.value = [
     { path: '/api/messages', method: 'GET', requests: 15420, avgLatency: 45 },
     { path: '/api/messages', method: 'POST', requests: 8234, avgLatency: 78 },

@@ -73,7 +73,7 @@ describe('hashCiphertextB64', () => {
   })
 
   it('falls back to utf-8 hashing when given non-base64 text', async () => {
-    // Should not throw; just produces a hash of the literal string bytes.
+    // Does not throw; hashes the literal string bytes.
     const hash = await hashCiphertextB64('not base64 at all!!!')
     expect(hash).toMatch(/^[A-Za-z0-9+/=]+$/)
   })

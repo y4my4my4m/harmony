@@ -247,7 +247,7 @@
         {{ pushSectionDescription }}
       </p>
 
-      <!-- Native mobile app: background push needs FCM (planned) -->
+      <!-- Native mobile app: background push requires FCM, which is not integrated -->
       <div v-if="isNativeMobile" class="push-warning">
         <Icon name="info" />
         <div>
@@ -1087,8 +1087,8 @@ const testAllNotifications = async () => {
   }
 }
 
-// Restores factory defaults (NOT the last-saved state - toggles save
-// immediately, so "last saved" is always just the current state).
+// Restores factory defaults, not the last-saved state: toggles save
+// immediately, so "last saved" equals the current state.
 const resetToDefaults = async () => {
   Object.assign(preferences, DEFAULT_PREFERENCES)
   await updatePreferences()

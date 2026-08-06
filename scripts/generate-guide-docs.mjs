@@ -6,7 +6,7 @@ import path from 'path'
 const GUIDE_DIR = 'docs/guide'
 const PROTECTED_GUIDE_DIR = 'docs-source/guide'
 
-console.log('🛡️ Creating protected guide documentation...')
+console.log('Creating protected guide documentation...')
 
 // Ensure protected directory exists
 await fs.mkdir(PROTECTED_GUIDE_DIR, { recursive: true })
@@ -57,7 +57,7 @@ for (const file of guideFiles) {
       const content = await fs.readFile(protectedPath, 'utf-8')
       await fs.mkdir(path.dirname(guidePath), { recursive: true })
       await fs.writeFile(guidePath, content)
-      console.log(`  ✅ Copied: ${file}`)
+      console.log(`  Copied: ${file}`)
     } else {
       // Create default content in protected source
       const defaultContent = generateDefaultGuideContent(file)
@@ -67,17 +67,17 @@ for (const file of guideFiles) {
       // Also copy to guide
       await fs.mkdir(path.dirname(guidePath), { recursive: true })
       await fs.writeFile(guidePath, defaultContent)
-      console.log(`  🆕 Created: ${file}`)
+      console.log(`  Created: ${file}`)
     }
   } catch (error) {
-    console.error(`  ❌ Error processing ${file}:`, error.message)
+    console.error(`  Error processing ${file}:`, error.message)
   }
 }
 
-console.log(`\n✅ Protected guide documentation setup complete!`)
-console.log(`📁 Edit guide content in: ${PROTECTED_GUIDE_DIR}`)
-console.log(`📁 Published to: ${GUIDE_DIR}`)
-console.log(`\n💡 To update guide docs, edit files in ${PROTECTED_GUIDE_DIR} and run this script again.`)
+console.log(`\nProtected guide documentation setup complete!`)
+console.log(`Edit guide content in: ${PROTECTED_GUIDE_DIR}`)
+console.log(`Published to: ${GUIDE_DIR}`)
+console.log(`\nTo update guide docs, edit files in ${PROTECTED_GUIDE_DIR} and run this script again.`)
 
 function generateDefaultGuideContent(filePath) {
   const fileName = path.basename(filePath, '.md')

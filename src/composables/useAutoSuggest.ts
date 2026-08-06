@@ -21,11 +21,11 @@ import {
 
 export { clearBridgedUsersCache };
 
-// Cache for bridge bot checks per server (to avoid repeated DB queries)
+// Bridge bot presence is a server-level fact; cached per server id.
 const bridgeBotCheckCache = new Map<string, { hasBridge: boolean; timestamp: number }>();
 const BRIDGE_BOT_CHECK_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
-// Pending requests deduplication - prevents multiple concurrent requests for same server
+// In-flight checks per server id; concurrent callers share one request.
 const bridgeBotCheckPending = new Map<string, Promise<boolean>>();
 
 export interface AutoSuggestTrigger {
@@ -72,7 +72,6 @@ export function useAutoSuggest(
   const { hasCurrentUserPermission, Permission, isCurrentUserServerOwner } = useServerPermissions();
   const { searchEmojis: searchUnifiedEmojis, isLoaded: unifiedLoaded, isNativePack, getSvgUrl } = useUnifiedEmoji();
 
-  // Merge config with defaults
   const finalConfig = {
     enableEmojis: true,
     enableMentions: true,
@@ -82,7 +81,6 @@ export function useAutoSuggest(
     mode: config.mode || 'chat'
   } as Required<AutoSuggestConfig>;
 
-  // Auto-suggest state
   const state = ref<AutoSuggestState>({
     isActive: false,
     triggerType: null,
@@ -95,10 +93,10 @@ export function useAutoSuggest(
   // Active parameterized command (e.g. /gif waiting for query input)
   const activeCommand = ref<{ name: string; params: { name: string; description: string }[] } | null>(null);
 
-  // Dynamic user search results for ActivityPub mode
+  // Search results, ActivityPub mode only.
   const activityPubUsers = ref<any[]>([]);
   
-  // Bridged users from Discord (fetched from bot-gateway)
+  // Discord users, fetched from bot-gateway.
   const bridgedUsers = ref<BridgedChannelUser[]>([]);
   const bridgedUsersLoaded = ref(false);
   const bridgedUsersChannelId = ref<string | null>(null);
@@ -111,14 +109,10 @@ export function useAutoSuggest(
   const triggers: AutoSuggestTrigger[] = [];
   
   if (finalConfig.enableEmojis) {
-    // The `(?<=^|[^a-zA-Z0-9_+-])` lookbehind guarantees the `:` opens a NEW
-    // shortcode rather than CLOSING an existing one. Without it, typing the
-    // closing `:` of `:joy:` matched the regex with an empty capture group,
-    // which the suggestion code then treated as "show every emoji whose name
-    // contains the empty string" - i.e. every server custom emoji in the
-    // user's cache (`:xd:`, `:wtf:`, `:whoa:`, ...). Now `:joy:` produces no
-    // match, and `:joy` (cursor just after `joy`) still matches with query
-    // `joy` because the leading `:` is preceded by start-of-string.
+    // The `(?<=^|[^a-zA-Z0-9_+-])` lookbehind restricts the match to a `:` that
+    // opens a shortcode. Without it the closing `:` of `:joy:` matches with an
+    // empty capture group, and an empty query lists every cached custom emoji.
+    // `:joy:` yields no match; `:joy` matches with query `joy`.
     triggers.push({
       char: ':',
       pattern: /(?<=^|[^a-zA-Z0-9_+-]):([a-zA-Z0-9_+-]*)$/,
@@ -129,8 +123,8 @@ export function useAutoSuggest(
   if (finalConfig.enableMentions) {
     triggers.push({
       char: '@',
-      // \s* before $ allows trailing whitespace - contenteditable (ActivityPub Composer) can report
-      // cursor after a trailing space, unlike textarea (chat) which has exact selectionStart
+      // \s* before $ tolerates trailing whitespace: contenteditable (ActivityPub Composer)
+      // reports the cursor after a trailing space; textarea (chat) gives exact selectionStart.
       pattern: /(?:^|\s)@([a-zA-Z0-9_+-]*)\s*$/,
       type: 'mention'
     });
@@ -154,14 +148,12 @@ export function useAutoSuggest(
     });
   }
 
-  // Get emoji suggestions (server emojis + unified emoji pack)
-  // Allow empty query so typing ":" alone shows initial emoji list
+  // Server emojis plus the unified pack. Empty query is allowed: ":" alone lists emojis.
   const emojiSuggestions = computed((): SuggestionItem[] => {
     if (!finalConfig.enableEmojis || state.value.triggerType !== 'emoji') {
       return [];
     }
     
-    // Trigger lazy loading of emoji data when user starts typing emoji autocomplete
     ensureEmojiDataLoaded()
 
     const suggestions: SuggestionItem[] = [];
@@ -169,7 +161,6 @@ export function useAutoSuggest(
     const resolvedEmojiList = emojiCacheStore.resolvedEmojis;
     const seenNames = new Set<string>();
 
-    // Collect emojis from all servers (custom server emojis)
     for (const serverId in resolvedEmojiList) {
       const server = resolvedEmojiList[serverId];
       const matchingEmojis = server.emojis.filter((emoji: ResolvedEmoji) => 
@@ -185,17 +176,17 @@ export function useAutoSuggest(
           display_name: emoji.display_name,
           url: emoji.url,
           server_name: server.server_name,
-          emoji: emoji // Keep reference for easy access
+          emoji: emoji
         };
       }));
     }
 
-    // Also search unified emoji pack (twemoji / native emojis)
+    // Unified pack: twemoji or native, per pack selection.
     if (unifiedLoaded.value && query.length >= 2) {
       const unifiedResults = searchUnifiedEmojis(query, finalConfig.maxSuggestions);
       
       for (const emoji of unifiedResults) {
-        // Skip if already added from server emojis
+        // Server emoji of the same shortcode takes precedence.
         if (seenNames.has((emoji.shortcode ?? '').toLowerCase())) continue;
         
         const svgUrl = getSvgUrl(emoji.shortcode);
@@ -218,7 +209,7 @@ export function useAutoSuggest(
       }
     }
 
-    // Sort by relevance (exact matches first, then starts with, then contains)
+    // Order: exact match, then prefix match, then substring match.
     return suggestions
       .sort((a, b) => {
         const aName = (a.name || '').toLowerCase();
@@ -226,11 +217,9 @@ export function useAutoSuggest(
         const aDisplay = (a.display_name || '').toLowerCase();
         const bDisplay = (b.display_name || '').toLowerCase();
 
-        // Exact matches first
         if (aName === query || aDisplay === query) return -1;
         if (bName === query || bDisplay === query) return 1;
 
-        // Starts with query
         if (aName.startsWith(query) || aDisplay.startsWith(query)) return -1;
         if (bName.startsWith(query) || bDisplay.startsWith(query)) return 1;
 
@@ -243,35 +232,33 @@ export function useAutoSuggest(
     if (!finalConfig.enableMentions || state.value.triggerType !== 'mention') {
       return [];
     }
-    // For chat mode we need a query to filter. For ActivityPub we use search results (may be empty initially).
+    // Chat mode filters on the query; ActivityPub renders search results, empty until they arrive.
     const query = (state.value.query || '').toLowerCase();
     if (finalConfig.mode === 'chat' && !query) {
       return [];
     }
 
     if (finalConfig.mode === 'chat') {
-      // Chat mode: Use server context-aware user filtering
+      // Candidates are scoped to the current server's members.
       const suggestions: SuggestionItem[] = [];
       let usersToSearch: any[] = [];
 
       const currentServerId = serverChannelStore.currentServerId;
       
-      debug.log(`🎯 AutoSuggest: bridgedUsers count = ${bridgedUsers.value.length}, loaded = ${bridgedUsersLoaded.value}`);
+      debug.log(`AutoSuggest: bridgedUsers count = ${bridgedUsers.value.length}, loaded = ${bridgedUsersLoaded.value}`);
       
       if (currentServerId) {
         usersToSearch = userDataService.getUsersInContext(currentServerId);
-        debug.log(`🎯 AutoSuggest: Using server context ${currentServerId}, found ${usersToSearch.length} server members`);
+        debug.log(`AutoSuggest: Using server context ${currentServerId}, found ${usersToSearch.length} server members`);
       } else {
-        // Fallback to all users only if no server context is available
-        // This should rarely happen in normal chat usage
+        // No server context: fall back to every known user.
         usersToSearch = userDataService.getAllUsers();
-        debug.log(`⚠️ AutoSuggest: No server context, falling back to all users (${usersToSearch.length} total)`);
+        debug.log(`AutoSuggest: No server context, falling back to all users (${usersToSearch.length} total)`);
       }
 
-      const seenUsers = new Set<string>(); // Track already processed users
+      const seenUsers = new Set<string>();
       
       for (const userData of usersToSearch) {
-        // Skip if we've already seen this user
         if (seenUsers.has(userData.id)) {
           continue;
         }
@@ -293,17 +280,15 @@ export function useAutoSuggest(
             display_name: userData.displayName,
             username: userData.username,
             avatar: userData.avatarUrl,
-            display_text: displayText, // What user sees in input
-            mention_text: mentionText, // What gets stored in DB
-            user: userData // Keep reference for easy access
+            display_text: displayText, // shown in the input
+            mention_text: mentionText, // persisted to the DB
+            user: userData
           });
         }
       }
       
-      // Add bridged Discord users (only if loaded)
-      // Note: Bridge bot check happens lazily in handleInput when user types @
+      // NOTE: the bridge bot check runs in handleInput on '@'; this list stays empty until then.
       for (const bridgedUser of bridgedUsers.value) {
-        // Skip if we've already seen this user (by Discord ID)
         const bridgedKey = `discord:${bridgedUser.id}`;
         if (seenUsers.has(bridgedKey)) {
           continue;
@@ -314,8 +299,7 @@ export function useAutoSuggest(
         const usernameStr = bridgedUser.username?.toLowerCase() || '';
         
         if (displayName.includes(query) || usernameStr.includes(query)) {
-          // For Discord users, use compact format: @d!ID:username
-          // This preserves the Discord ID for translation while keeping username for display
+          // Discord mentions store `@d!ID:username`: the id drives translation, the username display.
           const displayText = `@${bridgedUser.username}`;
           const mentionText = `@d!${bridgedUser.id}:${bridgedUser.username}`;
           
@@ -324,8 +308,8 @@ export function useAutoSuggest(
             display_name: bridgedUser.displayName,
             username: bridgedUser.username,
             avatar: bridgedUser.avatarUrl,
-            display_text: displayText, // What user sees: @username
-            mention_text: mentionText, // What gets stored: @discord:ID:username
+            display_text: displayText, // @username
+            mention_text: mentionText, // @d!ID:username
             isBridged: true,
             bridgeSource: 'discord',
             user: {
@@ -360,7 +344,7 @@ export function useAutoSuggest(
         }
       }
 
-      // Additional final deduplication check based on user ID (should be unnecessary now but kept for safety)
+      // Final dedup by id across users, bridged users and roles.
       const uniqueSuggestions = suggestions.filter((item, index, self) => 
         index === self.findIndex(s => s.id === item.id)
       );
@@ -376,11 +360,9 @@ export function useAutoSuggest(
           const aUsername = (a.username || '').toLowerCase();
           const bUsername = (b.username || '').toLowerCase();
 
-          // Exact matches first
           if (aDisplay === query || aUsername === query) return -1;
           if (bDisplay === query || bUsername === query) return 1;
 
-          // Starts with query
           if (aDisplay.startsWith(query) || aUsername.startsWith(query)) return -1;
           if (bDisplay.startsWith(query) || bUsername.startsWith(query)) return 1;
 
@@ -389,8 +371,8 @@ export function useAutoSuggest(
         .slice(0, finalConfig.maxSuggestions);
         
     } else if (finalConfig.mode === 'activitypub') {
-      // ActivityPub mode: Use dynamic search results (no server filtering needed)
-      // RPC search_federated_users returns user_id (not id) - use it so DisplayName + cache priming work
+      // ActivityPub: search results are used unfiltered; there is no server scope.
+      // RPC search_federated_users returns user_id, not id; DisplayName and cache priming key on it.
       return activityPubUsers.value.map(user => {
         const profileId = (user as { user_id?: string }).user_id ?? (user as { id?: string }).id ?? '';
         let handle = user.handle || `@${user.username}${!user.is_local && user.domain ? '@' + user.domain : ''}`;
@@ -411,7 +393,6 @@ export function useAutoSuggest(
     return [];
   });
 
-  // Slash commands filtered by user permissions
   interface SlashCommand {
     id: string;
     name: string;
@@ -456,8 +437,7 @@ export function useAutoSuggest(
       }));
   });
 
-  // Channels of the current server the user can access (membership-scoped:
-  // the store only holds channels of servers the user belongs to).
+  // Membership-scoped: the store holds channels only for servers the user belongs to.
   const channelSuggestions = computed((): SuggestionItem[] => {
     if (!finalConfig.enableChannels || state.value.triggerType !== 'channel') return [];
     const serverId = serverChannelStore.currentServerId;
@@ -492,7 +472,6 @@ export function useAutoSuggest(
     }
   });
 
-  // Header text for suggestions
   const headerText = computed((): string => {
     switch (state.value.triggerType) {
       case 'emoji':
@@ -515,13 +494,12 @@ export function useAutoSuggest(
   let currentSearchAbortController: AbortController | null = null;
   let currentSearchQuery = '';
   
-  // Check if server has bridge bots installed (with server-level caching and request deduplication)
+  // Result is cached per server for BRIDGE_BOT_CHECK_CACHE_TTL; concurrent calls share one query.
   const hasBridgeBots = async (serverId: string | null): Promise<boolean> => {
     if (!serverId) {
       return false;
     }
     
-    // Check cache first (bridge bots are server-level, so cache per server)
     const cached = bridgeBotCheckCache.get(serverId);
     if (cached && Date.now() - cached.timestamp < BRIDGE_BOT_CHECK_CACHE_TTL) {
       return cached.hasBridge;
@@ -529,7 +507,7 @@ export function useAutoSuggest(
     
     const pendingRequest = bridgeBotCheckPending.get(serverId);
     if (pendingRequest) {
-      debug.log(`🌉 Bridge bot check already pending for server ${serverId}, reusing request`);
+      debug.log(`Bridge bot check already pending for server ${serverId}, reusing request`);
       return pendingRequest;
     }
     
@@ -547,8 +525,8 @@ export function useAutoSuggest(
           .eq('is_active', true);
         
         if (error) {
-          debug.warn('🌉 Failed to check for bridge bots:', error);
-          // Cache negative result to avoid repeated failed queries
+          debug.warn('Failed to check for bridge bots:', error);
+          // Negative result is cached; a failing query repeats at most once per TTL.
           bridgeBotCheckCache.set(serverId, { hasBridge: false, timestamp: Date.now() });
           return false;
         }
@@ -556,16 +534,14 @@ export function useAutoSuggest(
         const bridgeBots = (data || []).filter((perm: any) => perm.bot?.bot_type === 'bridge');
         const hasBridge = bridgeBots.length > 0;
         
-        // Cache the result (per server, not per channel)
         bridgeBotCheckCache.set(serverId, { hasBridge, timestamp: Date.now() });
         
         if (hasBridge) {
-          debug.log(`🌉 Server ${serverId} has ${bridgeBots.length} bridge bot(s)`);
+          debug.log(`Server ${serverId} has ${bridgeBots.length} bridge bot(s)`);
         }
         return hasBridge;
       } catch (error) {
-        debug.warn('🌉 Error checking for bridge bots:', error);
-        // Cache negative result
+        debug.warn('Error checking for bridge bots:', error);
         bridgeBotCheckCache.set(serverId, { hasBridge: false, timestamp: Date.now() });
         return false;
       } finally {
@@ -578,9 +554,8 @@ export function useAutoSuggest(
     return requestPromise;
   };
 
-  // Fetch bridged users from bot-gateway for current channel
-  // Note: This is only called if the server has bridge bots (checked at server level)
-  // The API will tell us if this specific channel has a bridge mapping
+  // Called only when the server has bridge bots. Whether this channel has a bridge
+  // mapping is decided by the API; absence yields an empty list.
   const fetchBridgedUsers = async (channelId: string) => {
     if (!channelId) {
       return;
@@ -603,7 +578,6 @@ export function useAutoSuggest(
       return;
     }
     
-    // Skip if already loaded for this server
     if (serverRolesLoaded.value && serverRolesServerId.value === serverId) {
       return;
     }
@@ -613,15 +587,14 @@ export function useAutoSuggest(
       serverRoles.value = roles;
       serverRolesServerId.value = serverId;
       serverRolesLoaded.value = true;
-      debug.log(`🎭 Loaded ${serverRoles.value.length} mentionable roles for server ${serverId}`);
+      debug.log(`Loaded ${serverRoles.value.length} mentionable roles for server ${serverId}`);
     } catch (error) {
-      debug.warn('🎭 Failed to fetch server roles:', error);
+      debug.warn('Failed to fetch server roles:', error);
       serverRoles.value = [];
       serverRolesLoaded.value = true;
     }
   };
 
-  // Debounced ActivityPub user search
   let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   
   const searchActivityPubUsersDebounced = (query: string) => {
@@ -629,7 +602,7 @@ export function useAutoSuggest(
     searchDebounceTimer = setTimeout(() => searchActivityPubUsers(query), 150);
   };
 
-  // ActivityPub user search function with timeout
+  // Latest query wins: earlier searches are aborted and stale results discarded.
   const searchActivityPubUsers = async (query: string) => {
     debug.log('[DEBUG] searchActivityPubUsers called:', { query, mode: finalConfig.mode });
     
@@ -638,7 +611,6 @@ export function useAutoSuggest(
       return;
     }
 
-    // Cancel any in-flight search
     if (currentSearchAbortController) {
       currentSearchAbortController.abort();
     }
@@ -649,7 +621,6 @@ export function useAutoSuggest(
     try {
       debug.log('[DEBUG] searchActivityPubUsers: Calling activityPubService.searchUsers...');
       
-      // Race the search against a timeout
       const timeoutPromise = new Promise<never>((_, reject) => {
         setTimeout(() => reject(new Error('Search timeout after 5s')), 5000);
       });
@@ -658,11 +629,11 @@ export function useAutoSuggest(
       
       const users = await Promise.race([searchPromise, timeoutPromise]);
       
-      // Only update if this is still the current query
+      // Stale responses are dropped.
       if (query === currentSearchQuery) {
         debug.log('[DEBUG] searchActivityPubUsers: Got results:', users?.length || 0, 'users');
         activityPubUsers.value = users;
-        // Prime userDataService cache so DisplayName can resolve shortcodes (custom emojis) in composer dropdown
+        // Primes userDataService so DisplayName resolves custom emoji shortcodes in the dropdown.
         for (const u of users || []) {
           const profileId = (u as { user_id?: string }).user_id ?? (u as { id?: string }).id;
           if (profileId) {
@@ -679,8 +650,8 @@ export function useAutoSuggest(
       }
       debug.error('[DEBUG] searchActivityPubUsers: ERROR:', error);
       debug.error('Failed to search ActivityPub users:', error);
-      // Only clear results if the failure belongs to the CURRENT query - a
-      // stale timed-out search must not wipe fresh results.
+      // Clearing is scoped to the current query; a stale timed-out search must not
+      // wipe fresh results.
       if (query === currentSearchQuery) {
         activityPubUsers.value = [];
       }
@@ -704,10 +675,11 @@ export function useAutoSuggest(
     }
 
     const suggestionCount = suggestions.value.length;
-    const headerHeight = finalConfig.enableEmojis || finalConfig.enableMentions ? 32 : 0; // Header height
-    const itemHeight = 44; // Each suggestion item height
-    const maxHeight = 240; // Maximum popup height
-    const padding = 8; // Popup padding
+    // px, matching AutoSuggest.vue styling.
+    const headerHeight = finalConfig.enableEmojis || finalConfig.enableMentions ? 32 : 0;
+    const itemHeight = 44;
+    const maxHeight = 240;
+    const padding = 8;
     
     const popupHeight = Math.min(
       headerHeight + (suggestionCount * itemHeight) + padding,
@@ -715,57 +687,50 @@ export function useAutoSuggest(
     );
 
     let x = inputRect.left;
-    let y = inputRect.bottom + 8; // Default: below input
+    let y = inputRect.bottom + 8; // below the input
 
-    // For chat mode, position above the input since it's typically at bottom of screen
+    // Chat input sits at the bottom of the screen; the popup goes above it.
     if (finalConfig.mode === 'chat') {
-      y = inputRect.top - popupHeight - 8; // Position above with 8px margin
+      y = inputRect.top - popupHeight - 8; // 8px margin
       
-      // Try to get more precise cursor position for better x positioning
       try {
         if ('selectionStart' in input && input.selectionStart !== null) {
-          // For textarea/input elements, try to calculate cursor position
           const cursorPos = input.selectionStart;
           const textBeforeCursor = input.value?.substring(0, cursorPos) || '';
           
-          // Rough estimation: 8px per character (this could be improved with canvas measurement)
+          // Character width estimated at 8px; no text measurement.
           const estimatedCursorX = textBeforeCursor.length * 8;
-          x = Math.max(inputRect.left, inputRect.left + estimatedCursorX - 100); // Offset to center suggestion on cursor
+          x = Math.max(inputRect.left, inputRect.left + estimatedCursorX - 100); // centers the popup on the cursor
         } else if ('getCursorPosition' in input && typeof input.getCursorPosition === 'function') {
-          // For RichTextEditor components
+          // RichTextEditor exposes the caret offset instead of selectionStart.
           const cursorPos = input.getCursorPosition();
           const currentText = getCurrentText ? getCurrentText() : '';
           const textBeforeCursor = currentText.substring(0, cursorPos);
           
-          // Rough estimation for cursor position
           const estimatedCursorX = textBeforeCursor.length * 8;
           x = Math.max(inputRect.left, inputRect.left + estimatedCursorX - 100);
         }
       } catch (error) {
-        // Fallback to default positioning if cursor detection fails
+        // x keeps the input's left edge.
         debug.debug('Cursor position detection failed, using default positioning');
       }
     }
 
-    // Ensure suggestions don't go off-screen
+    // Clamp to the viewport, 16px inset.
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
     const popupWidth = state.value.triggerType === 'command' ? 380 : 280;
 
-    // Adjust x position if it would go off the right edge
     if (x + popupWidth > viewportWidth) {
       x = viewportWidth - popupWidth - 16;
     }
     
-    // Ensure minimum distance from left edge
     x = Math.max(16, x);
 
-    // If positioning above would go off the top of screen, position below instead
     if (y < 16) {
       y = inputRect.bottom + 8;
     }
     
-    // If positioning below would go off bottom of screen, position above
     if (y + popupHeight > viewportHeight - 16) {
       y = inputRect.top - popupHeight - 8;
     }
@@ -779,12 +744,11 @@ export function useAutoSuggest(
 
   const handleInput = (value: string, cursorPosition: number) => {
     const textBeforeCursor = value.substring(0, cursorPosition);
-    // RichTextEditor uses \u00A0 (nbsp) for spaces; \s doesn't match it. Normalize for pattern matching.
+    // RichTextEditor emits \u00A0 for spaces and \s does not match it; normalized before matching.
     const normalizedForMatch = textBeforeCursor.replace(/\u00A0/g, ' ');
     
     debug.log('[DEBUG] handleInput called:', { value: value.substring(0, 50), cursorPosition, textBeforeCursor: textBeforeCursor.substring(textBeforeCursor.length - 20) });
     
-    // Check for trigger patterns
     let foundTrigger = false;
     
     for (const trigger of triggers) {
@@ -799,14 +763,14 @@ export function useAutoSuggest(
         let triggerPosition = match.index;
         
         if (trigger.type === 'mention') {
-          // For mentions, the pattern is (?:^|\s)@([a-zA-Z0-9_+-]*)$
-          // A match starting with whitespace shifts the insert position
+          // The mention pattern can consume a leading whitespace char; the insert
+          // position starts at the '@'.
           const matchText = match[0];
           if (matchText.startsWith(' ') || matchText.startsWith('\t')) {
-            triggerPosition = match.index + 1; // Skip the whitespace
+            triggerPosition = match.index + 1;
           }
         }
-        // For emojis, the position is already correct since pattern is :([a-zA-Z0-9_+-]*)$
+        // The emoji pattern's match starts at ':', so its index needs no adjustment.
         
         state.value = {
           isActive: true,
@@ -817,7 +781,7 @@ export function useAutoSuggest(
           position: calculateCursorPosition()
         };
         
-        // LAZY: Check for bridge bots and load server roles only when user actually types @ (not on server change)
+        // Bridge bot check and role load run on '@', not on server change.
         if (trigger.type === 'mention' && finalConfig.mode === 'chat') {
           const serverId = serverChannelStore.currentServerId;
           const channelId = serverChannelStore.currentChannelId;
@@ -827,7 +791,6 @@ export function useAutoSuggest(
           }
           
           checkBridgeBotsIfNeeded(serverId).then(hasBridge => {
-            // Only fetch bridged users if server has bridge bots and we haven't loaded them yet
             if (hasBridge && channelId && channelId !== bridgedUsersChannelId.value) {
               fetchBridgedUsers(channelId);
             }
@@ -838,7 +801,6 @@ export function useAutoSuggest(
         
         debug.log('[DEBUG] State set to active:', state.value);
 
-        // Trigger ActivityPub user search if needed (debounced to prevent duplicate calls)
         if (trigger.type === 'mention' && finalConfig.mode === 'activitypub') {
           searchActivityPubUsersDebounced(query);
         }
@@ -853,7 +815,7 @@ export function useAutoSuggest(
     }
   };
 
-  // Selection state to prevent duplicate selections
+  // Guards selectSuggestion against re-entry.
   const isSelecting = ref(false);
 
   const handleKeyDown = (event: KeyboardEvent): boolean => {    
@@ -890,11 +852,10 @@ export function useAutoSuggest(
     }
   };
 
-  // Select a suggestion and replace the trigger text
+  // Replaces the trigger text with the suggestion and returns the new text.
   const selectSuggestion = (suggestion: SuggestionItem): string => {
-    // Prevent duplicate selections
     if (isSelecting.value) {
-      debug.log('🔧 Preventing duplicate selection');
+      debug.log('Preventing duplicate selection');
       return '';
     }
     
@@ -903,17 +864,15 @@ export function useAutoSuggest(
     try {
       const currentText = getCurrentText ? getCurrentText() : '';
       
-      // Use the stored trigger position
       const triggerStart = state.value.triggerPosition;
       
-      // Find the end of the current trigger text by looking from the trigger position
-      // to the next space, newline, or end of text
+      // Trigger text runs from the trigger char to the next space, newline, or end of text.
       const textFromTrigger = currentText.substring(triggerStart);
       const endMatch = textFromTrigger.match(/^[^\s\n]*/);
       const triggerLength = endMatch ? endMatch[0].length : 1;
       const triggerEnd = triggerStart + triggerLength;
       
-      debug.log('🔧 selectSuggestion detailed debug:', {
+      debug.log('selectSuggestion detailed debug:', {
         currentText,
         triggerPosition: state.value.triggerPosition,
         query: state.value.query,
@@ -927,11 +886,10 @@ export function useAutoSuggest(
       
       let insertText = '';
 
-      // Slash commands
       if (state.value.triggerType === 'command' && suggestion.isCommand) {
         closeSuggestions();
 
-        // Commands with params: clear input and enter command mode
+        // Parameterized commands clear the input and enter command mode.
         if (suggestion.commandParams?.length) {
           activeCommand.value = { name: suggestion.name || '', params: suggestion.commandParams };
           if (updateText) {
@@ -940,7 +898,7 @@ export function useAutoSuggest(
           return '';
         }
 
-        // Commands without params: dispatch event and clear input
+        // Bare commands dispatch 'harmony-command' and clear the trigger text.
         window.dispatchEvent(new CustomEvent('harmony-command', { detail: { command: suggestion.name } }));
         const clearedText = currentText.substring(0, triggerStart) + currentText.substring(triggerEnd);
         if (updateText) {
@@ -952,8 +910,7 @@ export function useAutoSuggest(
       if (state.value.triggerType === 'channel') {
         insertText = `#${suggestion.name} `;
       } else if (state.value.triggerType === 'emoji') {
-        // Standard/unified emojis: insert unicode character directly
-        // Custom server emojis: keep :shortcode: format
+        // Unified emojis insert the unicode character; custom server emojis keep :shortcode:.
         if (suggestion.emoji?.source === 'unified' && (suggestion.native || suggestion.emoji?.native)) {
           insertText = (suggestion.native || suggestion.emoji.native) + ' ';
         } else {
@@ -961,7 +918,7 @@ export function useAutoSuggest(
         }
       } else if (state.value.triggerType === 'mention') {
         if (finalConfig.mode === 'activitypub') {
-          // Use display form that matches what RichTextEditor renders as data-display-text:
+          // Matches what RichTextEditor renders as data-display-text:
           //   local users  → @username        (no domain)
           //   remote users → @username@domain
           if (suggestion.user?.is_local) {
@@ -969,7 +926,7 @@ export function useAutoSuggest(
           } else {
             insertText = (suggestion.handle || `@${suggestion.username}`) + ' ';
           }
-          debug.log('🔧 ActivityPub mention insert:', {
+          debug.log('ActivityPub mention insert:', {
             handle: suggestion.handle,
             username: suggestion.username,
             domain: suggestion.user?.domain,
@@ -977,17 +934,16 @@ export function useAutoSuggest(
             insertText
           });
         } else {
-          // Chat mode: use display_text (human-readable @username@domain format)
-          // The RichTextEditor will handle looking up the user ID when creating the mention element
-          // For bridged Discord users, use mention_text since it contains the special d!ID:username format
+          // Chat mode inserts display_text; RichTextEditor resolves the user id when it
+          // builds the mention element. Bridged and role mentions carry their own encoding.
           if (suggestion.isBridged && suggestion.mention_text) {
-            insertText = suggestion.mention_text + ' '; // Use special bridged user format
+            insertText = suggestion.mention_text + ' '; // @d!ID:username
           } else if (suggestion.isRole && suggestion.mention_text) {
-            insertText = suggestion.mention_text + ' '; // @role:UUID format for reliable parsing
+            insertText = suggestion.mention_text + ' '; // @role:UUID
           } else if (suggestion.display_text) {
-            insertText = suggestion.display_text + ' '; // Human-readable @username or @username@domain
+            insertText = suggestion.display_text + ' '; // @username or @username@domain
           } else {
-            insertText = `@${suggestion.username} `; // Fallback
+            insertText = `@${suggestion.username} `;
           }
         }
       }
@@ -996,10 +952,10 @@ export function useAutoSuggest(
                      insertText + 
                      currentText.substring(triggerEnd);
       
-      // Calculate new cursor position (should be right after the inserted text including the space)
+      // Cursor lands after the inserted text, past its trailing space.
       const newCursorPosition = triggerStart + insertText.length;
       
-      debug.log('🔧 Final replacement:', { 
+      debug.log('Final replacement:', { 
         insertText, 
         newText,
         oldLength: currentText.length,
@@ -1033,7 +989,7 @@ export function useAutoSuggest(
     }
   };
 
-  // Watch suggestions to update position when list changes (affects popup height)
+  // List length determines popup height, which determines the anchor point.
   watch(suggestions, () => {
     if (state.value.isActive) {
       nextTick(() => {
@@ -1042,24 +998,20 @@ export function useAutoSuggest(
     }
   });
   
-  // Track current server's bridge bot status (cached per server)
-  // LAZY: Only check when user actually types @ (not on server change)
+  // Composable-local memo of the bridge bot check; null means unchecked.
   const currentServerHasBridgeBots = ref<boolean | null>(null);
   const currentServerIdForBridgeCheck = ref<string | null>(null);
   
-  // Lazy check for bridge bots - only when user starts typing a mention
   const checkBridgeBotsIfNeeded = async (serverId: string | null) => {
     if (!serverId) {
       currentServerHasBridgeBots.value = false;
       return false;
     }
     
-    // If we already checked this server, use cached result
     if (currentServerIdForBridgeCheck.value === serverId && currentServerHasBridgeBots.value !== null) {
       return currentServerHasBridgeBots.value;
     }
     
-    // Only check if we haven't checked this server yet
     if (currentServerIdForBridgeCheck.value !== serverId) {
       currentServerIdForBridgeCheck.value = serverId;
       currentServerHasBridgeBots.value = await hasBridgeBots(serverId);
@@ -1068,8 +1020,7 @@ export function useAutoSuggest(
     return currentServerHasBridgeBots.value || false;
   };
 
-  // LAZY: Don't check bridge bots on channel change - only when user types @
-  // Clear bridged users when channel changes (but don't fetch until needed)
+  // Channel change invalidates the bridged user list; the refetch waits for the next '@'.
   watch(() => serverChannelStore.currentChannelId, (newChannelId) => {
     if (newChannelId !== bridgedUsersChannelId.value) {
       bridgedUsersLoaded.value = false;

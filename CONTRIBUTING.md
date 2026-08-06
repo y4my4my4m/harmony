@@ -8,7 +8,7 @@ The project lives at <https://mony.lol>; the canonical instance is <https://har.
 
 ### Prerequisites
 
-- Node.js 18+ or Bun
+- Node.js 24 (see `.nvmrc`); npm is the supported package manager
 - Git
 - Supabase account (free tier is fine)
 - Basic knowledge of Vue 3, TypeScript, and Express

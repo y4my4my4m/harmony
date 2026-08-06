@@ -219,7 +219,7 @@
       </div>
     </div>
 
-    <!-- Modern User Profile Modal -->
+    <!-- User Profile Modal -->
     <UserProfileModal 
       :show="showProfileModal" 
       :user="selectedUser" 
@@ -235,7 +235,7 @@
       @close="closeInviteModal"
     />
 
-    <!-- Discord-style context menu (right-click on desktop, long-press on mobile) -->
+    <!-- Context menu: right-click on desktop, long-press on mobile -->
     <UserContextMenu
       :visible="contextMenuVisible"
       :user="contextMenuUser"
@@ -245,11 +245,9 @@
     />
 
     <!--
-      Kick/Ban modal opened directly from the context menu. UserProfileModal
-      mounts its own copy of this modal too, so we keep them as separate
-      instances driven by separate state - that way opening the profile
-      modal while a kick/ban is in flight (or vice versa) doesn't clobber
-      either flow.
+      Kick/Ban modal opened from the context menu. UserProfileModal mounts its
+      own instance; the two are driven by separate state so a profile modal
+      opened during an in-flight kick/ban does not clobber either flow.
     -->
     <KickBanModal
       v-if="kickBanMember && serverChannelStore.currentServerId"
@@ -311,10 +309,9 @@ const router = useRouter();
 const { isMobile } = useLayoutState();
 const { triggerInteraction } = useHapticSettings();
 
-// Debug: Track duplicate calls
 let fetchCallCounter = 0;
 
-// Use new clean user data system - ONE source of truth
+// Single source of truth for user data.
 const {
   getUserAvatarUrl,
   getUserDisplayName,
@@ -341,8 +338,8 @@ function hasCustomStatusToShow(userId: string): boolean {
   return !!(s.text || s.emoji || s.emoji_url || (s.type && s.type !== 'custom'));
 }
 
-// Instance staff badges are global to THIS instance - don't show them when
-// viewing a federated server (the owner is just a member there).
+// Instance staff badges apply to the local instance only; they are hidden on
+// federated servers, where the owner is an ordinary member.
 const showInstanceStaff = computed(() =>
   showInstanceStaffBadge(serverChannelStore.currentServer)
 );
@@ -364,23 +361,22 @@ const selectedUser = ref<User | null>(null);
 const showProfileModal = ref(false);
 const showInviteModal = ref(false);
 const searchQuery = ref('');
-// Start in "loading" until the server-presence subscription has populated
-// the per-server context. Otherwise the initial render falls through the
-// `users` computed and (previously) hit the getAllUsers fallback, leaking
-// users from other servers / DMs into the member list for a frame.
+// Starts loading until the server-presence subscription populates the
+// per-server context; otherwise the first render falls through the `users`
+// computed and shows users from other servers or DMs for a frame.
 const isLoadingUsers = ref(true);
 const lastFetchedServerId = ref<string | null>(null);
 
-// --- USER CONTEXT MENU (right-click on desktop, long-press on mobile) ---
+// --- USER CONTEXT MENU: right-click on desktop, long-press on mobile ---
 const contextMenuVisible = ref(false);
 const contextMenuUser = ref<User | null>(null);
 const contextMenuPosition = ref({ x: 0, y: 0 });
 
-// Kick/Ban modal (opened directly from the context menu so moderators
-// don't have to detour through the full profile modal first).
+// Kick/Ban modal, opened from the context menu without going through the
+// profile modal.
 const showKickBanModal = ref(false);
 const kickBanMode = ref<'kick' | 'ban'>('kick');
-/** Resolved member row for KickBanModal (snake_case fields the modal expects). */
+/** Member row for KickBanModal; snake_case fields as the modal expects. */
 const kickBanMember = ref<{
   id: string;
   username: string;
@@ -388,12 +384,11 @@ const kickBanMember = ref<{
   avatar_url: string | null;
 } | null>(null);
 
-// Long-press tracking - mobile-only. We start a 500ms timer on
-// touchstart and open the context menu when it fires. `longPressFired`
-// suppresses the trailing synthetic `click` so we don't *also* open
-// the profile modal underneath the menu.
+// Long-press tracking, mobile only. touchstart arms a 500ms timer that opens
+// the context menu. `longPressFired` suppresses the trailing synthetic
+// `click`, which would otherwise open the profile modal under the menu.
 const LONG_PRESS_DURATION = 500;
-const LONG_PRESS_MOVE_TOLERANCE = 10; // pixels - finger jitter before we cancel
+const LONG_PRESS_MOVE_TOLERANCE = 10; // px of finger jitter tolerated before cancel
 let longPressTimer: ReturnType<typeof setTimeout> | null = null;
 let longPressFired = false;
 let longPressStartPos: { x: number; y: number } | null = null;
@@ -418,8 +413,8 @@ function closeContextMenu() {
 }
 
 function handleUserItemClick(user: User) {
-  // Suppress click immediately after a long-press fired on mobile -
-  // otherwise we'd open the profile modal under the context menu.
+  // Clicks following a mobile long-press are suppressed; they would open the
+  // profile modal under the context menu.
   if (longPressFired) {
     longPressFired = false;
     return;
@@ -428,10 +423,9 @@ function handleUserItemClick(user: User) {
 }
 
 function handleUserContextMenu(user: User, event: MouseEvent) {
-  // On mobile, the browser may synthesize a contextmenu after a
-  // long-press. We already handle long-press explicitly via the
-  // touchstart timer, so swallow this synthetic event to avoid
-  // opening two menus / fighting with text-selection callouts.
+  // Mobile browsers synthesize contextmenu after a long-press. The touchstart
+  // timer already handles long-press, so the synthetic event is swallowed to
+  // avoid a second menu and text-selection callouts.
   event.preventDefault();
   if (isMobile.value) return;
   openContextMenu(user, event.clientX, event.clientY);
@@ -458,8 +452,8 @@ function handleUserTouchMove(event: TouchEvent) {
   if (!touch) return;
   const dx = Math.abs(touch.clientX - longPressStartPos.x);
   const dy = Math.abs(touch.clientY - longPressStartPos.y);
-  // Cancel only on real drags; small finger jitter shouldn't kill the
-  // long-press (otherwise resting fingers on phones never fires).
+  // Cancels on drags only. Jitter below the tolerance keeps the long-press
+  // alive; a zero tolerance never fires for a resting finger.
   if (dx > LONG_PRESS_MOVE_TOLERANCE || dy > LONG_PRESS_MOVE_TOLERANCE) {
     clearLongPressTimer();
   }
@@ -470,9 +464,8 @@ function handleUserTouchEnd() {
 }
 
 // --- CONTEXT MENU ACTIONS ---
-// Each branch maps a context-menu emit to the same backing flow that
-// UserProfileModal uses, so behaviour stays consistent whether the
-// action is triggered from the profile or the context menu.
+// Each branch routes to the same backing flow UserProfileModal uses, keeping
+// behaviour identical from either entry point.
 async function handleContextAction(action: string, user: User) {
   if (!user) return;
 
@@ -490,13 +483,12 @@ async function handleContextAction(action: string, user: User) {
       await startCallWithUser(user);
       break;
     case 'add-note':
-      // The note input lives inside the profile modal - open it so the
-      // user can type their note there.
+      // The note input lives inside the profile modal.
       await showUserProfile(user);
       break;
     case 'change-nickname':
-      // Server-nickname editing isn't a standalone modal yet; route to
-      // the existing user settings page where profile fields live.
+      // No standalone server-nickname modal exists; profile fields live on the
+      // user settings page.
       router.push('/settings/profile');
       break;
     case 'invite':
@@ -521,19 +513,16 @@ async function handleContextAction(action: string, user: User) {
 }
 
 /**
- * Dispatch a window-level event that ChatComponent listens for to
- * insert a mention into the current message input. UserSidebar is
- * rendered as a sibling of ChatComponent inside ChatLayout, so a
- * direct emit/prop chain would have to traverse two layout layers -
- * a CustomEvent keeps the wiring shallow and matches the existing
- * cross-component pattern used elsewhere in the app.
+ * Dispatches a window-level event ChatComponent listens for to insert a
+ * mention into the message input. UserSidebar is a sibling of ChatComponent
+ * inside ChatLayout, so an emit/prop chain would cross two layout layers;
+ * the CustomEvent matches the cross-component pattern used elsewhere.
  */
 function dispatchMentionInsert(user: User) {
   const username = user.username;
   if (!username) return;
 
-  // Build a remote-aware handle so federated users get the proper
-  // `@user@domain` form when inserted.
+  // Federated users are inserted in `user@domain` form.
   const u: any = user;
   const isRemote = u.is_local === false || (u.domain && u.domain !== (import.meta.env.VITE_DOMAIN as string));
   const handle = isRemote && u.domain
@@ -546,9 +535,8 @@ function dispatchMentionInsert(user: User) {
 }
 
 async function sendDirectMessage(user: User) {
-  // Mirrors UserProfileModal.sendDirectMessage so behaviour and edge
-  // cases (find-existing-conversation, async profile lookup, etc.)
-  // stay in lockstep.
+  // Mirrors UserProfileModal.sendDirectMessage, including the
+  // find-existing-conversation and async profile lookup paths.
   try {
     if (activityPubStore.isBlocked(user.id)) {
       debug.warn('Cannot send DM to blocked user');
@@ -580,11 +568,9 @@ async function sendDirectMessage(user: User) {
 }
 
 /**
- * Route to a DM and ask DMHeader to start a call. The actual call
- * setup (permissions check, signaling, voice join) lives in DMHeader
- * to avoid duplicating WebRTC / federation logic here - we just open
- * the DM and broadcast a `harmony-dm-start-call` event that DMHeader
- * listens for once the conversation is active.
+ * Routes to a DM and broadcasts `harmony-dm-start-call`. Call setup
+ * (permission check, signaling, voice join) lives in DMHeader, which listens
+ * for the event once the conversation is active.
  */
 async function startCallWithUser(user: User) {
   try {
@@ -608,8 +594,7 @@ async function startCallWithUser(user: User) {
     }
 
     router.push(`/dm/${conversationId}`);
-    // Defer the call-start dispatch until DMHeader has had a chance
-    // to mount and subscribe to the event.
+    // Dispatch is deferred until DMHeader has mounted and subscribed.
     setTimeout(() => {
       window.dispatchEvent(new CustomEvent('harmony-dm-start-call', {
         detail: { conversationId, callType: 'voice' as const },
@@ -621,12 +606,9 @@ async function startCallWithUser(user: User) {
 }
 
 async function openInviteForUser(user: User) {
-  // InviteModal generates server invites - it doesn't take a target
-  // user (the invite link can be sent to anyone), so we just open it
-  // for the current server. When opened from the user sidebar we're
-  // always inside a server context, but fall back to the profile
-  // modal's server-picker UI just in case the menu is somehow
-  // surfaced outside one.
+  // InviteModal generates a server invite and takes no target user, so it
+  // opens for the current server. Outside a server context it falls back to
+  // the profile modal's server picker.
   if (serverChannelStore.currentServerId) {
     showInviteModal.value = true;
   } else {
@@ -689,9 +671,8 @@ async function copyUserId(user: User) {
   }
 }
 
-// Clean up any in-flight long-press timer when the component goes
-// away (e.g. on server switch / route change) so we don't fire after
-// the user list has unmounted.
+// An in-flight long-press timer would fire after the list unmounts on server
+// switch or route change.
 onUnmounted(() => {
   clearLongPressTimer();
 });
@@ -701,14 +682,14 @@ const serverRoles = ref<ServerRole[]>([]);
 const userRolesMap = ref<Map<string, ServerRole[]>>(new Map());
 const rolesLoadedForServer = ref<string | null>(null);
 
-// Group collapse state - dynamic based on roles
+// Group collapse state; role groups are added dynamically.
 const collapsedGroups = ref<Record<string, boolean>>({
   online: false,
   away: false,
   busy: false,
   federated: false,
   discord: true,
-  offline: false // Start with offline collapsed
+  offline: false
 });
 
 const {
@@ -716,13 +697,10 @@ const {
   hasBridge: channelHasBridge,
 } = useBridgedChannelUsers(() => serverChannelStore.currentChannelId);
 
-// Members are the user IDs that the server-presence subscription has
-// reported for the currently selected server. We deliberately do NOT
-// fall back to `getAllUsers` here - that map contains every profile the
-// client has cached for any reason (DM partners, mention authors,
-// recently-viewed profiles), so falling back would leak unrelated users
-// into the member sidebar (e.g. a DM partner appearing in a server they
-// were never in).
+// Members are the user IDs reported by the server-presence subscription for
+// the selected server. No fallback to `getAllUsers`: that map holds every
+// profile cached for any reason (DM partners, mention authors, recently
+// viewed), which would surface unrelated users in the member sidebar.
 const users = computed(() => {
   const serverId = serverChannelStore.currentServerId;
   if (!serverId) return [];
@@ -730,9 +708,8 @@ const users = computed(() => {
   const contextUsers = getUsersInContext(serverId).value;
   if (contextUsers.length === 0) return [];
 
-  // userDataService stores camelCase (displayName, avatarUrl); normalize
-  // to the legacy User shape so kick/ban modals and other snake_case
-  // consumers keep working.
+  // userDataService stores camelCase (displayName, avatarUrl); the legacy User
+  // shape is snake_case, as consumed by kick/ban modals and others.
   return contextUsers.map(userData => ({
     id: userData.id,
     username: userData.username,
@@ -853,17 +830,16 @@ const filteredUsers = computed(() => {
   });
 });
 
-// Get hoisted roles sorted by position (highest first)
+// Sorted by position, highest first.
 const hoistedRolesSorted = computed(() => {
   return serverRoles.value
     .filter(r => r.hoist && !r.is_default)
     .sort((a, b) => b.position - a.position);
 });
 
-// Group users by hoisted roles first, then by presence status
-// Users with hoisted roles appear in their highest hoisted role group (online users only)
-// Users without hoisted roles appear in status groups (online, away, busy)
-// Offline users and federated users appear in their respective groups
+// Grouping order: present users with a hoisted role go to their highest
+// hoisted role group; other present users go to online/away/busy; absent users
+// go to federated or offline.
 const groupedUsers = computed(() => {
   const groups: Record<string, User[]> = {
     online: [],
@@ -887,14 +863,12 @@ const groupedUsers = computed(() => {
       const highestHoistedRole = getHighestHoistedRole(user.id);
       
       if (highestHoistedRole) {
-        // User has hoisted role - put them in the role group
         const roleGroupKey = `role:${highestHoistedRole.id}`;
         if (groups[roleGroupKey]) {
           groups[roleGroupKey].push(user);
           usersInRoleGroups.add(user.id);
         }
       } else {
-        // No hoisted role - group by status
         const status = getUserStatus(user.id).value;
         switch (status) {
           case UserStatus.Online:
@@ -912,7 +886,6 @@ const groupedUsers = computed(() => {
         }
       }
     } else {
-      // User is not present
       if (!isLocal) {
         groups.federated.push(user);
       } else {
@@ -932,7 +905,6 @@ const groupedUsers = computed(() => {
   return groups;
 });
 
-// Get the role info for a group key
 // eslint-disable-next-line unused-imports/no-unused-vars
 const getRoleForGroup = (groupKey: string): ServerRole | null => {
   if (!groupKey.startsWith('role:')) return null;
@@ -940,17 +912,15 @@ const getRoleForGroup = (groupKey: string): ServerRole | null => {
   return serverRoles.value.find(r => r.id === roleId) || null;
 };
 
-// Total member count (Harmony + ephemeral Discord bridge members)
+// Harmony members plus ephemeral Discord bridge members.
 const totalMemberCount = computed(() => {
   return users.value.length + (channelHasBridge.value ? bridgedDiscordUsers.value.length : 0);
 });
 
-// Current server data
 const currentServerData = computed(() => {
   return serverChannelStore.currentServer;
 });
 
-// Methods
 const toggleGroup = (groupName: string) => {
   collapsedGroups.value[groupName] = !collapsedGroups.value[groupName];
 };
@@ -965,7 +935,7 @@ const loadServerRolesAndAssignments = async (serverId: string) => {
     const hoistedRoles = roles.filter(r => r.hoist && !r.is_default);
 
     if (hoistedRoles.length > 0) {
-      debug.log(`🎭 UserSidebar: Found ${hoistedRoles.length} hoisted roles for server ${serverId}`);
+      debug.log(`UserSidebar: Found ${hoistedRoles.length} hoisted roles for server ${serverId}`);
 
       const hoistedRoleIds = hoistedRoles.map(r => r.id);
       const roleMap = new Map(hoistedRoles.map(r => [r.id, r]));
@@ -983,7 +953,7 @@ const loadServerRolesAndAssignments = async (serverId: string) => {
       }
 
       userRolesMap.value = newUserRolesMap;
-      debug.log(`🎭 UserSidebar: Loaded role assignments for ${newUserRolesMap.size} users`);
+      debug.log(`UserSidebar: Loaded role assignments for ${newUserRolesMap.size} users`);
     }
     
   } catch (error) {
@@ -997,7 +967,7 @@ const getHighestHoistedRole = (userId: string): ServerRole | null => {
   const userRoles = userRolesMap.value.get(userId);
   if (!userRoles || userRoles.length === 0) return null;
   
-  // Sort by position (highest first) and return first hoisted role
+  // Highest position first; first hoisted role wins.
   const sorted = [...userRoles].sort((a, b) => b.position - a.position);
   return sorted.find(r => r.hoist) || null;
 };
@@ -1113,38 +1083,36 @@ const sidebarMeasureElement = (el: any) => {
 
 const fetchAndSetUsers = async (serverId: string | null) => {
   fetchCallCounter++;
-  debug.log(`🔍 UserSidebar fetchAndSetUsers called (${fetchCallCounter} times) for server:`, serverId);
+  debug.log(`UserSidebar fetchAndSetUsers called (${fetchCallCounter} times) for server:`, serverId);
   
   if (serverId) {
-    // DEBOUNCE: Prevent duplicate calls for the same server
+    // Debounce concurrent calls for the same server.
     if (lastFetchedServerId.value === serverId && isLoadingUsers.value) {
-      debug.log(`⏭️ UserSidebar: Already loading server ${serverId}, skipping duplicate call`);
+      debug.log(`UserSidebar: Already loading server ${serverId}, skipping duplicate call`);
       return;
     }
     
     lastFetchedServerId.value = serverId;
     
-    // SMART CACHING: Check if we already have users for this server
     let users = getUsersInContext(serverId).value;
     
     if (users.length > 0) {
-      debug.log(`💾 UserSidebar: Using cached users for server ${serverId} (${users.length} members)`);
-      isLoadingUsers.value = false; // Ensure loading state is cleared
-      return; // Use cached data, no loading needed
+      debug.log(`UserSidebar: Using cached users for server ${serverId} (${users.length} members)`);
+      isLoadingUsers.value = false;
+      return;
     }
     
-    // Only show loading if we truly have no data for this server
-    debug.log(`🔄 UserSidebar: No cached users found, loading for server ${serverId}...`);
+    // Loading state is entered only with no cached data for the server.
+    debug.log(`UserSidebar: No cached users found, loading for server ${serverId}...`);
     isLoadingUsers.value = true;
     
     try {
-      // Wait briefly for BaseLayout to establish context (for initial app load)
+      // On initial app load BaseLayout establishes the context asynchronously.
       if (users.length === 0) {
         debug.log(`⏳ UserSidebar: Waiting for server context to be established...`);
         
-        // Shorter wait time since we're being smarter about caching
-        const maxWaitTime = 500; // 500ms max for server switches
-        const checkInterval = 50; // Check every 50ms
+        const maxWaitTime = 500; // ms
+        const checkInterval = 50; // ms
         let waitTime = 0;
         
         while (users.length === 0 && waitTime < maxWaitTime) {
@@ -1154,32 +1122,29 @@ const fetchAndSetUsers = async (serverId: string | null) => {
         }
         
         if (users.length > 0) {
-          debug.log(`✅ UserSidebar: Server context ready after ${waitTime}ms wait`);
-          return; // Found cached data during wait
+          debug.log(`UserSidebar: Server context ready after ${waitTime}ms wait`);
+          return; // Context arrived during the wait.
         }
       }
       
-      // No cached data available, create new subscription
-      debug.log(`🆕 UserSidebar: Creating new subscription for server ${serverId}...`);
+      debug.log(`UserSidebar: Creating new subscription for server ${serverId}...`);
       const userIds = await getUserIdsForServer(serverId);
       await subscribeToContext(serverId, 'server', userIds);
-      debug.log(`📋 Server user subscription ready: ${serverId} (${userIds.length} members)`);
+      debug.log(`Server user subscription ready: ${serverId} (${userIds.length} members)`);
     } finally {
       isLoadingUsers.value = false;
     }
   }
 };
 
-// Smart watcher for server changes - only triggers on actual server changes
 watch(() => serverChannelStore.currentServerId, async (newServerId, oldServerId) => {
-  // SMART CACHING: Only act on actual server changes
   if (newServerId === oldServerId) {
-    return; // No change, skip
+    return;
   }
   
-  debug.log(`🔄 UserSidebar: Server changed from ${oldServerId} to ${newServerId}`);
+  debug.log(`UserSidebar: Server changed from ${oldServerId} to ${newServerId}`);
   
-  // INSTANT FEEDBACK: Clear loading state immediately if new server has cached data
+  // Cached data for the new server clears the loading state before any await.
   if (newServerId) {
     const cachedUsers = getUsersInContext(newServerId).value;
     if (cachedUsers.length > 0) {
@@ -1206,17 +1171,14 @@ const showUserProfile = async (user: User) => {
   showProfileModal.value = true;
 };
 
-// Helper to get status for avatar based on real-time presence
+// Avatar status derives from live presence, then the user's chosen status.
 const getStatusForAvatarValue = (userId: string): 'online' | 'away' | 'busy' | 'offline' => {
-  // First check if user is actually present
   const isPresent = isUserOnline(userId).value;
   
   if (!isPresent) {
-    // User is not present - always show as offline
     return 'offline';
   }
   
-  // User is present - return their preferred status
   const status = getUserStatus(userId).value;
   switch (status) {
     case UserStatus.Online:
@@ -1226,7 +1188,7 @@ const getStatusForAvatarValue = (userId: string): 'online' | 'away' | 'busy' | '
     case UserStatus.Busy:
       return 'busy';
     default:
-      // Present but status unknown - show as online
+      // Present with unknown status counts as online.
       return 'online';
   }
 };
@@ -1596,10 +1558,9 @@ const closeInviteModal = () => {
   cursor: pointer;
   transition: background-color 0.15s ease;
   min-height: 42px;
-  /* Long-press on mobile triggers our own context menu - suppress the
-     native iOS callout/selection bubble that would otherwise compete
-     with it. Touch action stays `manipulation` so quick taps still
-     register and short scrolls in the list still work. */
+  /* Long-press opens the custom context menu; the iOS callout and selection
+     bubble are suppressed to avoid competing with it. `manipulation` keeps
+     quick taps and short scrolls working. */
   -webkit-touch-callout: none;
   -webkit-user-select: none;
   user-select: none;
@@ -1749,7 +1710,7 @@ const closeInviteModal = () => {
 /* Responsive adjustments */
 @media (max-width: 768px) {
 
-  /* Enhanced mobile touch targets */
+  /* Mobile touch targets */
   .control-btn {
     min-height: 48px;
     padding: 12px 16px;
@@ -1777,7 +1738,7 @@ const closeInviteModal = () => {
   }
 
   .search-input {
-    font-size: 16px; /* Prevents zoom on iOS */
+    font-size: 16px; /* Below 16px iOS zooms on focus. */
     padding: 12px 16px 12px 28px;
     border-radius: 12px;
   }

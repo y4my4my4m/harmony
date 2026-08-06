@@ -20,7 +20,7 @@ export async function handlePostJob(data: FederationJobData): Promise<void> {
   const supabase = getSupabaseClient();
   const { type, post_id, author_id } = data;
 
-  logger.info(`📝 Processing post job: ${type} for post ${post_id}`);
+  logger.info(`Processing post job: ${type} for post ${post_id}`);
 
   try {
     const { data: post, error: postError } = await supabase
@@ -62,7 +62,7 @@ export async function handlePostJob(data: FederationJobData): Promise<void> {
             .from('posts')
             .update({ ap_id: apId })
             .eq('id', post.id);
-          logger.info(`📌 Set ap_id for post ${post.id}: ${apId}`);
+          logger.info(`Set ap_id for post ${post.id}: ${apId}`);
         }
 
         if (post.visibility === 'direct') {
@@ -75,13 +75,13 @@ export async function handlePostJob(data: FederationJobData): Promise<void> {
             // deliver over federation. This is a terminal, expected state - it
             // must NOT throw, or BullMQ retries it ~5x and each failed attempt
             // re-broadcasts post:updated, hammering the author's client.
-            logger.info(`📧 Direct post ${post.id} has no remote recipients - skipping federation`);
+            logger.info(`Direct post ${post.id} has no remote recipients - skipping federation`);
             await updateFederationStatus(post_id, 'posts', 'skipped');
             return;
           }
 
           await deliverToMentionedUsers(post, activity, author, supabase);
-          logger.info(`📧 Direct post ${post.id} delivered to ${mentions.length} mentioned user(s)`);
+          logger.info(`Direct post ${post.id} delivered to ${mentions.length} mentioned user(s)`);
         } else {
           // Public/unlisted/followers: broadcast to followers
           await DeliveryQueue.broadcastToFollowers(author.id, activity);
@@ -146,7 +146,7 @@ export async function handlePostJob(data: FederationJobData): Promise<void> {
           activity = createRemoveFromFeaturedActivity(author, post);
         }
         await DeliveryQueue.broadcastToFollowers(author.id, activity);
-        logger.info(`📌 Post ${post_id} ${post.is_pinned ? 'pinned' : 'unpinned'} - Add/Remove activity sent`);
+        logger.info(`Post ${post_id} ${post.is_pinned ? 'pinned' : 'unpinned'} - Add/Remove activity sent`);
         break;
 
       default:
@@ -156,7 +156,7 @@ export async function handlePostJob(data: FederationJobData): Promise<void> {
     }
 
     await updateFederationStatus(post_id, 'posts', 'completed');
-    logger.info(`✅ Post ${post_id} federated successfully`);
+    logger.info(`Post ${post_id} federated successfully`);
 
   } catch (error) {
     logger.error(`Failed to federate post ${post_id}:`, error);
@@ -197,7 +197,7 @@ async function deliverToMentionedUsers(
   await Promise.all(remoteMentions.map(async (mention: any) => {
     const inbox = inboxByHandle.get(`${mention.username}@${mention.domain}`);
     if (!inbox) return;
-    logger.info(`📧 Delivering to mentioned user: ${mention.username}@${mention.domain}`);
+    logger.info(`Delivering to mentioned user: ${mention.username}@${mention.domain}`);
     await DeliveryQueue.sendToInbox(inbox, activity, author.id);
   }));
 }

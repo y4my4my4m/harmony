@@ -7,10 +7,10 @@
  * https://help.ko-fi.com/hc/en-us/articles/360004162298-Webhooks
  *
  * Verification:
- * - Ko-fi includes a `verification_token` field in the payload that we match
- *   against `instance_funding.kofi_webhook_token`. Ko-fi does NOT sign requests
- *   with HMAC, so the token is the only proof of authenticity. Always serve
- *   this endpoint over HTTPS and treat the token as a secret.
+ * - The payload's `verification_token` field is matched against
+ *   `instance_funding.kofi_webhook_token`. Ko-fi does not sign requests with
+ *   HMAC, so the token is the only proof of authenticity. This endpoint must
+ *   be served over HTTPS and the token treated as a secret.
  *
  * Matching strategy:
  * - Parse `message` and `from_name` for `@username@domain` or `@username`.
@@ -40,7 +40,7 @@ const router = Router();
 // router only.
 router.use(express.urlencoded({ extended: false, limit: '64kb' }));
 
-/** Subset of Ko-fi's payload that we care about. See Ko-fi docs for the rest. */
+/** Subset of Ko-fi's payload used here. See Ko-fi docs for the rest. */
 const KofiPayloadSchema = z.object({
   verification_token: z.string().min(1),
   message_id: z.string().optional(),
@@ -172,8 +172,7 @@ async function loadFundingConfig(): Promise<FundingConfig | null> {
  *
  * Uses the recompute_supporter_tier SQL helper, which is SECURITY DEFINER
  * so it works with both authenticated and service_role keys. The helper
- * also UPDATES the supporters row in the same call, so callers that just
- * want the tier_id for logging get it back as the return value.
+ * also updates the supporters row in the same call and returns the tier_id.
  */
 async function recomputeUserTier(userId: string): Promise<string | null> {
   const supabase = getSupabaseClient();
@@ -206,8 +205,8 @@ async function recordMatchedDonation(
 ): Promise<void> {
   const supabase = getSupabaseClient();
 
-  // Step 1: ensure supporter row exists. Tier is recomputed from cumulative
-  // cycle total in step 3 - don't guess from this single donation here.
+  // Step 1: ensure supporter row exists. Tier is recomputed from the cumulative
+  // cycle total in step 3, not derived from this single donation.
   const { data: supporter, error: upsertErr } = await supabase
     .from('instance_supporters')
     .upsert(
@@ -303,9 +302,9 @@ async function recordPendingDonation(
 /**
  * POST /webhooks/kofi
  *
- * Always returns 200 OK after successful auth, so Ko-fi doesn't retry on
- * processing errors (we've already persisted to pending_donations if matching
- * fails). 401/403 are returned only for token mismatches.
+ * Always returns 200 OK after successful auth so Ko-fi does not retry on
+ * processing errors; a failed match is already persisted to
+ * pending_donations. 401/403 are returned only for token mismatches.
  */
 router.post('/kofi', webhookLimiter, async (req: Request, res: Response) => {
   // Ko-fi posts the JSON string inside a `data` form field.
@@ -333,16 +332,15 @@ router.post('/kofi', webhookLimiter, async (req: Request, res: Response) => {
     return sendError(res, 'Ko-fi webhook is not configured on this instance', 503);
   }
 
-  // Constant-time comparison would be ideal here, but Node's built-in
-  // crypto.timingSafeEqual requires equal-length buffers. The shared-secret
-  // model is already weak (no HMAC); equality check is acceptable in practice.
+  // Not constant-time: crypto.timingSafeEqual requires equal-length buffers.
+  // The shared-secret model has no HMAC, so plain equality is the bound here.
   if (payload.verification_token !== cfg.kofi_webhook_token) {
     logger.warn(`kofi: verification_token mismatch from ${req.ip}`);
     return sendError(res, 'Invalid verification token', 401);
   }
 
-  // Only Donation and Subscription events are revenue. Skip Shop Orders and
-  // Commissions unless we explicitly want to count them later.
+  // Only Donation and Subscription events count as revenue; Shop Order and
+  // Commission are ignored.
   if (payload.type !== 'Donation' && payload.type !== 'Subscription') {
     logger.info(`kofi: ignoring ${payload.type} event (txn=${payload.kofi_transaction_id})`);
     return sendSuccess(res, { status: 'ignored' });

@@ -4,7 +4,7 @@
  * LiveKit's `ExternalE2EEKeyProvider` encrypts media frames with ONE shared key
  * for the whole room, but it does NOT solve key distribution. This service is
  * the distribution layer: it agrees on a single random 256-bit voice key and
- * ships it to every participant **server-blind**, by piggybacking on the
+ * ships it to every participant server-blind, by piggybacking on the
  * existing Megolm message-encryption channel (the SFU/server only ever sees
  * Megolm ciphertext).
  *
@@ -73,7 +73,7 @@ function base64ToBytes(b64: string): Uint8Array {
 class VoiceE2EEService {
   /**
    * Whether this client can take part in an E2E-encrypted call right now.
-   * Mirrors the message-encryption gate: keys must be set up AND unlocked.
+   * Mirrors the message-encryption gate: keys must be set up and unlocked.
    */
   canParticipate(): boolean {
     return (
@@ -124,12 +124,12 @@ class VoiceE2EEService {
       if (!textPart) return null
       const bytes = base64ToBytes(textPart.text)
       if (bytes.length !== VOICE_KEY_BYTES) {
-        debug.warn(`⚠️ [VoiceE2EE] Unwrapped key has unexpected length ${bytes.length}`)
+        debug.warn(`[VoiceE2EE] Unwrapped key has unexpected length ${bytes.length}`)
         return null
       }
       return bytes
     } catch (err) {
-      debug.warn('⚠️ [VoiceE2EE] Failed to unwrap room key (session may be pending):', err)
+      debug.warn('[VoiceE2EE] Failed to unwrap room key (session may be pending):', err)
       return null
     }
   }

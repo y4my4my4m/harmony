@@ -280,7 +280,7 @@ const props = withDefaults(
     closeEmojiList?: () => void;
     /** Flag indicating if the popup was opened via the icon click. */
     emojiIconClicked?: boolean;
-    /** Determines if the emoji is for a reaction (future use). */
+    /** Marks the selection as a reaction. Not read anywhere in this component. */
     isReaction?: boolean;
     /** The element that triggers the popup for positioning. */
     triggerElement?: HTMLElement;
@@ -341,12 +341,10 @@ const toggleSection = (id: string) => {
 };
 
 const isSectionCollapsed = (id: string) => {
-  // During an active search, force every section open so users actually
-  // see the matching results. Otherwise a collapsed category that happens
-  // to contain a match would look like it found nothing (the section
-  // header would render but the emoji list would stay hidden).
-  // The user's manual collapse state is preserved in `collapsedSections`
-  // and re-applies once the query is cleared.
+  // An active search forces every section open. A collapsed category holding a
+  // match would otherwise render its header with the emoji list hidden, reading
+  // as no result. Manual collapse state stays in `collapsedSections` and
+  // re-applies once the query is cleared.
   if (searchQuery.value.trim()) return false;
   return collapsedSections.value.has(id);
 };
@@ -354,13 +352,11 @@ const isSectionCollapsed = (id: string) => {
 // --- Composables ---
 
 const triggerElementRef = computed(() => props.triggerElement || null);
-// `zIndex: 99999` here is the actual fix for the StatusPicker case: the
-// popup teleports to <body>, but so does StatusPicker's modal overlay
-// (z-index 1100). The composable used to inline `zIndex: 1050`, which
-// overrode our scoped CSS rule and put the popup behind the modal.
-// Passing it explicitly through the composable keeps it above every
-// modal in the app while leaving the default 1050 untouched for the
-// other consumers (MediaPickerPopup, GifComponent, AutoSuggest).
+// `zIndex` is passed explicitly: the composable inlines 1050 by default, which
+// wins over the scoped CSS rule and puts this popup behind StatusPicker's modal
+// overlay (z-index 1100), since both teleport to <body>. 99999 clears every
+// modal; the 1050 default stays intact for the other consumers
+// (MediaPickerPopup, GifComponent, AutoSuggest).
 const { positionStyle, updatePosition } = usePopupPositioning(
   triggerElementRef,
   { width: 320, height: 400 },
@@ -588,7 +584,8 @@ const noResultsInfo = computed(() => {
 
 /**
  * Select an emoji from the unified emoji data
- * ALWAYS stores the UNICODE character for portability across packs
+ * Stores the unicode character, never a pack-specific id, for portability
+ * across packs.
  */
 const selectUnifiedEmoji = (emoji: EmojiEntry): void => {
   triggerReaction();
@@ -600,7 +597,7 @@ const selectUnifiedEmoji = (emoji: EmojiEntry): void => {
     name: emoji.shortcode
   });
   
-  // ALWAYS send the unicode character - rendering handled by display component
+  // Send the unicode character; rendering is the display component's job
   const emojiObj = {
     id: emoji.unicode,
     name: emoji.shortcode,
@@ -991,13 +988,12 @@ watch(
   border-radius: 8px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
   /*
-   * The popup is teleported to <body>, so it doesn't compete with any
-   * in-page stacking context. Pick a value high enough to sit above
-   * every modal in the app:
+   * The popup is teleported to <body>, so it competes with no in-page
+   * stacking context. Values to clear:
    *   - .status-modal-overlay (StatusPicker) is 1100
    *   - .modal-overlay (UnifiedModal / BaseModal) is up to ~2000
-   * 99999 leaves headroom for future modals + any toasts (Vue
-   * Toastification's default is 9999) without touching this again.
+   *   - Vue Toastification's default is 9999
+   * 99999 sits above all of them with headroom.
    */
   z-index: 99999;
   display: flex;

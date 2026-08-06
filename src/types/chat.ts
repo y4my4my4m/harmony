@@ -17,9 +17,8 @@ export interface Server {
   is_local_server?: boolean;
   /**
    * Domain part of a remote server's ActivityPub identity, e.g. `mony.dev`.
-   * Selected by `useServerChannel.fetchServersForUser` and surfaced in the
-   * server-tooltip on the main nav. Optional because local servers don't
-   * carry this column.
+   * Selected by `useServerChannel.fetchServersForUser`, shown in the
+   * server-tooltip on the main nav. Absent on local servers.
    */
   federation_domain?: string;
   /**
@@ -50,8 +49,8 @@ export interface Channel {
   name: string;
   // type: 0=text, 1=voice, 2=category
   type: number;
-  // The category this channel belongs to (references channel_categories.id)
-  // NOTE: Database column is 'category', NOT 'category_id'
+  // References channel_categories.id.
+  // NOTE: the database column is `category`, not `category_id`.
   category: string | null;
   order: number;
   // Optional fields from database
@@ -72,34 +71,26 @@ export interface Category {
   expanded: boolean;
 }
 /**
- * User - Represents a user in the SERVER/CHAT context (Discord-like)
- * 
- * Used for:
- * - Server member lists
- * - Voice channel participants
- * - Chat message authors
- * - Real-time presence tracking
- * 
- * Note: This is the user's representation within the chat/server system.
- * For ActivityPub/federation contexts, use Profile instead.
- * For auth context, use Supabase User from auth.getUser().
- */
-/**
  * Profile field (ActivityPub PropertyValue attachment).
  *
  * Backed by the `profiles.profile_fields` jsonb column. Federated out via
  * `toActivityPub.ts` as PropertyValue attachments on the actor; federated in
- * via `fromActivityPub.ts` from the same. `value` is HTML (typically a
- * sanitized `<a>` wrapper for URL-shaped values, plain text otherwise) - the
- * display side runs it through DOMPurify before injecting via v-html.
+ * via `fromActivityPub.ts` from the same. `value` is HTML - a sanitized `<a>`
+ * wrapper for URL-shaped values, plain text otherwise - and the display side
+ * runs it through DOMPurify before injecting via v-html.
  */
 export interface ProfileField {
   name: string;
   value: string;
-  /** Mastodon-style link verification timestamp; we don't currently set this. */
+  /** Mastodon-style link verification timestamp. Never set locally. */
   verified_at?: string | null;
 }
 
+/**
+ * A user inside the server/chat context: member lists, voice participants,
+ * message authors, presence. Use Profile for ActivityPub/federation contexts
+ * and the Supabase User from auth.getUser() for auth context.
+ */
 export interface User {
   id: string;
   username?: string;
@@ -136,16 +127,9 @@ export interface User {
 }
 
 /**
- * Profile - Represents a user profile in the DATABASE/FEDERATION context
- * 
- * Used for:
- * - ActivityPub federation (actors)
- * - Database profiles table
- * - User profile pages
- * - Follow/follower relationships
- * 
- * Note: This is the canonical user representation stored in the database.
- * Maps 1:1 with the profiles table and ActivityPub actors.
+ * Canonical user representation in the database/federation context: maps 1:1
+ * with the profiles table and with ActivityPub actors. Used for federation,
+ * profile pages, and follow relationships.
  */
 export interface Profile {
   id: string;
@@ -318,8 +302,8 @@ export interface EmbedPayload {
   html?: string;
   width?: number;
   height?: number;
-  /** The preview is essentially just media (GIF page etc.) - render the
-      image itself, not a link card. */
+  /** Preview is media only (GIF page etc.); render the image, not a link
+      card. */
   mediaOnly?: boolean;
   harmony?: HarmonyEmbedSummary;
   fediverse?: FediverseEmbedSummary;
@@ -344,8 +328,8 @@ export interface MentionContent {
   domain: string;
   isLocal: boolean;
   /**
-   * Optional display name carried alongside the mention for rendering,
-   * populated when the mention is resolved against the profile cache.
+   * Display name carried alongside the mention for rendering. Populated when
+   * the mention resolves against the profile cache.
    */
   displayName?: string;
 }
@@ -421,9 +405,9 @@ export interface Reaction {
   emoji: Emoji; // doesn't exist in the database, we're transforming it
   reactions: Reaction[]; // doesn't exist in the database, we're transforming it
   /**
-   * Optional per-reaction metadata. Used by bridged Discord reactions to
-   * carry the originating Discord user info so the UI can render the bridge
-   * source instead of a Harmony profile lookup.
+   * Per-reaction metadata. Bridged Discord reactions carry the originating
+   * Discord user here so the UI renders the bridge source instead of doing a
+   * Harmony profile lookup.
    */
   metadata?: {
     discord_user?: {
@@ -436,15 +420,15 @@ export interface Reaction {
   };
 }
 
-// ReactionGroup represents an aggregated group of reactions for a specific emoji
+// Reactions for one emoji, aggregated.
 export interface ReactionGroup {
   emoji_id: string | null;
   emoji: Emoji;
   count: number;
   /**
-   * Server-computed: whether the current user is in this reaction group.
-   * This (not a client-side user_id compare) is the source of truth for the
-   * "reacted" highlight - it's immune to auth-id vs profile-id confusion.
+   * Server-computed membership of the current user in this reaction group.
+   * Source of truth for the "reacted" highlight, in place of a client-side
+   * user_id compare, which confuses auth id with profile id.
    */
   current_user_reacted?: boolean;
   reactions: ReactionActor[];
@@ -476,18 +460,18 @@ export interface Message {
   encrypted?: boolean; // true if this message is encrypted
   decrypted?: boolean; // true if this message was encrypted and successfully decrypted (client-side flag)
   /**
-   * Client-side flag: the message is encrypted, decryption failed for lack of a
-   * session key, AND it predates the current encryption identity - so the key is
-   * gone for good and retrying/requesting will never succeed. UI shows a
-   * distinct "permanently unavailable" state instead of a retryable glyph.
+   * Client-side flag: the message is encrypted, decryption failed for lack of
+   * a session key, and it predates the current encryption identity, so the key
+   * is unrecoverable and retry/request cannot succeed. UI shows a
+   * "permanently unavailable" state instead of a retryable glyph.
    */
   decryption_unrecoverable?: boolean;
   /**
    * Client-side verification flag for cryptographic sender binding (Megolm v2).
-   *  - `true`  → signature verified against sender's published signing key.
-   *  - `false` → signature missing (legacy v1) OR sender has no signing key on record.
-   *              UI should show an "unverified author" indicator.
-   *  - absent  → message has not been processed through decryption (e.g., plaintext message).
+   *  - `true`  → signature verified against the sender's published signing key.
+   *  - `false` → signature missing (legacy v1), or the sender has no signing key
+   *              on record. UI shows an "unverified author" indicator.
+   *  - absent  → message never went through decryption (plaintext message).
    */
   sender_verified?: boolean;
   encryption_metadata?: {
@@ -518,7 +502,7 @@ export interface Message {
 // ROLE AND PERMISSION TYPES
 // Full implementation in src/services/RoleService.ts
 
-// Legacy Role interface for backwards compatibility
+// Legacy; retained for backwards compatibility.
 export interface Role {
   id: string;
   name: string;
@@ -529,7 +513,7 @@ export interface Role {
   mentionable?: boolean;
 }
 
-// Legacy Permission enum - use Permission from RoleService for new code
+// Legacy. New code uses Permission from RoleService.
 export enum Permission {
   VIEW_CHANNEL = 'VIEW_CHANNEL',
   SEND_MESSAGE = 'SEND_MESSAGES',

@@ -8,7 +8,7 @@ import { getSupabaseClient } from './src/config/supabase.js';
 const supabase = getSupabaseClient();
 
 async function deepDiagnose() {
-  console.log('🔍 DEEP FEDERATION DIAGNOSTICS\n');
+  console.log('DEEP FEDERATION DIAGNOSTICS\n');
   console.log('='.repeat(60));
   
   // 1. Check ALL profiles
@@ -69,7 +69,7 @@ async function deepDiagnose() {
       }
     }
   } else {
-    console.log('  ⚠️  NO FOLLOW RELATIONSHIPS FOUND!');
+    console.log('  NO FOLLOW RELATIONSHIPS FOUND!');
   }
   
   // 3. Check recent posts
@@ -141,7 +141,7 @@ async function deepDiagnose() {
   console.log('='.repeat(60));
   
   if (remoteCount === 0) {
-    console.log('\n❌ CRITICAL: NO REMOTE USERS IN DATABASE!');
+    console.log('\nCRITICAL: NO REMOTE USERS IN DATABASE!');
     console.log('\nPossible causes:');
     console.log('  1. Fresh database with no federation activity yet');
     console.log('  2. Remote users were deleted or database was reset');
@@ -154,16 +154,16 @@ async function deepDiagnose() {
   }
   
   if (followCount === 0) {
-    console.log('\n⚠️  WARNING: NO FOLLOW RELATIONSHIPS!');
+    console.log('\nWARNING: NO FOLLOW RELATIONSHIPS!');
     console.log('  You need to follow or be followed by someone for federation to work.');
   }
 }
 
 deepDiagnose().then(() => {
-  console.log('\n✅ Deep diagnostics complete\n');
+  console.log('\nDeep diagnostics complete\n');
   process.exit(0);
 }).catch(err => {
-  console.error('❌ Error:', err);
+  console.error('Error:', err);
   process.exit(1);
 });
 

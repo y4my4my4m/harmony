@@ -1,6 +1,5 @@
 <template>
   <div class="social-layout" :class="{ 'is-dragging': isDragging }">
-    <!-- Context Bar -->
     <div class="context-bar-container">
       <UnifiedContextBar
         :mode="'activitypub' as any"
@@ -22,16 +21,14 @@
       />
     </div>
 
-    <!-- Funding modal - same UX as chat layout so the donation flow is
-         consistent everywhere the context bar lives. -->
+    <!-- Mirrors the chat layout's funding modal; the context bar exposes the
+         same donation flow in both layouts. -->
     <FundingModal
       v-if="showFundingModal"
       @close="showFundingModal = false"
     />
 
-    <!-- Social Layout Content (Flex Row) -->
     <div class="social-layout-content">
-      <!-- Social Sidebar -->
       <div 
         class="social-sidebar-container" 
         :class="{ 
@@ -53,9 +50,7 @@
         />
       </div>
 
-      <!-- Main + Right Sidebar Container -->
       <div class="main-and-right-container">
-        <!-- Social Content (RouterView for nested social views) -->
         <div 
           class="social-content-area"
         >
@@ -92,7 +87,6 @@
           />
         </div>
 
-        <!-- Right Sidebar (Trending & Suggestions) -->
         <div 
           class="right-sidebar-container" 
           :class="{ 
@@ -103,7 +97,7 @@
           :style="rightSidebarStyle"
         >
           <div class="activitypub-right-sidebar">
-          <!-- Trending Section (hidden on Trending tab - main area shows hashtags) -->
+          <!-- Hidden on the trending tab, where the main area lists hashtags. -->
           <div v-if="currentView !== 'trending'" class="sidebar-section">
             <h3 class="section-title">{{ $t('activitypub.trending') }}</h3>
             <div v-if="isLoadingTrending" class="trending-loading">
@@ -125,7 +119,6 @@
             </div>
           </div>
 
-          <!-- Suggested Users -->
           <div class="sidebar-section">
             <h3 class="section-title">{{ $t('activitypub.suggestedFollows') }}</h3>
             <div class="suggested-users">
@@ -141,7 +134,6 @@
             </div>
           </div>
 
-          <!-- Instance Info -->
           <div class="sidebar-section">
             <h3 class="section-title">{{ $t('activitypub.instanceInfo') }}</h3>
             <div class="instance-info">
@@ -155,7 +147,6 @@
       </div>
     </div>
     
-    <!-- Social Modals -->
     <Composer
       v-if="activityPubStore.isComposerOpen"
       mode="modal"
@@ -209,14 +200,13 @@ import { getOriginalPost } from '@/utils/postReblog'
 import FundingModal from '@/components/FundingModal.vue'
 import type { FederatedUser, TimelinePost } from '@/types'
 
-// Props - Made view props optional since we extract from route
 interface Props {
   leftSidebarOpen: boolean
   rightSidebarOpen: boolean
   isMobile: boolean
   voicePanelOpen: boolean
-  currentView?: string // Optional - extracted from route if not provided
-  viewType?: string // Optional - extracted from route if not provided
+  currentView?: string // derived from the route when absent
+  viewType?: string // derived from the route when absent
   posts?: TimelinePost[]
   isLoadingFeed?: boolean
   hasMorePosts?: boolean
@@ -238,8 +228,8 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  currentView: undefined, // Will be extracted from route
-  viewType: undefined, // Will be extracted from route
+  currentView: undefined,
+  viewType: undefined,
   posts: () => [],
   isLoadingFeed: false,
   hasMorePosts: false,
@@ -276,15 +266,15 @@ const route = useRoute()
 // Layout state
 const { SIDEBAR_WIDTH } = useLayoutState()
 
-// Computed drag styles for native-feeling gestures
+// Drag-follow transforms for the mobile sidebars.
 const leftSidebarStyle = computed(() => {
   if (!props.isMobile) return {}
   
   if (props.isDragging && props.dragDirection === 'left') {
-    // Left sidebar slides in from left (accounting for server sidebar at 72px)
+    // Slides in from the left, stopping at the 72px server sidebar.
     const progress = props.leftSidebarDragOffset / SIDEBAR_WIDTH
-    const closedPosition = -280 // Hidden position
-    const openPosition = 72 // Open position (server sidebar width)
+    const closedPosition = -280 // px, offscreen left
+    const openPosition = 72 // px, server sidebar width
     const currentPosition = closedPosition + (openPosition - closedPosition) * progress
     
     return {
@@ -301,11 +291,10 @@ const rightSidebarStyle = computed(() => {
   if (!props.isMobile) return {}
   
   if (props.isDragging && props.dragDirection === 'right') {
-    // Right sidebar slides in from right
     const progress = props.rightSidebarDragOffset / SIDEBAR_WIDTH
-    const closedPosition = 100 // Hidden off screen (percentage)
+    const closedPosition = 100 // percent of own width, offscreen right
     // eslint-disable-next-line unused-imports/no-unused-vars
-    const openPosition = 0 // Fully visible
+    const openPosition = 0 // percent
     const currentPosition = closedPosition - (closedPosition * progress)
     
     return {
@@ -318,13 +307,12 @@ const rightSidebarStyle = computed(() => {
   return {}
 })
 
-// Route-aware props extraction - Professional approach
-// Extract view information from current route with comprehensive mapping
+// View identity derived from the current route.
 const routeBasedProps = computed(() => {
   const routeName = route.name as string
   const routePath = route.path
   
-  // Comprehensive route to view mapping - covers all social routes
+  // Route name -> currentView / viewType.
   const routeViewMap: Record<string, { currentView: string; viewType: string }> = {
     // Timeline routes
     'SocialHome': { currentView: 'home', viewType: 'timeline' },
@@ -355,7 +343,7 @@ const routeBasedProps = computed(() => {
     'Explore': { currentView: 'trending', viewType: 'explore' }
   }
   
-  // Check exact route name first, then try path-based detection
+  // Exact route name wins; path matching is the fallback.
   if (routeViewMap[routeName]) {
     return routeViewMap[routeName]
   }
@@ -369,11 +357,10 @@ const routeBasedProps = computed(() => {
   if (routePath.includes('/social/trending')) return { currentView: 'trending', viewType: 'explore' }
   if (routePath.includes('/social/profile/')) return { currentView: 'profile', viewType: 'profile' }
   
-  // Ultimate fallback
+  // Default.
   return { currentView: 'home', viewType: 'timeline' }
 })
 
-// Computed with intelligent fallback to route-based props
 const currentView = computed(() => {
   // Priority: explicit props > route-based > default
   if (props.currentView) return props.currentView
@@ -400,7 +387,6 @@ const showSearchModal = ref(false)
 const selectedUser = ref<FederatedUser | null>(null)
 const composerReplyPost = ref<TimelinePost | null>(null)
 
-// Computed composer type - reply, quote, or post
 const composerType = computed(() => {
   if (composerReplyPost.value) return 'reply'
   if (activityPubStore.composerState.quotePost) return 'quote'
@@ -409,7 +395,7 @@ const composerType = computed(() => {
 const trendingTopics = ref<Array<{ tag: string; count: number }>>([])
 const isLoadingTrending = ref(false)
 
-// Suggested users from store (cached & filtered to exclude followed users)
+// Store-cached, already filtered to exclude followed users.
 const suggestedUsers = computed(() => activityPubStore.filteredSuggestedUsers.slice(0, 3))
 
 // Instance stats (cached in store)
@@ -420,18 +406,18 @@ const localInstancePostCount = computed(() => activityPubStore.instancePostCount
 const loadTrendingHashtags = async () => {
   try {
     isLoadingTrending.value = true
-    debug.log('🔄 Loading trending hashtags...')
+    debug.log('Loading trending hashtags...')
     const hashtags = await trendingService.getTrendingHashtags({ limit: 10, days: 7 })
-    debug.log('📊 Trending hashtags:', hashtags)
+    debug.log('Trending hashtags:', hashtags)
     
     trendingTopics.value = hashtags.map(h => ({
       tag: h.tag,
       count: h.daily_uses || h.weekly_uses || 0
     }))
     
-    // If no hashtags from DB, don't show placeholder
+    // Empty result renders the no-trending state; no placeholder rows.
     if (trendingTopics.value.length === 0) {
-      debug.log('ℹ️ No trending hashtags found')
+      debug.log('ℹNo trending hashtags found')
     }
   } catch (error) {
     debug.error('Failed to load trending hashtags:', error)
@@ -445,8 +431,7 @@ const loadSuggestedUsers = async () => {
   await activityPubStore.fetchSuggestedUsers()
 }
 
-// Instance stats are now cached in the instance store
-// No need to load them here - they're fetched on demand with 5-minute cache
+// Instance stats are fetched on demand by the instance store, 5-minute cache.
 
 onMounted(() => {
   loadTrendingHashtags()
@@ -455,13 +440,12 @@ onMounted(() => {
   void fundingStore.load()
 })
 
-// BUGS.md H32: this layout used to call `cleanupRealtimeSubscriptions()` on
-// unmount, which removed every ActivityPub broadcast handler from the
-// userEventChannel. After visiting social → chat the user lost realtime
-// updates for posts/follows/mutes/blocks until something re-called
-// `initialize()`, which most non-social routes never do. The subscriptions
-// are app-scoped (cleaned up by `auth.logout()` via the auth store), so we
-// no longer tear them down on per-route navigation.
+// BUGS.md H32: realtime subscriptions are app-scoped and torn down by
+// `auth.logout()` via the auth store, not on route change. Calling
+// `cleanupRealtimeSubscriptions()` on unmount here strips every ActivityPub
+// broadcast handler off the userEventChannel, and most non-social routes never
+// call `initialize()` again, so posts/follows/mutes/blocks stop updating after
+// social -> chat navigation.
 
 useViewContextTracking()
 
@@ -471,9 +455,8 @@ const handleToggleSearch = () => {
 }
 
 const handleSwitchFeed = async (feed: string) => {
-  debug.log(`🔄 Switching to ${feed} feed`)
+  debug.log(`Switching to ${feed} feed`)
   
-  // Navigate to the appropriate route
   switch (feed) {
     case 'home':
       await router.push({ name: 'SocialHome' })
@@ -514,12 +497,12 @@ const handleSwitchFeed = async (feed: string) => {
         }
         break
       case 'trending':
-        // Trending data would be loaded by ExploreView
-        debug.log('🔥 Navigating to trending view')
+        // ExploreView loads trending data.
+        debug.log('Navigating to trending view')
         break
       case 'instances':
-        // Instance data would be loaded by ExploreView  
-        debug.log('🌐 Navigating to instances view')
+        // ExploreView loads instance data.
+        debug.log('Navigating to instances view')
         break
     }
   } catch (error) {
@@ -536,22 +519,20 @@ const handleOpenComposer = () => {
 }
 
 const handlePostCreated = async () => {
-  // Realtime subscription handles adding the new post to feeds.
-  // No manual refresh needed - avoids duplicate timeline/follows/reactions queries.
+  // The realtime subscription appends the new post. A manual refresh would
+  // duplicate the timeline/follows/reactions queries.
 }
 
 const handleReplyToPost = (post: TimelinePost) => {
-  // For reblogs, target the original post - the user wants to reply to the
-  // author whose words they're seeing, not to the booster.
+  // Reblogs reply to the original post's author, not the booster.
   composerReplyPost.value = getOriginalPost(post)
   activityPubStore.openComposer()
 }
 
-// Previously these called `activityPubStore.favoritePost / reblogPost /
-// bookmarkPost` via `as any`, but those methods don't actually exist on the
-// store - the real action methods are `toggleFavorite / toggleReblog /
-// toggleBookmark`. The `as any` cast hid a TypeError so the buttons in the
-// social layout's wrapper UI silently failed (caught + logged, no toast).
+// Store actions are `toggleFavorite` / `toggleReblog` / `toggleBookmark`.
+// There is no `favoritePost` / `reblogPost` / `bookmarkPost`; calling those
+// through an `as any` cast throws a TypeError that the catch blocks swallow,
+// leaving the buttons silently dead.
 const handleFavoritePost = async (post: TimelinePost) => {
   try {
     await activityPubStore.toggleFavorite(post.id)
@@ -590,8 +571,8 @@ const handleShowUserProfile = (user: FederatedUser) => {
 }
 
 const handleLoadMorePosts = async () => {
-  // Prevent duplicate loading - this is handled by TimelineView
-  debug.log('⚠️ Load more handled by TimelineView component');
+  // TimelineView owns pagination for this view.
+  debug.log('Load more handled by TimelineView component');
 }
 
 const handleFollow = async (user: FederatedUser | string) => {
@@ -599,12 +580,12 @@ const handleFollow = async (user: FederatedUser | string) => {
     const userId = typeof user === 'string' ? user : user?.id
     
     if (!userId) {
-      debug.error('❌ handleFollow: Invalid user ID:', user)
+      debug.error('handleFollow: Invalid user ID:', user)
       return
     }
     
     await activityPubStore.followUser(userId)
-    debug.log(`✅ Successfully followed user: ${userId}`)
+    debug.log(`Successfully followed user: ${userId}`)
   } catch (error) {
     debug.error('Failed to follow user:', error)
   }
@@ -615,12 +596,12 @@ const handleUnfollow = async (user: FederatedUser | string) => {
     const userId = typeof user === 'string' ? user : user?.id
     
     if (!userId) {
-      debug.error('❌ handleUnfollow: Invalid user ID:', user)
+      debug.error('handleUnfollow: Invalid user ID:', user)
       return
     }
     
     await activityPubStore.unfollowUser(userId)
-    debug.log(`✅ Successfully unfollowed user: ${userId}`)
+    debug.log(`Successfully unfollowed user: ${userId}`)
   } catch (error) {
     debug.error('Failed to unfollow user:', error)
   }
@@ -630,7 +611,7 @@ const handleClearAllBookmarks = async () => {
   try {
     await activityPubStore.clearAllBookmarks()
     debug.log('All bookmarks cleared')
-    // TODO: Refresh bookmarks view if/when bookmark loading is implemented
+    // The bookmarks view is not refreshed here; no bookmark loader exists.
   } catch (error) {
     debug.error('Failed to clear bookmarks:', error)
   }
@@ -639,8 +620,7 @@ const handleClearAllBookmarks = async () => {
 const handleLoadMoreSpecialData = async () => {
   try {
     debug.log('Loading more special data for view:', currentView.value)
-    // TODO: Implement specific loading methods for bookmarks, notifications, etc.
-    // For now, just log the action
+    // No per-view loaders exist for bookmarks or notifications.
   } catch (error) {
     debug.error('Failed to load more special data:', error)
   }
@@ -656,9 +636,9 @@ const handleCloseComposer = () => {
 }
 
 const handlePosted = (post: any) => {
-  debug.log('✅ Post created:', post.id)
+  debug.log('Post created:', post.id)
   composerReplyPost.value = null
-  // The store's realtime subscription will handle adding the post to feeds
+  // The store's realtime subscription appends the post to the feeds.
 }
 
 const closeSearch = () => {
@@ -670,13 +650,12 @@ const closeUserProfile = () => {
 }
 
 const handleUserCardClick = (user: any) => {
-  // Only open modal, don't navigate - user can navigate from modal if they want.
-  // ProfileCard emits `User | FederatedUser`; we coerce to FederatedUser since
-  // selectedUser ref expects the federated shape.
+  // Opens the modal without navigating; the modal offers its own navigation.
+  // ProfileCard emits `User | FederatedUser`; selectedUser holds the federated
+  // shape, hence the cast.
   selectedUser.value = user as FederatedUser
 }
 
-// Navigate to hashtag view
 const navigateToHashtag = (tag: string) => {
   router.push({ name: 'HashtagView', params: { tag } })
 }
@@ -853,7 +832,7 @@ const formatNumber = (num: number): string => {
     top: 0;
     height: 100%;
     z-index: 200;
-    /* Native-feeling spring animation on release */
+    /* Spring easing applied on drag release */
     transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1), width 0.2s cubic-bezier(0.32, 0.72, 0, 1);
   }
 

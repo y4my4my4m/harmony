@@ -6,9 +6,8 @@
            changes for that role.
          - Right pane: tabbed editor (Display / Permissions / Members) for
            the selected role.
-       This intentionally drops the old slide-over editor - at this width
-       both panes fit comfortably and you can hop between roles without
-       losing the rail.
+       No slide-over editor: at this width both panes fit, and the rail stays
+       visible while switching roles.
        ===================================================================== -->
   <div class="role-management">
     <!-- Header (full width) -->
@@ -384,7 +383,7 @@ const editorTabs = [
   { id: 'members', label: 'Members' },
 ]
 
-// Color presets ()
+// Color presets
 const colorPresets = [
   '#1ABC9C', '#2ECC71', '#3498DB', '#9B59B6', '#E91E63',
   '#F1C40F', '#E67E22', '#E74C3C', '#95A5A6', '#607D8B',
@@ -392,7 +391,7 @@ const colorPresets = [
   '#C27C0E', '#A84300', '#992D22', '#979C9F', '#546E7A',
 ]
 
-// Permission sections - matches Harmony's actual features
+// Permission sections mirror Harmony's feature set.
 const permissionSections = [
   {
     id: 'general',
@@ -500,11 +499,10 @@ const hasChanges = computed(() => {
 })
 
 /**
- * Per-role dirty check used both by the editor footer ("Save Changes"
- * enabled?) and by the role rail ("show unsaved dot?"). We compare against
- * the canonical role record in `roles.value`, NOT the in-form snapshot,
- * because a role can be inspected without being selected and we still want
- * the dot to disappear after save / reset.
+ * Per-role dirty check, used by the editor footer ("Save Changes" enabled?)
+ * and the role rail ("show unsaved dot?"). Compares against the canonical
+ * role record in `roles.value`, not the in-form snapshot: a role can be
+ * inspected without being selected, and the dot must clear after save/reset.
  */
 function isThisRoleDirty(roleId: string): boolean {
   if (!selectedRole.value || selectedRole.value.id !== roleId) return false

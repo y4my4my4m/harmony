@@ -49,7 +49,7 @@ export interface EmojiPack {
   previewImage?: string
   /**
    * Path to a probe asset (relative to basePath) the service can fetch to
-   * verify the pack is actually installed on this instance. When present,
+   * verify the pack is installed on this instance. When present,
    * `detectAvailablePacks()` will only register packs whose probe responds 2xx.
    * If omitted, the pack is assumed to be available (e.g. native / built-in).
    */
@@ -151,7 +151,7 @@ export function initializeEmojiPacks(): void {
   availablePacks.value.set('native', nativeUnicodePack)
 
   isInitialized.value = true
-  debug.log('📦 Emoji packs initialized.')
+  debug.log('Emoji packs initialized.')
 }
 
 /**
@@ -178,7 +178,7 @@ export async function detectAvailablePacks(): Promise<void> {
   }
 
   packsDetected.value = true
-  debug.log('📦 Emoji pack detection complete. Current pack:', currentPackId.value)
+  debug.log('Emoji pack detection complete. Current pack:', currentPackId.value)
 }
 
 /**
@@ -218,7 +218,7 @@ export function setCurrentPack(packId: string): boolean {
   
   currentPackId.value = packId
   savePackPreference()
-  debug.log('📦 Switched to emoji pack:', packId)
+  debug.log('Switched to emoji pack:', packId)
 
   return true
 }
@@ -229,7 +229,7 @@ export function setCurrentPack(packId: string): boolean {
 export function registerEmojiPack(pack: EmojiPack): void {
   initializeEmojiPacks()
   availablePacks.value.set(pack.id, pack)
-  debug.log('📦 Registered emoji pack:', pack.name)
+  debug.log('Registered emoji pack:', pack.name)
 }
 
 /**
@@ -257,7 +257,7 @@ export async function loadPackEmojiIndex(packId: string): Promise<EmojiPackItem[
     
     pack.emojis = emojis
     
-    debug.log(`📦 Loaded ${emojis.length} emojis for pack:`, packId)
+    debug.log(`Loaded ${emojis.length} emojis for pack:`, packId)
     return emojis
   } catch (error) {
     debug.error('Failed to load emoji index:', error)

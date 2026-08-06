@@ -14,7 +14,7 @@ export async function handleReportJob(data: FederationJobData): Promise<void> {
   const supabase = getSupabaseClient();
   const { report_id, reporter_id, reported_user_id, reported_post_id, reason } = data;
 
-  logger.info(`🚩 Processing report job for report ${report_id}`);
+  logger.info(`Processing report job for report ${report_id}`);
 
   try {
     const { data: reporter } = await supabase
@@ -76,7 +76,7 @@ export async function handleReportJob(data: FederationJobData): Promise<void> {
 
     if (targetInbox) {
       await DeliveryQueue.sendToInbox(targetInbox, flagActivity, reporter.id);
-      logger.info(`✅ Report sent to ${targetInbox}`);
+      logger.info(`Report sent to ${targetInbox}`);
     } else {
       logger.warn(`No inbox found for reported user's instance`);
     }

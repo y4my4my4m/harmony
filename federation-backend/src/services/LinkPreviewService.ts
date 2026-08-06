@@ -46,8 +46,8 @@ export interface EmbedPayload {
   html?: string;
   width?: number;
   height?: number;
-  /** The preview is essentially just media (GIF page etc.) - clients should
-      render the image itself, not a link card. */
+  /** Preview is media only (GIF page etc.); clients render the image itself,
+      not a link card. */
   mediaOnly?: boolean;
   fetchedAt: string;
   expiresAt: string;
@@ -80,8 +80,8 @@ const TTL_BY_PROVIDER: Record<EmbedProvider, number> = {
 
 const USER_AGENT = 'HarmonyLinkPreview/1.0 (+https://har.mony.lol)';
 
-// Pages whose preview is really just the media (GIF sites). Combined with a
-// .gif og:image heuristic to set EmbedPayload.mediaOnly.
+// Hosts whose preview is media only (GIF sites). Combined with a .gif
+// og:image heuristic to set EmbedPayload.mediaOnly.
 const GIF_PAGE_HOSTS = new Set(['tenor.com', 'giphy.com', 'klipy.com']);
 
 const NON_AP_DOMAINS = new Set([
@@ -210,8 +210,8 @@ class LinkPreviewService {
     if (!payload.provider || payload.provider === 'generic') {
       payload.provider = provider;
     }
-    // GIF pages: the image IS the content - clients render it as bare media
-    // instead of a link card (Discord behavior).
+    // GIF pages: the image is the content; clients render bare media instead
+    // of a link card, matching Discord.
     if (!payload.mediaOnly && payload.image && payload.provider === 'generic') {
       try {
         const host = new URL(normalizedUrl).hostname.toLowerCase().replace(/^www\./, '');
@@ -324,8 +324,8 @@ class LinkPreviewService {
     }
 
     const host = parsed.hostname.toLowerCase().replace(/^(www|mobile)\./, '');
-    // Includes the Discord-culture "embed fixer" mirrors - people paste
-    // those out of habit; they all share Twitter's /user/status/id shape.
+    // Includes the "embed fixer" mirrors; all share Twitter's
+    // /user/status/id path shape.
     const TWEET_HOSTS = new Set([
       'x.com', 'twitter.com',
       'vxtwitter.com', 'fxtwitter.com', 'fixupx.com', 'fixvx.com',
@@ -450,7 +450,7 @@ class LinkPreviewService {
    * or by fetching the instance's NodeInfo. Falls back to 'fediverse'.
    */
   private async detectPlatform(note: any, url: string): Promise<string> {
-    // Some platforms set a generator on the Note (Mastodon does this)
+    // Mastodon sets a generator on the Note.
     if (note.generator?.name) {
       return note.generator.name.toLowerCase();
     }
@@ -630,12 +630,12 @@ class LinkPreviewService {
       // Retry with HTTP signature for instances requiring authorized fetch
       if (response.status === 401 || response.status === 403) {
         clearTimeout(timeout);
-        logger.info(`🔐 AP fetch got ${response.status}, retrying with HTTP signature: ${url}`);
+        logger.info(`AP fetch got ${response.status}, retrying with HTTP signature: ${url}`);
         try {
           response = await SignatureService.signedApFetch(url);
-          logger.info(`🔐 Signed AP fetch result: ${response.status} for ${url}`);
+          logger.info(`Signed AP fetch result: ${response.status} for ${url}`);
         } catch (signedErr) {
-          logger.warn(`🔐 Signed AP fetch failed for ${url}:`, signedErr);
+          logger.warn(`Signed AP fetch failed for ${url}:`, signedErr);
           throw new Error(`Signed AP fetch also failed for ${url}`);
         }
       }
@@ -650,7 +650,7 @@ class LinkPreviewService {
         throw new Error(`Not an AP response (${contentType})`);
       }
 
-      // Success - clear any failure record
+      // Success clears the domain's failure record.
       this.apFailedDomains.delete(domain);
       return await response.json();
     } catch (err) {
@@ -738,7 +738,7 @@ class LinkPreviewService {
         const apObj = await this.fetchActivityPubObject(url);
         if (isActivityPubObject(apObj)) {
           if (apObj.type === 'Note' || apObj.type === 'Article' || apObj.type === 'Question') {
-            logger.info(`🔍 AP-first detection succeeded for ${url} (type: ${apObj.type})`);
+            logger.info(`AP-first detection succeeded for ${url} (type: ${apObj.type})`);
             return this.buildFediverseEmbed(url, apObj);
           }
         }
@@ -759,10 +759,9 @@ class LinkPreviewService {
             Accept: 'text/html,application/xhtml+xml',
           },
           signal: controller.signal,
-          // HTML link-preview path commonly traverses 4-5 hops (t.co →
-          // publisher → www → canonical → cookie consent). The default
-          // of 3 is sufficient for AP-content but cuts off legitimate
-          // tracker chains here, so allow 5 specifically on this site.
+          // HTML link-preview chains run 4-5 hops (t.co → publisher → www →
+          // canonical → cookie consent). The default of 3 suffices for AP
+          // content but truncates these, so this call allows 5.
           maxRedirects: 5,
         });
       } finally {
@@ -775,11 +774,11 @@ class LinkPreviewService {
 
       const html = await response.text();
 
-      // Check for ActivityPub alternate link - upgrade to fediverse embed if found.
-      // Still useful when the AP endpoint URL differs from the HTML page URL.
+      // An ActivityPub alternate link upgrades to a fediverse embed. Covers
+      // the case where the AP endpoint URL differs from the HTML page URL.
       const apAlternate = this.findApAlternateLink(html);
       if (apAlternate) {
-        logger.info(`🔍 Found AP alternate link for ${url}: ${apAlternate}`);
+        logger.info(`Found AP alternate link for ${url}: ${apAlternate}`);
         try {
           const apUrl = this.makeAbsoluteUrl(url, apAlternate);
           const result = await this.buildFediverseEmbed(apUrl, undefined, true);
@@ -792,7 +791,7 @@ class LinkPreviewService {
             return result;
           }
         } catch (err) {
-          logger.warn(`🔍 AP alternate link found but fetch failed for ${url}:`, err);
+          logger.warn(`AP alternate link found but fetch failed for ${url}:`, err);
         }
       }
 

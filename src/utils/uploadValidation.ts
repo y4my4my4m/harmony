@@ -2,20 +2,16 @@ import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
 
 /**
- * Shared client-side validation + error humanization for storage uploads.
+ * Client-side validation and error humanization for storage uploads.
  *
- * Storage uploads (avatars, banners, server icons/banners, group icons, emojis)
- * are rejected by Supabase when a file exceeds the bucket's `file_size_limit` or
- * uses a disallowed MIME type, but the raw error ("The object exceeded the
- * maximum allowed size") never made it to the user - they just saw a generic
- * "upload failed". This module:
- *   1. Pre-validates a file against the bucket's limits (so we can fail fast
- *      with a precise, friendly message before hitting the network), and
- *   2. Translates a raw Supabase storage error into a human-readable reason.
+ * Supabase rejects uploads exceeding a bucket's `file_size_limit` or using a
+ * disallowed MIME type. This module pre-validates against the bucket limits to
+ * fail before the network round-trip, and translates raw storage errors into
+ * readable reasons.
  *
- * Per-instance limits can be customized in the Supabase dashboard, so we fetch
- * the live bucket metadata when possible and only fall back to these defaults
- * (which mirror db_schema/init/97_storage_buckets.sql) when it's unavailable.
+ * Limits are per-instance and editable in the Supabase dashboard; live bucket
+ * metadata wins and the defaults below (mirroring
+ * db_schema/init/97_storage_buckets.sql) are the fallback.
  */
 
 export interface BucketLimitConfig {
@@ -32,7 +28,7 @@ export const BUCKET_LIMITS: Record<string, BucketLimitConfig> = {
   server_icons: { maxBytes: 5 * 1024 * 1024, allowedMime: IMAGE_MIME, label: 'server icon' },
   server_banners: { maxBytes: 10 * 1024 * 1024, allowedMime: IMAGE_MIME, label: 'server banner' },
   'group-icons': { maxBytes: 5 * 1024 * 1024, allowedMime: IMAGE_MIME, label: 'group icon' },
-  // Emoji intentionally excludes SVG: see note below + sanitize concerns.
+  // Emoji excludes SVG: SVG carries scriptable markup.
   emojis: { maxBytes: 1 * 1024 * 1024, allowedMime: ['image/png', 'image/gif', 'image/webp', 'image/apng', 'image/jpeg'], label: 'emoji' },
   user_media: { maxBytes: 50 * 1024 * 1024, allowedMime: null, label: 'file' },
 }
@@ -66,9 +62,8 @@ function describeMimeList(mimes: string[]): string {
 }
 
 /**
- * Resolve the effective limits for a bucket, preferring the live bucket
- * metadata (which reflects per-instance dashboard overrides) and falling back
- * to the bundled defaults. Result is cached per session.
+ * Live bucket metadata (per-instance dashboard overrides) wins over the
+ * bundled defaults. Result is cached per session.
  */
 async function getBucketLimits(bucket: string): Promise<BucketLimitConfig> {
   const fallback = BUCKET_LIMITS[bucket] || { maxBytes: 0, allowedMime: null, label: 'file' }
@@ -98,10 +93,7 @@ async function getBucketLimits(bucket: string): Promise<BucketLimitConfig> {
   return fallback
 }
 
-/**
- * Validate a file against a bucket's size/type limits BEFORE uploading.
- * Returns a friendly error message, or null if the file is acceptable.
- */
+/** Returns an error message, or null if the file is within the bucket limits. */
 export async function validateImageUpload(file: File, bucket: string): Promise<string | null> {
   const limits = await getBucketLimits(bucket)
 
@@ -132,9 +124,9 @@ function extractStatus(error: unknown): number | undefined {
 }
 
 /**
- * Turn a raw Supabase storage error into a human-readable explanation. We only
- * quote a specific size/type limit when we have the authoritative live value
- * for that bucket, so we never show a misleading number.
+ * Turn a raw Supabase storage error into a readable explanation. A concrete
+ * size/type limit is quoted only when the live bucket value is known, so the
+ * message never states a number that may be wrong.
  */
 export function humanizeUploadError(error: unknown, bucket?: string): string {
   const fallback = bucket ? BUCKET_LIMITS[bucket] : undefined

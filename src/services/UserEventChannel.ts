@@ -78,13 +78,13 @@ class UserEventChannel {
           const wasReconnect = this.retryCount > 0
           this.connected = true
           this.retryCount = 0
-          debug.log('✅ UserEventChannel connected:', topic)
+          debug.log('UserEventChannel connected:', topic)
           if (wasReconnect) {
             this.dispatch({ type: '_reconnected' })
           }
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
           this.connected = false
-          debug.warn('⚠️ UserEventChannel status:', status)
+          debug.warn('UserEventChannel status:', status)
           this.scheduleReconnect()
         }
       })
@@ -177,7 +177,7 @@ class UserEventChannel {
     )
     const jitter = delay * 0.2 * Math.random()
 
-    debug.log(`🔄 UserEventChannel: reconnect in ${Math.round(delay + jitter)}ms (attempt ${this.retryCount + 1}/${RECONNECT_MAX_RETRIES})`)
+    debug.log(`UserEventChannel: reconnect in ${Math.round(delay + jitter)}ms (attempt ${this.retryCount + 1}/${RECONNECT_MAX_RETRIES})`)
 
     this.retryTimer = setTimeout(() => {
       this.retryTimer = null

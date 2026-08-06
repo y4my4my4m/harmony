@@ -116,14 +116,14 @@ export async function handleThreadActivity(
   const supabase = getSupabaseClient();
 
   try {
-    logger.info(`📋 Processing ${activity.type} thread activity: ${activity.id}`);
+    logger.info(`Processing ${activity.type} thread activity: ${activity.id}`);
 
     switch (activity.type) {
       case 'Create': {
         const threadObject = activity.object as ThreadObject;
         const harmonyServerId = (threadObject as any)['harmony:serverId'];
 
-        logger.info(`📋 Thread Create: name="${threadObject.name}", context=${threadObject.context}, inReplyTo=${threadObject.inReplyTo}, attributedTo=${threadObject.attributedTo}, harmony:serverId=${harmonyServerId}`);
+        logger.info(`Thread Create: name="${threadObject.name}", context=${threadObject.context}, inReplyTo=${threadObject.inReplyTo}, attributedTo=${threadObject.attributedTo}, harmony:serverId=${harmonyServerId}`);
 
         // --- Resolve channel ---
         // Try multiple strategies: ap_id match, UUID from URL, server_id scoped lookup,
@@ -141,7 +141,7 @@ export async function handleThreadActivity(
 
         if (channelByApId) {
           channel = channelByApId;
-          logger.info(`📋 Channel resolved via ap_id: ${channel.id}`);
+          logger.info(`Channel resolved via ap_id: ${channel.id}`);
         }
 
         // Strategy 2: extract UUID from context URL
@@ -155,7 +155,7 @@ export async function handleThreadActivity(
               .maybeSingle();
             if (channelById) {
               channel = channelById;
-              logger.info(`📋 Channel resolved via UUID: ${channel.id}`);
+              logger.info(`Channel resolved via UUID: ${channel.id}`);
             }
           }
         }
@@ -172,7 +172,7 @@ export async function handleThreadActivity(
               .maybeSingle();
             if (channelByServerScope) {
               channel = channelByServerScope;
-              logger.info(`📋 Channel resolved via server-scoped UUID: ${channel.id}`);
+              logger.info(`Channel resolved via server-scoped UUID: ${channel.id}`);
             }
           }
         }
@@ -187,7 +187,7 @@ export async function handleThreadActivity(
             .maybeSingle();
           if (channelByHarmonyId) {
             channel = channelByHarmonyId;
-            logger.info(`📋 Channel resolved via harmony:channelId: ${channel.id}`);
+            logger.info(`Channel resolved via harmony:channelId: ${channel.id}`);
           }
         }
 
@@ -201,7 +201,7 @@ export async function handleThreadActivity(
             .maybeSingle();
           if (channelByName) {
             channel = channelByName;
-            logger.info(`📋 Channel resolved via channel name "${harmonyChannelName}": ${channel.id}`);
+            logger.info(`Channel resolved via channel name "${harmonyChannelName}": ${channel.id}`);
           }
         }
 
@@ -214,7 +214,7 @@ export async function handleThreadActivity(
             .maybeSingle();
           if (parentByApId) {
             channel = { id: parentByApId.channel_id, server_id: harmonyServerId || '' };
-            logger.info(`📋 Channel resolved via parent message: ${channel.id}`);
+            logger.info(`Channel resolved via parent message: ${channel.id}`);
           } else {
             const msgUuidMatch = threadObject.inReplyTo.match(/\/messages\/([a-f0-9-]{36})/i);
             if (msgUuidMatch) {
@@ -225,14 +225,14 @@ export async function handleThreadActivity(
                 .maybeSingle();
               if (parentById) {
                 channel = { id: parentById.channel_id, server_id: harmonyServerId || '' };
-                logger.info(`📋 Channel resolved via parent message UUID: ${channel.id}`);
+                logger.info(`Channel resolved via parent message UUID: ${channel.id}`);
               }
             }
           }
         }
 
         if (!channel) {
-          logger.warn(`❌ Channel not found for thread. context=${threadObject.context}, harmony:serverId=${harmonyServerId}, harmony:channelName=${harmonyChannelName}, inReplyTo=${threadObject.inReplyTo}`);
+          logger.warn(`Channel not found for thread. context=${threadObject.context}, harmony:serverId=${harmonyServerId}, harmony:channelName=${harmonyChannelName}, inReplyTo=${threadObject.inReplyTo}`);
           return { success: false, error: 'Channel not found' };
         }
 
@@ -248,7 +248,7 @@ export async function handleThreadActivity(
 
         if (parentByApId) {
           parentMessageId = parentByApId.id;
-          logger.info(`📋 Parent message resolved via ap_id: ${parentMessageId}`);
+          logger.info(`Parent message resolved via ap_id: ${parentMessageId}`);
         }
 
         // Strategy 2: UUID from URL
@@ -262,7 +262,7 @@ export async function handleThreadActivity(
               .maybeSingle();
             if (parentById) {
               parentMessageId = parentById.id;
-              logger.info(`📋 Parent message resolved via UUID: ${parentMessageId}`);
+              logger.info(`Parent message resolved via UUID: ${parentMessageId}`);
             }
           }
         }
@@ -279,13 +279,13 @@ export async function handleThreadActivity(
               .maybeSingle();
             if (parentInChannel) {
               parentMessageId = parentInChannel.id;
-              logger.info(`📋 Parent message resolved via channel-scoped UUID: ${parentMessageId}`);
+              logger.info(`Parent message resolved via channel-scoped UUID: ${parentMessageId}`);
             }
           }
         }
 
         if (!parentMessageId) {
-          logger.warn(`❌ Parent message not found. inReplyTo=${threadObject.inReplyTo}, channel=${channel.id}`);
+          logger.warn(`Parent message not found. inReplyTo=${threadObject.inReplyTo}, channel=${channel.id}`);
           return { success: false, error: 'Parent message not found' };
         }
 
@@ -300,7 +300,7 @@ export async function handleThreadActivity(
 
         if (creatorByFedId) {
           creatorId = creatorByFedId.id;
-          logger.info(`📋 Creator resolved via federated_id: ${creatorId}`);
+          logger.info(`Creator resolved via federated_id: ${creatorId}`);
         } else {
           const usernameMatch = threadObject.attributedTo?.match(/\/users\/([^/]+)$/i);
           if (usernameMatch) {
@@ -311,13 +311,13 @@ export async function handleThreadActivity(
               .maybeSingle();
             if (creatorByUsername) {
               creatorId = creatorByUsername.id;
-              logger.info(`📋 Creator resolved via username: ${creatorId}`);
+              logger.info(`Creator resolved via username: ${creatorId}`);
             }
           }
         }
 
         if (!creatorId) {
-          logger.warn(`❌ Creator not found. attributedTo=${threadObject.attributedTo}`);
+          logger.warn(`Creator not found. attributedTo=${threadObject.attributedTo}`);
           return { success: false, error: 'Creator not found' };
         }
 
@@ -375,7 +375,7 @@ export async function handleThreadActivity(
             logger.error('Failed to update existing federated thread:', updateError);
             return { success: false, error: updateError.message };
           }
-          logger.info(`✅ Updated existing federated thread: ${threadObject.name} (id: ${existingThread.id})`);
+          logger.info(`Updated existing federated thread: ${threadObject.name} (id: ${existingThread.id})`);
 
           // Assign orphaned messages for existing threads too (thread may have existed but
           // messages arrived before ap_id was set)
@@ -393,7 +393,7 @@ export async function handleThreadActivity(
                   .from('messages')
                   .update({ thread_id: existingThread.id })
                   .in('id', orphanIds);
-                logger.info(`🔄 Retroactively assigned ${orphanIds.length} orphaned messages to existing thread ${existingThread.id}`);
+                logger.info(`Retroactively assigned ${orphanIds.length} orphaned messages to existing thread ${existingThread.id}`);
               }
             } catch (err) {
               logger.warn('Failed to retroactively assign orphaned messages (existing thread):', err);
@@ -417,7 +417,7 @@ export async function handleThreadActivity(
           threadData.id = threadIdMatch[1];
         }
 
-        logger.info(`📋 Inserting thread: id=${threadData.id || 'auto'}, channel_id=${threadData.channel_id}, parent_message_id=${threadData.parent_message_id}, created_by=${threadData.created_by}, ap_id=${threadData.ap_id}`);
+        logger.info(`Inserting thread: id=${threadData.id || 'auto'}, channel_id=${threadData.channel_id}, parent_message_id=${threadData.parent_message_id}, created_by=${threadData.created_by}, ap_id=${threadData.ap_id}`);
 
         const { error } = await supabase
           .from('threads')
@@ -439,7 +439,7 @@ export async function handleThreadActivity(
               logger.error('Failed to upsert federated thread:', upsertError);
               return { success: false, error: upsertError.message };
             }
-            logger.info(`✅ Upserted federated thread: ${threadObject.name}`);
+            logger.info(`Upserted federated thread: ${threadObject.name}`);
 
             // Also assign orphaned messages for the upsert case
             if (threadData.id && threadApId) {
@@ -456,7 +456,7 @@ export async function handleThreadActivity(
                     .from('messages')
                     .update({ thread_id: threadData.id })
                     .in('id', orphanIds);
-                  logger.info(`🔄 Retroactively assigned ${orphanIds.length} orphaned messages to thread ${threadData.id} (upsert)`);
+                  logger.info(`Retroactively assigned ${orphanIds.length} orphaned messages to thread ${threadData.id} (upsert)`);
                 }
               } catch (err) {
                 logger.warn('Failed to retroactively assign orphaned messages (upsert):', err);
@@ -469,7 +469,7 @@ export async function handleThreadActivity(
           return { success: false, error: error.message };
         }
 
-        logger.info(`✅ Created federated thread: "${threadObject.name}" (id: ${threadData.id}, ap_id: ${threadApId}, channel: ${channel.id})`);
+        logger.info(`Created federated thread: "${threadObject.name}" (id: ${threadData.id}, ap_id: ${threadApId}, channel: ${channel.id})`);
 
         // Retroactively assign orphaned messages that arrived before this thread.
         // These messages have pending_thread_ap_id in their metadata but thread_id = null.
@@ -488,7 +488,7 @@ export async function handleThreadActivity(
                 .from('messages')
                 .update({ thread_id: finalThreadId })
                 .in('id', orphanIds);
-              logger.info(`🔄 Retroactively assigned ${orphanIds.length} orphaned messages to thread ${finalThreadId}`);
+              logger.info(`Retroactively assigned ${orphanIds.length} orphaned messages to thread ${finalThreadId}`);
             }
           } catch (err) {
             logger.warn('Failed to retroactively assign orphaned messages to thread:', err);
@@ -519,7 +519,7 @@ export async function handleThreadActivity(
           return { success: false, error: error.message };
         }
 
-        logger.info(`✅ Updated federated thread: ${threadObject.name}`);
+        logger.info(`Updated federated thread: ${threadObject.name}`);
         return { success: true };
       }
 
@@ -536,7 +536,7 @@ export async function handleThreadActivity(
           return { success: false, error: error.message };
         }
 
-        logger.info(`✅ Deleted federated thread: ${threadObject.id}`);
+        logger.info(`Deleted federated thread: ${threadObject.id}`);
         return { success: true };
       }
 
@@ -576,7 +576,7 @@ export async function handleThreadActivity(
           return { success: false, error: error.message };
         }
 
-        logger.info(`✅ Added member to thread ${thread.id}`);
+        logger.info(`Added member to thread ${thread.id}`);
         return { success: true };
       }
 
@@ -612,7 +612,7 @@ export async function handleThreadActivity(
           return { success: false, error: error.message };
         }
 
-        logger.info(`✅ Removed member from thread ${thread.id}`);
+        logger.info(`Removed member from thread ${thread.id}`);
         return { success: true };
       }
 

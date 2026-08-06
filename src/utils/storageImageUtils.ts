@@ -3,13 +3,13 @@ import { supabase } from '@/supabase'
 /**
  * Shared helpers for Supabase-storage-backed images.
  *
- * Single source of truth for "is this URL one of our own storage hosts" (so it
- * can be transformed via imgproxy) and for building downscaled attachment
+ * Single source of truth for "is this URL a local storage host" (and therefore
+ * transformable via imgproxy) and for building downscaled attachment
  * thumbnails. Avatar/emoji/server-icon helpers reuse the hostname detection here
  * instead of each re-deriving it from env.
  */
 
-/** Hostnames that serve our local Supabase storage. Set via VITE_SUPABASE_URL
+/** Hostnames serving local Supabase storage. Set via VITE_SUPABASE_URL
  *  plus optional comma-separated VITE_STORAGE_DOMAIN. */
 function computeLocalStorageHostnames(): Set<string> {
   const out = new Set<string>()
@@ -48,11 +48,11 @@ export function isLocalStorageUrl(url: string): boolean {
  * Inline attachment thumbnails.
  *
  * Message/DM/thread galleries would otherwise render the raw upload, so a 12MB
- * photo is downloaded in full just to fill a ~400px mosaic cell. We downscale
- * local uploads through imgproxy for the inline view; the lightbox still opens
+ * photo is downloaded in full to fill a ~400px mosaic cell. Local uploads are
+ * downscaled through imgproxy for the inline view; the lightbox still opens
  * the raw URL at full size.
  *
- * Only our own `user_media` uploads are transformed. Remote URLs (Discord CDN,
+ * Only local `user_media` uploads are transformed. Remote URLs (Discord CDN,
  * federated/misskey, pasted links) can't be transformed and pass through.
  * Animated formats are left raw too - imgproxy would flatten them to one frame.
  */

@@ -14,7 +14,7 @@ export async function handleBlockJob(data: FederationJobData): Promise<void> {
   const supabase = getSupabaseClient();
   const { type, block_id, blocker_id, blocked_id } = data;
 
-  logger.info(`🚫 Processing block job: ${type} for block ${block_id}`);
+  logger.info(`Processing block job: ${type} for block ${block_id}`);
 
   try {
     const { data: blocker } = await supabase
@@ -57,7 +57,7 @@ export async function handleBlockJob(data: FederationJobData): Promise<void> {
 
       if (blocked.inbox_url) {
         await DeliveryQueue.sendToInbox(blocked.inbox_url, blockActivity, blocker.id);
-        logger.info(`✅ Block notification sent to ${blocked.inbox_url}`);
+        logger.info(`Block notification sent to ${blocked.inbox_url}`);
       }
     } else if (type === 'delete') {
       const undoBlockActivity = {
@@ -74,7 +74,7 @@ export async function handleBlockJob(data: FederationJobData): Promise<void> {
 
       if (blocked.inbox_url) {
         await DeliveryQueue.sendToInbox(blocked.inbox_url, undoBlockActivity, blocker.id);
-        logger.info(`✅ Unblock sent to ${blocked.inbox_url}`);
+        logger.info(`Unblock sent to ${blocked.inbox_url}`);
       }
     }
 

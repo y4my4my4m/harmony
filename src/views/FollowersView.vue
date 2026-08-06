@@ -1,6 +1,5 @@
 <template>
   <div class="followers-view" ref="scrollContainerRef">
-    <!-- Header -->
     <div class="view-header">
       <div class="header-content">
         <h1 class="page-title">
@@ -10,7 +9,6 @@
         <p class="page-subtitle">{{ viewSubtitle }}</p>
       </div>
       
-      <!-- View Toggle -->
       <div class="view-toggle">
         <button 
           @click="currentView = 'followers'"
@@ -40,15 +38,12 @@
       </div>
     </div>
 
-    <!-- Content -->
     <div class="followers-content">
-      <!-- Loading State -->
       <div v-if="isLoading && users.length === 0" class="loading-state">
         <LoadingSpinner :size="32" />
         <p>Loading {{ currentView }}...</p>
       </div>
 
-      <!-- Empty State -->
       <div v-else-if="users.length === 0" class="empty-state">
         <div class="empty-icon">
           <Icon :name="currentView === 'followers' ? 'users' : currentView === 'requests' ? 'user-plus' : 'user-check'" :size="64" />
@@ -65,7 +60,7 @@
         </router-link>
       </div>
 
-      <!-- Users List (virtualized) -->
+      <!-- Virtualized list -->
       <div v-else class="users-list">
         <div class="users-container" :style="{ height: `${usersTotalSize}px`, position: 'relative' }">
           <div
@@ -148,18 +143,15 @@ import type { FederatedUser } from '@/types';
 
 useI18n();
 
-// Components
 import UserCard from '@/components/activitypub/UserCard.vue';
 import Icon from '@/components/common/Icon.vue';
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 
-// Stores and composables
 const activityPubStore = useActivityPubStore();
 const authStore = useAuthStore();
 const router = useRouter();
 const toast = useToast();
 
-// Props
 interface Props {
   userId?: string;
   view?: 'followers' | 'following' | 'requests';
@@ -172,7 +164,6 @@ const props = withDefaults(defineProps<Props>(), {
   userProfile: undefined
 });
 
-// State
 const currentView = ref<'followers' | 'following' | 'requests'>(props.view);
 const users = ref<FederatedUser[]>([]);
 const isLoading = ref(false);
@@ -184,7 +175,6 @@ const processingRequests = ref(new Set<string>());
 const scrollContainerRef = ref<HTMLDivElement | null>(null);
 const sentinelRef = ref<HTMLDivElement | null>(null);
 
-// Virtual scrolling
 const usersVirtualizer = useVirtualizer<HTMLDivElement, Element>(
   computed(() => ({
     count: users.value.length,
@@ -202,7 +192,6 @@ const usersMeasureElement = (el: any) => {
   usersVirtualizer.value.measureElement(el);
 };
 
-// Infinite scroll
 let scrollObserver: IntersectionObserver | null = null;
 
 const setupScrollObserver = () => {
@@ -221,7 +210,6 @@ const setupScrollObserver = () => {
 
 watch([hasMore, sentinelRef], () => setupScrollObserver());
 
-// Computed
 const currentUserId = computed(() => authStore.session?.user?.id);
 
 const targetUserId = computed(() => {
@@ -261,7 +249,6 @@ const emptyStateMessage = computed(() => {
     : 'When you follow people, they\'ll appear here.';
 });
 
-// Methods
 const loadUsers = async (refresh = false) => {
   if (isLoading.value || !targetUserId.value) return;
   
@@ -313,14 +300,14 @@ const loadCounts = async () => {
   loadRequestsCount();
 
   try {
-    // If user profile data was passed as prop, use it (avoid extra query)
+    // Prop-supplied counts avoid the query.
     if (props.userProfile && props.userProfile.followers_count !== undefined) {
       followersCount.value = props.userProfile.followers_count || 0;
       followingCount.value = props.userProfile.following_count || 0;
       return;
     }
     
-    // Otherwise, lightweight query for just counts (fast indexed lookup)
+    // Count-only query; indexed lookup.
     const { data: userProfile, error } = await supabase
       .from('profiles')
       .select('followers_count, following_count')
@@ -345,16 +332,13 @@ const loadMore = () => {
   }
 };
 
-// Event handlers
 const handleFollow = (_userId: string) => {
-  // User was followed - just update count
-  // The UserCard already handled the actual follow via toggleFollow
+  // UserCard performs the follow via toggleFollow; only the count updates here.
   followingCount.value++;
 };
 
 const handleUnfollow = (userId: string) => {
-  // User was unfollowed - just update count and UI
-  // The UserCard already handled the actual unfollow via toggleFollow
+  // UserCard performs the unfollow via toggleFollow; count and list update here.
   followingCount.value--;
   
   if (currentView.value === 'following') {
@@ -406,7 +390,6 @@ const handleUserClick = (user: FederatedUser) => {
   router.push({ name: 'UserProfile', params: { handle } });
 };
 
-// Watchers
 watch(currentView, () => {
   users.value = [];
   hasMore.value = true;
@@ -424,9 +407,7 @@ watch(() => props.view, (newView) => {
   currentView.value = newView;
 });
 
-// Lifecycle
 onMounted(async () => {
-  // Ensure activityPubStore is initialized with followed users
   if (activityPubStore.followedUsers.size === 0 && authStore.session?.user) {
     await activityPubStore.loadFollowedUsers();
   }

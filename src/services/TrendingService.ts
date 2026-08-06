@@ -1,8 +1,3 @@
-/**
- * TrendingService - Handles trending content, hashtags, and explore functionality
- * Provides methods for discovering trending posts, hashtags, users, and instances
- */
-
 import { supabase } from '@/supabase';
 import type { TimelinePost, FederatedUser } from '@/types';
 import { debug } from '@/utils/debug'
@@ -64,7 +59,7 @@ export interface TrendingOptions {
    *  - `'media'`: only posts that contain at least one media attachment (uploads),
    *  - `'text'`: only posts with no media attachment,
    *  - `'all'`: no media constraint.
-   * Link-preview / oEmbed cards (stored in `metadata.embeds`) are NOT media.
+   * Link-preview / oEmbed cards (stored in `metadata.embeds`) are not media.
    */
   mediaFilter?: 'all' | 'media' | 'text';
   /** @deprecated use `mediaFilter: 'media'` */
@@ -84,15 +79,10 @@ export interface ExploreFilters {
   orderBy?: 'recent' | 'engagement';
 }
 
-// TRENDING SERVICE CLASS
-
 class TrendingService {
   
   // HASHTAG TRENDING METHODS
 
-  /**
-   * Get trending hashtags
-   */
   async getTrendingHashtags(options: TrendingOptions = {}): Promise<TrendingHashtag[]> {
     try {
       const { limit = 20 } = options;
@@ -121,9 +111,6 @@ class TrendingService {
     }
   }
 
-  /**
-   * Get hashtag statistics
-   */
   async getHashtagStats(tag: string): Promise<HashtagStats | null> {
     try {
       const { data, error } = await supabase
@@ -150,9 +137,6 @@ class TrendingService {
     }
   }
 
-  /**
-   * Search hashtags
-   */
   async searchHashtags(query: string, limit: number = 20): Promise<TrendingHashtag[]> {
     try {
       const normalizedQuery = query.toLowerCase().replace(/^#/, '');
@@ -172,7 +156,7 @@ class TrendingService {
         weekly_uses: row.weekly_uses || 0,
         trending_score: parseFloat(row.trending_score) || 0,
         trending_rank: row.trending_rank || 999,
-        change_percent: 0, // Would need additional calculation
+        change_percent: 0, // not computed by this query
         trend: 'stable' as const
       }));
     } catch (error) {
@@ -183,9 +167,6 @@ class TrendingService {
 
   // TRENDING POSTS METHODS
 
-  /**
-   * Get trending posts
-   */
   async getTrendingPosts(options: TrendingOptions = {}): Promise<TrendingPost[]> {
     try {
       const {
@@ -199,10 +180,10 @@ class TrendingService {
       } = options;
 
       // Map the media filter onto an explore content type. The precomputed
-      // `trending_posts` table can't honor media/instance/time filters at the
-      // row level (nested embeds + sparse buckets), so trending on the explore
-      // tab is sourced from a live, engagement-ranked `posts` query. This makes
-      // every filter (time window, instance, media vs text) actually apply.
+      // `trending_posts` table cannot honor media/instance/time filters at the
+      // row level (nested embeds, sparse buckets), so explore-tab trending is
+      // sourced from a live engagement-ranked `posts` query, where time window,
+      // instance and media/text filters all apply.
       const contentType: ExploreFilters['contentType'] =
         mediaFilter === 'media' || mediaOnly
           ? 'media'
@@ -243,9 +224,6 @@ class TrendingService {
       + (post.replies_count || 0);
   }
 
-  /**
-   * Get posts by hashtag
-   */
   async getPostsByHashtag(
     hashtag: string, 
     options: { limit?: number; cursor?: string } = {}
@@ -254,13 +232,12 @@ class TrendingService {
       const { limit = 20, cursor } = options;
       const normalizedTag = hashtag.toLowerCase().replace(/^#/, '');
 
-      debug.log(`🔍 Looking for hashtag: "${normalizedTag}" (original: "${hashtag}")`);
+      debug.log(`Looking for hashtag: "${normalizedTag}" (original: "${hashtag}")`);
 
-      // Step 1: Find the hashtag ID - try both tag and normalized_tag
+      // Step 1: resolve the hashtag ID from normalized_tag, else tag.
       let hashtagData: { id: string } | null = null;
       let hashtagError: any = null;
 
-      // First try normalized_tag
       const { data: data1 } = await supabase
         .from('hashtags')
         .select('id')
@@ -270,7 +247,7 @@ class TrendingService {
       if (data1) {
         hashtagData = data1;
       } else {
-        // Fallback: try the tag field
+        // Fallback: unnormalized `tag` column.
         const { data: data2, error: error2 } = await supabase
           .from('hashtags')
           .select('id')
@@ -283,13 +260,13 @@ class TrendingService {
       }
 
       if (!hashtagData) {
-        debug.log(`❌ Hashtag not found in DB: ${normalizedTag}`);
+        debug.log(`Hashtag not found in DB: ${normalizedTag}`);
         return { posts: [], hasMore: false, cursor: null };
       }
 
-      debug.log(`✅ Found hashtag ID: ${hashtagData.id}`);
+      debug.log(`Found hashtag ID: ${hashtagData.id}`);
 
-      // Step 2: Get post IDs with this hashtag
+      // Step 2: post IDs carrying this hashtag.
       let postHashtagQuery = supabase
         .from('post_hashtags')
         .select('post_id, created_at')
@@ -304,17 +281,17 @@ class TrendingService {
       const { data: postHashtags, error: phError } = await postHashtagQuery;
       if (phError) throw phError;
 
-      debug.log(`📝 Found ${postHashtags?.length || 0} post_hashtags entries`);
+      debug.log(`Found ${postHashtags?.length || 0} post_hashtags entries`);
 
       if (!postHashtags || postHashtags.length === 0) {
-        debug.log(`❌ No posts found for hashtag ${normalizedTag}`);
+        debug.log(`No posts found for hashtag ${normalizedTag}`);
         return { posts: [], hasMore: false, cursor: null };
       }
 
       const postIds = postHashtags.slice(0, limit).map(ph => ph.post_id);
-      debug.log(`📝 Post IDs: ${postIds.join(', ')}`);
+      debug.log(`Post IDs: ${postIds.join(', ')}`);
 
-      // Step 3: Fetch posts with those IDs (excluding deleted)
+      // Step 3: fetch those posts, excluding deleted.
       const { data: postsData, error: postsError } = await supabase
         .from('posts')
         .select(`
@@ -326,16 +303,16 @@ class TrendingService {
 
       if (postsError) throw postsError;
 
-      debug.log(`📝 Fetched ${postsData?.length || 0} posts from DB`);
+      debug.log(`Fetched ${postsData?.length || 0} posts from DB`);
 
-      // Maintain the original order from post_hashtags
+      // Preserve post_hashtags ordering; the `in` query returns rows unordered.
       const postsMap = new Map((postsData || []).map(p => [p.id, p]));
       const orderedPosts = postIds
         .map(id => postsMap.get(id))
         .filter(Boolean)
         .map((post: any) => this.transformDatabasePostToTimelinePost(post));
 
-      debug.log(`✅ Returning ${orderedPosts.length} posts for #${normalizedTag}`);
+      debug.log(`Returning ${orderedPosts.length} posts for #${normalizedTag}`);
 
       const hasMore = postHashtags.length > limit;
       const nextCursor = hasMore && postHashtags.length > 1 
@@ -351,17 +328,14 @@ class TrendingService {
 
   // TRENDING USERS METHODS
 
-  /**
-   * Get trending users (suggested follows)
-   * OPTIMIZED: Uses AuthContextService for cached auth lookup
-   */
+  /** Trending users, used as suggested follows. Auth lookup goes through AuthContextService's cache. */
   async getTrendingUsers(options: TrendingOptions = {}): Promise<TrendingUser[]> {
     try {
       const { limit = 10, instance, includeLocal = true, includeFederated = true } = options;
 
-      // Get current user's PROFILE id to exclude from trending users
-      // (profiles.id, not the auth UUID - they differ, and comparing the auth
-      // UUID meant you'd see yourself in your own "suggested follows").
+      // Exclusion key is profiles.id, not the auth UUID; the two differ, and
+      // comparing the auth UUID leaves the current user in their own
+      // suggested follows.
       const { authContextService } = await import('@/services/AuthContextService');
       const context = await authContextService.getCurrentContext();
       const currentUserId = context.profileId;
@@ -384,13 +358,13 @@ class TrendingService {
         `)
         .eq('is_suspended', false);
 
-      // "All Instances" includes federated users too - only narrow to a single
-      // domain when one is explicitly selected.
+      // "All Instances" includes federated users; narrow to one domain only
+      // when a domain is explicitly selected.
       if (instance && instance !== 'all') {
         query = query.eq('domain', instance);
       } else if (includeLocal && !includeFederated) {
-        // "This instance" only. Uses is_local so local users with a NULL domain
-        // are included (they wouldn't match domain = VITE_DOMAIN).
+        // "This instance" only. Filters on is_local so local users with a NULL
+        // domain are included; they do not match domain = VITE_DOMAIN.
         query = query.eq('is_local', true);
       } else if (!includeLocal && includeFederated) {
         query = query.eq('is_local', false);
@@ -461,9 +435,6 @@ class TrendingService {
 
   // INSTANCE DISCOVERY METHODS
 
-  /**
-   * Get federated instances for exploration
-   */
   async getFederatedInstances(options: {
     limit?: number;
     filter?: 'all' | 'active' | 'blocked' | 'trusted';
@@ -568,8 +539,9 @@ class TrendingService {
   private instanceByDomainInflight = new Map<string, Promise<any | null>>();
 
   /**
-   * Lightweight federated_instances row lookup by domain (cached).
-   * Used by badges and anywhere we need icon_url / software without full stats.
+   * Cached federated_instances row lookup by domain. Callers needing only
+   * icon_url / software, such as instance badges, use this instead of
+   * getInstanceStats.
    */
   async getFederatedInstanceByDomain(domain: string): Promise<any | null> {
     const normalized = domain.replace(/^https?:\/\//, '').replace(/\/$/, '').toLowerCase();
@@ -604,9 +576,6 @@ class TrendingService {
     return promise;
   }
 
-  /**
-   * Get instance statistics
-   */
   async getInstanceStats(domain: string): Promise<any | null> {
     try {
       const { data, error } = await supabase
@@ -637,9 +606,6 @@ class TrendingService {
 
   // EXPLORE CONTENT METHODS
 
-  /**
-   * Get explore content based on filters
-   */
   async getExploreContent(filters: ExploreFilters = {}): Promise<{
     posts: TimelinePost[];
     hashtags: TrendingHashtag[];
@@ -668,9 +634,6 @@ class TrendingService {
     }
   }
 
-  /**
-   * Get posts for explore feed
-   */
   async getExplorePosts(filters: ExploreFilters = {}): Promise<TimelinePost[]> {
     try {
       const {
@@ -685,9 +648,9 @@ class TrendingService {
 
       const timeThreshold = this.getTimeThreshold(timeRange);
 
-      // For engagement ranking we over-fetch the most recent candidates within
-      // the window, then rank client-side (PostgREST can't ORDER BY a weighted
-      // expression). Capped so a hot window can't pull an unbounded result set.
+      // Engagement ranking over-fetches recent candidates within the window and
+      // ranks client-side; PostgREST cannot ORDER BY a weighted expression.
+      // Capped at 100 so a hot window cannot pull an unbounded result set.
       const candidateLimit = orderBy === 'engagement'
         ? Math.min(Math.max(limit * 5, limit), 100)
         : limit;
@@ -705,12 +668,12 @@ class TrendingService {
         .order('created_at', { ascending: false })
         .limit(candidateLimit);
 
-      // Content type → real uploaded media (`media_attachments`), not oEmbed
-      // link previews (which live in `metadata.embeds`).
+      // Content type keys off uploaded media (`media_attachments`), not oEmbed
+      // link previews, which live in `metadata.embeds`.
       if (contentType === 'media') {
         query = query.not('media_attachments', 'eq', '[]');
       } else if (contentType === 'posts') {
-        // "Posts only" = no uploaded media attachment.
+        // "Posts only" means no uploaded media attachment.
         query = query.eq('media_attachments', '[]');
       }
 
@@ -718,7 +681,7 @@ class TrendingService {
         query = query.eq('author.domain', instance);
       }
 
-      // Local/federated scoping (only when exactly one is requested)
+      // Local/federated scoping applies only when exactly one is requested.
       if (includeLocal && !includeFederated) {
         query = query.eq('is_local', true);
       } else if (!includeLocal && includeFederated) {
@@ -744,9 +707,7 @@ class TrendingService {
 
   // MAINTENANCE METHODS
 
-  /**
-   * Update trending scores (should be called periodically)
-   */
+  /** Caller schedules this; nothing here runs it periodically. */
   async updateTrendingScores(): Promise<void> {
     try {
       await Promise.all([
@@ -758,9 +719,7 @@ class TrendingService {
     }
   }
 
-  /**
-   * Reset daily counters (should be called daily)
-   */
+  /** Intended for a daily schedule; caller owns the cadence. */
   async resetDailyCounters(): Promise<void> {
     try {
       await supabase.rpc('reset_daily_hashtag_counters');
@@ -784,8 +743,8 @@ class TrendingService {
     
     if (hoursSince < 24) return 'online';
     if (hoursSince < 24 * 7) return 'slow';
-    // Beyond a week without federation activity - we don't actually know;
-    // the instance may be fine, we just haven't exchanged data recently.
+    // Beyond a week without federation activity the state is unknown: no data
+    // has been exchanged recently, which says nothing about the instance.
     return 'unknown';
   }
 
@@ -857,8 +816,7 @@ class TrendingService {
   }
 
   private transformDatabasePostToTimelinePost(post: any): TimelinePost {
-    // Convert database post format to TimelinePost format
-    // This matches the logic from the ActivityPub store
+    // Mirrors the row → TimelinePost conversion in the ActivityPub store.
     let processedContent = post.content;
     
     if (typeof post.content === 'string') {
@@ -901,9 +859,9 @@ class TrendingService {
         bio: post.author.bio || '',
         is_local: !post.author.domain || post.author.domain === import.meta.env.VITE_DOMAIN as string,
         verified: post.author.verified || false,
-        followers_count: 0, // Would need separate query
-        following_count: 0, // Would need separate query
-        posts_count: 0, // Would need separate query
+        followers_count: 0, // counts are not selected by this query
+        following_count: 0,
+        posts_count: 0,
         created_at: post.author.created_at,
         updated_at: post.author.updated_at || post.author.created_at
       } as any) : {
@@ -922,10 +880,10 @@ class TrendingService {
         created_at: post.created_at,
         updated_at: post.created_at
       },
-      // Reblog data (stored as JSONB in database)
+      // Reblog data, JSONB on the row.
       reblog: post.reblog || undefined,
       reblog_author: post.reblog_author || undefined,
-      // Use provided interaction states if available (from RPC functions), otherwise false
+      // Interaction states arrive only from RPC-sourced rows; default false.
       is_favorited: post.is_favorited || false,
       is_reblogged: post.is_reblogged || false,
       is_bookmarked: post.is_bookmarked || false
@@ -933,5 +891,4 @@ class TrendingService {
   }
 }
 
-// Export singleton instance
 export const trendingService = new TrendingService(); 

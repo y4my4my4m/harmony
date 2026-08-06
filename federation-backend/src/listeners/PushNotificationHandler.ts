@@ -14,11 +14,11 @@ import { logger } from '../utils/logger.js';
  */
 export async function startPushNotificationListener(): Promise<void> {
   if (!PushNotificationService.initialize()) {
-    logger.warn('⚠️ Push notification listener not started (VAPID not configured)');
+    logger.warn('Push notification listener not started (VAPID not configured)');
     return;
   }
 
-  logger.info('📱 Starting push notification listener...');
+  logger.info('Starting push notification listener...');
 
   const supabase = getSupabaseClient();
 
@@ -47,7 +47,7 @@ export async function startPushNotificationListener(): Promise<void> {
             return;
           }
 
-          logger.debug(`📬 New notification for push: ${notification.type} to user ${notification.user_id}`);
+          logger.debug(`New notification for push: ${notification.type} to user ${notification.user_id}`);
 
           await PushNotificationService.sendForNotification(notification);
         } catch (error) {
@@ -57,15 +57,15 @@ export async function startPushNotificationListener(): Promise<void> {
     )
     .subscribe((status, err) => {
       if (err) {
-        logger.error('❌ Push notification listener error:', err);
+        logger.error('Push notification listener error:', err);
       }
       
       if (status === 'SUBSCRIBED') {
-        logger.info('✅ Push notification listener active');
+        logger.info('Push notification listener active');
       } else if (status === 'CHANNEL_ERROR') {
-        logger.error('❌ Push notification listener channel error');
+        logger.error('Push notification listener channel error');
       } else if (status === 'TIMED_OUT') {
-        logger.error('❌ Push notification listener timed out');
+        logger.error('Push notification listener timed out');
       }
     });
 
@@ -73,13 +73,13 @@ export async function startPushNotificationListener(): Promise<void> {
     try {
       const cleaned = await PushNotificationService.cleanupStaleSubscriptions();
       if (cleaned > 0) {
-        logger.info(`🧹 Cleaned up ${cleaned} stale push subscriptions`);
+        logger.info(`Cleaned up ${cleaned} stale push subscriptions`);
       }
     } catch (error) {
       logger.error('Error cleaning up stale subscriptions:', error);
     }
   }, 60 * 60 * 1000); // 1 hour
 
-  logger.info('📱 Push notification listener started');
+  logger.info('Push notification listener started');
 }
 

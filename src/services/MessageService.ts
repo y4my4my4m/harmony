@@ -17,8 +17,7 @@ export interface CreateDMMessageData {
   replyTo?: string
 }
 
-// Re-export for callers (chat stores, components) so they don't have to
-// reach into the core layer to use the fail-closed override flag.
+// Re-exported so callers need not import from the core layer.
 export type { SendOptions }
 
 export class MessageService {
@@ -32,12 +31,12 @@ export class MessageService {
   }
 
   /**
-   * Send a channel message (server channels are not federated).
+   * Server channels are not federated.
    *
-   * `options.allowPlaintextFallback` opts into plaintext sending when the
-   * channel is encryption-eligible but encryption fails / is unavailable.
-   * Default is fail-closed - callers must catch ENCRYPTION_* errors and
-   * confirm with the user before retrying with the override.
+   * `options.allowPlaintextFallback` permits plaintext when the channel is
+   * encryption-eligible but encryption is unavailable. Default is
+   * fail-closed: callers catch ENCRYPTION_* errors and confirm with the user
+   * before retrying with the override.
    */
   async sendChannelMessage(
     serverId: string,
@@ -48,26 +47,25 @@ export class MessageService {
     options?: SendOptions
   ): Promise<Message> {
     try {
-      debug.log(`🚀 MessageService: Sending channel message to: ${channelId}`)
+      debug.log(`MessageService: Sending channel message to: ${channelId}`)
 
-      // Channel messages are local-only (no federation by design)
+      // Channel messages are local-only; no federation.
       const message = await coreMessageService.sendChannelMessage(serverId, channelId, content, replyTo, extraMetadata, options)
 
-      debug.log(`✅ MessageService: Channel message sent successfully (local-only): ${message.id}`)
+      debug.log(`MessageService: Channel message sent successfully (local-only): ${message.id}`)
       return message
 
     } catch (error) {
-      debug.error('❌ MessageService: Failed to send channel message:', error)
+      debug.error('MessageService: Failed to send channel message:', error)
       throw error
     }
   }
 
   /**
-   *
-   * @param options.isSystem - If true, stores as system message (not federated)
-   * @param options.allowPlaintextFallback - explicit, user-confirmed opt-in
-   *   to send plaintext into a conversation that's marked encrypted when
-   *   encryption is unavailable. Default is fail-closed.
+   * @param options.isSystem - stores as a system message; not federated.
+   * @param options.allowPlaintextFallback - user-confirmed opt-in to send
+   *   plaintext into a conversation marked encrypted when encryption is
+   *   unavailable. Default is fail-closed.
    */
   async sendDMMessage(
     conversationId: string,
@@ -77,68 +75,64 @@ export class MessageService {
     extraMetadata?: Record<string, any>
   ): Promise<Message> {
     try {
-      debug.log(`🚀 MessageService: Sending DM message to conversation: ${conversationId}`)
+      debug.log(`MessageService: Sending DM message to conversation: ${conversationId}`)
 
       const message = await coreMessageService.sendDMMessage(conversationId, content, replyTo, options, extraMetadata)
 
       return message
 
     } catch (error) {
-      debug.error('❌ MessageService: Failed to send DM message:', error)
+      debug.error('MessageService: Failed to send DM message:', error)
       throw error
     }
   }
 
   async editMessage(messageId: string, newContent: MessagePart[]): Promise<Message> {
     try {
-      debug.log(`🚀 MessageService: Editing message: ${messageId}`)
+      debug.log(`MessageService: Editing message: ${messageId}`)
 
-      // Just edit the message - database triggers handle federation automatically
+      // Database triggers handle federation.
       const message = await coreMessageService.editMessage(messageId, newContent)
 
       return message
 
     } catch (error) {
-      debug.error('❌ MessageService: Failed to edit message:', error)
+      debug.error('MessageService: Failed to edit message:', error)
       throw error
     }
   }
 
   async deleteMessage(messageId: string): Promise<void> {
     try {
-      debug.log(`🚀 MessageService: Deleting message: ${messageId}`)
+      debug.log(`MessageService: Deleting message: ${messageId}`)
 
       await coreMessageService.deleteMessage(messageId)
 
     } catch (error) {
-      debug.error('❌ MessageService: Failed to delete message:', error)
+      debug.error('MessageService: Failed to delete message:', error)
       throw error
     }
   }
 
   /**
-   * Local-first design: chat reactions stay local, DM reactions may federate
+   * Channel reactions stay local; DM reactions may federate.
    */
   async toggleReaction(
     messageId: string,
     emojiId: string
   ): Promise<{ added: boolean }> {
     try {
-      debug.log(`🚀 MessageService: Toggling reaction for message: ${messageId}, emoji: ${emojiId}`)
+      debug.log(`MessageService: Toggling reaction for message: ${messageId}, emoji: ${emojiId}`)
 
-      // (chat reactions stay local, DM reactions may federate based on participants)
-      //
-      // We intentionally do NOT issue a follow-up COUNT query here: the
-      // reactions store already updates the count optimistically and then
-      // reconciles against the authoritative server data (via the per-message
-      // reconcile fetch + realtime), so the extra round-trip only added latency
-      // to every single reaction toggle without being consumed anywhere.
+      // No follow-up COUNT query: the reactions store updates counts
+      // optimistically and reconciles against the per-message reconcile fetch
+      // plus realtime.
       const result = await coreMessageService.toggleReaction(messageId, emojiId)
 
       return { added: result.added }
 
     } catch (error) {
-      debug.error('❌ MessageService: Failed to toggle message reaction:', error)
+      debug.error('MessageService: Failed to toggle message reaction:', error)
       throw error
     }
   }
@@ -150,22 +144,19 @@ export class MessageService {
     users: Array<{ id: string; username: string; display_name?: string }>;
   }>> {
     try {
-      debug.log(`🚀 MessageService: Loading reactions for message: ${messageId}`)
+      debug.log(`MessageService: Loading reactions for message: ${messageId}`)
 
       const reactions = await coreMessageService.getMessageReactions(messageId)
 
-      debug.log(`✅ MessageService: Loaded ${reactions.length} reaction groups`)
+      debug.log(`MessageService: Loaded ${reactions.length} reaction groups`)
       return reactions
 
     } catch (error) {
-      debug.error('❌ MessageService: Failed to load message reactions:', error)
+      debug.error('MessageService: Failed to load message reactions:', error)
       throw error
     }
   }
 
-  /**
-   * Get batch message reactions (delegated to core service for performance)
-   */
   async getBatchMessageReactions(messageIds: string[]): Promise<{
     [messageId: string]: Array<{
       emoji_id: string;
@@ -175,16 +166,15 @@ export class MessageService {
     }>;
   }> {
     try {
-      debug.log(`🚀 MessageService: Loading reactions for ${messageIds.length} messages`)
+      debug.log(`MessageService: Loading reactions for ${messageIds.length} messages`)
 
-      // Delegate to core service (optimized batch query)
       const reactions = await coreMessageService.getBatchMessageReactions(messageIds)
 
-      debug.log(`✅ MessageService: Loaded batch reactions successfully`)
+      debug.log(`MessageService: Loaded batch reactions successfully`)
       return reactions
 
     } catch (error) {
-      debug.error('❌ MessageService: Failed to load batch message reactions:', error)
+      debug.error('MessageService: Failed to load batch message reactions:', error)
       throw error
     }
   }
@@ -205,11 +195,10 @@ export class MessageService {
     nextCursor?: string;
   }> {
     try {
-      debug.log(`🚀 MessageService: Loading channel messages for: ${channelId}`)
+      debug.log(`MessageService: Loading channel messages for: ${channelId}`)
 
       const messages = await coreMessageService.loadChannelMessages(channelId, options)
 
-      // Transform core service response to match expected API
       const { limit = 50 } = options
       const hasMore = messages.length === limit
       const lastCreated = hasMore ? messages[messages.length - 1]?.created_at : undefined
@@ -221,11 +210,11 @@ export class MessageService {
         nextCursor
       }
 
-      debug.log(`✅ MessageService: Loaded ${messages.length} channel messages`)
+      debug.log(`MessageService: Loaded ${messages.length} channel messages`)
       return result
 
     } catch (error) {
-      debug.error('❌ MessageService: Failed to load channel messages:', error)
+      debug.error('MessageService: Failed to load channel messages:', error)
       throw error
     }
   }
@@ -244,11 +233,10 @@ export class MessageService {
     nextCursor?: string;
   }> {
     try {
-      debug.log(`🚀 MessageService: Loading conversation messages for: ${conversationId}`)
+      debug.log(`MessageService: Loading conversation messages for: ${conversationId}`)
 
       const messages = await coreMessageService.loadConversationMessages(conversationId, options)
 
-      // Transform core service response to match expected API
       const { limit = 50 } = options
       const hasMore = messages.length === limit
       const lastCreated = hasMore ? messages[messages.length - 1]?.created_at : undefined
@@ -260,43 +248,40 @@ export class MessageService {
         nextCursor
       }
 
-      debug.log(`✅ MessageService: Loaded ${messages.length} conversation messages`)
+      debug.log(`MessageService: Loaded ${messages.length} conversation messages`)
       return result
 
     } catch (error) {
-      debug.error('❌ MessageService: Failed to load conversation messages:', error)
+      debug.error('MessageService: Failed to load conversation messages:', error)
       throw error
     }
   }
 
   async loadMessage(messageId: string): Promise<Message | null> {
     try {
-      debug.log(`🚀 MessageService: Loading message: ${messageId}`)
+      debug.log(`MessageService: Loading message: ${messageId}`)
 
       const message = await coreMessageService.loadMessage(messageId)
 
       if (message) {
-        debug.log(`✅ MessageService: Message loaded successfully: ${messageId}`)
+        debug.log(`MessageService: Message loaded successfully: ${messageId}`)
       } else {
-        debug.log(`ℹ️ MessageService: Message not found: ${messageId}`)
+        debug.log(`ℹMessageService: Message not found: ${messageId}`)
       }
 
       return message
 
     } catch (error) {
-      debug.error('❌ MessageService: Failed to load message:', error)
+      debug.error('MessageService: Failed to load message:', error)
       throw error
     }
   }
 
   // MESSAGE PINNING
 
-  /**
-   * Pin a message in a channel or DM
-   */
   async pinMessage(messageId: string): Promise<boolean> {
     try {
-      debug.log(`📌 Pinning message: ${messageId}`)
+      debug.log(`Pinning message: ${messageId}`)
 
       const { error } = await supabase.rpc('pin_message', {
         p_message_id: messageId,
@@ -307,20 +292,17 @@ export class MessageService {
         throw this.createError('PIN_FAILED', error.message)
       }
 
-      debug.log(`✅ Message pinned successfully: ${messageId}`)
+      debug.log(`Message pinned successfully: ${messageId}`)
       return true
     } catch (error) {
-      debug.error('❌ Failed to pin message:', error)
+      debug.error('Failed to pin message:', error)
       throw error
     }
   }
 
-  /**
-   * Unpin a message
-   */
   async unpinMessage(messageId: string): Promise<boolean> {
     try {
-      debug.log(`📌 Unpinning message: ${messageId}`)
+      debug.log(`Unpinning message: ${messageId}`)
 
       const { error } = await supabase.rpc('unpin_message', {
         p_message_id: messageId,
@@ -331,22 +313,18 @@ export class MessageService {
         throw this.createError('UNPIN_FAILED', error.message)
       }
 
-      debug.log(`✅ Message unpinned successfully: ${messageId}`)
+      debug.log(`Message unpinned successfully: ${messageId}`)
       return true
     } catch (error) {
-      debug.error('❌ Failed to unpin message:', error)
+      debug.error('Failed to unpin message:', error)
       throw error
     }
   }
 
-  /**
-   * Get pinned messages for a channel
-   */
   async getPinnedChannelMessages(channelId: string): Promise<Message[]> {
     try {
-      debug.log(`📌 Loading pinned messages for channel: ${channelId}`)
+      debug.log(`Loading pinned messages for channel: ${channelId}`)
 
-      // Use direct query - fetch messages first, then get author info separately
       const { data, error } = await supabase
         .from('messages')
         .select('*')
@@ -360,7 +338,7 @@ export class MessageService {
         throw this.createError('LOAD_PINS_FAILED', error.message)
       }
 
-      // Transform to Message type - author info will be fetched by the component via useUserData
+      // Author fields are resolved by the component via useUserData.
       const messages = (data || []).map((m: any) => ({
         id: m.id,
         created_at: new Date(m.created_at),
@@ -375,22 +353,18 @@ export class MessageService {
         metadata: m.metadata || {},
       }))
 
-      debug.log(`✅ Loaded ${messages.length} pinned messages`)
+      debug.log(`Loaded ${messages.length} pinned messages`)
       return messages
     } catch (error) {
-      debug.error('❌ Failed to load pinned messages:', error)
+      debug.error('Failed to load pinned messages:', error)
       throw error
     }
   }
 
-  /**
-   * Get pinned messages for a DM conversation
-   */
   async getPinnedDMMessages(conversationId: string): Promise<Message[]> {
     try {
-      debug.log(`📌 Loading pinned messages for DM: ${conversationId}`)
+      debug.log(`Loading pinned messages for DM: ${conversationId}`)
 
-      // Use direct query - author info will be fetched by the component
       const { data, error } = await supabase
         .from('messages')
         .select('*')
@@ -404,7 +378,7 @@ export class MessageService {
         throw this.createError('LOAD_PINS_FAILED', error.message)
       }
 
-      // Transform to Message type - author info will be fetched by the component
+      // Author fields are resolved by the component via useUserData.
       const messages = (data || []).map((m: any) => ({
         id: m.id,
         created_at: new Date(m.created_at),
@@ -419,17 +393,14 @@ export class MessageService {
         metadata: m.metadata || {},
       }))
 
-      debug.log(`✅ Loaded ${messages.length} pinned DM messages`)
+      debug.log(`Loaded ${messages.length} pinned DM messages`)
       return messages
     } catch (error) {
-      debug.error('❌ Failed to load pinned DM messages:', error)
+      debug.error('Failed to load pinned DM messages:', error)
       throw error
     }
   }
 
-  /**
-   * Get pinned message count
-   */
   async getPinnedCount(channelId?: string, conversationId?: string): Promise<number> {
     try {
       const { data, error } = await supabase.rpc('count_pinned_messages', {

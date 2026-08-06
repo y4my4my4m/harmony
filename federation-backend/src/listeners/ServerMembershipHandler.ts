@@ -17,7 +17,7 @@ export async function handleUserJoinRemoteServer(payload: any): Promise<void> {
     const { user_id, server_id, server_ap_id, server_inbox } = payload;
     const supabase = getSupabaseClient();
 
-    logger.info(`🚪 User ${user_id} joining remote server ${server_id}`);
+    logger.info(`User ${user_id} joining remote server ${server_id}`);
 
     const { data: user } = await supabase
       .from('profiles')
@@ -41,7 +41,7 @@ export async function handleUserJoinRemoteServer(payload: any): Promise<void> {
 
     await DeliveryQueue.sendToInbox(server_inbox, activity, user.id);
 
-    logger.info(`✅ Sent Join activity to remote server`);
+    logger.info(`Sent Join activity to remote server`);
   } catch (error) {
     logger.error('Error handling user join remote server:', error);
   }
@@ -55,7 +55,7 @@ export async function handleUserLeaveRemoteServer(payload: any): Promise<void> {
     const { user_id, server_id, server_ap_id, server_inbox } = payload;
     const supabase = getSupabaseClient();
 
-    logger.info(`🚪 User ${user_id} leaving remote server ${server_id}`);
+    logger.info(`User ${user_id} leaving remote server ${server_id}`);
 
     const { data: user } = await supabase
       .from('profiles')
@@ -79,7 +79,7 @@ export async function handleUserLeaveRemoteServer(payload: any): Promise<void> {
 
     await DeliveryQueue.sendToInbox(server_inbox, activity, user.id);
 
-    logger.info(`✅ Sent Leave activity to remote server`);
+    logger.info(`Sent Leave activity to remote server`);
   } catch (error) {
     logger.error('Error handling user leave remote server:', error);
   }
@@ -93,7 +93,7 @@ export async function handleRemoteUserLeftServer(payload: any): Promise<void> {
     const { user_id, user_ap_id, server_id } = payload;
     const supabase = getSupabaseClient();
 
-    logger.info(`🚪 Remote user ${user_id} left local server ${server_id}`);
+    logger.info(`Remote user ${user_id} left local server ${server_id}`);
 
     const { data: server } = await supabase
       .from('servers')
@@ -130,7 +130,7 @@ export async function handleRemoteUserLeftServer(payload: any): Promise<void> {
       }
     }
 
-    logger.info(`✅ Broadcasted Leave activity to server members`);
+    logger.info(`Broadcasted Leave activity to server members`);
   } catch (error) {
     logger.error('Error handling remote user left server:', error);
   }

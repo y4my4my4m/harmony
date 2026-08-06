@@ -1,25 +1,20 @@
 /**
- * DeviceIdentityService
+ * Per-device encryption identity. A device registers itself on unlock; the only
+ * user-facing surfaces are "approve this login" and "unlock message history".
  *
- * Per-device encryption identity for the account-friendly, device-aware E2EE
- * model. The product goal (Discord-simple UX) is that this is INVISIBLE most of
- * the time: a device registers itself silently on unlock, and users only ever
- * see "approve this login" and "unlock message history".
+ * A device owns:
+ *  - A stable device id, persisted in localStorage per browser profile/install.
+ *  - An ECDSA P-256 signing keypair. The private key lives only in this device's
+ *    IndexedDB (non-extractable via deviceKeyStore); the public key is published
+ *    to `user_devices`. v3 messages are signed with it, so setting
+ *    user_devices.revoked_at cuts off the device's ability to produce verifiable
+ *    messages.
+ *  - A trust_state over the internal L0-L3 levels (untrusted / account /
+ *    recovery / verified). The numbers are not surfaced in the UI.
  *
- * What a device owns:
- *  - A stable device id (persisted in localStorage per browser profile/install).
- *  - Its own ECDSA P-256 signing keypair. The private key lives only in this
- *    device's IndexedDB (non-extractable via deviceKeyStore); the public key is
- *    published to `user_devices`. v3 messages are signed with this key, so
- *    revoking a device (user_devices.revoked_at) cryptographically cuts off its
- *    ability to produce verifiable messages.
- *  - A trust_state mapping to the internal L0-L3 levels (untrusted / account /
- *    recovery / verified). Users never see the numbers.
- *
- * Session-key ECDH exchange currently remains at the user-identity level (so the
- * existing recovery-key backup/restore semantics are preserved); device rows
- * still record `device_ecdh_public_key` so a later per-device ECDH fan-out can
- * be enabled without a schema change.
+ * Session-key ECDH exchange stays at the user-identity level, preserving
+ * recovery-key backup/restore semantics. Device rows record
+ * `device_ecdh_public_key` so per-device ECDH fan-out needs no schema change.
  */
 
 import { supabase } from '@/supabase'
@@ -69,15 +64,14 @@ export interface DeviceApprovalRequest {
 class DeviceIdentityService {
   private deviceId: string | null = null
   private userId: string | null = null
-  // Short fingerprint cache for the active signing keys of other devices,
-  // keyed by `${userId}:${deviceId}`.
+  // Short fingerprints of other devices' active signing keys, keyed by
+  // `${userId}:${deviceId}`.
   private signingKeyFingerprintCache = new Map<string, string>()
 
   /**
    * Stable per-device id. Generated once per browser profile / install and
-   * persisted in localStorage. Falls back to an in-memory id if localStorage
-   * is unavailable (e.g. strict private mode), which simply means the device
-   * is treated as ephemeral.
+   * persisted in localStorage. Falls back to an in-memory id when localStorage
+   * is unavailable (strict private mode); the device is then ephemeral.
    */
   getDeviceId(): string {
     if (this.deviceId) return this.deviceId
@@ -125,12 +119,12 @@ class DeviceIdentityService {
   /**
    * Register (or refresh) this device for the given user.
    *
-   * Identity policy: `device_id` names a signing key, not just a browser
-   * install. Same device_id + same signing key = same device. Same device_id +
-   * different signing key = new cryptographic identity → rotate device_id, insert
-   * a fresh row, and do not inherit verified trust. We never overwrite a
-   * non-null server-published signing key in place (that would orphan older v3
-   * messages signed under the previous key).
+   * Identity policy: `device_id` names a signing key, not a browser install.
+   * Same device_id + same signing key = same device. Same device_id +
+   * different signing key = new cryptographic identity → rotate device_id,
+   * insert a fresh row, do not inherit verified trust. A non-null
+   * server-published signing key is never overwritten in place; that would
+   * orphan older v3 messages signed under the previous key.
    *
    * @param trustState initial trust for a genuinely new device row only.
    */
@@ -158,7 +152,7 @@ class DeviceIdentityService {
 
     // A revoked row is dead; do not refresh it in place.
     if (existing?.revoked_at || existing?.trust_state === 'revoked') {
-      debug.warn('⚠️ Current device id is revoked; registering as a new device')
+      debug.warn('Current device id is revoked; registering as a new device')
       deviceId = this.rotateDeviceId()
       existing = null
       isNewIdentity = true
@@ -175,7 +169,7 @@ class DeviceIdentityService {
         deviceId,
       )
       if (!localPairValid) {
-        debug.warn('⚠️ Local cached signing public key does not match private key')
+        debug.warn('Local cached signing public key does not match private key')
         signingPublicSpki = null
       }
     }
@@ -220,7 +214,7 @@ class DeviceIdentityService {
       signingPublicSpki = minted.publicSpki
     } else if (!signingPublicSpki) {
       // Private key with no SPKI and no authoritative server key: first publish for this id.
-      debug.warn('⚠️ Device signing key missing public SPKI - minting a fresh keypair')
+      debug.warn('Device signing key missing public SPKI - minting a fresh keypair')
       const minted = await this.mintSigningKeypair(deviceId)
       signingPrivate = minted.privateKey
       signingPublicSpki = minted.publicSpki
@@ -228,18 +222,18 @@ class DeviceIdentityService {
 
     if (existing && !existing.revoked_at && existing.trust_state !== 'revoked') {
       const row = await this.touchExistingDeviceRow(existing, signingPrivate, signingPublicSpki)
-      // Recovery-phrase unlock is ROOT trust (stronger proof than another
-      // device tapping approve). A device that registered earlier in the boot
-      // as 'account'/'untrusted' and THEN completed recovery gets upgraded
-      // here - otherwise it stays low-trust forever, can't act as an
-      // approver, and keeps seeing its own "waiting for approval" card.
+      // Recovery-phrase unlock is root trust, stronger than another device
+      // tapping approve. A device registered earlier in the boot as
+      // 'account'/'untrusted' that then completes recovery is upgraded here;
+      // without it the device stays low-trust, cannot act as an approver, and
+      // keeps showing its own "waiting for approval" card.
       if (
         trustState === 'recovery' &&
         row &&
         (row.trust_state === 'account' || row.trust_state === 'untrusted')
       ) {
         await this.setTrustState(deviceId, 'recovery').catch(err =>
-          debug.warn('⚠️ Failed to elevate device trust after recovery unlock:', err),
+          debug.warn('Failed to elevate device trust after recovery unlock:', err),
         )
         row.trust_state = 'recovery'
       }
@@ -263,7 +257,7 @@ class DeviceIdentityService {
       .eq('device_id', deviceId)
       .maybeSingle()
     if (error) {
-      debug.warn('⚠️ Failed to load existing device row:', error)
+      debug.warn('Failed to load existing device row:', error)
       return { row: null, error: true }
     }
     return { row: (data || null) as UserDevice | null, error: false }
@@ -276,7 +270,7 @@ class DeviceIdentityService {
       localStorage.setItem(DEVICE_ID_STORAGE_KEY, newId)
     } catch { /* ephemeral session */ }
     this.deviceId = newId
-    debug.warn(`🔄 Rotated local device id → ${newId.substring(0, 8)}`)
+    debug.warn(`Rotated local device id → ${newId.substring(0, 8)}`)
     return newId
   }
 
@@ -320,7 +314,7 @@ class DeviceIdentityService {
       .select('*')
       .maybeSingle()
     if (error) {
-      debug.warn('⚠️ Failed to refresh device row:', error)
+      debug.warn('Failed to refresh device row:', error)
       return existing
     }
     return (updated || existing) as UserDevice
@@ -348,10 +342,10 @@ class DeviceIdentityService {
       .maybeSingle()
 
     if (error) {
-      debug.warn('⚠️ Failed to register device:', error)
+      debug.warn('Failed to register device:', error)
       return null
     }
-    debug.log(`📱 Registered device ${deviceId.substring(0, 8)} (${row.label})`)
+    debug.log(`Registered device ${deviceId.substring(0, 8)} (${row.label})`)
 
     try {
       const others = (await this.listActiveDevices(userId)).filter(d => d.device_id !== deviceId)
@@ -359,7 +353,7 @@ class DeviceIdentityService {
         await this.requestApproval(userId)
       }
     } catch (err) {
-      debug.warn('⚠️ Failed to raise new-login approval request:', err)
+      debug.warn('Failed to raise new-login approval request:', err)
     }
 
     return inserted as UserDevice
@@ -405,7 +399,7 @@ class DeviceIdentityService {
       .is('revoked_at', null)
       .order('created_at', { ascending: true })
     if (error) {
-      debug.warn('⚠️ Failed to list devices:', error)
+      debug.warn('Failed to list devices:', error)
       return []
     }
     return (data || []) as UserDevice[]
@@ -427,12 +421,11 @@ class DeviceIdentityService {
    * (userId, deviceId), used to verify v3 messages. Returns null if the device
    * is unknown or revoked - the caller treats that as a verification failure.
    */
-  // TTL cache for device signing keys. This sits on the per-message v3
-  // verification hot path - without it a cold channel load fires one RPC per
-  // message. Negative results (unknown/revoked device) are cached too, so a
-  // page of messages from an unknown device doesn't re-query N times; the
-  // flip side is that a freshly revoked device stays verifiable for up to
-  // the TTL on clients that already have its key cached.
+  // TTL cache on the per-message v3 verification path; without it a cold
+  // channel load fires one RPC per message. Negative results (unknown/revoked
+  // device) are cached too, so a page of messages from an unknown device does
+  // not re-query N times. Consequence: a freshly revoked device stays
+  // verifiable for up to the TTL on clients holding its cached key.
   private deviceSigningKeyCache = new Map<string, { spki: string | null; cachedAt: number }>()
   private deviceSigningKeyFetches = new Map<string, Promise<string | null>>()
   private static readonly DEVICE_KEY_CACHE_TTL_MS = 5 * 60_000
@@ -449,10 +442,10 @@ class DeviceIdentityService {
     if (inFlight) return inFlight
 
     const fetchPromise = (async (): Promise<string | null> => {
-      // user_devices SELECT is owner-only at the RLS layer, so cross-user lookups
-      // (verifying another sender's v3 messages) go through a SECURITY DEFINER RPC
-      // that returns ONLY the public signing key + revoked flag - never the rest of
-      // the device row (label / platform / last_seen / trust_state).
+      // user_devices SELECT is owner-only under RLS, so cross-user lookups
+      // (verifying another sender's v3 messages) go through a SECURITY DEFINER
+      // RPC returning only the public signing key and revoked flag - never
+      // label / platform / last_seen / trust_state.
       const { data, error } = await supabase.rpc('get_device_signing_key', {
         p_user_id: userId,
         p_device_id: deviceId,
@@ -475,11 +468,10 @@ class DeviceIdentityService {
   }
 
   /**
-   * Resolve the caller's profile id. Prefers the id set during ensureRegistered,
-   * but falls back to the auth context. This matters because device management
-   * (rename / sign out) is reachable while encryption is LOCKED - in which case
-   * ensureRegistered never ran and `this.userId` is null. Previously these
-   * methods early-returned on null, so the buttons silently did nothing.
+   * Resolve the caller's profile id. Prefers the id set during
+   * ensureRegistered, falls back to the auth context: device management
+   * (rename / sign out) is reachable while encryption is locked, where
+   * ensureRegistered has not run and `this.userId` is null.
    */
   private async resolveUserId(): Promise<string | null> {
     if (this.userId) return this.userId
@@ -494,7 +486,7 @@ class DeviceIdentityService {
   async revokeDevice(deviceId: string): Promise<void> {
     const userId = await this.resolveUserId()
     if (!userId) {
-      debug.warn('⚠️ revokeDevice: no profile id available')
+      debug.warn('revokeDevice: no profile id available')
       return
     }
     const { error } = await supabase
@@ -503,7 +495,7 @@ class DeviceIdentityService {
       .eq('user_id', userId)
       .eq('device_id', deviceId)
     if (error) {
-      debug.error('❌ Failed to revoke device:', error)
+      debug.error('Failed to revoke device:', error)
       throw new Error(error.message || 'Failed to sign out device')
     }
   }
@@ -511,7 +503,7 @@ class DeviceIdentityService {
   async renameDevice(deviceId: string, label: string): Promise<void> {
     const userId = await this.resolveUserId()
     if (!userId) {
-      debug.warn('⚠️ renameDevice: no profile id available')
+      debug.warn('renameDevice: no profile id available')
       return
     }
     const { error } = await supabase
@@ -520,7 +512,7 @@ class DeviceIdentityService {
       .eq('user_id', userId)
       .eq('device_id', deviceId)
     if (error) {
-      debug.error('❌ Failed to rename device:', error)
+      debug.error('Failed to rename device:', error)
       throw new Error(error.message || 'Failed to rename device')
     }
   }
@@ -539,7 +531,7 @@ class DeviceIdentityService {
   async deleteDevice(deviceId: string): Promise<void> {
     const userId = await this.resolveUserId()
     if (!userId) return
-    // Never delete the device we're currently using.
+    // Never delete the current device.
     if (deviceId === this.getDeviceId()) return
     const { error } = await supabase
       .from('user_devices')
@@ -547,17 +539,17 @@ class DeviceIdentityService {
       .eq('user_id', userId)
       .eq('device_id', deviceId)
     if (error) {
-      debug.error('❌ Failed to delete device:', error)
+      debug.error('Failed to delete device:', error)
       throw new Error(error.message || 'Failed to remove device')
     }
   }
 
   /**
-   * Garbage-collect dead device rows so the list doesn't grow without bound
-   * (every incognito login mints a fresh device id). Removes the caller's own
-   * rows that are either revoked a while ago or have gone silent for a long
-   * time. Conservative thresholds; never touches the current device. Returns
-   * how many rows were removed.
+   * Garbage-collect dead device rows; every incognito login mints a fresh
+   * device id, so the list otherwise grows without bound. Removes the caller's
+   * own rows that were revoked more than `revokedOlderThanDays` ago (default
+   * 30) or idle for more than `idleOlderThanDays` (default 90). Never touches
+   * the current device. Returns the number of rows removed.
    */
   async pruneStaleDevices(
     userId: string,
@@ -591,13 +583,11 @@ class DeviceIdentityService {
         removed++
       } catch { /* best-effort */ }
     }
-    if (removed > 0) debug.log(`🧹 Pruned ${removed} stale device row(s)`)
+    if (removed > 0) debug.log(`Pruned ${removed} stale device row(s)`)
     return removed
   }
 
-  // ---------------------------------------------------------------------------
   // Device approval ("new login - was this you?")
-  // ---------------------------------------------------------------------------
 
   /** Ask existing trusted devices to approve this one. */
   async requestApproval(userId: string, ecdhPublicKey?: string): Promise<string | null> {
@@ -613,7 +603,7 @@ class DeviceIdentityService {
       .select('id')
       .maybeSingle()
     if (error) {
-      debug.warn('⚠️ Failed to create device approval request:', error)
+      debug.warn('Failed to create device approval request:', error)
       return null
     }
     return (data as any)?.id ?? null
@@ -665,13 +655,12 @@ class DeviceIdentityService {
   }
 
   /**
-   * Whether THIS device should see the "approve/deny" prompt for `req`.
+   * Whether this device may see the "approve/deny" prompt for `req`.
    *
-   * Fresh logins (incognito, new install) must NOT act as approvers - they would
-   * otherwise see stale pending requests from previous sessions and get the
-   * confusing "someone signed in" card about themselves. Only an established
-   * session (predates the request, or explicitly recovery/verified trust) may
-   * approve another login.
+   * Fresh logins (incognito, new install) must not act as approvers; they would
+   * see stale pending requests from previous sessions and a "someone signed in"
+   * card about themselves. Only an established session - one that predates the
+   * request, or holds recovery/verified trust - may approve another login.
    */
   async canActAsApprover(userId: string, req: DeviceApprovalRequest): Promise<boolean> {
     if (req.requesting_device_id === this.getDeviceId()) return false
@@ -689,7 +678,7 @@ class DeviceIdentityService {
     return myCreated <= reqCreated - 5000
   }
 
-  /** Sign out THIS device row (for "this wasn't me" on a fresh login). */
+  /** Sign out this device's row ("this wasn't me" on a fresh login). */
   async revokeCurrentDevice(): Promise<void> {
     const userId = await this.resolveUserId()
     if (!userId) return
@@ -700,17 +689,18 @@ class DeviceIdentityService {
       .eq('user_id', userId)
       .eq('device_id', deviceId)
     if (error) {
-      debug.error('❌ Failed to revoke current device:', error)
+      debug.error('Failed to revoke current device:', error)
       throw new Error(error.message || 'Failed to secure account')
     }
   }
 
   /**
-   * Approve another device via the server-enforced RPC. The RPC verifies THIS
-   * device is an established approver (predates the request or already trusted),
-   * so a freshly-logged-in attacker device can't approve itself. It also elevates
-   * the requesting device to 'verified'. `encryptedSyncBundle` is the optional
-   * key-sync payload the requesting device picks up to unlock history (L3).
+   * Approve another device via the server-enforced RPC. The RPC verifies this
+   * device is an established approver (predates the request or already
+   * trusted), so a freshly-logged-in attacker device cannot approve itself, and
+   * elevates the requesting device to 'verified'. `encryptedSyncBundle` is the
+   * optional key-sync payload the requesting device picks up to unlock history
+   * (L3).
    */
   async approveDevice(requestId: string, encryptedSyncBundle?: string): Promise<void> {
     const { error } = await supabase.rpc('approve_device_request', {

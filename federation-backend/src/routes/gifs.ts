@@ -1,14 +1,14 @@
 /**
  * GIF proxy routes (Klipy)
  *
- * Authenticated proxy in front of Klipy. The browser never sees a Klipy key.
- * The ads decision is made here, server-side, from the viewer's supporter tier
- * and the instance toggle, so it cannot be bypassed by the client:
+ * Authenticated proxy in front of Klipy. The Klipy key never reaches the
+ * browser. The ads decision is server-side, from the viewer's supporter tier
+ * and the instance toggle, so the client cannot bypass it:
  *
  *   withAds = (an ad-enabled key exists) AND should_show_gif_ads(viewer)
  *
- * When withAds is false the no-ads key is used (and any stray ad objects are
- * stripped in KlipyService), so supporters get a clean, ad-free experience.
+ * When withAds is false the no-ads key is used and stray ad objects are
+ * stripped in KlipyService.
  */
 
 import { createHash, randomUUID, timingSafeEqual } from 'crypto';
@@ -35,10 +35,8 @@ import { resolveClientUserAgent } from '../utils/clientUserAgent.js';
 
 const router = Router();
 
-// ---------------------------------------------------------------------------
-// Input sanitization for everything forwarded to Klipy. Nothing user-supplied
-// reaches the upstream API (or our DB) without passing through these.
-// ---------------------------------------------------------------------------
+// Input sanitization for everything forwarded to Klipy. No user-supplied value
+// reaches the upstream API or the DB without passing through these.
 const QUERY_MAX_LEN = 100;
 
 /** Trim, strip control chars, collapse whitespace, and cap a free-text query. */
@@ -60,7 +58,7 @@ function sanitizeLocale(raw: unknown): string | undefined {
   return /^[a-z]{2}$/.test(code) ? code : undefined;
 }
 
-/** Clamp a page number to a sane positive range. */
+/** Clamp a page number to 1..100. */
 function sanitizePage(raw: unknown): number {
   const n = Number(raw);
   if (!Number.isFinite(n)) return 1;
@@ -180,12 +178,12 @@ function sanitizeAdParams(query: Record<string, unknown>): KlipyAdParams {
 }
 
 // AI emoji generation guardrails. The Klipy daily cap (20/key) is shared across
-// the whole instance, so we cap per-user too and never exceed the instance cap.
+// the whole instance, so a per-user cap applies on top of it.
 // Generated emoji become real custom emoji (public.emojis, scope 'user').
 const GEN_PROMPT_MAX_LEN = 200;
 const GEN_PER_USER_DAILY = 3;
 const GEN_INSTANCE_DAILY = 20;
-// Reuse the existing custom-emoji bucket so AI emoji render via the normal path.
+// Reuse the custom-emoji bucket so AI emoji render through the normal path.
 const GEN_BUCKET = 'emojis';
 const GEN_ALLOWED_MIME: Record<string, string> = {
   'image/png': 'png',
@@ -199,8 +197,8 @@ const GEN_NAME_MAX_LEN = 32;
 
 /**
  * Turn a free-text prompt into a safe emoji shortcode: lowercase, ASCII
- * alphanumerics + underscore only, collapsed and trimmed. Never trusts the
- * prompt as-is (it ends up in `:shortcode:` markup and the DB).
+ * alphanumerics + underscore only, collapsed and trimmed. The result lands in
+ * `:shortcode:` markup and the DB, so the raw prompt is never used.
  */
 function promptToShortcode(prompt: string): string {
   const slug = prompt
@@ -235,12 +233,11 @@ async function uniqueEmojiName(supabase: any, profileId: string, base: string): 
 /**
  * Short-lived cache of the per-viewer ads decision.
  *
- * `should_show_gif_ads` is two indexed lookups (instance_config by PK-ish key +
+ * `should_show_gif_ads` is two indexed lookups (instance_config by key +
  * instance_supporters by indexed user_id), run once per GIF feed request - not
- * per profile and not per item, so there is no N+1. The only realistic hot path
- * is a user paging/typing in the picker, which would re-ask the same answer
- * repeatedly. A tiny TTL cache collapses that burst into one DB round-trip while
- * staying fresh enough that a tier change is reflected within a minute.
+ * per profile and not per item, so there is no N+1. Paging or typing in the
+ * picker re-asks the same question repeatedly; the TTL cache collapses that
+ * burst into one DB round-trip and reflects a tier change within a minute.
  */
 const ADS_CACHE_TTL_MS = 60_000;
 const adsDecisionCache = new Map<string, { value: boolean; expires: number }>();
@@ -268,7 +265,7 @@ async function shouldShowAds(profileId: string | undefined): Promise<boolean> {
   }
 
   adsDecisionCache.set(profileId, { value, expires: now + ADS_CACHE_TTL_MS });
-  // Opportunistic cleanup so the map can't grow unbounded on a busy instance.
+  // Opportunistic eviction bounds map growth on a busy instance.
   if (adsDecisionCache.size > 5000) {
     for (const [key, entry] of adsDecisionCache) {
       if (entry.expires <= now) adsDecisionCache.delete(key);
@@ -292,8 +289,8 @@ async function handle(
   const perPage = sanitizePerPage(req.query.per_page);
   const locale = sanitizeLocale(req.query.locale);
 
-  // Klipy serves ad objects on the GIF feed only in our setup; other media
-  // feeds are kept ad-free (cleaner UX, and it skips the per-request ads lookup).
+  // Ad objects are requested on the GIF feed only; other media feeds stay
+  // ad-free and skip the per-request ads lookup.
   const tierAllowsAds = mediaType === 'gifs' ? await shouldShowAds(req.profileId) : false;
   const clientUserAgent = resolveClientUserAgent(req.headers);
   // Klipy documents mobile-only ad delivery with a browser-like User-Agent.
@@ -308,7 +305,7 @@ async function handle(
       page,
       perPage,
       locale,
-      // Profile id is a stable, non-PII UUID - ideal as Klipy's customer_id.
+      // Profile id is a stable, non-PII UUID; used as Klipy's customer_id.
       customerId: req.profileId || req.user.id,
       withAds,
       userAgent: clientUserAgent,
@@ -368,7 +365,6 @@ router.get('/:media/search', requireAuth, (req, res) => {
   return handle('search', media, req as AuthenticatedRequest, res);
 });
 
-/** Whether AI emoji generation is enabled for this instance. */
 async function isGenerationEnabled(): Promise<boolean> {
   try {
     const supabase = getSupabaseClient();
@@ -398,7 +394,7 @@ async function countGeneratedToday(profileId?: string): Promise<number> {
   const { count, error } = await q;
   if (error) {
     logger.warn('Failed to count generated emoji:', error.message);
-    // Fail safe: treat as at-limit so we never blow past Klipy's cap on errors.
+    // Fail safe: treat as at-limit so a count error cannot exceed Klipy's cap.
     return Number.MAX_SAFE_INTEGER;
   }
   return count ?? 0;
@@ -428,13 +424,13 @@ interface AiEmojiQuota {
   instanceDaily: number;
   instanceUsed: number;
   instanceRemaining: number;
-  /** What to actually show/enforce for this user (instance cap bounds everyone). */
+  /** Effective limit enforced for this user; the instance cap bounds everyone. */
   remaining: number;
 }
 
 /**
- * Compute the AI emoji generation quota for a user. Admins skip the per-user
- * cap but are still bounded by the instance-wide cap (Klipy's hard daily limit).
+ * Admins skip the per-user cap but remain bounded by the instance-wide cap
+ * (Klipy's hard daily limit).
  */
 async function getQuota(profileId: string): Promise<AiEmojiQuota> {
   const [enabled, isExempt, userUsed, instanceUsed] = await Promise.all([
@@ -464,22 +460,19 @@ async function getQuota(profileId: string): Promise<AiEmojiQuota> {
   };
 }
 
-// ---------------------------------------------------------------------------
 // Async AI emoji generation (webhook-driven).
 //
 // Klipy's generate endpoint returns a job id instantly and pushes the finished
-// emoji to a callback URL when done - so we never hold the HTTP request open
-// (that was causing the proxy/client to time out while the emoji still landed
-// in the DB). Flow:
-//   1. POST /ai-emojis/generate → kick off Klipy with our callback URL, record
-//      a pending job in memory, return 202 immediately.
-//   2. Klipy → POST /ai-emojis/callback?token=… with the result. We host the
-//      bytes, create the emoji, and broadcast `ai_emoji:generated` on the
+// emoji to a callback URL when done. Holding the HTTP request open until then
+// times out the proxy/client while the emoji still lands in the DB. Flow:
+//   1. POST /ai-emojis/generate → start Klipy with the callback URL, record a
+//      pending job in memory, return 202 immediately.
+//   2. Klipy → POST /ai-emojis/callback?token=… with the result. The bytes are
+//      hosted, the emoji created, and `ai_emoji:generated` broadcast on the
 //      user's realtime channel.
 //   3. Fallback: if no callback arrives, a detached server-side poll finalizes
-//      the same way. In-memory state is intentionally ephemeral - a backend
-//      restart mid-generation just drops the job (acceptable per product).
-// ---------------------------------------------------------------------------
+//      the same way. In-memory state is ephemeral - a backend restart
+//      mid-generation drops the job.
 
 interface PendingGeneration {
   profileId: string;
@@ -492,7 +485,7 @@ interface PendingGeneration {
 }
 
 const pendingGenerations = new Map<string, PendingGeneration>();
-// Klipy emoji generation is async; allow a generous window for the result.
+// Klipy emoji generation is asynchronous; a result can take minutes.
 const GEN_FALLBACK_POLL_MS = 6_000;
 const GEN_DEADLINE_MS = 120_000;
 
@@ -669,8 +662,7 @@ router.post('/ai-emojis/callback', async (req, res) => {
     res.status(403).json({ error: 'Invalid callback token' });
     return;
   }
-  // Acknowledge immediately; do the heavy lifting after responding so Klipy
-  // isn't kept waiting (and won't retry on our processing time).
+  // Acknowledge before processing so Klipy does not retry on processing time.
   res.status(200).json({ ok: true });
 
   try {
@@ -741,8 +733,8 @@ router.post('/ai-emojis/generate', requireAuth, async (req, res) => {
   }
 
   // Enforce per-user and instance daily caps (Klipy's 20/day is instance-wide).
-  // Instance admins/owners are exempt from the per-user cap but the instance
-  // cap still bounds everyone so we never blow past Klipy's hard limit.
+  // Instance admins/owners are exempt from the per-user cap; the instance cap
+  // bounds everyone, keeping the total under Klipy's hard limit.
   const quota = await getQuota(profileId);
   if (!quota.isExempt && quota.userRemaining <= 0) {
     return res.status(429).json({
@@ -756,8 +748,8 @@ router.post('/ai-emojis/generate', requireAuth, async (req, res) => {
   }
 
   try {
-    // Kick off Klipy generation with our webhook; it returns a job id at once
-    // and pushes the result to the callback (we never hold the request open).
+    // Klipy returns a job id at once and pushes the result to the callback;
+    // this request is not held open.
     const jobId = await startEmojiGeneration(prompt, {
       userAgent: resolveClientUserAgent(req.headers),
       callbackUrl: callbackUrl(),

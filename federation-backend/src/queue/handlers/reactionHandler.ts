@@ -17,10 +17,10 @@ export async function handleReactionJob(data: FederationJobData): Promise<void> 
   const supabase = getSupabaseClient();
   const { type, interaction_id, interaction_type, post_id, user_id, emoji_id, custom_emoji_content } = data;
 
-  logger.info(`❤️ Processing reaction job: ${type} for interaction ${interaction_id}`);
+  logger.info(`Processing reaction job: ${type} for interaction ${interaction_id}`);
 
   if (interaction_type === 'bookmark') {
-    logger.info(`⏭️ Bookmarks are private, skipping federation for ${interaction_id}`);
+    logger.info(`Bookmarks are private, skipping federation for ${interaction_id}`);
     await updateFederationStatus(interaction_id, 'post_interactions', 'skipped');
     return;
   }
@@ -33,7 +33,7 @@ export async function handleReactionJob(data: FederationJobData): Promise<void> 
       .single();
 
     if (!post) {
-      logger.info(`⏭️ Reaction on missing post (post_id=${post_id}), skipping federation`);
+      logger.info(`Reaction on missing post (post_id=${post_id}), skipping federation`);
       await updateFederationStatus(interaction_id, 'post_interactions', 'skipped');
       return;
     }
@@ -42,11 +42,11 @@ export async function handleReactionJob(data: FederationJobData): Promise<void> 
     if (!post.ap_id) {
       if (post.is_local !== false) {
         post.ap_id = `https://${config.INSTANCE_DOMAIN}/posts/${post.id}`;
-        logger.info(`🔧 Constructed ap_id for local post: ${post.ap_id}`);
+        logger.info(`Constructed ap_id for local post: ${post.ap_id}`);
         // Persist it for future lookups
         await supabase.from('posts').update({ ap_id: post.ap_id }).eq('id', post.id);
       } else {
-        logger.info(`⏭️ Remote post without ap_id (post_id=${post_id}), skipping federation`);
+        logger.info(`Remote post without ap_id (post_id=${post_id}), skipping federation`);
         await updateFederationStatus(interaction_id, 'post_interactions', 'skipped');
         return;
       }
@@ -59,7 +59,7 @@ export async function handleReactionJob(data: FederationJobData): Promise<void> 
       .single();
 
     if (!user || !user.is_local) {
-      logger.info(`⏭️ Reaction from remote/missing user (user_id=${user_id}, found=${!!user}, is_local=${user?.is_local}), skipping`);
+      logger.info(`Reaction from remote/missing user (user_id=${user_id}, found=${!!user}, is_local=${user?.is_local}), skipping`);
       await updateFederationStatus(interaction_id, 'post_interactions', 'skipped');
       return;
     }
@@ -73,42 +73,42 @@ export async function handleReactionJob(data: FederationJobData): Promise<void> 
       .single();
 
     if (!postAuthor) {
-      logger.info(`⏭️ Post author not found (author_id=${post.author_id}), skipping federation`);
+      logger.info(`Post author not found (author_id=${post.author_id}), skipping federation`);
       await updateFederationStatus(interaction_id, 'post_interactions', 'skipped');
       return;
     }
 
-    logger.info(`📋 Reaction context: post.ap_id=${post.ap_id}, postAuthor.is_local=${postAuthor.is_local}, emoji_id=${emoji_id}, custom_emoji_content=${custom_emoji_content}`);
+    logger.info(`Reaction context: post.ap_id=${post.ap_id}, postAuthor.is_local=${postAuthor.is_local}, emoji_id=${emoji_id}, custom_emoji_content=${custom_emoji_content}`);
 
     if (type === 'create') {
       const targetDomain = postAuthor.is_local ? undefined : (postAuthor.domain || undefined);
       const { content, emojiData } = await resolveOutboundEmoji(emoji_id, custom_emoji_content, targetDomain);
-      logger.info(`🎯 Resolved emoji: content="${content}", hasEmojiData=${!!emojiData}, emojiUrl=${emojiData?.url ?? 'none'}`);
+      logger.info(`Resolved emoji: content="${content}", hasEmojiData=${!!emojiData}, emojiUrl=${emojiData?.url ?? 'none'}`);
 
       if (!postAuthor.is_local && postAuthor.inbox_url) {
         const authorUrl = postAuthor.federated_id
           || `https://${postAuthor.domain}/users/${postAuthor.username}`;
         const activity = createLikeActivity(user, post.ap_id, content, emojiData ?? undefined, [authorUrl]);
-        logger.info(`📦 Like activity payload: ${JSON.stringify({ content: activity.content, _misskey_reaction: activity._misskey_reaction, tag: activity.tag })}`);
+        logger.info(`Like activity payload: ${JSON.stringify({ content: activity.content, _misskey_reaction: activity._misskey_reaction, tag: activity.tag })}`);
         await DeliveryQueue.sendToInbox(postAuthor.inbox_url, activity, user.id);
-        logger.info(`✅ Reaction federated to post author ${postAuthor.inbox_url}`);
+        logger.info(`Reaction federated to post author ${postAuthor.inbox_url}`);
       }
 
       const activity = createLikeActivity(user, post.ap_id, content, emojiData ?? undefined);
-      logger.info(`📦 Broadcast Like payload: ${JSON.stringify({ content: activity.content, _misskey_reaction: activity._misskey_reaction, tag: activity.tag })}`);
+      logger.info(`Broadcast Like payload: ${JSON.stringify({ content: activity.content, _misskey_reaction: activity._misskey_reaction, tag: activity.tag })}`);
       await DeliveryQueue.broadcastToFollowers(post.author_id, activity);
-      logger.info(`✅ Reaction broadcast to post author's remote followers`);
+      logger.info(`Reaction broadcast to post author's remote followers`);
       await updateFederationStatus(interaction_id, 'post_interactions', 'completed');
     } else if (type === 'delete') {
       const undoActivity = createUndoLikeActivity(user, post.ap_id);
 
       if (!postAuthor.is_local && postAuthor.inbox_url) {
         await DeliveryQueue.sendToInbox(postAuthor.inbox_url, undoActivity, user.id);
-        logger.info(`✅ Undo reaction queued for delivery to ${postAuthor.inbox_url}`);
+        logger.info(`Undo reaction queued for delivery to ${postAuthor.inbox_url}`);
       }
 
       await DeliveryQueue.broadcastToFollowers(post.author_id, undoActivity);
-      logger.info(`✅ Undo reaction broadcast to post author's remote followers`);
+      logger.info(`Undo reaction broadcast to post author's remote followers`);
       await updateFederationStatus(interaction_id, 'post_interactions', 'completed');
     } else {
       logger.warn(`Unknown reaction job type: ${type}`);

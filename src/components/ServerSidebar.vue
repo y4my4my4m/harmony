@@ -1,6 +1,6 @@
 <template>
   <div class="server-sidebar" data-testid="server-sidebar">
-    <!-- Fixed header section - never scrolls -->
+    <!-- Fixed header; does not scroll -->
     <div class="fixed-header">
 
       <div
@@ -12,7 +12,7 @@
       <span class="portal-icon" role="img" aria-label="Harmony Portal"></span>
       </div>
 
-      <!-- Today Button (beta, only when enabled in Advanced settings) -->
+      <!-- Today button; gated by the Advanced settings flag -->
       <div
         v-if="todayDashboardEnabled"
         class="header-item-wrapper"
@@ -38,7 +38,6 @@
       >
         <svg fill="#FFF" width="24px" height="24px" viewBox="0 0 24 24" role="img" xmlns="http://www.w3.org/2000/svg"><path d="M6.353 0v2.824H4.94v2.823H3.53v2.824H2.118v2.823H.706v2.824h8.47v2.823H7.765v2.824H6.353v2.823h1.412v-1.412h1.411v-1.411h1.412v-1.412H12V16.94h1.412v-1.41h1.412v-1.411h1.411v-1.412h1.412v-1.412h1.412V9.882h1.412V8.471h1.411V7.059h-4.235V5.647h1.412V4.235h1.412V2.824h1.411V1.412h1.412V0zm0 22.588H4.94V24h1.412zM7.765 2.824h9.882v1.411h-1.412v1.412h-1.411V7.06h-1.412v1.41H12v1.411h1.412v1.412H12V9.882h-1.412v1.412H9.176V9.882H7.765v1.412H6.353V9.882H4.94V8.471h1.412V5.647h1.412zM6.353 8.47v1.411h1.412v-1.41zm2.823 1.411h1.412v-1.41H9.176zm5.648 0h1.411v1.412h-1.411z"/></svg>
       </div> -->
-      <!-- DM Button at the top -->
       <div
         class="header-item-wrapper"
         @mouseenter="showSidebarTooltip($event, 'Direct Messages')"
@@ -59,7 +58,6 @@
         </div>
       </div>
 
-      <!-- Fediverse Button -->
       <div
         class="header-item-wrapper"
         @mouseenter="showSidebarTooltip($event, 'Fediverse')"
@@ -81,7 +79,6 @@
       <div class="separator"></div>
     </div>
 
-    <!-- Scrollable servers section -->
     <div 
       class="servers-scroll-area"
       :class="{ 'drag-over-bottom': isDraggingOverBottom }"
@@ -89,9 +86,8 @@
       @dragleave.prevent="handleScrollAreaDragLeave"
       @drop.prevent="handleDropOnScrollArea"
     >
-      <!-- Combined folders and servers, sorted by position -->
+      <!-- Folders and root servers interleaved by position -->
       <template v-for="item in sortedSidebarItems" :key="item.id">
-        <!-- Folder -->
         <div
           v-if="isFolder(item)"
           class="sidebar-item-wrapper folder-wrapper"
@@ -170,7 +166,6 @@
           <div v-if="getServerUnreadMentions(item.id) > 0" class="unread-badge">
             {{ getServerUnreadMentions(item.id) > 99 ? '99+' : getServerUnreadMentions(item.id) }}
           </div>
-          <!-- Folder creation indicator -->
           <div v-if="dragOverItemId === item.id && dropPosition === 'into' && draggingItemType === 'server'" class="folder-create-indicator">
             <svg viewBox="0 0 24 24" width="16" height="16">
               <path fill="currentColor" d="M10,4H4C2.89,4 2,4.89 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V8C22,6.89 21.1,6 20,6H12L10,4Z"/>
@@ -179,11 +174,9 @@
         </div>
       </template>
       
-      <!-- Bottom drop indicator -->
       <div v-if="isDraggingOverBottom" class="bottom-drop-indicator"></div>
     </div>
 
-    <!-- Folder Context Menu -->
     <ServerFolderContextMenu
       :is-visible="showFolderContextMenu"
       :position="contextMenuPosition"
@@ -196,7 +189,6 @@
       @mark-as-read="handleMarkFolderAsRead"
     />
 
-    <!-- Server Context Menu (for creating folder from server) -->
     <div 
       v-if="showServerContextMenu" 
       class="context-menu"
@@ -247,7 +239,6 @@
       </template>
     </div>
 
-    <!-- Folder Settings Modal -->
     <ServerFolderSettingsModal
       :is-open="showFolderModal"
       :folder="editingFolder"
@@ -255,7 +246,7 @@
       @saved="handleFolderSaved"
     />
 
-    <!-- Invite Modal (opened from the server context menu) -->
+    <!-- Opened from the server context menu -->
     <InviteModal
       :show="showInviteModal"
       :server-id="inviteServer?.id"
@@ -263,7 +254,6 @@
       @close="showInviteModal = false"
     />
 
-    <!-- Funding button (bottom of sidebar) -->
     <div v-if="fundingEnabled" class="fixed-footer">
       <div class="separator"></div>
       <div
@@ -281,7 +271,7 @@
     <FundingModal v-if="showFundingModal" @close="showFundingModal = false" />
   </div>
   
-  <!-- Sidebar Tooltip - Teleported to body to avoid overflow clipping -->
+  <!-- Teleported to body; the sidebar clips overflow -->
   <Teleport to="body">
     <Transition name="tooltip-fade">
       <div 
@@ -302,7 +292,6 @@
 </template>
 
 <script setup lang="ts">
-// TODO: Consider virtualizing server list for users with many servers/folders
 import { computed, ref, watch, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useServerChannelStore } from '@/stores/useServerChannel';
@@ -332,12 +321,11 @@ const emit = defineEmits<{
   (e: 'switch-to-chat'): void;
 }>();
 
-// Reactive state
 const showPublicServers = ref(false);
 const showFundingModal = ref(false);
 const fundingEnabled = ref(false);
 
-// Drag state for reordering and creating folders
+// Drag state for reordering and folder creation
 const draggingItemId = ref<string | null>(null);
 const draggingItemType = ref<'server' | 'folder' | null>(null);
 const dragOverItemId = ref<string | null>(null);
@@ -345,7 +333,6 @@ const dropPosition = ref<'before' | 'after' | 'into'>('after');
 const folderWasExpanded = ref<boolean>(false); // Track if folder was expanded before drag
 const isDraggingOverBottom = ref(false); // Track when dragging over empty bottom area
 
-// Tooltip state
 const sidebarTooltip = ref<{
   visible: boolean;
   name: string;
@@ -354,13 +341,12 @@ const sidebarTooltip = ref<{
 }>({ visible: false, name: '', y: 0 });
 const tooltipTimer = ref<ReturnType<typeof setTimeout> | null>(null);
 
-// Legacy refs for backwards compatibility
+// Legacy refs retained for backwards compatibility
 // eslint-disable-next-line unused-imports/no-unused-vars
 const draggingServerId = computed(() => draggingItemType.value === 'server' ? draggingItemId.value : null);
 // eslint-disable-next-line unused-imports/no-unused-vars
 const dragOverServerId = computed(() => dropPosition.value === 'into' ? dragOverItemId.value : null);
 
-// Context menu state
 const showFolderContextMenu = ref(false);
 const showServerContextMenu = ref(false);
 const contextMenuPosition = ref({ x: 0, y: 0 });
@@ -376,11 +362,9 @@ const openInviteFromContextMenu = () => {
   showInviteModal.value = !!inviteServer.value;
 };
 
-// Folder modal state
 const showFolderModal = ref(false);
 const editingFolder = ref<ServerFolderType | null>(null);
 
-// Composables and Stores
 const serverChannelStore = useServerChannelStore();
 const activityPubStore = useActivityPubStore();
 const { todayDashboardEnabled } = useTodayDashboard();
@@ -389,18 +373,16 @@ const { getServerUnreadMessages } = useUnreadCounts();
 const router = useRouter();
 const route = useRoute();
 
-// Combined and sorted sidebar items (folders and root servers interleaved by position)
+// Folders and root servers interleaved by position
 const sortedSidebarItems = computed(() => {
   const folders = serverChannelStore.folders.map(f => ({ ...f, _type: 'folder' as const }));
   const rootServers = props.servers
     .filter(s => !s.folder_id)
     .map(s => ({ ...s, _type: 'server' as const }));
   
-  // Combine and sort by position
   return [...folders, ...rootServers].sort((a, b) => (a.position || 0) - (b.position || 0));
 });
 
-// Computed properties
 const isDMSelected = computed(() => {
   return route.name === 'DM' || route.name === 'DMHome' || route.name === 'DMConversation';
 });
@@ -411,15 +393,11 @@ const isFediverseSelected = computed(() => {
   return isActivityPubRoute(route.name as string);
 });
 
-// The globe-icon badge should reflect what the user will *actually see and
-// be able to clear* by clicking through. /social/mentions is driven by
-// `activitypub_mention` notifications (see useActivityPub.loadMentionedPosts).
-// Counting any other AP type - follows, reblogs, favorites, even replies -
-// stranded the badge: the user clicked through, saw the post that came up
-// from the mention notification, but the reply/follow counts kept the badge
-// alive. Restrict to `activitypub_mention` so visiting the page (and
-// scrolling past the posts) consistently drives the badge back to zero.
-// Other AP notifications still surface in the bell-icon panel.
+// Globe badge counts `activitypub_mention` only. /social/mentions is driven by
+// that type (useActivityPub.loadMentionedPosts), so visiting the page drives
+// the badge to zero. Counting other AP types - follows, reblogs, favorites,
+// replies - strands the badge, since nothing reachable from it clears them.
+// Other AP notifications surface in the bell-icon panel.
 const unreadCount = computed(() => {
   return notificationStore.notifications.filter(
     n => !n.is_read && n.type === 'activitypub_mention'
@@ -430,7 +408,6 @@ const dmUnreadMentions = computed(() => {
   return notificationStore.unreadDMs;
 });
 
-// Methods
 const isFolder = (item: ServerFolderType | Server): item is ServerFolderType => {
   return 'is_expanded' in item;
 };
@@ -463,14 +440,12 @@ onMounted(async () => {
   fundingEnabled.value = config?.enabled ?? false
 })
 
-// Watchers
 watch(showPublicServers, (value) => {
   if (value) {
     emit('show-public-servers', value);
   }
 });
 
-// Navigation methods
 const togglePublicServers = () => {
   showPublicServers.value = !showPublicServers.value;
 };
@@ -501,8 +476,7 @@ const selectServer = async (serverId?: string) => {
   }
 
   // First visit: the structure is already cleared - also clear the message
-  // pane and land on the bare chat route so the user sees a clean loading
-  // state instead of the previous server's content.
+  // pane and land on the bare chat route, so no stale content shows.
   const { useChatStore } = await import('@/stores/useChat');
   useChatStore().clearMessages();
   router.push({ name: 'Chat' });
@@ -539,7 +513,7 @@ const goToFediverse = () => {
   router.push({ name: 'SocialHome' });
 };
 
-// Drag and drop handlers for reordering and creating folders
+// Drag and drop: reordering and folder creation
 const handleServerDragStart = (event: DragEvent, server: Server) => {
   draggingItemId.value = server.id;
   draggingItemType.value = 'server';
@@ -551,10 +525,8 @@ const handleServerDragStart = (event: DragEvent, server: Server) => {
 const handleFolderDragStart = (event: DragEvent, folder: ServerFolderType) => {
   const target = event.target as HTMLElement;
   
-  // Only handle if drag started on folder UI elements, not on servers inside
-  // Check if drag started on a server item inside the folder
+  // Servers inside the folder handle their own drag.
   if (target.closest('.folder-server-item') || target.closest('.server-item')) {
-    // Let the server handle its own drag
     return;
   }
   
@@ -573,12 +545,11 @@ const handleFolderDragStart = (event: DragEvent, folder: ServerFolderType) => {
 };
 
 const handleItemDragEnd = () => {
-  // Only handle if we were dragging something from this sidebar (not from inside a folder)
+  // Drags originating inside a folder are handled there.
   if (!draggingItemId.value) {
     return;
   }
   
-  // Re-expand folder if it was expanded before drag
   if (draggingItemType.value === 'folder' && folderWasExpanded.value) {
     const folder = serverChannelStore.folders.find(f => f.id === draggingItemId.value);
     if (folder && !folder.is_expanded) {
@@ -626,7 +597,7 @@ const updateDropPosition = (event: DragEvent, item: Server | ServerFolderType, i
   const relativeY = event.clientY - rect.top;
   const height = rect.height;
   
-  // Servers from folders or root servers being dragged over servers can create folders
+  // Dragging a server over a server can create a folder
   const canCreateFolder = (draggingItemType.value === 'server' || isDraggingFromFolder) && !isFolder(item);
   
   if (canCreateFolder) {
@@ -638,7 +609,7 @@ const updateDropPosition = (event: DragEvent, item: Server | ServerFolderType, i
       dropPosition.value = 'into'; // Create folder
     }
   } else {
-    // For folders or folder being dragged, just before/after
+    // Folder source or folder target: before/after only
     dropPosition.value = relativeY < height / 2 ? 'before' : 'after';
   }
 };
@@ -667,22 +638,22 @@ const handleItemDrop = async (event: DragEvent, targetItem: Server | ServerFolde
   if (isDraggingFromFolder) {
     const serversInFolder = props.servers.filter(s => s.folder_id === fromFolderId);
     
-    // If dropping into center of a server, create folder
+    // Center drop on a server creates a folder
     if (!targetIsFolder && dropPosition.value === 'into') {
-      // First move to root, then create folder
+      // Move to root before creating the folder
       await serverChannelStore.moveServerToFolder(draggedId, null);
       if (serversInFolder.length <= 1) {
         await serverChannelStore.deleteFolder(fromFolderId);
       }
       const targetServer = targetItem as Server;
-      // Use the actual index in the sorted list to get proper position
+      // Position is the index in the sorted list
       const targetIndex = sortedSidebarItems.value.findIndex(i => i.id === targetServer.id);
       await createFolderFromServers(draggedId, targetServer.id, targetIndex >= 0 ? targetIndex : 0);
       resetDragState();
       return;
     }
     
-    // Calculate target position first
+    // Target position is computed before the shift below
     const items = sortedSidebarItems.value;
     let targetPosition: number;
     
@@ -738,7 +709,7 @@ const handleItemDrop = async (event: DragEvent, targetItem: Server | ServerFolde
 };
 
 const createFolderFromServers = async (draggedServerId: string, targetServerId: string, position: number) => {
-  // First, shift all items at or after this position to make room
+  // Shift items at or after this position to make room
   const items = sortedSidebarItems.value;
   const serverUpdates: { serverId: string; folderId: string | null; position: number }[] = [];
   const folderUpdates: { folderId: string; position: number }[] = [];
@@ -818,8 +789,7 @@ const resetDragState = () => {
   isDraggingOverBottom.value = false;
 };
 
-// Tooltip handlers
-// Hide tooltip on route changes (fixes mobile where mouseleave doesn't fire reliably)
+// Route change hides the tooltip; mouseleave does not fire reliably on mobile
 watch(() => route.fullPath, () => {
   hideSidebarTooltip();
 });
@@ -892,11 +862,11 @@ const handleServerDroppedOnFolder = (serverId: string, folderId: string) => {
 };
 
 const handleServerRemovedFromFolder = (_serverId: string) => {
-  // Server was removed from folder via context menu - already handled in ServerFolder
+  // Removal is handled in ServerFolder
 };
 
 const handleDropOnScrollArea = async (event: DragEvent) => {
-  // If we dropped on an item or folder, don't handle here
+  // Drops on an item or folder are handled by that element
   const target = event.target as HTMLElement;
   const isOverItem = target.closest('.sidebar-item-wrapper') || 
                      target.closest('.folder-expanded') || 
@@ -929,7 +899,7 @@ const handleDropOnScrollArea = async (event: DragEvent) => {
       position: maxPosition
     }]);
     
-    // If folder is now empty, delete it
+    // Delete the source folder once its last server leaves
     if (serversInFolder.length <= 1) {
       await serverChannelStore.deleteFolder(fromFolderId);
     }
@@ -952,7 +922,6 @@ const handleDropOnScrollArea = async (event: DragEvent) => {
   resetDragState();
 };
 
-// Context menu handlers
 const openFolderContextMenu = (event: MouseEvent, folder: ServerFolderType) => {
   closeServerContextMenu();
   selectedFolder.value = folder;
@@ -990,7 +959,6 @@ const handleMarkServerAsRead = async () => {
   }
 };
 
-// Folder actions
 const openEditFolderModal = (folder: ServerFolderType) => {
   editingFolder.value = folder;
   showFolderModal.value = true;
@@ -1003,7 +971,7 @@ const closeFolderModal = () => {
 };
 
 const handleFolderSaved = (_folder: ServerFolderType) => {
-  // Folder saved - state is updated in store
+  // State is updated in the store
 };
 
 const handleDeleteFolder = async (folder: ServerFolderType) => {
@@ -1050,8 +1018,8 @@ const handleMarkFolderAsRead = async (folder: ServerFolderType) => {
       }
     }
 
-    // Also mark in-app notifications belonging to these channels as read so
-    // the bell badge and channel-mention counts catch up immediately.
+    // Mark in-app notifications for these channels read so the bell badge and
+    // channel-mention counts follow.
     if (channelIds.length > 0) {
       const channelIdSet = new Set(channelIds);
       const serverIdSet = new Set(serverIds);
@@ -1074,14 +1042,12 @@ const handleMarkFolderAsRead = async (folder: ServerFolderType) => {
   }
 };
 
-// Server context menu actions
 const createFolderFromServer = async () => {
   if (!selectedServer.value) return;
   
   const folderPosition = selectedServer.value.position || 0;
   const folder = await serverChannelStore.createFolder('', '#0EA5E9', folderPosition);
   if (folder) {
-    // Move the server to the new folder
     await serverChannelStore.moveServerToFolder(selectedServer.value.id, folder.id);
   }
   
@@ -1110,7 +1076,6 @@ const removeServerFromFolder = async () => {
   align-items: center;
 }
 
-/* Fixed header section */
 .fixed-header {
   flex-shrink: 0;
   display: flex;
@@ -1119,7 +1084,6 @@ const removeServerFromFolder = async () => {
   width: 100%;
 }
 
-/* Fixed footer section */
 .fixed-footer {
   flex-shrink: 0;
   display: flex;
@@ -1156,7 +1120,6 @@ const removeServerFromFolder = async () => {
   color: var(--text-on-primary, #ffffff);
 }
 
-/* Scrollable servers section */
 .servers-scroll-area {
   flex: 1;
   overflow-y: auto;
@@ -1181,7 +1144,6 @@ const removeServerFromFolder = async () => {
   flex-shrink: 0;
 }
 
-/* Bottom drop indicator - green bar */
 .bottom-drop-indicator {
   width: calc(100% - 16px);
   height: 4px;
@@ -1204,14 +1166,14 @@ const removeServerFromFolder = async () => {
   width: 100%;
 }
 
-/* Header item wrapper - same pattern as .server-item-wrapper */
+/* Mirrors .server-item-wrapper */
 .header-item-wrapper {
   position: relative;
   margin: 10px;
 }
 
-/* Portal bear – PNG is white-on-black; mask drops the black box so we can
-   tint the bear shape with theme-aware icon colors. */
+/* PNG is white-on-black; the mask drops the black box and leaves the bear
+   shape tintable with theme icon colors. */
 .portal-icon {
   width: 30px;
   height: 30px;
@@ -1232,7 +1194,6 @@ const removeServerFromFolder = async () => {
   background-color: var(--text-on-primary, #ffffff);
 }
 
-/* DM Button */
 .dm-button {
   width: 48px;
   height: 48px;
@@ -1274,7 +1235,6 @@ const removeServerFromFolder = async () => {
   color: var(--text-on-primary, #ffffff);
 }
 
-/* Fediverse Button */
 .fediverse-button {
   width: 48px;
   height: 48px;
@@ -1313,7 +1273,6 @@ const removeServerFromFolder = async () => {
   color: var(--text-on-primary, #ffffff);
 }
 
-/* Unread badge */
 .unread-badge {
   position: absolute;
   top: -8px;
@@ -1339,7 +1298,6 @@ const removeServerFromFolder = async () => {
   100% { transform: scale(1); }
 }
 
-/* Server item */
 .sidebar-item-wrapper {
   position: relative;
   margin: 4px 0;
@@ -1350,7 +1308,6 @@ const removeServerFromFolder = async () => {
   opacity: 0.3;
 }
 
-/* Drop position indicators - green bar */
 .sidebar-item-wrapper.drop-target-before::before,
 .sidebar-item-wrapper.drop-target-after::after {
   content: '';
@@ -1376,7 +1333,7 @@ const removeServerFromFolder = async () => {
   position: relative;
   left: 0;
   margin: 10px;
-  /* Optimize for smooth drag animations */
+  /* Drag animation hint */
   will-change: transform, opacity;
   transition: transform 0.15s ease-out, left 0.2s ease-out, opacity 0.15s ease-out;
 }
@@ -1442,7 +1399,6 @@ const removeServerFromFolder = async () => {
   margin-bottom: 5px;
 }
 
-/*  white pill indicator */
 .server-pill {
   position: absolute;
   left: -12px;
@@ -1477,7 +1433,7 @@ const removeServerFromFolder = async () => {
   height: 36px;
 }
 
-/* Header wrappers stay still - pill just grows, no counter-shift */
+/* Header wrappers do not move; pill grows without counter-shift */
 .header-item-wrapper:hover .server-pill {
   opacity: 1;
   height: 20px;
@@ -1497,15 +1453,13 @@ const removeServerFromFolder = async () => {
   border-radius: 50%;
 }
 
-/* Make server images non-selectable/non-draggable */
 .server-item :deep(img) {
   user-select: none;
   -webkit-user-drag: none;
   pointer-events: none;
 }
 
-/* Drag to create folder */
-/* Drop into center - create folder indicator */
+/* Center drop target: creates a folder */
 .server-item-wrapper.drop-target-into {
   transform: scale(1.1);
 }
@@ -1524,15 +1478,14 @@ const removeServerFromFolder = async () => {
   outline-offset: 2px;
 }
 
-/* Folder wrapper dragging state */
 .folder-wrapper.is-dragging {
   opacity: 0.3;
 }
 
-/* Folder wrapper positioning for drop zones */
+/* Anchors the absolutely positioned drop zones */
 .folder-wrapper {
   position: relative;
-  /* Optimize for smooth drag animations */
+  /* Drag animation hint */
   will-change: transform, opacity;
   transition: transform 0.15s ease-out, opacity 0.15s ease-out;
 }
@@ -1575,7 +1528,6 @@ const removeServerFromFolder = async () => {
   to { transform: scale(1.15); }
 }
 
-/* Context menu */
 .context-menu {
   position: fixed;
   background: var(--background-floating, #18191c);
@@ -1624,7 +1576,6 @@ const removeServerFromFolder = async () => {
   flex-shrink: 0;
 }
 
-/* Sidebar Tooltip */
 .sidebar-tooltip {
   position: fixed;
   left: 80px;
@@ -1668,7 +1619,6 @@ const removeServerFromFolder = async () => {
   border-right: 6px solid var(--tooltip-arrow, #18191c);
 }
 
-/* Tooltip animation */
 .tooltip-fade-enter-active {
   transition: opacity 0.15s ease, transform 0.15s ease;
 }

@@ -23,8 +23,8 @@ export interface ResolvedEmoji {
  * Format a pre-fetched emoji object for outbound federation.
  * Used when emoji data is already available (e.g. from a Supabase JOIN).
  *
- * @param targetDomain - When set, if the emoji originates from this domain
- *                       we use `:name:` instead of `:name@domain:` so the
+ * @param targetDomain - When set, an emoji originating from this domain is
+ *                       emitted as `:name:` rather than `:name@domain:` so the
  *                       remote instance recognises it as its own local emoji.
  */
 export function formatEmojiForFederation(
@@ -40,8 +40,8 @@ export function formatEmojiForFederation(
     const fullUrl = getFullEmojiUrl(emoji.url) || emoji.url;
     // When the emoji originates from the target instance, use `:name:` (local)
     // so the remote instance recognises it as its own emoji.
-    // Otherwise always qualify with the originating domain - our own local
-    // emojis are never "local" to a remote instance.
+    // Otherwise qualify with the originating domain - local emojis are never
+    // "local" to a remote instance.
     const useLocalShortcode = emoji.domain
       ? (targetDomain && emoji.domain.toLowerCase() === targetDomain.toLowerCase())
       : false;

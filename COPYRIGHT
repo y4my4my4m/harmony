@@ -20,7 +20,9 @@ with this program.  If not, see <https://www.gnu.org/licenses/>.
 --------------------------------------------------------------------------------
 
 The "Harmony" name and the polar-bear logo (🐻‍❄️ + iconography under
-`public/icon_3d.webp`, `public/favicon/`, and `src-tauri/icons/`) are NOT
+`public/icon_3d.webp`, `public/favicon/`, `src-tauri/icons/`,
+`public/img/app_icon*.png`, `public/img/app_icon*.webp`,
+`public/default_avatar.webp`, and `public/default_server.webp`) are NOT
 licensed under the AGPL and are not granted to you by this license. See
 TRADEMARK.md for the project's name and logo policy.
 
@@ -30,10 +32,46 @@ Third-party assets bundled with this project, with their own licenses:
 
   - Twemoji (default emoji set)            CC-BY 4.0
     public/assets/emojis/twemoji/
+    Copyright 2020 Twitter, Inc and other contributors
     https://github.com/twitter/twemoji
+    License: https://creativecommons.org/licenses/by/4.0/
+    Modified: public/assets/emoji_sheet.webp is a derivative of these SVGs,
+    rasterised and tiled into a sprite sheet by public/assets/make_emojisheet.sh.
 
-  - Various web fonts under public/assets/fonts/  - see individual files
-    for their respective licenses.
+  - Figtree                                SIL Open Font License 1.1
+    public/assets/fonts/Figtree-latin.woff2
+    public/assets/fonts/Figtree-latin-ext.woff2
+    Copyright notice and full license text: public/assets/fonts/Figtree-OFL.txt
+
+  - Feather-style icon set                 MIT
+    public/assets/skins/sdr-001/icons/
+    Copyright (c) 2019 Gerrit Halfmann
+    Full license text: public/assets/skins/sdr-001/icons/LICENSE.txt
+
+  - KLIPY brand marks                      third-party trademark
+    public/assets/3rdparty/KLIPY_Light_text.png
+    public/assets/3rdparty/KLIPY_TEXT_LIGHT.svg
+    Not licensed under the AGPL. Bundled solely to satisfy the attribution
+    requirement of the KLIPY API terms. Remove them if the KLIPY integration
+    is disabled.
+
+NoRe Sans Pixel Pro (public/assets/fonts/nore-sans-pixel-pro-v2/) is an
+original typeface by y4my4m and is covered by this project's license.
+
+--------------------------------------------------------------------------------
+
+Generated assets:
+
+  The bundled sound packs (public/assets/sounds/default/, futuristic/,
+  harmony/, neokobe/) and the login, 404 and offline background images
+  (public/backgrounds/) were produced with commercial generative APIs on paid
+  plans whose terms grant the project the right to use, distribute and
+  sublicense the output. They are distributed as part of this program under
+  the same license as the rest of the project.
+
+  Note that in some jurisdictions purely machine-generated material may not
+  attract copyright at all. Where that is the case these files are simply
+  unencumbered; it does not affect your rights to the rest of this program.
 
 --------------------------------------------------------------------------------
 

@@ -12,7 +12,7 @@ import {
   messageTextLength,
 } from '@/utils/messageContentUtils'
 
-// Lazy load and auto-initialize Megolm encryption service
+// Megolm encryption service: lazy-imported, initialized on first use.
 let megolmEncryptionService: any = null
 async function getEncryptionService() {
   if (!megolmEncryptionService) {
@@ -20,7 +20,7 @@ async function getEncryptionService() {
       const module = await import('@/services/encryption/MegolmMessageEncryptionService')
       megolmEncryptionService = module.megolmMessageEncryptionService
     } catch (error) {
-      debug.warn('⚠️ Megolm encryption service not available:', error)
+      debug.warn('Megolm encryption service not available:', error)
       megolmEncryptionService = null
     }
   }
@@ -28,11 +28,11 @@ async function getEncryptionService() {
     try {
       const { data: { session } } = await supabase.auth.getSession()
       if (session?.user?.id) {
-        debug.log('🔐 Lazy-initializing encryption service...')
+        debug.log('Lazy-initializing encryption service...')
         await megolmEncryptionService.initialize(session.user.id)
       }
     } catch (error) {
-      debug.warn('⚠️ Failed to lazy-initialize encryption:', error)
+      debug.warn('Failed to lazy-initialize encryption:', error)
     }
   }
   return megolmEncryptionService
@@ -56,17 +56,16 @@ export interface CoreMessageServiceError {
 /**
  * Send-time encryption policy options.
  *
- * Default policy is **fail closed**: if a channel or DM is configured for
+ * Default policy is fail closed: when a channel or DM is configured for
  * encryption and encryption is unavailable or fails, the send is rejected
- * with an ENCRYPTION_* error code. UIs MUST surface that error to the user
- * and obtain explicit consent before retrying with `allowPlaintextFallback`.
+ * with an ENCRYPTION_* error code. The UI must surface that error and obtain
+ * explicit consent before retrying with `allowPlaintextFallback`.
  */
 export interface SendOptions {
   /**
-   * If true, callers acknowledge the encryption attempt may fail and the
-   * message will be sent in plaintext anyway. Must be the result of a
-   * deliberate, user-confirmed action (e.g. "Send unencrypted anyway").
-   * Has no effect when the server enforces `encryption_mode = 'required'`.
+   * Sends plaintext when encryption is unavailable or fails. Requires a
+   * user-confirmed action. No effect when the server enforces
+   * `encryption_mode = 'required'`.
    */
   allowPlaintextFallback?: boolean
 }
@@ -84,12 +83,11 @@ export class CoreMessageService {
   // MESSAGE CREATION (PURE LOCAL)
 
   /**
-   * Fetch the admin-configured max message length from `instance_config`.
-   * Falls back to `DEFAULT_MAX_MESSAGE_TEXT_LENGTH` if the row is missing
-   * or unparseable. Always clamped to `[1, MESSAGE_TEXT_HARD_CEILING]` so a
-   * misconfigured admin can't either disable the limit (0) or push it
-   * past the DB-side hard ceiling (which would then reject the insert
-   * with a less informative error).
+   * Reads `instance_config.max_message_length`. Falls back to
+   * `DEFAULT_MAX_MESSAGE_TEXT_LENGTH` when the row is missing or
+   * unparseable. Clamped to `[1, MESSAGE_TEXT_HARD_CEILING]`: 0 would
+   * disable the limit, and anything above the ceiling would be rejected by
+   * the DB constraint with a less informative error.
    */
   private async getMaxMessageLength(): Promise<number> {
     const { data } = await supabase
@@ -111,17 +109,14 @@ export class CoreMessageService {
   }
 
   /**
-   * Reject message payloads whose combined text length exceeds the admin
-   * soft limit (`instance_config.max_message_length`). Mirrors the
-   * client-side check in `MessageInput.vue` so the same number is the
-   * authoritative limit at every layer.
+   * Rejects payloads whose combined text length exceeds the soft limit
+   * `instance_config.max_message_length`. Mirrors the check in
+   * `MessageInput.vue`.
    *
-   * The check runs on the *plaintext* content, before any encryption
-   * step, so an attacker who modifies the client cannot bypass it by
-   * re-encrypting the over-limit payload locally. The DB-side CHECK
-   * constraint provides an absolute upper bound at `MESSAGE_TEXT_HARD_CEILING`
-   * for cases where this code path is skipped (direct PostgREST insert,
-   * bot gateway, federation backend).
+   * Runs on plaintext content, before encryption, so a modified client
+   * cannot bypass it by re-encrypting an over-limit payload. The DB CHECK
+   * constraint bounds paths that skip this code (direct PostgREST insert,
+   * bot gateway, federation backend) at `MESSAGE_TEXT_HARD_CEILING`.
    */
   private async assertContentWithinLimit(content: MessagePart[]): Promise<void> {
     const limit = await this.getMaxMessageLength()
@@ -134,9 +129,7 @@ export class CoreMessageService {
     }
   }
 
-  /**
-   * Fetch max media attachments limit from instance config (default 20)
-   */
+  // instance_config.max_media_attachments_per_post; defaults to 20.
   private async getMaxMediaAttachments(): Promise<number> {
     const { data } = await supabase
       .from('instance_config')
@@ -150,16 +143,16 @@ export class CoreMessageService {
   }
 
   /**
-   * Send a server channel message (pure local database operation)
+   * Inserts a channel message locally. No federation side effects.
    *
-   * Encryption policy:
-   *   - `disabled`: always plaintext (no opt-in needed).
+   * Encryption policy by `server_encryption_settings.encryption_mode`:
+   *   - `disabled`: always plaintext.
    *   - `required`: must encrypt. Lock/setup/encrypt failure rejects the send.
    *     `options.allowPlaintextFallback` is ignored.
-   *   - `optional`: tries to encrypt when keys are unlocked. Without
+   *   - `optional`: encrypts when keys are unlocked. Without
    *     `options.allowPlaintextFallback === true`, missing keys, locked
-   *     encryption, or encryption errors reject the send (`fail closed`).
-   *     With explicit opt-in, the message falls back to plaintext.
+   *     encryption, or encryption errors reject the send. With explicit
+   *     opt-in, the message falls back to plaintext.
    */
   async sendChannelMessage(
     serverId: string,
@@ -170,12 +163,10 @@ export class CoreMessageService {
     options?: SendOptions
   ): Promise<Message> {
     try {
-      // Enforce max message length BEFORE encryption so the error message
-      // points to the actual problem ("too long") rather than a downstream
-      // ciphertext-size failure.
+      // Length check runs BEFORE encryption; otherwise the failure surfaces
+      // as a downstream ciphertext-size error.
       await this.assertContentWithinLimit(content)
 
-      // Enforce max media attachments per message (instance config, default 20)
       const fileParts = content.filter((p: any) => p?.type === 'file')
       const maxMedia = await this.getMaxMediaAttachments()
       if (fileParts.length > maxMedia) {
@@ -187,7 +178,6 @@ export class CoreMessageService {
         throw this.createError('AUTH_REQUIRED', 'User not authenticated')
       }
 
-      // Check server encryption settings first
       let finalContent = content
       let encrypted = false
       let encryptionMetadata = null
@@ -200,25 +190,23 @@ export class CoreMessageService {
         .maybeSingle()
       
       const encryptionMode = serverSettings?.encryption_mode || 'disabled'
-      debug.log(`🔐 Server encryption mode: ${encryptionMode}`)
+      debug.log(`Server encryption mode: ${encryptionMode}`)
 
-      // Skip encryption if server has it disabled
       if (encryptionMode === 'disabled') {
-        debug.log('ℹ️ Server has encryption disabled - sending plaintext')
+        debug.log('ℹServer has encryption disabled - sending plaintext')
       } else {
-        // Encryption is optional or required - check if user can encrypt
         const encryptionService = await getEncryptionService()
         
         if (encryptionService && encryptionService.isInitialized()) {
           const hasRecoveryKey = await encryptionService.hasRecoveryKey()
           const isUnlocked = encryptionService.isUnlocked()
           
-          debug.log(`🔐 Encryption check: hasRecoveryKey=${hasRecoveryKey}, isUnlocked=${isUnlocked}`)
+          debug.log(`Encryption check: hasRecoveryKey=${hasRecoveryKey}, isUnlocked=${isUnlocked}`)
           
           if (hasRecoveryKey && isUnlocked) {
             try {
-              debug.log('🔐 Megolm encryption active - encrypting message for channel')
-              debug.log(`🔐 Channel (room): ${channelId}`)
+              debug.log('Megolm encryption active - encrypting message for channel')
+              debug.log(`Channel (room): ${channelId}`)
               
               const { data: members } = await supabase
                 .from('user_servers')
@@ -230,77 +218,67 @@ export class CoreMessageService {
                 recipientIds.push(currentUser.id)
               }
               
-              debug.log(`🔐 Encrypting for channel with ${recipientIds.length} members`)
+              debug.log(`Encrypting for channel with ${recipientIds.length} members`)
               
-              // Encrypt message with Megolm (channel-wide session key)
+              // Megolm session key is channel-wide; room id is the channel id.
               const encryptedData = await encryptionService.encryptMessage(content, channelId, recipientIds)
               finalContent = encryptedData.content
               encrypted = true
               encryptionMetadata = encryptedData.encryption_metadata
-              debug.log(`✅ Message encrypted with Megolm (session: ${encryptionMetadata.session_id?.substring(0, 8)}...)`)
+              debug.log(`Message encrypted with Megolm (session: ${encryptionMetadata.session_id?.substring(0, 8)}...)`)
             } catch (error) {
-              debug.error('❌ Encryption failed:', error)
+              debug.error('Encryption failed:', error)
               if (encryptionMode === 'required') {
                 throw this.createError('ENCRYPTION_REQUIRED', 'Server requires encryption but encryption failed', error)
               }
               if (!allowFallback) {
-                // Fail closed: this channel is configured for encryption but
-                // we failed to encrypt. UI must explicitly retry with
-                // allowPlaintextFallback after the user confirms.
+                // Fail closed. The UI retries with allowPlaintextFallback
+                // after user confirmation.
                 throw this.createError('ENCRYPTION_FAILED_NO_FALLBACK',
                   'Encryption failed and plaintext fallback was not authorized', error)
               }
-              debug.warn('⚠️ User-authorized plaintext fallback - sending unencrypted')
+              debug.warn('User-authorized plaintext fallback - sending unencrypted')
               this.markPlaintextOverride(extraMetadata = extraMetadata || {}, 'optional_encrypt_failed')
             }
           } else if (encryptionMode === 'required') {
-            // Server requires encryption but user doesn't have it set up/unlocked.
-            // Both cases must be NON-overridable: there is no "send plaintext"
-            // option on a required server, so always raise ENCRYPTION_REQUIRED
-            // (NOT ENCRYPTION_LOCKED, which the UI treats as fallback-eligible
-            // and would wrongly offer a plaintext send). The message still tells
-            // the user whether to set up or unlock.
+            // Neither case is overridable on a required server, so the code is
+            // always ENCRYPTION_REQUIRED, never ENCRYPTION_LOCKED - the UI
+            // treats ENCRYPTION_LOCKED as fallback-eligible and would offer a
+            // plaintext send. The message text distinguishes setup vs unlock.
             if (!hasRecoveryKey) {
               throw this.createError('ENCRYPTION_REQUIRED', 'This server requires encryption. Set up encryption in Settings first.')
             } else {
               throw this.createError('ENCRYPTION_REQUIRED', 'This server requires encryption. Unlock encryption with your recovery key first.')
             }
           } else {
-            // Optional encryption + user cannot encrypt. Two sub-cases:
+            // Optional encryption, sender cannot encrypt. Two sub-cases:
             //
-            //  (a) hasRecoveryKey && !isUnlocked
-            //      → The user has set up encryption but their session is
-            //        locked. They previously opted in, so silently
-            //        downgrading to plaintext would defy their stated
-            //        preference. Fail closed and let the UI prompt them
-            //        ("did you forget to unlock your recovery key?").
+            //  (a) hasRecoveryKey && !isUnlocked - encryption is set up but
+            //      locked. The user has opted in, so fail closed rather than
+            //      silently downgrading; the UI prompts to unlock.
             //
-            //  (b) !hasRecoveryKey
-            //      → The user has *never* set up encryption. Encryption is
-            //        only OPTIONAL on this server, so the user is fully
-            //        within policy to send plaintext. Prompting on every
-            //        send would be friction with no security benefit (they
-            //        haven't opted in). Send plaintext silently.
+            //  (b) !hasRecoveryKey - encryption was never set up and is
+            //      optional here, so plaintext is within policy. Send
+            //      silently; a prompt would add friction with no gain.
             if (hasRecoveryKey && !isUnlocked) {
               if (!allowFallback) {
                 throw this.createError('ENCRYPTION_LOCKED',
                   'This channel supports encryption but your keys are locked. Unlock encryption to send encrypted, or confirm an unencrypted send.')
               }
-              debug.warn('🔓 User-authorized plaintext fallback - encryption locked')
+              debug.warn('User-authorized plaintext fallback - encryption locked')
               this.markPlaintextOverride(extraMetadata = extraMetadata || {}, 'optional_encryption_locked')
             } else {
-              // No recovery key set up - silent plaintext, no prompt.
-              debug.log('ℹ️ Optional encryption + no recovery key - sending plaintext')
+              // Case (b): silent plaintext.
+              debug.log('ℹOptional encryption + no recovery key - sending plaintext')
               this.markPlaintextOverride(extraMetadata = extraMetadata || {}, 'optional_no_recovery_key')
             }
           }
         } else if (encryptionMode === 'required') {
           throw this.createError('ENCRYPTION_REQUIRED', 'This server requires encryption. Set up encryption in Settings first.')
         } else {
-          // Optional mode + encryption service entirely unavailable.
-          // Same reasoning as case (b) above: user has not opted in to
-          // encryption on this server, so just send plaintext.
-          debug.log('ℹ️ Optional encryption + service unavailable - sending plaintext')
+          // Optional mode, encryption service unavailable. Same reasoning as
+          // case (b) above: no opt-in, so plaintext.
+          debug.log('ℹOptional encryption + service unavailable - sending plaintext')
           this.markPlaintextOverride(extraMetadata = extraMetadata || {}, 'optional_service_unavailable')
         }
       }
@@ -315,7 +293,7 @@ export class CoreMessageService {
         metadata: { created_via: 'harmony_client', ...extraMetadata }
       }
 
-      debug.log('📤 Inserting message to database:', { ...messageData, content: encrypted ? '[encrypted]' : messageData.content })
+      debug.log('Inserting message to database:', { ...messageData, content: encrypted ? '[encrypted]' : messageData.content })
       
       const { data: message, error } = await supabase
         .from('messages')
@@ -324,33 +302,31 @@ export class CoreMessageService {
         .single()
 
       if (error) {
-        debug.error('❌ DATABASE INSERT FAILED:', error)
+        debug.error('DATABASE INSERT FAILED:', error)
         throw this.createError('INSERT_FAILED', error.message, error)
       }
       
       if (!message) {
-        debug.error('❌ No message returned from insert!')
+        debug.error('No message returned from insert!')
         throw this.createError('INSERT_FAILED', 'No message returned from database')
       }
 
-      debug.log('✅ Message inserted to database successfully:', message.id)
-      debug.log('📦 Returned message:', message)
+      debug.log('Message inserted to database successfully:', message.id)
+      debug.log('Returned message:', message)
       return message
     } catch (error) {
-      debug.error('❌ Failed to send channel message:', error)
+      debug.error('Failed to send channel message:', error)
       throw error
     }
   }
 
   /**
-   * Send a DM message.
-   *
-   * @param options.isSystem - If true, stores as system message (no encryption, not federated)
-   * @param options.allowPlaintextFallback - If true AND the conversation is
-   *   marked encrypted but the sender cannot encrypt (locked / failed / no
-   *   keys), send plaintext anyway. Must be the result of explicit user
-   *   confirmation. Default policy is fail closed: the send is rejected
-   *   with an ENCRYPTION_* error so the UI can prompt for consent.
+   * @param options.isSystem - stores as a system message: no encryption, not federated.
+   * @param options.allowPlaintextFallback - sends plaintext when the
+   *   conversation is marked encrypted but the sender cannot encrypt
+   *   (locked, failed, or no keys). Requires explicit user confirmation.
+   *   Default is fail closed: rejected with an ENCRYPTION_* error so the UI
+   *   can prompt for consent.
    */
   async sendDMMessage(
     conversationId: string,
@@ -360,13 +336,11 @@ export class CoreMessageService {
     extraMetadata?: Record<string, any>
   ): Promise<Message> {
     try {
-      // Enforce max media attachments per message (instance config, default 20)
       const isSystem = options?.isSystem ?? false
       const allowFallback = options?.allowPlaintextFallback === true
       if (!isSystem) {
-        // Enforce max message length for user-authored DMs. System messages
-        // (group_created etc.) are server-generated and tightly bounded, so
-        // we don't need to validate them.
+        // Limits apply to user-authored DMs only. System messages
+        // (group_created etc.) are generated and bounded by this client.
         await this.assertContentWithinLimit(content)
 
         const fileParts = content.filter((p: any) => p?.type === 'file')
@@ -401,7 +375,7 @@ export class CoreMessageService {
           .select('*')
           .single()
         if (error) throw this.createError('INSERT_FAILED', error.message, error)
-        debug.log('✅ System message sent successfully')
+        debug.log('System message sent successfully')
         return message
       }
 
@@ -412,7 +386,7 @@ export class CoreMessageService {
         .maybeSingle()
 
       const conversationEncryptionEnabled = convSettings?.encryption_enabled === true
-      debug.log(`🔐 Conversation encryption setting: ${conversationEncryptionEnabled ? 'enabled' : 'disabled'}`)
+      debug.log(`Conversation encryption setting: ${conversationEncryptionEnabled ? 'enabled' : 'disabled'}`)
 
       if (conversationEncryptionEnabled) {
         const encryptionService = await getEncryptionService()
@@ -422,8 +396,8 @@ export class CoreMessageService {
 
           if (hasRecoveryKey && isUnlocked) {
             try {
-              debug.log('🔐 Megolm encryption active - encrypting DM')
-              debug.log(`🔐 Conversation (room): ${conversationId}`)
+              debug.log('Megolm encryption active - encrypting DM')
+              debug.log(`Conversation (room): ${conversationId}`)
 
               const { data: participants } = await supabase
                 .from('conversation_participants')
@@ -436,16 +410,16 @@ export class CoreMessageService {
                 recipientIds.push(currentUser.id)
               }
 
-              debug.log(`🔐 Encrypting DM for ${recipientIds.length} participants`)
+              debug.log(`Encrypting DM for ${recipientIds.length} participants`)
 
-              // Encrypt message with Megolm (conversation-wide session key)
+              // Megolm session key is conversation-wide; room id is the conversation id.
               const encryptedData = await encryptionService.encryptMessage(content, conversationId, recipientIds)
               finalContent = encryptedData.content
               encrypted = true
               encryptionMetadata = encryptedData.encryption_metadata
-              debug.log(`✅ DM encrypted with Megolm (session: ${encryptionMetadata.session_id?.substring(0, 8)}...)`)
+              debug.log(`DM encrypted with Megolm (session: ${encryptionMetadata.session_id?.substring(0, 8)}...)`)
             } catch (error) {
-              debug.error('❌ DM encryption failed:', error)
+              debug.error('DM encryption failed:', error)
               if (!allowFallback) {
                 window.dispatchEvent(new CustomEvent('encryption-fallback', {
                   detail: { type: 'dm', conversationId, error: String(error), failClosed: true }
@@ -453,7 +427,7 @@ export class CoreMessageService {
                 throw this.createError('ENCRYPTION_FAILED_NO_FALLBACK',
                   'DM encryption failed and plaintext fallback was not authorized', error)
               }
-              debug.warn('⚠️ User-authorized plaintext fallback - sending DM unencrypted')
+              debug.warn('User-authorized plaintext fallback - sending DM unencrypted')
               this.markPlaintextOverride(extraMetadata = extraMetadata || {}, 'dm_encrypt_failed')
             }
           } else if (hasRecoveryKey && !isUnlocked) {
@@ -461,14 +435,14 @@ export class CoreMessageService {
               throw this.createError('ENCRYPTION_LOCKED',
                 'This conversation is encrypted but your keys are locked. Unlock encryption to send encrypted, or confirm an unencrypted send.')
             }
-            debug.warn('🔓 User-authorized plaintext fallback - DM keys locked')
+            debug.warn('User-authorized plaintext fallback - DM keys locked')
             this.markPlaintextOverride(extraMetadata = extraMetadata || {}, 'dm_encryption_locked')
           } else {
             if (!allowFallback) {
               throw this.createError('ENCRYPTION_UNAVAILABLE',
                 'This conversation is encrypted but you have not set up a recovery key. Set up encryption to send encrypted, or confirm an unencrypted send.')
             }
-            debug.warn('🔓 User-authorized plaintext fallback - DM no recovery key')
+            debug.warn('User-authorized plaintext fallback - DM no recovery key')
             this.markPlaintextOverride(extraMetadata = extraMetadata || {}, 'dm_no_recovery_key')
           }
         } else {
@@ -476,7 +450,7 @@ export class CoreMessageService {
             throw this.createError('ENCRYPTION_UNAVAILABLE',
               'This conversation is encrypted but the encryption service is unavailable. Confirm an unencrypted send to continue.')
           }
-          debug.warn('🔓 User-authorized plaintext fallback - DM encryption service unavailable')
+          debug.warn('User-authorized plaintext fallback - DM encryption service unavailable')
           this.markPlaintextOverride(extraMetadata = extraMetadata || {}, 'dm_service_unavailable')
         }
       }
@@ -499,26 +473,22 @@ export class CoreMessageService {
 
       if (error) throw this.createError('INSERT_FAILED', error.message, error)
 
-      debug.log('✅ DM message sent successfully (local only)')
+      debug.log('DM message sent successfully (local only)')
       return message
     } catch (error) {
-      debug.error('❌ Failed to send DM message:', error)
+      debug.error('Failed to send DM message:', error)
       throw error
     }
   }
 
   // MESSAGE EDITING (PURE LOCAL)
 
-  /**
-   * Edit a message (pure local update)
-   */
   async editMessage(messageId: string, newContent: MessagePart[]): Promise<Message> {
     try {
-      // Enforce max length on edits too - otherwise a user could send a
-      // tiny message and grow it past the limit via subsequent edits.
+      // Edits are length-checked too; otherwise a short message could be
+      // grown past the limit by successive edits.
       await this.assertContentWithinLimit(newContent)
 
-      // Enforce max media attachments per message (instance config, default 20)
       const fileParts = newContent.filter((p: any) => p?.type === 'file')
       const maxMedia = await this.getMaxMediaAttachments()
       if (fileParts.length > maxMedia) {
@@ -530,7 +500,7 @@ export class CoreMessageService {
         throw this.createError('AUTH_REQUIRED', 'User not authenticated')
       }
 
-      // First, get the original message to check if it's encrypted
+      // The original row decides whether the edit must be re-encrypted.
       const { data: originalMessage, error: fetchError } = await supabase
         .from('messages')
         .select('*')
@@ -544,9 +514,8 @@ export class CoreMessageService {
       let encrypted = false
       let encryptionMetadata = null
 
-      // If the original message was encrypted, re-encrypt the edited content
       if (originalMessage.encrypted && originalMessage.encryption_metadata) {
-        debug.log('🔐 Original message was encrypted - re-encrypting edited content')
+        debug.log('Original message was encrypted - re-encrypting edited content')
         
         const encryptionService = await getEncryptionService()
         if (encryptionService && encryptionService.isInitialized() && encryptionService.isUnlocked()) {
@@ -556,7 +525,7 @@ export class CoreMessageService {
               throw new Error('Cannot determine room ID for re-encryption')
             }
             
-            // Megolm needs the current room members
+            // Megolm encrypts to the current room membership.
             let recipientIds: string[] = []
             
             if (originalMessage.channel_id) {
@@ -586,16 +555,15 @@ export class CoreMessageService {
               recipientIds.push(currentUser.id)
             }
 
-            debug.log(`🔐 Re-encrypting with Megolm for room ${roomId.substring(0, 8)}...`)
+            debug.log(`Re-encrypting with Megolm for room ${roomId.substring(0, 8)}...`)
             
-            // Encrypt the new content with Megolm
             const encryptedData = await encryptionService.encryptMessage(newContent, roomId, recipientIds)
             finalContent = encryptedData.content
             encrypted = true
             encryptionMetadata = encryptedData.encryption_metadata
-            debug.log(`✅ Edited message re-encrypted with Megolm`)
+            debug.log(`Edited message re-encrypted with Megolm`)
           } catch (error) {
-            debug.error('❌ Re-encryption failed:', error)
+            debug.error('Re-encryption failed:', error)
             throw this.createError('ENCRYPTION_FAILED', 'Failed to re-encrypt edited message', error)
           }
         } else {
@@ -621,17 +589,15 @@ export class CoreMessageService {
         throw this.createError('UPDATE_FAILED', 'Message not found or you do not have permission to edit it')
       }
 
-      debug.log('✅ Message edited successfully (local only)')
+      debug.log('Message edited successfully (local only)')
       return message
     } catch (error) {
-      debug.error('❌ Failed to edit message:', error)
+      debug.error('Failed to edit message:', error)
       throw error
     }
   }
 
-  /**
-   * Delete a message (soft delete, pure local)
-   */
+  // Soft delete: row is kept, content replaced with [deleted].
   async deleteMessage(messageId: string): Promise<void> {
     try {
       const { error } = await supabase
@@ -644,31 +610,25 @@ export class CoreMessageService {
 
       if (error) throw this.createError('DELETE_FAILED', error.message, error)
 
-      debug.log('✅ Message deleted successfully (local only)')
+      debug.log('Message deleted successfully (local only)')
     } catch (error) {
-      debug.error('❌ Failed to delete message:', error)
+      debug.error('Failed to delete message:', error)
       throw error
     }
   }
 
   // REACTION MANAGEMENT (PURE LOCAL)
 
-  /**
-   * Toggle emoji reaction on a message (pure local database operation)
-   */
-  /**
-   * Check if a string is a valid UUID
-   * Uses permissive regex to handle Supabase-generated UUIDs which may not strictly follow RFC 4122
-   */
+  // Permissive: Supabase-generated UUIDs do not always satisfy RFC 4122
+  // version/variant bits.
   private isValidUUID(str: string): boolean {
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
     return uuidRegex.test(str)
   }
 
   /**
-   * Toggle reaction on a message
-   * Uses AuthContextService for efficient auth lookup
-   * Supports both server emojis (UUID) and native Unicode emojis
+   * Server emojis are keyed by `emoji_id` (UUID), native Unicode emojis by
+   * `custom_emoji_content`.
    */
   async toggleReaction(
     messageId: string, 
@@ -679,7 +639,7 @@ export class CoreMessageService {
       
       const isNativeEmoji = !this.isValidUUID(emojiId)
       
-      debug.log(`🔄 Core: Toggling reaction: message=${messageId}, emoji=${emojiId}, native=${isNativeEmoji}, user=${profileId}`)
+      debug.log(`Core: Toggling reaction: message=${messageId}, emoji=${emojiId}, native=${isNativeEmoji}, user=${profileId}`)
 
       let existingReactionQuery = supabase
         .from('reactions')
@@ -712,7 +672,7 @@ export class CoreMessageService {
 
         if (error) throw this.createError('REMOVE_REACTION_FAILED', error.message, error)
         
-        debug.log('✅ Core: Reaction removed successfully')
+        debug.log('Core: Reaction removed successfully')
         return { added: false }
       } else {
         const reactionData: any = {
@@ -731,12 +691,11 @@ export class CoreMessageService {
           .insert([reactionData])
 
         if (error) {
-          // Handle race condition (duplicate constraint violation)
+          // 23505: unique violation from a concurrent insert of the same reaction.
           if (error.code === '23505') {
-            debug.log('🎯 Core: Race condition detected in reaction toggle')
+            debug.log('Core: Race condition detected in reaction toggle')
             
-            // Double-check current state after race condition
-            // Double-check using the same query style as above
+            // Re-read with the same predicate shape as the existence check above.
             let raceCheckQuery = supabase
               .from('reactions')
               .select('id')
@@ -752,46 +711,44 @@ export class CoreMessageService {
             const { data: nowExists } = await raceCheckQuery.maybeSingle()
 
             if (nowExists) {
-              debug.log('✅ Core: Reaction was added by another process, treating as success')
+              debug.log('Core: Reaction was added by another process, treating as success')
               return { added: true, hadRaceCondition: true }
             } else {
               throw this.createError('RACE_CONDITION_ERROR', 'Unexpected duplicate error state')
             }
           }
           
-          // Note: RLS policy issues should be resolved by migration 007's SECURITY DEFINER functions
-          
+          // Reaction RLS is served by migration 007's SECURITY DEFINER functions.
+
           throw this.createError('ADD_REACTION_FAILED', error.message, error)
         }
         
-        debug.log('✅ Core: Reaction added successfully')
+        debug.log('Core: Reaction added successfully')
         return { added: true }
       }
     } catch (error) {
-      debug.error('❌ Core: Failed to toggle reaction:', error)
+      debug.error('Core: Failed to toggle reaction:', error)
       throw error
     }
   }
 
-  /**
-   * Get reactions for a message using optimized database function (pure local)
-   */
   async getMessageReactions(messageId: string): Promise<any[]> {
     try {
-      debug.log(`🔄 Core: Fetching reactions for message: ${messageId}`)
+      debug.log(`Core: Fetching reactions for message: ${messageId}`)
       
       const { data: reactions, error } = await supabase
         .rpc('get_message_reactions', { message_id: messageId })
 
       if (error) {
-        debug.error('❌ Core: Failed to fetch message reactions:', error)
+        debug.error('Core: Failed to fetch message reactions:', error)
         throw this.createError('FETCH_REACTIONS_FAILED', error.message, error)
       }
 
       const transformedReactions = reactions?.map((reaction: any) => {
-        // Prefer the url the RPC surfaced from metadata.remote_emoji_url (correct
-        // png/gif ext). Rebuild from a discord:name:id identifier only as a
-        // fallback for rows predating metadata storage. Native = no image url.
+        // The RPC's url comes from metadata.remote_emoji_url and carries the
+        // correct png/gif extension. Rebuilding from a discord:name:id
+        // identifier is the fallback for rows predating metadata storage.
+        // Native emoji have no image url.
         const url =
           reaction.emoji?.url ||
           discordCustomEmojiUrlFromIdentifier(reaction.emoji?.content) ||
@@ -812,41 +769,37 @@ export class CoreMessageService {
           message_id_of_reactions: reaction.message_id_of_reactions
         }
       }) || []
-      debug.log(`✅ Core: Fetched ${transformedReactions.length} reaction groups for message: ${messageId}`)
+      debug.log(`Core: Fetched ${transformedReactions.length} reaction groups for message: ${messageId}`)
       return transformedReactions
     } catch (error) {
-      debug.error('❌ Core: Error in getMessageReactions:', error)
+      debug.error('Core: Error in getMessageReactions:', error)
       throw error
     }
   }
 
-  /**
-   * Get reactions for multiple messages using optimized database function (pure local)
-   * PERFORMANCE: Uses database function to eliminate N+1 query problem
-   */
+  // One RPC call for all message ids; avoids an N+1 query per message.
   async getBatchMessageReactions(messageIds: string[]): Promise<Record<string, any[]>> {
     try {
       if (messageIds.length === 0) {
         return {}
       }
 
-      debug.log(`🔄 Core: Batch fetching reactions for ${messageIds.length} messages`)
+      debug.log(`Core: Batch fetching reactions for ${messageIds.length} messages`)
       
-      // Use the optimized database function
       const { data: reactions, error } = await supabase
         .rpc('get_batch_message_reactions', { message_ids: messageIds })
 
       if (error) {
-        debug.error('❌ Core: Failed to batch fetch message reactions:', error)
+        debug.error('Core: Failed to batch fetch message reactions:', error)
         throw this.createError('BATCH_FETCH_REACTIONS_FAILED', error.message, error)
       }
 
       const groupedReactions = this.groupReactionRows(messageIds, reactions || [])
 
-      debug.log(`✅ Core: Batch fetched reactions for ${messageIds.length} messages (${reactions?.length || 0} reaction groups)`)
+      debug.log(`Core: Batch fetched reactions for ${messageIds.length} messages (${reactions?.length || 0} reaction groups)`)
       return groupedReactions
     } catch (error) {
-      debug.error('❌ Core: Error in getBatchMessageReactions:', error)
+      debug.error('Core: Error in getBatchMessageReactions:', error)
       throw error
     }
   }
@@ -869,9 +822,8 @@ export class CoreMessageService {
         groupedReactions[messageId] = []
       }
 
-      // The batch RPC surfaces emoji_url from metadata.remote_emoji_url too;
-      // the previous code marked every emoji_id-less reaction native, which
-      // suppressed the image even when a url existed. Native = no image url.
+      // The batch RPC also surfaces emoji_url from metadata.remote_emoji_url.
+      // Nativeness follows the url, not the presence of emoji_id.
       const url =
         reaction.emoji_url ||
         discordCustomEmojiUrlFromIdentifier(reaction.custom_emoji_content) ||
@@ -896,10 +848,9 @@ export class CoreMessageService {
   }
 
   /**
-   * Fast path: load a message page (messages + reactions) in ONE round trip
-   * via the get_message_page RPC. Returns null when the RPC is unavailable
-   * (e.g. migration not applied on a self-hosted instance) so callers can
-   * fall back to the legacy multi-query load.
+   * Loads messages and reactions in one round trip via the get_message_page
+   * RPC. Returns null when the RPC is unavailable (migration not applied on a
+   * self-hosted instance) so callers fall back to the multi-query load.
    */
   private async tryLoadMessagePage(params: {
     channelId?: string
@@ -916,7 +867,7 @@ export class CoreMessageService {
       })
 
       if (error) {
-        debug.warn('⚠️ Core: get_message_page RPC unavailable, using legacy multi-query load:', error.message)
+        debug.warn('Core: get_message_page RPC unavailable, using legacy multi-query load:', error.message)
         return null
       }
 
@@ -925,43 +876,38 @@ export class CoreMessageService {
       const reactionsByMessage = this.groupReactionRows(messageIds, data?.reactions || [])
       return { messages, reactionsByMessage }
     } catch (error) {
-      debug.warn('⚠️ Core: get_message_page RPC failed, using legacy multi-query load:', error)
+      debug.warn('Core: get_message_page RPC failed, using legacy multi-query load:', error)
       return null
     }
   }
 
   // REACTIONS STORE INTEGRATION
 
-    /**
-   * This unifies CoreMessageService and ReactionsStore to work together
-   */
   private async populateReactionsStoreCache(reactionsByMessage: Record<string, any[]>): Promise<void> {
     try {
-      // Dynamically import to avoid circular dependencies
+      // Dynamic import breaks a circular dependency with the store.
       const { useReactionsStore } = await import('@/stores/useReactions')
       const reactionsStore = useReactionsStore()
-      
-      // Use the store's bulk set method to populate cache
+
       reactionsStore.bulkSetReactions(reactionsByMessage)
       
-      debug.log(`✅ Core: Synced ${Object.keys(reactionsByMessage).length} message reactions to store cache`)
+      debug.log(`Core: Synced ${Object.keys(reactionsByMessage).length} message reactions to store cache`)
     } catch (error) {
-      debug.warn('⚠️ Core: Failed to sync reactions to store cache:', error)
-      // Don't throw - this is not critical to core functionality
+      debug.warn('Core: Failed to sync reactions to store cache:', error)
+      // Cache population is non-fatal; callers already hold the reactions.
     }
   }
 
   // MESSAGE LOADING (PURE LOCAL)
 
   /**
-   * Load channel messages with pagination
-   * 
-   * Supports both local and federated (remote) channels:
-   * - Local channels: Query local database directly
-   * - Remote channels: Fetch from federation backend which proxies to remote server
-   * 
-   * NOTE: We trust Supabase to handle its own connection management.
-   * No artificial timeouts - queries complete when they complete.
+   * Loads channel messages with pagination.
+   * - Local channels: query the local database.
+   * - Remote channels: fetch via the federation backend, which proxies to the
+   *   origin server.
+   *
+   * NOTE: no query timeout. Connection management is left to the Supabase
+   * client.
    */
   async loadChannelMessages(
     channelId: string,
@@ -971,9 +917,8 @@ export class CoreMessageService {
       after?: string
       signal?: AbortSignal
       /**
-       * Whether the channel is remote (federated). Callers that already hold
-       * the channel/server in a store should pass this to skip two lookup
-       * round trips. When undefined, falls back to resolving from the DB.
+       * Whether the channel is remote (federated). Passing it skips two
+       * lookup round trips. When undefined, resolved from the DB.
        */
       isRemote?: boolean
     } = {}
@@ -981,7 +926,7 @@ export class CoreMessageService {
     try {
       const { limit = 50, before, after, signal } = options
 
-      debug.log(`🔄 Core: Loading messages for channel: ${channelId}`, { limit, before, after })
+      debug.log(`Core: Loading messages for channel: ${channelId}`, { limit, before, after })
 
       let isRemoteChannel = options.isRemote
 
@@ -992,10 +937,10 @@ export class CoreMessageService {
           .eq('id', channelId)
           .maybeSingle()
 
-        // Remote channel detection: is_remote flag, else check the server row
+        // Remote when channels.is_remote is set, or the owning server row has
+        // is_local_server = false.
         isRemoteChannel = channel?.is_remote === true
 
-        // Also check if the server is remote
         if (!isRemoteChannel && channel?.server_id) {
           const { data: server } = await supabase
             .from('servers')
@@ -1008,7 +953,7 @@ export class CoreMessageService {
       }
 
       if (isRemoteChannel) {
-        debug.log(`🌐 Channel ${channelId} is remote, fetching via federation backend`)
+        debug.log(`Channel ${channelId} is remote, fetching via federation backend`)
         return await this.loadRemoteChannelMessages(channelId, options)
       }
 
@@ -1016,9 +961,8 @@ export class CoreMessageService {
         throw this.createError('ABORTED', 'Request was aborted')
       }
 
-      // Fast path: messages + reactions in a single round trip. The RPC does
-      // not support the `after` param (only used by realtime catch-up), so
-      // those calls keep the legacy path.
+      // Single round trip for messages + reactions. The RPC has no `after`
+      // param, so realtime catch-up calls take the multi-query path.
       if (!after) {
         const page = await this.tryLoadMessagePage({ channelId, limit, before })
         if (page) {
@@ -1030,15 +974,14 @@ export class CoreMessageService {
             await this.populateReactionsStoreCache(page.reactionsByMessage)
           }
 
-          debug.log(`✅ Core: Loaded ${orderedMessages.length} messages with reactions (single round trip) for channel: ${channelId}`)
+          debug.log(`Core: Loaded ${orderedMessages.length} messages with reactions (single round trip) for channel: ${channelId}`)
 
           const { processMessageDecryption } = await import('@/utils/messageDecryption')
           return await processMessageDecryption(orderedMessages)
         }
       }
 
-      // Local channel - use existing query
-      // Filter out thread replies (messages with thread_id) - they only appear in thread view
+      // thread_id IS NULL: thread replies render only in thread view.
       let query = supabase
         .from('messages')
         .select('*')
@@ -1059,48 +1002,44 @@ export class CoreMessageService {
         throw this.createError('ABORTED', 'Request was aborted')
       }
 
-      debug.log('📤 Executing message load query...')
+      debug.log('Executing message load query...')
       const { data: messages, error } = await query
 
       if (error) {
-        debug.error('❌ Failed to load messages:', error)
+        debug.error('Failed to load messages:', error)
         throw this.createError('LOAD_MESSAGES_FAILED', error.message, error)
       }
 
       const messageList = messages || []
-      debug.log(`✅ Loaded ${messageList.length} messages from database for channel ${channelId}`)
+      debug.log(`Loaded ${messageList.length} messages from database for channel ${channelId}`)
       
-      // Reverse to get oldest-first for display (since query returns newest-first)
+      // Query is newest-first; display order is oldest-first.
       const orderedMessages = messageList.reverse()
 
-      // Batch load reactions for all messages
       if (orderedMessages.length > 0) {
         const messageIds = orderedMessages.map(m => m.id)
         const reactionsByMessage = await this.getBatchMessageReactions(messageIds)
-        
+
         orderedMessages.forEach(message => {
           message.reactions = reactionsByMessage[message.id] || []
         })
-        
-        // Feeds reactionsStore so getMessageReactions() works unchanged
+
+        // Feeds reactionsStore so getMessageReactions() works unchanged.
         await this.populateReactionsStoreCache(reactionsByMessage)
       }
 
-      debug.log(`✅ Core: Loaded ${orderedMessages.length} messages with reactions for channel: ${channelId}`)
+      debug.log(`Core: Loaded ${orderedMessages.length} messages with reactions for channel: ${channelId}`)
       
       const { processMessageDecryption } = await import('@/utils/messageDecryption')
       const decryptedMessages = await processMessageDecryption(orderedMessages)
       
       return decryptedMessages
     } catch (error) {
-      debug.error('❌ Core: Failed to load channel messages:', error)
+      debug.error('Core: Failed to load channel messages:', error)
       throw error
     }
   }
 
-  /**
-   * Load messages from a remote (federated) channel via federation backend
-   */
   private async loadRemoteChannelMessages(
     channelId: string,
     options: {
@@ -1112,14 +1051,13 @@ export class CoreMessageService {
   ): Promise<Message[]> {
     const { limit = 50, before } = options
 
-    // Prefer local DB first - AP federation inserts messages with proper structured
-    // content (preserving custom emojis, etc.). The remote API re-parses HTML and
-    // loses that structure. Only fall back to remote fetch if local DB is empty.
+    // Local DB first: AP federation inserts structured content that preserves
+    // custom emojis. The remote API re-parses HTML and loses that structure.
+    // Remote fetch happens only when the local DB has nothing.
     const localMessages = await this.loadCachedRemoteMessages(channelId, options)
     if (localMessages.length > 0) {
-      debug.log(`📦 Using ${localMessages.length} locally-synced messages for remote channel (AP federation)`)
+      debug.log(`Using ${localMessages.length} locally-synced messages for remote channel (AP federation)`)
 
-      // Batch load reactions from local DB
       const messageIds = localMessages.map(m => m.id).filter(Boolean)
       if (messageIds.length > 0) {
         const reactionsByMessage = await this.getBatchMessageReactions(messageIds)
@@ -1132,15 +1070,15 @@ export class CoreMessageService {
       return localMessages
     }
 
-    // No local messages - fetch from remote server API
     try {
       const params = new URLSearchParams()
       params.append('limit', String(limit))
       if (before) params.append('before', before)
 
       // The federation backend proxies to the remote instance, so latency is
-      // unbounded - a slow/dead remote must not hang the channel open forever.
-      // AbortSignal.any is missing from the TS lib in use; feature-detect it.
+      // unbounded; 10s cap keeps a dead remote from hanging the channel.
+      // AbortSignal.any is absent from the TS lib in use, hence the cast and
+      // feature test.
       const timeoutSignal = AbortSignal.timeout(10000)
       const abortSignalAny: ((signals: AbortSignal[]) => AbortSignal) | undefined = (AbortSignal as any).any
       const signal = options.signal && abortSignalAny
@@ -1162,9 +1100,8 @@ export class CoreMessageService {
       const data = await response.json()
       const remoteMessages = data.messages || []
 
-      debug.log(`📨 Fetched ${remoteMessages.length} messages from remote channel (source: ${data.source})`)
+      debug.log(`Fetched ${remoteMessages.length} messages from remote channel (source: ${data.source})`)
 
-      // Transform to our message format
       const messages = remoteMessages.map((msg: any) => ({
         id: msg.id,
         channel_id: channelId,
@@ -1177,10 +1114,10 @@ export class CoreMessageService {
         reactions: msg.reactions || [],
       }))
 
-      // Reverse to get oldest-first for display
+      // Remote API returns newest-first; display order is oldest-first.
       const orderedMessages = messages.reverse()
 
-      // Populate reactions store with data from response or local cache
+      // Reactions come from the response when present, else from the local DB.
       const messageIds = orderedMessages.map((m: Message) => m.id).filter((id: string) => id)
       
       if (messageIds.length > 0) {
@@ -1216,21 +1153,18 @@ export class CoreMessageService {
 
       return orderedMessages
     } catch (error) {
-      debug.error('❌ Failed to fetch remote channel messages:', error)
+      debug.error('Failed to fetch remote channel messages:', error)
       return []
     }
   }
 
-  /**
-   * Load cached messages for a remote channel (fallback)
-   */
   private async loadCachedRemoteMessages(
     channelId: string,
     options: { limit?: number; before?: string } = {}
   ): Promise<Message[]> {
     const { limit = 50, before } = options
 
-    // Same as local channel load: thread replies must not appear in the main feed
+    // Same filter as the local channel load: thread replies stay out of the feed.
     let query = supabase
       .from('messages')
       .select('*')
@@ -1245,46 +1179,40 @@ export class CoreMessageService {
     }
 
     const { data: messages } = await query
-    debug.log(`📦 Loaded ${(messages || []).length} cached messages for remote channel (non-thread only)`)
+    debug.log(`Loaded ${(messages || []).length} cached messages for remote channel (non-thread only)`)
     
     return (messages || []).reverse()
   }
 
   /**
-   * Parse remote message content (ActivityPub HTML to our format)
-   * Preserves custom emojis as images and converts common HTML to our format
+   * ActivityPub HTML to MessagePart[]. Custom emojis become emoji parts;
+   * remaining markup is flattened to text.
    */
   private parseRemoteContent(content: string | any[]): any[] {
-    // If already in our format, return as-is
     if (Array.isArray(content)) {
       return content
     }
 
-    // If null/undefined, return empty
     if (!content) {
-      debug.log('⚠️ parseRemoteContent received null/undefined content')
+      debug.log('parseRemoteContent received null/undefined content')
       return [{ type: 'text', text: '' }]
     }
 
-    // If HTML string, convert to our format while preserving important elements
     if (typeof content === 'string') {
-      // Debug log if content has emojis
       if (content.includes('<img') || content.includes('emoji')) {
-        debug.log('🔍 parseRemoteContent input (first 300 chars):', content.substring(0, 300))
+        debug.log('parseRemoteContent input (first 300 chars):', content.substring(0, 300))
       }
       const result: any[] = []
       
       let processedContent = content
       
-      // Replace <br> with newlines
       processedContent = processedContent.replace(/<br\s*\/?>/gi, '\n')
-      
-      // Replace <p> tags with newlines
+
+      // Paragraph break is two newlines; a lone <p> or </p> is dropped.
       processedContent = processedContent.replace(/<\/p>\s*<p>/gi, '\n\n')
       processedContent = processedContent.replace(/<\/?p>/gi, '')
-      
-      // Extract ALL img tags that look like emojis (any img with src and reasonable attributes)
-      // More permissive pattern to catch various emoji formats:
+
+      // Emoji img forms seen in the wild:
       // - <img class="emoji" src="..." alt=":name:" />
       // - <img src="..." title=":name:" />
       // - <img alt=":name:" src="..." />
@@ -1293,17 +1221,18 @@ export class CoreMessageService {
       
       processedContent = processedContent.replace(imgRegex, (match, attrs) => {
         const srcMatch = attrs.match(/src=["']([^"']+)["']/i)
-        if (!srcMatch) return match // Not a valid image, keep as-is
-        
+        if (!srcMatch) return match
+
         const src = srcMatch[1]
-        
-        // Check if it's likely an emoji (has emoji class, or emoji in URL, or custom-emoji in URL)
+
+        // Emoji heuristic: emoji class, emoji in the url path, or a
+        // colon-wrapped alt shortcode.
         const isEmoji = /class=["'][^"']*emoji/i.test(attrs) ||
                        /emoji|custom[-_]?emoji/i.test(src) ||
                        /\/emojis?\//i.test(src) ||
                        /alt=["']:?[a-zA-Z0-9_-]+:?["']/i.test(attrs)
         
-        if (!isEmoji) return match // Not an emoji, keep as-is
+        if (!isEmoji) return match
         
         const altMatch = attrs.match(/alt=["']:?([^"':]+):?["']/i)
         const titleMatch = attrs.match(/title=["']:?([^"':]+):?["']/i)
@@ -1314,19 +1243,19 @@ export class CoreMessageService {
         return `[REMOTE_EMOJI:${emojiName}:${src}]`
       })
       
-      // Also handle Misskey/Mastodon style emoji: <span class="emoji">:name:</span>
+      // Misskey/Mastodon form: <span class="emoji">:name:</span>. The
+      // :name: text is kept verbatim.
       processedContent = processedContent.replace(/<span[^>]*class="[^"]*emoji[^"]*"[^>]*>([^<]+)<\/span>/gi, (match, emojiCode) => {
-        return emojiCode // Keep the :emoji_name: text for now
+        return emojiCode
       })
-      
-      // Strip remaining HTML tags
+
       const text = processedContent.replace(/<[^>]*>/g, '').trim()
       
       if (text.includes('[REMOTE_EMOJI:')) {
-        // Split while keeping the delimiter
+        // Capture group keeps the delimiter in the split result.
         const parts = text.split(/(\[REMOTE_EMOJI:[^\]]+\])/g)
         for (const part of parts) {
-          // Match: [REMOTE_EMOJI:name:url]
+          // Placeholder form: [REMOTE_EMOJI:name:url]
           const emojiMatch = part.match(/\[REMOTE_EMOJI:([^:]+):(.+)\]/)
           if (emojiMatch) {
             const emojiName = emojiMatch[1].replace(/:/g, '').trim()
@@ -1355,10 +1284,8 @@ export class CoreMessageService {
   }
 
   /**
-   * Load conversation messages with pagination (pure local)
-   * 
-   * NOTE: We trust Supabase to handle its own connection management.
-   * No artificial timeouts - queries complete when they complete.
+   * NOTE: no query timeout. Connection management is left to the Supabase
+   * client.
    */
   async loadConversationMessages(
     conversationId: string,
@@ -1372,15 +1299,15 @@ export class CoreMessageService {
     try {
       const { limit = 50, before, after, signal } = options
 
-      debug.log(`🔄 Core: Loading messages for conversation: ${conversationId}`)
+      debug.log(`Core: Loading messages for conversation: ${conversationId}`)
 
       if (signal?.aborted) {
         throw this.createError('ABORTED', 'Request was aborted')
       }
 
-      // Fast path: messages + reactions in a single round trip (see
-      // loadChannelMessages). `after` is only used by realtime catch-up and
-      // keeps the legacy path.
+      // Single round trip for messages + reactions, as in
+      // loadChannelMessages. `after` (realtime catch-up) takes the
+      // multi-query path.
       if (!after) {
         const page = await this.tryLoadMessagePage({ conversationId, limit, before })
         if (page) {
@@ -1392,7 +1319,7 @@ export class CoreMessageService {
             await this.populateReactionsStoreCache(page.reactionsByMessage)
           }
 
-          debug.log(`✅ Core: Loaded ${orderedMessages.length} messages with reactions (single round trip) for conversation: ${conversationId}`)
+          debug.log(`Core: Loaded ${orderedMessages.length} messages with reactions (single round trip) for conversation: ${conversationId}`)
 
           const { processMessageDecryption } = await import('@/utils/messageDecryption')
           return await processMessageDecryption(orderedMessages)
@@ -1426,40 +1353,37 @@ export class CoreMessageService {
 
       const messageList = messages || []
       
-      // Reverse to get oldest-first for display (since query returns newest-first)
+      // Query is newest-first; display order is oldest-first.
       const orderedMessages = messageList.reverse()
 
-      // Batch load reactions for all messages
       if (orderedMessages.length > 0) {
         const messageIds = orderedMessages.map(m => m.id)
         const reactionsByMessage = await this.getBatchMessageReactions(messageIds)
-        
+
         orderedMessages.forEach(message => {
           message.reactions = reactionsByMessage[message.id] || []
         })
-        
-        // Feeds reactionsStore so getMessageReactions() works unchanged  
+
+        // Feeds reactionsStore so getMessageReactions() works unchanged.
         await this.populateReactionsStoreCache(reactionsByMessage)
       }
 
-      debug.log(`✅ Core: Loaded ${orderedMessages.length} messages with reactions for conversation: ${conversationId}`)
+      debug.log(`Core: Loaded ${orderedMessages.length} messages with reactions for conversation: ${conversationId}`)
       
       const { processMessageDecryption } = await import('@/utils/messageDecryption')
       const decryptedMessages = await processMessageDecryption(orderedMessages)
       
       return decryptedMessages
     } catch (error) {
-      debug.error('❌ Core: Failed to load conversation messages:', error)
+      debug.error('Core: Failed to load conversation messages:', error)
       throw error
     }
   }
 
-  /**
-   * Load a single message by ID (pure local)
-   */
+  // Returns null on PGRST116 (no rows).
   async loadMessage(messageId: string): Promise<Message | null> {
     try {
-      debug.log(`🔄 Core: Loading message: ${messageId}`)
+      debug.log(`Core: Loading message: ${messageId}`)
 
       const { data: message, error } = await supabase
         .from('messages')
@@ -1469,38 +1393,35 @@ export class CoreMessageService {
 
       if (error) {
         if (error.code === 'PGRST116') {
-          debug.log(`ℹ️ Core: Message not found: ${messageId}`)
+          debug.log(`ℹCore: Message not found: ${messageId}`)
           return null
         }
         throw this.createError('LOAD_MESSAGE_FAILED', error.message, error)
       }
 
-      debug.log(`✅ Core: Loaded message: ${messageId}`)
+      debug.log(`Core: Loaded message: ${messageId}`)
       return message
     } catch (error) {
-      debug.error('❌ Core: Failed to load message:', error)
+      debug.error('Core: Failed to load message:', error)
       throw error
     }
   }
 
   // HELPER METHODS (PURE LOCAL)
 
-  /**
-   * Get current user's profile ID
-   * Uses centralized AuthContextService to avoid duplicate auth lookups
-   */
+  // Auth lookups are centralized in AuthContextService.
   private async getCurrentUserProfileId(): Promise<string> {
     try {
       return await authContextService.getCurrentProfileId()
     } catch (error) {
-      debug.error('❌ Core: Failed to get current user profile ID:', error)
+      debug.error('Core: Failed to get current user profile ID:', error)
       throw this.createError('AUTH_REQUIRED', 'User not authenticated')
     }
   }
 
   /**
-   * Send a system message in a channel (e.g., thread creation announcements).
-   * System messages bypass encryption and are rendered specially by MessageDisplay.
+   * Channel system message, e.g. thread creation announcements. Bypasses
+   * encryption; rendered by MessageDisplay's system-message path.
    */
   async sendSystemMessage(
     channelId: string,
@@ -1535,9 +1456,9 @@ export class CoreMessageService {
   }
 
   /**
-   * Tag a message's metadata so we can audit that the user explicitly chose
-   * to send plaintext into an encryption-intended room. This shows up in
-   * `messages.metadata.plaintext_override` for moderation/audit/UI badges.
+   * Records an explicit plaintext send into an encryption-intended room at
+   * `messages.metadata.plaintext_override`, read by moderation, audit, and
+   * UI badges.
    */
   private markPlaintextOverride(meta: Record<string, any>, reason: string): void {
     meta.plaintext_override = {

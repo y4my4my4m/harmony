@@ -13,14 +13,12 @@ import { getBridgeAttachmentMode, hasDiscordCdnFilePart } from './utils/mirrorEx
 
 const app = express()
 
-// Middleware
 app.use(helmet())
 app.use(cors())
 app.use(compression())
 app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ extended: true }))
 
-// Health check endpoint
 app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
@@ -40,27 +38,24 @@ const gateway = new WebSocketGateway(wss)
 const eventDispatcher = new EventDispatcher(gateway)
 
 eventDispatcher.start().catch(error => {
-  console.error('❌ Failed to start event dispatcher:', error)
+  console.error('Failed to start event dispatcher:', error)
   process.exit(1)
 })
 
-// Bot API routes (authenticated)
+// Bot API routes require bot token authentication.
 const botAPI = new BotRestAPI()
 app.use('/api/v1', botAPI.router)
 
-// =====================================================
 // USER-AUTHENTICATED ENDPOINTS
-// =====================================================
 //
-// These endpoints used to be public, which let any unauthenticated caller
-// enumerate connected bots (`/status`) and bridged Discord users for any
-// channel ID (`/bridged-users/:channelId` - see BUGS.md C4). They now require
-// a valid Supabase user JWT, and `/bridged-users` additionally checks that
-// the caller is a member of the channel's server.
+// These require a valid Supabase user JWT. `/bridged-users` additionally
+// requires the caller to be a member of the channel's server; unauthenticated
+// access allowed enumeration of connected bots and of bridged Discord users
+// for arbitrary channel IDs. See BUGS.md C4.
 
 /**
- * Validate a Supabase user JWT from the `Authorization: Bearer <token>` header.
- * Returns the caller's profile id (`profiles.id`), or `null` if unauthenticated.
+ * Validates the Supabase user JWT in `Authorization: Bearer <token>`.
+ * Returns `profiles.id`, or `null` when unauthenticated.
  */
 async function getCallerProfileId(req: express.Request): Promise<string | null> {
   const auth = req.headers.authorization
@@ -81,7 +76,7 @@ async function getCallerProfileId(req: express.Request): Promise<string | null> 
   return profile.id as string
 }
 
-// Public bridge onboarding lookup - pairing codes only resolve non-secret metadata.
+// Public bridge onboarding lookup. Pairing codes resolve non-secret metadata only.
 app.get('/bridge-setup/:pairingCode', async (req, res): Promise<void> => {
   const pairingCode = String(req.params.pairingCode ?? '').trim().toUpperCase()
   if (!/^HRM-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(pairingCode)) {
@@ -125,8 +120,7 @@ app.get('/bridge-setup/:pairingCode', async (req, res): Promise<void> => {
   })
 })
 
-// Gateway status - admin-style endpoint; require authentication so we don't leak
-// connected bot inventory to arbitrary callers.
+// Gateway status. Authenticated: the connected-bot inventory is not public.
 app.get('/status', async (req, res): Promise<void> => {
   const callerProfileId = await getCallerProfileId(req)
   if (!callerProfileId) {
@@ -144,9 +138,9 @@ app.get('/status', async (req, res): Promise<void> => {
   })
 })
 
-// Bridged users for Discord bridge - used by the Harmony frontend for mention
-// autosuggest. Requires the caller to be a member of the channel's server so
-// you can't enumerate Discord user lists for arbitrary channel IDs.
+// Discord bridge users, consumed by the frontend for mention autosuggest.
+// Caller must be a member of the channel's server; otherwise Discord user
+// lists are enumerable by channel ID.
 app.get('/bridged-users/:channelId', async (req, res): Promise<void> => {
   const callerProfileId = await getCallerProfileId(req)
   if (!callerProfileId) {
@@ -156,8 +150,8 @@ app.get('/bridged-users/:channelId', async (req, res): Promise<void> => {
 
   const { channelId } = req.params
 
-  // Resolve channel → server_id, then check the caller is in user_servers for
-  // that server. Service role bypasses RLS, so this is the authoritative check.
+  // Channel resolves to server_id, then caller membership in user_servers.
+  // The service role bypasses RLS, so this is the authoritative check.
   const { data: channel } = await supabase
     .from('channels')
     .select('server_id')
@@ -230,11 +224,11 @@ app.get('/bridged-users/server/:serverId', async (req, res): Promise<void> => {
   })
 })
 
-// On-demand attachment refresh (bridge_attachment_mode = 'refresh'). When a
-// user views a bridged message whose external CDN URL has expired, the frontend
-// calls this; we forward a REFRESH_ATTACHMENTS request to the owning bot (the
-// bridge), which re-signs the URLs and silently patches the message. Deduped so
-// many simultaneous viewers don't fan out into many Discord API calls.
+// On-demand attachment refresh, active when bridge_attachment_mode = 'refresh'.
+// The frontend calls this when a bridged message's external CDN URL has
+// expired; a REFRESH_ATTACHMENTS request goes to the owning bridge bot, which
+// re-signs the URLs and patches the message. Deduped so simultaneous viewers
+// produce one Discord API call.
 const refreshDedupe = new TTLCache<string, true>(5_000, 15_000)
 
 app.post('/attachments/refresh', async (req, res): Promise<void> => {
@@ -250,13 +244,13 @@ app.post('/attachments/refresh', async (req, res): Promise<void> => {
     return
   }
 
-  // Feature must be enabled by the instance admin.
+  // Enabled per instance by the admin.
   if ((await getBridgeAttachmentMode()) !== 'refresh') {
     res.json({ refreshing: false, reason: 'not_enabled' })
     return
   }
 
-  // Already kicked off a refresh for this message very recently - no-op.
+  // Refresh already in flight for this message.
   if (refreshDedupe.get(messageId)) {
     res.json({ refreshing: true, deduped: true })
     return
@@ -274,7 +268,7 @@ app.post('/attachments/refresh', async (req, res): Promise<void> => {
     return
   }
 
-  // Caller must be a member of the channel's server (same gate as bridged-users).
+  // Caller must be a member of the channel's server; same gate as bridged-users.
   const { data: channel } = await supabase
     .from('channels')
     .select('server_id')
@@ -314,7 +308,6 @@ app.post('/attachments/refresh', async (req, res): Promise<void> => {
   res.json({ refreshing: true })
 })
 
-// Error handling middleware
 app.use((err: any, req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error('Unhandled error:', err)
   res.status(500).json({
@@ -323,30 +316,28 @@ app.use((err: any, req: express.Request, res: express.Response, _next: express.N
   })
 })
 
-// 404 handler
 app.use((req, res) => {
   res.status(404).json({ error: 'Not found' })
 })
 
-// Graceful shutdown
 process.on('SIGTERM', shutdown)
 process.on('SIGINT', shutdown)
 
 async function shutdown() {
-  console.log('📥 Received shutdown signal')
+  console.log('Received shutdown signal')
   
   gateway.shutdown()
   
   await eventDispatcher.shutdown()
   
   server.close(() => {
-    console.log('👋 Server shut down gracefully')
+    console.log('Server shut down gracefully')
     process.exit(0)
   })
   
-  // Force close after 10 seconds
+  // Hard exit 10s after the shutdown signal.
   setTimeout(() => {
-    console.error('⚠️ Forced shutdown after timeout')
+    console.error('Forced shutdown after timeout')
     process.exit(1)
   }, 10000)
 }
@@ -354,7 +345,7 @@ async function shutdown() {
 const PORT = config.port
 server.listen(PORT, () => {
   console.log('╔════════════════════════════════════════╗')
-  console.log('║   🤖 Harmony Bot Gateway Started      ║')
+  console.log('║   Harmony Bot Gateway Started      ║')
   console.log('╠════════════════════════════════════════╣')
   console.log(`║   HTTP Server:  http://localhost:${PORT}   ║`)
   console.log(`║   WebSocket:    ws://localhost:${PORT}/gateway`)
@@ -362,13 +353,12 @@ server.listen(PORT, () => {
   console.log('╚════════════════════════════════════════╝')
 })
 
-// Unhandled rejection handler
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason)
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason)
 })
 
 process.on('uncaughtException', (error) => {
-  console.error('❌ Uncaught Exception:', error)
+  console.error('Uncaught Exception:', error)
   process.exit(1)
 })
 

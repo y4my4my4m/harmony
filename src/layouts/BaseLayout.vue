@@ -1,5 +1,4 @@
 <template>
-  <!-- Loading Screen -->
   <div v-if="!isAppReady" class="loading-overlay">
     <div class="loading-spinner-container">
       <LoadingSpinner />
@@ -7,13 +6,11 @@
     </div>
   </div>
   
-  <!-- Main Layout -->
   <div v-else class="base-layout" :class="{ 
     'sidebar-open': leftSidebarOpen, 
     'profile-open': rightSidebarOpen,
     'is-dragging': isDragging
   }">
-    <!-- Mobile Overlay Backdrop -->
     <div 
       v-if="isMobile && (leftSidebarOpen || (hasRightSidebar && rightSidebarOpen) || isDragging)" 
       class="mobile-overlay"
@@ -21,21 +18,17 @@
       @click="closeMobileSidebars"
     ></div>
     
-    <!-- Edge Swipe Indicators -->
     <div v-if="isMobile && isAppReady" class="edge-indicators">
       <div class="edge-indicator left" :class="{ active: touchState.isEdgeSwipe && touchState.startX <= 30 }"></div>
       <div class="edge-indicator right" :class="{ active: touchState.isEdgeSwipe && touchState.startX >= windowWidth - 30 }"></div>
     </div>
     
-    <!-- Server List Sidebar (Always Visible) -->
+    <!-- Server rail: fixed column on desktop, drawer on mobile -->
     <div 
       class="server-sidebar-container"
       :class="{ 'is-dragging': isDragging && dragDirection === 'left' }"
       :style="serverSidebarDragStyle"
     >
-      <!-- TODO: fix for mobile -->
-
-      <!-- Mobile Profile Component -->
       <div 
         v-if="isMobile"
         class="user-profile-section"
@@ -60,7 +53,6 @@
       />
     </div>
     
-    <!-- Content Area with Nested Router View -->
     <div class="content-area">
       <RouterView 
         :left-sidebar-open="leftSidebarOpen"
@@ -83,7 +75,7 @@
       <UserProfileComponent />
     </div>
     
-    <!-- Global Incoming Call Modal (ALWAYS rendered, shows based on prop) -->
+    <!-- Always mounted; visibility is driven by the show prop -->
     <IncomingCallModal
       :show="showGlobalIncomingCall"
       :caller-id="globalIncomingCallData?.callerId || ''"
@@ -120,7 +112,6 @@ import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
 import { dmCallSignaling } from '@/services/DMCallSignaling'
 import { realtimeConnectionManager } from '@/services/RealtimeConnectionManager'
 
-// Stores and Router
 const serverChannelStore = useServerChannelStore()
 const authStore = useAuthStore()
 const profileStore = useProfileStore()
@@ -129,11 +120,9 @@ const voiceStore = useUnifiedVoiceChannelStore()
 const route = useRoute()
 const router = useRouter()
 
-// Branded loading label - falls back to the env default / "Harmony" before
-// instance settings have loaded from the DB.
+// Falls back to "Harmony" until instance settings load from the DB.
 const instanceName = computed(() => instanceSettingsStore.settings.instanceName || 'Harmony')
 
-// Composables
 const { touchState, handleTouchStart, handleTouchMove, handleTouchEnd } = useMobileGestures()
 const { 
   leftSidebarOpen, 
@@ -172,12 +161,11 @@ const {
   toggleRightSidebar,
 })
 
-// Global call state (reactive references from the global listener)
+// Reactive refs owned by globalDMCallListener.
 const showGlobalIncomingCall = globalDMCallListener.showIncomingCallModal
 const globalIncomingCallData = globalDMCallListener.incomingCall
 
 
-// Emit events
 // eslint-disable-next-line unused-imports/no-unused-vars
 const emit = defineEmits<{
   showPublicServers: []
@@ -185,11 +173,9 @@ const emit = defineEmits<{
   switchToChat: []
 }>()
 
-// State - Initialize refs properly
 const isAppInitialized = ref(false)
 const hasServersLoaded = ref(false)
 
-// Computed - Safely access ref values
 const isAppReady = computed(() => {
   try {
     return isAppInitialized.value === true && hasServersLoaded.value === true
@@ -199,7 +185,6 @@ const isAppReady = computed(() => {
   }
 })
 
-// Detect if we're on a DM route
 const isDMRoute = computed(() => {
   return route.path.startsWith('/dm')
 })
@@ -221,25 +206,20 @@ const overlayStyle = computed(() => {
   }
 })
 
-// Global call handlers
 const handleGlobalCallAccept = async (acceptWithVideo: boolean) => {
   const incomingCall = globalDMCallListener.incomingCall.value
   if (!incomingCall) return
 
   if (!authStore.session?.user?.id) return
 
-  // Optimistic UI: dismiss the incoming-call sheet immediately and let
-  // the voice overlay (which already reacts to `voiceStore.isConnecting`)
-  // show the joining state while the accept signal + LiveKit join run.
-  // Without this the user sits on a frozen "Incoming call" UI for the
-  // full server round-trip.
+  // Dismiss the sheet before the server round-trip. The voice overlay reacts to
+  // `voiceStore.isConnecting` and renders the joining state meanwhile.
   globalDMCallListener.dismissIncomingCall()
   voiceStore.isOverlayVisible = true
 
   // BUGS.md Pattern A: `dmCallSignaling.acceptCall` / `declineCall` and the
-  // signaling channel all key participants on PROFILE ids (every other site
-  // uses `authContextService.getCurrentProfileId()`). Passing the auth UUID
-  // here corrupts `activeCalls.participants` and breaks teardown.
+  // signaling channel key participants on PROFILE ids, not auth UUIDs. Passing
+  // an auth UUID corrupts `activeCalls.participants` and breaks teardown.
   let currentUserId: string
   try {
     const { authContextService } = await import('@/services/AuthContextService')
@@ -252,8 +232,8 @@ const handleGlobalCallAccept = async (acceptWithVideo: boolean) => {
 
   try {
     if (incomingCall.isFederated && incomingCall.callerFederatedId) {
-      // Federated call: accept via ActivityPub and join remote LiveKit room
-      debug.log('📞 [Federated] Accepting federated call from:', incomingCall.callerFederatedId)
+      // Federated: accept over ActivityPub, then join the remote LiveKit room.
+      debug.log('[Federated] Accepting federated call from:', incomingCall.callerFederatedId)
 
       await dmCallSignaling.acceptFederatedCall(
         incomingCall.conversationId,
@@ -261,10 +241,9 @@ const handleGlobalCallAccept = async (acceptWithVideo: boolean) => {
         incomingCall.callerFederatedId
       )
 
-      // Navigate to the DM conversation
       await router.push(`/dm/${incomingCall.conversationId}`)
 
-      // Join the caller's LiveKit room using the room name from the invite
+      // Room name comes from the invite.
       const roomName = incomingCall.roomName
       if (roomName) {
         const success = await voiceStore.joinVoiceChannel(roomName, 'dm')
@@ -274,16 +253,16 @@ const handleGlobalCallAccept = async (acceptWithVideo: boolean) => {
             await voiceStore.toggleVideo()
           }
           await new Promise(resolve => setTimeout(resolve, 100))
-          debug.log('✅ [Federated] Joined federated call')
+          debug.log('[Federated] Joined federated call')
         } else {
           voiceStore.isOverlayVisible = false
         }
       } else {
         voiceStore.isOverlayVisible = false
-        debug.error('❌ [Federated] No room name available for federated call')
+        debug.error('[Federated] No room name available for federated call')
       }
     } else {
-      // Local call: use Supabase Realtime signaling
+      // Local: Supabase Realtime signaling.
       await dmCallSignaling.acceptCall(incomingCall.conversationId, currentUserId)
 
       await router.push(`/dm/${incomingCall.conversationId}`)
@@ -296,7 +275,7 @@ const handleGlobalCallAccept = async (acceptWithVideo: boolean) => {
           await voiceStore.toggleVideo()
         }
         await new Promise(resolve => setTimeout(resolve, 100))
-        debug.log('✅ Joined call with maximized voice overlay')
+        debug.log('Joined call with maximized voice overlay')
       } else {
         voiceStore.isOverlayVisible = false
       }
@@ -313,7 +292,7 @@ const handleGlobalCallDecline = async () => {
 
   if (!authStore.session?.user?.id) return
 
-  // Same Pattern A fix as handleGlobalCallAccept.
+  // Profile id, not auth UUID; see Pattern A note in handleGlobalCallAccept.
   let currentUserId: string
   try {
     const { authContextService } = await import('@/services/AuthContextService')
@@ -325,14 +304,14 @@ const handleGlobalCallDecline = async () => {
 
   try {
     if (incomingCall.isFederated && incomingCall.callerFederatedId) {
-      // Federated call: decline via ActivityPub
+      // Federated: decline over ActivityPub.
       await dmCallSignaling.declineFederatedCall(
         incomingCall.conversationId,
         currentUserId,
         incomingCall.callerFederatedId
       )
     } else {
-      // Local call: decline via Supabase Realtime
+      // Local: Supabase Realtime.
       await dmCallSignaling.declineCall(incomingCall.conversationId, currentUserId)
     }
   } catch (error) {
@@ -342,18 +321,13 @@ const handleGlobalCallDecline = async () => {
   }
 }
 
-// ---------------------------------------------------------------------------
-// PWA cold-boot resilience
-// ---------------------------------------------------------------------------
-// When Chrome launches the PWA on OS boot, the network often isn't fully up
-// yet. The initial `initializeApp()` call can succeed at auth (Supabase reads
-// session from localStorage synchronously) but fail at the server-list fetch,
-// leaving us authenticated with no servers loaded. Without these retry
-// helpers, that state is sticky: the auth watcher only fires on null→set,
-// so nothing ever re-triggers initialization. We retry on the most likely
-// recovery signals (network coming back online, tab regaining focus) and as
-// a one-shot fallback timer in case neither fires (navigator.onLine can be
-// true the whole time even when individual requests fail).
+// PWA cold-boot resilience.
+// On OS-boot launch the network is often not up yet: auth succeeds (Supabase
+// reads the session from localStorage synchronously) while the server-list
+// fetch fails, leaving an authenticated session with no servers. That state is
+// sticky because the auth watcher fires only on null→set. Recovery is driven by
+// the `online` event, `visibilitychange`, and a one-shot timer; the timer
+// covers the case where navigator.onLine stays true while requests fail.
 let initInFlight = false
 let initRetryTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -366,12 +340,10 @@ const cancelInitRetryTimer = () => {
 
 const retryInitializationIfNeeded = async (reason: string) => {
   if (initInFlight) return
-  // Only retry when we're authenticated but the server-list fetch never
-  // completed. This keeps us a no-op for the success path and the
-  // genuinely-logged-out path.
+  // No-op unless authenticated with an incomplete server-list fetch.
   if (!authStore.session?.user?.id) return
   if (serverChannelStore.hasInitialized) return
-  debug.log(`🔁 BaseLayout: retrying app initialization (${reason})`)
+  debug.log(`BaseLayout: retrying app initialization (${reason})`)
   await initializeApp()
 }
 
@@ -394,18 +366,16 @@ const handleVisibilityRetry = () => {
   }
 }
 
-// Route-Aware App Initialization
-// Only loads what's needed for the current route instead of everything
+// Loads only what the current route needs.
 const initializeApp = async () => {
   if (initInFlight) {
-    debug.log('⏭️ BaseLayout: initializeApp already running, skipping duplicate call')
+    debug.log('BaseLayout: initializeApp already running, skipping duplicate call')
     return
   }
   initInFlight = true
   cancelInitRetryTimer()
   try {
-    // Auth is already initialized in main.ts before mount, so session should be ready
-    // But add a small safety delay in case of race conditions
+    // main.ts initializes auth before mount; this delay covers the race.
     if (!authStore.session) {
       await new Promise(resolve => setTimeout(resolve, 100))
     }
@@ -421,33 +391,31 @@ const initializeApp = async () => {
     
     const loadingStrategy = routeAwareInitialization.getLoadingStrategy(route)
     
-    // PERFORMANCE: Load minimum data needed to show UI, then mark as ready
+    // Load the minimum needed to render, then mark ready.
     
     await serverChannelStore.initializeUserEnvironment(userId)
     
-    // Load profile FIRST, then initialize userData with full profile data
+    // Profile must load before userData.initialize so avatar/color/banner/status
+    // are present on first render.
     await profileStore.fetchProfileByAuthUserId(userId).catch(err => {
-      debug.warn('⚠️ Profile fetch failed:', err)
+      debug.warn('Profile fetch failed:', err)
     })
     
-    // Initialize userData with full profile data (or fallback to auth data if profile not found)
     const { useUserData } = await import('@/composables/useUserData')
     
-    // Defensive check: ensure useUserData is a function
     if (typeof useUserData !== 'function') {
-      debug.error('❌ useUserData is not a function:', typeof useUserData, useUserData)
+      debug.error('useUserData is not a function:', typeof useUserData, useUserData)
       throw new Error(`useUserData is not a function, got: ${typeof useUserData}`)
     }
     
     const userData = useUserData()
     
-    // Defensive check: ensure userData has initialize method
     if (!userData || typeof userData.initialize !== 'function') {
-      debug.error('❌ userData.initialize is not a function:', typeof userData?.initialize, userData)
+      debug.error('userData.initialize is not a function:', typeof userData?.initialize, userData)
       throw new Error(`userData.initialize is not a function, got: ${typeof userData?.initialize}`)
     }
     
-    // Use profile data if available, otherwise fallback to auth session data
+    // Falls back to auth session metadata when no profile row exists.
     const userProfile = profileStore.profile || {
       id: userId,
       username: authStore.session?.user?.user_metadata?.username || authStore.session?.user?.email?.split('@')[0] || 'User',
@@ -458,10 +426,8 @@ const initializeApp = async () => {
       status: undefined
     }
     
-    // Initialize userData with full profile data (includes avatar, color, banner, status)
-    // Double-check that initialize is still a function before calling
     if (typeof userData?.initialize !== 'function') {
-      debug.error('❌ userData.initialize is not a function before call:', typeof userData?.initialize, userData)
+      debug.error('userData.initialize is not a function before call:', typeof userData?.initialize, userData)
       throw new Error(`userData.initialize is not a function before call, got: ${typeof userData?.initialize}`)
     }
     
@@ -473,21 +439,20 @@ const initializeApp = async () => {
         userProfile
       )
     } catch (err) {
-      debug.warn('⚠️ UserData initialization failed:', err)
-      // Don't throw - allow app to continue even if userData init fails
+      debug.warn('UserData initialization failed:', err)
+      // Non-fatal: the app renders without userData.
     }
     
-    debug.log('✅ UserData initialized with profile data (avatar, color, banner, status should all be available)')
+    debug.log('UserData initialized with profile data (avatar, color, banner, status should all be available)')
     
     hasServersLoaded.value = true;
     isAppInitialized.value = true;
     
-    // Continue loading other data in background (non-blocking)
+    // Non-blocking remainder.
     (async () => {
       try {
-        // Verify userData is still valid before using it in background
         if (!userData || typeof userData !== 'object') {
-          debug.error('❌ userData is invalid in background function:', typeof userData, userData)
+          debug.error('userData is invalid in background function:', typeof userData, userData)
           return
         }
         
@@ -495,16 +460,15 @@ const initializeApp = async () => {
         const serverUsersStore = useServerUsersStore()
         serverUsersStore.initializeUserDataIntegration()
         
-        // Step 3: Load route-specific data (needs userData)
         await initializeRouteSpecificData(userId, loadingStrategy, userData).catch(err => {
-          debug.warn('⚠️ Background route data initialization failed:', err)
+          debug.warn('Background route data initialization failed:', err)
         })
       } catch (err) {
-        debug.error('❌ Background initialization errors:', err)
+        debug.error('Background initialization errors:', err)
       }
     })()
     
-    // Attempt to reconnect to previous voice channel if user was in one (background)
+    // Rejoin the previous voice channel, if any.
     setTimeout(async () => {
       try {
         const { useUnifiedVoiceChannelStore } = await import('@/stores/unifiedVoiceChannel')
@@ -515,24 +479,18 @@ const initializeApp = async () => {
       }
     }, 500)
     
-    // Background loading of non-critical data
     setTimeout(() => {
       initializeBackgroundData(userId, loadingStrategy)
     }, 100)
     
   } catch (error) {
-    debug.error('❌ Failed to initialize app:', error)
-    // PWA cold-boot race: when the OS launches the PWA before the network
-    // is fully up, `initializeUserEnvironment` can throw and leave us with
-    // a valid session but an empty server list. If we mark the app as
-    // ready here, ChatLayout renders the false "join a server / create
-    // a community" splash even though the user has servers. Instead,
-    // keep the loading screen up and lean on the retry handlers below
-    // (online / visibilitychange / one-shot timer) to re-attempt init
-    // once the network is actually available. Only fall through to the
-    // legacy "mark ready" behavior when there's no session to load for
-    // (e.g. the user is genuinely logged out) so the router can take
-    // over and send them to the login screen.
+    debug.error('Failed to initialize app:', error)
+    // PWA cold-boot race: `initializeUserEnvironment` can throw before the
+    // network is up, leaving a valid session with an empty server list. Marking
+    // the app ready here would render ChatLayout's "join a server" splash to a
+    // user who has servers. Keep the loading screen and defer to the retry
+    // handlers (online / visibilitychange / one-shot timer). Mark ready only
+    // when there is no session, so the router can route to login.
     if (authStore.session?.user?.id && !serverChannelStore.hasInitialized) {
       scheduleInitRetry('initial-failure')
       return
@@ -547,8 +505,8 @@ const initializeApp = async () => {
 const initializeRouteSpecificData = async (userId: string, strategy: any, userData: any) => {
   try {
     if (strategy.routeType === 'server-channel') {
-      // Warm the chat-related stores in parallel; we only need the emoji cache
-      // store instance directly below, the others register themselves.
+      // Warm chat stores in parallel. Only the emoji cache instance is used
+      // below; the rest self-register on import.
       const [emojiCache] = await Promise.all([
         import('@/stores/useEmojiCache'),
         import('@/stores/useChat'),
@@ -576,8 +534,8 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
     }
     
     else if (strategy.routeType === 'dm' || strategy.routeType === 'dm-list') {
-      // Warm DM-related stores in parallel; only the cache and DM store
-      // instances are used below.
+      // Warm DM stores in parallel. Only the emoji cache and DM store instances
+      // are used below.
       const [emojiCache, { useDMStore }] = await Promise.all([
         import('@/stores/useEmojiCache'),
         import('@/stores/useDM'),
@@ -615,7 +573,7 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
     }
     
     else if (strategy.routeType === 'social') {
-      // Warm ActivityPub-related stores in parallel; only the cache and
+      // Warm ActivityPub stores in parallel. Only the emoji cache and
       // ActivityPub store instances are used below.
       const [emojiCache, { useActivityPubStore }] = await Promise.all([
         import('@/stores/useEmojiCache'),
@@ -636,9 +594,9 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
       }
     }
     
-    // MINIMAL STORES: For unknown/other routes, load only essentials
+    // Unknown routes get essentials only.
     else if (strategy.routeType === 'other' && serverChannelStore.servers.length > 0) {
-      // Warm essential stores in parallel; only the cache is touched directly.
+      // Warm essential stores in parallel. Only the emoji cache is used below.
       const [emojiCache] = await Promise.all([
         import('@/stores/useEmojiCache'),
         import('@/stores/useReactions'),
@@ -659,22 +617,19 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
       }
     }
     
-    // BASELINE GLOBAL PRESENCE: Load users for cross-context online status.
-    // Settings/admin routes don't render member lists or DM sidebars - skip the
-    // all-servers member blast that was blowing past reverse-proxy URL limits.
+    // Baseline presence set for cross-context online status.
+    // Settings/admin routes render no member list or DM sidebar; the
+    // all-servers member fetch there exceeds the reverse-proxy URL length limit.
     const baselineUserIds = new Set<string>()
     const skipBaselinePresence = strategy.routeType === 'settings'
     
-    // For DM routes with a specific conversation, only load that conversation's participants initially
     const isSingleDMView = strategy.routeType === 'dm' && strategy.currentConversationId
     
     if (!skipBaselinePresence && isSingleDMView) {
-      // Only load current conversation participant for single DM view
       try {
-        // The DM store already loaded this conversation (and its other
-        // participant) via initializeDMEnvironmentForDirectAccess above, so
-        // reuse it instead of re-querying conversation_participants. Fall back
-        // to the direct query only if the store doesn't have it yet.
+        // initializeDMEnvironmentForDirectAccess above already loaded this
+        // conversation and its other participant; reuse it rather than
+        // re-querying conversation_participants. Direct query is the fallback.
         const { useDMStore } = await import('@/stores/useDM')
         const currentConv = useDMStore().conversations.find(c => c.id === strategy.currentConversationId)
         const knownParticipantIds = currentConv
@@ -699,11 +654,9 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
           }
         }
         
-        // DEFER: Load other DM contacts in background (non-blocking).
-        // Prefer reusing the conversation list the DM store has already loaded
-        // (initializeDMEnvironmentForDirectAccess + its deferred sidebar fetch)
-        // instead of re-querying conversation_participants twice. Falls back to
-        // the direct query only if the store isn't populated yet.
+        // Remaining DM contacts load in the background off the DM store's
+        // conversation list (populated by initializeDMEnvironmentForDirectAccess
+        // and its deferred sidebar fetch). Direct query is the fallback.
         setTimeout(async () => {
           try {
             const otherUserIds = new Set<string>()
@@ -748,14 +701,14 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
               await userData.ensureProfilesAvailable(Array.from(otherUserIds))
             }
           } catch (error) {
-            debug.warn('⚠️ Background DM contacts loading failed:', error)
+            debug.warn('Background DM contacts loading failed:', error)
           }
-        }, 500) // Load other DM contacts after 500ms
+        }, 500)
       } catch (error) {
-        debug.warn('⚠️ Failed to load current conversation participants:', error)
+        debug.warn('Failed to load current conversation participants:', error)
       }
     } else if (!skipBaselinePresence) {
-      // Not a single DM view - load all users normally
+      // Multi-conversation view: load every reachable user.
     await Promise.all([
       (async () => {
         const { getUserIdsForServers } = await import('@/services/usersService')
@@ -767,7 +720,7 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
             userIds.forEach(id => baselineUserIds.add(id))
           }
         } catch (error) {
-          debug.warn('⚠️ Failed to batch-load server members:', error)
+          debug.warn('Failed to batch-load server members:', error)
         }
       })(),
       
@@ -796,7 +749,7 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
             }
           }
         } catch (error) {
-          debug.warn('⚠️ Failed to load DM contacts for global presence:', error)
+          debug.warn('Failed to load DM contacts for global presence:', error)
             }
         }
       })()
@@ -808,14 +761,14 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
     }
     
   } catch (error) {
-    debug.error('❌ Failed to initialize route-specific data:', error)
+    debug.error('Failed to initialize route-specific data:', error)
   }
 }
 
 // Background loading of non-critical data
 const initializeBackgroundData = async (userId: string, _strategy: any) => {
   try {
-    // Register global conversation broadcast handlers (new conversations + metadata updates)
+    // Global broadcast handlers: new conversations and metadata updates.
     const { useDMStore } = await import('@/stores/useDM')
     const dmStore = useDMStore()
     await dmStore.registerGlobalBroadcastHandlers(userId)
@@ -824,19 +777,18 @@ const initializeBackgroundData = async (userId: string, _strategy: any) => {
     const notificationStore = useNotificationStore()
     await notificationStore.initializeUnreadCountOnly(userId)
     
-    // Move activity tracking to background
     const { useUserData } = await import('@/composables/useUserData')
     const userData = useUserData()
     await userData.initializeBackgroundFeatures()
     
-    // Initialize session heartbeat for smart push notifications (Discord-like behavior)
+    // Session heartbeat gates push notifications on active sessions.
     const { initializeSessionHeartbeat } = await import('@/composables/useViewContext')
     await initializeSessionHeartbeat(userId)
     
     const typingService = await import('@/services/TypingIndicatorService')
     await typingService.typingIndicatorService.initialize()
   } catch (error) {
-    debug.error('❌ Background loading failed:', error)
+    debug.error('Background loading failed:', error)
   }
 }
 
@@ -848,19 +800,16 @@ watch(() => authStore.session?.user?.id, async (userId) => {
   }
 }, { immediate: true })
 
-// Watch for auth changes to reinitialize
 watch(() => authStore.session, async (newSession, oldSession) => {
-  // If user just logged in (had no session, now has one)
   if (!oldSession && newSession) {
     await initializeApp()
   }
-  // If user logged out (had session, now doesn't)
   else if (oldSession && !newSession) {
     
     try {
       const { userDataService } = await import('@/services/userDataService')
       await userDataService.cleanup()
-      debug.log('✅ Global presence cleanup completed')
+      debug.log('Global presence cleanup completed')
     } catch (error) {
       debug.error('Failed to cleanup user data:', error)
     }
@@ -868,7 +817,7 @@ watch(() => authStore.session, async (newSession, oldSession) => {
     try {
       const { statePersistence } = await import('@/services/StatePersistence')
       await statePersistence.cleanup()
-      debug.log('✅ State persistence cleanup completed')
+      debug.log('State persistence cleanup completed')
     } catch (error) {
       debug.error('Failed to cleanup state persistence:', error)
     }
@@ -879,7 +828,7 @@ watch(() => authStore.session, async (newSession, oldSession) => {
       
       const typingService = await import('@/services/TypingIndicatorService')
       await typingService.typingIndicatorService.cleanup()
-      debug.log('✅ Session heartbeat cleanup completed')
+      debug.log('Session heartbeat cleanup completed')
     } catch (error) {
       debug.error('Failed to cleanup session heartbeat:', error)
     }
@@ -891,8 +840,7 @@ watch(() => authStore.session, async (newSession, oldSession) => {
   }
 })
 
-// Watch for route changes and refresh global presence
-// Debounced to prevent excessive calls during rapid navigation
+// Presence refresh on route change, debounced against rapid navigation.
 let presenceRefreshTimeout: ReturnType<typeof setTimeout> | null = null
 const PRESENCE_REFRESH_DEBOUNCE_MS = 500
 
@@ -902,7 +850,6 @@ watch(() => route.name, async (newRouteName, oldRouteName) => {
       clearTimeout(presenceRefreshTimeout)
     }
     
-    // Debounce presence refresh to prevent excessive calls during rapid navigation
     presenceRefreshTimeout = setTimeout(async () => {
       try {
         const { useUserData } = await import('@/composables/useUserData')
@@ -917,18 +864,16 @@ watch(() => route.name, async (newRouteName, oldRouteName) => {
 
 let previousRouteType: string | null = null
 
-// Route-aware store initialization when navigating between different contexts
-// e.g., from /chat to /dm, from /social to /dm, etc.
+// Re-initializes stores when the route type changes, e.g. /chat → /dm.
 watch(() => route.path, async (newPath) => {
   if (!isAppInitialized.value || !authStore.session?.user?.id) return
   
   const userId = authStore.session.user.id
   const newStrategy = routeAwareInitialization.getLoadingStrategy(route)
   
-  // Skip if same route type (already initialized)
   if (previousRouteType === newStrategy.routeType) return
   
-  debug.log('🔄 Route context changed:', { from: previousRouteType, to: newStrategy.routeType, path: newPath })
+  debug.log('Route context changed:', { from: previousRouteType, to: newStrategy.routeType, path: newPath })
   previousRouteType = newStrategy.routeType
   
   if (newStrategy.routeType === 'dm' || newStrategy.routeType === 'dm-list') {
@@ -936,11 +881,10 @@ watch(() => route.path, async (newPath) => {
       const { useDMStore } = await import('@/stores/useDM')
       const dmStore = useDMStore()
 
-      // Always (re-)initialize: realtime subscriptions are torn down when
-      // leaving the chat/DM layout, so they must be re-established on return.
-      // The store renders the cached conversation list immediately and only
-      // revalidates in the background when the cache is warm (no spinner).
-      debug.log('📬 Initializing DM store for navigation to:', newPath)
+      // Unconditional re-init: realtime subscriptions are torn down on leaving
+      // the chat/DM layout and must be re-established on return. A warm cache
+      // renders immediately and revalidates in the background.
+      debug.log('Initializing DM store for navigation to:', newPath)
 
       if (newStrategy.routeType === 'dm' && newStrategy.currentConversationId) {
         await dmStore.initializeDMEnvironmentForDirectAccess(userId, newStrategy.currentConversationId)
@@ -953,7 +897,7 @@ watch(() => route.path, async (newPath) => {
   }
 })
 
-// ===== NATIVE MOBILE GESTURE HANDLERS =====
+// Mobile gesture handlers.
 
 /** Overlays with horizontal scroll (e.g. media picker tabs) must not trigger sidebar swipes. */
 const shouldIgnoreSidebarGesture = (event: TouchEvent) => {
@@ -977,7 +921,7 @@ const wrappedTouchMove = (event: TouchEvent) => {
     onSwipeLeft: () => {},
     onDragStart: (direction) => {
       if (isActivityPubTimeline && !hasOpenSidebars) return
-      debug.log('📱 Drag started:', direction)
+      debug.log('Drag started:', direction)
       startDrag(direction)
     },
     onDragMove: (deltaX, direction) => {
@@ -998,7 +942,7 @@ const wrappedTouchEnd = (event: TouchEvent) => {
       if (isOnTimeline) {
         timelineNavigateTo('right')
       } else if (!isActivityPub) {
-        debug.log('🔄 Quick swipe right, opening left sidebar')
+        debug.log('Quick swipe right, opening left sidebar')
         toggleLeftSidebar()
       } else {
         toggleLeftSidebar()
@@ -1009,7 +953,7 @@ const wrappedTouchEnd = (event: TouchEvent) => {
       if (isOnTimeline) {
         timelineNavigateTo('left')
       } else if (!isActivityPub) {
-        debug.log('🔄 Quick swipe left, opening right sidebar')
+        debug.log('Quick swipe left, opening right sidebar')
         toggleRightSidebar()
       } else {
         toggleRightSidebar()
@@ -1023,23 +967,20 @@ const wrappedTouchEnd = (event: TouchEvent) => {
         cancelDrag()
         return
       }
-      debug.log('📱 Drag ended:', { velocity, direction })
+      debug.log('Drag ended:', { velocity, direction })
       endDragWithVelocity(velocity, direction)
     }
   })
 }
 
-// Mobile touch handlers
 onMounted(() => {
   realtimeConnectionManager.initialize()
   
   if (typeof window !== 'undefined') {
     window.addEventListener('touchstart', wrappedTouchStart, { passive: true })
-    window.addEventListener('touchmove', wrappedTouchMove, { passive: false }) // Changed to false to allow preventDefault
+    window.addEventListener('touchmove', wrappedTouchMove, { passive: false }) // non-passive: handleTouchMove calls preventDefault
     window.addEventListener('touchend', wrappedTouchEnd, { passive: true })
-    // PWA cold-boot recovery: retry app initialization when the network
-    // comes back online or when the user brings the tab back into focus.
-    // These are no-ops in the normal success path.
+    // PWA cold-boot recovery signals; no-ops on the success path.
     window.addEventListener('online', handleOnlineRetry)
   }
   if (typeof document !== 'undefined') {
@@ -1103,7 +1044,6 @@ onBeforeUnmount(() => {
   transition: opacity 0.3s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
-/* Disable transition during drag */
 .base-layout.is-dragging .mobile-overlay {
   transition: none;
 }
@@ -1180,11 +1120,10 @@ onBeforeUnmount(() => {
     z-index: 200;
     transform: translateX(-100%);
     padding-top: 0;
-    /* Native-feeling spring animation on release */
+    /* Spring settle on release */
     transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
   }
 
-  /* Disable transition during active drag */
   .server-sidebar-container.is-dragging {
     transition: none !important;
   }

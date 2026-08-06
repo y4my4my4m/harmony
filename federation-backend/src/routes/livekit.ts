@@ -8,9 +8,7 @@ import config from '../config/index.js';
 
 const router = Router();
 
-// =============================================================================
 // REQUEST VALIDATION SCHEMAS
-// =============================================================================
 
 const tokenRequestSchema = z.object({
   roomName: z.string().min(1).max(256),
@@ -30,9 +28,7 @@ const federatedTokenRequestSchema = z.object({
   canPublishData: z.boolean().optional(),
 });
 
-// =============================================================================
 // MIDDLEWARE
-// =============================================================================
 
 /**
  * Middleware to verify user authentication via Supabase JWT
@@ -93,9 +89,7 @@ const requireLiveKit = (req: Request, res: Response, next: Function) => {
   next();
 };
 
-// =============================================================================
 // PUBLIC ROUTES
-// =============================================================================
 
 /**
  * GET /api/livekit/config
@@ -145,9 +139,7 @@ router.get('/health', async (req: Request, res: Response) => {
   }
 });
 
-// =============================================================================
 // AUTHENTICATED ROUTES
-// =============================================================================
 
 /**
  * POST /api/livekit/token
@@ -231,16 +223,16 @@ router.post('/federated-token', requireLiveKit, async (req: Request, res: Respon
     );
 
     if (!verification.verified) {
-      logger.warn(`🚫 Rejecting federated token request with invalid signature: ${verification.error}`);
+      logger.warn(`Rejecting federated token request with invalid signature: ${verification.error}`);
       return res.status(401).json({ error: `Invalid HTTP Signature: ${verification.error}` });
     }
 
-    // The signature is verified, but that only proves "some remote actor signed
-    // this request". We must also bind the claimed `actorId` to the signer so a
-    // valid signer can't mint a LiveKit token for a different actor (BUGS.md C3).
+    // A verified signature only proves "some remote actor signed this request".
+    // The claimed `actorId` must also be bound to the signer, else a valid
+    // signer can mint a LiveKit token for a different actor (BUGS.md C3).
     // Strict match - no same-domain delegation for Person-style identities.
     if (!verification.actorUrl) {
-      logger.warn('🚫 Rejecting federated token request: signature verification did not return an actor URL');
+      logger.warn('Rejecting federated token request: signature verification did not return an actor URL');
       return res.status(401).json({ error: 'Signature verification did not yield an actor URL' });
     }
     if (!SignatureService.verifyActorMatch(actorId, verification.actorUrl)) {
@@ -469,9 +461,7 @@ router.post('/rooms/:roomName/participants/:identity/permissions', requireAuth, 
   }
 });
 
-// =============================================================================
 // FEDERATED CALL ROUTES
-// =============================================================================
 
 /**
  * POST /api/livekit/federated-call/invite
@@ -511,7 +501,7 @@ router.post('/federated-call/invite', requireAuth, requireLiveKit, async (req: R
     
     await DeliveryQueue.sendToInbox(callee.inbox_url, activity, user.id);
     
-    logger.info(`📞 Sent federated call invite from ${callerFederatedId} to ${calleeFederatedId}`);
+    logger.info(`Sent federated call invite from ${callerFederatedId} to ${calleeFederatedId}`);
     
     res.json({ 
       success: true,
@@ -584,7 +574,7 @@ router.post('/federated-call/accept', requireAuth, requireLiveKit, async (req: R
       await DeliveryQueue.sendToInbox(caller.inbox_url, activity, user.id);
     }
     
-    logger.info(`📞 Accepted federated call from ${callerFederatedId}`);
+    logger.info(`Accepted federated call from ${callerFederatedId}`);
     
     res.json({
       success: true,
@@ -658,7 +648,7 @@ router.post('/federated-call/reject', requireAuth, requireLiveKit, async (req: R
       await DeliveryQueue.sendToInbox(caller.inbox_url, activity, user.id);
     }
     
-    logger.info(`📞 Rejected federated call from ${callerFederatedId}`);
+    logger.info(`Rejected federated call from ${callerFederatedId}`);
     
     res.json({ success: true });
   } catch (error) {
@@ -723,7 +713,7 @@ router.post('/federated-call/end', requireAuth, requireLiveKit, async (req: Requ
       }
     }
     
-    logger.info(`📞 Ended federated call for conversation ${conversationId}`);
+    logger.info(`Ended federated call for conversation ${conversationId}`);
     
     res.json({ success: true });
   } catch (error) {

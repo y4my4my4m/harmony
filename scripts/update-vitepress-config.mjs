@@ -6,7 +6,7 @@ import path from 'path'
 const DOCS_API_DIR = 'docs/api'
 const CONFIG_FILE = 'docs/.vitepress/config.ts'
 
-console.log('🔄 Updating VitePress configuration with generated API docs...')
+console.log('Updating VitePress configuration with generated API docs...')
 
 async function generateSidebarConfig() {
   const categories = await fs.readdir(DOCS_API_DIR, { withFileTypes: true })
@@ -88,10 +88,10 @@ async function updateVitePressConfig() {
     const updatedConfig = configContent.replace(apiSectionRegex, newApiSection)
     await fs.writeFile(CONFIG_FILE, updatedConfig)
     
-    console.log('✅ VitePress configuration updated successfully!')
-    console.log(`📊 Generated sidebar for ${apiSidebar.length} categories`)
+    console.log('VitePress configuration updated successfully!')
+    console.log(`Generated sidebar for ${apiSidebar.length} categories`)
   } else {
-    console.log('⚠️  Could not find API sidebar section in config file')
+    console.log('Could not find API sidebar section in config file')
   }
 }
 

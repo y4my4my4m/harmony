@@ -1,15 +1,16 @@
 /**
- * Data aggregation for the "Today" dashboard (beta).
+ * Data aggregation for the "Today" dashboard. Client-side only; no
+ * server-side aggregation exists for it.
  *
- * Pulls together, without any new server-side infrastructure:
- *   - channels with the most unread activity (from unread_counts)
+ * Sources:
+ *   - channels with the most unread activity (unread_counts)
  *   - threads the user participates in, ordered by recent activity
- *   - trending ActivityPub posts (reuses TrendingService)
+ *   - trending ActivityPub posts (TrendingService)
  *   - total unread mentions
  *
- * Optionally produces a short on-device AI summary of the digest using
- * Chrome's built-in Summarizer API (Gemini Nano). No text ever leaves the
- * device; when the API is unavailable the digest simply renders without it.
+ * Summaries run through Chrome's built-in Summarizer API (Gemini Nano);
+ * text stays on-device. The digest renders without them when the API is
+ * unavailable.
  */
 
 import { supabase } from '@/supabase'
@@ -75,8 +76,8 @@ class TodayDigestService {
   }
 
   /**
-   * A stable fingerprint of the digest's inputs. The view caches AI output
-   * against this: same signature → same summary, no model re-run.
+   * Stable fingerprint of the digest's inputs. The view caches AI output
+   * against it: same signature, no model re-run.
    */
   digestSignature(digest: TodayDigest): string {
     const parts = [
@@ -89,10 +90,10 @@ class TodayDigestService {
     return parts.join('|')
   }
 
-  // Cap: 12 unread channels ACROSS ALL SERVERS, mention-heavy first. The
-  // view groups them per server; a busy server can therefore occupy several
-  // slots but never crowds out another server's mentions (mentions sort
-  // first regardless of origin).
+  // Cap of 12 unread channels across all servers, mentions first. The view
+  // groups them per server; one busy server can take several slots but
+  // cannot displace another server's mentions, which sort first regardless
+  // of origin.
   private async getActiveChannels(profileId: string, limit = 12): Promise<ActiveChannelEntry[]> {
     const { data, error } = await supabase
       .from('unread_counts')
@@ -167,8 +168,8 @@ class TodayDigestService {
   }
 
   /**
-   * Recent posts from people the user follows (last 48h), ranked by
-   * engagement so the section surfaces what mattered, not just what's newest.
+   * Posts from followed accounts within the last 48h, ranked by
+   * relevanceScore rather than recency.
    */
   private async getFollowedPosts(profileId: string, limit = 5): Promise<TimelinePost[]> {
     const { data: follows, error: followsError } = await supabase
@@ -208,15 +209,14 @@ class TodayDigestService {
   }
 
   /**
-   * Engagement-psychology ranking for the followed-posts section.
+   * Ranking for the followed-posts section.
    *
-   * - Replies weigh most: an active conversation is an invitation to
-   *   participate, which retains far better than passively-likeable content.
-   * - Reblogs next: endorsement + spread.
-   * - Favorites sublinear: the cheapest signal, with diminishing returns -
-   *   2000 replies / 20 favorites should beat 21 favorites / 2 replies.
-   * - Exponential time decay (18h half-life) so yesterday's viral post
-   *   doesn't pin the list while today's discussion is happening.
+   * - Replies weigh most; they signal an active conversation.
+   * - Reblogs next.
+   * - Favorites weigh least, and all three exponents are sublinear so
+   *   raw counts have diminishing returns.
+   * - Exponential time decay, 18h half-life, keeps a day-old viral post
+   *   from pinning the list.
    */
   private relevanceScore(p: any): number {
     const replies = Math.pow(Math.max(0, p.replies_count || 0), 0.9) * 3
@@ -250,18 +250,15 @@ class TodayDigestService {
     return (data || []).reduce((sum, row: any) => sum + (row.unread_mentions || 0), 0)
   }
 
-  // ---------------------------------------------------------------------
   // On-device AI (Chrome built-in Summarizer API / Gemini Nano)
-  // ---------------------------------------------------------------------
 
   isOnDeviceAiSupported(): boolean {
     return typeof (globalThis as any).Summarizer?.availability === 'function'
   }
 
   /**
-   * Per-channel sub-summaries ("A and B discussed X"), built from the last
-   * ~30 plaintext messages of the busiest unread channels and summarized
-   * on-device. Encrypted messages are skipped entirely - their ciphertext
+   * Per-channel summaries built from the last 30 plaintext messages of the
+   * top-ranked unread channels. Encrypted messages are skipped; ciphertext
    * never reaches the model. Empty when the model is unavailable.
    */
   async getChannelHighlights(channels: ActiveChannelEntry[], maxChannels = 3): Promise<ChannelHighlight[]> {
@@ -314,11 +311,11 @@ class TodayDigestService {
   }
 
   /**
-   * Pick which channels deserve an AI highlight. Raw unread volume is a weak
-   * signal (one hyperactive server drowns everything); weight instead by:
-   *   - mentions (someone wanted YOU there)
-   *   - channels the user recently posted in themselves (their actual circles)
-   *   - unread volume as the tie-breaker
+   * Selects channels for AI highlights. Unread volume alone lets one
+   * hyperactive server dominate, so the score weights, in order:
+   *   - mentions of the user
+   *   - channels the user recently posted in
+   *   - unread volume, as tie-breaker
    */
   private async rankChannelsForHighlights(
     channels: ActiveChannelEntry[],

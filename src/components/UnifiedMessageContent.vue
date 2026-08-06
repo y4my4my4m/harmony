@@ -14,9 +14,8 @@
         @update:model-value="handleRichEditorUpdate"
         @keydown="handleKeyDown"
       />
-      <!-- Existing attachments: shown as removable thumbnails so editing the
-           text never silently drops media. Removing one here only affects the
-           saved message, not the text input above. -->
+      <!-- Existing attachments as removable thumbnails. Removal affects the
+           saved message only, not the text input above. -->
       <div v-if="editableFiles.length > 0" class="edit-attachments">
         <div
           v-for="(file, fileIndex) in editableFiles"
@@ -62,7 +61,6 @@
           enter to <span class="edit-action" @click="handleSaveEdit">save</span>
         </span>
       </div>
-      <!-- Auto-suggest component -->
       <AutoSuggest
         :isVisible="autoSuggest.state.value.isActive"
         :suggestions="autoSuggest.suggestions.value"
@@ -76,10 +74,10 @@
     <!-- Display mode -->
     <div v-else class="content-display" :class="{ 'system-message-content': isSystem }">
       <!--
-        Unverified-author badge. Only shown for messages that WERE encrypted,
-        WERE successfully decrypted, but whose sender signature could not be
-        verified (legacy v1 message or sender has no signing key on file).
-        This is the user-visible signal for the Megolm v2 sender-binding fix.
+        Unverified-author badge. Shown only for messages that were encrypted,
+        decrypted successfully, but whose sender signature could not be
+        verified (legacy v1 message, or sender has no signing key on file).
+        User-visible signal of Megolm v2 sender binding.
       -->
       <span
         v-if="decrypted && senderVerified === false"
@@ -173,7 +171,7 @@
             <DisplayName :userId="part.userId" :fallback="part.username" :truncate="false" />
           </template>
           <template v-else>{{ part.username }}</template>
-          <!-- Always surface @domain for federated mentions so users can tell where the account lives -->
+          <!-- Federated mentions always show @domain -->
           <span
             v-if="!part.isLocal && part.domain && part.domain !== 'discord.com'"
             class="mention-domain"
@@ -284,9 +282,9 @@
             v-else
             class="url-link url-link--unsafe"
           >{{ part.url }}</span>
-          <!-- Media-only embeds (GIF pages: tenor / giphy / klipy): the
-               resolved image IS the content, so render it exactly like a
-               direct image URL - no link-preview card chrome. -->
+          <!-- Media-only embeds (GIF pages: tenor / giphy / klipy). The
+               resolved image is the content; render as a direct image URL,
+               without link-preview card chrome. -->
           <div
             v-if="embedMedia(part)?.kind === 'image'"
             class="media-container image-container"
@@ -663,9 +661,9 @@ export default defineComponent({
       default: false
     },
     /**
-     * The message is encrypted with a key that no longer exists (it predates the
-     * current encryption identity). Decryption can never succeed, so the UI must
-     * NOT offer a click-to-decrypt retry for it.
+     * Message encrypted with a key that no longer exists; it predates the
+     * current encryption identity. Decryption can never succeed, so the UI
+     * must not offer a click-to-decrypt retry.
      */
     unrecoverable: {
       type: Boolean,
@@ -674,8 +672,8 @@ export default defineComponent({
     /**
      * Megolm v2 sender-binding verification result.
      *  - `true`      → signature verified
-     *  - `false`     → decrypted but sender NOT cryptographically verified
-     *                  (legacy v1 message OR sender has no signing key)
+     *  - `false`     → decrypted, sender not cryptographically verified
+     *                  (legacy v1 message, or sender has no signing key)
      *  - `undefined` → not applicable (plaintext / never went through decrypt)
      */
     senderVerified: {
@@ -694,9 +692,8 @@ export default defineComponent({
   emits: ['update:message', 'update:content', 'cancel-edit', 'image-loaded', 'embed-loaded', 'open-lightbox', 'show-user-profile', 'hashtag-click', 'decrypt-message', 'remove-attachment'],
   setup(props, { emit }) {
     const localEditableContent = ref(props.editableContent);
-    // Attachments retained while editing. Initialized from the message's file
-    // parts when edit mode opens; the user can remove individual items without
-    // touching the text input. On save these are merged back into the message.
+    // Attachments retained while editing. Seeded from the message's file parts
+    // when edit mode opens, removable individually, merged back on save.
     const editableFiles = ref<FileContent[]>([]);
     const editRichEditorRef = ref<InstanceType<typeof RichTextEditor> | null>(null);
     const videoContainers = ref<HTMLElement[]>([]);
@@ -715,7 +712,7 @@ export default defineComponent({
     const klipyWatermarkHref = (url: string) =>
       parseKlipyItemPageUrl(url) || defaultKlipyHomeUrl();
     const klipyWatermarkLogoUrl = KLIPY_WATERMARK_LOGO_URL;
-    // Stickers render small and inline, with no lightbox/zoom - "like stickers".
+    // Stickers render small and inline, with no lightbox or zoom.
     const isStickerMedia = (url: string) => isStickerMessageUrl(url);
     // Klipy AI emoji render as plain emoji: no watermark, no favorite, no lightbox.
     const isAiEmojiMedia = (url: string) => isAiEmojiMessageUrl(url);
@@ -724,7 +721,6 @@ export default defineComponent({
     const hoveredImageUrl = ref<string | null>(null);
     const favoriteGifUrls = ref<Set<string>>(new Set());
     
-    // Unified emoji service for emoji pack rendering
     const { resolveEmoji, isNativePack, isLoaded: emojiServiceLoaded } = useUnifiedEmoji();
 
     // Lazy bridged-attachment refresh: when a message carries an expired Discord
@@ -761,13 +757,11 @@ export default defineComponent({
       cancelRemoveAttachment();
     };
     
-    // Internal reactive state for image loading (use prop if provided, otherwise create new)
+    // Seeded from the prop, then kept merged by the watcher below.
     const imageLoadedState = reactive<Record<string, boolean>>({ ...props.imageLoaded });
-    
-    // Floating video
+
     const { registerVideo, returnToOriginalPosition, getFloatingVideoMessageId } = useFloatingVideo();
     
-    // Watch for prop changes and merge with internal state
     watch(() => props.imageLoaded, (newValue) => {
       Object.assign(imageLoadedState, newValue);
     }, { deep: true });
@@ -804,7 +798,7 @@ export default defineComponent({
         const thisVideoId = `${props.messageId}-video-${videoIndex}`;
         const floatingVideoId = getFloatingVideoMessageId();
         
-        // If another video is floating and it's not this one, return it to its original position
+        // Only one video floats at a time.
         if (floatingVideoId && floatingVideoId !== thisVideoId) {
           returnToOriginalPosition();
         }
@@ -825,13 +819,12 @@ export default defineComponent({
     const isAnimatedImage = (url: string): boolean => {
       if (!url) return false;
       const lowerUrl = url.toLowerCase();
-      // Check for GIF, animated WebP, or animated PNG
+      // Extension and known GIF hosts only; animated webp/apng are not detected.
       return lowerUrl.includes('.gif') || 
              lowerUrl.includes('tenor.com') || 
              lowerUrl.includes('giphy.com') ||
              lowerUrl.includes('klipy.com') ||
              lowerUrl.includes('/gif') ||
-             // Could also check for webp/apng but harder to detect animation
              false;
     };
 
@@ -907,10 +900,8 @@ export default defineComponent({
         }
       });
     };
-    // Auto-suggest setup (RichTextEditor ref + getCurrentText/updateText for insertions)
     const autoSuggest = useAutoSuggest(editRichEditorRef, getCurrentText, updateText);
 
-    // Helper functions
     const isImageUrl = (url: string): boolean => {
       if (!url) return false;
       return /\.(jpg|jpeg|png|gif|webp|bmp|svg)(?:[?#].*)?$/i.test(url);
@@ -987,13 +978,13 @@ export default defineComponent({
     };
 
     /**
-     * When an embed's resolved media IS the content (GIF pages like klipy /
-     * tenor / giphy), render it as real media instead of a link card.
+     * Renders an embed as media instead of a link card when the resolved media
+     * is the content (GIF pages: klipy / tenor / giphy).
      *
-     * Decision is made HERE, from the media file itself, not only from the
-     * backend's mediaOnly flag: embeds are persisted in message metadata and
-     * cached for 24h server-side, so already-stored payloads (and hosts the
-     * backend heuristic doesn't know) must still upgrade to media rendering.
+     * Decided from the media file extension, not only the backend's mediaOnly
+     * flag: embeds persist in message metadata and are cached 24h server-side,
+     * so already-stored payloads and hosts unknown to the backend heuristic
+     * still upgrade to media rendering.
      */
     const embedMedia = (part: MessagePart): { kind: 'image' | 'video'; url: string } | null => {
       const payload = resolveEmbedPayload(part);
@@ -1007,19 +998,16 @@ export default defineComponent({
 
     const formatMentionDisplay = (mentionPart: any): string => {
       try {
-        // Use the structured data from the new MentionContent format
         if (mentionPart.isLocal) {
           return `@${mentionPart.username}`;
         } else if (mentionPart.domain === 'discord.com' || mentionPart.isBridged) {
-          // For Discord bridged users, just show @username (icon is added via CSS)
+          // Bridged Discord users show @username; the platform icon comes from CSS.
           return `@${mentionPart.username}`;
         } else {
-          // For federated users, show full @username@domain
           return `@${mentionPart.username}@${mentionPart.domain}`;
         }
       } catch (error) {
         debug.error('Error formatting mention display:', error, { mentionPart });
-        // Fallback to legacy format handling if needed
         if (mentionPart.mention) {
           return formatLegacyMentionDisplay(mentionPart.mention, mentionPart.userId);
         }
@@ -1027,15 +1015,13 @@ export default defineComponent({
       }
     };
 
-    // Legacy mention format handler (for backwards compatibility)
+    // storedMention format: @uuid@domain. Displayed as @username for local
+    // users, @username@domain for remote.
     const formatLegacyMentionDisplay = (storedMention: string, userId: string): string => {
-      // storedMention is in format @uuid@domain
-      // We need to display as @username for local users or @username@domain for remote users
       
       try {
         const mentionMatch = storedMention.match(/^@([^@]+)@(.+)$/);
         if (!mentionMatch) {
-          // Fallback: if not in expected format, return as-is
           return storedMention;
         }
         
@@ -1044,28 +1030,24 @@ export default defineComponent({
         const userProfile = userDataService.getUserProfile(userId);
         
         if (userProfile) {
-          // If user is local, display as @username
-          // If user is remote, display as @username@domain
           if (userProfile.isLocal) {
             return `@${userProfile.username}`;
           } else {
             return `@${userProfile.username}@${userProfile.domain || domain}`;
           }
         } else {
-          // Fallback: if we can't find the user, try to extract username from stored format
-          // This shouldn't happen but provides graceful degradation
+          // Profile not cached: fall back to the stored form.
           return storedMention;
         }
       } catch (error) {
         debug.error('Error formatting legacy mention display:', error, { storedMention, userId });
-        return storedMention; // Fallback to stored format
+        return storedMention;
       }
     };
 
     // Wrapper around the pure renderer in `chatMessageTextRenderer.ts`.
-    // The actual XSS-relevant logic lives there so it can be tested in
-    // isolation; this just plumbs in the component's reactive emoji /
-    // theme state.
+    // XSS-relevant logic lives there so it can be tested in isolation;
+    // this supplies the component's reactive emoji and theme state.
     const renderTextContent = (text: string) =>
       renderChatMessageText(text, {
         isNativePack: isNativePack.value,
@@ -1075,18 +1057,16 @@ export default defineComponent({
         greentextEnabled: visualTheme.currentSettings.value.greentextEnabled !== false,
       });
 
-    // Function to render text content with code blocks as components
+    // Splits rendered text on code-block placeholders, interleaving CodeBlock segments.
     const renderTextSegments = (text: string) => {
       const { renderedText, codeBlocks } = renderTextContent(text);
       const segments: Array<{type: 'text' | 'codeblock'; content?: string; code?: string; language?: string}> = [];
       
       if (codeBlocks.length === 0) {
-        // No code blocks, just return the rendered text
         segments.push({ type: 'text', content: renderedText });
         return segments;
       }
       
-      // Split the rendered text by code block placeholders and interleave with code blocks
       let remainingText = renderedText;
       
       codeBlocks.forEach((codeBlock) => {
@@ -1094,7 +1074,6 @@ export default defineComponent({
         const placeholderIndex = remainingText.indexOf(placeholder);
         
         if (placeholderIndex !== -1) {
-          // Add text before the placeholder
           const beforeText = remainingText.substring(0, placeholderIndex);
           if (beforeText) {
             segments.push({ type: 'text', content: beforeText });
@@ -1106,12 +1085,10 @@ export default defineComponent({
             language: codeBlock.language 
           });
           
-          // Update remaining text to everything after the placeholder
           remainingText = remainingText.substring(placeholderIndex + placeholder.length);
         }
       });
       
-      // Add any remaining text after the last code block
       if (remainingText) {
         segments.push({ type: 'text', content: remainingText });
       }
@@ -1119,9 +1096,8 @@ export default defineComponent({
       return segments;
     };
 
-    // Watch for changes to the prop and update the local copy accordingly
     watch(() => props.editableContent, (newVal) => {
-      // Only update if the value is different to avoid infinite loops
+      // Guard against a write-back loop through the editor.
       if (newVal !== localEditableContent.value) {
         localEditableContent.value = newVal;
       }
@@ -1132,10 +1108,10 @@ export default defineComponent({
       });
     });
 
-    // Watch for edit mode changes - place cursor at end on initial open.
-    // setTimeout(0) ensures this runs after all microtasks (Vue nextTicks,
-    // RichTextEditor's onMounted renderContent, and its internal nextTick
-    // cursor restore), so our setCursorPosition(end) is the final word.
+    // Cursor goes to end of text when edit mode opens. setTimeout(0) runs
+    // after all microtasks (Vue nextTicks, RichTextEditor's onMounted
+    // renderContent, its internal nextTick cursor restore), so this
+    // setCursorPosition applies last.
     watch(() => props.editableMessageId, (newVal) => {
       if (newVal === props.messageId) {
         // Snapshot the message's current attachments into the editable list.
@@ -1180,13 +1156,12 @@ export default defineComponent({
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Check if auto-suggest handled the key event first
+      // Auto-suggest claims keys first.
       if (autoSuggest.handleKeyDown(event)) {
         return;
       }
       
       if (event.key === 'Enter' && !event.shiftKey) {
-        // Only save if auto-suggest is not active
         if (!autoSuggest.state.value.isActive) {
           event.preventDefault();
           handleSaveEdit();
@@ -1211,13 +1186,11 @@ export default defineComponent({
     };
 
     const handleSaveEdit = () => {
-      // debug.log('handleSaveEdit called');
       autoSuggest.closeSuggestions();
       
       const content = localEditableContent.value.trim();
 
-      // Allow a file-only message: empty text is fine as long as the user kept
-      // at least one attachment. Only cancel when nothing would remain.
+      // File-only messages are valid. Cancel only when nothing would remain.
       if (!content && editableFiles.value.length === 0) {
         handleCancelEdit();
         return;
@@ -1254,7 +1227,6 @@ export default defineComponent({
       });
     };
     
-    // Check if a mention is from a bridged platform (e.g., Discord)
     const isBridgedMention = (part: any): boolean => {
       return part?.isBridged || part?.domain === 'discord.com';
     };
@@ -1293,9 +1265,8 @@ export default defineComponent({
       }
     };
 
-    // Stop the spinner as soon as the parent's decrypt attempt settles
-    // (success or failure). The 5s timeout below stays as a fallback for
-    // paths that never fire the event.
+    // Stops the spinner once the parent's decrypt attempt settles, success or
+    // failure. The 5s timeout below covers paths that never fire the event.
     const handleDecryptFinished = (event: Event) => {
       const detail = (event as CustomEvent).detail as { messageId?: string } | undefined;
       if (detail?.messageId === props.messageId) {
@@ -1313,7 +1284,7 @@ export default defineComponent({
       event.stopPropagation();
       if (decrypting.value) return;
 
-      debug.log('🔓 Click to decrypt message:', props.messageId);
+      debug.log('Click to decrypt message:', props.messageId);
       decrypting.value = true;
 
       emit('decrypt-message', props.messageId);
@@ -1408,9 +1379,9 @@ export default defineComponent({
   -ms-user-select: text;
 }
 
-/* Unverified-author badge: shown only when a decrypted message lacks a
- * verifiable sender signature (Megolm v2 sender binding). Inline so it
- * sits next to the message content without disrupting layout. */
+/* Unverified-author badge: shown when a decrypted message lacks a verifiable
+ * sender signature (Megolm v2 sender binding). Inline, so it sits beside the
+ * message content without disrupting layout. */
 .unverified-author-badge {
   display: inline-block;
   margin-right: 6px;
@@ -1430,7 +1401,6 @@ export default defineComponent({
 
 /* Text content styling */
 .text-content {
-  /* color: var(--text-secondary); */
   color: var(--text-primary);
   user-select: text;
   -webkit-user-select: text;
@@ -1488,7 +1458,7 @@ export default defineComponent({
   -ms-user-select: text;
 }
 
-/* Code blocks are now handled by the CodeBlock component */
+/* Code blocks are handled by the CodeBlock component */
 
 /* URL links */
 .url-link {
@@ -2054,7 +2024,7 @@ export default defineComponent({
   padding-left: 4px;
 }
 
-/* Encrypted glyphs styling - uses global styles from design-system.css */
+/* Encrypted glyph styles live in design-system.css */
 
 .audio-filename {
   font-size: 0.875rem;
@@ -2063,11 +2033,9 @@ export default defineComponent({
   font-weight: 500;
 }
 
-/* Encrypted message styles now use global design-system.css */
-
 /* Permanently unrecoverable message: encrypted with a key that no longer
-   exists. Visually muted + a lock prefix, and explicitly NOT clickable so the
-   user isn't invited to retry something that can never succeed. */
+   exists. Muted, lock-prefixed, and not clickable - retrying can never
+   succeed. */
 .encrypted-unrecoverable {
   cursor: not-allowed;
   opacity: 0.55;

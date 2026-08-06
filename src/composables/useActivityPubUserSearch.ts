@@ -44,7 +44,7 @@ export function useActivityPubUserSearch() {
         try {
           const federatedUsers = await activityPubService.searchFederatedUsers(query, 5);
           federatedUsers.forEach((user: any) => {
-            // More robust duplicate check using multiple criteria
+            // Duplicate by id, or by username+domain pair.
             const isDuplicate = suggestions.find(s => 
               s.id === user.id || 
               (s.username === user.username && s.domain === user.domain)

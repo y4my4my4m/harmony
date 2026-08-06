@@ -1,6 +1,5 @@
 <template>
   <div class="dm-view">
-    <!-- DM Header -->
     <div class="dm-header-container">
       <DMHeader
         v-if="currentConversation"
@@ -27,7 +26,6 @@
       </div>
     </div>
 
-    <!-- Active Call Banner -->
     <div v-if="showCallBanner" class="dm-call-banner">
       <div class="call-banner-content">
         <span class="call-banner-icon">
@@ -40,15 +38,12 @@
       </div>
     </div>
 
-    <!-- DM Content -->
     <div class="dm-content">
-      <!-- Show FollowersList when no conversation is selected -->
       <FollowersList
         v-if="!currentConversation"
         @conversation-started="handleConversationStarted"
       />
       
-      <!-- Show chat when conversation is selected -->
       <UnifiedContentArea
         v-else
         :mode="ViewMode.CHAT"
@@ -64,7 +59,6 @@
       />
     </div>
 
-    <!-- Group Chat Invite Modal for Adding Users -->
     <GroupChatInviteModal
       :show="showAddUserModal"
       :conversation-id="currentConversation?.id"
@@ -74,7 +68,6 @@
       @conversation-created="handleConversationCreated"
     />
     
-    <!-- Incoming Call Modal -->
     <IncomingCallModal
       :show="showIncomingCallModal"
       :caller-id="incomingCall?.callerId || ''"
@@ -106,12 +99,10 @@ import { dmCallSignaling } from '@/services/DMCallSignaling'
 import { useViewContextTracking } from '@/composables/useViewContext'
 import { useNotificationStore } from '@/stores/useNotification'
 import { debug } from '@/utils/debug'
-// `useEncryptionFallbackPrompt` is no longer needed here - `ChatComponent`
-// now owns the DM send + fallback flow so it can await the actual outcome
-// before clearing the input. This file is a notification-only forwarder.
+// `ChatComponent` owns the DM send + fallback flow so it can await the outcome
+// before clearing the input. This file forwards notifications only.
 import { ViewMode, ViewType } from '@/types/viewTypes'
 
-// Props
 interface Props {
   isDM: boolean
   conversationId?: string
@@ -120,39 +111,31 @@ interface Props {
 // eslint-disable-next-line unused-imports/no-unused-vars
 const props = defineProps<Props>()
 
-// Emits
 // eslint-disable-next-line unused-imports/no-unused-vars
 const emit = defineEmits<{
   toggleLeftSidebar: []
   toggleVoicePanel: []
 }>()
 
-// Stores
 const dmStore = useDMStore()
 const voiceStore = useUnifiedVoiceChannelStore()
 const route = useRoute()
 const router = useRouter()
 
-// User data
 const { getCurrentUser, getUserDisplayName, getUserAvatarUrl } = useUserData()
 
-// Layout state
 const { isMobile } = useLayoutState()
 
-// State
 const isLoading = ref(false)
 const isAtBottom = ref(true)
 const showAddUserModal = ref(false)
 
-// Incoming call state
 const showIncomingCallModal = ref(false)
 const incomingCall = ref<{ callerId: string, callType: 'voice' | 'video', conversationId: string } | null>(null)
 
-// Toast
 const toast = useToast()
 
-// Active call banner state
-// Reading callStateVersion establishes a reactive dependency so Vue re-evaluates on changes
+// Reading callStateVersion establishes the reactive dependency for re-evaluation.
 const showCallBanner = computed(() => {
   dmCallSignaling.callStateVersion.value
   if (!currentConversation.value) return false
@@ -189,11 +172,10 @@ const joinCallFromBanner = async () => {
   }
 }
 
-// Computed
 const chatMessages = computed(() => dmStore.currentDMMessages)
 const currentConversation = computed(() => dmStore.getCurrentConversation)
 
-// DM username for placeholder (strip shortcodes since placeholder is plain text)
+// The placeholder is plain text; shortcodes are stripped.
 const stripShortcodes = (text: string): string => {
   if (!text) return text
   const stripped = text.replace(/:[a-zA-Z0-9_+-]+:/g, '').replace(/\s+/g, ' ').trim()
@@ -221,8 +203,8 @@ const existingParticipants = computed(() => {
   
   if (!conversation?.other_user || !currentUser) return []
   
-  // For now, return basic participant data
-  // In the future, this could be enhanced to fetch from conversation_participants table.
+  // Participant data is derived from the conversation payload, not the
+  // conversation_participants table.
   // `domain: null` plus optional fields don't match DMUser exactly; cast through any.
   const conv = conversation as any
   return [
@@ -270,10 +252,8 @@ const loadMessages = async () => {
     await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
     try {
       if (currentUser?.id) {
-        // Wait for conversation and user data to be loaded before proceeding
         const conversation = await dmStore.initializeDMEnvironmentForDirectAccess(currentUser.id, conversationId)
         
-        // Only fetch messages if we successfully got the conversation
         if (conversation) {
           await dmStore.fetchConversationMessages(conversationId)
         }
@@ -292,14 +272,13 @@ const fetchMoreMessages = async () => {
   }
 }
 
-// Group chat methods
 
 const handleUsersAdded = async (conversationId: string, _userIds: string[]) => {
   const currentUser = getCurrentUser.value
   if (currentUser?.id) {
     try {
       await dmStore.fetchConversationDetails(conversationId, currentUser.id)
-      // Optionally reload messages to show the system message about added users
+      // Refetch to pick up the system message about added users.
       await dmStore.fetchConversationMessages(conversationId)
     } catch (error) {
       debug.error('Failed to refresh conversation after adding users:', error)
@@ -308,13 +287,11 @@ const handleUsersAdded = async (conversationId: string, _userIds: string[]) => {
 }
 
 const handleConversationStarted = async (conversationId: string) => {
-  // Navigation is already handled by the FollowersList component
-  // This method exists for consistency and potential future use
+  // FollowersList performs the navigation.
   debug.log('Conversation started:', conversationId)
 }
 
 const handleConversationCreated = async (newConversationId: string) => {
-  // Navigate to the new group conversation
   try {
     await router.push(`/dm/${newConversationId}`)
   } catch (error) {
@@ -322,9 +299,8 @@ const handleConversationCreated = async (newConversationId: string) => {
   }
 }
 
-// Incoming call handlers
 const handleIncomingCall = (payload: { callerId: string, callType: 'voice' | 'video', conversationId: string }) => {
-  // Don't show modal if we're already in a call
+  // The modal is suppressed while already in a call.
   if (voiceStore.isConnected) return
   
   incomingCall.value = payload
@@ -334,15 +310,12 @@ const handleIncomingCall = (payload: { callerId: string, callType: 'voice' | 'vi
 const handleAcceptCall = async (acceptWithVideo: boolean) => {
   if (!incomingCall.value) return
 
-  // Snapshot the call info BEFORE we clear it, so we still have the IDs
-  // to work with after dismissing the modal.
+  // Snapshot before clearing; the IDs are needed after the modal is dismissed.
   const acceptedCall = incomingCall.value
 
-  // Optimistically dismiss the incoming-call modal and surface the voice
-  // overlay immediately. `voiceStore.isConnecting` (which the overlay
-  // already reacts to) handles the loading affordance while the join
-  // round-trip happens in the background, so the UI no longer freezes
-  // on the old "Incoming call" sheet for several seconds.
+  // Dismiss the modal and show the voice overlay before the join round-trip.
+  // `voiceStore.isConnecting` drives the overlay's loading affordance, so the
+  // UI does not sit on the "Incoming call" sheet for the duration.
   showIncomingCallModal.value = false
   incomingCall.value = null
   voiceStore.isOverlayVisible = true
@@ -356,10 +329,9 @@ const handleAcceptCall = async (acceptWithVideo: boolean) => {
       return
     }
 
-    // Send accept signal (must use profile ID to match leaveCall)
+    // Accept signal uses the profile ID to match leaveCall.
     await dmCallSignaling.acceptCall(acceptedCall.conversationId, profileId)
 
-    // Join the voice channel
     const dmChannelId = `dm-${acceptedCall.conversationId}`
     const success = await voiceStore.joinVoiceChannel(dmChannelId, 'dm')
 
@@ -397,7 +369,6 @@ const handleDeclineCall = async () => {
   }
 }
 
-// Computed for incoming call modal
 const getCallerName = computed(() => {
   if (!incomingCall.value?.callerId) return 'Unknown'
   return getUserDisplayName(incomingCall.value.callerId).value || 'Unknown'
@@ -408,12 +379,10 @@ const getCallerAvatar = computed(() => {
   return getUserAvatarUrl(incomingCall.value.callerId).value || '/default_avatar.webp'
 })
 
-// Watch for conversation changes
 watch(() => route.params.conversationId, loadMessages, { immediate: true })
 
 useViewContextTracking()
 
-// Watch for messageId query param to scroll and highlight
 watch(() => route.query.messageId, async (messageId) => {
   if (messageId && typeof messageId === 'string') {
     await nextTick()
@@ -421,11 +390,10 @@ watch(() => route.query.messageId, async (messageId) => {
   }
 }, { immediate: true })
 
-// Function to scroll to and highlight a message
 const scrollToMessage = async (messageId: string) => {
   await nextTick()
   
-  // Wait a bit for messages to load
+  // 300ms allows messages to render.
   await new Promise(resolve => setTimeout(resolve, 300))
   
   const messageElement = document.getElementById(`message-${messageId}`)
@@ -443,7 +411,6 @@ const scrollToMessage = async (messageId: string) => {
         behavior: 'smooth'
       })
     } else {
-      // Fallback to scrollIntoView if container not found
       messageElement.scrollIntoView({ 
         behavior: 'smooth', 
         block: 'nearest', // Use 'nearest' instead of 'center' to minimize shifts
@@ -459,13 +426,11 @@ const scrollToMessage = async (messageId: string) => {
       await notificationStore.markAsRead(notification.id)
     }
     
-    // Highlight the message
     messageElement.classList.add('highlighted')
     setTimeout(() => {
       messageElement.classList.remove('highlighted')
     }, 3000)
     
-    // Highlight search query text if available
     const searchQuery = route.query.searchQuery as string
     if (searchQuery) {
       highlightSearchText(messageElement, searchQuery)
@@ -482,7 +447,6 @@ const scrollToMessage = async (messageId: string) => {
   }
 }
 
-// Function to highlight search text within message content
 const highlightSearchText = (messageElement: HTMLElement, query: string) => {
   const contentElements = messageElement.querySelectorAll('.message-content, .result-content')
   const searchTerms = query.trim().split(/\s+/).filter(term => term.length > 0)
@@ -507,13 +471,12 @@ const highlightSearchText = (messageElement: HTMLElement, query: string) => {
         if (regex.test(text)) {
           const parent = textNode.parentNode
           if (parent && parent.nodeName !== 'MARK') {
-            // Build the highlight wrapper using DOM APIs rather than
+            // Build the highlight wrapper with DOM APIs, not
             // `innerHTML = text.replace(...)`. `textNode.textContent` is the
-            // DECODED text - if a DM contained `<style>foo</style>`, the
-            // message renderer escaped it to `&lt;style&gt;foo&lt;/style&gt;`,
-            // which has `<style>foo</style>` as textContent here. Assigning
-            // that back via innerHTML would re-parse it as a real <style>
-            // tag and re-introduce the XSS the renderer just defended against.
+            // decoded text: a DM containing `<style>foo</style>` was escaped by
+            // the renderer to `&lt;style&gt;foo&lt;/style&gt;`, which reads back
+            // as `<style>foo</style>` here. innerHTML would re-parse it as a
+            // real <style> tag and reinstate the XSS the renderer blocked.
             const wrapper = document.createElement('span')
             let lastIndex = 0
             let match: RegExpExecArray | null
@@ -536,7 +499,6 @@ const highlightSearchText = (messageElement: HTMLElement, query: string) => {
             }
             parent.replaceChild(wrapper, textNode)
 
-            // Remove highlight after 5 seconds
             setTimeout(() => {
               const marks = wrapper.querySelectorAll('mark.search-highlight')
               marks.forEach(mark => {
@@ -556,11 +518,11 @@ const highlightSearchText = (messageElement: HTMLElement, query: string) => {
   })
 }
 
-// NOTE: DM initialization is now handled by:
+// NOTE: DM initialization happens in two places:
 // 1. BaseLayout (primary) - calls initializeDMEnvironmentForDirectAccess
 // 2. loadMessages watcher (route-based) - handles direct URL access
-// The request deduplication in useDM.ts prevents duplicate API calls.
-// Fallback initialization removed to avoid redundant requests.
+// Request deduplication in useDM.ts prevents duplicate API calls. No fallback
+// initialization exists here.
 </script>
 
 <style scoped>
@@ -670,7 +632,6 @@ const highlightSearchText = (messageElement: HTMLElement, query: string) => {
   opacity: 0.9;
 }
 
-/* Mobile styles */
 @media (max-width: 768px) {
   .mobile-menu-btn {
     display: flex;

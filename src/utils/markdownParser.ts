@@ -31,8 +31,8 @@ const PATTERNS = {
 };
 
 // Hoisted to module scope so they aren't re-allocated on every call to
-// `parseMarkdownWithMarkers`. Stateful 'g' regexes require lastIndex resets
-// before each use, which we do at the call sites.
+// `parseMarkdownWithMarkers`. Stateful 'g' regexes require a lastIndex reset
+// before each use; call sites do that.
 const COMPLETE_CODEBLOCK_PATTERN = /```(\w+)?\n?([\s\S]*?)```/g;
 const INCOMPLETE_CODEBLOCK_PATTERN = /```(\w+)?(?:\n([\s\S]*))?$/g;
 const STREAMING_OTHER_PATTERNS = {
@@ -61,8 +61,7 @@ export function parseMarkdownToNodes(text: string): MarkdownNode[] {
 
     Object.entries(PATTERNS).forEach(([type, pattern]) => {
       // Reuse the module-level regex; reset lastIndex so the stateful 'g'
-      // pattern starts from the beginning of the input. Avoids the per-call
-      // `new RegExp(...)` allocation that this code used to do.
+      // pattern starts from the beginning of the input.
       pattern.lastIndex = 0;
       let match;
       

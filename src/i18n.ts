@@ -36,7 +36,7 @@ async function loadLocale(locale: string): Promise<any> {
     const localeModule = await import(`./locales/${locale}.json`)
     const messages = localeModule.default || localeModule
     loadedLocales.set(locale, messages)
-    debug.log(`📦 Loaded locale: ${locale}`)
+    debug.log(`Loaded locale: ${locale}`)
     return messages
   } catch (error) {
     debug.error(`Failed to load locale ${locale}:`, error)
@@ -122,7 +122,7 @@ async function loadInitialLocale(): Promise<void> {
       const enMessages = await loadLocale('en')
       i18n.global.setLocaleMessage('en', enMessages)
     }
-    debug.log(`✅ Initial locale loaded: ${initialLocale}`)
+    debug.log(`Initial locale loaded: ${initialLocale}`)
   } catch (error) {
     debug.error('Failed to load initial locale:', error)
     throw error
@@ -164,7 +164,7 @@ export async function setLocale(locale: string): Promise<void> {
   
   document.documentElement.setAttribute('lang', locale)
   
-  debug.log(`🌐 Switched to locale: ${locale}`)
+  debug.log(`Switched to locale: ${locale}`)
 }
 
 export function getLocale(): string {

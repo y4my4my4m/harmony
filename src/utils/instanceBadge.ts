@@ -25,7 +25,7 @@ export function showInstanceStaffBadge(
   currentServer: ServerLike | null | undefined,
   inServerContext = true,
 ): boolean {
-  // A federated server (is_local_server === false) is the only case we hide in.
+  // Hidden only on a federated server (is_local_server === false).
   if (inServerContext && currentServer?.is_local_server === false) {
     return false
   }

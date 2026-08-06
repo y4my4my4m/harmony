@@ -12,9 +12,9 @@ import type { Emoji } from '@/types'
 /**
  * Characters allowed inside :shortcode: (includes ~ for cross-server disambiguation).
  *
- * NOTE: Stateful `g`-flag regex objects MUST NOT be shared across modules - `lastIndex`
- * mutation by one consumer corrupts ongoing iteration in another. Each consumer
- * should construct its own RegExp from this pattern via `createShortcodeRegex()`.
+ * NOTE: `g`-flag regex objects must not be shared across modules - `lastIndex`
+ * mutation by one consumer corrupts iteration in another. Each consumer builds
+ * its own RegExp from this pattern via `createShortcodeRegex()`.
  */
 export const EMOJI_SHORTCODE_INNER = '[a-zA-Z0-9_+~-]+'
 export const EMOJI_SHORTCODE_FULL_REGEX = new RegExp(`^:(${EMOJI_SHORTCODE_INNER}):$`)
@@ -38,7 +38,7 @@ export interface ParsedEmojiShortcode {
 
 const dbEmojiCache = new Map<string, Emoji>()
 const pendingDbFetches = new Map<string, Promise<Emoji | null>>()
-/** Negative cache: tokens we know the DB has no row for. Prevents re-fetch loops. */
+/** Negative cache: tokens with no DB row. Prevents re-fetch loops. */
 const dbEmojiMissCache = new Set<string>()
 const DB_MISS_CACHE_MAX = 500
 
@@ -234,8 +234,8 @@ export async function findCustomEmojiByToken(tokenOrShortcode: string): Promise<
         dbEmojiCache.set(parsed.baseName, emoji)
         if (emoji.id) dbEmojiCache.set(emoji.id, emoji)
       } else {
-        // Negative cache (size-capped) so we don't refetch missing emojis
-        // every render - important because resolveDisplayNameParts triggers
+        // Size-capped negative cache. Without it, missing emojis refetch on
+        // every render: resolveDisplayNameParts drives
         // ensureCustomEmojisResolved → reResolveAllDisplayNames cycles.
         if (dbEmojiMissCache.size >= DB_MISS_CACHE_MAX) {
           const first = dbEmojiMissCache.values().next().value
@@ -272,8 +272,8 @@ export function invalidateEmojiResolverCache(token?: string): void {
 
 /**
  * Batch-resolve tokens and warm the module DB cache.
- * Returns the number of tokens that were *newly* resolved this call
- * (callers can skip downstream re-renders when 0).
+ * Returns the count of tokens newly resolved by this call; 0 means callers
+ * can skip downstream re-renders.
  */
 export async function ensureCustomEmojisResolved(tokens: string[]): Promise<number> {
   const inners = [...new Set(tokens.map(normalizeToInnerToken).filter(Boolean))]

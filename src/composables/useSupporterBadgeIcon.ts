@@ -9,8 +9,8 @@ import { debug } from '@/utils/debug'
 import type { DisplayNamePart } from '@/types'
 
 const SHORTCODE_PATTERN = /^:[a-zA-Z0-9_+~-]+:$/
-// One-time warn per shortcode so we don't spam when N message rows render
-// the same broken badge_icon.
+// One warn per shortcode; N message rows can render the same broken
+// badge_icon.
 const warnedMissing = new Set<string>()
 
 /**

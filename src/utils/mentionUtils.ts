@@ -1,6 +1,6 @@
 /**
- * Professional mention extraction and processing utilities
- * Handles both local (@username) and remote (@username@domain) mentions
+ * Mention extraction and processing.
+ * Handles both local (@username) and remote (@username@domain) mentions.
  */
 
 import { supabase } from '@/supabase';
@@ -79,12 +79,10 @@ function parseMfmOrMessagePartsToHtml(parts: any[]): string {
       const rawUrl = p.emoji?.url ?? p.url;
       const url = rawUrl ? getEmojiUrl(rawUrl, 48) : rawUrl;
       const name = p.emoji?.name ?? p.name ?? 'emoji';
-      // The fallback handler was previously inlined as an `onerror` attribute
-      // that spliced the (user-controlled) emoji `name` into a JavaScript
-      // string - a JS-context injection vector. The DOMPurify sanitizer
-      // applied at the consumer (display-name / bio v-html bindings) now
-      // strips `onerror`; if the image fails to load the browser shows the
-      // alt text, which is sufficient.
+      // No `onerror` attribute: it would splice the user-controlled emoji
+      // `name` into a JavaScript string (JS-context injection), and the
+      // DOMPurify pass at the v-html consumer strips it anyway. A failed load
+      // falls back to the alt text.
       html.push(`<img class="inline-emoji" src="${escapeHtml(url)}" alt=":${escapeHtml(name)}:" title=":${escapeHtml(name)}:" />`);
     } else if (p.type === 'emoji' && p.name && !p.url) {
       html.push(escapeHtml(`:${p.name}:`));
@@ -208,7 +206,7 @@ export async function resolveMentions(mentions: MentionMatch[]): Promise<Resolve
         .single();
 
       if (error || !user) {
-        debug.log(`📋 Mention ${mention.full} not found in database`);
+        debug.log(`Mention ${mention.full} not found in database`);
         resolved.push({ mention });
         continue;
       }
@@ -252,8 +250,7 @@ export async function resolveMentions(mentions: MentionMatch[]): Promise<Resolve
       }
 
       // Cast through `any`: `ResolvedMention.user` is typed as `UserData`
-      // (camelCase) but we actually pass the snake_case row from the
-      // `profiles` table. Tightening the type would be a larger refactor.
+      // (camelCase), but the value passed is the snake_case `profiles` row.
       resolved.push({
         mention,
         user: federatedUser as any,
@@ -262,7 +259,7 @@ export async function resolveMentions(mentions: MentionMatch[]): Promise<Resolve
       });
 
     } catch (error) {
-      debug.error(`❌ Failed to resolve mention ${mention.full}:`, error);
+      debug.error(`Failed to resolve mention ${mention.full}:`, error);
       resolved.push({ mention });
     }
   }
@@ -334,7 +331,7 @@ export async function resolveRemoteMention(username: string, domain: string, for
     // Use relative URL - federation backend is proxied through the same domain
     const lookupUrl = '/api/federation/lookup-user';
     
-    debug.log(`🌐 Looking up remote user via backend: ${username}@${domain}${forceRefresh ? ' (force refresh)' : ''}`);
+    debug.log(`Looking up remote user via backend: ${username}@${domain}${forceRefresh ? ' (force refresh)' : ''}`);
     
     const response = await fetch(lookupUrl, {
       method: 'POST',
@@ -349,19 +346,19 @@ export async function resolveRemoteMention(username: string, domain: string, for
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-      debug.warn(`❌ Remote user lookup failed: ${errorData.error || response.statusText}`);
+      debug.warn(`Remote user lookup failed: ${errorData.error || response.statusText}`);
       return null;
     }
 
     const result = await response.json();
     
     if (!result.success || !result.user) {
-      debug.warn(`❌ Remote user lookup returned no user`);
+      debug.warn(`Remote user lookup returned no user`);
       return null;
     }
 
     const savedUser = result.user;
-    debug.log(`✅ ${result.refreshed ? 'Refreshed' : (result.cached ? 'Found cached' : 'Created')} remote user: ${username}@${domain}`);
+    debug.log(`${result.refreshed ? 'Refreshed' : (result.cached ? 'Found cached' : 'Created')} remote user: ${username}@${domain}`);
 
     let bioEmojis: Array<{name: string, url: string}> = [];
     let displayNameEmojis: Array<{name: string, url: string}> = [];

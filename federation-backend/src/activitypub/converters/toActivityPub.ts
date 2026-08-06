@@ -358,7 +358,7 @@ export function createLikeActivity(
 
   // Misskey's isCustomEmojiRegexp /^:([\w+-]+)(?:@\.)?:$/ only matches
   // `:name:` or `:name@.:` - NOT `:name@domain:`.  Sending the qualified
-  // form causes Misskey to fall back to a generic ❤.  Strip @domain here;
+  // form causes Misskey to fall back to a generic.  Strip @domain here;
   // Misskey infers the origin domain from the actor's host and the tag data
   // provides the icon URL.
   const reactionValue = emojiData
@@ -669,7 +669,7 @@ function extractTags(content: any): any[] {
   content.forEach((item) => {
     if (item.type === 'mention') {
       // Debug logging
-      logger.info('🏷️ Processing mention tag: ' + JSON.stringify({
+      logger.info('Processing mention tag: ' + JSON.stringify({
         username: item.username,
         domain: item.domain,
         isLocal: item.isLocal,

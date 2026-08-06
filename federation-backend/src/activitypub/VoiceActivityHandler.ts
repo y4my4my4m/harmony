@@ -1,9 +1,7 @@
 /**
- * Voice Activity Handler
- * 
- * Handles Harmony-specific voice/video ActivityPub extensions for:
- * - Federated DM voice/video calls
- * - Federated server voice channels with token exchange
+ * Harmony voice/video ActivityPub extensions:
+ * - federated DM voice/video calls
+ * - federated server voice channels with LiveKit token exchange
  */
 
 import { getSupabaseClient } from '../config/supabase.js';
@@ -22,9 +20,7 @@ import type {
   VoiceActivity 
 } from '../types/index.js';
 
-// =============================================================================
 // CONSTANTS
-// =============================================================================
 
 // Harmony ActivityPub context extension for voice
 export const HARMONY_VOICE_CONTEXT = 'https://harmony.social/ns/voice';
@@ -41,26 +37,18 @@ export const HARMONY_VOICE_TYPES = {
   VoiceChannelJoinReject: 'harmony:VoiceChannelJoinReject',
 } as const;
 
-// =============================================================================
 // HANDLER
-// =============================================================================
 
 export class VoiceActivityHandler {
-  /**
-   * Check if an activity is a Harmony voice activity
-   */
   static isVoiceActivity(activity: any): boolean {
     if (!activity?.type) return false;
     return activity.type.startsWith('harmony:Voice');
   }
 
-  /**
-   * Process incoming voice activity
-   */
   static async processVoiceActivity(activity: VoiceActivity): Promise<void> {
     const activityType = activity.type;
     
-    logger.info(`📞 Processing voice activity: ${activityType} from ${activity.actor}`);
+    logger.info(`Processing voice activity: ${activityType} from ${activity.actor}`);
 
     switch (activityType) {
       case HARMONY_VOICE_TYPES.VoiceCallInvite:
@@ -93,13 +81,13 @@ export class VoiceActivityHandler {
   }
 
   /**
-   * Handle incoming voice call invitation
-   * Stores the call invite for the recipient to see
+   * Stores the invite in federated_voice_calls and broadcasts it to each
+   * local recipient.
    */
   private static async handleVoiceCallInvite(activity: VoiceCallInvite): Promise<void> {
     const supabase = getSupabaseClient();
     
-    // Get the caller's profile - use maybeSingle() to avoid throwing on 0 rows
+    // maybeSingle(): a missing profile is not an error here.
     const { data: caller } = await supabase
       .from('profiles')
       .select('id, username, display_name, avatar_url')
@@ -121,11 +109,10 @@ export class VoiceActivityHandler {
         .maybeSingle();
 
       if (!recipient?.is_local) {
-        continue; // Skip non-local users
+        continue;
       }
 
-      // Store the incoming call in a pending calls table or use realtime broadcast
-      // Stored in federated_voice_calls
+      // Pending invites are rows in federated_voice_calls.
       const { error } = await supabase
         .from('federated_voice_calls')
         .upsert({
@@ -139,7 +126,7 @@ export class VoiceActivityHandler {
           room_name: activity.object.roomName,
           status: 'pending',
           created_at: activity.published,
-          expires_at: new Date(Date.now() + 60000).toISOString(), // 60 second timeout
+          expires_at: new Date(Date.now() + 60000).toISOString(), // 60s
         }, {
           onConflict: 'ap_id',
         });
@@ -147,10 +134,9 @@ export class VoiceActivityHandler {
       if (error) {
         logger.error(`Failed to store federated voice call invite:`, error);
       } else {
-        logger.info(`📞 Stored federated voice call invite for ${recipientUrl}`);
+        logger.info(`Stored federated voice call invite for ${recipientUrl}`);
         
-        // Broadcast to recipient via Supabase Realtime
-        // The frontend listens for these notifications
+        // Frontend subscribes to `federated-calls:{userId}`.
         await supabase
           .channel(`federated-calls:${recipient.id}`)
           .send({
@@ -172,9 +158,6 @@ export class VoiceActivityHandler {
     }
   }
 
-  /**
-   * Handle voice call acceptance
-   */
   private static async handleVoiceCallAccept(activity: VoiceCallAccept): Promise<void> {
     const supabase = getSupabaseClient();
     
@@ -191,10 +174,9 @@ export class VoiceActivityHandler {
       return;
     }
 
-    logger.info(`📞 Voice call accepted: ${activity.object}`);
+    logger.info(`Voice call accepted: ${activity.object}`);
 
-    // Notify the original caller that the call was accepted
-    // Get the original call to find the caller - use maybeSingle() to avoid throwing
+    // Re-read the call row for the caller id and room details.
     const { data: call } = await supabase
       .from('federated_voice_calls')
       .select('caller_id, livekit_url, room_name')
@@ -217,9 +199,6 @@ export class VoiceActivityHandler {
     }
   }
 
-  /**
-   * Handle voice call rejection
-   */
   private static async handleVoiceCallReject(activity: VoiceCallReject): Promise<void> {
     const supabase = getSupabaseClient();
     
@@ -236,9 +215,8 @@ export class VoiceActivityHandler {
       return;
     }
 
-    logger.info(`📞 Voice call rejected: ${activity.object}`);
+    logger.info(`Voice call rejected: ${activity.object}`);
 
-    // Notify the original caller - use maybeSingle() to avoid throwing
     const { data: call } = await supabase
       .from('federated_voice_calls')
       .select('caller_id')
@@ -259,9 +237,6 @@ export class VoiceActivityHandler {
     }
   }
 
-  /**
-   * Handle voice call end
-   */
   private static async handleVoiceCallEnd(activity: VoiceCallEnd): Promise<void> {
     const supabase = getSupabaseClient();
     
@@ -278,9 +253,8 @@ export class VoiceActivityHandler {
       return;
     }
 
-    logger.info(`📞 Voice call ended: ${activity.object}`);
+    logger.info(`Voice call ended: ${activity.object}`);
 
-    // Notify all participants - use maybeSingle() to avoid throwing
     const { data: call } = await supabase
       .from('federated_voice_calls')
       .select('caller_id, recipient_id')
@@ -304,8 +278,8 @@ export class VoiceActivityHandler {
   }
 
   /**
-   * Handle voice channel join (for federated server voice channels)
-   * Tracks federated users in voice channels, generates LiveKit token, and responds
+   * Federated server voice channel join: tracks the participant, mints a
+   * LiveKit token, and answers with VoiceChannelJoinAccept.
    */
   private static async handleVoiceChannelJoin(activity: VoiceChannelJoin): Promise<void> {
     const supabase = getSupabaseClient();
@@ -313,13 +287,12 @@ export class VoiceActivityHandler {
     const channelInfo = activity.object;
     const hostDomain = config.INSTANCE_DOMAIN;
 
-    logger.info(`📞 Voice channel join request: ${actorUrl} joining ${channelInfo.name}`);
+    logger.info(`Voice channel join request: ${actorUrl} joining ${channelInfo.name}`);
 
     // Ensure user exists locally
     const { ActivityProcessor } = await import('./ActivityProcessor.js');
     await ActivityProcessor['ensureRemoteUser'](actorUrl);
 
-    // Get the user - use maybeSingle() to avoid throwing on 0 rows
     const { data: user } = await supabase
       .from('profiles')
       .select('id, username, display_name, avatar_url, federated_id')
@@ -332,10 +305,9 @@ export class VoiceActivityHandler {
       return;
     }
 
-    // Find the channel - try by AP ID first, then by UUID from URL
+    // Channel lookup: ap_id first, then UUID parsed from the URL.
     let channel: { id: string; name: string; server_id: string } | null = null;
     
-    // Try by ap_id first
     const { data: channelByApId } = await supabase
       .from('channels')
       .select('id, name, server_id')
@@ -345,8 +317,7 @@ export class VoiceActivityHandler {
     if (channelByApId) {
       channel = channelByApId;
     } else {
-      // Fallback: parse channel UUID from the URL
-      // Format: https://domain/servers/{serverId}/channels/{channelId}
+      // URL form: https://domain/servers/{serverId}/channels/{channelId}
       const uuidMatch = channelInfo.id.match(/\/channels\/([a-f0-9-]{36})$/i);
       if (uuidMatch) {
         const channelId = uuidMatch[1];
@@ -379,10 +350,10 @@ export class VoiceActivityHandler {
     logger.debug(`Server query result:`, JSON.stringify(server));
     logger.debug(`Server owner ID: ${server?.owner}, is_local: ${server?.is_local_server}`);
     
-    // If this server is a federated COPY (not local), this is just a presence notification
-    // from the hosting instance. We should just update presence, not generate tokens.
+    // A non-local server row is a federated copy; the activity is a presence
+    // notification from the hosting instance, not a join request.
     if (!server?.is_local_server) {
-      logger.info(`📡 Voice presence notification for federated server, updating local presence`);
+      logger.info(`Voice presence notification for federated server, updating local presence`);
       
       try {
         await supabase
@@ -400,8 +371,7 @@ export class VoiceActivityHandler {
         logger.debug('voice_channel_participants update failed, continuing anyway');
       }
       
-      // Broadcast to local subscribers for UI update
-      // Frontend listens on `voice-channels:${serverId}`, not `voice:${channelId}`
+      // Frontend listens on `voice-channels:${serverId}`, not `voice:${channelId}`.
       await supabase
         .channel(`voice-channels:${channel.server_id}`)
         .send({
@@ -418,18 +388,18 @@ export class VoiceActivityHandler {
           },
         });
       
-      logger.info(`✅ Updated presence for federated user ${user.username} in voice channel ${channel.id}`);
-      return; // Don't generate token - the user already has one from the hosting instance
+      logger.info(`Updated presence for federated user ${user.username} in voice channel ${channel.id}`);
+      return; // Token comes from the hosting instance.
     }
     
-    // Local server: actual join request, generate the token here
+    // Local server: mint the token here.
     if (!server?.owner) {
       logger.error(`Server owner not found for channel ${channel.id}, server_id: ${channel.server_id}`);
       await this.sendVoiceChannelJoinReject(activity, 'Server configuration error');
       return;
     }
 
-    // Verify user has permission to join (must be a server member)
+    // Join requires accepted membership.
     const { data: membership } = await supabase
       .from('user_servers')
       .select('status')
@@ -478,8 +448,7 @@ export class VoiceActivityHandler {
       logger.debug('voice_channel_participants table not found, continuing anyway');
     }
 
-    // Broadcast to channel subscribers
-    // Frontend listens on `voice-channels:${serverId}`, not `voice:${channelId}`
+    // Frontend listens on `voice-channels:${serverId}`, not `voice:${channelId}`.
     await supabase
       .channel(`voice-channels:${channel.server_id}`)
       .send({
@@ -496,7 +465,7 @@ export class VoiceActivityHandler {
         },
       });
 
-    // Get server owner's AP ID for signing (actor must match signing key owner)
+    // The signing actor must own the key, so the owner's AP ID is required.
     const { data: ownerProfile, error: ownerError } = await supabase
       .from('profiles')
       .select('federated_id, username')
@@ -516,10 +485,10 @@ export class VoiceActivityHandler {
     const ownerApId = ownerProfile.federated_id || 
       `https://${hostDomain}/users/${ownerProfile.username}`;
 
-    // Send VoiceChannelJoinAccept with the token
-    // Use owner's AP ID as actor (must match signing key owner)
+    // Actor is the owner's AP ID; the signing key belongs to the owner, not
+    // to the server actor.
     const acceptActivity = this.createVoiceChannelJoinAccept(
-      ownerApId, // Use owner's AP ID instead of server AP ID for proper signing
+      ownerApId,
       actorUrl,
       activity.id,
       wsUrl,
@@ -527,25 +496,25 @@ export class VoiceActivityHandler {
       `channel-${channel.id}`
     );
 
-    // Deliver to the user's instance (use server owner for signing)
+    // Delivered to the remote user's instance, signed as the server owner.
     const userDomain = new URL(actorUrl).hostname;
     const inbox = `https://${userDomain}/inbox`;
     
     const { DeliveryQueue } = await import('./DeliveryQueue.js');
     await DeliveryQueue.enqueue(acceptActivity, inbox, server.owner);
 
-    logger.info(`✅ Federated user ${user.username} joined voice channel ${channelInfo.name}, token sent`);
+    logger.info(`Federated user ${user.username} joined voice channel ${channelInfo.name}, token sent`);
   }
 
   /**
-   * Handle voice channel join accept (response with LiveKit token)
-   * This is received when our local user's join request is accepted by a remote server
+   * Received when a remote server accepts a local user's join request; the
+   * LiveKit token rides in `result`.
    */
   private static async handleVoiceChannelJoinAccept(activity: VoiceChannelJoinAccept): Promise<void> {
     const supabase = getSupabaseClient();
     const result = activity.result;
 
-    logger.info(`✅ Voice channel join accepted: ${activity.id}`);
+    logger.info(`Voice channel join accepted: ${activity.id}`);
 
     const recipients = Array.isArray(activity.to) ? activity.to : [activity.to];
     
@@ -558,7 +527,6 @@ export class VoiceActivityHandler {
 
       if (!user?.is_local) continue;
 
-      // Broadcast the token to the user via Supabase Realtime
       await supabase
         .channel(`federated-voice:${user.id}`)
         .send({
@@ -574,17 +542,14 @@ export class VoiceActivityHandler {
           },
         });
 
-      logger.info(`📞 Token delivered to local user ${user.id}`);
+      logger.info(`Token delivered to local user ${user.id}`);
     }
   }
 
-  /**
-   * Handle voice channel join reject
-   */
   private static async handleVoiceChannelJoinReject(activity: VoiceChannelJoinReject): Promise<void> {
     const supabase = getSupabaseClient();
 
-    logger.info(`❌ Voice channel join rejected: ${activity.id}, reason: ${activity.reason}`);
+    logger.info(`Voice channel join rejected: ${activity.id}, reason: ${activity.reason}`);
 
     const recipients = Array.isArray(activity.to) ? activity.to : [activity.to];
     
@@ -597,7 +562,6 @@ export class VoiceActivityHandler {
 
       if (!user?.is_local) continue;
 
-      // Broadcast the rejection to the user via Supabase Realtime
       await supabase
         .channel(`federated-voice:${user.id}`)
         .send({
@@ -610,39 +574,31 @@ export class VoiceActivityHandler {
           },
         });
 
-      logger.info(`📞 Join rejection delivered to local user ${user.id}`);
+      logger.info(`Join rejection delivered to local user ${user.id}`);
     }
   }
 
   /**
-   * Helper to send a VoiceChannelJoinReject response
-   * Note: Currently just logs the rejection. Full delivery requires server actor implementation.
+   * NOTE: logs only. Delivering a reject needs a server-level signing key,
+   * which does not exist; the remote client times out instead.
    */
   private static async sendVoiceChannelJoinReject(
     originalActivity: VoiceChannelJoin,
     reason: string
   ): Promise<void> {
-    // For now, just log the rejection
-    // TODO: Implement proper reject delivery once we have server actor signing
-    logger.warn(`🚫 Voice join rejected for ${originalActivity.actor}: ${reason}`);
-    
-    // Note: We don't send the reject activity because we don't have a proper
-    // signing key for server-level activities. The remote client will timeout
-    // and handle the failure gracefully.
+    logger.warn(`Voice join rejected for ${originalActivity.actor}: ${reason}`);
   }
 
   /**
-   * Handle voice channel leave
-   * Removes federated user from voice channel tracking
+   * Drops the federated participant row and broadcasts the leave.
    */
   private static async handleVoiceChannelLeave(activity: VoiceChannelLeave): Promise<void> {
     const supabase = getSupabaseClient();
     const actorUrl = activity.actor;
     const channelInfo = activity.object;
 
-    logger.info(`📞 Voice channel leave: ${actorUrl} leaving ${channelInfo.id}`);
+    logger.info(`Voice channel leave: ${actorUrl} leaving ${channelInfo.id}`);
 
-    // Get the user - use maybeSingle() to avoid throwing on 0 rows
     const { data: user } = await supabase
       .from('profiles')
       .select('id, username')
@@ -653,7 +609,7 @@ export class VoiceActivityHandler {
       return;
     }
 
-    // Find the channel - try by AP ID first, then by UUID
+    // Channel lookup: ap_id first, then UUID parsed from the URL.
     let channel: { id: string; server_id: string } | null = null;
     
     const { data: channelByApId } = await supabase
@@ -665,7 +621,6 @@ export class VoiceActivityHandler {
     if (channelByApId) {
       channel = channelByApId;
     } else {
-      // Fallback: parse channel UUID from the URL
       const uuidMatch = channelInfo.id.match(/\/channels\/([a-f0-9-]{36})$/i);
       if (uuidMatch) {
         const { data: channelById } = await supabase
@@ -693,8 +648,7 @@ export class VoiceActivityHandler {
       logger.debug('voice_channel_participants table not found');
     }
 
-    // Broadcast leave event
-    // Frontend listens on `voice-channels:${serverId}`, not `voice:${channelId}`
+    // Frontend listens on `voice-channels:${serverId}`, not `voice:${channelId}`.
     await supabase
       .channel(`voice-channels:${channel.server_id}`)
       .send({
@@ -709,16 +663,12 @@ export class VoiceActivityHandler {
         },
       });
 
-    logger.info(`📞 Federated user ${user.username} left voice channel ${channel.id}`);
+    logger.info(`Federated user ${user.username} left voice channel ${channel.id}`);
   }
 
-  // =============================================================================
   // VOICE CHANNEL ACTIVITY CREATION
-  // =============================================================================
 
-  /**
-   * Create a VoiceChannelJoin activity (legacy - constructs URLs from local domain)
-   */
+  /** Legacy: builds channel/server URLs from the local domain. */
   static createVoiceChannelJoin(
     userFederatedId: string,
     channelId: string,
@@ -750,10 +700,7 @@ export class VoiceActivityHandler {
     };
   }
 
-  /**
-   * Create a VoiceChannelJoin activity with explicit AP IDs
-   * Used for federated joins where the channel/server AP IDs point to the remote instance
-   */
+  /** Federated join: channel/server AP IDs point at the remote instance. */
   static createVoiceChannelJoinWithApIds(
     userFederatedId: string,
     channelApId: string,
@@ -779,9 +726,7 @@ export class VoiceActivityHandler {
     };
   }
 
-  /**
-   * Create a VoiceChannelLeave activity (legacy - constructs URLs from local domain)
-   */
+  /** Legacy: builds channel/server URLs from the local domain. */
   static createVoiceChannelLeave(
     userFederatedId: string,
     channelId: string,
@@ -807,10 +752,7 @@ export class VoiceActivityHandler {
     };
   }
 
-  /**
-   * Create a VoiceChannelLeave activity with explicit AP ID
-   * Used for federated leaves where the channel AP ID points to the remote instance
-   */
+  /** Federated leave: channel AP ID points at the remote instance. */
   static createVoiceChannelLeaveWithApId(
     userFederatedId: string,
     channelApId: string
@@ -831,9 +773,6 @@ export class VoiceActivityHandler {
     };
   }
 
-  /**
-   * Create a VoiceChannelJoinAccept activity with LiveKit token
-   */
   static createVoiceChannelJoinAccept(
     serverActorId: string,
     userActorId: string,
@@ -842,7 +781,7 @@ export class VoiceActivityHandler {
     token: string,
     roomName: string
   ): VoiceChannelJoinAccept {
-    // Token expires in 4 hours (matches LiveKit token TTL)
+    // 4h, matching the LiveKit token TTL.
     const expiresAt = new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString();
 
     return {
@@ -866,9 +805,6 @@ export class VoiceActivityHandler {
     };
   }
 
-  /**
-   * Federate voice channel join to remote server
-   */
   static async federateVoiceChannelJoin(
     userId: string,
     channelId: string,
@@ -877,7 +813,7 @@ export class VoiceActivityHandler {
     const supabase = getSupabaseClient();
     const hostDomain = config.INSTANCE_DOMAIN;
 
-    // Get user by auth UUID - use maybeSingle() to avoid throwing on 0 rows
+    // Keyed by auth UUID, not profile id.
     const { data: user } = await supabase
       .from('profiles')
       .select('id, username, federated_id, is_local')
@@ -888,7 +824,6 @@ export class VoiceActivityHandler {
       return;
     }
 
-    // Get server and channel - use maybeSingle() to avoid throwing on 0 rows
     const { data: channel } = await supabase
       .from('channels')
       .select(`
@@ -906,14 +841,13 @@ export class VoiceActivityHandler {
 
     const server = (channel as any).server;
     
-    // Only federate if it's a remote server
     if (server.is_local_server) {
       return;
     }
 
     const userApId = user.federated_id || `https://${hostDomain}/users/${user.username}`;
     
-    // Use the actual AP IDs from the database (pointing to the remote server)
+    // Stored AP IDs point at the remote instance; the fallbacks are local.
     const channelApId = channel.ap_id || `https://${hostDomain}/servers/${server.id}/channels/${channelId}`;
     const serverApId = server.ap_id || `https://${hostDomain}/servers/${server.id}`;
     
@@ -925,17 +859,14 @@ export class VoiceActivityHandler {
       server.name
     );
 
-    // Send to server inbox (use profile.id as the sender for signing)
+    // Signed with profile.id as sender.
     if (server.federation_inbox_url) {
       const { DeliveryQueue } = await import('./DeliveryQueue.js');
       await DeliveryQueue.sendToInbox(server.federation_inbox_url, joinActivity, user.id);
-      logger.info(`📞 Federated voice channel join to ${server.federation_inbox_url}`);
+      logger.info(`Federated voice channel join to ${server.federation_inbox_url}`);
     }
   }
 
-  /**
-   * Federate voice channel leave to remote server
-   */
   static async federateVoiceChannelLeave(
     userId: string,
     channelId: string,
@@ -955,7 +886,6 @@ export class VoiceActivityHandler {
       return;
     }
 
-    // Get channel with server info - use maybeSingle() to avoid throwing on 0 rows
     const { data: channel } = await supabase
       .from('channels')
       .select(`
@@ -984,17 +914,12 @@ export class VoiceActivityHandler {
     if (server.federation_inbox_url) {
       const { DeliveryQueue } = await import('./DeliveryQueue.js');
       await DeliveryQueue.sendToInbox(server.federation_inbox_url, leaveActivity, user.id);
-      logger.info(`📞 Federated voice channel leave to ${server.federation_inbox_url}`);
+      logger.info(`Federated voice channel leave to ${server.federation_inbox_url}`);
     }
   }
 
-  // =============================================================================
   // ACTIVITY CREATION HELPERS
-  // =============================================================================
 
-  /**
-   * Create a VoiceCallInvite activity
-   */
   static createVoiceCallInvite(
     callerFederatedId: string,
     recipientFederatedId: string,
@@ -1026,9 +951,6 @@ export class VoiceActivityHandler {
     };
   }
 
-  /**
-   * Create a VoiceCallAccept activity
-   */
   static createVoiceCallAccept(
     acceptorFederatedId: string,
     callerFederatedId: string,
@@ -1048,9 +970,6 @@ export class VoiceActivityHandler {
     };
   }
 
-  /**
-   * Create a VoiceCallReject activity
-   */
   static createVoiceCallReject(
     rejectorFederatedId: string,
     callerFederatedId: string,
@@ -1070,9 +989,6 @@ export class VoiceActivityHandler {
     };
   }
 
-  /**
-   * Create a VoiceCallEnd activity
-   */
   static createVoiceCallEnd(
     enderFederatedId: string,
     otherParticipantFederatedId: string,

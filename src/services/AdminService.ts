@@ -1,7 +1,3 @@
-/**
- * AdminService - Professional service for admin panel operations
- * Handles all admin-related database queries and operations
- */
 
 import { supabase } from '@/supabase';
 import { apiUrl } from '@/services/instanceConfig';
@@ -154,9 +150,6 @@ export interface InstanceStats {
 }
 
 class AdminService {
-  /**
-   * Get comprehensive system statistics
-   */
   async getSystemStats(): Promise<SystemStats> {
     try {
       const today = new Date();
@@ -181,10 +174,10 @@ class AdminService {
       return {
         total_users: usersResult.count || 0,
         total_servers: serversResult.count || 0,
-        active_servers: serversResult.count || 0, // For now, assume all servers are active
+        active_servers: serversResult.count || 0, // Activity is not tracked; mirrors the total.
         total_posts: postsResult.count || 0,
         federated_instances: federatedInstancesResult.count || 0,
-        uptime: Date.now() - (7 * 24 * 60 * 60 * 1000), // Mock uptime for now
+        uptime: Date.now() - (7 * 24 * 60 * 60 * 1000), // Fixed 7-day placeholder; uptime is not tracked.
         newUsersToday: newUsersResult.count || 0,
         postsToday: newPostsResult.count || 0
       };
@@ -203,9 +196,6 @@ class AdminService {
     }
   }
 
-  /**
-   * Get federation health statistics
-   */
   async getFederationStats(): Promise<FederationStats> {
     try {
       const [
@@ -268,7 +258,7 @@ class AdminService {
   }
 
   /**
-   * Permanently delete all dead endpoints and their failed delivery queue entries
+   * Deletes dead endpoints and their dead/failed delivery queue rows.
    */
   async purgeDeadEndpoints(): Promise<{ purgedEndpoints: number; purgedDeliveries: number }> {
     try {
@@ -311,9 +301,6 @@ class AdminService {
     }
   }
 
-  /**
-   * Fetch all dead endpoints with details for the admin UI
-   */
   async getDeadEndpoints(): Promise<DeadEndpoint[]> {
     try {
       const { data, error } = await supabase
@@ -331,7 +318,7 @@ class AdminService {
   }
 
   /**
-   * Purge a single dead endpoint by ID and its failed deliveries
+   * Deletes one endpoint plus its dead/failed deliveries.
    */
   async purgeSingleEndpoint(endpointId: string, endpointUrl: string): Promise<void> {
     try {
@@ -353,9 +340,6 @@ class AdminService {
     }
   }
 
-  /**
-   * Get system health metrics
-   */
   async getSystemHealth(): Promise<SystemHealth> {
     try {
       const federationStats = await this.getFederationStats();
@@ -395,9 +379,6 @@ class AdminService {
     }
   }
 
-  /**
-   * Get users with admin-relevant information (paginated)
-   */
   async getUsers(
     limit: number = 25,
     offset: number = 0,
@@ -406,10 +387,9 @@ class AdminService {
     try {
       const { filter = 'all', search = '' } = options;
 
-      // Single request: PostgREST returns the filtered total in the
-      // Content-Range header alongside the page of rows when count is
-      // requested on the same query, so there's no need for a separate
-      // head-only count round trip before it (that doubled every page turn).
+      // PostgREST returns the filtered total in the Content-Range header
+      // alongside the page of rows when count is requested on the same
+      // query. No separate head-only count request.
       let query = supabase
         .from('profiles')
         .select(`
@@ -491,7 +471,7 @@ class AdminService {
   }
 
   /**
-   * Get total user counts by category (for admin User Management filter stats)
+   * Counts backing the User Management filter tabs.
    */
   async getUserCounts(): Promise<{ total: number; local: number; federated: number; suspended: number }> {
     try {
@@ -514,9 +494,6 @@ class AdminService {
     }
   }
 
-  /**
-   * Get recent admin activity from audit log
-   */
   async getRecentActivity(limit: number = 20): Promise<AdminActivity[]> {
     try {
       const { data, error } = await supabase
@@ -575,9 +552,6 @@ class AdminService {
     }
   }
 
-  /**
-   * Log an admin action to the audit log
-   */
   async logAdminAction(params: {
     action: string;
     targetType: string;
@@ -586,9 +560,8 @@ class AdminService {
   }): Promise<void> {
     try {
       // BUGS.md Pattern A: `admin_audit_log.admin_id` references
-      // `profiles(id)`, not auth.users(id). Inserting `user.id` (auth UUID)
-      // produced audit rows with broken FK references / wrong-user
-      // attribution. Resolve to profile id before insert.
+      // `profiles(id)`, not auth.users(id). Resolve to the profile id before
+      // insert; an auth UUID yields a broken FK and wrong attribution.
       const { authContextService } = await import('@/services/AuthContextService');
       let adminProfileId: string;
       try {
@@ -612,9 +585,9 @@ class AdminService {
   }
 
   /**
-   * Moderate a user (suspend, unsuspend, delete)
-   * Uses the moderate_user RPC function which has SECURITY DEFINER
-   * to bypass RLS policies and allow admins to moderate other users
+   * The moderate_user RPC is SECURITY DEFINER; it bypasses the RLS policies
+   * that would otherwise block writes to another user's profile.
+   * 'delete' maps to a suspend with a `DELETED:` reason prefix.
    */
   async moderateUser(
     userId: string, 
@@ -689,9 +662,6 @@ class AdminService {
     }
   }
 
-  /**
-   * Moderate an instance (block, unblock)
-   */
   async moderateInstance(
     domain: string,
     action: 'block' | 'unblock',
@@ -735,9 +705,6 @@ class AdminService {
     }
   }
 
-  /**
-   * Get blocked instances
-   */
   async getBlockedInstances(): Promise<BlockedInstance[]> {
     try {
       const { data, error } = await supabase
@@ -760,12 +727,8 @@ class AdminService {
     }
   }
 
-  /**
-   * Get instance configuration
-   */
   async getInstanceConfig(): Promise<any> {
     try {
-      // Try to fetch WebRTC settings from database
       let webrtcSettings = {
         mode: 'hybrid' as 'sfu' | 'p2p' | 'hybrid',
         livekitUrl: '',
@@ -773,15 +736,15 @@ class AdminService {
         maxStageListeners: 100000
       };
       
-      // Use maybeSingle() instead of single() to handle cases where no row exists
-      // Also, don't use .single() as it can fail with RLS if the policy doesn't allow it
+      // maybeSingle(): the table may be empty, and single() errors under RLS
+      // when the policy hides the row.
       const { data: webrtcData, error: webrtcError } = await supabase
         .from('instance_webrtc_settings')
         .select('*')
         .limit(1)
         .maybeSingle();
       
-      // If there's an RLS error, log it but continue with defaults
+      // Defaults stand on error; PGRST116 is "no rows".
       if (webrtcError && webrtcError.code !== 'PGRST116') {
         debug.warn('Failed to fetch WebRTC settings (may be RLS issue):', webrtcError)
       }
@@ -842,19 +805,17 @@ class AdminService {
               let value = config.config_value
               
               if (typeof value === 'string') {
-                // Try to parse if it's a JSON string (might be double-quoted)
+                // Stored values may be JSON-encoded, possibly double-quoted.
                 try {
                   const parsed = JSON.parse(value)
-                  // Always use the parsed value if parsing succeeds
                   value = parsed
                 } catch {
-                  // If parsing fails, remove surrounding quotes if present
-                  // Handle both "string" and \"string\" cases
+                  // Not JSON: strip surrounding quotes, both "s" and \"s\".
                   value = value.replace(/^\\?"|\\?"$/g, '').replace(/\\"/g, '"')
                 }
               }
               
-              // Ensure we have a clean string value (not double-quoted)
+              // Unescape embedded quotes.
               if (typeof value === 'string') {
                 value = value.replace(/\\"/g, '"')
               }
@@ -1021,9 +982,6 @@ class AdminService {
     }
   }
   
-  /**
-   * Update WebRTC settings
-   */
   async updateWebRTCSettings(settings: {
     mode?: 'sfu' | 'p2p' | 'hybrid';
     livekitUrl?: string;
@@ -1039,7 +997,7 @@ class AdminService {
         updated_at: new Date().toISOString()
       };
 
-      // Singleton table - fetch the existing row and update, or insert if empty
+      // Singleton table: update the existing row, insert when empty.
       const { data: existing } = await supabase
         .from('instance_webrtc_settings')
         .select('id')
@@ -1071,10 +1029,6 @@ class AdminService {
     }
   }
 
-  /**
-   * Update federation settings
-   * Uses the update_federation_settings RPC function
-   */
   async updateFederationSettings(settings: {
     userId: string;
     federationEnabled?: boolean;
@@ -1105,8 +1059,7 @@ class AdminService {
   }
 
   /**
-   * Set instance configuration key-value pair
-   * Uses the set_instance_config RPC function which requires admin permissions
+   * The set_instance_config RPC requires admin permissions.
    */
   async setInstanceConfig(
     key: string, 
@@ -1115,11 +1068,8 @@ class AdminService {
     description?: string
   ): Promise<void> {
     try {
-      // Convert value to JSONB format
-      // The RPC function expects JSONB, which Supabase will convert automatically
-      // For strings, pass directly - Supabase will convert to JSONB string (with quotes)
-      // For arrays/objects, pass as-is - Supabase will convert to JSONB
-      // DO NOT JSON.stringify strings as that causes double-quoting
+      // The RPC takes JSONB; Supabase converts strings, arrays and objects
+      // as-is. JSON.stringify here would double-quote strings.
       const jsonbValue: any = value
 
       const { data, error } = await supabase.rpc('set_instance_config', {
@@ -1145,8 +1095,8 @@ class AdminService {
   }
 
   /**
-   * Set multiple instance configuration values in a single RPC call.
-   * Falls back to sequential calls if the batch RPC is not available.
+   * Single batch_set_instance_config call; falls back to sequential
+   * setInstanceConfig calls when that RPC is absent (SQLSTATE 42883).
    */
   async setInstanceConfigs(configs: Record<string, any>, adminId: string): Promise<void> {
     const entries = Object.entries(configs)
@@ -1179,17 +1129,11 @@ class AdminService {
     }
   }
 
-  /**
-   * Check if user is admin
-   */
   async checkAdminPermissions(userId: string): Promise<boolean> {
     try {
-      // BUGS.md Pattern A: the existing callers (e.g. router admin guard,
-      // AdminPanel.vue) pass `authStore.session?.user?.id` here - that's
-      // the Supabase auth.users UUID, not `profiles.id`. The previous
-      // `.eq('id', userId)` filter therefore matched zero rows and admin
-      // detection was always false on direct calls. Match on
-      // `auth_user_id` so the same call site works correctly.
+      // BUGS.md Pattern A: callers (router admin guard, AdminPanel.vue) pass
+      // `authStore.session?.user?.id`, the auth.users UUID, not `profiles.id`.
+      // Match on `auth_user_id`; filtering on `id` matches zero rows.
       const { data, error } = await supabase
         .from('profiles')
         .select('is_admin')
@@ -1205,13 +1149,10 @@ class AdminService {
     }
   }
 
-  /**
-   * Check if user is instance moderator
-   */
   async checkModeratorPermissions(userId: string): Promise<boolean> {
     try {
-      // BUGS.md Pattern A: same fix as checkAdminPermissions - callers pass
-      // the auth.users UUID, so we match `auth_user_id`.
+      // BUGS.md Pattern A, as in checkAdminPermissions: callers pass the
+      // auth.users UUID, so the filter is on `auth_user_id`.
       const { data, error } = await supabase
         .from('profiles')
         .select('is_moderator')
@@ -1227,14 +1168,10 @@ class AdminService {
     }
   }
 
-  /**
-   * Check if user is admin or moderator
-   */
   async checkAdminOrModPermissions(userId: string): Promise<boolean> {
     try {
-      // BUGS.md Pattern A: callers historically pass either the auth UUID or
-      // the profile id. Accept both so an auth UUID doesn't silently produce
-      // a false-negative permission check.
+      // BUGS.md Pattern A: callers pass either the auth UUID or the profile
+      // id. Matching both avoids a false-negative permission check.
       const { data, error } = await supabase
         .from('profiles')
         .select('is_admin, is_moderator')
@@ -1251,7 +1188,7 @@ class AdminService {
   }
 
   /**
-   * Set moderator status for a user (admin only)
+   * Admin only.
    */
   async setModeratorStatus(userId: string, isModerator: boolean): Promise<void> {
     try {
@@ -1268,7 +1205,7 @@ class AdminService {
   }
 
   /**
-   * Export system logs (placeholder for now)
+   * CSV of the 1000 most recent audit log entries.
    */
   async exportLogs(): Promise<Blob> {
     try {
@@ -1294,9 +1231,6 @@ class AdminService {
     }
   }
 
-  /**
-   * Update instance trust status
-   */
   async updateInstanceTrust(instanceId: string, trusted: boolean, adminId: string): Promise<void> {
     try {
       const { data: instance } = await supabase
@@ -1324,9 +1258,6 @@ class AdminService {
     }
   }
 
-  /**
-   * Update instance block status
-   */
   async updateInstanceBlock(instanceId: string, blocked: boolean, reason: string, adminId: string): Promise<void> {
     try {
       const { data: instance } = await supabase
@@ -1363,9 +1294,6 @@ class AdminService {
     }
   }
 
-  /**
-   * Delete instance
-   */
   async deleteInstance(instanceId: string, _adminId: string): Promise<void> {
     try {
       const { error } = await supabase
@@ -1380,9 +1308,6 @@ class AdminService {
     }
   }
 
-  /**
-   * Add instance from domain
-   */
   async addInstanceFromDomain(domain: string, trusted: boolean, adminId: string): Promise<void> {
     try {
       const cleanDomain = domain.replace(/^https?:\/\//, '').replace(/\/$/, '').toLowerCase();
@@ -1427,9 +1352,6 @@ class AdminService {
     }
   }
 
-  /**
-   * Get all federated instances with optional filtering
-   */
   async getFederatedInstances(options: {
     limit?: number;
     offset?: number;
@@ -1475,9 +1397,6 @@ class AdminService {
     }
   }
 
-  /**
-   * Get federated instance statistics
-   */
   async getInstanceStats(): Promise<InstanceStats> {
     try {
       const [totalResult, blockedResult, trustedResult, activeResult, recentResult] = await Promise.all([
@@ -1509,9 +1428,6 @@ class AdminService {
     }
   }
 
-  /**
-   * Add a new federated instance manually
-   */
   async addFederatedInstance(
     domain: string, 
     adminId: string,
@@ -1533,7 +1449,6 @@ class AdminService {
         throw new Error('Instance already exists');
       }
 
-      // Discover instance info
       const instanceInfo = await this.discoverInstance(cleanDomain);
       
       if (!instanceInfo && !options.forceAdd) {
@@ -1585,8 +1500,8 @@ class AdminService {
   }
 
   /**
-   * Re-probe an existing instance to enrich its metadata with icon/banner URLs.
-   * Returns the updated metadata or null on failure. Updates the DB row in-place.
+   * Re-probes an instance for icon/banner URLs and updates the row in place.
+   * Returns null when discovery fails or yields neither URL.
    */
   async enrichInstanceMetadata(instance: { id: string; domain: string; metadata?: any }): Promise<{ icon_url?: string; banner_url?: string } | null> {
     try {
@@ -1615,9 +1530,6 @@ class AdminService {
     }
   }
 
-  /**
-   * Update federated instance settings
-   */
   async updateFederatedInstance(
     instanceId: string,
     updates: {
@@ -1649,9 +1561,6 @@ class AdminService {
     }
   }
 
-  /**
-   * Delete/remove a federated instance
-   */
   async deleteFederatedInstance(instanceId: string, adminId: string): Promise<void> {
     try {
       // Get instance info first for logging
@@ -1676,10 +1585,9 @@ class AdminService {
   }
 
   /**
-   * Search for ActivityPub instances using DIRECT probing
-   * No 3rd party APIs - we query the instances directly using standard ActivityPub/Nodeinfo endpoints
-   * 
-   * User must enter a full domain name (e.g., "mastodon.social", "fosstodon.org")
+   * Probes the domain directly over standard ActivityPub/NodeInfo endpoints;
+   * no third-party directory APIs. The query must be a full domain, e.g.
+   * "mastodon.social".
    */
   async searchActivityPubInstances(query: string): Promise<InstanceSearchResult[]> {
     try {
@@ -1695,11 +1603,11 @@ class AdminService {
       const result = await this.discoverInstance(domain);
       
       if (result) {
-        debug.log(`✅ Successfully discovered instance: ${domain}`);
+        debug.log(`Successfully discovered instance: ${domain}`);
         return [result];
       }
       
-      debug.log(`❌ Could not discover instance at: ${domain}`);
+      debug.log(`Could not discover instance at: ${domain}`);
       return [];
     } catch (error) {
       debug.error('Failed to probe ActivityPub instance:', error);
@@ -1708,9 +1616,9 @@ class AdminService {
   }
 
   /**
-   * Discover an instance by proxying through the federation backend.
-   * This avoids CORS issues - browsers block direct cross-origin requests
-   * to remote fediverse servers that don't set Access-Control-Allow-Origin.
+   * Probes through the federation backend rather than directly: browsers
+   * block cross-origin requests to remote fediverse servers that do not set
+   * Access-Control-Allow-Origin.
    */
   async discoverInstance(domain: string): Promise<InstanceSearchResult | null> {
     try {
@@ -1738,14 +1646,13 @@ class AdminService {
   }
 
   /**
-   * Get popular/recommended instances (now returns empty - use direct discovery)
-   * Previously used 3rd party APIs which we've removed
+   * Mastodon nodes ranked by monthly actives, from the fediverse.observer
+   * GraphQL API.
    */
   async getPopularInstances(limit: number = 20): Promise<InstanceSearchResult[]> {
     try {
       debug.log('Fetching popular instances...');
       
-      // Try to get popular instances from fediverse.observer
       const response = await fetch('https://api.fediverse.observer/', {
         method: 'POST',
         headers: {
@@ -1781,7 +1688,7 @@ class AdminService {
       }
 
       const sorted = data.data.nodes
-        .filter((node: any) => node.active_users_monthly > 100) // Only active instances
+        .filter((node: any) => node.active_users_monthly > 100) // Threshold: >100 monthly actives.
         .sort((a: any, b: any) => (b.active_users_monthly || 0) - (a.active_users_monthly || 0))
         .slice(0, limit);
 
@@ -1801,9 +1708,6 @@ class AdminService {
     }
   }
 
-  /**
-   * Get instances by software type (mastodon, pleroma, misskey, etc.)
-   */
   async getInstancesBySoftware(software: string, limit: number = 20): Promise<InstanceSearchResult[]> {
     try {
       debug.log(`Fetching ${software} instances...`);
@@ -1861,8 +1765,8 @@ class AdminService {
   }
 
   /**
-   * Get instances from user interactions (follows, posts, etc.)
-   * Excludes instances already in federated_instances (approved/known).
+   * Domains seen on federated profiles, excluding those already present in
+   * federated_instances.
    */
   async getDiscoveredInstances(limit: number = 20): Promise<{ domain: string; user_count: number; interaction_count: number }[]> {
     try {
@@ -1879,7 +1783,7 @@ class AdminService {
         
       if (error) throw error;
 
-      // Count instances and interactions, excluding already-known
+      // Profile count per domain, skipping known instances.
       const instanceCounts = new Map<string, number>();
       
       data?.forEach(profile => {
@@ -1894,7 +1798,7 @@ class AdminService {
       const discovered = Array.from(instanceCounts.entries())
         .map(([domain, count]) => ({
           domain,
-          user_count: 0, // Would need to fetch from instance
+          user_count: 0, // Not populated; requires probing the instance.
           interaction_count: count
         }))
         .sort((a, b) => b.interaction_count - a.interaction_count)
@@ -1907,9 +1811,6 @@ class AdminService {
     }
   }
 
-  /**
-   * Refresh instance information
-   */
   async refreshInstanceInfo(instanceId: string): Promise<FederatedInstance> {
     try {
       const { data: instance, error: fetchError } = await supabase
@@ -1964,9 +1865,6 @@ class AdminService {
     }
   }
 
-  /**
-   * Get servers that a user is a member of
-   */
   async getUserServers(userId: string): Promise<{
     id: string;
     name: string;
@@ -2031,7 +1929,7 @@ class AdminService {
   }
 
   /**
-   * Get public servers for admin (featured communities management)
+   * Backs featured-community management: local public servers only.
    */
   async getPublicServersForAdmin(): Promise<Array<{
     id: string;
@@ -2078,7 +1976,7 @@ class AdminService {
   }
 
   /**
-   * Set server featured status (instance admin only)
+   * Instance admin only.
    */
   async setServerFeatured(
     serverId: string,
@@ -2096,8 +1994,7 @@ class AdminService {
   // FEDERATION MAINTENANCE
 
   /**
-   * Get key consistency report for local users
-   * Returns users with missing or inconsistent key pairs
+   * Local users with missing or half-present key pairs.
    */
   async getKeyConsistencyReport(): Promise<{
     users_missing_keys: number;
@@ -2142,8 +2039,7 @@ class AdminService {
   }
 
   /**
-   * Trigger a maintenance task via the federation backend
-   * @param task - The maintenance task to run
+   * Queues a maintenance task on the federation backend.
    */
   async triggerMaintenanceTask(
     task: 'keygen-sweep' | 'cleanup-orphans'
@@ -2186,19 +2082,18 @@ class AdminService {
   }
 
   /**
-   * Run key generation sweep - generates missing keys for local users
+   * Generates missing keys for local users.
    */
   async runKeyGenerationSweep(): Promise<{ success: boolean; message: string }> {
     return this.triggerMaintenanceTask('keygen-sweep');
   }
 
   /**
-   * Run orphan cleanup - fixes inconsistent key states
+   * Repairs half-present key pairs.
    */
   async runOrphanedKeyCleanup(): Promise<{ success: boolean; message: string }> {
     return this.triggerMaintenanceTask('cleanup-orphans');
   }
 }
 
-// Export singleton instance
 export const adminService = new AdminService(); 

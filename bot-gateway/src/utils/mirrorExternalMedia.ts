@@ -108,7 +108,7 @@ export async function applyBridgeAttachmentPolicy(
       })
       out.push({ ...part, url: mirroredUrl })
     } catch (error: any) {
-      console.error(`⚠️ Mirror failed, keeping Discord URL: ${error?.message || error}`)
+      console.error(`Mirror failed, keeping Discord URL: ${error?.message || error}`)
       out.push(part)
     }
   }

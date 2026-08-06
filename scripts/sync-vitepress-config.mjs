@@ -7,7 +7,7 @@ const CONFIG_FILE = 'docs/.vitepress/config.ts'
 const COMPONENTS_DIR = 'docs/components'
 const API_DIR = 'docs/api'
 
-console.log('🔧 Syncing VitePress configuration with generated docs...')
+console.log('Syncing VitePress configuration with generated docs...')
 
 // Category configuration
 const API_CATEGORIES = {
@@ -152,12 +152,12 @@ async function scanComponentFiles() {
     })
     
     const totalComponents = Object.values(componentsByCategory).reduce((sum, arr) => sum + arr.length, 0)
-    console.log(`📊 Found ${totalComponents} component files`)
+    console.log(`Found ${totalComponents} component files`)
     
     return componentsByCategory
     
   } catch (error) {
-    console.log('⚠️  Components directory not found, skipping...')
+    console.log('Components directory not found, skipping...')
     return {}
   }
 }
@@ -284,12 +284,12 @@ function generateSidebarString(sidebar, indent = 8) {
 
 async function updateConfig() {
   // Generate API sidebar
-  console.log('\n📂 Scanning API directory...')
+  console.log('\nScanning API directory...')
   const apiSidebar = await scanApiDirectory()
   console.log(`   Found ${apiSidebar.length - 1} API categories`) // -1 for overview
   
   // Generate components sidebar
-  console.log('\n📂 Scanning components directory...')
+  console.log('\nScanning components directory...')
   const componentsByCategory = await scanComponentFiles()
   
   // Build components sidebar
@@ -319,7 +319,7 @@ async function updateConfig() {
   const configContent = await fs.readFile(CONFIG_FILE, 'utf-8')
   
   // Update API sidebar
-  console.log('\n📝 Updating configuration...')
+  console.log('\nUpdating configuration...')
   let updatedConfig = configContent
   
   // Replace API sidebar
@@ -328,9 +328,9 @@ async function updateConfig() {
   
   if (apiRegex.test(updatedConfig)) {
     updatedConfig = updatedConfig.replace(apiRegex, `$1${apiSidebarString}$2`)
-    console.log('   ✅ API sidebar updated')
+    console.log('   API sidebar updated')
   } else {
-    console.log('   ⚠️  Could not find API sidebar section')
+    console.log('   Could not find API sidebar section')
   }
   
   // Replace components sidebar
@@ -339,18 +339,18 @@ async function updateConfig() {
   
   if (componentsRegex.test(updatedConfig)) {
     updatedConfig = updatedConfig.replace(componentsRegex, `$1${componentsSidebarString}$2`)
-    console.log('   ✅ Components sidebar updated')
+    console.log('   Components sidebar updated')
   } else {
-    console.log('   ⚠️  Could not find components sidebar section')
+    console.log('   Could not find components sidebar section')
   }
   
   // Write updated config
   await fs.writeFile(CONFIG_FILE, updatedConfig)
   
-  console.log('\n🎉 VitePress configuration sync complete!')
+  console.log('\nVitePress configuration sync complete!')
   
   // Print summary
-  console.log('\n📊 Summary:')
+  console.log('\nSummary:')
   console.log(`   API categories: ${apiSidebar.length - 1}`)
   apiSidebar.slice(1).forEach(cat => {
     const count = cat.items.reduce((sum, item) => {

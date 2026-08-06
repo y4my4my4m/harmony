@@ -1,7 +1,7 @@
 <!-- MonyPost Component - Individual post display -->
 <template>
-  <!-- FIXED: Use v-show instead of v-if to prevent post disappearing on re-render -->
-  <!-- Also added fallback for missing author to prevent complete disappearance -->
+  <!-- v-show, not v-if: v-if drops the post on re-render. authorFallback covers a
+       momentarily missing author so the article still renders. -->
   <article class="mony-post" data-testid="post-item"
   v-show="post && (author || authorFallback)" :class="{ 'is-reply': post.reply_context, 'is-reblog': isPureReblog, 'is-pinned': showPinnedHeader && post.is_pinned }">
     
@@ -1013,16 +1013,12 @@ const postEmbeds = computed<Array<{ url: string; title?: string; description?: s
   return Object.values(embeds).filter((e: any) => e && e.title) as Array<{ url: string; title?: string; description?: string; image?: string; provider?: string }>;
 });
 
-// ---------------------------------------------------------------------------
-// Embed de-duplication: keep "the most of everything" without doubling up.
-// ---------------------------------------------------------------------------
-// `useContentRenderer.formattedHTML` auto-injects an inline iframe whenever
-// it sees a YouTube URL in the post text (see useContentRenderer.ts:507).
-// Without splitting `postEmbeds` we'd ALSO render a big LinkEmbedCard with
-// the same YouTube thumbnail / title / channel below - three vertical
-// surfaces showing the same video (iframe, optional uploaded media, link
-// card). The fix: split the embed list by whether the URL is already
-// represented as an inline rich embed.
+// Embed de-duplication. `useContentRenderer.formattedHTML` auto-injects an
+// inline iframe for any YouTube URL in the post text (see
+// useContentRenderer.ts:507). Unsplit, `postEmbeds` would also render a full
+// LinkEmbedCard for the same URL - three vertical surfaces showing one video
+// (iframe, optional uploaded media, link card). Split the embed list by
+// whether the URL is already represented as an inline rich embed.
 //
 //   * `inlineRichEmbeds`  → URLs the content renderer already iframes.
 //                            Rendered as a *compact caption* directly
@@ -1031,7 +1027,7 @@ const postEmbeds = computed<Array<{ url: string; title?: string; description?: s
 //                            without doubling the visual weight.
 //   * `cardEmbeds`        → everything else (Wikipedia, news, Spotify
 //                            pages with no inline iframe support, etc.).
-//                            Render the full LinkEmbedCard like before.
+//                            Render the full LinkEmbedCard.
 //
 // Provider detection: prefer the federation-set `provider` field, fall
 // back to URL parsing so this still works for older / partial payloads
@@ -1049,7 +1045,7 @@ const cardEmbeds = computed(() => postEmbeds.value.filter((e) => !isInlineRichEm
 // When the post also has a media attachment, render link cards in the
 // `thumbnail` variant: a fixed-size horizontal card with a small image on
 // the left and one-line title + one-line description on the right. The
-// attachment is already the dominant visual; the card just adds the
+// attachment is already the dominant visual; the card adds the
 // site / title context without doubling the picture's footprint - same
 // pattern Mastodon and Misskey use. With no attachment present, fall back
 // to the full default card (image on top, full body).
@@ -1444,7 +1440,7 @@ const formatCount = (count: number) => {
 
 const onReply = () => {
   showInlineReply.value = !showInlineReply.value;
-  // Don't emit to parent - we handle replies inline now
+  // Replies are handled inline; nothing is emitted to the parent.
 };
 
 const handleReplySent = (reply: any) => {
@@ -1453,7 +1449,7 @@ const handleReplySent = (reply: any) => {
   // Bump reply count optimistically (displayInteractionCounts reads the override).
   repliesCountOverride.value = displayInteractionCounts.value.replies_count + 1;
   // Notify containers (e.g. PostView thread) so they can append the reply
-  // without waiting for a reload. We thread under the *original* post id so
+  // without waiting for a reload. Threads under the *original* post id so
   // reblog wrappers attribute the reply to the correct note.
   if (reply) {
     emit('reply-created', reply as TimelinePost, replyTarget.value.id);
@@ -1482,7 +1478,7 @@ const handleEmojiSelected = async (emoji: any) => {
   }
   
   try {
-    // Play audio feedback immediately for better UX
+    // Audio fires before the network round-trip.
     try {
       await themeStore.playAudio('reaction');
     } catch (audioError) {
@@ -1494,7 +1490,7 @@ const handleEmojiSelected = async (emoji: any) => {
     if (postReactionsRef.value?.handleEmojiSelected) {
       const success = await postReactionsRef.value.handleEmojiSelected(emoji);
       if (success) {
-        debug.log(`✅ Added emoji reaction ${emoji.name} to post ${props.post.id}`);
+        debug.log(`Added emoji reaction ${emoji.name} to post ${props.post.id}`);
         closeEmojiPopup();
       }
     } else {
@@ -1520,7 +1516,7 @@ const handleEmojiSelected = async (emoji: any) => {
           debug.warn('Failed to play error audio:', audioError);
         }
       } else {
-        debug.log(`✅ Added emoji reaction ${emoji.name} to post ${props.post.id}`);
+        debug.log(`Added emoji reaction ${emoji.name} to post ${props.post.id}`);
         closeEmojiPopup();
         if (postReactionsRef.value) {
           await (postReactionsRef.value as any).loadReactions?.();
@@ -1613,8 +1609,7 @@ const escapeHtml = (text: string): string => {
 const handleShowReactionTooltip = (event: MouseEvent, reaction: any) => {
   if (tooltipTimer.value) clearTimeout(tooltipTimer.value);
   
-  // Debug: log reaction data
-  debug.log('🎯 Reaction tooltip data:', {
+  debug.log('Reaction tooltip data:', {
     emoji_name: reaction.emoji_name,
     reactors: reaction.reactors,
     user_reactions: reaction.user_reactions,
@@ -1633,7 +1628,7 @@ const handleShowReactionTooltip = (event: MouseEvent, reaction: any) => {
   // Add remote reactors from federated fetch. Use parts for display name so custom emojis
   // render (synthetic id is not in user cache, so DisplayName cannot look up by userId).
   const remoteUsers = (reaction.reactors || []).map((reactor: any) => {
-    debug.log('🎯 Remote reactor:', reactor);
+    debug.log('Remote reactor:', reactor);
     const displayName = reactor.display_name || reactor.username || 'Unknown';
     const rawEmojis = reactor.display_name_emojis || [];
     const pinnedEmojis = rawEmojis
@@ -1778,9 +1773,6 @@ const onBlockAuthor = async () => {
   }
 };
 
-/**
- * Handle undo reblog action - removes the reblog post and updates state
- */
 const onUndoReblog = async () => {
   closeMenu();
   
@@ -1809,9 +1801,6 @@ const onUndoReblog = async () => {
   }
 };
 
-/**
- * Handle confirmed delete action - professional with feedback
- */
 const handleDeleteConfirm = async () => {
   if (isDeleting.value) return;
   
@@ -1828,10 +1817,10 @@ const handleDeleteConfirm = async () => {
       3000
     );
     
-    debug.log('✅ Post successfully deleted:', props.post.id);
+    debug.log('Post successfully deleted:', props.post.id);
     
   } catch (error) {
-    debug.error('❌ Failed to delete post:', error);
+    debug.error('Failed to delete post:', error);
     
     notificationStore.showToast(
       'server_update',
@@ -1844,9 +1833,6 @@ const handleDeleteConfirm = async () => {
   }
 };
 
-/**
- * Handle delete confirmation cancel
- */
 const handleDeleteCancel = () => {
   showDeleteConfirmation.value = false;
 };
@@ -1861,20 +1847,20 @@ const showReplyTarget = async () => {
       if (navigationData.success && navigationData.route) {
         await router.push(navigationData.route);
       } else {
-        debug.error('❌ Failed to get conversation navigation data:', navigationData.error);
+        debug.error('Failed to get conversation navigation data:', navigationData.error);
         
         // Use fallback route
         await router.push(navigationData.fallbackRoute);
       }
       
     } catch (error) {
-      debug.error('❌ Failed to navigate to conversation:', error);
+      debug.error('Failed to navigate to conversation:', error);
       
       // Fallback: emit the event as before
       emit('show-conversation', props.post.id);
     }
   } else {
-    debug.warn('⚠️ No reply context found for post:', props.post.id);
+    debug.warn('No reply context found for post:', props.post.id);
   }
 };
 

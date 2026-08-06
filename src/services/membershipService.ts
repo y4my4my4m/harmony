@@ -66,7 +66,7 @@ export class MembershipService {
    */
   private async handleMembershipEvent(event: MembershipEvent): Promise<void> {
     try {
-      debug.log(`👥 Processing ${event.event_type} event for user ${event.user_id} in server ${event.server_id}`)
+      debug.log(`Processing ${event.event_type} event for user ${event.user_id} in server ${event.server_id}`)
       
       if (event.event_type === 'join') {
         await this.handleUserJoin(event)
@@ -82,7 +82,7 @@ export class MembershipService {
         this.options.onUserBan?.(event)
       }
     } catch (error) {
-      debug.error('❌ Error handling membership event:', error)
+      debug.error('Error handling membership event:', error)
       this.options.onError?.(error as Error)
     }
   }
@@ -91,7 +91,7 @@ export class MembershipService {
    * Handle user join events
    */
   private async handleUserJoin(event: MembershipEvent): Promise<void> {
-    debug.log(`🎉 User ${event.metadata.username || event.user_id} joined server ${event.server_id}`)
+    debug.log(`User ${event.metadata.username || event.user_id} joined server ${event.server_id}`)
     
     await this.refreshServerUserList(event.server_id)
     
@@ -103,14 +103,14 @@ export class MembershipService {
    * Handle user leave events
    */
   private async handleUserLeave(event: MembershipEvent): Promise<void> {
-    debug.log(`👋 User ${event.metadata.username || event.user_id} left server ${event.server_id}`)
+    debug.log(`User ${event.metadata.username || event.user_id} left server ${event.server_id}`)
     
     await this.refreshServerUserList(event.server_id)
   }
 
   private async handleUserRemoved(event: MembershipEvent): Promise<void> {
     const action = event.event_type === 'ban' ? 'banned from' : 'kicked from'
-    debug.log(`🔨 User ${event.user_id} ${action} server ${event.server_id}`)
+    debug.log(`User ${event.user_id} ${action} server ${event.server_id}`)
     await this.refreshServerUserList(event.server_id)
   }
 
@@ -119,15 +119,15 @@ export class MembershipService {
    */
   private async refreshServerUserList(serverId: string): Promise<void> {
     try {
-      debug.log(`🔄 Refreshing user list for server: ${serverId}`)
+      debug.log(`Refreshing user list for server: ${serverId}`)
       
       const userIds = await getUserIdsForServer(serverId)
       
       await this.getServerUsersStore().fetchUserProfiles(userIds)
       
-      debug.log(`✅ User list refreshed for server ${serverId}. Current members: ${userIds.length}`)
+      debug.log(`User list refreshed for server ${serverId}. Current members: ${userIds.length}`)
     } catch (error) {
-      debug.error('❌ Error refreshing server user list:', error)
+      debug.error('Error refreshing server user list:', error)
       this.options.onError?.(error as Error)
     }
   }
@@ -160,13 +160,13 @@ export function getMembershipService(): MembershipService {
   if (!_membershipServiceInstance) {
     _membershipServiceInstance = new MembershipService({
       onUserJoin: (event) => {
-        debug.log(`🎉 ${event.metadata.display_name || event.metadata.username} joined the server!`)
+        debug.log(`${event.metadata.display_name || event.metadata.username} joined the server!`)
       },
       onUserLeave: (event) => {
-        debug.log(`👋 ${event.metadata.display_name || event.metadata.username} left the server`)
+        debug.log(`${event.metadata.display_name || event.metadata.username} left the server`)
       },
       onError: (error) => {
-        debug.error('🚨 Membership service error:', error)
+        debug.error('Membership service error:', error)
       }
     })
   }

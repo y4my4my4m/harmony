@@ -22,12 +22,12 @@ async function refreshRemoteUser(supabase: any, userId: string, federatedId: str
     });
     
     if (!response.ok) {
-      console.error(`❌ Failed to fetch actor ${federatedId}: ${response.status}`);
+      console.error(`Failed to fetch actor ${federatedId}: ${response.status}`);
       return false;
     }
     
     const actor = await response.json();
-    console.log(`✅ Fetched actor: ${actor.preferredUsername}`);
+    console.log(`Fetched actor: ${actor.preferredUsername}`);
     
     // Extract inbox URLs
     const inbox_url = actor.inbox;
@@ -51,21 +51,21 @@ async function refreshRemoteUser(supabase: any, userId: string, federatedId: str
       .eq('id', userId);
     
     if (error) {
-      console.error(`❌ Failed to update profile ${userId}:`, error);
+      console.error(`Failed to update profile ${userId}:`, error);
       return false;
     }
     
-    console.log(`✅ Updated profile in database`);
+    console.log(`Updated profile in database`);
     
     return true;
   } catch (error) {
-    console.error(`❌ Error refreshing ${federatedId}:`, error);
+    console.error(`Error refreshing ${federatedId}:`, error);
     return false;
   }
 }
 
 async function refreshAllRemoteUsers() {
-  console.log('🔄 Refreshing all remote user profiles...\n');
+  console.log('Refreshing all remote user profiles...\n');
   
   const supabase = getSupabaseClient();
   
@@ -76,12 +76,12 @@ async function refreshAllRemoteUsers() {
     .eq('is_local', false);
   
   if (queryError) {
-    console.error('❌ Error querying remote users:', queryError);
+    console.error('Error querying remote users:', queryError);
     return;
   }
   
   if (!remoteUsers || remoteUsers.length === 0) {
-    console.log('⚠️  No remote users found');
+    console.log('No remote users found');
     return;
   }
   
@@ -95,7 +95,7 @@ async function refreshAllRemoteUsers() {
     console.log(`Processing: ${user.username}@${user.domain}`);
     
     if (!user.federated_id) {
-      console.log(`⚠️  No federated_id, skipping`);
+      console.log(`No federated_id, skipping`);
       failed++;
       continue;
     }
@@ -112,17 +112,17 @@ async function refreshAllRemoteUsers() {
   }
   
   console.log('\n' + '='.repeat(70));
-  console.log('📊 Results:');
-  console.log(`  ✅ Updated: ${updated}`);
-  console.log(`  ❌ Failed: ${failed}`);
+  console.log('Results:');
+  console.log(`  Updated: ${updated}`);
+  console.log(`  Failed: ${failed}`);
 }
 
 // Run the refresh
 refreshAllRemoteUsers().then(() => {
-  console.log('\n✅ Refresh complete\n');
+  console.log('\nRefresh complete\n');
   process.exit(0);
 }).catch(err => {
-  console.error('❌ Error:', err);
+  console.error('Error:', err);
   process.exit(1);
 });
 

@@ -36,8 +36,7 @@ export interface UserPermissions {
 }
 
 /**
- * Get comprehensive user permissions for a server
- * Uses the new role-based permission system
+ * Resolve a user's effective permissions for a server from their roles.
  */
 async function getUserPermissions(userId: string, serverId: string): Promise<UserPermissions> {
   try {
@@ -70,12 +69,10 @@ async function getUserPermissions(userId: string, serverId: string): Promise<Use
     }
   } catch (error) {
     debug.error('Error getting user permissions:', error)
-    // BUGS.md H1: previously this returned SEND_MESSAGES + VIEW_CHANNEL on
-    // error, which means a transient permission-RPC failure silently grants
-    // every caller the ability to send/view. Fail closed instead: callers
-    // that treat the return value as authoritative will deny rather than
-    // permit. Server-side RLS remains the real enforcement boundary, but
-    // client-side UI fail-open is itself a confusion-of-deputy risk.
+    // BUGS.md H1: fail closed. Returning SEND_MESSAGES + VIEW_CHANNEL here
+    // would let a transient permission-RPC failure grant send/view to every
+    // caller. Server-side RLS is the real enforcement boundary; client-side
+    // fail-open is still a confused-deputy risk.
     return {
       userId,
       serverId,

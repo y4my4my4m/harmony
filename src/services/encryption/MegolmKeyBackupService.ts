@@ -1,24 +1,15 @@
 /**
- * Megolm Key Backup Service
- * 
- * Handles server-side encrypted backup of Megolm session keys AND
- * realtime key request/fulfillment for cross-device key sharing.
- * 
- * Security Model:
- * - All session keys are encrypted with user's recovery key before upload
- * - Server only stores encrypted blobs - cannot decrypt without recovery key
- * - User can restore all keys on new device using recovery phrase
- * 
- * Backup Storage:
- * - Stored in database table `megolm_key_backups`
- * - Each user has one backup that gets updated as sessions are created
- * - Backup is automatically updated when new sessions are created
- * 
- * Realtime Key Requests (NEW):
- * - When a user can't decrypt a message, they create a key request
- * - The sender receives this request via realtime subscription
- * - Sender automatically fulfills the request if they have the session key
- * - Requester receives the fulfilled key via realtime and imports it
+ * Server-side encrypted backup of Megolm session keys, plus realtime key
+ * request/fulfillment for cross-device key sharing.
+ *
+ * Backup: session keys are encrypted with the user's recovery key before
+ * upload, so the server holds only opaque blobs. One row per user in
+ * `megolm_key_backups`, rewritten as sessions are created. Restore on a new
+ * device requires the recovery phrase.
+ *
+ * Key requests: a client that cannot decrypt a message inserts a request row;
+ * the sender receives it over realtime, fulfills it if it holds the session
+ * key, and the requester imports the fulfilled key from a realtime event.
  */
 
 import { supabase } from '@/supabase'
@@ -34,7 +25,6 @@ import {
 import { userEventChannel } from '@/services/UserEventChannel'
 import { debug } from '@/utils/debug'
 
-// Key request from the database
 export interface KeyRequest {
   id: string
   requester_user_id: string
@@ -51,10 +41,8 @@ export interface KeyRequest {
   request_signing_fingerprint?: string
 }
 
-// Callback for when a key is received
 export type KeyReceivedCallback = (roomId: string, sessionId: string) => void
 
-// Backup data structure
 export interface MegolmBackupData {
   version: number
   userId: string
@@ -65,7 +53,6 @@ export interface MegolmBackupData {
   }
 }
 
-// Backup metadata stored on server
 export interface BackupMetadata {
   id: string
   user_id: string
@@ -75,11 +62,6 @@ export interface BackupMetadata {
   backup_hash: string
 }
 
-/**
- * Megolm Key Backup Service
- * Handles encrypted backup and restore of session keys
- * AND realtime key request/fulfillment
- */
 export class MegolmKeyBackupService {
   private static instance: MegolmKeyBackupService
   private userId: string | null = null
@@ -116,7 +98,7 @@ export class MegolmKeyBackupService {
     
     await this.setupRealtimeSubscriptions()
     
-    debug.log('✅ MegolmKeyBackupService initialized with realtime key request support')
+    debug.log('MegolmKeyBackupService initialized with realtime key request support')
   }
 
   /**
@@ -142,32 +124,28 @@ export class MegolmKeyBackupService {
       })
     )
 
-    debug.log('🔔 Encryption key request handlers registered via user:{id} broadcast')
+    debug.log('Encryption key request handlers registered via user:{id} broadcast')
   }
 
-  /**
-   * Handle an incoming key request from another user
-   * Auto-fulfill if we have the session key
-   */
+  /** Auto-fulfills an incoming key request when the session key is held locally. */
   private async handleIncomingKeyRequest(request: KeyRequest): Promise<void> {
-    debug.log(`📩 Received key request from ${request.requester_user_id.substring(0, 8)}... for session ${request.session_id.substring(0, 8)}...`)
+    debug.log(`Received key request from ${request.requester_user_id.substring(0, 8)}... for session ${request.session_id.substring(0, 8)}...`)
 
     if (!megolmService.isInitialized()) {
-      debug.log('⏸️ Megolm not initialized, cannot fulfill request')
+      debug.log('Megolm not initialized, cannot fulfill request')
       return
     }
 
     try {
-      // Resolve the session key we'd hand over. Two sources, in priority order:
-      //   1. getSessionKeyForSharing: our OWN outbound session for this room, or
-      //      our own inbound copy of a prior outbound. This is the critical case
-      //      the inbound-only lookup missed - the original SENDER holds the key
-      //      in `outbound`, never `inbound`, so a request for a message WE sent
-      //      was answered with "don't have session" and left pending forever.
-      //   2. findInboundSessionBySessionId: any inbound session we hold from
-      //      another sender (group-room key relay). Preserves prior behavior.
-      // Both return the base session key; the ratchet derives every index, so a
-      // first_known_index of 0 lets the requester decrypt the whole session.
+      // Session key sources, in priority order:
+      //   1. getSessionKeyForSharing: the local outbound session for this room,
+      //      or a local inbound copy of a prior outbound. The original sender
+      //      holds the key in `outbound`, never `inbound`, so an inbound-only
+      //      lookup cannot answer a request for a locally sent message.
+      //   2. findInboundSessionBySessionId: any inbound session held from
+      //      another sender (group-room key relay).
+      // Both return the base session key; the ratchet derives every index, so
+      // first_known_index 0 decrypts the whole session.
       const sharable = megolmService.getSessionKeyForSharing(request.room_id, request.session_id)
       const inbound = sharable
         ? null
@@ -175,17 +153,17 @@ export class MegolmKeyBackupService {
       const sessionKey = sharable?.sessionKey ?? inbound?.sessionKey
 
       if (!sessionKey) {
-        debug.log(`ℹ️ Don't have session ${request.session_id.substring(0, 8)}...`)
+        debug.log(`ℹDon't have session ${request.session_id.substring(0, 8)}...`)
         return
       }
 
-      // AUTHORIZATION GATE - do NOT auto-fulfill just because we hold the key.
+      // Authorization gate. Holding the key is not sufficient:
       //   1. The request must be signed by the requester's published signing
-      //      key (proves the request truly came from the claimed requester,
-      //      not a DB writer forging one for an attacker device).
-      //   2. The requester must be a CURRENT member of the room
-      //      (server-authoritative; removed members are rejected here even if
-      //      they replay an old request).
+      //      key, proving it came from the claimed requester and not a DB
+      //      writer forging one for an attacker device.
+      //   2. The requester must be a current member of the room
+      //      (server-authoritative); removed members replaying an old request
+      //      are rejected here.
       const authorized = await this.isKeyRequestAuthorized(request)
       if (!authorized) {
         debug.warn(
@@ -194,7 +172,7 @@ export class MegolmKeyBackupService {
         return
       }
 
-      debug.log(`✅ Found session and request authorized, fulfilling...`)
+      debug.log(`Found session and request authorized, fulfilling...`)
 
       const { data: requesterKey } = await supabase
         .from('user_key_pairs')
@@ -204,17 +182,15 @@ export class MegolmKeyBackupService {
         .maybeSingle()
 
       if (!requesterKey?.identity_public_key) {
-        debug.log(`⚠️ Requester has no public key, cannot fulfill`)
+        debug.log(`Requester has no public key, cannot fulfill`)
         return
       }
 
-      // Encrypt the session key for the requester
       const encryptedKey = await this.encryptSessionKeyForUser(
         sessionKey,
         requesterKey.identity_public_key
       )
 
-      // Fulfill the request
       const { error } = await supabase
         .from('megolm_key_requests')
         .update({
@@ -225,20 +201,18 @@ export class MegolmKeyBackupService {
         .eq('id', request.id)
 
       if (error) {
-        debug.error('❌ Failed to fulfill request:', error)
+        debug.error('Failed to fulfill request:', error)
         return
       }
 
-      debug.log(`✅ Fulfilled key request ${request.id.substring(0, 8)}...`)
+      debug.log(`Fulfilled key request ${request.id.substring(0, 8)}...`)
 
-      // Durable repair of the offline path: the fulfillment above only helps
-      // the requesting device right now. Also write a fresh
-      // megolm_session_shares row sealed to the requester's CURRENT identity
-      // key, so their other devices / future claims recover this session from
-      // the DB without us being online again (fixes the "key reset -> stuck
-      // on online-only key requests" state). Authorization already passed
-      // above (signature + server-side room membership). Best-effort: the
-      // realtime fulfillment succeeded regardless.
+      // Durable repair of the offline path. The fulfillment above reaches only
+      // the requesting device. Writing a fresh megolm_session_shares row sealed
+      // to the requester's current identity key lets their other devices and
+      // future claims recover this session from the DB with no sender online.
+      // Authorization (signature + server-side room membership) passed above.
+      // Best-effort: the realtime fulfillment stands regardless.
       // Dynamic import: MegolmMessageEncryptionService imports this service
       // statically, so the reverse edge must be lazy to avoid a cycle.
       try {
@@ -250,10 +224,10 @@ export class MegolmKeyBackupService {
           sessionKey,
         )
       } catch (repairErr) {
-        debug.warn('⚠️ Session-share repair after fulfillment failed (non-fatal):', repairErr)
+        debug.warn('Session-share repair after fulfillment failed (non-fatal):', repairErr)
       }
     } catch (error) {
-      debug.error('❌ Error handling key request:', error)
+      debug.error('Error handling key request:', error)
     }
   }
 
@@ -264,21 +238,21 @@ export class MegolmKeyBackupService {
    *   1. Signature: the request carries a valid signature from the requester's
    *      published signing key over (room_id, session_id, requester_user_id).
    *      Unsigned requests are rejected (no honest current client sends them).
-   *   2. Membership: the requester is a current member of the room, as judged
-   *      by the server (is_room_member RPC). Membership is inherently
-   *      server-authoritative in a Discord-style app; this is where a removed
-   *      member - or someone who was never in the room - is denied old keys.
+   *   2. Membership: the requester is a current member of the room per the
+   *      server (is_room_member RPC). Membership is server-authoritative; this
+   *      is where a removed member, or one who was never in the room, is denied
+   *      old keys.
    */
   private async isKeyRequestAuthorized(request: KeyRequest): Promise<boolean> {
     // (1) Signature check.
     if (!request.request_signature) {
-      debug.warn('🚫 Key request has no signature - rejecting')
+      debug.warn('Key request has no signature - rejecting')
       return false
     }
     try {
       const spki = await this.getRequesterSigningKey(request.requester_user_id)
       if (!spki) {
-        debug.warn('🚫 Requester has no published signing key - cannot verify request')
+        debug.warn('Requester has no published signing key - cannot verify request')
         return false
       }
       const publicKey = await importPublicSigningKey(spki)
@@ -289,11 +263,11 @@ export class MegolmKeyBackupService {
       }
       const sigValid = await verifyKeyRequestSignature(fields, request.request_signature, publicKey)
       if (!sigValid) {
-        debug.warn('🚫 Key request signature invalid - rejecting')
+        debug.warn('Key request signature invalid - rejecting')
         return false
       }
     } catch (err) {
-      debug.warn('🚫 Key request signature verification threw - rejecting:', err)
+      debug.warn('Key request signature verification threw - rejecting:', err)
       return false
     }
 
@@ -304,25 +278,24 @@ export class MegolmKeyBackupService {
         p_user_id: request.requester_user_id,
       })
       if (error) {
-        debug.warn('🚫 is_room_member RPC failed - rejecting request:', error)
+        debug.warn('is_room_member RPC failed - rejecting request:', error)
         return false
       }
       if (!isMember) {
-        debug.warn('🚫 Requester is not a current member of the room - rejecting')
+        debug.warn('Requester is not a current member of the room - rejecting')
         return false
       }
     } catch (err) {
-      debug.warn('🚫 Membership check threw - rejecting:', err)
+      debug.warn('Membership check threw - rejecting:', err)
       return false
     }
 
     return true
   }
 
-  // Requester signing keys, TTL-cached: fulfilling a batch of key requests
-  // from the same user verified each one with its own user_key_pairs query.
-  // Negative results cached too (requester without a published key would
-  // otherwise re-query per request).
+  // Requester signing keys, TTL-cached. Without it a batch of key requests from
+  // one user costs a user_key_pairs query per request. Negative results are
+  // cached too, for requesters with no published key.
   private requesterKeyCache = new Map<string, { spki: string | null; cachedAt: number }>()
   private requesterKeyFetches = new Map<string, Promise<string | null>>()
   private static readonly REQUESTER_KEY_TTL_MS = 5 * 60_000
@@ -357,12 +330,12 @@ export class MegolmKeyBackupService {
   }
 
   /**
-   * Best-effort short fingerprint of our own active signing public key, used to
-   * annotate outgoing key requests. Returns undefined on any failure.
+   * Short fingerprint of the local active signing public key, used to annotate
+   * outgoing key requests. Returns undefined on any failure.
    */
-  // Own signing fingerprint changes only on key rotation; cache it so every
-  // key request creation doesn't re-query user_key_pairs (observed: dozens of
-  // identical self-lookups during one DM load).
+  // The fingerprint changes only on key rotation. Uncached, key request
+  // creation re-queries user_key_pairs each time - dozens of identical
+  // self-lookups during one DM load.
   private myFingerprintCache: { userId: string; value: string | undefined; cachedAt: number } | null = null
   private static readonly MY_FINGERPRINT_TTL_MS = 5 * 60_000
 
@@ -378,8 +351,8 @@ export class MegolmKeyBackupService {
     ) {
       return cached.value
     }
-    // Dedup concurrent lookups (several key requests can be created in one
-    // decrypt burst before the first fingerprint query resolves and caches).
+    // Dedup concurrent lookups: one decrypt burst can create several key
+    // requests before the first fingerprint query resolves and caches.
     if (this.myFingerprintFetch) return this.myFingerprintFetch
     this.myFingerprintFetch = this._getMySigningFingerprint()
     try {
@@ -408,7 +381,7 @@ export class MegolmKeyBackupService {
           .join('')
           .slice(0, 16)
       }
-      // Cache negatives too - a user with no signing key would otherwise
+      // Negatives are cached; a user with no signing key would otherwise
       // re-query on every request creation.
       this.myFingerprintCache = { userId: this.userId, value, cachedAt: Date.now() }
       return value
@@ -418,33 +391,33 @@ export class MegolmKeyBackupService {
   }
 
   /**
-   * Handle a fulfilled key request (we requested a key and got it).
+   * Import a key for a locally issued request that was fulfilled.
    *
-   * Returns true only when the key was imported AND the row was flipped to
-   * 'received' - the offline sweep uses this to quarantine rows that fail
-   * permanently (e.g. sealed to a previous identity key) instead of retrying
-   * them on every unlock forever.
+   * Returns true only when the key was imported and the row flipped to
+   * 'received'. The offline sweep uses this to quarantine rows that fail
+   * permanently (sealed to a previous identity key) rather than retry them on
+   * every unlock.
    *
-   * `prefetchedSenderKey` lets the batch sweep pass the fulfiller's public
-   * key in (one query for all rows) instead of fetching per row.
+   * `prefetchedSenderKey` lets the batch sweep pass the fulfiller's public key
+   * in - one query for all rows instead of one per row.
    */
   private async handleFulfilledRequest(
     request: KeyRequest,
     prefetchedSenderKey?: string | null,
-    // The offline sweep batches status updates itself (one PATCH per row was
-    // 14s of serial requests for a large backlog) - it passes true to skip
-    // the per-row flip below.
+    // The offline sweep batches status updates itself and passes true to skip
+    // the per-row flip below; one PATCH per row costs ~14s of serial requests
+    // on a large backlog.
     deferStatusFlip = false,
   ): Promise<boolean> {
-    debug.log(`📬 Key request fulfilled! Session ${request.session_id.substring(0, 8)}...`)
+    debug.log(`Key request fulfilled! Session ${request.session_id.substring(0, 8)}...`)
 
     if (!request.encrypted_key) {
-      debug.log('⚠️ Fulfilled request has no encrypted key')
+      debug.log('Fulfilled request has no encrypted key')
       return false
     }
 
     try {
-      // Fulfiller's (sender's) public key for ECDH decryption
+      // Fulfiller's public key, for ECDH decryption.
       let senderPublicKey = prefetchedSenderKey ?? null
       if (senderPublicKey === null && prefetchedSenderKey === undefined) {
         const { data: senderKey } = await supabase
@@ -457,7 +430,7 @@ export class MegolmKeyBackupService {
       }
 
       if (!senderPublicKey) {
-        debug.warn(`⚠️ No public key for sender ${request.sender_user_id.substring(0, 8)}, cannot decrypt`)
+        debug.warn(`No public key for sender ${request.sender_user_id.substring(0, 8)}, cannot decrypt`)
         return false
       }
 
@@ -474,15 +447,15 @@ export class MegolmKeyBackupService {
         0 // firstKnownIndex
       )
 
-      debug.log(`✅ Imported session ${request.session_id.substring(0, 8)}... from fulfilled request`)
+      debug.log(`Imported session ${request.session_id.substring(0, 8)}... from fulfilled request`)
 
       this.pendingRequests.delete(request.session_id)
 
-      // Mark the request consumed. The fulfilled key reaches us via an ephemeral
-      // realtime broadcast; if we were offline when it fired we recover the row
-      // via processMyFulfilledRequests() on the next unlock. Flipping it to
-      // 'received' stops that catch-up from re-importing the same key forever.
-      // Best-effort: a failed update only costs us a redundant future import.
+      // Mark the request consumed. The fulfilled key arrives on an ephemeral
+      // realtime broadcast; a client offline when it fires recovers the row via
+      // processMyFulfilledRequests() on the next unlock. The flip to 'received'
+      // stops that catch-up from re-importing the same key. Best-effort: a
+      // failed update costs one redundant future import.
       if (!deferStatusFlip && request.id && this.userId) {
         await supabase
           .from('megolm_key_requests')
@@ -503,9 +476,9 @@ export class MegolmKeyBackupService {
       this.triggerAutoBackup().catch(() => {})
       return true
     } catch (error) {
-      debug.error('❌ Error importing fulfilled key:', error)
-      // Re-arm the dedup so a follow-up decrypt attempt can issue a fresh
-      // request instead of being stuck behind this failed import.
+      debug.error('Error importing fulfilled key:', error)
+      // Re-arm the dedup so a follow-up decrypt attempt issues a fresh request
+      // instead of blocking behind this failed import.
       this.pendingRequests.delete(request.session_id)
       return false
     }
@@ -553,7 +526,8 @@ export class MegolmKeyBackupService {
   }
 
   /**
-   * Encrypt a session key for a specific user using ECDH key agreement.
+   * ECDH-wrap a session key for one recipient. Output is
+   * `v2:` + base64(12-byte IV || AES-GCM ciphertext).
    */
   private async encryptSessionKeyForUser(sessionKey: string, recipientPublicKey: string): Promise<string> {
     const myPrivateKey = await this.getMyPrivateKey()
@@ -574,7 +548,8 @@ export class MegolmKeyBackupService {
   }
 
   /**
-   * Decrypt a session key using ECDH with the sender's public key.
+   * Inverse of encryptSessionKeyForUser. The `v2:` prefix is optional; payloads
+   * without it are treated as bare base64.
    */
   private async decryptSessionKeyFromSender(
     encryptedKey: string,
@@ -598,18 +573,12 @@ export class MegolmKeyBackupService {
     return new TextDecoder().decode(decrypted)
   }
 
-  /**
-   * Register a callback for when keys are received
-   * Used by UI components to retry decryption
-   */
+  /** Callbacks fire on key import; UI components use them to retry decryption. */
   onKeyReceived(callback: KeyReceivedCallback): () => void {
     this.keyReceivedCallbacks.add(callback)
     return () => this.keyReceivedCallbacks.delete(callback)
   }
 
-  /**
-   * Clean up subscriptions
-   */
   cleanup(): void {
     for (const unsub of this.broadcastUnsubs) unsub()
     this.broadcastUnsubs = []
@@ -619,9 +588,7 @@ export class MegolmKeyBackupService {
 
   // BACKUP OPERATIONS
 
-  /**
-   * Create or update the encrypted backup on server
-   */
+  /** Upserts the encrypted backup row for the current user. */
   async createBackup(): Promise<void> {
     if (!this.userId) {
       throw new Error('Not initialized')
@@ -631,14 +598,13 @@ export class MegolmKeyBackupService {
       throw new Error('Recovery key not loaded - cannot create backup')
     }
 
-    // Export all sessions from MegolmService
     const sessions = await megolmService.exportAllSessions()
 
-    // MERGE with the existing server backup instead of blind overwrite.
-    // A freshly wiped/new device holds few or no sessions; upserting its tiny
-    // export used to DESTROY the only remaining copy of the user's history
-    // keys the moment auto-backup fired. Union by (roomId, sessionId),
-    // preferring the in-memory copy (fresher ratchet bookkeeping).
+    // Merge with the existing server backup rather than overwrite. A freshly
+    // wiped or new device holds few sessions; upserting its export would
+    // destroy the only remaining copy of the user's history keys on the first
+    // auto-backup. Union by (roomId, sessionId), preferring the in-memory copy
+    // for its fresher ratchet bookkeeping.
     try {
       const { data: existing } = await supabase
         .from('megolm_key_backups')
@@ -661,11 +627,10 @@ export class MegolmKeyBackupService {
             }
           }
         } catch {
-          // The server backup can't be decrypted with the CURRENT recovery
-          // key (older key generation). Refuse to replace a LARGER backup
-          // with a smaller one - even undecryptable today, it may become
-          // recoverable (user finds the old phrase). An intentional reset
-          // clears it explicitly via deleteBackup().
+          // The server backup does not decrypt under the current recovery key
+          // (older key generation). A larger backup is never replaced by a
+          // smaller one: undecryptable today does not mean unrecoverable, and
+          // an intentional reset clears it explicitly via deleteBackup().
           const localCount = sessions.outbound.length + sessions.inbound.length
           if ((existing.session_count ?? 0) > localCount) {
             debug.warn(
@@ -677,7 +642,7 @@ export class MegolmKeyBackupService {
         }
       }
     } catch (mergeErr) {
-      debug.warn('⚠️ Backup merge check failed, writing local sessions only:', mergeErr)
+      debug.warn('Backup merge check failed, writing local sessions only:', mergeErr)
     }
 
     const backupData: MegolmBackupData = {
@@ -687,13 +652,11 @@ export class MegolmKeyBackupService {
       sessions
     }
 
-    // Encrypt with recovery key
     const backupJson = JSON.stringify(backupData)
     const encryptedBackup = await recoveryKeyService.encryptForBackup(backupJson)
 
     const hash = await this.calculateHash(backupJson)
 
-    // Upsert to database
     const { error } = await supabase
       .from('megolm_key_backups')
       .upsert({
@@ -708,16 +671,13 @@ export class MegolmKeyBackupService {
       })
 
     if (error) {
-      debug.error('❌ Failed to create backup:', error)
+      debug.error('Failed to create backup:', error)
       throw new Error(`Failed to create backup: ${error.message}`)
     }
 
-    debug.log(`✅ Backup created with ${sessions.outbound.length} outbound, ${sessions.inbound.length} inbound sessions`)
+    debug.log(`Backup created with ${sessions.outbound.length} outbound, ${sessions.inbound.length} inbound sessions`)
   }
 
-  /**
-   * Restore sessions from encrypted backup
-   */
   async restoreFromBackup(): Promise<{
     outboundCount: number
     inboundCount: number
@@ -730,7 +690,7 @@ export class MegolmKeyBackupService {
       throw new Error('Recovery key not loaded - cannot restore backup')
     }
 
-    // Fetch backup from database (use maybeSingle to avoid error on 0 rows)
+    // maybeSingle: 0 rows is not an error here.
     const { data: backup, error } = await supabase
       .from('megolm_key_backups')
       .select('encrypted_data, backup_hash, version')
@@ -742,11 +702,10 @@ export class MegolmKeyBackupService {
     }
 
     if (!backup) {
-      debug.log('ℹ️ No backup found for user')
+      debug.log('ℹNo backup found for user')
       return { outboundCount: 0, inboundCount: 0 }
     }
 
-    // Decrypt with recovery key
     let backupJson: string
     try {
       backupJson = await recoveryKeyService.decryptFromBackup(backup.encrypted_data)
@@ -756,8 +715,8 @@ export class MegolmKeyBackupService {
 
     const hash = await this.calculateHash(backupJson)
     if (hash !== backup.backup_hash) {
-      debug.warn('⚠️ Backup hash mismatch - data may be corrupted')
-      // Continue anyway - user might want partial recovery
+      debug.warn('Backup hash mismatch - data may be corrupted')
+      // Restore proceeds; partial recovery beats none.
     }
 
     const backupData: MegolmBackupData = JSON.parse(backupJson)
@@ -772,7 +731,7 @@ export class MegolmKeyBackupService {
 
     await megolmService.importAllSessions(backupData.sessions)
 
-    debug.log(`✅ Restored ${backupData.sessions.outbound.length} outbound, ${backupData.sessions.inbound.length} inbound sessions`)
+    debug.log(`Restored ${backupData.sessions.outbound.length} outbound, ${backupData.sessions.inbound.length} inbound sessions`)
 
     return {
       outboundCount: backupData.sessions.outbound.length,
@@ -780,9 +739,6 @@ export class MegolmKeyBackupService {
     }
   }
 
-  /**
-   * Check if a backup exists for the user
-   */
   async hasBackup(): Promise<boolean> {
     if (!this.userId) return false
 
@@ -795,9 +751,7 @@ export class MegolmKeyBackupService {
     return !!data
   }
 
-  /**
-   * Get backup metadata (without decrypting)
-   */
+  /** Metadata only; the encrypted blob is not fetched or decrypted. */
   async getBackupMetadata(): Promise<BackupMetadata | null> {
     if (!this.userId) return null
 
@@ -814,9 +768,6 @@ export class MegolmKeyBackupService {
     return data as BackupMetadata
   }
 
-  /**
-   * Delete the backup
-   */
   async deleteBackup(): Promise<void> {
     if (!this.userId) return
 
@@ -826,30 +777,26 @@ export class MegolmKeyBackupService {
       .eq('user_id', this.userId)
 
     if (error) {
-      debug.error('❌ Failed to delete backup:', error)
+      debug.error('Failed to delete backup:', error)
       throw new Error(`Failed to delete backup: ${error.message}`)
     }
 
-    debug.log('✅ Backup deleted')
+    debug.log('Backup deleted')
   }
 
   // AUTO-BACKUP
 
-  /**
-   * Enable/disable automatic backup after session changes
-   */
   setAutoBackup(enabled: boolean): void {
     this.autoBackupEnabled = enabled
   }
 
   /**
-   * Trigger backup if auto-backup is enabled.
+   * Trigger a backup when auto-backup is enabled.
    *
-   * Debounced: callers fire this per new session (and a burst of new rooms /
-   * rapid sends could otherwise re-upload the whole backup many times in a
-   * row). We coalesce into a single trailing backup a few seconds after the
-   * last trigger. The backup is a full snapshot, so the latest run captures
-   * everything regardless of how many triggers were dropped.
+   * Debounced: callers fire this per new session, so a burst of new rooms or
+   * rapid sends would re-upload the whole backup repeatedly. Triggers coalesce
+   * into one trailing backup AUTO_BACKUP_DEBOUNCE_MS after the last. The backup
+   * is a full snapshot, so dropped triggers lose nothing.
    */
   async triggerAutoBackup(): Promise<void> {
     if (!this.autoBackupEnabled) return
@@ -858,8 +805,8 @@ export class MegolmKeyBackupService {
     this.autoBackupTimer = setTimeout(() => {
       this.autoBackupTimer = null
       this.createBackup().catch(error => {
-        debug.warn('⚠️ Auto-backup failed:', error)
-        // Don't throw - auto-backup failure shouldn't block operations
+        debug.warn('Auto-backup failed:', error)
+        // Never throws: auto-backup failure must not block operations.
       })
     }, this.AUTO_BACKUP_DEBOUNCE_MS)
   }
@@ -867,24 +814,24 @@ export class MegolmKeyBackupService {
   // CROSS-DEVICE KEY SHARING (with Realtime)
 
   /**
-   * Request a session key from the sender
-   * The sender will receive this via realtime and auto-fulfill if they have the key
-   * 
-   * @param roomId - The room/channel/conversation ID
-   * @param sessionId - The Megolm session ID needed
-   * @param senderUserId - The user who sent the original message (and has the key)
+   * Request a session key from the sender. The sender receives the row over
+   * realtime and auto-fulfills if it holds the key.
+   *
+   * @param roomId room / channel / conversation id
+   * @param sessionId Megolm session id needed
+   * @param senderUserId user who sent the original message and holds the key
    */
   async createKeyRequest(roomId: string, sessionId: string, senderUserId?: string): Promise<string> {
     if (!this.userId) {
       throw new Error('Not initialized')
     }
 
-    // Dedup with expiry: a request that got no answer (sender offline, failed
+    // Dedup with expiry: an unanswered request (sender offline, failed
     // fulfillment, failed import) must not block re-requests forever.
     const existing = this.pendingRequests.get(sessionId)
     if (existing) {
       if (Date.now() - existing.createdAt < this.KEY_REQUEST_RETRY_MS) {
-        debug.log(`ℹ️ Already have pending request for session ${sessionId.substring(0, 8)}...`)
+        debug.log(`ℹAlready have pending request for session ${sessionId.substring(0, 8)}...`)
         return existing.requestId
       }
       this.pendingRequests.delete(sessionId)
@@ -892,16 +839,15 @@ export class MegolmKeyBackupService {
 
     const requestId = crypto.randomUUID()
 
-    // Reserve the dedup slot SYNCHRONOUSLY. It used to be set only after the
-    // insert, so parallel decrypt failures for the same session (one page can
-    // hold many messages of one session) raced past the check above and each
-    // inserted its own request row. Rolled back on insert failure below.
+    // Reserve the dedup slot synchronously, before the insert. Parallel decrypt
+    // failures for the same session - one page holds many messages of one
+    // session - otherwise race past the check above and each insert a request
+    // row. Rolled back on insert failure below.
     this.pendingRequests.set(sessionId, { requestId, createdAt: Date.now() })
 
-    // Sign the request so the fulfiller can verify it actually came from us
-    // before wrapping the session key. Best-effort: if we have no signing key
-    // yet, we still send an unsigned request (the fulfiller decides whether to
-    // honor unsigned requests under its policy).
+    // Sign the request so the fulfiller can verify its origin before wrapping
+    // the session key. Best-effort: with no signing key the request goes out
+    // unsigned, and the fulfiller's policy decides whether to honor it.
     let requestSignature: string | undefined
     let signingFingerprint: string | undefined
     try {
@@ -915,10 +861,10 @@ export class MegolmKeyBackupService {
         requestSignature = await signKeyRequest(fields, signingKey)
         signingFingerprint = await this.getMySigningFingerprint()
       } else {
-        debug.warn('⚠️ No signing key available to sign key request - sending unsigned')
+        debug.warn('No signing key available to sign key request - sending unsigned')
       }
     } catch (err) {
-      debug.warn('⚠️ Failed to sign key request (sending unsigned):', err)
+      debug.warn('Failed to sign key request (sending unsigned):', err)
     }
 
     const { error } = await supabase
@@ -945,13 +891,11 @@ export class MegolmKeyBackupService {
       throw new Error(`Failed to create key request: ${error.message}`)
     }
 
-    debug.log(`📤 Created key request ${requestId.substring(0, 8)}... for session ${sessionId.substring(0, 8)}... from ${senderUserId?.substring(0, 8) || 'unknown'}`)
+    debug.log(`Created key request ${requestId.substring(0, 8)}... for session ${sessionId.substring(0, 8)}... from ${senderUserId?.substring(0, 8) || 'unknown'}`)
     return requestId
   }
 
-  /**
-   * Check for pending key requests we've made
-   */
+  /** Pending key requests issued by this user. */
   async getMyPendingRequests(): Promise<KeyRequest[]> {
     if (!this.userId) return []
 
@@ -963,16 +907,14 @@ export class MegolmKeyBackupService {
       .order('created_at', { ascending: false })
 
     if (error) {
-      debug.error('❌ Failed to fetch my pending requests:', error)
+      debug.error('Failed to fetch my pending requests:', error)
       return []
     }
 
     return (data || []) as KeyRequest[]
   }
 
-  /**
-   * Check for requests others have made to me
-   */
+  /** Pending key requests addressed to this user as sender. */
   async getRequestsToMe(): Promise<KeyRequest[]> {
     if (!this.userId) return []
 
@@ -984,7 +926,7 @@ export class MegolmKeyBackupService {
       .order('created_at', { ascending: false })
 
     if (error) {
-      debug.error('❌ Failed to fetch requests to me:', error)
+      debug.error('Failed to fetch requests to me:', error)
       return []
     }
 
@@ -992,8 +934,8 @@ export class MegolmKeyBackupService {
   }
 
   /**
-   * Process any pending requests to me (fulfill if we have the keys)
-   * Called on initialization to catch up on requests made while offline
+   * Fulfill pending requests addressed to this user where the key is held.
+   * Called on initialization to catch up on requests raised while offline.
    */
   async processPendingRequestsToMe(): Promise<number> {
     const requests = await this.getRequestsToMe()
@@ -1004,27 +946,27 @@ export class MegolmKeyBackupService {
         await this.handleIncomingKeyRequest(request)
         fulfilledCount++
       } catch (error) {
-        debug.warn(`⚠️ Failed to process request ${request.id}:`, error)
+        debug.warn(`Failed to process request ${request.id}:`, error)
       }
     }
 
     if (fulfilledCount > 0) {
-      debug.log(`✅ Processed ${fulfilledCount} pending key requests`)
+      debug.log(`Processed ${fulfilledCount} pending key requests`)
     }
 
     return fulfilledCount
   }
 
   /**
-   * Offline catch-up for the REQUESTER side: import keys for requests WE made
-   * that were fulfilled while we were offline.
+   * Requester-side offline catch-up: import keys for locally issued requests
+   * fulfilled while this client was disconnected.
    *
-   * Fulfillment is delivered via an ephemeral `encryption:key_fulfilled`
-   * broadcast; if the requesting client was not connected when it fired the
-   * payload is lost, leaving a `status='fulfilled'` row with a populated
-   * `encrypted_key` that nobody ever consumes. This sweeps those rows on unlock
-   * and imports them, then handleFulfilledRequest flips each to 'received' so
-   * subsequent unlocks don't redo the work.
+   * Fulfillment is delivered on an ephemeral `encryption:key_fulfilled`
+   * broadcast. A requester not connected when it fires loses the payload,
+   * leaving a `status='fulfilled'` row with a populated `encrypted_key` that
+   * nothing consumes. This sweeps and imports those rows on unlock;
+   * handleFulfilledRequest then flips each to 'received' so later unlocks skip
+   * them.
    */
   async processMyFulfilledRequests(): Promise<number> {
     if (!this.userId) return 0
@@ -1040,10 +982,9 @@ export class MegolmKeyBackupService {
       return 0
     }
 
-    // Batch-fetch every fulfiller's public key in ONE query. Previously each
-    // row fetched it individually inside handleFulfilledRequest - with N
-    // stale rows from the same fulfiller that was N identical user_key_pairs
-    // queries per unlock (observed: 170).
+    // Batch-fetch every fulfiller's public key in one query. Per-row fetching
+    // inside handleFulfilledRequest costs one identical user_key_pairs query
+    // per stale row from the same fulfiller - 170 observed on one unlock.
     const senderIds = [...new Set(data.map(r => r.sender_user_id).filter(Boolean))]
     const senderKeyMap = new Map<string, string>()
     if (senderIds.length > 0) {
@@ -1053,7 +994,7 @@ export class MegolmKeyBackupService {
         .in('user_id', senderIds)
         .eq('is_active', true)
       if (keysError) {
-        debug.warn('⚠️ Batch fulfiller-key fetch failed, aborting sweep (will retry next unlock):', keysError)
+        debug.warn('Batch fulfiller-key fetch failed, aborting sweep (will retry next unlock):', keysError)
         return 0
       }
       for (const k of keys || []) {
@@ -1073,8 +1014,8 @@ export class MegolmKeyBackupService {
       else failedIds.push(request.id)
     }
 
-    // Batch the status flips: ONE update per outcome instead of one PATCH per
-    // row (a large backlog produced 60+ serial PATCHes on unlock).
+    // One update per outcome instead of one PATCH per row; a large backlog
+    // produced 60+ serial PATCHes on unlock.
     if (importedIds.length > 0) {
       await supabase
         .from('megolm_key_requests')
@@ -1084,14 +1025,13 @@ export class MegolmKeyBackupService {
         .then(() => {}, () => {})
     }
 
-    // Quarantine failures: at this point we're unlocked with our identity key
-    // available, so a failed import is deterministic (typically the key was
-    // sealed to a PREVIOUS identity after a key reset) and would fail again
-    // on every future unlock - these rows were being re-swept forever,
-    // hammering the DB on each session start. Mark them expired; if the
-    // session is ever needed again, the on-demand key-request flow issues a
-    // fresh request (and the fulfillment-side share repair makes the new
-    // seal durable).
+    // Quarantine failures. The identity key is available here, so a failed
+    // import is deterministic - typically the key was sealed to a previous
+    // identity before a key reset - and would fail on every future unlock,
+    // re-sweeping the same rows at each session start. Marking them expired
+    // ends that; if the session is needed again the on-demand key-request flow
+    // issues a fresh request, and the fulfillment-side share repair makes the
+    // new seal durable.
     if (failedIds.length > 0) {
       await supabase
         .from('megolm_key_requests')
@@ -1099,19 +1039,16 @@ export class MegolmKeyBackupService {
         .in('id', failedIds)
         .eq('requester_user_id', this.userId)
         .then(() => {}, () => {})
-      debug.warn(`🗑️ Quarantined ${failedIds.length} undecryptable fulfilled key requests (marked expired)`)
+      debug.warn(`Quarantined ${failedIds.length} undecryptable fulfilled key requests (marked expired)`)
     }
 
     if (importedIds.length > 0) {
-      debug.log(`📥 Imported ${importedIds.length} fulfilled key requests (offline catch-up)`)
+      debug.log(`Imported ${importedIds.length} fulfilled key requests (offline catch-up)`)
     }
 
     return importedIds.length
   }
 
-  /**
-   * Cancel a pending key request
-   */
   async cancelKeyRequest(requestId: string): Promise<void> {
     const { error } = await supabase
       .from('megolm_key_requests')
@@ -1120,7 +1057,7 @@ export class MegolmKeyBackupService {
       .eq('requester_user_id', this.userId)
 
     if (error) {
-      debug.error('❌ Failed to cancel request:', error)
+      debug.error('Failed to cancel request:', error)
     }
 
     for (const [sessionId, entry] of this.pendingRequests) {
@@ -1131,9 +1068,7 @@ export class MegolmKeyBackupService {
     }
   }
 
-  /**
-   * Check if a key request has been fulfilled
-   */
+  /** Missing or unreadable rows report as 'expired'. */
   async checkKeyRequestStatus(requestId: string): Promise<{
     status: 'pending' | 'fulfilled' | 'expired' | 'cancelled'
     encryptedKey?: string
@@ -1193,14 +1128,12 @@ export class MegolmKeyBackupService {
       throw new Error(`Failed to fulfill key request: ${error.message}`)
     }
 
-    debug.log(`✅ Fulfilled key request ${requestId}`)
+    debug.log(`Fulfilled key request ${requestId}`)
   }
 
   // UTILITY METHODS
 
-  /**
-   * Calculate SHA-256 hash of data
-   */
+  /** SHA-256 of the UTF-8 bytes, lowercase hex. */
   private async calculateHash(data: string): Promise<string> {
     const encoder = new TextEncoder()
     const dataBytes = encoder.encode(data)
@@ -1209,9 +1142,7 @@ export class MegolmKeyBackupService {
     return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
   }
 
-  /**
-   * Export backup data for local file storage
-   */
+  /** Recovery-key-encrypted blob tagged `harmony-megolm-backup`, version 1. */
   async exportToFile(): Promise<string> {
     if (!this.userId || !recoveryKeyService.isLoaded()) {
       throw new Error('Not initialized or recovery key not loaded')
@@ -1227,14 +1158,10 @@ export class MegolmKeyBackupService {
       sessions
     }
 
-    // Encrypt with recovery key
     const json = JSON.stringify(exportData)
     return await recoveryKeyService.encryptForBackup(json)
   }
 
-  /**
-   * Import backup from local file
-   */
   async importFromFile(encryptedData: string): Promise<{
     outboundCount: number
     inboundCount: number
@@ -1243,7 +1170,6 @@ export class MegolmKeyBackupService {
       throw new Error('Recovery key not loaded')
     }
 
-    // Decrypt
     const json = await recoveryKeyService.decryptFromBackup(encryptedData)
     const importData = JSON.parse(json)
 
@@ -1264,6 +1190,5 @@ export class MegolmKeyBackupService {
   }
 }
 
-// Export singleton
 export const megolmKeyBackupService = MegolmKeyBackupService.getInstance()
 

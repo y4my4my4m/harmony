@@ -1,15 +1,13 @@
 /**
  * RealtimeConnectionManager
- * 
- * Professional-grade wrapper for Supabase realtime subscriptions with:
- * - Automatic reconnection with exponential backoff
- * - Connection health monitoring  
- * - Centralized subscription management
- * - Status tracking and callbacks
- * - Multi-event support (INSERT, UPDATE, DELETE)
- * - Global visibility and auth token refresh handling
- * 
- * Architecture similar to Discord/Slack for reliability.
+ *
+ * Wrapper over Supabase realtime subscriptions providing:
+ * - reconnection with exponential backoff and jitter
+ * - connection health monitoring
+ * - one registry of subscriptions keyed by channel name
+ * - status tracking and callbacks
+ * - INSERT / UPDATE / DELETE handlers per channel
+ * - reconnect on visibility change, network online, and sign-out teardown
  */
 
 import { supabase } from '@/supabase'
@@ -18,16 +16,12 @@ import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/
 
 // Types
 
-/** Connection status for subscriptions */
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'error'
 
-/** Supported database events */
 export type DatabaseEvent = 'INSERT' | 'UPDATE' | 'DELETE' | '*'
 
-/** Payload handler type */
 export type PayloadHandler<T extends { [key: string]: any } = any> = (payload: RealtimePostgresChangesPayload<T>) => void | Promise<void>
 
-/** Status change handler */
 export type StatusHandler = (status: ConnectionStatus, channelName: string) => void
 
 /** Broadcast event handler (realtime.send payloads, not CDC) */
@@ -36,9 +30,7 @@ export interface BroadcastHandler {
   handler: (payload: Record<string, any>) => void | Promise<void>
 }
 
-/**
- * Configuration for a single-event subscription (legacy API)
- */
+/** Single-event subscription config (legacy API). */
 export interface SubscriptionConfig {
   channelName: string
   table: string
@@ -49,24 +41,17 @@ export interface SubscriptionConfig {
   onStatusChange?: (status: ConnectionStatus) => void
 }
 
-/**
- * Configuration for multi-event table subscription
- * Professional API supporting INSERT, UPDATE, DELETE handlers
- */
+/** Table subscription config with per-event INSERT / UPDATE / DELETE handlers. */
 export interface TableSubscriptionConfig {
   /** Unique channel name for this subscription */
   channelName: string
-  /** Database table to subscribe to */
   table: string
   /** Database schema (default: 'public') */
   schema?: string
   /** PostgREST filter (e.g., 'channel_id=eq.123') */
   filter?: string
-  /** Handler for INSERT events */
   onInsert?: PayloadHandler
-  /** Handler for UPDATE events */
   onUpdate?: PayloadHandler
-  /** Handler for DELETE events */
   onDelete?: PayloadHandler
   /**
    * Subscribe the channel as private (config: { private: true }). Required to
@@ -80,23 +65,18 @@ export interface TableSubscriptionConfig {
    * already has open instead of opening a second channel.
    */
   broadcasts?: BroadcastHandler[]
-  /** Handler for status changes */
   onStatusChange?: StatusHandler
   /**
-   * Called after a successful reconnect (status goes from non-connected to SUBSCRIBED
-   * with retryCount > 0). Use this to fetch messages missed during the disconnect.
+   * Fired when a subscription that was disconnected reaches SUBSCRIBED again.
+   * Hook for fetching messages missed during the gap.
    */
   onReconnected?: () => void | Promise<void>
 }
 
-/**
- * Configuration for multi-table channel subscription
- * Allows subscribing to multiple tables on a single channel
- */
+/** Several tables multiplexed onto one channel. */
 export interface MultiTableSubscriptionConfig {
   /** Unique channel name for this subscription */
   channelName: string
-  /** Tables to subscribe to */
   tables: Array<{
     table: string
     schema?: string
@@ -105,28 +85,23 @@ export interface MultiTableSubscriptionConfig {
     onUpdate?: PayloadHandler
     onDelete?: PayloadHandler
   }>
-  /** Handler for status changes */
   onStatusChange?: StatusHandler
-  /** Called after a successful reconnect */
   onReconnected?: () => void | Promise<void>
 }
 
 /**
- * Configuration for a broadcast-only channel (no postgres_changes / CDC).
- * Used when a view needs realtime.send() events but has no message stream of
- * its own to piggyback on (e.g. the full-thread route listening to the parent
- * channel's reaction broadcasts).
+ * Broadcast-only channel, no postgres_changes / CDC. For views that need
+ * realtime.send() events but have no message stream of their own to piggyback
+ * on, such as the full-thread route listening to the parent channel's reaction
+ * broadcasts.
  */
 export interface BroadcastSubscriptionConfig {
   /** Unique channel name / topic */
   channelName: string
   /** Subscribe as a private channel (default true; broadcasts use private topics) */
   private?: boolean
-  /** Broadcast event handlers */
   broadcasts: BroadcastHandler[]
-  /** Handler for status changes */
   onStatusChange?: StatusHandler
-  /** Called after a successful reconnect */
   onReconnected?: () => void | Promise<void>
 }
 
@@ -145,12 +120,11 @@ interface ManagedSubscription {
   lastClosedAt: Date | null
   /**
    * Set whenever a subscription becomes disconnected for any reason
-   * (CHANNEL_ERROR / TIMED_OUT / CLOSED / `forceReconnect[All]` triggered
-   * by `online` / `visibilitychange`). Cleared when the next SUBSCRIBED
-   * event fires `onReconnected`. Required for gap-fill correctness - see
-   * BUGS.md C13: `forceReconnect()` resets `retryCount` to 0 before
-   * reconnecting, so the previous "wasReconnect = retryCount > 0" check
-   * silently missed every wake-from-sleep / network-restore gap.
+   * (CHANNEL_ERROR / TIMED_OUT / CLOSED / `forceReconnect[All]` triggered by
+   * `online` / `visibilitychange`). Cleared when the next SUBSCRIBED event
+   * fires `onReconnected`. Required for gap-fill correctness (BUGS.md C13):
+   * `forceReconnect()` zeroes `retryCount` before reconnecting, so a
+   * `retryCount > 0` test misses every wake-from-sleep / network-restore gap.
    */
   pendingGapFill: boolean
 }
@@ -158,29 +132,26 @@ interface ManagedSubscription {
 // Configuration
 
 const RETRY_CONFIG = {
-  baseDelay: 1000,      // 1 second initial delay
-  maxDelay: 30000,      // 30 seconds max delay
-  multiplier: 2,        // Double delay each retry
-  maxRetries: 10,       // Max retry attempts before giving up
-  jitterFactor: 0.2     // Add 20% random jitter to prevent thundering herd
+  baseDelay: 1000,      // ms
+  maxDelay: 30000,      // ms
+  multiplier: 2,
+  maxRetries: 10,
+  jitterFactor: 0.2     // 20% random jitter, spreads reconnect storms
 }
 
-// Health check is now minimal - Supabase handles its own reconnection
-const HEALTH_CHECK_INTERVAL = 60000  // 60 seconds - just a safety net, not aggressive
-const STALE_CONNECTION_THRESHOLD = 5 * 60 * 1000  // 5 minutes - very conservative
+// Supabase drives its own reconnection; this sweep is a backstop.
+const HEALTH_CHECK_INTERVAL = 60000  // ms
+const STALE_CONNECTION_THRESHOLD = 5 * 60 * 1000  // ms
 
 // RealtimeConnectionManager Service
 
 /**
- * Threshold above which a returning-to-foreground tab is presumed to have a
- * silently-dead WebSocket. Mobile browsers/OSes commonly freeze background
- * tabs after ~30 seconds (Chrome on Android), and carrier NATs / sleep
- * states sever idle TCP connections without sending a FIN, so the channel
- * reports `SUBSCRIBED` long after delivery has actually stopped. Anything
- * past one minute hidden is almost guaranteed to need a fresh connection.
+ * Hidden duration above which a returning-to-foreground tab is presumed to hold
+ * a silently-dead WebSocket. Chrome on Android freezes background tabs after
+ * ~30s, and carrier NATs / sleep states drop idle TCP without a FIN, so the
+ * channel keeps reporting `SUBSCRIBED` after delivery has stopped.
  *
- * Kept slightly conservative (60s rather than the 30s freeze-floor) to
- * avoid churn when the user briefly alt-tabs.
+ * 60s rather than the 30s freeze floor, to avoid churn on brief alt-tabs.
  */
 const HIDDEN_FOR_STALE_MS = 60 * 1000
 
@@ -196,49 +167,43 @@ class RealtimeConnectionManagerService {
   private offlineHandler: (() => void) | null = null
   private visibilityHandler: (() => void) | null = null
   /**
-   * Timestamp (ms epoch) when the tab last went to `hidden`. Cleared the
-   * moment we go visible again. Used to decide whether a visibility-change
-   * event should trigger a full reconnect (long absences = presume dead
-   * sockets) versus a cheap status sweep (short alt-tab).
+   * Epoch ms of the last transition to `hidden`; cleared on `visible`. Selects
+   * between a full reconnect (long absence, sockets presumed dead) and a cheap
+   * status sweep (short alt-tab).
    */
   private hiddenAt: number | null = null
 
   // Lifecycle Methods
 
-  /**
-   * Initialize the connection manager
-   * Should be called once when the app starts (e.g., in BaseLayout)
-   */
+  /** Called once at app start, from BaseLayout. Repeat calls are no-ops. */
   initialize(): void {
     if (this.initialized) return
     this.initialized = true
     
-    debug.log('🚀 RealtimeManager: Initialized - Supabase handles all connection management')
+    debug.log('RealtimeManager: Initialized - Supabase handles all connection management')
     
-    // Only handle SIGNED_OUT to cleanup subscriptions
+    // SIGNED_OUT is the only auth event that matters here.
     const { data: authListener } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'SIGNED_OUT') {
-        debug.log('🚪 RealtimeManager: User signed out, unsubscribing all')
+        debug.log('RealtimeManager: User signed out, unsubscribing all')
         this.unsubscribeAll()
       }
     })
     this.authListener = { data: { subscription: authListener.subscription } }
 
-    // Reconnect when network comes back online
     this.onlineHandler = () => {
-      debug.log('🌐 RealtimeManager: Network online, reconnecting subscriptions')
+      debug.log('RealtimeManager: Network online, reconnecting subscriptions')
       this.forceReconnectAll()
     }
     this.offlineHandler = () => {
-      debug.log('📴 RealtimeManager: Network offline')
+      debug.log('RealtimeManager: Network offline')
       this.globalStatus = 'disconnected'
       this.notifyStatusListeners()
     }
     this.visibilityHandler = () => {
       if (document.visibilityState === 'hidden') {
-        // Remember when we went away so the next 'visible' event can decide
-        // how aggressively to reconnect. We DON'T tear down subscriptions
-        // here - the user may flip back instantly.
+        // Record the departure so the next 'visible' event can pick a
+        // strategy. Subscriptions are left up; the tab may return instantly.
         this.hiddenAt = Date.now()
         return
       }
@@ -251,17 +216,14 @@ class RealtimeConnectionManagerService {
       this.hiddenAt = null
 
       // Long absences (mobile OS tab freeze, laptop sleep, carrier NAT
-      // timeout) almost always mean the WebSocket was killed without our
-      // socket-state observer seeing a CLOSE - the channel still reports
-      // SUBSCRIBED but no payloads will ever arrive. The classic symptom is
-      // "I had a DM open, walked away, got the push notification, but the
-      // message never showed up until I refreshed". Force a global reconnect
-      // here so every managed channel re-handshakes (and onReconnected
-      // gap-fill fires to pull anything we missed).
+      // timeout) usually mean the WebSocket died without a CLOSE reaching the
+      // socket-state observer: the channel still reports SUBSCRIBED and no
+      // payloads arrive. Reconnecting every managed channel re-handshakes and
+      // fires onReconnected gap-fill.
       //
-      // Also force-reconnect when the underlying Supabase WS itself reports
-      // disconnected, regardless of how long we were hidden - some browsers
-      // (Safari iOS) freeze tabs <1s in and silently kill the socket.
+      // Also reconnect when the Supabase WS itself reports disconnected,
+      // whatever the hidden duration - Safari iOS freezes tabs under a second
+      // in and kills the socket.
       const rtClient = (supabase as any).realtime
       const wsDead = rtClient && typeof rtClient.isConnected === 'function' && !rtClient.isConnected()
 
@@ -269,19 +231,17 @@ class RealtimeConnectionManagerService {
         debug.log(
           `👁️ RealtimeManager: Tab visible after ${Math.round(hiddenFor / 1000)}s (wsDead=${wsDead}) - forcing per-channel reconnect to flush stale sockets`,
         )
-        // Use per-channel reconnect (not the global path) because
-        // forceReconnect() explicitly tears down + rebuilds each channel,
-        // which routes through handleSubscriptionStatus and sets
-        // `pendingGapFill` so the SUBSCRIBED handler fires `onReconnected`
-        // (the hook DM/channel stores use to pull messages we missed
-        // while the WS was dead). The global path only bounces the
-        // underlying socket and may not surface a CLOSED status to each
-        // managed sub, so gap-fill could silently skip.
+        // Per-channel reconnect, not the global path: forceReconnect() tears
+        // down and rebuilds each channel through handleSubscriptionStatus,
+        // setting `pendingGapFill` so the SUBSCRIBED handler fires
+        // `onReconnected`, which the DM/channel stores use to pull missed
+        // messages. The global path only bounces the underlying socket and may
+        // not surface CLOSED to each managed sub, skipping gap-fill.
         this.forceReconnectAll()
         return
       }
 
-      debug.log('👁️ RealtimeManager: Tab visible again, checking connections')
+      debug.log('RealtimeManager: Tab visible again, checking connections')
       this.performHealthCheck()
     }
 
@@ -290,12 +250,9 @@ class RealtimeConnectionManagerService {
     document.addEventListener('visibilitychange', this.visibilityHandler)
   }
 
-  /**
-   * Cleanup the connection manager
-   * Should be called when the app unmounts
-   */
+  /** Called on app unmount. */
   cleanup(): void {
-    debug.log('🧹 RealtimeManager: Cleaning up')
+    debug.log('RealtimeManager: Cleaning up')
     
     if (this.authListener) {
       this.authListener.data.subscription.unsubscribe()
@@ -316,8 +273,7 @@ class RealtimeConnectionManagerService {
   // Subscription Methods
 
   /**
-   * Subscribe to a table with multiple event handlers (Professional API)
-   * Use this for most subscriptions - supports INSERT, UPDATE, DELETE
+   * Primary subscription entry point: one channel, INSERT/UPDATE/DELETE handlers.
    * 
    * @example
    * const unsubscribe = realtimeConnectionManager.subscribeToTable({
@@ -336,16 +292,12 @@ class RealtimeConnectionManagerService {
     const { channelName } = config
     
     if (this.subscriptions.has(channelName)) {
-      // BUGS.md H29 (v2): the earlier "replace config in-place" approach was
-      // silently broken - `connectTableSubscription` closed over a LOCAL
-      // `config` reference, so reassigning `managedSub.config` didn't
-      // retarget the `onInsert`/`onUpdate`/`onDelete` handlers. Worse, the
-      // underlying Supabase channel was created with the OLD filter/table
-      // targets, so the new caller's filter set would be silently ignored
-      // even if the handlers HAD updated. The correct fix is to tear the
-      // channel down and rebuild it: this gives the new caller's handlers
-      // a fresh channel with their actual filters. Channel-name collisions
-      // are still a smell - we log loudly so they surface in dev/staging.
+      // BUGS.md H29: a name collision tears the channel down and rebuilds it.
+      // Replacing `managedSub.config` in place does not work:
+      // `connectTableSubscription` closes over a local `config` reference, so
+      // the handlers stay bound to the old config, and the Supabase channel
+      // still carries the old filter/table targets. Collisions are logged
+      // loudly so they surface in dev/staging.
       debug.warn(
         `⚠️ RealtimeManager: duplicate subscription ${channelName} - tearing down and rebuilding with the new caller's handlers (BUGS.md H29). Callers should use unique channel names.`,
       )
@@ -375,9 +327,8 @@ class RealtimeConnectionManagerService {
   }
 
   /**
-   * Subscribe to a broadcast-only channel (no postgres_changes / CDC).
-   * For features that need realtime.send() events but have no message stream
-   * of their own to piggyback on.
+   * Broadcast-only channel, no postgres_changes / CDC. For features needing
+   * realtime.send() events with no message stream of their own to piggyback on.
    */
   subscribeBroadcast(config: BroadcastSubscriptionConfig): () => void {
     if (!this.initialized) this.initialize()
@@ -415,8 +366,7 @@ class RealtimeConnectionManagerService {
   }
 
   /**
-   * Subscribe to multiple tables on a single channel (Advanced API)
-   * More efficient when you need to subscribe to related tables
+   * Several related tables on one channel, one WebSocket topic instead of many.
    * 
    * @example
    * const unsubscribe = realtimeConnectionManager.subscribeToMultipleTables({
@@ -462,10 +412,7 @@ class RealtimeConnectionManagerService {
     return () => this.unsubscribe(channelName)
   }
 
-  /**
-   * Legacy API - Subscribe to a single event on a table
-   * Maintained for backwards compatibility
-   */
+  /** Legacy single-event API, kept for existing callers. */
   subscribe(config: SubscriptionConfig): () => void {
     if (!this.initialized) this.initialize()
     
@@ -510,7 +457,7 @@ class RealtimeConnectionManagerService {
     const config = managedSub.config as TableSubscriptionConfig
     this.updateSubscriptionStatus(channelName, 'connecting')
     
-    debug.log(`🔄 RealtimeManager: Connecting ${channelName} (table subscription)...`)
+    debug.log(`RealtimeManager: Connecting ${channelName} (table subscription)...`)
     
     let channel = supabase.channel(
       channelName,
@@ -526,7 +473,7 @@ class RealtimeConnectionManagerService {
           try {
             await config.onInsert!(payload)
           } catch (error) {
-            debug.error(`❌ RealtimeManager: Error in INSERT handler for ${channelName}:`, error)
+            debug.error(`RealtimeManager: Error in INSERT handler for ${channelName}:`, error)
           }
         }
       )
@@ -540,7 +487,7 @@ class RealtimeConnectionManagerService {
           try {
             await config.onUpdate!(payload)
           } catch (error) {
-            debug.error(`❌ RealtimeManager: Error in UPDATE handler for ${channelName}:`, error)
+            debug.error(`RealtimeManager: Error in UPDATE handler for ${channelName}:`, error)
           }
         }
       )
@@ -554,7 +501,7 @@ class RealtimeConnectionManagerService {
           try {
             await config.onDelete!(payload)
           } catch (error) {
-            debug.error(`❌ RealtimeManager: Error in DELETE handler for ${channelName}:`, error)
+            debug.error(`RealtimeManager: Error in DELETE handler for ${channelName}:`, error)
           }
         }
       )
@@ -582,7 +529,7 @@ class RealtimeConnectionManagerService {
         try {
           await handler(message?.payload ?? message)
         } catch (error) {
-          debug.error(`❌ RealtimeManager: Error in broadcast handler '${event}' for ${channelName}:`, error)
+          debug.error(`RealtimeManager: Error in broadcast handler '${event}' for ${channelName}:`, error)
         }
       })
     }
@@ -596,7 +543,7 @@ class RealtimeConnectionManagerService {
     const config = managedSub.config as BroadcastSubscriptionConfig
     this.updateSubscriptionStatus(channelName, 'connecting')
 
-    debug.log(`🔄 RealtimeManager: Connecting ${channelName} (broadcast subscription)...`)
+    debug.log(`RealtimeManager: Connecting ${channelName} (broadcast subscription)...`)
 
     const isPrivate = config.private !== false
     let channel = supabase.channel(
@@ -619,7 +566,7 @@ class RealtimeConnectionManagerService {
     const config = managedSub.config as MultiTableSubscriptionConfig
     this.updateSubscriptionStatus(channelName, 'connecting')
     
-    debug.log(`🔄 RealtimeManager: Connecting ${channelName} (multi-table subscription)...`)
+    debug.log(`RealtimeManager: Connecting ${channelName} (multi-table subscription)...`)
     
     let channel = supabase.channel(channelName)
     
@@ -634,7 +581,7 @@ class RealtimeConnectionManagerService {
             try {
               await tableConfig.onInsert!(payload)
             } catch (error) {
-              debug.error(`❌ RealtimeManager: Error in INSERT handler for ${channelName}/${tableConfig.table}:`, error)
+              debug.error(`RealtimeManager: Error in INSERT handler for ${channelName}/${tableConfig.table}:`, error)
             }
           }
         )
@@ -648,7 +595,7 @@ class RealtimeConnectionManagerService {
             try {
               await tableConfig.onUpdate!(payload)
             } catch (error) {
-              debug.error(`❌ RealtimeManager: Error in UPDATE handler for ${channelName}/${tableConfig.table}:`, error)
+              debug.error(`RealtimeManager: Error in UPDATE handler for ${channelName}/${tableConfig.table}:`, error)
             }
           }
         )
@@ -662,7 +609,7 @@ class RealtimeConnectionManagerService {
             try {
               await tableConfig.onDelete!(payload)
             } catch (error) {
-              debug.error(`❌ RealtimeManager: Error in DELETE handler for ${channelName}/${tableConfig.table}:`, error)
+              debug.error(`RealtimeManager: Error in DELETE handler for ${channelName}/${tableConfig.table}:`, error)
             }
           }
         )
@@ -683,7 +630,7 @@ class RealtimeConnectionManagerService {
     const config = managedSub.config as SubscriptionConfig
     this.updateSubscriptionStatus(channelName, 'connecting')
     
-    debug.log(`🔄 RealtimeManager: Connecting ${channelName} (single subscription)...`)
+    debug.log(`RealtimeManager: Connecting ${channelName} (single subscription)...`)
     
     const channel = supabase
       .channel(channelName)
@@ -699,7 +646,7 @@ class RealtimeConnectionManagerService {
           try {
             await config.onPayload(payload)
           } catch (error) {
-            debug.error(`❌ RealtimeManager: Error in payload handler for ${channelName}:`, error)
+            debug.error(`RealtimeManager: Error in payload handler for ${channelName}:`, error)
           }
         }
       )
@@ -719,7 +666,6 @@ class RealtimeConnectionManagerService {
       managedSub.channel = null
     }
     
-    // Reconnect based on type
     switch (managedSub.configType) {
       case 'table':
         this.connectTableSubscription(channelName)
@@ -742,35 +688,32 @@ class RealtimeConnectionManagerService {
     const managedSub = this.subscriptions.get(channelName)
     if (!managedSub) return
     
-    debug.log(`📡 RealtimeManager: ${channelName} status: ${status}`)
+    debug.log(`RealtimeManager: ${channelName} status: ${status}`)
     
     switch (status) {
       case 'SUBSCRIBED': {
-        // BUGS.md C13: gap-fill must fire whenever this subscription was
-        // disconnected and is now back up - regardless of how it got back
-        // (retry, forceReconnect, forceReconnectAll). The previous
-        // `retryCount > 0` check missed `forceReconnect*()` because those
-        // zero `retryCount` BEFORE reconnecting, so wake-from-sleep and
-        // `window.online` events silently dropped missed messages.
+        // BUGS.md C13: gap-fill fires whenever this subscription was
+        // disconnected and is back up, by any route (retry, forceReconnect,
+        // forceReconnectAll). Keyed off pendingGapFill, not `retryCount > 0`:
+        // forceReconnect*() zeroes retryCount before reconnecting.
         const shouldGapFill = managedSub.pendingGapFill
         managedSub.pendingGapFill = false
         managedSub.retryCount = 0
         managedSub.lastConnectedAt = new Date()
         managedSub.lastError = null
         this.updateSubscriptionStatus(channelName, 'connected')
-        debug.log(`✅ RealtimeManager: ${channelName} connected`)
+        debug.log(`RealtimeManager: ${channelName} connected`)
         
-        // Fire onReconnected callback so consumers can gap-fill missed events
         if (shouldGapFill) {
           const config = managedSub.config
           if ('onReconnected' in config && typeof config.onReconnected === 'function') {
             try {
-              debug.log(`🔀 RealtimeManager: Firing onReconnected for ${channelName}`)
+              debug.log(`RealtimeManager: Firing onReconnected for ${channelName}`)
               Promise.resolve(config.onReconnected()).catch(err => {
-                debug.error(`❌ RealtimeManager: onReconnected error for ${channelName}:`, err)
+                debug.error(`RealtimeManager: onReconnected error for ${channelName}:`, err)
               })
             } catch (err) {
-              debug.error(`❌ RealtimeManager: onReconnected sync error for ${channelName}:`, err)
+              debug.error(`RealtimeManager: onReconnected sync error for ${channelName}:`, err)
             }
           }
         }
@@ -782,7 +725,7 @@ class RealtimeConnectionManagerService {
         managedSub.lastError = err?.message || 'Channel error'
         managedSub.pendingGapFill = true
         this.updateSubscriptionStatus(channelName, 'error')
-        debug.error(`❌ RealtimeManager: ${channelName} error:`, err)
+        debug.error(`RealtimeManager: ${channelName} error:`, err)
         this.scheduleReconnect(channelName)
         break
         
@@ -798,7 +741,7 @@ class RealtimeConnectionManagerService {
       case 'CLOSED':
         managedSub.pendingGapFill = true
         this.updateSubscriptionStatus(channelName, 'disconnected')
-        debug.log(`🔒 RealtimeManager: ${channelName} closed`)
+        debug.log(`RealtimeManager: ${channelName} closed`)
         
         if (this.subscriptions.has(channelName)) {
           const now = Date.now()
@@ -808,25 +751,24 @@ class RealtimeConnectionManagerService {
             const timeSinceConnect = now - managedSub.lastConnectedAt.getTime()
             if (timeSinceConnect < 5000) {
               managedSub.rapidCloseCount++
-              debug.warn(`⚠️ RealtimeManager: ${channelName} rapid close detected (${managedSub.rapidCloseCount} times)`)
+              debug.warn(`RealtimeManager: ${channelName} rapid close detected (${managedSub.rapidCloseCount} times)`)
               
-              // If we've had 3+ rapid closes, stop retrying and wait longer
+              // 3+ rapid closes: stop the retry ladder, cool down instead.
               if (managedSub.rapidCloseCount >= 3) {
-                debug.error(`❌ RealtimeManager: ${channelName} server rejecting connection, backing off for 30s`)
+                debug.error(`RealtimeManager: ${channelName} server rejecting connection, backing off for 30s`)
                 managedSub.lastErrorAt = new Date()
                 managedSub.lastError = 'Server rejecting connection - rapid close cycle detected'
                 this.updateSubscriptionStatus(channelName, 'error')
                 
-                // Schedule a long delay before trying again
                 if (managedSub.retryTimeoutId) clearTimeout(managedSub.retryTimeoutId)
                 managedSub.retryTimeoutId = setTimeout(() => {
-                  managedSub.rapidCloseCount = 0  // Reset after long wait
+                  managedSub.rapidCloseCount = 0
                   this.reconnect(channelName)
                 }, 30000)  // 30 second cooldown
                 break
               }
             } else {
-              // Normal close after being connected for a while - reset rapid close count
+              // Close after a healthy session; clear the rapid-close counter.
               managedSub.rapidCloseCount = 0
             }
           }
@@ -895,7 +837,7 @@ class RealtimeConnectionManagerService {
       try {
         listener(this.globalStatus)
       } catch (error) {
-        debug.error('❌ RealtimeManager: Error in status listener:', error)
+        debug.error('RealtimeManager: Error in status listener:', error)
       }
     }
   }
@@ -907,7 +849,7 @@ class RealtimeConnectionManagerService {
     if (!managedSub) return
 
     if (!navigator.onLine) {
-      debug.log(`📴 RealtimeManager: Offline, deferring reconnect for ${channelName}`)
+      debug.log(`RealtimeManager: Offline, deferring reconnect for ${channelName}`)
       this.updateSubscriptionStatus(channelName, 'disconnected')
       return
     }
@@ -917,7 +859,7 @@ class RealtimeConnectionManagerService {
     }
     
     if (managedSub.retryCount >= RETRY_CONFIG.maxRetries) {
-      debug.error(`❌ RealtimeManager: ${channelName} max retries exceeded (${RETRY_CONFIG.maxRetries})`)
+      debug.error(`RealtimeManager: ${channelName} max retries exceeded (${RETRY_CONFIG.maxRetries})`)
       this.updateSubscriptionStatus(channelName, 'error')
       return
     }
@@ -932,33 +874,28 @@ class RealtimeConnectionManagerService {
     managedSub.retryCount++
     this.updateSubscriptionStatus(channelName, 'reconnecting')
     
-    debug.log(`🔄 RealtimeManager: Scheduling reconnect for ${channelName} in ${delay}ms (attempt ${managedSub.retryCount}/${RETRY_CONFIG.maxRetries})`)
+    debug.log(`RealtimeManager: Scheduling reconnect for ${channelName} in ${delay}ms (attempt ${managedSub.retryCount}/${RETRY_CONFIG.maxRetries})`)
     
     managedSub.retryTimeoutId = setTimeout(() => {
       this.reconnect(channelName)
     }, delay)
   }
 
-  /**
-   * Force reconnect a specific subscription
-   * Has built-in deduplication - won't reconnect if already connecting
-   */
+  /** No-op when the subscription is already connecting or reconnecting. */
   forceReconnect(channelName: string): void {
     const managedSub = this.subscriptions.get(channelName)
     if (!managedSub) return
     
-    // Skip if already connecting or reconnecting
     if (managedSub.status === 'connecting' || managedSub.status === 'reconnecting') {
-      debug.log(`⏭️ RealtimeManager: ${channelName} already ${managedSub.status}, skipping`)
+      debug.log(`RealtimeManager: ${channelName} already ${managedSub.status}, skipping`)
       return
     }
     
-    debug.log(`🔄 RealtimeManager: Force reconnecting ${channelName}`)
+    debug.log(`RealtimeManager: Force reconnecting ${channelName}`)
 
     // BUGS.md C13: a forced reconnect (online / visibility / health-check)
-    // means we suspect we missed events while disconnected. Flag gap-fill
-    // BEFORE we zero retryCount, so the SUBSCRIBED handler still knows to
-    // fire `onReconnected`.
+    // implies events were missed while disconnected. Flag gap-fill before
+    // zeroing retryCount so the SUBSCRIBED handler fires `onReconnected`.
     managedSub.pendingGapFill = true
     managedSub.retryCount = 0
     
@@ -970,25 +907,22 @@ class RealtimeConnectionManagerService {
     this.reconnect(channelName)
   }
 
-  /**
-   * Force reconnect all managed subscriptions that need it
-   * Skips channels that are already connected or connecting
-   */
+  /** Skips channels already connected or connecting. */
   forceReconnectAll(): void {
     if (this.isReconnecting) {
-      debug.log('⏭️ RealtimeManager: Already reconnecting, skipping duplicate request')
+      debug.log('RealtimeManager: Already reconnecting, skipping duplicate request')
       return
     }
     
     this.isReconnecting = true
-    debug.log(`🔄 RealtimeManager: Force reconnecting all managed subscriptions (${this.subscriptions.size})`)
+    debug.log(`RealtimeManager: Force reconnecting all managed subscriptions (${this.subscriptions.size})`)
     
     for (const channelName of this.subscriptions.keys()) {
       this.forceReconnect(channelName)
     }
     
-    // Reset flag after enough time for all reconnects to start.
-    // Scale with subscription count to avoid premature reset.
+    // Hold the guard long enough for every reconnect to start; scales with
+    // subscription count.
     const resetDelay = Math.max(5000, this.subscriptions.size * 500)
     setTimeout(() => {
       this.isReconnecting = false
@@ -996,24 +930,23 @@ class RealtimeConnectionManagerService {
   }
 
   /**
-   * Force reconnect ALL Supabase realtime channels globally
-   * This is a heavy operation - use sparingly
-   * Has built-in deduplication to prevent simultaneous attempts
+   * Bounces the underlying Supabase socket, affecting every realtime channel in
+   * the app, not only managed ones. Deduplicated against concurrent attempts.
    */
   async forceGlobalReconnect(): Promise<void> {
     if (this.isReconnecting) {
-      debug.log('⏭️ RealtimeManager: Already reconnecting globally, skipping')
+      debug.log('RealtimeManager: Already reconnecting globally, skipping')
       return
     }
     
     this.isReconnecting = true
-    debug.log('🔄 RealtimeManager: Force reconnecting ALL Supabase realtime channels globally')
+    debug.log('RealtimeManager: Force reconnecting ALL Supabase realtime channels globally')
     
     try {
       const realtimeClient = (supabase as any).realtime
       
       if (realtimeClient) {
-        debug.log('🔌 RealtimeManager: Disconnecting realtime client...')
+        debug.log('RealtimeManager: Disconnecting realtime client...')
         
         if (realtimeClient.disconnect) {
           await realtimeClient.disconnect()
@@ -1021,21 +954,20 @@ class RealtimeConnectionManagerService {
         
         await new Promise(resolve => setTimeout(resolve, 100))
         
-        debug.log('🔌 RealtimeManager: Reconnecting realtime client...')
+        debug.log('RealtimeManager: Reconnecting realtime client...')
         if (realtimeClient.connect) {
           await realtimeClient.connect()
         }
         
-        debug.log('✅ RealtimeManager: Global reconnect complete')
+        debug.log('RealtimeManager: Global reconnect complete')
       } else {
-        debug.warn('⚠️ RealtimeManager: Could not access realtime client, falling back to managed reconnect')
+        debug.warn('RealtimeManager: Could not access realtime client, falling back to managed reconnect')
         this.forceReconnectAll()
       }
     } catch (error) {
-      debug.error('❌ RealtimeManager: Global reconnect failed:', error)
-      // Don't call forceReconnectAll here - it would cause recursion
+      debug.error('RealtimeManager: Global reconnect failed:', error)
+      // forceReconnectAll() is not called here; it recurses back into this path.
     } finally {
-      // Reset flag after a delay
       setTimeout(() => {
         this.isReconnecting = false
       }, 2000)
@@ -1044,14 +976,11 @@ class RealtimeConnectionManagerService {
 
   // Unsubscription
 
-  /**
-   * Unsubscribe from a specific channel
-   */
   unsubscribe(channelName: string): void {
     const managedSub = this.subscriptions.get(channelName)
     if (!managedSub) return
     
-    debug.log(`🗑️ RealtimeManager: Unsubscribing ${channelName}`)
+    debug.log(`RealtimeManager: Unsubscribing ${channelName}`)
     
     if (managedSub.retryTimeoutId) {
       clearTimeout(managedSub.retryTimeoutId)
@@ -1061,7 +990,7 @@ class RealtimeConnectionManagerService {
     const channel = managedSub.channel
     this.subscriptions.delete(channelName)
     
-    // Now safely remove the channel (CLOSED callback won't find it in map)
+    // Safe now: the CLOSED callback will not find the entry in the map.
     if (channel) {
       supabase.removeChannel(channel)
     }
@@ -1071,11 +1000,8 @@ class RealtimeConnectionManagerService {
     }
   }
 
-  /**
-   * Unsubscribe from all channels
-   */
   unsubscribeAll(): void {
-    debug.log(`🧹 RealtimeManager: Unsubscribing all (${this.subscriptions.size} subscriptions)`)
+    debug.log(`RealtimeManager: Unsubscribing all (${this.subscriptions.size} subscriptions)`)
     
     for (const channelName of Array.from(this.subscriptions.keys())) {
       this.unsubscribe(channelName)
@@ -1091,7 +1017,7 @@ class RealtimeConnectionManagerService {
       this.performHealthCheck()
     }, HEALTH_CHECK_INTERVAL)
     
-    debug.log(`💓 RealtimeManager: Health check started (${HEALTH_CHECK_INTERVAL / 1000}s interval)`)
+    debug.log(`RealtimeManager: Health check started (${HEALTH_CHECK_INTERVAL / 1000}s interval)`)
   }
 
   private stopHealthCheck(): void {
@@ -1104,19 +1030,17 @@ class RealtimeConnectionManagerService {
   private performHealthCheck(): void {
     const now = new Date()
 
-    // First, the cheap global check: if the underlying Supabase WS is
-    // disconnected, every "connected" channel above us is lying about its
-    // state and won't deliver anything. Force per-channel reconnect so
-    // each subscription's pendingGapFill flag gets set and onReconnected
-    // fires when we re-handshake. This catches the case where a managed
-    // sub never observed a CLOSED status (e.g. the socket was killed
-    // without a FIN, common on mobile carrier NATs / OS-level sleep).
+    // Cheap global check first: if the underlying Supabase WS is disconnected,
+    // every channel reporting "connected" is stale and delivers nothing.
+    // Per-channel reconnect sets each pendingGapFill and fires onReconnected on
+    // re-handshake. Covers managed subs that never observed a CLOSED status,
+    // e.g. a socket killed without a FIN on mobile carrier NATs or OS sleep.
     const rtClient = (supabase as any).realtime
     const wsDead = rtClient && typeof rtClient.isConnected === 'function' && !rtClient.isConnected()
     if (wsDead && this.subscriptions.size > 0) {
       const anyClaimingConnected = Array.from(this.subscriptions.values()).some(s => s.status === 'connected')
       if (anyClaimingConnected) {
-        debug.warn('⚠️ RealtimeManager: WS is disconnected but channels claim connected - reconnecting all')
+        debug.warn('RealtimeManager: WS is disconnected but channels claim connected - reconnecting all')
         this.forceReconnectAll()
         return
       }
@@ -1127,7 +1051,7 @@ class RealtimeConnectionManagerService {
       if (sub.status === 'error' && sub.lastErrorAt) {
         const timeSinceError = now.getTime() - sub.lastErrorAt.getTime()
         if (timeSinceError > 3 * 60 * 1000 && sub.retryCount >= RETRY_CONFIG.maxRetries) {
-          debug.log(`🔄 RealtimeManager: Resetting ${channelName} after prolonged error`)
+          debug.log(`RealtimeManager: Resetting ${channelName} after prolonged error`)
           sub.retryCount = 0
           this.scheduleReconnect(channelName)
         }
@@ -1137,7 +1061,7 @@ class RealtimeConnectionManagerService {
       if ((sub.status === 'connecting' || sub.status === 'reconnecting') && sub.lastErrorAt) {
         const stuckDuration = now.getTime() - sub.lastErrorAt.getTime()
         if (stuckDuration > STALE_CONNECTION_THRESHOLD) {
-          debug.warn(`⚠️ RealtimeManager: ${channelName} stuck in ${sub.status} for ${Math.round(stuckDuration / 1000)}s, forcing reconnect`)
+          debug.warn(`RealtimeManager: ${channelName} stuck in ${sub.status} for ${Math.round(stuckDuration / 1000)}s, forcing reconnect`)
           sub.retryCount = 0
           this.reconnect(channelName)
         }
@@ -1153,42 +1077,27 @@ class RealtimeConnectionManagerService {
    */
   onStatusChange(listener: (status: ConnectionStatus) => void): () => void {
     this.statusListeners.add(listener)
-    // Immediately notify of current status
+    // Emit current status synchronously.
     listener(this.globalStatus)
     return () => this.statusListeners.delete(listener)
   }
 
-  /**
-   * Get current global connection status
-   */
   getStatus(): ConnectionStatus {
     return this.globalStatus
   }
 
-  /**
-   * Get status of a specific subscription
-   */
   getSubscriptionStatus(channelName: string): ConnectionStatus | null {
     return this.subscriptions.get(channelName)?.status ?? null
   }
 
-  /**
-   * Check if a subscription exists
-   */
   hasSubscription(channelName: string): boolean {
     return this.subscriptions.has(channelName)
   }
 
-  /**
-   * Get count of active subscriptions
-   */
   getSubscriptionCount(): number {
     return this.subscriptions.size
   }
 
-  /**
-   * Get all subscription statuses for debugging
-   */
   getAllStatuses(): Map<string, { status: ConnectionStatus; retryCount: number; lastError: string | null }> {
     const statuses = new Map()
     for (const [name, sub] of this.subscriptions) {
@@ -1201,9 +1110,6 @@ class RealtimeConnectionManagerService {
     return statuses
   }
 
-  /**
-   * Get comprehensive debug info
-   */
   getDebugInfo(): object {
     const subscriptions: any[] = []
     
@@ -1235,5 +1141,4 @@ class RealtimeConnectionManagerService {
 /** Singleton instance - use this for all realtime subscriptions */
 export const realtimeConnectionManager = new RealtimeConnectionManagerService()
 
-/** Export class for testing */
 export { RealtimeConnectionManagerService }

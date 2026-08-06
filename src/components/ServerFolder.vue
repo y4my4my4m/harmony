@@ -236,7 +236,7 @@ const handleDragEnter = () => {
 };
 
 const handleDragLeave = (event: DragEvent) => {
-  // Only set to false if we're actually leaving the folder element
+  // Clear only when the pointer leaves the folder element, not a descendant.
   const relatedTarget = event.relatedTarget as HTMLElement;
   if (!relatedTarget || !event.currentTarget || !(event.currentTarget as HTMLElement).contains(relatedTarget)) {
     isDraggingOver.value = false;
@@ -740,7 +740,7 @@ const onIconError = (event: Event) => {
   filter: brightness(1.2);
 }
 
-/* Expand/Collapse animations - simple and clean */
+/* Expand/Collapse animations */
 .folder-expand-enter-active {
   transition: all 0.2s ease-out;
   overflow: hidden;

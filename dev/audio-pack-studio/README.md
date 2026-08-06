@@ -29,7 +29,6 @@ Partial packs are fine; missing actions fall back to the default theme in-app.
 - Filenames should match the action id (`voice_connect.mp3`) or a [legacy alias](./soundSlots.ts) (`invite.mp3` → server invite).
 - **Use built-in default sounds for gaps** copies from `public/assets/sounds/default/` (requires running this tool from the repo).
 - Pack size limit: **10MB** (same as the app importer).
-- For AI-generated full packs, see `scripts/auto_audiopack.py`.
 
 ## Format
 

@@ -98,7 +98,7 @@ export function noteToContent(note: any): any[] {
       searchText = `@${username}`;
       position = cleanText.indexOf(searchText);
       
-      // If not found, try just username
+      // Fall back to the bare localpart
       if (position === -1) {
         searchText = username.split('@')[0];
         position = cleanText.indexOf(searchText);
@@ -215,7 +215,7 @@ export function noteToContent(note: any): any[] {
 }
 
 /**
- * Helper: Split text on URLs, emitting alternating text and url parts.
+ * Split text on URLs, emitting alternating text and url parts.
  * Bare https?:// URLs found in the cleaned plain-text become clickable
  * `{ type: 'url', url, preview: true }` parts.
  */

@@ -1,9 +1,6 @@
 /**
- * Unified content processing system for ALL text content in Harmony
- * Used by: chat messages, DMs, ActivityPub posts, and federation
- * 
- * This replaces the fragmented approach and uses the existing MessagePart types
- * for consistency across the entire application.
+ * Text content processing for chat messages, DMs, ActivityPub posts, and
+ * federation. Output is the shared MessagePart representation.
  */
 
 import type { MessagePart } from '@/types';
@@ -15,7 +12,7 @@ import { stripTrackingParameters, isUrlTrackingStrippingEnabled } from '@/utils/
 import { useEmojiCacheStore } from '@/stores/useEmojiCache'
 import { parseUrlMatchContext, URL_TOKEN_REGEX } from '@/utils/urlSplitting'
 
-// Support both UUID-based emojis (legacy) and shortcode emojis (new)
+// UUID-based emojis (legacy) and shortcode emojis are both supported.
 import {
   createShortcodeRegex,
   parseEmojiShortcodeToken,
@@ -29,11 +26,9 @@ const emojiUuidRegex = /:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-
 // Module-scoped regex; reset lastIndex per use to avoid cross-call interference.
 const emojiShortcodeRegex = createShortcodeRegex();
 
-// Hoisted to module scope; stateful 'g' patterns need lastIndex reset at
-// the call site before each use. Allocating a fresh RegExp inside every
-// `parseContentToMessageParts` / `parseTextForUrls` / `parseTextForEmojis`
-// call was a hot-path waste because these helpers run per-segment per
-// message (BUGS.md Pattern P-β + code-review M4).
+// Hoisted to module scope; these helpers run per-segment per message, so a
+// fresh RegExp per call is hot-path waste (BUGS.md Pattern P-β, review M4).
+// Stateful 'g' patterns require a lastIndex reset at each call site.
 const MENTION_REGEX = /@([a-zA-Z0-9_-]+)(?:@([a-zA-Z0-9.-]+))?/g;
 const URL_PRESCAN_REGEX = URL_TOKEN_REGEX;
 const URL_MATCH_REGEX = new RegExp(`(${URL_TOKEN_REGEX.source})`, 'g');
@@ -41,13 +36,13 @@ const COMBINED_MENTION_HASHTAG_REGEX = /(@role:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]
 const COMBINED_EMOJI_REGEX = /:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[a-zA-Z0-9_+~-]+):/g;
 
 /**
- * Helper function to efficiently resolve mention user data in batch
- * This should be called before parseContentToMessageParts for optimal performance
+ * Batch-resolves @mention user data. Call before parseContentToMessageParts;
+ * otherwise mentions render unresolved.
  */
 export async function resolveMentionsUserData(content: string): Promise<Record<string, { userId: string; isLocal: boolean }>> {
   const userDataMap: Record<string, { userId: string; isLocal: boolean }> = {};
   
-  // Pre-scan for URLs to avoid resolving @mentions inside them
+  // URL ranges are excluded so @mentions inside URLs are not resolved.
   const urlRanges: Array<{ start: number; end: number }> = [];
   URL_PRESCAN_REGEX.lastIndex = 0;
   let urlScan;
@@ -60,7 +55,6 @@ export async function resolveMentionsUserData(content: string): Promise<Record<s
   let match;
   const uniqueUsernames = new Set<string>();
   
-  // Extract all unique usernames from content, skipping those inside URLs
   MENTION_REGEX.lastIndex = 0;
   while ((match = MENTION_REGEX.exec(content)) !== null) {
     if (isInsideUrl(match.index)) continue;
@@ -70,7 +64,6 @@ export async function resolveMentionsUserData(content: string): Promise<Record<s
     uniqueUsernames.add(mentionKey);
   }
   
-  // If no mentions, return empty map
   if (uniqueUsernames.size === 0) return userDataMap;
   
   try {
@@ -78,7 +71,6 @@ export async function resolveMentionsUserData(content: string): Promise<Record<s
     const localUsernames = usernameList.filter(u => !u.includes('@'));
     const remoteUsernames = usernameList.filter(u => u.includes('@'));
     
-    // Query for local users
     if (localUsernames.length > 0) {
       const { data: localUsers } = await supabase
         .from('profiles')
@@ -95,22 +87,19 @@ export async function resolveMentionsUserData(content: string): Promise<Record<s
       }
     }
     
-    // Query for remote users (username@domain format).
+    // Remote users (username@domain). One PostgREST .or() filter unions all
+    // (username, domain) pairs into a single request.
     //
-    // Previously this issued one query per remote mention (Promise.all of N
-    // round-trips). Replaced with a single PostgREST .or() filter that
-    // unions the (username, domain) pairs into one request. Username and
-    // domain charsets are constrained by MENTION_REGEX above
-    // (`[a-zA-Z0-9_-]+` and `[a-zA-Z0-9.-]+`) - neither contains commas,
-    // parens, or quotes, so the values are safe to interpolate directly
-    // into PostgREST filter syntax without escaping.
+    // MENTION_REGEX constrains the charsets to `[a-zA-Z0-9_-]+` and
+    // `[a-zA-Z0-9.-]+`; neither admits commas, parens, or quotes, so the
+    // values interpolate into PostgREST filter syntax without escaping.
     if (remoteUsernames.length > 0) {
       try {
         const pairs = remoteUsernames
           .map(ud => {
             const [username, domain] = ud.split('@');
             if (!username || !domain) return null;
-            // Defense in depth: re-validate charset before string-interpolating.
+            // Defence in depth: re-validate charset before interpolation.
             if (!/^[a-zA-Z0-9_-]+$/.test(username)) return null;
             if (!/^[a-zA-Z0-9.-]+$/.test(domain)) return null;
             return { username, domain };
@@ -153,7 +142,8 @@ export async function resolveMentionsUserData(content: string): Promise<Record<s
 }
 
 /**
- * Extract role UUIDs from @role:UUID mentions and look up their name/color
+ * Looks up name and colour for every @role:UUID in content. Scoped to
+ * serverId when given.
  */
 export async function resolveRoleMentionsData(
   content: string,
@@ -187,8 +177,8 @@ export async function resolveRoleMentionsData(
 }
 
 /**
- * Helper function to efficiently resolve emoji data in batch
- * Supports both UUID-based emojis, shortcode emojis, and unified emoji pack
+ * Batch-resolves emoji data: UUID emojis, shortcode emojis, and the unified
+ * emoji pack. Resolution order is cache, then database, then unified pack.
  */
 export async function resolveEmojisData(content: string): Promise<Record<string, any>> {
   const emojiDataMap: Record<string, any> = {};
@@ -198,7 +188,7 @@ export async function resolveEmojisData(content: string): Promise<Record<string,
   /** Full inner tokens as they appear in content (e.g. har_wink~1). */
   const uniqueEmojiTokens = new Set<string>();
   
-  // Extract UUID-based emojis (legacy format)
+  // UUID-based emojis (legacy format).
   emojiUuidRegex.lastIndex = 0;
   while ((match = emojiUuidRegex.exec(content)) !== null) {
     const emojiId = match[1];
@@ -215,10 +205,9 @@ export async function resolveEmojisData(content: string): Promise<Record<string,
     }
   }
   
-  // If no emojis, return empty map
   if (uniqueEmojiIds.size === 0 && uniqueEmojiTokens.size === 0) return emojiDataMap;
 
-  // Phase 1: Resolve from in-memory emoji cache (instant, works offline)
+  // Phase 1: in-memory emoji cache. Works offline.
   try {
     const emojiCacheStore = useEmojiCacheStore();
     if (emojiCacheStore.isInitialized) {
@@ -242,10 +231,10 @@ export async function resolveEmojisData(content: string): Promise<Record<string,
       }
     }
   } catch {
-    // cache probe is best-effort; fall through to the DB query
+    // Cache probe is best-effort; fall through to the DB query.
   }
 
-  // Phase 2: Query database for any emojis not found in cache
+  // Phase 2: database, for anything the cache missed.
   const uncachedIds = Array.from(uniqueEmojiIds).filter(id => !emojiDataMap[id]);
   const uncachedTokens = Array.from(uniqueEmojiTokens).filter(token => !emojiDataMap[token]);
 
@@ -292,7 +281,7 @@ export async function resolveEmojisData(content: string): Promise<Record<string,
     debug.warn('Error resolving emoji data from database (offline?):', error);
   }
 
-  // Phase 3: For emojis still unresolved, check unified emoji pack
+  // Phase 3: unified emoji pack, for tokens still unresolved.
   const unresolvedEmojis = Array.from(uniqueEmojiTokens).filter(token => !emojiDataMap[token]);
   
   if (unresolvedEmojis.length > 0) {
@@ -330,12 +319,11 @@ export async function resolveEmojisData(content: string): Promise<Record<string,
 }
 
 /**
- * Helper function to efficiently resolve hashtag data in batch
- * This should be called before parseContentToMessageParts for optimal performance
+ * Batch-resolves hashtag rows. Call before parseContentToMessageParts;
+ * hashtags absent from the map get the 'new' placeholder id.
  */
 export async function resolveHashtagsData(content: string): Promise<Record<string, { id: string; count: number; last_updated: string; normalized: string }>> {
-  // Unicode-aware hashtag regex: supports Japanese, Chinese, Korean, etc.
-  // \p{L} = any letter, \p{N} = any number, includes CJK characters
+  // Unicode-aware: \p{L} any letter, \p{N} any number, so CJK tags match.
   const hashtagRegex = /(?<![&\w])#([\p{L}\p{N}_-]+)/gu;
   const hashtagDataMap: Record<string, { id: string; count: number; last_updated: string; normalized: string }> = {};
   
@@ -343,7 +331,7 @@ export async function resolveHashtagsData(content: string): Promise<Record<strin
   const uniqueHashtags = new Set<string>();
   
   while ((match = hashtagRegex.exec(content)) !== null) {
-    const hashtag = match[1].toLowerCase(); // normalize to lowercase
+    const hashtag = match[1].toLowerCase();
     uniqueHashtags.add(hashtag);
   }
   
@@ -351,7 +339,6 @@ export async function resolveHashtagsData(content: string): Promise<Record<strin
     return hashtagDataMap;
   }
   
-  // Batch query for all hashtags
   const { data, error } = await supabase
     .from('hashtags')
     .select('id, tag, normalized_tag, total_uses, last_used_at')
@@ -378,12 +365,9 @@ export async function resolveHashtagsData(content: string): Promise<Record<strin
 const FENCED_CODE_BLOCK_REGEX = /```[\s\S]*?```/g;
 
 /**
- * Parse one content segment (outside fenced code blocks) into MessageParts.
- */
-/**
- * Parse an own-instance /chat/<serverId>/<channelId> URL against known
- * channels. Message share links (?messageId=...) keep the message id so the
- * rendered reference jumps to the exact message.
+ * Matches an own-instance /chat/<serverId>/<channelId> URL against known
+ * channels. Share links (?messageId=...) keep the message id so the rendered
+ * reference jumps to that message.
  */
 function matchChannelUrl(
   url: string,
@@ -391,8 +375,8 @@ function matchChannelUrl(
 ): { id: string; serverId: string; name: string; messageId?: string } | null {
   try {
     const parsed = new URL(url);
-    // Share links use https://VITE_DOMAIN, which can differ from the dev
-    // window origin - accept either.
+    // Share links use https://VITE_DOMAIN, which differs from the dev window
+    // origin; either is accepted.
     const configuredDomain = (import.meta as any).env?.VITE_DOMAIN as string | undefined;
     const sameOrigin =
       (typeof window !== 'undefined' && parsed.origin === window.location.origin) ||
@@ -411,6 +395,7 @@ function matchChannelUrl(
   }
 }
 
+// Parses one segment of content lying outside fenced code blocks.
 async function parseContentSegment(
   content: string,
   usernameToUserDataMap: Record<string, { userId: string; isLocal: boolean }>,
@@ -421,8 +406,8 @@ async function parseContentSegment(
 ): Promise<MessagePart[]> {
   if (!content) return [];
 
-  // Pre-scan for URLs so we can skip @mentions and #hashtags that appear
-  // inside them (e.g., https://mastodon.social/@user/12345)
+  // URL ranges are skipped when matching @mentions and #hashtags
+  // (e.g. https://mastodon.social/@user/12345).
   const urlRanges: Array<{ start: number; end: number }> = [];
   URL_PRESCAN_REGEX.lastIndex = 0;
   let urlScan;
@@ -432,13 +417,12 @@ async function parseContentSegment(
   const isInsideUrl = (pos: number): boolean =>
     urlRanges.some(r => pos >= r.start && pos < r.end);
 
-  // Parse role mentions, Discord bridged mentions, user mentions, and hashtags
-  // @role:UUID - role mention
-  // @d!ID:username - Discord bridged user
-  // @username or @username@domain - user mention
-  // #hashtag - hashtag
-  // Pattern hoisted to module scope (COMBINED_MENTION_HASHTAG_REGEX); reset
-  // lastIndex per-call since this is a stateful 'g' regex.
+  // COMBINED_MENTION_HASHTAG_REGEX alternatives, in group order:
+  //   @role:UUID        role mention
+  //   @d!ID:username    Discord bridged user
+  //   @username[@domain] user mention
+  //   #hashtag
+  // Stateful 'g' regex hoisted to module scope; lastIndex reset per call.
   COMBINED_MENTION_HASHTAG_REGEX.lastIndex = 0;
   const parts: MessagePart[] = [];
   
@@ -446,11 +430,10 @@ async function parseContentSegment(
   let match;
   
   while ((match = COMBINED_MENTION_HASHTAG_REGEX.exec(content)) !== null) {
-    // Skip mentions and hashtags that fall inside a URL - they'll be handled
-    // as part of the URL by parseTextForUrls (e.g., mastodon.social/@user/123)
+    // Matches inside a URL belong to the URL; parseTextForUrls handles them
+    // (e.g. mastodon.social/@user/123).
     if (isInsideUrl(match.index)) continue;
 
-    // Add text before current match (if any)
     if (match.index > lastIndex) {
       const textBefore = content.substring(lastIndex, match.index);
       parts.push(...await parseTextForUrls(textBefore, emojiDataMap));
@@ -503,12 +486,11 @@ async function parseContentSegment(
         isLocal: isLocal
       });
     } else if (match[9]) {
-      // '#word' - meaning depends on context (parseOptions.hashtags):
-      //   'social' (default) - ActivityPub hashtag part
-      //   'channels'         - server chat: #name of an accessible channel
-      //                        becomes a channel_mention; anything else is
-      //                        plain text
-      //   'none'             - DMs: always plain text
+      // '#word' meaning depends on parseOptions.hashtags:
+      //   'social'   (default) ActivityPub hashtag part
+      //   'channels' server chat: #name of an accessible channel becomes a
+      //              channel_mention, anything else is plain text
+      //   'none'     DMs: always plain text
       const hashtagName = match[9];
       const normalizedName = hashtagName.toLowerCase();
       const hashtagMode = parseOptions.hashtags ?? 'social';
@@ -540,7 +522,7 @@ async function parseContentSegment(
             normalized: hashtagData.normalized
           });
         } else {
-          // Hashtag not in database yet, create placeholder (will be created on post save)
+          // Not yet in the database; the row is created on post save.
           parts.push({
             type: 'hashtag',
             name: hashtagName,
@@ -563,12 +545,7 @@ async function parseContentSegment(
 }
 
 /**
- * Parse content string into unified MessagePart format
- * This is the SINGLE source of truth for all content parsing
- * Used by: chat, DMs, ActivityPub posts, and any text input
- */
-/**
- * Context-dependent parsing behavior.
+ * Context-dependent parsing behaviour.
  *
  * hashtags:
  *   'social'   (default) '#word' becomes an ActivityPub hashtag part
@@ -576,7 +553,7 @@ async function parseContentSegment(
  *              clickable channel_mention; unknown names stay plain text
  *   'none'     DMs: '#word' is always plain text
  *
- * channelDataMap: lowercase channel name → channel, restricted by the CALLER
+ * channelDataMap: lowercase channel name → channel. The caller restricts it
  * to channels the sender can access.
  */
 export interface ContentParseOptions {
@@ -625,9 +602,9 @@ export async function parseContentToMessageParts(
     ));
   }
 
-  // Own-origin channel links become channel references (like Discord):
-  // pasting <origin>/chat/<serverId>/<channelId> renders as "#channel-name"
-  // when the channel is one the sender can access.
+  // Own-origin channel links become channel references:
+  // <origin>/chat/<serverId>/<channelId> renders as "#channel-name" when the
+  // channel is one the sender can access.
   if (parseOptions.hashtags === 'channels' && parseOptions.channelDataMap) {
     const byId = new Map(
       Object.values(parseOptions.channelDataMap).map(c => [c.id, c]),
@@ -652,39 +629,31 @@ export async function parseContentToMessageParts(
 }
 
 /**
- * Remove trailing whitespace from message parts array
- * This is called after parsing to clean up spaces added for typing convenience
- * (e.g., auto-inserted space after emoji/mention selection)
- * 
- * Benefits:
- * 1. Emojis at the end of messages display at 2x size (single-emoji detection works)
- * 2. Smaller JSON payloads (no unnecessary {"type":"text","text":" "})
- * 3. Cleaner message storage
+ * Strips trailing whitespace parts left by the composer's auto-inserted space
+ * after emoji/mention selection.
+ *
+ * Required for single-emoji detection: a trailing space part suppresses the
+ * 2x render of a message ending in one emoji.
  */
 export function trimTrailingWhitespace(parts: MessagePart[]): MessagePart[] {
   if (!parts || parts.length === 0) return parts;
   
-  // Work backwards through the array
   const result = [...parts];
   
   while (result.length > 0) {
     const lastPart = result[result.length - 1];
     
-    // Only process text parts
     if (lastPart.type !== 'text') break;
     
     const text = lastPart.text || '';
     const trimmed = text.trimEnd();
     
     if (trimmed === '') {
-      // Last part is whitespace-only, remove it entirely
       result.pop();
     } else if (trimmed !== text) {
-      // Last part has trailing whitespace, trim it
       result[result.length - 1] = { ...lastPart, text: trimmed };
       break;
     } else {
-      // No trailing whitespace, we're done
       break;
     }
   }
@@ -693,8 +662,8 @@ export function trimTrailingWhitespace(parts: MessagePart[]): MessagePart[] {
 }
 
 /**
- * Parse text for URLs and emojis
- * URL tracking parameter stripping is handled here to cover the entire app (ActivityPub, DMs, chat, etc.)
+ * Splits text into url and emoji parts. URL tracking-parameter stripping
+ * happens here so every caller (ActivityPub, DMs, chat) gets it.
  */
 async function parseTextForUrls(text: string, emojiDataMap: Record<string, any> = {}): Promise<MessagePart[]> {
   if (!text) return [];
@@ -732,7 +701,6 @@ async function parseTextForUrls(text: string, emojiDataMap: Record<string, any> 
     parts.push(...await parseTextForEmojis(remainingText, emojiDataMap));
   }
   
-  // If no URLs found, just parse for emojis
   if (parts.length === 0) {
     return await parseTextForEmojis(text, emojiDataMap);
   }
@@ -741,8 +709,7 @@ async function parseTextForUrls(text: string, emojiDataMap: Record<string, any> 
 }
 
 /**
- * Parse text for emoji shortcodes and return MessageParts
- * Handles both UUID-based emojis and shortcode emojis
+ * Splits text on emoji tokens: UUID form and shortcode form.
  */
 async function parseTextForEmojis(text: string, emojiDataMap: Record<string, any> = {}): Promise<MessagePart[]> {
   if (!text) return [];
@@ -750,15 +717,13 @@ async function parseTextForEmojis(text: string, emojiDataMap: Record<string, any
   const parts: MessagePart[] = [];
   let lastIndex = 0;
 
-  // Combined regex hoisted to module scope (COMBINED_EMOJI_REGEX); reset
-  // lastIndex per-call since this is a stateful 'g' regex.
+  // COMBINED_EMOJI_REGEX is module-scoped and stateful 'g'; reset per call.
   COMBINED_EMOJI_REGEX.lastIndex = 0;
   
   let emojiMatch;
   while ((emojiMatch = COMBINED_EMOJI_REGEX.exec(text)) !== null) {
     const emojiIndex = emojiMatch.index;
     
-    // Add text before emoji
     if (emojiIndex > lastIndex) {
       const textPart = text.substring(lastIndex, emojiIndex);
       if (textPart) {
@@ -768,7 +733,7 @@ async function parseTextForEmojis(text: string, emojiDataMap: Record<string, any
     
     const emojiIdentifier = emojiMatch[1];
     
-    // Try to get emoji from data map (by ID or name)
+    // emojiDataMap is keyed by both id and token.
     let emojiData = emojiDataMap[emojiIdentifier];
     
     if (!emojiData) {
@@ -784,16 +749,16 @@ async function parseTextForEmojis(text: string, emojiDataMap: Record<string, any
     }
     
     if (emojiData) {
-      // SIMPLIFIED: If emoji is from unified pack (has unicode), just output as text!
+      // Unified-pack emoji carries a unicode codepoint; emit it as text.
       if (emojiData._inlineAsText && emojiData.unicode) {
-        debug.log('✅ Inlining unified emoji as text:', emojiData.unicode);
+        debug.log('Inlining unified emoji as text:', emojiData.unicode);
         parts.push({ type: 'text', text: emojiData.unicode });
       } else {
-        // Server custom emoji - needs the full object for URL lookup
+        // Server custom emoji: the full row is needed for URL lookup.
         parts.push({ type: 'emoji', emoji: emojiData });
       }
     } else {
-      debug.warn('⚠️ Emoji not resolved, showing as text:', emojiMatch[0]);
+      debug.warn('Emoji not resolved, showing as text:', emojiMatch[0]);
       parts.push({ type: 'text', text: emojiMatch[0] });
     }
     
@@ -807,7 +772,6 @@ async function parseTextForEmojis(text: string, emojiDataMap: Record<string, any
     }
   }
 
-  // If no emojis found, return as single text part
   if (parts.length === 0 && text) {
     return [{ type: 'text', text: text }];
   }
@@ -816,8 +780,7 @@ async function parseTextForEmojis(text: string, emojiDataMap: Record<string, any
 }
 
 /**
- * Convert MessagePart[] to ActivityPub HTML for federation
- * This is used when sending posts/messages to remote instances
+ * Renders MessagePart[] as the ActivityPub HTML sent to remote instances.
  */
 export function convertMessagePartsToActivityPubHTML(parts: MessagePart[]): string {
   return parts.map(part => {
@@ -838,16 +801,14 @@ export function convertMessagePartsToActivityPubHTML(parts: MessagePart[]): stri
         return `<a href="${part.url}" target="_blank" rel="noopener">${part.url}</a>`;
         
       case 'hashtag': {
-        // Convert hashtag to ActivityPub-compatible format
-        // ActivityPub hashtags are usually rendered as clickable links
         const currentDomain = import.meta.env.VITE_DOMAIN as string;
         const href = `https://${currentDomain}/tags/${part.name}`;
         return `<a href="${href}" class="mention hashtag" rel="tag">#<span>${part.name}</span></a>`;
       }
         
       case 'emoji': {
-        // Convert emoji to Misskey-compatible format (shortcode only in content)
-        // The actual emoji data will be in the ActivityPub tag array
+        // Misskey format: content carries the shortcode only; emoji data goes
+        // in the ActivityPub tag array (see extractActivityPubEmojiTags).
         if (part.emoji && part.emoji.name) {
           return `:${part.emoji.name}:`;
         }
@@ -855,13 +816,13 @@ export function convertMessagePartsToActivityPubHTML(parts: MessagePart[]): stri
       }
       
       case 'file': {
-        // Files are handled as ActivityPub attachments, not inline content
-        // Return empty string as files are added to the attachment array separately
+        // Files federate as attachments, not inline content
+        // (see extractActivityPubAttachments).
         return '';
       }
       
       case 'system':
-        // System messages shouldn't be federated
+        // System messages are not federated.
         return '';
         
       default:
@@ -871,8 +832,7 @@ export function convertMessagePartsToActivityPubHTML(parts: MessagePart[]): stri
 }
 
 /**
- * Convert MessagePart[] to plain text for display/reconstruction
- * This ensures proper ordering and clean text output
+ * Renders MessagePart[] back to the plain-text source form.
  */
 export function convertMessagePartsToText(parts: MessagePart[]): string {
   return parts.map(part => {
@@ -905,8 +865,7 @@ export function convertMessagePartsToText(parts: MessagePart[]): string {
 }
 
 /**
- * Extract mentions from MessagePart[] for federation processing
- * Returns mention data needed for ActivityPub tag generation
+ * Mention entries for the ActivityPub tag array.
  */
 export function extractMentionsFromMessageParts(parts: MessagePart[]): Array<{
   username: string;
@@ -921,7 +880,7 @@ export function extractMentionsFromMessageParts(parts: MessagePart[]): Array<{
     .map(part => {
       const currentDomain = import.meta.env.VITE_DOMAIN as string;
       const domain = part.domain || currentDomain;
-      const href = `https://${domain}/users/${part.username}`;  // ✅ FIX: Use /users/ format
+      const href = `https://${domain}/users/${part.username}`;  // /users/ form, not /@user
       const name = part.isLocal ? `@${part.username}` : `@${part.username}@${part.domain}`;
       
       return {
@@ -936,9 +895,8 @@ export function extractMentionsFromMessageParts(parts: MessagePart[]): Array<{
 }
 
 /**
- * Convert ActivityPub HTML content back to MessagePart[] format
- * This is used when receiving federated content from remote instances
- * Properly parses ActivityPub HTML with mentions, hashtags, and text
+ * Parses inbound federated ActivityPub HTML into MessagePart[]. Inverse of
+ * convertMessagePartsToActivityPubHTML.
  */
 export function convertActivityPubHTMLToMessageParts(html: string): MessagePart[] {
   if (!html) return [{ type: 'text', text: '' }];
@@ -947,26 +905,24 @@ export function convertActivityPubHTMLToMessageParts(html: string): MessagePart[
   const doc = parser.parseFromString(html, 'text/html');
   const parts: MessagePart[] = [];
   
-  // Walk through the DOM and extract parts
   const walkNode = (node: Node): void => {
     if (node.nodeType === Node.TEXT_NODE) {
       const text = node.textContent || '';
       if (text.trim()) {
-        // Don't parse mentions in plain text - they should be in <a> tags
-        // If they're not in tags, it means the sender didn't properly format them
-        // Just pass through as text
+        // Mentions belong in <a> tags. Unwrapped text is passed through
+        // verbatim rather than re-parsed.
         parts.push({ type: 'text', text });
       }
     } else if (node.nodeType === Node.ELEMENT_NODE) {
       const element = node as HTMLElement;
       
-      // Skip h-card wrapper - process its children directly
+      // h-card is a wrapper; descend into its children.
       if (element.classList.contains('h-card')) {
         node.childNodes.forEach(walkNode);
         return;
       }
       
-      // Check if this is a mention link (ActivityPub format: <span class="h-card"><a class="u-url mention">@user@domain</a></span>)
+      // Mention link form: <span class="h-card"><a class="u-url mention">@user@domain</a></span>
       if (element.tagName === 'A' && element.classList.contains('mention')) {
         const href = element.getAttribute('href') || '';
         const text = element.textContent || '';
@@ -976,7 +932,8 @@ export function convertActivityPubHTMLToMessageParts(html: string): MessagePart[
           const username = mentionMatch[1];
           let domain = mentionMatch[2];
           
-          // If domain not in text, extract from href (e.g. https://misskey.io/users/rec8bit)
+          // Domain absent from the text: take it from href
+          // (e.g. https://misskey.io/users/rec8bit).
           if (!domain && href) {
             try {
               const hrefDomain = new URL(href).hostname;
@@ -1003,7 +960,7 @@ export function convertActivityPubHTMLToMessageParts(html: string): MessagePart[
       
       if (element.tagName === 'A' && element.classList.contains('hashtag')) {
         const text = element.textContent || '';
-        // Unicode-aware hashtag regex for CJK and other scripts
+        // Unicode-aware: matches CJK and other non-Latin scripts.
         const tagMatch = text.match(/^#([\p{L}\p{N}_-]+)$/u);
         if (tagMatch) {
           parts.push({
@@ -1014,8 +971,7 @@ export function convertActivityPubHTMLToMessageParts(html: string): MessagePart[
         }
       }
       
-      // Regular links (not mentions/hashtags) - preserve as URL parts
-      // so YouTube, Spotify, etc. embeds render properly
+      // Plain links become url parts so YouTube/Spotify embeds render.
       if (element.tagName === 'A' && !element.classList.contains('mention') && !element.classList.contains('hashtag')) {
         const href = element.getAttribute('href');
         if (href && /^https?:\/\//i.test(href)) {
@@ -1031,7 +987,7 @@ export function convertActivityPubHTMLToMessageParts(html: string): MessagePart[
       
       if (element.tagName === 'P') {
         node.childNodes.forEach(walkNode);
-        // Add newline after paragraph if not the last element
+        // Trailing paragraph gets no newline.
         if (element.nextSibling) {
           parts.push({ type: 'text', text: '\n' });
         }
@@ -1048,8 +1004,7 @@ export function convertActivityPubHTMLToMessageParts(html: string): MessagePart[
 }
 
 /**
- * Extract ActivityPub attachments from MessagePart content
- * Returns properly formatted ActivityPub attachment objects
+ * ActivityPub Document attachments for the file parts.
  */
 export function extractActivityPubAttachments(parts: MessagePart[]): any[] {
   return parts
@@ -1065,8 +1020,7 @@ export function extractActivityPubAttachments(parts: MessagePart[]): any[] {
 }
 
 /**
- * Extract emoji tags for ActivityPub federation (Misskey compatibility)
- * Returns properly formatted emoji tag objects
+ * Emoji tag objects for the ActivityPub tag array, in Misskey's shape.
  */
 export function extractActivityPubEmojiTags(parts: MessagePart[], baseUrl?: string): any[] {
   const currentDomain = import.meta.env.VITE_DOMAIN as string;
@@ -1086,14 +1040,13 @@ export function extractActivityPubEmojiTags(parts: MessagePart[], baseUrl?: stri
     }));
 }
 
-// Re-export for backward compatibility (during transition)
+// Legacy names, retained for existing call sites.
 export const parseContentToUnifiedFormat = parseContentToMessageParts;
 export const convertUnifiedToActivityPubHTML = convertMessagePartsToActivityPubHTML;
 export const reconstructContentToText = convertMessagePartsToText;
 
 /**
- * Extract hashtags from MessagePart[] for database processing
- * Returns hashtag data needed for post_hashtags table insertion
+ * Hashtag rows for post_hashtags insertion.
  */
 export function extractHashtagsFromMessageParts(parts: MessagePart[]): Array<{
   name: string;

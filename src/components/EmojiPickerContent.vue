@@ -329,12 +329,10 @@ const toggleSection = (id: string) => {
 };
 
 const isSectionCollapsed = (id: string) => {
-  // During an active search, force every section open so users actually
-  // see the matching results. Otherwise a collapsed category that happens
-  // to contain a match would look like it found nothing (the section
-  // header would render but the emoji list would stay hidden).
-  // The user's manual collapse state is preserved in `collapsedSections`
-  // and re-applies once the query is cleared.
+  // An active search forces every section open. A collapsed category holding a
+  // match would otherwise render its header with the emoji list hidden, reading
+  // as no result. Manual collapse state stays in `collapsedSections` and
+  // re-applies once the query is cleared.
   if (searchQuery.value.trim()) return false;
   return collapsedSections.value.has(id);
 };

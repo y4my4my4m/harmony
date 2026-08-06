@@ -32,11 +32,10 @@ export interface UserConnection {
   connectionState: RTCPeerConnectionState;
   iceConnectionState: RTCIceConnectionState;
   /**
-   * BUGS.md H20: ICE candidates that arrive before `setRemoteDescription`
-   * (common with trickle ICE) must be queued and flushed afterwards.
-   * `RTCPeerConnection.addIceCandidate` throws `InvalidStateError` when
-   * called before `remoteDescription` is set, causing flaky / failed P2P
-   * connections on slower networks.
+   * BUGS.md H20: ICE candidates arriving before `setRemoteDescription`
+   * (common with trickle ICE) are queued here and flushed afterwards.
+   * `addIceCandidate` throws `InvalidStateError` when `remoteDescription`
+   * is unset, which yields flaky P2P connections on slow networks.
    */
   pendingIceCandidates: RTCIceCandidateInit[];
 }
@@ -93,10 +92,9 @@ export class UnifiedWebRTCService {
   // Audio context for level monitoring
   private audioContext: AudioContext | null = null;
   private localAudioAnalyser: AnalyserNode | null = null;
-  // BUGS.md H21: track the RAF so device-changes / constraint-changes can
-  // cancel the previous loop before starting a new one. Otherwise multiple
-  // overlapping RAF loops would all read from `localAudioAnalyser` and
-  // broadcast audio levels in lockstep.
+  // BUGS.md H21: RAF handle, so device/constraint changes cancel the previous
+  // loop before starting a new one. Overlapping loops all read
+  // `localAudioAnalyser` and broadcast audio levels in lockstep.
   private audioLevelRafId: number | null = null;
   
   // Audio constraints settings
@@ -126,9 +124,6 @@ export class UnifiedWebRTCService {
     this.setupSettingsListener();
   }
 
-  /**
-   * Load stream quality settings from localStorage
-   */
   private loadStreamQualitySettings(): void {
     try {
       const saved = userStorage.getItem('stream-quality');
@@ -139,28 +134,22 @@ export class UnifiedWebRTCService {
           frameRate: settings.frameRate ?? 30,
           audioBitrate: settings.audioBitrate ?? 128,
         };
-        debug.log('📊 [P2P] Loaded stream quality settings:', this.streamQualitySettings);
+        debug.log('[P2P] Loaded stream quality settings:', this.streamQualitySettings);
       }
     } catch (error) {
-      debug.warn('⚠️ [P2P] Failed to load stream quality settings:', error);
+      debug.warn('[P2P] Failed to load stream quality settings:', error);
     }
   }
 
-  /**
-   * Save stream quality settings to localStorage
-   */
   private saveStreamQualitySettings(): void {
     try {
       userStorage.setItem('stream-quality', JSON.stringify(this.streamQualitySettings));
     } catch (error) {
-      debug.warn('⚠️ [P2P] Failed to save stream quality settings:', error);
+      debug.warn('[P2P] Failed to save stream quality settings:', error);
     }
   }
 
-  /**
-   * Get MediaTrackConstraints for video based on resolution setting
-   * @param resolution - Resolution in pixels (360, 480, 720, 1080, or -1 for source)
-   */
+  /** @param resolution - height in pixels: 360, 480, 720, 1080, or -1 for source. */
   private getVideoConstraints(resolution: number = this.streamQualitySettings.resolution): MediaTrackConstraints {
     const frameRate = this.streamQualitySettings.frameRate;
     
@@ -182,12 +171,9 @@ export class UnifiedWebRTCService {
     }
   }
 
-  /**
-   * Update stream quality settings
-   * Applies to currently active video/screenshare tracks
-   */
+  /** Applies to the currently active video/screenshare tracks. */
   async updateStreamQuality(settings: { resolution?: number; frameRate?: number; audioBitrate?: number }): Promise<void> {
-    debug.log('📊 [P2P] Updating stream quality:', settings);
+    debug.log('[P2P] Updating stream quality:', settings);
     
     if (settings.resolution !== undefined) {
       this.streamQualitySettings.resolution = settings.resolution;
@@ -207,37 +193,33 @@ export class UnifiedWebRTCService {
         try {
           const constraints = this.getVideoConstraints();
           await track.applyConstraints(constraints);
-          debug.log('📊 [P2P] Applied video constraints:', constraints);
+          debug.log('[P2P] Applied video constraints:', constraints);
         } catch (error) {
-          debug.warn('⚠️ [P2P] Failed to apply video constraints:', error);
+          debug.warn('[P2P] Failed to apply video constraints:', error);
         }
       }
     }
     
-    debug.log('📊 [P2P] Stream quality updated:', this.streamQualitySettings);
+    debug.log('[P2P] Stream quality updated:', this.streamQualitySettings);
   }
 
   // PUBLIC API
 
-  /**
-   * Update input device and restart audio stream
-   */
+  /** Selects the input device and swaps the live audio track. */
   async updateInputDevice(deviceId: string): Promise<void> {
-    debug.log('🎤 Updating input device to:', deviceId);
+    debug.log('Updating input device to:', deviceId);
     
     this.selectedInputDevice = deviceId;
     this.saveAudioSettings(); // Use existing method
     
-    // If we're currently connected, restart the audio stream with new device
+    // Connected: swap the live audio track.
     if (this.localStream && this.channelId) {
       const currentMuteState = this.localMediaState.isMuted;
 
-      // BUGS.md H22: previously the code stopped+removed the OLD audio
-      // tracks BEFORE calling `getUserMedia` for the new device. If the
-      // new `getUserMedia` failed (permission revoked, device gone,
-      // OverconstrainedError), the call had no mic at all - the user
-      // would silently lose audio with no recovery until they rejoined
-      // the channel. Acquire the new stream FIRST, then swap.
+      // BUGS.md H22: acquire the new stream BEFORE stopping the old tracks.
+      // Stopping first leaves the call with no mic until rejoin whenever
+      // `getUserMedia` fails (permission revoked, device gone,
+      // OverconstrainedError).
       try {
         const audioConstraints: MediaTrackConstraints = {
           ...this.audioConstraints,
@@ -251,7 +233,7 @@ export class UnifiedWebRTCService {
 
         const newAudioTrack = newAudioStream.getAudioTracks()[0];
         if (newAudioTrack) {
-          // Only NOW do we stop the previous tracks - the swap is committed.
+          // Swap is committed; stop the previous tracks.
           const oldAudioTracks = this.localStream.getAudioTracks();
           oldAudioTracks.forEach(track => {
             track.stop();
@@ -268,65 +250,58 @@ export class UnifiedWebRTCService {
               
               if (audioSender) {
                 await audioSender.replaceTrack(newAudioTrack);
-                debug.log('🔄 Replaced audio track for peer:', userId);
+                debug.log('Replaced audio track for peer:', userId);
               }
             } catch (error) {
-              debug.error('❌ Error updating audio track for peer', userId, ':', error);
+              debug.error('Error updating audio track for peer', userId, ':', error);
             }
           }
           
-          // Restart audio level monitoring
           this.setupAudioLevelMonitoring();
           
-          debug.log('✅ Input device updated successfully');
+          debug.log('Input device updated successfully');
           this.emit('local-stream-changed', this.localStream);
           this.emit('stream-changed', { userId: this.currentUserId, stream: this.localStream, type: 'local' });
         }
       } catch (error) {
-        debug.error('❌ Failed to update input device:', error);
+        debug.error('Failed to update input device:', error);
         this.emit('error', error);
         throw error;
       }
     }
   }
 
-  /**
-   * Update output device for all remote audio elements
-   */
+  /** Applies the output device to every remote audio element. */
   async updateOutputDevice(deviceId: string): Promise<void> {
-    debug.log('🔊 Updating output device to:', deviceId);
+    debug.log('Updating output device to:', deviceId);
     
     this.selectedOutputDevice = deviceId;
     this.saveAudioSettings(); // Use existing method
     
-    // Update all existing audio elements to use new output device.
-    // setSinkId is part of the Audio Output Devices API and isn't in the lib.dom
-    // HTMLAudioElement type yet, so cast to any.
+    // setSinkId belongs to the Audio Output Devices API and is absent from
+    // the lib.dom HTMLAudioElement type; cast to any.
     for (const [userId, connection] of this.connections) {
       const audioEl = connection.audioElement as any;
       if (audioEl && audioEl.setSinkId) {
         try {
           await audioEl.setSinkId(deviceId);
-          debug.log('🔊 Updated output device for user:', userId);
+          debug.log('Updated output device for user:', userId);
         } catch (error) {
-          debug.error('❌ Failed to update output device for user:', userId, error);
+          debug.error('Failed to update output device for user:', userId, error);
         }
       }
     }
     
-    debug.log('✅ Output device updated successfully');
+    debug.log('Output device updated successfully');
   }
 
-  /**
-   * Update video device and restart video stream if enabled
-   */
+  /** Selects the video device and restarts the camera track when video is on. */
   async updateVideoDevice(deviceId: string): Promise<void> {
-    debug.log('🎥 Updating video device to:', deviceId);
+    debug.log('Updating video device to:', deviceId);
     
     this.selectedVideoDevice = deviceId;
     this.saveAudioSettings(); // Use existing method
     
-    // If video is currently enabled, restart with new device
     if (this.localMediaState.isVideoEnabled && this.localStream && this.channelId) {
       try {
         const videoTracks = this.localStream.getVideoTracks();
@@ -364,42 +339,36 @@ export class UnifiedWebRTCService {
 
               if (videoSender) {
                 await videoSender.replaceTrack(newVideoTrack);
-                debug.log('🔄 Replaced camera track for peer:', userId);
+                debug.log('Replaced camera track for peer:', userId);
               }
             } catch (error) {
-              debug.error('❌ Error updating video track for peer', userId, ':', error);
+              debug.error('Error updating video track for peer', userId, ':', error);
             }
           }
           
-          debug.log('✅ Video device updated successfully');
+          debug.log('Video device updated successfully');
           this.emit('local-stream-changed', this.localStream);
           this.emit('stream-changed', { userId: this.currentUserId, stream: this.localStream, type: 'local' });
         }
       } catch (error) {
-        debug.error('❌ Failed to update video device:', error);
+        debug.error('Failed to update video device:', error);
         this.emit('error', error);
         throw error;
       }
     }
   }
-  /**
-   * Join a voice channel - Discord-like experience
-   */
   async joinChannel(channelId: string, userId: string, abortSignal?: AbortSignal): Promise<boolean> {
-    debug.log('🎯 Joining voice channel:', channelId, 'as user:', userId);
+    debug.log('Joining voice channel:', channelId, 'as user:', userId);
     
     try {
-      // Check for cancellation
       if (abortSignal?.aborted) {
         throw new DOMException('Connection cancelled', 'AbortError');
       }
       
-      // Clean previous connection
       if (this.channelId) {
         await this.leaveChannel();
       }
       
-      // Check for cancellation after cleanup
       if (abortSignal?.aborted) {
         throw new DOMException('Connection cancelled', 'AbortError');
       }
@@ -408,36 +377,33 @@ export class UnifiedWebRTCService {
       this.currentUserId = userId;
       this.localMediaState.userId = userId;
       
-      // 1. Get audio stream immediately (Discord always starts with audio)
+      // 1. Audio first - a voice channel always carries audio.
       await this.initializeLocalAudio();
       // fresh tracks start enabled; re-apply mute/PTT gate before audio flows
       this.applyMicGate();
 
-      // Check for cancellation after getting audio
       if (abortSignal?.aborted) {
         await this.leaveChannel();
         throw new DOMException('Connection cancelled', 'AbortError');
       }
       
-      // 2. Setup signaling before announcing presence
+      // 2. Signaling must be up before presence is announced.
       await this.setupSignaling();
       
-      // Check for cancellation after setting up signaling
       if (abortSignal?.aborted) {
         await this.leaveChannel();
         throw new DOMException('Connection cancelled', 'AbortError');
       }
       
-      // 3. Request current channel state from existing users
+      // 3. Pull current channel state from existing members.
       await this.requestChannelState();
       
-      // Check for cancellation after requesting state
       if (abortSignal?.aborted) {
         await this.leaveChannel();
         throw new DOMException('Connection cancelled', 'AbortError');
       }
       
-      // 4. Announce our presence after state sync
+      // 4. Announce presence, after state sync.
       setTimeout(() => {
         if (!abortSignal?.aborted) {
           this.broadcastMessage({
@@ -449,7 +415,6 @@ export class UnifiedWebRTCService {
         }
       }, 200);
       
-      // Final cancellation check
       if (abortSignal?.aborted) {
         await this.leaveChannel();
         throw new DOMException('Connection cancelled', 'AbortError');
@@ -461,20 +426,17 @@ export class UnifiedWebRTCService {
       return true;
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
-        debug.log('🚫 [P2P] Connection cancelled');
+        debug.log('[P2P] Connection cancelled');
         throw error; // Re-throw to propagate cancellation
       }
-      debug.error('❌ Failed to join channel:', error);
+      debug.error('Failed to join channel:', error);
       this.emit('error', error);
       return false;
     }
   }
 
-  /**
-   * Leave current voice channel
-   */
   async leaveChannel(): Promise<void> {
-    debug.log('👋 Leaving voice channel');
+    debug.log('Leaving voice channel');
     
     if (this.currentUserId && this.channelId) {
       this.broadcastMessage({
@@ -513,12 +475,10 @@ export class UnifiedWebRTCService {
       this.signalChannel = null;
     }
     
-    // Cleanup audio context + level-monitoring RAF
-    // BUGS.md H21 v2: cancel the RAF explicitly, symmetric with the setup
-    // path. The RAF self-terminates next frame via the `else` branch in
-    // `updateLevel` (because `audioContext` becomes null below), so this is
-    // not an active leak, but the asymmetry would silently regress if the
-    // `else` branch is ever removed.
+    // BUGS.md H21 v2: cancel the RAF explicitly, symmetric with setup. The
+    // loop also self-terminates next frame via the `else` branch in
+    // `updateLevel` once `audioContext` is null below; the explicit cancel
+    // keeps that from being load-bearing.
     if (this.audioLevelRafId !== null) {
       cancelAnimationFrame(this.audioLevelRafId);
       this.audioLevelRafId = null;
@@ -539,14 +499,11 @@ export class UnifiedWebRTCService {
     this.emit('channel-left', { channelId: oldChannelId });
   }
 
-  /**
-   * Toggle video on/off
-   */
   async toggleVideo(): Promise<boolean> {
     try {
       if (!this.localMediaState.isVideoEnabled) {
         // Enable video (screenshare, if active, keeps its own stream/senders)
-        debug.log('🎥 Enabling video camera...');
+        debug.log('Enabling video camera...');
         
         const { videoDevice } = this.getSelectedDevices();
         
@@ -559,7 +516,7 @@ export class UnifiedWebRTCService {
         
         if (videoDevice) {
           videoConstraints.video.deviceId = { exact: videoDevice };
-          debug.log('🎥 Using selected video device:', videoDevice);
+          debug.log('Using selected video device:', videoDevice);
         }
         
         const videoStream = await navigator.mediaDevices.getUserMedia(videoConstraints);
@@ -569,13 +526,13 @@ export class UnifiedWebRTCService {
           throw new Error('No video track obtained from camera');
         }
         
-        debug.log('✅ Video track obtained:', videoTrack.getSettings());
+        debug.log('Video track obtained:', videoTrack.getSettings());
         
         if (this.localStream) {
-          // Remove any existing video tracks first (important!)
+          // Existing video tracks must be removed before adding the new one.
           const existingVideoTracks = this.localStream.getVideoTracks();
           existingVideoTracks.forEach(track => {
-            debug.log('🛑 Stopping and removing old video track:', track.id);
+            debug.log('Stopping and removing old video track:', track.id);
             track.stop();
             this.localStream!.removeTrack(track);
           });
@@ -584,7 +541,7 @@ export class UnifiedWebRTCService {
           this.cameraVideoTrackId = videoTrack.id;
           this.localMediaState.isVideoEnabled = true;
 
-          debug.log('📹 Local stream now has', this.localStream.getTracks().length, 'tracks');
+          debug.log('Local stream now has', this.localStream.getTracks().length, 'tracks');
 
           for (const [userId, conn] of this.connections) {
             try {
@@ -596,31 +553,30 @@ export class UnifiedWebRTCService {
 
               if (cameraSender && cameraSender.track) {
                 // Replace existing camera track (no renegotiation needed)
-                debug.log('🔄 Replacing existing camera track for peer:', userId);
+                debug.log('Replacing existing camera track for peer:', userId);
                 await cameraSender.replaceTrack(videoTrack);
               } else {
-                debug.log('➕ Adding camera track for peer:', userId);
+                debug.log('Adding camera track for peer:', userId);
                 conn.peerConnection.addTrack(videoTrack, this.localStream);
                 await this.renegotiateWithPeer(userId, conn);
               }
             } catch (error) {
-              debug.error('❌ Error adding video track to peer', userId, ':', error);
+              debug.error('Error adding video track to peer', userId, ':', error);
             }
           }
           
-          // Emit local stream change for UI update (important for self-view)
+          // Self-view renders off this event.
           this.emit('local-stream-changed', this.localStream);
-          debug.log('📺 Emitted local-stream-changed event for self-view update');
+          debug.log('Emitted local-stream-changed event for self-view update');
         }
       } else {
-        // Disable video
-        debug.log('🎥 Disabling video camera...');
+        debug.log('Disabling video camera...');
         
         if (this.localStream) {
           const videoTracks = this.localStream.getVideoTracks();
 
           for (const track of videoTracks) {
-            debug.log('🛑 Stopping video track:', track.id);
+            debug.log('Stopping video track:', track.id);
             track.stop();
             this.localStream.removeTrack(track);
 
@@ -630,22 +586,22 @@ export class UnifiedWebRTCService {
                 const videoSender = senders.find(s => s.track === track);
 
                 if (videoSender) {
-                  debug.log('📹 Removing video track from peer:', userId);
+                  debug.log('Removing video track from peer:', userId);
                   conn.peerConnection.removeTrack(videoSender);
                   await this.renegotiateWithPeer(userId, conn);
                 }
               } catch (error) {
-                debug.error('❌ Error removing video track from peer', userId, ':', error);
+                debug.error('Error removing video track from peer', userId, ':', error);
               }
             }
           }
 
           this.cameraVideoTrackId = null;
           this.localMediaState.isVideoEnabled = false;
-          debug.log('✅ Video disabled, local stream now has', this.localStream.getTracks().length, 'tracks');
+          debug.log('Video disabled, local stream now has', this.localStream.getTracks().length, 'tracks');
           
           this.emit('local-stream-changed', this.localStream);
-          debug.log('📺 Emitted local-stream-changed event (video disabled)');
+          debug.log('Emitted local-stream-changed event (video disabled)');
         }
       }
       
@@ -654,24 +610,20 @@ export class UnifiedWebRTCService {
       
       return this.localMediaState.isVideoEnabled;
     } catch (error) {
-      debug.error('❌ Error toggling video:', error);
+      debug.error('Error toggling video:', error);
       
       this.localMediaState.isVideoEnabled = false;
       return false;
     }
   }
 
-  /**
-   * Toggle screen share on/off
-   */
   private screenShareVideoTrackId: string | null = null;
   private screenShareAudioTrackId: string | null = null;
   
   async toggleScreenShare(): Promise<boolean> {
     try {
       if (!this.localMediaState.isScreenSharing) {
-        // Start screen sharing with audio (like Discord)
-        // Use stream quality settings for resolution and framerate
+        // Resolution and framerate come from the stream quality settings.
         const screenVideoConstraints = this.getVideoConstraints();
         const screenStream = await navigator.mediaDevices.getDisplayMedia({
           video: {
@@ -688,7 +640,7 @@ export class UnifiedWebRTCService {
         this.screenShareVideoTrackId = screenVideoTrack?.id || null;
         this.screenShareAudioTrackId = screenAudioTrack?.id || null;
         
-        debug.log('📺 Screen share tracks:', {
+        debug.log('Screen share tracks:', {
           video: screenVideoTrack?.id,
           audio: screenAudioTrack?.id,
           audioLabel: screenAudioTrack?.label
@@ -699,11 +651,11 @@ export class UnifiedWebRTCService {
           // the SDP msid, so receivers can tell it apart from the camera feed.
           // Camera state is untouched - both can be live at once.
           this.localScreenStream = new MediaStream([screenVideoTrack]);
-          debug.log('✅ Created screen stream:', this.localScreenStream.id);
+          debug.log('Created screen stream:', this.localScreenStream.id);
 
           if (screenAudioTrack) {
             this.localScreenStream.addTrack(screenAudioTrack);
-            debug.log('🔊 Screen sharing with system audio enabled');
+            debug.log('Screen sharing with system audio enabled');
           }
 
           this.localMediaState.isScreenSharing = true;
@@ -715,15 +667,15 @@ export class UnifiedWebRTCService {
               if (screenAudioTrack) {
                 conn.peerConnection.addTrack(screenAudioTrack, this.localScreenStream);
               }
-              debug.log('➕ Added screen track(s) to peer:', userId);
+              debug.log('Added screen track(s) to peer:', userId);
               await this.renegotiateWithPeer(userId, conn);
             } catch (error) {
-              debug.error('❌ Error updating screen share for peer', userId, ':', error);
+              debug.error('Error updating screen share for peer', userId, ':', error);
             }
           }
 
           screenVideoTrack.onended = () => {
-            debug.log('📺 Screen video track ended');
+            debug.log('Screen video track ended');
             if (this.localMediaState.isScreenSharing) {
               this.toggleScreenShare();
             }
@@ -731,15 +683,14 @@ export class UnifiedWebRTCService {
           
           if (screenAudioTrack) {
             screenAudioTrack.onended = () => {
-              debug.log('🔊 Screen audio track ended');
-              // Don't auto-stop screenshare when audio ends (video might still be going)
-              // Just mark that audio is gone
+              debug.log('Screen audio track ended');
+              // Audio ending does not stop the screenshare; video may continue.
               this.screenShareAudioTrackId = null;
             };
           }
         }
       } else {
-        debug.log('🛑 Stopping screen share, cleaning up tracks:', {
+        debug.log('Stopping screen share, cleaning up tracks:', {
           videoTrackId: this.screenShareVideoTrackId,
           audioTrackId: this.screenShareAudioTrackId
         });
@@ -750,7 +701,7 @@ export class UnifiedWebRTCService {
           );
 
           this.localScreenStream.getTracks().forEach(track => {
-            debug.log('🛑 Stopping screen track:', track.kind, track.id);
+            debug.log('Stopping screen track:', track.kind, track.id);
             track.stop();
           });
           this.localScreenStream = null;
@@ -763,14 +714,14 @@ export class UnifiedWebRTCService {
                 if (sender.track && screenTrackIds.has(sender.track.id)) {
                   conn.peerConnection.removeTrack(sender);
                   removed = true;
-                  debug.log('🛑 Removed screen sender from peer:', userId, sender.track.kind);
+                  debug.log('Removed screen sender from peer:', userId, sender.track.kind);
                 }
               }
               if (removed) {
                 await this.renegotiateWithPeer(userId, conn);
               }
             } catch (error) {
-              debug.error('❌ Error removing screen tracks from peer', userId, ':', error);
+              debug.error('Error removing screen tracks from peer', userId, ':', error);
             }
           }
         }
@@ -785,7 +736,7 @@ export class UnifiedWebRTCService {
       
       return this.localMediaState.isScreenSharing;
     } catch (error) {
-      debug.error('❌ Error toggling screen share:', error);
+      debug.error('Error toggling screen share:', error);
       return false;
     }
   }
@@ -803,9 +754,6 @@ export class UnifiedWebRTCService {
     this.localMediaState.isSpeaking = this.calculateSpeakingState(this.localMediaState.audioLevel, this.isMicGated());
   }
 
-  /**
-   * Toggle mute on/off
-   */
   toggleMute(): boolean {
     this.setMuted(!this.localMediaState.isMuted);
     return this.localMediaState.isMuted;
@@ -833,9 +781,6 @@ export class UnifiedWebRTCService {
     this.applyMicGate();
   }
 
-  /**
-   * Toggle deafen on/off
-   */
   toggleDeafen(): boolean {
     this.localMediaState.isDeafened = !this.localMediaState.isDeafened;
     
@@ -859,18 +804,16 @@ export class UnifiedWebRTCService {
       const spatialStatus = spatialAudioService.getStatus();
       isSpatialAudioActive = spatialStore.settings.enabled && spatialStatus.isInitialized;
       
-      // Mute/unmute the spatial audio master output
       spatialAudioService.setDeafened(this.localMediaState.isDeafened);
     } catch (e) {
       // Spatial audio not available, ignore
     }
     
-    // Mute/unmute traditional audio elements
-    // When undeafening, keep traditional audio muted if spatial audio is active
+    // On undeafen the traditional path stays muted while spatial audio is active.
     this.connections.forEach(conn => {
       if (conn.audioElement) {
         conn.audioElement.muted = this.localMediaState.isDeafened || isSpatialAudioActive;
-        debug.log('🔊 Audio element for', conn.userId, conn.audioElement.muted ? 'muted' : 'unmuted',
+        debug.log('Audio element for', conn.userId, conn.audioElement.muted ? 'muted' : 'unmuted',
                   '(deafened:', this.localMediaState.isDeafened, 'spatialActive:', isSpatialAudioActive, ')');
       }
       // Screen audio is never spatialized - only deafen affects it
@@ -962,7 +905,7 @@ export class UnifiedWebRTCService {
         try {
           callback(data);
         } catch (error) {
-          debug.error('❌ Error in event listener:', error);
+          debug.error('Error in event listener:', error);
         }
       });
     }
@@ -970,9 +913,6 @@ export class UnifiedWebRTCService {
 
   // PRIVATE METHODS
 
-  /**
-   * Calculate speaking state based on audio level and mute status
-   */
   private calculateSpeakingState(audioLevel: number, isMuted: boolean): boolean {
     return audioLevel > 20 && !isMuted;
   }
@@ -984,27 +924,25 @@ export class UnifiedWebRTCService {
         ...this.audioConstraints
       };
 
-      // Add device ID if specified, but use 'ideal' for graceful fallback
+      // 'ideal', not 'exact': a missing device falls back instead of throwing.
       if (inputDevice) {
         audioConstraints.deviceId = { ideal: inputDevice };
-        debug.log('🎤 Using selected input device for constraint update:', inputDevice);
+        debug.log('Using selected input device for constraint update:', inputDevice);
       }
 
       let newAudioStream: MediaStream;
 
       try {
-        // Try with the selected device first
         newAudioStream = await navigator.mediaDevices.getUserMedia({
           audio: audioConstraints,
           video: false
         });
       } catch (error) {
-        debug.warn('⚠️ Failed to use selected device during constraint update, falling back to default:', error);
+        debug.warn('Failed to use selected device during constraint update, falling back to default:', error);
         
         this.selectedInputDevice = null;
         this.saveAudioSettings();
         
-        // Fallback to default device
         const fallbackConstraints: MediaTrackConstraints = {
           ...this.audioConstraints
           // No deviceId - let browser choose
@@ -1015,12 +953,11 @@ export class UnifiedWebRTCService {
           video: false
         });
         
-        debug.log('✅ Using default audio device as fallback during constraint update');
+        debug.log('Using default audio device as fallback during constraint update');
       }
 
       this.localStream = newAudioStream;
 
-      // Ensure audio track is enabled based on mute state
       const audioTrack = this.localStream.getAudioTracks()[0];
       if (audioTrack) {
         audioTrack.enabled = !this.localMediaState.isMuted;
@@ -1031,19 +968,18 @@ export class UnifiedWebRTCService {
       this.emit('local-stream-changed', this.localStream);
       this.emit('stream-changed', { userId: this.currentUserId, stream: this.localStream, type: 'local' });
     } catch (error) {
-      debug.error('❌ Failed to get audio stream:', error);
+      debug.error('Failed to get audio stream:', error);
       throw error;
     }
   }
   private setupAudioLevelMonitoring(): void {
     if (!this.localStream) return;
 
-    // BUGS.md H21: previously each call (incl. on device-change /
-    // constraint-change paths via `updateInputDevice`) created a NEW
-    // AudioContext and left the prior one - plus its RAF loop - running.
-    // Mid-call device switches therefore leaked AudioContexts until
-    // `leaveChannel()`. Tear down the previous context + cancel its RAF
-    // before constructing the new one.
+    // BUGS.md H21: tear down the previous context and cancel its RAF before
+    // constructing the new one. This method also runs on the device- and
+    // constraint-change paths via `updateInputDevice`; without the teardown
+    // each mid-call switch leaks an AudioContext plus a live RAF loop until
+    // `leaveChannel()`.
     if (this.audioLevelRafId !== null) {
       cancelAnimationFrame(this.audioLevelRafId);
       this.audioLevelRafId = null;
@@ -1055,7 +991,7 @@ export class UnifiedWebRTCService {
     if (this.audioContext) {
       const prev = this.audioContext;
       this.audioContext = null;
-      prev.close().catch(err => debug.warn('⚠️ Failed to close prior AudioContext:', err));
+      prev.close().catch(err => debug.warn('Failed to close prior AudioContext:', err));
     }
 
     try {
@@ -1087,11 +1023,11 @@ export class UnifiedWebRTCService {
             lastBroadcast = now;
           }
           
-          // Broadcast media state if speaking state changed (for other peers)
+          // Speaking-state transitions are broadcast to peers.
           if (wasSpeaking !== this.localMediaState.isSpeaking) {
             this.broadcastMediaState();
-            // Note: We don't emit 'local-state-changed' here to avoid interfering 
-            // with component reactivity. The component reacts directly to audioLevel changes.
+            // NOTE: 'local-state-changed' is not emitted here; components react
+            // to audioLevel directly, and the extra event breaks their reactivity.
           }
 
           this.audioLevelRafId = requestAnimationFrame(updateLevel);
@@ -1102,7 +1038,7 @@ export class UnifiedWebRTCService {
       
       this.audioLevelRafId = requestAnimationFrame(updateLevel);
     } catch (error) {
-      debug.warn('⚠️ Audio level monitoring setup failed:', error);
+      debug.warn('Audio level monitoring setup failed:', error);
     }
   }
 
@@ -1126,7 +1062,7 @@ export class UnifiedWebRTCService {
     return new Promise<void>((resolve, reject) => {
       this.signalChannel!.subscribe((status: string) => {
         if (status === 'SUBSCRIBED') {
-          debug.log('📡 Signaling channel ready');
+          debug.log('Signaling channel ready');
           resolve();
         } else if (status === 'CHANNEL_ERROR') {
           reject(new Error('Failed to setup signaling'));
@@ -1138,7 +1074,7 @@ export class UnifiedWebRTCService {
   private async requestChannelState(): Promise<void> {
     if (!this.currentUserId) return;
     
-    debug.log('🔄 Requesting channel state from existing users');
+    debug.log('Requesting channel state from existing users');
     
     this.broadcastMessage({
       type: 'state-sync',
@@ -1157,7 +1093,7 @@ export class UnifiedWebRTCService {
     // Ignore messages not for us (except broadcasts)
     if (to && to !== this.currentUserId) return;
     
-    debug.log('📩 Received:', type, 'from:', from);
+    debug.log('Received:', type, 'from:', from);
     
     switch (type) {
       case 'user-joined':
@@ -1177,12 +1113,12 @@ export class UnifiedWebRTCService {
         break;
         
       case 'call-start-time':
-        // Forward to store
+        // Handled by the store.
         this.emit('call-start-time', { timestamp: data.timestamp, from });
         break;
         
       case 'request-call-start-time':
-        // Forward to store to handle
+        // Handled by the store.
         this.emit('request-call-start-time', { from });
         break;
         
@@ -1201,7 +1137,7 @@ export class UnifiedWebRTCService {
   }
 
   private async handleUserJoined(userId: string, mediaState: UserMediaState): Promise<void> {
-    debug.log('👋 User joined:', userId, mediaState);
+    debug.log('User joined:', userId, mediaState);
     
     this.allUserStates.set(userId, mediaState);
 
@@ -1211,7 +1147,7 @@ export class UnifiedWebRTCService {
   }
 
   private async handleUserLeft(userId: string): Promise<void> {
-    debug.log('👋 User left:', userId);
+    debug.log('User left:', userId);
 
     const connection = this.connections.get(userId);
     if (connection) {
@@ -1226,7 +1162,7 @@ export class UnifiedWebRTCService {
   }
 
   private handleMediaStateUpdate(userId: string, mediaState: UserMediaState, screenStreamId?: string | null): void {
-    debug.log('🎛️ Media state update:', userId, mediaState, 'screenStreamId:', screenStreamId);
+    debug.log('Media state update:', userId, mediaState, 'screenStreamId:', screenStreamId);
 
     this.allUserStates.set(userId, mediaState);
 
@@ -1266,8 +1202,8 @@ export class UnifiedWebRTCService {
 
   private async handleStateSync(from: string, data: any): Promise<void> {
     if (data.action === 'request') {
-      // Someone is requesting current state - send our state
-      debug.log('📤 Sending our state to:', from);
+      // Peer requests the current state.
+      debug.log('Sending our state to:', from);
       
       this.sendDirectMessage(from, {
         type: 'state-sync',
@@ -1282,8 +1218,8 @@ export class UnifiedWebRTCService {
         timestamp: Date.now()
       });
     } else if (data.action === 'response') {
-      // Someone is sending us the current channel state
-      debug.log('📥 Received channel state from:', from, data);
+      // Peer delivers the current channel state.
+      debug.log('Received channel state from:', from, data);
       
       if (data.allStates) {
         data.allStates.forEach((state: UserMediaState) => {
@@ -1312,7 +1248,7 @@ export class UnifiedWebRTCService {
   }
 
   private async createPeerConnection(userId: string, isInitiator: boolean): Promise<void> {
-    debug.log('🔗 Creating peer connection with:', userId, 'as initiator:', isInitiator);
+    debug.log('Creating peer connection with:', userId, 'as initiator:', isInitiator);
     
     const pc = new RTCPeerConnection({
       iceServers: [
@@ -1351,22 +1287,22 @@ export class UnifiedWebRTCService {
 
     if (this.localStream) {
       this.localStream.getTracks().forEach(track => {
-        debug.log('🔗 Adding track to peer', userId, ':', track.kind, 'enabled:', track.enabled);
+        debug.log('Adding track to peer', userId, ':', track.kind, 'enabled:', track.enabled);
         pc.addTrack(track, this.localStream!);
       });
-      debug.log('✅ Added', this.localStream.getTracks().length, 'tracks to peer connection with', userId);
+      debug.log('Added', this.localStream.getTracks().length, 'tracks to peer connection with', userId);
     }
 
     // If we're mid-screenshare when this peer appears, include those tracks too
     if (this.localScreenStream) {
       this.localScreenStream.getTracks().forEach(track => {
-        debug.log('🔗 Adding screen track to peer', userId, ':', track.kind);
+        debug.log('Adding screen track to peer', userId, ':', track.kind);
         pc.addTrack(track, this.localScreenStream!);
       });
     }
 
     pc.ontrack = async (event) => {
-      debug.log('📹 Received track from:', userId, event.track.kind, 'Stream ID:', event.streams[0]?.id);
+      debug.log('Received track from:', userId, event.track.kind, 'Stream ID:', event.streams[0]?.id);
 
       const stream = event.streams[0];
       if (stream) {
@@ -1394,7 +1330,7 @@ export class UnifiedWebRTCService {
     
     pc.oniceconnectionstatechange = () => {
       connection.iceConnectionState = pc.iceConnectionState;
-      debug.log('🧊 ICE state for', userId, ':', pc.iceConnectionState);
+      debug.log('ICE state for', userId, ':', pc.iceConnectionState);
     };
     
     if (isInitiator) {
@@ -1410,13 +1346,13 @@ export class UnifiedWebRTCService {
           timestamp: Date.now()
         });
       } catch (error) {
-        debug.error('❌ Error creating offer for:', userId, error);
+        debug.error('Error creating offer for:', userId, error);
       }
     }
   }
 
   private async handleOffer(from: string, offer: RTCSessionDescriptionInit): Promise<void> {
-    debug.log('📞 Handling offer from:', from);
+    debug.log('Handling offer from:', from);
     
     let connection = this.connections.get(from);
     if (!connection) {
@@ -1439,7 +1375,7 @@ export class UnifiedWebRTCService {
       };
       this.allUserStates.set(from, defaultState);
       this.emit('user-joined', { userId: from, mediaState: defaultState });
-      debug.log('👤 Added user from offer to allUserStates:', from);
+      debug.log('Added user from offer to allUserStates:', from);
     }
     
     try {
@@ -1458,22 +1394,22 @@ export class UnifiedWebRTCService {
         timestamp: Date.now()
       });
     } catch (error) {
-      debug.error('❌ Error handling offer from:', from, error);
+      debug.error('Error handling offer from:', from, error);
     }
   }
 
   private async handleAnswer(from: string, answer: RTCSessionDescriptionInit): Promise<void> {
-    debug.log('📞 Handling answer from:', from);
+    debug.log('Handling answer from:', from);
     
     const connection = this.connections.get(from);
     if (connection) {
       try {
         await connection.peerConnection.setRemoteDescription(answer);
-        // BUGS.md H20: flush any ICE candidates that arrived before we
-        // processed the answer.
+        // BUGS.md H20: flush ICE candidates that arrived before the answer
+        // was processed.
         await this.flushPendingIceCandidates(from);
       } catch (error) {
-        debug.error('❌ Error handling answer from:', from, error);
+        debug.error('Error handling answer from:', from, error);
       }
     }
   }
@@ -1487,11 +1423,10 @@ export class UnifiedWebRTCService {
     // `setRemoteDescription` throws `InvalidStateError`. Queue until the
     // remote description is set, then flush in `flushPendingIceCandidates`.
     if (!connection.peerConnection.remoteDescription) {
-      // BUGS.md H20 v2: cap the queue. An authenticated peer in the same
-      // Supabase voice channel can flood `ice-candidate` messages without
-      // ever sending an offer, growing this array indefinitely. 100 is
-      // generous (real-world ICE candidate counts per peer are <30) and
-      // turns a memory-DoS into a noisy warning.
+      // BUGS.md H20 v2: queue cap. An authenticated peer in the same Supabase
+      // voice channel can flood `ice-candidate` messages without ever sending
+      // an offer. Observed real-world counts are <30 per peer, so 100 bounds
+      // the memory without dropping legitimate candidates.
       const MAX_PENDING_ICE = 100;
       if (connection.pendingIceCandidates.length >= MAX_PENDING_ICE) {
         debug.warn(
@@ -1506,7 +1441,7 @@ export class UnifiedWebRTCService {
     try {
       await connection.peerConnection.addIceCandidate(candidate);
     } catch (error) {
-      debug.error('❌ Error adding ICE candidate from:', from, error);
+      debug.error('Error adding ICE candidate from:', from, error);
     }
   }
 
@@ -1521,12 +1456,12 @@ export class UnifiedWebRTCService {
     if (!connection || connection.pendingIceCandidates.length === 0) return;
 
     const queued = connection.pendingIceCandidates.splice(0);
-    debug.log(`🧊 Flushing ${queued.length} queued ICE candidates from ${from}`);
+    debug.log(`Flushing ${queued.length} queued ICE candidates from ${from}`);
     for (const candidate of queued) {
       try {
         await connection.peerConnection.addIceCandidate(candidate);
       } catch (error) {
-        debug.warn('⚠️ Error adding queued ICE candidate from:', from, error);
+        debug.warn('Error adding queued ICE candidate from:', from, error);
       }
     }
   }
@@ -1581,7 +1516,7 @@ export class UnifiedWebRTCService {
       timestamp: Date.now()
     });
 
-    debug.log('✅ Renegotiation offer sent to:', userId);
+    debug.log('Renegotiation offer sent to:', userId);
   }
 
   private async broadcastMediaState(): Promise<void> {
@@ -1639,12 +1574,12 @@ export class UnifiedWebRTCService {
       [...connection.knownStreams.values()].find(s => s.id !== screenStreamId) ?? null;
 
     if (connection.remoteStream && connection.remoteStream !== previousMicStream) {
-      debug.log('📡 Mic/camera stream for user:', userId, 'tracks:', connection.remoteStream.getTracks().length);
+      debug.log('Mic/camera stream for user:', userId, 'tracks:', connection.remoteStream.getTracks().length);
       await this.setupRemoteAudio(connection, connection.remoteStream);
     }
 
     if (connection.remoteScreenStream !== previousScreenStream) {
-      debug.log('📡 Screen stream for user:', userId, 'present:', !!connection.remoteScreenStream);
+      debug.log('Screen stream for user:', userId, 'present:', !!connection.remoteScreenStream);
       this.setupScreenAudio(connection);
     }
 
@@ -1675,7 +1610,7 @@ export class UnifiedWebRTCService {
       sinkCapable.setSinkId(this.selectedOutputDevice).catch(() => { /* best effort */ });
     }
     connection.screenAudioElement = audioElement;
-    debug.log('🔊 Screen audio element created for user:', connection.userId);
+    debug.log('Screen audio element created for user:', connection.userId);
   }
 
   private async setupRemoteAudio(connection: UserConnection, stream: MediaStream): Promise<void> {
@@ -1685,7 +1620,7 @@ export class UnifiedWebRTCService {
       if (!connection.audioElement) {
         connection.audioElement = new Audio();
         connection.audioElement.autoplay = true;
-        // Note: playsInline is for video elements, not needed for audio
+        // playsInline applies to video elements only.
       }
       
       connection.audioElement.srcObject = stream;
@@ -1696,12 +1631,11 @@ export class UnifiedWebRTCService {
       const spatialStatus = spatialAudioService.getStatus();
       const isSpatialAudioActive = spatialStore.settings.enabled && spatialStatus.isInitialized;
       
-      // Apply current deafen state AND check spatial audio
-      // When spatial audio is ACTIVE (enabled + initialized), mute HTMLAudioElement to prevent double audio (dry + wet)
-      // Otherwise, keep it unmuted so we hear the normal audio through the HTMLAudioElement
+      // While spatial audio is active (enabled + initialized) the
+      // HTMLAudioElement is muted, else the dry and wet paths both play.
       connection.audioElement.muted = this.localMediaState.isDeafened || isSpatialAudioActive;
       
-      debug.log('🔊 Audio element created for user:', connection.userId, 
+      debug.log('Audio element created for user:', connection.userId, 
                   'muted:', connection.audioElement.muted,
                   'spatialEnabled:', spatialStore.settings.enabled,
                   'spatialInitialized:', spatialStatus.isInitialized,
@@ -1709,37 +1643,34 @@ export class UnifiedWebRTCService {
                   'deafened:', this.localMediaState.isDeafened);
       
       connection.audioElement.onerror = (error) => {
-        debug.error('❌ Audio element error for user', connection.userId, ':', error);
+        debug.error('Audio element error for user', connection.userId, ':', error);
       };
       
       connection.audioElement.onplay = () => {
-        debug.log('▶️ Audio started playing for user:', connection.userId);
+        debug.log('Audio started playing for user:', connection.userId);
       };
     }
   }
 
-  /**
-   * Enable or disable traditional HTMLAudioElement playback
-   * This should be called when spatial audio is toggled
-   */
+  /** Call on every spatial-audio toggle. */
   setTraditionalAudioEnabled(enabled: boolean): void {
-    debug.log(`🔊 Setting traditional audio enabled: ${enabled} for ${this.connections.size} connections`);
+    debug.log(`Setting traditional audio enabled: ${enabled} for ${this.connections.size} connections`);
     
     this.connections.forEach(connection => {
       if (connection.audioElement) {
         const wasPlaying = !connection.audioElement.muted && !connection.audioElement.paused;
         
-        // When spatial audio is enabled, mute the HTMLAudioElement to prevent double audio
-        // When spatial audio is disabled, unmute it for normal playback
+        // Muted while spatial audio is enabled, else the dry and wet paths
+        // both play.
         connection.audioElement.muted = !enabled || this.localMediaState.isDeafened;
         
         const isNowPlaying = !connection.audioElement.muted && !connection.audioElement.paused;
         
-        debug.log(`🔊 ${connection.userId}: muted=${connection.audioElement.muted}, ` +
+        debug.log(`${connection.userId}: muted=${connection.audioElement.muted}, ` +
                    `wasPlaying=${wasPlaying}, isNowPlaying=${isNowPlaying}, ` +
                    `deafened=${this.localMediaState.isDeafened}`);
       } else {
-        debug.warn(`⚠️ No audioElement for user ${connection.userId}`);
+        debug.warn(`No audioElement for user ${connection.userId}`);
       }
     });
   }
@@ -1749,13 +1680,13 @@ export class UnifiedWebRTCService {
       connection.audioElement.pause();
       connection.audioElement.srcObject = null;
       connection.audioElement = null;
-      debug.log('🔇 Audio element cleaned up for user:', connection.userId);
+      debug.log('Audio element cleaned up for user:', connection.userId);
     }
     if (connection.screenAudioElement) {
       connection.screenAudioElement.pause();
       connection.screenAudioElement.srcObject = null;
       connection.screenAudioElement = null;
-      debug.log('🔇 Screen audio element cleaned up for user:', connection.userId);
+      debug.log('Screen audio element cleaned up for user:', connection.userId);
     }
   }
 
@@ -1767,9 +1698,6 @@ export class UnifiedWebRTCService {
 
   // AUDIO SETTINGS MANAGEMENT
 
-  /**
-   * Get selected devices
-   */
   getSelectedDevices(): { inputDevice: string | null; outputDevice: string | null; videoDevice: string | null } {
     return {
       inputDevice: this.selectedInputDevice,
@@ -1789,14 +1717,14 @@ export class UnifiedWebRTCService {
         noiseSuppression: constraints.noiseSuppression,
         autoGainControl: constraints.autoGainControl,
       };
-      debug.log('🎛️ [P2P] Loaded audio settings:', this.audioConstraints);
+      debug.log('[P2P] Loaded audio settings:', this.audioConstraints);
       
       this.selectedInputDevice = devices.inputDevice;
       this.selectedOutputDevice = devices.outputDevice;
       this.selectedVideoDevice = devices.videoDevice;
-      debug.log('🎛️ [P2P] Loaded device settings:', devices);
+      debug.log('[P2P] Loaded device settings:', devices);
     } catch (error) {
-      debug.warn('⚠️ [P2P] Failed to load audio settings:', error);
+      debug.warn('[P2P] Failed to load audio settings:', error);
     }
   }
 
@@ -1818,9 +1746,9 @@ export class UnifiedWebRTCService {
         VoiceSettingsService.setVideoDevice(this.selectedVideoDevice);
       }
       
-      debug.log('💾 [P2P] Saved audio and device settings via VoiceSettingsService');
+      debug.log('[P2P] Saved audio and device settings via VoiceSettingsService');
     } catch (error) {
-      debug.warn('⚠️ [P2P] Failed to save audio settings:', error);
+      debug.warn('[P2P] Failed to save audio settings:', error);
     }
   }
 
@@ -1833,26 +1761,21 @@ export class UnifiedWebRTCService {
     });
   }
 
-  /**
-   * Update audio constraints and restart audio stream if needed
-   */
+  /** Restarts the audio stream when the constraints change mid-call. */
   async updateAudioConstraints(constraints: { echoCancellation?: boolean; noiseSuppression?: boolean; autoGainControl?: boolean }): Promise<void> {
-    debug.log('🎛️ Updating audio constraints:', constraints);
+    debug.log('Updating audio constraints:', constraints);
     
     Object.assign(this.audioConstraints, constraints);
     this.saveAudioSettings();
     
-    // If we're currently connected, restart the audio stream with new constraints
     if (this.localStream && this.channelId) {
       const currentMuteState = this.localMediaState.isMuted;
 
-      // BUGS.md H22 v2: same fix as `updateInputDevice` - acquire the new
-      // stream FIRST, then stop and remove the old tracks. The previous
-      // order would silently kill the user's mic when `getUserMedia` failed
-      // for the new constraints (e.g. AGC toggled to a value the device
-      // doesn't support, or permission flipped between settings save and
-      // apply). BUGS.md H22 explicitly cites this method (range 1837-1883
-      // in the audit) as a second site that needed the same ordering fix.
+      // BUGS.md H22 v2, mirroring `updateInputDevice`: acquire the new stream
+      // FIRST, then stop and remove the old tracks. The reverse order kills
+      // the mic whenever `getUserMedia` rejects the new constraints (AGC value
+      // the device cannot honour, permission flipped between save and apply).
+      // BUGS.md H22 lists this method at audit lines 1837-1883.
       try {
         const newAudioStream = await navigator.mediaDevices.getUserMedia({
           audio: this.audioConstraints,
@@ -1861,8 +1784,7 @@ export class UnifiedWebRTCService {
 
         const newAudioTrack = newAudioStream.getAudioTracks()[0];
         if (newAudioTrack) {
-          // Only NOW swap - the old tracks are stopped after the new
-          // stream is committed.
+          // New stream is committed; stop the old tracks.
           const oldAudioTracks = this.localStream.getAudioTracks();
           oldAudioTracks.forEach(track => {
             track.stop();
@@ -1879,30 +1801,25 @@ export class UnifiedWebRTCService {
               
               if (audioSender) {
                 await audioSender.replaceTrack(newAudioTrack);
-                debug.log('🔄 Replaced audio track for peer:', userId);
+                debug.log('Replaced audio track for peer:', userId);
               }
             } catch (error) {
-              debug.error('❌ Error updating audio track for peer', userId, ':', error);
+              debug.error('Error updating audio track for peer', userId, ':', error);
             }
           }
           
-          // Restart audio level monitoring
           this.setupAudioLevelMonitoring();
           
-          debug.log('✅ Audio stream updated with new constraints');
+          debug.log('Audio stream updated with new constraints');
           this.emit('local-stream-changed', this.localStream);
         }
       } catch (error) {
-        debug.error('❌ Failed to update audio constraints:', error);
-        // Try to restore previous state if possible
+        debug.error('Failed to update audio constraints:', error);
         this.emit('error', error);
       }
     }
   }
 
-  /**
-   * Get current audio constraints
-   */
   getAudioConstraints(): { echoCancellation: boolean; noiseSuppression: boolean; autoGainControl: boolean } {
     return {
       echoCancellation: this.audioConstraints.echoCancellation,

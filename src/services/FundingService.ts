@@ -20,7 +20,7 @@ export interface FundingConfig {
   kofi_auto_assign_tier: boolean
 }
 
-/** Canonical platform keys we render with branded icons in the UI. */
+/** Canonical platform keys rendered with branded icons in the UI. */
 export const FUNDING_PLATFORMS = [
   'ko-fi',
   'patreon',
@@ -117,20 +117,18 @@ export interface PendingDonation {
   resolved_user_id: string | null
 }
 
-const BADGE_CACHE_TTL = 5 * 60 * 1000 // 5 minutes
+const BADGE_CACHE_TTL = 5 * 60 * 1000
 const badgeCache = new Map<string, { badge: SupporterBadge | null; fetchedAt: number }>()
 
 // Dedup in-flight badge requests so concurrent calls for the same user share one RPC
 const pendingBadgeRequests = new Map<string, Promise<SupporterBadge | null>>()
 
-// ---------------------------------------------------------------------------
 // Coalescing batch loader (DataLoader-style).
 //
 // A chat view renders one <SupporterBadge> per message author, each calling
-// getSupporterBadge() on mount within the same tick. Previously that produced
-// one /rpc/get_supporter_badge POST per user (an N+1 storm). We now collect all
-// userIds requested in the same microtask and resolve them with a single
-// get_supporter_badges(uuid[]) round-trip.
+// getSupporterBadge() on mount within the same tick. userIds requested in the
+// same microtask resolve through a single get_supporter_badges(uuid[])
+// round-trip rather than one /rpc/get_supporter_badge POST each.
 const badgeLoadQueue = new Set<string>()
 const badgeQueueResolvers = new Map<string, Array<(badge: SupporterBadge | null) => void>>()
 let badgeFlushScheduled = false
@@ -188,9 +186,8 @@ function queueBadgeLoad(userId: string): Promise<SupporterBadge | null> {
   })
 }
 
-// Normalize the supporter_membership shape returned by the PostgREST embed
-// `author.supporter_membership[*]` into the same SupporterBadge shape that
-// `getSupporterBadge` returns. Caller passes the raw embed array.
+// Normalizes the PostgREST embed `author.supporter_membership[*]` into the
+// SupporterBadge shape returned by getSupporterBadge. Takes the raw embed array.
 export function badgeFromMembership(
   membership: Array<{ is_active: boolean; tier: { name: string; badge_icon: string | null; badge_color: string | null } | null }> | null | undefined
 ): SupporterBadge | null {
@@ -205,8 +202,8 @@ export function badgeFromMembership(
   }
 }
 
-// Cache pre-resolved badges so SupporterBadge can render instantly without
-// hitting the RPC. Used by timeline loaders that already have the embed data.
+// Caches pre-resolved badges so SupporterBadge renders without an RPC.
+// Called by timeline loaders that already hold the embed data.
 export function primeBadgeCache(userId: string, badge: SupporterBadge | null): void {
   badgeCache.set(userId, { badge, fetchedAt: Date.now() })
 }
@@ -419,10 +416,7 @@ class FundingService {
     return request
   }
 
-  /**
-   * Batch-prefetch supporter badges for multiple users at once.
-   * Fills the cache so individual SupporterBadge components hit cache instead of RPC.
-   */
+  /** Fills the badge cache so individual SupporterBadge components skip the RPC. */
   async prefetchBadges(userIds: string[]): Promise<void> {
     const now = Date.now()
     const uncached = [...new Set(userIds)].filter(id => {
@@ -436,11 +430,11 @@ class FundingService {
   }
 
   /**
-   * Records a donation and snaps the user's supporter tier to match their
-   * new cumulative cycle total. The cumulative semantics (vs picking from
-   * the single donation amount) means small recurring donations correctly
-   * unlock tiers, and donations below any tier leave tier_id NULL so no
-   * badge displays. See migration 20260524_cumulative_tier_and_notifications.
+   * Records a donation and snaps the user's supporter tier to the new
+   * cumulative cycle total. Cumulative (rather than single-amount) semantics
+   * let small recurring donations unlock tiers; a total below the lowest tier
+   * leaves tier_id NULL and no badge displays.
+   * See migration 20260524_cumulative_tier_and_notifications.
    */
   async addDonation(
     supporterId: string,
@@ -466,9 +460,8 @@ class FundingService {
 
       if (error) throw error
 
-      // Recompute tier from cumulative cycle total. Fire-and-log: even if
-      // this fails the donation row is already recorded, and the next call
-      // will snap things back into sync.
+      // Recompute tier from cumulative cycle total. Fire-and-log: on failure
+      // the donation row is already recorded and the next call resyncs.
       const { error: rpcErr } = await supabase.rpc('recompute_supporter_tier', { p_user_id: userId })
       if (rpcErr) debug.warn('addDonation: tier recompute failed:', rpcErr)
       badgeCache.delete(userId)
@@ -481,9 +474,9 @@ class FundingService {
   }
 
   /**
-   * Recompute a user's supporter tier from their cumulative cycle total.
-   * Public wrapper around the SQL helper - handy after manually editing or
-   * deleting donations so the badge stays consistent.
+   * Recomputes a user's supporter tier from their cumulative cycle total.
+   * Public wrapper around the SQL helper; call after manually editing or
+   * deleting donations to keep the badge consistent.
    */
   async recomputeSupporterTier(userId: string): Promise<string | null> {
     try {
@@ -515,7 +508,7 @@ class FundingService {
 
   async updateDonation(donationId: string, updates: { amount?: number; currency?: string; platform?: string | null; note?: string | null; donated_at?: string }): Promise<boolean> {
     try {
-      // Snapshot affected user_id first so we can recompute their tier after the edit.
+      // Snapshot the affected user_id before the edit; the tier recompute needs it.
       const { data: existing } = await supabase
         .from('instance_donation_history')
         .select('user_id')
@@ -593,9 +586,7 @@ class FundingService {
     }
   }
 
-  // -------------------------------------------------------------------------
   // Pending donations (webhook integrations)
-  // -------------------------------------------------------------------------
 
   /** Lists pending donations awaiting admin resolution. */
   async getPendingDonations(includeResolved = false): Promise<PendingDonation[]> {
@@ -622,11 +613,11 @@ class FundingService {
    * Resolves a pending donation by attributing it to a user. Creates the
    * matching supporter + donation_history rows, then recomputes the user's
    * tier from their cumulative cycle total (so multiple small donations
-   * correctly aggregate into a tier). Idempotent on retry via the
+   * aggregate into a tier). Idempotent on retry via the
    * (platform, external_reference) unique index.
    *
-   * The `tierId` parameter is ignored - the cumulative recompute is
-   * authoritative. It's kept in the signature for API compatibility.
+   * The `tierId` parameter is ignored; the cumulative recompute is
+   * authoritative. Kept in the signature for API compatibility.
    */
   async resolvePendingDonation(pendingId: string, userId: string, _tierId?: string | null): Promise<boolean> {
     try {
@@ -676,7 +667,7 @@ class FundingService {
           external_reference: pending.external_reference,
           note: pending.donor_message,
         })
-      // Tolerate duplicate-key - webhook may have already inserted via retry.
+      // Tolerate duplicate-key: the webhook may have already inserted on retry.
       if (histErr && histErr.code !== '23505') throw histErr
 
       const { data: { user } } = await supabase.auth.getUser()
@@ -691,9 +682,9 @@ class FundingService {
 
       if (resolveErr) throw resolveErr
 
-      // Recompute tier from cumulative cycle total - this is what actually
-      // assigns the badge. If amount < lowest tier, tier_id becomes NULL
-      // and the user keeps a supporter row but no badge displays.
+      // Recompute from cumulative cycle total; this assigns the badge.
+      // Below the lowest tier, tier_id becomes NULL: the supporter row
+      // remains but no badge displays.
       const { error: rpcErr } = await supabase.rpc('recompute_supporter_tier', { p_user_id: userId })
       if (rpcErr) debug.warn('resolvePendingDonation: tier recompute failed:', rpcErr)
 

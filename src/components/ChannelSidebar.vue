@@ -19,7 +19,7 @@
       />
     </div>
     
-    <!-- Orphan Channels (not in any category) -->
+    <!-- Channels belonging to no category -->
     <div class="orphan-channels">
       <draggable
         v-model="orphanChannels"
@@ -62,7 +62,6 @@
               <div v-if="getChannelUnreadMentions(element.id) > 0" class="notification-badge">
                 {{ getChannelUnreadMentions(element.id) > 99 ? '99+' : getChannelUnreadMentions(element.id) }}
               </div>
-              <!-- Voice channel controls -->
               <div v-if="isVoiceType(element.type)" class="voice-controls">
                 <span v-if="getUsersInVoiceChannel(element.id).length > 0" class="user-count">
                   {{ getUsersInVoiceChannel(element.id).length }}
@@ -76,19 +75,18 @@
                 </button>
               </div>
             </div>
-            <!-- Voice channel participants -->
             <VoiceChannelParticipants
               v-if="isVoiceType(element.type) && isUserInVoiceChannel(element.id)"
               :participants="getVoiceChannelParticipants(element.id)"
               :session-start-time="getVoiceSessionStartTime(element.id)"
             />
-            <!-- Voice channel users (for channels we're NOT in) -->
+            <!-- Roster for voice channels the user has not joined -->
             <VoiceChannelUserList
               v-else-if="isVoiceType(element.type) && getUsersInVoiceChannel(element.id).length > 0"
               :user-ids="getUsersInVoiceChannel(element.id)"
               :call-start-time="getChannelCallStartTime(element.id)"
             />
-            <!-- Active threads under this channel () -->
+            <!-- Active threads nested under the channel -->
             <div 
               v-for="thread in getChannelActiveThreads(element.id)"
               :key="thread.id"
@@ -105,7 +103,6 @@
       </draggable>
     </div>
 
-    <!-- Categories and Channels -->
     <draggable
       v-model="reorderableCategories"
       :group="{ name: 'categories', put: false, pull: false }"
@@ -117,7 +114,6 @@
     >
       <template #item="{ element: category }">
         <div :key="category.id" class="category-section">
-          <!-- Category Header -->
           <div 
             class="category-header"
             @click="toggleCategory(category.id)"
@@ -136,7 +132,7 @@
             <span class="category-name">{{ category.name.toUpperCase() }}</span>
           </div>
 
-          <!-- Channel List - Always show for drag & drop, even if empty -->
+          <!-- Rendered when empty as well; an empty list is a valid drop target -->
           <div 
             class="channel-list"
             :class="{ 
@@ -189,7 +185,6 @@
                     <div v-if="getChannelUnreadMentions(channel.id) > 0" class="notification-badge">
                       {{ getChannelUnreadMentions(channel.id) > 99 ? '99+' : getChannelUnreadMentions(channel.id) }}
                     </div>
-                    <!-- Voice channel controls -->
                     <div v-if="isVoiceType(channel.type)" class="voice-controls">
                       <span v-if="getUsersInVoiceChannel(channel.id).length > 0" class="user-count">
                         {{ getUsersInVoiceChannel(channel.id).length }}
@@ -203,19 +198,18 @@
                       </button>
                     </div>
                   </div>
-                  <!-- Voice channel participants -->
                   <VoiceChannelParticipants
                     v-if="isVoiceType(channel.type) && isUserInVoiceChannel(channel.id)"
                     :participants="getVoiceChannelParticipants(channel.id)"
                     :session-start-time="getVoiceSessionStartTime(channel.id)"
                   />
-                  <!-- Voice channel users (for channels we're NOT in) -->
+                  <!-- Roster for voice channels the user has not joined -->
                   <VoiceChannelUserList
                     v-else-if="isVoiceType(channel.type) && getUsersInVoiceChannel(channel.id).length > 0"
                     :user-ids="getUsersInVoiceChannel(channel.id)"
                     :call-start-time="getChannelCallStartTime(channel.id)"
                   />
-                  <!-- Active threads under this channel () -->
+                  <!-- Active threads nested under the channel -->
                   <div 
                     v-for="thread in getChannelActiveThreads(channel.id)"
                     :key="thread.id"
@@ -229,7 +223,6 @@
                   </div>
                 </div>
               </template>
-              <!-- Empty state for drag target - only show when dragging channels -->
               <template #footer v-if="getCachedCategoryChannels(category.id).value.length === 0 && dragState.isDragging">
                 <div class="empty-category-placeholder">
                   Drop channels here
@@ -241,7 +234,6 @@
       </template>
     </draggable>
 
-    <!-- Invite Modal -->
     <InviteModal 
       :show="showInviteModal" 
       :server-id="currentServer.id"
@@ -249,7 +241,7 @@
       @close="closeInviteModal"
     />
 
-    <!-- Context Menus (teleported to body to avoid will-change:transform breaking position:fixed) -->
+    <!-- Teleported to body: an ancestor's will-change:transform breaks position:fixed -->
     <Teleport to="body">
       <ChannelContextMenu
         :is-visible="showChannelContextMenu"
@@ -288,7 +280,6 @@
       />
     </Teleport>
 
-    <!-- Edit Modals -->
     <ChannelEditModal
       :show="showChannelEditModal"
       :channel="selectedChannel"
@@ -310,7 +301,6 @@
       @updated="handleThreadUpdated"
     />
 
-    <!-- Confirmation Modal -->
     <ConfirmationModal
       :show="showConfirmationModal"
       :title="confirmationConfig.title"
@@ -323,7 +313,6 @@
       @confirm="confirmationConfig.onConfirm"
     />
 
-    <!-- Mobile Voice Channel Preview -->
     <MobileVoiceChannelPreview
       :is-visible="showMobileVoicePreview"
       :channel-id="mobileVoicePreviewChannel?.id || ''"
@@ -337,7 +326,7 @@
 </template>
 
 <script setup lang="ts">
-// TODO: Consider virtualizing channel/category lists for servers with many channels
+// Channel and category lists are not virtualized.
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { debug } from '@/utils/debug'
 import { useServerUsersStore } from '@/stores/useServerUsers';
@@ -419,11 +408,11 @@ const isDropdownOpen = ref(false);
 const showInviteModal = ref(false);
 const isCategoryCreatorOpen = ref(false);
 
-// Threads state - keyed by channel ID
+// Threads keyed by channel ID.
 const channelThreads = ref<Map<string, ThreadWithDetails[]>>(new Map());
 const selectedThreadId = ref<string | null>(null);
 const loadingThreads = ref(false);
-// Thread caching - track which server's threads are loaded and when
+// Cache key: which server's threads are loaded, and when.
 const loadedThreadsServerId = ref<string | null>(null);
 const threadsLastFetchedAt = ref<Date | null>(null);
 const THREAD_CACHE_VALIDITY_MS = 60 * 1000; // 1 minute cache validity
@@ -490,8 +479,7 @@ const getDragCursor = (itemType: 'channel' | 'category', isDragging = false) => 
 };
 const { triggerVoice } = useHapticSettings();
 
-// Computed Properties
-// Only consider mobile if screen is actually small (touch-enabled desktops should still allow drag)
+// Touch-capable desktops keep drag; only a small viewport counts as mobile.
 const isVoiceType = (type: any): boolean => Number(type) === 1;
 
 const { isMobileViewport, isTouchOnly } = useViewport();
@@ -503,12 +491,11 @@ const dragGroup = computed(() => ({
   pull: true,
 }));
 
-// Pass the raw server row through - InviteModal normalizes `icon`/`banner`
-// via serverUtils and fetches the live member count itself.
+// Raw server row: InviteModal normalizes `icon`/`banner` via serverUtils and
+// fetches the live member count itself.
 //
-// Returns `undefined` (not `null`) when there's no server, because that's
-// what InviteModal's optional `server-data` prop type accepts; returning
-// `null` produces a TS2322 error since the prop signature is `T | undefined`.
+// Absent server yields `undefined`, not `null`: the `server-data` prop is
+// typed `T | undefined`, and `null` raises TS2322.
 const currentServerData = computed(() => {
   if (!props.currentServer) return undefined;
   return {
@@ -608,7 +595,7 @@ const initializeCategoryStates = async () => {
     });
     collapsedCategories.value = newCollapsedSet;
   } catch (error) {
-    debug.warn('⚠️ Failed to initialize category states:', error);
+    debug.warn('Failed to initialize category states:', error);
   }
 };
 
@@ -676,9 +663,7 @@ const onChannelAddedToOrphans = async (evt: any) => {
 };
 
 const onChannelRemovedFromCategory = (_evt: any) => {
-  // This handles when a channel is removed from a category during drag operations
-  // The actual move logic is handled by the corresponding @add event handler
-  // This is mainly for cleanup or visual feedback if needed
+  // The matching @add handler performs the move; this side only logs.
   debug.log('Channel removed from category during drag operation');
 };
 
@@ -733,14 +718,13 @@ const toggleCategory = async (categoryId: string) => {
     try {
       await statePersistence.setCategoryCollapseState(props.currentServer.id, categoryId, !wasCollapsed);
     } catch (error) {
-      debug.warn('⚠️ Failed to persist category collapse state:', error);
+      debug.warn('Failed to persist category collapse state:', error);
     }
   }
 };
 
 const toggleDropdown = () => isDropdownOpen.value = !isDropdownOpen.value;
 const selectChannel = (channelId: string) => {
-  // Professional navigation with proper route structure
   const serverId = props.currentServer.id;
   if (!serverId) {
     debug.warn('Cannot navigate to channel: No server ID available');
@@ -756,16 +740,14 @@ const selectChannel = (channelId: string) => {
   });
 };
 
-// Handler for voice channel clicks - Discord-like behavior
-// On mobile, show preview instead of auto-joining
+// Mobile opens the preview modal; desktop joins on click.
 const handleVoiceChannelClick = async (channelId: string) => {
-  // If already in this voice channel, just navigate to its text chat
+  // Already connected: navigate to the channel's text chat.
   if (isUserInVoiceChannel(channelId)) {
     selectChannel(channelId);
     return;
   }
   
-  // On mobile, show the preview modal instead of auto-joining
   if (isMobile.value) {
     const channel = props.channels.find(c => c.id === channelId);
     if (channel) {
@@ -775,12 +757,10 @@ const handleVoiceChannelClick = async (channelId: string) => {
     return;
   }
   
-  // Desktop: Navigate to channel text chat + join voice
   selectChannel(channelId);
   await joinVoiceChannel(channelId);
 };
 
-// Mobile voice preview handlers
 const closeMobileVoicePreview = () => {
   showMobileVoicePreview.value = false;
   mobileVoicePreviewChannel.value = null;
@@ -792,10 +772,9 @@ const handleMobileVoiceJoin = async (startMuted: boolean) => {
   const channelId = mobileVoicePreviewChannel.value.id;
   closeMobileVoicePreview();
   
-  // Join the voice channel
   const success = await joinVoiceChannel(channelId);
   
-  // If user chose to start muted, set mute state after joining
+  // Mute state applies only after the join succeeds.
   if (success && startMuted) {
     voiceChannelStore.setMuted(true);
   }
@@ -831,34 +810,33 @@ watch(() => serverChannelStore.pendingInviteOpen, (pending) => {
   }
 });
 
-// Threads methods
 const loadActiveThreads = async (forceRefresh = false) => {
   if (!props.currentServer?.id) return;
   
   const serverId = props.currentServer.id;
   
-  // Check cache validity - skip fetch if data is fresh and for the same server
-  // Note: We don't check channelThreads.value.size > 0 because "zero threads" is also a valid cached state
+  // NOTE: channelThreads.value.size is not part of the validity test; zero
+  // threads is a valid cached result.
   if (!forceRefresh && 
       loadedThreadsServerId.value === serverId && 
       threadsLastFetchedAt.value) {
     const cacheAge = Date.now() - threadsLastFetchedAt.value.getTime();
     if (cacheAge < THREAD_CACHE_VALIDITY_MS) {
-      debug.log(`📦 Threads cache still valid (${Math.round(cacheAge / 1000)}s old, ${channelThreads.value.size} threads), skipping fetch`);
+      debug.log(`Threads cache still valid (${Math.round(cacheAge / 1000)}s old, ${channelThreads.value.size} threads), skipping fetch`);
       return;
     }
   }
   
   loadingThreads.value = true;
   try {
-    // Run auto-archive first so the query only returns truly active threads
+    // Auto-archive runs first so the query returns only active threads.
     supabase.rpc('auto_archive_threads').then(({ error }) => {
       if (error) debug.warn('auto_archive_threads RPC failed:', error);
     });
 
     const threads = await threadService.getServerThreads(serverId, { archived: false });
 
-    // Client-side safety net: filter out threads that should have been archived
+    // Safety net: drops threads already past their auto-archive expiry.
     const now = Date.now();
     const activeThreads = threads.filter(thread => {
       if (!thread.last_message_at || !thread.auto_archive_duration) return true;
@@ -867,7 +845,6 @@ const loadActiveThreads = async (forceRefresh = false) => {
       return expiresAt > now;
     });
 
-    // Group threads by channel ID
     const grouped = new Map<string, ThreadWithDetails[]>();
     for (const thread of activeThreads) {
       const channelId = thread.channel_id;
@@ -879,7 +856,7 @@ const loadActiveThreads = async (forceRefresh = false) => {
     channelThreads.value = grouped;
     loadedThreadsServerId.value = serverId;
     threadsLastFetchedAt.value = new Date();
-    debug.log(`✅ Loaded ${threads.length} threads for server, cached at ${threadsLastFetchedAt.value.toISOString()}`);
+    debug.log(`Loaded ${threads.length} threads for server, cached at ${threadsLastFetchedAt.value.toISOString()}`);
   } catch (error) {
     debug.error('Failed to load threads:', error);
     channelThreads.value = new Map();
@@ -894,7 +871,6 @@ const getChannelActiveThreads = (channelId: string): ThreadWithDetails[] => {
 
 const openThread = (thread: ThreadWithDetails) => {
   selectedThreadId.value = thread.id;
-  // Navigate to full thread view
   router.push({
     name: 'ThreadView',
     params: {
@@ -914,15 +890,15 @@ const createCategory = async (categoryName: string) => {
   }
 };
 
-// NOTE: Channel creation is handled by CreateChannel.vue which emits to ChatLayout.vue
-// The realtime subscription automatically adds new channels to the store via _handleChannelInsert
+// NOTE: channel creation lives in CreateChannel.vue, which emits to
+// ChatLayout.vue; the realtime subscription adds new channels to the store
+// via _handleChannelInsert.
 
 const isUserInVoiceChannel = (channelId: string): boolean => {
-  // Check real connection
   if (voiceChannelStore.isConnected && voiceChannelStore.currentChannelId === channelId) {
     return true;
   }
-  // Check optimistic state (joining in progress)
+  // Optimistic: join still in flight.
   if (voiceChannelStore.optimisticChannelId === channelId) {
     return true;
   }
@@ -932,7 +908,7 @@ const getUsersInVoiceChannel = (channelId: string): string[] => serverUsersStore
 const getChannelCallStartTime = (channelId: string): Date | null => serverUsersStore.getCallStartTime(channelId);
 
 const getVoiceChannelParticipants = (channelId: string) => {
-  // effectiveChannelId includes the optimistic id so the roster shows while connecting
+  // effectiveChannelId covers the optimistic id, so the roster shows while connecting.
   if (voiceChannelStore.effectiveChannelId === channelId) {
     return voiceChannelStore.allParticipants;
   }
@@ -940,7 +916,7 @@ const getVoiceChannelParticipants = (channelId: string) => {
 };
 
 const getVoiceSessionStartTime = (channelId: string) => {
-  // Only return session start time if the current user is in this specific channel
+  // Session start time belongs to the channel the local user occupies.
   if (voiceChannelStore.currentChannelId === channelId) {
     return voiceChannelStore.sessionStartTime;
   }
@@ -948,15 +924,14 @@ const getVoiceSessionStartTime = (channelId: string) => {
 };
 
 const joinVoiceChannel = async (channelId: string): Promise<boolean> => {
-  // Play sound and haptic immediately for optimistic UX (don't wait for connection)
+  // Feedback fires before the connection resolves.
   themeStore.playAudio('voice_connect');
   triggerVoice('success');
   
-  // Then attempt the actual connection
   const success = await voiceChannelStore.joinVoiceChannel(channelId, props.currentServer.id);
   
   if (!success) {
-    // Connection failed - play disconnect sound to indicate failure
+    // Disconnect sound signals the failed join.
     themeStore.playAudio('voice_disconnect');
     triggerVoice('warning');
   }
@@ -968,7 +943,6 @@ const joinVoiceChannel = async (channelId: string): Promise<boolean> => {
 const leaveVoiceChannel = async (_channelId: string) => {
   if (await voiceChannelStore.leaveVoiceChannel()) {
     themeStore.playAudio('voice_disconnect');
-    // Haptic feedback for voice disconnect
     triggerVoice('warning');
   }
 };
@@ -996,7 +970,6 @@ const closeContextMenus = () => {
   showThreadContextMenu.value = false;
 };
 
-// Thread context menu handler
 const openThreadContextMenu = (event: MouseEvent, thread: ThreadWithDetails) => {
   event.preventDefault();
   event.stopPropagation();
@@ -1042,7 +1015,7 @@ const handleEditCategory = (category: Category) => {
   showCategoryEditModal.value = true;
 };
 
-// State for category deletion with channels option
+// Set when the confirmation input requests deleting the contained channels.
 const deleteCategoryWithChannels = ref(false);
 
 const handleDeleteCategory = (category: Category) => {
@@ -1078,7 +1051,6 @@ const handleDeleteCategory = (category: Category) => {
   showConfirmationModal.value = true;
 };
 
-// Thread context menu action handlers
 const handleLeaveThread = async () => {
   if (!selectedThread.value) return;
   try {
@@ -1095,7 +1067,7 @@ const handleEditThread = (thread: ThreadWithDetails) => {
 };
 
 const handleOpenSplitView = (thread: ThreadWithDetails) => {
-  // Emit the thread to open it in the panel (split view) instead of navigating to full-page view
+  // Opens in the side panel; the full-page route is not used here.
   emit('openThread', thread);
 };
 
@@ -1148,7 +1120,7 @@ const handleDeleteThread = (thread: ThreadWithDetails) => {
         await threadService.deleteThread(thread.id);
         await loadActiveThreads(true); // Force refresh after mutation
         closeConfirmationModal();
-        // Navigate back to channel if we were viewing this thread
+        // Deleting the open thread falls back to its parent channel.
         if (selectedThreadId.value === thread.id) {
           selectedThreadId.value = null;
           if (thread.channel_id) {
@@ -1177,26 +1149,24 @@ const closeConfirmationModal = () => showConfirmationModal.value = false;
 const handleChannelUpdated = (_updatedChannel: Channel) => {}; // Store handles updates
 const handleCategoryUpdated = (_updatedCategory: Category) => {}; // Store handles updates
 const handleThreadUpdated = () => {
-  // Refresh threads list after editing
   loadActiveThreads(true); // Force refresh after mutation
 };
 
 // Lifecycle Hooks
 watch(() => props.currentServer?.id, async (newServerId, oldServerId) => {
-  debug.log('🔄 Server changed:', { old: oldServerId, new: newServerId });
+  debug.log('Server changed:', { old: oldServerId, new: newServerId });
   if (newServerId) {
     initializeCategoryStates();
-    // Setup voice channel broadcast for real-time updates
-    // Await this to ensure voice channel state is fetched before rendering
-    debug.log('📞 Setting up voice channel broadcast for server:', newServerId);
+    // Awaited so voice channel state is present before render.
+    debug.log('Setting up voice channel broadcast for server:', newServerId);
     await serverUsersStore.setupVoiceChannelBroadcast(newServerId);
-    debug.log('✅ Voice channel broadcast setup complete for server:', newServerId);
-    debug.log('👥 Users in voice channels:', serverUsersStore.usersInVoiceChannels);
+    debug.log('Voice channel broadcast setup complete for server:', newServerId);
+    debug.log('Users in voice channels:', serverUsersStore.usersInVoiceChannels);
   }
 }, { immediate: true });
 
-// NOTE: Voice channel broadcast setup is handled by the watch above with { immediate: true }
-// No need for duplicate setup in onMounted - it was causing double initialization
+// NOTE: the watch above runs with { immediate: true }; repeating the setup in
+// onMounted initializes the broadcast twice.
 
 watch(() => serverChannelStore.categories, () => categoryChannelsCache.value.clear(), { deep: true });
 watch(() => serverChannelStore.categoryChannels, () => categoryChannelsCache.value.clear(), { deep: true });
@@ -1208,7 +1178,7 @@ watch(() => props.currentServer?.id, (newServerId) => {
   }
 }, { immediate: true });
 
-// Sync selectedThreadId with route (for thread full view)
+// selectedThreadId tracks the route param used by the full thread view.
 watch(() => route.params.threadId, (threadId) => {
   if (threadId && typeof threadId === 'string') {
     selectedThreadId.value = threadId;
@@ -1217,10 +1187,10 @@ watch(() => route.params.threadId, (threadId) => {
   }
 }, { immediate: true });
 
-// Thread changes now arrive via server-structure broadcast
+// Thread changes arrive on the server-structure broadcast.
 
 const threadChangeHandler = () => {
-  debug.log('🧵 Thread change detected via broadcast');
+  debug.log('Thread change detected via broadcast');
   loadActiveThreads(true);
 };
 
@@ -1229,9 +1199,8 @@ const setupThreadsSubscription = () => {
   window.addEventListener('server-structure:thread-change', threadChangeHandler);
 };
 
-// Local update for channel mute toggles so the sidebar reflects the change
-// immediately. The full refetch via `loadMutedChannels()` is reserved for
-// server switches and component mount.
+// Mute toggles update local state directly; `loadMutedChannels()` refetches
+// only on server switch and mount.
 const channelMuteChangedHandler = (event: Event) => {
   const detail = (event as CustomEvent).detail as { channelId?: string; muted?: boolean } | undefined;
   if (!detail?.channelId) return;
@@ -1256,7 +1225,6 @@ onUnmounted(() => {
   window.removeEventListener('channel-mute-changed', channelMuteChangedHandler);
 });
 
-// Re-setup subscription when server changes
 watch(() => props.currentServer?.id, () => {
   setupThreadsSubscription();
 });
@@ -1308,7 +1276,7 @@ watch(() => props.currentServer?.id, () => {
   background: var(--background-secondary);
 }
 
-/* Wrapper for channel + participants (required for draggable) */
+/* draggable requires one wrapper element per item; holds channel plus participants. */
 .channel-wrapper {
   display: block;
   width: 100%;
@@ -1340,7 +1308,6 @@ watch(() => props.currentServer?.id, () => {
   color: var(--text-primary);
 }
 
-/* Voice channel connected state */
 .channel-item.voice-connected {
   background-color: rgba(87, 242, 135, 0.1);
 }
@@ -1349,9 +1316,9 @@ watch(() => props.currentServer?.id, () => {
   background-color: rgba(87, 242, 135, 0.15);
 }
 
-/* Muted channels: dim the name + icon, but keep the bell-off indicator and
-   the mention badge at full opacity. Mentions still cut through mute, and
-   the bell-off icon is the visual cue that the channel IS muted. */
+/* Muted channels dim the name and icon. The bell-off indicator and the
+   mention badge stay at full opacity: mentions cut through mute, and the
+   bell-off icon is the mute cue. */
 .channel-item.muted .channel-content {
   opacity: 0.5;
 }
@@ -1360,8 +1327,8 @@ watch(() => props.currentServer?.id, () => {
   opacity: 0.75;
 }
 
-/* The unread "channel-unread" bold/white styling shouldn't fire on muted
-   channels even if some other store thinks there are unread messages. */
+/* Overrides channel-unread bold/white on muted channels regardless of the
+   unread count reported by the store. */
 .channel-item.muted.channel-unread {
   color: var(--text-secondary, #949BA4);
 }
@@ -1475,7 +1442,6 @@ watch(() => props.currentServer?.id, () => {
   display: block; /* Always show if there are important channels */
 }
 
-/* Channels in collapsed categories should be styled differently */
 .channel-item.in-collapsed-category {
   opacity: 0.8;
 }
@@ -1486,7 +1452,6 @@ watch(() => props.currentServer?.id, () => {
   color: var(--text-primary);
 }
 
-/* Category header styling when collapsed but has visible channels */
 .category-header.has-visible-channels.collapsed {
   opacity: 0.8;
 }
@@ -1495,7 +1460,6 @@ watch(() => props.currentServer?.id, () => {
   font-size: 12px;
 } */
 
-/* Notification badge for channels with notifications */
 .notification-badge {
   min-width: 18px;
   height: 18px;
@@ -1514,7 +1478,6 @@ watch(() => props.currentServer?.id, () => {
   flex-shrink: 0;
 }
 
-/* Voice channel controls */
 .voice-controls {
   display: flex;
   align-items: center;
@@ -1527,7 +1490,6 @@ watch(() => props.currentServer?.id, () => {
   opacity: 1;
 }
 
-/* Always show controls when connected to voice */
 .channel-item.voice-connected .voice-controls {
   opacity: 1;
 }
@@ -1575,7 +1537,6 @@ watch(() => props.currentServer?.id, () => {
   text-align: center;
 }
 
-/* Enhanced Drag & Drop Styles */
 .orphan-channels {
   min-height: 20px;
   transition: all 0.2s ease;
@@ -1590,7 +1551,7 @@ watch(() => props.currentServer?.id, () => {
   padding-bottom: 96px;
 }
 
-/* Channel Thread Items ( nested under channels) */
+/* Thread items nested under a channel */
 .channel-thread-item {
   display: flex;
   align-items: center;
@@ -1622,7 +1583,7 @@ watch(() => props.currentServer?.id, () => {
   background: var(--channel-item-selected-bg, var(--background-quaternary));
 }
 
-/* Thread branch/tree-line - vertical line connecting to parent */
+/* Tree line joining a thread to its parent channel */
 .channel-thread-item .thread-branch {
   position: absolute;
   left: 16px;
@@ -1631,7 +1592,7 @@ watch(() => props.currentServer?.id, () => {
   pointer-events: none;
 }
 
-/* Vertical line */
+/* Vertical segment */
 .channel-thread-item .thread-branch::before {
   content: '';
   position: absolute;
@@ -1643,7 +1604,7 @@ watch(() => props.currentServer?.id, () => {
   opacity: 0.5;
 }
 
-/* Horizontal line to text */
+/* Horizontal segment reaching the label */
 .channel-thread-item .thread-branch::after {
   content: '';
   position: absolute;
@@ -1657,12 +1618,12 @@ watch(() => props.currentServer?.id, () => {
   border-radius: 0 2px 2px 0;
 }
 
-/* Last thread item - rounded corner */
+/* Last item: corner rounds off */
 .channel-thread-item:last-of-type .thread-branch::before {
   border-bottom-left-radius: 4px;
 }
 
-/* Not last - extend vertical line down */
+/* Otherwise the vertical segment runs to the next item */
 .channel-thread-item:not(:last-of-type) .thread-branch::before {
   bottom: 0;
 }
@@ -1674,7 +1635,6 @@ watch(() => props.currentServer?.id, () => {
   font-weight: 500;
 }
 
-/* Global drag feedback */
 :global(.dragging-channel) {
   cursor: grabbing !important;
 }
@@ -1683,7 +1643,6 @@ watch(() => props.currentServer?.id, () => {
   cursor: grabbing !important;
 }
 
-/* Empty category placeholder */
 .empty-category-placeholder {
   padding: 10px;
   text-align: center;
@@ -1699,7 +1658,6 @@ watch(() => props.currentServer?.id, () => {
   background-color: rgba(255, 255, 255, 0.05);
 }
 
-/* Context menu styles */
 .channel-context-menu,
 .category-context-menu {
   position: absolute;
@@ -1724,13 +1682,11 @@ watch(() => props.currentServer?.id, () => {
   background: rgba(255, 255, 255, 0.1);
 }
 
-/* Hide context menus by default */
 .channel-context-menu,
 .category-context-menu {
   display: none;
 }
 
-/* Show context menu when active */
 .channel-context-menu.active,
 .category-context-menu.active {
   display: block;
@@ -1744,7 +1700,7 @@ watch(() => props.currentServer?.id, () => {
   .server-header {
     width:100%;
   }
-  /* Enhanced touch targets for mobile */
+  /* 48px minimum touch target */
   .channel-item,
   .category-header {
     min-height: 48px;
@@ -1787,7 +1743,6 @@ watch(() => props.currentServer?.id, () => {
     letter-spacing: 0.5px;
   }
 
-  /* Voice channel mobile optimizations */
   .voice-channel-item {
     padding: 16px;
     border-radius: 12px;
@@ -1808,7 +1763,6 @@ watch(() => props.currentServer?.id, () => {
   }
 
 
-  /* Context menu adjustments for mobile */
   .channel-context-menu,
   .category-context-menu {
     width: 90vw;
@@ -1825,7 +1779,7 @@ watch(() => props.currentServer?.id, () => {
     align-items: center;
   }
 
-  /* Reduce drag and drop functionality on mobile */
+  /* Drag is disabled on mobile; pointer cursor and no text selection. */
   .drag-disabled {
     user-select: none;
     -webkit-user-select: none;
@@ -1837,7 +1791,6 @@ watch(() => props.currentServer?.id, () => {
   }
 }
 
-/* Tablet responsive adjustments */
 @media (max-width: 1024px) and (min-width: 769px) {
   .channel-item,
   .category-header {

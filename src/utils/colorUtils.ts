@@ -652,7 +652,7 @@ export function applyThemePalette(palette: ThemePalette): void {
   
   applyDerivedSurfaceSemanticTokens(palette)
 
-  debug.log('🎨 Applied custom theme palette with OKLCH:', palette)
+  debug.log('Applied custom theme palette with OKLCH:', palette)
 }
 
 /**

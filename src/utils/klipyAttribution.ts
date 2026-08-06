@@ -1,8 +1,8 @@
 /**
  * Klipy attribution helpers.
  *
- * Messages store GIFs/stickers/clips/memes/AI-emojis as plain media URLs. We
- * append a URL fragment the loader ignores but our renderer reads back, carrying:
+ * Messages store GIFs/stickers/clips/memes/AI-emojis as plain media URLs. A URL
+ * fragment the loader ignores, but the renderer reads back, carries:
  *   - `item` : the media's Klipy page (klipy.com/...) for the optional watermark link.
  *   - `kind` : 'sticker' | 'clip' | 'meme' | 'ai-emoji' (absent ⇒ 'gif').
  *
@@ -96,7 +96,7 @@ export function isStickerMessageUrl(mediaUrl: string): boolean {
 }
 
 /**
- * Klipy AI emoji - these ARE emoji, so they render exactly like one: emoji-sized,
+ * Klipy AI emoji - rendered exactly like an emoji: emoji-sized,
  * inline, no lightbox, no favorite affordance, and no KLIPY watermark.
  */
 export function isAiEmojiMessageUrl(mediaUrl: string): boolean {
@@ -108,7 +108,7 @@ export function isVideoMessageUrl(mediaUrl: string): boolean {
   return parseKlipyKind(mediaUrl) === 'clip'
 }
 
-/** Fallback Klipy page when we only know it's a Klipy CDN asset (no item page stored). */
+/** Fallback Klipy page for a Klipy CDN asset with no item page stored. */
 export function defaultKlipyHomeUrl(): string {
   return 'https://klipy.com'
 }

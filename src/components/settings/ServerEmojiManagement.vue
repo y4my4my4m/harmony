@@ -381,7 +381,7 @@ const handleEmojiFile = async (file: File) => {
 
   try {
     uploadingEmoji.value = true
-    debug.log('🎭 Uploading emoji with cache integration...')
+    debug.log('Uploading emoji with cache integration...')
     
     const newEmoji = await uploadEmoji(props.serverId, props.ownerId, file)
     
@@ -409,7 +409,7 @@ const confirmDeleteEmoji = async (emoji: Emoji) => {
 
   try {
     deletingEmoji.value = emoji.id
-    debug.log('🗑️ Deleting emoji with cache integration...')
+    debug.log('Deleting emoji with cache integration...')
     
     // deleteEmoji's current signature only takes emojiId; the second argument is
     // tolerated for backwards compatibility, so cast to bypass the strict check.
@@ -474,7 +474,7 @@ const handleBulkEmojiUpload = async (files: File[]) => {
       currentFile: ''
     }
 
-    debug.log('🎭 Starting bulk emoji upload...')
+    debug.log('Starting bulk emoji upload...')
     const results = await bulkUploadEmojis(props.serverId, props.ownerId, validFiles, (progress) => {
       uploadProgress.value = {
         total: progress.total,
@@ -539,7 +539,7 @@ const bulkDeleteSelected = async () => {
 
   try {
     deletingEmoji.value = 'bulk'
-    debug.log('🗑️ Starting bulk emoji deletion...')
+    debug.log('Starting bulk emoji deletion...')
     
     const results = await bulkDeleteEmojis(selectedEmojis.value)
     

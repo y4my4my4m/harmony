@@ -2,7 +2,11 @@
 
 This file tracks **unfixed defects** in the Harmony codebase, including security findings. It is the canonical "if you ship a Harmony instance, here is what you should know" list.
 
-Items previously listed as fixed have been removed; this list reflects the state of the tree after the July 2026 professionalization pass (`chore/professionalize` branch). The full historical audit (including items now resolved) lives in the [archive repository](https://github.com/y4my4my4m/harmony-archive).
+Items previously listed as fixed have been removed; this list reflects the state of the tree as of July 2026. Resolved items are in this repository's history.
+
+Locations are given to directory granularity. Exact file and line references are
+withheld for unfixed security items; report them through the process in
+SECURITY.md and they will be shared with the reporter.
 
 > ⚠️  **Operators / self-hosters:** several items below are exploitable security bugs without further context. If you run a public instance, please review the **Critical** and **High → Federation SSRF / Encryption / Auth** sections in detail before opening federation to the wider fediverse, and consider applying the migrations referenced under "Init / migration parity" before standing up a fresh database.
 
@@ -46,9 +50,9 @@ All three 20260520 security migrations are now mirrored in `db_schema/init/` (C8
 
 | # | Bug | Location |
 |---|-----|----------|
-| H6 | `isUserBusy` only queries server voice; ignores DM/LiveKit | `src/services/DMCallPermissions.ts` |
-| H7 | DM call **decline** path only toasts; ring/teardown still tied to `DMHeader` mount | `src/services/GlobalDMCallListener.ts`, `src/components/dm/DMHeader.vue` |
-| H8 | Recovery-code login disables MFA without AAL2 step-up (= C11) | `src/components/AuthComponent.vue` |
+| H6 | `isUserBusy` only queries server voice; ignores DM/LiveKit | `src/services/` |
+| H7 | DM call **decline** path only toasts; ring/teardown still tied to `DMHeader` mount | `src/services/`, `src/components/dm/` |
+| H8 | Recovery-code login disables MFA without AAL2 step-up (= C11) | `src/components/` |
 
 ### Encryption
 
@@ -56,15 +60,15 @@ All three 20260520 security migrations are now mirrored in `db_schema/init/` (C8
 
 | # | Bug | Location |
 |---|-----|----------|
-| H11 | Megolm signing keys are server-authoritative (no client pinning) | `src/services/encryption/MegolmMessageEncryptionService.ts` |
-| H12 | Megolm send allowed without per-message signature (v1 downgrade) | `src/services/encryption/MegolmMessageEncryptionService.ts` |
+| H11 | Megolm signing keys are server-authoritative (no client pinning) | `src/services/encryption/` |
+| H12 | Megolm send allowed without per-message signature (v1 downgrade) | `src/services/encryption/` |
 
 ### Federation SSRF / signature integrity
 
 | # | Bug | Location |
 |---|-----|----------|
-| H15 | Many hot paths now use `safeFetch`; some legacy `fetch()` sites remain | `federation-backend/src/activitypub/ActorService.ts` (multiple) |
-| H16 | `instanceProbe` follows attacker-controlled NodeInfo `href` | `federation-backend/src/routes/instanceProbe.ts` |
+| H15 | Many hot paths now use `safeFetch`; some legacy `fetch()` sites remain | `federation-backend/src/activitypub/` |
+| H16 | `instanceProbe` follows attacker-controlled NodeInfo `href` | `federation-backend/src/routes/` |
 
 *(H17 fixed July 2026: `claim_ap_activity`/`complete_ap_activity` RPCs (migration `20260705_ap_inbox_idempotency.sql`) gate processing on both the user and server inboxes; redeliveries are acknowledged without re-running side effects. H13/H14 fixed July 2026: `/resolve-post` validates the URL upfront via `validateExternalUrl`; `/fetch-posts` requires `outbox_url` to match the stored remote profile row. H18 fixed: ±5 min Date-header skew window in `SignatureService.verifySignature`. H19 fixed: requests with a body must carry a signature-covered, matching Digest header.)*
 
@@ -94,27 +98,27 @@ Also fixed (same pass):
 
 | # | Bug | Location |
 |---|-----|----------|
-| H24 | Call signaling started before voice join (ghost ringing on failure) | `src/components/dm/DMHeader.vue` |
-| H25 | Duplicate `RTCPeerConnection` per user (always-create, never-check) | `src/services/unifiedWebRTC.ts` |
+| H24 | Call signaling started before voice join (ghost ringing on failure) | `src/components/dm/` |
+| H25 | Duplicate `RTCPeerConnection` per user (always-create, never-check) | `src/services/` |
 
 ### Frontend
 
 | # | Bug | Location |
 |---|-----|----------|
-| H28 | ~~File uploads have no client-side size/MIME limit~~ Fixed July 2026: `fileService` now pre-validates via `validateImageUpload` and rejects SVG outright. Residual: audit other upload entry points (`MessageInput.vue` drag/drop paths that bypass `fileService`) | `src/services/fileService.ts` |
+| H28 | ~~File uploads have no client-side size/MIME limit~~ Fixed July 2026: `fileService` now pre-validates via `validateImageUpload` and rejects SVG outright. Residual: audit other upload entry points (`MessageInput.vue` drag/drop paths that bypass `fileService`) | `src/services/` |
 
 ### Realtime / store state
 
 | # | Bug | Location |
 |---|-----|----------|
-| H33 | Documented notification `postgres_changes` fallback never implemented | `src/stores/useNotification.ts` |
+| H33 | Documented notification `postgres_changes` fallback never implemented | `src/stores/` |
 
 ### Bot infrastructure
 
 | # | Bug | Location |
 |---|-----|----------|
-| H41 | Discord mention resolution can ping wrong user (username-only cache) | `bot-plugins/discord-bridge/src/MessageTranslator.ts` |
-| H42 | Unresolved plain-text `@mentions` create bogus Harmony mentions (`unresolved-${username}`) | `bot-plugins/discord-bridge/src/MessageTranslator.ts` |
+| H41 | Discord mention resolution can ping wrong user (username-only cache) | `bot-plugins/discord-bridge/src/` |
+| H42 | Unresolved plain-text `@mentions` create bogus Harmony mentions (`unresolved-${username}`) | `bot-plugins/discord-bridge/src/` |
 
 ### Lifecycle / leaks
 
@@ -128,7 +132,7 @@ Also fixed (same pass):
 
 | # | Bug | Location |
 |---|-----|----------|
-| H48 | Invite usage update blocked for accepter by RLS - `max_uses` not enforced atomically | `src/services/inviteService.ts` + `db_schema/init/30_rls_policies.sql` |
+| H48 | Invite usage update blocked for accepter by RLS - `max_uses` not enforced atomically | `src/services/`, `db_schema/init/` |
 
 ---
 
@@ -149,7 +153,7 @@ Also fixed (same pass):
 - **M15.** Logout/presence ordering: Redis offline before Supabase teardown
 - ~~**M16-M18.**~~ Fixed July 2026 in `src/stores/shared/reactionEngine.ts`: concurrent batch fetches serialize instead of dropping ids; `toggle` layers on existing optimistic state; LRU-style eviction caps the cache at 500 entities
 - **M20.** `verify2FA` timeout doesn't cancel in-flight MFA verify
-- **M21.** `loadBlockingData()` not awaited on some login paths - `src/stores/auth.ts`
+- **M21.** `loadBlockingData()` not awaited on some login paths - `src/stores/`
 - **M22.** `StatePersistence.STATE_VERSION` defined but never persisted/checked
 
 ### WebRTC

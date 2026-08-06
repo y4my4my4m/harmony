@@ -12,7 +12,6 @@
       </button>
       
       <div class="conversation-info">
-        <!-- Group Chat Avatar -->
         <GroupIcon
           v-if="conversation.type === 'group'"
           :conversation-id="conversation.id"
@@ -21,7 +20,6 @@
           style="width:32px;height:32px;"
         />
 
-        <!-- Direct Chat Avatar -->
         <div v-else class="conversation-avatar">
           <Avatar
             :src="getAvatarUrl(conversation.other_user?.avatar_url)"
@@ -30,7 +28,6 @@
             style="width:32px;height:32px;"
             :status="otherUserStatus"
           />
-          <!-- Federated user indicator -->
           <div 
             v-if="isFederatedUser" 
             class="federated-indicator"
@@ -41,7 +38,6 @@
         </div>
 
         <div class="conversation-details">
-          <!-- Group Chat Title -->
           <template v-if="conversation.type === 'group'">
             <h2 class="conversation-name group-name">
               {{ conversation.name || getDefaultGroupName() }}
@@ -58,7 +54,6 @@
             </div>
           </template>
 
-          <!-- Direct Chat Title -->
           <template v-else>
             <h2 class="conversation-name">
               <DisplayName v-if="conversation.other_user?.id" :user-id="conversation.other_user.id" :fallback="conversation.other_user?.display_name || conversation.other_user?.username || 'Loading...'" />
@@ -69,7 +64,6 @@
                 <Icon name="phone" :size="12" class="call-icon" />
                 Call in progress
               </span>
-              <!-- Show federated handle for remote users -->
               <span v-else-if="isFederatedUser" class="federated-handle" :style="{ color: conversation.other_user?.color || '#0EA5E9' }">
                 {{ conversation.other_user?.handle || `@${conversation.other_user?.username}@${conversation.other_user?.domain}` }}
               </span>
@@ -86,7 +80,6 @@
     </div>
 
     <div class="header-actions">
-      <!-- Add User Button (for group chat invitation) -->
       <button 
         class="action-btn add-user-btn"
         @click="$emit('add-user')"
@@ -97,7 +90,6 @@
         </svg>
       </button>
       
-      <!-- Join Call Button (when a call is active but user is not in it) -->
       <button
         v-if="hasActiveCallNotJoined"
         class="action-btn join-call-btn"
@@ -108,7 +100,6 @@
         <span class="join-text">Join Call</span>
       </button>
       
-      <!-- Voice Call Button -->
       <button 
         v-else
         class="action-btn voice-btn"
@@ -119,7 +110,6 @@
         <Icon :name="isInVoiceCall ? 'phone-off' : 'phone'" :size="16" />
       </button>
       
-      <!-- Video Call Button -->
       <button 
         class="action-btn video-btn"
         :class="{ active: isInVideoCall }"
@@ -151,7 +141,6 @@
           </svg>
         </button>
 
-        <!-- Options Menu -->
         <div v-if="showOptionsMenu" class="actions-menu" v-click-outside="closeActionsMenu" ref="optionsMenuRef">
           <!-- On mobile the header only shows the call and overflow buttons;
                the remaining actions live here instead. -->
@@ -173,7 +162,6 @@
             <span>Add People</span>
           </button>
 
-          <!-- Group Settings (only for group chats) -->
           <button
             v-if="conversation.type === 'group'"
             class="action-item"
@@ -183,19 +171,16 @@
             <span>Group Settings</span>
           </button>
 
-          <!-- Search in Conversation -->
           <button class="action-item" @click="handleMenuSearch">
             <Icon name="search" :size="16" />
             <span>Search Messages</span>
           </button>
           
-          <!-- Mute/Unmute Conversation -->
           <button class="action-item" @click="handleNotificationSettings">
             <Icon :name="isConversationMuted ? 'bell-off' : 'bell'" :size="16" />
             <span>{{ isConversationMuted ? 'Unmute Conversation' : 'Mute Conversation' }}</span>
           </button>
           
-          <!-- Encryption Toggle -->
           <button 
             class="action-item"
             :class="{ 'action-item-disabled': !canToggleEncryption }"
@@ -210,7 +195,6 @@
           
           <div class="menu-separator"></div>
           
-          <!-- Leave Group (only for group chats) -->
           <button 
             v-if="conversation.type === 'group'"
             class="action-item danger"
@@ -220,7 +204,6 @@
             <span>Leave Group</span>
           </button>
           
-          <!-- Close DM (for direct messages) -->
           <button 
             v-else
             class="action-item danger"
@@ -234,7 +217,6 @@
     </div>
   </div>
 
-  <!-- Group Settings Modal -->
   <GroupSettingsModal
     :show="showGroupSettings"
     :conversation="conversation"
@@ -244,7 +226,6 @@
     @updated="handleGroupUpdated"
   />
 
-  <!-- Message Search Modal -->
   <MessageSearchModal
     :show="showSearchModal"
     :initial-conversation-id="conversation.id"
@@ -252,7 +233,6 @@
     @message-click="handleSearchMessageClick"
   />
 
-  <!-- Encryption Setup Required Modal -->
   <Teleport to="body">
     <div v-if="showEncryptionSetupModal" class="modal-overlay" @click.self="showEncryptionSetupModal = false">
       <div class="modal-content encryption-setup-modal">
@@ -324,7 +304,6 @@ const toast = useToast()
 const voiceStore = useUnifiedVoiceChannelStore()
 const authStore = useAuthStore()
 
-// Caller ringing state
 let callerRingtoneInterval: ReturnType<typeof setInterval> | null = null
 let callerRingtoneCap: ReturnType<typeof setTimeout> | null = null
 const CALLER_RING_MAX_MS = 45000
@@ -347,14 +326,13 @@ const startCallerRinging = async () => {
   callerRingtoneInterval = setInterval(() => {
     themeStore.playAudio('call_outgoing')
   }, 3000)
-  // Hard cap: the ring must never outlive the call timeout, even if every
-  // stop signal is missed
+  // Hard cap: the ring must not outlive the call timeout when stop signals are missed.
   callerRingtoneCap = setTimeout(stopCallerRinging, CALLER_RING_MAX_MS)
 }
 
-// Ring state is presence-derived: stop as soon as the call is answered
-// (ringing cleared) or gone (declined, timed out, cancelled), regardless of
-// whether the corresponding broadcast was received
+// Ring state is presence-derived: stops when the call is answered (ringing
+// cleared) or gone (declined, timed out, cancelled), independent of broadcast
+// delivery.
 watch(() => dmCallSignaling.callStateVersion.value, () => {
   if (!callerRingtoneInterval) return
   const call = dmCallSignaling.getActiveCall(props.conversation.id)
@@ -369,7 +347,6 @@ const activeCallParticipantCount = computed(() => {
   return dmCallSignaling.getCallParticipants(props.conversation.id).length
 })
 
-// Props
 interface Props {
   conversation: DMConversation
   isMobile?: boolean
@@ -377,7 +354,6 @@ interface Props {
 
 const props = defineProps<Props>()
 
-// Emits
 const emit = defineEmits<{
   'toggle-left-sidebar': []
   'toggle-voice-panel': []
@@ -386,12 +362,12 @@ const emit = defineEmits<{
   'incoming-call': [payload: { callerId: string, callType: 'voice' | 'video', conversationId: string }]
 }>()
 
-// Voice/Video Call State - synced with voice store
+// Voice/video call state mirrors the voice store.
 const isInVoiceCall = computed(() => voiceStore.isConnected && (voiceStore.currentChannelId?.startsWith('dm-') || voiceStore.currentChannelId?.startsWith('federated-dm-')))
 const isInVideoCall = computed(() => voiceStore.localState.isVideoEnabled)
 
-// Active call state for any DM (1:1 or group)
-// Reading callStateVersion establishes a reactive dependency so Vue re-evaluates on changes
+// Active call state for any DM (1:1 or group). Reading callStateVersion
+// establishes the reactive dependency.
 const hasActiveCallNotJoined = computed(() => {
   dmCallSignaling.callStateVersion.value
   const hasActiveCall = dmCallSignaling.hasActiveCall(props.conversation.id)
@@ -400,7 +376,6 @@ const hasActiveCallNotJoined = computed(() => {
   return hasActiveCall && !isUserInCall
 })
 
-// Use clean status system
 const { 
   getUserDisplayName,
   subscribeToProfilePresence,
@@ -408,22 +383,18 @@ const {
   getPresenceAwareStatus
 } = useUserData()
 
-// State
 const showSearchModal = ref(false)
 const showOptionsMenu = ref(false)
 const presenceInitialized = ref(false)
 const showEncryptionSetupModal = ref(false)
 const optionsMenuRef = ref<HTMLElement>()
 
-// Group chat state
 const showGroupSettings = ref(false)
 
-// Encryption state
 const encryptionEnabled = ref(false)
 const encryptionLoading = ref(false)
 const userHasEncryption = ref(false)
 
-// Conversation mute state
 const isConversationMuted = ref(false)
 
 const canToggleEncryption = computed(() => userHasEncryption.value && !encryptionLoading.value)
@@ -438,7 +409,7 @@ async function loadEncryptionStatus() {
   try {
     const { megolmMessageEncryptionService } = await import('@/services/encryption/MegolmMessageEncryptionService')
     userHasEncryption.value = megolmMessageEncryptionService.isUnlocked()
-    debug.log('🔐 User has encryption:', userHasEncryption.value)
+    debug.log('User has encryption:', userHasEncryption.value)
     
     const { data } = await supabase
       .from('conversation_encryption_settings')
@@ -447,7 +418,7 @@ async function loadEncryptionStatus() {
       .maybeSingle()
     
     encryptionEnabled.value = data?.encryption_enabled === true
-    debug.log('🔐 Conversation encryption enabled:', encryptionEnabled.value)
+    debug.log('Conversation encryption enabled:', encryptionEnabled.value)
   } catch (error) {
     debug.warn('Failed to load encryption status:', error)
     encryptionEnabled.value = false
@@ -457,12 +428,12 @@ async function loadEncryptionStatus() {
 }
 
 async function toggleEncryption() {
-  debug.log('🔐 Toggle encryption clicked')
-  debug.log('🔐 canToggleEncryption:', canToggleEncryption.value)
-  debug.log('🔐 userHasEncryption:', userHasEncryption.value)
+  debug.log('Toggle encryption clicked')
+  debug.log('canToggleEncryption:', canToggleEncryption.value)
+  debug.log('userHasEncryption:', userHasEncryption.value)
   
   if (!canToggleEncryption.value) {
-    debug.log('🔐 Cannot toggle - user does not have encryption set up')
+    debug.log('Cannot toggle - user does not have encryption set up')
     closeActionsMenu()
     showEncryptionSetupModal.value = true
     return
@@ -470,7 +441,6 @@ async function toggleEncryption() {
   
   const newState = !encryptionEnabled.value
 
-  // Warn about federated users when enabling encryption
   if (newState && isFederatedUser.value) {
     const confirmed = await confirm({
       title: 'Enable encryption',
@@ -486,9 +456,8 @@ async function toggleEncryption() {
 
   encryptionLoading.value = true
   try {
-    debug.log('🔐 Setting encryption to:', newState)
+    debug.log('Setting encryption to:', newState)
     
-    // Upsert the setting
     const { error } = await supabase
       .from('conversation_encryption_settings')
       .upsert({
@@ -500,7 +469,7 @@ async function toggleEncryption() {
       })
     
     if (error) {
-      debug.error('🔐 Supabase error:', error)
+      debug.error('Supabase error:', error)
       throw error
     }
     
@@ -520,13 +489,11 @@ async function toggleEncryption() {
   }
 }
 
-// Methods
 function handleGroupUpdated() {
   emit('group-updated')
 }
 
-// Professional presence management for DM header
-// Always ensure the conversation partner is tracked for presence
+// Conversation partner is tracked for presence while the header is mounted.
 let profileContextId: string | null = null
 
 const initializePresenceTracking = async () => {
@@ -534,11 +501,10 @@ const initializePresenceTracking = async () => {
     try {
       const userId = props.conversation.other_user.id
       
-      // Always subscribe to profile presence to ensure real-time updates
-      // The userDataService will handle deduplication if user is already tracked globally
+      // userDataService deduplicates when the user is already tracked globally.
       profileContextId = await subscribeToProfilePresence(userId)
       presenceInitialized.value = true
-      debug.log(`🗨️ DMHeader: Tracking presence for user ${userId}`)
+      debug.log(`DMHeader: Tracking presence for user ${userId}`)
     } catch (error) {
       debug.error('Failed to subscribe to profile presence:', error)
     }
@@ -548,11 +514,11 @@ const initializePresenceTracking = async () => {
 /**
  * Stop tracking presence for a previously-subscribed user.
  *
- * BUGS.md H30: this used to default to `props.conversation.other_user?.id`,
- * but on conversation switch the watcher fires AFTER props are already
- * updated - so cleanup would call `unsubscribeFromProfilePresence(newUserId)`
- * (a noop) and leak the old user's subscription. Callers in `watch()` paths
- * must pass `oldUserId` explicitly; the unmount path uses the current id.
+ * BUGS.md H30: on conversation switch the watcher fires after props are
+ * updated, so defaulting to `props.conversation.other_user?.id` unsubscribes
+ * the new user (a noop) and leaks the old user's subscription. Callers in
+ * `watch()` paths must pass `oldUserId` explicitly; the unmount path uses the
+ * current id.
  */
 const cleanupPresenceTracking = async (userId?: string | null) => {
   const targetUserId = userId ?? props.conversation.other_user?.id
@@ -561,7 +527,7 @@ const cleanupPresenceTracking = async (userId?: string | null) => {
       await unsubscribeFromProfilePresence(targetUserId)
       profileContextId = null
       presenceInitialized.value = false
-      debug.log(`🗨️ DMHeader: Stopped tracking presence for user ${targetUserId}`)
+      debug.log(`DMHeader: Stopped tracking presence for user ${targetUserId}`)
     } catch (error) {
       debug.error('Failed to unsubscribe from profile presence:', error)
     }
@@ -573,15 +539,11 @@ let callSignalUnsubscribe: (() => void) | null = null
 const handleCallSignal = async (signal: CallSignal) => {
   if (!authStore.session?.user?.id) return
 
-  // BUGS.md Pattern A: signal participant IDs and permission lookups all
-  // key on PROFILE ids (the rest of the call codebase resolves via
-  // `authContextService.getCurrentProfileId()`). Using the auth UUID here
-  // meant:
-  //   - `signal.callerId === currentUserId` never matched our own outgoing
-  //     signals, so self-suppression was broken,
-  //   - `canReceiveCall(callerId, currentUserId, ...)` queried the wrong
-  //     row, breaking block/DND/mute auto-decline,
-  //   - `declineCall(..., currentUserId, ...)` recorded the wrong actor.
+  // BUGS.md Pattern A: signal participant IDs and permission lookups key on
+  // profile ids, not auth UUIDs; the rest of the call codebase resolves via
+  // `authContextService.getCurrentProfileId()`. An auth UUID here breaks
+  // self-signal suppression, the `canReceiveCall` row lookup (block/DND/mute
+  // auto-decline) and the actor recorded by `declineCall`.
   let currentUserId: string
   try {
     const { authContextService } = await import('@/services/AuthContextService')
@@ -591,8 +553,8 @@ const handleCallSignal = async (signal: CallSignal) => {
     return
   }
 
-  // Don't show notifications for our own signals, but allow timeout
-  // so the caller stops ringing and leaves the voice channel
+  // Own signals raise no notification; timeout still passes through so the
+  // caller stops ringing and leaves the voice channel.
   if (signal.callerId === currentUserId && signal.type !== 'timeout') return
   
   switch (signal.type) {
@@ -674,19 +636,18 @@ const unsubscribeFromCallSignals = () => {
 }
 
 /**
- * External "start call" trigger. UserSidebar's context menu offers
- * "Start a Call" but the actual call setup (permissions / signaling /
- * voice join) lives here in DMHeader. Sidebar routes the user to the
- * DM first and then fires `harmony-dm-start-call` once the conversation
- * is open - we only act when the event targets *this* conversation so
- * stale events from a previous DM don't cause a cross-call.
+ * External "start call" trigger. UserSidebar's context menu offers "Start a
+ * Call" but call setup (permissions / signaling / voice join) lives here.
+ * Sidebar routes to the DM first, then fires `harmony-dm-start-call`. Acts
+ * only when the event targets this conversation, so stale events from a
+ * previous DM cannot cross-call.
  */
 const handleStartCallRequest = (e: Event) => {
   const detail = (e as CustomEvent).detail || {}
   const targetConversationId: string | undefined = detail.conversationId
   const callType: 'voice' | 'video' = detail.callType || 'voice'
   if (!targetConversationId || targetConversationId !== props.conversation.id) return
-  // Don't fight an existing call.
+  // An existing call takes precedence.
   if (isInVoiceCall.value || voiceStore.isConnected) return
   if (callType === 'video') {
     void toggleVideoCall()
@@ -703,7 +664,6 @@ onMounted(() => {
   window.addEventListener('harmony-dm-start-call', handleStartCallRequest)
 })
 
-// Watch for conversation changes to update presence tracking and encryption
 watch(
   () => props.conversation.id,
   async (newId, oldId) => {
@@ -711,8 +671,8 @@ watch(
       loadEncryptionStatus()
       loadConversationMuteState()
       stopCallerRinging()
-      // Re-bind call signals to the new conversation - keeping the old
-      // subscription would show stale call state from the previous DM
+      // Re-bind call signals to the new conversation; the old subscription
+      // would surface stale call state from the previous DM.
       unsubscribeFromCallSignals()
       subscribeToCallSignals()
     }
@@ -723,7 +683,7 @@ watch(
   () => props.conversation.other_user?.id,
   async (newUserId, oldUserId) => {
     if (newUserId !== oldUserId) {
-      debug.log(`🔄 DMHeader: Conversation changed from ${oldUserId} to ${newUserId}`)
+      debug.log(`DMHeader: Conversation changed from ${oldUserId} to ${newUserId}`)
       // Pass oldUserId explicitly - props.conversation.other_user.id is
       // already pointing at newUserId by the time this callback runs.
       await cleanupPresenceTracking(oldUserId ?? null)
@@ -732,7 +692,7 @@ watch(
       }
     }
   },
-  { immediate: true } // Initialize immediately when component is created
+  { immediate: true }
 )
 
 // Stop caller ringing when voice connection drops (e.g. user hangs up from dock/overlay)
@@ -742,7 +702,7 @@ watch(() => voiceStore.isConnected, (connected, wasConnected) => {
   }
 })
 
-// Also stop ringing when the connecting state clears (cancelled before connection established)
+// Stop ringing when the connecting state clears without a connection (cancelled).
 watch(() => voiceStore.isConnecting, (connecting, wasConnecting) => {
   if (wasConnecting && !connecting && !voiceStore.isConnected) {
     stopCallerRinging()
@@ -756,16 +716,13 @@ onUnmounted(() => {
   window.removeEventListener('harmony-dm-start-call', handleStartCallRequest)
 })
 
-// Computed
 const otherUserStatus = computed(() => {
   if (!props.conversation.other_user?.id) return 'offline'
   
-  // Use presence-aware status for real-time accuracy
   const status = getPresenceAwareStatus(props.conversation.other_user.id).value
   
-  // Debug logging to help identify issues
   if (import.meta.env.DEV) {
-    debug.log(`🔍 DMHeader status for ${props.conversation.other_user.id}:`, {
+    debug.log(`DMHeader status for ${props.conversation.other_user.id}:`, {
       status,
       presenceInitialized: presenceInitialized.value,
       profileContextId: profileContextId
@@ -779,7 +736,6 @@ const isFederatedUser = computed(() => {
   return !props.conversation.other_user?.is_local
 })
 
-// Methods
 const getStatusText = (status: string): string => {
   switch (status) {
     case 'online':
@@ -832,8 +788,7 @@ const handleMenuAddUser = () => {
 }
 
 const handleSearchMessageClick = (_message: any) => {
-  // Message click is handled by the modal, just close it
-  // The message will be scrolled to in the conversation view
+  // The modal handles scroll-to-message; this only closes it.
   showSearchModal.value = false
 }
 
@@ -938,7 +893,6 @@ const handleCloseDM = () => {
   showOptionsMenu.value = false
 }
 
-// Voice/Video Call Functions
 const toggleVoiceCall = async () => {
   try {
     if (isInVoiceCall.value) {
@@ -950,7 +904,7 @@ const toggleVoiceCall = async () => {
       await voiceStore.leaveVoiceChannel()
       toast.info('Left call')
     } else {
-      debug.log('📞 Starting DM voice call...')
+      debug.log('Starting DM voice call...')
       
       const profileId = await authContextService.getCurrentProfileId()
       if (!profileId) {
@@ -977,7 +931,6 @@ const toggleVoiceCall = async () => {
         }
       }
       
-      // Route to federated or local call flow
       if (isFederatedUser.value) {
         await startFederatedCall(profileId, 'voice')
       } else {
@@ -1011,7 +964,7 @@ const startLocalCall = async (profileId: string, callType: 'voice' | 'video') =>
     startCallerRinging()
     voiceStore.isOverlayVisible = true
     await new Promise(resolve => setTimeout(resolve, 100))
-    debug.log(`✅ ${callType} call overlay opened for caller`)
+    debug.log(`${callType} call overlay opened for caller`)
   } else {
     toast.error('Failed to start call')
   }
@@ -1050,7 +1003,6 @@ const startFederatedCall = async (profileId: string, callType: 'voice' | 'video'
     return
   }
 
-  // Join the LiveKit room
   const dmChannelId = callInfo.roomName
   const success = await voiceStore.joinVoiceChannel(dmChannelId, 'dm')
 
@@ -1062,13 +1014,12 @@ const startFederatedCall = async (profileId: string, callType: 'voice' | 'video'
     startCallerRinging()
     voiceStore.isOverlayVisible = true
     await new Promise(resolve => setTimeout(resolve, 100))
-    debug.log(`✅ Federated ${callType} call initiated`)
+    debug.log(`Federated ${callType} call initiated`)
   } else {
     toast.error('Failed to start call')
   }
 }
 
-// Join an active call
 const joinActiveCall = async () => {
   try {
     const profileId = await authContextService.getCurrentProfileId()
@@ -1077,7 +1028,6 @@ const joinActiveCall = async () => {
       return
     }
     
-    // For 1-on-1 DMs, verify call permissions before joining
     if (props.conversation.type !== 'group' && props.conversation.other_user?.id) {
       const permissionCheck = await dmCallPermissions.canReceiveCall(
         profileId,
@@ -1094,14 +1044,13 @@ const joinActiveCall = async () => {
     
     await dmCallSignaling.joinCall(props.conversation.id, profileId)
     
-    // Join the voice channel
     const success = await voiceStore.joinVoiceChannel(dmChannelId, 'dm')
     
     if (success) {
       toast.success('Joined call')
       voiceStore.isOverlayVisible = true
       await new Promise(resolve => setTimeout(resolve, 100))
-      debug.log('✅ Joined group call (maximized)')
+      debug.log('Joined group call (maximized)')
     } else {
       toast.error('Failed to join call')
     }
@@ -1139,7 +1088,6 @@ const toggleVideoCall = async () => {
         }
       }
       
-      // Route to federated or local call flow
       if (isFederatedUser.value) {
         await startFederatedCall(profileId, 'video')
       } else {
@@ -1168,18 +1116,15 @@ const getReceiverIds = (): string[] => {
   if (!currentUserId) return []
   
   if (props.conversation.type === 'group') {
-    // For group chats, call all participants except self
     return (props.conversation.participants || [])
       .map(p => p.id || (p as any).user_id)
       .filter(id => id && id !== currentUserId)
   } else {
-    // For 1-on-1, call the other user
     const otherUserId = props.conversation.other_user?.id
     return otherUserId ? [otherUserId] : []
   }
 }
 
-// Group chat methods
 const stripShortcodes = (text: string): string => {
   if (!text) return text
   const stripped = text.replace(/:[a-zA-Z0-9_+-]+:/g, '').replace(/\s+/g, ' ').trim()
@@ -1365,7 +1310,7 @@ const getDefaultGroupName = (): string => {
   color: var(--text-secondary);
 }
 
-/* if you want to color the status text with the status color */
+/* Optional status-colored text. */
 /* .status.online {
   color: var(--success-color, #3ba55c);
 }
@@ -1503,7 +1448,6 @@ const getDefaultGroupName = (): string => {
   margin: 8px 16px;
 }
 
-/* Mobile styles */
 @media (max-width: 768px) {
   .mobile-menu-btn {
     display: flex;

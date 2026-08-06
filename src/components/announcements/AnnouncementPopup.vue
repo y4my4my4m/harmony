@@ -122,9 +122,8 @@ const dismiss = () => {
 }
 
 const viewPastAnnouncements = () => {
-  // Dismiss the popup (we don't auto-mark-read here - the archive page
-  // is where the user explicitly opts in to that). Then navigate to the
-  // dedicated Settings section that owns the full archive.
+  // Dismiss without marking read; the archive page owns that opt-in.
+  // Settings holds the full archive.
   dismiss()
   router.push('/settings/announcements').catch(() => {})
 }
@@ -132,10 +131,8 @@ const viewPastAnnouncements = () => {
 onMounted(async () => {
   // `popupOnly: true` makes the RPC respect the admin's `show_popup` flag
   // and skip any announcement that started before the current user signed
-  // up - so newly-registered users don't get a wall of historical modals
-  // they have no context for. The Settings archive still surfaces the
-  // full set (via the default no-arg call), so nothing is hidden, only
-  // de-prioritised at boot.
+  // up, so newly-registered users get no historical modals. The Settings
+  // archive still surfaces the full set via the default no-arg call.
   announcements.value = await announcementService.getUnreadAnnouncements({
     popupOnly: true,
   })

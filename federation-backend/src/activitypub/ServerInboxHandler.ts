@@ -1,12 +1,8 @@
 /**
- * ServerInboxHandler - Process activities sent to server inboxes
- * 
- * Handles:
- * - Join/Leave activities for federated server membership
- * - Accept/Reject responses for membership requests
- * - Create/Update/Delete activities for channel messages
- * - Like/EmojiReaction for message reactions
- * - Remove/Ban for moderation
+ * Activities accepted on server inboxes:
+ * Join/Leave (membership), Accept/Reject (membership responses),
+ * Create/Update/Delete (channel messages and structure),
+ * Like/EmojiReaction (reactions), Add/Remove (channels, moderation), Undo.
  */
 
 import { getSupabaseClient } from '../config/supabase.js';
@@ -25,9 +21,9 @@ const PERM_MANAGE_CHANNELS = 2n;
 const PERM_KICK_MEMBERS = 9n;
 const PERM_MANAGE_MESSAGES = 21n;
 
-// Authorization helpers: server inbox authenticates the sender but allows
-// same-domain delegation, so gate each mutating handler on the actor's actual
-// standing (owner/member/role/ownership). See BUGS.md server-inbox authz.
+// The server inbox authenticates the sender but permits same-domain delegation.
+// Each mutating handler gates on the actor's own standing: owner, member, role,
+// or object ownership. See BUGS.md server-inbox authz.
 
 export async function resolveActorProfileId(supabase: any, actorUrl: string): Promise<string | null> {
   if (!actorUrl) return null;
@@ -39,7 +35,6 @@ export async function resolveActorProfileId(supabase: any, actorUrl: string): Pr
   return data?.id ?? null;
 }
 
-// True if the actor is an accepted member of the server.
 export async function actorIsAcceptedMember(
   supabase: any,
   serverId: string,
@@ -58,8 +53,8 @@ export async function actorIsAcceptedMember(
   return { ok: membership?.status === 'accepted', userId };
 }
 
-// True if actor may moderate: host Group actor (strict), server owner, or a
-// member holding is_admin / the required permission bit.
+// Moderator means: host Group actor (strict match), server owner, or a member
+// holding is_admin or the required permission bit.
 export async function actorIsServerModerator(
   supabase: any,
   serverId: string,
@@ -69,7 +64,7 @@ export async function actorIsServerModerator(
 ): Promise<boolean> {
   if (!actorUrl) return false;
 
-  // Host authority: strict match only (legit host CRUD carries actor === ap_id).
+  // Host authority requires a strict match: host CRUD carries actor === ap_id.
   // Same-domain delegation would let any host user impersonate the Group actor.
   if (server.ap_id && SignatureService.verifyActorMatch(actorUrl, server.ap_id)) {
     return true;
@@ -100,7 +95,7 @@ export async function actorIsServerModerator(
   });
 }
 
-// True if the actor is the author of the given message (by federated_id).
+// Authorship compared by profiles.federated_id.
 export async function actorOwnsMessage(
   supabase: any,
   messageId: string,
@@ -115,9 +110,7 @@ export async function actorOwnsMessage(
   return !!ownerUrl && SignatureService.verifyActorMatch(actorUrl, ownerUrl);
 }
 
-/**
- * Resolve a thread ID from an AP URL. Tries ap_id match first, then UUID extraction.
- */
+// Resolution order: ap_id match, then UUID extracted from the URL.
 async function resolveThreadIdFromAp(supabase: any, threadApIdValue: string): Promise<string | null> {
   const { data: threadByApId } = await supabase
     .from('threads')
@@ -141,9 +134,8 @@ async function resolveThreadIdFromAp(supabase: any, threadApIdValue: string): Pr
 }
 
 /**
- * Normalize mention `isLocal` flags relative to this instance.
- * Incoming `harmony:rawContent` has `isLocal` set by the sender, which is
- * relative to *their* instance. We re-evaluate against our own domain.
+ * Incoming `harmony:rawContent` carries `isLocal` relative to the sending
+ * instance. Re-evaluated here against this instance's domain.
  */
 function normalizeMentionDomains(content: any[]): any[] {
   return content.map((part: any) => {
@@ -154,20 +146,15 @@ function normalizeMentionDomains(content: any[]): any[] {
   });
 }
 
-// =============================================================================
 // MAIN HANDLER
-// =============================================================================
 
-/**
- * Process activity sent to server inbox
- */
 export async function processServerInboxActivity(
   serverId: string,
   activity: any
 ): Promise<void> {
   const supabase = getSupabaseClient();
 
-  logger.info(`📥 Server ${serverId} received ${activity.type} activity from ${activity.actor}`);
+  logger.info(`Server ${serverId} received ${activity.type} activity from ${activity.actor}`);
 
   const { data: server } = await supabase
     .from('servers')
@@ -191,7 +178,7 @@ export async function processServerInboxActivity(
       const actorDomain = new URL(actorUrl).hostname;
       const { BlockedInstancesCache } = await import('../services/BlockedInstancesCache.js');
       if (BlockedInstancesCache.isBlocked(actorDomain)) {
-        logger.info(`🚫 Rejecting activity from blocked instance: ${actorDomain}`);
+        logger.info(`Rejecting activity from blocked instance: ${actorDomain}`);
         return;
       }
     }
@@ -199,10 +186,8 @@ export async function processServerInboxActivity(
     logger.debug(`Could not check instance block status: ${error}`);
   }
 
-  // Route activity to appropriate handler
-  // Leave/Accept/Reject always allowed so users can leave gracefully.
-  // Everything else (Join, Create, Update, Delete, reactions, channel CRUD, voice)
-  // requires federation_enabled on the server.
+  // Leave/Accept/Reject are always allowed so members can leave gracefully.
+  // Every other type requires federation_enabled on the server.
   switch (activity.type) {
     case 'Leave':
       await processLeaveServer(serverId, server, activity);
@@ -286,7 +271,6 @@ export async function processServerInboxActivity(
       break;
 
     default:
-      // Check for Harmony-specific voice activities
       if (activity.type?.startsWith('harmony:Voice')) {
         if (!server.federation_enabled) {
           logger.info(`Federation not enabled for server ${serverId}, rejecting voice activity`);
@@ -300,13 +284,8 @@ export async function processServerInboxActivity(
   }
 }
 
-// =============================================================================
 // JOIN / LEAVE HANDLERS
-// =============================================================================
 
-/**
- * Process Join activity (remote user wants to join server)
- */
 async function processJoinServer(
   serverId: string,
   server: any,
@@ -315,12 +294,11 @@ async function processJoinServer(
   const supabase = getSupabaseClient();
   const actorUrl = typeof activity.actor === 'string' ? activity.actor : activity.actor.id;
 
-  logger.info(`👋 Processing Join request from ${actorUrl}`);
+  logger.info(`Processing Join request from ${actorUrl}`);
 
-  // Ensure remote user exists locally
   const remoteUser = await ActivityProcessor['ensureRemoteUser'](actorUrl);
 
-  // Try to get the full user record (ensureRemoteUser returns partial data)
+  // ensureRemoteUser returns a partial row; refetch the full record.
   let user = remoteUser;
   if (remoteUser) {
     const { data: fullUser } = await supabase
@@ -336,7 +314,7 @@ async function processJoinServer(
 
   if (!user) {
     logger.error('Failed to find/create remote user for Join activity');
-    // Derive inbox URL from actor URL (standard ActivityPub pattern: {actorUrl}/inbox)
+    // ActivityPub convention: inbox is {actorUrl}/inbox.
     const derivedInbox = `${actorUrl}/inbox`;
     await sendRejectActivity(serverId, server, activity, derivedInbox, 'User not found');
     return;
@@ -400,7 +378,7 @@ async function processJoinServer(
       .update({ uses: (invite.uses || 0) + 1 })
       .eq('id', invite.id);
 
-    logger.info(`✅ Valid invite code used: ${inviteCode}`);
+    logger.info(`Valid invite code used: ${inviteCode}`);
   }
 
   const memberDomain = new URL(actorUrl).hostname;
@@ -435,16 +413,13 @@ async function processJoinServer(
       return;
     }
 
-    logger.info(`✅ Added ${user.username}@${memberDomain} to server ${serverId}`);
+    logger.info(`Added ${user.username}@${memberDomain} to server ${serverId}`);
   }
 
   await sendAcceptActivity(serverId, server, activity, user.inbox_url);
-  logger.info(`✅ Sent Accept to ${user.username}`);
+  logger.info(`Sent Accept to ${user.username}`);
 }
 
-/**
- * Process Leave activity (remote user leaving server)
- */
 async function processLeaveServer(
   serverId: string,
   server: any,
@@ -478,13 +453,11 @@ async function processLeaveServer(
   if (error) {
     logger.error('Failed to remove user from server:', error);
   } else {
-    logger.info(`✅ Removed ${user.username} from server ${serverId}`);
+    logger.info(`Removed ${user.username} from server ${serverId}`);
   }
 }
 
-/**
- * Process Accept activity (remote server accepted our join request)
- */
+// Accept of a Join: the remote server admitted the local user.
 async function processAcceptActivity(
   serverId: string,
   activity: any
@@ -523,13 +496,11 @@ async function processAcceptActivity(
   if (error) {
     logger.error('Failed to update membership status:', error);
   } else {
-    logger.info(`✅ Membership accepted for ${user.username} in server ${serverId}`);
+    logger.info(`Membership accepted for ${user.username} in server ${serverId}`);
   }
 }
 
-/**
- * Process Reject activity (remote server rejected our join request)
- */
+// Reject of a Join: the remote server refused the local user.
 async function processRejectActivity(
   serverId: string,
   activity: any
@@ -559,16 +530,12 @@ async function processRejectActivity(
     .eq('server_id', serverId)
     .eq('user_id', user.id);
 
-  logger.info(`❌ Join rejected for ${user.username} in server ${serverId}`);
+  logger.info(`Join rejected for ${user.username} in server ${serverId}`);
 }
 
-// =============================================================================
 // MESSAGE HANDLERS
-// =============================================================================
 
-/**
- * Process Create activity (message in server channel)
- */
+// Create carries either a ChatThread or a Note in a server channel.
 async function processCreateActivity(
   serverId: string,
   server: any,
@@ -577,15 +544,14 @@ async function processCreateActivity(
   const supabase = getSupabaseClient();
   const object = activity.object;
 
-  // Route ChatThread to dedicated handler
   if (object?.type === 'ChatThread') {
     // AUTHZ: only accepted members may open threads in this server's channels.
     const threadActor = typeof activity.actor === 'string' ? activity.actor : activity.actor?.id;
     if (!(await actorIsAcceptedMember(supabase, serverId, threadActor)).ok) {
-      logger.warn(`🚫 Rejecting Create(ChatThread): ${threadActor} is not an accepted member of server ${serverId}`);
+      logger.warn(`Rejecting Create(ChatThread): ${threadActor} is not an accepted member of server ${serverId}`);
       return;
     }
-    logger.info(`📋 Routing server inbox Create ChatThread to handler: ${object.id}`);
+    logger.info(`Routing server inbox Create ChatThread to handler: ${object.id}`);
     const { handleThreadActivity } = await import('./ThreadActivityHandler.js');
     const result = await handleThreadActivity({ ...activity, object });
     if (!result.success) {
@@ -601,7 +567,6 @@ async function processCreateActivity(
 
   const actorUrl = typeof activity.actor === 'string' ? activity.actor : activity.actor.id;
 
-  // Ensure author exists
   const remoteAuthor = await ActivityProcessor['ensureRemoteUser'](actorUrl);
   logger.debug(`ensureRemoteUser returned: ${remoteAuthor ? `id=${remoteAuthor.id}, username=${remoteAuthor.username}` : 'null'}`);
 
@@ -618,7 +583,6 @@ async function processCreateActivity(
 
   if (!author) {
     logger.error(`Failed to find author for server message. actorUrl=${actorUrl}`);
-    // Try to list all profiles with this username for debugging
     const username = actorUrl.split('/').pop();
     const { data: similarProfiles } = await supabase
       .from('profiles')
@@ -649,7 +613,6 @@ async function processCreateActivity(
 
   if (!membership) {
     logger.warn(`Author ${author.username} (id=${author.id}) is not a member of server ${serverId}`);
-    // List all memberships for this server for debugging
     const { data: serverMembers } = await supabase
       .from('user_servers')
       .select('user_id, status, member_instance')
@@ -677,7 +640,7 @@ async function processCreateActivity(
     .single();
 
   if (!channel) {
-    // Try to extract channel ID from URL and find by local ID
+    // Fall back to the UUID embedded in the context URL.
     const channelIdMatch = context.match(/\/channels\/([a-f0-9-]+)/);
     if (channelIdMatch) {
       const { data: localChannel } = await supabase
@@ -691,8 +654,8 @@ async function processCreateActivity(
   }
 
   if (!channel) {
-    // For remote server references, try syncing the server to pick up new channels
-    // instead of blindly creating channels from incoming messages (security risk)
+    // Sync the remote server to pick up new channels. Channels are never
+    // created from incoming messages.
     const { data: serverData } = await supabase
       .from('servers')
       .select('is_local_server, ap_id')
@@ -704,7 +667,6 @@ async function processCreateActivity(
         const { ServerDiscoveryService } = await import('../services/ServerDiscoveryService');
         await ServerDiscoveryService.syncRemoteServer(serverId);
 
-        // Re-check for the channel after sync
         const { data: syncedChannel } = await supabase
           .from('channels')
           .select('id, name')
@@ -753,7 +715,6 @@ async function processCreateActivity(
     messageContent = await resolveMentionUserIds(messageContent);
   }
 
-  // Check for duplicate message
   const { data: existingMessage } = await supabase
     .from('messages')
     .select('id')
@@ -765,7 +726,7 @@ async function processCreateActivity(
     return;
   }
 
-  // Handle reply threading - look up parent by ap_id first, then by UUID
+  // Parent lookup order: ap_id, then UUID from the inReplyTo URL.
   let replyToId: string | null = null;
   if (object.inReplyTo) {
     const { data: parentByApId } = await supabase
@@ -835,7 +796,7 @@ async function processCreateActivity(
     return;
   }
 
-  // Enrich link previews asynchronously for inbound federated messages
+  // Link preview enrichment is detached; failures do not affect the insert.
   if (insertedMessage) {
     const { enrichMessageLinkPreviews } = await import('../listeners/DatabaseListener.js');
     enrichMessageLinkPreviews(insertedMessage).catch(err =>
@@ -843,15 +804,15 @@ async function processCreateActivity(
     );
   }
   
-  logger.info(`✅ Inserted federated message in #${channel.name} from ${author.username}`);
+  logger.info(`Inserted federated message in #${channel.name} from ${author.username}`);
 
-  // If message belongs to a thread that doesn't exist yet, create a stub thread
+  // Messages may arrive before their thread; a stub thread stands in.
   if (threadApIdValue && !resolvedThreadId && insertedMessage) {
     try {
       const threadUuidMatch = threadApIdValue.match(/\/threads\/([a-f0-9-]{36})/);
       const stubThreadId = threadUuidMatch ? threadUuidMatch[1] : crypto.randomUUID();
 
-      // Resolve correct parent message from harmony:parentMessageId
+      // Parent comes from harmony:parentMessageId, not the inserted message.
       let parentMessageId = insertedMessage.id;
       const parentMessageApId = object['harmony:parentMessageId'];
       if (parentMessageApId) {
@@ -900,13 +861,13 @@ async function processCreateActivity(
       if (stubError) {
         if (stubError.code === '23505') {
           resolvedThreadId = stubThreadId;
-          logger.info(`🧵 Stub thread ${stubThreadId} already exists (race condition), assigning message`);
+          logger.info(`Stub thread ${stubThreadId} already exists (race condition), assigning message`);
         } else {
           logger.warn(`Failed to create stub thread: ${stubError.message}`);
         }
       } else {
         resolvedThreadId = stubThreadId;
-        logger.info(`🧵 Created stub thread ${stubThreadId} for AP ID ${threadApIdValue}`);
+        logger.info(`Created stub thread ${stubThreadId} for AP ID ${threadApIdValue}`);
       }
 
       if (resolvedThreadId) {
@@ -928,7 +889,7 @@ async function processCreateActivity(
             .from('messages')
             .update({ thread_id: resolvedThreadId })
             .in('id', orphans.map((m: any) => m.id));
-          logger.info(`🧵 Assigned ${orphans.length} additional orphaned messages to stub thread ${resolvedThreadId}`);
+          logger.info(`Assigned ${orphans.length} additional orphaned messages to stub thread ${resolvedThreadId}`);
         }
       }
     } catch (err) {
@@ -936,11 +897,7 @@ async function processCreateActivity(
     }
   }
 
-  // ==========================================================================
-  // RE-BROADCAST: If this is the authoritative server, relay to other remotes
-  // ==========================================================================
-  // When Instance B sends a message to Instance A (the server host),
-  // Instance A should re-broadcast to Instance C, D, etc.
+  // The host instance relays the message to every other member instance.
   
   if (server.is_local_server) {
     const senderDomain = new URL(actorUrl).hostname;
@@ -970,11 +927,11 @@ async function processCreateActivity(
         }
       }
 
-      // Forward the activity to each instance (excluding sender)
+      // Sender and local instance are excluded by the query above.
       for (const [instance, memberApIds] of instanceMap) {
         const inbox = `https://${instance}/inbox`;
         
-        // Modify activity to address specific members
+        // Re-address to that instance's members.
         const forwardedActivity = {
           ...activity,
           to: memberApIds,
@@ -982,20 +939,18 @@ async function processCreateActivity(
 
         try {
           await DeliveryQueue.enqueue(forwardedActivity, inbox, server.owner);
-          logger.info(`📤 Re-broadcast message to ${instance} (${memberApIds.length} members)`);
+          logger.info(`Re-broadcast message to ${instance} (${memberApIds.length} members)`);
         } catch (deliveryError) {
           logger.error(`Failed to re-broadcast to ${instance}:`, deliveryError);
         }
       }
       
-      logger.info(`🔄 Re-broadcast complete: relayed to ${instanceMap.size} other instances`);
+      logger.info(`Re-broadcast complete: relayed to ${instanceMap.size} other instances`);
     }
   }
 }
 
-/**
- * Process Update activity (message edit OR channel update)
- */
+// Update covers thread, category, channel, server metadata, and Note edits.
 async function processUpdateActivity(
   serverId: string,
   server: any,
@@ -1012,10 +967,10 @@ async function processUpdateActivity(
     // AUTHZ: thread updates (incl. membership add/remove) are member-gated.
     const threadActor = typeof activity.actor === 'string' ? activity.actor : activity.actor?.id;
     if (!(await actorIsAcceptedMember(supabase, serverId, threadActor)).ok) {
-      logger.warn(`🚫 Rejecting Update(ChatThread): ${threadActor} is not an accepted member of server ${serverId}`);
+      logger.warn(`Rejecting Update(ChatThread): ${threadActor} is not an accepted member of server ${serverId}`);
       return;
     }
-    logger.info(`📋 Routing server inbox Update ChatThread to handler: ${object.id}`);
+    logger.info(`Routing server inbox Update ChatThread to handler: ${object.id}`);
     const { handleThreadActivity } = await import('./ThreadActivityHandler.js');
     const result = await handleThreadActivity({ ...activity, object });
     if (!result.success) {
@@ -1029,7 +984,7 @@ async function processUpdateActivity(
   if (structuralTypes.includes(object.type) || object['harmony:ChatServer']) {
     const structActor = typeof activity.actor === 'string' ? activity.actor : activity.actor?.id;
     if (!(await actorIsServerModerator(supabase, serverId, server, structActor, PERM_MANAGE_CHANNELS))) {
-      logger.warn(`🚫 Rejecting Update(${object.type}): ${structActor} lacks channel-management authority on server ${serverId}`);
+      logger.warn(`Rejecting Update(${object.type}): ${structActor} lacks channel-management authority on server ${serverId}`);
       return;
     }
   }
@@ -1056,7 +1011,7 @@ async function processUpdateActivity(
           order: object.position || object.order,
         })
         .eq('id', catUuid);
-      logger.info(`✏️ Updated remote category: ${object.name}`);
+      logger.info(`Updated remote category: ${object.name}`);
     } else {
       const { error } = await supabase.from('channel_categories').insert({
         id: catUuid,
@@ -1067,7 +1022,7 @@ async function processUpdateActivity(
       if (error) {
         logger.error(`Failed to auto-create category ${object.name}:`, error);
       } else {
-        logger.info(`📁 Auto-created remote category on Update: ${object.name}`);
+        logger.info(`Auto-created remote category on Update: ${object.name}`);
       }
     }
     return;
@@ -1080,7 +1035,6 @@ async function processUpdateActivity(
       .eq('ap_id', object.id)
       .maybeSingle();
 
-    // Resolve category reference
     let categoryId = null;
     if (object.category) {
       const catMatch = object.category.match(/\/channels\/([a-f0-9-]{36})$/i);
@@ -1104,7 +1058,7 @@ async function processUpdateActivity(
           category: categoryId,
         })
         .eq('id', channel.id);
-      logger.info(`✏️ Updated remote channel: ${object.name}`);
+      logger.info(`Updated remote channel: ${object.name}`);
     } else {
       const entityUuidMatch = object.id?.match(/\/channels\/([a-f0-9-]{36})$/i);
       const channelType = object.type === 'harmony:VoiceChannel' ? 1 : 0;
@@ -1124,7 +1078,7 @@ async function processUpdateActivity(
       if (error) {
         logger.error(`Failed to auto-create channel ${object.name}:`, error);
       } else {
-        logger.info(`📢 Auto-created remote channel on Update: ${object.name}`);
+        logger.info(`Auto-created remote channel on Update: ${object.name}`);
       }
     }
     return;
@@ -1159,19 +1113,19 @@ async function processUpdateActivity(
     if (object.summary !== undefined) {
       updateData.description = object.summary;
     }
-    // Icon - explicit null means the server removed its icon
+    // Explicit null means the icon was removed.
     if (object.icon?.url) {
       updateData.icon = object.icon.url;
     } else if (object.icon === null) {
       updateData.icon = null;
     }
-    // Banner (ActivityPub 'image' property)
+    // Banner is carried in the ActivityPub 'image' property.
     if (object.image?.url) {
       updateData.banner = object.image.url;
     } else if (object.image === null) {
       updateData.banner = null;
     }
-    // Discoverability / public flag
+    // AP 'discoverable' maps to servers.public.
     if (object.discoverable !== undefined) {
       updateData.public = object.discoverable;
     }
@@ -1185,12 +1139,11 @@ async function processUpdateActivity(
       logger.error(`Failed to update server ${existingServer.id}:`, updateError);
     } else {
       const changedFields = Object.keys(updateData).filter(k => k !== 'updated_at');
-      logger.info(`🏠 Updated remote server ${existingServer.id}: ${changedFields.join(', ')}`);
+      logger.info(`Updated remote server ${existingServer.id}: ${changedFields.join(', ')}`);
     }
     return;
   }
 
-  // Handle message updates (Note type)
   if (object.type !== 'Note') {
     return;
   }
@@ -1209,7 +1162,7 @@ async function processUpdateActivity(
   // AUTHZ: message edits are author-only.
   const editorUrl = typeof activity.actor === 'string' ? activity.actor : activity.actor?.id;
   if (!(await actorOwnsMessage(supabase, message.id, editorUrl))) {
-    logger.warn(`🚫 Rejecting Update: ${editorUrl} does not own message ${object.id}`);
+    logger.warn(`Rejecting Update: ${editorUrl} does not own message ${object.id}`);
     return;
   }
 
@@ -1250,7 +1203,7 @@ async function processUpdateActivity(
     return;
   }
   
-  logger.info(`✏️ Updated federated message: ${object.id}`);
+  logger.info(`Updated federated message: ${object.id}`);
 
   // Re-broadcast edit to other remote instances
   if (server.is_local_server) {
@@ -1272,7 +1225,7 @@ async function processUpdateActivity(
         const inbox = `https://${instance}/inbox`;
         try {
           await DeliveryQueue.enqueue(activity, inbox, server.owner);
-          logger.info(`📤 Re-broadcast edit to ${instance}`);
+          logger.info(`Re-broadcast edit to ${instance}`);
         } catch (e) {
           logger.error(`Failed to re-broadcast edit to ${instance}:`, e);
         }
@@ -1281,9 +1234,6 @@ async function processUpdateActivity(
   }
 }
 
-/**
- * Process Delete activity (message deletion)
- */
 async function processDeleteActivity(
   serverId: string,
   server: any,
@@ -1301,7 +1251,7 @@ async function processDeleteActivity(
 
   const actorUrlDel = typeof activity.actor === 'string' ? activity.actor : activity.actor?.id;
 
-  // Locate the target message first so we can authorize before mutating.
+  // Message is resolved first: authorization precedes mutation.
   const { data: targetMsg } = await supabase
     .from('messages')
     .select('id')
@@ -1319,11 +1269,10 @@ async function processDeleteActivity(
     ? true
     : await actorIsServerModerator(supabase, serverId, server, actorUrlDel, PERM_MANAGE_MESSAGES);
   if (!canModerate) {
-    logger.warn(`🚫 Rejecting Delete: ${actorUrlDel} may not delete message ${objectUrl} in server ${serverId}`);
+    logger.warn(`Rejecting Delete: ${actorUrlDel} may not delete message ${objectUrl} in server ${serverId}`);
     return;
   }
 
-  // Soft-delete the message
   const { error } = await supabase
     .from('messages')
     .update({ is_deleted: true })
@@ -1334,7 +1283,7 @@ async function processDeleteActivity(
     return;
   }
 
-  logger.info(`🗑️ Deleted federated message: ${objectUrl}`);
+  logger.info(`Deleted federated message: ${objectUrl}`);
 
   // Re-broadcast delete to other remote instances
   if (server.is_local_server) {
@@ -1356,7 +1305,7 @@ async function processDeleteActivity(
         const inbox = `https://${instance}/inbox`;
         try {
           await DeliveryQueue.enqueue(activity, inbox, server.owner);
-          logger.info(`📤 Re-broadcast delete to ${instance}`);
+          logger.info(`Re-broadcast delete to ${instance}`);
         } catch (e) {
           logger.error(`Failed to re-broadcast delete to ${instance}:`, e);
         }
@@ -1365,9 +1314,7 @@ async function processDeleteActivity(
   }
 }
 
-/**
- * Process Like/EmojiReaction activity
- */
+// Handles Like, EmojiReact and EmojiReaction.
 async function processReactionActivity(
   serverId: string,
   server: any,
@@ -1381,7 +1328,6 @@ async function processReactionActivity(
     return;
   }
 
-  // Ensure reactor exists
   await ActivityProcessor['ensureRemoteUser'](actorUrl);
 
   const { data: user } = await supabase
@@ -1397,7 +1343,7 @@ async function processReactionActivity(
   // AUTHZ: only accepted members may react in a server's channels.
   const membership = await actorIsAcceptedMember(supabase, serverId, actorUrl);
   if (!membership.ok) {
-    logger.warn(`🚫 Rejecting reaction: ${actorUrl} is not an accepted member of server ${serverId}`);
+    logger.warn(`Rejecting reaction: ${actorUrl} is not an accepted member of server ${serverId}`);
     return;
   }
 
@@ -1414,7 +1360,7 @@ async function processReactionActivity(
   }
 
   if (!message) {
-    // Try by ap_id in metadata
+    // Fall back to metadata->>ap_id.
     const { data } = await supabase
       .from('messages')
       .select('id')
@@ -1441,7 +1387,7 @@ async function processReactionActivity(
   };
 
   if (isCustomEmoji) {
-    // Custom emoji with URL - resolve to an emoji_id in the emojis table
+    // Custom emoji resolves to a row id in the emojis table.
     const { data: existingEmoji } = await supabase
       .from('emojis')
       .select('id')
@@ -1474,15 +1420,14 @@ async function processReactionActivity(
       return;
     }
   } else {
-    // Native/unicode emoji - store with emoji_id=null + custom_emoji_content
-    // Must match ActivityProcessor.processLike storage to prevent double counting
+    // Unicode emoji: emoji_id null, value in custom_emoji_content.
+    // Storage must match ActivityProcessor.processLike or reactions double-count.
     let normalizedEmoji = emoji || '❤️';
     if (normalizedEmoji === '❤') normalizedEmoji = '❤️';
     reactionData.emoji_id = null;
     reactionData.custom_emoji_content = normalizedEmoji;
   }
 
-  // Deduplicate: check if this reaction already exists
   let dupQuery = supabase
     .from('reactions')
     .select('id')
@@ -1498,7 +1443,7 @@ async function processReactionActivity(
 
   const { data: existingReaction } = await dupQuery.maybeSingle();
   if (existingReaction) {
-    logger.info(`🔄 Reaction already exists for user ${user.id} on message ${message.id}`);
+    logger.info(`Reaction already exists for user ${user.id} on message ${message.id}`);
     return;
   }
 
@@ -1507,16 +1452,16 @@ async function processReactionActivity(
     .insert(reactionData);
 
   if (error) {
-    // Handle unique constraint violation gracefully (concurrent insert race)
+    // 23505: unique violation from a concurrent insert.
     if (error.code === '23505') {
-      logger.info(`🔄 Reaction already exists (constraint): ${error.message}`);
+      logger.info(`Reaction already exists (constraint): ${error.message}`);
       return;
     }
     logger.error('Failed to add reaction:', error);
     return;
   }
   
-  logger.info(`👍 Added reaction to message ${message.id}`);
+  logger.info(`Added reaction to message ${message.id}`);
 
   // Re-broadcast reaction to other remote instances
   if (server.is_local_server) {
@@ -1537,7 +1482,7 @@ async function processReactionActivity(
         const inbox = `https://${instance}/inbox`;
         try {
           await DeliveryQueue.enqueue(activity, inbox, server.owner);
-          logger.info(`📤 Re-broadcast reaction to ${instance}`);
+          logger.info(`Re-broadcast reaction to ${instance}`);
         } catch (e) {
           logger.error(`Failed to re-broadcast reaction to ${instance}:`, e);
         }
@@ -1546,9 +1491,7 @@ async function processReactionActivity(
   }
 }
 
-/**
- * Process Add activity (channel or category creation)
- */
+// Add creates a channel or a category.
 async function processAddActivity(
   serverId: string,
   server: any,
@@ -1566,7 +1509,7 @@ async function processAddActivity(
   // AUTHZ: channel/category creation requires host authority or MANAGE_CHANNELS.
   const addActor = typeof activity.actor === 'string' ? activity.actor : activity.actor?.id;
   if (!(await actorIsServerModerator(supabase, serverId, server, addActor, PERM_MANAGE_CHANNELS))) {
-    logger.warn(`🚫 Rejecting Add(${objectType}): ${addActor} lacks channel-management authority on server ${serverId}`);
+    logger.warn(`Rejecting Add(${objectType}): ${addActor} lacks channel-management authority on server ${serverId}`);
     return;
   }
 
@@ -1595,7 +1538,7 @@ async function processAddActivity(
       order: object.position || object.order || 0,
     };
 
-    // Use remote UUID for consistency
+    // Reuse the remote UUID as the local primary key.
     if (entityUuid) {
       catInsertData.id = entityUuid;
     }
@@ -1604,7 +1547,7 @@ async function processAddActivity(
     if (catError) {
       logger.error(`Failed to create category ${object.name}:`, catError);
     } else {
-      logger.info(`📁 Created remote category: ${object.name}`);
+      logger.info(`Created remote category: ${object.name}`);
     }
     return;
   }
@@ -1612,7 +1555,7 @@ async function processAddActivity(
   if (['harmony:TextChannel', 'harmony:VoiceChannel'].includes(objectType)) {
     const channelType = objectType === 'harmony:VoiceChannel' ? 1 : 0;
 
-    // Resolve category reference - look up in channel_categories by UUID
+    // Category reference resolves to channel_categories by UUID.
     let categoryId = null;
     if (object.category) {
       const catMatch = object.category.match(/\/channels\/([a-f0-9-]{36})$/i);
@@ -1650,7 +1593,7 @@ async function processAddActivity(
       category: categoryId,
     };
 
-    // Use remote UUID for consistency
+    // Reuse the remote UUID as the local primary key.
     if (entityUuid) {
       insertData.id = entityUuid;
     }
@@ -1659,14 +1602,12 @@ async function processAddActivity(
     if (channelError) {
       logger.error(`Failed to create channel ${object.name}:`, channelError);
     } else {
-      logger.info(`📢 Created remote channel: ${object.name} (${objectType}, category: ${categoryId})`);
+      logger.info(`Created remote channel: ${object.name} (${objectType}, category: ${categoryId})`);
     }
   }
 }
 
-/**
- * Process Remove activity (kick from server OR channel deletion)
- */
+// Remove deletes a channel/category, or kicks a member.
 async function processRemoveActivity(
   serverId: string,
   server: any,
@@ -1684,14 +1625,13 @@ async function processRemoveActivity(
   if (objectUrl.includes('/channels/')) {
     // AUTHZ: structural change - require host authority or MANAGE_CHANNELS.
     if (!(await actorIsServerModerator(supabase, serverId, server, removeActor, PERM_MANAGE_CHANNELS))) {
-      logger.warn(`🚫 Rejecting Remove(channel): ${removeActor} lacks channel-management authority on server ${serverId}`);
+      logger.warn(`Rejecting Remove(channel): ${removeActor} lacks channel-management authority on server ${serverId}`);
       return;
     }
 
     const uuidMatch = objectUrl.match(/\/channels\/([a-f0-9-]{36})$/i);
     const entityUuid = uuidMatch ? uuidMatch[1] : null;
 
-    // Try to remove from channels table first
     const { data: deletedChannel } = await supabase
       .from('channels')
       .delete()
@@ -1701,11 +1641,11 @@ async function processRemoveActivity(
       .maybeSingle();
     
     if (deletedChannel) {
-      logger.info(`🗑️ Removed remote channel: ${objectUrl}`);
+      logger.info(`Removed remote channel: ${objectUrl}`);
       return;
     }
 
-    // If not found in channels, try channel_categories (by UUID since no ap_id column)
+    // channel_categories has no ap_id column; match by UUID.
     if (entityUuid) {
       const { data: deletedCategory } = await supabase
         .from('channel_categories')
@@ -1716,7 +1656,7 @@ async function processRemoveActivity(
         .maybeSingle();
       
       if (deletedCategory) {
-        logger.info(`🗑️ Removed remote category: ${objectUrl}`);
+        logger.info(`Removed remote category: ${objectUrl}`);
         return;
       }
     }
@@ -1739,7 +1679,7 @@ async function processRemoveActivity(
   const isSelfRemoval = !!removeActor && SignatureService.verifyActorMatch(removeActor, objectUrl);
   if (!isSelfRemoval &&
       !(await actorIsServerModerator(supabase, serverId, server, removeActor, PERM_KICK_MEMBERS))) {
-    logger.warn(`🚫 Rejecting Remove(member): ${removeActor} may not kick ${objectUrl} from server ${serverId}`);
+    logger.warn(`Rejecting Remove(member): ${removeActor} may not kick ${objectUrl} from server ${serverId}`);
     return;
   }
 
@@ -1749,12 +1689,9 @@ async function processRemoveActivity(
     .eq('server_id', serverId)
     .eq('user_id', user.id);
 
-  logger.info(`👢 Kicked ${user.username} from server ${serverId}`);
+  logger.info(`Kicked ${user.username} from server ${serverId}`);
 }
 
-/**
- * Process Undo activity
- */
 async function processUndoActivity(
   serverId: string,
   server: any,
@@ -1771,13 +1708,13 @@ async function processUndoActivity(
 
   switch (objectType) {
     case 'Join': {
-      // Undo Join = Leave. processLeaveServer trusts object.actor, so require
-      // it to be the authenticated outer actor - else anyone can "undo" a
-      // victim's Join and force-remove them from the server.
+      // Undo(Join) is a Leave. processLeaveServer trusts object.actor, so it
+      // must equal the authenticated outer actor; otherwise any actor can undo
+      // another member's Join and force-remove them.
       const undoActor = typeof activity.actor === 'string' ? activity.actor : activity.actor?.id;
       const joinActor = typeof object.actor === 'string' ? object.actor : object.actor?.id;
       if (!undoActor || !joinActor || !SignatureService.verifyActorMatch(undoActor, joinActor)) {
-        logger.warn(`🚫 Rejecting Undo(Join): actor ${undoActor} does not match Join actor ${joinActor}`);
+        logger.warn(`Rejecting Undo(Join): actor ${undoActor} does not match Join actor ${joinActor}`);
         return;
       }
       await processLeaveServer(serverId, server, object);
@@ -1816,13 +1753,8 @@ async function processUndoActivity(
   }
 }
 
-// =============================================================================
 // HELPER FUNCTIONS
-// =============================================================================
 
-/**
- * Send Accept activity for a Join request
- */
 async function sendAcceptActivity(
   serverId: string,
   server: any,
@@ -1846,9 +1778,6 @@ async function sendAcceptActivity(
   await DeliveryQueue.sendToInbox(targetInbox, acceptActivity, server.owner);
 }
 
-/**
- * Send Reject activity for a Join request
- */
 async function sendRejectActivity(
   serverId: string,
   server: any,
@@ -1874,9 +1803,6 @@ async function sendRejectActivity(
   await DeliveryQueue.sendToInbox(targetInbox, rejectActivity, server.owner);
 }
 
-/**
- * Strip HTML tags from content
- */
 // eslint-disable-next-line unused-imports/no-unused-vars
 function stripHtml(html: string): string {
   const text = html

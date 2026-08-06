@@ -1,6 +1,5 @@
 <template>
   <div class="reset-password-wrapper" :style="authStyles">
-    <!-- Background Elements -->
     <div class="bg-overlay"></div>
     <div class="bg-particles">
       <div 
@@ -18,9 +17,7 @@
       ></div>
     </div>
 
-    <!-- Main Container -->
     <div class="reset-password-container">
-      <!-- Left Panel - Branding -->
       <div class="auth-branding">
         <div class="brand-content">
           <div class="logo-container">
@@ -36,10 +33,8 @@
         </div>
       </div>
 
-      <!-- Right Panel - Reset Form -->
       <div class="auth-panel">
         <div class="auth-form-container">
-          <!-- Success State -->
           <div v-if="isSuccess" class="success-state">
             <div class="success-icon">
               <svg width="64" height="64" viewBox="0 0 24 24" fill="none">
@@ -60,7 +55,6 @@
             </button>
           </div>
 
-          <!-- Error State (Invalid/Expired Token) -->
           <div v-else-if="isError" class="error-state">
             <div class="error-icon">
               <svg width="64" height="64" viewBox="0 0 24 24" fill="none">
@@ -81,7 +75,6 @@
             </button>
           </div>
 
-          <!-- Reset Form -->
           <div v-else-if="isValidToken">
             <div class="form-header">
               <h2 class="form-title">Reset Your Password</h2>
@@ -153,7 +146,6 @@
                 <span v-if="confirmPasswordError" class="error-message">{{ confirmPasswordError }}</span>
               </div>
 
-              <!-- Submit Button -->
               <button 
                 type="submit" 
                 class="submit-btn"
@@ -164,7 +156,6 @@
                 <div v-else class="loading-spinner"></div>
               </button>
 
-              <!-- Back to Login -->
               <div class="divider">
                 <span>Remember your password?</span>
               </div>
@@ -179,7 +170,7 @@
             </form>
           </div>
 
-          <!-- Loading state while checking token -->
+          <!-- Token check in flight. -->
           <div v-else class="loading-state">
             <LoadingSpinner :size="40" />
             <p class="form-subtitle">Verifying password reset link...</p>
@@ -188,7 +179,6 @@
       </div>
     </div>
 
-    <!-- MFA Verification Modal -->
     <div v-if="showMFAModal" class="modal-overlay" @click="closeMFAModal">
       <div class="modal-content" @click.stop>
         <button class="modal-close" @click="closeMFAModal" aria-label="Close">
@@ -273,7 +263,6 @@ const router = useRouter()
 const toast = useToast()
 const authStore = useAuthStore()
 
-// State
 const newPassword = ref('')
 const confirmPassword = ref('')
 const showPassword = ref(false)
@@ -290,7 +279,6 @@ const isValidToken = ref(false)
 const isPasswordResetMode = ref(false)
 let authStateListener: { subscription: { unsubscribe: () => void } } | null = null
 
-// MFA State
 const requiresMFA = ref(false)
 const showMFAModal = ref(false)
 const mfaCode = ref('')
@@ -300,11 +288,9 @@ const mfaFactorId = ref('')
 const mfaChallengeId = ref('')
 const useRecoveryCode = ref(false)
 
-// Background particles
 const particles = ref<Array<{ id: number; left: string; top: string; delay: string; duration: string; size: string }>>([])
 const randomBg = ref('')
 
-// Styles
 const authStyles = computed(() => ({
   '--random-bg': randomBg.value
 }))
@@ -327,52 +313,50 @@ const checkMFAStatus = async () => {
     const totpFactor = factors?.totp?.find((f: any) => f.status === 'verified')
     
     if (totpFactor) {
-      debug.log('🔒 User has MFA enabled - will require 2FA verification for password reset')
+      debug.log('User has MFA enabled - will require 2FA verification for password reset')
       requiresMFA.value = true
       mfaFactorId.value = totpFactor.id
     } else {
-      debug.log('✅ User does not have MFA enabled')
+      debug.log('User does not have MFA enabled')
       requiresMFA.value = false
     }
   } catch (error: any) {
     debug.error('Error checking MFA status:', error)
-    // If we can't check MFA status, assume it's not enabled
+    // Unknown MFA status is treated as not enabled.
     requiresMFA.value = false
   }
 }
 
-// Check for recovery token on mount
 onMounted(async () => {
   randomBg.value = `url('/img/login_bg${Math.floor(Math.random() * 65) + 1}.webp')`
   initializeParticles()
 
-  // Set up listener for PASSWORD_RECOVERY event
-  // This fires when Supabase processes the recovery token
-  // Note: The auth store will also catch this and set isPasswordResetMode flag
+  // PASSWORD_RECOVERY fires once Supabase processes the recovery token.
+  // The auth store listens for the same event and sets isPasswordResetMode.
   const authListenerData = supabase.auth.onAuthStateChange(async (event, session) => {
     if (event === 'PASSWORD_RECOVERY' && session) {
-      debug.log('🔒 PASSWORD_RECOVERY event detected in ResetPasswordView')
+      debug.log('PASSWORD_RECOVERY event detected in ResetPasswordView')
       isValidToken.value = true
       isPasswordResetMode.value = true
-      // Router guard will handle preventing navigation
+      // Navigation away is blocked by the router guard.
     }
   })
   authStateListener = authListenerData.data
 
-  // Wait a bit for Supabase to process any hash fragments
+  // 500ms for Supabase to process hash fragments.
   await new Promise(resolve => setTimeout(resolve, 500))
 
-  // Check if there's a recovery token in the URL
-  // Supabase typically puts it in the hash fragment (#access_token=...&type=recovery)
-  // but it can also be in query params (?token=...&type=recovery)
+  // Recovery token arrives in the hash fragment
+  // (#access_token=...&type=recovery) or in query params
+  // (?token=...&type=recovery).
   const hashParams = new URLSearchParams(window.location.hash.substring(1))
   const queryParams = new URLSearchParams(window.location.search)
   
   const accessToken = hashParams.get('access_token') || queryParams.get('access_token') || queryParams.get('token')
   const type = hashParams.get('type') || queryParams.get('type')
   
-  // If no token is found in URL, check if we have a valid session
-  // (Supabase might have already processed the token)
+  // No token in the URL: an existing session means Supabase already
+  // consumed it.
   if (!accessToken || type !== 'recovery') {
     const { data: sessionData } = await supabase.auth.getSession()
     
@@ -382,24 +366,22 @@ onMounted(async () => {
       authStateListener?.subscription.unsubscribe()
       return
     }
-    // If we have a session, the token was processed - allow password reset
     isValidToken.value = true
     isPasswordResetMode.value = true
     
     await checkMFAStatus()
     
-    // Router guard will handle preventing navigation
+    // Navigation away is blocked by the router guard.
     return
   }
 
-  // Token found in URL - Supabase should process it automatically
-  // Wait a moment for Supabase to process the hash fragment
+  // 1s for Supabase to process the hash fragment.
   await new Promise(resolve => setTimeout(resolve, 1000))
   
   try {
     const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
     
-    // If we have a session, the token was processed successfully
+    // A session means the token was accepted.
     if (sessionError || !sessionData.session) {
       isError.value = true
       errorMessage.value = 'This password reset link is invalid or has expired. Please request a new one.'
@@ -410,7 +392,7 @@ onMounted(async () => {
       
       await checkMFAStatus()
       
-      // Router guard will handle preventing navigation
+      // Navigation away is blocked by the router guard.
     }
   } catch (error: any) {
     debug.error('Error checking recovery token:', error)
@@ -468,9 +450,8 @@ const handleResetPassword = async () => {
     return
   }
   
-  // If user has MFA enabled, show MFA modal instead of proceeding directly
   if (requiresMFA.value) {
-    debug.log('🔒 User has MFA - showing 2FA verification modal')
+    debug.log('User has MFA - showing 2FA verification modal')
     
     try {
       const { data: challengeData, error: challengeError } = await supabase.auth.mfa.challenge({
@@ -492,17 +473,14 @@ const handleResetPassword = async () => {
     return
   }
   
-  // No MFA required, proceed with password reset
   await performPasswordReset()
 }
 
-// Perform the actual password reset
 const performPasswordReset = async () => {
   isLoading.value = true
   
   try {
-    // Supabase will automatically use the recovery token from the URL
-    // when calling updateUser with a password
+    // updateUser applies the recovery token already held from the URL.
     const { data, error } = await supabase.auth.updateUser({
       password: newPassword.value
     })
@@ -516,7 +494,7 @@ const performPasswordReset = async () => {
       } else if (error.message.includes('Password should be at least')) {
         passwordError.value = error.message
       } else if (error.message.includes('AAL2') || error.message.includes('aal2')) {
-        // User needs AAL2 - this shouldn't happen if we handled MFA correctly
+        // AAL2 required; unreachable once the MFA path has run.
         passwordError.value = 'Multi-factor authentication is required. Please verify your 2FA code.'
       } else {
         passwordError.value = error.message || 'Failed to reset password'
@@ -524,20 +502,18 @@ const performPasswordReset = async () => {
       return
     }
     
-    // Success!
-    debug.log('✅ Password reset successful:', data)
+    debug.log('Password reset successful:', data)
     isSuccess.value = true
     isPasswordResetMode.value = false
     
     authStore.clearPasswordResetMode()
     
-    // Sign out the recovery session - user needs to log in with new password
+    // Recovery session is discarded; login uses the new password.
     await supabase.auth.signOut()
     authStore.session = null
     
     toast.success('Password reset successful! Please log in with your new password.')
     
-    // Redirect to login after a short delay
     setTimeout(() => {
       router.push('/login')
     }, 3000)
@@ -549,9 +525,7 @@ const performPasswordReset = async () => {
   }
 }
 
-// Navigate to login
 const goToLogin = async () => {
-  // If we're in password reset mode, sign out and clear the flag
   if (isPasswordResetMode.value && !isSuccess.value) {
     await supabase.auth.signOut()
     authStore.session = null
@@ -567,13 +541,13 @@ const handleMFAVerification = async () => {
     return
   }
 
-  debug.log('🔐 Starting MFA verification for password reset...')
+  debug.log('Starting MFA verification for password reset...')
   mfaLoading.value = true
   mfaError.value = ''
 
   try {
     if (useRecoveryCode.value) {
-      debug.log('📞 Verifying recovery code...')
+      debug.log('Verifying recovery code...')
       
       const { data: sessionData } = await supabase.auth.getSession()
       const userId = sessionData.session?.user?.id
@@ -593,22 +567,20 @@ const handleMFAVerification = async () => {
         throw new Error('Invalid or already used recovery code')
       }
 
-      debug.log('✅ Recovery code verified successfully!')
+      debug.log('Recovery code verified successfully!')
       
-      // Unenroll the TOTP factor since they lost access to their authenticator
+      // Recovery-code use implies the authenticator is lost; drop the factor.
       await supabase.auth.mfa.unenroll({ factorId: mfaFactorId.value })
       
-      // They no longer have MFA, so we can proceed with password reset
       requiresMFA.value = false
       showMFAModal.value = false
       mfaCode.value = ''
       
-      // Now proceed with password reset
       await performPasswordReset()
       
       toast.warning('2FA has been disabled. Please re-enable it after logging in with your new password.')
     } else {
-      debug.log('📞 Verifying TOTP code...')
+      debug.log('Verifying TOTP code...')
       
       const { error: verifyError } = await supabase.auth.mfa.verify({
         factorId: mfaFactorId.value,
@@ -618,16 +590,16 @@ const handleMFAVerification = async () => {
 
       if (verifyError) throw verifyError
 
-      debug.log('✅ MFA verified - session upgraded to AAL2')
+      debug.log('MFA verified - session upgraded to AAL2')
       
       showMFAModal.value = false
       mfaCode.value = ''
       
-      // Now proceed with password reset (session is now AAL2)
+      // Session is AAL2 at this point.
       await performPasswordReset()
     }
   } catch (error: any) {
-    debug.error('❌ MFA verification error:', error)
+    debug.error('MFA verification error:', error)
     mfaError.value = error.message || 'Invalid code. Please try again.'
   } finally {
     mfaLoading.value = false

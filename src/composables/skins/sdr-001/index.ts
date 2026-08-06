@@ -15,8 +15,8 @@
  *     - bg/                                        # optional backgrounds
  *
  * To add a new skin: copy this folder, swap the CSS + theme overrides,
- * register the export in `../index.ts`. No TypeScript branches, no
- * if/else - the registry is just an array.
+ * register the export in `../index.ts`. The registry is an array; no
+ * TypeScript branching.
  */
 import type { Skin } from '../types'
 import skinCss from './skin.css?raw'
@@ -32,9 +32,8 @@ export const sdr001Skin: Skin = {
   isBeta: true,
   preview: '/assets/skins/sdr-001-preview.png',
   // Each option flips a `data-skin-<id>="on|off"` attribute on `<html>`
-  // that the skin's CSS gates decorative rules on. Defaults are all `on`
-  // because the user picked the skin to get the costume; toggle off for
-  // a quieter version of the same look.
+  // that the skin's CSS gates decorative rules on. Defaults are all `on`;
+  // toggling off yields a quieter version of the same look.
   options: [
     {
       id: 'scanline',

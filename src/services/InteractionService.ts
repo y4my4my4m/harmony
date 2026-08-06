@@ -139,7 +139,7 @@ export class InteractionService {
       .range(offset, offset + limit - 1)
 
     if (error) {
-      debug.error('❌ Database error:', error)
+      debug.error('Database error:', error)
       throw this.createError('FOLLOWING_FAILED', 'Failed to load following', error)
     }
 
@@ -207,7 +207,7 @@ export class InteractionService {
       .eq('status', 'accepted')
 
     if (error) {
-      debug.error('❌ Failed to load following ids:', error)
+      debug.error('Failed to load following ids:', error)
       throw this.createError('FOLLOWING_FAILED', 'Failed to load following ids', error)
     }
 

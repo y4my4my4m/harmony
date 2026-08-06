@@ -24,10 +24,9 @@ import type {
 } from '@/types'
 
 /**
- * Shape returned by the `notificationCounts` getter. Hoisted to an
- * exported interface so dependent getters can reference it cleanly
- * (vue-tsc/Pinia's inference for cross-getter `this` access struggles
- * with inline anonymous return types).
+ * Return shape of the `notificationCounts` getter. Exported rather than
+ * inline: vue-tsc/Pinia inference for cross-getter `this` access fails on
+ * anonymous return types.
  */
 export interface NotificationCounts {
   total: number
@@ -61,7 +60,6 @@ interface NotificationState {
   cachedAuthUserId: string | null
 }
 
-// Sound mappings for different notification types to audio actions
 const NOTIFICATION_SOUND_MAPPING: Record<NotificationType, AudioAction> = {
   mention: 'mention',
   dm: 'dm', 
@@ -88,7 +86,6 @@ const NOTIFICATION_SOUND_MAPPING: Record<NotificationType, AudioAction> = {
   ui_error: 'ui_error',
 }
 
-// Default notification preferences
 const DEFAULT_PREFERENCES: Omit<NotificationPreferences, 'id' | 'user_id' | 'created_at' | 'updated_at'> = {
   desktop_notifications: true,
   desktop_mentions: true,
@@ -114,7 +111,6 @@ const DEFAULT_PREFERENCES: Omit<NotificationPreferences, 'id' | 'user_id' | 'cre
   dnd_start_time: '22:00:00',
   dnd_end_time: '08:00:00',
   
-  // ActivityPub notifications
   activitypub_notifications: true,
   activitypub_follows: true,
   activitypub_favorites: true,
@@ -123,7 +119,6 @@ const DEFAULT_PREFERENCES: Omit<NotificationPreferences, 'id' | 'user_id' | 'cre
   activitypub_replies: true,
   activitypub_follow_requests: true,
   
-  // ActivityPub desktop notifications
   activitypub_desktop_notifications: true,
   activitypub_desktop_follows: true,
   activitypub_desktop_favorites: false,
@@ -131,7 +126,6 @@ const DEFAULT_PREFERENCES: Omit<NotificationPreferences, 'id' | 'user_id' | 'cre
   activitypub_desktop_mentions: true,
   activitypub_desktop_replies: true,
   
-  // ActivityPub sound notifications
   activitypub_sound_notifications: true,
   activitypub_sound_follows: true,
   activitypub_sound_favorites: false,
@@ -198,15 +192,14 @@ export const useNotificationStore = defineStore('notification', {
     },
 
     /**
-     * Single-pass projection of the notifications array into the counters
-     * the rest of the UI needs. Replaces 5+ separate `filter().length`
-     * getters that each scanned the full array (BUGS.md PC5).
+     * Single-pass projection of `notifications` into every counter the UI
+     * reads. Replaces 5+ `filter().length` getters that each scanned the
+     * full array (BUGS.md PC5).
      *
-     * For parameterized counts (per-channel, per-server, per-conversation)
-     * we build Maps so callers do an O(1) lookup instead of an O(n) scan.
-     * Maps and primitive counters here are recomputed by Pinia/Vue only
-     * when `state.notifications` changes, so dependents that read multiple
-     * counts in one frame share a single full scan.
+     * Parameterized counts (per-channel, per-server, per-conversation) are
+     * Maps, so callers do an O(1) lookup instead of an O(n) scan. Recomputed
+     * only when `state.notifications` changes; dependents reading several
+     * counts in one frame share one scan.
      */
     notificationCounts(): NotificationCounts {
       const total = this.notifications.length
@@ -247,13 +240,11 @@ export const useNotificationStore = defineStore('notification', {
           if (isApMention) unreadMentions++
           if (isDM) unreadDMs++
           if (isMention) {
-            // The legacy getters used `||` between top-level and nested
-            // forms, which means a notification carrying BOTH
-            // `data.channel_id = X` AND `data.location.channel_id = Y`
-            // (with X !== Y) would count for both X and Y. We preserve
-            // that semantics here by bumping both keys when they differ,
-            // rather than collapsing via `??` which would count only one.
-            // BUGS.md M3 from code review.
+            // Legacy getters used `||` between top-level and nested forms,
+            // so a notification carrying both `data.channel_id = X` and
+            // `data.location.channel_id = Y` (X !== Y) counted for both.
+            // Bumping both keys when they differ preserves that; `??` would
+            // count only one. BUGS.md M3.
             const cid = n.data?.channel_id
             const cidLoc = n.data?.location?.channel_id
             if (cid) bumpMap(unreadChannelMentions, cid)
@@ -314,16 +305,13 @@ export const useNotificationStore = defineStore('notification', {
       })
     },
 
-    // Per-type unread counts. These now read from the single-pass
-    // `notificationCounts` projection above instead of each running their
-    // own full-array scan.
+    // Per-type unread counts, read from the single-pass `notificationCounts`
+    // projection above rather than each scanning the full array.
     //
-    // The `(this as any).notificationCounts` cast is a workaround for a
-    // vue-tsc / Pinia type-inference limitation: when one method-form
-    // getter references another via `this`, TypeScript surfaces the
-    // getter as its raw `() => T` function type instead of unwrapping
-    // to `T`. At runtime Pinia unwraps correctly. Tracking issue in
-    // upstream vue-tsc.
+    // The `(this as any).notificationCounts` cast works around a vue-tsc /
+    // Pinia inference limit: a method-form getter referencing another via
+    // `this` surfaces it as the raw `() => T` function type instead of `T`.
+    // Pinia unwraps correctly at runtime.
 
     unreadMentions(): number {
       return (this as any).notificationCounts.unreadMentions
@@ -380,7 +368,6 @@ export const useNotificationStore = defineStore('notification', {
           case 'reply':
             return state.preferences.desktop_replies
           
-          // ActivityPub desktop notifications
           case 'activitypub_follow':
             return state.preferences.activitypub_desktop_notifications && state.preferences.activitypub_desktop_follows
           case 'activitypub_favorite':
@@ -417,7 +404,6 @@ export const useNotificationStore = defineStore('notification', {
           case 'voice_channel_activity':
             return state.preferences.sound_voice_activity
           
-          // ActivityPub sound notifications
           case 'activitypub_follow':
             return state.preferences.activitypub_sound_notifications && state.preferences.activitypub_sound_follows
           case 'activitypub_favorite':
@@ -440,10 +426,9 @@ export const useNotificationStore = defineStore('notification', {
     },
 
     notificationFilters() {
-      // Counts come from the single-pass `notificationCounts` projection so
-      // a single read of this getter no longer triggers five separate
-      // O(n) scans of `notifications`. The `as any` cast is the same
-      // vue-tsc workaround documented on the per-type getters above.
+      // Counts come from the single-pass `notificationCounts` projection, so
+      // one read of this getter costs one scan of `notifications` rather than
+      // five. The `as any` cast is the vue-tsc workaround documented above.
       const c: NotificationCounts = (this as any).notificationCounts
       return [
         {
@@ -488,15 +473,15 @@ export const useNotificationStore = defineStore('notification', {
 
   actions: {
     /**
-     * Initialize notification system - Discord-like client setup
-     * Database handles all notification creation via triggers
+     * Notification rows are created by database triggers; the client only
+     * loads, subscribes, and renders.
      */
     async initialize(userId: string) {
       if (this.isInitialized) return
       
       try {
         this.isLoading = true
-        debug.log('🔔 Notification Store: Initializing for user:', userId)
+        debug.log('Notification Store: Initializing for user:', userId)
 
         this.hasPermission = await this.requestNativePermissionIfNeeded()
 
@@ -509,9 +494,9 @@ export const useNotificationStore = defineStore('notification', {
         this.setupDndCheck()
         
         this.isInitialized = true
-        debug.log('✅ Notification Store: Initialized successfully')
+        debug.log('Notification Store: Initialized successfully')
       } catch (error) {
-        debug.error('❌ Notification Store: Failed to initialize:', error)
+        debug.error('Notification Store: Failed to initialize:', error)
         this.showToast('server_update', 'Failed to load notifications', 'Please refresh the page', 5000)
       } finally {
         this.isLoading = false
@@ -519,14 +504,14 @@ export const useNotificationStore = defineStore('notification', {
     },
 
     /**
-     * Initialize notification store: loads unread notifications for badge computation
-     * and sets up realtime subscription for new notifications.
+     * Loads only unread notifications (for badge counts) plus the realtime
+     * subscription. The full list is deferred to loadFullNotificationList.
      */
     async initializeUnreadCountOnly(userId: string) {
       if (this.isInitialized) return
       
       try {
-        debug.log('🔔 Notification Store: Initializing with unread notifications')
+        debug.log('Notification Store: Initializing with unread notifications')
 
         this.hasPermission = await this.requestNativePermissionIfNeeded()
 
@@ -534,8 +519,8 @@ export const useNotificationStore = defineStore('notification', {
         
         const profileId = await this.getProfileId(userId)
         
-        // Load unread notifications so sidebar badge getters (unreadDMs,
-        // unreadServerMentions, ActivityPub count) work immediately on page load.
+        // Sidebar badge getters (unreadDMs, unreadServerMentions, ActivityPub
+        // count) need these rows present on first paint.
         try {
           const { data, error } = await supabase
             .from('notifications')
@@ -549,7 +534,7 @@ export const useNotificationStore = defineStore('notification', {
             debug.error('Failed to load unread notifications:', error)
           } else {
             this.notifications = (data || []) as any
-            debug.log(`✅ Loaded ${this.notifications.length} unread notifications for badges`)
+            debug.log(`Loaded ${this.notifications.length} unread notifications for badges`)
           }
         } catch (err) {
           debug.error('Failed to load unread notifications:', err)
@@ -562,30 +547,30 @@ export const useNotificationStore = defineStore('notification', {
         this.setupDndCheck()
         
         this.isInitialized = true
-        debug.log('✅ Notification Store: Initialization complete')
+        debug.log('Notification Store: Initialization complete')
       } catch (error) {
-        debug.error('❌ Notification Store: Failed to initialize:', error)
+        debug.error('Notification Store: Failed to initialize:', error)
         this.unreadCount = 0
       }
     },
 
     /**
-     * Load full notification list including read ones (called when notification panel is opened)
+     * Loads read notifications too. Called when the notification panel opens.
      */
     async loadFullNotificationList(userId: string) {
       if (this.fullListLoaded) {
-        debug.log('📝 Full notification list already loaded')
+        debug.log('Full notification list already loaded')
         return
       }
       
       try {
         this.isLoading = true
-        debug.log('📝 Loading full notification list...')
+        debug.log('Loading full notification list...')
         await this.fetchNotifications(userId)
         this.fullListLoaded = true
-        debug.log('✅ Full notification list loaded')
+        debug.log('Full notification list loaded')
       } catch (error) {
-        debug.error('❌ Failed to load full notification list:', error)
+        debug.error('Failed to load full notification list:', error)
       } finally {
         this.isLoading = false
       }
@@ -593,7 +578,7 @@ export const useNotificationStore = defineStore('notification', {
 
     async fetchNotifications(userId: string, limit = 50, offset = 0) {
       try {
-        debug.log('🔄 Fetching notifications for user:', userId)
+        debug.log('Fetching notifications for user:', userId)
         
         const profileId = await this.getProfileId(userId)
         
@@ -602,7 +587,7 @@ export const useNotificationStore = defineStore('notification', {
           offset
         })
 
-        debug.log(`✅ Fetched ${data?.length || 0} notifications`)
+        debug.log(`Fetched ${data?.length || 0} notifications`)
 
         const visible = (data || []).filter((n: Notification) => !isFromHiddenUser(n))
 
@@ -625,14 +610,13 @@ export const useNotificationStore = defineStore('notification', {
 
         return data || []
       } catch (error) {
-        debug.error('❌ Failed to fetch notifications:', error)
+        debug.error('Failed to fetch notifications:', error)
         
-        // Fallback to direct query if service fails
         try {
-          debug.log('🔄 Falling back to direct notification fetch')
+          debug.log('Falling back to direct notification fetch')
           await this._fetchNotificationsFallback(userId, limit, offset)
         } catch (fallbackError) {
-          debug.error('❌ Fallback fetch also failed:', fallbackError)
+          debug.error('Fallback fetch also failed:', fallbackError)
           if (import.meta.env.DEV) {
             this.createMockNotifications(userId)
           }
@@ -642,7 +626,7 @@ export const useNotificationStore = defineStore('notification', {
     },
 
     /**
-     * Fallback method for fetching notifications
+     * Direct table query, used when the notifications service throws.
      */
     async _fetchNotificationsFallback(userId: string, limit = 50, offset = 0) {
       const profileId = await this.getProfileId(userId)
@@ -679,29 +663,23 @@ export const useNotificationStore = defineStore('notification', {
     },
 
     /**
-     * DUAL-MODE NOTIFICATION SUBSCRIPTION
+     * Registers UserEventChannel broadcast handlers (realtime.send() from DB
+     * triggers). Events funnel through _processIncomingNotification /
+     * _processNotificationUpdate, which dedupe by notification id, so
+     * double-delivery is harmless.
      *
-     * Sets up two parallel listeners for maximum reliability:
-     *
-     * 1. Broadcast handler - via UserEventChannel (realtime.send() from DB triggers).
-     *    Lower latency, fewer channels, but depends on realtime.send() working.
-     *
-     * 2. postgres_changes fallback - classic CDC subscription on the notifications
-     *    table.  Always works if the table is in the supabase_realtime publication.
-     *
-     * Both paths funnel through _processIncomingNotification / _processNotificationUpdate
-     * which deduplicate by notification ID so double-delivery is harmless.
+     * No postgres_changes CDC subscription exists.
      */
     async setupBroadcastNotificationHandlers(userId: string) {
       if (_unsubNewNotification) {
-        debug.log('✅ Notification handlers already registered, skipping')
+        debug.log('Notification handlers already registered, skipping')
         return
       }
 
       const profileId = await this.getProfileId(userId)
-      debug.log('🔔 Setting up dual-mode notification handlers for profile:', profileId)
+      debug.log('Setting up dual-mode notification handlers for profile:', profileId)
 
-      // ---- 1. Broadcast handlers (best-effort, low latency) ----
+      // Broadcast handlers: best-effort, low latency.
       if (!_unsubNewNotification) {
         userEventChannel.connect(profileId)
 
@@ -709,10 +687,10 @@ export const useNotificationStore = defineStore('notification', {
           try {
             const n = data.notification as Notification
             if (!n?.id) return
-            debug.log('📡 Broadcast notification:new →', n.id)
+            debug.log('Broadcast notification:new →', n.id)
             await this._processIncomingNotification(n)
           } catch (error) {
-            debug.error('❌ Broadcast notification:new error:', error)
+            debug.error('Broadcast notification:new error:', error)
           }
         })
 
@@ -720,21 +698,20 @@ export const useNotificationStore = defineStore('notification', {
           try {
             this._processNotificationUpdate(data.id as string, data.is_read as boolean)
           } catch (error) {
-            debug.error('❌ Broadcast notification:update error:', error)
+            debug.error('Broadcast notification:update error:', error)
           }
         })
 
         _unsubBulkRead = userEventChannel.on('notification:bulk_read', (_data) => {
-          debug.log('📡 Bulk read event received, marking all notifications as read locally')
+          debug.log('Bulk read event received, marking all notifications as read locally')
           this.notifications.forEach(n => { n.is_read = true })
           this.updateUnreadCount()
         })
 
         _unsubPrefsUpdated = userEventChannel.on('preferences:updated', () => {
-          debug.log('📡 Preferences updated on another tab/device, reloading...')
-          // Prefer profile id (the column the row is keyed on). Fall back to
-          // the auth id only as a last resort - loadPreferences resolves
-          // either to a profile id internally.
+          debug.log('Preferences updated on another tab/device, reloading...')
+          // Prefer the profile id: the preferences row is keyed on it.
+          // loadPreferences resolves either id to a profile id internally.
           const id = this.cachedProfileId || this.cachedAuthUserId
           if (id) {
             this.loadPreferences(id)
@@ -742,18 +719,18 @@ export const useNotificationStore = defineStore('notification', {
         })
 
         _unsubReconnected = userEventChannel.on('_reconnected', async () => {
-          debug.log('🔄 UserEventChannel reconnected - gap-filling notifications')
+          debug.log('UserEventChannel reconnected - gap-filling notifications')
           await this.fetchNotifications(profileId)
         })
 
-        debug.log('✅ Broadcast notification handlers registered')
+        debug.log('Broadcast notification handlers registered')
       }
 
     },
 
     /**
-     * Shared processing for a new notification arriving from either broadcast or CDC.
-     * Deduplicates by ID so double-delivery from both paths is harmless.
+     * Entry point for an incoming notification. Dedupes by id within
+     * DEDUP_TTL_MS.
      */
     async _processIncomingNotification(newNotification: Notification) {
       if (!newNotification?.id) return
@@ -806,8 +783,7 @@ export const useNotificationStore = defineStore('notification', {
     },
 
     /**
-     * Shared processing for a notification update (read state change).
-     * Deduplicates so double-delivery from both paths is harmless.
+     * Applies a read-state change. No-op when the state already matches.
      */
     _processNotificationUpdate(id: string, isRead: boolean) {
       if (!id) return
@@ -815,7 +791,7 @@ export const useNotificationStore = defineStore('notification', {
       if (!existing) return
       if (existing.is_read === isRead) return
 
-      debug.log('🔄 Notification read state synced:', id, 'is_read:', isRead)
+      debug.log('Notification read state synced:', id, 'is_read:', isRead)
       existing.is_read = isRead
       this.updateUnreadCount()
 
@@ -825,8 +801,8 @@ export const useNotificationStore = defineStore('notification', {
     },
 
     /**
-     * Unregister notification handlers and tear down fallback channel.
-     * Does NOT disconnect the UserEventChannel (other consumers may still use it).
+     * Unregisters notification handlers. Leaves the UserEventChannel
+     * connected: other consumers share it.
      */
     cleanupBroadcastHandlers() {
       if (_unsubNewNotification) { _unsubNewNotification(); _unsubNewNotification = null }
@@ -834,9 +810,8 @@ export const useNotificationStore = defineStore('notification', {
       if (_unsubBulkRead) { _unsubBulkRead(); _unsubBulkRead = null }
       if (_unsubPrefsUpdated) { _unsubPrefsUpdated(); _unsubPrefsUpdated = null }
       if (_unsubReconnected) { _unsubReconnected(); _unsubReconnected = null }
-      // BUGS.md M11: the DND check `setInterval` used to live until tab close
-      // because nothing in the cleanup path cleared `_dndInterval`. Stopping
-      // it here ensures it doesn't keep firing after logout / store reset.
+      // BUGS.md M11: clearing `_dndInterval` here stops the DND check from
+      // firing after logout / store reset.
       if (_dndInterval) {
         clearInterval(_dndInterval)
         _dndInterval = null
@@ -846,9 +821,8 @@ export const useNotificationStore = defineStore('notification', {
 
 
     /**
-     * Handle realtime notification through unified notification system
-     * This method processes incoming notifications from database triggers
-     * and determines the appropriate UI actions based on user context
+     * Fans a notification out to toast / desktop / sound according to
+     * `uiDecision` from ViewContextTracker and the user's preferences.
      */
     handleRealtimeNotification(
       notification: Notification, 
@@ -856,7 +830,7 @@ export const useNotificationStore = defineStore('notification', {
       uiDecision: any
     ) {
       try {
-        debug.log('🔔 Processing notification:', notification.type)
+        debug.log('Processing notification:', notification.type)
 
         if (uiDecision.showToast) {
           let emojiUrl: string | undefined
@@ -896,10 +870,9 @@ export const useNotificationStore = defineStore('notification', {
           this.playNotificationSound(notification.type)
         }
 
-        debug.log('✅ Notification processed successfully')
+        debug.log('Notification processed successfully')
       } catch (error) {
-        debug.error('❌ Error processing notification:', error)
-        // Fallback: show minimal toast notification
+        debug.error('Error processing notification:', error)
         this.showToast(
           'server_update',
           'New notification',
@@ -909,13 +882,10 @@ export const useNotificationStore = defineStore('notification', {
       }
     },
 
-    /**
-     * Updated desktop notification method to use formatted messages
-     */
     async showDesktopNotification(notification: Notification, formatted?: any) {
       try {
-        // Only show desktop notifications when the tab is hidden/inactive
-        // (in-app toasts handle notifications while the tab is visible)
+        // Desktop notifications only while the tab is hidden; in-app toasts
+        // cover the visible case.
         if (!document.hidden) {
           return
         }
@@ -924,7 +894,7 @@ export const useNotificationStore = defineStore('notification', {
           formatted = NotificationFormatter.formatNotification(notification)
         }
 
-        // Native (Tauri) clients have no service worker; use the OS notification plugin
+        // Tauri clients have no service worker; use the OS notification plugin.
         if (isTauriRuntime()) {
           const data: any = notification.data || {}
           const actor = data.actor || data.reactor || data.sender || {}
@@ -938,9 +908,9 @@ export const useNotificationStore = defineStore('notification', {
           const groupKey =
             data.server_id || data.conversation_id || data.channel_id || notification.type || ''
 
-          // MessagingStyle shows sender+message only (no title line), so for
-          // types where the message body is *your* content being acted on, a
-          // bare preview reads as if the actor wrote it. Prefix the action.
+          // MessagingStyle renders sender+message with no title line. When
+          // the body is the recipient's own content being acted on, a bare
+          // preview reads as if the actor wrote it; prefix the action.
           const contentAction: Record<string, string> = {
             reaction: 'Reacted to your message',
             activitypub_reaction: 'Reacted to your post',
@@ -955,13 +925,13 @@ export const useNotificationStore = defineStore('notification', {
               const reactionData = data.reaction || data
               const emojiUrl = reactionData?.emoji_url || data.emoji_url
               const emojiName = reactionData?.emoji_name || reactionData?.custom_emoji_content || data.emoji_name
-              // native unicode emoji renders as text; custom image emoji can't, so omit
+              // Unicode emoji renders as text; custom image emoji cannot, so omit it.
               if (emojiName && !emojiUrl) emojiPrefix = emojiName + ' '
             }
             message = `${emojiPrefix}${action}: ${formatted.message}`
           }
 
-          // large icon: server icon for server mentions, sender avatar for DMs/other
+          // Large icon: server icon for server mentions, sender avatar otherwise.
           const senderAvatar = NotificationFormatter.getAvatarUrl(notification)
           const serverId = data.server_id || data.location?.server_id
           let largeIconUrl = senderAvatar
@@ -995,8 +965,8 @@ export const useNotificationStore = defineStore('notification', {
           return
         }
 
-        // Use per-context tags so new notifications from the same source replace the previous one
-        // instead of stacking up (e.g., multiple DMs from the same conversation)
+        // Per-context tags: a new notification from the same source replaces
+        // the previous one instead of stacking (e.g. DMs in one conversation).
         const contextTag = notification.data?.conversation_id
           ? `harmony-${notification.type}-conv-${notification.data.conversation_id}`
           : notification.data?.channel_id
@@ -1023,7 +993,7 @@ export const useNotificationStore = defineStore('notification', {
             ...notificationOptions,
             requireInteraction: false
           })
-          debug.log(`✅ Desktop notification shown via SW for ${notification.type}`)
+          debug.log(`Desktop notification shown via SW for ${notification.type}`)
         } else {
           const desktopNotification = new window.Notification(formatted.title, {
             ...notificationOptions,
@@ -1039,16 +1009,16 @@ export const useNotificationStore = defineStore('notification', {
           const timeout = (notification.type === 'mention' || notification.type === 'dm') ? 12000 : 8000
           setTimeout(() => desktopNotification.close(), timeout)
 
-          debug.log(`✅ Desktop notification shown for ${notification.type}`)
+          debug.log(`Desktop notification shown for ${notification.type}`)
         }
       } catch (error) {
-        debug.error('❌ Error showing desktop notification:', error)
+        debug.error('Error showing desktop notification:', error)
       }
     },
 
     /**
-     * Dismiss system (OS-level) notifications matching a notification that was read on another device.
-     * Closes matching notifications shown via the service worker's showNotification API.
+     * Closes OS-level notifications posted via the service worker that match
+     * a notification read on another device.
      */
     async dismissSystemNotification(notification: Notification) {
       try {
@@ -1066,7 +1036,7 @@ export const useNotificationStore = defineStore('notification', {
           
           if (matchesId || matchesConversation || matchesChannel) {
             sysNotif.close()
-            debug.log('🔕 Dismissed system notification synced from another device:', sysNotif.tag)
+            debug.log('Dismissed system notification synced from another device:', sysNotif.tag)
           }
         }
         
@@ -1079,7 +1049,7 @@ export const useNotificationStore = defineStore('notification', {
           }
         }
       } catch (error) {
-        debug.error('❌ Error dismissing system notification:', error)
+        debug.error('Error dismissing system notification:', error)
       }
     },
 
@@ -1142,9 +1112,9 @@ export const useNotificationStore = defineStore('notification', {
         
         await themeStore.playAudio(audioAction)
         
-        debug.log(`🔊 Played sound for ${type}`)
+        debug.log(`Played sound for ${type}`)
       } catch (error) {
-        debug.error(`❌ Failed to play sound for ${type}:`, error)
+        debug.error(`Failed to play sound for ${type}:`, error)
       }
     },
 
@@ -1172,11 +1142,9 @@ export const useNotificationStore = defineStore('notification', {
     },
 
     /**
-     * PREFERENCE MANAGEMENT - Client-side only
-     *
-     * notification_preferences.user_id references profiles(id). Callers may
-     * pass either an auth user id (legacy) or a profile id; we always resolve
-     * to a profile id before touching the row so loads, upserts, and broadcast
+     * notification_preferences.user_id references profiles(id). Callers pass
+     * either an auth user id (legacy) or a profile id; the id is resolved to
+     * a profile id before touching the row so loads, upserts, and broadcast
      * reload-handlers stay consistent.
      */
     async loadPreferences(userIdOrAuthId: string) {
@@ -1209,15 +1177,14 @@ export const useNotificationStore = defineStore('notification', {
         }
 
         // BUGS.md H1: setupDndCheck early-returns when dnd_enabled is false,
-        // so we must re-invoke it whenever preferences change so the
-        // interval (re)starts on enable and stops on disable. Without this,
-        // toggling DND in another tab leaves this tab's check dead until
-        // page reload.
+        // so it must be re-invoked on every preference change to (re)start
+        // the interval on enable and stop it on disable. Without this a DND
+        // toggle in another tab leaves this tab's check dead until reload.
         this.setupDndCheck()
 
-        debug.log('✅ Loaded notification preferences')
+        debug.log('Loaded notification preferences')
       } catch (error) {
-        debug.error('❌ Failed to load preferences:', error)
+        debug.error('Failed to load preferences:', error)
         this.preferences = {
           ...DEFAULT_PREFERENCES,
           id: crypto.randomUUID(),
@@ -1234,10 +1201,9 @@ export const useNotificationStore = defineStore('notification', {
         if (!this.preferences) return
 
         const previousPreferences = { ...this.preferences }
-        // BUGS.md H1: detect changes that affect the DND check so we can
-        // (re)start/stop the interval at the end. dnd_enabled flipping is
-        // the obvious one; dnd_start_time / dnd_end_time changes require
-        // re-evaluating `isQuietHours` immediately.
+        // BUGS.md H1: dnd_enabled flips start/stop the interval;
+        // dnd_start_time / dnd_end_time changes require re-evaluating
+        // `isQuietHours` immediately.
         const dndFieldsChanged =
           ('dnd_enabled' in newPreferences && newPreferences.dnd_enabled !== previousPreferences.dnd_enabled) ||
           ('dnd_start_time' in newPreferences && newPreferences.dnd_start_time !== previousPreferences.dnd_start_time) ||
@@ -1256,9 +1222,8 @@ export const useNotificationStore = defineStore('notification', {
           throw error
         }
 
-        // Re-arm the DND interval if any relevant field changed. This
-        // re-evaluates `isQuietHours` synchronously and (re)starts or stops
-        // the 60 s tick to match the new `dnd_enabled` state.
+        // Re-arms the DND interval: re-evaluates `isQuietHours` synchronously
+        // and starts or stops the 60 s tick per the new `dnd_enabled` state.
         if (dndFieldsChanged) {
           this.setupDndCheck()
         }
@@ -1267,9 +1232,9 @@ export const useNotificationStore = defineStore('notification', {
           userEventChannel.send('preferences:updated', {})
         }
 
-        debug.log('✅ Updated notification preferences')
+        debug.log('Updated notification preferences')
       } catch (error) {
-        debug.error('❌ Failed to update preferences:', error)
+        debug.error('Failed to update preferences:', error)
         throw error
       }
     },
@@ -1283,8 +1248,8 @@ export const useNotificationStore = defineStore('notification', {
       return Notification.permission === 'granted'
     },
 
-    // native has no web-push soft-ask banner; ask the OS once post-login. Web
-    // keeps read-only here (its gesture-based soft-ask handles the prompt).
+    // Native has no web-push soft-ask banner; ask the OS once post-login. Web
+    // stays read-only here - its gesture-based soft-ask issues the prompt.
     async requestNativePermissionIfNeeded(): Promise<boolean> {
       if (!isTauriRuntime()) return this.checkNotificationPermission()
       try {
@@ -1292,7 +1257,7 @@ export const useNotificationStore = defineStore('notification', {
         if (await isPermissionGranted()) return true
         return (await requestPermission()) === 'granted'
       } catch (error) {
-        debug.warn('⚠️ native notification permission request failed:', error)
+        debug.warn('native notification permission request failed:', error)
         return false
       }
     },
@@ -1302,21 +1267,17 @@ export const useNotificationStore = defineStore('notification', {
         clearInterval(_dndInterval)
         _dndInterval = null
       }
-      // Compute current state synchronously so the UI reflects DND status
-      // immediately without waiting for the first interval tick.
+      // Compute synchronously so the UI reflects DND state without waiting
+      // for the first tick.
       this.isDndActive = this.isQuietHours
-      // Don't bother polling if DND is disabled - there are no transitions
-      // to detect. The interval is (re)started by callers when preferences
-      // change to enable DND (see action paths around lines 375 / 433).
+      // No transitions to detect while DND is off. loadPreferences and
+      // updatePreferences re-invoke this when the setting changes.
       if (!this.preferences?.dnd_enabled) return
       _dndInterval = setInterval(() => {
         this.isDndActive = this.isQuietHours
       }, 60000)
     },
 
-    /**
-     * NOTIFICATION MANAGEMENT - UI actions only
-     */
     async markAsRead(notificationId: string) {
       const notification = this.notifications.find(n => n.id === notificationId)
       
@@ -1328,7 +1289,7 @@ export const useNotificationStore = defineStore('notification', {
 
         await services.notifications.markAsRead(notificationId)
       } catch (error) {
-        debug.error('❌ Failed to mark notification as read:', error)
+        debug.error('Failed to mark notification as read:', error)
         
         if (notification) {
           notification.is_read = false
@@ -1349,7 +1310,7 @@ export const useNotificationStore = defineStore('notification', {
 
         await services.notifications.markAsUnread(notificationId)
       } catch (error) {
-        debug.error('❌ Failed to mark notification as unread:', error)
+        debug.error('Failed to mark notification as unread:', error)
         
         if (notification) {
           notification.is_read = true
@@ -1371,7 +1332,7 @@ export const useNotificationStore = defineStore('notification', {
         
         await services.notifications.deleteNotification(notificationId)
       } catch (error) {
-        debug.error('❌ Failed to delete notification:', error)
+        debug.error('Failed to delete notification:', error)
         
         this.notifications.splice(index, 0, notification)
         this.updateUnreadCount()
@@ -1381,18 +1342,14 @@ export const useNotificationStore = defineStore('notification', {
     },  
 
     /**
-     * Mark mention/reply notifications matching the given post ids as read.
-     * Called by the Mentions view as posts enter the rendered viewport. The
-     * goal (per user request) is "only clear notifications for the mentions
-     * actually seen in view" - not blanket-clear every mention notification
-     * when the page opens.
+     * Marks mention/reply notifications for the given post ids as read.
+     * Called by the Mentions view as posts enter the viewport, so only
+     * notifications for posts actually seen are cleared.
      *
-     * Strategy: do an optimistic local update for whatever the in-memory
-     * store knows about, then mirror to the DB so anything the store hasn't
-     * loaded yet (NotificationBell hasn't been opened, etc.) still gets
-     * persisted. The DB call is fire-and-forget; failures are logged but
-     * don't revert local state (revisiting will re-attempt next time the
-     * posts scroll into view).
+     * Local state is updated optimistically, then mirrored to the DB so rows
+     * the store has not loaded are still persisted. The DB call is
+     * fire-and-forget: failures are logged and local state is not reverted;
+     * the next scroll into view retries.
      */
     async markMentionNotificationsForPostsAsRead(postIds: string[]) {
       if (!postIds.length) return
@@ -1408,10 +1365,9 @@ export const useNotificationStore = defineStore('notification', {
       })
 
       if (localToMark.length > 0) {
-        // Optimistic local update so the badge/unread count reacts immediately.
-        // No revert path here: if the DB write later fails the next view of
-        // these same posts will retry. Stale `read=true` for unread DB rows
-        // is preferable to a flicker on the badge while the user is reading.
+        // Optimistic so the badge reacts immediately. No revert path: a
+        // failed DB write is retried on the next view of these posts. Stale
+        // `read=true` beats a badge flicker mid-read.
         localToMark.forEach(n => { n.is_read = true })
         this.updateUnreadCount()
       }
@@ -1430,9 +1386,8 @@ export const useNotificationStore = defineStore('notification', {
     },
 
     /**
-     * Delete every notification for the current user. Optimistically clears
-     * the in-memory list and reverts on failure so the panel doesn't strand
-     * the user staring at an empty list after a network/RLS error.
+     * Deletes every notification for the current user. Clears the in-memory
+     * list optimistically and restores the snapshot on failure.
      */
     async clearAllNotifications() {
       if (this.notifications.length === 0) return
@@ -1453,7 +1408,7 @@ export const useNotificationStore = defineStore('notification', {
         await services.notifications.deleteAllNotifications(profileId)
       } catch (error) {
         debug.error('Failed to clear all notifications:', error)
-        // Revert if the server rejected the delete (RLS, network, etc.).
+        // Revert on server rejection (RLS, network).
         this.notifications = snapshot
         this.updateUnreadCount()
         this.showToast('server_update', 'Failed to clear notifications', 'Please try again', 3000)
@@ -1461,9 +1416,9 @@ export const useNotificationStore = defineStore('notification', {
     },
 
     async markAllAsRead() {
-      // Snapshot read state for revert if RPC fails. Mark optimistically
-      // only after we have an authenticated profile id - otherwise the UI
-      // flips to "all read" but the next refresh restores the unread state.
+      // Snapshot read state for revert if the RPC fails. Marking happens only
+      // after a profile id is resolved; otherwise the UI flips to "all read"
+      // and the next refresh restores the unread state.
       const previousReadStates = this.notifications.map(n => ({ id: n.id, is_read: n.is_read }))
 
       const revertOptimistic = () => {
@@ -1479,9 +1434,9 @@ export const useNotificationStore = defineStore('notification', {
         const authUserId = authStore.session?.user?.id
         if (!authUserId) return
 
-        // The RPC validates p_user_id against get_current_profile_id(), so we
-        // must resolve the *profile* id, not the auth user id. Passing the
-        // auth id triggers the DB's "Not authorized" guard and reverts the UI.
+        // The RPC validates p_user_id against get_current_profile_id(), so it
+        // takes the profile id, not the auth user id. The auth id trips the
+        // DB's "Not authorized" guard and reverts the UI.
         const profileId = await this.getProfileId(authUserId)
         if (!profileId) return
 
@@ -1506,9 +1461,6 @@ export const useNotificationStore = defineStore('notification', {
       this.currentFilter = filter;
     },
 
-    /**
-     * Set volume for notification sounds
-     */
     async setVolume(volume: number) {
       try {
         const { useThemeStore } = await import('./useTheme')
@@ -1520,16 +1472,14 @@ export const useNotificationStore = defineStore('notification', {
 
         themeStore.setAudioVolume(Math.max(0, Math.min(1, volume)))
 
-        debug.log(`🔊 Set notification volume to ${Math.round(volume * 100)}%`)
+        debug.log(`Set notification volume to ${Math.round(volume * 100)}%`)
       } catch (error) {
-        debug.error('❌ Failed to set notification volume:', error)
+        debug.error('Failed to set notification volume:', error)
       }
     },
     /**
-     * Updated notification click handler to use formatter navigation data
-     */
-    /**
-     * Get URL for a notification (used for service worker click handling)
+     * Route path for a notification. Also used by the service worker's
+     * notification-click handler.
      */
     getNotificationUrl(notification: Notification): string {
       try {
@@ -1568,7 +1518,7 @@ export const useNotificationStore = defineStore('notification', {
         }
         return '/'
       } catch (error) {
-        debug.error('❌ Error getting notification URL:', error)
+        debug.error('Error getting notification URL:', error)
         return '/'
       }
     },
@@ -1623,14 +1573,14 @@ export const useNotificationStore = defineStore('notification', {
 
             default:
               // Exhaustive narrowing collapses `navData.type` to `never` in
-              // the default branch; cast through `any` so we can log it.
-              debug.log('⚠️ No navigation data for notification type:', (navData as any).type)
+              // the default branch; cast through `any` to log it.
+              debug.log('No navigation data for notification type:', (navData as any).type)
           }
         } else {
-          // FIX: Fallback navigation for notifications without proper navData
-          debug.warn('⚠️ No navigation data extracted for notification:', notification.type)
+          // Fallback routing for notifications the formatter yielded no
+          // navigation data for.
+          debug.warn('No navigation data extracted for notification:', notification.type)
           
-          // Try to provide sensible defaults based on notification type
           if (notification.type.startsWith('activitypub_')) {
             router.push('/social/home')
           } else if (notification.type === 'dm') {
@@ -1641,20 +1591,17 @@ export const useNotificationStore = defineStore('notification', {
               router.push('/dm')
             }
           } else {
-            debug.warn('⚠️ Could not determine navigation for notification, going to home')
+            debug.warn('Could not determine navigation for notification, going to home')
           }
         }
       } catch (error) {
-        debug.error('❌ Error handling notification click:', error)
+        debug.error('Error handling notification click:', error)
       }
     },
 
-    /**
-     * DEVELOPMENT HELPER - Updated to use structured data
-     */
     createMockNotifications(userId: string) {
-      // Development helper for testing. Mock shape includes legacy
-      // `sender`/`message`/`conversation`/`title` fields that aren't on the
+      // Development-only. The mock shape carries legacy
+      // `sender`/`message`/`conversation`/`title` fields absent from the
       // current `Notification`/`NotificationData` typings; cast through `any`.
       const mockNotifications: Notification[] = ([
         {
@@ -1710,7 +1657,7 @@ export const useNotificationStore = defineStore('notification', {
 
       this.notifications = mockNotifications
       this.updateUnreadCount()
-      debug.log('📝 Created mock notifications for development')
+      debug.log('Created mock notifications for development')
     },
 
     async getProfileId(authUserId: string): Promise<string> {
@@ -1726,7 +1673,7 @@ export const useNotificationStore = defineStore('notification', {
           this.cachedAuthUserId = authUserId
           return context.profileId
         } else {
-          // Fallback to auth user ID for backward compatibility
+          // Fall back to the auth user id for backward compatibility.
           this.cachedProfileId = authUserId
           this.cachedAuthUserId = authUserId
           return authUserId
@@ -1746,7 +1693,6 @@ export const useNotificationStore = defineStore('notification', {
   }
 })
 
-// Utility function
 // eslint-disable-next-line unused-imports/no-unused-vars
 function timeStringToMinutes(timeString: string): number {
   const [hours, minutes] = timeString.split(':').map(Number)

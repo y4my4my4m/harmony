@@ -18,7 +18,7 @@ export async function handleProfileJob(data: FederationJobData): Promise<void> {
   const supabase = getSupabaseClient();
   const { profile_id, username } = data;
 
-  logger.info(`👤 Processing profile update job for: ${username}`);
+  logger.info(`Processing profile update job for: ${username}`);
 
   try {
     const { data: profile } = await supabase
@@ -64,10 +64,10 @@ export async function handleProfileJob(data: FederationJobData): Promise<void> {
         await DeliveryQueue.enqueue(updateActivity, inbox, profile.id);
         deliveredCount++;
       }
-      logger.info(`📡 Profile update also sent to ${deliveredCount} server co-member instances`);
+      logger.info(`Profile update also sent to ${deliveredCount} server co-member instances`);
     }
     
-    logger.info(`✅ Profile update federated for ${profile.username}`);
+    logger.info(`Profile update federated for ${profile.username}`);
 
   } catch (error) {
     logger.error(`Failed to federate profile update for ${profile_id}:`, error);

@@ -1,14 +1,9 @@
 /**
  * LiveKit WebRTC Service
- * 
- * Provides a SFU-based WebRTC implementation using LiveKit.
- * Mirrors the unifiedWebRTC API for seamless switching between SFU and P2P modes.
- * 
- * Features:
- * - Selective Forwarding Unit (SFU) for efficient media routing
- * - Built-in E2EE support
- * - Scales to large rooms (stage events)
- * - Automatic quality adaptation
+ *
+ * SFU-based WebRTC implementation on LiveKit. Mirrors the unifiedWebRTC API
+ * so SFU and P2P modes are interchangeable. Media routes through a Selective
+ * Forwarding Unit, with built-in E2EE and per-layer quality adaptation.
  */
 
 import {
@@ -54,21 +49,19 @@ const federatedIdToUuidCache = new Map<string, string>();
 const uuidToIdentityCache = new Map<string, string>();
 
 /**
- * Resolve a LiveKit identity to a profile UUID
- * For local users, identity is already the UUID
- * For federated users, identity is `federated:{federatedId}` and we need to look up the UUID
- * @param identity - The LiveKit participant identity
- * @param remoteServerDomain - Optional domain of the remote server (for resolving non-federated identities from remote servers)
+ * Resolve a LiveKit identity to a profile UUID.
+ * Local users: the identity is already the UUID.
+ * Federated users: the identity is `federated:{federatedId}` and needs a lookup.
+ * @param remoteServerDomain - Domain of the remote server, for non-federated
+ *   identities originating there.
  */
 async function resolveIdentityToUuid(identity: string, remoteServerDomain?: string | null): Promise<string | null> {
-  // If it starts with 'federated:', extract and resolve the federated ID
   if (identity.startsWith('federated:')) {
     const federatedId = identity.substring('federated:'.length);
     return resolveFederatedId(federatedId, identity);
   }
   
-  // It's a plain UUID - could be local or from a remote server
-  // First check if this UUID exists in our local database
+  // Plain UUID: local or from a remote server. Local database first.
   const { data: localUser } = await supabase
     .from('profiles')
     .select('id')
@@ -81,10 +74,10 @@ async function resolveIdentityToUuid(identity: string, remoteServerDomain?: stri
     return identity;
   }
   
-  // UUID doesn't exist locally - if we're connected to a remote server,
-  // this user is local to THAT server, not ours. We need to fetch their profile.
+  // UUID absent locally: when connected to a remote server the user is
+  // local to that server, so their profile must be fetched.
   if (remoteServerDomain) {
-    debug.log(`🌐 [LiveKit] UUID ${identity} not found locally, user is from ${remoteServerDomain}`);
+    debug.log(`[LiveKit] UUID ${identity} not found locally, user is from ${remoteServerDomain}`);
     
     // Only the UUID is known here; most instances expose users at
     // https://domain/users/username, so resolve via existing synced profiles
@@ -92,8 +85,7 @@ async function resolveIdentityToUuid(identity: string, remoteServerDomain?: stri
     try {
       const { activityPubService } = await import('./activityPubService');
       
-      // Try to find by querying the remote server
-      // First check if we have any user with a federated_id from this domain
+      // Existing profiles synced from this domain are checked first.
       const { data: existingRemoteUser } = await supabase
         .from('profiles')
         .select('id, federated_id')
@@ -122,7 +114,7 @@ async function resolveIdentityToUuid(identity: string, remoteServerDomain?: stri
                 if (federatedUser?.id) {
                   federatedIdToUuidCache.set(actor.id, federatedUser.id);
                   uuidToIdentityCache.set(federatedUser.id, identity);
-                  debug.log(`🌐 [LiveKit] Resolved remote UUID ${identity} to local UUID ${federatedUser.id}`);
+                  debug.log(`[LiveKit] Resolved remote UUID ${identity} to local UUID ${federatedUser.id}`);
                   return federatedUser.id;
                 }
               }
@@ -133,11 +125,11 @@ async function resolveIdentityToUuid(identity: string, remoteServerDomain?: stri
         }
       }
     } catch (error) {
-      debug.warn(`🌐 [LiveKit] Failed to resolve remote UUID ${identity}:`, error);
+      debug.warn(`[LiveKit] Failed to resolve remote UUID ${identity}:`, error);
     }
     
-    // Couldn't resolve - skip this user for now
-    debug.warn(`🌐 [LiveKit] Could not resolve UUID ${identity} from ${remoteServerDomain}`);
+    // Unresolvable; the user is skipped.
+    debug.warn(`[LiveKit] Could not resolve UUID ${identity} from ${remoteServerDomain}`);
     return null;
   }
   
@@ -146,9 +138,7 @@ async function resolveIdentityToUuid(identity: string, remoteServerDomain?: stri
   return identity;
 }
 
-/**
- * Resolve a federated ID (actor URL) to a local profile UUID
- */
+/** Resolves an actor URL to a local profile UUID. */
 async function resolveFederatedId(federatedId: string, originalIdentity: string): Promise<string | null> {
   // Check cache first
   if (federatedIdToUuidCache.has(federatedId)) {
@@ -161,7 +151,7 @@ async function resolveFederatedId(federatedId: string, originalIdentity: string)
   try {
     federatedUrl = new URL(federatedId);
   } catch {
-    debug.warn(`🌐 [LiveKit] Invalid federated ID URL: ${federatedId}`);
+    debug.warn(`[LiveKit] Invalid federated ID URL: ${federatedId}`);
     return null;
   }
   
@@ -183,11 +173,11 @@ async function resolveFederatedId(federatedId: string, originalIdentity: string)
     if (user?.id) {
       federatedIdToUuidCache.set(federatedId, user.id);
       uuidToIdentityCache.set(user.id, originalIdentity);
-      debug.log(`🌐 [LiveKit] Resolved federated identity ${federatedId} to UUID ${user.id}`);
+      debug.log(`[LiveKit] Resolved federated identity ${federatedId} to UUID ${user.id}`);
       return user.id;
     }
     
-    // If it's a local user, try looking up by username (local users don't have federated_id set)
+    // Local users have no federated_id, so look them up by username.
     if (isLocalUser && username) {
       const { data: localUser } = await supabase
         .from('profiles')
@@ -199,13 +189,13 @@ async function resolveFederatedId(federatedId: string, originalIdentity: string)
       if (localUser?.id) {
         federatedIdToUuidCache.set(federatedId, localUser.id);
         uuidToIdentityCache.set(localUser.id, originalIdentity);
-        debug.log(`🌐 [LiveKit] Resolved local user ${username} to UUID ${localUser.id}`);
+        debug.log(`[LiveKit] Resolved local user ${username} to UUID ${localUser.id}`);
         return localUser.id;
       }
     }
     
     // Profile not found locally - need to fetch it from the remote instance
-    debug.log(`🌐 [LiveKit] Profile not found for ${federatedId}, fetching from remote instance...`);
+    debug.log(`[LiveKit] Profile not found for ${federatedId}, fetching from remote instance...`);
     
     const { activityPubService } = await import('./activityPubService');
     
@@ -215,18 +205,18 @@ async function resolveFederatedId(federatedId: string, originalIdentity: string)
       if (federatedUser?.id) {
         federatedIdToUuidCache.set(federatedId, federatedUser.id);
         uuidToIdentityCache.set(federatedUser.id, originalIdentity);
-        debug.log(`🌐 [LiveKit] Fetched and resolved federated identity ${federatedId} to UUID ${federatedUser.id}`);
+        debug.log(`[LiveKit] Fetched and resolved federated identity ${federatedId} to UUID ${federatedUser.id}`);
         return federatedUser.id;
       }
     } catch (fetchError) {
-      debug.warn(`🌐 [LiveKit] Failed to fetch federated actor ${federatedId}:`, fetchError);
+      debug.warn(`[LiveKit] Failed to fetch federated actor ${federatedId}:`, fetchError);
     }
     
   } catch (error) {
-    debug.warn(`🌐 [LiveKit] Failed to resolve federated identity:`, error);
+    debug.warn(`[LiveKit] Failed to resolve federated identity:`, error);
   }
   
-  debug.warn(`🌐 [LiveKit] Could not resolve federated identity: ${federatedId}`);
+  debug.warn(`[LiveKit] Could not resolve federated identity: ${federatedId}`);
   return null;
 }
 
@@ -347,10 +337,7 @@ export class LiveKitWebRTCService {
     this.loadStreamQualitySettings();
   }
 
-  /**
-   * Get LiveKit VideoResolution preset for a given resolution value
-   * @param resolution - Resolution in pixels (360, 480, 720, 1080, or -1 for source)
-   */
+  /** @param resolution - 360, 480, 720, 1080, or -1 for source. */
   private getResolutionPreset(resolution: number): { width: number; height: number; frameRate: number } {
     switch (resolution) {
       case 360:
@@ -392,16 +379,10 @@ export class LiveKitWebRTCService {
   
   // CONFIGURATION
   
-  /**
-   * Get LiveKit configuration from the backend
-   */
   async getConfig(forceRefresh = false): Promise<LiveKitConfig> {
     return getLiveKitConfig(forceRefresh);
   }
   
-  /**
-   * Check if LiveKit SFU is available
-   */
   async isAvailable(): Promise<boolean> {
     const config = await this.getConfig();
     return config.enabled && !!config.wsUrl;
@@ -409,16 +390,11 @@ export class LiveKitWebRTCService {
   
   // TOKEN MANAGEMENT
   
-  /**
-   * Get a room token from the backend
-   */
   private async getToken(roomName: string, roomType: 'voice_channel' | 'dm_call' | 'stage'): Promise<TokenResponse> {
     return getLiveKitToken(roomName, roomType);
   }
   
-  /**
-   * Get a federated token from a remote instance
-   */
+  /** Token issued by a remote instance. */
   async getFederatedToken(
     instanceUrl: string,
     actorId: string,
@@ -430,11 +406,8 @@ export class LiveKitWebRTCService {
   
   // CHANNEL MANAGEMENT
   
-  /**
-   * Join a voice channel using LiveKit SFU
-   */
   async joinChannel(channelId: string, userId: string, roomType: 'voice_channel' | 'dm_call' | 'stage' = 'voice_channel', abortSignal?: AbortSignal, requireE2EE = false): Promise<boolean> {
-    debug.log('🎯 [LiveKit] Joining voice channel:', channelId, 'as user:', userId, 'E2EE:', requireE2EE);
+    debug.log('[LiveKit] Joining voice channel:', channelId, 'as user:', userId, 'E2EE:', requireE2EE);
     
     try {
       // Check for cancellation
@@ -467,15 +440,15 @@ export class LiveKitWebRTCService {
         throw new DOMException('Connection cancelled', 'AbortError');
       }
       
-      // Prepare E2EE. The key itself is NOT known yet - it's a random shared
-      // room key distributed server-blind over Megolm after we connect (see
-      // initVoiceE2EE). LiveKit needs the worker + key provider wired up front
-      // at Room construction, so we set those up here when E2EE is requested
-      // and this client is capable of participating.
+      // The key is NOT known yet: it is a random shared room key
+      // distributed server-blind over Megolm after connect (see
+      // initVoiceE2EE). LiveKit needs the worker and key provider wired at
+      // Room construction, so both are set up here when E2EE is requested
+      // and this client can participate.
       this.e2eeRequired = requireE2EE && voiceE2EEService.canParticipate();
       if (requireE2EE && !this.e2eeRequired) {
-        // Caller asked for E2EE but this client can't do it. The store gates on
-        // this before joining, so reaching here means a race; refuse cleanly.
+        // The store gates on E2EE capability before joining, so reaching
+        // here is a race. Refuse.
         throw new Error('Voice end-to-end encryption is required but not available on this device');
       }
       const e2eeOptions = this.e2eeRequired ? await this.setupE2EEOptions() : null;
@@ -490,9 +463,8 @@ export class LiveKitWebRTCService {
       this.e2eeEnabled = false;
       this.e2eeKeyReady = false;
       
-      // Connect to LiveKit server
-      // Use relay-only ICE to avoid browser "local network" prompt
-      // No latency impact since traffic goes through LiveKit SFU server anyway
+      // Relay-only ICE avoids the browser "local network" prompt at no
+      // latency cost, since traffic passes through the SFU regardless.
       await this.room.connect(tokenResponse.wsUrl, tokenResponse.token, {
         autoSubscribe: true,
         // rtcConfig: {
@@ -506,9 +478,9 @@ export class LiveKitWebRTCService {
         throw new DOMException('Connection cancelled', 'AbortError');
       }
       
-      debug.log('✅ [LiveKit] Connected to room:', roomName);
+      debug.log('[LiveKit] Connected to room:', roomName);
       
-      // Sync existing participants (they don't trigger ParticipantConnected event)
+      // Existing participants fire no ParticipantConnected event.
       await this.syncExistingParticipants();
       
       // Check for cancellation after syncing participants
@@ -517,10 +489,10 @@ export class LiveKitWebRTCService {
         throw new DOMException('Connection cancelled', 'AbortError');
       }
       
-      // Establish the shared E2EE key BEFORE publishing media, so the very
-      // first frames we send are encrypted with the agreed key. If we can't
-      // agree on a key in time, refuse rather than leak plaintext into a room
-      // that's supposed to be encrypted.
+      // The shared E2EE key is established BEFORE publishing media so the
+      // first frames are encrypted. Failure to agree on a key in time
+      // refuses the join rather than sending plaintext into an encrypted
+      // room.
       if (this.e2eeRequired) {
         const keyed = await this.initVoiceE2EE();
         if (!keyed) {
@@ -547,23 +519,22 @@ export class LiveKitWebRTCService {
       return true;
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
-        debug.log('🚫 [LiveKit] Connection cancelled');
-        // BUGS.md H23: cancellation paths already call `leaveChannel()`
-        // inline; this catch only sees the error after they've torn down.
-        // Non-AbortError failures below still need explicit cleanup so a
-        // half-constructed Room / its event listeners don't leak.
-        throw error; // Re-throw to propagate cancellation
+        debug.log('[LiveKit] Connection cancelled');
+        // BUGS.md H23: cancellation paths call `leaveChannel()` inline, so
+        // teardown is already done by the time this catch runs. Non-AbortError
+        // failures below still need explicit cleanup so a half-constructed
+        // Room and its listeners don't leak.
+        throw error;
       }
-      debug.error('❌ [LiveKit] Failed to join channel:', error);
-      // BUGS.md H23: previously the catch only logged + emitted. The Room
-      // was instantiated (`this.room = new Room(...)`) and its listeners
-      // were registered BEFORE `room.connect()` was awaited. A connect
-      // failure left both the Room object and the listeners alive,
-      // accumulating across retries. Tear down before returning.
+      debug.error('[LiveKit] Failed to join channel:', error);
+      // BUGS.md H23: the Room is constructed and its listeners registered
+      // BEFORE `room.connect()` is awaited, so a connect failure would leave
+      // both alive and accumulating across retries. Tear down before
+      // returning.
       try {
         await this.leaveChannel();
       } catch (cleanupErr) {
-        debug.warn('⚠️ [LiveKit] join-failure cleanup also failed:', cleanupErr);
+        debug.warn('[LiveKit] join-failure cleanup also failed:', cleanupErr);
       }
       this.emit('error', error);
       return false;
@@ -571,11 +542,11 @@ export class LiveKitWebRTCService {
   }
   
   /**
-   * Join a voice channel with a pre-obtained token (for federated voice)
-   * Used when connecting to a remote instance's LiveKit server
+   * Join with a pre-obtained token, for federated voice against a remote
+   * instance's LiveKit server.
    */
   async joinWithToken(wsUrl: string, token: string, channelId: string, userId: string): Promise<boolean> {
-    debug.log('🌐 [LiveKit] Joining federated voice channel:', channelId, 'with remote token');
+    debug.log('[LiveKit] Joining federated voice channel:', channelId, 'with remote token');
     
     try {
       // Clean previous connection
@@ -588,13 +559,12 @@ export class LiveKitWebRTCService {
       this.roomType = 'voice_channel';
       this.localMediaState.userId = userId;
       
-      // Extract the remote server domain from the WebSocket URL
-      // wsUrl is like "wss://livekit.har.mony.lol" or "wss://har.mony.lol:7880"
+      // wsUrl is of the form "wss://livekit.example.org" or
+      // "wss://example.org:7880".
       try {
         const wsUrlParsed = new URL(wsUrl);
-        // Remove 'livekit.' prefix if present, or use the main domain
         this.remoteServerDomain = wsUrlParsed.hostname.replace(/^livekit\./, '');
-        debug.log('🌐 [LiveKit] Remote server domain:', this.remoteServerDomain);
+        debug.log('[LiveKit] Remote server domain:', this.remoteServerDomain);
       } catch {
         this.remoteServerDomain = null;
       }
@@ -611,7 +581,7 @@ export class LiveKitWebRTCService {
         autoSubscribe: true,
       });
       
-      debug.log('✅ [LiveKit] Connected to federated room');
+      debug.log('[LiveKit] Connected to federated room');
       
       // Sync existing participants
       await this.syncExistingParticipants();
@@ -626,15 +596,12 @@ export class LiveKitWebRTCService {
       
       return true;
     } catch (error) {
-      debug.error('❌ [LiveKit] Failed to join federated channel:', error);
+      debug.error('[LiveKit] Failed to join federated channel:', error);
       this.emit('error', error);
       return false;
     }
   }
   
-  /**
-   * Leave current voice channel
-   */
   // continuous local mic level (0-100); LiveKit's IsSpeaking VAD is binary/insensitive
   private startLevelPolling(): void {
     if (this.levelPollTimer) return;
@@ -661,14 +628,14 @@ export class LiveKitWebRTCService {
   }
 
   async leaveChannel(): Promise<void> {
-    debug.log('👋 [LiveKit] Leaving voice channel');
+    debug.log('[LiveKit] Leaving voice channel');
     this.stopLevelPolling();
 
     if (this.room) {
       try {
         await this.room.disconnect(true);
       } catch (e) {
-        debug.warn('⚠️ [LiveKit] Room disconnect error (forcing cleanup):', e);
+        debug.warn('[LiveKit] Room disconnect error (forcing cleanup):', e);
       }
       this.room = null;
     }
@@ -715,15 +682,12 @@ export class LiveKitWebRTCService {
   
   // MEDIA CONTROLS
   
-  /**
-   * Publish local audio track
-   */
   private async publishLocalAudio(): Promise<void> {
     if (!this.room?.localParticipant) return;
 
-    // Guard against a mic acquisition that never resolves (no device / a
-    // permission prompt that hangs, common on Android) so the join always
-    // completes — listen-only if the mic never comes up.
+    // Mic acquisition can hang (no device, or a stalled permission prompt,
+    // common on Android). The timeout keeps the join completing, listen-only
+    // if the mic never comes up.
     const trackPromise = createLocalAudioTrack({
       echoCancellation: this.audioConstraints.echoCancellation,
       noiseSuppression: this.audioConstraints.noiseSuppression,
@@ -737,18 +701,18 @@ export class LiveKitWebRTCService {
           setTimeout(() => reject(new Error('Microphone acquisition timed out')), 8000)),
       ]);
       
-      // Convert kbps to bps for LiveKit (settings stored in kbps, LiveKit expects bps)
+      // Settings are stored in kbps; LiveKit expects bps.
       const audioBitrateBps = (this.streamQualitySettings.audioBitrate || 128) * 1000;
       
-      // audioBitrate isn't on the official TrackPublishOptions type, but LiveKit
-      // accepts it at runtime. Cast to any to avoid the type check.
+      // audioBitrate is absent from TrackPublishOptions but accepted at
+      // runtime; the cast bypasses the type check.
       await this.room.localParticipant.publishTrack(audioTrack, {
         audioBitrate: audioBitrateBps,
         dtx: true, // Discontinuous transmission for bandwidth saving
         red: true, // Redundant encoding for packet loss resilience
       } as any);
       
-      debug.log('🎵 [LiveKit] Published audio with bitrate:', audioBitrateBps, 'bps');
+      debug.log('[LiveKit] Published audio with bitrate:', audioBitrateBps, 'bps');
       
       this.localMediaState.isAudioEnabled = true;
 
@@ -756,33 +720,29 @@ export class LiveKitWebRTCService {
         audioTrack.mute();
       }
       
-      debug.log('✅ [LiveKit] Published local audio track');
+      debug.log('[LiveKit] Published local audio track');
     } catch (error) {
-      // No microphone available - allow joining but force mute
-      debug.warn('⚠️ [LiveKit] No microphone available, joining in muted state:', error);
-      // If the track resolves after the timeout, stop it so it doesn't hold the device
+      // No microphone: join anyway, forced mute.
+      debug.warn('[LiveKit] No microphone available, joining in muted state:', error);
+      // A track resolving after the timeout is stopped so it releases the device.
       trackPromise.then(t => t.stop()).catch(() => {});
       this.localMediaState.isMuted = true;
       this.localMediaState.isAudioEnabled = false;
       this.emit('local-state-changed', this.localMediaState);
-      // Don't throw - allow join to continue without audio
+      // Not rethrown: the join continues without audio.
     }
   }
   
-  /**
-   * Toggle video on/off
-   */
   async toggleVideo(): Promise<boolean> {
     if (!this.room?.localParticipant) {
-      debug.warn('⚠️ [LiveKit] No room connected');
+      debug.warn('[LiveKit] No room connected');
       return false;
     }
     
     try {
       if (!this.localMediaState.isVideoEnabled) {
-        // Enable video with current quality settings
-        // Camera and screenshare are independent tracks and may run concurrently
-        debug.log('🎥 [LiveKit] Enabling video with settings:', this.streamQualitySettings);
+        // Camera and screenshare are independent tracks and may run concurrently.
+        debug.log('[LiveKit] Enabling video with settings:', this.streamQualitySettings);
         
         const resolution = this.getResolutionPreset(this.streamQualitySettings.resolution);
         
@@ -798,7 +758,7 @@ export class LiveKitWebRTCService {
               frameRate: { ideal: this.streamQualitySettings.frameRate }
             });
           } catch (e) {
-            debug.warn('⚠️ [LiveKit] Could not apply frameRate constraint:', e);
+            debug.warn('[LiveKit] Could not apply frameRate constraint:', e);
           }
         }
         
@@ -809,14 +769,14 @@ export class LiveKitWebRTCService {
         });
         
         this.localMediaState.isVideoEnabled = true;
-        debug.log('✅ [LiveKit] Video enabled');
+        debug.log('[LiveKit] Video enabled');
       } else {
-        // Disable video - only unpublish the camera track, never the screenshare
-        debug.log('🎥 [LiveKit] Disabling video...');
+        // Only the camera track is unpublished; the screenshare stays.
+        debug.log('[LiveKit] Disabling video...');
 
         const cameraPublication = this.room.localParticipant.getTrackPublication(Track.Source.Camera);
         if (cameraPublication?.track) {
-          // Store track reference before unpublishing (unpublish may invalidate it)
+          // unpublishTrack may invalidate the reference.
           const track = cameraPublication.track;
           await this.room.localParticipant.unpublishTrack(track);
           if (track.mediaStreamTrack) {
@@ -825,7 +785,7 @@ export class LiveKitWebRTCService {
         }
         
         this.localMediaState.isVideoEnabled = false;
-        debug.log('✅ [LiveKit] Video disabled');
+        debug.log('[LiveKit] Video disabled');
       }
       
       this.broadcastMediaState();
@@ -834,33 +794,29 @@ export class LiveKitWebRTCService {
       
       return this.localMediaState.isVideoEnabled;
     } catch (error) {
-      debug.error('❌ [LiveKit] Failed to toggle video:', error);
+      debug.error('[LiveKit] Failed to toggle video:', error);
       this.emit('error', error);
       return this.localMediaState.isVideoEnabled;
     }
   }
   
-  /**
-   * Toggle screen share on/off
-   */
   async toggleScreenShare(): Promise<boolean> {
     if (!this.room?.localParticipant) {
-      debug.warn('⚠️ [LiveKit] No room connected');
+      debug.warn('[LiveKit] No room connected');
       return false;
     }
     
     try {
       if (!this.localMediaState.isScreenSharing) {
-        // Enable screen share (camera, if on, keeps publishing alongside)
-        debug.log('📺 [LiveKit] Enabling screen share...');
+        // A running camera keeps publishing alongside the screenshare.
+        debug.log('[LiveKit] Enabling screen share...');
         
-        // Log existing tracks before starting new screenshare
-        debug.log('📺 [LiveKit] Current audio tracks before screenshare:');
+        debug.log('[LiveKit] Current audio tracks before screenshare:');
         for (const pub of this.room.localParticipant.audioTrackPublications.values()) {
           debug.log(`  - ${pub.source}: ${pub.trackSid}, muted: ${pub.isMuted}`);
         }
         
-        // Use saved resolution for screenshare (-1 = source/1080p, otherwise use user's setting)
+        // -1 means source, capped at 1080p.
         const screenResolution = this.streamQualitySettings.resolution === -1 
           ? VideoPresets.h1080.resolution 
           : this.getResolutionPreset(this.streamQualitySettings.resolution);
@@ -868,7 +824,7 @@ export class LiveKitWebRTCService {
         const targetFrameRate = this.streamQualitySettings.frameRate;
         const audioBitrateKbps = this.streamQualitySettings.audioBitrate;
         
-        debug.log('📺 [LiveKit] Starting screenshare with settings:', {
+        debug.log('[LiveKit] Starting screenshare with settings:', {
           resolution: screenResolution,
           frameRate: targetFrameRate,
           audioBitrate: audioBitrateKbps
@@ -877,16 +833,14 @@ export class LiveKitWebRTCService {
         // At high framerate, prioritise motion (smoothness) over static detail
         const highFps = targetFrameRate >= 60;
 
-        // Capture options for screenshare
         const captureOptions = {
           audio: {
-            // Disable all audio processing for screenshare audio
-            // We want RAW audio from the shared tab/window - no normalization
+            // Raw audio from the shared tab/window: no processing, no
+            // normalization.
             echoCancellation: false,
             noiseSuppression: false,
-            autoGainControl: false, // This is what causes "auto-volume" behavior
+            autoGainControl: false, // source of "auto-volume" behavior
           },
-          // Request specific framerate during capture
           video: {
             frameRate: targetFrameRate,
           },
@@ -912,45 +866,45 @@ export class LiveKitWebRTCService {
           screenShareAudioBitrate: audioBitrateKbps * 1000,
         };
         
-        // captureOptions includes a few non-standard fields (contentHint, systemAudio)
-        // that LiveKit forwards to getDisplayMedia; the official type doesn't include
-        // them so we widen here.
+        // contentHint and systemAudio are non-standard fields LiveKit
+        // forwards to getDisplayMedia; the official type omits them, hence
+        // the widening cast.
         await this.room.localParticipant.setScreenShareEnabled(true, captureOptions as any, publishOptions);
         
-        // Also try to apply constraints directly to the track for browsers that support it
+        // Direct track constraints, for browsers that support them.
         for (const pub of this.room.localParticipant.videoTrackPublications.values()) {
           if (pub.source === Track.Source.ScreenShare && pub.track?.mediaStreamTrack) {
             try {
               await pub.track.mediaStreamTrack.applyConstraints({
                 frameRate: { min: 15, ideal: targetFrameRate, max: targetFrameRate }
               });
-              debug.log('✅ [LiveKit] Applied frameRate constraint to screenshare:', targetFrameRate);
+              debug.log('[LiveKit] Applied frameRate constraint to screenshare:', targetFrameRate);
               
-              // Log actual track settings - Chrome may impose limits (e.g., 15fps for tab capture)
+              // Chrome imposes limits, e.g. 15fps for tab capture.
               const actualSettings = pub.track.mediaStreamTrack.getSettings();
-              debug.log('📊 [LiveKit] Actual screenshare track settings:', {
+              debug.log('[LiveKit] Actual screenshare track settings:', {
                 width: actualSettings.width,
                 height: actualSettings.height,
                 frameRate: actualSettings.frameRate,
                 displaySurface: actualSettings.displaySurface, // 'browser'=tab, 'window', 'monitor'
               });
               
-              // Warn if Chrome is limiting FPS (common for tab capture)
+              // Chrome commonly limits FPS for tab capture.
               if (actualSettings.frameRate && actualSettings.frameRate < targetFrameRate) {
-                debug.warn(`⚠️ [LiveKit] Chrome limited framerate to ${actualSettings.frameRate}fps ` +
+                debug.warn(`[LiveKit] Chrome limited framerate to ${actualSettings.frameRate}fps ` +
                   `(requested ${targetFrameRate}fps). ` +
                   `Note: Tab capture is often capped at ~15fps by Chrome. ` +
                   `Try sharing entire screen or window for higher framerates.`);
               }
             } catch (e) {
-              debug.warn('⚠️ [LiveKit] Could not apply additional frameRate constraint:', e);
+              debug.warn('[LiveKit] Could not apply additional frameRate constraint:', e);
             }
           }
         }
         
         this.localMediaState.isScreenSharing = true;
         
-        debug.log('📺 [LiveKit] Screen share tracks published:');
+        debug.log('[LiveKit] Screen share tracks published:');
         for (const pub of this.room.localParticipant.videoTrackPublications.values()) {
           debug.log(`  - Video: ${pub.source}, trackSid: ${pub.trackSid}`);
         }
@@ -960,23 +914,21 @@ export class LiveKitWebRTCService {
           debug.log(`  - Audio: ${pub.source}, trackSid: ${pub.trackSid}`);
           if (pub.source === Track.Source.ScreenShareAudio) {
             hasScreenShareAudio = true;
-            debug.log('🔊 [LiveKit] ✅ Screenshare audio track published!');
+            debug.log('[LiveKit] Screenshare audio track published!');
           }
         }
         if (!hasScreenShareAudio) {
-          debug.warn('⚠️ [LiveKit] No screenshare audio - possible reasons:');
+          debug.warn('[LiveKit] No screenshare audio - possible reasons:');
           debug.warn('   1. "Share audio" checkbox not enabled in browser picker');
           debug.warn('   2. Sharing a window (not a tab) - no audio available');
           debug.warn('   3. Browser doesn\'t support system audio capture');
         }
         
-        debug.log('✅ [LiveKit] Screen share enabled');
+        debug.log('[LiveKit] Screen share enabled');
       } else {
-        // Disable screen share
-        debug.log('📺 [LiveKit] Disabling screen share...');
+        debug.log('[LiveKit] Disabling screen share...');
         
-        // Log tracks before disabling
-        debug.log('📺 [LiveKit] Tracks before disabling screenshare:');
+        debug.log('[LiveKit] Tracks before disabling screenshare:');
         for (const pub of this.room.localParticipant.audioTrackPublications.values()) {
           debug.log(`  - Audio ${pub.source}: ${pub.trackSid}`);
         }
@@ -986,8 +938,7 @@ export class LiveKitWebRTCService {
         
         await this.room.localParticipant.setScreenShareEnabled(false);
         
-        // Log tracks after disabling
-        debug.log('📺 [LiveKit] Tracks after disabling screenshare:');
+        debug.log('[LiveKit] Tracks after disabling screenshare:');
         for (const pub of this.room.localParticipant.audioTrackPublications.values()) {
           debug.log(`  - Audio ${pub.source}: ${pub.trackSid}`);
         }
@@ -996,7 +947,7 @@ export class LiveKitWebRTCService {
         }
         
         this.localMediaState.isScreenSharing = false;
-        debug.log('✅ [LiveKit] Screen share disabled');
+        debug.log('[LiveKit] Screen share disabled');
       }
       
       this.broadcastMediaState();
@@ -1005,15 +956,13 @@ export class LiveKitWebRTCService {
 
       return this.localMediaState.isScreenSharing;
     } catch (error) {
-      // BUGS.md #8 - when the user dismisses the screen-share picker,
-      // `setScreenShareEnabled` throws but spatial-audio listeners had
-      // already started flipping audio routing in anticipation of the
-      // share. Without this notification, the consumer was leaving both
-      // the spatial (wet) graph AND the traditional `<audio>` (dry)
-      // playback enabled simultaneously, producing a "two streams at
-      // once" effect after a cancel. Emit a state change so listeners
-      // can re-derive the correct audio routing.
-      debug.error('❌ [LiveKit] Failed to toggle screen share:', error);
+      // BUGS.md #8: dismissing the screen-share picker makes
+      // `setScreenShareEnabled` throw after spatial-audio listeners have
+      // already flipped audio routing for the expected share. Without this
+      // state change, both the spatial (wet) graph and the traditional
+      // `<audio>` (dry) playback stay enabled, producing doubled audio.
+      // Emitting lets listeners re-derive the routing.
+      debug.error('[LiveKit] Failed to toggle screen share:', error);
       this.localMediaState.isScreenSharing = false;
       this.broadcastMediaState();
       this.emit('local-state-changed', this.localMediaState);
@@ -1039,17 +988,12 @@ export class LiveKitWebRTCService {
     }
   }
 
-  /**
-   * Toggle mute on/off
-   */
   toggleMute(): boolean {
     this.setMuted(!this.localMediaState.isMuted);
     return this.localMediaState.isMuted;
   }
 
-  /**
-   * Set explicit mute state (user intent — broadcast to peers)
-   */
+  /** Explicit user intent; broadcast to peers. */
   setMuted(muted: boolean): void {
     if (this.localMediaState.isMuted === muted) return; // No change
 
@@ -1060,41 +1004,36 @@ export class LiveKitWebRTCService {
     this.emit('local-state-changed', this.localMediaState);
   }
 
-  /**
-   * Open/close the PTT transmit gate — no mute state change, nothing broadcast
-   */
+  /** PTT transmit gate. Mute state is unchanged and nothing is broadcast. */
   setTransmitGate(open: boolean): void {
     if (this.pttGateOpen === open) return;
     this.pttGateOpen = open;
     this.applyMicGate();
   }
 
-  /**
-   * Toggle deafen on/off
-   */
   toggleDeafen(): boolean {
     this.localMediaState.isDeafened = !this.localMediaState.isDeafened;
 
-    // Deafening also mutes (Discord behavior)
+    // Deafening also mutes.
     if (this.localMediaState.isDeafened && !this.localMediaState.isMuted) {
       this.localMediaState.isMuted = true;
       this.applyMicGate();
     }
 
-    // Mute/unmute spatial audio master output if active
+    // Spatial audio master output, when active.
     try {
       const { spatialAudioService } = require('@/services/spatialAudio');
       spatialAudioService.setDeafened(this.localMediaState.isDeafened);
     } catch (e) {
-      // Spatial audio not available, ignore
+      // Spatial audio not available.
     }
     
-    // Mute/unmute remote mic audio elements
-    // When undeafening, keep muted if spatial audio has taken over (traditionalAudioMuted)
+    // On undeafen the elements stay muted while spatial audio owns playback
+    // (traditionalAudioMuted).
     for (const audioElement of this.remoteMicAudioElements.values()) {
       audioElement.muted = this.localMediaState.isDeafened || this.traditionalAudioMuted;
     }
-    // Screen share audio is always traditional (not spatial), only respect deafen
+    // Screenshare audio is never spatial, so it follows deafen alone.
     for (const audioElement of this.remoteScreenShareAudioElements.values()) {
       audioElement.muted = this.localMediaState.isDeafened;
     }
@@ -1107,10 +1046,7 @@ export class LiveKitWebRTCService {
   
   // STREAM QUALITY CONTROL
   
-  /**
-   * Update stream quality settings (resolution, framerate, and audio bitrate)
-   * Saves settings and applies to currently active video/screenshare tracks
-   */
+  /** Persists the settings and applies them to active video/screenshare tracks. */
   async updateStreamQuality(settings: { resolution?: number; frameRate?: number; audioBitrate?: number }): Promise<void> {
     if (settings.resolution !== undefined) {
       this.streamQualitySettings.resolution = settings.resolution;
@@ -1122,10 +1058,10 @@ export class LiveKitWebRTCService {
       this.streamQualitySettings.audioBitrate = settings.audioBitrate;
     }
     
-    debug.log('🎬 [LiveKit] Stream quality settings updated:', this.streamQualitySettings);
+    debug.log('[LiveKit] Stream quality settings updated:', this.streamQualitySettings);
     
     if (!this.room?.localParticipant) {
-      debug.log('ℹ️ [LiveKit] Not connected - settings saved for next session');
+      debug.log('ℹ[LiveKit] Not connected - settings saved for next session');
       return;
     }
     
@@ -1134,7 +1070,7 @@ export class LiveKitWebRTCService {
       for (const publication of this.room.localParticipant.videoTrackPublications.values()) {
         const track = publication.track;
         if (!track?.mediaStreamTrack) {
-          debug.log('⚠️ [LiveKit] Track publication has no media track:', publication.trackSid);
+          debug.log('[LiveKit] Track publication has no media track:', publication.trackSid);
           continue;
         }
         
@@ -1151,20 +1087,19 @@ export class LiveKitWebRTCService {
         
         if (Object.keys(constraints).length > 0) {
           try {
-            debug.log('🎬 [LiveKit] Applying constraints to track:', publication.trackSid, constraints);
+            debug.log('[LiveKit] Applying constraints to track:', publication.trackSid, constraints);
             await track.mediaStreamTrack.applyConstraints(constraints);
             trackCount++;
-            debug.log('✅ [LiveKit] Applied video constraints to', publication.source);
+            debug.log('[LiveKit] Applied video constraints to', publication.source);
 
-            // Log actual track settings after applying
             const actualSettings = track.mediaStreamTrack.getSettings();
-            debug.log('📊 [LiveKit] Actual track settings:', {
+            debug.log('[LiveKit] Actual track settings:', {
               width: actualSettings.width,
               height: actualSettings.height,
               frameRate: actualSettings.frameRate,
             });
           } catch (error) {
-            debug.error('❌ [LiveKit] Failed to apply video constraints:', error);
+            debug.error('[LiveKit] Failed to apply video constraints:', error);
           }
         }
 
@@ -1185,32 +1120,29 @@ export class LiveKitWebRTCService {
               enc.maxFramerate = fps;
             }
             await sender.setParameters(params);
-            debug.log('✅ [LiveKit] Updated screenshare encoder params:', {
+            debug.log('[LiveKit] Updated screenshare encoder params:', {
               maxBitrate: this.screenShareBitrate(height, fps),
               maxFramerate: fps,
             });
           } catch (error) {
-            debug.warn('⚠️ [LiveKit] Could not update encoder params live:', error);
+            debug.warn('[LiveKit] Could not update encoder params live:', error);
           }
         }
       }
       
       if (trackCount === 0) {
-        debug.log('ℹ️ [LiveKit] No active video tracks to apply settings to');
+        debug.log('ℹ[LiveKit] No active video tracks to apply settings to');
       }
     }
     
-    // Note: Audio bitrate in LiveKit is set at track creation time
-    // Runtime bitrate changes require republishing the track
+    // NOTE: LiveKit fixes audio bitrate at track creation; changing it at
+    // runtime requires republishing the track.
     if (settings.audioBitrate !== undefined) {
-      debug.log('🎵 [LiveKit] Audio bitrate saved:', settings.audioBitrate, 'kbps');
+      debug.log('[LiveKit] Audio bitrate saved:', settings.audioBitrate, 'kbps');
       debug.log('   Note: Takes effect on next mic enable/reconnect');
     }
   }
   
-  /**
-   * Load saved stream quality settings from localStorage
-   */
   loadStreamQualitySettings(): void {
     try {
       const saved = userStorage.getItem('stream-settings');
@@ -1221,10 +1153,10 @@ export class LiveKitWebRTCService {
           frameRate: settings.frameRate ?? 30,
           audioBitrate: settings.audioBitrate ?? 128,
         };
-        debug.log('📊 [LiveKit] Loaded stream quality settings:', this.streamQualitySettings);
+        debug.log('[LiveKit] Loaded stream quality settings:', this.streamQualitySettings);
       }
     } catch (error) {
-      debug.warn('⚠️ [LiveKit] Failed to load stream settings:', error);
+      debug.warn('[LiveKit] Failed to load stream settings:', error);
     }
   }
   
@@ -1232,37 +1164,32 @@ export class LiveKitWebRTCService {
   
   /**
    * Mute/unmute all remote mic audio elements.
-   * Used by spatial audio to silence the dry signal while the wet (spatial) signal plays.
+   * Used by spatial audio to silence the dry signal while the wet signal plays.
    */
   setTraditionalAudioEnabled(enabled: boolean): void {
     this.traditionalAudioMuted = !enabled;
-    debug.log(`🔊 [LiveKit] Setting traditional audio enabled: ${enabled} for ${this.remoteMicAudioElements.size} mic elements`);
+    debug.log(`[LiveKit] Setting traditional audio enabled: ${enabled} for ${this.remoteMicAudioElements.size} mic elements`);
     for (const audioElement of this.remoteMicAudioElements.values()) {
       audioElement.muted = !enabled;
     }
   }
 
-  /**
-   * Set volume for a user's microphone audio (0-200, 100 = normal)
-   */
+  /** @param volume - 0-200, 100 = normal. */
   setUserMicVolume(participantId: string, volume: number): void {
     const clampedVolume = Math.max(0, Math.min(200, volume));
     this.userMicVolumes.set(participantId, clampedVolume);
     
-    // Apply to audio element if it exists
-    // Check both by participantId (UUID) and by identity
+    // Elements are keyed by both participantId (UUID) and identity.
     const audioElement = this.remoteMicAudioElements.get(participantId) || 
                          this.findAudioElementByResolvedId(participantId, 'mic');
     
     if (audioElement) {
       audioElement.volume = clampedVolume / 100;
-      debug.log(`🔊 [LiveKit] Set mic volume for ${participantId} to ${clampedVolume}%`);
+      debug.log(`[LiveKit] Set mic volume for ${participantId} to ${clampedVolume}%`);
     }
   }
   
-  /**
-   * Set volume for a user's screenshare audio (0-200, 100 = normal)
-   */
+  /** @param volume - 0-200, 100 = normal. */
   setUserScreenShareVolume(participantId: string, volume: number): void {
     const clampedVolume = Math.max(0, Math.min(200, volume));
     this.userScreenShareVolumes.set(participantId, clampedVolume);
@@ -1272,27 +1199,21 @@ export class LiveKitWebRTCService {
     
     if (audioElement) {
       audioElement.volume = clampedVolume / 100;
-      debug.log(`🔊 [LiveKit] Set screenshare volume for ${participantId} to ${clampedVolume}%`);
+      debug.log(`[LiveKit] Set screenshare volume for ${participantId} to ${clampedVolume}%`);
     }
   }
   
-  /**
-   * Get the current mic volume setting for a user (0-200)
-   */
+  /** Returns 0-200; 100 = normal. */
   getUserMicVolume(participantId: string): number {
     return this.userMicVolumes.get(participantId) ?? 100;
   }
   
-  /**
-   * Get the current screenshare volume setting for a user (0-200)
-   */
+  /** Returns 0-200; 100 = normal. */
   getUserScreenShareVolume(participantId: string): number {
     return this.userScreenShareVolumes.get(participantId) ?? 100;
   }
   
-  /**
-   * Helper to find audio element by resolved UUID (since we store by identity)
-   */
+  /** Audio elements are stored by identity, so a UUID needs resolving. */
   private findAudioElementByResolvedId(
     userId: string, 
     type: 'mic' | 'screenshare'
@@ -1308,9 +1229,6 @@ export class LiveKitWebRTCService {
     return undefined;
   }
   
-  /**
-   * Check if a user is currently screen sharing (has screenshare audio)
-   */
   hasScreenShareAudio(participantId: string): boolean {
     return this.remoteScreenShareAudioElements.has(participantId) ||
            !!this.findAudioElementByResolvedId(participantId, 'screenshare');
@@ -1318,9 +1236,7 @@ export class LiveKitWebRTCService {
   
   // STREAM ACCESS
   
-  /**
-   * Get local media stream (combined audio/video)
-   */
+  /** Combined audio and video. */
   getLocalStream(): MediaStream | null {
     if (!this.room?.localParticipant) return null;
     
@@ -1341,9 +1257,7 @@ export class LiveKitWebRTCService {
     return stream.getTracks().length > 0 ? stream : null;
   }
   
-  /**
-   * Get user's stream (both local and remote)
-   */
+  /** Works for local and remote users. */
   getUserStream(userId: string): MediaStream | null {
     if (!this.room) return null;
     
@@ -1351,10 +1265,10 @@ export class LiveKitWebRTCService {
       return this.getLocalStream();
     }
     
-    // Handle remote participant - try by userId first, then by mapped identity
+    // Remote participant: by userId first, then by mapped identity.
     let participant = this.room.remoteParticipants.get(userId);
     if (!participant) {
-      // Try looking up by identity (for federated users where userId is a UUID but identity is federated:...)
+      // Federated users have a UUID userId and a `federated:` identity.
       const identity = uuidToIdentityCache.get(userId);
       if (identity) {
         participant = this.room.remoteParticipants.get(identity);
@@ -1380,9 +1294,9 @@ export class LiveKitWebRTCService {
   }
 
   /**
-   * Get a user's microphone-only stream. Spatial audio must process the mic
-   * alone - getUserStream also carries screenshare audio, which would get
-   * spatialized/panned along with the voice.
+   * Microphone-only stream. Spatial audio must process the mic alone;
+   * getUserStream also carries screenshare audio, which would be
+   * spatialized and panned with the voice.
    */
   getUserMicStream(userId: string): MediaStream | null {
     const participant = this.resolveParticipant(userId);
@@ -1432,34 +1346,33 @@ export class LiveKitWebRTCService {
   }
 
   /**
-   * Attach a video track to a video element using LiveKit's proper attachment method.
-   * This is REQUIRED for adaptive streaming to work correctly!
-   * When using srcObject directly, LiveKit doesn't know the video is being consumed
+   * Attaches via LiveKit's attach API, which adaptive streaming requires:
+   * with srcObject set directly, LiveKit does not know the video is consumed
    * and may disable all simulcast layers.
    *
-   * @param source which publication to attach now that camera and screenshare
-   *               can be live at the same time
+   * @param source - which publication to attach; camera and screenshare can
+   *   be live at the same time.
    */
   attachVideoToElement(userId: string, videoElement: HTMLVideoElement, source: VideoSource = 'auto'): boolean {
     if (!this.room) {
-      debug.warn('📺 [LiveKit] attachVideoToElement: No room');
+      debug.warn('[LiveKit] attachVideoToElement: No room');
       return false;
     }
 
     const participant = this.resolveParticipant(userId);
     if (!participant) {
-      debug.warn('📺 [LiveKit] attachVideoToElement: Participant not found:', userId);
+      debug.warn('[LiveKit] attachVideoToElement: Participant not found:', userId);
       return false;
     }
 
     const publication = this.pickVideoPublication(participant, source);
     if (publication?.track) {
       publication.track.attach(videoElement);
-      debug.log(`📺 [LiveKit] ✅ Attached ${source} video for:`, userId);
+      debug.log(`[LiveKit] Attached ${source} video for:`, userId);
       return true;
     }
 
-    debug.warn(`📺 [LiveKit] No ${source} video track to attach for:`, userId);
+    debug.warn(`[LiveKit] No ${source} video track to attach for:`, userId);
     return false;
   }
 
@@ -1484,17 +1397,13 @@ export class LiveKitWebRTCService {
     publication?.track?.detach(videoElement);
   }
   
-  /**
-   * Get local media state
-   */
   getLocalState(): UserMediaState {
     return { ...this.localMediaState };
   }
   
   /**
-   * Get all remote user states
-   * Note: We store states by both UUID and identity (for federated users),
-   * so we need to deduplicate by userId
+   * States are stored under both UUID and identity for federated users, so
+   * the result is deduplicated by userId.
    */
   getAllUsers(): UserMediaState[] {
     const seen = new Set<string>();
@@ -1513,35 +1422,33 @@ export class LiveKitWebRTCService {
   // ROOM EVENT HANDLING
   
   /**
-   * Sync existing participants in the room (called after connecting)
-   * This handles participants who were already in the room before we joined.
-   * 
-   * NOTE: We only setup the participants here. Track handling is done via
-   * TrackSubscribed events which fire for each track as they become available.
-   * This is cleaner and faster than polling/delayed syncs.
+   * Registers participants already in the room at connect time.
+   *
+   * NOTE: only participant setup happens here. Tracks are handled by
+   * TrackSubscribed events, which fire per track as it becomes available.
    */
   private async syncExistingParticipants(): Promise<void> {
     if (!this.room) {
-      debug.warn('⚠️ [LiveKit] syncExistingParticipants called but no room');
+      debug.warn('[LiveKit] syncExistingParticipants called but no room');
       return;
     }
     
     const existingParticipants = this.room.remoteParticipants;
-    debug.log(`🔄 [LiveKit] Syncing ${existingParticipants.size} existing participants`);
+    debug.log(`[LiveKit] Syncing ${existingParticipants.size} existing participants`);
     
     if (existingParticipants.size === 0) {
-      debug.log('📭 [LiveKit] No existing participants to sync');
+      debug.log('[LiveKit] No existing participants to sync');
       return;
     }
     
     for (const participant of existingParticipants.values()) {
-      debug.log(`👤 [LiveKit] Found existing participant: ${participant.identity}, sid: ${participant.sid}`);
+      debug.log(`[LiveKit] Found existing participant: ${participant.identity}, sid: ${participant.sid}`);
       
       // Resolve federated identity to profile UUID
       const userId = await resolveIdentityToUuid(participant.identity, this.remoteServerDomain);
       
       if (!userId) {
-        debug.warn(`⚠️ [LiveKit] Could not resolve identity for existing participant: ${participant.identity}`);
+        debug.warn(`[LiveKit] Could not resolve identity for existing participant: ${participant.identity}`);
         const mediaState = this.createMediaState(participant, participant.identity);
         this.allUserStates.set(participant.identity, mediaState);
         this.setupParticipantListeners(participant);
@@ -1553,30 +1460,27 @@ export class LiveKitWebRTCService {
       if (userId !== participant.identity) {
         this.allUserStates.set(participant.identity, mediaState);
       }
-      debug.log(`👤 [LiveKit] Added to allUserStates, total: ${this.allUserStates.size}`);
+      debug.log(`[LiveKit] Added to allUserStates, total: ${this.allUserStates.size}`);
       
       this.setupParticipantListeners(participant);
       
       this.emit('user-joined', { userId, mediaState });
       
-      // For tracks that are ALREADY subscribed, emit state immediately
-      // TrackSubscribed events will handle any tracks that subscribe later
+      // Already-subscribed tracks emit state now; later subscriptions are
+      // handled by TrackSubscribed.
       const hasSubscribedTracks = this.hasSubscribedTracks(participant);
       if (hasSubscribedTracks) {
-        debug.log(`📺 [LiveKit] Participant ${userId} has already-subscribed tracks, emitting state`);
+        debug.log(`[LiveKit] Participant ${userId} has already-subscribed tracks, emitting state`);
         const stream = this.getUserStream(userId);
         this.emit('user-stream-changed', { userId, stream });
-        // Spread to create new object reference for Vue reactivity
+        // Spread produces a new object reference for Vue reactivity.
         this.emit('user-state-changed', { userId, mediaState: { ...mediaState } });
       }
     }
     
-    debug.log(`✅ [LiveKit] Sync complete. Total users tracked: ${this.allUserStates.size}`);
+    debug.log(`[LiveKit] Sync complete. Total users tracked: ${this.allUserStates.size}`);
   }
   
-  /**
-   * Check if a participant has any subscribed tracks
-   */
   private hasSubscribedTracks(participant: RemoteParticipant): boolean {
     for (const pub of participant.videoTrackPublications.values()) {
       if (pub.isSubscribed && pub.track) return true;
@@ -1587,15 +1491,12 @@ export class LiveKitWebRTCService {
     return false;
   }
   
-  /**
-   * Setup LiveKit room event listeners
-   */
   private setupRoomListeners(): void {
     if (!this.room) return;
     
     // Connection state changes
     this.room.on(RoomEvent.ConnectionStateChanged, (state: ConnectionState) => {
-      debug.log('🔗 [LiveKit] Connection state:', state);
+      debug.log('[LiveKit] Connection state:', state);
       this.emit('connection-state-changed', { state });
     });
     
@@ -1606,7 +1507,7 @@ export class LiveKitWebRTCService {
       }
     });
     
-    // Local participant speaking changes (voice activity indicator for ourselves)
+    // Local voice activity indicator.
     this.room.localParticipant.on(ParticipantEvent.IsSpeakingChanged, (speaking: boolean) => {
       this.localMediaState.isSpeaking = speaking;
       // audioLevel owned by startLevelPolling()
@@ -1617,12 +1518,12 @@ export class LiveKitWebRTCService {
     
     // Participant connected
     this.room.on(RoomEvent.ParticipantConnected, async (participant: RemoteParticipant) => {
-      debug.log('👋 [LiveKit] Participant connected:', participant.identity);
+      debug.log('[LiveKit] Participant connected:', participant.identity);
       
       // Resolve federated identity to profile UUID
       const userId = await resolveIdentityToUuid(participant.identity, this.remoteServerDomain);
       if (!userId) {
-        debug.warn(`⚠️ [LiveKit] Could not resolve identity for connected participant: ${participant.identity}`);
+        debug.warn(`[LiveKit] Could not resolve identity for connected participant: ${participant.identity}`);
         return; // Skip unresolvable participants
       }
       
@@ -1638,7 +1539,7 @@ export class LiveKitWebRTCService {
       this.emit('user-joined', { userId, mediaState });
       this.emit('channel-state-synced', { users: this.getAllUsers() });
 
-      // teach the newcomer our explicit mute/deafen state (track mute alone can't convey it)
+      // sends explicit mute/deafen state to the newcomer; track mute alone cannot convey it
       this.broadcastMediaState();
 
       // Rotate/redistribute the shared E2EE key so the newcomer is included.
@@ -1647,7 +1548,7 @@ export class LiveKitWebRTCService {
     
     // Participant disconnected
     this.room.on(RoomEvent.ParticipantDisconnected, async (participant: RemoteParticipant) => {
-      debug.log('👋 [LiveKit] Participant disconnected:', participant.identity);
+      debug.log('[LiveKit] Participant disconnected:', participant.identity);
       
       // Resolve federated identity to profile UUID
       const userId = await resolveIdentityToUuid(participant.identity, this.remoteServerDomain);
@@ -1666,32 +1567,31 @@ export class LiveKitWebRTCService {
       
       this.emit('channel-state-synced', { users: this.getAllUsers() });
       
-      // Rotate the shared E2EE key so the departed member can't decrypt
-      // future media (forward secrecy on leave). The newly-elected coordinator
-      // - which may now be us - issues the fresh key.
+      // Rotates the shared E2EE key so the departed member cannot decrypt
+      // future media. The newly elected coordinator issues the fresh key.
       void this.onE2EEMembershipChanged();
     });
     
     this.room.on(RoomEvent.TrackSubscribed, async (track: RemoteTrack, publication: TrackPublication, participant: RemoteParticipant) => {
       const source = publication.source;
-      debug.log('📺 [LiveKit] Track subscribed:', track.kind, 'source:', source, 'from', participant.identity);
+      debug.log('[LiveKit] Track subscribed:', track.kind, 'source:', source, 'from', participant.identity);
       
       // Resolve federated identity to profile UUID
       const userId = await resolveIdentityToUuid(participant.identity, this.remoteServerDomain);
-      // Use identity as fallback for internal lookups only
+      // Identity is a fallback for internal lookups only.
       const lookupId = userId || participant.identity;
       
       let state = this.allUserStates.get(lookupId) || this.allUserStates.get(participant.identity);
       if (!state) {
-        // Create state if it doesn't exist (edge case - track subscribed before participant fully registered)
-        debug.log('📺 [LiveKit] Creating state for participant during TrackSubscribed:', lookupId);
+        // Track can subscribe before the participant is fully registered.
+        debug.log('[LiveKit] Creating state for participant during TrackSubscribed:', lookupId);
         state = this.createMediaState(participant, userId || participant.identity);
       }
       
       if (track.kind === Track.Kind.Audio) {
         state.isAudioEnabled = true;
         
-        // Auto-attach REMOTE audio tracks to play them (not our own!)
+        // Remote audio tracks are attached for playback; local ones are not.
         if (track instanceof RemoteAudioTrack) {
           const audioElement = track.attach();
           
@@ -1702,38 +1602,36 @@ export class LiveKitWebRTCService {
           }
           
           if (isScreenShareAudio) {
-            // Clean up any existing screenshare audio for this participant first
+            // Existing screenshare audio for this participant is removed first.
             const existingElement = this.remoteScreenShareAudioElements.get(participant.identity);
             if (existingElement && existingElement !== audioElement) {
-              debug.log('🔊 [LiveKit] Cleaning up old screenshare audio element');
+              debug.log('[LiveKit] Cleaning up old screenshare audio element');
               try {
                 existingElement.pause();
                 existingElement.srcObject = null;
               } catch (e) { /* ignore cleanup errors */ }
             }
             
-            // Store new screenshare audio element by BOTH identity AND resolved userId
+            // Stored under both identity and resolved userId.
             this.remoteScreenShareAudioElements.set(participant.identity, audioElement);
             if (userId && userId !== participant.identity) {
               this.remoteScreenShareAudioElements.set(userId, audioElement);
-              debug.log('🔊 [LiveKit] Also storing screenshare audio by userId:', userId);
+              debug.log('[LiveKit] Also storing screenshare audio by userId:', userId);
             }
             
-            // Screenshare audio should bypass ALL audio processing
-            // No echo cancellation, no noise suppression, no auto gain control
-            // This gives us raw, unprocessed audio from the shared screen/tab
+            // Screenshare audio bypasses all processing: no echo
+            // cancellation, no noise suppression, no auto gain control.
             audioElement.setAttribute('data-screenshare-audio', 'true');
             
-            // Apply saved screenshare volume or default to 100%
-            // Check both identity and userId for saved volume
+            // Saved volume is keyed by identity or userId; default 100%.
             const savedVolume = this.userScreenShareVolumes.get(participant.identity) 
               ?? (userId ? this.userScreenShareVolumes.get(userId) : null)
               ?? 100;
             audioElement.volume = savedVolume / 100;
             
-            debug.log('🔊 [LiveKit] Screenshare audio attached (raw, no processing) for:', lookupId, 'volume:', savedVolume);
+            debug.log('[LiveKit] Screenshare audio attached (raw, no processing) for:', lookupId, 'volume:', savedVolume);
           } else {
-            // Clean up any existing mic audio for this participant first  
+            // Existing mic audio for this participant is removed first.
             const existingElement = this.remoteMicAudioElements.get(participant.identity);
             if (existingElement && existingElement !== audioElement) {
               try {
@@ -1744,7 +1642,7 @@ export class LiveKitWebRTCService {
             
             this.remoteMicAudioElements.set(participant.identity, audioElement);
             
-            // Mute if spatial audio has taken over playback
+            // Muted while spatial audio owns playback.
             if (this.traditionalAudioMuted) {
               audioElement.muted = true;
             }
@@ -1752,29 +1650,29 @@ export class LiveKitWebRTCService {
             const savedVolume = this.userMicVolumes.get(participant.identity) ?? 100;
             audioElement.volume = savedVolume / 100;
             
-            debug.log('🔊 [LiveKit] Mic audio attached for:', lookupId, 'volume:', savedVolume, 'muted:', audioElement.muted);
+            debug.log('[LiveKit] Mic audio attached for:', lookupId, 'volume:', savedVolume, 'muted:', audioElement.muted);
           }
         }
       } else if (track.kind === Track.Kind.Video) {
         if (source === Track.Source.ScreenShare) {
           state.isScreenSharing = true;
-          debug.log('📺 [LiveKit] ScreenShare track subscribed for:', lookupId);
+          debug.log('[LiveKit] ScreenShare track subscribed for:', lookupId);
         } else {
           state.isVideoEnabled = true;
-          debug.log('📺 [LiveKit] Camera track subscribed for:', lookupId);
+          debug.log('[LiveKit] Camera track subscribed for:', lookupId);
         }
       }
       
-      // Always save the updated state
+      // The updated state is always stored.
       this.allUserStates.set(lookupId, state);
       if (userId && userId !== participant.identity) {
         this.allUserStates.set(participant.identity, state);
       }
       
-      // Emit events to update UI - ALWAYS emit when we have a valid UUID
-      // Spread to create a NEW object reference so Vue's reactivity detects the change
+      // Emitted whenever the UUID resolved. Spread produces a new object
+      // reference so Vue reactivity detects the change.
       if (userId) {
-        debug.log('📺 [LiveKit] Emitting state change for:', userId, 'screenSharing:', state.isScreenSharing, 'videoEnabled:', state.isVideoEnabled);
+        debug.log('[LiveKit] Emitting state change for:', userId, 'screenSharing:', state.isScreenSharing, 'videoEnabled:', state.isVideoEnabled);
         const stream = this.getUserStream(userId);
         this.emit('user-stream-changed', { userId, stream });
         this.emit('user-state-changed', { userId, mediaState: { ...state } });
@@ -1783,7 +1681,7 @@ export class LiveKitWebRTCService {
     
     this.room.on(RoomEvent.TrackUnsubscribed, async (track: RemoteTrack, publication: TrackPublication, participant: RemoteParticipant) => {
       const source = publication.source;
-      debug.log('📺 [LiveKit] Track unsubscribed:', track.kind, 'source:', source, 'from', participant.identity);
+      debug.log('[LiveKit] Track unsubscribed:', track.kind, 'source:', source, 'from', participant.identity);
       
       // Resolve federated identity to profile UUID
       const userId = await resolveIdentityToUuid(participant.identity, this.remoteServerDomain);
@@ -1792,7 +1690,6 @@ export class LiveKitWebRTCService {
       if (track.kind === Track.Kind.Audio && track instanceof RemoteAudioTrack) {
         const isScreenShareAudio = source === Track.Source.ScreenShareAudio;
         
-        // Let LiveKit handle the detach
         track.detach();
         
         if (isScreenShareAudio) {
@@ -1800,17 +1697,17 @@ export class LiveKitWebRTCService {
           if (userId && userId !== participant.identity) {
             this.remoteScreenShareAudioElements.delete(userId);
           }
-          debug.log('🔊 [LiveKit] Screenshare audio detached for:', lookupId);
+          debug.log('[LiveKit] Screenshare audio detached for:', lookupId);
         } else {
           this.remoteMicAudioElements.delete(participant.identity);
-          debug.log('🔊 [LiveKit] Mic audio detached for:', lookupId);
+          debug.log('[LiveKit] Mic audio detached for:', lookupId);
         }
       }
       
       const state = this.allUserStates.get(lookupId) || this.allUserStates.get(participant.identity);
       if (state) {
         if (track.kind === Track.Kind.Audio) {
-          // Only set audio disabled if it's the microphone, not screenshare audio
+          // Only the microphone clears isAudioEnabled, not screenshare audio.
           if (source !== Track.Source.ScreenShareAudio) {
             state.isAudioEnabled = false;
           }
@@ -1824,8 +1721,8 @@ export class LiveKitWebRTCService {
         this.allUserStates.set(lookupId, state);
       }
       
-      // Only emit events if we have a valid UUID
-      // Spread to create a NEW object reference so Vue's reactivity detects the change
+      // Emitted only when the UUID resolved. Spread produces a new object
+      // reference so Vue reactivity detects the change.
       if (userId && state) {
         const stream = this.getUserStream(userId);
         this.emit('user-stream-changed', { userId, stream });
@@ -1845,7 +1742,7 @@ export class LiveKitWebRTCService {
         }
       }
       
-      // Track which resolved userIds we've already processed to avoid duplicates
+      // Resolved userIds already processed, to avoid duplicates.
       const processedUserIds = new Set<string>();
       
       for (const [key, state] of this.allUserStates) {
@@ -1868,13 +1765,13 @@ export class LiveKitWebRTCService {
     
     // Disconnected
     this.room.on(RoomEvent.Disconnected, (reason?: any) => {
-      debug.log('🔌 [LiveKit] Disconnected:', reason);
+      debug.log('[LiveKit] Disconnected:', reason);
       this.emit('channel-left', { channelId: this.channelId, reason });
     });
     
     // Error
     this.room.on(RoomEvent.MediaDevicesError, (error: Error) => {
-      debug.error('❌ [LiveKit] Media devices error:', error);
+      debug.error('[LiveKit] Media devices error:', error);
       this.emit('error', error);
     });
     
@@ -1888,8 +1785,8 @@ export class LiveKitWebRTCService {
           if (state) {
             Object.assign(state, message.data);
             this.allUserStates.set(participant.identity, state);
-            // Use state.userId (resolved UUID) instead of identity for events
-            // Spread to create new object reference for Vue reactivity
+            // Events carry state.userId (resolved UUID), not identity.
+            // Spread produces a new object reference for Vue reactivity.
             this.emit('user-state-changed', { userId: state.userId, mediaState: { ...state } });
           }
         } else if (message.type === 'call-start-time') {
@@ -1898,32 +1795,32 @@ export class LiveKitWebRTCService {
           this.emit('request-call-start-time', { from: message.from });
         }
       } catch (error) {
-        debug.warn('⚠️ [LiveKit] Failed to parse data message');
+        debug.warn('[LiveKit] Failed to parse data message');
       }
     });
     
     // LOCAL track unpublished (fires when Chrome's "Stop Sharing" is clicked or track ends)
     this.room.on(RoomEvent.LocalTrackUnpublished, (publication: TrackPublication, _participant: LocalParticipant) => {
-      debug.log('📺 [LiveKit] Local track unpublished:', publication.kind, 'source:', publication.source);
+      debug.log('[LiveKit] Local track unpublished:', publication.kind, 'source:', publication.source);
       
       if (publication.kind === Track.Kind.Video) {
         if (publication.source === Track.Source.ScreenShare) {
-          debug.log('📺 [LiveKit] Screen share ended (Chrome stop button or track ended)');
+          debug.log('[LiveKit] Screen share ended (Chrome stop button or track ended)');
           this.localMediaState.isScreenSharing = false;
         } else if (publication.source === Track.Source.Camera) {
-          debug.log('📺 [LiveKit] Camera ended');
+          debug.log('[LiveKit] Camera ended');
           this.localMediaState.isVideoEnabled = false;
         }
       } else if (publication.kind === Track.Kind.Audio) {
         if (publication.source === Track.Source.ScreenShareAudio) {
-          debug.log('🔊 [LiveKit] Screen share audio ended');
-          // No state to update - screenshare audio doesn't have a separate flag
+          debug.log('[LiveKit] Screen share audio ended');
+          // Screenshare audio has no separate state flag.
         }
       }
       
       this.emit('local-state-changed', { ...this.localMediaState });
       
-      // Also emit user-stream-changed so remoteStreams in store gets updated
+      // user-stream-changed keeps remoteStreams in the store current.
       if (this.currentUserId) {
         const stream = this.getLocalStream();
         this.emit('user-stream-changed', { userId: this.currentUserId, stream });
@@ -1933,24 +1830,21 @@ export class LiveKitWebRTCService {
         });
       }
       
-      debug.log('📺 [LiveKit] Local state after unpublish:', 
+      debug.log('[LiveKit] Local state after unpublish:', 
         'video:', this.localMediaState.isVideoEnabled, 
         'screen:', this.localMediaState.isScreenSharing);
     });
     
     // Track published by remote user (fires AFTER TrackSubscribed, good for UI notification)
     this.room.on(RoomEvent.TrackPublished, async (publication: TrackPublication, participant: RemoteParticipant) => {
-      debug.log('📺 [LiveKit] Remote track published:', publication.kind, 'source:', publication.source, 'from:', participant.identity);
-      // This gives us another chance to update UI when remote user publishes a track
+      debug.log('[LiveKit] Remote track published:', publication.kind, 'source:', publication.source, 'from:', participant.identity);
     });
     
-    // Note: Initial sync is handled by syncExistingParticipants() which properly resolves identities
-    // Don't emit here - let the caller handle it after connecting
+    // NOTE: initial sync is handled by syncExistingParticipants(), which
+    // resolves identities. Nothing is emitted here; the caller emits after
+    // connecting.
   }
   
-  /**
-   * Setup event listeners for a specific participant
-   */
   private setupParticipantListeners(participant: RemoteParticipant): void {
     // Track mute also fires for PTT gating, so it can't be trusted as user intent.
     // Explicit mute arrives via the media-state data broadcast instead.
@@ -1964,23 +1858,21 @@ export class LiveKitWebRTCService {
       }
     });
 
-    // Speaking changed
     participant.on(ParticipantEvent.IsSpeakingChanged, (speaking: boolean) => {
       const state = this.allUserStates.get(participant.identity);
       if (state) {
         state.isSpeaking = speaking;
         state.audioLevel = speaking ? 50 : 0;
         this.allUserStates.set(participant.identity, state);
-        // Use state.userId (resolved UUID) instead of identity for events
+        // Events carry state.userId (resolved UUID), not identity.
         this.emit('audio-level', { userId: state.userId, level: state.audioLevel });
       }
     });
   }
   
   /**
-   * Create initial media state for a participant
-   * @param participant - The remote participant
-   * @param resolvedUserId - Optional resolved UUID (for federated users). If not provided, uses participant.identity
+   * @param resolvedUserId - Resolved UUID for federated users; defaults to
+   *   participant.identity.
    */
   private createMediaState(participant: RemoteParticipant, resolvedUserId?: string): UserMediaState {
     // Publication mute is only an initial guess (PTT gating also mutes the track);
@@ -1988,7 +1880,7 @@ export class LiveKitWebRTCService {
     const hasMic = participant.audioTrackPublications.size > 0;
     const isMicMuted = hasMic && !participant.isMicrophoneEnabled;
     
-    // Check for screen share (source type is ScreenShare)
+    // Screen share is identified by the ScreenShare source type.
     let isScreenSharing = false;
     for (const pub of participant.videoTrackPublications.values()) {
       if (pub.source === Track.Source.ScreenShare) {
@@ -2003,15 +1895,12 @@ export class LiveKitWebRTCService {
       isVideoEnabled: participant.isCameraEnabled,
       isScreenSharing,
       isMuted: isMicMuted,
-      isDeafened: false, // We can't know if remote user is deafened - they broadcast this via data messages
+      isDeafened: false, // remote deafen state arrives via data messages
       isSpeaking: participant.isSpeaking,
       audioLevel: 0,
     };
   }
   
-  /**
-   * Broadcast an arbitrary data message to all participants
-   */
   broadcastMessage(message: any): void {
     if (!this.room?.localParticipant) return;
 
@@ -2019,13 +1908,10 @@ export class LiveKitWebRTCService {
       const encoder = new TextEncoder();
       this.room.localParticipant.publishData(encoder.encode(JSON.stringify(message)), { reliable: true });
     } catch (error) {
-      debug.warn('⚠️ [LiveKit] Failed to broadcast message:', message?.type);
+      debug.warn('[LiveKit] Failed to broadcast message:', message?.type);
     }
   }
 
-  /**
-   * Broadcast local media state to all participants
-   */
   private broadcastMediaState(): void {
     if (!this.room?.localParticipant) return;
     
@@ -2043,15 +1929,13 @@ export class LiveKitWebRTCService {
       const encoder = new TextEncoder();
       this.room.localParticipant.publishData(encoder.encode(JSON.stringify(message)), { reliable: true });
     } catch (error) {
-      debug.warn('⚠️ [LiveKit] Failed to broadcast media state');
+      debug.warn('[LiveKit] Failed to broadcast media state');
     }
   }
   
   // DEVICE MANAGEMENT
   
-  /**
-   * Load audio settings from centralized VoiceSettingsService
-   */
+  /** Source of truth is VoiceSettingsService. */
   private loadAudioSettings(): void {
     try {
       // eslint-disable-next-line unused-imports/no-unused-vars
@@ -2067,18 +1951,15 @@ export class LiveKitWebRTCService {
       this.audioConstraints.noiseSuppression = constraints.noiseSuppression;
       this.audioConstraints.autoGainControl = constraints.autoGainControl;
       
-      debug.log('🎛️ [LiveKit] Loaded audio settings from VoiceSettingsService:', {
+      debug.log('[LiveKit] Loaded audio settings from VoiceSettingsService:', {
         devices,
         constraints
       });
     } catch (error) {
-      debug.warn('⚠️ [LiveKit] Failed to load audio settings:', error);
+      debug.warn('[LiveKit] Failed to load audio settings:', error);
     }
   }
   
-  /**
-   * Get selected devices
-   */
   getSelectedDevices(): { inputDevice: string | null; outputDevice: string | null; videoDevice: string | null } {
     return {
       inputDevice: this.selectedInputDevice,
@@ -2087,45 +1968,33 @@ export class LiveKitWebRTCService {
     };
   }
   
-  /**
-   * Update input device
-   */
   async updateInputDevice(deviceId: string): Promise<void> {
     this.selectedInputDevice = deviceId;
     VoiceSettingsService.setInputDevice(deviceId);
     
     if (this.room?.localParticipant) {
-      // Switch active microphone
       await this.room.switchActiveDevice('audioinput', deviceId);
-      debug.log('🎤 [LiveKit] Switched input device to:', deviceId);
+      debug.log('[LiveKit] Switched input device to:', deviceId);
     }
   }
   
-  /**
-   * Update output device
-   */
   async updateOutputDevice(deviceId: string): Promise<void> {
     this.selectedOutputDevice = deviceId;
     VoiceSettingsService.setOutputDevice(deviceId);
     
     if (this.room) {
-      // Switch audio output
       await this.room.switchActiveDevice('audiooutput', deviceId);
-      debug.log('🔊 [LiveKit] Switched output device to:', deviceId);
+      debug.log('[LiveKit] Switched output device to:', deviceId);
     }
   }
   
-  /**
-   * Update video device
-   */
   async updateVideoDevice(deviceId: string): Promise<void> {
     this.selectedVideoDevice = deviceId;
     VoiceSettingsService.setVideoDevice(deviceId);
     
     if (this.room?.localParticipant && this.localMediaState.isVideoEnabled) {
-      // Switch active camera
       await this.room.switchActiveDevice('videoinput', deviceId);
-      debug.log('📹 [LiveKit] Switched video device to:', deviceId);
+      debug.log('[LiveKit] Switched video device to:', deviceId);
     }
   }
   
@@ -2134,9 +2003,9 @@ export class LiveKitWebRTCService {
   /**
    * Build the E2EE options passed to the `Room` constructor.
    *
-   * Returns `{ keyProvider, worker }` ready to encrypt media, or `null` if the
-   * environment can't support it (e.g. the crypto worker fails to spin up), in
-   * which case the caller proceeds with an unencrypted room.
+   * Returns `{ keyProvider, worker }` ready to encrypt media, or `null` when
+   * the environment cannot support it (e.g. the crypto worker fails to
+   * start); the caller then proceeds with an unencrypted room.
    */
   private async setupE2EEOptions(): Promise<{ keyProvider: ExternalE2EEKeyProvider; worker: Worker } | null> {
     try {
@@ -2152,22 +2021,19 @@ export class LiveKitWebRTCService {
       }
       return { keyProvider: this.e2eeKeyProvider, worker: this.e2eeWorker };
     } catch (error) {
-      debug.warn('⚠️ [LiveKit] Failed to set up E2EE worker, room will be unencrypted:', error);
+      debug.warn('[LiveKit] Failed to set up E2EE worker, room will be unencrypted:', error);
       return null;
     }
   }
 
-  // ---------------------------------------------------------------------------
   // Shared-key distribution (Model S)
   //
-  // All participants must hold the same 32-byte room key. A deterministic
-  // "coordinator" (smallest participant identity) mints the key ONCE and ships
-  // it, Megolm-wrapped, over LiveKit's data channel; everyone else applies what
+  // All participants hold the same 32-byte room key. The coordinator
+  // (smallest participant identity) mints it ONCE and ships it,
+  // Megolm-wrapped, over LiveKit's data channel; everyone else applies what
   // they receive. On membership change the coordinator re-broadcasts the SAME
-  // key (re-wrapped for the new member) rather than rotating - regenerating per
-  // join desynced peers and triggered MissingKey/InvalidKey. The SFU only ever
-  // sees Megolm ciphertext, never the key bytes.
-  // ---------------------------------------------------------------------------
+  // key, re-wrapped for the new member: regenerating per join desyncs peers
+  // and triggers MissingKey/InvalidKey. The SFU sees only Megolm ciphertext.
 
   /** Identities of everyone currently in the room (self + remotes). */
   private getRoomMemberIdentities(): string[] {
@@ -2184,13 +2050,13 @@ export class LiveKitWebRTCService {
   }
 
   /**
-   * Profile UUID for a participant. The LiveKit token embeds the real profile
-   * UUID in `metadata.profileId` (see federation-backend LiveKitService), so we
-   * trust that first. We MUST: the identity is always the synthetic
-   * `federated:https://{domain}/users/{username}` form - even for local users-
-   * and `resolveIdentityToUuid` can't map a local user's synthetic federated
-   * identity back to a UUID (they have no `federated_id` row), which silently
-   * dropped them from the Megolm recipient list -> "MissingKey".
+   * Profile UUID for a participant. The LiveKit token embeds the profile UUID
+   * in `metadata.profileId` (see federation-backend LiveKitService), which is
+   * used first and is required: the identity is always the synthetic
+   * `federated:https://{domain}/users/{username}` form, even for local users,
+   * and `resolveIdentityToUuid` cannot map that back to a UUID for a local
+   * user (no `federated_id` row). Such users drop out of the Megolm recipient
+   * list and hit "MissingKey".
    */
   private async resolveParticipantUuid(p: { identity: string; metadata?: string }): Promise<string | null> {
     if (p.metadata) {
@@ -2222,17 +2088,17 @@ export class LiveKitWebRTCService {
       const data = new TextEncoder().encode(JSON.stringify(envelope));
       await this.room.localParticipant.publishData(data, { reliable: true, topic: this.E2EE_DATA_TOPIC });
     } catch (err) {
-      debug.warn('⚠️ [LiveKit] Failed to send E2EE envelope:', err);
+      debug.warn('[LiveKit] Failed to send E2EE envelope:', err);
     }
   }
 
   /**
    * Apply a raw shared key to the LiveKit key provider and turn E2EE on.
    *
-   * Idempotent: re-applying the key we already hold is a no-op. This matters
-   * because the coordinator re-broadcasts the SAME key on every join, and
-   * calling setKey repeatedly would otherwise churn the provider's key index
-   * and desync peers (-> "MissingKey at index N").
+   * Idempotent: re-applying the currently held key is a no-op. The
+   * coordinator re-broadcasts the SAME key on every join, and repeated setKey
+   * calls churn the provider's key index and desync peers
+   * ("MissingKey at index N").
    */
   private async applyRoomKey(key: Uint8Array, keyId: string): Promise<void> {
     if (!this.e2eeKeyProvider || !this.room) return;
@@ -2247,23 +2113,21 @@ export class LiveKitWebRTCService {
       this.e2eeEnabled = true;
       this.emit('e2ee-status-changed', { enabled: true });
     }
-    debug.log('🔐 [LiveKit] Applied shared room key', keyId);
+    debug.log('[LiveKit] Applied shared room key', keyId);
   }
 
   /**
    * Coordinator: ensure a stable room key exists, then (re)wrap it for the
    * current members and broadcast.
    *
-   * The key is minted ONCE per call and reused for its lifetime. New joiners
-   * receive the existing key (re-wrapped to include them) rather than forcing
-   * a fresh key on everyone - regenerating per membership change caused peers
-   * to desync and drop to MissingKey/InvalidKey. (Trade-off: no forward
-   * secrecy on leave for v1; a departed member keeps the key until the call
-   * ends. Acceptable for a live media key; revisit with explicit rotation.)
+   * The key is minted ONCE and reused for its lifetime. New joiners receive
+   * the existing key re-wrapped to include them; regenerating per membership
+   * change desyncs peers into MissingKey/InvalidKey. Consequence: no forward
+   * secrecy on leave - a departed member keeps the key until the call ends.
    */
   private async coordinatorEnsureKey(): Promise<void> {
     if (!this.room || !this.channelId) return;
-    // Reuse the key we already hold; only mint one if this is the first time.
+    // A held key is reused; one is minted only on the first call.
     let key = this.e2eeRoomKey;
     let keyId = this.e2eeKeyId;
     if (!key || !keyId) {
@@ -2276,7 +2140,7 @@ export class LiveKitWebRTCService {
     const cipher = await voiceE2EEService.wrapKey(key, this.channelId, recipients);
     this.lastKeyEnvelope = { t: 'voice-key', keyId, cipher };
     await this.sendE2EEEnvelope(this.lastKeyEnvelope);
-    debug.log(`🔑 [LiveKit] Coordinator broadcast key ${keyId} to ${recipients.length} member(s)`);
+    debug.log(`[LiveKit] Coordinator broadcast key ${keyId} to ${recipients.length} member(s)`);
   }
 
   /** Try to apply the most recently received key envelope (retried as Megolm sessions arrive). */
@@ -2298,8 +2162,8 @@ export class LiveKitWebRTCService {
       return;
     }
     if (env.t === 'voice-key-request') {
-      // A fresh joiner wants the key. If we're the coordinator, re-share the
-      // existing key wrapped to include the new member (no new key minted).
+      // A fresh joiner is requesting the key. The coordinator re-shares the
+      // existing key wrapped to include the new member; no new key is minted.
       if (this.isE2EECoordinator()) await this.coordinatorEnsureKey();
       return;
     }
@@ -2345,8 +2209,8 @@ export class LiveKitWebRTCService {
 
   /**
    * On membership change the coordinator re-shares the existing key so newly
-   * connected members can decrypt. The key itself is stable (see
-   * coordinatorEnsureKey) - we are not rotating, just re-broadcasting.
+   * connected members can decrypt. The key is stable (see
+   * coordinatorEnsureKey): this re-broadcasts, it does not rotate.
    */
   private async onE2EEMembershipChanged(): Promise<void> {
     if (!this.e2eeRequired || !this.room) return;
@@ -2355,16 +2219,13 @@ export class LiveKitWebRTCService {
     }
   }
 
-  /**
-   * Whether media for the current room is end-to-end encrypted.
-   */
   isE2EEEnabled(): boolean {
     return this.e2eeEnabled;
   }
   
   /**
-   * Enable E2EE for the room with an explicit shared key.
-   * (Normal joins enable E2EE automatically; this is for manual/override use.)
+   * Enables E2EE with an explicit shared key. Normal joins enable E2EE
+   * automatically; this is the manual override path.
    */
   async enableE2EE(sharedKey: Uint8Array): Promise<void> {
     if (!this.room) {
@@ -2381,16 +2242,13 @@ export class LiveKitWebRTCService {
       this.e2eeEnabled = true;
       this.emit('e2ee-status-changed', { enabled: true });
       
-      debug.log('🔐 [LiveKit] E2EE enabled');
+      debug.log('[LiveKit] E2EE enabled');
     } catch (error) {
-      debug.error('❌ [LiveKit] Failed to enable E2EE:', error);
+      debug.error('[LiveKit] Failed to enable E2EE:', error);
       throw error;
     }
   }
   
-  /**
-   * Disable E2EE
-   */
   async disableE2EE(): Promise<void> {
     if (!this.room) return;
     
@@ -2398,17 +2256,14 @@ export class LiveKitWebRTCService {
       await this.room.setE2EEEnabled(false);
       this.e2eeEnabled = false;
       this.emit('e2ee-status-changed', { enabled: false });
-      debug.log('🔓 [LiveKit] E2EE disabled');
+      debug.log('[LiveKit] E2EE disabled');
     } catch (error) {
-      debug.error('❌ [LiveKit] Failed to disable E2EE:', error);
+      debug.error('[LiveKit] Failed to disable E2EE:', error);
     }
   }
 
   // EVENT SYSTEM
   
-  /**
-   * Subscribe to an event
-   */
   on(event: string, callback: Function): void {
     if (!this.eventListeners.has(event)) {
       this.eventListeners.set(event, []);
@@ -2416,9 +2271,6 @@ export class LiveKitWebRTCService {
     this.eventListeners.get(event)!.push(callback);
   }
   
-  /**
-   * Unsubscribe from an event
-   */
   off(event: string, callback: Function): void {
     const listeners = this.eventListeners.get(event);
     if (listeners) {
@@ -2429,9 +2281,6 @@ export class LiveKitWebRTCService {
     }
   }
   
-  /**
-   * Emit an event
-   */
   private emit(event: string, data?: any): void {
     const listeners = this.eventListeners.get(event);
     if (listeners) {
@@ -2447,23 +2296,14 @@ export class LiveKitWebRTCService {
   
   // UTILITY METHODS
   
-  /**
-   * Check if currently connected to a channel
-   */
   isConnected(): boolean {
     return this.room?.state === ConnectionState.Connected;
   }
   
-  /**
-   * Get current channel ID
-   */
   getCurrentChannelId(): string | null {
     return this.channelId;
   }
   
-  /**
-   * Get room statistics
-   */
   getStats(): any {
     if (!this.room) return null;
     

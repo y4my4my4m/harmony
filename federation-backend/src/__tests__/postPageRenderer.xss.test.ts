@@ -1,18 +1,14 @@
 /**
- * XSS regression tests for `postPageRenderer.ts`.
+ * XSS regression tests for `postPageRenderer.ts`, which renders the
+ * `/posts/:id` page served to browsers and link-preview crawlers.
  *
- * The renderer ships the `/posts/:id` HTML page served to browsers and
- * crawlers (Mastodon, Discord, Slack, Twitter, etc. when they preview a
- * Harmony post URL). The page's CSP allows `'unsafe-inline'` for both
- * scripts and styles - required for the inline auth-redirect snippet and
- * the inline `<style>` block - so anything that smuggles a `<style>` /
- * `<script>` / `<img onerror>` into the rendered HTML would execute.
+ * The page CSP allows `'unsafe-inline'` for scripts and styles (needed by
+ * the inline auth-redirect snippet and the inline `<style>` block), so any
+ * `<style>` / `<script>` / `<img onerror>` smuggled into the rendered HTML
+ * executes.
  *
- * These tests assert the renderer escapes user-supplied content before
- * splicing it into the HTML, and that links never carry `javascript:` /
- * `data:` schemes. They work on the rendered HTML STRING (no DOM
- * available in the federation-backend test environment) via regex
- * assertions scoped to the user-content `.content` div.
+ * Assertions run against the rendered HTML string via regex, scoped to the
+ * user-content `.content` div; no DOM in the federation-backend test env.
  */
 
 import { describe, it, expect, vi } from 'vitest';
@@ -49,16 +45,14 @@ function basePost(content: any) {
 }
 
 /**
- * Slice the user-content island out of the rendered page. We don't want
- * to count the inline `<style>` block in <head>, the inline auth-redirect
- * `<script>`, or our own structural tags - only the part that holds
- * user-controlled data. The renderer wraps user content in
- * `<div class="content">...</div>`.
+ * Slice out the user-controlled region, which the renderer wraps in
+ * `<div class="content">...</div>`. Excludes the head `<style>` block,
+ * the inline auth-redirect `<script>`, and structural tags.
  */
 function userContent(html: string): string {
   const m = /<div class="content">([\s\S]*?)<\/div>\s*(?:<div class="media-grid|<div class="stats-bar|<div class="meta)/i.exec(html);
   if (!m) {
-    // Fall back to opening tag onwards if the post had no media/stats/meta.
+    // No media/stats/meta section: take everything from the opening tag on.
     const start = html.indexOf('<div class="content">');
     expect(start, 'expected <div class="content"> in rendered page').toBeGreaterThan(-1);
     return html.slice(start);
@@ -80,16 +74,14 @@ const DANGEROUS_TAG_PATTERNS = [
 ];
 
 /**
- * Find every HTML start-tag in `island` and run `fn` on each one with
- * its full `<tag attrs>` substring. Lets us reason about attributes
- * inside REAL tags without false-positives on escaped text (e.g. a
- * literal ` onerror=` inside an attribute value where the surrounding
- * `"` was escaped to `&quot;`).
+ * Invoke `fn` with each HTML start-tag's full `<tag attrs>` substring.
+ * Scoping attribute checks to real tags avoids false positives on escaped
+ * text, e.g. a literal ` onerror=` inside a value whose quotes became
+ * `&quot;`.
  */
 function forEachStartTag(html: string, fn: (tag: string) => void) {
-  // Conservative tag matcher: `<` + tag-name + body up to the first
-  // unescaped `>`. Attribute values may contain `>` only inside escaped
-  // entities (`&gt;`), which never match the bare `>` terminator.
+  // `<` + tag-name + body up to the first unescaped `>`. Attribute values
+  // carry `>` only as `&gt;`, which never matches the bare terminator.
   const tagRegex = /<([a-z][a-z0-9]*)\b([^>]*)>/gi;
   let m: RegExpExecArray | null;
   while ((m = tagRegex.exec(html)) !== null) {
@@ -98,9 +90,8 @@ function forEachStartTag(html: string, fn: (tag: string) => void) {
 }
 
 /**
- * Decode the standard 5 named HTML entities so we can compare an
- * attribute value against a literal string (e.g. asserting that
- * `href` doesn't START with `javascript:` even after un-escaping).
+ * Decode the five named HTML entities plus numeric apostrophes, so
+ * attribute values compare against literals after un-escaping.
  */
 function decodeHtmlEntities(str: string): string {
   return str
@@ -113,10 +104,9 @@ function decodeHtmlEntities(str: string): string {
 }
 
 /**
- * Parse attributes out of a `<tag attrs>` substring as a flat
- * `{ name: decodedValue }` map. We never need to match nested or
- * quoted-inside-quoted weirdness for our own renderer's output, just
- * the canonical `name="value"` / `name='value'` shape.
+ * Parse a `<tag attrs>` substring into `{ name: decodedValue }`. Handles
+ * only the canonical `name="value"` / `name='value'` shape the renderer
+ * emits; nested quoting is out of scope.
  */
 function parseAttrs(tag: string): Record<string, string> {
   const attrs: Record<string, string> = {};
@@ -166,7 +156,7 @@ describe('renderPostPage - XSS regression', () => {
       baseAuthor,
     );
     assertNoExecutableUserContent(html);
-    // The escaped characters survive in the HTML stream.
+    // Escaped form survives in the output.
     const island = userContent(html);
     expect(island).toContain('&lt;style&gt;');
   });
@@ -188,8 +178,8 @@ describe('renderPostPage - XSS regression', () => {
   });
 
   it('escapes hostile mention username (federated source)', () => {
-    // A federated MessagePart can carry an attacker-controlled
-    // `username` - we must escape both in the URL and the label.
+    // A federated MessagePart carries an attacker-controlled `username`;
+    // it is escaped in both the URL and the label.
     const html = renderPostPage(
       basePost([
         {
@@ -213,15 +203,15 @@ describe('renderPostPage - XSS regression', () => {
   });
 
   it('refuses a javascript: URL in a `link` part', () => {
-    // Defensive: federated payloads could include `link` parts. A
-    // `javascript:` href would execute on click otherwise.
+    // Federated payloads may include `link` parts; a `javascript:` href
+    // would execute on click.
     const html = renderPostPage(
       basePost([{ type: 'link', url: 'javascript:alert(1)', text: 'click me' }]),
       baseAuthor,
     );
     assertNoExecutableUserContent(html);
     const island = userContent(html);
-    // The label still renders, just not as a live anchor.
+    // Label renders as text, not as an anchor.
     expect(island).toContain('click me');
   });
 
@@ -237,10 +227,9 @@ describe('renderPostPage - XSS regression', () => {
 
   it('escapes a string content fallback (defensive - DB constraint blocks this)', () => {
     // The `posts_content_is_array` CHECK constraint makes this path
-    // unreachable in production, but if a row ever slipped through with
-    // string content (legacy import, migration glitch) we MUST escape
-    // it. The previous implementation returned the string verbatim -
-    // direct stored XSS.
+    // unreachable in production. A row with string content (legacy import,
+    // migration glitch) must still be escaped; returning it verbatim is
+    // stored XSS.
     const html = renderPostPage(
       basePost('<style>body{display:none}</style><script>alert(1)</script>'),
       baseAuthor,
@@ -253,8 +242,7 @@ describe('renderPostPage - XSS regression', () => {
       { ...basePost([{ type: 'text', text: 'hi' }]), content_warning: '<style>x</style>' },
       baseAuthor,
     );
-    // CW is rendered in its own div; check the whole HTML doesn't
-    // gain a parsed <style> from the user input.
+    // CW renders in its own div, outside the `.content` island.
     const cwMatch = /<div class="content-warning">([\s\S]*?)<\/div>/.exec(html);
     expect(cwMatch).not.toBeNull();
     const cw = cwMatch![1];

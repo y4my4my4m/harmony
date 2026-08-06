@@ -83,8 +83,8 @@ class PushNotificationServiceClass {
     const subject = config.VAPID_SUBJECT;
 
     if (!publicKey || !privateKey || !subject) {
-      logger.warn('⚠️ Push notifications disabled: VAPID keys not configured');
-      logger.info('💡 Generate keys with: npx web-push generate-vapid-keys');
+      logger.warn('Push notifications disabled: VAPID keys not configured');
+      logger.info('Generate keys with: npx web-push generate-vapid-keys');
       return false;
     }
 
@@ -96,10 +96,10 @@ class PushNotificationServiceClass {
       );
       
       this.isInitialized = true;
-      logger.info('✅ Push notification service initialized');
+      logger.info('Push notification service initialized');
       return true;
     } catch (error) {
-      logger.error('❌ Failed to initialize push notification service:', error);
+      logger.error('Failed to initialize push notification service:', error);
       return false;
     }
   }
@@ -146,7 +146,7 @@ class PushNotificationServiceClass {
           .neq('endpoint', endpoint);
         
         if (existingSubs && existingSubs.length > 0) {
-          logger.info(`🧹 Cleaning up ${existingSubs.length} old subscription(s) from same device for user ${userId}`);
+          logger.info(`Cleaning up ${existingSubs.length} old subscription(s) from same device for user ${userId}`);
           
           const oldIds = existingSubs.map(s => s.id);
           await supabaseAdmin
@@ -177,7 +177,7 @@ class PushNotificationServiceClass {
         return { success: false, error: error.message };
       }
 
-      logger.info(`✅ Push subscription saved for user ${userId}`);
+      logger.info(`Push subscription saved for user ${userId}`);
       return { success: true };
     } catch (error) {
       logger.error('Error saving push subscription:', error);
@@ -204,7 +204,7 @@ class PushNotificationServiceClass {
         return { success: false, error: error.message };
       }
 
-      logger.info(`✅ Push subscription removed for user ${userId}`);
+      logger.info(`Push subscription removed for user ${userId}`);
       return { success: true };
     } catch (error) {
       logger.error('Error removing push subscription:', error);
@@ -220,7 +220,7 @@ class PushNotificationServiceClass {
       await supabaseAdmin.rpc('delete_push_subscription_by_endpoint', {
         p_endpoint: endpoint
       });
-      logger.info('🗑️ Removed stale push subscription');
+      logger.info('Removed stale push subscription');
     } catch (error) {
       logger.error('Error removing subscription by endpoint:', error);
     }
@@ -254,7 +254,7 @@ class PushNotificationServiceClass {
     payload: PushPayload
   ): Promise<{ success: boolean; error?: string }> {
     if (!this.isInitialized) {
-      logger.warn('⚠️ sendToSubscription called but push service not initialized (VAPID keys missing?)');
+      logger.warn('sendToSubscription called but push service not initialized (VAPID keys missing?)');
       return { success: false, error: 'Push service not initialized' };
     }
 
@@ -288,7 +288,7 @@ class PushNotificationServiceClass {
       const message = error instanceof Error ? error.message : 'Unknown error';
 
       if (statusCode === 410 || statusCode === 404) {
-        logger.info('📱 Push subscription expired, removing...');
+        logger.info('Push subscription expired, removing...');
         await this.removeSubscriptionByEndpoint(subscriptionData.endpoint);
         return { success: false, error: 'Subscription expired' };
       }
@@ -315,7 +315,7 @@ class PushNotificationServiceClass {
     }
   ): Promise<{ sent: number; failed: number }> {
     if (!this.isInitialized) {
-      logger.warn('⚠️ sendToUser called but push service not initialized (VAPID keys missing?)');
+      logger.warn('sendToUser called but push service not initialized (VAPID keys missing?)');
       return { sent: 0, failed: 0 };
     }
 
@@ -347,7 +347,7 @@ class PushNotificationServiceClass {
       else failed++;
     }
 
-    logger.info(`📬 Push notifications: ${sent} sent, ${failed} failed for user ${userId}`);
+    logger.info(`Push notifications: ${sent} sent, ${failed} failed for user ${userId}`);
     return { sent, failed };
   }
 
@@ -459,7 +459,7 @@ class PushNotificationServiceClass {
         );
 
         if (isViewingContext) {
-          logger.debug(`📱 Skipping push - user is viewing the notification context`);
+          logger.debug(`Skipping push - user is viewing the notification context`);
           return;
         }
       }
@@ -468,17 +468,17 @@ class PushNotificationServiceClass {
       
       // If push_offline_only is enabled and user has active session, skip
       if (prefs?.push_offline_only && hasActiveSession) {
-        logger.debug(`📱 Skipping push - user has active session and offline-only is enabled`);
+        logger.debug(`Skipping push - user has active session and offline-only is enabled`);
         return;
       }
 
       // Enrich notification data with sender profile if missing
       // Database stores from_user_id but not full sender profile
-      logger.debug(`📬 Enriching notification type=${notification.type}, data keys: ${Object.keys(data).join(', ')}`);
-      logger.debug(`📬 from_user_id=${data.from_user_id}, user_id=${data.user_id}, sender=${JSON.stringify(data.sender)}`);
+      logger.debug(`Enriching notification type=${notification.type}, data keys: ${Object.keys(data).join(', ')}`);
+      logger.debug(`from_user_id=${data.from_user_id}, user_id=${data.user_id}, sender=${JSON.stringify(data.sender)}`);
       
       if (data.from_user_id && !data.sender) {
-        logger.debug(`📬 Looking up sender by from_user_id: ${data.from_user_id}`);
+        logger.debug(`Looking up sender by from_user_id: ${data.from_user_id}`);
         const { data: senderProfile, error: senderError } = await supabaseAdmin
           .from('profiles')
           .select('id, username, display_name, avatar_url, domain, is_local')
@@ -486,7 +486,7 @@ class PushNotificationServiceClass {
           .single();
 
         if (senderError) {
-          logger.warn(`📬 Failed to fetch sender profile: ${senderError.message}`);
+          logger.warn(`Failed to fetch sender profile: ${senderError.message}`);
         }
 
         if (senderProfile) {
@@ -494,14 +494,14 @@ class PushNotificationServiceClass {
             ...notification.data,
             sender: senderProfile
           };
-          logger.debug(`📬 Enriched notification with sender: ${senderProfile.username}`);
+          logger.debug(`Enriched notification with sender: ${senderProfile.username}`);
         }
       }
 
       // Also check user_id field in data (for reactions)
       // notification.user_id = recipient, data.user_id = reactor
       if (data.user_id && !notification.data.sender && data.user_id !== notification.user_id) {
-        logger.debug(`📬 Looking up reactor by user_id: ${data.user_id} (recipient: ${notification.user_id})`);
+        logger.debug(`Looking up reactor by user_id: ${data.user_id} (recipient: ${notification.user_id})`);
         const { data: reactorProfile, error: reactorError } = await supabaseAdmin
           .from('profiles')
           .select('id, username, display_name, avatar_url, domain, is_local')
@@ -509,7 +509,7 @@ class PushNotificationServiceClass {
           .single();
 
         if (reactorError) {
-          logger.warn(`📬 Failed to fetch reactor profile: ${reactorError.message}`);
+          logger.warn(`Failed to fetch reactor profile: ${reactorError.message}`);
         }
 
         if (reactorProfile) {
@@ -517,15 +517,15 @@ class PushNotificationServiceClass {
             ...notification.data,
             sender: reactorProfile
           };
-          logger.debug(`📬 Enriched notification with reactor: ${reactorProfile.username}`);
+          logger.debug(`Enriched notification with reactor: ${reactorProfile.username}`);
         }
       } else if (data.user_id && data.user_id === notification.user_id) {
-        logger.debug(`📬 Skipping reactor lookup - user_id equals notification.user_id (self-reaction?)`);
+        logger.debug(`Skipping reactor lookup - user_id equals notification.user_id (self-reaction?)`);
       }
 
       // Enrich emoji data for reactions if only emoji_id is provided
       if (data.emoji_id && !notification.data.reaction?.emoji_name) {
-        logger.debug(`📬 Looking up emoji by emoji_id: ${data.emoji_id}`);
+        logger.debug(`Looking up emoji by emoji_id: ${data.emoji_id}`);
         const { data: emoji, error: emojiError } = await supabaseAdmin
           .from('emojis')
           .select('id, name, url')
@@ -533,7 +533,7 @@ class PushNotificationServiceClass {
           .single();
 
         if (emojiError) {
-          logger.warn(`📬 Failed to fetch emoji: ${emojiError.message}`);
+          logger.warn(`Failed to fetch emoji: ${emojiError.message}`);
         }
 
         if (emoji) {
@@ -545,12 +545,12 @@ class PushNotificationServiceClass {
               emoji_url: emoji.url
             }
           };
-          logger.debug(`📬 Enriched notification with emoji: ${emoji.name}`);
+          logger.debug(`Enriched notification with emoji: ${emoji.name}`);
         }
       }
       
-      logger.debug(`📬 Final notification.data.sender: ${JSON.stringify(notification.data.sender)}`);
-      logger.debug(`📬 Final notification.data.reaction: ${JSON.stringify(notification.data.reaction)}`);
+      logger.debug(`Final notification.data.sender: ${JSON.stringify(notification.data.sender)}`);
+      logger.debug(`Final notification.data.reaction: ${JSON.stringify(notification.data.reaction)}`);
 
       const payload = this.buildPayloadFromNotification(notification);
 
@@ -559,7 +559,7 @@ class PushNotificationServiceClass {
         isUserOnline: hasActiveSession
       });
 
-      logger.info(`📬 Push sent for ${notification.type} to user ${notification.user_id}`);
+      logger.info(`Push sent for ${notification.type} to user ${notification.user_id}`);
     } catch (error) {
       logger.error('Error sending push for notification:', error);
     }
@@ -753,7 +753,7 @@ class PushNotificationServiceClass {
       }
 
       if (data > 0) {
-        logger.info(`🧹 Cleaned up ${data} stale push subscriptions`);
+        logger.info(`Cleaned up ${data} stale push subscriptions`);
       }
       
       return data || 0;

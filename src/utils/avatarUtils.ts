@@ -2,9 +2,8 @@ import { supabase } from '@/supabase'
 import { canonicalSquareSize } from '@/utils/imageTransformUtils'
 
 /**
- * Normalizes avatar URL to ensure consistent display across the application
- * Handles both full URLs and path-only formats
- * Always returns the proper public URL for Supabase storage paths with optimization
+ * Normalizes an avatar URL. Accepts full URLs and path-only forms; Supabase
+ * storage paths come back as transformed public URLs.
  */
 // Storage paths arrive in inconsistent shapes: already percent-encoded
 // (getPublicUrl double-encodes them -> 400) or with a trailing slash (-> 400).
@@ -23,8 +22,7 @@ export function getAvatarUrl(avatarUrl: string | null | undefined, size: number 
   }
 
   // Legacy DB rows still have '/default_avatar.png' as their DEFAULT value;
-  // the asset doesn't exist on disk anymore (it's .webp now). Normalize so we
-  // don't fire 404s for every old profile/bot.
+  // the asset is .webp on disk. Normalize to avoid a 404 per old profile/bot.
   if (avatarUrl === '/default_avatar.png') {
     return '/default_avatar.webp'
   }
@@ -89,8 +87,8 @@ export function getAvatarUrl(avatarUrl: string | null | undefined, size: number 
 }
 
 /**
- * Normalizes avatar URL for storage - ensures we store paths, not full URLs
- * This should be used before saving avatar URLs to the database
+ * Normalizes an avatar URL for storage: paths, not full URLs.
+ * Applied before writing an avatar URL to the database.
  */
 export function normalizeAvatarForStorage(avatarUrl: string | null | undefined): string | null {
   if (!avatarUrl) return null

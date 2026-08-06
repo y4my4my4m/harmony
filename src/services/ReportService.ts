@@ -210,7 +210,7 @@ class ReportService {
         const { authContextService } = await import('@/services/AuthContextService')
         resolverProfileId = await authContextService.getCurrentProfileId()
       } catch {
-        // No authenticated profile - bail if we need to attribute this action.
+        // No authenticated profile; resolve/dismiss requires attribution.
         if (status === 'resolved' || status === 'dismissed') {
           return false
         }

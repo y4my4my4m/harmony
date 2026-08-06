@@ -1,8 +1,7 @@
-<!-- PostView - Professional post view with configurable context (minimal, thread, ancestors, descendants) -->
-<!-- Replaces both PostDetailView and ConversationThreadView with a single, flexible component -->
+<!-- Post view with configurable context: minimal, thread, ancestors, descendants. -->
+<!-- Supersedes PostDetailView and ConversationThreadView. -->
 <template>
   <div class="post-view">
-    <!-- Header with back navigation and context info -->
     <div class="post-header">
       <button @click="goBack" class="back-btn" title="Go back">
         <Icon name="arrow-left" />
@@ -83,15 +82,12 @@
       </div>
     </div>
 
-    <!-- Main content -->
     <div class="post-content" ref="postContainer">
-      <!-- Loading state -->
       <div v-if="isLoading" class="loading-state">
         <LoadingSpinner :size="32" />
         <p>Loading...</p>
       </div>
 
-      <!-- Error state -->
       <div v-else-if="error" class="error-state">
         <Icon name="alert-circle" :size="48" />
         <h3>Post not found</h3>
@@ -111,9 +107,8 @@
         </button>
       </div>
 
-      <!-- Post with context - simple unified list -->
       <div v-else-if="postWithContext" class="post-container">
-        <!-- All posts in thread order: ancestors -> main -> descendants -->
+        <!-- Thread order: ancestors, main, descendants. -->
         <article
           v-for="post in allPostsInOrder"
           :key="post.id"
@@ -139,7 +134,6 @@
           />
         </article>
 
-        <!-- Reply composer (if replying) -->
         <div v-if="showReplyComposer" class="reply-composer">
           <Composer
             mode="inline"
@@ -150,7 +144,6 @@
           />
         </div>
 
-        <!-- Edit composer modal -->
         <Composer
           v-if="editingPost"
           mode="modal"
@@ -187,7 +180,6 @@ import type {
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { usePostInteractions } from '@/composables/usePostInteractions'
 
-// Props
 interface Props {
   postId?: string;
   remoteHandle?: string;
@@ -209,14 +201,13 @@ const props = withDefaults(defineProps<Props>(), {
 const { confirm } = useConfirmDialog()
 const { toggleFavorite, toggleReblog, toggleBookmark } = usePostInteractions()
 
-// Composables
 const router = useRouter();
 const route = useRoute();
 const activityPub = useActivityPubStore();
 const postReactionsStore = usePostReactionsStore();
 const toast = useToast();
 
-// Resolved post ID (may come from props or remote resolution)
+// Set from props.postId, the route param, or remote handle resolution.
 const resolvedPostId = ref<string | null>(null);
 
 const isViewingRemotePost = computed(() => {
@@ -241,10 +232,9 @@ const originalInstanceDomain = computed(() => {
   try { return new URL(url).hostname; } catch { return null; }
 });
 
-// Keep old name for error-state template
+// Alias referenced by the error-state template.
 const remoteOriginalUrl = originalInstanceUrl;
 
-// Reactive state
 const isLoading = ref(true);
 const isFetchingReactions = ref(false);
 const isFetchingReplies = ref(false);
@@ -259,14 +249,13 @@ const postRefs = ref<Record<string, HTMLElement>>({});
 const maxThreadDepth = ref(10);
 const showActionsMenu = ref(false);
 
-// Computed properties
 const mainPost = computed(() => postWithContext.value?.mainPost);
 const ancestors = computed(() => postWithContext.value?.ancestors || []);
 const descendants = computed(() => postWithContext.value?.descendants || []);
 const threadInfo = computed(() => postWithContext.value?.threadInfo);
 const highlightedPostId = computed(() => props.highlightReply || postWithContext.value?.highlightedPost);
 
-// All posts in chronological order: ancestors -> main -> descendants
+// Chronological: ancestors, main, descendants.
 const allPostsInOrder = computed(() => {
   const posts = [];
   if (ancestors.value.length > 0) {
@@ -281,14 +270,13 @@ const allPostsInOrder = computed(() => {
   return posts;
 });
 
-// Resolve a remote post reference (@user@domain + noteId) to a local UUID
+// Maps a remote reference (@user@domain + noteId) to the local post UUID.
 const resolveRemotePost = async (handle: string, noteId: string): Promise<string | null> => {
   const { postResolverService } = await import('@/services/PostResolverService');
   const post = await postResolverService.resolveByHandle(handle, noteId);
   return post?.id || null;
 };
 
-// Methods
 const loadPostWithContext = async () => {
   try {
     isLoading.value = true;
@@ -296,7 +284,6 @@ const loadPostWithContext = async () => {
     
     let postId = props.postId || route.params.postId as string;
 
-    // Resolve remote handle+noteId if provided instead of postId
     if (!postId && props.remoteHandle && props.remoteNoteId) {
       const resolved = await resolveRemotePost(props.remoteHandle, props.remoteNoteId);
       if (!resolved) {
@@ -319,10 +306,9 @@ const loadPostWithContext = async () => {
       includeInteractions: true
     });
 
-    // If we navigated in via the reblog (Announce) wrapper, the SQL walked the
-    // wrong tree - the wrapper has no replies and isn't itself a reply. Swap
-    // to the original post id and re-query so ancestors/descendants are found
-    // under the original Note.
+    // A reblog (Announce) wrapper has no replies and is not itself a reply, so
+    // the thread query walks the wrong tree. Re-query against the original
+    // post id to find ancestors/descendants under the original Note.
     if (result.mainPost && isReblogPost(result.mainPost)) {
       const originalId = getOriginalPostId(result.mainPost);
       if (originalId && originalId !== postId) {
@@ -351,7 +337,6 @@ const loadPostWithContext = async () => {
       postReactionsStore.fetchMultiplePostReactions(allPostIds);
     }
     
-    // Scroll to highlighted post after content loads
     if (props.highlightReply) {
       await nextTick();
       scrollToPost(props.highlightReply);
@@ -360,14 +345,12 @@ const loadPostWithContext = async () => {
       scrollToTimestamp(props.timestamp);
     }
     
-    // For remote posts, auto-fetch replies AND walk the ancestor chain in
-    // the background. Reactions are handled by MonyPost's useRemotePostSync
-    // composable on mount.
+    // Remote posts: fetch replies and walk the ancestor chain in the
+    // background. Reactions are MonyPost's useRemotePostSync on mount.
     //
-    // Use the unwrapped main post so we hit the *original* note's collections
-    // (the Announce wrapper has no replies/reactions of its own). We also kick
-    // off ancestor resolution for federated replies whose parents aren't yet
-    // in the local DB - without this, federated reply threads show as a
+    // Target the unwrapped main post: an Announce wrapper carries no replies
+    // or reactions of its own. Ancestor resolution covers federated replies
+    // whose parents are absent locally; without it such threads render as a
     // single floating post.
     const mainTarget = result.mainPost ? getOriginalPost(result.mainPost) : null;
     if (mainTarget) {
@@ -375,10 +358,9 @@ const loadPostWithContext = async () => {
       const isRemote = !mainTarget.is_local && !!targetApId;
       if (isRemote) {
         fetchRemoteRepliesInBackground(mainTarget);
-        // Walk up the ancestor chain. The federation backend's /resolve-post
-        // endpoint imports each ancestor it doesn't already have, links the
-        // child via in_reply_to, and populates conversation_root_id - so the
-        // local thread RPC can then walk the full chain.
+        // The federation backend's /resolve-post imports each missing
+        // ancestor, links the child via in_reply_to, and populates
+        // conversation_root_id, so the local thread RPC can walk the chain.
         if (mainTarget.metadata?.in_reply_to_ap_url && !mainTarget.in_reply_to) {
           fetchRemoteAncestorsInBackground(mainTarget);
         }
@@ -386,7 +368,7 @@ const loadPostWithContext = async () => {
     }
     
   } catch (err) {
-    debug.error('❌ Failed to load post with context:', err);
+    debug.error('Failed to load post with context:', err);
     error.value = err instanceof Error ? err.message : 'Failed to load post';
     toast.error('Failed to load post');
   } finally {
@@ -395,9 +377,9 @@ const loadPostWithContext = async () => {
 };
 
 const fetchRemoteRepliesInBackground = async (targetPost: TimelinePost) => {
-  // Snapshot the post id we're fetching for so we can bail if the user
-  // navigates away mid-fetch (otherwise the late context reload below would
-  // clobber `postWithContext.value` with stale data).
+  // Snapshot of the post being fetched for. If navigation changes it
+  // mid-fetch, the late context reload below is skipped; otherwise it would
+  // overwrite `postWithContext.value` with stale data.
   const startToken = resolvedPostId.value;
   try {
     const targetApId = getOriginalApId(targetPost) || targetPost.ap_id;
@@ -421,26 +403,23 @@ const fetchRemoteRepliesInBackground = async (targetPost: TimelinePost) => {
 };
 
 /**
- * Walk a federated post's reply chain upward, importing missing ancestors via
- * the federation backend's /resolve-post endpoint until we hit a post that's
- * already local or a post with no `inReplyTo`. The endpoint links each
- * imported child→parent and stamps `conversation_root_id`, so the local
- * thread RPC will pick up the full chain on the next reload.
+ * Walks a federated post's reply chain upward, importing missing ancestors
+ * via the federation backend's /resolve-post until reaching a post that is
+ * already local or has no `inReplyTo`. The endpoint links each imported
+ * child→parent and stamps `conversation_root_id`, so the local thread RPC
+ * picks up the full chain on the next reload.
  *
- * Cap at MAX_ANCESTOR_DEPTH so a malicious or pathological thread can't make
- * us issue an unbounded number of remote fetches.
+ * MAX_ANCESTOR_DEPTH bounds the number of remote fetches a pathological or
+ * hostile thread can provoke.
  *
- * Two pieces of bookkeeping worth noting:
- *
- *   - `startToken` snapshots which post we're walking for. If the user
- *     navigates to a different post mid-walk, `resolvedPostId.value` will
- *     change and we bail out of the eventual reload - otherwise the late
- *     `getPostWithContext` would clobber `postWithContext.value` with
- *     stale-thread data for the post they already left.
- *   - `newlyImported` only increments on actual new imports (as reported by
- *     `resolveByApUrlWithStatus`), not on cached hits. A walk that touches
- *     only already-local ancestors didn't change anything visible to the
- *     user and shouldn't trigger a redundant reload.
+ * Bookkeeping:
+ *   - `startToken` snapshots the post being walked for. A change to
+ *     `resolvedPostId.value` mid-walk aborts the reload; otherwise the late
+ *     `getPostWithContext` would overwrite `postWithContext.value` with
+ *     thread data for the post the user already left.
+ *   - `newlyImported` counts only imports reported by
+ *     `resolveByApUrlWithStatus`, not cached hits. A walk over already-local
+ *     ancestors changes nothing visible and needs no reload.
  */
 const fetchRemoteAncestorsInBackground = async (target: TimelinePost) => {
   const MAX_ANCESTOR_DEPTH = 10;
@@ -453,7 +432,7 @@ const fetchRemoteAncestorsInBackground = async (target: TimelinePost) => {
 
     for (let i = 0; i < MAX_ANCESTOR_DEPTH; i++) {
       if (!parentApUrl || seen.has(parentApUrl)) break;
-      // Bail if the user navigated away during the walk.
+      // Abort if navigation changed during the walk.
       if (resolvedPostId.value !== startToken) {
         debug.log('[PostView] Ancestor walker abandoned: navigation changed mid-walk');
         return;
@@ -465,17 +444,15 @@ const fetchRemoteAncestorsInBackground = async (target: TimelinePost) => {
       if (!parent) break;
       if (wasImported) newlyImported++;
 
-      // Continue if this ancestor is itself a reply we don't have above.
-      // (Server-side /resolve-post does its own chain walk too, so usually one
-      // call suffices - but we loop here to handle older versions / partial
-      // imports.)
+      // Continue while the ancestor is itself a reply that is missing above.
+      // /resolve-post walks the chain server-side, so one call normally
+      // suffices; the loop covers older backends and partial imports.
       if (parent.in_reply_to) break;
       parentApUrl = parent.metadata?.in_reply_to_ap_url;
     }
 
-    // Only reload if we actually imported something (cached hits don't
-    // change the local thread state) AND the user is still viewing the
-    // same post we started with.
+    // Reload only when something was imported (cached hits leave local thread
+    // state unchanged) and the view is still on the starting post.
     if (newlyImported > 0 && resolvedPostId.value === startToken && startToken) {
       debug.log(`[PostView] Imported ${newlyImported} federated ancestor(s); reloading context`);
       const updatedResult = await activityPub.getPostWithContext(startToken, {
@@ -484,8 +461,7 @@ const fetchRemoteAncestorsInBackground = async (target: TimelinePost) => {
         maxDepth: maxThreadDepth.value,
         includeInteractions: true,
       });
-      // Re-check the token after the awaited reload too - the user could
-      // have navigated during the RPC roundtrip.
+      // Re-check after the await: navigation can occur during the RPC.
       if (resolvedPostId.value === startToken) {
         postWithContext.value = updatedResult;
       }
@@ -498,8 +474,8 @@ const fetchRemoteAncestorsInBackground = async (target: TimelinePost) => {
 const handleFetchReactions = async () => {
   showActionsMenu.value = false;
   if (!mainPost.value || isFetchingReactions.value) return;
-  // Target the *original* note's reactions/replies (Announce wrappers don't
-  // collect them) - same rule as the background auto-fetch.
+  // Target the original note's reactions/replies; Announce wrappers collect
+  // none. Same rule as the background auto-fetch.
   const targetApId = getOriginalApId(mainPost.value) || mainPost.value.ap_id;
   const targetId = getOriginalPostId(mainPost.value);
   if (!targetApId) return;
@@ -542,22 +518,20 @@ const handleFetchReplies = async () => {
 };
 
 const handleReply = (post: TimelinePost) => {
-  // Unwrap reblog wrappers so the reply targets the original author (the
-  // booster isn't who the user wants to talk to).
+  // Unwrap reblog wrappers so the reply targets the original author, not the
+  // booster.
   replyToPost.value = getOriginalPost(post);
   replyingToPostId.value = getOriginalPostId(post);
   showReplyComposer.value = true;
 };
 
-// Replies sent from a post's own inline composer (MonyPost handles its reply
-// box internally and emits the created reply up). PostView owns the thread
-// state and has no realtime subscription of its own, so without this the new
-// reply wouldn't appear until a manual reload.
+// MonyPost owns its inline reply box and emits the created reply upward.
+// PostView holds the thread state and has no realtime subscription, so
+// without this handler a new reply appears only after a manual reload.
 const handleInlineReplyCreated = (newReply: TimelinePost, _parentId: string) => {
   if (!newReply || !postWithContext.value) return;
 
-  // Guard against duplicates (e.g. if a later background reload already
-  // included it, or the same event fires twice).
+  // A background reload or a repeated event can deliver the same reply twice.
   const alreadyPresent = allPostsInOrder.value.some(p => p.id === newReply.id);
   if (!alreadyPresent) {
     postWithContext.value = {
@@ -568,10 +542,10 @@ const handleInlineReplyCreated = (newReply: TimelinePost, _parentId: string) => 
       postWithContext.value.mainPost.replies_count =
         (postWithContext.value.mainPost.replies_count || 0) + 1;
     }
-    debug.log('✅ Inline reply appended to thread:', newReply.id);
+    debug.log('Inline reply appended to thread:', newReply.id);
   }
 
-  // Reconcile with the server shortly after so counts/threading are accurate.
+  // Reconcile with the server so counts and threading are accurate.
   setTimeout(() => {
     loadPostWithContext().catch(err => {
       debug.warn('Background refresh failed:', err);
@@ -584,7 +558,7 @@ const handleReplyCreated = async (newReply?: TimelinePost) => {
   replyToPost.value = null;
   replyingToPostId.value = null;
   
-  // Optimistically add the new reply immediately (so user sees it right away)
+  // Optimistic append; the timed reload below reconciles.
   if (newReply && postWithContext.value) {
     postWithContext.value = {
       ...postWithContext.value,
@@ -596,7 +570,7 @@ const handleReplyCreated = async (newReply?: TimelinePost) => {
         (postWithContext.value.mainPost.replies_count || 0) + 1;
     }
     
-    debug.log('✅ Reply added optimistically:', newReply.id);
+    debug.log('Reply added optimistically:', newReply.id);
   }
   
   toast.success('Reply posted!');
@@ -616,7 +590,7 @@ const handleDelete = async (postId: string) => {
     toast.success('Post deleted');
     goBack();
   } catch (err) {
-    debug.error('❌ Failed to delete post:', err);
+    debug.error('Failed to delete post:', err);
     toast.error('Failed to delete post');
   }
 };
@@ -629,12 +603,12 @@ const handleEdit = (postId: string) => {
 };
 
 const handleEdited = (post: any) => {
-  debug.log('✅ Post edited:', post.id);
+  debug.log('Post edited:', post.id);
   editingPost.value = null;
 };
 
-// Shared interaction path (usePostInteractions) keeps feed state in sync;
-// PostView used to call activityPubService directly, which desynced feeds.
+// Interactions route through usePostInteractions, which keeps feed state in
+// sync. Calling activityPubService directly here desyncs the feeds.
 const handleFavorite = async (postId: string) => {
   const result = await toggleFavorite(postId);
   if (result.success) {
@@ -693,10 +667,9 @@ const sharePost = async () => {
         url
       });
     } catch (err) {
-      // User cancelled sharing
+      // Share sheet dismissed.
     }
   } else {
-    // Fallback: copy to clipboard
     try {
       await navigator.clipboard.writeText(url);
       toast.success('Link copied to clipboard');
@@ -786,13 +759,11 @@ const scrollToTimestamp = (timestamp: number) => {
   }
 };
 
-// Watchers
 watch(() => props.postId, loadPostWithContext);
 watch(() => props.remoteNoteId, loadPostWithContext);
 watch(() => props.contextType, loadPostWithContext);
 watch(() => props.highlightReply, loadPostWithContext);
 
-// Lifecycle
 onMounted(loadPostWithContext);
 </script>
 
@@ -1051,7 +1022,6 @@ a.dropdown-item {
 }
 
 
-/* Mobile responsive */
 @media (max-width: 768px) {
   .post-header {
     padding: 0.75rem 1rem;

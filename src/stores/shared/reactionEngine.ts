@@ -199,7 +199,7 @@ export function createReactionEngine<G, E>(
     try {
       // Layer on top of any existing optimistic state - building from the raw
       // server groups would silently discard a still-unreconciled previous
-      // toggle (add 👍 then ❤️ quickly → 👍 vanished until reconcile).
+      // toggle (add then quickly → vanished until reconcile).
       const base = optimisticByEntity.get(entityId) ?? reactionsByEntity.get(entityId) ?? []
       const currentlyReacted = hasUserReacted.value(entityId, emoji)
       const operation = currentlyReacted ? 'remove' : 'add'

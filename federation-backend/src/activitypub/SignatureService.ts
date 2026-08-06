@@ -4,19 +4,14 @@ import { AppError } from '../middleware/errorHandler.js';
 import { logger } from '../utils/logger.js';
 import { safeFetch } from '../utils/ssrfProtection.js';
 
-// ---------------------------------------------------------------------------
-// In-memory cache for parsed public keys.
+// In-memory LRU of PEM public keys, keyed by actorUrl.
 //
-// `fetchActorPublicKey` already has a multi-tier persistent cache (profiles
-// table → ap_actor_cache table → remote HTTP fetch). But every inbound
-// signature still pays at least one DB roundtrip per verify. For a single
-// federation event with N inbox deliveries (each verified independently)
-// that's N roundtrips just to fetch the same N strings.
+// Sits in front of `fetchActorPublicKey`'s persistent tiers (profiles table →
+// ap_actor_cache table → remote HTTP fetch), each of which costs a DB
+// roundtrip per verify. A federation event with N inbox deliveries verifies
+// each delivery independently.
 //
-// This LRU sits in front of the DB caches and stores raw PEM strings keyed
-// by actorUrl. TTL is 1 hour, matching `ap_actor_cache.cache_expires_at` so
-// invalidation semantics are consistent.
-// ---------------------------------------------------------------------------
+// TTL is 1 hour, matching `ap_actor_cache.cache_expires_at`.
 interface CachedKey {
   pem: string;
   expiresAt: number;
@@ -52,7 +47,7 @@ function invalidatePublicKey(actorUrl: string): void {
   publicKeyCache.delete(actorUrl);
 }
 
-// Exported for tests / admin endpoints that may want to wipe the cache.
+// Exported for tests and admin endpoints that wipe the cache.
 export const __publicKeyCache = {
   size: () => publicKeyCache.size,
   clear: () => publicKeyCache.clear(),
@@ -60,9 +55,6 @@ export const __publicKeyCache = {
 };
 
 export class SignatureService {
-  /**
-   * Generate RSA key pair for a user
-   */
   static async generateKeyPair(): Promise<{ publicKey: string; privateKey: string }> {
     return new Promise((resolve, reject) => {
       crypto.generateKeyPair(
@@ -87,7 +79,9 @@ export class SignatureService {
   }
 
   /**
-   * Sign an HTTP request for ActivityPub federation
+   * Attach draft-cavage HTTP Signature headers to an outbound ActivityPub
+   * request. Signs (request-target), host, date, and digest when a body is
+   * present.
    */
   static async signRequest(
     targetUrl: string,
@@ -115,9 +109,9 @@ export class SignatureService {
     const keyError = initialKeyLookup.error;
     let keyData = initialKeyLookup.data;
 
-    // If no keys exist, generate them on-demand (lazy generation)
+    // Keys are generated on first use, not at signup.
     if (keyError || !keyData || !keyData.private_key) {
-      logger.info(`🔐 No keys found for user ${userId}, generating on-demand...`);
+      logger.info(`No keys found for user ${userId}, generating on-demand...`);
       
       try {
         const keys = await this.generateKeyPair();
@@ -144,7 +138,7 @@ export class SignatureService {
           throw new AppError(500, 'Failed to store public key');
         }
         
-        logger.info(`✅ Generated keys on-demand for user ${userId}`);
+        logger.info(`Generated keys on-demand for user ${userId}`);
         keyData = { private_key: keys.privateKey };
       } catch (genError) {
         logger.error(`Failed to generate keys for user ${userId}:`, genError);
@@ -158,7 +152,7 @@ export class SignatureService {
     const date = new Date().toUTCString();
     const requestTarget = `${method.toLowerCase()} ${url.pathname}${url.search}`;
     
-    // Create headers object (order matters for Misskey!)
+    // Header insertion order is significant for Misskey.
     const headers: Record<string, string> = {
       'Host': url.host,
       'Date': date,
@@ -187,14 +181,13 @@ export class SignatureService {
     
     const signingString = signingParts.join('\n');
 
-    // Sign the string
     const sign = crypto.createSign('SHA256');
     sign.update(signingString);
     sign.end();
 
     const signature = sign.sign(privateKey, 'base64');
 
-    // Create signature header (must include (request-target) for Misskey)
+    // Misskey requires (request-target) in the signed header list.
     const keyId = `https://${user.domain}/users/${user.username}#main-key`;
     const signatureHeader = [
       `keyId="${keyId}"`,
@@ -211,20 +204,9 @@ export class SignatureService {
   }
 
   /**
-   * Verify an incoming HTTP signature
-   * 
-   * Security model:
-   * 1. Parse signature header to get keyId, signed headers, and signature
-   * 2. Extract actor URL from keyId (e.g., https://remote.server/users/alice#main-key -> https://remote.server/users/alice)
-   * 3. Fetch actor's public key from their server (over HTTPS)
-   * 4. Rebuild the signing string from the signed headers
-   * 5. Verify the signature matches using the public key
-   * 6. Optionally verify the Digest header matches the body hash
-   */
-  /**
    * Parse a Signature header (draft-cavage / RFC 9421 legacy form) into its
    * parameters. Quoted values may legally contain commas and `=` (keyId is a
-   * URI, signature is base64) - a naive split(',') corrupts those.
+   * URI, signature is base64); a naive split(',') corrupts those.
    */
   static parseSignatureHeader(signature: string): Record<string, string> {
     const parts: Record<string, string> = {};
@@ -236,6 +218,14 @@ export class SignatureService {
     return parts;
   }
 
+  /**
+   * Verify an inbound HTTP signature.
+   *
+   * The actor URL is the keyId with its fragment removed; its public key is
+   * fetched over HTTPS, the signing string is rebuilt from the signed header
+   * list, and the signature is checked against it. A body additionally
+   * requires a signature-covered Digest header.
+   */
   static async verifySignature(
     signature: string,
     headers: Record<string, string>,
@@ -253,10 +243,9 @@ export class SignatureService {
         return { verified: false, error: 'Missing signature components' };
       }
 
-      // Replay-window check (BUGS.md H18): if the request carries a Date
-      // header (Mastodon-compatible implementations always sign it), reject
-      // requests outside a ±5 minute skew window. Without this, a captured
-      // signed request stays valid forever.
+      // Replay window (BUGS.md H18). Mastodon-compatible implementations
+      // always sign Date; when present, reject outside ±5 minutes of clock
+      // skew. Absent this check a captured signed request stays valid forever.
       const dateHeader = headers['date'] || headers['Date'];
       if (dateHeader) {
         const requestTime = Date.parse(dateHeader);
@@ -270,7 +259,7 @@ export class SignatureService {
         }
       }
 
-      // Extract actor URL from keyId (e.g., https://example.com/users/alice#main-key -> https://example.com/users/alice)
+      // keyId minus fragment: https://host/users/alice#main-key -> https://host/users/alice
       const actorUrl = keyId.split('#')[0];
 
       const publicKey = await this.fetchActorPublicKey(actorUrl);
@@ -280,10 +269,9 @@ export class SignatureService {
         return { verified: false, actorUrl, error: 'Could not fetch public key' };
       }
 
-      // Body integrity (BUGS.md H19): for requests WITH a body, require a
-      // Digest header that is COVERED BY the signature, then verify it.
-      // Otherwise the signature only authenticates headers and the body can
-      // be swapped freely.
+      // Body integrity (BUGS.md H19). A request with a body requires a Digest
+      // header listed in the signed headers, then verified. Otherwise the
+      // signature authenticates headers only and the body can be swapped.
       const digestHeader = headers['digest'] || headers['Digest'];
       if (body) {
         if (!digestHeader) {
@@ -299,10 +287,10 @@ export class SignatureService {
           logger.warn(`Digest mismatch for ${actorUrl}: expected ${expectedDigest}, got ${digestHeader}`);
           return { verified: false, actorUrl, error: 'Digest mismatch - body may have been tampered' };
         }
-        logger.debug(`✅ Digest verified for ${actorUrl}`);
+        logger.debug(`Digest verified for ${actorUrl}`);
       }
 
-      // Rebuild signing string (handle (request-target) specially)
+      // Rebuild the signing string; (request-target) is synthetic.
       const headerList = signedHeaders.split(' ');
       const requestTarget = `${method.toLowerCase()} ${path}`;
       
@@ -312,12 +300,10 @@ export class SignatureService {
         if (headerName === '(request-target)') {
           signingParts.push(`(request-target): ${requestTarget}`);
         } else {
-          // Try both lowercase and capitalized versions
-          // Express normalizes headers to lowercase
+          // Express lowercases header names; accept either spelling.
           const value = headers[headerName.toLowerCase()] || headers[headerName];
           if (value) {
-            // Use the lowercase header name as per HTTP Signature spec
-            // The signing string should use lowercase header names
+            // HTTP Signature spec: signing string uses lowercase header names.
             signingParts.push(`${headerName.toLowerCase()}: ${value}`);
           } else {
             logger.warn(`Missing header in signature verification: ${headerName}`);
@@ -333,21 +319,18 @@ export class SignatureService {
 
       const verified = verify.verify(publicKey, sig, 'base64');
 
-      // If verification failed, try refreshing the public key and retry ONCE
-      // This handles cases where the remote user regenerated their keys
+      // One retry against a freshly fetched key; covers remote key rotation.
       if (!verified) {
-        logger.info(`⚠️ Signature verification failed for ${actorUrl}, attempting key refresh...`);
+        logger.info(`Signature verification failed for ${actorUrl}, attempting key refresh...`);
         logger.debug(`Signed headers: ${signedHeaders}`);
         logger.debug(`Signing string:\n${signingString}`);
         logger.debug(`Public key (first 100 chars): ${publicKey.substring(0, 100)}...`);
         
-        // Try fetching a fresh public key from the remote server
         const freshPublicKey = await this.fetchActorPublicKey(actorUrl, true);
         
         if (freshPublicKey && freshPublicKey !== publicKey) {
-          logger.info(`🔑 Got different public key for ${actorUrl}, retrying verification...`);
+          logger.info(`Got different public key for ${actorUrl}, retrying verification...`);
           
-          // Retry verification with fresh key
           const retryVerify = crypto.createVerify('SHA256');
           retryVerify.update(signingString);
           retryVerify.end();
@@ -355,10 +338,10 @@ export class SignatureService {
           const retryVerified = retryVerify.verify(freshPublicKey, sig, 'base64');
           
           if (retryVerified) {
-            logger.info(`✅ Signature verified after key refresh for ${actorUrl}`);
+            logger.info(`Signature verified after key refresh for ${actorUrl}`);
             return { verified: true, actorUrl };
           } else {
-            logger.warn(`❌ Signature still invalid after key refresh for ${actorUrl}`);
+            logger.warn(`Signature still invalid after key refresh for ${actorUrl}`);
           }
         } else if (freshPublicKey === publicKey) {
           logger.debug(`Public key unchanged for ${actorUrl}, no retry needed`);
@@ -381,23 +364,22 @@ export class SignatureService {
    *
    * Two modes:
    *
-   * - **Strict (default)**: `activity.actor` must EXACTLY equal the signing
-   *   key owner URL after normalization. Use this for `Person`-actor activities
-   *   (user inbox: Create Note, Like, Follow, Update Person, Delete Note, ...).
-   *   Allowing same-domain delegation here would let any compromised /
-   *   legitimate user on a remote host forge activities for any other user on
-   *   the same host (cross-user impersonation). See BUGS.md item C1.
+   * - Strict (default): `activity.actor` must equal the signing key owner URL
+   *   after normalization. Applies to `Person`-actor activities (user inbox:
+   *   Create Note, Like, Follow, Update Person, Delete Note). Same-domain
+   *   delegation here would let any user on a remote host forge activities for
+   *   any other user on that host. BUGS.md item C1.
    *
-   * - **Group delegation** (`allowSameDomainDelegation = true`): when the
-   *   activity is on behalf of a `Group`/`Service` actor that is conventionally
-   *   acted upon by an authorized member on the same domain (e.g. Lemmy
-   *   `c/<community>` announcements signed by `u/<moderator>`), accept any
-   *   signer on the same host. Use this only for the server inbox.
+   * - Group delegation (`allowSameDomainDelegation = true`): activities on
+   *   behalf of a `Group`/`Service` actor are conventionally signed by an
+   *   authorized member on the same domain (Lemmy `c/<community>` announcements
+   *   signed by `u/<moderator>`), so any signer on the same host is accepted.
+   *   Server inbox only.
    *
    * @param activityActor URL of the `activity.actor` from the inbox payload.
    * @param signingActorUrl URL resolved from the signature `keyId`.
-   * @param allowSameDomainDelegation Set to `true` only when the inbox is
-   *   semantically a Group/Service inbox (server inbox). Defaults to `false`.
+   * @param allowSameDomainDelegation `true` only for the Group/Service (server)
+   *   inbox. Defaults to `false`.
    */
   static verifyActorMatch(
     activityActor: string,
@@ -443,24 +425,24 @@ export class SignatureService {
   }
 
   /**
-   * Fetch actor's public key from their server
-   * First checks local database (profiles table), then cache, then remote fetch
-   * @param forceRefresh - If true, skip cache and fetch directly from remote
+   * Resolve an actor's public key. Tier order: in-memory LRU, profiles table,
+   * ap_actor_cache, remote fetch.
+   * @param forceRefresh Skip every cache tier and fetch from the remote server.
    */
   private static async fetchActorPublicKey(actorUrl: string, forceRefresh = false): Promise<string | null> {
     const supabase = getSupabaseClient();
     
-    // Declare cachedActor outside the if block so it's in scope for fallback logic
+    // Declared here to stay in scope for the expired-cache fallback below.
     let cachedActorData: any = null;
     
     if (!forceRefresh) {
-      // 0. In-memory LRU. Skips two DB roundtrips per verify on warm cache.
+      // Tier 0: in-memory LRU. Skips two DB roundtrips on a warm cache.
       const memHit = getCachedPublicKey(actorUrl);
       if (memHit) {
         return memHit;
       }
       
-      // First, check if we have this actor in our profiles table
+      // Tier 1: profiles.public_key.
       const { data: profile } = await supabase
         .from('profiles')
         .select('public_key')
@@ -473,17 +455,15 @@ export class SignatureService {
         return profile.public_key;
       }
       
-      // Second, check actor cache table (also check expired cache for fallback)
+      // Tier 2: ap_actor_cache. Expired rows are kept for the fallback below.
       const { data: cachedActor } = await supabase
         .from('ap_actor_cache')
         .select('actor_data, cache_expires_at')
         .eq('ap_id', actorUrl)
         .maybeSingle();
       
-      // Store for potential fallback use
       cachedActorData = cachedActor?.actor_data;
       
-      // Only use cache if not expired
       if (cachedActor?.cache_expires_at && new Date(cachedActor.cache_expires_at) > new Date()) {
         if (cachedActorData?.publicKey?.publicKeyPem) {
           logger.debug(`Using cached actor data for ${actorUrl}`);
@@ -492,15 +472,13 @@ export class SignatureService {
         }
       }
     } else {
-      logger.info(`🔄 Force refreshing public key for ${actorUrl}`);
-      // Invalidate stale in-memory entry so the refresh actually re-fetches.
+      logger.info(`Force refreshing public key for ${actorUrl}`);
+      // Drop the in-memory entry, otherwise the refresh returns the stale key.
       invalidatePublicKey(actorUrl);
     }
     
-    // Finally, fetch from remote server.
-    // safeFetch handles URL+DNS validation, manual redirect re-validation,
-    // and the 10s timeout - supersedes the previous `validateExternalUrl` +
-    // raw fetch + `AbortSignal.timeout` pattern. BUGS.md H15.
+    // Tier 3: remote fetch. safeFetch performs URL+DNS validation, manual
+    // redirect re-validation, and a 10s timeout. BUGS.md H15.
     try {
       const response = await safeFetch(actorUrl, {
         headers: {
@@ -510,7 +488,7 @@ export class SignatureService {
 
       if (!response.ok) {
         logger.warn(`Failed to fetch actor: ${response.status} for ${actorUrl}`);
-        // If we have a cached actor (even expired), try using it anyway
+        // Fall back to the cached key even when expired.
         if (cachedActorData?.publicKey?.publicKeyPem) {
           logger.warn(`Using expired cached public key for ${actorUrl}`);
           return cachedActorData.publicKey.publicKeyPem;
@@ -536,13 +514,12 @@ export class SignatureService {
           if (profileUpdateError) {
             logger.debug(`Could not update profile public key for ${actorUrl}:`, profileUpdateError);
           } else {
-            logger.info(`✅ Updated public key in profiles table for ${actorUrl}`);
+            logger.info(`Updated public key in profiles table for ${actorUrl}`);
           }
         } catch (profileError) {
           logger.debug('Failed to update profile public key:', profileError);
         }
         
-        // Cache the actor data for future use
         try {
           const actorUrlObj = new URL(actorUrl);
           await supabase
@@ -561,7 +538,7 @@ export class SignatureService {
             });
         } catch (cacheError) {
           logger.debug('Failed to cache actor data:', cacheError);
-          // Non-fatal, continue
+          // Non-fatal.
         }
         
         return publicKeyPem;
@@ -571,7 +548,7 @@ export class SignatureService {
       return null;
     } catch (error) {
       logger.error(`Error fetching actor public key for ${actorUrl}:`, error);
-      // If we have a cached actor (even expired), try using it anyway
+      // Fall back to the cached key even when expired.
       if (cachedActorData?.publicKey?.publicKeyPem) {
         logger.warn(`Using expired cached public key for ${actorUrl} due to fetch error`);
         return cachedActorData.publicKey.publicKeyPem;
@@ -581,9 +558,9 @@ export class SignatureService {
   }
 
   /**
-   * Fetch an ActivityPub object with HTTP signature (for authorized fetch / secure mode).
-   * Uses any local user's keys to sign the GET request.
-   * Falls back to unsigned fetch if no local user is available.
+   * Signed GET for an ActivityPub object, for remotes running authorized
+   * fetch / secure mode. Signs with any local user's key; falls back to an
+   * unsigned fetch when no local user exists.
    */
   static async signedApFetch(url: string, timeoutMs = 8000): Promise<Response> {
     const supabase = getSupabaseClient();
@@ -596,7 +573,7 @@ export class SignatureService {
 
     let signingUserId = signer?.user_id;
 
-    // If no keys exist yet, pick the first local user and let signRequest generate keys
+    // No stored keys: signRequest generates a pair for the first local user.
     if (!signingUserId) {
       const { data: firstUser } = await supabase
         .from('profiles')
@@ -628,11 +605,9 @@ export class SignatureService {
     });
   }
 
-  /**
-   * Create digest header for request body
-   */
+  /** Digest header value: `SHA-256=<base64 sha256 of the body bytes>`. */
   static createDigest(body: any): string {
-    // Accept Buffer (raw bytes), string, or object
+    // Buffer is hashed as raw bytes; objects are JSON-serialized first.
     const data = Buffer.isBuffer(body) ? body
       : typeof body === 'string' ? body
       : JSON.stringify(body);

@@ -218,7 +218,6 @@
       </div>
     </div>
 
-    <!-- Account deletion confirmation modal -->
     <Teleport to="body">
       <div v-if="showDeleteModal" class="delete-modal-overlay" @click.self="closeDeleteModal">
         <div class="delete-modal">
@@ -339,8 +338,8 @@ const gameOverlay = ref(isOverlayEnabled())
 function onRichPresenceChange() { setRichPresenceEnabled(richPresence.value) }
 function onGameOverlayChange() { setOverlayEnabled(gameOverlay.value) }
 
-// Native autostart (tauri-plugin-autostart); invoked directly so we don't
-// need the JS guest package for three one-line commands.
+// Native autostart (tauri-plugin-autostart), invoked directly; the JS guest
+// package is not needed for three one-line commands.
 const launchAtLogin = ref(false)
 async function onLaunchAtLoginChange() {
   try {
@@ -357,8 +356,8 @@ const showRunOnLoginModal = ref(false)
 const runOnLoginEnabled = ref(localStorage.getItem('harmony-run-on-login-enabled') === 'true')
 const runOnLoginUrl = computed(() => getRunOnLoginUrl())
 const runOnLoginBrowserLabel = computed(() => getChromiumBrowserLabel())
-// Only surface on Chromium desktop when the app is actually installed -
-// the feature lives on `about://apps`, which only manages installed PWAs.
+// Only surfaces on Chromium desktop when the app is installed - the feature
+// lives on `about://apps`, which only manages installed PWAs.
 const canShowRunOnLogin = computed(() => isPWA() && isChromiumDesktop())
 const isInstalledPWA = isPWA()
 // Hide install UI in the native app; keep the section when installable or
@@ -519,7 +518,6 @@ const clearCache = async () => {
 }
 
 const exportData = () => {
-  // Placeholder - data export is on the roadmap.
   debug.log('Exporting data... (not yet implemented)')
 }
 </script>
@@ -733,7 +731,6 @@ const exportData = () => {
 }
 </style>
 <style scoped>
-/* Account deletion modal */
 .delete-modal-overlay {
   position: fixed;
   inset: 0;

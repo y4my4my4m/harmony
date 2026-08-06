@@ -428,9 +428,9 @@ async function loadMyBots() {
     if (error) throw error
 
     myBots.value = bots || []
-    debug.log('✅ Loaded', myBots.value.length, 'bots')
+    debug.log('Loaded', myBots.value.length, 'bots')
   } catch (error: any) {
-    debug.error('❌ Failed to load bots:', error)
+    debug.error('Failed to load bots:', error)
     toast.error(error.message || 'Failed to load bots')
   } finally {
     isLoading.value = false
@@ -502,7 +502,7 @@ async function createBot() {
 
     toast.success(`Bot "${bot.username}" created successfully!`)
   } catch (error: any) {
-    debug.error('❌ Failed to create bot:', error)
+    debug.error('Failed to create bot:', error)
     toast.error(error.message || 'Failed to create bot')
   } finally {
     creating.value = false
@@ -571,14 +571,12 @@ async function regenerateToken() {
     newBotToken.value = true
     toast.success('Token regenerated successfully!')
   } catch (error: any) {
-    debug.error('❌ Failed to regenerate token:', error)
+    debug.error('Failed to regenerate token:', error)
     toast.error('Failed to regenerate token')
   }
 }
 
-// -------------------------------------------------------------------------
 // Edit bot
-// -------------------------------------------------------------------------
 const showEditModal = ref(false)
 const savingEdit = ref(false)
 const editingBotId = ref<string | null>(null)
@@ -711,7 +709,7 @@ async function deleteBot(bot: any) {
     toast.success(`Bot "${bot.username}" deleted`)
     await loadMyBots()
   } catch (error: any) {
-    debug.error('❌ Failed to delete bot:', error)
+    debug.error('Failed to delete bot:', error)
     toast.error('Failed to delete bot')
   }
 }

@@ -1,11 +1,8 @@
 /**
- * useMessageSearch - Composable for message search functionality
- * 
- * Provides reactive search state, debouncing, filter management,
- * and search execution with pagination support.
- * 
- * For encrypted messages (E2EE), use useLocalMessageSearch instead,
- * which performs client-side search on already-decrypted messages.
+ * Server-side message search: reactive state, debouncing, filters, pagination.
+ *
+ * E2EE messages are not searchable here; the server cannot read the plaintext.
+ * Use useLocalMessageSearch, which filters already-decrypted in-memory messages.
  */
 
 import { ref, computed, watch } from 'vue'
@@ -26,19 +23,7 @@ export interface SearchFilters {
   toDate?: Date | null
 }
 
-/**
- * Note on E2EE Search:
- * 
- * For end-to-end encrypted messages, server-side search cannot access
- * the decrypted content. In these cases, use the `useLocalMessageSearch`
- * composable which performs client-side filtering on messages that are
- * already loaded and decrypted in memory.
- * 
- * @see useLocalMessageSearch
- */
-
 export function useMessageSearch() {
-  // State
   const isSearching = ref(false)
   const searchResults = ref<Message[]>([])
   const hasMore = ref(false)
@@ -59,11 +44,9 @@ export function useMessageSearch() {
   const searchAbortController = ref<AbortController | null>(null)
   const recentSearches = ref<string[]>([])
 
-  // Debounce timer
   let debounceTimer: ReturnType<typeof setTimeout> | null = null
   const DEBOUNCE_MS = 300
 
-  // Computed
   const hasActiveFilters = computed(() => {
     return !!(
       filters.value.channelId ||
@@ -80,7 +63,6 @@ export function useMessageSearch() {
   const hasResults = computed(() => searchResults.value.length > 0)
   const canLoadMore = computed(() => hasMore.value && !isSearching.value)
 
-  // Methods
   const setQuery = (query: string) => {
     filters.value.query = query
   }
@@ -121,7 +103,6 @@ export function useMessageSearch() {
   }
 
   const executeSearch = async (resetOffset = true): Promise<void> => {
-    // Cancel previous search
     if (searchAbortController.value) {
       searchAbortController.value.abort()
     }
@@ -131,7 +112,6 @@ export function useMessageSearch() {
       searchResults.value = []
     }
 
-    // Don't search if query is empty and no filters
     if (!filters.value.query.trim() && !hasActiveFilters.value) {
       searchResults.value = []
       hasMore.value = false
@@ -147,7 +127,7 @@ export function useMessageSearch() {
 
     try {
       const searchFilters: MessageSearchFilters = {
-        query: filters.value.query.trim() || '', // Empty string if no query but has filters
+        query: filters.value.query.trim() || '', // Filter-only searches send an empty query
         channelId: filters.value.channelId,
         userId: filters.value.userId,
         conversationId: filters.value.conversationId,
@@ -189,7 +169,6 @@ export function useMessageSearch() {
       }
     } catch (err: any) {
       if (err.name === 'AbortError' || abortController.signal.aborted) {
-        // Search was cancelled, ignore
         return
       }
 
@@ -234,12 +213,10 @@ export function useMessageSearch() {
 
     recentSearches.value.unshift(query)
 
-    // Keep only last 10
     if (recentSearches.value.length > 10) {
       recentSearches.value = recentSearches.value.slice(0, 10)
     }
 
-    // Persist to localStorage
     try {
       localStorage.setItem('harmony_recent_searches', JSON.stringify(recentSearches.value))
     } catch (e) {
@@ -269,11 +246,11 @@ export function useMessageSearch() {
 
   loadRecentSearches()
 
-  // Watch query changes for debounced search (only if there's actually a query or filters)
+  // Debounced search on query change; clears results when query and filters are both empty.
   watch(
     () => filters.value.query,
     (newQuery, oldQuery) => {
-      // Only trigger if query actually changed (not just on initialization)
+      // oldQuery is undefined on the initial run; skip it.
       if (oldQuery !== undefined && (newQuery.trim() || hasActiveFilters.value)) {
         searchDebounced()
       } else if (!newQuery.trim() && !hasActiveFilters.value) {
@@ -284,7 +261,7 @@ export function useMessageSearch() {
     }
   )
 
-  // Watch filter changes (non-query) - only trigger if query exists or filters are active
+  // Non-query filter changes re-run the search immediately, without debounce.
   watch(
     [
       () => filters.value.channelId,
@@ -297,8 +274,7 @@ export function useMessageSearch() {
       () => filters.value.toDate
     ],
     (newValues, oldValues) => {
-      // Only execute if filters actually changed (not just on initialization)
-      // and if there's a query or active filters
+      // oldValues is undefined on the initial run; skip it.
       if (oldValues !== undefined && (filters.value.query.trim() || hasActiveFilters.value)) {
         executeSearch(true)
       }

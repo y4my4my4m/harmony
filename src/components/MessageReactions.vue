@@ -107,12 +107,12 @@ const { triggerReaction } = useHapticSettings();
 const { recordEmojiUsage } = useFrequentEmojis();
 const { resolveEmoji } = useUnifiedEmoji();
 
-// UNIFIED ARCHITECTURE: Always use reactions store (populated by CoreMessageService)
+// Reactions store is populated by CoreMessageService.
 const reactions = computed(() => {
   try {
     return reactionsStore.getMessageReactions(props.message.id);
   } catch (error) {
-    debug.error('❌ Error getting reactions for message:', props.message.id, error);
+    debug.error('Error getting reactions for message:', props.message.id, error);
     return [];
   }
 });
@@ -126,8 +126,6 @@ const isLoadingReactions = computed(() =>
 // when optimistic state reconciles).
 const currentUserId = computed(() => profileStore.profileId);
 
-// Check if current user has reacted to a specific emoji
-// Handle reaction toggle ( instant feedback)
 const handleReactionClick = async (emoji: Emoji, emojiId: string) => {
   if (!currentUserId.value) return;
   
@@ -146,7 +144,7 @@ const handleReactionClick = async (emoji: Emoji, emojiId: string) => {
   const result = await reactionsStore.toggleReaction(props.message.id, emojiId, currentUserId.value, emoji);
   
   if (!result.success && result.reason !== 'Request already in progress') {
-    debug.error('🎯 Failed to toggle reaction:', result.reason);
+    debug.error('Failed to toggle reaction:', result.reason);
   }
 };
 
@@ -188,8 +186,7 @@ const handleAddReactionClick = (event: MouseEvent) => {
   emit('open-emoji-picker', props.message.id, event);
 };
 
-// UNIFIED ARCHITECTURE: Reactions store is pre-populated by batch loading in MessageDisplay
-// Individual components should only fetch if data is missing (batch loading handles most cases)
+// MessageDisplay batch-loads reactions into the store; fetch here only when that missed.
 onMounted(() => {
   // Skip fetching for optimistic/temp messages
   if (props.message.id.startsWith('temp-') || props.message.sending) {
@@ -220,7 +217,6 @@ watch(() => isLoadingReactions.value, (loading, wasLoading) => {
   }
 });
 
-// Watch for message changes and reload reactions if needed
 watch(() => props.message.id, (newMessageId, oldMessageId) => {
   // Skip if it's a temp message or optimistic message
   if (newMessageId.startsWith('temp-') || props.message.sending) {

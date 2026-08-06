@@ -13,26 +13,19 @@ import { discoveryLimiter } from '../middleware/rateLimit.js';
 
 const router = Router();
 
-// ============================================================================
-// Remote-reaction fetch coalescing
-// ----------------------------------------------------------------------------
-// `fetchRemotePostReactions` does up to TWO outbound HTTP calls per post
-// (post object → likes collection). To avoid hammering remote instances when
-// many users browse the same profile or a single user refreshes rapidly:
+// Remote-reaction fetch coalescing.
+// `fetchRemotePostReactions` costs up to two outbound HTTP calls per post
+// (post object → likes collection). Two mechanisms bound that cost:
 //
-//   * TTL cache: if `posts.metadata.remote_reactions_fetched_at` is fresher
-//     than REACTIONS_TTL_MS, callers skip the fetch entirely and read the
-//     already-aggregated `remote_reactions` straight from the DB row they
-//     already SELECTed.
+//   * TTL cache: `posts.metadata.remote_reactions_fetched_at` fresher than
+//     REACTIONS_TTL_MS means callers skip the fetch and read the aggregated
+//     `remote_reactions` from the row they already SELECTed.
 //   * In-flight dedup: concurrent fetches for the same `post_ap_id` share
-//     a single Promise, so two users opening the same profile at once
-//     produce one outbound burst, not two.
+//     one Promise.
 //
-// 30s is chosen so that new likes arriving via federation push (/inbox →
-// post_interactions trigger → broadcast) keep showing in real time on the
-// hot path; the cache only governs the "open a stale profile" path. Tune
-// in one place if needed.
-// ============================================================================
+// 30s: likes arriving via federation push (/inbox → post_interactions
+// trigger → broadcast) stay real-time on the hot path; the cache only
+// governs the stale-profile path.
 const REACTIONS_TTL_MS = 30_000;
 const inFlightReactionFetches = new Map<string, Promise<any[]>>();
 
@@ -44,11 +37,10 @@ function isReactionsCacheFresh(metadata: any): boolean {
 }
 
 /**
- * Mark a post as "we tried to fetch reactions and got nothing useful" so
- * the TTL cache short-circuits the next call. This is what stops deleted
- * remote posts (404 on every outbound request) from being re-tried on
- * every feed refresh. Stores ONLY the timestamp; existing
- * `remote_reactions` (if any) is preserved.
+ * Record a failed or empty reaction fetch so the TTL cache short-circuits
+ * the next call; deleted remote posts (404 on every request) are not
+ * re-tried on every feed refresh. Writes only the timestamp; existing
+ * `remote_reactions` is preserved.
  */
 async function markRemoteReactionsAttempted(
   postId: string | undefined,
@@ -71,16 +63,16 @@ async function markRemoteReactionsAttempted(
       })
       .eq('id', postId);
   } catch (err) {
-    logger.debug(`📬 markRemoteReactionsAttempted failed (non-fatal): ${err}`);
+    logger.debug(`markRemoteReactionsAttempted failed (non-fatal): ${err}`);
   }
 }
 
 /**
- * Lookup remote user via WebFinger
+ * Lookup remote user via WebFinger.
  * POST /lookup-user (proxied via /api/federation/lookup-user)
  * Body: { handle: "username@domain" }
- * 
- * This endpoint proxies WebFinger requests to bypass CORS restrictions
+ *
+ * Server-side proxy; browsers cannot fetch WebFinger cross-origin.
  */
 router.post(
   '/lookup-user',
@@ -102,9 +94,9 @@ router.post(
     const [username, domain] = parts;
     const supabase = getSupabaseClient();
 
-    // SECURITY: Prevent looking up local users via federation lookup
+    // SECURITY: local users are never resolved through federation lookup.
     if (domain.toLowerCase() === config.INSTANCE_DOMAIN.toLowerCase()) {
-      logger.warn(`❌ Refusing federation lookup for local domain: ${username}@${domain}`);
+      logger.warn(`Refusing federation lookup for local domain: ${username}@${domain}`);
       
       const { data: localUser } = await supabase
         .from('profiles')
@@ -130,7 +122,7 @@ router.post(
       });
     }
 
-    logger.info(`🔍 Looking up remote user: ${username}@${domain}${forceRefresh ? ' (force refresh)' : ''}`);
+    logger.info(`Looking up remote user: ${username}@${domain}${forceRefresh ? ' (force refresh)' : ''}`);
 
     if (!forceRefresh) {
       const { data: existingUser } = await supabase
@@ -141,9 +133,9 @@ router.post(
         .single();
 
       if (existingUser) {
-        logger.info(`✅ Found existing user in database: ${username}@${domain}`);
+        logger.info(`Found existing user in database: ${username}@${domain}`);
         
-        // Check if federation_metadata is missing or incomplete - if so, force a refresh
+        // Absent emoji metadata forces a refetch.
         let needsMetadataRefresh = false;
         try {
           const metadata = existingUser.federation_metadata 
@@ -158,23 +150,23 @@ router.post(
           needsMetadataRefresh = true;
         }
         
-        // Refresh if metadata is missing AND display name or bio contain shortcode patterns
+        // Refresh only when metadata is absent and display name or bio carry shortcodes.
         const hasEmojiPatterns = 
           (existingUser.bio && existingUser.bio.includes(':')) ||
           (existingUser.display_name && existingUser.display_name.includes(':'));
         if (needsMetadataRefresh && hasEmojiPatterns) {
-          logger.info(`🔄 User ${username}@${domain} has emoji patterns but no emoji metadata - forcing refresh`);
-          // Don't return cached - fall through to full fetch
+          logger.info(`User ${username}@${domain} has emoji patterns but no emoji metadata - forcing refresh`);
+          // Falls through to the full fetch; the cached row is not returned.
         } else {
-          // Check if we should trigger a background post fetch
-          // Fetch if: user has outbox_url AND (no posts yet OR last sync was over 5 minutes ago)
+          // Background outbox fetch when outbox_url is known and the last sync
+          // is absent or older than 5 minutes.
           const shouldFetchPosts = existingUser.outbox_url && (
             !existingUser.last_federation_sync || 
             (Date.now() - new Date(existingUser.last_federation_sync).getTime()) > 5 * 60 * 1000
           );
           
           if (shouldFetchPosts) {
-            logger.info(`📬 Triggering background post fetch for cached user ${username}@${domain}`);
+            logger.info(`Triggering background post fetch for cached user ${username}@${domain}`);
             fetchRecentPostsInBackground(existingUser.id, existingUser.outbox_url, supabase).catch(err => {
               logger.warn(`Background post fetch failed for ${username}@${domain}:`, err.message);
             });
@@ -196,18 +188,18 @@ router.post(
 
       // Step 1: WebFinger lookup
       const webfingerUrl = `https://${domain}/.well-known/webfinger?resource=acct:${encodeURIComponent(username)}@${encodeURIComponent(domain)}`;
-      logger.info(`🌐 WebFinger lookup: ${webfingerUrl}`);
+      logger.info(`WebFinger lookup: ${webfingerUrl}`);
       
       const webfingerResponse = await safeFetch(webfingerUrl, {
         headers: { 
           'Accept': 'application/jrd+json, application/json',
           'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
         },
-        timeoutMs: 10000, // 10 second timeout
+        timeoutMs: 10000,
       });
 
       if (!webfingerResponse.ok) {
-        logger.warn(`❌ WebFinger failed for ${username}@${domain}: ${webfingerResponse.status}`);
+        logger.warn(`WebFinger failed for ${username}@${domain}: ${webfingerResponse.status}`);
         return res.status(404).json({ 
           error: 'User not found on remote instance',
           details: `WebFinger returned ${webfingerResponse.status}`
@@ -220,10 +212,10 @@ router.post(
       let webfinger: { subject?: string; links?: Array<{ rel: string; type?: string; href?: string }> };
       
       if (contentType.includes('xml') || responseText.trim().startsWith('<?xml') || responseText.trim().startsWith('<XRD')) {
-        logger.info(`📋 WebFinger returned XML, parsing...`);
+        logger.info(`WebFinger returned XML, parsing...`);
         
-        // Parse XML WebFinger (XRD format)
-        // Extract links from XML like: <Link rel="self" type="application/activity+json" href="..."/>
+        // XRD format: <Link rel="self" type="application/activity+json" href="..."/>
+        // Attribute order varies by implementation, hence two patterns.
         const subjectMatch = responseText.match(/<Subject>([^<]+)<\/Subject>/);
         const selfLinkMatch = responseText.match(/<Link[^>]+rel="self"[^>]+type="application\/activity\+json"[^>]+href="([^"]+)"/);
         const altSelfLinkMatch = responseText.match(/<Link[^>]+href="([^"]+)"[^>]+type="application\/activity\+json"[^>]+rel="self"/);
@@ -231,7 +223,7 @@ router.post(
         const actorHref = selfLinkMatch?.[1] || altSelfLinkMatch?.[1];
         
         if (!actorHref) {
-          logger.warn(`❌ Could not find ActivityPub link in XML WebFinger for ${username}@${domain}`);
+          logger.warn(`Could not find ActivityPub link in XML WebFinger for ${username}@${domain}`);
           return res.status(404).json({
             error: 'User is not on an ActivityPub-compatible instance',
             details: 'No ActivityPub self link found in XRD response'
@@ -245,20 +237,19 @@ router.post(
           ]
         };
         
-        logger.info(`📋 Parsed XML WebFinger: found actor at ${actorHref}`);
+        logger.info(`Parsed XML WebFinger: found actor at ${actorHref}`);
       } else {
-        // Try to parse as JSON
         try {
           webfinger = JSON.parse(responseText);
         } catch (parseError) {
-          logger.error(`❌ Failed to parse WebFinger response: ${responseText.substring(0, 100)}...`);
+          logger.error(`Failed to parse WebFinger response: ${responseText.substring(0, 100)}...`);
           return res.status(500).json({
             error: 'Invalid WebFinger response from remote instance',
             details: 'Response was neither valid JSON nor XML'
           });
         }
       }
-      logger.info(`📋 WebFinger response: ${JSON.stringify(webfinger.links?.length || 0)} links`);
+      logger.info(`WebFinger response: ${JSON.stringify(webfinger.links?.length || 0)} links`);
       
       const selfLink = webfinger.links?.find((link: any) => 
         link.rel === 'self' && 
@@ -266,14 +257,14 @@ router.post(
       );
 
       if (!selfLink?.href) {
-        logger.warn(`❌ No ActivityPub link found in WebFinger response for ${username}@${domain}`);
+        logger.warn(`No ActivityPub link found in WebFinger response for ${username}@${domain}`);
         return res.status(404).json({ 
           error: 'User is not on an ActivityPub-compatible instance'
         });
       }
 
       // Step 2: Fetch the Actor
-      logger.info(`🌐 Fetching actor: ${selfLink.href}`);
+      logger.info(`Fetching actor: ${selfLink.href}`);
       // BUGS.md H15: selfLink.href comes from the remote webfinger response.
       // safeFetch re-validates the URL/DNS and follows redirects manually.
       const actorResponse = await safeFetch(selfLink.href, {
@@ -285,14 +276,14 @@ router.post(
       });
 
       if (!actorResponse.ok) {
-        logger.warn(`❌ Actor fetch failed: ${actorResponse.status}`);
+        logger.warn(`Actor fetch failed: ${actorResponse.status}`);
         return res.status(404).json({ 
           error: 'Failed to fetch user profile from remote instance'
         });
       }
 
       const actor = await actorResponse.json();
-      logger.info(`📋 Actor fetched: ${actor.preferredUsername || actor.name}`);
+      logger.info(`Actor fetched: ${actor.preferredUsername || actor.name}`);
       
       // Step 3: Fetch follower/following/posts counts from collections
       let followersCount = 0;
@@ -326,39 +317,37 @@ router.post(
       followingCount = following;
       postsCount = posts;
 
-      logger.info(`📊 Stats: ${postsCount} posts, ${followingCount} following, ${followersCount} followers`);
+      logger.info(`Stats: ${postsCount} posts, ${followingCount} following, ${followersCount} followers`);
 
       // Step 4: Convert and store the profile
-      // Debug: log actor emoji data
-      logger.debug(`📋 Actor has tag array: ${Array.isArray(actor.tag)}, length: ${actor.tag?.length || 0}`);
-      logger.debug(`📋 Actor has emojis object: ${!!actor.emojis}, keys: ${actor.emojis ? Object.keys(actor.emojis).length : 0}`);
+      logger.debug(`Actor has tag array: ${Array.isArray(actor.tag)}, length: ${actor.tag?.length || 0}`);
+      logger.debug(`Actor has emojis object: ${!!actor.emojis}, keys: ${actor.emojis ? Object.keys(actor.emojis).length : 0}`);
       if (actor.tag) {
         const emojiTags = actor.tag.filter((t: any) => t.type === 'Emoji');
-        logger.debug(`📋 Emoji tags in actor: ${emojiTags.length}`);
+        logger.debug(`Emoji tags in actor: ${emojiTags.length}`);
         if (emojiTags.length > 0) {
-          logger.debug(`📋 Sample emoji tag: ${JSON.stringify(emojiTags[0])}`);
+          logger.debug(`Sample emoji tag: ${JSON.stringify(emojiTags[0])}`);
         }
       }
       if (actor.emojis && Object.keys(actor.emojis).length > 0) {
         const firstKey = Object.keys(actor.emojis)[0];
-        logger.debug(`📋 Sample emoji from object: ${firstKey} = ${actor.emojis[firstKey]}`);
+        logger.debug(`Sample emoji from object: ${firstKey} = ${actor.emojis[firstKey]}`);
       }
       
       const profileData = actorToProfile(actor);
-      logger.debug(`📋 Profile bio_emojis count: ${profileData.bio_emojis?.length || 0}`);
+      logger.debug(`Profile bio_emojis count: ${profileData.bio_emojis?.length || 0}`);
       
-      // SECURITY: Double-check the domain from the actor data
-      // This protects against a remote server claiming to represent our domain
+      // SECURITY: reject a remote actor claiming the local instance domain.
       if (profileData.domain.toLowerCase() === config.INSTANCE_DOMAIN.toLowerCase()) {
-        logger.warn(`🚨 SECURITY: Remote actor claims local domain! Actor: ${actor.id}, Domain: ${profileData.domain}`);
+        logger.warn(`SECURITY: Remote actor claims local domain! Actor: ${actor.id}, Domain: ${profileData.domain}`);
         return res.status(400).json({ 
           error: 'Remote actor cannot claim local instance domain',
           security_violation: true
         });
       }
       
-      // SECURITY: Check if there's an existing LOCAL user with this username/domain
-      // This should not happen given the earlier domain check, but belt-and-suspenders
+      // SECURITY: second guard against overwriting a local profile. Unreachable
+      // given the domain check above.
       const { data: existingLocalUser } = await supabase
         .from('profiles')
         .select('id, is_local')
@@ -368,7 +357,7 @@ router.post(
         .maybeSingle();
       
       if (existingLocalUser) {
-        logger.warn(`🚨 SECURITY: Refusing to overwrite local user ${profileData.username}@${profileData.domain}`);
+        logger.warn(`SECURITY: Refusing to overwrite local user ${profileData.username}@${profileData.domain}`);
         return res.status(400).json({ 
           error: 'Cannot overwrite local user with federated data',
           security_violation: true
@@ -422,9 +411,9 @@ router.post(
         .single();
 
       if (saveError) {
-        // Handle race condition: if another request created this user, fetch it
+        // Concurrent request already inserted the row; read it back.
         if (saveError.message.includes('duplicate key') || saveError.code === '23505') {
-          logger.info(`🔄 Race condition detected, fetching existing user: ${username}@${domain}`);
+          logger.info(`Race condition detected, fetching existing user: ${username}@${domain}`);
           const { data: existingUser } = await supabase
             .from('profiles')
             .select('*')
@@ -435,14 +424,14 @@ router.post(
           if (existingUser) {
             savedUser = existingUser;
           } else {
-            logger.error(`❌ Failed to save remote user and couldn't find existing: ${saveError.message}`);
+            logger.error(`Failed to save remote user and couldn't find existing: ${saveError.message}`);
             return res.status(500).json({ 
               error: 'Failed to store user profile',
               details: saveError.message
             });
           }
         } else {
-          logger.error(`❌ Failed to save remote user: ${saveError.message}`);
+          logger.error(`Failed to save remote user: ${saveError.message}`);
           return res.status(500).json({ 
             error: 'Failed to store user profile',
             details: saveError.message
@@ -452,7 +441,7 @@ router.post(
         savedUser = upsertedUser;
       }
 
-      logger.info(`✅ ${forceRefresh ? 'Refreshed' : 'Created'} remote user: ${username}@${domain}`);
+      logger.info(`${forceRefresh ? 'Refreshed' : 'Created'} remote user: ${username}@${domain}`);
       
       if (actor.outbox) {
         fetchRecentPostsInBackground(savedUser.id, actor.outbox, supabase).catch(err => {
@@ -469,7 +458,7 @@ router.post(
       });
 
     } catch (error: any) {
-      logger.error(`❌ Error looking up remote user ${username}@${domain}:`, error);
+      logger.error(`Error looking up remote user ${username}@${domain}:`, error);
       
       if (error.name === 'AbortError' || error.name === 'TimeoutError') {
         return res.status(504).json({ 
@@ -511,8 +500,8 @@ router.post(
 
     const supabase = getSupabaseClient();
 
-    // Build a set of URL variants to check - fediverse platforms use different
-    // URL formats for the same post (e.g. GoToSocial: /users/x/statuses/ID vs /@x/statuses/ID)
+    // Fediverse platforms serve one post under several URL forms
+    // (GoToSocial: /users/x/statuses/ID vs /@x/statuses/ID).
     const urlVariants = new Set<string>([url]);
     try {
       const parsed = new URL(url);
@@ -535,7 +524,7 @@ router.post(
       if (mastoAt) {
         urlVariants.add(`${parsed.origin}/users/${mastoAt[1]}/statuses/${mastoAt[2]}`);
       }
-    } catch { /* invalid URL, just use the original */ }
+    } catch { /* invalid URL; only the original is used */ }
 
     const orFilter = [...urlVariants]
       .flatMap(u => [`ap_id.eq.${u}`, `url.eq.${u}`])
@@ -553,14 +542,14 @@ router.post(
       return res.json({ success: true, post_id: existing.id });
     }
 
-    logger.info(`🔍 Resolving remote post: ${url}`);
+    logger.info(`Resolving remote post: ${url}`);
     const result = await ActivityProcessor.fetchAndCreateRemotePost(url);
 
     if (!result) {
       return res.status(404).json({ error: 'Could not resolve remote post' });
     }
 
-    logger.info(`✅ Resolved remote post ${url} → ${result.id}`);
+    logger.info(`Resolved remote post ${url} → ${result.id}`);
     return res.json({ success: true, post_id: result.id });
   })
 );
@@ -582,9 +571,9 @@ router.post(
 
     const supabase = getSupabaseClient();
 
-    // SSRF gate (BUGS.md H14): never fetch a caller-supplied URL. The outbox
-    // URL is server-known state - require it to match the profile row, which
-    // reduces the client input to a mere confirmation.
+    // SSRF gate (BUGS.md H14): caller-supplied URLs are never fetched. The
+    // outbox URL must match the stored profile row, reducing client input to
+    // a confirmation of server-known state.
     const { data: profileRow } = await supabase
       .from('profiles')
       .select('outbox_url, is_local')
@@ -600,7 +589,7 @@ router.post(
       return res.status(400).json({ error: 'Invalid or disallowed outbox_url' });
     }
 
-    logger.info(`📬 Fetch posts request for user ${user_id} (load_more=${!!max_id})`);
+    logger.info(`Fetch posts request for user ${user_id} (load_more=${!!max_id})`);
 
     try {
       const result = await fetchRecentPostsInBackground(
@@ -608,7 +597,7 @@ router.post(
         outbox_url, 
         supabase, 
         max_id, 
-        Math.min(limit, 20) // Cap at 20
+        Math.min(limit, 20)
       );
 
       return res.json({
@@ -644,9 +633,9 @@ router.post(
     const supabase = getSupabaseClient();
     const results: Record<string, any> = {};
 
-    // Single round-trip metadata lookup for every entry that gave us a
-    // post_id. Used for the TTL cache hit-check below AND for the counts
-    // we return - avoids the original per-post SELECT roundtrip.
+    // One round-trip metadata lookup for every entry carrying a post_id,
+    // feeding both the TTL cache check below and the returned counts.
+    // Replaces a per-post SELECT.
     const idsToLookup = batch
       .map((e: any) => e.post_id)
       .filter((id: any): id is string => typeof id === 'string' && id.length > 0);
@@ -675,8 +664,8 @@ router.post(
 
         const cachedRow = entry.post_id ? postRowsById.get(entry.post_id) : null;
 
-        // TTL cache hit - skip all outbound HTTP. The aggregated
-        // `remote_reactions` is already on the row we just SELECTed.
+        // TTL cache hit: no outbound HTTP. The aggregated `remote_reactions`
+        // is on the row already SELECTed.
         if (cachedRow && isReactionsCacheFresh(cachedRow.metadata)) {
           results[entry.post_ap_id] = {
             success: true,
@@ -698,10 +687,10 @@ router.post(
           let updatedPost: any = null;
 
           if (entry.post_id) {
-            // Re-read AFTER the fetch - metadata may have been updated by
-            // `fetchRemotePostReactions` itself (Misskey path writes
-            // remote_reactions in-line; standard AP path writes only the
-            // raw `reactions` and lets us aggregate below).
+            // Re-read AFTER the fetch: `fetchRemotePostReactions` may have
+            // written metadata. The Misskey path writes remote_reactions
+            // in-line; the standard AP path returns raw reactions that are
+            // aggregated below.
             const { data } = await supabase
               .from('posts')
               .select('metadata, favorites_count, replies_count, reblogs_count')
@@ -741,9 +730,8 @@ router.post(
                 .eq('id', entry.post_id);
             }
           } else if (!remote_reactions && reactions.length === 0 && entry.post_id) {
-            // Successful fetch but zero reactions - still mark the TTL
-            // cache so we don't re-hit the origin for an empty post on
-            // every refresh.
+            // Successful fetch with zero reactions still marks the TTL cache;
+            // an empty post is not re-hit on every refresh.
             await markRemoteReactionsAttempted(entry.post_id, supabase);
           }
 
@@ -758,9 +746,8 @@ router.post(
           };
         } catch (error: any) {
           logger.error(`Batch fetch-reactions failed for ${entry.post_ap_id}:`, error.message);
-          // TTL-cache the failure so a broken remote (HTML 404 disguised
-          // as 200, malformed JSON, etc.) doesn't get re-tried on every
-          // refresh.
+          // TTL-cache the failure: a broken remote (HTML 404 served as 200,
+          // malformed JSON) is not re-tried on every refresh.
           await markRemoteReactionsAttempted(entry.post_id, supabase);
           results[entry.post_ap_id] = { success: false, error: error.message };
         }
@@ -780,31 +767,29 @@ router.post(
   '/fetch-reactions',
   discoveryLimiter,
   asyncHandler(async (req: Request, res: Response) => {
-    // Debug: log raw request body
-    logger.debug(`📬 fetch-reactions raw body: ${JSON.stringify(req.body)}`);
+    logger.debug(`fetch-reactions raw body: ${JSON.stringify(req.body)}`);
     
     const { post_ap_id, post_id } = req.body;
 
     if (!post_ap_id) {
-      logger.warn(`📬 fetch-reactions missing post_ap_id, body was: ${JSON.stringify(req.body)}`);
+      logger.warn(`fetch-reactions missing post_ap_id, body was: ${JSON.stringify(req.body)}`);
       return res.status(400).json({ error: 'post_ap_id is required' });
     }
 
     const supabase = getSupabaseClient();
 
-    // Skip federation fetch for local posts - data is already in the database
+    // Local posts already hold their reactions in the database.
     try {
       const apDomain = new URL(post_ap_id).hostname;
       if (apDomain === config.INSTANCE_DOMAIN) {
-        logger.debug(`📬 Skipping fetch-reactions for local post: ${post_ap_id}`);
+        logger.debug(`Skipping fetch-reactions for local post: ${post_ap_id}`);
         return res.json({ success: true, reactions: [], count: 0 });
       }
     } catch { /* invalid URL, proceed */ }
 
     try {
-      // TTL cache: skip the outbound HTTP if the row was refreshed within
-      // REACTIONS_TTL_MS. Read first; if cached, return without touching
-      // the network (the aggregated `remote_reactions` is right here).
+      // TTL cache: rows refreshed within REACTIONS_TTL_MS return the stored
+      // aggregate without touching the network.
       if (post_id) {
         const { data: cached } = await supabase
           .from('posts')
@@ -812,7 +797,7 @@ router.post(
           .eq('id', post_id)
           .maybeSingle();
         if (cached && isReactionsCacheFresh(cached.metadata)) {
-          logger.debug(`📬 fetch-reactions cache HIT for ${post_ap_id}`);
+          logger.debug(`fetch-reactions cache HIT for ${post_ap_id}`);
           return res.json({
             success: true,
             reactions: [],
@@ -826,7 +811,7 @@ router.post(
         }
       }
 
-      logger.info(`📬 Fetching reactions for remote post: ${post_ap_id}`);
+      logger.info(`Fetching reactions for remote post: ${post_ap_id}`);
 
       const reactions = await fetchRemotePostReactions(post_ap_id, post_id, supabase);
 
@@ -850,8 +835,9 @@ router.post(
         reblogs_count = updatedPost?.reblogs_count || 0;
       }
 
-      // For non-Misskey instances (Mastodon, Pleroma, GoToSocial), fetchRemotePostReactions
-      // returns raw reactions but never builds remote_reactions. Aggregate them here.
+      // For non-Misskey instances (Mastodon, Pleroma, GoToSocial),
+      // fetchRemotePostReactions returns raw reactions and never builds
+      // remote_reactions; aggregation happens here.
       if (!remote_reactions && reactions.length > 0) {
         const byEmoji = new Map<string, { count: number; url?: string; reactors: any[] }>();
         for (const r of reactions as Array<{ emoji: string; emoji_url?: string; actor?: any }>) {
@@ -884,8 +870,7 @@ router.post(
             .eq('id', post_id);
         }
       } else if (!remote_reactions && reactions.length === 0 && post_id) {
-        // Successful fetch returning zero reactions - TTL-cache the
-        // attempt to avoid re-hitting the origin on every refresh.
+        // Zero reactions on a successful fetch still TTL-caches the attempt.
         await markRemoteReactionsAttempted(post_id, supabase);
       }
 
@@ -900,8 +885,7 @@ router.post(
       });
     } catch (error: any) {
       logger.error('Failed to fetch reactions:', error);
-      // Same rationale as the batch handler: TTL-cache the failure to
-      // stop a broken remote from being re-hit on every refresh.
+      // TTL-cache the failure, as in the batch handler.
       await markRemoteReactionsAttempted(post_id, supabase);
       return res.status(500).json({ error: 'Failed to fetch reactions' });
     }
@@ -909,8 +893,7 @@ router.post(
 );
 
 /**
- * Extract note ID from a Misskey URL
- * e.g., "https://misskey.io/notes/abc123" -> "abc123"
+ * "https://misskey.io/notes/abc123" -> "abc123"
  */
 function extractMisskeyNoteId(url: string): string | null {
   const match = url.match(/\/notes\/([a-zA-Z0-9]+)/);
@@ -918,10 +901,9 @@ function extractMisskeyNoteId(url: string): string | null {
 }
 
 /**
- * Check if a URL is from a Misskey-like instance
+ * Hostname and path heuristics; covers Misskey and its forks.
  */
 function isMisskeyInstance(url: string): boolean {
-  // Common Misskey instance patterns
   const misskeyPatterns = [
     /misskey\./i,
     /\.misskey\./i,
@@ -935,7 +917,7 @@ function isMisskeyInstance(url: string): boolean {
 }
 
 /**
- * Fetch reactions using Misskey API
+ * Reactions via Misskey's POST /api/notes/reactions.
  */
 async function fetchMisskeyReactions(
   domain: string,
@@ -944,7 +926,7 @@ async function fetchMisskeyReactions(
   supabase: any
 ): Promise<any[]> {
   try {
-    logger.info(`📬 Fetching reactions via Misskey API for note: ${noteId} on ${domain}`);
+    logger.info(`Fetching reactions via Misskey API for note: ${noteId} on ${domain}`);
     
     const apiUrl = `https://${domain}/api/notes/reactions`;
     const response = await safeFetch(apiUrl, {
@@ -966,17 +948,15 @@ async function fetchMisskeyReactions(
     }
 
     const reactionsData = await response.json();
-    logger.info(`📬 Misskey returned ${reactionsData.length} reactions`);
+    logger.info(`Misskey returned ${reactionsData.length} reactions`);
 
-    // Aggregate reactions by emoji type for counting
-    // Store emoji URLs for custom emojis
+    // Counts per emoji type; custom emojis also carry a URL.
     const reactionCounts: Map<string, { count: number; emoji_url?: string; is_custom: boolean }> = new Map();
     const reactions: any[] = [];
     
-    // Fetch custom emoji definitions from the remote instance
-    // Two types of custom emojis in reactions:
-    // 1. Native to origin instance (e.g., :kawa_yu@.: on misskey.io) - need to fetch from origin's emoji API
-    // 2. Third-party emojis (e.g., :suteki2@fedibird.com:) - included in note's reactionEmojis
+    // Two custom-emoji classes in Misskey reactions:
+    // 1. Native to the origin instance (:kawa_yu@.:) - only in the origin's emoji API.
+    // 2. Third-party (:name@remote.example:) - present in the note's reactionEmojis.
     
     let thirdPartyEmojis: Record<string, string> = {};  // Emojis from other instances (via reactionEmojis)
     const originInstanceEmojis: Record<string, string> = {};  // Emojis native to the origin instance
@@ -994,31 +974,29 @@ async function fetchMisskeyReactions(
       
       if (noteResponse.ok) {
         const noteData = await noteResponse.json();
-        // reactionEmojis contains third-party emojis (from other instances, federated through this one)
+        // reactionEmojis holds emojis federated in from other instances.
         if (noteData.reactionEmojis) {
           thirdPartyEmojis = noteData.reactionEmojis;
-          logger.info(`📬 Found ${Object.keys(thirdPartyEmojis).length} third-party emoji definitions`);
+          logger.info(`Found ${Object.keys(thirdPartyEmojis).length} third-party emoji definitions`);
         }
       }
     } catch (e) {
-      logger.warn(`📬 Could not fetch note emoji definitions: ${e}`);
+      logger.warn(`Could not fetch note emoji definitions: ${e}`);
     }
     
-    // Collect emojis native to the origin instance (marked with @. in Misskey)
+    // Misskey marks origin-instance emojis with an @. suffix.
     const originEmojiNames: string[] = [];
     for (const reaction of reactionsData) {
       const emoji = reaction.type || '';
-      // Origin instance emojis end with @. like :kawa_yu@.:
       if (emoji.startsWith(':') && emoji.endsWith('@.:')) {
-        const emojiName = emoji.slice(1, -3); // Remove : and @.:
+        const emojiName = emoji.slice(1, -3); // strips leading ':' and trailing '@.:'
         originEmojiNames.push(emojiName);
       }
     }
     
-    // Fetch origin instance emoji URLs if we have any
     if (originEmojiNames.length > 0) {
       try {
-        logger.info(`📬 Fetching ${originEmojiNames.length} origin-instance emojis from ${domain}`);
+        logger.info(`Fetching ${originEmojiNames.length} origin-instance emojis from ${domain}`);
         const emojiResponse = await safeFetch(`https://${domain}/api/emojis`, {
           method: 'POST',
           headers: {
@@ -1031,30 +1009,30 @@ async function fetchMisskeyReactions(
         
         if (emojiResponse.ok) {
           const emojiData = await emojiResponse.json();
-          // emojiData.emojis is an array of { name, url, ... }
+          // emojiData.emojis: array of { name, url, ... }
           if (emojiData.emojis && Array.isArray(emojiData.emojis)) {
             for (const e of emojiData.emojis) {
               if (originEmojiNames.includes(e.name)) {
                 originInstanceEmojis[`:${e.name}@.:`] = e.url;
-                logger.debug(`📬 Found origin emoji :${e.name}@.: -> ${e.url}`);
+                logger.debug(`Found origin emoji :${e.name}@.: -> ${e.url}`);
               }
             }
-            logger.info(`📬 Found ${Object.keys(originInstanceEmojis).length} origin-instance emoji URLs`);
+            logger.info(`Found ${Object.keys(originInstanceEmojis).length} origin-instance emoji URLs`);
           }
         }
       } catch (e) {
-        logger.warn(`📬 Could not fetch origin-instance emoji definitions: ${e}`);
+        logger.warn(`Could not fetch origin-instance emoji definitions: ${e}`);
         
-        // Fallback: Try to construct URLs directly (Misskey standard pattern)
+        // Fallback to Misskey's conventional emoji URL layout.
         for (const name of originEmojiNames) {
           const fallbackUrl = `https://${domain}/emoji/${name}.webp`;
           originInstanceEmojis[`:${name}@.:`] = fallbackUrl;
-          logger.debug(`📬 Using fallback URL for :${name}@.: -> ${fallbackUrl}`);
+          logger.debug(`Using fallback URL for :${name}@.: -> ${fallbackUrl}`);
         }
       }
     }
     
-    // Just aggregate reactions by emoji - no need to create profiles for every reactor
+    // Reactors are aggregated by emoji only; no profile rows are created.
     for (const reaction of reactionsData) {
       const user = reaction.user;
       const emoji = reaction.type || '❤️';
@@ -1063,20 +1041,18 @@ async function fetchMisskeyReactions(
       let emojiUrl: string | undefined;
       
       if (isCustomEmoji) {
-        // Check if it's an origin-instance emoji (ends with @.:)
         if (emoji.endsWith('@.:')) {
           emojiUrl = originInstanceEmojis[emoji];
         } else {
-          // Try to find emoji URL from third-party emojis (federated through origin)
-          // The key in reactionEmojis is the emoji name without colons
-          const emojiName = emoji.slice(1, -1); // Remove : from both ends
+          // reactionEmojis is keyed by emoji name without surrounding colons.
+          const emojiName = emoji.slice(1, -1);
           emojiUrl = thirdPartyEmojis[emojiName] || thirdPartyEmojis[emoji];
         }
         
         if (emojiUrl) {
-          logger.debug(`📬 Found URL for custom emoji ${emoji}: ${emojiUrl}`);
+          logger.debug(`Found URL for custom emoji ${emoji}: ${emojiUrl}`);
         } else {
-          logger.debug(`📬 No URL found for custom emoji ${emoji}`);
+          logger.debug(`No URL found for custom emoji ${emoji}`);
         }
       }
       
@@ -1087,7 +1063,7 @@ async function fetchMisskeyReactions(
       }
       reactionCounts.set(emoji, existing);
       
-      // Cache the emoji in remote_emojis_cache for the emoji importer feature
+      // remote_emojis_cache backs the emoji importer.
       if (isCustomEmoji && emojiUrl) {
         try {
           let shortcode: string;
@@ -1095,12 +1071,12 @@ async function fetchMisskeyReactions(
           let normalizedFullCode: string;
           
           if (emoji.endsWith('@.:')) {
-            // Origin instance emoji: :kawa_yu@.: -> shortcode=kawa_yu, domain=misskey.io
+            // :kawa_yu@.: -> shortcode=kawa_yu, domain=origin
             shortcode = emoji.slice(1, -3);
             originDomain = domain;
             normalizedFullCode = `${shortcode}@${domain}`;
           } else if (emoji.includes('@')) {
-            // Third-party emoji: :suteki2@fedibird.com: -> shortcode=suteki2, domain=fedibird.com
+            // :name@remote.example: -> shortcode=name, domain=remote.example
             const match = emoji.match(/:([^@]+)@([^:]+):/);
             if (match) {
               shortcode = match[1];
@@ -1112,13 +1088,12 @@ async function fetchMisskeyReactions(
               normalizedFullCode = `${shortcode}@${domain}`;
             }
           } else {
-            // Simple emoji: :smile: -> shortcode=smile, domain=origin
+            // :smile: -> shortcode=smile, domain=origin
             shortcode = emoji.slice(1, -1);
             originDomain = domain;
             normalizedFullCode = `${shortcode}@${domain}`;
           }
           
-          // Upsert into remote_emojis_cache
           await supabase.rpc('upsert_remote_emoji', {
             p_shortcode: shortcode,
             p_origin_domain: originDomain,
@@ -1126,10 +1101,10 @@ async function fetchMisskeyReactions(
             p_url: emojiUrl,
           });
           
-          logger.debug(`📬 Cached remote emoji: ${shortcode}@${originDomain}`);
+          logger.debug(`Cached remote emoji: ${shortcode}@${originDomain}`);
         } catch (cacheError) {
-          // Don't fail the whole operation if caching fails
-          logger.debug(`📬 Could not cache emoji ${emoji}: ${cacheError}`);
+          // Cache write failure is non-fatal.
+          logger.debug(`Could not cache emoji ${emoji}: ${cacheError}`);
         }
       }
       
@@ -1140,19 +1115,18 @@ async function fetchMisskeyReactions(
           url: url as string,
         }));
         if (displayNameEmojis.length > 0) {
-          logger.debug(`📬 Found ${displayNameEmojis.length} display name emojis for ${user?.username}`);
+          logger.debug(`Found ${displayNameEmojis.length} display name emojis for ${user?.username}`);
         }
       }
       
-      // Debug: log user host value
       if (user?.host !== null && user?.host !== undefined) {
-        logger.debug(`📬 Reactor ${user?.username} has host: "${user.host}"`);
+        logger.debug(`Reactor ${user?.username} has host: "${user.host}"`);
       }
       
-      // Determine the reactor's domain - user.host is null for local users in Misskey
+      // Misskey reports user.host as null (or '.') for its own local users.
       const reactorDomain = (user?.host && user.host !== '.') ? user.host : domain;
       
-      // Build reaction object with actor info (for display purposes only, no DB storage)
+      // Actor info is for display only; nothing is persisted.
       reactions.push({
         emoji,
         emoji_url: emojiUrl,
@@ -1176,7 +1150,7 @@ async function fetchMisskeyReactions(
         .eq('id', postId)
         .single();
       
-      // Group reactions by emoji with first 10 reactors
+      // Reactors grouped by emoji, capped at 10 per emoji.
       const reactorsByEmoji: Map<string, Array<{
         username: string;
         display_name: string;
@@ -1191,7 +1165,6 @@ async function fetchMisskeyReactions(
           reactorsByEmoji.set(emoji, []);
         }
         const reactors = reactorsByEmoji.get(emoji)!;
-        // Only keep first 10 reactors per emoji
         if (reactors.length < 10 && reaction.actor) {
           reactors.push({
             username: reaction.actor.username,
@@ -1203,7 +1176,6 @@ async function fetchMisskeyReactions(
         }
       }
       
-      // Build reaction summary with emoji URLs and reactor info
       const reactionSummary: Record<string, { 
         count: number; 
         url?: string;
@@ -1217,12 +1189,9 @@ async function fetchMisskeyReactions(
       }> = {};
       
       for (const [emoji, data] of reactionCounts) {
-        // Normalize emoji key for frontend display
-        // Misskey format: :emoji_name@.: or :emoji_name@domain:
-        // We want: :emoji_name: (clean format)
+        // Misskey keys are :name@.: or :name@domain:; the frontend expects :name:.
         let normalizedEmoji = emoji;
         if (emoji.startsWith(':') && emoji.endsWith(':')) {
-          // Remove @. and @domain suffixes from within the colons
           normalizedEmoji = emoji.replace(/@[^:]*:$/, ':');
         }
         
@@ -1248,17 +1217,17 @@ async function fetchMisskeyReactions(
         .eq('id', postId);
       
       if (updateError) {
-        logger.warn(`📬 Failed to update post metadata: ${updateError.message}`);
+        logger.warn(`Failed to update post metadata: ${updateError.message}`);
       } else {
         const totalReactors = Array.from(reactorsByEmoji.values()).reduce((sum, r) => sum + r.length, 0);
-        logger.info(`📬 Updated post with ${reactionCounts.size} reaction types, ${totalReactors} reactor profiles`);
+        logger.info(`Updated post with ${reactionCounts.size} reaction types, ${totalReactors} reactor profiles`);
       }
     }
     
     const summary = Array.from(reactionCounts.entries())
       .map(([emoji, data]) => `${emoji}: ${data.count}`)
       .join(', ');
-    logger.info(`📬 Reaction breakdown: ${summary}`);
+    logger.info(`Reaction breakdown: ${summary}`);
 
     return reactions;
   } catch (error) {
@@ -1270,25 +1239,24 @@ async function fetchMisskeyReactions(
 /**
  * Fetch reactions from a remote post's likes collection.
  *
- * Concurrent calls for the same `postApId` are coalesced via
- * `inFlightReactionFetches` so a profile viewed by 5 users in the same
- * second produces ONE outbound burst, not five. The TTL cache itself
- * lives in the route handlers (they already SELECT the post row, so
- * checking the cache adds zero DB round-trips there).
+ * Concurrent calls for the same `postApId` are coalesced through
+ * `inFlightReactionFetches` into a single outbound burst. The TTL cache
+ * lives in the route handlers, which already SELECT the post row and so
+ * check it without extra DB round-trips.
  */
 async function fetchRemotePostReactions(
   postApId: string,
   postId: string | undefined,
   supabase: any
 ): Promise<any[]> {
-  // Skip local posts up-front so dedup map never traps a same-host key.
+  // Local posts return before the dedup map can hold a same-host key.
   try {
     if (new URL(postApId).hostname === config.INSTANCE_DOMAIN) return [];
-  } catch { /* invalid URL - fall through, _impl handles the failure */ }
+  } catch { /* invalid URL; _impl handles the failure */ }
 
   const existing = inFlightReactionFetches.get(postApId);
   if (existing) {
-    logger.debug(`📬 In-flight dedup HIT for ${postApId}`);
+    logger.debug(`In-flight dedup HIT for ${postApId}`);
     return existing;
   }
 
@@ -1307,7 +1275,7 @@ async function _fetchRemotePostReactionsImpl(
   supabase: any
 ): Promise<any[]> {
   try {
-    // Skip local posts - reactions are already in our DB
+    // Local post reactions are already in the DB.
     try {
       const apDomain = new URL(postApId).hostname;
       if (apDomain === config.INSTANCE_DOMAIN) {
@@ -1315,7 +1283,7 @@ async function _fetchRemotePostReactionsImpl(
       }
     } catch { /* invalid URL, proceed */ }
 
-    // Check if this is a Misskey instance and try their API first
+    // Misskey's native API carries emoji reactions that ActivityPub does not.
     if (isMisskeyInstance(postApId)) {
       const noteId = extractMisskeyNoteId(postApId);
       const domain = new URL(postApId).hostname;
@@ -1325,23 +1293,21 @@ async function _fetchRemotePostReactionsImpl(
         if (misskeyReactions.length > 0) {
           return misskeyReactions;
         }
-        // Fall through to standard ActivityPub if Misskey API fails
-        logger.info(`📬 Misskey API returned no reactions, trying standard ActivityPub...`);
+        // Empty result falls through to the standard ActivityPub path.
+        logger.info(`Misskey API returned no reactions, trying standard ActivityPub...`);
       }
     }
 
-    // Standard ActivityPub approach.
+    // Standard ActivityPub path.
     //
     // Mastodon, Pleroma, Akkoma, GoToSocial, Friendica, Pixelfed and Harmony
-    // all serialize a Note's likes collection at `${ap_id}/likes`. We try that
-    // URL first to skip the post-object roundtrip. Only if it 404s (or some
-    // other non-OK response) do we fall back to the legacy "fetch the post,
-    // read its `likes` property" path, which protects compatibility with
-    // non-conventional AP implementations.
+    // serialize a Note's likes collection at `${ap_id}/likes`. That URL is
+    // tried first to skip the post-object roundtrip. A non-OK response falls
+    // back to fetching the post and reading its `likes` property, which keeps
+    // non-conventional AP implementations working.
     //
-    // BUGS.md H15: postApId is attacker-influenced (from inbox / remote feed),
-    // so every outbound call is wrapped by safeFetch which enforces SSRF
-    // protection.
+    // BUGS.md H15: postApId is attacker-influenced (inbox / remote feed);
+    // every outbound call goes through safeFetch for SSRF protection.
     const apHeaders = {
       'Accept': 'application/activity+json, application/ld+json',
       'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`,
@@ -1369,19 +1335,17 @@ async function _fetchRemotePostReactionsImpl(
 
       if (!postResponse.ok) {
         logger.warn(`Failed to fetch post: ${postResponse.status}`);
-        // 404 / 410 / unauthorized on a remote post is sticky for the TTL
-        // window - mark it attempted so the next feed refresh doesn't
-        // re-hit the origin for a known-dead post.
+        // 404 / 410 / unauthorized is sticky for the TTL window; a known-dead
+        // post is not re-hit on the next feed refresh.
         await markRemoteReactionsAttempted(postId, supabase);
         return [];
       }
 
       const post = await postResponse.json();
 
-      // Self-healing counts on the fallback path: when we already paid for
-      // the post object, salvage favourites/replies/shares counts from it.
-      // Hot-path callers (shortcut succeeded) rely on counts staying current
-      // via inbound /inbox events instead.
+      // Fallback path only: the post object is already fetched, so
+      // favourites/replies/shares counts are salvaged from it. On the
+      // shortcut path counts stay current via inbound /inbox events.
       const counts = {
         likes: post.likes?.totalItems || post.favouritesCount || post._misskey_likes || 0,
         replies: post.replies?.totalItems || post.repliesCount || 0,
@@ -1435,7 +1399,7 @@ async function _fetchRemotePostReactionsImpl(
 
       try {
         if (new URL(likesCollectionUrl).hostname === config.INSTANCE_DOMAIN) {
-          logger.info(`📬 Skipping self-fetch for likes: ${likesCollectionUrl}`);
+          logger.info(`Skipping self-fetch for likes: ${likesCollectionUrl}`);
           await markRemoteReactionsAttempted(postId, supabase);
           return [];
         }
@@ -1453,9 +1417,8 @@ async function _fetchRemotePostReactionsImpl(
       likesCollection = await likesResponse.json();
     }
 
-    // Self-healing of favorites_count from the likes collection itself -
-    // works on both the shortcut and fallback paths and is a single column
-    // write, much cheaper than the full counts update above.
+    // favorites_count from the collection's own totalItems. Applies to both
+    // paths and is a single-column write, unlike the counts update above.
     if (postId && typeof likesCollection?.totalItems === 'number') {
       await supabase
         .from('posts')
@@ -1470,7 +1433,6 @@ async function _fetchRemotePostReactionsImpl(
     } else if (likesCollection.items) {
       items = likesCollection.items;
     } else if (likesCollection.first) {
-      // Need to fetch first page
       const firstPageUrl = typeof likesCollection.first === 'string' 
         ? likesCollection.first 
         : likesCollection.first.id;
@@ -1489,23 +1451,23 @@ async function _fetchRemotePostReactionsImpl(
       }
     }
 
-    logger.info(`📬 Found ${items.length} reactions`);
+    logger.info(`Found ${items.length} reactions`);
 
     const reactions: any[] = [];
     
-    for (const item of items.slice(0, 50)) { // Limit to 50 reactions
+    for (const item of items.slice(0, 50)) {
       try {
         let actorUrl: string;
-        let emoji: string = '❤️'; // Default to heart
+        let emoji: string = '❤️';
         let reactionContent: string | null = null;
 
         if (typeof item === 'string') {
-          // Simple actor URL (just a like)
+          // Bare actor URL denotes a plain Like.
           actorUrl = item;
         } else if (item.type === 'Like' || item.type === 'EmojiReaction') {
           actorUrl = typeof item.actor === 'string' ? item.actor : item.actor?.id;
           
-          // Check for custom emoji content (Misskey style)
+          // Misskey carries the reaction emoji in `content` / `_misskey_reaction`.
           if (item.content) {
             emoji = item.content;
             reactionContent = item.content;
@@ -1514,7 +1476,7 @@ async function _fetchRemotePostReactionsImpl(
             emoji = item._misskey_reaction;
             reactionContent = item._misskey_reaction;
           }
-          // Check for tag-based emoji (Mastodon/Pleroma: custom emoji with icon URL)
+          // Mastodon/Pleroma name the custom emoji in an Emoji tag.
           if (item.tag && Array.isArray(item.tag)) {
             const emojiTag = item.tag.find((t: any) => t.type === 'Emoji');
             if (emojiTag) {
@@ -1528,7 +1490,7 @@ async function _fetchRemotePostReactionsImpl(
 
         if (!actorUrl) continue;
 
-        // Extract custom emoji URL (Mastodon/Pleroma: tag.icon.url)
+        // Mastodon/Pleroma emoji image lives at tag.icon.url.
         let emojiUrl: string | null = null;
         if (item.tag && Array.isArray(item.tag)) {
           const emojiTag = item.tag.find((t: any) => t.type === 'Emoji');
@@ -1538,7 +1500,7 @@ async function _fetchRemotePostReactionsImpl(
           }
         }
 
-        // Try to get actor info
+        // Known profiles supply full actor info; otherwise it is derived from the URL.
         let actorInfo: any = { url: actorUrl };
         
         const { data: localProfile } = await supabase
@@ -1574,7 +1536,7 @@ async function _fetchRemotePostReactionsImpl(
           actor_url: actorUrl,
         });
 
-        // If we have a local post ID, store the reaction
+        // Persisted only when both the post and the reactor are known locally.
         if (postId && localProfile?.id) {
           await supabase
             .from('post_interactions')
@@ -1593,7 +1555,7 @@ async function _fetchRemotePostReactionsImpl(
       }
     }
 
-    logger.info(`📬 Processed ${reactions.length} reactions for post`);
+    logger.info(`Processed ${reactions.length} reactions for post`);
     return reactions;
 
   } catch (error) {
@@ -1619,16 +1581,16 @@ router.post(
 
     const supabase = getSupabaseClient();
 
-    // Skip federation fetch for local posts - replies are already in the database
+    // Local posts already hold their replies in the database.
     try {
       const apDomain = new URL(post_ap_id).hostname;
       if (apDomain === config.INSTANCE_DOMAIN) {
-        logger.debug(`📬 Skipping fetch-replies for local post: ${post_ap_id}`);
+        logger.debug(`Skipping fetch-replies for local post: ${post_ap_id}`);
         return res.json({ success: true, replies: [], count: 0 });
       }
     } catch { /* invalid URL, proceed */ }
 
-    logger.info(`📬 Fetching replies for remote post: ${post_ap_id}`);
+    logger.info(`Fetching replies for remote post: ${post_ap_id}`);
 
     try {
       const replies = await fetchRemotePostReplies(post_ap_id, post_id, supabase, Math.min(limit, 20));
@@ -1657,7 +1619,7 @@ router.post(
 );
 
 /**
- * Fetch replies using Misskey API
+ * Replies via Misskey's POST /api/notes/children.
  */
 async function fetchMisskeyReplies(
   domain: string,
@@ -1667,7 +1629,7 @@ async function fetchMisskeyReplies(
   limit: number = 10
 ): Promise<any[]> {
   try {
-    logger.info(`📬 Fetching replies via Misskey API for note: ${noteId} on ${domain}`);
+    logger.info(`Fetching replies via Misskey API for note: ${noteId} on ${domain}`);
     
     const apiUrl = `https://${domain}/api/notes/children`;
     const response = await safeFetch(apiUrl, {
@@ -1689,7 +1651,7 @@ async function fetchMisskeyReplies(
     }
 
     const childNotes = await response.json();
-    logger.info(`📬 Misskey returned ${childNotes.length} replies/children`);
+    logger.info(`Misskey returned ${childNotes.length} replies/children`);
 
     const replies: any[] = [];
     
@@ -1756,9 +1718,9 @@ async function fetchMisskeyReplies(
 
       if (!authorId) continue;
 
-      // Convert Misskey note to ActivityPub-like format for noteToContent
+      // Shaped as an ActivityPub Note for noteToContent.
       const apLikeNote: any = {
-        // Misskey uses 'text' but AP uses 'content' - wrap in paragraph tags
+        // Misskey's plain-text `text` maps to AP `content`, wrapped in <p>.
         content: note.text ? `<p>${note.text.replace(/\n/g, '<br>')}</p>` : '',
         tag: [],
         attachment: [],
@@ -1774,7 +1736,7 @@ async function fetchMisskeyReplies(
         }
       }
       
-      // Also check reactionEmojis for emoji URLs
+      // reactionEmojis carries emoji URLs absent from note.emojis.
       if (note.reactionEmojis && typeof note.reactionEmojis === 'object') {
         for (const [name, url] of Object.entries(note.reactionEmojis)) {
           if (!apLikeNote.tag.some((t: any) => t.name === `:${name}:`)) {
@@ -1810,7 +1772,6 @@ async function fetchMisskeyReplies(
         }
       }
       
-      // Use the proper content converter
       const { noteToContent } = await import('./converters/fromActivityPub.js');
       const content = noteToContent(apLikeNote);
 
@@ -1833,7 +1794,7 @@ async function fetchMisskeyReplies(
             : note.visibility === 'followers' ? 'followers'
             : 'direct',
           in_reply_to: parentPostId,
-          content_warning: note.cw || null, // Misskey uses 'cw' for content warning
+          content_warning: note.cw || null, // Misskey names the content warning 'cw'
           is_sensitive: note.sensitive === true,
           metadata: {
             in_reply_to_ap_url: `https://${domain}/notes/${noteId}`,
@@ -1862,7 +1823,7 @@ async function fetchMisskeyReplies(
 }
 
 /**
- * Fetch replies from a remote post's replies collection
+ * Fetch replies from a remote post's replies collection.
  */
 async function fetchRemotePostReplies(
   postApId: string,
@@ -1871,7 +1832,7 @@ async function fetchRemotePostReplies(
   limit: number = 10
 ): Promise<any[]> {
   try {
-    // Check if this is a Misskey instance and try their API first
+    // Misskey's children API returns full notes, avoiding per-reply fetches.
     if (isMisskeyInstance(postApId)) {
       const noteId = extractMisskeyNoteId(postApId);
       const domain = new URL(postApId).hostname;
@@ -1881,14 +1842,15 @@ async function fetchRemotePostReplies(
         if (misskeyReplies.length > 0) {
           return misskeyReplies;
         }
-        // Fall through to standard ActivityPub if Misskey API fails
-        logger.info(`📬 Misskey API returned no replies, trying standard ActivityPub...`);
+        // Empty result falls through to the standard ActivityPub path.
+        logger.info(`Misskey API returned no replies, trying standard ActivityPub...`);
       }
     }
 
-    // Standard ActivityPub approach
-    // Fetch the post object to get the replies collection URL.
-    // BUGS.md H15: postApId attacker-influenced.
+    // Standard ActivityPub path: the post object carries the replies
+    // collection URL.
+    // BUGS.md H15: postApId is attacker-influenced; safeFetch enforces SSRF
+    // protection.
     const postResponse = await safeFetch(postApId, {
       headers: {
         'Accept': 'application/activity+json, application/ld+json',
@@ -1919,12 +1881,12 @@ async function fetchRemotePostReplies(
 
     const repliesUrl = post.replies;
     if (!repliesUrl) {
-      logger.info(`📬 No replies collection found for post`);
+      logger.info(`No replies collection found for post`);
       return [];
     }
 
     const repliesCollectionUrl = typeof repliesUrl === 'string' ? repliesUrl : repliesUrl.id;
-    logger.info(`📬 Fetching replies from: ${repliesCollectionUrl}`);
+    logger.info(`Fetching replies from: ${repliesCollectionUrl}`);
 
     const repliesResponse = await safeFetch(repliesCollectionUrl, {
       headers: {
@@ -1948,7 +1910,6 @@ async function fetchRemotePostReplies(
     } else if (repliesCollection.items) {
       items = repliesCollection.items;
     } else if (repliesCollection.first) {
-      // Need to fetch first page
       const firstPageUrl = typeof repliesCollection.first === 'string' 
         ? repliesCollection.first 
         : repliesCollection.first.id;
@@ -1967,7 +1928,7 @@ async function fetchRemotePostReplies(
       }
     }
 
-    logger.info(`📬 Found ${items.length} replies`);
+    logger.info(`Found ${items.length} replies`);
 
     const { noteToContent } = await import('./converters/fromActivityPub.js');
     
@@ -1975,10 +1936,9 @@ async function fetchRemotePostReplies(
     
     for (const item of items.slice(0, limit)) {
       try {
-        // Get the actual Note object
+        // Collection entries are Note objects, Create activities, or URLs.
         let note = item;
         if (typeof item === 'string') {
-          // It's a URL - need to fetch it
           const noteResponse = await safeFetch(item, {
             headers: {
               'Accept': 'application/activity+json, application/ld+json',
@@ -2020,7 +1980,6 @@ async function fetchRemotePostReplies(
           .maybeSingle();
 
         if (!author) {
-          // Try to create the user
           try {
             const actorResponse = await safeFetch(authorUrl, {
               headers: {
@@ -2096,14 +2055,14 @@ async function fetchRemotePostReplies(
 
         if (!insertError && newReply) {
           savedReplies.push({ id: newReply.id, ap_id: note.id, new: true });
-          logger.debug(`📬 Saved reply: ${note.id}`);
+          logger.debug(`Saved reply: ${note.id}`);
         }
       } catch (err) {
         logger.debug(`Failed to process reply:`, err);
       }
     }
 
-    logger.info(`📬 Saved ${savedReplies.filter(r => r.new).length} new replies`);
+    logger.info(`Saved ${savedReplies.filter(r => r.new).length} new replies`);
     return savedReplies;
 
   } catch (error) {
@@ -2113,12 +2072,11 @@ async function fetchRemotePostReplies(
 }
 
 /**
- * Generate keys for a local user
+ * Generate an RSA keypair for a local user that lacks one.
  * POST /generate-keys (proxied via /api/federation/generate-keys)
  * Body: { user_id: uuid }
- * 
- * This endpoint generates RSA keys for a local user if they don't have them.
- * Called during profile creation to ensure users are federation-ready.
+ *
+ * Called during profile creation.
  */
 router.post(
   '/generate-keys',
@@ -2154,7 +2112,7 @@ router.post(
         .maybeSingle();
 
       if (privateKeyExists) {
-        logger.info(`🔐 Keys already exist for user ${profile.username}`);
+        logger.info(`Keys already exist for user ${profile.username}`);
         return res.json({ 
           success: true, 
           message: 'Keys already exist',
@@ -2163,13 +2121,13 @@ router.post(
       }
     }
 
-    logger.info(`🔐 Generating keys for user ${profile.username}...`);
+    logger.info(`Generating keys for user ${profile.username}...`);
     
     try {
       const { SignatureService } = await import('./SignatureService.js');
       const keys = await SignatureService.generateKeyPair();
 
-      // Store private key first
+      // Private key is stored first and deleted again if the public key write fails.
       const { error: privateKeyError } = await supabase
         .from('user_private_keys')
         .upsert({
@@ -2197,7 +2155,7 @@ router.post(
         return res.status(500).json({ error: 'Failed to store public key' });
       }
 
-      logger.info(`✅ Generated keys for user ${profile.username}`);
+      logger.info(`Generated keys for user ${profile.username}`);
       
       return res.json({
         success: true,
@@ -2212,8 +2170,7 @@ router.post(
 );
 
 /**
- * Actor endpoint
- * GET /users/:username - Returns ActivityPub Actor object
+ * GET /users/:username - ActivityPub Actor object.
  */
 router.get(
   '/users/:username',
@@ -2234,7 +2191,7 @@ router.get(
       });
     }
 
-    // Ensure federated_id is set for local users (required for incoming activity lookups)
+    // Incoming activity lookups key on federated_id; backfill it for local users.
     const expectedFederatedId = `https://${config.INSTANCE_DOMAIN}/users/${profile.username}`;
     if (!profile.federated_id || profile.federated_id !== expectedFederatedId) {
       await supabase
@@ -2251,15 +2208,15 @@ router.get(
       profile.federated_id = expectedFederatedId;
     }
 
-    // SAFETY NET: Generate keys on-the-fly if missing
+    // Keys are generated here when /generate-keys never ran for this profile.
     if (!profile.public_key) {
-      logger.info(`🔐 Actor ${username} missing keys, generating on-the-fly...`);
+      logger.info(`Actor ${username} missing keys, generating on-the-fly...`);
       
       try {
         const { SignatureService } = await import('./SignatureService.js');
         const keys = await SignatureService.generateKeyPair();
 
-        // Store private key first
+        // Private key is stored first and deleted again if the public key write fails.
         const { error: privateKeyError } = await supabase
           .from('user_private_keys')
           .upsert({
@@ -2275,7 +2232,7 @@ router.get(
 
           if (!publicKeyError) {
             profile.public_key = keys.publicKey;
-            logger.info(`✅ Generated keys on-the-fly for ${username}`);
+            logger.info(`Generated keys on-the-fly for ${username}`);
           } else {
             await supabase
               .from('user_private_keys')
@@ -2288,25 +2245,23 @@ router.get(
         }
       } catch (genError) {
         logger.error(`Failed to generate keys for ${username}:`, genError);
-        // Continue anyway - the Actor response will just have no public key
+        // Non-fatal: the Actor response omits publicKey.
       }
     }
 
-    // Resolve emoji shortcodes for local users so remote instances can render them
+    // Shortcodes resolve to Emoji tags so remote instances can render them.
     await resolveLocalProfileEmojis(profile, supabase);
 
     const actor = profileToActor(profile);
 
     res.setHeader('Content-Type', 'application/activity+json');
-    // Allow remote servers to cache actor for 5 minutes, reducing redundant fetches
     res.setHeader('Cache-Control', 'public, max-age=300');
     res.json(actor);
   })
 );
 
 /**
- * Featured/Pinned posts collection endpoint
- * GET /users/:username/featured - Returns pinned posts
+ * GET /users/:username/featured - OrderedCollection of pinned posts, max 10.
  */
 router.get(
   '/users/:username/featured',
@@ -2343,7 +2298,6 @@ router.get(
       return res.status(500).json({ error: 'Failed to fetch pinned posts' });
     }
 
-    // Convert posts to ActivityPub Note objects
     const orderedItems = (pinnedPosts || []).map(post => {
       const postUrl = post.ap_id || `${baseUrl}/posts/${post.id}`;
       
@@ -2380,7 +2334,6 @@ router.get(
     });
 
     res.setHeader('Content-Type', 'application/activity+json');
-    // Allow remote servers to cache featured posts for 5 minutes
     res.setHeader('Cache-Control', 'public, max-age=300');
     res.json({
       '@context': 'https://www.w3.org/ns/activitystreams',
@@ -2393,12 +2346,12 @@ router.get(
 );
 
 /**
- * Followers collection endpoint with cursor-based pagination
  * GET /users/:username/followers
  * Query params:
- *   - cursor: ID of last item (for cursor-based pagination)
- *   - page: Page number (legacy, for backwards compatibility)
- *   - limit: Items per page (default 20, max 100)
+ *   - cursor: id of the last item seen
+ *   - page: page number, legacy
+ *   - limit: items per page, default 20, max 100
+ * Without cursor or page the response is collection metadata only.
  */
 router.get(
   '/users/:username/followers',
@@ -2423,7 +2376,6 @@ router.get(
     const baseUrl = `https://${config.INSTANCE_DOMAIN}`;
     const collectionUrl = `${baseUrl}/users/${username}/followers`;
 
-    // If no page/cursor, return collection metadata
     if (!page && !cursor) {
       const { count } = await supabase
         .from('follows')
@@ -2432,7 +2384,6 @@ router.get(
         .eq('status', 'accepted');
 
       res.setHeader('Content-Type', 'application/activity+json');
-      // Allow remote servers to cache followers collection for 5 minutes
       res.setHeader('Cache-Control', 'public, max-age=300');
       return res.json({
         '@context': 'https://www.w3.org/ns/activitystreams',
@@ -2458,7 +2409,7 @@ router.get(
       .eq('following_id', user.id)
       .eq('status', 'accepted')
       .order('created_at', { ascending: false })
-      .limit(limit + 1); // Fetch one extra to detect if there's more
+      .limit(limit + 1); // one extra row signals a further page
 
     if (cursor && cursor !== 'start') {
       const { data: cursorFollow } = await supabase
@@ -2471,7 +2422,6 @@ router.get(
         query = query.lt('created_at', cursorFollow.created_at);
       }
     } else if (page) {
-      // Legacy page-based pagination
       const offset = (parseInt(page) - 1) * limit;
       query = query.range(offset, offset + limit - 1);
     }
@@ -2481,7 +2431,7 @@ router.get(
     const items = (follows || []).slice(0, limit);
     const lastItem = items[items.length - 1];
 
-    // Build follower actor URLs
+    // federated_id, else a URL derived from domain and username.
     const orderedItems = items.map((f: any) => {
       if (f.follower?.federated_id) return f.follower.federated_id;
       if (f.follower?.domain) return `https://${f.follower.domain}/users/${f.follower.username}`;
@@ -2501,19 +2451,18 @@ router.get(
     }
 
     res.setHeader('Content-Type', 'application/activity+json');
-    // Allow remote servers to cache followers page for 5 minutes
     res.setHeader('Cache-Control', 'public, max-age=300');
     res.json(response);
   })
 );
 
 /**
- * Following collection endpoint with cursor-based pagination
  * GET /users/:username/following
  * Query params:
- *   - cursor: ID of last item (for cursor-based pagination)
- *   - page: Page number (legacy, for backwards compatibility)
- *   - limit: Items per page (default 20, max 100)
+ *   - cursor: id of the last item seen
+ *   - page: page number, legacy
+ *   - limit: items per page, default 20, max 100
+ * Without cursor or page the response is collection metadata only.
  */
 router.get(
   '/users/:username/following',
@@ -2538,7 +2487,6 @@ router.get(
     const baseUrl = `https://${config.INSTANCE_DOMAIN}`;
     const collectionUrl = `${baseUrl}/users/${username}/following`;
 
-    // If no page/cursor, return collection metadata
     if (!page && !cursor) {
       const { count } = await supabase
         .from('follows')
@@ -2547,7 +2495,6 @@ router.get(
         .eq('status', 'accepted');
 
       res.setHeader('Content-Type', 'application/activity+json');
-      // Allow remote servers to cache following collection for 5 minutes
       res.setHeader('Cache-Control', 'public, max-age=300');
       return res.json({
         '@context': 'https://www.w3.org/ns/activitystreams',
@@ -2595,7 +2542,7 @@ router.get(
     const items = (follows || []).slice(0, limit);
     const lastItem = items[items.length - 1];
 
-    // Build following actor URLs
+    // federated_id, else a URL derived from domain and username.
     const orderedItems = items.map((f: any) => {
       if (f.following?.federated_id) return f.following.federated_id;
       if (f.following?.domain) return `https://${f.following.domain}/users/${f.following.username}`;
@@ -2615,51 +2562,48 @@ router.get(
     }
 
     res.setHeader('Content-Type', 'application/activity+json');
-    // Allow remote servers to cache following page for 5 minutes
     res.setHeader('Cache-Control', 'public, max-age=300');
     res.json(response);
   })
 );
 
-// Cache for next page URLs per user
+// Outbox pagination state, keyed by author id. Process-local; lost on restart.
 const userNextPageCache = new Map<string, string | null>();
 
-// Track fetched URLs per user to detect loops
+// Visited page URLs; a repeat means the remote's `next` chain loops.
 const userFetchedUrls = new Map<string, Set<string>>();
 
 const userZeroSaveCount = new Map<string, number>();
 
-// Max consecutive zero-save fetches before giving up
 const MAX_ZERO_SAVES = 3;
 
 /**
- * Fetch recent posts from a remote user's outbox in the background
- * Uses proper ActivityPub pagination via 'next' links
+ * Fetch recent posts from a remote user's outbox.
+ * Paginates by following the collection's `next` links.
  */
 async function fetchRecentPostsInBackground(
   authorId: string, 
   outboxUrl: string, 
   supabase: any,
-  maxId?: string, // Used to signal "get next page" - we use cached next URL
+  maxId?: string, // presence requests the next page; the cached next URL is used
   limit: number = 10
 ): Promise<{ hasMore: boolean; oldestId?: string; nextPageUrl?: string }> {
   try {
     let fetchUrl: string;
     
     if (maxId) {
-      // User wants more posts - use cached next page URL
       const cachedNextUrl = userNextPageCache.get(authorId);
       if (!cachedNextUrl) {
-        logger.info(`📬 No cached next page for user ${authorId}, fetching first page`);
+        logger.info(`No cached next page for user ${authorId}, fetching first page`);
         fetchUrl = outboxUrl;
         userFetchedUrls.delete(authorId);
         userZeroSaveCount.delete(authorId);
       } else {
         fetchUrl = cachedNextUrl;
-        logger.info(`📬 Using cached next page: ${fetchUrl}`);
+        logger.info(`Using cached next page: ${fetchUrl}`);
       }
     } else {
-      // Initial fetch - start from the beginning
+      // Initial fetch resets all pagination state.
       fetchUrl = outboxUrl;
       userNextPageCache.delete(authorId);
       userFetchedUrls.delete(authorId);
@@ -2668,7 +2612,7 @@ async function fetchRecentPostsInBackground(
     
     const fetchedUrls = userFetchedUrls.get(authorId) || new Set<string>();
     if (fetchedUrls.has(fetchUrl)) {
-      logger.info(`📬 Loop detected - already fetched ${fetchUrl}, stopping pagination`);
+      logger.info(`Loop detected - already fetched ${fetchUrl}, stopping pagination`);
       userNextPageCache.delete(authorId);
       userFetchedUrls.delete(authorId);
       userZeroSaveCount.delete(authorId);
@@ -2678,7 +2622,7 @@ async function fetchRecentPostsInBackground(
     fetchedUrls.add(fetchUrl);
     userFetchedUrls.set(authorId, fetchedUrls);
     
-    logger.info(`📬 Fetching posts from: ${fetchUrl}`);
+    logger.info(`Fetching posts from: ${fetchUrl}`);
     
     const outboxResponse = await safeFetch(fetchUrl, {
       headers: {
@@ -2700,13 +2644,13 @@ async function fetchRecentPostsInBackground(
     let nextPageUrl: string | null = null;
     
     if (outbox.orderedItems && Array.isArray(outbox.orderedItems)) {
-      // This is already a page with items
+      // Response is already a page.
       items = outbox.orderedItems.slice(0, limit);
       nextPageUrl = typeof outbox.next === 'string' ? outbox.next : outbox.next?.id || null;
     } else if (outbox.first) {
-      // This is a collection - need to fetch the first page
+      // Response is a collection; its first page holds the items.
       const firstPageUrl = typeof outbox.first === 'string' ? outbox.first : outbox.first.id;
-      logger.info(`📬 Fetching first page: ${firstPageUrl}`);
+      logger.info(`Fetching first page: ${firstPageUrl}`);
       
       const pageResponse = await safeFetch(firstPageUrl, {
         headers: {
@@ -2723,21 +2667,20 @@ async function fetchRecentPostsInBackground(
       }
     }
     
-    // Cache the next page URL for this user
     if (nextPageUrl) {
       userNextPageCache.set(authorId, nextPageUrl);
-      logger.info(`📬 Cached next page URL: ${nextPageUrl}`);
+      logger.info(`Cached next page URL: ${nextPageUrl}`);
     } else {
       userNextPageCache.delete(authorId);
-      logger.info(`📬 No more pages available`);
+      logger.info(`No more pages available`);
     }
     
     if (items.length === 0) {
-      logger.info(`📬 No posts found in outbox`);
+      logger.info(`No posts found in outbox`);
       return { hasMore: false };
     }
     
-    logger.info(`📬 Processing ${items.length} posts from outbox`);
+    logger.info(`Processing ${items.length} posts from outbox`);
     
     let savedCount = 0;
     let oldestId: string | undefined;
@@ -2764,7 +2707,7 @@ async function fetchRecentPostsInBackground(
           const originalUrl = typeof item.object === 'string' ? item.object : item.object?.id;
           if (!originalUrl) continue;
           
-          // Try to find the original post with full data for the reblog JSON
+          // Full row is needed to embed the reblog JSON; absent when the original is unknown.
           const { data: originalPost } = await supabase
             .from('posts')
             .select('id, content, visibility, author_id, created_at, ap_id, url, is_sensitive, content_warning, favorites_count, replies_count, reblogs_count, media_attachments')
@@ -2820,15 +2763,15 @@ async function fetchRecentPostsInBackground(
           
           if (!reblogError) {
             savedCount++;
-            logger.debug(`📬 Saved reblog of ${originalUrl}`);
+            logger.debug(`Saved reblog of ${originalUrl}`);
           }
           continue;
         }
         
-        // Handle Create activities and direct Note objects
+        // Outboxes contain Create wrappers or bare objects.
         const note = activityType === 'Create' ? item.object : item;
         
-        // Skip non-Note types (but handle Question for polls)
+        // Question is a poll and is kept.
         if (note.type !== 'Note' && note.type !== 'Article' && note.type !== 'Question') {
           continue;
         }
@@ -2842,10 +2785,10 @@ async function fetchRecentPostsInBackground(
           .maybeSingle();
         
         if (existing) {
-          continue; // Already have this post
+          continue;
         }
         
-        // Use proper content converter that handles mentions, hashtags, emoji, attachments
+        // noteToContent resolves mentions, hashtags, emoji and attachments.
         const content = noteToContent(note);
         
         let visibility = 'public';
@@ -2877,12 +2820,12 @@ async function fetchRecentPostsInBackground(
           metadata.poll_closed = !!note.closed;
         }
         
-        // Handle quote posts (Mastodon uses quoteUrl, Misskey uses _misskey_quote)
+        // Quote target: Mastodon quoteUrl/quoteUri, Misskey _misskey_quote.
         const quoteUrl = note.quoteUrl || note.quoteUri || note._misskey_quote;
         if (quoteUrl) {
           metadata.is_quote = true;
           metadata.quote_url = quoteUrl;
-          logger.debug(`📬 Found quote post referencing: ${quoteUrl}`);
+          logger.debug(`Found quote post referencing: ${quoteUrl}`);
         }
         
         const customEmojis = extractCustomEmojis(note.tag);
@@ -2894,7 +2837,6 @@ async function fetchRecentPostsInBackground(
         if (note.inReplyTo) {
           metadata.in_reply_to_ap_url = note.inReplyTo;
           
-          // Try to find the parent post locally
           const { data: parentPost } = await supabase
             .from('posts')
             .select('id')
@@ -2906,7 +2848,6 @@ async function fetchRecentPostsInBackground(
           }
         }
         
-        // Extract counts from the note (Mastodon/Misskey style)
         const repliesCount = note.replies?.totalItems || note.repliesCount || 0;
         const likesCount = note.likes?.totalItems || note.favouritesCount || 0;
         const sharesCount = note.shares?.totalItems || note.sharesCount || 0;
@@ -2950,35 +2891,34 @@ async function fetchRecentPostsInBackground(
       }
     }
     
-    logger.info(`📬 Saved ${savedCount} new posts from remote user`);
+    logger.info(`Saved ${savedCount} new posts from remote user`);
     
     await supabase
       .from('profiles')
       .update({ last_federation_sync: new Date().toISOString() })
       .eq('id', authorId);
     
-    // Track consecutive zero-save fetches to avoid infinite pagination
+    // MAX_ZERO_SAVES consecutive fetches yielding nothing new end pagination.
     if (savedCount === 0) {
       const zeroCount = (userZeroSaveCount.get(authorId) || 0) + 1;
       userZeroSaveCount.set(authorId, zeroCount);
       
       if (zeroCount >= MAX_ZERO_SAVES) {
-        logger.info(`📬 ${MAX_ZERO_SAVES} consecutive fetches with 0 new posts, stopping pagination`);
+        logger.info(`${MAX_ZERO_SAVES} consecutive fetches with 0 new posts, stopping pagination`);
         userNextPageCache.delete(authorId);
         userFetchedUrls.delete(authorId);
         userZeroSaveCount.delete(authorId);
         return { hasMore: false };
       }
       
-      logger.info(`📬 Zero new posts (${zeroCount}/${MAX_ZERO_SAVES} before giving up)`);
+      logger.info(`Zero new posts (${zeroCount}/${MAX_ZERO_SAVES} before giving up)`);
     } else {
       userZeroSaveCount.delete(authorId);
     }
     
-    // Has more only if there's a valid next page
     const hasMore = !!nextPageUrl;
     
-    logger.info(`📬 Result: saved ${savedCount} new posts, has_more=${hasMore}`);
+    logger.info(`Result: saved ${savedCount} new posts, has_more=${hasMore}`);
     
     return { 
       hasMore,
@@ -2995,9 +2935,6 @@ async function fetchRecentPostsInBackground(
   }
 }
 
-/**
- * Extract media attachments from ActivityPub attachment array
- */
 function extractMediaAttachments(attachments: any): any[] {
   if (!attachments || !Array.isArray(attachments)) {
     return [];
@@ -3015,10 +2952,10 @@ function extractMediaAttachments(attachments: any): any[] {
 }
 
 /**
- * Refetch a remote post from its source, re-process content and link previews.
+ * Refetch a remote post from its origin, reprocessing content and link previews.
  * POST /refetch-post
  * Body: { post_id: string }
- * Requires: authenticated admin or moderator
+ * Requires an authenticated admin or moderator.
  */
 router.post(
   '/refetch-post',
@@ -3083,7 +3020,7 @@ router.post(
 
       let remoteObject = await response.json();
 
-      // Announce (reblog): follow the object URL to get the actual Note
+      // Announce (reblog) wraps the Note; follow object to reach it.
       if (remoteObject.type === 'Announce') {
         const objectUrl = typeof remoteObject.object === 'string'
           ? remoteObject.object
@@ -3132,7 +3069,7 @@ router.post(
         logger.warn('Link preview enrichment failed for refetched post:', err)
       );
 
-      logger.info(`🔄 Admin refetched post ${post_id} from ${post.ap_id}`);
+      logger.info(`Admin refetched post ${post_id} from ${post.ap_id}`);
 
       return res.json({
         success: true,
@@ -3147,9 +3084,6 @@ router.post(
   })
 );
 
-/**
- * Extract custom emoji definitions from ActivityPub tags
- */
 function extractCustomEmojis(tags: any): any[] {
   if (!tags || !Array.isArray(tags)) {
     return [];
