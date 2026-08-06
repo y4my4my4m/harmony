@@ -121,9 +121,12 @@ jobs:
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           cd src-tauri/gen/android/app
-          printf '%s' "$KEYSTORE_B64" | tr -d '[:space:]' | base64 -d > release.keystore
+          if ! printf '%s' "$KEYSTORE_B64" | tr -d '[:space:]' | base64 -d > release.keystore 2>/dev/null; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 is not valid base64. Regenerate it with: base64 -w 0 release.keystore"
+            exit 1
+          fi
           if ! keytool -list -keystore release.keystore -storepass "$KEYSTORE_PASSWORD" >/dev/null 2>&1; then
-            echo "::error::ANDROID_KEYSTORE_BASE64 did not decode to a keystore readable with ANDROID_KEYSTORE_PASSWORD."
+            echo "::error::ANDROID_KEYSTORE_BASE64 decoded, but is not a keystore readable with ANDROID_KEYSTORE_PASSWORD."
             exit 1
           fi
           cat > keystore.properties <<EOF
