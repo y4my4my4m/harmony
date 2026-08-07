@@ -2072,6 +2072,87 @@ export const useDMStore = defineStore('dm', () => {
     }
   }
 
+  // Pulls anything newer than the newest message held for `conversationId`.
+  //
+  // The open thread is fed by `dm-conversation-{id}` postgres_changes, which can
+  // stop delivering while still reporting SUBSCRIBED; the health check only
+  // catches a globally dead socket, and silence is indistinguishable from a
+  // quiet conversation. `user:{profileId}` broadcast keeps working in that
+  // state, so an `unread:change` for the open conversation is a reliable signal
+  // that the thread channel missed something.
+  let _reconcileInFlight: string | null = null
+  const reconcileConversationMessages = async (conversationId: string): Promise<number> => {
+    if (!conversationId || _reconcileInFlight === conversationId) return 0
+    _reconcileInFlight = conversationId
+    try {
+      const newest = currentDMMessages.value[currentDMMessages.value.length - 1]
+      let query = supabase
+        .from('messages')
+        .select('*')
+        .eq('conversation_id', conversationId)
+        .order('created_at', { ascending: true })
+        .limit(50)
+
+      if (newest) {
+        const newestTime = newest.created_at instanceof Date
+          ? newest.created_at.toISOString()
+          : String(newest.created_at)
+        query = query.gt('created_at', newestTime)
+      }
+
+      const { data: recent, error } = await query
+      if (error || !recent?.length) return 0
+
+      const missing = recent.filter(
+        (msg: any) => !currentDMMessages.value.some(m => m.id === msg.id),
+      )
+      if (!missing.length) return 0
+
+      let formatted: Message[] = missing.map((msg: any) => ({
+        id: msg.id,
+        user_id: msg.user_id,
+        content: msg.content,
+        created_at: new Date(msg.created_at),
+        channel_id: '',
+        conversation_id: msg.conversation_id,
+        reply_to: msg.reply_to,
+        reactions: msg.reactions || [],
+        is_system: msg.is_system,
+        metadata: msg.metadata || null,
+        encrypted: msg.encrypted || false,
+        encryption_metadata: msg.encryption_metadata,
+      }))
+
+      // Matches the realtime path; recovered rows stay ciphertext otherwise.
+      try {
+        ensureMessageEmbeds(formatted)
+        if (formatted.some(m => m.encrypted)) {
+          formatted = await processMessageDecryption(formatted)
+        }
+      } catch (err) {
+        debug.warn('Failed to process reconciled DM messages:', err)
+      }
+
+      // The open conversation may have changed while awaiting fetch/decrypt.
+      if (currentConversationId.value !== conversationId) return 0
+
+      let added = 0
+      for (const msg of formatted) {
+        if (!currentDMMessages.value.some(m => m.id === msg.id)) {
+          insertMessageSorted(currentDMMessages.value, msg)
+          added++
+        }
+      }
+      if (added > 0) debug.log(`DM reconcile: recovered ${added} missed message(s)`)
+      return added
+    } catch (err) {
+      debug.error('DM reconcile failed:', err)
+      return 0
+    } finally {
+      _reconcileInFlight = null
+    }
+  }
+
   const setupConversationSubscription = (conversationId: string) => {
     const channelName = `dm-conversation-${conversationId}`
 
@@ -2255,49 +2336,7 @@ export const useDMStore = defineStore('dm', () => {
         
         onReconnected: async () => {
           debug.log('DM conversation reconnected, gap-filling for:', conversationId)
-          try {
-            if (currentDMMessages.value.length > 0) {
-              const newestMsg = currentDMMessages.value[currentDMMessages.value.length - 1]
-              const newestTime = newestMsg.created_at instanceof Date
-                ? newestMsg.created_at.toISOString()
-                : String(newestMsg.created_at)
-              const { data: recent, error } = await supabase
-                .from('messages')
-                .select('*')
-                .eq('conversation_id', conversationId)
-                .gt('created_at', newestTime)
-                .order('created_at', { ascending: true })
-                .limit(50)
-              if (!error && recent) {
-                let added = 0
-                for (const msg of recent) {
-                  if (!currentDMMessages.value.some(m => m.id === msg.id)) {
-                    const formatted: Message = {
-                      id: msg.id,
-                      user_id: msg.user_id,
-                      content: msg.content,
-                      created_at: new Date(msg.created_at),
-                      channel_id: '',
-                      conversation_id: msg.conversation_id,
-                      reply_to: msg.reply_to,
-                      reactions: msg.reactions || [],
-                      is_system: msg.is_system,
-                      metadata: msg.metadata || null,
-                      encrypted: msg.encrypted || false,
-                      encryption_metadata: msg.encryption_metadata
-                    }
-                    insertMessageSorted(currentDMMessages.value, formatted)
-                    added++
-                  }
-                }
-                if (added > 0) {
-                  debug.log(`DM gap-fill: added ${added} missed messages`)
-                }
-              }
-            }
-          } catch (err) {
-            debug.error('DM gap-fill failed:', err)
-          }
+          await reconcileConversationMessages(conversationId)
         }
       })
 
@@ -2391,6 +2430,13 @@ export const useDMStore = defineStore('dm', () => {
         : (conv.unread_count || 0)
       conv.unread_count = unread
       conv.last_activity = new Date().toISOString()
+
+      // This broadcast rides a different channel from the open thread's
+      // postgres_changes stream, so it still arrives when that stream has gone
+      // quiet without reporting an error. Reconcile rather than trust it.
+      if (conversationId === currentConversationId.value) {
+        void reconcileConversationMessages(conversationId)
+      }
     })
 
     // The conversation list and unread counts go stale across a tab sleep or
