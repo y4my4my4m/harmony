@@ -471,6 +471,13 @@ router.beforeEach(async (to, from, next) => {
 
   if (isLoggedIn && !PROFILE_EXEMPT_ROUTES.has(to.name as string)) {
     const profileStore = useProfileStore();
+    // Fetch before deciding.
+    if (!profileStore.profileFetched) {
+      const authUserId = authStore.session?.user?.id;
+      if (authUserId) {
+        await profileStore.fetchProfileByAuthUserId(authUserId);
+      }
+    }
     if (profileStore.profileFetched && (!profileStore.profile || !profileStore.profile.username)) {
       next({ name: 'NewProfile' });
       return;

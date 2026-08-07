@@ -691,7 +691,7 @@ const loadUserProfile = async (handle: string, forceRefresh: boolean = false) =>
         
         // Fallback: the handle may be the signed-in user.
         const currentUser = authStore.session?.user;
-        const currentUsername = currentUser?.user_metadata?.username || currentUser?.email?.split('@')[0];
+        const currentUsername = currentUser?.user_metadata?.username;
         
         if (currentUser && currentUsername === handle) {
           debug.log('Loading current user profile...');

@@ -364,10 +364,6 @@ onMounted(async () => {
     } else if (metadata.login) {
       // GitHub uses 'login'
       suggestedUsername = metadata.login.toLowerCase().replace(/[^a-z0-9_]/g, '')
-    } else if (user.email) {
-      // Fallback: use email username part
-      const emailUsername = user.email.split('@')[0].toLowerCase().replace(/[^a-z0-9_]/g, '')
-      suggestedUsername = emailUsername
     }
 
     if (suggestedUsername && suggestedUsername.length >= 3) {

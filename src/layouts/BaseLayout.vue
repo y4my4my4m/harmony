@@ -418,7 +418,7 @@ const initializeApp = async () => {
     // Falls back to auth session metadata when no profile row exists.
     const userProfile = profileStore.profile || {
       id: userId,
-      username: authStore.session?.user?.user_metadata?.username || authStore.session?.user?.email?.split('@')[0] || 'User',
+      username: authStore.session?.user?.user_metadata?.username || 'User',
       display_name: authStore.session?.user?.user_metadata?.display_name,
       avatar_url: authStore.session?.user?.user_metadata?.avatar_url,
       color: undefined,

@@ -220,7 +220,8 @@ const currentUser = computed(() => {
   if (authUser) {
     return {
       id: authUser.id,
-      username: authUser.user_metadata?.username || authUser.email?.split('@')[0] || 'User',
+      // Not the email local part: this shape reaches shared user state.
+      username: authUser.user_metadata?.username || 'User',
       display_name: authUser.user_metadata?.display_name || authUser.user_metadata?.username || 'User',
       avatar_url: authUser.user_metadata?.avatar_url || null,
       status: 0, // Default to offline
