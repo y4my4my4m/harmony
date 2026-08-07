@@ -729,7 +729,8 @@ const handlePasswordChange = async () => {
       return
     }
 
-    debug.log('Password updated successfully:', data)
+    // `data` carries the full user record; log the outcome only.
+    debug.log('Password updated successfully')
     toast.success('Password updated successfully!')
     
     passwordForm.value = {

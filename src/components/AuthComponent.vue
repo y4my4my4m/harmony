@@ -581,13 +581,10 @@ const handleOAuthLogin = async (providerId: string) => {
     const { data: { session } } = await supabase.auth.getSession()
     if (session) {
       debug.warn('User is already logged in when initiating OAuth. This may cause account linking.')
+      // Providers only; addresses are not logged.
       debug.log('Current session:', {
         userId: session.user.id,
-        email: session.user.email,
-        existingIdentities: session.user.identities?.map((id: any) => ({
-          provider: id.provider,
-          email: id.email || id.identity_data?.email
-        })) || []
+        existingIdentityProviders: session.user.identities?.map((id: any) => id.provider) || []
       })
     }
     

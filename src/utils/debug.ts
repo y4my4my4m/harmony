@@ -1,21 +1,21 @@
 /**
  * Debug Utility - Environment-aware logging for Harmony
  * 
- * Only logs when:
- * 1. Running in development mode (import.meta.env.DEV)
- * 2. VITE_DEBUG_LOGGING is explicitly set to 'true'
- * 
+ * debug.log/warn/info run only when VITE_DEBUG_LOGGING === 'true' at build time.
+ * That is independent of DEV: a production build with the flag set does log.
+ * debug.error always runs, production included.
+ *
+ * Whatever reaches these must be safe for a production console: no addresses,
+ * access tokens, or raw API response objects.
+ *
  * Usage:
  * import { debug, debugGroup, debugTime } from '@/utils/debug'
  * debug.log('Message', data)
  * debug.warn('Warning message')
- * debug.error('Error message') // Always logs in dev, errors are important
+ * debug.error('Error message')
  */
 
 const isDebugEnabled = (): boolean => {
-  // In production, never log debug messages
-  // if (!import.meta.env.DEV) return false
-  // In dev, check if debug logging is explicitly enabled
   return import.meta.env.VITE_DEBUG_LOGGING === 'true'
 }
 

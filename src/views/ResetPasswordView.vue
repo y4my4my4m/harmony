@@ -503,7 +503,8 @@ const performPasswordReset = async () => {
       return
     }
     
-    debug.log('Password reset successful:', data)
+    // `data` carries the full user record; log the outcome only.
+    debug.log('Password reset successful')
     isSuccess.value = true
     isPasswordResetMode.value = false
     

@@ -303,17 +303,14 @@ onMounted(async () => {
         )
 
         if (!allEmailsMatch) {
-          debug.error('UNEXPECTED ACCOUNT LINKING DETECTED!', {
-            primaryEmail,
-            linkedEmails: identityEmails,
-            identities: identities.map((id: any) => ({
-              provider: id.provider,
-              email: id.email || id.identity_data?.email,
-            })),
+          // debug.error reaches the production console, so addresses stay out
+          // of it; providers and counts are enough to identify the case.
+          debug.error('Unexpected account linking: identities carry differing emails', {
+            identityCount: identities.length,
+            providers: identities.map((id: any) => id.provider),
           })
-          debug.warn('Accounts with different emails were linked. This should only happen when emails match!')
         } else {
-          debug.log('Account linking detected with matching emails:', identityEmails.join(', '))
+          debug.log('Account linking detected across', identityEmails.length, 'matching identities')
         }
       }
 

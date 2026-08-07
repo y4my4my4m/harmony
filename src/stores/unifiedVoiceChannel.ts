@@ -596,7 +596,8 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
               return;
             }
             
-            debug.log('Received federated voice token:', payload);
+            // The payload carries a LiveKit access token; log only its shape.
+            debug.log('Received federated voice token for channel:', payload?.channelId ?? '(unknown)');
             
             if (this.pendingFederatedJoin?.timeout) {
               clearTimeout(this.pendingFederatedJoin.timeout);
