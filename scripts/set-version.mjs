@@ -49,10 +49,12 @@ editJson('src-tauri/tauri.conf.json', (j) => { j.version = version; });
 // it drifts visibly to other instances if left behind.
 {
   const path = 'federation-backend/src/config/index.ts';
+  const re = /(VERSION:\s*z\.string\(\)\.default\(')[^']*('\))/;
   const src = readFileSync(path, 'utf8');
-  const out = src.replace(/(VERSION:\s*z\.string\(\)\.default\(')[^']*('\))/, `$1${version}$2`);
-  if (out === src) { console.error(`${path}: VERSION default not found`); process.exit(1); }
-  writeFileSync(path, out);
+  // Test the pattern rather than comparing before/after: re-stamping the
+  // version already in the file is a no-op, not a missing pattern.
+  if (!re.test(src)) { console.error(`${path}: VERSION default not found`); process.exit(1); }
+  writeFileSync(path, src.replace(re, `$1${version}$2`));
   console.log(`${path}`);
 }
 
