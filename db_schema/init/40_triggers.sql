@@ -1101,3 +1101,20 @@ BEGIN
     RAISE NOTICE 'Triggers created successfully';
 END $$;
 
+DROP TRIGGER IF EXISTS trigger_broadcast_message_insert ON public.messages;
+CREATE TRIGGER trigger_broadcast_message_insert
+    AFTER INSERT ON public.messages
+    FOR EACH ROW
+    EXECUTE FUNCTION public.broadcast_message_event();
+
+DROP TRIGGER IF EXISTS trigger_broadcast_message_update ON public.messages;
+CREATE TRIGGER trigger_broadcast_message_update
+    AFTER UPDATE OF content, is_deleted, is_pinned, encryption_metadata ON public.messages
+    FOR EACH ROW
+    EXECUTE FUNCTION public.broadcast_message_event();
+
+DROP TRIGGER IF EXISTS trigger_broadcast_message_delete ON public.messages;
+CREATE TRIGGER trigger_broadcast_message_delete
+    AFTER DELETE ON public.messages
+    FOR EACH ROW
+    EXECUTE FUNCTION public.broadcast_message_event();

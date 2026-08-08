@@ -19,6 +19,11 @@ These ship before anything else. Most have a corresponding entry in `BUGS.md`.
 
 *(WebRTC media-key agreement, the legacy Signal setup wizard, init/migration parity and HTTP-signature replay - previously items 1, 2, 3 and 6 here - were resolved in July 2026. See `BUGS.md`.)*
 
+*(Follow-up to the Broadcast migration: once every client build is on
+`message_event`, delete the `onInsert`/`onUpdate`/`onDelete` config from
+`useDM`/`useChat` and run `ALTER PUBLICATION supabase_realtime DROP TABLE
+public.messages;`. Until then both transports run and dedupe by message id.)*
+
 ## Next (correctness & UX)
 
 3. **Notifications behaviour & UX audit.**

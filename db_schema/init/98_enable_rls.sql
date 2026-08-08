@@ -53,9 +53,14 @@ DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'realtime' AND table_name = 'messages') THEN
     EXECUTE 'DROP POLICY IF EXISTS "authenticated_users_can_receive" ON realtime.messages';
-    EXECUTE 'CREATE POLICY "authenticated_users_can_receive" ON realtime.messages FOR SELECT TO authenticated USING (true)';
+    EXECUTE 'CREATE POLICY "authenticated_users_can_receive" ON realtime.messages FOR SELECT TO authenticated USING (public.can_subscribe_to_topic(topic))';
     EXECUTE 'DROP POLICY IF EXISTS "authenticated_users_can_send" ON realtime.messages';
-    EXECUTE 'CREATE POLICY "authenticated_users_can_send" ON realtime.messages FOR INSERT TO authenticated WITH CHECK (true)';
+    EXECUTE 'CREATE POLICY "authenticated_users_can_send" ON realtime.messages
+      FOR INSERT TO authenticated
+      WITH CHECK (
+        event = ''user_event''
+        AND topic = ''user:'' || public.get_current_profile_id()::text
+      )';
   END IF;
 END
 $$;
@@ -177,11 +182,15 @@ BEGIN
 
     EXECUTE 'DROP POLICY IF EXISTS "authenticated_users_can_receive" ON realtime.messages';
     EXECUTE 'CREATE POLICY "authenticated_users_can_receive" ON realtime.messages
-      FOR SELECT TO authenticated USING (true)';
+      FOR SELECT TO authenticated USING (public.can_subscribe_to_topic(topic))';
 
     EXECUTE 'DROP POLICY IF EXISTS "authenticated_users_can_send" ON realtime.messages';
     EXECUTE 'CREATE POLICY "authenticated_users_can_send" ON realtime.messages
-      FOR INSERT TO authenticated WITH CHECK (true)';
+      FOR INSERT TO authenticated
+      WITH CHECK (
+        event = ''user_event''
+        AND topic = ''user:'' || public.get_current_profile_id()::text
+      )';
   END IF;
 END;
 $$;

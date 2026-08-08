@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia';
+import { routeMessageEvent } from '@/stores/shared/realtimeMessageEvent';
 import { supabase } from '@/supabase';
 import { services } from '@/services';
 import type { Message, ChannelCache, CacheMetadata, Emoji, MessagePart } from '@/types';
@@ -891,71 +892,30 @@ export const useChatStore = defineStore('chat', {
 
       debug.log('Creating real-time subscription via RealtimeConnectionManager:', channelName);
       
-      this.currentSubscription = realtimeConnectionManager.subscribeToTable({
-        channelName,
-        table: 'messages',
-        filter: `channel_id=eq.${channelId}`,
-        // Private so reaction broadcasts (realtime.send) land on this same channel.
-        private: true,
-        broadcasts: [
-          { event: 'reaction_event', handler: (payload) => void reactionsStore.handleRealtimeUpdate(payload) },
-        ],
+      const handleMessageInsert = async (payload: any) => {
+        debug.log('Real-time INSERT received:', payload.new?.id);
         
-        onInsert: async (payload) => {
-          debug.log('Real-time INSERT received:', payload.new?.id);
-          
-          const payloadNew = payload.new as any;
-          
-          // Thread messages render only in thread view.
-          if (payloadNew.thread_id) {
-            debug.log('Skipping thread message in main channel:', payloadNew.id);
-            return;
-          }
-          
-          // Already inserted by sendMessage's optimistic path.
-          if (store.messages.findIndex(m => m.id === payloadNew.id) !== -1) {
-            debug.log('Real message already exists (from sendMessage), skipping');
-            return;
-          }
-          
-          // Fallback for when realtime beats `_replaceTempWithReal`: an
-          // optimistic row for this message may still be present.
-          const tempMessageIndex = findOptimisticMatchIndex(store.messages as any, payloadNew);
-          
-          if (tempMessageIndex !== -1) {
-            debug.warn('Temp message still exists during real-time, replacing now');
-            let resolvedMessage: Message = {
-              id: payloadNew.id,
-              created_at: new Date(payloadNew.created_at),
-              updated_at: payloadNew.updated_at ? new Date(payloadNew.updated_at) : undefined,
-              channel_id: payloadNew.channel_id,
-              conversation_id: payloadNew.conversation_id,
-              user_id: payloadNew.user_id,
-              bot_id: payloadNew.bot_id,
-              content: payloadNew.content,
-              reactions: payloadNew.reactions,
-              reply_to: payloadNew.reply_to,
-              is_system: payloadNew.is_system,
-              metadata: payloadNew.metadata || null,
-              encrypted: payloadNew.encrypted === true || payloadNew.encrypted === 'true',
-              encryption_metadata: payloadNew.encryption_metadata || null,
-            };
-            
-            try {
-              ensureMessageEmbeds(resolvedMessage);
-              if (resolvedMessage.encrypted || resolvedMessage.encryption_metadata) {
-                const decrypted = await processMessageDecryption([resolvedMessage]);
-                resolvedMessage = decrypted[0];
-              }
-            } catch (error) {
-              debug.warn('Failed to process realtime message:', error);
-            }
-            
-            store.messages.splice(tempMessageIndex, 1, resolvedMessage);
-            return;
-          }
-          
-          let newMessage: Message = {
+        const payloadNew = payload.new as any;
+        
+        // Thread messages render only in thread view.
+        if (payloadNew.thread_id) {
+          debug.log('Skipping thread message in main channel:', payloadNew.id);
+          return;
+        }
+        
+        // Already inserted by sendMessage's optimistic path.
+        if (store.messages.findIndex(m => m.id === payloadNew.id) !== -1) {
+          debug.log('Real message already exists (from sendMessage), skipping');
+          return;
+        }
+        
+        // Fallback for when realtime beats `_replaceTempWithReal`: an
+        // optimistic row for this message may still be present.
+        const tempMessageIndex = findOptimisticMatchIndex(store.messages as any, payloadNew);
+        
+        if (tempMessageIndex !== -1) {
+          debug.warn('Temp message still exists during real-time, replacing now');
+          let resolvedMessage: Message = {
             id: payloadNew.id,
             created_at: new Date(payloadNew.created_at),
             updated_at: payloadNew.updated_at ? new Date(payloadNew.updated_at) : undefined,
@@ -972,87 +932,142 @@ export const useChatStore = defineStore('chat', {
             encryption_metadata: payloadNew.encryption_metadata || null,
           };
           
-          if (newMessage.bot_id) {
-            debug.log('Real-time bot message received:', newMessage.id);
-          }
-
-          const contentText = Array.isArray(newMessage.content) && newMessage.content[0]?.type === 'text' 
-            ? newMessage.content[0].text 
-            : null;
-          const looksEncrypted = newMessage.encrypted || 
-            newMessage.encryption_metadata ||
-            (contentText && /^[A-Za-z0-9+/=]{20,}$/.test(contentText) && newMessage.encryption_metadata);
-          
-          if (looksEncrypted) {
-            try {
-              if (!newMessage.encrypted && newMessage.encryption_metadata) {
-                newMessage.encrypted = true;
-              }
-              const decrypted = await processMessageDecryption([newMessage]);
-              newMessage = decrypted[0];
-            } catch (error) {
-              debug.warn('Failed to decrypt real-time message:', error);
+          try {
+            ensureMessageEmbeds(resolvedMessage);
+            if (resolvedMessage.encrypted || resolvedMessage.encryption_metadata) {
+              const decrypted = await processMessageDecryption([resolvedMessage]);
+              resolvedMessage = decrypted[0];
             }
+          } catch (error) {
+            debug.warn('Failed to process realtime message:', error);
           }
-
-          store.addMessageToCache(newMessage);
-          debug.log('Real-time message added:', newMessage.id);
-        },
+          
+          store.messages.splice(tempMessageIndex, 1, resolvedMessage);
+          return;
+        }
         
-        onUpdate: async (payload) => {
-          const payloadNew = payload.new as any;
-          
-          // Thread replies belong to the thread UI. thread_id can be set after
-          // insert (federation resolving a stub thread), so drop the row from
-          // the main channel cache here.
-          if (payloadNew.thread_id) {
-            store.removeMessageFromCache(payloadNew.id);
-            debug.log('Thread reply - removed from main channel if present:', payloadNew.id);
-            return;
-          }
-          
-          // Soft delete: federated deletions arrive as UPDATE with is_deleted = true.
-          if (payloadNew.is_deleted) {
-            store.removeMessageFromCache(payloadNew.id);
-            debug.log('Message soft-deleted via real-time:', payloadNew.id);
-            return;
-          }
-          
-          let updatedMessage: Message = {
-            id: payloadNew.id,
-            created_at: new Date(payloadNew.created_at),
-            channel_id: payloadNew.channel_id,
-            conversation_id: payloadNew.conversation_id,
-            user_id: payloadNew.user_id,
-            bot_id: payloadNew.bot_id,
-            content: payloadNew.content,
-            reactions: payloadNew.reactions,
-            reply_to: payloadNew.reply_to,
-            is_system: payloadNew.is_system,
-            updated_at: payloadNew.updated_at ? new Date(payloadNew.updated_at) : undefined,
-            metadata: payloadNew.metadata || null,
-            encrypted: payloadNew.encrypted || false,
-            encryption_metadata: payloadNew.encryption_metadata || null,
-          };
+        let newMessage: Message = {
+          id: payloadNew.id,
+          created_at: new Date(payloadNew.created_at),
+          updated_at: payloadNew.updated_at ? new Date(payloadNew.updated_at) : undefined,
+          channel_id: payloadNew.channel_id,
+          conversation_id: payloadNew.conversation_id,
+          user_id: payloadNew.user_id,
+          bot_id: payloadNew.bot_id,
+          content: payloadNew.content,
+          reactions: payloadNew.reactions,
+          reply_to: payloadNew.reply_to,
+          is_system: payloadNew.is_system,
+          metadata: payloadNew.metadata || null,
+          encrypted: payloadNew.encrypted === true || payloadNew.encrypted === 'true',
+          encryption_metadata: payloadNew.encryption_metadata || null,
+        };
+        
+        if (newMessage.bot_id) {
+          debug.log('Real-time bot message received:', newMessage.id);
+        }
 
-          if (updatedMessage.encrypted) {
-            try {
-              const decrypted = await processMessageDecryption([updatedMessage]);
-              updatedMessage = decrypted[0];
-            } catch (error) {
-              debug.warn('Failed to decrypt updated message:', error);
+        const contentText = Array.isArray(newMessage.content) && newMessage.content[0]?.type === 'text' 
+          ? newMessage.content[0].text 
+          : null;
+        const looksEncrypted = newMessage.encrypted || 
+          newMessage.encryption_metadata ||
+          (contentText && /^[A-Za-z0-9+/=]{20,}$/.test(contentText) && newMessage.encryption_metadata);
+        
+        if (looksEncrypted) {
+          try {
+            if (!newMessage.encrypted && newMessage.encryption_metadata) {
+              newMessage.encrypted = true;
             }
+            const decrypted = await processMessageDecryption([newMessage]);
+            newMessage = decrypted[0];
+          } catch (error) {
+            debug.warn('Failed to decrypt real-time message:', error);
           }
+        }
 
-          store.updateMessageInCache(updatedMessage.id, updatedMessage);
-          debug.log('Message updated via real-time:', updatedMessage.id);
-        },
+        store.addMessageToCache(newMessage);
+        debug.log('Real-time message added:', newMessage.id);
+      }
+      
+
+      const handleMessageUpdate = async (payload: any) => {
+        const payloadNew = payload.new as any;
         
-        onDelete: (payload) => {
-          const payloadOld = payload.old as any;
-          store.removeMessageFromCache(payloadOld.id);
-          debug.log('Message deleted via real-time:', payloadOld.id);
-        },
+        // Thread replies belong to the thread UI. thread_id can be set after
+        // insert (federation resolving a stub thread), so drop the row from
+        // the main channel cache here.
+        if (payloadNew.thread_id) {
+          store.removeMessageFromCache(payloadNew.id);
+          debug.log('Thread reply - removed from main channel if present:', payloadNew.id);
+          return;
+        }
+        
+        // Soft delete: federated deletions arrive as UPDATE with is_deleted = true.
+        if (payloadNew.is_deleted) {
+          store.removeMessageFromCache(payloadNew.id);
+          debug.log('Message soft-deleted via real-time:', payloadNew.id);
+          return;
+        }
+        
+        let updatedMessage: Message = {
+          id: payloadNew.id,
+          created_at: new Date(payloadNew.created_at),
+          channel_id: payloadNew.channel_id,
+          conversation_id: payloadNew.conversation_id,
+          user_id: payloadNew.user_id,
+          bot_id: payloadNew.bot_id,
+          content: payloadNew.content,
+          reactions: payloadNew.reactions,
+          reply_to: payloadNew.reply_to,
+          is_system: payloadNew.is_system,
+          updated_at: payloadNew.updated_at ? new Date(payloadNew.updated_at) : undefined,
+          metadata: payloadNew.metadata || null,
+          encrypted: payloadNew.encrypted || false,
+          encryption_metadata: payloadNew.encryption_metadata || null,
+        };
+
+        if (updatedMessage.encrypted) {
+          try {
+            const decrypted = await processMessageDecryption([updatedMessage]);
+            updatedMessage = decrypted[0];
+          } catch (error) {
+            debug.warn('Failed to decrypt updated message:', error);
+          }
+        }
+
+        store.updateMessageInCache(updatedMessage.id, updatedMessage);
+        debug.log('Message updated via real-time:', updatedMessage.id);
+      }
+      
+
+      const handleMessageDelete = (payload: any) => {
+        const payloadOld = payload.old as any;
+        store.removeMessageFromCache(payloadOld.id);
+        debug.log('Message deleted via real-time:', payloadOld.id);
+      }
+
+      const handleMessageEvent = (payload: any) => routeMessageEvent(payload, {
+        onInsert: handleMessageInsert,
+        onUpdate: handleMessageUpdate,
+        onDelete: handleMessageDelete,
+      });
+
+      this.currentSubscription = realtimeConnectionManager.subscribeToTable({
+        channelName,
+        table: 'messages',
+        filter: `channel_id=eq.${channelId}`,
+        // Private so reaction broadcasts (realtime.send) land on this same channel.
+        private: true,
+        broadcasts: [
+          { event: 'reaction_event', handler: (payload) => void reactionsStore.handleRealtimeUpdate(payload) },
+          { event: 'message_event', handler: handleMessageEvent },
+        ],
+
+        onInsert: handleMessageInsert,
+        onUpdate: handleMessageUpdate,
+        onDelete: handleMessageDelete,
+        
         
         onStatusChange: (status, name) => {
           debug.log(`${name} status: ${status}`);
