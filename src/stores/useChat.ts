@@ -182,6 +182,12 @@ export const useChatStore = defineStore('chat', {
       evictOldestCacheEntry(this.messageCache, this.maxCacheSize);
     },
 
+    // Channel -> DM leaves the channel without calling fetchMessages, so the
+    // trim at the top of fetchMessages never runs for that transition.
+    trimCachedChannel() {
+      trimCachedMessages(this.messageCache, this.currentChannelId);
+    },
+
     async fetchMessages(channelId: string, oldestMessageId: string = '', signal?: AbortSignal) {
       if (this.loadingOlderMessages && oldestMessageId !== '') return;
 

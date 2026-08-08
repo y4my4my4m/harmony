@@ -134,16 +134,24 @@ export function createReactionEngine<G, E>(
 
   // Bound memory in long sessions: past this many cached entities, drop the
   // least-recently-fetched ones (they refetch on next view anyway).
+  //
+  // Entries fetched within cacheTtlMs are the working set - viewport plus
+  // recent scrollback. Evicting those costs a get_reactions RPC per
+  // reaction_event per viewer, which applyRealtimeDelta exists to avoid, so
+  // the cap yields to the TTL and the map may sit above MAX_CACHED_ENTITIES
+  // until the working set ages out.
   const MAX_CACHED_ENTITIES = 500
   function evictStaleEntries(): void {
     if (reactionsByEntity.size <= MAX_CACHED_ENTITIES) return
+    const now = Date.now()
     const byAge = [...lastFetched.entries()].sort((a, b) => a[1] - b[1])
     const toEvict = reactionsByEntity.size - MAX_CACHED_ENTITIES
     let evicted = 0
-    for (const [id] of byAge) {
+    for (const [id, fetchedAt] of byAge) {
       if (evicted >= toEvict) break
-      // A reconcile in flight writes back; skip those. Settled optimistic
-      // state is evictable and refetches on next view.
+      // Ascending by fetch time; everything past here is inside the TTL.
+      if (now - fetchedAt < cacheTtlMs) break
+      // A reconcile in flight writes back; skip those.
       if (pendingReconcileTimeouts.has(id)) continue
       reactionsByEntity.delete(id)
       optimisticByEntity.delete(id)

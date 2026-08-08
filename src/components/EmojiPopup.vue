@@ -958,8 +958,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   isUnmounted = true;
-  // Registration is deferred 100ms; without clearing, unmounting inside that
-  // window leaves listeners nothing can remove.
+  // Registration is deferred 100ms; unmounting inside that window must clear it.
   if (outsideListenerTimeout !== null) {
     clearTimeout(outsideListenerTimeout);
     outsideListenerTimeout = null;

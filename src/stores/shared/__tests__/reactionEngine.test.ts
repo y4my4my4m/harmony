@@ -198,6 +198,7 @@ describe('reactionEngine', () => {
 
 describe('cache bounding', () => {
   const MAX = 500
+  const TTL = 30000
   beforeEach(() => vi.useFakeTimers())
   afterEach(() => vi.useRealTimers())
 
@@ -211,6 +212,7 @@ describe('cache bounding', () => {
         batch[`m${page}-${i}`] = [{ key: '+1', count: 1, reacted: false }]
       }
       engine.bulkSet(batch)
+      vi.advanceTimersByTime(TTL + 1)
     }
 
     expect(engine.reactionsByEntity.size).toBeLessThanOrEqual(MAX)
@@ -220,6 +222,7 @@ describe('cache bounding', () => {
     const { engine } = setup()
     for (let i = 0; i < 800; i++) {
       engine.setReactions(`s${i}`, [{ key: '+1', count: 1, reacted: false }])
+      if (i % 100 === 0) vi.advanceTimersByTime(TTL + 1)
     }
     expect(engine.reactionsByEntity.size).toBeLessThanOrEqual(MAX)
   })
@@ -228,9 +231,35 @@ describe('cache bounding', () => {
     const { engine } = setup()
     for (let i = 0; i < 700; i++) {
       engine.setReactions(`e${i}`, [{ key: '+1', count: 1, reacted: false }])
+      if (i % 100 === 0) vi.advanceTimersByTime(TTL + 1)
     }
     expect(engine.getReactions.value('e699')).toHaveLength(1)
     expect(engine.getReactions.value('e0')).toHaveLength(0)
+  })
+
+  it('keeps entries inside the TTL even past the cap', () => {
+    const { engine } = setup()
+    // The working set is the viewport plus recent scrollback. Evicting it
+    // costs an RPC per reaction_event per viewer, which applyRealtimeDelta
+    // exists to avoid, so the TTL wins over the cap.
+    for (let i = 0; i < 1200; i++) {
+      engine.setReactions(`hot${i}`, [{ key: '+1', count: 1, reacted: false }])
+    }
+    expect(engine.reactionsByEntity.size).toBe(1200)
+    expect(engine.getReactions.value('hot0')).toHaveLength(1)
+  })
+
+  it('evicts once the working set ages past the TTL', () => {
+    const { engine } = setup()
+    for (let i = 0; i < 1200; i++) {
+      engine.setReactions(`hot${i}`, [{ key: '+1', count: 1, reacted: false }])
+    }
+    expect(engine.reactionsByEntity.size).toBe(1200)
+
+    vi.advanceTimersByTime(TTL + 1)
+    engine.setReactions('trigger', [{ key: '+1', count: 1, reacted: false }])
+
+    expect(engine.reactionsByEntity.size).toBeLessThanOrEqual(MAX + 1)
   })
 
   it('does not retain every entity the user has reacted to', async () => {
@@ -240,9 +269,11 @@ describe('cache bounding', () => {
 
     // Pending reconciles are eviction-protected; let them settle.
     await vi.runAllTimersAsync()
+    vi.advanceTimersByTime(TTL + 1)
 
     for (let i = 0; i < 900; i++) {
       engine.setReactions(`filler${i}`, [{ key: '+1', count: 1, reacted: false }])
+      if (i % 100 === 0) vi.advanceTimersByTime(TTL + 1)
     }
 
     expect(engine.reactionsByEntity.size).toBeLessThanOrEqual(MAX)
