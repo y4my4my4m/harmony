@@ -413,9 +413,8 @@ export default defineComponent({
     let testAudioContext: AudioContext | null = null;
     let testRafId: number | null = null;
     let testTimeoutId: ReturnType<typeof setTimeout> | null = null;
-// Bumped by every start and stop. A getUserMedia that resolves after its
-// run was superseded must discard its stream instead of overwriting the
-// handles of the run that replaced it.
+// Bumped by every start and stop. A getUserMedia resolving after its run was
+// superseded discards its stream rather than overwriting the current handles.
 let testGeneration = 0;
 
     const testMicrophone = async () => {

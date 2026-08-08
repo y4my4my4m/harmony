@@ -829,8 +829,7 @@ const saveConfig = async () => {
   }
 }
 
-// Refs rather than computeds: the object URL of the superseded file must be revoked,
-// which a computed has no hook for.
+// Refs, not computeds: the superseded file's object URL must be revoked.
 const instanceIconPreviewUrl = ref<string | null>(null)
 const instanceBannerPreviewUrl = ref<string | null>(null)
 
