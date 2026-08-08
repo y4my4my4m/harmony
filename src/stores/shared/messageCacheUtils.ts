@@ -13,6 +13,22 @@ export interface MessageCacheEntry {
   lastModified?: Date
 }
 
+// Messages retained per backgrounded conversation. 4 pages at the 50-row
+// fetch size.
+export const MAX_CACHED_MESSAGES = 200
+
+// Trims a backgrounded conversation to its newest MAX_CACHED_MESSAGES.
+// Arrays are created_at-ascending; the drop is from the front.
+// Not for the on-screen conversation: the store renders this array.
+export function trimCachedMessages(
+  cache: Map<string, Pick<MessageCacheEntry, 'messages'>>,
+  conversationId: string | null | undefined
+): void {
+  const entry = conversationId ? cache.get(conversationId) : undefined
+  if (!entry || entry.messages.length <= MAX_CACHED_MESSAGES) return
+  entry.messages.splice(0, entry.messages.length - MAX_CACHED_MESSAGES)
+}
+
 // Sorted insert by created_at. Realtime messages are usually newest, so
 // append is the O(1) fast path; out-of-order arrivals binary-insert.
 export function insertMessageSorted(arr: Message[], msg: Message): void {

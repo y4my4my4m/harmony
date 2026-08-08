@@ -142,9 +142,11 @@ export function createReactionEngine<G, E>(
     let evicted = 0
     for (const [id] of byAge) {
       if (evicted >= toEvict) break
-      // Never evict entities with live optimistic state or a pending reconcile.
-      if (optimisticByEntity.has(id) || pendingReconcileTimeouts.has(id)) continue
+      // A reconcile in flight writes back; skip those. Settled optimistic
+      // state is evictable and refetches on next view.
+      if (pendingReconcileTimeouts.has(id)) continue
       reactionsByEntity.delete(id)
+      optimisticByEntity.delete(id)
       lastFetched.delete(id)
       evicted++
     }
@@ -251,17 +253,20 @@ export function createReactionEngine<G, E>(
     await fetch(entityId, true)
   }
 
+  // Both write paths evict. CoreMessageService calls bulkSet per message page.
   function bulkSet(data: Record<string, G[]>): void {
     const now = Date.now()
     for (const [entityId, groups] of Object.entries(data)) {
       reactionsByEntity.set(entityId, groups)
       lastFetched.set(entityId, now)
     }
+    evictStaleEntries()
   }
 
   function setReactions(entityId: string, groups: G[]): void {
     reactionsByEntity.set(entityId, groups)
     lastFetched.set(entityId, Date.now())
+    evictStaleEntries()
   }
 
   function clearOptimisticState(entityId: string): void {

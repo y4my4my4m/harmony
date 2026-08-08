@@ -897,15 +897,19 @@ export const useActivityPubStore = defineStore('activitypub', {
         }
       } catch (error) {
         debug.error('Failed to handle realtime post creation:', error);
-        // Fallback: the broadcast payload is already in timeline format
+        // Broadcast payload is already in timeline format.
+        // Same 100-post ceiling as the enriched path.
         if (post.visibility === 'public') {
           this.publicFeed.posts.unshift(post);
+          this.publicFeed.posts.splice(100);
         }
         if (post.is_local && post.visibility === 'public') {
           this.localFeed.posts.unshift(post);
+          this.localFeed.posts.splice(100);
         }
         if (this.followedUsers.has(post.author_id)) {
           this.homeFeed.posts.unshift(post);
+          this.homeFeed.posts.splice(100);
           this.unreadCount++;
         }
       } finally {

@@ -195,3 +195,57 @@ describe('reactionEngine', () => {
     })
   })
 })
+
+describe('cache bounding', () => {
+  const MAX = 500
+  beforeEach(() => vi.useFakeTimers())
+  afterEach(() => vi.useRealTimers())
+
+  it('bounds the cache on bulkSet, the message-page-load path', () => {
+    const { engine } = setup()
+
+    // 12 pages of 100, as CoreMessageService writes them.
+    for (let page = 0; page < 12; page++) {
+      const batch: Record<string, Group[]> = {}
+      for (let i = 0; i < 100; i++) {
+        batch[`m${page}-${i}`] = [{ key: '+1', count: 1, reacted: false }]
+      }
+      engine.bulkSet(batch)
+    }
+
+    expect(engine.reactionsByEntity.size).toBeLessThanOrEqual(MAX)
+  })
+
+  it('bounds the cache on setReactions', () => {
+    const { engine } = setup()
+    for (let i = 0; i < 800; i++) {
+      engine.setReactions(`s${i}`, [{ key: '+1', count: 1, reacted: false }])
+    }
+    expect(engine.reactionsByEntity.size).toBeLessThanOrEqual(MAX)
+  })
+
+  it('evicts least-recently-written first', () => {
+    const { engine } = setup()
+    for (let i = 0; i < 700; i++) {
+      engine.setReactions(`e${i}`, [{ key: '+1', count: 1, reacted: false }])
+    }
+    expect(engine.getReactions.value('e699')).toHaveLength(1)
+    expect(engine.getReactions.value('e0')).toHaveLength(0)
+  })
+
+  it('does not retain every entity the user has reacted to', async () => {
+    const { engine } = setup({ reacted: [] })
+    await engine.toggle('reacted', { key: '+1' })
+    expect(engine.getReactions.value('reacted')).toHaveLength(1)
+
+    // Pending reconciles are eviction-protected; let them settle.
+    await vi.runAllTimersAsync()
+
+    for (let i = 0; i < 900; i++) {
+      engine.setReactions(`filler${i}`, [{ key: '+1', count: 1, reacted: false }])
+    }
+
+    expect(engine.reactionsByEntity.size).toBeLessThanOrEqual(MAX)
+    expect(engine.getReactions.value('reacted')).toHaveLength(0)
+  })
+})

@@ -45,6 +45,9 @@ export interface NotificationCounts {
 
 interface NotificationState {
   notifications: Notification[]
+  // Server rows fetched, pre-filter. Paging offset; notifications.length
+  // shifts under realtime prepends and hidden-user filtering.
+  loadedCount: number
   unreadCount: number
   isLoading: boolean
   lastFetchedAt: Date | null
@@ -144,6 +147,8 @@ let _unsubReconnected: (() => void) | null = null
 let _dndInterval: ReturnType<typeof setInterval> | null = null
 const _recentlyProcessedIds = new Set<string>()
 const DEDUP_TTL_MS = 10_000
+// 12 pages at the bell's 25-row page size.
+const MAX_NOTIFICATIONS = 300
 
 // Actor id embedded in a notification payload (shape varies by type).
 const notificationActorId = (n: Notification): string | undefined => {
@@ -166,6 +171,7 @@ const isFromHiddenUser = (n: Notification): boolean => {
 export const useNotificationStore = defineStore('notification', {
   state: (): NotificationState => ({
     notifications: [],
+    loadedCount: 0,
     unreadCount: 0,
     isLoading: false,
     lastFetchedAt: null,
@@ -593,9 +599,12 @@ export const useNotificationStore = defineStore('notification', {
 
         if (offset === 0) {
           this.notifications = visible
+          this.loadedCount = (data || []).length
         } else {
           this.notifications.push(...visible)
+          this.loadedCount += (data || []).length
         }
+        this._capNotifications()
 
         // Prime user cache so NotificationItem DisplayName can resolve custom emojis
         const actorIds = (data || []).flatMap((n: Notification) => {
@@ -644,9 +653,12 @@ export const useNotificationStore = defineStore('notification', {
 
       if (offset === 0) {
         this.notifications = visible
+        this.loadedCount = (data || []).length
       } else {
         this.notifications.push(...visible)
+        this.loadedCount += (data || []).length
       }
+      this._capNotifications()
 
       // Prime user cache so NotificationItem DisplayName can resolve custom emojis
       const actorIds = (data || []).flatMap((n: Notification) => {
@@ -765,21 +777,37 @@ export const useNotificationStore = defineStore('notification', {
       if (!uiDecision.showToast && !uiDecision.showDesktop && !uiDecision.playSound) {
         newNotification.is_read = true
         this.notifications.unshift(newNotification)
+        this._capNotifications()
         services.notifications.markAsRead(newNotification.id).catch(() => {})
         return
       }
 
       if (this.isQuietHours && newNotification.type !== 'server_update') {
         this.notifications.unshift(newNotification)
+        this._capNotifications()
         this.updateUnreadCount()
         return
       }
 
       this.notifications.unshift(newNotification)
+      this._capNotifications()
       this.updateUnreadCount()
 
       const formatted = NotificationFormatter.formatNotification(newNotification)
       this.handleRealtimeNotification(newNotification, formatted, uiDecision)
+    },
+
+    // Evicts oldest-first, read entries only: unreadCount derives from this
+    // array. Stays over the cap when every retained entry is unread.
+    _capNotifications() {
+      let excess = this.notifications.length - MAX_NOTIFICATIONS
+      if (excess <= 0) return
+      for (let i = this.notifications.length - 1; i >= 0 && excess > 0; i--) {
+        if (this.notifications[i].is_read) {
+          this.notifications.splice(i, 1)
+          excess--
+        }
+      }
     },
 
     /**
@@ -1393,6 +1421,7 @@ export const useNotificationStore = defineStore('notification', {
       if (this.notifications.length === 0) return
 
       const snapshot = [...this.notifications]
+      const loadedSnapshot = this.loadedCount
 
       try {
         const authStore = useAuthStore()
@@ -1403,6 +1432,7 @@ export const useNotificationStore = defineStore('notification', {
         if (!profileId) return
 
         this.notifications = []
+        this.loadedCount = 0
         this.updateUnreadCount()
 
         await services.notifications.deleteAllNotifications(profileId)
@@ -1410,6 +1440,7 @@ export const useNotificationStore = defineStore('notification', {
         debug.error('Failed to clear all notifications:', error)
         // Revert on server rejection (RLS, network).
         this.notifications = snapshot
+        this.loadedCount = loadedSnapshot
         this.updateUnreadCount()
         this.showToast('server_update', 'Failed to clear notifications', 'Please try again', 3000)
       }

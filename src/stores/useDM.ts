@@ -13,7 +13,7 @@ import { debug } from '@/utils/debug'
 import { realtimeConnectionManager, type ConnectionStatus } from '@/services/RealtimeConnectionManager'
 import { userEventChannel } from '@/services/UserEventChannel'
 import { getRandomId, createTempMessageId, findOptimisticMatchIndex } from '@/stores/shared/optimisticMessages'
-import { insertMessageSorted, evictOldestCacheEntry, waitForPendingReplyFetch } from '@/stores/shared/messageCacheUtils'
+import { insertMessageSorted, evictOldestCacheEntry, trimCachedMessages, waitForPendingReplyFetch } from '@/stores/shared/messageCacheUtils'
 
 export interface DMUser {
   id: string
@@ -1944,6 +1944,8 @@ export const useDMStore = defineStore('dm', () => {
     if (previousConversationId && previousConversationId !== conversationId) {
       debug.log('Cleaning up previous conversation subscription:', previousConversationId);
       cleanupConversationSubscription(previousConversationId)
+      // Trim the conversation being left, never the one being entered.
+      trimCachedMessages(messageCache.value, previousConversationId)
     }
     
     if (conversationId) {
