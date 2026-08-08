@@ -1080,7 +1080,15 @@ BEGIN
     IF v_server_id IS NULL THEN
       RETURN false;
     END IF;
-    RETURN public.current_user_is_member_of_server(v_server_id);
+    -- status is checked inline: current_user_is_member_of_server() tests row
+    -- existence only, which would admit 'banned'. messages_select_channel_member
+    -- requires 'accepted', and this gate replaces it for delivery.
+    RETURN EXISTS (
+      SELECT 1 FROM public.user_servers
+      WHERE server_id = v_server_id
+        AND user_id = v_profile_id
+        AND status = 'accepted'
+    );
   END IF;
 
   IF p_topic LIKE 'server-presence:%' OR p_topic LIKE 'server-structure:%' THEN
@@ -1089,7 +1097,12 @@ BEGIN
     EXCEPTION WHEN others THEN
       RETURN false;
     END;
-    RETURN public.current_user_is_member_of_server(v_id);
+    RETURN EXISTS (
+      SELECT 1 FROM public.user_servers
+      WHERE server_id = v_id
+        AND user_id = v_profile_id
+        AND status = 'accepted'
+    );
   END IF;
 
   IF p_topic LIKE 'user:%' THEN
@@ -1099,6 +1112,15 @@ BEGIN
       RETURN false;
     END;
     RETURN v_id = v_profile_id;
+  END IF;
+
+
+  -- Feed topics carry only public, non-deleted posts: broadcast_post_event
+  -- gates every send on visibility = 'public'. No per-user check applies.
+  IF p_topic IN ('feed:public', 'feed:local')
+     OR p_topic LIKE 'feed:user:%'
+     OR p_topic LIKE 'feed:hashtag:%' THEN
+    RETURN true;
   END IF;
 
   RETURN false;

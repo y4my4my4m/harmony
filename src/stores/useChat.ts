@@ -896,6 +896,10 @@ export const useChatStore = defineStore('chat', {
         debug.log('Real-time INSERT received:', payload.new?.id);
         
         const payloadNew = payload.new as any;
+
+        // Broadcast carries no server-side filter; postgres_changes had
+        // `channel_id=eq.${channelId}`. Routing is the trigger's topic choice.
+        if (payloadNew.channel_id !== channelId) return;
         
         // Thread messages render only in thread view.
         if (payloadNew.thread_id) {
@@ -1021,6 +1025,7 @@ export const useChatStore = defineStore('chat', {
           reactions: payloadNew.reactions,
           reply_to: payloadNew.reply_to,
           is_system: payloadNew.is_system,
+          is_pinned: payloadNew.is_pinned,
           updated_at: payloadNew.updated_at ? new Date(payloadNew.updated_at) : undefined,
           metadata: payloadNew.metadata || null,
           encrypted: payloadNew.encrypted || false,

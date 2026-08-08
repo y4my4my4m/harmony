@@ -1109,7 +1109,7 @@ CREATE TRIGGER trigger_broadcast_message_insert
 
 DROP TRIGGER IF EXISTS trigger_broadcast_message_update ON public.messages;
 CREATE TRIGGER trigger_broadcast_message_update
-    AFTER UPDATE OF content, is_deleted, is_pinned, encryption_metadata ON public.messages
+    AFTER UPDATE OF content, is_deleted, is_pinned, encryption_metadata, metadata, thread_id ON public.messages
     FOR EACH ROW
     EXECUTE FUNCTION public.broadcast_message_event();
 

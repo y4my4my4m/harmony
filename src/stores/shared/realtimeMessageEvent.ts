@@ -23,22 +23,25 @@ export interface BroadcastMessageEvent {
 }
 
 /** Routes a broadcast_message_event payload to the matching CDC handler. */
+// Returns the handler's promise. RealtimeConnectionManager awaits the
+// broadcast callback inside a try/catch; discarding it here would let a
+// handler rejection escape as an unhandled rejection, unlike the CDC path.
 export function routeMessageEvent(
   payload: BroadcastMessageEvent | null | undefined,
   handlers: MessageEventHandlers,
-): void {
+): void | Promise<void> {
   const op = payload?.op
   if (!op) return
 
   if (op === 'INSERT') {
-    if (payload?.new) void handlers.onInsert({ new: payload.new })
+    if (payload?.new) return handlers.onInsert({ new: payload.new })
     return
   }
   if (op === 'UPDATE') {
-    if (payload?.new) void handlers.onUpdate({ new: payload.new, old: payload.old ?? null })
+    if (payload?.new) return handlers.onUpdate({ new: payload.new, old: payload.old ?? null })
     return
   }
   if (op === 'DELETE') {
-    if (payload?.old) void handlers.onDelete({ old: payload.old })
+    if (payload?.old) return handlers.onDelete({ old: payload.old })
   }
 }

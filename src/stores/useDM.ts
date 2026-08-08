@@ -257,6 +257,8 @@ export const useDMStore = defineStore('dm', () => {
         cached.lastModified = new Date()
       }
     } else {
+      // New entry for a conversation not in cache; bound the map first.
+      evictOldestCacheEntry(messageCache.value, maxCacheSize)
       messageCache.value.set(message.conversation_id!, {
         messages: [message],
         lastFetchedAt: new Date(),
@@ -2205,7 +2207,11 @@ export const useDMStore = defineStore('dm', () => {
         debug.log('New DM message received:', payload.new)
         
         const message = payload.new as any
-        
+
+        // Broadcast carries no server-side filter; postgres_changes had
+        // `conversation_id=eq.${conversationId}`.
+        if (message.conversation_id !== conversationId) return
+
         if (currentDMMessages.value.findIndex(m => m.id === message.id) !== -1) {
           debug.log('Real message already exists, skipping real-time duplicate')
           return
@@ -2256,6 +2262,7 @@ export const useDMStore = defineStore('dm', () => {
           reply_to: message.reply_to,
           reactions: message.reactions || [],
           is_system: message.is_system,
+          is_pinned: message.is_pinned,
           metadata: message.metadata || null,
           encrypted: message.encrypted || false,
           encryption_metadata: message.encryption_metadata

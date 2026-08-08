@@ -81,7 +81,15 @@ BEGIN
     IF v_server_id IS NULL THEN
       RETURN false;
     END IF;
-    RETURN public.current_user_is_member_of_server(v_server_id);
+    -- status is checked inline: current_user_is_member_of_server() tests row
+    -- existence only, which would admit 'banned'. messages_select_channel_member
+    -- requires 'accepted', and this gate replaces it for delivery.
+    RETURN EXISTS (
+      SELECT 1 FROM public.user_servers
+      WHERE server_id = v_server_id
+        AND user_id = v_profile_id
+        AND status = 'accepted'
+    );
   END IF;
 
   IF p_topic LIKE 'server-presence:%' OR p_topic LIKE 'server-structure:%' THEN
@@ -90,7 +98,12 @@ BEGIN
     EXCEPTION WHEN others THEN
       RETURN false;
     END;
-    RETURN public.current_user_is_member_of_server(v_id);
+    RETURN EXISTS (
+      SELECT 1 FROM public.user_servers
+      WHERE server_id = v_id
+        AND user_id = v_profile_id
+        AND status = 'accepted'
+    );
   END IF;
 
   IF p_topic LIKE 'user:%' THEN
@@ -100,6 +113,15 @@ BEGIN
       RETURN false;
     END;
     RETURN v_id = v_profile_id;
+  END IF;
+
+
+  -- Feed topics carry only public, non-deleted posts: broadcast_post_event
+  -- gates every send on visibility = 'public'. No per-user check applies.
+  IF p_topic IN ('feed:public', 'feed:local')
+     OR p_topic LIKE 'feed:user:%'
+     OR p_topic LIKE 'feed:hashtag:%' THEN
+    RETURN true;
   END IF;
 
   RETURN false;
@@ -122,18 +144,41 @@ BEGIN
       FOR SELECT TO authenticated
       USING (public.can_subscribe_to_topic(topic))';
 
-    -- The only client publish is UserEventChannel.send() on the sender's own
-    -- user: topic (preferences sync across that account's tabs). Everything
-    -- else originates from a SECURITY DEFINER trigger, which bypasses RLS.
-    -- Constraining the event name stops a channel member forging message_event
-    -- on a topic they can legitimately read.
+    -- Client publishes: UserEventChannel.send() on the sender's own user:
+    -- topic, and userDataService profile fan-out on server-presence: topics
+    -- of servers the sender belongs to. Everything else originates from a
+    -- SECURITY DEFINER trigger, which bypasses RLS.
+    --
+    -- Topic is the only usable predicate. Realtime resolves write access once
+    -- per topic against a probe row carrying topic and extension alone, so a
+    -- term over event is NULL there and denies every private topic. The real
+    -- publish is never re-checked against this policy, so an event term would
+    -- not constrain it either way.
     EXECUTE 'DROP POLICY IF EXISTS "authenticated_users_can_send" ON realtime.messages';
     EXECUTE 'CREATE POLICY "authenticated_users_can_send" ON realtime.messages
       FOR INSERT TO authenticated
       WITH CHECK (
-        event = ''user_event''
-        AND topic = ''user:'' || public.get_current_profile_id()::text
+        topic = ''user:'' || public.get_current_profile_id()::text
+        OR (
+          topic LIKE ''server-presence:%''
+          AND EXISTS (
+            SELECT 1 FROM public.user_servers us
+            WHERE us.server_id = substring(topic from 17)::uuid
+              AND us.user_id = public.get_current_profile_id()
+              AND us.status = ''accepted''
+          )
+        )
       )';
+  END IF;
+
+  -- 20260324 granted these; both policies are TO authenticated, so anon reads
+  -- nothing through them. Revoked here so migrated instances match a fresh init.
+  IF EXISTS (
+    SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'realtime' AND c.relname = 'messages'
+  ) THEN
+    EXECUTE 'REVOKE SELECT ON realtime.messages FROM anon';
+    EXECUTE 'REVOKE USAGE ON SCHEMA realtime FROM anon';
   END IF;
 END
 $$;
@@ -228,7 +273,7 @@ CREATE TRIGGER trigger_broadcast_message_insert
 
 DROP TRIGGER IF EXISTS trigger_broadcast_message_update ON public.messages;
 CREATE TRIGGER trigger_broadcast_message_update
-    AFTER UPDATE OF content, is_deleted, is_pinned, encryption_metadata ON public.messages
+    AFTER UPDATE OF content, is_deleted, is_pinned, encryption_metadata, metadata, thread_id ON public.messages
     FOR EACH ROW
     EXECUTE FUNCTION public.broadcast_message_event();
 

@@ -58,8 +58,16 @@ BEGIN
     EXECUTE 'CREATE POLICY "authenticated_users_can_send" ON realtime.messages
       FOR INSERT TO authenticated
       WITH CHECK (
-        event = ''user_event''
-        AND topic = ''user:'' || public.get_current_profile_id()::text
+        topic = ''user:'' || public.get_current_profile_id()::text
+        OR (
+          topic LIKE ''server-presence:%''
+          AND EXISTS (
+            SELECT 1 FROM public.user_servers us
+            WHERE us.server_id = substring(topic from 17)::uuid
+              AND us.user_id = public.get_current_profile_id()
+              AND us.status = ''accepted''
+          )
+        )
       )';
   END IF;
 END
@@ -169,7 +177,6 @@ ALTER TABLE public.voice_federation_events ENABLE ROW LEVEL SECURITY;
 -- Required for private: true channels to work (server-structure, server-presence, user events)
 -- =========================================================================
 GRANT USAGE ON SCHEMA realtime TO authenticated;
-GRANT USAGE ON SCHEMA realtime TO anon;
 
 DO $$
 BEGIN
@@ -178,7 +185,6 @@ BEGIN
     WHERE n.nspname = 'realtime' AND c.relname = 'messages'
   ) THEN
     EXECUTE 'GRANT SELECT, INSERT ON realtime.messages TO authenticated';
-    EXECUTE 'GRANT SELECT ON realtime.messages TO anon';
 
     EXECUTE 'DROP POLICY IF EXISTS "authenticated_users_can_receive" ON realtime.messages';
     EXECUTE 'CREATE POLICY "authenticated_users_can_receive" ON realtime.messages
@@ -188,8 +194,16 @@ BEGIN
     EXECUTE 'CREATE POLICY "authenticated_users_can_send" ON realtime.messages
       FOR INSERT TO authenticated
       WITH CHECK (
-        event = ''user_event''
-        AND topic = ''user:'' || public.get_current_profile_id()::text
+        topic = ''user:'' || public.get_current_profile_id()::text
+        OR (
+          topic LIKE ''server-presence:%''
+          AND EXISTS (
+            SELECT 1 FROM public.user_servers us
+            WHERE us.server_id = substring(topic from 17)::uuid
+              AND us.user_id = public.get_current_profile_id()
+              AND us.status = ''accepted''
+          )
+        )
       )';
   END IF;
 END;

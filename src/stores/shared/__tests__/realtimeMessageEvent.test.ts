@@ -57,3 +57,33 @@ describe('routeMessageEvent', () => {
     expect(h.onDelete).not.toHaveBeenCalled()
   })
 })
+
+describe('routeMessageEvent - handler promise', () => {
+  it('returns the insert handler promise so the caller can catch', async () => {
+    const err = new Error('boom')
+    const handlers = {
+      onInsert: () => Promise.reject(err),
+      onUpdate: () => {},
+      onDelete: () => {},
+    }
+
+    const returned = routeMessageEvent({ op: 'INSERT', new: { id: 'm1' } }, handlers as any)
+
+    expect(returned).toBeInstanceOf(Promise)
+    await expect(returned as Promise<void>).rejects.toThrow('boom')
+  })
+
+  it('returns the update and delete handler promises', async () => {
+    const seen: string[] = []
+    const handlers = {
+      onInsert: async () => { seen.push('i') },
+      onUpdate: async () => { seen.push('u') },
+      onDelete: async () => { seen.push('d') },
+    }
+
+    await routeMessageEvent({ op: 'UPDATE', new: { id: 'm1' }, old: null }, handlers as any)
+    await routeMessageEvent({ op: 'DELETE', old: { id: 'm1' } }, handlers as any)
+
+    expect(seen).toEqual(['u', 'd'])
+  })
+})
