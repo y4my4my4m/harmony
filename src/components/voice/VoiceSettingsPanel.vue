@@ -413,6 +413,10 @@ export default defineComponent({
     let testAudioContext: AudioContext | null = null;
     let testRafId: number | null = null;
     let testTimeoutId: ReturnType<typeof setTimeout> | null = null;
+// Bumped by every start and stop. A getUserMedia that resolves after its
+// run was superseded must discard its stream instead of overwriting the
+// handles of the run that replaced it.
+let testGeneration = 0;
 
     const testMicrophone = async () => {
       if (isTesting.value) {
@@ -421,13 +425,14 @@ export default defineComponent({
       }
 
       try {
+        const generation = ++testGeneration;
         isTesting.value = true;
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: { deviceId: selectedInputDevice.value }
         });
 
-        // Test may have been stopped while getUserMedia was pending.
-        if (!isTesting.value) {
+        // Superseded or stopped while getUserMedia was pending.
+        if (generation !== testGeneration || !isTesting.value) {
           stream.getTracks().forEach(track => track.stop());
           return;
         }
@@ -467,6 +472,7 @@ export default defineComponent({
     };
 
     const stopTesting = () => {
+      testGeneration++;
       isTesting.value = false;
       testLevel.value = 0;
 

@@ -921,6 +921,9 @@ function ctxRemoveFrequent() {
 }
 
 // Lazy load emoji data when popup is mounted (user opened emoji picker)
+let isUnmounted = false;
+let outsideListenerTimeout: ReturnType<typeof setTimeout> | null = null;
+
 onMounted(async () => {
   // Show popup immediately, load emojis in background (non-blocking)
   
@@ -938,7 +941,11 @@ onMounted(async () => {
     })
   }
   
-  setTimeout(() => {
+  // onMounted awaits above this point, so the component may already be gone.
+  if (isUnmounted) return;
+
+  outsideListenerTimeout = setTimeout(() => {
+    outsideListenerTimeout = null;
     document.addEventListener('click', handleClickOutside);
     document.addEventListener('keydown', handleKeyDown);
   }, 100);
@@ -950,6 +957,13 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+  isUnmounted = true;
+  // Registration is deferred 100ms; without clearing, unmounting inside that
+  // window leaves listeners nothing can remove.
+  if (outsideListenerTimeout !== null) {
+    clearTimeout(outsideListenerTimeout);
+    outsideListenerTimeout = null;
+  }
   document.removeEventListener('click', handleClickOutside);
   document.removeEventListener('keydown', handleKeyDown);
   clearHold();

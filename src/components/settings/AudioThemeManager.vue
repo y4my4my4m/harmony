@@ -381,6 +381,7 @@ const updateCacheInfo = (): void => {
 // LIFECYCLE
 
 let cacheInfoInterval: ReturnType<typeof setInterval> | null = null
+let isUnmounted = false
 
 onMounted(async () => {
   if (!themeStore.isInitialized) {
@@ -390,10 +391,14 @@ onMounted(async () => {
   localVolume.value = Math.round(themeStore.audioVolume * 100)
   updateCacheInfo()
 
+  // themeStore.initialize() is awaited above; the panel may already be closed.
+  if (isUnmounted) return
+
   cacheInfoInterval = setInterval(updateCacheInfo, 5000)
 })
 
 onUnmounted(() => {
+  isUnmounted = true
   if (cacheInfoInterval !== null) {
     clearInterval(cacheInfoInterval)
     cacheInfoInterval = null

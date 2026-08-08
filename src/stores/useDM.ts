@@ -2475,7 +2475,10 @@ export const useDMStore = defineStore('dm', () => {
       _userDataServiceRef = null
     }
 
-    if (_keyReceivedHandler) {
+    // Logout only. cleanup(false) keeps messageCache warm across a layout
+    // unmount; unbinding there would leave those cached rows undecrypted when
+    // a key arrives from the standalone /settings route.
+    if (resetData && _keyReceivedHandler) {
       window.removeEventListener('megolm-key-received', _keyReceivedHandler)
       _keyReceivedHandler = null
     }
