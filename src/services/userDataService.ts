@@ -68,8 +68,7 @@ class UserDataService extends EventTarget {
   
   // Cache settings
   private readonly CACHE_TTL = 5 * 60 * 1000 // 5 minutes
-  // Ceiling on retained profiles. Well above any single view's working set, so
-  // pruning only reaches profiles scrolled past long ago.
+  // Retained profiles. Above any single view's working set.
   private readonly MAX_CACHED_USERS = 1000
   private readonly HEARTBEAT_INTERVAL = 60 * 1000 // 60 seconds
 
@@ -1404,17 +1403,8 @@ class UserDataService extends EventTarget {
     return age > this.CACHE_TTL
   }
 
-  /**
-   * Drop the least-recently-cached profiles past MAX_CACHED_USERS.
-   *
-   * CACHE_TTL only gates refetch, so an entry never read again was never
-   * removed and the map grew by every user id seen in any message, member
-   * list, timeline or notification.
-   *
-   * The current user and anyone in an active context are never evicted, so
-   * nothing on screen can lose its name or avatar; an evicted profile refetches
-   * through the same path a stale one already takes.
-   */
+  // Evicts least-recently-cached profiles past MAX_CACHED_USERS.
+  // Current user and active-context ids are pinned.
   private pruneUserCache(): void {
     if (this.users.size <= this.MAX_CACHED_USERS) return
 

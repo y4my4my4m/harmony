@@ -142,13 +142,8 @@ export function createReactionEngine<G, E>(
     let evicted = 0
     for (const [id] of byAge) {
       if (evicted >= toEvict) break
-      // A pending reconcile is in flight and will write back; skip only those.
-      // Settled optimistic state is evictable - it is the rendered array, so
-      // dropping it is equivalent to dropping the cached one and it refetches
-      // on next view. Skipping it made every entity the user ever reacted to
-      // permanently un-evictable, since nothing clears it after a successful
-      // toggle. Eviction is least-recently-fetched, so anything on screen sits
-      // far from the cut.
+      // A reconcile in flight writes back; skip those. Settled optimistic
+      // state is evictable and refetches on next view.
       if (pendingReconcileTimeouts.has(id)) continue
       reactionsByEntity.delete(id)
       optimisticByEntity.delete(id)
@@ -258,9 +253,7 @@ export function createReactionEngine<G, E>(
     await fetch(entityId, true)
   }
 
-  // Both write paths evict. bulkSet is the hot one - CoreMessageService calls it
-  // on every message page load - so enforcing the cap only in fetchMultiple left
-  // it unbounded in practice.
+  // Both write paths evict. CoreMessageService calls bulkSet per message page.
   function bulkSet(data: Record<string, G[]>): void {
     const now = Date.now()
     for (const [entityId, groups] of Object.entries(data)) {

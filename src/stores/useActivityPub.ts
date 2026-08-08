@@ -897,9 +897,8 @@ export const useActivityPubStore = defineStore('activitypub', {
         }
       } catch (error) {
         debug.error('Failed to handle realtime post creation:', error);
-        // Fallback: the broadcast payload is already in timeline format.
-        // Same 100-post ceiling as the enriched path above; without it these
-        // feeds grow unbounded on a busy instance whenever enrichment throws.
+        // Broadcast payload is already in timeline format.
+        // Same 100-post ceiling as the enriched path.
         if (post.visibility === 'public') {
           this.publicFeed.posts.unshift(post);
           this.publicFeed.posts.splice(100);

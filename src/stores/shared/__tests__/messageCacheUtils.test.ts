@@ -31,7 +31,7 @@ describe('trimCachedMessages', () => {
     trimCachedMessages(cache, 'c1')
 
     const kept = cache.get('c1')!.messages
-    // Arrays are created_at-ascending, so the tail is newest.
+    // Arrays are created_at-ascending.
     expect(kept[kept.length - 1].id).toBe('m999')
     expect(kept[0].id).toBe(`m${1000 - MAX_CACHED_MESSAGES}`)
   })

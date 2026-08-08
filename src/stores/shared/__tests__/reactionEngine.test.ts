@@ -204,7 +204,7 @@ describe('cache bounding', () => {
   it('bounds the cache on bulkSet, the message-page-load path', () => {
     const { engine } = setup()
 
-    // Twelve pages of 100, the way CoreMessageService writes them per page load.
+    // 12 pages of 100, as CoreMessageService writes them.
     for (let page = 0; page < 12; page++) {
       const batch: Record<string, Group[]> = {}
       for (let i = 0; i < 100; i++) {
@@ -238,8 +238,7 @@ describe('cache bounding', () => {
     await engine.toggle('reacted', { key: '+1' })
     expect(engine.getReactions.value('reacted')).toHaveLength(1)
 
-    // Let the reconcile settle. A pending reconcile is legitimately protected
-    // from eviction; the leak was retaining the entity forever afterwards.
+    // Pending reconciles are eviction-protected; let them settle.
     await vi.runAllTimersAsync()
 
     for (let i = 0; i < 900; i++) {

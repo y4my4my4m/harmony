@@ -200,7 +200,7 @@ describe('useNotificationStore - cache bounding', () => {
     store._capNotifications()
 
     expect(store.notifications.length).toBeLessThanOrEqual(300)
-    // Newest survive: eviction walks from the tail.
+    // Eviction walks from the tail.
     expect(store.notifications[0].id).toBe('n0')
   })
 
@@ -243,7 +243,6 @@ describe('useNotificationStore - cache bounding', () => {
 
     store._capNotifications()
 
-    // Offset must not regress to 300, which would refetch already-seen rows.
     expect(store.loadedCount).toBe(800)
   })
 })

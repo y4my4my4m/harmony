@@ -45,9 +45,8 @@ export interface NotificationCounts {
 
 interface NotificationState {
   notifications: Notification[]
-  // Server rows fetched so far, pre-filter. The paging offset must not be
-  // derived from notifications.length: realtime prepends and hidden-user
-  // filtering both shift that count, skipping or duplicating rows.
+  // Server rows fetched, pre-filter. Paging offset; notifications.length
+  // shifts under realtime prepends and hidden-user filtering.
   loadedCount: number
   unreadCount: number
   isLoading: boolean
@@ -798,12 +797,8 @@ export const useNotificationStore = defineStore('notification', {
       this.handleRealtimeNotification(newNotification, formatted, uiDecision)
     },
 
-    /**
-     * Bounds the list; realtime arrivals prepend with no user action.
-     * Evicts oldest-first and only entries already read - unreadCount is
-     * derived from this array, so dropping unread ones shrinks the badge.
-     * Stays over the cap when everything retained is unread.
-     */
+    // Evicts oldest-first, read entries only: unreadCount derives from this
+    // array. Stays over the cap when every retained entry is unread.
     _capNotifications() {
       let excess = this.notifications.length - MAX_NOTIFICATIONS
       if (excess <= 0) return

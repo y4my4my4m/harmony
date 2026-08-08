@@ -14,17 +14,12 @@ export interface MessageCacheEntry {
 }
 
 // Messages retained per backgrounded conversation. 4 pages at the 50-row
-// fetch size. The per-conversation LRU bounds how many conversations are
-// cached; without this, each one's array still grows without limit.
+// fetch size.
 export const MAX_CACHED_MESSAGES = 200
 
 // Trims a backgrounded conversation to its newest MAX_CACHED_MESSAGES.
-// Arrays are created_at-ascending, so the drop is from the front.
-// Never call for the conversation on screen: the store renders this same
-// array, and splicing it would yank rendered messages out from under the
-// viewport. Older messages page back in via fetchMessages(id, oldestId),
-// and jumpToMessage already falls back to a single-row fetch when a target
-// is not retained.
+// Arrays are created_at-ascending; the drop is from the front.
+// Not for the on-screen conversation: the store renders this array.
 export function trimCachedMessages(
   cache: Map<string, Pick<MessageCacheEntry, 'messages'>>,
   conversationId: string | null | undefined
