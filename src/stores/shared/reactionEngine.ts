@@ -142,9 +142,16 @@ export function createReactionEngine<G, E>(
     let evicted = 0
     for (const [id] of byAge) {
       if (evicted >= toEvict) break
-      // Never evict entities with live optimistic state or a pending reconcile.
-      if (optimisticByEntity.has(id) || pendingReconcileTimeouts.has(id)) continue
+      // A pending reconcile is in flight and will write back; skip only those.
+      // Settled optimistic state is evictable - it is the rendered array, so
+      // dropping it is equivalent to dropping the cached one and it refetches
+      // on next view. Skipping it made every entity the user ever reacted to
+      // permanently un-evictable, since nothing clears it after a successful
+      // toggle. Eviction is least-recently-fetched, so anything on screen sits
+      // far from the cut.
+      if (pendingReconcileTimeouts.has(id)) continue
       reactionsByEntity.delete(id)
+      optimisticByEntity.delete(id)
       lastFetched.delete(id)
       evicted++
     }
@@ -251,17 +258,22 @@ export function createReactionEngine<G, E>(
     await fetch(entityId, true)
   }
 
+  // Both write paths evict. bulkSet is the hot one - CoreMessageService calls it
+  // on every message page load - so enforcing the cap only in fetchMultiple left
+  // it unbounded in practice.
   function bulkSet(data: Record<string, G[]>): void {
     const now = Date.now()
     for (const [entityId, groups] of Object.entries(data)) {
       reactionsByEntity.set(entityId, groups)
       lastFetched.set(entityId, now)
     }
+    evictStaleEntries()
   }
 
   function setReactions(entityId: string, groups: G[]): void {
     reactionsByEntity.set(entityId, groups)
     lastFetched.set(entityId, Date.now())
+    evictStaleEntries()
   }
 
   function clearOptimisticState(entityId: string): void {

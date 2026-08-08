@@ -178,3 +178,72 @@ describe('useNotificationStore - identity safety', () => {
     })
   })
 })
+
+describe('useNotificationStore - cache bounding', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+  })
+
+  const mk = (i: number, isRead: boolean) => ({
+    id: `n${i}`,
+    user_id: PROFILE_ID,
+    type: 'mention',
+    is_read: isRead,
+    created_at: new Date(1700000000000 + i).toISOString(),
+  }) as any
+
+  it('caps the list, evicting oldest read entries first', () => {
+    const store = useNotificationStore()
+    store.notifications = Array.from({ length: 800 }, (_, i) => mk(i, true))
+
+    store._capNotifications()
+
+    expect(store.notifications.length).toBeLessThanOrEqual(300)
+    // Newest survive: eviction walks from the tail.
+    expect(store.notifications[0].id).toBe('n0')
+  })
+
+  it('never evicts unread entries, so the badge count is preserved', () => {
+    const store = useNotificationStore()
+    store.notifications = Array.from({ length: 800 }, (_, i) => mk(i, i % 2 === 0))
+
+    store._capNotifications()
+    store.updateUnreadCount()
+
+    expect(store.notifications.filter(n => !n.is_read).length).toBe(400)
+    expect(store.unreadCount).toBe(400)
+  })
+
+  it('stays over the cap rather than dropping unread entries', () => {
+    const store = useNotificationStore()
+    store.notifications = Array.from({ length: 500 }, (_, i) => mk(i, false))
+
+    store._capNotifications()
+
+    expect(store.notifications.length).toBe(500)
+  })
+
+  it('realtime arrivals do not grow the list without bound', async () => {
+    const store = useNotificationStore()
+    store.notifications = Array.from({ length: 300 }, (_, i) => mk(i, true))
+
+    for (let i = 0; i < 200; i++) {
+      store.notifications.unshift(mk(1000 + i, true))
+      store._capNotifications()
+    }
+
+    expect(store.notifications.length).toBeLessThanOrEqual(300)
+  })
+
+  it('paging offset tracks server rows, not the trimmed array length', () => {
+    const store = useNotificationStore()
+    store.notifications = Array.from({ length: 800 }, (_, i) => mk(i, true))
+    store.loadedCount = 800
+
+    store._capNotifications()
+
+    // Offset must not regress to 300, which would refetch already-seen rows.
+    expect(store.loadedCount).toBe(800)
+  })
+})

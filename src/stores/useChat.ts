@@ -10,7 +10,7 @@ import { processMessageDecryption } from '@/utils/messageDecryption';
 import { debug } from '@/utils/debug';
 import { realtimeConnectionManager, type ConnectionStatus } from '@/services/RealtimeConnectionManager';
 import { getRandomId, createTempMessageId, findOptimisticMatchIndex } from '@/stores/shared/optimisticMessages';
-import { insertMessageSorted, evictOldestCacheEntry, waitForPendingReplyFetch } from '@/stores/shared/messageCacheUtils';
+import { insertMessageSorted, evictOldestCacheEntry, trimCachedMessages, waitForPendingReplyFetch } from '@/stores/shared/messageCacheUtils';
 
 export const useChatStore = defineStore('chat', {
   state: () => ({
@@ -186,6 +186,8 @@ export const useChatStore = defineStore('chat', {
       if (this.loadingOlderMessages && oldestMessageId !== '') return;
 
       if (oldestMessageId === '' && this.currentChannelId !== channelId) {
+        // Trim the channel being left, never the one being entered.
+        trimCachedMessages(this.messageCache, this.currentChannelId);
         this.currentChannelId = channelId;
       }
 

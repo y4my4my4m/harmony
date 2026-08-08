@@ -346,9 +346,9 @@ const loadMoreNotifications = async () => {
   try {
     isLoadingMore.value = true
     const newNotifications = await notificationStore.fetchNotifications(
-      authStore.session.user.id, 
-      25, 
-      notifications.value.length
+      authStore.session.user.id,
+      25,
+      notificationStore.loadedCount
     )
     hasMoreNotifications.value = newNotifications.length === 25
   } catch (error) {

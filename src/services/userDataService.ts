@@ -68,6 +68,9 @@ class UserDataService extends EventTarget {
   
   // Cache settings
   private readonly CACHE_TTL = 5 * 60 * 1000 // 5 minutes
+  // Ceiling on retained profiles. Well above any single view's working set, so
+  // pruning only reaches profiles scrolled past long ago.
+  private readonly MAX_CACHED_USERS = 1000
   private readonly HEARTBEAT_INTERVAL = 60 * 1000 // 60 seconds
 
   // Coalescing batch loader (DataLoader pattern). Collapses bursts of single-id
@@ -1284,6 +1287,7 @@ class UserDataService extends EventTarget {
       if (loadedIds.length > 0) {
         debug.log(`Loaded ${loadedIds.length} user profiles from database`)
         await this.enrichDisplayNameEmojis(loadedIds)
+        this.pruneUserCache()
         this.emitEvent('data-refreshed', { userIds: loadedIds })
       }
     } catch (error) {
@@ -1395,9 +1399,42 @@ class UserDataService extends EventTarget {
   private isUserDataStale(userId: string): boolean {
     const userData = this.users.get(userId)
     if (!userData) return true
-    
+
     const age = Date.now() - new Date(userData.lastCacheUpdate).getTime()
     return age > this.CACHE_TTL
+  }
+
+  /**
+   * Drop the least-recently-cached profiles past MAX_CACHED_USERS.
+   *
+   * CACHE_TTL only gates refetch, so an entry never read again was never
+   * removed and the map grew by every user id seen in any message, member
+   * list, timeline or notification.
+   *
+   * The current user and anyone in an active context are never evicted, so
+   * nothing on screen can lose its name or avatar; an evicted profile refetches
+   * through the same path a stale one already takes.
+   */
+  private pruneUserCache(): void {
+    if (this.users.size <= this.MAX_CACHED_USERS) return
+
+    const pinned = new Set<string>()
+    if (this.currentUserId) pinned.add(this.currentUserId)
+    for (const context of this.contexts.values()) {
+      for (const id of context.userIds) pinned.add(id)
+    }
+
+    const evictable = [...this.users.entries()]
+      .filter(([id]) => !pinned.has(id))
+      .sort((a, b) =>
+        new Date(a[1].lastCacheUpdate).getTime() - new Date(b[1].lastCacheUpdate).getTime())
+
+    let toEvict = this.users.size - this.MAX_CACHED_USERS
+    for (const [id] of evictable) {
+      if (toEvict <= 0) break
+      this.users.delete(id)
+      toEvict--
+    }
   }
   
   async updateCurrentUserStatus(status: UserStatus, isManual: boolean = true): Promise<void> {
