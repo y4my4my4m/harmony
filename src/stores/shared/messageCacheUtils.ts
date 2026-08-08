@@ -9,6 +9,7 @@ import { debug } from '@/utils/debug'
 export interface MessageCacheEntry {
   messages: Message[]
   lastFetchedAt: Date
+  oldestMessageId: string | null
   allMessagesLoaded: boolean
   lastModified?: Date
 }
@@ -20,13 +21,20 @@ export const MAX_CACHED_MESSAGES = 200
 // Trims a backgrounded conversation to its newest MAX_CACHED_MESSAGES.
 // Arrays are created_at-ascending; the drop is from the front.
 // Not for the on-screen conversation: the store renders this array.
+//
+// Dropping messages reopens pagination: allMessagesLoaded is restored
+// verbatim on cache re-entry and gates the scroll-up sentinel, so leaving it
+// set strands the trimmed history behind a closed gate. oldestMessageId
+// follows the new front of the array.
 export function trimCachedMessages(
-  cache: Map<string, Pick<MessageCacheEntry, 'messages'>>,
+  cache: Map<string, Pick<MessageCacheEntry, 'messages' | 'allMessagesLoaded' | 'oldestMessageId'>>,
   conversationId: string | null | undefined
 ): void {
   const entry = conversationId ? cache.get(conversationId) : undefined
   if (!entry || entry.messages.length <= MAX_CACHED_MESSAGES) return
   entry.messages.splice(0, entry.messages.length - MAX_CACHED_MESSAGES)
+  entry.allMessagesLoaded = false
+  entry.oldestMessageId = entry.messages[0]?.id ?? null
 }
 
 // Sorted insert by created_at. Realtime messages are usually newest, so

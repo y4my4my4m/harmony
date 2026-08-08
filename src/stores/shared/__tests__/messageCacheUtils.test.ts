@@ -13,8 +13,17 @@ const mk = (i: number): Message =>
     created_at: new Date(1700000000000 + i * 1000).toISOString(),
   }) as any
 
-const cacheOf = (id: string, count: number) =>
-  new Map([[id, { messages: Array.from({ length: count }, (_, i) => mk(i)) }]])
+const entry = (count: number, allLoaded = true) => {
+  const messages = Array.from({ length: count }, (_, i) => mk(i))
+  return {
+    messages,
+    lastFetchedAt: new Date(1700000000000),
+    oldestMessageId: messages[0]?.id ?? null,
+    allMessagesLoaded: allLoaded,
+  }
+}
+
+const cacheOf = (id: string, count: number) => new Map([[id, entry(count)]])
 
 describe('trimCachedMessages', () => {
   it('bounds a conversation that grew past the cap', () => {
@@ -63,7 +72,7 @@ describe('trimCachedMessages', () => {
 
   it('does not touch other conversations', () => {
     const cache = cacheOf('c1', 5000)
-    cache.set('c2', { messages: Array.from({ length: 4000 }, (_, i) => mk(i)) })
+    cache.set('c2', entry(4000))
 
     trimCachedMessages(cache, 'c1')
 
@@ -79,5 +88,33 @@ describe('trimCachedMessages', () => {
 
     expect(arr.length).toBe(MAX_CACHED_MESSAGES + 1)
     expect(arr[arr.length - 1].id).toBe('m2000')
+  })
+
+  it('reopens pagination when it drops messages', () => {
+    const cache = cacheOf('c1', 1000)
+
+    trimCachedMessages(cache, 'c1')
+
+    // allMessagesLoaded is restored verbatim on cache re-entry and gates the
+    // scroll-up sentinel; leaving it set strands the trimmed history.
+    expect(cache.get('c1')!.allMessagesLoaded).toBe(false)
+  })
+
+  it('moves oldestMessageId to the new front of the array', () => {
+    const cache = cacheOf('c1', 1000)
+
+    trimCachedMessages(cache, 'c1')
+
+    const kept = cache.get('c1')!
+    expect(kept.oldestMessageId).toBe(kept.messages[0].id)
+  })
+
+  it('leaves pagination state alone when nothing is dropped', () => {
+    const cache = cacheOf('c1', 10)
+
+    trimCachedMessages(cache, 'c1')
+
+    expect(cache.get('c1')!.allMessagesLoaded).toBe(true)
+    expect(cache.get('c1')!.oldestMessageId).toBe('m0')
   })
 })

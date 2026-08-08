@@ -329,8 +329,7 @@ export const useDMStore = defineStore('dm', () => {
 
   let _userUpdatedHandler: ((event: any) => void) | null = null
   let _userDataServiceRef: any = null
-  // Held so cleanup() can remove it: an inline arrow cannot be unregistered,
-  // and the closure pins the store's whole decryption path.
+  // Held so cleanup() can remove it; an inline arrow cannot be unregistered.
   let _keyReceivedHandler: ((e: Event) => void) | null = null
   const setupEncryptionKeyListener = () => {
     if (_keyReceivedHandler) return
@@ -1932,6 +1931,12 @@ export const useDMStore = defineStore('dm', () => {
     removeMessageFromCache(tempId);
   };
 
+  // DM -> channel leaves the conversation without calling
+  // setCurrentConversation, so the trim there never runs for that transition.
+  const trimCachedConversation = () => {
+    trimCachedMessages(messageCache.value, currentConversationId.value)
+  }
+
   const setCurrentConversation = (conversationId: string | null) => {
     const previousConversationId = currentConversationId.value
     debug.log('Setting current conversation:', {
@@ -2062,9 +2067,8 @@ export const useDMStore = defineStore('dm', () => {
           }
         }
       }
-      // Re-entrant: this runs again on every DM conversation switch. Drop the
-      // previous registration before overwriting the slot, or it becomes
-      // unreachable for cleanup() and leaks a closure over `conversations`.
+      // Re-entrant: runs again on every conversation switch. Drop the previous
+      // registration before overwriting the slot, or cleanup() cannot reach it.
       if (_userUpdatedHandler && _userDataServiceRef) {
         _userDataServiceRef.removeEventListener('user-updated', _userUpdatedHandler)
       }
@@ -2083,13 +2087,9 @@ export const useDMStore = defineStore('dm', () => {
   }
 
   // Pulls anything newer than the newest message held for `conversationId`.
-  //
-  // The open thread is fed by `dm-conversation-{id}` postgres_changes, which can
-  // stop delivering while still reporting SUBSCRIBED; the health check only
-  // catches a globally dead socket, and silence is indistinguishable from a
-  // quiet conversation. `user:{profileId}` broadcast keeps working in that
-  // state, so an `unread:change` for the open conversation is a reliable signal
-  // that the thread channel missed something.
+  // `dm-conversation-{id}` postgres_changes can stop delivering while still
+  // reporting SUBSCRIBED; `user:{profileId}` broadcast keeps working, so an
+  // `unread:change` for the open conversation signals a missed row.
   let _reconcileInFlight: string | null = null
   const reconcileConversationMessages = async (conversationId: string): Promise<number> => {
     if (!conversationId || _reconcileInFlight === conversationId) return 0
@@ -2441,9 +2441,8 @@ export const useDMStore = defineStore('dm', () => {
       conv.unread_count = unread
       conv.last_activity = new Date().toISOString()
 
-      // This broadcast rides a different channel from the open thread's
-      // postgres_changes stream, so it still arrives when that stream has gone
-      // quiet without reporting an error. Reconcile rather than trust it.
+      // Separate channel from the thread's postgres_changes stream; arrives
+      // when that stream is silent. Reconcile rather than trust it.
       if (conversationId === currentConversationId.value) {
         void reconcileConversationMessages(conversationId)
       }
@@ -2478,8 +2477,7 @@ export const useDMStore = defineStore('dm', () => {
     }
 
     // Logout only. cleanup(false) keeps messageCache warm across a layout
-    // unmount; unbinding there would leave those cached rows undecrypted when
-    // a key arrives from the standalone /settings route.
+    // unmount, and those rows still need a key arriving from /settings.
     if (resetData && _keyReceivedHandler) {
       window.removeEventListener('megolm-key-received', _keyReceivedHandler)
       _keyReceivedHandler = null
@@ -3122,6 +3120,7 @@ export const useDMStore = defineStore('dm', () => {
     retryDMMessage,
     discardFailedDMMessage,
     setCurrentConversation,
+    trimCachedConversation,
     switchToConversation,
     clearDMMessages,
     setupConversationSubscription,

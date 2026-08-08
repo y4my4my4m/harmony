@@ -83,6 +83,7 @@ const loadMessages = async () => {
   if (props.isDM) {
     // Clean up channel subscriptions when entering DM view to prevent leaks
     chatStore.unsubscribeFromMessages()
+    chatStore.trimCachedChannel()
 
     const conversationId = route.params.conversationId as string
     if (conversationId) {
@@ -139,6 +140,7 @@ const loadMessages = async () => {
     }
 
     if (serverId && channelId) {
+      dmStore.trimCachedConversation()
       if (serverChannelStore.currentChannelId !== channelId) {
         serverChannelStore.setCurrentChannel(channelId)
       }

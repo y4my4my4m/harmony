@@ -1,8 +1,4 @@
-/**
- * useUserData is called from 43 sites, several of them per message or per
- * mention. Registering service listeners per call leaked seven per invocation
- * and was the mechanism behind progressive session slowdown.
- */
+// Service listeners bind once at module scope, not per useUserData() call.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const addEventListener = vi.fn()

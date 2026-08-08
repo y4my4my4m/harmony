@@ -12,12 +12,8 @@ import { UserStatus, type DisplayNamePart } from '@/types'
 import { getAvatarUrl } from '@/utils/avatarUtils'
 import { debug } from '@/utils/debug'
 
-// Module scope, not per call. userDataService is a singleton and every caller
-// wants the same signal, so one counter and one set of listeners serve all of
-// them. Registering per call leaked seven listeners per invocation, each
-// closing over that call's setup scope; across 43 call sites - several of them
-// per message or per mention - a channel switch cost hundreds of permanent
-// listeners, and every 'user-updated' emit then fanned out across all of them.
+// Module scope, not per call. userDataService is a singleton; one counter and
+// one listener set serve every caller.
 const forceUpdate = ref(0)
 
 const triggerUpdate = () => {
@@ -34,8 +30,7 @@ const SERVICE_EVENTS = [
   'global-presence-updated',
 ] as const
 
-// Bound once for the module's lifetime. The service outlives every consumer,
-// so there is nothing to unbind.
+// Bound once for the module's lifetime; the service outlives every consumer.
 const isInitialized = ref(false)
 
 const bindServiceListeners = () => {
