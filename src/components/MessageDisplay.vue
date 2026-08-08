@@ -311,7 +311,7 @@
               :reply-to-message-id="item.message.reply_to"
               :channel-id="channelId"
               :conversation-id="conversationId"
-              :server-id="coloringServerId"
+              :server-id="effectiveColoringServerId"
               @open-reply="handleReplyClick"
             />
           
@@ -586,6 +586,8 @@ defineOptions({ inheritAttrs: false })
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 import { computed, ref, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import { debug } from '@/utils/debug'
+import { getAvatarUrl } from '@/utils/avatarUtils';
+import { GroupIconPresets } from '@/utils/groupIconUtils';
 import type { PropType, Ref, ComputedRef } from 'vue';
 import type { Message, MessagePart, User, Emoji, Reaction, FileContent } from '@/types';
 import { hasSubstantiveMessageContent, removeFilePartByUrl } from '@/utils/messageContentUtils';
@@ -712,17 +714,22 @@ watch(
   { immediate: true },
 );
 
+// A DM belongs to no server. coloringServerId seeds from currentServerId and
+// only advances when a channel's messages render, so in a conversation it
+// still holds the last server opened and would colour DM authors through that
+// server's roles. Null here forces the profile colour.
+const effectiveColoringServerId = computed(() =>
+  props.conversationId ? null : coloringServerId.value
+);
+
 /**
  * Resolve a chat-author's display color, preferring their highest-position
  * colored role within the server the rendered messages belong to. Falls back
  * to the user's profile color (and ultimately the default in `getUserColor`).
- *
- * `coloringServerId` is null for DMs and ActivityPub contexts; with no role
- * to look up, the profile color applies.
  */
 const resolveChatUserColor = (userId: string | null | undefined): string => {
   if (!userId) return '#ffffff';
-  const serverId = coloringServerId.value;
+  const serverId = effectiveColoringServerId.value;
   const roleColor = serverId ? serverRolesStore.getUserRoleColor(serverId, userId) : null;
   return roleColor || getUserColor(userId).value;
 };
@@ -1355,6 +1362,9 @@ const isAllMessagesLoaded = computed(() => {
 });
 
 // Context shown by the conversation-start header (channel vs DM vs group).
+// .beginning-badge is 48px; 2x for retina.
+const BEGINNING_AVATAR_PX = 96;
+
 const beginningInfo = computed(() => {
   if (props.channelId) {
     const channel = serverChannelStore.channels.find(c => c.id === props.channelId);
@@ -1362,11 +1372,24 @@ const beginningInfo = computed(() => {
   }
   if (props.conversationId) {
     const conv = dmStore.getCurrentConversation;
+    // Storage paths must go through getAvatarUrl; bound raw they resolve
+    // against the app origin and 404. Undefined when absent, so the initial
+    // fallback still renders instead of the default-avatar asset.
     if (conv?.type === 'group') {
-      return { kind: 'group', name: conv.name || 'Group', avatar: conv.icon_url };
+      // Group icons live in their own bucket and are keyed by conversation id,
+      // not the avatars bucket. medium() is the 48px preset.
+      return {
+        kind: 'group',
+        name: conv.name || 'Group',
+        avatar: conv.id ? GroupIconPresets.medium(conv.id, conv.icon_url || undefined) : undefined,
+      };
     }
     const other = conv?.other_user;
-    return { kind: 'dm', name: other?.display_name || other?.username || 'this user', avatar: other?.avatar_url };
+    return {
+      kind: 'dm',
+      name: other?.display_name || other?.username || 'this user',
+      avatar: other?.avatar_url ? getAvatarUrl(other.avatar_url, BEGINNING_AVATAR_PX) : undefined,
+    };
   }
   return { kind: 'channel', name: '', avatar: undefined as string | undefined };
 });
