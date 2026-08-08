@@ -5027,3 +5027,70 @@ BEGIN
     RAISE NOTICE 'Trigger functions created successfully';
 END $$;
 
+CREATE OR REPLACE FUNCTION public.broadcast_message_event()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_rec   record;
+  v_topic text;
+  v_row   jsonb;
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    v_rec := OLD;
+  ELSE
+    v_rec := NEW;
+  END IF;
+
+  IF v_rec.conversation_id IS NOT NULL THEN
+    v_topic := 'dm-conversation-' || v_rec.conversation_id::text;
+  ELSIF v_rec.channel_id IS NOT NULL THEN
+    v_topic := 'channel-messages-' || v_rec.channel_id::text;
+  ELSE
+    RETURN COALESCE(NEW, OLD);
+  END IF;
+
+  v_row := jsonb_build_object(
+    'id',                  v_rec.id,
+    'created_at',          v_rec.created_at,
+    'updated_at',          v_rec.updated_at,
+    'user_id',             v_rec.user_id,
+    'bot_id',              v_rec.bot_id,
+    'channel_id',          v_rec.channel_id,
+    'conversation_id',     v_rec.conversation_id,
+    'thread_id',           v_rec.thread_id,
+    'reply_to',            v_rec.reply_to,
+    'content',             v_rec.content,
+    'is_deleted',          v_rec.is_deleted,
+    'is_system',           v_rec.is_system,
+    'is_pinned',           v_rec.is_pinned,
+    'encrypted',           v_rec.encrypted,
+    'encryption_metadata', v_rec.encryption_metadata,
+    'megolm_session_id',   v_rec.megolm_session_id,
+    'metadata',            COALESCE(v_rec.metadata, '{}'::jsonb)
+  );
+
+  PERFORM realtime.send(
+    jsonb_build_object(
+      'op',  TG_OP,
+      'new', CASE WHEN TG_OP = 'DELETE' THEN NULL ELSE v_row END,
+      'old', CASE WHEN TG_OP = 'DELETE' THEN v_row ELSE NULL END
+    ),
+    'message_event',
+    v_topic,
+    true
+  );
+
+  RETURN COALESCE(NEW, OLD);
+EXCEPTION WHEN OTHERS THEN
+  -- Delivery is best-effort; the write must not fail because realtime is
+  -- unavailable. Clients reconcile against the table on reconnect.
+  RAISE WARNING 'broadcast_message_event failed: %', SQLERRM;
+  RETURN COALESCE(NEW, OLD);
+END;
+$$;
+
+COMMENT ON FUNCTION public.broadcast_message_event() IS
+'Publishes message rows to dm-conversation-<id> / channel-messages-<id> via Broadcast. Mirrors the postgres_changes envelope.';

@@ -1040,6 +1040,99 @@ GRANT EXECUTE ON FUNCTION public.is_muted_by(uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.has_muted(uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.current_user_is_member_of_server(uuid) TO authenticated;
 
+CREATE OR REPLACE FUNCTION public.can_subscribe_to_topic(p_topic text)
+RETURNS boolean
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_profile_id uuid;
+  v_id         uuid;
+  v_server_id  uuid;
+BEGIN
+  IF p_topic IS NULL THEN
+    RETURN false;
+  END IF;
+
+  v_profile_id := public.get_current_profile_id();
+  IF v_profile_id IS NULL THEN
+    RETURN false;
+  END IF;
+
+  IF p_topic LIKE 'dm-conversation-%' THEN
+    BEGIN
+      v_id := substring(p_topic from 17)::uuid;
+    EXCEPTION WHEN others THEN
+      RETURN false;
+    END;
+    RETURN public.is_conversation_participant(v_id, v_profile_id);
+  END IF;
+
+  IF p_topic LIKE 'channel-messages-%' THEN
+    BEGIN
+      v_id := substring(p_topic from 18)::uuid;
+    EXCEPTION WHEN others THEN
+      RETURN false;
+    END;
+    SELECT server_id INTO v_server_id FROM public.channels WHERE id = v_id;
+    IF v_server_id IS NULL THEN
+      RETURN false;
+    END IF;
+    -- status is checked inline: current_user_is_member_of_server() tests row
+    -- existence only, which would admit 'banned'. messages_select_channel_member
+    -- requires 'accepted', and this gate replaces it for delivery.
+    RETURN EXISTS (
+      SELECT 1 FROM public.user_servers
+      WHERE server_id = v_server_id
+        AND user_id = v_profile_id
+        AND status = 'accepted'
+    );
+  END IF;
+
+  IF p_topic LIKE 'server-presence:%' OR p_topic LIKE 'server-structure:%' THEN
+    BEGIN
+      v_id := split_part(p_topic, ':', 2)::uuid;
+    EXCEPTION WHEN others THEN
+      RETURN false;
+    END;
+    RETURN EXISTS (
+      SELECT 1 FROM public.user_servers
+      WHERE server_id = v_id
+        AND user_id = v_profile_id
+        AND status = 'accepted'
+    );
+  END IF;
+
+  IF p_topic LIKE 'user:%' THEN
+    BEGIN
+      v_id := substring(p_topic from 6)::uuid;
+    EXCEPTION WHEN others THEN
+      RETURN false;
+    END;
+    RETURN v_id = v_profile_id;
+  END IF;
+
+
+  -- Feed topics carry only public, non-deleted posts: broadcast_post_event
+  -- gates every send on visibility = 'public'. No per-user check applies.
+  IF p_topic IN ('feed:public', 'feed:local')
+     OR p_topic LIKE 'feed:user:%'
+     OR p_topic LIKE 'feed:hashtag:%' THEN
+    RETURN true;
+  END IF;
+
+  RETURN false;
+END;
+$$;
+
+COMMENT ON FUNCTION public.can_subscribe_to_topic(text) IS
+'Authorizes a Broadcast topic for the current user. Broadcast carries no row context, so this is the only gate on realtime.messages SELECT.';
+
+GRANT EXECUTE ON FUNCTION public.can_subscribe_to_topic(text) TO authenticated;
+
+
 -- ---------------------------------------------------------------------------
 -- FEDERATION JOB QUEUE
 -- ---------------------------------------------------------------------------
