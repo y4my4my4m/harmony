@@ -12,39 +12,43 @@ import { UserStatus, type DisplayNamePart } from '@/types'
 import { getAvatarUrl } from '@/utils/avatarUtils'
 import { debug } from '@/utils/debug'
 
+// Module scope, not per call. userDataService is a singleton and every caller
+// wants the same signal, so one counter and one set of listeners serve all of
+// them. Registering per call leaked seven listeners per invocation, each
+// closing over that call's setup scope; across 43 call sites - several of them
+// per message or per mention - a channel switch cost hundreds of permanent
+// listeners, and every 'user-updated' emit then fanned out across all of them.
+const forceUpdate = ref(0)
+
+const triggerUpdate = () => {
+  forceUpdate.value++
+}
+
+const SERVICE_EVENTS = [
+  'user-updated',
+  'status-changed',
+  'custom-status-changed',
+  'presence-sync',
+  'data-refreshed',
+  'context-updated',
+  'global-presence-updated',
+] as const
+
+// Bound once for the module's lifetime. The service outlives every consumer,
+// so there is nothing to unbind.
+const isInitialized = ref(false)
+
+const bindServiceListeners = () => {
+  if (isInitialized.value) return
+  for (const type of SERVICE_EVENTS) {
+    userDataService.addEventListener(type, triggerUpdate)
+  }
+  isInitialized.value = true
+}
+
 export function useUserData() {
-  const isInitialized = ref(false)
-  const forceUpdate = ref(0)
-  
-  const triggerUpdate = () => {
-    forceUpdate.value++
-  }
-  
-  const setupEventListeners = () => {
-    const listeners = [
-      { type: 'user-updated', listener: triggerUpdate },
-      { type: 'status-changed', listener: triggerUpdate },
-      { type: 'custom-status-changed', listener: triggerUpdate },
-      { type: 'presence-sync', listener: triggerUpdate },
-      { type: 'data-refreshed', listener: triggerUpdate },
-      { type: 'context-updated', listener: triggerUpdate },
-      { type: 'global-presence-updated', listener: triggerUpdate }
-    ]
-    
-    listeners.forEach(({ type, listener }) => {
-      userDataService.addEventListener(type, listener)
-    })
-  }
-  
-  const ensureInitialized = () => {
-    if (!isInitialized.value) {
-      setupEventListeners()
-      isInitialized.value = true
-    }
-  }
-  
-  ensureInitialized()
-  
+  bindServiceListeners()
+
   // User Data Getters (all reactive)
   
   const getUser = (userId: string) => computed(() => {
@@ -235,36 +239,36 @@ export function useUserData() {
   })
 
   const fetchUserProfile = async (userId: string, forceRefresh: boolean = false) => {
-    await ensureInitialized()
+    bindServiceListeners()
     return await userDataService.fetchUserProfile(userId, forceRefresh)
   }
 
   const fetchMultipleUserProfiles = async (userIds: string[], forceRefresh: boolean = false) => {
-    await ensureInitialized()
+    bindServiceListeners()
     return await userDataService.fetchMultipleUserProfiles(userIds, forceRefresh)
   }
 
   /** Loads any missing profiles into the cache. Call before rendering user data. */
   const ensureProfilesAvailable = async (userIds: string[]) => {
-    await ensureInitialized()
+    bindServiceListeners()
     await userDataService.ensureUsersLoaded(userIds)
   }
   
   // Actions
   
   const initialize = async (userId: string, username: string, avatarUrl?: string, existingProfile?: any) => {
-    ensureInitialized()
+    bindServiceListeners()
     await userDataService.initialize(userId, username, avatarUrl, existingProfile)
   }
 
   /** Runs after the critical path; not required for first render. */
   const initializeBackgroundFeatures = async () => {
-    ensureInitialized()
+    bindServiceListeners()
     await userDataService.initializeBackgroundFeatures()
   }
   
   const subscribeToContext = async (contextId: string, type: 'server' | 'dm' | 'profile' | 'friends', userIds: string[]) => {
-    ensureInitialized()
+    bindServiceListeners()
     await userDataService.subscribeToContext(contextId, type, userIds)
   }
   
@@ -347,7 +351,7 @@ export function useUserData() {
   
   /** Presence context 'dm-conversations': participants of active conversations. */
   const subscribeToDMPresence = async (conversationUserIds: string[]) => {
-    await ensureInitialized()
+    bindServiceListeners()
     
     const contextId = 'dm-conversations'
     await userDataService.subscribeToContext(contextId, 'dm', conversationUserIds)
@@ -356,7 +360,7 @@ export function useUserData() {
   
   /** Presence context `profile-<userId>`: a single user, for the profile view. */
   const subscribeToProfilePresence = async (userId: string) => {
-    await ensureInitialized()
+    bindServiceListeners()
     
     const contextId = `profile-${userId}`
     await userDataService.subscribeToContext(contextId, 'profile', [userId])
@@ -365,7 +369,7 @@ export function useUserData() {
   
   /** Presence context 'friends-list'. */
   const subscribeToFriendsPresence = async (friendUserIds: string[]) => {
-    await ensureInitialized()
+    bindServiceListeners()
     
     const contextId = 'friends-list'
     await userDataService.subscribeToContext(contextId, 'friends', friendUserIds)
@@ -513,7 +517,7 @@ export function useUserData() {
     subscribeToFriendsPresence,
     getPresenceAwareStatus,
     refreshGlobalPresence: async () => {
-      await ensureInitialized()
+      bindServiceListeners()
       return await userDataService.refreshGlobalPresence()
     },
     

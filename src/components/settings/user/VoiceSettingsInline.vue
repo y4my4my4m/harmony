@@ -332,6 +332,11 @@ const loadStoredSettings = async () => {
 };
 
 // Test microphone
+let testStream: MediaStream | null = null;
+let testAudioContext: AudioContext | null = null;
+let testRafId: number | null = null;
+let testTimeoutId: ReturnType<typeof setTimeout> | null = null;
+
 const testMicrophone = async () => {
   if (isTesting.value) {
     stopTesting();
@@ -344,7 +349,15 @@ const testMicrophone = async () => {
       audio: { deviceId: selectedInputDevice.value }
     });
 
+    // Test may have been stopped while getUserMedia was pending.
+    if (!isTesting.value) {
+      stream.getTracks().forEach(track => track.stop());
+      return;
+    }
+    testStream = stream;
+
     const audioContext = new AudioContext();
+    testAudioContext = audioContext;
     const analyser = audioContext.createAnalyser();
     const microphone = audioContext.createMediaStreamSource(stream);
     const dataArray = new Uint8Array(analyser.frequencyBinCount);
@@ -354,32 +367,49 @@ const testMicrophone = async () => {
 
     const updateLevel = () => {
       if (!isTesting.value) return;
-      
+
       analyser.getByteFrequencyData(dataArray);
       const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
       testLevel.value = (average / 255) * 100;
-      
-      requestAnimationFrame(updateLevel);
+
+      testRafId = requestAnimationFrame(updateLevel);
     };
 
     updateLevel();
 
     // Stop testing after 10 seconds
-    setTimeout(() => {
+    testTimeoutId = setTimeout(() => {
+      testTimeoutId = null;
       stopTesting();
-      stream.getTracks().forEach(track => track.stop());
-      audioContext.close();
     }, 10000);
 
   } catch (error) {
     debug.error('Error testing microphone:', error);
-    isTesting.value = false;
+    stopTesting();
   }
 };
 
 const stopTesting = () => {
   isTesting.value = false;
   testLevel.value = 0;
+
+  if (testTimeoutId !== null) {
+    clearTimeout(testTimeoutId);
+    testTimeoutId = null;
+  }
+  if (testRafId !== null) {
+    cancelAnimationFrame(testRafId);
+    testRafId = null;
+  }
+  if (testStream) {
+    testStream.getTracks().forEach(track => track.stop());
+    testStream = null;
+  }
+  if (testAudioContext) {
+    const ctx = testAudioContext;
+    testAudioContext = null;
+    if (ctx.state !== 'closed') ctx.close();
+  }
 };
 
 const updateVideoPreview = async () => {

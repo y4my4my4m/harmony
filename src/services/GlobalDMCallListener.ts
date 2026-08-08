@@ -85,8 +85,14 @@ class GlobalDMCallListenerService {
     
     if (this.userChannel) {
       this.userChannel.unsubscribe()
+      this.userChannel = null
     }
-    
+
+    if (this.federatedChannel) {
+      this.federatedChannel.unsubscribe()
+      this.federatedChannel = null
+    }
+
     this.currentUserId = profileId
     const channelName = `dm-calls:${profileId}`
     

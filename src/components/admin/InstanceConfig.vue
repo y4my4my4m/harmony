@@ -600,7 +600,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { useToast } from 'vue-toastification'
 import { debug } from '@/utils/debug'
 import { useAuthStore } from '@/stores/auth'
@@ -829,24 +829,65 @@ const saveConfig = async () => {
   }
 }
 
-const instanceIconPreviewUrl = computed(() => {
-  if (instanceIconFile.value) return URL.createObjectURL(instanceIconFile.value)
-  if (instanceConfig.value.iconUrl) {
-    if (instanceConfig.value.iconUrl.startsWith('http')) return instanceConfig.value.iconUrl
-    const { data } = supabase.storage.from('server_icons').getPublicUrl(instanceConfig.value.iconUrl)
-    return data.publicUrl
-  }
-  return null
-})
+// Refs rather than computeds: the object URL of the superseded file must be revoked,
+// which a computed has no hook for.
+const instanceIconPreviewUrl = ref<string | null>(null)
+const instanceBannerPreviewUrl = ref<string | null>(null)
 
-const instanceBannerPreviewUrl = computed(() => {
-  if (instanceBannerFile.value) return URL.createObjectURL(instanceBannerFile.value)
-  if (instanceConfig.value.bannerUrl) {
-    if (instanceConfig.value.bannerUrl.startsWith('http')) return instanceConfig.value.bannerUrl
-    const { data } = supabase.storage.from('server_banners').getPublicUrl(instanceConfig.value.bannerUrl)
-    return data.publicUrl
+let instanceIconObjectUrl: string | null = null
+let instanceBannerObjectUrl: string | null = null
+
+watch([instanceIconFile, () => instanceConfig.value.iconUrl], () => {
+  if (instanceIconObjectUrl) {
+    URL.revokeObjectURL(instanceIconObjectUrl)
+    instanceIconObjectUrl = null
   }
-  return null
+
+  if (instanceIconFile.value) {
+    instanceIconObjectUrl = URL.createObjectURL(instanceIconFile.value)
+    instanceIconPreviewUrl.value = instanceIconObjectUrl
+  } else if (instanceConfig.value.iconUrl) {
+    if (instanceConfig.value.iconUrl.startsWith('http')) {
+      instanceIconPreviewUrl.value = instanceConfig.value.iconUrl
+    } else {
+      const { data } = supabase.storage.from('server_icons').getPublicUrl(instanceConfig.value.iconUrl)
+      instanceIconPreviewUrl.value = data.publicUrl
+    }
+  } else {
+    instanceIconPreviewUrl.value = null
+  }
+}, { immediate: true })
+
+watch([instanceBannerFile, () => instanceConfig.value.bannerUrl], () => {
+  if (instanceBannerObjectUrl) {
+    URL.revokeObjectURL(instanceBannerObjectUrl)
+    instanceBannerObjectUrl = null
+  }
+
+  if (instanceBannerFile.value) {
+    instanceBannerObjectUrl = URL.createObjectURL(instanceBannerFile.value)
+    instanceBannerPreviewUrl.value = instanceBannerObjectUrl
+  } else if (instanceConfig.value.bannerUrl) {
+    if (instanceConfig.value.bannerUrl.startsWith('http')) {
+      instanceBannerPreviewUrl.value = instanceConfig.value.bannerUrl
+    } else {
+      const { data } = supabase.storage.from('server_banners').getPublicUrl(instanceConfig.value.bannerUrl)
+      instanceBannerPreviewUrl.value = data.publicUrl
+    }
+  } else {
+    instanceBannerPreviewUrl.value = null
+  }
+}, { immediate: true })
+
+onUnmounted(() => {
+  if (instanceIconObjectUrl) {
+    URL.revokeObjectURL(instanceIconObjectUrl)
+    instanceIconObjectUrl = null
+  }
+  if (instanceBannerObjectUrl) {
+    URL.revokeObjectURL(instanceBannerObjectUrl)
+    instanceBannerObjectUrl = null
+  }
 })
 
 const handleInstanceIconChange = (event: Event) => {

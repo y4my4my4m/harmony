@@ -48,6 +48,9 @@ interface EmojiMetadata {
   count: number;
 }
 
+// Held outside state so it is not serialized or reactive.
+let cleanupInterval: ReturnType<typeof setInterval> | null = null;
+
 export const useEmojiCacheStore = defineStore('emojiCache', {
   state: () => ({
     serverCaches: new Map<string, ServerEmojiCache>(),
@@ -717,7 +720,11 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
     },
 
     scheduleCleanup() {
-      setInterval(() => {
+      if (cleanupInterval !== null) {
+        clearInterval(cleanupInterval);
+      }
+
+      cleanupInterval = setInterval(() => {
         this.performCleanup();
       }, 5 * 60 * 1000);
     },
@@ -772,6 +779,11 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
     },
 
     reset() {
+      if (cleanupInterval !== null) {
+        clearInterval(cleanupInterval);
+        cleanupInterval = null;
+      }
+
       this.serverCaches.clear();
       this.globalEmojiIndex.clear();
       this.nameIndex.clear();

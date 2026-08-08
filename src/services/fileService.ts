@@ -69,11 +69,14 @@ async function handleFileUploadWithProgress(
             }
         }, 200);
 
-        const { error } = await supabase.storage
-            .from('user_media')
-            .upload(filePath, file);
-
-        clearInterval(progressInterval);
+        let error;
+        try {
+            ({ error } = await supabase.storage
+                .from('user_media')
+                .upload(filePath, file));
+        } finally {
+            clearInterval(progressInterval);
+        }
 
         if (error) {
             if (onProgress) onProgress(0);

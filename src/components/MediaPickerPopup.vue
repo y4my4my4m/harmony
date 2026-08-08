@@ -250,8 +250,11 @@ const handleKeyDown = (event: KeyboardEvent) => {
   }
 };
 
+let outsideListenerTimeout: ReturnType<typeof setTimeout> | null = null;
+
 onMounted(() => {
-  setTimeout(() => {
+  outsideListenerTimeout = setTimeout(() => {
+    outsideListenerTimeout = null;
     document.addEventListener('click', handleClickOutside);
     document.addEventListener('keydown', handleKeyDown);
   }, 100);
@@ -269,6 +272,10 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  if (outsideListenerTimeout !== null) {
+    clearTimeout(outsideListenerTimeout);
+    outsideListenerTimeout = null;
+  }
   document.removeEventListener('click', handleClickOutside);
   document.removeEventListener('keydown', handleKeyDown);
   window.visualViewport?.removeEventListener('resize', syncVisualViewport);

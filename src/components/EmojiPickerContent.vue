@@ -251,7 +251,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, nextTick, watch } from 'vue';
+import { ref, onMounted, onUnmounted, computed, nextTick, watch } from 'vue';
 import { useEmojiCacheStore, PERSONAL_EMOJI_GROUPS } from '@/stores/useEmojiCache';
 import { KLIPY_EPHEMERAL_GROUP, registerEphemeralEmoji } from '@/utils/ephemeralEmoji';
 import { authContextService } from '@/services/AuthContextService';
@@ -846,6 +846,10 @@ onMounted(async () => {
   nextTick(() => {
     searchInput.value?.focus();
   });
+});
+
+onUnmounted(() => {
+  clearHold();
 });
 </script>
 

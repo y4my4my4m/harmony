@@ -329,16 +329,18 @@ export const useDMStore = defineStore('dm', () => {
 
   let _userUpdatedHandler: ((event: any) => void) | null = null
   let _userDataServiceRef: any = null
-  let _keyListenerActive = false
+  // Held so cleanup() can remove it: an inline arrow cannot be unregistered,
+  // and the closure pins the store's whole decryption path.
+  let _keyReceivedHandler: ((e: Event) => void) | null = null
   const setupEncryptionKeyListener = () => {
-    if (_keyListenerActive) return
-    _keyListenerActive = true
-    window.addEventListener('megolm-key-received', async (e: Event) => {
+    if (_keyReceivedHandler) return
+    _keyReceivedHandler = (e: Event) => {
       const detail = (e as CustomEvent).detail
       const roomId = detail?.roomId as string | undefined
       debug.log(`Key received${roomId ? ` for room ${roomId.substring(0, 8)}...` : ''} - re-decrypting DMs`)
-      await reprocessEncryptedDMMessages(roomId)
-    })
+      void reprocessEncryptedDMMessages(roomId)
+    }
+    window.addEventListener('megolm-key-received', _keyReceivedHandler)
   }
 
   const removeMessageFromCache = (messageId: string) => {
@@ -2058,6 +2060,12 @@ export const useDMStore = defineStore('dm', () => {
           }
         }
       }
+      // Re-entrant: this runs again on every DM conversation switch. Drop the
+      // previous registration before overwriting the slot, or it becomes
+      // unreachable for cleanup() and leaks a closure over `conversations`.
+      if (_userUpdatedHandler && _userDataServiceRef) {
+        _userDataServiceRef.removeEventListener('user-updated', _userUpdatedHandler)
+      }
       _userUpdatedHandler = userUpdatedHandler
       _userDataServiceRef = userDataService
       userDataService.addEventListener('user-updated', userUpdatedHandler)
@@ -2466,7 +2474,12 @@ export const useDMStore = defineStore('dm', () => {
       _userUpdatedHandler = null
       _userDataServiceRef = null
     }
-    
+
+    if (_keyReceivedHandler) {
+      window.removeEventListener('megolm-key-received', _keyReceivedHandler)
+      _keyReceivedHandler = null
+    }
+
     cleanupRealtimeSubscriptions()
     
     _globalBroadcastUnsubs.forEach(unsub => unsub())

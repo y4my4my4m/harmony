@@ -952,6 +952,7 @@ onMounted(async () => {
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside);
   document.removeEventListener('keydown', handleKeyDown);
+  clearHold();
 });
 
 // --- Watchers ---

@@ -233,7 +233,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useThemeStore } from '@/stores/useTheme'
 import { useAudioThemeCommon } from '@/composables/useAudioThemeCommon'
 import Icon from '@/components/common/Icon.vue'
@@ -380,15 +380,24 @@ const updateCacheInfo = (): void => {
 
 // LIFECYCLE
 
+let cacheInfoInterval: ReturnType<typeof setInterval> | null = null
+
 onMounted(async () => {
   if (!themeStore.isInitialized) {
     await themeStore.initialize()
   }
-  
+
   localVolume.value = Math.round(themeStore.audioVolume * 100)
   updateCacheInfo()
-  
-  setInterval(updateCacheInfo, 5000)
+
+  cacheInfoInterval = setInterval(updateCacheInfo, 5000)
+})
+
+onUnmounted(() => {
+  if (cacheInfoInterval !== null) {
+    clearInterval(cacheInfoInterval)
+    cacheInfoInterval = null
+  }
 })
 
 // Watch for volume changes from store
