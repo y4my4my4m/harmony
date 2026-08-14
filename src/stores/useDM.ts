@@ -1880,8 +1880,14 @@ export const useDMStore = defineStore('dm', () => {
   }
 
   const _replaceDMTempWithReal = (tempId: string, message: any, userId: string, conversationId: string, content: MessagePart[]) => {
+    // The live list and the cache are reconciled independently - realtime may
+    // already have replaced the temp row in `currentDMMessages`. Bail only when
+    // neither copy holds it, otherwise the cache keeps a `sending: true` temp
+    // row that reappears on conversation re-entry.
     const tempIndex = currentDMMessages.value.findIndex(m => m.id === tempId)
-    if (tempIndex === -1) return
+    const cached = messageCache.value.get(conversationId)
+    const cacheIndex = cached ? cached.messages.findIndex(m => m.id === tempId) : -1
+    if (tempIndex === -1 && cacheIndex === -1) return
 
     const isOwnEncrypted = message.encrypted && message.user_id === userId
     const realMessage: Message = {
@@ -1902,16 +1908,14 @@ export const useDMStore = defineStore('dm', () => {
 
     try { ensureMessageEmbeds(realMessage) } catch { /* embeds are best-effort */ }
 
-    currentDMMessages.value.splice(tempIndex, 1, realMessage)
+    if (tempIndex !== -1) {
+      currentDMMessages.value.splice(tempIndex, 1, realMessage)
+    }
     debug.log('Replaced temp DM message with real message:', { tempId, realId: message.id })
 
-    const cached = messageCache.value.get(conversationId)
-    if (cached) {
-      const cacheIndex = cached.messages.findIndex(m => m.id === tempId)
-      if (cacheIndex !== -1) {
-        cached.messages.splice(cacheIndex, 1, realMessage)
-        cached.lastModified = new Date()
-      }
+    if (cached && cacheIndex !== -1) {
+      cached.messages.splice(cacheIndex, 1, realMessage)
+      cached.lastModified = new Date()
     }
   }
 
@@ -2248,7 +2252,19 @@ export const useDMStore = defineStore('dm', () => {
             debug.warn('Failed to process DM message:', error)
           }
           
+          const replacedTempId = currentDMMessages.value[tempMessageIndex].id
           currentDMMessages.value.splice(tempMessageIndex, 1, resolvedMessage)
+
+          // Cache holds its own copy of the temp row; leaving it stale makes
+          // the message render grayed out again on conversation re-entry.
+          const tempCache = messageCache.value.get(message.conversation_id)
+          if (tempCache) {
+            const tempCacheIndex = tempCache.messages.findIndex(m => m.id === replacedTempId)
+            if (tempCacheIndex !== -1) {
+              tempCache.messages.splice(tempCacheIndex, 1, resolvedMessage)
+              tempCache.lastModified = new Date()
+            }
+          }
           return
         }
         

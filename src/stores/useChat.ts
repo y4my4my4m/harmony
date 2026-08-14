@@ -784,8 +784,14 @@ export const useChatStore = defineStore('chat', {
     },
 
     _replaceTempWithReal(tempId: string, message: any, userId: string, channelId: string, content: any) {
+      // The live list and the cache are reconciled independently - realtime
+      // `onInsert` may already have replaced the temp row in `messages`. Bail
+      // only when neither copy holds it, otherwise the cache keeps a
+      // `sending: true` temp row that reappears on channel re-entry.
       const tempIndex = this.messages.findIndex((m: any) => m.id === tempId);
-      if (tempIndex === -1) return;
+      const cached = this.messageCache.get(channelId);
+      const cacheIndex = cached ? cached.messages.findIndex((m: any) => m.id === tempId) : -1;
+      if (tempIndex === -1 && cacheIndex === -1) return;
 
       const isOwnEncrypted = message.encrypted && message.user_id === userId;
       const realMessage = {
@@ -805,16 +811,14 @@ export const useChatStore = defineStore('chat', {
 
       try { ensureMessageEmbeds(realMessage); } catch { /* embeds are best-effort */ }
 
-      this.messages.splice(tempIndex, 1, realMessage as any);
+      if (tempIndex !== -1) {
+        this.messages.splice(tempIndex, 1, realMessage as any);
+      }
       debug.log('Replaced temp message with real message:', { tempId, realId: message.id });
 
-      const cached = this.messageCache.get(channelId);
-      if (cached) {
-        const cacheIndex = cached.messages.findIndex((m: any) => m.id === tempId);
-        if (cacheIndex !== -1) {
-          cached.messages.splice(cacheIndex, 1, realMessage as any);
-          cached.lastModified = new Date();
-        }
+      if (cached && cacheIndex !== -1) {
+        cached.messages.splice(cacheIndex, 1, realMessage as any);
+        cached.lastModified = new Date();
       }
     },
 
@@ -952,7 +956,19 @@ export const useChatStore = defineStore('chat', {
             debug.warn('Failed to process realtime message:', error);
           }
           
+          const replacedTempId = (store.messages[tempMessageIndex] as any).id;
           store.messages.splice(tempMessageIndex, 1, resolvedMessage);
+
+          // Cache holds its own copy of the temp row; leaving it stale makes
+          // the message render grayed out again on channel re-entry.
+          const tempCache = store.messageCache.get(payloadNew.channel_id);
+          if (tempCache) {
+            const tempCacheIndex = tempCache.messages.findIndex((m: any) => m.id === replacedTempId);
+            if (tempCacheIndex !== -1) {
+              tempCache.messages.splice(tempCacheIndex, 1, resolvedMessage);
+              tempCache.lastModified = new Date();
+            }
+          }
           return;
         }
         

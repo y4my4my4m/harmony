@@ -664,7 +664,7 @@ export const useAuthStore = defineStore('auth', {
           setTimeout(() => reject(new Error('MFA verification timed out. Please try logging in again.')), 30000),
         );
 
-        const { error: verifyError } = await Promise.race([
+        const { data: verifyData, error: verifyError } = await Promise.race([
           verifyPromise,
           timeoutPromise,
         ]);
@@ -674,10 +674,20 @@ export const useAuthStore = defineStore('auth', {
           throw verifyError;
         }
 
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        // `mfa.verify` returns the AAL2 session directly. Reading it back
+        // through `getSession()` can observe the pre-upgrade storage value,
+        // leaving `session` null - `isLoggedIn` stays false and the route
+        // guard bounces /chat back to /login with no error shown.
+        let verifiedSession = verifyData?.session ?? null;
+        if (!verifiedSession) {
+          const { data: sessionData } = await supabase.auth.getSession();
+          verifiedSession = sessionData.session;
+        }
+        if (!verifiedSession) {
+          throw new Error('MFA verification succeeded but no session was returned. Please try logging in again.');
+        }
 
-        const { data: sessionData } = await supabase.auth.getSession();
-        this.session = sessionData.session;
+        this.session = verifiedSession;
 
         // The `MFA_CHALLENGE_VERIFIED` event handler only runs
         // `setupOfflineHandlers` - it skips `userStorage.setCurrentUser`,
@@ -687,10 +697,10 @@ export const useAuthStore = defineStore('auth', {
         // loads with the default theme, no user-scoped storage, and stale
         // block lists.
         this.isPasswordResetMode = false;
-        if (sessionData.session?.user?.id) {
-          userStorage.setCurrentUser(sessionData.session.user.id);
-          this.setupOfflineHandlers(sessionData.session.user.id);
-          this.initializeUserSettings(sessionData.session.user.id);
+        if (verifiedSession.user?.id) {
+          userStorage.setCurrentUser(verifiedSession.user.id);
+          this.setupOfflineHandlers(verifiedSession.user.id);
+          this.initializeUserSettings(verifiedSession.user.id);
           const activityPubStore = useActivityPubStore();
           void activityPubStore.initialize().catch((err) =>
             debug.error('ActivityPub initialize after 2FA failed:', err)
@@ -699,7 +709,7 @@ export const useAuthStore = defineStore('auth', {
 
         debug.log('2FA verified - session upgraded to AAL2');
 
-        return { session: sessionData.session };
+        return { session: verifiedSession };
       } finally {
         this._pendingMFAVerification = false;
       }
