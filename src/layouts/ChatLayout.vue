@@ -41,7 +41,6 @@
           :categories="categories"
           :category-channels="categoryChannels"
           :is-d-m="isDM"
-          @channel-selected="handleChannelSelected"
           @create-channel="handleCreateChannel"
           @conversation-selected="handleDMConversationSelected"
           @open-thread="handleSelectThread"
@@ -224,7 +223,7 @@ const serverChannelStore = useServerChannelStore()
 const router = useRouter()
 const route = useRoute()
 
-const { SIDEBAR_WIDTH } = useLayoutState()
+const { SIDEBAR_WIDTH, closeMobileSidebars } = useLayoutState()
 
 useUserData();
 
@@ -389,19 +388,6 @@ onUnmounted(() => {
   dmStore.cleanup(false)
 })
 
-const handleChannelSelected = (channelId: string) => {
-  const currentServerId = serverId.value || currentServer.value?.id
-  if (currentServerId) {
-    router.push({ 
-      name: 'ChatChannel', 
-      params: { 
-        serverId: currentServerId, 
-        channelId: channelId 
-      } 
-    })
-  }
-}
-
 const handleCreateChannel = (categoryId: string) => {
   currentCategoryId.value = categoryId
   showCreateChannelForm.value = true
@@ -462,6 +448,15 @@ const navigateToDefaultIfNeeded = async () => {
 }
 
 watch(() => [route.name, route.params, serverChannelStore.servers.length], navigateToDefaultIfNeeded, { immediate: false })
+
+watch(
+  () => [route.params.channelId, route.params.conversationId],
+  ([channelId, conversationId], [prevChannelId, prevConversationId] = []) => {
+    if (channelId === prevChannelId && conversationId === prevConversationId) return
+    if (!channelId && !conversationId) return
+    closeMobileSidebars()
+  }
+)
 
 // Sync route params to store when navigating to /chat/:serverId/:channelId
 watch(
