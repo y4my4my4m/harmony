@@ -143,3 +143,32 @@ deletions before step 2 could not be verified against a fresh install.
 - prod carries duplicate avatar policies (singular and plural names, different
   predicates, OR'd together).
 - prod-only tables `conversation_backup_pre_cleanup` and `hashtag_archive`.
+
+## Drift gate results (first run)
+
+`scripts/schema-drift-check.sh` builds two containers — one from `init/` alone,
+one from `init/` plus all 233 migrations — dumps `public` from both, normalizes
+to a sorted object inventory with digested bodies, and compares.
+
+284 objects differ. Of the 74 functions among them:
+
+- **51 differ only in their `SET search_path` clause.** A fresh init leaves
+  `'public'`; the migrated schema has `'public', 'extensions', 'pg_temp'`.
+  `99_performance_hardening.sql` and the hardening migration disagree on which
+  functions get the tightened path. Systematic, one fix.
+- **23 have genuinely different bodies.** A fresh install runs different code
+  from a migrated instance. Several are security-relevant:
+  `approve_device_request`, `get_user_permissions`, `generate_livekit_token`,
+  `is_author_suspended`, `handle_message_federation`.
+
+The remaining ~210 are policies, triggers, grants and `ALTER TABLE` statements.
+
+Bodies are compared by digest with SQL comments stripped, so none of these are
+reworded-comment noise. Verified: the first implementation reported all 284 as
+body differences because comments were included; stripping them cut it to the
+real set.
+
+This is the concrete argument for a generated baseline. Reconciling 74 functions
+by hand is the wrong move — the baseline should be produced from a database that
+has had the migrations applied, which makes the difference structurally
+impossible rather than manually corrected.

@@ -1,0 +1,36 @@
+name: Schema drift
+
+# A fresh install runs init/init.sql then every migration, so applying the
+# migrations to a fresh init must leave the schema unchanged. Anything else
+# means a new instance and a migrated one end up different.
+
+on:
+  pull_request:
+    paths:
+      - 'db_schema/**'
+      - 'scripts/test-db/**'
+      - 'scripts/schema-drift-check.sh'
+      - '.github/workflows/schema-drift.yml'
+  workflow_dispatch:
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Check init/ against init/ + migrations/
+        run: ./scripts/schema-drift-check.sh
+
+      - name: Keep the dumps for inspection
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: schema-dumps
+          path: /tmp/harmony-drift/
+          retention-days: 7
