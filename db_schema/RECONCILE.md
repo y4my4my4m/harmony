@@ -28,28 +28,28 @@ superseded entries are revoke candidates, not reconciliations.
 
 | done | function | class | note |
 |---|---|---|---|
-| [ ] | `approve_device_request` | security | AAL2 device approval; init +342 chars, guards equal |
-| [ ] | `broadcast_emoji_change` | behaviour | guards 1/2 - migration has an extra EXCEPTION handler |
-| [ ] | `broadcast_profile_change` | behaviour | fan-out |
-| [ ] | `cleanup_dead_endpoint_users` | maintenance | unreachable; revoke candidate |
-| [ ] | `deny_device_request` | security | pairs with approve_device_request |
-| [ ] | `disable_federation_triggers` | maintenance | ops helper |
-| [ ] | `enable_federation_triggers` | maintenance | ops helper |
-| [ ] | `generate_livekit_token` | superseded | node backend mints tokens; revoke candidate, not reconcile |
-| [ ] | `get_batch_message_reactions` | behaviour | surfaced after canonicalising whitespace |
-| [ ] | `get_message_reactions` | behaviour | surfaced after canonicalising whitespace |
-| [ ] | `get_unclaimed_session_shares` | security | E2EE key delivery |
-| [ ] | `get_user_permissions` | security | permission resolution; init +1450 chars |
-| [ ] | `handle_group_participant_left` | behaviour | migration longer |
-| [ ] | `handle_local_post_mention_notifications` | behaviour | migration longer |
-| [ ] | `handle_message_federation` | behaviour | 8.6KB, 24 guards - largest, review last |
-| [ ] | `handle_post_mention_notifications` | behaviour | migration longer |
-| [ ] | `handle_post_reply_notifications` | behaviour | migration longer |
+| [ ] | `approve_device_request` | likely-equivalent | only spacing around `=`; canonicaliser does not fold that yet |
+| [ ] | `broadcast_emoji_change` | REAL | migration adds EXCEPTION WHEN OTHERS THEN RETURN COALESCE(NEW,OLD); init lets a realtime.send failure abort the emoji change |
+| [ ] | `broadcast_profile_change` | REAL | different exception handling and logging |
+| [ ] | `cleanup_dead_endpoint_users` | logging-only | init RAISE NOTICE per cleaned user; superseded anyway - revoke candidate |
+| [ ] | `deny_device_request` | likely-equivalent | only spacing around `=` |
+| [ ] | `disable_federation_triggers` | REAL | init disables the channels triggers too; production's version leaves them enabled |
+| [ ] | `enable_federation_triggers` | REAL | mirror of disable_federation_triggers |
+| [ ] | `generate_livekit_token` | declaration-only | variable declaration order; superseded - revoke, do not reconcile |
+| [ ] | `get_batch_message_reactions` | likely-equivalent | similarity 0.999 |
+| [ ] | `get_message_reactions` | likely-equivalent | similarity 1.000 |
+| [ ] | `get_unclaimed_session_shares` | likely-equivalent | column alias `as share_id` only; RETURNS TABLE names the columns |
+| [ ] | `get_user_permissions` | declaration-only | init declares v_allow_mask/v_deny_mask; confirm they are used |
+| [ ] | `handle_group_participant_left` | REAL | migration loads v_leaving_profile and does more |
+| [ ] | `handle_local_post_mention_notifications` | REAL | init calls notification_actor_json(); migration inlines jsonb_build_object |
+| [ ] | `handle_message_federation` | declaration-only | init declares extra mention variables |
+| [ ] | `handle_post_mention_notifications` | REAL | same helper-vs-inline split |
+| [ ] | `handle_post_reply_notifications` | REAL | same helper-vs-inline split |
+| [ ] | `trigger_queue_thread_federation` | logging-only | RAISE LOG vs RAISE WARNING |
+| [ ] | `update_follow_counts` | REAL | migration tracks v_was_accepted/v_is_accepted; handles the accepted->unaccepted transition |
+| [ ] | `update_post_reply_count` | likely-equivalent | similarity 1.000 |
+| [ ] | `update_trending_posts` | likely-equivalent | column aliases only |
 | [x] | `is_author_suspended` | equivalent | no behavioural difference: the outer COALESCE already handles a NULL column. init/ aligned to production's simpler body; behaviour pinned in tests/30 |
-| [ ] | `trigger_queue_thread_federation` | behaviour | migration longer |
-| [ ] | `update_follow_counts` | behaviour | guards 8/10 - migration is more defensive |
-| [ ] | `update_post_reply_count` | behaviour | surfaced after canonicalising whitespace |
-| [ ] | `update_trending_posts` | maintenance | cron-scheduled |
 
 ### Removed as formatting-only
 
@@ -59,4 +59,17 @@ bodies. Their SQL is identical; only the line breaks differ.
 
 ## Progress
 
-1 of 22 closed. `is_author_suspended` was equivalent; the rest are unexamined.
+1 of 22 closed (`is_author_suspended`, equivalent).
+
+The `class` column above is **triage from reading diffs, not proof**. Reading
+bodies has produced a wrong conclusion three times in this work, so nothing moves
+to `[x]` without a test that fails against the other body.
+
+- **9 likely-equivalent / logging-only / declaration-only.** Expect these to close
+  cheaply, but each still needs its assertion.
+- **9 REAL.** Behaviour genuinely differs. `disable_federation_triggers` and
+  `enable_federation_triggers` are the ones to look at first: `init/` disables the
+  `channels` federation triggers and production's version does not, so a
+  maintenance window that relies on them still federates channel activity.
+- **2 superseded** (`generate_livekit_token`, `cleanup_dead_endpoint_users`):
+  revoke rather than reconcile.
