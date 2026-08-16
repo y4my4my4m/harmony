@@ -358,3 +358,53 @@ share the same rule. Revocable: 24 → 23.
 The lesson is narrow and worth keeping: a fix applied to one analysis script has
 to be applied to every script that answers the same question, or the stale one
 silently becomes the input to the next decision.
+
+## The 23 body differences: which side is right
+
+Neither, uniformly. The direction varies per function, and that is the finding.
+
+All 23 are defined in both `init/` and a migration. The migration filenames
+suggested a clean story — `security_hardening`, `fix_channel_override_precedence`,
+`fix_reply_mention_double_notification`, `tighten_rls_and_search_path` — so the
+expectation was that migrations carry fixes and `init/` is a stale snapshot.
+
+`is_author_suspended` refutes it. `init/` has:
+
+```sql
+SELECT COALESCE(
+    (SELECT COALESCE(is_suspended, false) FROM public.profiles WHERE id = p_author_id LIMIT 1),
+    false)
+```
+
+and `20260323_tighten_rls_and_search_path.sql` has:
+
+```sql
+SELECT COALESCE((SELECT is_suspended FROM public.profiles WHERE id = p_author_id), false);
+```
+
+`init/` handles a NULL `is_suspended`; the migration returns NULL for it. So here
+`init/` is the *improved* version — improved after the migration was written, with
+no migration to carry it. Migrations apply chronologically, so **production runs
+the weaker one**, and the better implementation exists only in a file no running
+instance has executed.
+
+Comparing lengths and guard counts across all 23: `init/` is longer in 16 cases
+and the migration in 7, with guard counts differing in three
+(`broadcast_emoji_change` 1/2, `is_author_suspended` 3/1, `update_follow_counts`
+8/10). Most of the length difference is comment volume from the de-slop pass, not
+behaviour.
+
+So the fix is neither "port migrations into init" nor "regenerate init from a
+migrated database". Both discard a real implementation. Each of the 23 needs the
+intended behaviour decided against the calling code, then:
+
+1. a reconciliation migration setting the chosen body — this is what reaches
+   production, which today has whichever version the last migration left;
+2. `init/` updated to match, so the drift gate goes green and stays green.
+
+The generated baseline comes *after* that. Generating it now would freeze
+production's current state as canonical and silently discard the better
+implementations sitting in `init/`.
+
+`is_author_suspended` is the worked example: `init/`'s body is correct, prod has
+the weaker one, and it needs a migration to get there.
