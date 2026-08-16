@@ -21,17 +21,25 @@ ALTER TABLE storage.objects ADD COLUMN IF NOT EXISTS level integer;
 -- Postgres image. Without it 98_enable_rls.sql skips the policies on it, and
 -- can_subscribe_to_topic - whose only caller is that policy - reads as
 -- unreachable. Column set matches what realtime.send() writes.
-CREATE SCHEMA IF NOT EXISTS realtime;
-CREATE TABLE IF NOT EXISTS realtime.messages (
-    id          bigserial PRIMARY KEY,
-    topic       text,
-    extension   text,
-    payload     jsonb,
-    event       text,
-    private     boolean DEFAULT false,
-    inserted_at timestamptz DEFAULT now(),
-    updated_at  timestamptz DEFAULT now()
-);
-GRANT USAGE ON SCHEMA realtime TO authenticated;
-GRANT SELECT, INSERT ON realtime.messages TO authenticated;
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA realtime TO authenticated;
+-- Best effort: the realtime schema is owned by supabase_admin and a bare
+-- container has no way to write to it. Reachability roots are read from
+-- db_schema/ instead, so this stub is a convenience, not a requirement.
+DO $compat$
+BEGIN
+  CREATE TABLE IF NOT EXISTS realtime.messages (
+      id          bigserial PRIMARY KEY,
+      topic       text,
+      extension   text,
+      payload     jsonb,
+      event       text,
+      private     boolean DEFAULT false,
+      inserted_at timestamptz DEFAULT now(),
+      updated_at  timestamptz DEFAULT now()
+  );
+  GRANT USAGE ON SCHEMA realtime TO authenticated;
+  GRANT SELECT, INSERT ON realtime.messages TO authenticated;
+  GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA realtime TO authenticated;
+EXCEPTION WHEN insufficient_privilege OR undefined_table THEN
+  RAISE NOTICE 'realtime stub skipped: %', SQLERRM;
+END
+$compat$;

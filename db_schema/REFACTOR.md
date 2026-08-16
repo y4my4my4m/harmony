@@ -241,3 +241,33 @@ rather than by reading the code:
    outage.
 
 The file is advisory. Nothing is dropped automatically.
+
+## Surface reduction, step 1: revoke rather than drop
+
+`migrations/20260809_revoke_unreachable_functions.sql` removes all 47
+unreachable functions from `anon` and `authenticated`, mirrored into
+`init/98_enable_rls.sql`.
+
+Anon-callable functions: **334 → 287**.
+
+Revoked instead of dropped deliberately. If something outside this repository
+calls one, the failure is a permission error naming the function, undone by a
+single `GRANT`. After a `DROP` the same call fails with a missing function and
+the definition is gone. Dropping follows once a release passes without one.
+`service_role` keeps access: it bypasses RLS by design and is not reachable
+with a public key.
+
+Three candidates were verified against the codebase rather than assumed, after
+being wrongly flagged as needing a human decision:
+
+- `generate_livekit_token`, `get_livekit_config` — superseded.
+  `federation-backend/src/services/LiveKitService.ts` mints tokens with
+  `livekit-server-sdk` from `LIVEKIT_API_KEY`/`LIVEKIT_API_SECRET` in env, and
+  the client fetches `/api/livekit/token`. The SQL implementation, which signs
+  with `extensions.sign()` against a secret in `instance_config`, is legacy.
+- `get_voice_channel_participants` — the app reads the
+  `voice_channel_participants` table directly in five places.
+- `get_timeline` — the `docs/API_REFERENCE.md` hit is
+  `harmony.activitypub.get_timeline(...)`, a Python SDK method in an example,
+  not the Postgres RPC. The "documented endpoint" flag was a bare-word false
+  positive.
