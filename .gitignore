@@ -124,3 +124,7 @@ src-tauri/gen/android/app/keystore.properties
 
 # Local-only copy of BUGS.md with exact file:line locations
 BUGS.local.md
+
+# Python bytecode from the db tooling in scripts/test-db
+__pycache__/
+*.pyc
