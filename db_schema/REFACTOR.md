@@ -271,3 +271,38 @@ being wrongly flagged as needing a human decision:
   `harmony.activitypub.get_timeline(...)`, a Python SDK method in an example,
   not the Postgres RPC. The "documented endpoint" flag was a bare-word false
   positive.
+
+## Surface reduction, step 2: sequencing reversed
+
+The plan above put pgTAP after the surface work. That order is wrong and the
+analysis is why.
+
+Of 337 functions, 123 return `trigger` and are not surface at all — Postgres
+refuses a direct call (`ERROR: trigger functions can only be called as
+triggers`), verified rather than assumed, so relocating them would be tidiness,
+not security. Of the 214 that are callable over HTTP: 119 are client endpoints,
+47 were unreachable and are revoked, and **47 are internal helpers** — reachable,
+called only by other database code, exposed because of the default `anon` grant.
+
+Classified in `db_schema/INTERNAL_HELPERS.tsv`:
+
+- **11 keep-policy.** Referenced by an RLS policy: `get_current_profile_id`,
+  `has_permission`, `is_conversation_participant`,
+  `current_user_is_member_of_server`, `can_subscribe_to_topic` and others.
+  Policy predicates execute as the querying role, so revoking any of these locks
+  every user out of every table.
+- **11 keep-invoker.** Called by a `SECURITY INVOKER` function, which runs them
+  as the client. `enforce_message_length` calling `get_instance_config_int` is
+  the clearest case.
+- **24 revocable.** Every caller is `SECURITY DEFINER`.
+
+24 is a real reduction and it is derived from static analysis, which has been
+wrong four separate times in this work — each caught only by distrusting a
+result that looked wrong. The failure mode here is not a wrong number in a
+report; it is eleven functions one `REVOKE` away from locking every user out.
+
+So pgTAP comes first. The revocations land afterwards, with tests that assert a
+normal user can still read their channels, DMs and timeline, and that each
+revoked helper is genuinely unreachable from a client session. Applying them
+before there is a way to prove nothing broke is the exact habit this refactor
+exists to end.
