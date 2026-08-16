@@ -451,7 +451,8 @@ watch(() => [route.name, route.params, serverChannelStore.servers.length], navig
 
 watch(
   () => [route.params.channelId, route.params.conversationId],
-  ([channelId, conversationId], [prevChannelId, prevConversationId] = []) => {
+  ([channelId, conversationId], prev) => {
+    const [prevChannelId, prevConversationId] = prev ?? []
     if (channelId === prevChannelId && conversationId === prevConversationId) return
     if (!channelId && !conversationId) return
     closeMobileSidebars()

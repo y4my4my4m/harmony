@@ -29,7 +29,9 @@ $fn$;
 COMMENT ON FUNCTION public.purge_stale_invites() IS
   'Deletes invites expired or fully used for over 30 days. Scheduled daily via pg_cron.';
 
-DO $$
+-- Outer block uses the $do$ tag so the inner $$...$$ cron command string
+-- does not prematurely terminate it.
+DO $do$
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_cron') THEN
     -- Unschedule first for idempotency
@@ -78,4 +80,4 @@ BEGIN
   ELSE
     RAISE NOTICE 'pg_cron not available - trending updates must be triggered manually or via external scheduler';
   END IF;
-END $$;
+END $do$;

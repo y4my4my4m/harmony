@@ -152,8 +152,9 @@ CREATE TABLE IF NOT EXISTS public.post_interactions (
     -- Type: favorite, reblog, emoji_reaction, bookmark
     interaction_type text NOT NULL,
     
-    -- For emoji reactions
-    emoji_id uuid REFERENCES public.emojis(id) ON DELETE SET NULL,
+    -- For emoji reactions. The FK is added in 04_tables_servers.sql: emojis
+    -- is created there, after this file.
+    emoji_id uuid,
     custom_emoji_content text,
     
     -- Federation

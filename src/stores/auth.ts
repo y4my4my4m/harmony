@@ -678,7 +678,7 @@ export const useAuthStore = defineStore('auth', {
         // through `getSession()` can observe the pre-upgrade storage value,
         // leaving `session` null - `isLoggedIn` stays false and the route
         // guard bounces /chat back to /login with no error shown.
-        let verifiedSession = verifyData?.session ?? null;
+        let verifiedSession = (verifyData as { session?: Session | null } | null)?.session ?? null;
         if (!verifiedSession) {
           const { data: sessionData } = await supabase.auth.getSession();
           verifiedSession = sessionData.session;

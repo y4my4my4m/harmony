@@ -316,6 +316,20 @@ CREATE TABLE IF NOT EXISTS public.emojis (
     CONSTRAINT emojis_scope_check CHECK (scope IN ('server', 'instance', 'user'))
 );
 
+-- Deferred from 03_tables_social.sql, which declares post_interactions before
+-- emojis exists.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'post_interactions_emoji_id_fkey'
+  ) THEN
+    ALTER TABLE public.post_interactions
+      ADD CONSTRAINT post_interactions_emoji_id_fkey
+      FOREIGN KEY (emoji_id) REFERENCES public.emojis(id) ON DELETE SET NULL;
+  END IF;
+END
+$$;
+
 CREATE INDEX IF NOT EXISTS idx_emojis_server ON public.emojis(server_id);
 CREATE INDEX IF NOT EXISTS idx_emojis_name ON public.emojis(lower(name::text));
 CREATE INDEX IF NOT EXISTS idx_emojis_user ON public.emojis(uploader) WHERE scope = 'user';

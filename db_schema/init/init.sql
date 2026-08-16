@@ -9,6 +9,13 @@
 -- Or run each file individually in the Supabase SQL Editor.
 -- =============================================================================
 
+-- Abort on the first error. Without this psql reports the failure and carries
+-- on, so a partial schema exits 0 and reads as a successful install: a single
+-- forward reference in 03_tables_social.sql once cost post_interactions,
+-- user_bookmarks and ~120 dependent triggers, policies and views on every
+-- fresh instance.
+\set ON_ERROR_STOP on
+
 \echo '=============================================='
 \echo 'Harmony Database Initialization'
 \echo '=============================================='
