@@ -172,3 +172,31 @@ This is the concrete argument for a generated baseline. Reconciling 74 functions
 by hand is the wrong move — the baseline should be produced from a database that
 has had the migrations applied, which makes the difference structurally
 impossible rather than manually corrected.
+
+## Surface manifest (`db_schema/SURFACE.tsv`)
+
+Generated from a fresh `init/` build by `scripts/generate-surface.sh`, so it
+describes what a new instance exposes rather than what one database happened to
+accumulate. CI regenerates it and fails on any difference, which makes adding a
+client-reachable endpoint a reviewed change.
+
+From a fresh init: 337 functions, 241 `SECURITY DEFINER`, **334 granted to
+`anon`**, 109 unreferenced by this repo. 67 sit in the worst quadrant at once:
+`SECURITY DEFINER`, callable by `anon`, called by nothing here.
+
+The `anon` grant is not written anywhere in `db_schema/`. It is a default ACL
+carried by the Supabase image:
+
+```
+postgres | f | postgres=X/postgres anon=X/postgres authenticated=X/postgres service_role=X/postgres
+```
+
+So every function created in `public` becomes callable without authentication
+the moment it exists, and `SECURITY DEFINER` means it runs with RLS bypassed.
+Only three functions escape it — `bump_room_epoch`, `claim_ap_activity`,
+`complete_ap_activity` — because something explicitly revoked them.
+
+This settles the `app_private` question. Moving a helper out of `public` removes
+it from PostgREST *and* from the default grant in one step; per-function
+`REVOKE` would have to be remembered forever, on every new function, by every
+contributor.

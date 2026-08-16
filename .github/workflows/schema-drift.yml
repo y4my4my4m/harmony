@@ -34,3 +34,27 @@ jobs:
           name: schema-dumps
           path: /tmp/harmony-drift/
           retention-days: 7
+
+  surface:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # Adding or removing a client-reachable endpoint must be a visible diff.
+      # Supabase grants EXECUTE on every public function to anon by default, so
+      # a new function is callable without authentication the moment it exists.
+      - name: Regenerate the RPC surface manifest
+        run: ./scripts/generate-surface.sh
+
+      - name: Fail if the manifest is stale
+        run: |
+          if ! git diff --exit-code db_schema/SURFACE.tsv; then
+            echo "::error::db_schema/SURFACE.tsv is out of date."
+            echo "::error::Run scripts/generate-surface.sh and commit the result."
+            exit 1
+          fi
