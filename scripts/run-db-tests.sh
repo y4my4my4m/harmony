@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# Runs the pgTAP suite against a schema built from init/.
+#
+# Each file under db_schema/tests/ beyond the bootstrap and fixtures runs in its
+# own transaction and rolls back, so files cannot affect one another.
+set -euo pipefail
+
+IMAGE="${SUPABASE_PG_IMAGE:-supabase/postgres:15.8.1.060}"
+CONTAINER="${CONTAINER_NAME:-harmony-dbtest}"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+KEEP="${KEEP_CONTAINER:-0}"
+
+log() { printf '\033[36m==>\033[0m %s\n' "$*"; }
+err() { printf '\033[31mFAIL\033[0m %s\n' "$*" >&2; }
+
+cleanup() { [ "$KEEP" = "1" ] || docker rm -f "$CONTAINER" >/dev/null 2>&1 || true; }
+trap cleanup EXIT
+
+log "starting $IMAGE"
+docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
+docker run -d --name "$CONTAINER" -e POSTGRES_PASSWORD=postgres "$IMAGE" >/dev/null
+
+ok=0
+for _ in $(seq 1 120); do
+  if docker exec "$CONTAINER" psql -U postgres -d postgres -tAc 'select 1' >/dev/null 2>&1; then
+    ok=$((ok + 1)); [ "$ok" -ge 5 ] && break
+  else ok=0; fi
+  sleep 2
+done
+[ "$ok" -ge 5 ] || { err "postgres never stabilised"; docker logs "$CONTAINER" | tail -20; exit 1; }
+
+log "building schema from init/"
+docker exec "$CONTAINER" rm -rf /db_schema
+docker cp "$ROOT/db_schema" "$CONTAINER:/db_schema" >/dev/null
+docker cp "$ROOT/scripts/test-db/supabase-compat.sql" "$CONTAINER:/compat.sql" >/dev/null
+docker exec "$CONTAINER" psql -U postgres -d postgres -q -f /compat.sql >/dev/null 2>&1 || true
+docker exec -w /db_schema/init "$CONTAINER" psql -U postgres -d postgres -q -f init.sql >/dev/null
+
+log "installing pgtap and fixtures"
+docker exec "$CONTAINER" psql -U postgres -d postgres -q -v ON_ERROR_STOP=1 -f /db_schema/tests/00_bootstrap.sql
+docker exec "$CONTAINER" psql -U postgres -d postgres -q -v ON_ERROR_STOP=1 -f /db_schema/tests/01_fixtures.sql
+
+FAILED=0
+for f in "$ROOT"/db_schema/tests/*.sql; do
+  name="$(basename "$f")"
+  case "$name" in 00_*|01_*) continue ;; esac
+  log "$name"
+  out="$(docker exec "$CONTAINER" psql -U postgres -d postgres -tA -f "/db_schema/tests/$name" 2>&1)"
+  echo "$out" | grep -E '^(ok|not ok|# )' || true
+  if echo "$out" | grep -q '^not ok'; then
+    FAILED=$((FAILED + 1))
+    err "$name has failing assertions"
+  fi
+  if echo "$out" | grep -q '^ERROR'; then
+    FAILED=$((FAILED + 1))
+    err "$name raised an error"
+    echo "$out" | grep -A2 '^ERROR' | head -10 >&2
+  fi
+done
+
+[ "$FAILED" -eq 0 ] || { err "$FAILED test file(s) failed"; exit 1; }
+log "all database tests passed"

@@ -45,7 +45,7 @@ broadcast_server_settings_change		trigger	definer	public,	anon+authenticated+ser
 broadcast_thread_change		trigger	definer	public,	anon+authenticated+service_role	trigger
 broadcast_unread_count_event		trigger	definer	public	anon+authenticated+service_role	trigger
 broadcast_user_block_change		trigger	definer	public,	anon+authenticated+service_role	trigger
-broadcast_user_event	p_user_id uuid, p_payload jsonb	void	definer	public	anon+service_role	client
+broadcast_user_event	p_user_id uuid, p_payload jsonb	void	definer	public	anon+authenticated+service_role	client
 broadcast_user_mute_change		trigger	definer	public,	anon+authenticated+service_role	trigger
 broadcast_user_role_change		trigger	definer	public,	anon+authenticated+service_role	trigger
 broadcast_user_server_change		trigger	definer	public,	anon+authenticated+service_role	trigger
@@ -65,7 +65,7 @@ check_emoji_reaction_limit		trigger	invoker	public,	anon+authenticated+service_r
 check_encryption_policy	p_server_id uuid	jsonb	invoker	public,	service_role	unreferenced
 check_key_consistency		TABLE(user_id uuid, username text, has_public_key boolean, has_private_key boolean)	definer	public	anon+authenticated+service_role	client
 check_message_emoji_reaction_limit		trigger	invoker	public,	anon+authenticated+service_role	trigger
-claim_ap_activity	p_ap_id text	boolean	definer	public	service_role	client
+claim_ap_activity	p_ap_id text	boolean	definer	public	anon+authenticated+service_role	client
 claim_session_share	p_share_id uuid, p_user_id uuid	boolean	definer	public	anon+authenticated+service_role	client
 cleanup_dead_endpoint_users	p_endpoint_url text	void	definer	public	anon+authenticated+service_role	unreferenced
 cleanup_expired_statuses		integer	definer	public	service_role	unreferenced
@@ -80,7 +80,7 @@ cleanup_stale_user_sessions		integer	invoker	public,	service_role	unreferenced
 cleanup_stale_voice_participants		void	definer	public	service_role	unreferenced
 clear_custom_status	p_user_id uuid	boolean	definer	public	anon+authenticated+service_role	client
 clear_orphaned_public_keys		integer	definer	public	service_role	unreferenced
-complete_ap_activity	p_ap_id text, p_success boolean, p_error text	void	definer	public	service_role	client
+complete_ap_activity	p_ap_id text, p_success boolean, p_error text	void	definer	public	anon+authenticated+service_role	client
 convert_jsonb_to_ap	content jsonb	text	invoker	public,	anon+authenticated+service_role	client
 count_pinned_messages	p_channel_id uuid, p_conversation_id uuid	integer	invoker	public,	anon+authenticated+service_role	client
 create_comprehensive_timeline_entries		trigger	definer	public	anon+authenticated+service_role	trigger

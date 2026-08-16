@@ -306,3 +306,37 @@ normal user can still read their channels, DMs and timeline, and that each
 revoked helper is genuinely unreachable from a client session. Applying them
 before there is a way to prove nothing broke is the exact habit this refactor
 exists to end.
+
+## pgTAP suite
+
+`scripts/run-db-tests.sh` builds the schema from `init/`, installs pgtap into
+the `tests` schema, loads fixtures once, then runs each file in `db_schema/tests/`
+in its own rolled-back transaction. 27 assertions across topic authorization and
+the RLS backbone.
+
+Two defects were found by the suite itself, both of which had already produced
+false confidence:
+
+**`auth.uid()` is not the same function everywhere.** `supabase/postgres:15.8`
+defines it as `current_setting('request.jwt.claim.sub')`; newer releases parse
+the `request.jwt.claims` JSON. The harness set only the JSON form, so `auth.uid()`
+returned null and **10 of 15 assertions passed for the wrong reason** — every
+"cannot subscribe" case succeeded because the session authenticated as nobody.
+The bootstrap now sets both forms.
+
+**`REVOKE ... FROM anon, authenticated` does nothing on its own.** PostgreSQL
+grants EXECUTE to `PUBLIC` by default, visible in `proacl` as the empty grantee
+in `=X/postgres`. The named roles inherit from it, so the earlier migration left
+all 47 functions callable. It was reported as effective because the surface
+query listed explicit grantees from `information_schema` rather than asking
+whether the role could execute.
+
+Both are fixed: the revokes include `PUBLIC`, and the manifest uses
+`has_function_privilege`. Verified after the fix — `archive_popular_hashtags` is
+no longer executable by `anon`, `get_current_profile_id` still is.
+
+The negative control matters more than the passing runs. Revoking
+`get_current_profile_id` and re-running produces
+`ERROR: permission denied for function get_current_profile_id`, which the runner
+treats as failure. Before the `PUBLIC` fix the same sabotage left all 12
+assertions green.

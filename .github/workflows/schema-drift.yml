@@ -58,3 +58,15 @@ jobs:
             echo "::error::Run scripts/generate-surface.sh and commit the result."
             exit 1
           fi
+
+  pgtap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      # RLS and topic authorization are not expressible in Vitest: they depend
+      # on the querying role and the JWT claim, so they can only be asserted
+      # inside the database.
+      - name: Run the pgTAP suite
+        run: ./scripts/run-db-tests.sh

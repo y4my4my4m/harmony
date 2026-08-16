@@ -3,6 +3,11 @@
 -- `public` as an RPC endpoint, so this is the HTTP attack surface.
 --
 -- Columns: name | args | returns | security | search_path | grants | bound_to
+--
+-- Grants are computed with has_function_privilege rather than by listing
+-- explicit grantees. PostgreSQL grants EXECUTE to PUBLIC by default, so a
+-- function with no row for `anon` in information_schema is still callable by
+-- anon; reading grantees alone reports a revoke that did nothing as effective.
 \pset tuples_only on
 \pset format unaligned
 \pset fieldsep '|'
@@ -15,24 +20,16 @@ policy_text AS (
                coalesce(pg_get_expr(polqual, polrelid), '') || ' ' ||
                coalesce(pg_get_expr(polwithcheck, polrelid), ''), ' ') AS body
       FROM pg_policy
-),
-grants AS (
-    SELECT r.routine_name,
-           r.specific_name,
-           string_agg(DISTINCT g.grantee, '+' ORDER BY g.grantee) AS grantees
-      FROM information_schema.routines r
-      JOIN information_schema.role_routine_grants g
-        ON g.specific_name = r.specific_name
-     WHERE r.routine_schema = 'public'
-       AND g.grantee IN ('anon', 'authenticated', 'service_role')
-     GROUP BY r.routine_name, r.specific_name
 )
 SELECT p.proname
        || '|' || pg_get_function_identity_arguments(p.oid)
        || '|' || pg_get_function_result(p.oid)
        || '|' || CASE WHEN p.prosecdef THEN 'definer' ELSE 'invoker' END
        || '|' || coalesce(array_to_string(p.proconfig, ' '), '')
-       || '|' || coalesce(max(g.grantees), '')
+       || '|' || concat_ws('+',
+                    CASE WHEN has_function_privilege('anon', p.oid, 'EXECUTE') THEN 'anon' END,
+                    CASE WHEN has_function_privilege('authenticated', p.oid, 'EXECUTE') THEN 'authenticated' END,
+                    CASE WHEN has_function_privilege('service_role', p.oid, 'EXECUTE') THEN 'service_role' END)
        || '|' || CASE
                    WHEN p.oid IN (SELECT oid FROM trigger_bound) THEN 'trigger'
                    WHEN (SELECT body FROM policy_text) LIKE '%' || p.proname || '(%' THEN 'policy'
@@ -40,7 +37,6 @@ SELECT p.proname
                  END
   FROM pg_proc p
   JOIN pg_namespace n ON n.oid = p.pronamespace
-  LEFT JOIN grants g ON g.routine_name = p.proname
  WHERE n.nspname = 'public'
    AND p.prokind = 'f'
  GROUP BY p.oid, p.proname, p.prosecdef, p.proconfig
