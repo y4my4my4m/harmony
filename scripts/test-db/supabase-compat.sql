@@ -16,3 +16,22 @@ ALTER TABLE storage.objects ADD COLUMN IF NOT EXISTS owner_id text;
 ALTER TABLE storage.objects ADD COLUMN IF NOT EXISTS user_metadata jsonb;
 ALTER TABLE storage.objects ADD COLUMN IF NOT EXISTS version text;
 ALTER TABLE storage.objects ADD COLUMN IF NOT EXISTS level integer;
+
+-- realtime.messages is created by the Realtime service at start, not by the
+-- Postgres image. Without it 98_enable_rls.sql skips the policies on it, and
+-- can_subscribe_to_topic - whose only caller is that policy - reads as
+-- unreachable. Column set matches what realtime.send() writes.
+CREATE SCHEMA IF NOT EXISTS realtime;
+CREATE TABLE IF NOT EXISTS realtime.messages (
+    id          bigserial PRIMARY KEY,
+    topic       text,
+    extension   text,
+    payload     jsonb,
+    event       text,
+    private     boolean DEFAULT false,
+    inserted_at timestamptz DEFAULT now(),
+    updated_at  timestamptz DEFAULT now()
+);
+GRANT USAGE ON SCHEMA realtime TO authenticated;
+GRANT SELECT, INSERT ON realtime.messages TO authenticated;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA realtime TO authenticated;

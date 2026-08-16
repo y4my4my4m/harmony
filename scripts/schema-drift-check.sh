@@ -48,8 +48,8 @@ prepare() {
   # docker cp into an existing directory nests the source inside it.
   docker exec "$c" rm -rf /db_schema
   docker cp "$ROOT/db_schema" "$c:/db_schema" >/dev/null
-  docker cp "$ROOT/scripts/test-db/storage-compat.sql" "$c:/storage-compat.sql" >/dev/null
-  docker exec "$c" psql -U postgres -d postgres -q -v ON_ERROR_STOP=1 -f /storage-compat.sql
+  docker cp "$ROOT/scripts/test-db/supabase-compat.sql" "$c:/supabase-compat.sql" >/dev/null
+  docker exec "$c" psql -U postgres -d postgres -q -v ON_ERROR_STOP=1 -f /supabase-compat.sql
   docker exec -w /db_schema/init "$c" psql -U postgres -d postgres -q -f init.sql >/dev/null
 }
 

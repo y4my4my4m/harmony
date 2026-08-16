@@ -208,3 +208,36 @@ This settles the `app_private` question. Moving a helper out of `public` removes
 it from PostgREST *and* from the default grant in one step; per-function
 `REVOKE` would have to be remembered forever, on every new function, by every
 contributor.
+
+## Reachability (`db_schema/UNREACHABLE.tsv`)
+
+`scripts/find-unreachable.sh` builds the schema from `init/`, then traverses the
+call graph from every entry point: quoted strings anywhere in `src/`,
+`federation-backend/src` and `bot-gateway/src`; triggers, RLS policies, cron
+schedules, view definitions and column defaults, taken both from the built
+schema and from `db_schema/` directly.
+
+**47 of 336 functions are unreachable.** 30 are `SECURITY DEFINER` and
+`anon`-callable. One, `get_timeline`, is documented in `docs/API_REFERENCE.md`
+and is therefore an intentional endpoint regardless of internal callers.
+
+Four defects in the analysis, each found by checking a result that looked wrong
+rather than by reading the code:
+
+1. `(?<![\w.])name\(` excluded every schema-qualified reference, so
+   `EXECUTE FUNCTION public.foo()` and `public.foo(...)` were invisible. Live
+   trigger handlers appeared dead. 211 → 51.
+2. pg_dump heads each object with `-- Name: foo(...); Type: FUNCTION`, so every
+   function named itself outside any body and became its own root. All 336
+   looked reachable.
+3. Roots were read from a `--schema=public` dump, which excludes cron schedules
+   and policies on `realtime`/`storage`. Reading them from `db_schema/` as well
+   fixed it; the container cannot create `realtime.messages` at all, since the
+   schema is owned by `supabase_admin` and needs a running Realtime service.
+4. Matching only `rpc('literal')` missed computed names.
+   `postReactions.ts:125` picks between `add_` and `remove_post_emoji_reaction`
+   with a ternary. Caller matching is now any quoted string: over-inclusive on
+   purpose, since a false "reachable" costs nothing and a false "dead" is an
+   outage.
+
+The file is advisory. Nothing is dropped automatically.

@@ -1,0 +1,57 @@
+# Public functions no entry point reaches — candidates for removal.
+# Generated: scripts/find-unreachable.sh. Reviewed by a human before any DROP.
+#
+# Roots considered: quoted strings anywhere in src/, federation-backend/src
+# and bot-gateway/src; triggers, RLS policies, cron schedules, view
+# definitions and column defaults from both the built schema and db_schema/.
+# Caller matching is deliberately over-inclusive: a false 'reachable' costs
+# nothing, a false 'dead' drops a live endpoint.
+#
+# name	security	grants	notes
+add_user_prekeys	definer	anon	
+archive_popular_hashtags	definer	anon	
+backfill_timeline_entries	invoker	anon	
+check_encryption_policy	invoker	anon	
+cleanup_expired_statuses	definer	anon	
+cleanup_expired_voice_calls	definer	anon	
+cleanup_inactive_hashtags	definer	anon	
+cleanup_old_notifications	invoker	anon	
+cleanup_old_trending_data	invoker	anon	
+cleanup_stale_user_sessions	invoker	anon	
+cleanup_stale_voice_participants	definer	anon	
+clear_orphaned_public_keys	definer	anon	
+create_default_notification_preferences	definer	anon	
+create_notification_structured	definer	anon	
+create_notification_with_spam_prevention	definer	anon	
+detect_message_features	invoker	anon	
+disable_federation_triggers	definer	anon	
+enable_conversation_encryption	definer	anon	
+enable_federation_triggers	definer	anon	
+end_user_session	definer	anon	
+generate_livekit_token	definer	anon	
+get_channel_server_id	invoker	anon	
+get_conversation_encryption_status	invoker	anon	
+get_conversation_participants	invoker	anon	
+get_conversation_thread	invoker	anon	
+get_custom_status	definer	anon	
+get_livekit_config	definer	anon	
+get_next_folder_position	invoker	anon	
+get_next_server_position	invoker	anon	
+get_supporter_badge	invoker	anon	
+get_timeline	definer	anon	documented
+get_unread_notification_count	invoker	anon	
+get_unused_prekey	definer	anon	
+get_user_prekey_bundle	definer	anon	
+get_voice_channel_participants	definer	anon	
+has_muted	definer	anon	
+is_author_suspended	definer	anon	
+is_muted_by	definer	anon	
+record_metric	definer	anon	
+reset_user_encryption	definer	anon	
+rotate_prekeys	definer	anon	
+run_trending_maintenance	invoker	anon	
+safe_upsert_remote_profile	definer	anon	
+server_has_remote_members	invoker	anon	
+update_session_context	definer	anon	
+update_session_heartbeat	definer	anon	
+user_has_encryption	invoker	anon	
