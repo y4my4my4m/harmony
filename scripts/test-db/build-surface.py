@@ -10,9 +10,10 @@ Reads the catalog rows produced by surface-query.sql on stdin, classifies each
 function by what reaches it, and writes the manifest to stdout.
 
 Callers are resolved from this repository only, so the result is deterministic
-in CI. Services living in other repositories cannot be seen from here; a
-function marked `unreferenced` means nothing in *this* repo calls it, which is
-not the same as unreachable.
+in CI: the frontend under src/, plus the federation-backend and bot-gateway
+workers, which call RPCs directly rather than only queueing jobs. A function
+marked `unreferenced` means nothing in this repo calls it, which is not the
+same as unreachable.
 """
 import os
 import re
@@ -21,9 +22,21 @@ import sys
 SRC_EXTENSIONS = (".ts", ".tsx", ".js", ".vue")
 
 
+# The workers call RPCs directly; scanning only src/ would mark their
+# endpoints unreferenced and make them look droppable.
+CALLER_ROOTS = ("src", "federation-backend/src", "bot-gateway/src")
+
+
 def frontend_rpc_names(root: str) -> set[str]:
     names: set[str] = set()
-    for base, dirs, files in os.walk(os.path.join(root, "src")):
+    for sub in CALLER_ROOTS:
+        names |= _scan(os.path.join(root, sub))
+    return names
+
+
+def _scan(start: str) -> set[str]:
+    names: set[str] = set()
+    for base, dirs, files in os.walk(start):
         dirs[:] = [d for d in dirs if d not in ("node_modules", "dist", ".git")]
         for fname in files:
             if not fname.endswith(SRC_EXTENSIONS):

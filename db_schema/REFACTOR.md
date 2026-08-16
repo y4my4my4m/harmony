@@ -51,9 +51,16 @@ Static reachability is sound here: the prod schema contains exactly one
 `EXECUTE format(...)` site and it interpolates a column name, not a function, so
 nothing is dispatched by computed name.
 
-Not yet checked: whether `federation-backend` calls RPCs directly. It is not
-among the local checkouts and ActivityPub names dominate the dead list. Confirm
-before dropping anything.
+`federation-backend` and `bot-gateway` are in-tree, not separate repositories,
+and they call **36 distinct RPCs directly** — they do not only queue BullMQ
+jobs. `NotificationListener.ts` additionally opens a raw `pg` client, though it
+names no functions in SQL.
+
+The reachability analysis already covered them (it walked the whole checkout),
+and no worker RPC appears on the dead list. The surface manifest did not: its
+first version scanned `src/` alone and reported 109 unreferenced functions.
+Scanning the workers too gives **85**. The 24-function difference was
+mislabelled and would have looked droppable.
 
 ## init.sql was not building a working schema
 
@@ -181,8 +188,9 @@ accumulate. CI regenerates it and fails on any difference, which makes adding a
 client-reachable endpoint a reviewed change.
 
 From a fresh init: 337 functions, 241 `SECURITY DEFINER`, **334 granted to
-`anon`**, 109 unreferenced by this repo. 67 sit in the worst quadrant at once:
-`SECURITY DEFINER`, callable by `anon`, called by nothing here.
+`anon`**, 85 unreferenced by this repo. **47** sit in the worst quadrant at
+once: `SECURITY DEFINER`, callable by `anon`, and called by nothing in this
+repository.
 
 The `anon` grant is not written anywhere in `db_schema/`. It is a default ACL
 carried by the Supabase image:
