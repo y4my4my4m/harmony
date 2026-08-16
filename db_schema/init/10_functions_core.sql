@@ -184,10 +184,12 @@ STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$
+    -- The outer COALESCE covers both a missing row and a NULL is_suspended:
+    -- the subquery yields NULL in either case.
     SELECT COALESCE(
-        (SELECT COALESCE(is_suspended, false) FROM public.profiles WHERE id = p_author_id LIMIT 1),
+        (SELECT is_suspended FROM public.profiles WHERE id = p_author_id),
         false
-    )
+    );
 $$;
 
 COMMENT ON FUNCTION public.is_author_suspended(p_author_id uuid) IS 

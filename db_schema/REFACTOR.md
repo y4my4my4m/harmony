@@ -406,5 +406,22 @@ The generated baseline comes *after* that. Generating it now would freeze
 production's current state as canonical and silently discard the better
 implementations sitting in `init/`.
 
-`is_author_suspended` is the worked example: `init/`'s body is correct, prod has
-the weaker one, and it needs a migration to get there.
+`is_author_suspended` was the worked example and it corrected the premise. The
+two bodies differ in text only:
+
+```sql
+COALESCE((SELECT COALESCE(is_suspended, false) FROM profiles WHERE id = x LIMIT 1), false)
+COALESCE((SELECT is_suspended FROM profiles WHERE id = x), false)
+```
+
+The subquery yields NULL for a missing row and for a NULL column alike, so the
+outer COALESCE covers both. The inner one and the `LIMIT 1` on a primary key are
+redundant. Production was never running weaker code.
+
+Established by writing the assertions, applying production's body, and watching
+all four still pass — the failure that was expected did not arrive. Reading the
+two bodies had suggested otherwise, twice.
+
+So `init/` is aligned to production's simpler body and no migration ships. The
+rule for the remaining 22: a difference in text is not a difference in
+behaviour, and only a test that fails against the other body proves one exists.
