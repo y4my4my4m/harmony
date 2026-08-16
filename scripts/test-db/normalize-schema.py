@@ -27,7 +27,17 @@ def strip_comments(text: str) -> str:
 
 
 def squash(text: str) -> str:
-    return re.sub(r"\s+", " ", strip_comments(text)).strip()
+    """Canonical form: comments gone, whitespace irrelevant.
+
+    Collapsing runs of whitespace is not enough on its own - it leaves the space
+    in `COALESCE( (SELECT` distinct from `COALESCE((SELECT`, so a rewrapped line
+    reads as a changed body. Space adjacent to punctuation is dropped, and
+    keywords are cased uniformly, leaving only differences that a parser would
+    also see.
+    """
+    out = re.sub(r"\s+", " ", strip_comments(text)).strip()
+    out = re.sub(r"\s*([(),;])\s*", r"\1", out)
+    return out.lower()
 
 
 def digest(text: str) -> str:

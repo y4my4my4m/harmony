@@ -425,3 +425,27 @@ two bodies had suggested otherwise, twice.
 So `init/` is aligned to production's simpler body and no migration ships. The
 rule for the remaining 22: a difference in text is not a difference in
 behaviour, and only a test that fails against the other body proves one exists.
+
+
+### The comparison was over-reporting
+
+Two of the security-class entries turned out to be re-wrapped lines. `get_room_epoch`:
+
+```sql
+SELECT COALESCE( (SELECT current_epoch FROM room_epoch_state WHERE room_id = p_room_id), 1 );
+SELECT COALESCE((SELECT current_epoch FROM room_epoch_state WHERE room_id = p_room_id), 1);
+```
+
+Identical to a parser. `squash()` collapsed runs of whitespace but left the space
+in `COALESCE( (` distinct from `COALESCE((`, so any re-wrapped body read as
+changed. It now drops whitespace adjacent to punctuation and folds case.
+
+Re-measuring moved the set rather than only shrinking it: `get_room_epoch`,
+`remove_group_icon`, `update_group_icon` and `update_group_name` fell out as
+formatting, and `get_batch_message_reactions`, `get_message_reactions` and
+`update_post_reply_count` appeared, having been masked by a `search_path`
+pattern that matched too broadly. 23 → 22, with seven entries changed.
+
+Worth stating plainly: the checklist would have sent four investigations after
+differences that do not exist, and skipped three that do. The tool measuring the
+work was itself the least verified thing in it.

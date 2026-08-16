@@ -29,33 +29,34 @@ superseded entries are revoke candidates, not reconciliations.
 | done | function | class | note |
 |---|---|---|---|
 | [ ] | `approve_device_request` | security | AAL2 device approval; init +342 chars, guards equal |
-| [ ] | `deny_device_request` | security | pairs with approve_device_request |
-| [ ] | `generate_livekit_token` | superseded | node backend mints tokens; revoke candidate, not reconcile |
-| [ ] | `get_user_permissions` | security | permission resolution; init +1450 chars |
-| [ ] | `get_unclaimed_session_shares` | security | E2EE key delivery |
-| [ ] | `get_room_epoch` | security | megolm epoch |
-| [x] | `is_author_suspended` | equivalent | no behavioural difference: the outer COALESCE already handles a NULL column. init/ aligned to production's simpler body; behaviour pinned in tests/30 |
-| [ ] | `remove_group_icon` | authz | group icon ownership |
-| [ ] | `update_group_icon` | authz | group icon ownership |
-| [ ] | `update_group_name` | authz | group name ownership |
 | [ ] | `broadcast_emoji_change` | behaviour | guards 1/2 - migration has an extra EXCEPTION handler |
 | [ ] | `broadcast_profile_change` | behaviour | fan-out |
-| [ ] | `update_follow_counts` | behaviour | guards 8/10 - migration is more defensive |
-| [ ] | `handle_message_federation` | behaviour | 8.6KB, 24 guards - largest, review last |
-| [ ] | `handle_group_participant_left` | behaviour | migration longer |
-| [ ] | `handle_local_post_mention_notifications` | behaviour | migration longer |
-| [ ] | `handle_post_mention_notifications` | behaviour | migration longer |
-| [ ] | `handle_post_reply_notifications` | behaviour | migration longer |
-| [ ] | `trigger_queue_thread_federation` | behaviour | migration longer |
 | [ ] | `cleanup_dead_endpoint_users` | maintenance | unreachable; revoke candidate |
+| [ ] | `deny_device_request` | security | pairs with approve_device_request |
 | [ ] | `disable_federation_triggers` | maintenance | ops helper |
 | [ ] | `enable_federation_triggers` | maintenance | ops helper |
+| [ ] | `generate_livekit_token` | superseded | node backend mints tokens; revoke candidate, not reconcile |
+| [ ] | `get_batch_message_reactions` | behaviour | surfaced after canonicalising whitespace |
+| [ ] | `get_message_reactions` | behaviour | surfaced after canonicalising whitespace |
+| [ ] | `get_unclaimed_session_shares` | security | E2EE key delivery |
+| [ ] | `get_user_permissions` | security | permission resolution; init +1450 chars |
+| [ ] | `handle_group_participant_left` | behaviour | migration longer |
+| [ ] | `handle_local_post_mention_notifications` | behaviour | migration longer |
+| [ ] | `handle_message_federation` | behaviour | 8.6KB, 24 guards - largest, review last |
+| [ ] | `handle_post_mention_notifications` | behaviour | migration longer |
+| [ ] | `handle_post_reply_notifications` | behaviour | migration longer |
+| [x] | `is_author_suspended` | equivalent | no behavioural difference: the outer COALESCE already handles a NULL column. init/ aligned to production's simpler body; behaviour pinned in tests/30 |
+| [ ] | `trigger_queue_thread_federation` | behaviour | migration longer |
+| [ ] | `update_follow_counts` | behaviour | guards 8/10 - migration is more defensive |
+| [ ] | `update_post_reply_count` | behaviour | surfaced after canonicalising whitespace |
 | [ ] | `update_trending_posts` | maintenance | cron-scheduled |
+
+### Removed as formatting-only
+
+`get_room_epoch`, `remove_group_icon`, `update_group_icon` and `update_group_name`
+left the list once the comparison stopped treating re-wrapped lines as changed
+bodies. Their SQL is identical; only the line breaks differ.
 
 ## Progress
 
-1 of 23. `is_author_suspended` closed as equivalent — no migration needed.
-
-Worth noting for the remaining 22: the first candidate that looked like a
-production bug was not one. A difference in text is not a difference in
-behaviour, and only a test that fails against the other body proves otherwise.
+1 of 22 closed. `is_author_suspended` was equivalent; the rest are unexamined.
