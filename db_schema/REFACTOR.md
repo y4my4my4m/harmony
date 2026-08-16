@@ -340,3 +340,21 @@ The negative control matters more than the passing runs. Revoking
 `ERROR: permission denied for function get_current_profile_id`, which the runner
 treats as failure. Before the `PUBLIC` fix the same sabotage left all 12
 assertions green.
+
+### Correction: the manifest classified a live endpoint as internal
+
+`build-surface.py` still matched only `rpc('literal')` when
+`find-unreachable.py` had already been widened to any quoted string. The two
+disagreed, and the manifest's `reached_by` column was the stale one.
+
+`remove_post_emoji_reaction` was therefore classed **revocable**, despite having
+been proven a live client endpoint hours earlier — `postReactions.ts:125` picks
+it with a ternary. Revoking it would have broken removing a reaction from a
+post.
+
+Caught by reading the generated list rather than by any check. Both scripts now
+share the same rule. Revocable: 24 → 23.
+
+The lesson is narrow and worth keeping: a fix applied to one analysis script has
+to be applied to every script that answers the same question, or the stale one
+silently becomes the input to the next decision.

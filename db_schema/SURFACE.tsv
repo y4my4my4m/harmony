@@ -26,17 +26,17 @@ broadcast_category_change		trigger	definer	public,	anon+authenticated+service_ro
 broadcast_channel_change		trigger	definer	public,	anon+authenticated+service_role	trigger
 broadcast_conversation_participant_event		trigger	definer	public	anon+authenticated+service_role	trigger
 broadcast_conversation_updated		trigger	definer	public,	anon+authenticated+service_role	trigger
-broadcast_device_approval_event		trigger	definer	public,	anon+authenticated+service_role	trigger
+broadcast_device_approval_event		trigger	definer	public,	anon+authenticated+service_role	client
 broadcast_emoji_change		trigger	definer	public,	anon+authenticated+service_role	trigger
 broadcast_follow_event		trigger	definer	public,	anon+authenticated+service_role	trigger
-broadcast_home_feed_entry		trigger	definer	public	anon+authenticated+service_role	trigger
+broadcast_home_feed_entry		trigger	definer	public	anon+authenticated+service_role	client
 broadcast_key_request_event		trigger	definer	public,	anon+authenticated+service_role	trigger
 broadcast_membership_event		trigger	definer	public,	anon+authenticated+service_role	trigger
 broadcast_message_event		trigger	definer	public	anon+authenticated+service_role	trigger
 broadcast_message_reaction_event		trigger	definer	public	anon+authenticated+service_role	trigger
 broadcast_notification_event		trigger	definer	public	anon+authenticated+service_role	trigger
 broadcast_permission_override_change		trigger	definer	public,	anon+authenticated+service_role	trigger
-broadcast_post_event		trigger	definer	public	anon+authenticated+service_role	trigger
+broadcast_post_event		trigger	definer	public	anon+authenticated+service_role	client
 broadcast_post_interaction_event		trigger	definer	public	anon+authenticated+service_role	trigger
 broadcast_profile_change		trigger	definer	public,	anon+authenticated+service_role	trigger
 broadcast_role_change		trigger	definer	public,	anon+authenticated+service_role	trigger
@@ -107,10 +107,10 @@ disable_federation_triggers		void	definer	public	service_role	unreferenced
 enable_conversation_encryption	p_conversation_id uuid	jsonb	definer	public	service_role	unreferenced
 enable_federation_triggers		void	definer	public	service_role	unreferenced
 end_user_session	p_user_id uuid, p_session_token text	void	definer	public	service_role	unreferenced
-enforce_channel_slowmode		trigger	definer	public	anon+authenticated+service_role	trigger
+enforce_channel_slowmode		trigger	definer	public	anon+authenticated+service_role	client
 enforce_force_sensitive		trigger	invoker	public,	anon+authenticated+service_role	trigger
-enforce_message_length		trigger	invoker	public,	anon+authenticated+service_role	trigger
-enforce_post_length		trigger	invoker	public,	anon+authenticated+service_role	trigger
+enforce_message_length		trigger	invoker	public,	anon+authenticated+service_role	client
+enforce_post_length		trigger	invoker	public,	anon+authenticated+service_role	client
 extract_hashtags_from_content	p_content jsonb	text[]	invoker	public,	anon+authenticated+service_role	unreferenced
 extract_message_text	content_parts jsonb	text	invoker	public,	anon+authenticated+service_role	unreferenced
 extract_url_host	p_url text	text	invoker	public,	anon+authenticated+service_role	unreferenced
@@ -252,7 +252,7 @@ redeem_recovery_code_and_disable_mfa	p_code text	boolean	definer	public,	anon+au
 regenerate_discord_bridge_pairing	p_server_id uuid	text	definer	public	anon+authenticated+service_role	client
 register_recovery_key	p_user_id uuid, p_verification_code text, p_word_count integer	recovery_key_metadata	definer	public	anon+authenticated+service_role	client
 remove_group_icon	conversation_uuid uuid, user_profile_id uuid	jsonb	definer	public	anon+authenticated+service_role	client
-remove_post_emoji_reaction	p_user_id uuid, p_post_id uuid, p_emoji_id uuid, p_custom_emoji_content text	boolean	definer	public	anon+authenticated+service_role	unreferenced
+remove_post_emoji_reaction	p_user_id uuid, p_post_id uuid, p_emoji_id uuid, p_custom_emoji_content text	boolean	definer	public	anon+authenticated+service_role	client
 remove_timeline_on_unfollow		trigger	definer	public	anon+authenticated+service_role	trigger
 request_room_epoch_bump	p_room_id text, p_reason text	integer	definer	public	anon+authenticated+service_role	client
 reset_daily_hashtag_counters		void	definer	public	anon+authenticated+service_role	client
@@ -312,7 +312,7 @@ trigger_queue_follow_response_federation		trigger	definer	public	anon+authentica
 trigger_queue_interaction_federation		trigger	definer	public	anon+authenticated+service_role	trigger
 trigger_queue_message_reaction_delete_federation		trigger	definer	public	anon+authenticated+service_role	trigger
 trigger_queue_message_reaction_federation		trigger	definer	public	anon+authenticated+service_role	trigger
-trigger_queue_post_federation		trigger	definer	public	anon+authenticated+service_role	trigger
+trigger_queue_post_federation		trigger	definer	public	anon+authenticated+service_role	client
 trigger_queue_profile_federation		trigger	definer	public	anon+authenticated+service_role	trigger
 trigger_queue_report_federation		trigger	definer	public	anon+authenticated+service_role	trigger
 trigger_queue_server_update_federation		trigger	definer	public	anon+authenticated+service_role	trigger

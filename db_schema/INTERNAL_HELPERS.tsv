@@ -51,7 +51,6 @@ profile_web_handle	keep-invoker
 public_instance_config_keys	keep-policy
 purge_stale_invites	revocable
 queue_federation_job	revocable
-remove_post_emoji_reaction	revocable
 resolve_mention_profile_id	revocable
 sanitize_profile_string	keep-invoker
 send_notification	revocable

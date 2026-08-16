@@ -44,7 +44,12 @@ def _scan(start: str) -> set[str]:
             path = os.path.join(base, fname)
             try:
                 with open(path, encoding="utf-8", errors="replace") as fh:
-                    names |= set(re.findall(r"""rpc\(\s*['"]([a-z0-9_]+)""", fh.read()))
+                    # Any quoted string, not just rpc('literal'): computed
+                    # names exist. postReactions.ts picks between add_ and
+                    # remove_post_emoji_reaction with a ternary before calling
+                    # rpc(), and the narrow form classified a live endpoint as
+                    # an internal helper.
+                    names |= set(re.findall(r"""['"`]([a-z0-9_]{4,})['"`]""", fh.read()))
             except OSError:
                 continue
     return names
