@@ -24,13 +24,26 @@ info() { printf "%s==>%s %s\n" "$c_blue" "$c_reset" "$*"; }
 ok()   { printf "%s ✓ %s%s\n" "$c_green" "$*" "$c_reset"; }
 die()  { printf "Error: %s\n" "$*" >&2; exit 1; }
 
-val() { sed -n "s/^$2=//p" "$1" 2>/dev/null | head -1; }
+# A missing file makes sed exit non-zero, which `set -o pipefail` propagates and
+# `set -e` turns into a silent exit at the assignment below - before any message
+# is printed. Deployments whose compose lives outside the repo have no env files
+# here at all, so absence has to read as "empty", not as failure.
+val() {
+	[ -f "$1" ] || return 0
+	sed -n "s/^$2=//p" "$1" 2>/dev/null | head -1 || true
+}
 PG_PW="$(val "$SCRIPT_DIR/supabase/.env" POSTGRES_PASSWORD)"
 LISTENER_PW="$(val "$SCRIPT_DIR/federation.env" __LISTENER_PW)"
 DOMAIN="$(val "$SCRIPT_DIR/.env" DOMAIN)"
 INSTANCE_NAME="$(val "$SCRIPT_DIR/.env" INSTANCE_NAME)"
-[[ -n "$PG_PW" ]] || die "Could not read POSTGRES_PASSWORD - run configure.sh first"
-[[ -n "$LISTENER_PW" ]] || die "Could not read listener password - run configure.sh first"
+# The env files are written by configure.sh and sit beside this script, which
+# assumes the bundled self-host layout. A deployment whose compose lives
+# elsewhere has neither, and neither is needed to apply migrations: psql runs
+# through `docker exec`, so it reaches Postgres over the container's local
+# socket and PGPASSWORD goes unused. Only the steps that consume these values
+# are skipped when they are missing.
+[[ -n "$PG_PW" ]] || info "No POSTGRES_PASSWORD found; using the container's local socket"
+
 
 docker inspect "$DB_CONTAINER" >/dev/null 2>&1 || die "$DB_CONTAINER is not running. Start the stack first: docker compose up -d"
 
@@ -112,6 +125,12 @@ docker exec "$DB_CONTAINER" rm -rf /tmp/db_schema 2>/dev/null || true
 if [[ $pending -eq 0 ]]; then ok "Migrations up to date"; else ok "Applied $pending migration(s)"; fi
 
 # --- least-privilege listener role ------------------------------------------
+# Needs a password to set, so it is skipped where configure.sh has not run. The
+# role is only used by the federation worker for instant job pickup; migrations
+# do not depend on it.
+if [[ -z "$LISTENER_PW" ]]; then
+	info "No listener password found; leaving harmony_listener untouched"
+else
 info "Provisioning harmony_listener role..."
 psql_exec >/dev/null <<SQL
 DO \$\$
@@ -125,6 +144,7 @@ ALTER ROLE harmony_listener WITH PASSWORD '${LISTENER_PW}';
 GRANT CONNECT ON DATABASE ${DB_NAME} TO harmony_listener;
 SQL
 ok "Listener role ready"
+fi
 
 # --- instance config + PostgREST reload --------------------------------------
 if [[ -n "$DOMAIN" ]]; then
@@ -136,4 +156,4 @@ fi
 psql_exec -c "NOTIFY pgrst, 'reload schema';" >/dev/null 2>&1 || true
 
 echo
-ok "Bootstrap complete. Federation worker will use harmony_listener for instant job pickup."
+ok "Bootstrap complete."
