@@ -71,10 +71,14 @@ def main() -> None:
             reached = bound
         else:
             reached = "unreferenced"
+        # proconfig entries arrive joined by spaces, and a search_path value may
+        # itself contain ", " - `public, extensions, pg_temp`. Reading to the
+        # next `key=` rather than the next space keeps the whole value; \S+
+        # truncated it to `public,`.
         search_path = ""
-        m = re.search(r"search_path=(\S+)", config)
+        m = re.search(r"search_path=(.*?)(?=\s+\w+=|$)", config)
         if m:
-            search_path = m.group(1)
+            search_path = m.group(1).strip()
         rows.append((name, args, returns, security, search_path, grants, reached))
 
     print("# Public RPC surface — generated, do not edit by hand.")

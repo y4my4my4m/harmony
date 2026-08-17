@@ -33,7 +33,22 @@ log "building schema from init/"
 docker exec "$CONTAINER" rm -rf /db_schema
 docker cp "$ROOT/db_schema" "$CONTAINER:/db_schema" >/dev/null
 docker cp "$ROOT/scripts/test-db/supabase-compat.sql" "$CONTAINER:/compat.sql" >/dev/null
-docker exec "$CONTAINER" psql -U postgres -d postgres -q -f /compat.sql >/dev/null 2>&1 || true
+# supabase_admin owns the realtime schema and postgres is not superuser in this
+# image, so the realtime stubs are silently skipped when compat runs as
+# postgres. pg_hba trusts supabase_admin over 127.0.0.1.
+docker exec "$CONTAINER" psql -U supabase_admin -h 127.0.0.1 -d postgres -q -f /compat.sql 2>&1 |
+  grep -v 'already exists, skipping' || true
+
+# The stub is created inside an exception-guarded DO block, so a privilege
+# failure leaves it absent instead of raising. Every broadcast trigger calls
+# realtime.send; without it any INSERT on a table carrying one aborts and the
+# test reads as a schema bug rather than a missing shim.
+docker exec "$CONTAINER" psql -U postgres -d postgres -tAc \
+  "SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+    WHERE n.nspname='realtime' AND p.proname='send'" | grep -q 1 || {
+  err "realtime.send stub missing after compat; broadcast triggers will fail"
+  exit 1
+}
 docker exec -w /db_schema/init "$CONTAINER" psql -U postgres -d postgres -q -f init.sql >/dev/null
 
 log "installing pgtap and fixtures"

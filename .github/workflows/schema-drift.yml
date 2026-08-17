@@ -59,6 +59,20 @@ jobs:
             exit 1
           fi
 
+  rpc-coverage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      # The drift gate compares init/ with init/ plus migrations, so a function
+      # missing from both is invisible to it. This reads the other direction:
+      # the RPC names the application calls. Production carried eight such
+      # functions - push delivery, bot auth, session checks - that were in no
+      # repo file, so a fresh install answered "function does not exist".
+      - name: Check every called RPC exists in a fresh init/ build
+        run: ./scripts/check-rpc-coverage.sh
+
   pgtap:
     runs-on: ubuntu-latest
     timeout-minutes: 20

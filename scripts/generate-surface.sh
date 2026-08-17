@@ -36,7 +36,7 @@ log "applying init/"
 docker exec "$CONTAINER" rm -rf /db_schema
 docker cp "$ROOT/db_schema" "$CONTAINER:/db_schema" >/dev/null
 docker cp "$ROOT/scripts/test-db/supabase-compat.sql" "$CONTAINER:/supabase-compat.sql" >/dev/null
-docker exec "$CONTAINER" psql -U postgres -d postgres -q -v ON_ERROR_STOP=1 -f /supabase-compat.sql
+docker exec "$CONTAINER" psql -U supabase_admin -h 127.0.0.1 -d postgres -q -v ON_ERROR_STOP=1 -f /supabase-compat.sql
 docker exec -w /db_schema/init "$CONTAINER" psql -U postgres -d postgres -q -f init.sql >/dev/null
 
 log "querying the catalog"

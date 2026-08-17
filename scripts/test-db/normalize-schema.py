@@ -26,18 +26,59 @@ def strip_comments(text: str) -> str:
     return text
 
 
+# Longest first, so <> is not read as < then >.
+_OPERATORS = ("<>", "!=", "<=", ">=", ":=", "||", "=")
+
+
+def fold_operators(text: str) -> str:
+    """Drop whitespace around operators, outside string literals.
+
+    `ERRCODE = '42501'` and `ERRCODE='42501'` are the same statement. Folding
+    them textually is only safe outside quotes: a literal may legitimately
+    contain ` = `, and collapsing it there would make two different messages
+    compare equal.
+    """
+    out: list[str] = []
+    i, n, in_string = 0, len(text), False
+    while i < n:
+        ch = text[i]
+        if ch == "'":
+            # Doubled quotes escape within a literal; the toggle handles them.
+            in_string = not in_string
+            out.append(ch)
+            i += 1
+            continue
+        if in_string:
+            out.append(ch)
+            i += 1
+            continue
+        for op in _OPERATORS:
+            if text.startswith(op, i):
+                while out and out[-1] == " ":
+                    out.pop()
+                out.append(op)
+                i += len(op)
+                while i < n and text[i] == " ":
+                    i += 1
+                break
+        else:
+            out.append(ch)
+            i += 1
+    return "".join(out)
+
+
 def squash(text: str) -> str:
-    """Canonical form: comments gone, whitespace irrelevant.
+    """Canonical form: comments gone, whitespace and operator spacing irrelevant.
 
     Collapsing runs of whitespace is not enough on its own - it leaves the space
     in `COALESCE( (SELECT` distinct from `COALESCE((SELECT`, so a rewrapped line
-    reads as a changed body. Space adjacent to punctuation is dropped, and
-    keywords are cased uniformly, leaving only differences that a parser would
-    also see.
+    reads as a changed body. Space adjacent to punctuation and to operators is
+    dropped, and keywords are cased uniformly, leaving only differences that a
+    parser would also see.
     """
     out = re.sub(r"\s+", " ", strip_comments(text)).strip()
     out = re.sub(r"\s*([(),;])\s*", r"\1", out)
-    return out.lower()
+    return fold_operators(out.lower())
 
 
 def digest(text: str) -> str:
@@ -57,12 +98,25 @@ def inventory(sql: str, verbose: bool) -> list[str]:
         emit("table", m.group(1), " | ".join(cols))
 
     # Keyed by name and argument list so overloads stay distinct.
+    #
+    # Attributes and body are digested separately. Concatenating them made a
+    # function that differs only in SET search_path indistinguishable from one
+    # whose body changed, which put three search_path-only functions on the
+    # reconciliation list in RECONCILE.md and left the drift report unable to
+    # say which kind of difference it had found.
     for m in re.finditer(
         r"CREATE (?:OR REPLACE )?FUNCTION ([\w.]+)\((.*?)\)(.*?)AS (\$[\w]*\$)(.*?)\4;",
         sql,
         re.S,
     ):
-        emit("function", f"{m.group(1)}({squash(m.group(2))})", m.group(3) + m.group(5))
+        name = f"{m.group(1)}({squash(m.group(2))})"
+        if verbose:
+            out.append(f"function\t{name}\tattrs={squash(m.group(3))}")
+            out.append(f"function\t{name}\tbody={squash(m.group(5))}")
+        else:
+            out.append(
+                f"function\t{name}\t{digest(m.group(3))}\t{digest(m.group(5))}"
+            )
 
     for m in re.finditer(r'CREATE POLICY "?([^"\n]+?)"? ON ([\w.]+)(.*?);', sql, re.S):
         emit("policy", f"{m.group(2)}.{m.group(1)}", m.group(3))

@@ -28,7 +28,7 @@ docker exec "$CONTAINER" rm -rf /db_schema
 docker cp "$ROOT/db_schema" "$CONTAINER:/db_schema" >/dev/null
 docker cp "$ROOT/scripts/test-db/supabase-compat.sql" "$CONTAINER:/compat.sql" >/dev/null
 docker cp "$ROOT/scripts/test-db/roots-query.sql" "$CONTAINER:/roots.sql" >/dev/null
-docker exec "$CONTAINER" psql -U postgres -d postgres -q -f /compat.sql >/dev/null 2>&1 || true
+docker exec "$CONTAINER" psql -U supabase_admin -h 127.0.0.1 -d postgres -q -f /compat.sql >/dev/null 2>&1 || true
 docker exec -w /db_schema/init "$CONTAINER" psql -U postgres -d postgres -q -f init.sql >/dev/null
 
 docker exec "$CONTAINER" sh -c \
