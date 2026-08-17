@@ -66,7 +66,6 @@ DECLARE
         'CREATE INDEX IF NOT EXISTS idx_encryption_audit_log_related_server ON public.encryption_audit_log(related_server_id)',
         'CREATE INDEX IF NOT EXISTS idx_encryption_audit_log_related_user ON public.encryption_audit_log(related_user_id)',
         'CREATE INDEX IF NOT EXISTS idx_federation_delivery_queue_sender_id ON public.federation_delivery_queue(sender_id)',
-        'CREATE INDEX IF NOT EXISTS idx_files_owner ON public.files(owner)',
         'CREATE INDEX IF NOT EXISTS idx_instance_announcements_author_id ON public.instance_announcements(author_id)',
         'CREATE INDEX IF NOT EXISTS idx_instance_config_updated_by ON public.instance_config(updated_by)',
         'CREATE INDEX IF NOT EXISTS idx_instance_pending_donations_resolved_by ON public.instance_pending_donations(resolved_by)',
