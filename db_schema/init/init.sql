@@ -89,6 +89,10 @@
 \echo '>>> 13_functions_rpc_extended.sql - Creating extended RPC functions...'
 \i 13_functions_rpc_extended.sql
 
+\echo ''
+\echo '>>> 14_indexes_perf.sql - Creating performance indexes...'
+\i 14_indexes_perf.sql
+
 -- ---------------------------------------------------------------------------
 -- PHASE 4: RLS Policies
 -- ---------------------------------------------------------------------------
@@ -155,9 +159,6 @@
 \echo '>>> 99_cron_jobs.sql - Scheduling recurring jobs (pg_cron)...'
 \i 99_cron_jobs.sql
 
-\echo ''
-\echo '>>> 99_migration_tracking.sql - Creating migration tracking table...'
-\i 99_migration_tracking.sql
 
 \echo ''
 \echo 'Harmony database initialization complete.'

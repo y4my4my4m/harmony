@@ -50,10 +50,39 @@ supabase db push
 
 ### Migrations
 
-Incremental changes go in `db_schema/migrations/` as dated, idempotent SQL files:
+Migrations are applied with the Supabase CLI against a connection string. The
+same commands work for a self-hosted Docker instance and for a cloud project —
+`--db-url` needs no `supabase link`:
+
+```bash
+supabase migration list --db-url "$DATABASE_URL"    # applied vs pending
+supabase db push --dry-run --db-url "$DATABASE_URL"
+supabase db push          --db-url "$DATABASE_URL"
+```
+
+A fresh database is built from `init/` and then has its history recorded without
+replaying anything — `init/` already contains what the migrations produce:
+
+```bash
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db_schema/init/init.sql
+scripts/baseline-migrations.sh --url "$DATABASE_URL"
+```
+
+A database whose migrations were applied by hand has no history table. Record
+what is already there before pushing, or the CLI replays everything:
+
+```bash
+scripts/baseline-migrations.sh --url "$DATABASE_URL" --through <last-applied-version>
+supabase db push --dry-run --db-url "$DATABASE_URL"
+```
+
+Files are `<version>_<name>.sql` with `version` = `YYYYMMDDNNNNNN`, unique across
+the directory — it is the primary key of the history table. Create one with
+`supabase migration new <name>`, and mirror whatever it does into
+`db_schema/init/`, or the drift gate fails.
 
 ```sql
--- db_schema/migrations/20260306_example.sql
+-- db_schema/migrations/20260306000001_example.sql
 BEGIN;
 
 CREATE OR REPLACE FUNCTION my_function()

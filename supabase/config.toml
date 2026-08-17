@@ -1,0 +1,20 @@
+# Supabase CLI project file.
+#
+# Only the migration workflow is used. The CLI is pointed at a database with
+# --db-url, so nothing here needs a cloud project and `supabase link` is not
+# part of the deployment path:
+#
+#   supabase migration list --db-url "$DATABASE_URL"
+#   supabase db push --dry-run --db-url "$DATABASE_URL"
+#   supabase db push          --db-url "$DATABASE_URL"
+#
+# supabase/migrations is a symlink to db_schema/migrations, which stays the
+# single source of truth alongside db_schema/init. The CLI reads through the
+# symlink; keeping the files where they are leaves install.sh, the drift gate
+# and the docs pointing at the same paths they always did.
+#
+# Migration filenames must be <version>_<name>.sql with a version unique across
+# the whole directory - supabase_migrations.schema_migrations has version as its
+# primary key. The repo uses YYYYMMDDNNNNNN, the counter ordering files created
+# on the same day.
+project_id = "harmony"

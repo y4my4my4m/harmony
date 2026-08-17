@@ -2349,32 +2349,52 @@ setup_database() {
     fi
     print_success "Init schema loaded"
 
-    # Run migrations in order
+    # Record migrations as applied, without running them.
+    #
+    # init.sql already contains everything the migrations produce -
+    # scripts/schema-drift-check.sh asserts exactly that - so replaying them on
+    # a fresh install is redundant. It is also wrong: six of them assume a
+    # pre-init state and fail on "policy already exists", which the previous
+    # loop hid by discarding output and warning instead of stopping.
+    #
+    # The ledger is supabase_migrations.schema_migrations, the table the
+    # Supabase CLI uses, so a later `supabase db push` or self-host/bootstrap.sh
+    # run applies only migrations added after this install.
     local migration_count=0
     local migration_files
     migration_files=$(find "$PROJECT_DIR/db_schema/migrations" -name '*.sql' -type f 2>/dev/null | sort)
 
     if [[ -n "$migration_files" ]]; then
         echo ""
-        print_info "Running migrations..."
+        print_info "Recording migration history..."
+        local ledger_sql="CREATE SCHEMA IF NOT EXISTS supabase_migrations;
+CREATE TABLE IF NOT EXISTS supabase_migrations.schema_migrations (
+  version text PRIMARY KEY, name text, statements text[]);
+"
         while IFS= read -r migration; do
-            local fname
+            local fname version name
             fname=$(basename "$migration")
-            local mig_ec=0
-            if $use_docker_exec; then
-                docker exec -e PGPASSWORD="$pg_pw" "$db_container" psql -U "$db_user" -d "$db_name" -f "/tmp/db_schema/migrations/$fname" &>/dev/null
-                mig_ec=$?
-            else
-                PGPASSWORD="$pg_pw" psql -h "$db_host" -p "$db_port" -U "$db_user" -d "$db_name" -f "$migration" &>/dev/null
-                mig_ec=$?
-            fi
-            if [[ $mig_ec -eq 0 ]]; then
-                ((++migration_count))
-            else
-                print_warn "Migration may have had issues: $fname"
-            fi
+            version="${fname:0:14}"
+            name="${fname:15}"; name="${name%.sql}"
+            ledger_sql+="INSERT INTO supabase_migrations.schema_migrations (version, name) VALUES ('${version}', '${name}') ON CONFLICT (version) DO NOTHING;
+"
+            ((++migration_count))
         done <<< "$migration_files"
-        print_success "Ran $migration_count migrations"
+
+        local ledger_ec=0
+        if $use_docker_exec; then
+            printf '%s' "$ledger_sql" | docker exec -i -e PGPASSWORD="$pg_pw" "$db_container" psql -U "$db_user" -d "$db_name" -v ON_ERROR_STOP=1 -q >/dev/null
+            ledger_ec=$?
+        else
+            printf '%s' "$ledger_sql" | PGPASSWORD="$pg_pw" psql -h "$db_host" -p "$db_port" -U "$db_user" -d "$db_name" -v ON_ERROR_STOP=1 -q >/dev/null
+            ledger_ec=$?
+        fi
+        if [[ $ledger_ec -ne 0 ]]; then
+            print_error "Could not record migration history. Later updates would replay every migration."
+            $use_docker_exec && docker exec "$db_container" rm -rf /tmp/db_schema 2>/dev/null || true
+            return
+        fi
+        print_success "Recorded $migration_count migrations as applied"
     fi
 
     # Clean up copied files

@@ -59,19 +59,57 @@ elif ! $MIGRATIONS_ONLY; then
 	ok "Schema loaded"
 fi
 
-# --- migrations (idempotent) -------------------------------------------------
+# --- migrations --------------------------------------------------------------
+# Each migration runs once, in version order, and is recorded in
+# supabase_migrations.schema_migrations - the same ledger the Supabase CLI uses,
+# so `supabase migration list --db-url ...` reports on an instance installed
+# this way and `supabase db push` continues from where this stopped.
+#
+# This loop used to run every file on every invocation with ON_ERROR_STOP=0 and
+# output discarded, printing '.' or 'x' and then "Migrations applied" either
+# way. Replaying is not merely wasteful: the 20260528 revert/restore pair was
+# applied in filename order, so every run finished by dropping the home-feed
+# trigger.
 info "Applying migrations..."
 docker exec "$DB_CONTAINER" rm -rf /tmp/db_schema 2>/dev/null || true
 docker cp "$REPO_DIR/db_schema" "$DB_CONTAINER:/tmp/db_schema"
+
+psql_exec -q >/dev/null <<'SQL'
+CREATE SCHEMA IF NOT EXISTS supabase_migrations;
+CREATE TABLE IF NOT EXISTS supabase_migrations.schema_migrations (
+	version text PRIMARY KEY,
+	name text,
+	statements text[]
+);
+SQL
+
+applied="$(psql_exec -tAc 'SELECT version FROM supabase_migrations.schema_migrations')"
+pending=0
+failed=0
 for f in "$REPO_DIR"/db_schema/migrations/*.sql; do
 	fname="$(basename "$f")"
-	docker exec -e PGPASSWORD="$PG_PW" "$DB_CONTAINER" \
-		psql -U "$DB_USER" -d "$DB_NAME" -v ON_ERROR_STOP=0 -f "/tmp/db_schema/migrations/$fname" >/dev/null 2>&1 \
-		&& printf '.' || printf 'x'
+	version="${fname:0:14}"
+	name="${fname:15}"; name="${name%.sql}"
+	grep -qxF "$version" <<<"$applied" && continue
+	pending=$((pending + 1))
+	if docker exec -e PGPASSWORD="$PG_PW" "$DB_CONTAINER" \
+		psql -U "$DB_USER" -d "$DB_NAME" -v ON_ERROR_STOP=1 -q -f "/tmp/db_schema/migrations/$fname" >/tmp/harmony_mig_out 2>&1
+	then
+		psql_exec -q >/dev/null <<SQL
+INSERT INTO supabase_migrations.schema_migrations (version, name)
+VALUES ('${version}', '${name}') ON CONFLICT (version) DO NOTHING;
+SQL
+		printf '  applied %s\n' "$fname"
+	else
+		failed=1
+		printf 'Error: %s failed. It was not recorded; later migrations were skipped.\n' "$fname" >&2
+		grep -E 'ERROR|FATAL' /tmp/harmony_mig_out | head -5 >&2 || true
+		break
+	fi
 done
-echo
 docker exec "$DB_CONTAINER" rm -rf /tmp/db_schema 2>/dev/null || true
-ok "Migrations applied"
+[[ $failed -eq 0 ]] || die "migration failed - database is at the last migration that succeeded"
+if [[ $pending -eq 0 ]]; then ok "Migrations up to date"; else ok "Applied $pending migration(s)"; fi
 
 # --- least-privilege listener role ------------------------------------------
 info "Provisioning harmony_listener role..."

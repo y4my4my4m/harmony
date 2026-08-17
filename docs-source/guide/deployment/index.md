@@ -287,19 +287,36 @@ http {
 
 ### Supabase Production Setup
 
-1. **Create Production Project**
+1. **Create the database**
+
+   Hosted:
    ```bash
-   # Create new Supabase project
    npx supabase projects create harmony-prod --org-id your-org-id
-   
-   # Link to local development
    npx supabase link --project-ref your-project-ref
-   
-   # Deploy database schema
-   npx supabase db push
    ```
 
-2. **Configure Database**
+   Self-hosted needs no link — every command below takes `--db-url`.
+
+2. **Load the schema, then record the migration history**
+
+   A fresh database is built from `init/`, not by replaying migrations:
+   `init/` already contains what they produce, and six of them assume a
+   pre-init state.
+
+   ```bash
+   psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db_schema/init/init.sql
+   scripts/baseline-migrations.sh --url "$DATABASE_URL"
+   ```
+
+   Afterwards, only migrations added later are applied:
+
+   ```bash
+   supabase db push --dry-run --db-url "$DATABASE_URL"
+   supabase db push          --db-url "$DATABASE_URL"
+   ```
+
+
+3. **Configure Database**
    ```sql
    -- Enable required extensions
    CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -314,7 +331,7 @@ http {
    CREATE INDEX idx_messages_created_at ON messages(created_at DESC);
    ```
 
-3. **Database Backup**
+4. **Database Backup**
    ```bash
    # Set up automated backups
    npx supabase db dump --file backup.sql

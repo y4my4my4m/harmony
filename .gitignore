@@ -128,3 +128,6 @@ BUGS.local.md
 # Python bytecode from the db tooling in scripts/test-db
 __pycache__/
 *.pyc
+
+# Supabase CLI scratch (version check cache)
+supabase/.temp/
