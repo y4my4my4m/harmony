@@ -47,7 +47,34 @@ INSTANCE_NAME="$(val "$SCRIPT_DIR/.env" INSTANCE_NAME)"
 
 docker inspect "$DB_CONTAINER" >/dev/null 2>&1 || die "$DB_CONTAINER is not running. Start the stack first: docker compose up -d"
 
-psql_exec() { docker exec -e PGPASSWORD="$PG_PW" -i "$DB_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" "$@"; }
+# Applying migrations means replacing functions, so the role has to own them or
+# be superuser. Which role that is depends on how the instance was built: a
+# stack whose objects were created through the Studio SQL editor has them owned
+# by supabase_admin, and `postgres` - not a superuser in this image - then fails
+# with "must be owner of function ...". Both roles are tried rather than
+# assumed, and pg_hba trusts supabase_admin over 127.0.0.1 inside the container.
+DB_HOST_ARGS=()
+pick_db_role() {
+	local not_owned super
+	if docker exec -e PGPASSWORD="$PG_PW" "$DB_CONTAINER" \
+		psql -U postgres -d "$DB_NAME" -tAc 'SELECT 1' >/dev/null 2>&1; then
+		super="$(docker exec -e PGPASSWORD="$PG_PW" "$DB_CONTAINER" psql -U postgres -d "$DB_NAME" -tAc \
+			"SELECT rolsuper FROM pg_roles WHERE rolname = current_user" 2>/dev/null | tr -d '[:space:]')"
+		not_owned="$(docker exec -e PGPASSWORD="$PG_PW" "$DB_CONTAINER" psql -U postgres -d "$DB_NAME" -tAc \
+			"SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+			  WHERE n.nspname = 'public' AND pg_get_userbyid(p.proowner) <> current_user" 2>/dev/null | tr -d '[:space:]')"
+		if [[ "$super" == "t" || "$not_owned" == "0" ]]; then
+			DB_USER=postgres; DB_HOST_ARGS=(); return 0
+		fi
+		info "postgres owns none of ${not_owned:-?} public function(s); trying supabase_admin"
+	fi
+	if docker exec "$DB_CONTAINER" psql -U supabase_admin -h 127.0.0.1 -d "$DB_NAME" -tAc 'SELECT 1' >/dev/null 2>&1; then
+		DB_USER=supabase_admin; DB_HOST_ARGS=(-h 127.0.0.1); return 0
+	fi
+	return 1
+}
+
+psql_exec() { docker exec -e PGPASSWORD="$PG_PW" -i "$DB_CONTAINER" psql -U "$DB_USER" "${DB_HOST_ARGS[@]}" -d "$DB_NAME" "$@"; }
 
 # Wait for Postgres to accept connections.
 info "Waiting for Postgres..."
@@ -55,6 +82,9 @@ for _ in $(seq 1 60); do
 	if docker exec -e PGPASSWORD="$PG_PW" "$DB_CONTAINER" pg_isready -U "$DB_USER" -h localhost >/dev/null 2>&1; then break; fi
 	sleep 2
 done
+
+pick_db_role || die "no role can modify the schema: tried postgres and supabase_admin"
+info "Applying as $DB_USER"
 
 MIGRATIONS_ONLY=false
 [[ "${1:-}" == "--migrations-only" ]] && MIGRATIONS_ONLY=true
@@ -68,7 +98,7 @@ elif ! $MIGRATIONS_ONLY; then
 	docker exec "$DB_CONTAINER" rm -rf /tmp/db_schema 2>/dev/null || true
 	docker cp "$REPO_DIR/db_schema" "$DB_CONTAINER:/tmp/db_schema"
 	docker exec -e PGPASSWORD="$PG_PW" -w /tmp/db_schema/init "$DB_CONTAINER" \
-		psql -U "$DB_USER" -d "$DB_NAME" -f init.sql 2>&1 | tail -10
+		psql -U "$DB_USER" "${DB_HOST_ARGS[@]}" -d "$DB_NAME" -f init.sql 2>&1 | tail -10
 	ok "Schema loaded"
 fi
 
@@ -106,7 +136,7 @@ for f in "$REPO_DIR"/db_schema/migrations/*.sql; do
 	grep -qxF "$version" <<<"$applied" && continue
 	pending=$((pending + 1))
 	if docker exec -e PGPASSWORD="$PG_PW" "$DB_CONTAINER" \
-		psql -U "$DB_USER" -d "$DB_NAME" -v ON_ERROR_STOP=1 -q -f "/tmp/db_schema/migrations/$fname" >/tmp/harmony_mig_out 2>&1
+		psql -U "$DB_USER" "${DB_HOST_ARGS[@]}" -d "$DB_NAME" -v ON_ERROR_STOP=1 -q -f "/tmp/db_schema/migrations/$fname" >/tmp/harmony_mig_out 2>&1
 	then
 		psql_exec -q >/dev/null <<SQL
 INSERT INTO supabase_migrations.schema_migrations (version, name)
