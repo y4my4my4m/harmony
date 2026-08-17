@@ -1628,9 +1628,11 @@ export class ActivityProcessor {
         ap_id: activity.id,
         is_local: false,
       }).catch(err => logger.warn('Failed to create reblog interaction:', err));
-      
-      await supabase.rpc('increment_post_reblogs', { p_post_id: originalPost.id })
-        .catch(err => logger.warn('Failed to increment reblog count:', err));
+
+      // reblogs_count follows from the post_interactions row above, through
+      // update_post_reaction_counts. An increment_post_reblogs RPC was also
+      // called here; it exists in no schema, so the call always fell into its
+      // catch, and adding the function would have double-counted.
 
       logger.info(`Created reblog of ${originalPost.id} by ${user.id}`);
     }
