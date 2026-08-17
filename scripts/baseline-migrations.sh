@@ -65,8 +65,27 @@ for v in "${VERSIONS[@]}"; do
   SELECTED+=("$v")
 done
 
-printf '==> %s of %s migration(s) to record as applied\n' "${#SELECTED[@]}" "${#VERSIONS[@]}"
-[ -n "$THROUGH" ] && printf '    cutoff: %s (later versions stay pending)\n' "$THROUGH"
+# Report what is already recorded. Without this the counts describe the files on
+# disk and say nothing about the database, which reads as "246 of 246" on an
+# instance that has no ledger at all and on one that is fully up to date alike.
+existing=""
+if [ "$(psql_run -tAc "SELECT to_regclass('supabase_migrations.schema_migrations') IS NOT NULL" | tr -d '[:space:]')" = "t" ]; then
+	existing="$(psql_run -tAc 'SELECT version FROM supabase_migrations.schema_migrations')"
+	printf '==> ledger exists, %s migration(s) already recorded\n' "$(grep -c . <<<"$existing" || true)"
+else
+	printf '==> no ledger yet; it will be created\n'
+fi
+
+new_rows=0
+for v in "${SELECTED[@]}"; do grep -qxF "$v" <<<"$existing" || new_rows=$((new_rows + 1)); done
+pending_after=0
+for v in "${VERSIONS[@]}"; do
+	grep -qxF "$v" <<<"$existing" && continue
+	[ -n "$THROUGH" ] && [ "$v" \> "$THROUGH" ] && { pending_after=$((pending_after + 1)); continue; }
+done
+
+printf '==> %s of %s file(s) selected; %s not yet recorded\n' "${#SELECTED[@]}" "${#VERSIONS[@]}" "$new_rows"
+[ -n "$THROUGH" ] && printf '    cutoff: %s -> %s migration(s) stay pending for the runner\n' "$THROUGH" "$pending_after"
 printf '    first: %s\n    last:  %s\n' "${SELECTED[0]}" "${SELECTED[-1]}"
 [ "$DRY" = 1 ] && { printf '==> dry run, nothing written\n'; exit 0; }
 
