@@ -353,7 +353,7 @@ CREATE OR REPLACE FUNCTION public.upsert_ap_activity(
 RETURNS TABLE(activity_id uuid, was_updated boolean)
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions, pg_temp
 AS $$
 DECLARE
     v_activity_id UUID;
@@ -487,7 +487,7 @@ CREATE OR REPLACE FUNCTION public.update_endpoint_health(
 ) RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions, pg_temp
 AS $$
 DECLARE
     v_health_record RECORD;
@@ -548,6 +548,12 @@ COMMENT ON FUNCTION public.update_endpoint_health IS
 -- =============================================================================
 -- enable/disable_federation_triggers - Bulk toggle for all federation triggers
 -- =============================================================================
+-- The two lists must name every trigger whose handler reaches
+-- queue_federation_job. A new federation trigger added without a matching entry
+-- here keeps queueing during a maintenance window that called disable.
+-- tests/30_reconciled_functions.sql derives the set from the catalog and fails
+-- on the omission.
+-- =============================================================================
 CREATE OR REPLACE FUNCTION public.enable_federation_triggers()
 RETURNS void
 LANGUAGE plpgsql
@@ -560,6 +566,7 @@ BEGIN
     ALTER TABLE public.post_interactions ENABLE TRIGGER trigger_federate_post_interaction_delete;
     ALTER TABLE public.follows ENABLE TRIGGER trigger_federate_follow;
     ALTER TABLE public.follows ENABLE TRIGGER trigger_federate_follow_delete;
+    ALTER TABLE public.follows ENABLE TRIGGER trigger_federate_follow_response;
     ALTER TABLE public.messages ENABLE TRIGGER trigger_federate_dm;
     ALTER TABLE public.messages ENABLE TRIGGER trigger_federate_channel_message;
     ALTER TABLE public.messages ENABLE TRIGGER trigger_federate_channel_message_edit;
@@ -581,6 +588,7 @@ BEGIN
     ALTER TABLE public.channel_categories ENABLE TRIGGER trigger_federate_category_delete;
     ALTER TABLE public.servers ENABLE TRIGGER trigger_federate_server_update;
     ALTER TABLE public.conversation_participants ENABLE TRIGGER trg_group_participant_left;
+    ALTER TABLE public.conversation_participants ENABLE TRIGGER trg_conversation_participant_added;
     RAISE NOTICE 'All federation triggers enabled';
 END;
 $$;
@@ -597,6 +605,7 @@ BEGIN
     ALTER TABLE public.post_interactions DISABLE TRIGGER trigger_federate_post_interaction_delete;
     ALTER TABLE public.follows DISABLE TRIGGER trigger_federate_follow;
     ALTER TABLE public.follows DISABLE TRIGGER trigger_federate_follow_delete;
+    ALTER TABLE public.follows DISABLE TRIGGER trigger_federate_follow_response;
     ALTER TABLE public.messages DISABLE TRIGGER trigger_federate_dm;
     ALTER TABLE public.messages DISABLE TRIGGER trigger_federate_channel_message;
     ALTER TABLE public.messages DISABLE TRIGGER trigger_federate_channel_message_edit;
@@ -618,6 +627,7 @@ BEGIN
     ALTER TABLE public.channel_categories DISABLE TRIGGER trigger_federate_category_delete;
     ALTER TABLE public.servers DISABLE TRIGGER trigger_federate_server_update;
     ALTER TABLE public.conversation_participants DISABLE TRIGGER trg_group_participant_left;
+    ALTER TABLE public.conversation_participants DISABLE TRIGGER trg_conversation_participant_added;
     RAISE NOTICE 'All federation triggers disabled';
 END;
 $$;

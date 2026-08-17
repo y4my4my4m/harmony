@@ -19,7 +19,7 @@ CREATE OR REPLACE FUNCTION public.is_user_viewing_context(
 ) RETURNS boolean
 LANGUAGE plpgsql STABLE
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions, pg_temp
 AS $$
 DECLARE
     v_view_context RECORD;
@@ -1908,18 +1908,13 @@ BEGIN
         RETURN;
     END IF;
 
+    -- Output column names come from RETURNS TABLE, so the select list is
+    -- positional and carries no aliases.
     RETURN QUERY
-    SELECT 
-        s.id as share_id,
-        s.room_id,
-        s.session_id,
-        s.sender_user_id,
-        s.encrypted_session_key,
-        s.first_known_index,
-        s.created_at
+    SELECT s.id, s.room_id, s.session_id, s.sender_user_id,
+           s.encrypted_session_key, s.first_known_index, s.created_at
     FROM public.megolm_session_shares s
-    WHERE s.recipient_user_id = v_caller
-    AND s.is_claimed = false
+    WHERE s.recipient_user_id = v_caller AND s.is_claimed = false
     ORDER BY s.created_at DESC;
 END;
 $$;
@@ -2043,8 +2038,6 @@ AS $$
 DECLARE
     v_is_owner boolean;
     v_base_mask bigint := 0;
-    v_allow_mask bigint := 0;
-    v_deny_mask bigint := 0;
     v_final_mask bigint;
     v_role record;
     v_override record;
@@ -2210,7 +2203,7 @@ CREATE OR REPLACE FUNCTION public.has_permission(
 RETURNS boolean
 LANGUAGE plpgsql STABLE
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions, pg_temp
 AS $$
 DECLARE
     v_permissions jsonb;
@@ -2412,7 +2405,7 @@ GRANT EXECUTE ON FUNCTION public.import_remote_emoji(uuid, text, uuid) TO authen
 CREATE OR REPLACE FUNCTION public.mark_all_notifications_read(p_user_id uuid) RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions, pg_temp
 AS $$
 DECLARE
     v_count integer;
@@ -2460,7 +2453,7 @@ CREATE OR REPLACE FUNCTION public.mark_notifications_read_by_context(
 ) RETURNS integer
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions, pg_temp
 AS $$
 DECLARE
     v_user_id uuid;
@@ -2507,7 +2500,7 @@ $$;
 CREATE OR REPLACE FUNCTION public.mark_server_as_read(p_server_id uuid) RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions, pg_temp
 AS $$
 DECLARE
     v_user_id uuid;
@@ -2779,7 +2772,7 @@ $$;
 CREATE OR REPLACE FUNCTION public.remove_group_icon(conversation_uuid uuid, user_profile_id uuid) RETURNS jsonb
     LANGUAGE plpgsql
     SECURITY DEFINER
-    SET search_path = public
+    SET search_path = public, extensions, pg_temp
     AS $$
 DECLARE
   is_participant BOOLEAN := false;
@@ -3182,7 +3175,7 @@ $$;
 CREATE OR REPLACE FUNCTION public.send_notification_to_user(p_notification_type character varying, p_to_user_id uuid, p_notification_data jsonb DEFAULT '{}'::jsonb, p_server_id uuid DEFAULT NULL::uuid, p_channel_id uuid DEFAULT NULL::uuid, p_conversation_id uuid DEFAULT NULL::uuid, p_from_user_id uuid DEFAULT NULL::uuid, p_priority character varying DEFAULT 'normal'::character varying) RETURNS uuid
     LANGUAGE sql
     SECURITY DEFINER
-    SET search_path = public
+    SET search_path = public, extensions, pg_temp
     AS $$
     SELECT (send_notification(
         p_notification_type,
@@ -3267,7 +3260,7 @@ $$;
 CREATE OR REPLACE FUNCTION public.update_group_icon(conversation_uuid uuid, user_profile_id uuid, icon_path text) RETURNS jsonb
     LANGUAGE plpgsql
     SECURITY DEFINER
-    SET search_path = public
+    SET search_path = public, extensions, pg_temp
     AS $$
 DECLARE
   is_participant BOOLEAN := false;
@@ -3328,7 +3321,7 @@ $$;
 CREATE OR REPLACE FUNCTION public.update_group_name(conversation_uuid uuid, user_profile_id uuid, new_name text) RETURNS jsonb
     LANGUAGE plpgsql
     SECURITY DEFINER
-    SET search_path = public
+    SET search_path = public, extensions, pg_temp
     AS $$
 DECLARE
   is_participant BOOLEAN := false;
@@ -3509,7 +3502,7 @@ CREATE OR REPLACE FUNCTION public.create_federated_profile(
 ) RETURNS uuid
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions, pg_temp
 AS $$
 DECLARE
     v_profile_id uuid;
@@ -3584,7 +3577,7 @@ CREATE OR REPLACE FUNCTION public.safe_upsert_remote_profile(
 ) RETURNS TABLE(profile_id uuid, was_created boolean, was_updated boolean, is_local_user boolean)
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions, pg_temp
 AS $$
 DECLARE
     v_profile_id uuid;
@@ -3866,7 +3859,7 @@ CREATE OR REPLACE FUNCTION public.update_hashtag_trending_scores()
 RETURNS integer
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions, pg_temp
 AS $$
 DECLARE
     updated_count INTEGER := 0;
@@ -3916,7 +3909,7 @@ CREATE OR REPLACE FUNCTION public.update_trending_posts()
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions, pg_temp
 AS $$
 DECLARE
     v_now timestamptz := NOW();
@@ -3927,27 +3920,22 @@ BEGIN
     WHERE period_start = v_period_start AND period_type = 'daily';
     
     INSERT INTO public.trending_posts (
-        post_id, 
-        trending_score, 
-        engagement_score, 
-        velocity_score,
-        period_type,
-        period_start, 
-        period_end,
-        likes_count,
-        reblogs_count,
-        replies_count
+        post_id, trending_score, engagement_score, velocity_score,
+        period_type, period_start, period_end,
+        likes_count, reblogs_count, replies_count
     )
-    SELECT 
+    -- The INSERT names its target columns, so the select list is positional.
+    -- trending_score keeps its alias: ORDER BY below resolves against it.
+    SELECT
         p.id,
-        (COALESCE(p.favorites_count, 0) + COALESCE(p.reblogs_count, 0) * 2 + COALESCE(p.replies_count, 0) * 1.5) 
+        (COALESCE(p.favorites_count, 0) + COALESCE(p.reblogs_count, 0) * 2 + COALESCE(p.replies_count, 0) * 1.5)
         * (1.0 / (EXTRACT(EPOCH FROM (v_now - p.created_at)) / 3600 + 1)) as trending_score,
-        (COALESCE(p.favorites_count, 0) + COALESCE(p.reblogs_count, 0) + COALESCE(p.replies_count, 0))::numeric as engagement_score,
-        CASE 
+        (COALESCE(p.favorites_count, 0) + COALESCE(p.reblogs_count, 0) + COALESCE(p.replies_count, 0))::numeric,
+        CASE
             WHEN p.created_at > v_now - INTERVAL '1 hour' THEN 10.0
             WHEN p.created_at > v_now - INTERVAL '6 hours' THEN 5.0
             ELSE 1.0
-        END::numeric as velocity_score,
+        END::numeric,
         'daily'::text,
         v_period_start,
         v_period_end,
@@ -3978,7 +3966,7 @@ CREATE OR REPLACE FUNCTION public.archive_popular_hashtags()
 RETURNS integer
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions, pg_temp
 AS $$
 DECLARE
     archived_count INTEGER := 0;
@@ -4008,7 +3996,7 @@ CREATE OR REPLACE FUNCTION public.cleanup_inactive_hashtags()
 RETURNS integer
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions, pg_temp
 AS $$
 DECLARE
     cleaned_count INTEGER := 0;
@@ -4110,7 +4098,7 @@ RETURNS jsonb
 LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions, pg_temp
 AS $$
 DECLARE
   v_total int;
@@ -4403,7 +4391,7 @@ CREATE OR REPLACE FUNCTION public.clear_orphaned_public_keys()
 RETURNS INTEGER
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions, pg_temp
 AS $$
 DECLARE
     cleared_count INTEGER;
@@ -4430,7 +4418,7 @@ RETURNS TABLE (
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions, pg_temp
 AS $$
 BEGIN
     RETURN QUERY
@@ -4489,7 +4477,7 @@ CREATE OR REPLACE FUNCTION public.record_metric(
 ) RETURNS uuid
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions, pg_temp
 AS $$
 DECLARE v_id uuid;
 BEGIN
@@ -5496,3 +5484,496 @@ $$;
 
 REVOKE ALL ON FUNCTION public.delete_my_account() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.delete_my_account() TO authenticated;
+
+
+-- ---------------------------------------------------------------------------
+-- Added by migrations after init/ was written; mirrored back so a fresh
+-- build carries them. Supporter tiers, donation totals, DM call finalisation,
+-- conversation context and encryption-identity reset.
+-- ---------------------------------------------------------------------------
+
+-- Mirrored from migrations/20260524_cumulative_tier_and_notifications.sql.
+CREATE OR REPLACE FUNCTION public.compute_supporter_tier_for_amount(
+    p_amount numeric,
+    p_currency text DEFAULT 'USD'
+)
+RETURNS uuid
+LANGUAGE sql
+STABLE
+AS $$
+    SELECT id
+    FROM public.instance_supporter_tiers
+    WHERE min_amount <= p_amount
+    ORDER BY min_amount DESC
+    LIMIT 1;
+$$;
+
+-- Mirrored from migrations/20260704_finalize_dm_call_message.sql.
+CREATE OR REPLACE FUNCTION public.finalize_dm_call_message(
+    p_message_id uuid,
+    p_ended_at timestamptz,
+    p_duration_seconds integer,
+    p_participants uuid[]
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_msg record;
+    v_profile_id uuid;
+BEGIN
+    SELECT id, conversation_id, metadata
+    INTO v_msg
+    FROM messages
+    WHERE id = p_message_id
+      AND is_system = true
+      AND conversation_id IS NOT NULL;
+
+    IF NOT FOUND THEN
+        RETURN;
+    END IF;
+
+    -- Idempotent: first finalizer wins, later calls are no-ops
+    IF v_msg.metadata->>'type' = 'call_ended' THEN
+        RETURN;
+    END IF;
+
+    IF v_msg.metadata->>'type' IS DISTINCT FROM 'call_started' THEN
+        RAISE EXCEPTION 'message is not a call system message';
+    END IF;
+
+    SELECT id INTO v_profile_id
+    FROM profiles
+    WHERE auth_user_id = auth.uid();
+
+    IF v_profile_id IS NULL OR NOT EXISTS (
+        SELECT 1 FROM conversation_participants cp
+        WHERE cp.conversation_id = v_msg.conversation_id
+          AND cp.user_id = v_profile_id
+          AND cp.left_at IS NULL
+    ) THEN
+        RAISE EXCEPTION 'not a participant of this conversation';
+    END IF;
+
+    UPDATE messages
+    SET metadata = jsonb_build_object(
+            'type', 'call_ended',
+            'call_type', v_msg.metadata->>'call_type',
+            'started_at', v_msg.metadata->>'started_at',
+            'ended_at', p_ended_at,
+            'duration_seconds', p_duration_seconds,
+            'participants', to_jsonb(p_participants)
+        ),
+        updated_at = now()
+    WHERE id = p_message_id;
+END;
+$$;
+
+-- Mirrored from migrations/20260315_fix_favorited_reply_notifications_mentions.sql.
+CREATE OR REPLACE FUNCTION public.get_conversation_context(in_post_id uuid, in_user_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    conversation_root_id uuid;
+    result jsonb;
+BEGIN
+    SELECT COALESCE(p.conversation_root_id, p.id)
+    INTO conversation_root_id
+    FROM posts p
+    WHERE p.id = in_post_id
+      AND p.deleted_at IS NULL;
+    
+    IF conversation_root_id IS NULL THEN
+        RETURN '{}'::jsonb;
+    END IF;
+    
+    WITH conversation_posts AS (
+        SELECT 
+            p.id,
+            p.content,
+            p.created_at,
+            p.in_reply_to,
+            jsonb_build_object(
+                'id', pr.id,
+                'username', pr.username,
+                'display_name', pr.display_name,
+                'avatar_url', pr.avatar_url,
+                'domain', pr.domain
+            ) as author,
+            p.visibility,
+            p.favorites_count,
+            p.reblogs_count,
+            p.replies_count,
+            p.media_attachments,
+            p.content_warning,
+            p.is_sensitive,
+            p.url,
+            CASE 
+                WHEN pi_fav.user_id IS NOT NULL THEN true 
+                ELSE false 
+            END as is_favorited,
+            CASE 
+                WHEN pi_reb.user_id IS NOT NULL THEN true 
+                ELSE false 
+            END as is_reblogged,
+            CASE 
+                WHEN pi_book.user_id IS NOT NULL THEN true 
+                ELSE false 
+            END as is_bookmarked
+        FROM posts p
+        JOIN profiles pr ON p.author_id = pr.id
+        LEFT JOIN post_interactions pi_fav ON p.id = pi_fav.post_id 
+            AND pi_fav.user_id = in_user_id 
+            AND pi_fav.interaction_type IN ('favorite', 'emoji_reaction')
+        LEFT JOIN post_interactions pi_reb ON p.id = pi_reb.post_id 
+            AND pi_reb.user_id = in_user_id 
+            AND pi_reb.interaction_type = 'reblog'
+        LEFT JOIN post_interactions pi_book ON p.id = pi_book.post_id 
+            AND pi_book.user_id = in_user_id 
+            AND pi_book.interaction_type = 'bookmark'
+        WHERE COALESCE(p.conversation_root_id, p.id) = conversation_root_id
+          AND p.deleted_at IS NULL
+        ORDER BY p.created_at ASC
+    )
+    SELECT jsonb_build_object(
+        'ancestors', COALESCE(jsonb_agg(
+            jsonb_build_object(
+                'id', cp.id,
+                'content', cp.content,
+                'created_at', cp.created_at,
+                'author', cp.author,
+                'visibility', cp.visibility,
+                'favorites_count', cp.favorites_count,
+                'reblogs_count', cp.reblogs_count,
+                'replies_count', cp.replies_count,
+                'media_attachments', cp.media_attachments,
+                'content_warning', cp.content_warning,
+                'is_sensitive', cp.is_sensitive,
+                'url', cp.url,
+                'is_favorited', cp.is_favorited,
+                'is_reblogged', cp.is_reblogged,
+                'is_bookmarked', cp.is_bookmarked
+            )
+        ) FILTER (WHERE cp.created_at < (SELECT created_at FROM posts WHERE id = in_post_id)), '[]'::jsonb),
+        'descendants', COALESCE(jsonb_agg(
+            jsonb_build_object(
+                'id', cp.id,
+                'content', cp.content,
+                'created_at', cp.created_at,
+                'author', cp.author,
+                'visibility', cp.visibility,
+                'favorites_count', cp.favorites_count,
+                'reblogs_count', cp.reblogs_count,
+                'replies_count', cp.replies_count,
+                'media_attachments', cp.media_attachments,
+                'content_warning', cp.content_warning,
+                'is_sensitive', cp.is_sensitive,
+                'url', cp.url,
+                'is_favorited', cp.is_favorited,
+                'is_reblogged', cp.is_reblogged,
+                'is_bookmarked', cp.is_bookmarked
+            )
+        ) FILTER (WHERE cp.created_at > (SELECT created_at FROM posts WHERE id = in_post_id)), '[]'::jsonb),
+        'conversation_id', conversation_root_id
+    ) INTO result
+    FROM conversation_posts cp;
+    
+    RETURN COALESCE(result, jsonb_build_object(
+        'ancestors', '[]'::jsonb,
+        'descendants', '[]'::jsonb,
+        'conversation_id', conversation_root_id
+    ));
+END;
+$$;
+
+-- Mirrored from migrations/20260705_supporter_badge_rolling_expiry.sql.
+CREATE OR REPLACE FUNCTION public.get_user_cycle_donation_total(p_user_id uuid)
+RETURNS numeric
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_period text;
+    v_total numeric;
+BEGIN
+    SELECT COALESCE(funding_period, 'monthly') INTO v_period
+    FROM public.instance_funding LIMIT 1;
+
+    IF v_period = 'all' THEN
+        SELECT COALESCE(SUM(amount), 0) INTO v_total
+        FROM public.instance_donation_history
+        WHERE user_id = p_user_id;
+    ELSE
+        SELECT COALESCE(SUM(amount), 0) INTO v_total
+        FROM public.instance_donation_history
+        WHERE user_id = p_user_id
+          AND donated_at >= now() - interval '30 days';
+    END IF;
+
+    RETURN v_total;
+END;
+$$;
+
+-- Mirrored from migrations/20260705_supporter_badge_rolling_expiry.sql.
+CREATE OR REPLACE FUNCTION public.recompute_supporter_tier(p_user_id uuid)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_period text;
+    v_total numeric;
+    v_tier_id uuid;
+    v_currency text;
+    v_expires timestamptz;
+BEGIN
+    -- No supporter row yet -> nothing to recompute (manual or webhook
+    -- callers create the row before invoking this).
+    IF NOT EXISTS (SELECT 1 FROM public.instance_supporters WHERE user_id = p_user_id) THEN
+        RETURN NULL;
+    END IF;
+
+    SELECT COALESCE(funding_period, 'monthly'), COALESCE(goal_currency, 'USD')
+      INTO v_period, v_currency
+    FROM public.instance_funding LIMIT 1;
+
+    v_total := public.get_user_cycle_donation_total(p_user_id);
+    v_tier_id := public.compute_supporter_tier_for_amount(v_total, v_currency);
+
+    IF v_period = 'all' THEN
+        v_expires := NULL;
+    ELSE
+        -- Latest donation + 30 days. If the user has no donation history the
+        -- window is NULL, which the badge query treats as "no expiry"; that is
+        -- only reachable for manually-granted supporters (no donation rows),
+        -- which are intentionally left permanent.
+        SELECT MAX(donated_at) + interval '30 days'
+          INTO v_expires
+        FROM public.instance_donation_history
+        WHERE user_id = p_user_id;
+    END IF;
+
+    UPDATE public.instance_supporters
+    SET tier_id = v_tier_id,
+        amount = v_total,
+        expires_at = v_expires
+    WHERE user_id = p_user_id;
+
+    RETURN v_tier_id;
+END;
+$$;
+
+-- Mirrored from migrations/20260531_reset_encryption_identity_rpc.sql.
+CREATE OR REPLACE FUNCTION public.reset_my_encryption_identity()
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_profile_id uuid;
+BEGIN
+    SELECT id INTO v_profile_id
+    FROM public.profiles
+    WHERE auth_user_id = auth.uid();
+
+    IF v_profile_id IS NULL THEN
+        RAISE EXCEPTION 'No profile for current user';
+    END IF;
+
+    -- The identity itself. Removing ALL rows (not just is_active) clears any
+    -- stale/duplicate rows from earlier setups so the next setup is clean.
+    DELETE FROM public.user_key_pairs WHERE user_id = v_profile_id;
+
+    -- Dependent encryption state. Guarded individually so a missing table or
+    -- column on a given deploy doesn't abort the whole reset.
+    BEGIN
+        DELETE FROM public.megolm_session_shares
+        WHERE sender_user_id = v_profile_id OR recipient_user_id = v_profile_id;
+    EXCEPTION WHEN undefined_table OR undefined_column THEN NULL;
+    END;
+
+    BEGIN
+        DELETE FROM public.megolm_key_backups WHERE user_id = v_profile_id;
+    EXCEPTION WHEN undefined_table OR undefined_column THEN NULL;
+    END;
+
+    BEGIN
+        DELETE FROM public.megolm_key_requests
+        WHERE sender_user_id = v_profile_id OR user_id = v_profile_id;
+    EXCEPTION WHEN undefined_table OR undefined_column THEN NULL;
+    END;
+
+    BEGIN
+        DELETE FROM public.recovery_key_metadata WHERE user_id = v_profile_id;
+    EXCEPTION WHEN undefined_table OR undefined_column THEN NULL;
+    END;
+
+    BEGIN
+        DELETE FROM public.user_devices WHERE user_id = v_profile_id;
+    EXCEPTION WHEN undefined_table OR undefined_column THEN NULL;
+    END;
+END;
+$$;
+
+
+-- ---------------------------------------------------------------------------
+-- Called by the application, present only in production
+-- ---------------------------------------------------------------------------
+-- These seven exist in no migration and in no init file. They were applied to
+-- production by hand and never captured, so a fresh install answered "function
+-- does not exist" for push delivery, bot authentication, session checks and
+-- server-member lookup. Bodies are taken verbatim from a production dump.
+--
+-- scripts/check-rpc-coverage.sh now fails when the application calls an RPC a
+-- fresh init/ build does not define.
+-- ---------------------------------------------------------------------------
+
+-- Mirrored from production.
+CREATE OR REPLACE FUNCTION public.get_server_members_by_instance(p_server_id uuid) RETURNS TABLE(instance text, member_ids uuid[], member_ap_ids text[], member_count integer)
+    LANGUAGE sql STABLE
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+  SELECT 
+    COALESCE(p.domain, 'local') as instance,
+    array_agg(p.id) as member_ids,
+    array_agg(p.federated_id) as member_ap_ids,
+    COUNT(*)::INT as member_count
+  FROM user_servers us
+  JOIN profiles p ON us.user_id = p.id
+  WHERE us.server_id = p_server_id
+  GROUP BY COALESCE(p.domain, 'local');
+$$;
+
+-- Mirrored from production.
+CREATE OR REPLACE FUNCTION public.get_user_push_subscriptions(p_user_id uuid) RETURNS TABLE(subscription_id uuid, endpoint text, p256dh text, auth text, push_enabled boolean, push_offline_only boolean)
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        ps.id as subscription_id,
+        ps.endpoint,
+        ps.p256dh,
+        ps.auth,
+        COALESCE(np.push_notifications, true) as push_enabled,
+        COALESCE(np.push_offline_only, true) as push_offline_only
+    FROM public.push_subscriptions ps
+    LEFT JOIN public.notification_preferences np ON np.user_id = ps.user_id
+    WHERE ps.user_id = p_user_id
+    AND ps.failure_count < 5;  -- Skip subscriptions that have failed too many times
+END;
+$$;
+
+-- Mirrored from production.
+CREATE OR REPLACE FUNCTION public.has_active_session(p_user_id uuid) RETURNS boolean
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+    SELECT EXISTS (
+        SELECT 1 FROM public.user_sessions
+        WHERE user_id = p_user_id
+        AND is_active = true
+        AND last_heartbeat > now() - interval '90 seconds'
+    );
+$$;
+
+-- Mirrored from production.
+CREATE OR REPLACE FUNCTION public.is_user_viewing_push_context(p_user_id uuid, p_server_id uuid DEFAULT NULL::uuid, p_channel_id uuid DEFAULT NULL::uuid, p_conversation_id uuid DEFAULT NULL::uuid) RETURNS boolean
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+    SELECT EXISTS (
+        SELECT 1 FROM public.user_sessions
+        WHERE user_id = p_user_id
+        AND is_active = true
+        AND last_heartbeat > now() - interval '90 seconds'
+        AND (
+            (p_conversation_id IS NOT NULL AND current_conversation_id = p_conversation_id)
+            OR (p_channel_id IS NOT NULL AND current_channel_id = p_channel_id)
+            OR (p_server_id IS NOT NULL AND current_server_id = p_server_id AND p_channel_id IS NULL)
+        )
+    );
+$$;
+
+-- Mirrored from production.
+CREATE OR REPLACE FUNCTION public.record_push_failure(p_subscription_id uuid, p_reason text DEFAULT NULL::text) RETURNS void
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+    UPDATE public.push_subscriptions
+    SET 
+        failure_count = failure_count + 1,
+        last_failure_at = now(),
+        last_failure_reason = p_reason
+    WHERE id = p_subscription_id;
+$$;
+
+-- Mirrored from production.
+CREATE OR REPLACE FUNCTION public.record_push_success(p_subscription_id uuid) RETURNS void
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+    UPDATE public.push_subscriptions
+    SET 
+        last_successful_push = now(),
+        failure_count = 0,
+        last_failure_at = NULL,
+        last_failure_reason = NULL
+    WHERE id = p_subscription_id;
+$$;
+
+-- Mirrored from production.
+CREATE OR REPLACE FUNCTION public.verify_bot_token(p_token_hash text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+DECLARE
+    v_bot_token public.bot_tokens;
+    v_bot public.bots;
+    v_result JSONB;
+BEGIN
+    -- Find active token
+    SELECT * INTO v_bot_token
+    FROM public.bot_tokens
+    WHERE token_hash = p_token_hash
+        AND is_active = true
+        AND (expires_at IS NULL OR expires_at > NOW());
+    
+    IF v_bot_token IS NULL THEN
+        RETURN jsonb_build_object('valid', false, 'error', 'Invalid or expired token');
+    END IF;
+    
+    -- Get bot details
+    SELECT * INTO v_bot
+    FROM public.bots
+    WHERE id = v_bot_token.bot_id
+        AND is_active = true;
+    
+    IF v_bot IS NULL THEN
+        RETURN jsonb_build_object('valid', false, 'error', 'Bot not found or inactive');
+    END IF;
+    
+    -- Update last used
+    UPDATE public.bot_tokens
+    SET last_used_at = NOW(),
+        uses_count = uses_count + 1
+    WHERE id = v_bot_token.id;
+    
+    -- Return bot info
+    v_result := jsonb_build_object(
+        'valid', true,
+        'bot_id', v_bot.id,
+        'username', v_bot.username,
+        'scopes', v_bot_token.scopes
+    );
+    
+    RETURN v_result;
+END;
+$$;

@@ -332,7 +332,7 @@ CREATE OR REPLACE FUNCTION public.promote_first_user_to_admin()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions, pg_temp
 AS $$
 BEGIN
     IF NEW.is_local = true OR NEW.is_local IS NULL THEN
@@ -437,7 +437,7 @@ CREATE OR REPLACE FUNCTION public.create_default_server_role()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions, pg_temp
 AS $$
 DECLARE
     everyone_role_id uuid;
@@ -495,7 +495,7 @@ CREATE OR REPLACE FUNCTION public.create_default_server_structure(p_server_id uu
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions, pg_temp
 AS $$
 DECLARE
     v_text_category_id uuid;
@@ -522,7 +522,7 @@ CREATE OR REPLACE FUNCTION public.trigger_create_default_server_structure()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions, pg_temp
 AS $$
 BEGIN
     IF NEW.is_local_server = true THEN
@@ -604,7 +604,7 @@ CREATE OR REPLACE FUNCTION public.create_comprehensive_timeline_entries()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions, pg_temp
 AS $$
 BEGIN
     IF COALESCE(NEW.is_deleted, false) THEN
@@ -659,7 +659,7 @@ CREATE OR REPLACE FUNCTION public.add_existing_posts_to_new_follower_timeline()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions, pg_temp
 AS $$
 BEGIN
     IF NEW.status = 'pending' THEN
@@ -701,7 +701,7 @@ CREATE OR REPLACE FUNCTION public.backfill_timeline_on_follow()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions, pg_temp
 AS $$
 BEGIN
     -- Only for local followers
@@ -760,13 +760,18 @@ DECLARE
   v_was_accepted boolean := false;
   v_is_accepted  boolean := false;
 BEGIN
+  -- follows.status is nullable and its CHECK admits NULL, so `status =
+  -- 'accepted'` yields NULL rather than false. COALESCE keeps both flags
+  -- two-valued. Without it NULL reaches the branch test below: an INSERT
+  -- carrying a NULL status decrements both profiles, and an UPDATE from
+  -- 'accepted' to NULL leaves the counts untouched.
   IF TG_OP = 'INSERT' THEN
-    v_is_accepted  := (NEW.status = 'accepted');
+    v_is_accepted  := COALESCE(NEW.status = 'accepted', false);
   ELSIF TG_OP = 'UPDATE' THEN
-    v_was_accepted := (OLD.status = 'accepted');
-    v_is_accepted  := (NEW.status = 'accepted');
-  ELSE
-    v_was_accepted := (OLD.status = 'accepted');
+    v_was_accepted := COALESCE(OLD.status = 'accepted', false);
+    v_is_accepted  := COALESCE(NEW.status = 'accepted', false);
+  ELSE -- DELETE
+    v_was_accepted := COALESCE(OLD.status = 'accepted', false);
   END IF;
 
   IF v_was_accepted = v_is_accepted THEN
@@ -781,6 +786,9 @@ BEGIN
        SET followers_count = COALESCE(followers_count, 0) + 1
      WHERE id = NEW.following_id;
   ELSE
+    -- (follower_id, following_id) is the natural key on public.follows and
+    -- never moves on UPDATE, so NEW and OLD agree wherever both exist; the
+    -- COALESCE covers DELETE, where NEW is NULL.
     UPDATE public.profiles
        SET following_count = GREATEST(COALESCE(following_count, 0) - 1, 0)
      WHERE id = COALESCE(NEW.follower_id, OLD.follower_id);
@@ -972,7 +980,7 @@ CREATE OR REPLACE FUNCTION public.trigger_extract_post_hashtags()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions, pg_temp
 AS $$
 BEGIN
   IF NEW.content IS NOT NULL AND jsonb_typeof(NEW.content) = 'array' THEN
@@ -988,6 +996,12 @@ $$;
 -- ---------------------------------------------------------------------------
 
 -- Update favorites_count / reblogs_count on post_interactions insert/delete
+-- favorites_count only. reblogs_count is maintained by
+-- update_post_reblog_count from posts.metadata->>'reblog_of', which is where a
+-- reblog actually lives: activityPubService.ts inserts a posts row and writes no
+-- post_interactions row, so counting here missed every local reblog. Incoming
+-- federated Announces write both, so counting in both places double-counted
+-- them.
 CREATE OR REPLACE FUNCTION public.update_post_reaction_counts()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -998,10 +1012,6 @@ BEGIN
       UPDATE posts
       SET favorites_count = favorites_count + 1
       WHERE id = NEW.post_id;
-    ELSIF NEW.interaction_type = 'reblog' THEN
-      UPDATE posts
-      SET reblogs_count = reblogs_count + 1
-      WHERE id = NEW.post_id;
     END IF;
     RETURN NEW;
 
@@ -1009,10 +1019,6 @@ BEGIN
     IF OLD.interaction_type = 'emoji_reaction' OR OLD.interaction_type = 'favorite' THEN
       UPDATE posts
       SET favorites_count = GREATEST(favorites_count - 1, 0)
-      WHERE id = OLD.post_id;
-    ELSIF OLD.interaction_type = 'reblog' THEN
-      UPDATE posts
-      SET reblogs_count = GREATEST(reblogs_count - 1, 0)
       WHERE id = OLD.post_id;
     END IF;
     RETURN OLD;
@@ -1137,7 +1143,7 @@ CREATE OR REPLACE FUNCTION public.trigger_queue_post_federation()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions, pg_temp
 AS $$
 BEGIN
     -- Skip remote posts (they came from federation, don't re-federate)
@@ -1202,7 +1208,7 @@ CREATE OR REPLACE FUNCTION public.trigger_queue_follow_federation()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions, pg_temp
 AS $$
 DECLARE
     v_follower_is_local BOOLEAN;
@@ -1289,7 +1295,7 @@ CREATE OR REPLACE FUNCTION public.trigger_queue_interaction_federation()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions, pg_temp
 AS $$
 BEGIN
     -- Bookmarks are private/local-only; never federate them
@@ -1515,7 +1521,7 @@ BEGIN
 EXCEPTION
     WHEN undefined_table THEN RETURN NEW;
     WHEN OTHERS THEN
-        RAISE LOG 'Thread federation error: %', SQLERRM;
+        RAISE WARNING 'trigger_queue_thread_federation error: %', SQLERRM;
         RETURN NEW;
 END;
 $$;
@@ -1540,7 +1546,7 @@ CREATE OR REPLACE FUNCTION public.trigger_queue_channel_message_federation()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions, pg_temp
 AS $$
 DECLARE
     v_server_id UUID;
@@ -1594,7 +1600,7 @@ CREATE OR REPLACE FUNCTION public.trigger_queue_dm_federation()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions, pg_temp
 AS $$
 BEGIN
     IF NEW.conversation_id IS NOT NULL
@@ -1627,7 +1633,7 @@ CREATE OR REPLACE FUNCTION public.trigger_queue_channel_reaction_federation()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions, pg_temp
 AS $$
 DECLARE
     v_user_is_local BOOLEAN;
@@ -1662,7 +1668,7 @@ CREATE OR REPLACE FUNCTION public.trigger_queue_channel_reaction_delete_federati
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions, pg_temp
 AS $$
 DECLARE
     v_user_is_local BOOLEAN;
@@ -2004,7 +2010,7 @@ CREATE OR REPLACE FUNCTION public.trigger_queue_report_federation()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions, pg_temp
 AS $$
 BEGIN
     NEW.federation_status := 'queued';
@@ -2528,9 +2534,7 @@ DECLARE
     v_federation_type TEXT;
     v_sender_profile profiles%ROWTYPE;
     content_part JSONB;
-    mentioned_username TEXT;
     mentioned_user_id UUID;
-    mentioned_domain TEXT;
     current_domain TEXT;
     v_channel_id uuid;
     v_server_id uuid;
@@ -2737,7 +2741,7 @@ CREATE OR REPLACE FUNCTION public.handle_conversation_participant_added()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions, pg_temp
 AS $$
 DECLARE
     v_conversation conversations%ROWTYPE;
@@ -3188,7 +3192,7 @@ CREATE OR REPLACE FUNCTION public.handle_new_dm_unread()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions, pg_temp
 AS $$
 BEGIN
     IF NEW.conversation_id IS NULL THEN
@@ -3224,7 +3228,7 @@ CREATE OR REPLACE FUNCTION public.handle_thread_reply_notification()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions, pg_temp
 AS $$
 DECLARE
     v_thread record;
@@ -3510,7 +3514,7 @@ CREATE OR REPLACE FUNCTION public.increment_unread_mentions()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions, pg_temp
 AS $$
 DECLARE
     v_user_id uuid;
@@ -3627,7 +3631,7 @@ CREATE OR REPLACE FUNCTION public.trigger_cleanup_dead_endpoint()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions, pg_temp
 AS $$
 BEGIN
     IF NEW.is_dead = true AND (OLD.is_dead IS NULL OR OLD.is_dead = false) THEN
@@ -3829,7 +3833,7 @@ CREATE OR REPLACE FUNCTION public.broadcast_notification_event()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions, pg_temp
 AS $$
 BEGIN
   IF TG_OP = 'INSERT' THEN
@@ -3877,7 +3881,7 @@ CREATE OR REPLACE FUNCTION public.broadcast_unread_count_event()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions, pg_temp
 AS $$
 DECLARE
   v_record record;
@@ -3931,7 +3935,7 @@ CREATE OR REPLACE FUNCTION public.broadcast_conversation_participant_event()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions, pg_temp
 AS $$
 BEGIN
   IF TG_OP = 'INSERT' THEN
@@ -3956,7 +3960,7 @@ CREATE OR REPLACE FUNCTION public.broadcast_user_server_event()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions, pg_temp
 AS $$
 BEGIN
   IF TG_OP = 'INSERT' THEN
@@ -5094,3 +5098,257 @@ $$;
 
 COMMENT ON FUNCTION public.broadcast_message_event() IS
 'Publishes message rows to dm-conversation-<id> / channel-messages-<id> via Broadcast. Mirrors the postgres_changes envelope.';
+
+
+-- ---------------------------------------------------------------------------
+-- Added by migrations/20260524_cumulative_tier_and_notifications.sql; mirrored
+-- back so a fresh build carries it.
+-- ---------------------------------------------------------------------------
+
+-- Mirrored from migrations/20260524_cumulative_tier_and_notifications.sql.
+CREATE OR REPLACE FUNCTION public.notify_admins_on_pending_donation()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_recipient_ids uuid[];
+    v_data jsonb;
+BEGIN
+    -- Collect all admins and moderators. Same predicate the moderation
+    -- system uses elsewhere (is_admin OR is_moderator).
+    SELECT array_agg(id) INTO v_recipient_ids
+    FROM public.profiles
+    WHERE (is_admin = true OR is_moderator = true)
+      AND is_suspended = false;
+
+    IF v_recipient_ids IS NULL OR array_length(v_recipient_ids, 1) IS NULL THEN
+        RETURN NEW;
+    END IF;
+
+    v_data := jsonb_build_object(
+        'pending_donation_id', NEW.id,
+        'platform', NEW.platform,
+        'amount', NEW.amount,
+        'currency', NEW.currency,
+        'donor_name', NEW.donor_name,
+        'donor_message', NEW.donor_message,
+        'received_at', NEW.received_at
+    );
+
+    PERFORM public.send_notification(
+        'admin_pending_donation'::varchar,
+        v_recipient_ids,
+        v_data,
+        NULL,    -- server_id
+        NULL,    -- channel_id
+        NULL,    -- conversation_id
+        NULL,    -- from_user_id (donor isn't a profile)
+        'normal'::varchar
+    );
+
+    RETURN NEW;
+END;
+$$;
+
+
+-- ---------------------------------------------------------------------------
+-- Authoritative reblogs_count, recomputed from posts.metadata->>'reblog_of'.
+-- Mirrored from production, which is the only place it existed.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.update_post_reblog_count() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+DECLARE
+  original_post_id uuid;
+BEGIN
+  -- Get the original post ID from the reblog
+  IF TG_OP = 'DELETE' THEN
+    original_post_id := (OLD.metadata->>'reblog_of')::uuid;
+  ELSE
+    original_post_id := (NEW.metadata->>'reblog_of')::uuid;
+  END IF;
+  
+  -- If no original post, nothing to update
+  IF original_post_id IS NULL THEN
+    RETURN COALESCE(NEW, OLD);
+  END IF;
+  
+  -- Update the original post's reblog count (excluding deleted reblogs)
+  UPDATE public.posts 
+  SET reblogs_count = (
+    SELECT COUNT(*) FROM public.posts 
+    WHERE metadata->>'reblog_of' = original_post_id::text
+    AND (is_deleted = false OR is_deleted IS NULL)
+  )
+  WHERE id = original_post_id;
+  
+  RETURN COALESCE(NEW, OLD);
+END;
+$$;
+
+
+-- ---------------------------------------------------------------------------
+-- Trigger maintenance present only in production
+-- ---------------------------------------------------------------------------
+-- In no migration and no init file. Without them a fresh install never touches
+-- updated_at on these tables, never audits key generation, never removes a
+-- deleted message from the search index, and never queues a push notification.
+-- Bodies taken verbatim from a production dump.
+-- ---------------------------------------------------------------------------
+
+-- Mirrored from production.
+CREATE OR REPLACE FUNCTION public.update_bot_timestamp() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$;
+
+-- Mirrored from production.
+CREATE OR REPLACE FUNCTION public.update_encryption_timestamp() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$;
+
+-- Mirrored from production.
+CREATE OR REPLACE FUNCTION public.update_megolm_backup_timestamp() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+BEGIN
+    NEW.last_updated = NOW();
+    RETURN NEW;
+END;
+$$;
+
+-- Mirrored from production.
+CREATE OR REPLACE FUNCTION public.update_server_folders_updated_at() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
+$$;
+
+-- Mirrored from production.
+CREATE OR REPLACE FUNCTION public.update_status_timestamp() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+BEGIN
+    IF OLD.custom_status IS DISTINCT FROM NEW.custom_status THEN
+        NEW.last_status_update = NOW();
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+-- Mirrored from production.
+CREATE OR REPLACE FUNCTION public.update_threads_updated_at() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
+$$;
+
+-- Mirrored from production.
+CREATE OR REPLACE FUNCTION public.sync_avg_latency() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+BEGIN
+    NEW.avg_latency := NEW.avg;
+    RETURN NEW;
+END;
+$$;
+
+-- Mirrored from production.
+CREATE OR REPLACE FUNCTION public.sync_recorded_at() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+BEGIN
+    NEW.recorded_at := NEW.timestamp;
+    RETURN NEW;
+END;
+$$;
+
+-- Mirrored from production.
+CREATE OR REPLACE FUNCTION public.log_key_generation() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+BEGIN
+    INSERT INTO public.encryption_audit_log (
+        user_id,
+        event_type,
+        severity,
+        description,
+        metadata
+    ) VALUES (
+        NEW.user_id,
+        'key_generated',
+        'info',
+        'New identity key pair generated',
+        jsonb_build_object(
+            'device_id', NEW.device_id,
+            'key_version', NEW.key_version
+        )
+    );
+    
+    RETURN NEW;
+END;
+$$;
+
+-- Mirrored from production.
+CREATE OR REPLACE FUNCTION public.remove_message_from_index() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+BEGIN
+  DELETE FROM message_search_index WHERE message_id = OLD.id;
+  RETURN OLD;
+END;
+$$;
+
+-- Mirrored from production.
+CREATE OR REPLACE FUNCTION public.trigger_queue_push_notification() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_temp'
+    AS $$
+BEGIN
+    -- Queue push notification job for new unread notifications
+    IF TG_OP = 'INSERT' AND NEW.is_read = false THEN
+        PERFORM public.queue_federation_job(
+            'send-push-notification',
+            jsonb_build_object(
+                'notification_id', NEW.id,
+                'user_id', NEW.user_id,
+                'type', NEW.type,
+                'data', COALESCE(NEW.data, '{}'::jsonb)
+            ),
+            5,  -- priority
+            3,  -- retry limit
+            300 -- expire in 5 minutes
+        );
+    END IF;
+    
+    RETURN NEW;
+END;
+$$;

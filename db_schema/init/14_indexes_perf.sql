@@ -180,3 +180,9 @@ DO $$
 BEGIN
   RAISE NOTICE 'Performance indexes (PH1) installed';
 END $$;
+
+-- Home/profile timeline paging: filter by owner and timeline type, order by
+-- position descending. Mirrored from
+-- migrations/20260319_add_composite_indexes.sql.
+CREATE INDEX IF NOT EXISTS idx_timeline_entries_user_type_position
+    ON public.timeline_entries USING btree (user_id, timeline_type, "position" DESC);

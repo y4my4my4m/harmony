@@ -18,7 +18,7 @@ CREATE OR REPLACE FUNCTION public.create_group_conversation(
 RETURNS uuid
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions, pg_temp
 AS $$
 DECLARE
     v_conversation_id uuid;
@@ -224,7 +224,7 @@ CREATE OR REPLACE FUNCTION public.add_post_emoji_reaction(
 RETURNS uuid
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions, pg_temp
 AS $$
 DECLARE
     v_interaction_id uuid;
@@ -836,7 +836,7 @@ CREATE OR REPLACE FUNCTION public.initialize_user_encryption(
 RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions, pg_temp
 AS $$
 DECLARE
     v_key_pair_id UUID;
@@ -996,7 +996,7 @@ CREATE OR REPLACE FUNCTION public.create_notification_with_spam_prevention(
 RETURNS uuid
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions, pg_temp
 AS $$
 DECLARE
     v_notification_id uuid;
@@ -1968,7 +1968,7 @@ RETURNS numeric
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions, pg_temp
 AS $$
   SELECT COALESCE(SUM(dh.amount), 0)::numeric
   FROM public.instance_donation_history dh

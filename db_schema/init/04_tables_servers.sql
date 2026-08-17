@@ -183,11 +183,10 @@ CREATE TABLE IF NOT EXISTS public.messages (
     CONSTRAINT messages_content_is_array CHECK (jsonb_typeof(content) = 'array'),
     CONSTRAINT messages_content_not_empty CHECK (jsonb_array_length(content) > 0),
     CONSTRAINT messages_federation_status_check CHECK (federation_status IN ('pending', 'queued', 'processing', 'completed', 'failed', 'skipped')),
-    -- Allow both NULL (message from deleted user) or exactly one non-NULL
+    -- At most one author. Both NULL is a message from a deleted user; both set
+    -- is the only rejected combination.
     CONSTRAINT messages_user_or_bot_check CHECK (
-        (user_id IS NULL AND bot_id IS NULL) OR  -- Deleted user
-        (user_id IS NOT NULL AND bot_id IS NULL) OR  -- User message
-        (user_id IS NULL AND bot_id IS NOT NULL)  -- Bot message
+        (user_id IS NULL) OR (bot_id IS NULL)
     )
     -- NOTE: per-message text length is enforced by `messages_text_length_check`
     -- added in `10_functions_core.sql` after the helper function is defined.
@@ -638,7 +637,9 @@ CREATE TABLE IF NOT EXISTS public.server_bans (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
     server_id uuid NOT NULL REFERENCES public.servers(id) ON DELETE CASCADE,
     user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-    banned_by uuid NOT NULL REFERENCES public.profiles(id) ON DELETE SET NULL,
+    -- Nullable: the FK is ON DELETE SET NULL, so NOT NULL here would make
+    -- deleting a moderator's profile fail instead of clearing the attribution.
+    banned_by uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
     reason text,
     delete_message_seconds integer DEFAULT 0,
     created_at timestamp with time zone DEFAULT now() NOT NULL,

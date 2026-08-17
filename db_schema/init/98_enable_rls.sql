@@ -268,3 +268,38 @@ REVOKE ALL ON FUNCTION public.server_has_remote_members(p_server_id uuid) FROM P
 REVOKE ALL ON FUNCTION public.update_session_context(p_session_token text, p_server_id uuid, p_channel_id uuid, p_conversation_id uuid) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.update_session_heartbeat(p_session_token text, p_status text) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.user_has_encryption(p_user_id uuid) FROM PUBLIC, anon, authenticated;
+
+-- Instance-wide metrics and health views are admin-dashboard surfaces and are
+-- never read by an anonymous PostgREST caller. Supabase's default privileges
+-- grant every new view in public to anon, so each needs an explicit REVOKE.
+-- Mirrors migrations/20260616_security_advisor_fixes.sql, which init/ never
+-- received; without this a fresh install serves federation stats, instance
+-- health and slow-query summaries to an unauthenticated key.
+--
+-- REVOKE has no IF EXISTS and not every environment carries every view, so each
+-- statement is guarded on the view existing.
+DO $$
+DECLARE
+    v text;
+    views text[] := ARRAY[
+        'public.federation_stats',
+        'public.instance_health',
+        'public.metrics_summary_view',
+        'public.slow_queries_summary',
+        'public.federation_health_metrics'
+    ];
+BEGIN
+    FOREACH v IN ARRAY views LOOP
+        IF to_regclass(v) IS NOT NULL THEN
+            EXECUTE format('REVOKE SELECT ON %s FROM anon', v);
+        ELSE
+            RAISE NOTICE 'Skipping REVOKE on missing view: %', v;
+        END IF;
+    END LOOP;
+END
+$$;
+
+-- finalize_dm_call_message is invoked by the call-teardown path with an
+-- explicit grant, not through PostgREST. Mirrored from
+-- migrations/20260704_finalize_dm_call_message.sql.
+REVOKE ALL ON FUNCTION public.finalize_dm_call_message(p_message_id uuid, p_ended_at timestamp with time zone, p_duration_seconds integer, p_participants uuid[]) FROM PUBLIC;

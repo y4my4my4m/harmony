@@ -90,6 +90,7 @@ DECLARE
   v_issued_at bigint;
   v_expires_at bigint;
   v_jti text;
+  v_room_uuid_text text;
 BEGIN
   -- Get current authenticated user
   v_user_id := auth.uid();
@@ -112,15 +113,10 @@ BEGIN
   -- mint a token for any channel/DM (room names are channel/conversation UUIDs)
   -- and join/listen/publish. Strip any known room-name prefix, then verify
   -- membership via the server-authoritative helper.
-  DECLARE
-    v_room_uuid_text text := regexp_replace(room_name, '^(channel|stage|voice-channel|dm)-', '');
-  BEGIN
-    IF v_profile_id IS NULL OR NOT public.is_room_member(v_room_uuid_text, v_profile_id) THEN
-      RETURN jsonb_build_object(
-        'error', 'You do not have access to this room', 'code', 'ROOM_ACCESS_DENIED'
-      );
-    END IF;
-  END;
+  v_room_uuid_text := regexp_replace(room_name, '^(channel|stage|voice-channel|dm)-', '');
+  IF v_profile_id IS NULL OR NOT public.is_room_member(v_room_uuid_text, v_profile_id) THEN
+    RETURN jsonb_build_object('error', 'You do not have access to this room', 'code', 'ROOM_ACCESS_DENIED');
+  END IF;
 
   -- Get LiveKit credentials from instance_webrtc_settings
   SELECT 

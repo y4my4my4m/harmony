@@ -1233,3 +1233,16 @@ BEGIN
     RAISE NOTICE 'Extended RLS policies created successfully';
 END $$;
 
+
+-- ---------------------------------------------------------------------------
+-- Mirrored from migrations/20260616_consolidate_duplicate_policies_batch4.sql.
+-- service_role bypasses RLS, so these grant nothing the role does not already
+-- have; they exist so a fresh build matches a migrated one.
+-- ---------------------------------------------------------------------------
+DROP POLICY IF EXISTS federated_instances_service_role ON public.federated_instances;
+CREATE POLICY federated_instances_service_role ON public.federated_instances
+    TO service_role USING (true);
+
+DROP POLICY IF EXISTS federation_health_service_role ON public.federation_health;
+CREATE POLICY federation_health_service_role ON public.federation_health
+    TO service_role USING (true);

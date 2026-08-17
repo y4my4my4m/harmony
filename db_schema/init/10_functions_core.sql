@@ -457,7 +457,7 @@ CREATE OR REPLACE FUNCTION public.get_or_create_dm_conversation(p_user1_id uuid,
 RETURNS uuid
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions, pg_temp
 AS $$
 DECLARE
     v_conversation_id uuid;
