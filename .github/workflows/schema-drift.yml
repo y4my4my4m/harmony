@@ -84,3 +84,29 @@ jobs:
       # inside the database.
       - name: Run the pgTAP suite
         run: ./scripts/run-db-tests.sh
+
+  # ----------------------------------------------------------------
+  # Single required check for the database gates, for the same reason as
+  # ci-verdict: a skipped dependency must not read as a pass.
+  # ----------------------------------------------------------------
+  db-verdict:
+    name: Database verdict
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [drift, surface, rpc-coverage, pgtap]
+    steps:
+      - name: Require every database gate to have succeeded
+        run: |
+          fail=0
+          check() {
+            case "$2" in
+              success) printf '  ok      %s\n' "$1" ;;
+              *)       printf '  FAILED  %s (%s)\n' "$1" "$2"; fail=1 ;;
+            esac
+          }
+          check "drift"        "${{ needs.drift.result }}"
+          check "surface"      "${{ needs.surface.result }}"
+          check "rpc-coverage" "${{ needs.rpc-coverage.result }}"
+          check "pgtap"        "${{ needs.pgtap.result }}"
+          [ "$fail" -eq 0 ] || { echo "::error::one or more database gates failed"; exit 1; }
+          echo "all database gates green"

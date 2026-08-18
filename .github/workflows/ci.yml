@@ -140,3 +140,35 @@ jobs:
           TEST_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.TEST_SUPABASE_SERVICE_ROLE_KEY }}
           VITE_SUPABASE_URL: ${{ secrets.TEST_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.TEST_SUPABASE_ANON_KEY }}
+
+  # ----------------------------------------------------------------
+  # Single required check for branch protection.
+  #
+  # `needs` alone is not enough: a skipped or cancelled dependency leaves this
+  # job skipped, and a skipped required check reads as success. The step below
+  # inspects each result explicitly, so only `success` - or a deliberate `skipped`
+  # for the conditional E2E job - passes.
+  # ----------------------------------------------------------------
+  ci-verdict:
+    name: CI verdict
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [unit-tests, federation-tests, type-check, build, e2e-tests]
+    steps:
+      - name: Require every job to have succeeded
+        run: |
+          fail=0
+          check() {
+            case "$2" in
+              success) printf '  ok       %s\n' "$1" ;;
+              skipped) printf '  skipped  %s\n' "$1" ;;
+              *)       printf '  FAILED   %s (%s)\n' "$1" "$2"; fail=1 ;;
+            esac
+          }
+          check "unit-tests"       "${{ needs.unit-tests.result }}"
+          check "federation-tests" "${{ needs.federation-tests.result }}"
+          check "type-check"       "${{ needs.type-check.result }}"
+          check "build"            "${{ needs.build.result }}"
+          check "e2e-tests"        "${{ needs.e2e-tests.result }}"
+          [ "$fail" -eq 0 ] || { echo "::error::one or more CI jobs failed"; exit 1; }
+          echo "all CI jobs green"
