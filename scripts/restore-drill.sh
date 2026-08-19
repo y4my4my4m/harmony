@@ -351,21 +351,36 @@ apply_pre_restore() {
 # inside restored data or a function body echoed back in a HINT.
 ERR_RE='^(psql:.*:[0-9]+: )?ERROR:  '
 
-# Restore with errors surfaced rather than swallowed. ON_ERROR_STOP is
-# deliberately off: the point is to see every error the dump produces, not the
-# first.
+# A dump taken without --schema carries auth, storage, realtime and the rest, and the
+# target is a stock Supabase image that already ships them. Re-creating those objects
+# collides and the image's copy stands. public is empty in a fresh image, so a collision
+# there is unreachable and these are not counted against the load.
+#
+# auth.schema_migrations and storage.migrations are seeded by the image, so their rows
+# collide too. Named individually: a duplicate key anywhere else is a real failure.
+COLLISION_RE='already exists|multiple primary keys for table|duplicate key value violates unique constraint "(schema_)?migrations_pkey"'
+
+# supabase_admin, over TCP: it owns the realtime and storage schemas in the image, and
+# postgres is not a member of it, so those statements are refused. peer auth is postgres
+# only, hence -h.
+#
+# ON_ERROR_STOP is off to see every error the dump produces rather than the first.
 load_dump() { # load_dump <container> <dumpfile> <logfile>
   local c="$1" dump="$2" logf="$3"
-  dump_cat "$dump" | docker exec -i "$c" psql -X -U postgres -d postgres \
-    --set ON_ERROR_STOP=off -f - > "$logf" 2>&1 || true
-  grep -cE "$ERR_RE" "$logf" || true
+  dump_cat "$dump" | docker exec -i "$c" psql -X -U supabase_admin -h 127.0.0.1 \
+    -d postgres --set ON_ERROR_STOP=off -f - > "$logf" 2>&1 || true
+  grep -E "$ERR_RE" "$logf" | grep -cvE "$COLLISION_RE" || true
 }
 
+collisions() { grep -E "$ERR_RE" "$1" | grep -cE "$COLLISION_RE" || true; }
+
 report_errors() { # report_errors <label> <logfile> <count>
-  local label="$1" logf="$2" n="$3"
+  local label="$1" logf="$2" n="$3" c
+  c=$(collisions "$logf")
+  [ "$c" -gt 0 ] && note "$label: $c object(s) the target image already ships, left as-is"
   [ "$n" -eq 0 ] && return 0
   err "$label produced $n error(s)"
-  grep -E "$ERR_RE" "$logf" | sed 's/^/      /' | head -20 >&2
+  grep -E "$ERR_RE" "$logf" | grep -vE "$COLLISION_RE" | sed 's/^/      /' | head -20 >&2
   [ "$n" -gt 20 ] && printf '      ... %d more\n' "$((n - 20))" >&2
   return 1
 }
