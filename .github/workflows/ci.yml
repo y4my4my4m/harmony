@@ -202,7 +202,7 @@ jobs:
   e2e-journeys:
     name: E2E Journeys
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -214,8 +214,6 @@ jobs:
       - run: npm ci
 
       - run: google-chrome --version
-      - run: npx playwright install ffmpeg
-
       - run: npm run e2e:up
       - run: npm run e2e:seed
 

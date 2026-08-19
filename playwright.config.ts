@@ -24,7 +24,9 @@ export default defineConfig({
     baseURL: process.env.BASE_URL || 'http://localhost:5173',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
-    video: 'retain-on-failure',
+    // Video needs the ffmpeg binary, whose download hangs on the runner. Trace and
+    // screenshot do not.
+    video: process.env.CI ? 'off' : 'retain-on-failure',
     actionTimeout: 10000,
   },
   // System Chrome everywhere, CI included: the bundled per-revision build is a 167 MiB
