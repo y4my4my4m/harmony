@@ -66,6 +66,10 @@ SOURCE_PASSWORD=""
 TARGET_IMAGE="${RESTORE_DRILL_IMAGE:-}"
 TARGET_PASSWORD="postgres"
 SCHEMAS=()
+# Migrated past the image's baseline by the services that own them, so the dump's copy is
+# the newer one and has to win. The other supabase schemas are extension-backed: dropping
+# them loses functions the dump cannot recreate without superuser.
+MANAGED_SCHEMAS=(auth storage realtime)
 PRE_RESTORE=()
 SCHEMA_ONLY=0
 ROW_COUNTS=1
@@ -238,6 +242,10 @@ wait_pg() {
 # psql against a drill-owned container.
 tpsql() { local c="$1"; shift; docker exec -i "$c" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"; }
 
+# supabase_admin owns the managed schemas; postgres is not a member and its DDL against
+# them is refused. peer auth is postgres only, hence -h.
+apsql() { local c="$1"; shift; docker exec -i "$c" psql -X -U supabase_admin -h 127.0.0.1 -d postgres -v ON_ERROR_STOP=1 "$@"; }
+
 # psql against the source, which may need a password and a non-default role.
 spsql() {
   local c="$1"; shift
@@ -322,6 +330,35 @@ reset_schemas() { # drop the dumped schemas so the restore lands on bare ground
   done
 }
 
+# A dump taken without --schema carries the Supabase-managed schemas as the running stack
+# had them, which is ahead of the image: GoTrue and storage-api migrate auth and storage at
+# boot, and the services create roles the image lacks. Loading on top leaves the image's
+# older definitions standing -- CREATE TABLE reports "already exists" -- and the dump's COPY
+# then names columns that table does not have, at which point psql parses the data rows as
+# SQL. Dropping first makes the dump authoritative, which is what a restore has to be.
+#
+# Roles are not in a pg_dump, only referenced by it, so any the image lacks are created
+# empty. Ownership and grants land; passwords and attributes are not part of this dump.
+prepare_managed() { # prepare_managed <container> <dumpfile>
+  local c="$1" dump="$2" r sc roles
+  roles=$(dump_cat "$dump" |
+    grep -oE '(OWNER TO|GRANT [^;]*TO) *"?[a-z_][a-z0-9_]*"?;' |
+    grep -oE '[a-z_][a-z0-9_]*' |
+    grep -vxE 'owner|to|grant|all|on|select|insert|update|delete|references|trigger|truncate|usage|execute|create|schema|table|function|sequence|routine|tables|functions|sequences|routines|in|with|option' |
+    sort -u || true)
+  for r in $roles; do
+    apsql "$c" -q -tAc "DO \$do\$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '$r') THEN
+        EXECUTE format('CREATE ROLE %I', '$r');
+      END IF; END \$do\$;" >/dev/null 2>&1 || true
+  done
+  for sc in "${MANAGED_SCHEMAS[@]}"; do
+    if dump_cat "$dump" | grep -qiE "^CREATE SCHEMA (IF NOT EXISTS )?\"?$sc\"?;"; then
+      apsql "$c" -q -c "DROP SCHEMA IF EXISTS \"$sc\" CASCADE" >/dev/null 2>&1 || true
+    fi
+  done
+}
+
 ensure_schemas() { # the dump recreates a schema only if it dumped one
   local c="$1" dump="$2" s
   for s in "${SCHEMAS[@]}"; do
@@ -397,6 +434,7 @@ if [ -n "$SOURCE_FILE" ]; then
   start_pg "$C_STAGE"; wait_pg "$C_STAGE"
   apply_pre_restore "$C_STAGE"
   reset_schemas "$C_STAGE"
+  prepare_managed "$C_STAGE" "$SOURCE_FILE"
   ensure_schemas "$C_STAGE" "$SOURCE_FILE"
   stage_errors=$(load_dump "$C_STAGE" "$SOURCE_FILE" "$WORK/stage.log")
   record "stage source file" $(( $(now_ms) - t0 ))
