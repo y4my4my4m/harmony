@@ -129,14 +129,37 @@ note() { printf '    %s\n' "$*"; }
 err()  { printf '\033[31mFAIL\033[0m %s\n' "$*" >&2; }
 ok()   { printf '\033[32m ok \033[0m %s\n' "$*"; }
 
+# Format is read from the magic bytes: a dump named .sql is often gzipped and a .gz is
+# sometimes not. 037 213 is gzip; PGDMP is pg_dump's custom format, which psql cannot read.
+dump_format() { # dump_format <file> -> gzip | custom | sql
+  case "$(head -c5 "$1" | od -An -c | tr -s ' ')" in
+    *' 037 213 '*) echo gzip ;;
+    *P*G*D*M*P*)   echo custom ;;
+    *)             echo sql ;;
+  esac
+}
+
+dump_cat() { # dump_cat <file>
+  case "$(dump_format "$1")" in
+    gzip)   gzip -cd "$1" ;;
+    custom) err "$1 is a pg_dump custom-format archive; use pg_restore"; return 1 ;;
+    *)      cat "$1" ;;
+  esac
+}
+
 if [ -n "$SOURCE_CONTAINER" ] && [ -n "$SOURCE_FILE" ]; then
   err "--from-container and --from-file are exclusive"; exit 2
 fi
 if [ -z "$SOURCE_CONTAINER" ] && [ -z "$SOURCE_FILE" ]; then
   err "one of --from-container or --from-file is required"; usage >&2; exit 2
 fi
-if [ -n "$SOURCE_FILE" ] && [ ! -r "$SOURCE_FILE" ]; then
-  err "cannot read $SOURCE_FILE"; exit 2
+if [ -n "$SOURCE_FILE" ]; then
+  [ -r "$SOURCE_FILE" ] || { err "cannot read $SOURCE_FILE"; exit 2; }
+  # load_dump runs dump_cat in a pipeline, where its status is not the pipeline's, so a
+  # format psql cannot read stops here rather than loading nothing and reporting no errors.
+  if [ "$(dump_format "$SOURCE_FILE")" = custom ]; then
+    err "$SOURCE_FILE is a pg_dump custom-format archive; use pg_restore"; exit 2
+  fi
 fi
 for f in ${PRE_RESTORE[@]+"${PRE_RESTORE[@]}"}; do
   [ -r "$f" ] || { err "cannot read --pre-restore $f"; exit 2; }
@@ -302,7 +325,7 @@ reset_schemas() { # drop the dumped schemas so the restore lands on bare ground
 ensure_schemas() { # the dump recreates a schema only if it dumped one
   local c="$1" dump="$2" s
   for s in "${SCHEMAS[@]}"; do
-    grep -qiE "^CREATE SCHEMA (IF NOT EXISTS )?\"?$s\"?;" "$dump" ||
+    dump_cat "$dump" | grep -qiE "^CREATE SCHEMA (IF NOT EXISTS )?\"?$s\"?;" ||
       tpsql "$c" -q -c "CREATE SCHEMA IF NOT EXISTS \"$s\"" >/dev/null
   done
 }
@@ -333,8 +356,8 @@ ERR_RE='^(psql:.*:[0-9]+: )?ERROR:  '
 # first.
 load_dump() { # load_dump <container> <dumpfile> <logfile>
   local c="$1" dump="$2" logf="$3"
-  docker exec -i "$c" psql -X -U postgres -d postgres --set ON_ERROR_STOP=off \
-    -f - < "$dump" > "$logf" 2>&1 || true
+  dump_cat "$dump" | docker exec -i "$c" psql -X -U postgres -d postgres \
+    --set ON_ERROR_STOP=off -f - > "$logf" 2>&1 || true
   grep -cE "$ERR_RE" "$logf" || true
 }
 
