@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
-# Every supabase upsert names an ON CONFLICT target. Postgres infers a unique index from
-# that target and raises 42P10 when none matches, so an upsert whose columns carry no
-# UNIQUE in init/ fails at runtime and nowhere earlier - the schema loads, the types check,
-# and the call site compiles.
+# An upsert's ON CONFLICT target must match a unique index in init/ or Postgres raises
+# 42P10, at runtime and nowhere earlier.
 #
-# Inference matches a full index only. A partial index (WHERE col IS NOT NULL) does not
-# satisfy ON CONFLICT (col) unless the statement repeats the predicate, which PostgREST
-# does not emit; partial indexes are therefore not counted as cover.
+# Inference matches full indexes only. A partial index does not satisfy ON CONFLICT
+# unless the statement repeats the predicate, which PostgREST does not emit, so partial
+# indexes are not counted as cover.
 #
 #   check-upsert-conflicts.py           report and exit non-zero on a gap
 #   check-upsert-conflicts.py --list    print every pair, including the covered ones

@@ -1,14 +1,11 @@
--- Two upserts infer a unique index that does not exist, so Postgres raises 42P10:
---   ServerDiscoveryService.syncRemoteServer  channels     ON CONFLICT (ap_id)
---   RoleActivityHandler                      server_roles ON CONFLICT (ap_id)
--- The channels call sits inside a catch that only logs, so remote server sync fails
--- without surfacing.
+-- channels and server_roles are upserted ON CONFLICT (ap_id) with no unique index to
+-- infer, which raises 42P10.
 --
--- Indexes are full, not partial: ON CONFLICT infers only a full index. ap_id is nullable
--- and NULLs are distinct, so local rows stay unconstrained.
+-- Full, not partial: ON CONFLICT infers only a full index. ap_id is nullable and NULLs
+-- are distinct, so local rows stay unconstrained.
 --
--- Duplicates are reported, not deleted. channels cascades to messages and server_roles
--- to user_roles; removing a row here would take user data with it.
+-- Duplicates abort rather than being deleted: channels cascades to messages and
+-- server_roles to user_roles.
 
 BEGIN;
 

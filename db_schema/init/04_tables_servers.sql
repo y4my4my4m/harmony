@@ -134,9 +134,8 @@ ALTER TABLE public.channels REPLICA IDENTITY FULL;
 CREATE INDEX IF NOT EXISTS idx_channels_server ON public.channels(server_id);
 CREATE INDEX IF NOT EXISTS idx_channels_category ON public.channels(category);
 CREATE INDEX IF NOT EXISTS idx_channels_federation_status ON public.channels(federation_status) WHERE federation_status = 'pending';
--- ServerDiscoveryService upserts remote channels ON CONFLICT (ap_id). Not partial:
--- ON CONFLICT infers a full index only, and NULLs are distinct, so local channels
--- with a NULL ap_id are unconstrained.
+-- Upserted ON CONFLICT (ap_id). Full, not partial: ON CONFLICT infers a full index
+-- only, and NULLs are distinct, so a NULL ap_id is unconstrained.
 CREATE UNIQUE INDEX IF NOT EXISTS idx_channels_ap_id ON public.channels(ap_id);
 
 COMMENT ON TABLE public.channels IS 'Server channels (text and voice)';
@@ -497,7 +496,7 @@ ALTER TABLE public.server_roles REPLICA IDENTITY FULL;
 
 CREATE INDEX IF NOT EXISTS idx_server_roles_server ON public.server_roles(server_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_server_roles_default ON public.server_roles(server_id) WHERE is_default = true;
--- RoleActivityHandler upserts federated roles ON CONFLICT (ap_id). Full index, as above.
+-- Upserted ON CONFLICT (ap_id). Full index, as above.
 CREATE UNIQUE INDEX IF NOT EXISTS idx_server_roles_ap_id ON public.server_roles(ap_id);
 
 COMMENT ON TABLE public.server_roles IS 'Server role definitions';

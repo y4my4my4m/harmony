@@ -19,7 +19,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version-file: '.nvmrc'
+          node-version-file: ".nvmrc"
           cache: npm
 
       - run: npm ci
@@ -36,7 +36,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version-file: '.nvmrc'
+          node-version-file: ".nvmrc"
           cache: npm
           cache-dependency-path: federation-backend/package-lock.json
 
@@ -56,7 +56,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version-file: '.nvmrc'
+          node-version-file: ".nvmrc"
           cache: npm
           cache-dependency-path: bot-gateway/package-lock.json
 
@@ -68,11 +68,6 @@ jobs:
         env:
           CI: true
 
-  # ----------------------------------------------------------------
-  # Bot gateway against a database built from db_schema/init/.
-  # plpgsql resolves column references at first execution, so an RPC naming a
-  # column its table lacks installs cleanly and raises only when called.
-  # ----------------------------------------------------------------
   bot-gateway-db-tests:
     name: Bot Gateway DB Tests
     runs-on: ubuntu-latest
@@ -83,7 +78,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version-file: '.nvmrc'
+          node-version-file: ".nvmrc"
           cache: npm
           cache-dependency-path: bot-gateway/package-lock.json
 
@@ -111,7 +106,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version-file: '.nvmrc'
+          node-version-file: ".nvmrc"
           cache: npm
 
       - run: npm ci
@@ -126,7 +121,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version-file: '.nvmrc'
+          node-version-file: ".nvmrc"
           cache: npm
           cache-dependency-path: federation-backend/package-lock.json
 
@@ -144,7 +139,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version-file: '.nvmrc'
+          node-version-file: ".nvmrc"
           cache: npm
           cache-dependency-path: bot-gateway/package-lock.json
 
@@ -163,7 +158,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version-file: '.nvmrc'
+          node-version-file: ".nvmrc"
           cache: npm
 
       - run: npm ci
@@ -188,7 +183,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version-file: '.nvmrc'
+          node-version-file: ".nvmrc"
           cache: npm
 
       - run: npm ci
@@ -213,18 +208,14 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version-file: '.nvmrc'
+          node-version-file: ".nvmrc"
           cache: npm
 
       - run: npm ci
 
-      # No `playwright install`: the runner image ships Google Chrome stable and
-      # playwright.config.ts defaults to channel 'chrome'. Fetching the bundled
-      # browser hangs on the runner past the job timeout.
       - run: google-chrome --version
+      - run: npx playwright install ffmpeg
 
-      # stack.sh writes e2e/stack.env; playwright.config.ts loads it before
-      # .env.test.
       - run: npm run e2e:up
       - run: npm run e2e:seed
 
@@ -246,15 +237,6 @@ jobs:
         if: always()
         run: npm run e2e:down
 
-  # ----------------------------------------------------------------
-  # ActivityPub round trip: federation-backend's createApp() against a peer
-  # inbox bound to the compose bridge gateway, over a database built from
-  # db_schema/init/. e2e/federation/stack.sh generates every credential at
-  # bring-up; no repository secret is read.
-  #
-  # Two installs: roundtrip.ts resolves @supabase/supabase-js from the root
-  # node_modules, and stack.sh runs it with federation-backend's tsx.
-  # ----------------------------------------------------------------
   federation-roundtrip:
     name: Federation Round Trip
     runs-on: ubuntu-latest
@@ -264,7 +246,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version-file: '.nvmrc'
+          node-version-file: ".nvmrc"
           cache: npm
           cache-dependency-path: |
             package-lock.json
@@ -281,15 +263,6 @@ jobs:
         if: always()
         run: bash e2e/federation/stack.sh down
 
-  # ----------------------------------------------------------------
-  # Single required check for branch protection.
-  #
-  # `needs` alone does not gate: a skipped or cancelled dependency leaves this
-  # job skipped, and a skipped required check reads as success.
-  #
-  # A job absent from `needs` or from the checks below is a job branch
-  # protection never sees.
-  # ----------------------------------------------------------------
   ci-verdict:
     name: CI verdict
     runs-on: ubuntu-latest

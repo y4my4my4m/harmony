@@ -238,8 +238,7 @@ CREATE TABLE IF NOT EXISTS public.push_subscriptions (
     last_failure_at timestamp with time zone,
     last_failure_reason text,
 
-    -- PushNotificationService.saveSubscription upserts ON CONFLICT (user_id, endpoint).
-    -- Absent, Postgres raises 42P10 and Web Push registration fails.
+    -- Upserted ON CONFLICT (user_id, endpoint); absent, Postgres raises 42P10.
     CONSTRAINT push_subscriptions_user_endpoint_unique UNIQUE (user_id, endpoint)
 );
 

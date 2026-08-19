@@ -1,41 +1,19 @@
--- Makes public.profiles.auth_user_id unique, which production never enforced.
+-- init/ declares auth_user_id UNIQUE. Production carries only
+-- idx_profiles_auth_user_id_unique, a plain btree despite the name, and no constraint.
 --
--- db_schema/init/02_tables_core.sql declares `auth_user_id uuid UNIQUE`, so a fresh
--- build carries profiles_auth_user_id_key. Production has only
--- idx_profiles_auth_user_id_unique, which is a plain btree despite the name, and no
--- constraint on the column at all.
+-- get_current_profile_id() selects by auth_user_id with LIMIT 1 and no ORDER BY, and is
+-- the identity most RLS policies resolve through, so duplicates would resolve to
+-- whichever row the planner returned first. UNIQUE still permits many NULLs, which is
+-- what remote profiles carry. Named as in init/ so a converged instance and a fresh
+-- build agree.
 --
--- Why it matters: get_current_profile_id() is
---
---   SELECT id FROM public.profiles WHERE auth_user_id = auth.uid() LIMIT 1
---
--- with no ORDER BY. Two rows sharing an auth_user_id therefore resolve to whichever
--- the planner returns first, and that function is the identity used by most RLS
--- policies. 20260817000001 removed the two policies that let a user write another
--- user's auth_user_id; this removes the possibility of a duplicate existing at all,
--- whatever else is added later.
---
--- Verified against production before writing this: the duplicate check
---
---   SELECT auth_user_id, count(*) FROM public.profiles
---    WHERE auth_user_id IS NOT NULL GROUP BY 1 HAVING count(*) > 1;
---
--- returns no rows, so the constraint can be added without a data fix. It is added
--- under its init/ name so a converged instance and a fresh build agree.
---
--- NULLs are unaffected: a UNIQUE constraint permits many NULL auth_user_id rows,
--- which is what remote profiles carry.
---
--- LOCK: ADD CONSTRAINT ... UNIQUE builds the index under an ACCESS EXCLUSIVE lock on
--- public.profiles. On a small table that is momentary. To avoid it entirely, build
--- the index first, outside any transaction, and then attach it:
+-- ADD CONSTRAINT builds the index under ACCESS EXCLUSIVE on public.profiles. Running
+-- this beforehand avoids the lock and makes the block below a no-op:
 --
 --   CREATE UNIQUE INDEX CONCURRENTLY profiles_auth_user_id_key
 --       ON public.profiles (auth_user_id);
 --   ALTER TABLE public.profiles
 --       ADD CONSTRAINT profiles_auth_user_id_key UNIQUE USING INDEX profiles_auth_user_id_key;
---
--- Running that beforehand makes the block below a no-op.
 
 BEGIN;
 

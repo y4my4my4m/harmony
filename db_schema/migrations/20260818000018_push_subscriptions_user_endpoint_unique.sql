@@ -1,10 +1,8 @@
--- federation-backend/src/services/PushNotificationService.ts upserts ON CONFLICT
--- (user_id, endpoint). Without a matching unique constraint Postgres raises 42P10 and
--- Web Push registration fails. Production carries the constraint; init/ did not.
+-- push_subscriptions is upserted ON CONFLICT (user_id, endpoint) with no matching
+-- unique, which raises 42P10. Production carries the constraint; init/ did not.
 --
--- Keeper is the newest row per (user_id, endpoint). p256dh and auth rotate on
--- re-subscribe, so an older copy's keys no longer decrypt. Nothing references
--- push_subscriptions.id.
+-- Keeper is the newest row per pair: p256dh and auth rotate on re-subscribe, so an
+-- older copy's keys no longer decrypt. Nothing references push_subscriptions.id.
 
 BEGIN;
 

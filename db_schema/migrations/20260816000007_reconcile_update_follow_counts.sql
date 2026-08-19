@@ -1,34 +1,14 @@
--- Reconciles update_follow_counts between init/ and migrations/.
+-- Only status = 'accepted' counts toward followers/following. follows.status is nullable
+-- and its CHECK admits NULL, because a CHECK rejects only FALSE.
 --
--- Only status = 'accepted' counts toward followers/following. follows.status is
--- nullable and its CHECK admits NULL, because a CHECK rejects only FALSE, so
--- `status = 'accepted'` evaluates to NULL rather than false.
+-- Both prior bodies let NULL reach the branch test and corrupt in opposite directions:
+-- init/ takes the ELSE arm, so an INSERT carrying NULL decrements both profiles;
+-- 20260528's second arm is NULL when v_is is NULL, so an UPDATE from 'accepted' to NULL
+-- leaves both counts raised. COALESCE(..., false) keeps both flags two-valued. Behaviour
+-- for non-NULL status is unchanged.
 --
--- Both existing bodies let that NULL reach the branch test, and because they
--- spell the branch differently they corrupt in opposite directions:
---
---   init/           IF v_is_accepted THEN increment ELSE decrement
---                   NULL takes the ELSE arm, so an INSERT carrying a NULL
---                   status decrements both profiles.
---
---   20260528        IF v_is AND NOT v_was ... ELSIF v_was AND NOT v_is
---                   the second arm is NULL when v_is is NULL, so an UPDATE
---                   from 'accepted' to NULL leaves both counts raised.
---
--- Neither is safe; this is not a case of carrying one side over. COALESCE(...,
--- false) keeps both flags two-valued, which makes the two bodies agree and
--- fixes both cases. Behaviour for non-NULL status is unchanged, and the two
--- bodies already agreed there.
---
--- No backfill. NULL is not reachable from application code: every write to
--- follows.status passes a literal 'pending', 'accepted' or 'rejected', and the
--- single computed one (CoreInteractionService.ts, `requiresApproval ?
--- 'pending' : 'accepted'`) cannot yield null. The defect is latent, so counts
--- in production have not drifted through it and recomputing them here would
--- change data this migration has no reason to touch.
---
--- Pinned by db_schema/tests/30_reconciled_functions.sql, whose two NULL cases
--- fail against init/ and against 20260528 respectively.
+-- No backfill: every application write passes a literal status, so the defect is latent
+-- and production counts have not drifted through it.
 
 BEGIN;
 
