@@ -8,19 +8,23 @@
 -- =============================================================================
 
 -- ---------------------------------------------------------------------------
--- 1) Pin search_path on every public function lacking one.
+-- 1) Pin search_path on every public function, with pg_temp named explicitly.
 -- ---------------------------------------------------------------------------
--- A mutable search_path lets a caller shadow unqualified names. We pin
--- `public, extensions, pg_temp` so unqualified extension calls (pgcrypto, etc.)
--- still resolve. Schema-qualified calls (auth.uid(), realtime.send(), ...) are
--- unaffected. Re-running only touches functions that still lack search_path.
+-- A pin that omits pg_temp is not a pin: Postgres searches the session's temporary schema
+-- FIRST for relation names unless pg_temp appears explicitly, so `SET search_path = public`
+-- still resolves an unqualified `emojis` to the caller's pg_temp.emojis. In a
+-- SECURITY DEFINER function that lets the caller choose which table the owner writes.
+--
+-- pg_temp is appended, never substituted, so a deliberately narrow path keeps its schemas.
 DO $$
 DECLARE
     r record;
 BEGIN
     FOR r IN
         SELECT p.proname,
-               pg_get_function_identity_arguments(p.oid) AS args
+               pg_get_function_identity_arguments(p.oid) AS args,
+               (SELECT c FROM unnest(coalesce(p.proconfig, '{}'::text[])) c
+                 WHERE c LIKE 'search_path=%' LIMIT 1) AS pin
         FROM pg_proc p
         JOIN pg_namespace n ON n.oid = p.pronamespace
         WHERE n.nspname = 'public'
@@ -28,13 +32,21 @@ BEGIN
           AND NOT EXISTS (
               SELECT 1 FROM unnest(coalesce(p.proconfig, '{}'::text[])) c
               WHERE c LIKE 'search_path=%'
+                AND replace(', ' || split_part(c, '=', 2) || ',', ' ', '') LIKE '%,pg_temp,%'
           )
     LOOP
         BEGIN
-            EXECUTE format(
-                'ALTER FUNCTION public.%I(%s) SET search_path = public, extensions, pg_temp',
-                r.proname, r.args
-            );
+            IF r.pin IS NULL THEN
+                EXECUTE format(
+                    'ALTER FUNCTION public.%I(%s) SET search_path = public, extensions, pg_temp',
+                    r.proname, r.args
+                );
+            ELSE
+                EXECUTE format(
+                    'ALTER FUNCTION public.%I(%s) SET search_path = %s, pg_temp',
+                    r.proname, r.args, split_part(r.pin, '=', 2)
+                );
+            END IF;
         EXCEPTION WHEN OTHERS THEN
             RAISE NOTICE 'Skipping search_path pin for %(%): %', r.proname, r.args, SQLERRM;
         END;

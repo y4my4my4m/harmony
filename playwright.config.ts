@@ -4,6 +4,11 @@ import { fileURLToPath } from 'url'
 import path from 'path'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
+// e2e/stack.env is written by e2e/stack.sh and absent unless that stack is up.
+// dotenv never overwrites a name already set, so loading it first points a run
+// at the ephemeral stack whenever one exists and falls back to .env.test
+// otherwise.
+config({ path: path.resolve(__dirname, 'e2e/stack.env') })
 config({ path: path.resolve(__dirname, '.env.test') })
 
 export default defineConfig({
@@ -37,6 +42,14 @@ export default defineConfig({
     {
       name: 'navigation',
       testMatch: 'navigation.spec.ts',
+      use: { ...devices['Desktop Chrome'] },
+    },
+    // Journey specs against the ephemeral stack from e2e/stack.sh. Their own testDir,
+    // outside the one above, and no dependency on auth-tests: each spec creates and
+    // deletes its actors through GoTrue's admin API rather than sharing a storageState.
+    {
+      name: 'journeys',
+      testDir: './e2e/specs',
       use: { ...devices['Desktop Chrome'] },
     },
     // Opt-in: npx playwright test --project=firefox

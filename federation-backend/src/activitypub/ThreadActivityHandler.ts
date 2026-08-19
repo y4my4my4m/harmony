@@ -734,7 +734,8 @@ router.get(
       .single();
 
     if (error || !thread) {
-      return res.status(404).json({ error: 'Thread not found' });
+      res.status(404).json({ error: 'Thread not found' });
+      return;
     }
 
     const baseUrl = `https://${config.INSTANCE_DOMAIN}`;
@@ -766,10 +767,22 @@ router.get(
           federated_id
         )
       `)
-      .eq('thread_id', threadId);
+      .eq('thread_id', threadId)
+      // PostgREST returns a many-to-one embed as an object. The client is built
+      // without a generated schema, so it cannot see cardinality and widens
+      // every embed to an array.
+      .overrideTypes<
+        {
+          user_id: string;
+          joined_at: string;
+          profiles: { federated_id: string | null };
+        }[],
+        { merge: false }
+      >();
 
     if (error) {
-      return res.status(500).json({ error: 'Failed to fetch thread members' });
+      res.status(500).json({ error: 'Failed to fetch thread members' });
+      return;
     }
 
     const baseUrl = `https://${config.INSTANCE_DOMAIN}`;
@@ -827,7 +840,8 @@ router.get(
     const { data: threads, error } = await query;
 
     if (error) {
-      return res.status(500).json({ error: 'Failed to fetch threads' });
+      res.status(500).json({ error: 'Failed to fetch threads' });
+      return;
     }
 
     const baseUrl = `https://${config.INSTANCE_DOMAIN}`;

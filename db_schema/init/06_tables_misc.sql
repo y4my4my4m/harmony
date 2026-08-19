@@ -384,10 +384,17 @@ CREATE TABLE IF NOT EXISTS public.bot_tokens (
     name text,
     scopes text[] DEFAULT '{}'::text[],
     
+    -- revoked_at records when, is_active decides whether. verify_bot_token filters on
+    -- is_active.
+    is_active boolean DEFAULT true,
+    uses_count bigint DEFAULT 0,
+
     created_at timestamp with time zone DEFAULT now(),
     last_used_at timestamp with time zone,
     expires_at timestamp with time zone,
-    revoked_at timestamp with time zone
+    revoked_at timestamp with time zone,
+
+    metadata jsonb DEFAULT '{}'::jsonb
 );
 
 CREATE INDEX IF NOT EXISTS idx_bot_tokens_bot ON public.bot_tokens(bot_id);
@@ -570,11 +577,17 @@ CREATE TABLE IF NOT EXISTS public.prekeys (
     is_signed boolean DEFAULT false,
     signature text,
     is_one_time boolean DEFAULT true,
-    
+
     created_at timestamp with time zone DEFAULT now(),
+    is_used boolean DEFAULT false,
     used_at timestamp with time zone,
+    -- Holds auth.uid(), so the reference is auth.users and not profiles.
+    -- Production declares this FK with NO ACTION; SET NULL here, otherwise a
+    -- consumed prekey belonging to another user blocks DELETE FROM auth.users
+    -- in delete_my_account.
+    used_by uuid REFERENCES auth.users(id) ON DELETE SET NULL,
     expires_at timestamp with time zone,
-    
+
     UNIQUE(user_id, device_id, prekey_id)
 );
 
@@ -899,6 +912,21 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_discord_bridge_pairings_code
     ON public.discord_bridge_pairings (pairing_code);
 
 COMMENT ON TABLE public.discord_bridge_pairings IS 'Pairing codes linking Harmony servers to self-hosted Discord bridges';
+
+-- messages.bot_id is declared in 04_tables_servers.sql, before public.bots exists, so the
+-- foreign key is attached here. PostgREST resolves embeds by constraint name.
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+         WHERE conrelid = 'public.messages'::regclass
+           AND conname = 'messages_bot_id_fkey'
+    ) THEN
+        ALTER TABLE public.messages
+            ADD CONSTRAINT messages_bot_id_fkey
+            FOREIGN KEY (bot_id) REFERENCES public.bots(id) ON DELETE CASCADE;
+    END IF;
+END $$;
 
 DO $$
 BEGIN

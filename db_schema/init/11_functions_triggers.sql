@@ -1002,9 +1002,17 @@ $$;
 -- post_interactions row, so counting here missed every local reblog. Incoming
 -- federated Announces write both, so counting in both places double-counted
 -- them.
+-- SECURITY DEFINER because the trigger writes a row the caller does not own. Under invoker
+-- rights the UPDATE runs as `authenticated`, posts_update_own filters it to
+-- author_id = get_current_profile_id(), and favouriting someone else's post matches zero
+-- rows and reports success - the interaction commits, the counter does not move. The
+-- federation backend connects as service_role and bypasses RLS, which is why remote
+-- engagement counted and local engagement did not.
 CREATE OR REPLACE FUNCTION public.update_post_reaction_counts()
 RETURNS trigger
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public', 'extensions', 'pg_temp'
 AS $$
 BEGIN
   IF TG_OP = 'INSERT' THEN
@@ -1028,63 +1036,127 @@ BEGIN
 END;
 $$;
 
--- Maintain posts.replies_count: covers reply insert, late in_reply_to
--- resolution (federation), soft-delete flips and hard deletes.
+-- Maintain posts.replies_count: covers reply insert, in_reply_to moving to,
+-- away from or between parents, soft-delete flips and hard deletes.
 -- LOCAL parents recompute from actual rows (authoritative, drift-proof);
 -- REMOTE parents apply +1/-1 on top of the origin-supplied baseline.
+-- A re-parent touches two parents at once, which is why the arms below carry a
+-- list rather than one id.
+-- SECURITY DEFINER for the same reason as update_post_reaction_counts: the parent post
+-- belongs to someone else, and posts_update_own would filter the write to nothing.
 CREATE OR REPLACE FUNCTION public.update_post_reply_count()
 RETURNS trigger
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public', 'extensions', 'pg_temp'
 AS $$
 DECLARE
-  affected uuid := NULL;
-  delta integer := 0;
+  affected uuid[] := '{}';
+  deltas integer[] := '{}';
+  parent record;
   parent_is_local boolean;
 BEGIN
   IF TG_OP = 'INSERT' THEN
     IF NEW.in_reply_to IS NOT NULL AND (NEW.is_deleted IS DISTINCT FROM true) THEN
-      affected := NEW.in_reply_to;
-      delta := 1;
+      affected := ARRAY[NEW.in_reply_to];
+      deltas := ARRAY[1];
     END IF;
 
   ELSIF TG_OP = 'UPDATE' THEN
-    IF OLD.in_reply_to IS NULL AND NEW.in_reply_to IS NOT NULL
-       AND (NEW.is_deleted IS DISTINCT FROM true) THEN
-      affected := NEW.in_reply_to;
-      delta := 1;
+    IF OLD.in_reply_to IS DISTINCT FROM NEW.in_reply_to THEN
+      -- Covers NULL -> parent (federation resolving in_reply_to late),
+      -- parent -> NULL, and parent -> different parent.
+      IF OLD.in_reply_to IS NOT NULL AND (OLD.is_deleted IS DISTINCT FROM true) THEN
+        affected := affected || OLD.in_reply_to;
+        deltas := deltas || -1;
+      END IF;
+      IF NEW.in_reply_to IS NOT NULL AND (NEW.is_deleted IS DISTINCT FROM true) THEN
+        affected := affected || NEW.in_reply_to;
+        deltas := deltas || 1;
+      END IF;
     ELSIF NEW.in_reply_to IS NOT NULL AND OLD.is_deleted IS DISTINCT FROM NEW.is_deleted THEN
-      affected := NEW.in_reply_to;
-      delta := CASE WHEN NEW.is_deleted IS TRUE THEN -1 ELSE 1 END;
+      affected := ARRAY[NEW.in_reply_to];
+      deltas := ARRAY[CASE WHEN NEW.is_deleted IS TRUE THEN -1 ELSE 1 END];
     END IF;
 
   ELSIF TG_OP = 'DELETE' THEN
     IF OLD.in_reply_to IS NOT NULL AND (OLD.is_deleted IS DISTINCT FROM true) THEN
-      affected := OLD.in_reply_to;
-      delta := -1;
+      affected := ARRAY[OLD.in_reply_to];
+      deltas := ARRAY[-1];
     END IF;
   END IF;
 
-  IF affected IS NOT NULL THEN
+  -- Ascending id: a re-parent locks two rows, and two moves in opposite
+  -- directions take them in the same order.
+  FOR parent IN
+    SELECT x.id, x.delta FROM unnest(affected, deltas) AS x(id, delta) ORDER BY x.id
+  LOOP
     -- Lock the parent first so the recompute below takes its snapshot AFTER any
     -- concurrent sibling reply commits (READ COMMITTED would otherwise let the
-    -- count subquery miss a just-inserted row and undercount). One row locked
-    -- per trigger invocation -> no deadlock.
+    -- count subquery miss a just-inserted row and undercount).
     SELECT is_local INTO parent_is_local
-    FROM public.posts WHERE id = affected FOR UPDATE;
+    FROM public.posts WHERE id = parent.id FOR UPDATE;
 
     IF parent_is_local IS TRUE THEN
       UPDATE public.posts p
       SET replies_count = (
         SELECT count(*) FROM public.posts c
-        WHERE c.in_reply_to = affected AND c.is_deleted IS DISTINCT FROM true
+        WHERE c.in_reply_to = parent.id AND c.is_deleted IS DISTINCT FROM true
       )
-      WHERE p.id = affected;
+      WHERE p.id = parent.id;
     ELSE
       UPDATE public.posts
-      SET replies_count = GREATEST(COALESCE(replies_count, 0) + delta, 0)
-      WHERE id = affected;
+      SET replies_count = GREATEST(COALESCE(replies_count, 0) + parent.delta, 0)
+      WHERE id = parent.id;
     END IF;
-  END IF;
+  END LOOP;
+
+  RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
+END;
+$$;
+
+-- Maintain profiles.posts_count for LOCAL authors.
+-- Counts every non-deleted row in posts, replies and boosts included: the same
+-- population the ActivityPub outbox collection reports as totalItems, which is
+-- the number remote instances read back as this profile's posts_count, and the
+-- same list the profile posts tab renders.
+-- REMOTE authors keep the origin-supplied figure. This instance holds only the
+-- fraction of their posts that federated here, so a recompute would replace a
+-- true number with a smaller one.
+-- SECURITY DEFINER: the row written is the author's profile and
+-- profiles_update_own admits only its owner, so under invoker rights the
+-- counter would track who wrote the post rather than the rows.
+CREATE OR REPLACE FUNCTION public.update_profile_posts_count()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public', 'extensions', 'pg_temp'
+AS $$
+DECLARE
+  author uuid;
+BEGIN
+  -- Two ids only when a post changes hands, which the trigger sees only if the
+  -- same statement also writes is_deleted. Ascending id for the lock order.
+  FOR author IN
+    SELECT DISTINCT id FROM (VALUES
+      (CASE WHEN TG_OP <> 'INSERT' THEN OLD.author_id END),
+      (CASE WHEN TG_OP <> 'DELETE' THEN NEW.author_id END)
+    ) v(id) WHERE id IS NOT NULL ORDER BY 1
+  LOOP
+    -- Lock the profile first so the recompute takes its snapshot AFTER any
+    -- concurrent post by the same author commits.
+    PERFORM 1 FROM public.profiles
+     WHERE id = author AND is_local IS TRUE FOR UPDATE;
+
+    IF FOUND THEN
+      UPDATE public.profiles
+      SET posts_count = (
+        SELECT count(*) FROM public.posts p
+        WHERE p.author_id = author AND p.is_deleted IS DISTINCT FROM true
+      )
+      WHERE id = author;
+    END IF;
+  END LOOP;
 
   RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
 END;

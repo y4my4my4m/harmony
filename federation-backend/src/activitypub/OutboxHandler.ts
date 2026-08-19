@@ -377,7 +377,7 @@ router.get(
       .from('post_interactions')
       .select(`
         id, interaction_type, created_at, custom_emoji_content,
-        profile:profiles!post_interactions_user_id_fkey ( id, username, domain, is_local, ap_id ),
+        profile:profiles!post_interactions_user_id_fkey ( id, username, domain, is_local, federated_id ),
         emoji:emojis ( name, url )
       `)
       .eq('post_id', postId)
@@ -389,7 +389,7 @@ router.get(
       const profile = i.profile;
       const actorUrl = profile?.is_local
         ? `https://${config.INSTANCE_DOMAIN}/users/${profile.username}`
-        : profile?.ap_id || `https://${profile?.domain}/users/${profile?.username}`;
+        : profile?.federated_id || `https://${profile?.domain}/users/${profile?.username}`;
 
       const item: any = {
         type: 'Like',
@@ -613,7 +613,7 @@ router.get(
 
     if (conv?.type === 'group') {
       note['harmony:conversationType'] = 'group';
-      note['harmony:conversationId'] = message.conversation_id;
+      note['harmony:conversationId'] = conv.id;
     }
 
     note.directMessage = true;

@@ -425,7 +425,11 @@ export class VoiceActivityHandler {
         canPublish: true,
         canSubscribe: true,
       });
-      wsUrl = livekitService.getClientConfig().wsUrl;
+      const clientWsUrl = livekitService.getClientConfig().wsUrl;
+      if (!clientWsUrl) {
+        throw new Error('LiveKit is not configured');
+      }
+      wsUrl = clientWsUrl;
     } catch (error) {
       logger.error('Failed to generate LiveKit token for federated user:', error);
       await this.sendVoiceChannelJoinReject(activity, 'Failed to generate voice token');
@@ -706,7 +710,7 @@ export class VoiceActivityHandler {
     channelApId: string,
     channelName: string,
     serverApId: string,
-    _serverName: string
+    serverName: string
   ): VoiceChannelJoin {
     return {
       '@context': [
@@ -719,6 +723,9 @@ export class VoiceActivityHandler {
       object: {
         type: 'harmony:VoiceChannel',
         id: channelApId,
+        // The local UUID means nothing to the receiver; the server AP ID does.
+        serverId: serverApId,
+        serverName,
         name: channelName,
       },
       target: serverApId,

@@ -21,8 +21,6 @@ import type {
   TimelineOptions,
   TimelinePost,
   TimelineResult,
-  ActivityPubActivityType,
-  ActivityPubObjectType,
   ConversationContext,
   PostContextOptions,
   PostWithContext
@@ -32,6 +30,14 @@ import { debug } from '@/utils/debug'
 interface ProfileCacheEntry {
   profile: FederatedUser;
   timestamp: number;
+}
+
+// Quotes and boosts are both posts rows carrying metadata.reblog_of; only the
+// quote sets is_quote. jsonb decodes to a boolean, `metadata->>'is_quote'` to a
+// string.
+function isQuoteMetadata(metadata: any): boolean {
+  const flag = metadata?.is_quote;
+  return flag === true || flag === 'true';
 }
 
 // Deduplicates concurrent fetches of the same profile.
@@ -406,8 +412,7 @@ export class ActivityPubService {
         .from('posts')
         .select(`
           *,
-          ${POST_AUTHOR_EMBED},
-          reply_context:reply_context
+          ${POST_AUTHOR_EMBED}
         `)
         .eq('in_reply_to', postId)
         .or('is_deleted.is.null,is_deleted.eq.false')
@@ -952,7 +957,9 @@ export class ActivityPubService {
 
     const actualPostId = targetPost?.reblog?.id || postId;
 
-    const { data: existingInteraction } = await supabase
+    // idx_post_interactions_unique makes (user, post, 'reblog') at most one row,
+    // so a PGRST116 here is a real fault rather than a duplicate.
+    const { data: existingInteraction, error: interactionError } = await supabase
       .from('post_interactions')
       .select('id')
       .eq('user_id', profileId)
@@ -960,23 +967,17 @@ export class ActivityPubService {
       .eq('interaction_type', 'reblog')
       .maybeSingle();
 
+    if (interactionError) throw interactionError;
+
     if (existingInteraction) {
-      await supabase
+      const { error: deleteError } = await supabase
         .from('post_interactions')
         .delete()
         .eq('id', existingInteraction.id);
 
-      // The reblog post itself is identified by metadata.reblog_of.
-      const { data: reblogPost } = await supabase
-        .from('posts')
-        .select('id')
-        .eq('author_id', profileId)
-        .eq('metadata->>reblog_of', actualPostId)
-        .maybeSingle();
+      if (deleteError) throw deleteError;
 
-      if (reblogPost) {
-        await this.unreblogPost(reblogPost.id);
-      }
+      await this.retractBoostPosts(actualPostId, profileId);
 
       return { reblogged: false };
     } else {
@@ -1037,8 +1038,23 @@ export class ActivityPubService {
       }
     }
 
+    // reblogs_count is recomputed by counting posts rows, and ap_id is a fresh
+    // uuid per call, so a second insert raises no unique violation and just
+    // raises the count. Reuse the boost already held.
+    const [existingBoostId] = await this.findOwnBoostPostIds(actualOriginalId, profileId);
+    if (existingBoostId) {
+      const { data: existingBoost } = await supabase
+        .from('posts')
+        .select('*')
+        .eq('id', existingBoostId)
+        .single();
+
+      debug.log(`Reblog post ${existingBoostId} already held for original post ${actualOriginalId}`);
+      return existingBoost;
+    }
+
     const ap_id = `${this.instanceUrl}/activities/${crypto.randomUUID()}`;
-    
+
     const reblogPost = {
       author_id: profileId,
       content: originalPost.content,
@@ -1184,18 +1200,47 @@ export class ActivityPubService {
       throw error;
     }
 
-    await supabase
-      .from('post_interactions')
-      .insert({
-        user_id: profileId,
-        post_id: actualOriginalId,
-        interaction_type: 'reblog',
-        is_local: true,
-        metadata: { is_quote: true }
-      });
+    // No post_interactions row: update_post_reblog_count counts the posts row,
+    // and a 'reblog' interaction reads back as is_reblogged, which routes the
+    // next Boost click into the un-boost branch.
 
     debug.log(`Created quote reblog post ${data.id} for original post ${actualOriginalId}`);
     return data;
+  }
+
+  /**
+   * Boost wrapper ids the current user holds for `originalPostId`, live rows
+   * only. Quotes carry the same metadata.reblog_of and are excluded: a quote is
+   * a post of its own, not the row an un-boost retracts.
+   */
+  private async findOwnBoostPostIds(originalPostId: string, profileId: string): Promise<string[]> {
+    const { data, error } = await supabase
+      .from('posts')
+      .select('id, metadata, is_deleted')
+      .eq('author_id', profileId)
+      .eq('metadata->>reblog_of', originalPostId);
+
+    if (error) throw error;
+
+    return (data ?? [])
+      .filter((row: any) => row.is_deleted !== true && !isQuoteMetadata(row.metadata))
+      .map((row: any) => row.id as string);
+  }
+
+  /**
+   * Soft-deletes every boost the current user holds for `originalPostId` and
+   * returns their ids. More than one row is retracted rather than treated as an
+   * error; leaving one behind keeps reblogs_count above zero forever.
+   */
+  async retractBoostPosts(originalPostId: string, profileIdOverride?: string): Promise<string[]> {
+    const profileId = profileIdOverride ?? await this.getCurrentUserProfileId();
+    const boostIds = await this.findOwnBoostPostIds(originalPostId, profileId);
+
+    for (const boostId of boostIds) {
+      await this.unreblogPost(boostId);
+    }
+
+    return boostIds;
   }
 
   // Soft-deletes the reblog post row; the interaction row is removed by the caller.
@@ -1833,431 +1878,6 @@ export class ActivityPubService {
     return state;
   }
 
-  // ENHANCED ACTIVITY HANDLING
-
-  // Emits an Update activity; this path does not rely on a trigger.
-  async updatePost(postId: string, updates: {
-    content?: string;
-    content_warning?: string;
-    is_sensitive?: boolean;
-    media_attachments?: any[];
-  }): Promise<Post> {
-    const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
-    if (!user) throw new Error('User not authenticated');
-
-    const profileId = await this.getCurrentUserProfileId();
-
-    const { data: originalPost, error: fetchError } = await supabase
-      .from('posts')
-      .select('*')
-      .eq('id', postId)
-      .eq('author_id', profileId)
-      .single();
-
-    if (fetchError || !originalPost) {
-      throw new Error('Post not found or not owned by user');
-    }
-
-    const updateData: any = {
-    };
-
-    if (updates.content !== undefined) {
-      updateData.content = await this.formatPostContent(updates.content);
-    }
-    if (updates.content_warning !== undefined) {
-      updateData.content_warning = updates.content_warning;
-    }
-    if (updates.is_sensitive !== undefined) {
-      updateData.is_sensitive = updates.is_sensitive;
-    }
-    if (updates.media_attachments !== undefined) {
-      updateData.media_attachments = updates.media_attachments;
-    }
-
-    const { data: updatedPost, error } = await supabase
-      .from('posts')
-      .update(updateData)
-      .eq('id', postId)
-      .select()
-      .single();
-
-    if (error) throw error;
-
-    await this.createActivity({
-      type: 'Update',
-      actor_id: user.id,
-      target_id: postId,
-      target_type: 'Note',
-      activity_data: {
-        '@context': 'https://www.w3.org/ns/activitystreams',
-        type: 'Update',
-        actor: await this.getUserActivityPubId(user.id),
-        object: await this.postToActivityPubObject(updatedPost),
-        published: new Date().toISOString(),
-        to: this.getPostAudience(updatedPost.visibility),
-        cc: []
-      }
-    });
-
-    return updatedPost;
-  }
-
-  // Only transitions a pending follow the current profile is the target of.
-  async acceptFollowRequest(followId: string): Promise<void> {
-    const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
-    if (!user) throw new Error('User not authenticated');
-
-    const profileId = await this.getCurrentUserProfileId();
-
-    const { data: follow, error } = await supabase
-      .from('follows')
-      .update({
-        status: 'accepted',
-        accepted_at: new Date().toISOString()
-      })
-      .eq('id', followId)
-      .eq('following_id', profileId)
-      .eq('status', 'pending')
-      .select()
-      .single();
-
-    if (error || !follow) {
-      throw new Error('Follow request not found or already processed');
-    }
-
-    await this.createActivity({
-      type: 'Accept',
-      actor_id: user.id,
-      target_id: follow.follower_id,
-      target_type: 'Person',
-      activity_data: {
-        '@context': 'https://www.w3.org/ns/activitystreams',
-        type: 'Accept',
-        actor: await this.getUserActivityPubId(user.id),
-        object: {
-          type: 'Follow',
-          id: follow.ap_id,
-          actor: await this.getUserActivityPubId(follow.follower_id),
-          object: await this.getUserActivityPubId(user.id)
-        },
-        published: new Date().toISOString()
-      }
-    });
-  }
-
-  // Only transitions a pending follow the current profile is the target of.
-  async rejectFollowRequest(followId: string): Promise<void> {
-    const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
-    if (!user) throw new Error('User not authenticated');
-
-    const profileId = await this.getCurrentUserProfileId();
-
-    const { data: follow, error } = await supabase
-      .from('follows')
-      .update({ status: 'rejected' })
-      .eq('id', followId)
-      .eq('following_id', profileId)
-      .eq('status', 'pending')
-      .select()
-      .single();
-
-    if (error || !follow) {
-      throw new Error('Follow request not found or already processed');
-    }
-
-    await this.createActivity({
-      type: 'Reject',
-      actor_id: user.id,
-      target_id: follow.follower_id,
-      target_type: 'Person',
-      activity_data: {
-        '@context': 'https://www.w3.org/ns/activitystreams',
-        type: 'Reject',
-        actor: await this.getUserActivityPubId(user.id),
-        object: {
-          type: 'Follow',
-          id: follow.ap_id,
-          actor: await this.getUserActivityPubId(follow.follower_id),
-          object: await this.getUserActivityPubId(user.id)
-        },
-        published: new Date().toISOString()
-      }
-    });
-  }
-
-  // Wraps a prior ap_activities row owned by the caller in an Undo.
-  async undoActivity(originalActivityId: string): Promise<void> {
-    const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
-    if (!user) throw new Error('User not authenticated');
-
-    const { data: originalActivity, error } = await supabase
-      .from('ap_activities')
-      .select('*')
-      .eq('id', originalActivityId)
-      .eq('actor_id', user.id)
-      .single();
-
-    if (error || !originalActivity) {
-      throw new Error('Original activity not found');
-    }
-
-    await this.createActivity({
-      type: 'Undo',
-      actor_id: user.id,
-      target_id: originalActivity.target_id,
-      target_type: originalActivity.target_type,
-      activity_data: {
-        '@context': 'https://www.w3.org/ns/activitystreams',
-        type: 'Undo',
-        actor: await this.getUserActivityPubId(user.id),
-        object: originalActivity.activity_data,
-        published: new Date().toISOString()
-      }
-    });
-  }
-
-  // VOICE CHAT FEDERATION (Harmony Extensions)
-
-  // VoiceJoin is a Harmony extension type under the har.mony.lol/ns/harmony context.
-  async joinVoiceChannel(serverId: string, channelId: string, voiceState?: {
-    muted?: boolean;
-    deafened?: boolean;
-    video_enabled?: boolean;
-  }): Promise<void> {
-    const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
-    if (!user) throw new Error('User not authenticated');
-
-    const { data: server } = await supabase
-      .from('servers')
-      .select('name, domain')
-      .eq('id', serverId)
-      .single();
-
-    const { data: channel } = await supabase
-      .from('channels')
-      .select('name')
-      .eq('id', channelId)
-      .single();
-
-    if (!server || !channel) {
-      throw new Error('Server or channel not found');
-    }
-
-    await this.createActivity({
-      type: 'VoiceJoin',
-      actor_id: user.id,
-      target_id: channelId,
-      target_type: 'VoiceChannel',
-      activity_data: {
-        '@context': ['https://www.w3.org/ns/activitystreams', 'https://har.mony.lol/ns/harmony'],
-        type: 'VoiceJoin',
-        actor: await this.getUserActivityPubId(user.id),
-        object: {
-          type: 'VoiceChannel',
-          id: `${this.instanceUrl}/servers/${serverId}/channels/${channelId}`,
-          name: channel.name,
-          server: {
-            id: `${this.instanceUrl}/servers/${serverId}`,
-            name: server.name,
-            domain: server.domain || import.meta.env.VITE_DOMAIN as string
-          }
-        },
-        voiceState: voiceState || {},
-        published: new Date().toISOString()
-      }
-    });
-  }
-
-  // VoiceLeave carries no voiceState, unlike joinVoiceChannel.
-  async leaveVoiceChannel(serverId: string, channelId: string): Promise<void> {
-    const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
-    if (!user) throw new Error('User not authenticated');
-
-    await this.createActivity({
-      type: 'VoiceLeave',
-      actor_id: user.id,
-      target_id: channelId,
-      target_type: 'VoiceChannel',
-      activity_data: {
-        '@context': ['https://www.w3.org/ns/activitystreams', 'https://har.mony.lol/ns/harmony'],
-        type: 'VoiceLeave',
-        actor: await this.getUserActivityPubId(user.id),
-        object: {
-          type: 'VoiceChannel',
-          id: `${this.instanceUrl}/servers/${serverId}/channels/${channelId}`
-        },
-        published: new Date().toISOString()
-      }
-    });
-  }
-
-  async updateVoiceState(serverId: string, channelId: string, voiceState: {
-    muted?: boolean;
-    deafened?: boolean;
-    video_enabled?: boolean;
-    screen_sharing?: boolean;
-    speaking?: boolean;
-  }): Promise<void> {
-    const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
-    if (!user) throw new Error('User not authenticated');
-
-    await this.createActivity({
-      type: 'VoiceUpdate',
-      actor_id: user.id,
-      target_id: channelId,
-      target_type: 'VoiceChannel',
-      activity_data: {
-        '@context': ['https://www.w3.org/ns/activitystreams', 'https://har.mony.lol/ns/harmony'],
-        type: 'VoiceUpdate',
-        actor: await this.getUserActivityPubId(user.id),
-        object: {
-          type: 'VoiceChannel',
-          id: `${this.instanceUrl}/servers/${serverId}/channels/${channelId}`
-        },
-        voiceState,
-        published: new Date().toISOString()
-      }
-    });
-  }
-
-  // SERVER FEDERATION (Harmony Extensions)
-
-  async joinFederatedServer(serverDomain: string, inviteCode?: string): Promise<void> {
-    const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
-    if (!user) throw new Error('User not authenticated');
-
-    await this.createActivity({
-      type: 'Join',
-      actor_id: user.id,
-      target_type: 'ChatServer',
-      activity_data: {
-        '@context': ['https://www.w3.org/ns/activitystreams', 'https://har.mony.lol/ns/harmony'],
-        type: 'Join',
-        actor: await this.getUserActivityPubId(user.id),
-        object: {
-          type: 'ChatServer',
-          id: `https://${serverDomain}`,
-          domain: serverDomain
-        },
-        invite: inviteCode ? {
-          type: 'Invite',
-          code: inviteCode
-        } : undefined,
-        published: new Date().toISOString()
-      }
-    });
-  }
-
-  async leaveFederatedServer(serverDomain: string): Promise<void> {
-    const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
-    if (!user) throw new Error('User not authenticated');
-
-    await this.createActivity({
-      type: 'Leave',
-      actor_id: user.id,
-      target_type: 'ChatServer',
-      activity_data: {
-        '@context': ['https://www.w3.org/ns/activitystreams', 'https://har.mony.lol/ns/harmony'],
-        type: 'Leave',
-        actor: await this.getUserActivityPubId(user.id),
-        object: {
-          type: 'ChatServer',
-          id: `https://${serverDomain}`,
-          domain: serverDomain
-        },
-        published: new Date().toISOString()
-      }
-    });
-  }
-
-  // ACTIVITY CREATION HELPER
-
-  // Inserts an ap_activities row with status 'pending'; delivery is external.
-  private async createActivity(activity: {
-    type: ActivityPubActivityType;
-    actor_id: string;
-    target_id?: string;
-    target_type?: ActivityPubObjectType;
-    activity_data: any;
-  }): Promise<void> {
-    const ap_id = `${this.instanceUrl}/activities/${crypto.randomUUID()}`;
-    
-    const { error } = await supabase
-      .from('ap_activities')
-      .insert({
-        ap_id,
-        ap_type: activity.type,
-        actor_id: activity.actor_id,
-        target_id: activity.target_id,
-        target_type: activity.target_type,
-        activity_data: {
-          ...activity.activity_data,
-          id: ap_id
-        },
-        status: 'pending',
-        is_local: true,
-        retry_count: 0
-      });
-
-    if (error) {
-      debug.error('Failed to create activity:', error);
-      throw error;
-    }
-
-    debug.log(`Queued ${activity.type} activity for federation:`, ap_id);
-  }
-
-  // Actor URL form: https://{domain}/users/{username}
-  private async getUserActivityPubId(userId: string): Promise<string> {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('username, domain')
-      .eq('id', userId)
-      .single();
-
-    if (!profile) throw new Error('User profile not found');
-
-    const domain = profile.domain === import.meta.env.VITE_DOMAIN as string ? this.instanceUrl.replace('https://', '') : profile.domain;
-    return `https://${domain}/users/${profile.username}`;
-  }
-
-  // `updated` is omitted when it equals `created_at`.
-  private async postToActivityPubObject(post: any): Promise<any> {
-    const author = await this.getUserActivityPubId(post.author_id);
-    
-    return {
-      '@context': 'https://www.w3.org/ns/activitystreams',
-      type: post.ap_type || 'Note',
-      id: post.ap_id || `${this.instanceUrl}/posts/${post.id}`,
-      attributedTo: author,
-      content: await this.contentToHtml(post.content),
-      published: post.created_at,
-      updated: post.updated_at !== post.created_at ? post.updated_at : undefined,
-      to: this.getPostAudience(post.visibility),
-      cc: [],
-      sensitive: post.is_sensitive,
-      summary: post.content_warning,
-      attachment: post.media_attachments || [],
-      inReplyTo: post.in_reply_to ? `${this.instanceUrl}/posts/${post.in_reply_to}` : undefined
-    };
-  }
-
-  // Maps visibility to the activity `to` addressing.
-  private getPostAudience(visibility: string): string[] {
-    switch (visibility) {
-      case 'public':
-        return ['https://www.w3.org/ns/activitystreams#Public'];
-      case 'unlisted':
-        return [];
-      case 'followers':
-        return [`${this.instanceUrl}/users/followers`];
-      case 'direct':
-        return []; // Per-recipient addressing for direct posts is absent.
-      default:
-        return ['https://www.w3.org/ns/activitystreams#Public'];
-    }
-  }
-
   // Plain text to MessagePart[], resolving mentions and emojis.
   private async formatPostContent(content: string): Promise<any> {
     const { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData } = await import('@/utils/unifiedContentProcessing');
@@ -2269,15 +1889,6 @@ export class ActivityPubService {
     ]);
     
     return parseContentToMessageParts(content, usernameToUserDataMap, emojiDataMap);
-  }
-
-  // MessagePart[] to the HTML body sent over federation.
-  private async contentToHtml(content: any): Promise<string> {
-    if (typeof content === 'string') return content;
-    if (!Array.isArray(content)) return '';
-
-    const { convertMessagePartsToActivityPubHTML } = await import('@/utils/unifiedContentProcessing');
-    return convertMessagePartsToActivityPubHTML(content);
   }
 
   private transformDatabasePostToTimelinePost(post: any): TimelinePost {

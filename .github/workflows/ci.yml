@@ -55,10 +55,68 @@ jobs:
           CI: true
 
   # ----------------------------------------------------------------
-  # Type checking
+  # Bot gateway tests (REST API, bot auth)
+  # ----------------------------------------------------------------
+  bot-gateway-tests:
+    name: Bot Gateway Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: npm
+          cache-dependency-path: bot-gateway/package-lock.json
+
+      - run: npm ci
+        working-directory: bot-gateway
+
+      - run: npx vitest run
+        working-directory: bot-gateway
+        env:
+          CI: true
+
+  # ----------------------------------------------------------------
+  # Bot gateway against a database built from db_schema/init/.
+  #
+  # plpgsql resolves column references at first execution, so an RPC naming a
+  # column its table lacks installs cleanly and raises only when called. Every
+  # supabase.rpc() name in bot-gateway/src is checked against the schema and the
+  # authentication and emoji paths are invoked.
+  # ----------------------------------------------------------------
+  bot-gateway-db-tests:
+    name: Bot Gateway DB Tests
+    runs-on: ubuntu-latest
+    env:
+      BOT_GATEWAY_DB_CONTAINER: ci-botgw-rpc-${{ github.run_id }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: npm
+          cache-dependency-path: bot-gateway/package-lock.json
+
+      - run: npm ci
+        working-directory: bot-gateway
+
+      - run: npm run test:db
+        working-directory: bot-gateway
+        env:
+          CI: true
+
+      - name: Remove the test database container
+        if: always()
+        run: docker rm -f "$BOT_GATEWAY_DB_CONTAINER" || true
+
+  # ----------------------------------------------------------------
+  # Type checking. One job per package: vue-tsc reads tsconfig.app.json and
+  # tsconfig.node.json and sees neither backend.
   # ----------------------------------------------------------------
   type-check:
-    name: Type Check
+    name: Type Check (app)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -71,6 +129,42 @@ jobs:
       - run: npm ci
 
       - run: npx vue-tsc --build --force
+
+  federation-type-check:
+    name: Type Check (federation-backend)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: npm
+          cache-dependency-path: federation-backend/package-lock.json
+
+      - run: npm ci
+        working-directory: federation-backend
+
+      - run: npm run type-check
+        working-directory: federation-backend
+
+  bot-gateway-type-check:
+    name: Type Check (bot-gateway)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: npm
+          cache-dependency-path: bot-gateway/package-lock.json
+
+      - run: npm ci
+        working-directory: bot-gateway
+
+      - run: npm run type-check
+        working-directory: bot-gateway
 
   # ----------------------------------------------------------------
   # Build verification
@@ -95,80 +189,170 @@ jobs:
           VITE_SUPABASE_ANON_KEY: placeholder-key
 
   # ----------------------------------------------------------------
-  # E2E tests (PRs to master only; needs a real Supabase backend)
+  # Postgres, GoTrue and PostgREST raised from db_schema/init/, seeded, then
+  # driven through supabase-js. e2e/stack.sh generates every credential at
+  # bring-up; no repository secret is read.
   #
-  # Configure repo secrets (Settings → Secrets → Actions):
-  #   TEST_SUPABASE_URL, TEST_SUPABASE_ANON_KEY, TEST_SUPABASE_SERVICE_ROLE_KEY
-  # Point them at a dedicated CI/staging instance (not production).
-  # Skipped when secrets are unset (e.g. forks or before setup).
+  # Exercises the schema build, password sign-in, the JWT claims GUC reaching
+  # auth.uid(), one RLS allow, one RLS deny in each of its two shapes, and one
+  # RPC. Storage, realtime, imgproxy, the federation backend and the browser
+  # are outside the stack.
   # ----------------------------------------------------------------
-  e2e-tests:
-    name: E2E Tests
+  e2e-stack:
+    name: E2E Stack
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' && github.base_ref == 'master'
-    needs: [build]
-    env:
-      # Hoist secret presence into env so step-level `if` can read it.
-      # (The `secrets` context is not reliably available in `if` expressions.)
-      HAS_TEST_SUPABASE: ${{ secrets.TEST_SUPABASE_URL != '' }}
+    timeout-minutes: 30
     steps:
-      - name: Skip notice
-        if: env.HAS_TEST_SUPABASE != 'true'
-        run: echo "TEST_SUPABASE_* secrets not configured - skipping E2E tests."
-
       - uses: actions/checkout@v4
-        if: env.HAS_TEST_SUPABASE == 'true'
 
       - uses: actions/setup-node@v4
-        if: env.HAS_TEST_SUPABASE == 'true'
         with:
           node-version-file: '.nvmrc'
           cache: npm
 
       - run: npm ci
-        if: env.HAS_TEST_SUPABASE == 'true'
+
+      - run: npm run e2e:verify
+
+      - name: Tear the stack down
+        if: always()
+        run: npm run e2e:down
+
+  # ----------------------------------------------------------------
+  # The browser journeys, against the same stack. e2e-stack proves the schema
+  # and RLS answer correctly through supabase-js; this drives the built app,
+  # so a query the UI issues but no unit test covers still has to work.
+  #
+  # Separate from e2e-stack because it needs a browser and a dev server, and
+  # a Playwright install failure should not be reported as a schema failure.
+  # ----------------------------------------------------------------
+  e2e-journeys:
+    name: E2E Journeys
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: npm
+
+      - run: npm ci
 
       - run: npx playwright install --with-deps chromium
-        if: env.HAS_TEST_SUPABASE == 'true'
 
-      - run: npx playwright test --project=chromium
-        if: env.HAS_TEST_SUPABASE == 'true'
+      # stack.sh writes e2e/stack.env, which playwright.config.ts loads before
+      # .env.test, so the specs and the dev server both address this stack.
+      - run: npm run e2e:up
+      - run: npm run e2e:seed
+
+      - run: npx playwright test --project=journeys
         env:
           CI: true
-          TEST_SUPABASE_URL: ${{ secrets.TEST_SUPABASE_URL }}
-          TEST_SUPABASE_ANON_KEY: ${{ secrets.TEST_SUPABASE_ANON_KEY }}
-          TEST_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.TEST_SUPABASE_SERVICE_ROLE_KEY }}
-          VITE_SUPABASE_URL: ${{ secrets.TEST_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.TEST_SUPABASE_ANON_KEY }}
+
+      - name: Keep the report when a journey fails
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+
+      - name: Tear the stack down
+        if: always()
+        run: npm run e2e:down
+
+  # ----------------------------------------------------------------
+  # ActivityPub round trip: federation-backend's createApp() against a peer
+  # inbox bound to the compose bridge gateway, over a database built from
+  # db_schema/init/. HTTP signature, Digest and delivery are asserted on the
+  # bytes each side received. e2e/federation/stack.sh generates every
+  # credential at bring-up; no repository secret is read.
+  #
+  # Both installs are load-bearing: roundtrip.ts resolves
+  # @supabase/supabase-js from the root node_modules, and stack.sh runs it with
+  # federation-backend's tsx.
+  # ----------------------------------------------------------------
+  federation-roundtrip:
+    name: Federation Round Trip
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            federation-backend/package-lock.json
+
+      - run: npm ci
+
+      - run: npm ci
+        working-directory: federation-backend
+
+      - run: bash e2e/federation/stack.sh verify
+
+      - name: Tear the stack down
+        if: always()
+        run: bash e2e/federation/stack.sh down
 
   # ----------------------------------------------------------------
   # Single required check for branch protection.
   #
   # `needs` alone is not enough: a skipped or cancelled dependency leaves this
   # job skipped, and a skipped required check reads as success. The step below
-  # inspects each result explicitly, so only `success` - or a deliberate `skipped`
-  # for the conditional E2E job - passes.
+  # inspects each result explicitly.
+  #
+  # A job absent from both lists below is a job branch protection never sees.
+  # Every job in this workflow appears in `needs` and in the checks.
   # ----------------------------------------------------------------
   ci-verdict:
     name: CI verdict
     runs-on: ubuntu-latest
     if: always()
-    needs: [unit-tests, federation-tests, type-check, build, e2e-tests]
+    needs:
+      - unit-tests
+      - federation-tests
+      - bot-gateway-tests
+      - bot-gateway-db-tests
+      - type-check
+      - federation-type-check
+      - bot-gateway-type-check
+      - build
+      - e2e-stack
+      - e2e-journeys
+      - federation-roundtrip
     steps:
       - name: Require every job to have succeeded
         run: |
           fail=0
+
+          # Only success passes. `skipped` included: no job here is conditional,
+          # so a skipped dependency means one of its own dependencies failed.
           check() {
             case "$2" in
-              success) printf '  ok       %s\n' "$1" ;;
-              skipped) printf '  skipped  %s\n' "$1" ;;
-              *)       printf '  FAILED   %s (%s)\n' "$1" "$2"; fail=1 ;;
+              success) printf '  ok        %s\n' "$1" ;;
+              *)       printf '  FAILED    %s (%s)\n' "$1" "$2"; fail=1 ;;
             esac
           }
-          check "unit-tests"       "${{ needs.unit-tests.result }}"
-          check "federation-tests" "${{ needs.federation-tests.result }}"
-          check "type-check"       "${{ needs.type-check.result }}"
-          check "build"            "${{ needs.build.result }}"
-          check "e2e-tests"        "${{ needs.e2e-tests.result }}"
+
+          check "unit-tests"             "${{ needs.unit-tests.result }}"
+          check "federation-tests"       "${{ needs.federation-tests.result }}"
+          check "bot-gateway-tests"      "${{ needs.bot-gateway-tests.result }}"
+          check "bot-gateway-db-tests"   "${{ needs.bot-gateway-db-tests.result }}"
+          check "type-check"             "${{ needs.type-check.result }}"
+          check "federation-type-check"  "${{ needs.federation-type-check.result }}"
+          check "bot-gateway-type-check" "${{ needs.bot-gateway-type-check.result }}"
+          check "build"                  "${{ needs.build.result }}"
+          check "e2e-stack"              "${{ needs.e2e-stack.result }}"
+          check "e2e-journeys"           "${{ needs.e2e-journeys.result }}"
+          check "federation-roundtrip"   "${{ needs.federation-roundtrip.result }}"
+
           [ "$fail" -eq 0 ] || { echo "::error::one or more CI jobs failed"; exit 1; }
           echo "all CI jobs green"

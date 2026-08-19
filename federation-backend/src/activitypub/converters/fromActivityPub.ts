@@ -13,7 +13,7 @@ export function noteToContent(note: any): any[] {
   }
   
   // Step 1: Clean HTML to get plain text
-  let cleanText = note.content;
+  let cleanText: string = note.content;
   cleanText = cleanText.replace(/<br\s*\/?>/gi, '\n');
   // Block-level closing tags: <p>, <blockquote>, <h1>-<h6> imply paragraph breaks (double newline)
   cleanText = cleanText.replace(/<\/(?:p|blockquote|h[1-6])>/gi, '\n\n');
@@ -308,6 +308,9 @@ export function actorToProfile(actor: any): {
   outbox_url?: string;
   followers_url?: string;
   following_url?: string;
+  profile_fields?: Array<{ name: string; value: string }>;
+  federation_discoverable?: boolean;
+  manually_approves_followers?: boolean;
   bio_emojis?: Array<{ name: string; url: string }>;
   display_name_emojis?: Array<{ name: string; url: string }>;
 } {

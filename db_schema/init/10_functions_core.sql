@@ -554,11 +554,11 @@ $$;
 -- STATUS HELPERS
 -- ---------------------------------------------------------------------------
 
--- Get custom status
+-- Get custom status. VOLATILE, not STABLE: the expiry branch clears the row it read, and
+-- Postgres rejects an UPDATE inside a non-volatile function with 0A000.
 CREATE OR REPLACE FUNCTION public.get_custom_status(p_user_id uuid)
 RETURNS jsonb
 LANGUAGE plpgsql
-STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$

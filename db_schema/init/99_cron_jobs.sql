@@ -5,12 +5,18 @@
 -- Requires pg_cron extension (enabled in 00_extensions.sql).
 -- =============================================================================
 
--- Expired/used-up invites linger 30 days for the "Recent Invites" history, then die
+-- Expired/used-up invites linger 30 days for the "Recent Invites" history, then die.
+--
+-- pg_temp is named explicitly. This file loads after 99_performance_hardening.sql, so the
+-- search_path normalisation there never sees anything declared here; the pin has to be
+-- right at the declaration. Omitting pg_temp leaves the session's temporary schema searched
+-- first for relation names, which in a SECURITY DEFINER function run by cron means the
+-- unqualified `invites` below is whatever the calling session put there.
 CREATE OR REPLACE FUNCTION public.purge_stale_invites()
 RETURNS integer
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, pg_temp
 AS $fn$
 DECLARE
   deleted_count integer;

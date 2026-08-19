@@ -603,7 +603,7 @@ describe('fromActivityPub converters', () => {
       }
       const profile = actorToProfile(actor)
       expect(profile.profile_fields).toHaveLength(2)
-      expect(profile.profile_fields[0].name).toBe('Website')
+      expect(profile.profile_fields?.[0].name).toBe('Website')
     })
 
     it('extracts bio emojis from actor tags', () => {
@@ -616,7 +616,7 @@ describe('fromActivityPub converters', () => {
       }
       const profile = actorToProfile(actor)
       expect(profile.bio_emojis).toHaveLength(1)
-      expect(profile.bio_emojis[0].name).toBe('verified')
+      expect(profile.bio_emojis?.[0].name).toBe('verified')
     })
 
     it('handles Misskey-style emojis object on actor', () => {
@@ -627,7 +627,7 @@ describe('fromActivityPub converters', () => {
       }
       const profile = actorToProfile(actor)
       expect(profile.bio_emojis).toHaveLength(1)
-      expect(profile.bio_emojis[0].name).toBe('blobfox')
+      expect(profile.bio_emojis?.[0].name).toBe('blobfox')
     })
 
     it('extracts Harmony extensions (color, custom_status)', () => {

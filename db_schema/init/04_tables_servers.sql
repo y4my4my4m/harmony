@@ -276,8 +276,9 @@ CREATE TABLE IF NOT EXISTS public.thread_members (
     user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
     joined_at timestamp with time zone DEFAULT now() NOT NULL,
     last_read_at timestamp with time zone,
+    last_read_message_id uuid,
     muted boolean DEFAULT false,
-    
+
     UNIQUE(thread_id, user_id)
 );
 
@@ -430,7 +431,10 @@ CREATE TABLE IF NOT EXISTS public.user_servers (
     -- Notifications
     muted boolean DEFAULT false,
     muted_until timestamp with time zone,
-    
+
+    -- Membership created by a temporary invite; the join is not permanent.
+    temporary boolean,
+
     UNIQUE(user_id, server_id),
     CONSTRAINT user_servers_status_check CHECK (status IN ('pending', 'accepted', 'banned')),
     CONSTRAINT user_servers_nickname_length_check CHECK (nickname IS NULL OR char_length(nickname) <= 64)
@@ -474,6 +478,13 @@ CREATE TABLE IF NOT EXISTS public.server_roles (
     is_admin boolean DEFAULT false,
     mentionable boolean DEFAULT true,
     hoist boolean DEFAULT false,
+
+    -- Role icon: an uploaded image or a single unicode glyph.
+    icon_url text,
+    unicode_emoji text,
+
+    -- ActivityPub id when the role originates on another instance.
+    ap_id text,
 
     CONSTRAINT server_roles_name_length_check CHECK (char_length(name) <= 100)
 );

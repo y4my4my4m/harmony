@@ -179,65 +179,6 @@ export class ServiceWorkerManager {
     }
   }
 
-  async subscribeToPushNotifications(userId: string): Promise<PushSubscription | null> {
-    try {
-      if (!this.registration) {
-        debug.error('ServiceWorker not registered')
-        return null
-      }
-
-      let subscription = await this.registration.pushManager.getSubscription()
-      
-      if (!subscription) {
-        const vapidPublicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY
-        
-        if (!vapidPublicKey) {
-          debug.error('VAPID public key not configured')
-          return null
-        }
-
-        subscription = await this.registration.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: this.urlBase64ToUint8Array(vapidPublicKey)
-        })
-
-        debug.log('Push subscription created:', subscription)
-      }
-
-      await this.sendSubscriptionToServer(subscription, userId)
-      
-      return subscription
-    } catch (error) {
-      debug.error('Error subscribing to push notifications:', error)
-      return null
-    }
-  }
-
-  // Upserts on user_id; one subscription row per user.
-  private async sendSubscriptionToServer(subscription: PushSubscription, userId: string): Promise<void> {
-    try {
-      const { supabase } = await import('@/supabase')
-      
-      const { error } = await supabase
-        .from('push_subscriptions')
-        .upsert({
-          user_id: userId,
-          subscription: subscription.toJSON(),
-          endpoint: subscription.endpoint
-        }, {
-          onConflict: 'user_id'
-        })
-
-      if (error) {
-        throw error
-      }
-
-      debug.log('Push subscription saved to server')
-    } catch (error) {
-      debug.error('Error saving push subscription:', error)
-    }
-  }
-
   private handleServiceWorkerMessage(event: MessageEvent): void {
     debug.log('Message from ServiceWorker:', event.data)
 
@@ -494,49 +435,6 @@ export class ServiceWorkerManager {
       type: 'DISMISS_NOTIFICATIONS',
       ...criteria
     })
-  }
-
-  // Unsubscribes the PushSubscription and deletes the server-side row.
-  async unsubscribeFromPush(userId: string): Promise<boolean> {
-    try {
-      if (!this.registration) return false
-
-      const subscription = await this.registration.pushManager.getSubscription()
-      
-      if (subscription) {
-        await subscription.unsubscribe()
-        
-        const { supabase } = await import('@/supabase')
-        await supabase
-          .from('push_subscriptions')
-          .delete()
-          .eq('user_id', userId)
-
-        debug.log('Unsubscribed from push notifications')
-        return true
-      }
-
-      return false
-    } catch (error) {
-      debug.error('Error unsubscribing from push:', error)
-      return false
-    }
-  }
-
-  // URL-safe base64 VAPID key to the Uint8Array applicationServerKey wants.
-  private urlBase64ToUint8Array(base64String: string): Uint8Array {
-    const padding = '='.repeat((4 - base64String.length % 4) % 4)
-    const base64 = (base64String + padding)
-      .replace(/-/g, '+')
-      .replace(/_/g, '/')
-
-    const rawData = window.atob(base64)
-    const outputArray = new Uint8Array(rawData.length)
-
-    for (let i = 0; i < rawData.length; ++i) {
-      outputArray[i] = rawData.charCodeAt(i)
-    }
-    return outputArray
   }
 
   // Reloads the page once the new worker takes control.

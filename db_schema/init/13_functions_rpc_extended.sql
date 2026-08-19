@@ -975,18 +975,22 @@ $$;
 -- ---------------------------------------------------------------------------
 -- Function: get_batch_post_emoji_reactions
 -- ---------------------------------------------------------------------------
+-- Chip identity is the (emoji_id, custom_emoji_content) pair, compared column-wise with
+-- IS NOT DISTINCT FROM so a NULL emoji_id is a value rather than a wildcard. A local picker
+-- reaction stores (uuid, ':name:'); the same shortcode from a remote actor stores
+-- (NULL, ':name:'). Matching either column alone puts both rows in both groups.
 CREATE OR REPLACE FUNCTION public.get_batch_post_emoji_reactions(p_post_ids uuid[], p_user_limit integer DEFAULT 5) RETURNS TABLE(post_id uuid, emoji_id uuid, emoji_name text, emoji_url text, custom_emoji_content text, reaction_count bigint, user_reactions jsonb, current_user_reacted boolean)
     LANGUAGE plpgsql STABLE
+    SET search_path TO 'public', 'extensions', 'pg_temp'
     AS $$
 DECLARE
     current_profile_id uuid;
 BEGIN
-    -- FIXED: Use get_current_profile_id() instead of auth.uid()
-    -- post_interactions.user_id stores PROFILE IDs, not auth user IDs
+    -- post_interactions.user_id stores profile ids, not auth user ids.
     current_profile_id := public.get_current_profile_id();
-    
+
     RETURN QUERY
-    SELECT 
+    SELECT
         pi.post_id,
         pi.emoji_id,
         e.name::text as emoji_name,
@@ -994,40 +998,39 @@ BEGIN
         COALESCE(e.url::text, MAX(pi.metadata->>'remote_emoji_url')) as emoji_url,
         pi.custom_emoji_content,
         COUNT(*)::bigint as reaction_count,
-        -- Limited user data for tooltips
+        -- Limited user data for tooltips. p_user_limit is applied in the inner subquery:
+        -- a LIMIT beside jsonb_agg bounds the aggregate's single output row and truncates
+        -- nothing.
         (
-            SELECT jsonb_agg(
-                jsonb_build_object(
-                    'user_id', sub_pi.user_id,
-                    'username', sub_p.username,
-                    'display_name', sub_p.display_name,
-                    'avatar_url', sub_p.avatar_url,
-                    'created_at', sub_pi.created_at
-                )
+            SELECT jsonb_agg(recent.entry ORDER BY recent.created_at DESC)
+            FROM (
+                SELECT jsonb_build_object(
+                           'user_id', sub_pi.user_id,
+                           'username', sub_p.username,
+                           'display_name', sub_p.display_name,
+                           'avatar_url', sub_p.avatar_url,
+                           'created_at', sub_pi.created_at
+                       ) AS entry,
+                       sub_pi.created_at
+                FROM post_interactions sub_pi
+                LEFT JOIN profiles sub_p ON sub_pi.user_id = sub_p.id
+                WHERE sub_pi.post_id = pi.post_id
+                  AND sub_pi.interaction_type = 'emoji_reaction'
+                  AND sub_pi.emoji_id IS NOT DISTINCT FROM pi.emoji_id
+                  AND sub_pi.custom_emoji_content IS NOT DISTINCT FROM pi.custom_emoji_content
                 ORDER BY sub_pi.created_at DESC
-            )
-            FROM post_interactions sub_pi
-            LEFT JOIN profiles sub_p ON sub_pi.user_id = sub_p.id
-            WHERE sub_pi.post_id = pi.post_id
-              AND sub_pi.interaction_type = 'emoji_reaction'
-              AND (
-                  (pi.emoji_id IS NOT NULL AND sub_pi.emoji_id = pi.emoji_id) OR
-                  (pi.custom_emoji_content IS NOT NULL AND sub_pi.custom_emoji_content = pi.custom_emoji_content)
-              )
-            LIMIT p_user_limit
+                LIMIT p_user_limit
+            ) recent
         ) as user_reactions,
-        -- FIXED: Check if current user has reacted using PROFILE ID
-        CASE 
+        CASE
             WHEN current_profile_id IS NULL THEN false
             ELSE EXISTS(
                 SELECT 1 FROM post_interactions check_pi
                 WHERE check_pi.post_id = pi.post_id
-                  AND check_pi.user_id = current_profile_id  -- FIXED: was auth.uid()
+                  AND check_pi.user_id = current_profile_id
                   AND check_pi.interaction_type = 'emoji_reaction'
-                  AND (
-                      (pi.emoji_id IS NOT NULL AND check_pi.emoji_id = pi.emoji_id) OR
-                      (pi.custom_emoji_content IS NOT NULL AND check_pi.custom_emoji_content = pi.custom_emoji_content)
-                  )
+                  AND check_pi.emoji_id IS NOT DISTINCT FROM pi.emoji_id
+                  AND check_pi.custom_emoji_content IS NOT DISTINCT FROM pi.custom_emoji_content
             )
         END as current_user_reacted
     FROM post_interactions pi
@@ -1081,6 +1084,9 @@ $$;
 -- ---------------------------------------------------------------------------
 -- Function: get_conversation_thread
 -- ---------------------------------------------------------------------------
+-- p_conversation_id stays text: PostgREST dispatches on the declared argument type, and
+-- the sibling get_activitypub_conversation_thread takes text too. The cast is on the
+-- parameter rather than the column so the comparison stays sargable.
 CREATE OR REPLACE FUNCTION public.get_conversation_thread(p_conversation_id text, p_user_id uuid) RETURNS jsonb
     LANGUAGE plpgsql
     AS $$
@@ -1094,7 +1100,7 @@ BEGIN
   -- Get the root post (the one that started the conversation)
   SELECT to_jsonb(tp.*) INTO root_post
   FROM timeline_posts tp
-  WHERE tp.conversation_id = p_conversation_id
+  WHERE tp.conversation_id = p_conversation_id::uuid
     AND tp.reply_context IS NULL
   ORDER BY tp.created_at ASC
   LIMIT 1;
@@ -1122,7 +1128,7 @@ BEGIN
     AND reb.user_id = p_user_id AND reb.interaction_type = 'reblog'
   LEFT JOIN post_interactions book ON tp.id = book.post_id 
     AND book.user_id = p_user_id AND book.interaction_type = 'bookmark'
-  WHERE tp.conversation_id = p_conversation_id;
+  WHERE tp.conversation_id = p_conversation_id::uuid;
   
   -- Get conversation stats
   SELECT 
@@ -1131,7 +1137,7 @@ BEGIN
     MAX(tp.created_at)
   INTO reply_count, participant_count, last_updated
   FROM timeline_posts tp
-  WHERE tp.conversation_id = p_conversation_id;
+  WHERE tp.conversation_id = p_conversation_id::uuid;
   
   RETURN jsonb_build_object(
     'root_post', root_post,
@@ -1460,18 +1466,19 @@ $$;
 -- ---------------------------------------------------------------------------
 -- Function: get_post_emoji_reactions
 -- ---------------------------------------------------------------------------
+-- Single-post form of get_batch_post_emoji_reactions; same match key and same user limit.
 CREATE OR REPLACE FUNCTION public.get_post_emoji_reactions(p_post_id uuid, p_user_limit integer DEFAULT 5) RETURNS TABLE(emoji_id uuid, emoji_name text, emoji_url text, custom_emoji_content text, reaction_count bigint, user_reactions jsonb, current_user_reacted boolean)
     LANGUAGE plpgsql STABLE
+    SET search_path TO 'public', 'extensions', 'pg_temp'
     AS $$
 DECLARE
     current_profile_id uuid;
 BEGIN
-    -- FIXED: Use get_current_profile_id() instead of auth.uid()
-    -- post_interactions.user_id stores PROFILE IDs, not auth user IDs
+    -- post_interactions.user_id stores profile ids, not auth user ids.
     current_profile_id := public.get_current_profile_id();
-    
+
     RETURN QUERY
-    SELECT 
+    SELECT
         pi.emoji_id,
         e.name::text as emoji_name,
         -- Support remote emoji URLs from metadata
@@ -1480,43 +1487,40 @@ BEGIN
         COUNT(*)::bigint as reaction_count,
         -- Only include limited user data for tooltips
         (
-            SELECT jsonb_agg(
-                jsonb_build_object(
-                    'user_id', sub_pi.user_id,
-                    'username', sub_p.username,
-                    'display_name', sub_p.display_name,
-                    'avatar_url', sub_p.avatar_url,
-                    'created_at', sub_pi.created_at
-                )
+            SELECT jsonb_agg(recent.entry ORDER BY recent.created_at DESC)
+            FROM (
+                SELECT jsonb_build_object(
+                           'user_id', sub_pi.user_id,
+                           'username', sub_p.username,
+                           'display_name', sub_p.display_name,
+                           'avatar_url', sub_p.avatar_url,
+                           'created_at', sub_pi.created_at
+                       ) AS entry,
+                       sub_pi.created_at
+                FROM post_interactions sub_pi
+                LEFT JOIN profiles sub_p ON sub_pi.user_id = sub_p.id
+                WHERE sub_pi.post_id = p_post_id
+                  AND sub_pi.interaction_type = 'emoji_reaction'
+                  AND sub_pi.emoji_id IS NOT DISTINCT FROM pi.emoji_id
+                  AND sub_pi.custom_emoji_content IS NOT DISTINCT FROM pi.custom_emoji_content
                 ORDER BY sub_pi.created_at DESC
-            )
-            FROM post_interactions sub_pi
-            LEFT JOIN profiles sub_p ON sub_pi.user_id = sub_p.id
-            WHERE sub_pi.post_id = p_post_id
-              AND sub_pi.interaction_type = 'emoji_reaction'
-              AND (
-                  (pi.emoji_id IS NOT NULL AND sub_pi.emoji_id = pi.emoji_id) OR
-                  (pi.custom_emoji_content IS NOT NULL AND sub_pi.custom_emoji_content = pi.custom_emoji_content)
-              )
-            LIMIT p_user_limit
+                LIMIT p_user_limit
+            ) recent
         ) as user_reactions,
-        -- FIXED: Check if current user has reacted using PROFILE ID
-        CASE 
+        CASE
             WHEN current_profile_id IS NULL THEN false
             ELSE EXISTS(
                 SELECT 1 FROM post_interactions check_pi
                 WHERE check_pi.post_id = p_post_id
-                  AND check_pi.user_id = current_profile_id  -- FIXED: was auth.uid()
+                  AND check_pi.user_id = current_profile_id
                   AND check_pi.interaction_type = 'emoji_reaction'
-                  AND (
-                      (pi.emoji_id IS NOT NULL AND check_pi.emoji_id = pi.emoji_id) OR
-                      (pi.custom_emoji_content IS NOT NULL AND check_pi.custom_emoji_content = pi.custom_emoji_content)
-                  )
+                  AND check_pi.emoji_id IS NOT DISTINCT FROM pi.emoji_id
+                  AND check_pi.custom_emoji_content IS NOT DISTINCT FROM pi.custom_emoji_content
             )
         END as current_user_reacted
     FROM post_interactions pi
     LEFT JOIN emojis e ON pi.emoji_id = e.id
-    WHERE pi.post_id = p_post_id 
+    WHERE pi.post_id = p_post_id
       AND pi.interaction_type = 'emoji_reaction'
     GROUP BY pi.emoji_id, e.name, e.url, pi.custom_emoji_content
     ORDER BY MIN(pi.created_at) ASC;
@@ -2832,20 +2836,35 @@ $$;
 CREATE OR REPLACE FUNCTION public.remove_post_emoji_reaction(p_user_id uuid, p_post_id uuid, p_emoji_id uuid DEFAULT NULL::uuid, p_custom_emoji_content text DEFAULT NULL::text) RETURNS boolean
     LANGUAGE plpgsql
     SECURITY DEFINER
-    SET search_path = public
+    SET search_path TO 'public', 'extensions', 'pg_temp'
     AS $$
 DECLARE
     v_deleted_count integer;
 BEGIN
-    DELETE FROM post_interactions 
+    -- SECURITY: Verify the caller owns this profile. SECURITY DEFINER bypasses
+    -- post_interactions_delete_own, so without this the caller-supplied p_user_id is the
+    -- only thing selecting rows and any caller can delete anyone's reactions. anon holds
+    -- EXECUTE. add_post_emoji_reaction carries the identical check.
+    IF NOT EXISTS (
+        SELECT 1 FROM profiles WHERE id = p_user_id AND auth_user_id = auth.uid()
+    ) THEN
+        RAISE EXCEPTION 'Unauthorized: Cannot remove reactions as another user';
+    END IF;
+
+    -- emoji_id is compared exactly, NULL included: it is what separates a local picker
+    -- reaction (uuid, ':name:') from a remote actor's shortcode (NULL, ':name:'), which the
+    -- read RPCs return as two chips. Matching on custom_emoji_content alone deletes both.
+    -- p_custom_emoji_content omitted alongside a p_emoji_id leaves the content
+    -- unconstrained: the emoji picker knows only the emoji id, and every row under one
+    -- emoji_id is the same emoji.
+    DELETE FROM post_interactions
     WHERE user_id = p_user_id
-      AND post_id = p_post_id 
+      AND post_id = p_post_id
       AND interaction_type = 'emoji_reaction'
-      AND (
-          (p_emoji_id IS NOT NULL AND emoji_id = p_emoji_id) OR
-          (p_custom_emoji_content IS NOT NULL AND custom_emoji_content = p_custom_emoji_content)
-      );
-    
+      AND emoji_id IS NOT DISTINCT FROM p_emoji_id
+      AND (custom_emoji_content IS NOT DISTINCT FROM p_custom_emoji_content
+           OR (p_custom_emoji_content IS NULL AND p_emoji_id IS NOT NULL));
+
     GET DIAGNOSTICS v_deleted_count = ROW_COUNT;
     RETURN v_deleted_count > 0;
 END;
@@ -2962,15 +2981,9 @@ BEGIN
     
     GET DIAGNOSTICS v_deleted_count = ROW_COUNT;
     
-    -- Mark expired signed prekeys as inactive
-    UPDATE public.prekeys
-    SET metadata = jsonb_set(COALESCE(metadata, '{}'::jsonb), '{expired}', 'true')
-    WHERE user_id = p_user_id
-        AND device_id = p_device_id
-        AND is_signed = true
-        AND expires_at IS NOT NULL
-        AND expires_at < NOW();
-    
+    -- No flag write for expired signed prekeys: prekeys has no metadata column in any
+    -- environment, and expires_at already carries the fact.
+
     -- Count remaining unused one-time prekeys
     SELECT COUNT(*) INTO v_remaining_count
     FROM public.prekeys
@@ -5576,16 +5589,16 @@ CREATE OR REPLACE FUNCTION public.get_conversation_context(in_post_id uuid, in_u
     LANGUAGE plpgsql
     AS $$
 DECLARE
-    conversation_root_id uuid;
+    v_conversation_root_id uuid;
     result jsonb;
 BEGIN
     SELECT COALESCE(p.conversation_root_id, p.id)
-    INTO conversation_root_id
+    INTO v_conversation_root_id
     FROM posts p
     WHERE p.id = in_post_id
       AND p.deleted_at IS NULL;
     
-    IF conversation_root_id IS NULL THEN
+    IF v_conversation_root_id IS NULL THEN
         RETURN '{}'::jsonb;
     END IF;
     
@@ -5633,7 +5646,7 @@ BEGIN
         LEFT JOIN post_interactions pi_book ON p.id = pi_book.post_id 
             AND pi_book.user_id = in_user_id 
             AND pi_book.interaction_type = 'bookmark'
-        WHERE COALESCE(p.conversation_root_id, p.id) = conversation_root_id
+        WHERE COALESCE(p.conversation_root_id, p.id) = v_conversation_root_id
           AND p.deleted_at IS NULL
         ORDER BY p.created_at ASC
     )
@@ -5676,14 +5689,14 @@ BEGIN
                 'is_bookmarked', cp.is_bookmarked
             )
         ) FILTER (WHERE cp.created_at > (SELECT created_at FROM posts WHERE id = in_post_id)), '[]'::jsonb),
-        'conversation_id', conversation_root_id
+        'conversation_id', v_conversation_root_id
     ) INTO result
     FROM conversation_posts cp;
     
     RETURN COALESCE(result, jsonb_build_object(
         'ancestors', '[]'::jsonb,
         'descendants', '[]'::jsonb,
-        'conversation_id', conversation_root_id
+        'conversation_id', v_conversation_root_id
     ));
 END;
 $$;

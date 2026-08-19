@@ -6,11 +6,10 @@ export { CorePostService, corePostService } from './CorePostService'
 export type { CreatePostData, UpdatePostData, CorePostServiceError } from './CorePostService'
 
 export { CoreProfileService, coreProfileService } from './CoreProfileService'
-export type { 
-  ProfileData, 
-  CoreProfileServiceError, 
-  ProfileSearchOptions, 
-  UserStats 
+export type {
+  ProfileData,
+  CoreProfileServiceError,
+  UserStats
 } from './CoreProfileService'
 
 export { CoreInteractionService, coreInteractionService } from './CoreInteractionService'

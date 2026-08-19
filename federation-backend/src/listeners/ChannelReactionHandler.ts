@@ -99,8 +99,6 @@ export async function handleChannelReactionFederation(
       `https://${hostDomain}/users/${reaction.user.username}`;
     const messageApId = message.metadata?.ap_id || 
       `https://${hostDomain}/messages/${message_id}`;
-    // eslint-disable-next-line unused-imports/no-unused-vars
-    const serverUrl = `https://${hostDomain}/servers/${server.id}`;
 
     const { content: emojiContent, emojiData } = formatEmojiForFederation(
       reaction.emoji,

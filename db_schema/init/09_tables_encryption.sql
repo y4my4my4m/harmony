@@ -248,7 +248,11 @@ CREATE TABLE IF NOT EXISTS public.conversation_encryption_settings (
     -- Encryption enabled?
     encryption_enabled boolean DEFAULT false,
     encryption_algorithm text DEFAULT 'm.megolm.v1.aes-sha2'::text,
-    
+
+    -- Participant device verification state. No writer sets it true; it is
+    -- read back as false until device cross-signing lands.
+    verified boolean DEFAULT false,
+
     -- Key rotation policy
     rotation_period_ms bigint DEFAULT 604800000, -- 7 days
     rotation_message_count integer DEFAULT 100,
@@ -352,6 +356,12 @@ CREATE TABLE IF NOT EXISTS public.encryption_audit_log (
     event_type text NOT NULL, -- 'key_generated', 'session_established', 'key_rotation', 'key_verification'
     severity text DEFAULT 'info'::text, -- 'info', 'warning', 'error', 'critical'
     description text,
+
+    -- Entity the event is about, when it is not the acting user.
+    related_user_id uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
+    related_conversation_id uuid REFERENCES public.conversations(id) ON DELETE SET NULL,
+    related_server_id uuid REFERENCES public.servers(id) ON DELETE SET NULL,
+
     metadata jsonb DEFAULT '{}'::jsonb,
     ip_address inet,
     user_agent text,

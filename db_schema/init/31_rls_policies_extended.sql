@@ -397,6 +397,14 @@ CREATE POLICY "megolm_session_shares_update" ON public.megolm_session_shares
         OR recipient_user_id = ( SELECT public.get_current_profile_id() )
     );
 
+-- Both directions: the client fallback deletes filtered on
+-- sender_user_id OR recipient_user_id.
+CREATE POLICY "megolm_session_shares_delete" ON public.megolm_session_shares
+    FOR DELETE USING (
+        sender_user_id = ( SELECT public.get_current_profile_id() )
+        OR recipient_user_id = ( SELECT public.get_current_profile_id() )
+    );
+
 -- Megolm key requests: own requests
 CREATE POLICY "megolm_key_requests_own" ON public.megolm_key_requests
     FOR ALL USING (requester_user_id = ( SELECT public.get_current_profile_id() ));
@@ -928,32 +936,33 @@ CREATE POLICY "Admins can delete federation deliveries" ON public.federation_del
     );
 
 -- ---------------------------------------------------------------------------
--- FEDERATED VOICE CALLS (schema varies: init vs production)
+-- FEDERATED VOICE CALLS
 -- ---------------------------------------------------------------------------
-DO $$ BEGIN
-    IF EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_schema = 'public' AND table_name = 'federated_voice_calls' AND column_name = 'caller_id'
-    ) THEN
-        EXECUTE 'DROP POLICY IF EXISTS "System can insert calls" ON public.federated_voice_calls';
-        EXECUTE 'CREATE POLICY "System can insert calls" ON public.federated_voice_calls FOR INSERT WITH CHECK (true)';
+-- Written only by federation-backend on the service role; no client path reads the table.
+-- With no SELECT policy the UPDATE policies below match no row either, since UPDATE reads
+-- first.
+--
+-- No INSERT policy. Production's "System can insert calls" was WITH CHECK (true) with no TO
+-- clause, letting any client key forge the row LiveKitService treats as proof of room
+-- membership.
+DROP POLICY IF EXISTS "System can insert calls" ON public.federated_voice_calls;
 
-        EXECUTE 'DROP POLICY IF EXISTS "Recipients can update call status" ON public.federated_voice_calls';
-        EXECUTE 'CREATE POLICY "Recipients can update call status" ON public.federated_voice_calls FOR UPDATE USING (public.get_current_profile_id() = recipient_id) WITH CHECK (public.get_current_profile_id() = recipient_id)';
+DROP POLICY IF EXISTS "Recipients can update call status" ON public.federated_voice_calls;
+CREATE POLICY "Recipients can update call status" ON public.federated_voice_calls
+    FOR UPDATE
+    USING (( SELECT public.get_current_profile_id() ) = recipient_id)
+    WITH CHECK (( SELECT public.get_current_profile_id() ) = recipient_id);
 
-        EXECUTE 'DROP POLICY IF EXISTS "Update own calls" ON public.federated_voice_calls';
-        EXECUTE 'CREATE POLICY "Update own calls" ON public.federated_voice_calls FOR UPDATE USING (caller_id = ( SELECT public.get_current_profile_id() ) OR recipient_id = ( SELECT public.get_current_profile_id() ))';
+DROP POLICY IF EXISTS "Update own calls" ON public.federated_voice_calls;
+CREATE POLICY "Update own calls" ON public.federated_voice_calls
+    FOR UPDATE USING (
+        caller_id = ( SELECT public.get_current_profile_id() )
+        OR recipient_id = ( SELECT public.get_current_profile_id() )
+    );
 
-        EXECUTE 'DROP POLICY IF EXISTS "Service role full access on calls" ON public.federated_voice_calls';
-        EXECUTE 'CREATE POLICY "Service role full access on calls" ON public.federated_voice_calls TO service_role USING (true) WITH CHECK (true)';
-    ELSE
-        RAISE NOTICE 'federated_voice_calls: caller_id column not found, skipping user-level policies';
-        EXECUTE 'DROP POLICY IF EXISTS "Service role full access on calls" ON public.federated_voice_calls';
-        EXECUTE 'CREATE POLICY "Service role full access on calls" ON public.federated_voice_calls TO service_role USING (true) WITH CHECK (true)';
-    END IF;
-EXCEPTION WHEN undefined_table THEN
-    RAISE NOTICE 'federated_voice_calls table does not exist, skipping';
-END $$;
+DROP POLICY IF EXISTS "Service role full access on calls" ON public.federated_voice_calls;
+CREATE POLICY "Service role full access on calls" ON public.federated_voice_calls
+    TO service_role USING (true) WITH CHECK (true);
 
 -- ---------------------------------------------------------------------------
 -- GIF FAVORITES

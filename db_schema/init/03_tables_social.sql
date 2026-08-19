@@ -175,9 +175,24 @@ CREATE INDEX IF NOT EXISTS idx_post_interactions_post_id ON public.post_interact
 CREATE INDEX IF NOT EXISTS idx_post_interactions_type ON public.post_interactions(interaction_type);
 
 -- Unique constraint for non-emoji interactions
-CREATE UNIQUE INDEX IF NOT EXISTS idx_post_interactions_unique 
-    ON public.post_interactions(user_id, post_id, interaction_type) 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_post_interactions_unique
+    ON public.post_interactions(user_id, post_id, interaction_type)
     WHERE interaction_type != 'emoji_reaction';
+
+-- One row per (user, post, emoji). The index above excludes emoji reactions because a user
+-- may hold several distinct ones on a post; without this they are covered by no unique index
+-- at all, any ON CONFLICT target raises 42P10, and update_post_reaction_counts adds 1 to
+-- favorites_count per duplicate row.
+--
+-- NULLS NOT DISTINCT rather than COALESCE sentinels: emoji_id is null on a unicode or remote
+-- reaction, custom_emoji_content is null on an emoji_id-only row, and the nil uuid and the
+-- empty string are both legal values a sentinel would collide with. NULLS NOT DISTINCT is
+-- PostgreSQL 15+; prod and staging dump as 15.8 and every image in the repo is
+-- supabase/postgres:15.8.x.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_post_interactions_emoji_unique
+    ON public.post_interactions(user_id, post_id, emoji_id, custom_emoji_content)
+    NULLS NOT DISTINCT
+    WHERE interaction_type = 'emoji_reaction';
 
 COMMENT ON TABLE public.post_interactions IS 'Post likes, reblogs, emoji reactions, and bookmarks';
 

@@ -4,13 +4,12 @@ name: Schema drift
 # migrations to a fresh init must leave the schema unchanged. Anything else
 # means a new instance and a migrated one end up different.
 
+# No paths filter: check-rpc-coverage.sh and check-schema-usage.sh read ~210 files under
+# src/, federation-backend/ and bot-gateway/, so a db_schema-only filter would silence them
+# on exactly the changes they exist to catch. A required check that does not run reports no
+# result, which branch protection cannot distinguish from a pass.
 on:
   pull_request:
-    paths:
-      - 'db_schema/**'
-      - 'scripts/test-db/**'
-      - 'scripts/schema-drift-check.sh'
-      - '.github/workflows/schema-drift.yml'
   workflow_dispatch:
 
 jobs:
@@ -59,6 +58,30 @@ jobs:
             exit 1
           fi
 
+  # The entry-point graph: which functions are reached by an RPC, a trigger, a policy, a
+  # view, a cron job or another function, and which are reached by nothing. Generated, so
+  # it rots silently unless a gate reads it.
+  reachability:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Regenerate the reachability graph
+        run: ./scripts/generate-reachability.sh
+
+      - name: Fail if the graph is stale
+        run: |
+          if ! git diff --exit-code db_schema/REACHABILITY.md; then
+            echo "::error::db_schema/REACHABILITY.md is out of date."
+            echo "::error::Run scripts/generate-reachability.sh and commit the result."
+            exit 1
+          fi
+
   rpc-coverage:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -72,6 +95,32 @@ jobs:
       # repo file, so a fresh install answered "function does not exist".
       - name: Check every called RPC exists in a fresh init/ build
         run: ./scripts/check-rpc-coverage.sh
+
+  schema-usage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      # A table or column in neither init/ nor the migrations is invisible to the drift
+      # gate. init/ carried a federated_voice_calls sharing only a name with the table
+      # federation-backend reads; TypeScript cannot see the database either.
+      - name: Check every table and column the app uses exists in a fresh init/ build
+        run: ./scripts/check-schema-usage.sh
+
+  # plpgsql resolves column and relation references at first execution, not at CREATE, so a
+  # body naming a column its table lacks installs cleanly and raises 42703 only when called.
+  # The drift gate sees nothing - init/ and the migrations carry the same broken text - and
+  # check-rpc-coverage sees nothing, because the function exists. verify_bot_token shipped
+  # that way and left bot auth answering 401 on every fresh install.
+  plpgsql:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check every plpgsql body against the schema it ships with
+        run: ./scripts/check-plpgsql.sh
 
   pgtap:
     runs-on: ubuntu-latest
@@ -93,7 +142,7 @@ jobs:
     name: Database verdict
     runs-on: ubuntu-latest
     if: always()
-    needs: [drift, surface, rpc-coverage, pgtap]
+    needs: [drift, surface, reachability, rpc-coverage, schema-usage, plpgsql, pgtap]
     steps:
       - name: Require every database gate to have succeeded
         run: |
@@ -106,7 +155,10 @@ jobs:
           }
           check "drift"        "${{ needs.drift.result }}"
           check "surface"      "${{ needs.surface.result }}"
+          check "reachability" "${{ needs.reachability.result }}"
           check "rpc-coverage" "${{ needs.rpc-coverage.result }}"
+          check "schema-usage" "${{ needs.schema-usage.result }}"
+          check "plpgsql"      "${{ needs.plpgsql.result }}"
           check "pgtap"        "${{ needs.pgtap.result }}"
           [ "$fail" -eq 0 ] || { echo "::error::one or more database gates failed"; exit 1; }
           echo "all database gates green"

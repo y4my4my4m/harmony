@@ -63,15 +63,37 @@ prepare "$C_BASE"
 
 log "migrated  <- init/init.sql + migrations/*.sql"
 prepare "$C_FULL"
+# A migration written for an older shape errors here and does nothing, which is
+# harmless only while init/ already carries its end state - the diff below is what
+# proves that. The reason is captured too: without it a migration that starts
+# failing for a NEW cause is indistinguishable from the known set.
 FAILED=$(docker exec "$C_FULL" bash -c '
   for f in /db_schema/migrations/*.sql; do
-    psql -U postgres -d postgres -v ON_ERROR_STOP=1 -q -f "$f" >/dev/null 2>&1 || basename "$f"
+    # RI_ConstraintTrigger names carry an OID that moves whenever init/ changes.
+    err=$(psql -U postgres -d postgres -v ON_ERROR_STOP=1 -q -f "$f" 2>&1 >/dev/null \
+          | grep -m1 -oP "ERROR:  \K.*" \
+          | sed "s/RI_ConstraintTrigger_[a-z]_[0-9]\+/RI_ConstraintTrigger_*/g") || true
+    [ -n "$err" ] && printf "%s\t%s\n" "$(basename "$f")" "$err"
   done
+  true
 ')
+EXPECTED="$ROOT/db_schema/EXPECTED-MIGRATION-FAILURES.tsv"
 if [ -n "$FAILED" ]; then
-  log "migrations that errored against a fresh init (expected for ones written"
-  log "for an older shape; listed so the count never drifts silently):"
-  echo "$FAILED" | sed 's/^/      /'
+  log "migrations that errored against a fresh init:"
+  printf '%s\n' "$FAILED" | sed 's/^/      /'
+fi
+if [ -r "$EXPECTED" ]; then
+  # Compare names and reasons. A reason that changes means the migration is now
+  # failing for a different cause than the one adjudicated.
+  if ! diff -u <(grep -v '^#' "$EXPECTED" | grep -v '^[[:space:]]*$' | sort) \
+               <(printf '%s\n' "$FAILED" | grep -v '^[[:space:]]*$' | sort) \
+       > /tmp/harmony-migfail.diff 2>&1; then
+    printf '\033[31mthe set of migrations failing against a fresh init changed.\033[0m\n' >&2
+    sed 's/^/    /' /tmp/harmony-migfail.diff >&2
+    printf '\033[31mAdjudicate each new line, then update %s.\033[0m\n' "${EXPECTED#$ROOT/}" >&2
+    exit 1
+  fi
+  log "migration failure set matches ${EXPECTED#$ROOT/}"
 fi
 
 log "diffing baseline against migrated"

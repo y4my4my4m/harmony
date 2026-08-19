@@ -99,9 +99,11 @@ export class BotRestAPI {
     
     // USER ENDPOINTS
     
-    this.router.get('/users/:userId', this.getUser.bind(this))
-    
+    // Express matches in registration order; /users/:userId would otherwise
+    // capture "@me" and hand it to a uuid column.
     this.router.get('/users/@me', this.getCurrentBot.bind(this))
+
+    this.router.get('/users/:userId', this.getUser.bind(this))
   }
   
   // MEDIA
@@ -191,7 +193,7 @@ export class BotRestAPI {
         })
         .select(`
           *,
-          author:bots!messages_bot_id_fkey(id, username, display_name, avatar_url)
+          bot:bots!messages_bot_id_fkey(id, username, display_name, avatar_url)
         `)
         .single()
       

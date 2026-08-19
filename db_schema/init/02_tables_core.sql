@@ -144,7 +144,8 @@ CREATE TABLE IF NOT EXISTS public.instance_config (
     config_value jsonb NOT NULL,
     description text,
     created_at timestamp with time zone DEFAULT now(),
-    updated_at timestamp with time zone DEFAULT now()
+    updated_at timestamp with time zone DEFAULT now(),
+    updated_by uuid REFERENCES public.profiles(id) ON DELETE SET NULL
 );
 
 -- Note: Default instance config is seeded in 98_seed_data.sql

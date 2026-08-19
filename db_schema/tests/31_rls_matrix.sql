@@ -18,7 +18,7 @@
 
 BEGIN;
 SET LOCAL search_path = tests, public;
-SELECT plan(67);
+SELECT plan(75);
 
 -- Setup, as postgres, before any impersonation. ------------------------------
 INSERT INTO auth.users (id, instance_id, aud, role, email)
@@ -46,7 +46,18 @@ VALUES ('b0000000-0000-0000-0000-00000000d001', 'wfrlsbob',
         '55555555-0000-0000-0000-000000000005', '22222222-0000-0000-0000-000000000002');
 
 INSERT INTO public.notifications (id, user_id, type)
-VALUES ('b0000000-0000-0000-0000-00000000e001', '11111111-0000-0000-0000-000000000001', 'system');
+VALUES ('b0000000-0000-0000-0000-00000000e001', '11111111-0000-0000-0000-000000000001', 'system'),
+       ('b0000000-0000-0000-0000-00000000e002', '22222222-0000-0000-0000-000000000002', 'system');
+
+-- A pending call to alice from a remote actor, of the shape
+-- VoiceActivityHandler.handleVoiceCallInvite writes.
+INSERT INTO public.federated_voice_calls
+  (id, ap_id, caller_federated_id, recipient_id, call_type, conversation_id,
+   livekit_url, room_name, status)
+VALUES ('b0000000-0000-0000-0000-00000000f001', 'https://remote.test/activities/call-1',
+        'https://remote.test/users/carol', '11111111-0000-0000-0000-000000000001',
+        'voice', '77777777-0000-0000-0000-000000000007', 'wss://livekit.test',
+        'federated-dm-77777777-0000-0000-0000-000000000007', 'pending');
 
 -- The seed row exists with a null secret; a null reads the same whether the
 -- policy hides the row or not.
@@ -432,9 +443,19 @@ SELECT throws_ok(
     '42501'::char(5), NULL,
     'anon cannot insert a notification');
 
+-- Both UPDATEs are unqualified. A WHERE clause reads columns, which brings the
+-- SELECT policy to bear as well, and notifications_select_own alone reduces the
+-- statement to zero rows for a non-owner -- the cell then holds whatever
+-- notifications_update_own says, including nothing. SET to a constant with no
+-- WHERE and no RETURNING leaves the UPDATE policy as the only filter.
+SELECT tests.authenticate_as('bbbbbbbb-0000-0000-0000-000000000002');
+UPDATE public.notifications SET is_read = true;
+SELECT is((SELECT is_read FROM public.notifications
+            WHERE id = 'b0000000-0000-0000-0000-00000000e002'), true,
+          'a user marks their own notification read');
+
 SELECT tests.authenticate_as('cccccccc-0000-0000-0000-000000000003');
-UPDATE public.notifications SET is_read = true
- WHERE id = 'b0000000-0000-0000-0000-00000000e001';
+UPDATE public.notifications SET is_read = true;
 SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
 SELECT is((SELECT is_read FROM public.notifications
             WHERE id = 'b0000000-0000-0000-0000-00000000e001'), false,
@@ -520,6 +541,67 @@ SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
 SELECT is((SELECT livekit_api_secret FROM public.instance_webrtc_settings),
           'livekit-secret-value',
           'a non-admin UPDATE of the livekit secret matches no row');
+
+-- FEDERATED VOICE CALLS ---------------------------------------------------------------
+-- A row here authorises a remote actor for a LiveKit room
+-- (LiveKitService.validateFederatedRoomAccess, dm_call branch). Only the service
+-- role writes it, and the service role bypasses RLS, so every client cell is a
+-- denial. The denials are privilege errors, not policy misses: anon and
+-- authenticated hold no write bit on the table.
+SELECT tests.clear_authentication();
+SELECT isnt_empty(
+    $q$SELECT id FROM public.federated_voice_calls
+        WHERE ap_id = 'https://remote.test/activities/call-1'$q$,
+    'the seeded federated call row exists');
+
+SELECT tests.authenticate_as_anon();
+SELECT throws_ok(
+    $q$INSERT INTO public.federated_voice_calls
+         (ap_id, caller_federated_id, recipient_id, call_type, livekit_url, room_name)
+       VALUES ('ap-forged-anon', 'https://evil.test/users/mallory',
+               '11111111-0000-0000-0000-000000000001', 'voice', 'wss://evil.test',
+               'federated-dm-77777777-0000-0000-0000-000000000007')$q$,
+    '42501'::char(5), NULL,
+    'anon cannot forge a federated call row');
+
+SELECT tests.authenticate_as('cccccccc-0000-0000-0000-000000000003');
+SELECT throws_ok(
+    $q$INSERT INTO public.federated_voice_calls
+         (ap_id, caller_federated_id, recipient_id, call_type, livekit_url, room_name)
+       VALUES ('ap-forged-mallory', 'https://evil.test/users/mallory',
+               '11111111-0000-0000-0000-000000000001', 'voice', 'wss://evil.test',
+               'federated-dm-77777777-0000-0000-0000-000000000007')$q$,
+    '42501'::char(5), NULL,
+    'a user party to nothing cannot forge a federated call row');
+
+-- alice is the recipient of the seeded row, so she is the most privileged client
+-- the table knows.
+SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
+SELECT throws_ok(
+    $q$INSERT INTO public.federated_voice_calls
+         (ap_id, caller_federated_id, recipient_id, call_type, livekit_url, room_name)
+       VALUES ('ap-forged-alice', 'https://evil.test/users/alice',
+               '11111111-0000-0000-0000-000000000001', 'voice', 'wss://evil.test',
+               'federated-dm-77777777-0000-0000-0000-000000000007')$q$,
+    '42501'::char(5), NULL,
+    'the recipient of a call cannot insert a federated call row either');
+
+SELECT throws_ok(
+    $q$UPDATE public.federated_voice_calls SET status = 'accepted'
+        WHERE id = 'b0000000-0000-0000-0000-00000000f001'$q$,
+    '42501'::char(5), NULL,
+    'the recipient cannot update the call row despite the UPDATE policies');
+
+SELECT throws_ok(
+    $q$DELETE FROM public.federated_voice_calls
+        WHERE id = 'b0000000-0000-0000-0000-00000000f001'$q$,
+    '42501'::char(5), NULL,
+    'the recipient cannot delete the call row');
+
+-- SELECT is still granted; no SELECT policy exists, so it yields nothing.
+SELECT is_empty(
+    $q$SELECT id FROM public.federated_voice_calls$q$,
+    'the recipient reads no federated call row');
 
 SELECT * FROM finish();
 ROLLBACK;

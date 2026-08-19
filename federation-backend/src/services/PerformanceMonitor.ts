@@ -6,9 +6,12 @@ import { logger } from '../utils/logger.js';
  * Tracks request latency, query times, federation health, and more
  */
 
+/** Emitting tier; stored verbatim in performance_metrics.source and slow_queries.source. */
+export type MetricSource = 'frontend' | 'backend' | 'federation-backend';
+
 export interface MetricOptions {
   labels?: Record<string, any>;
-  source?: 'frontend' | 'backend' | 'federation-backend';
+  source?: MetricSource;
 }
 
 export interface SlowQueryOptions {
@@ -16,7 +19,7 @@ export interface SlowQueryOptions {
   operationType?: string;
   tableName?: string;
   parameters?: Record<string, any>;
-  source?: string;
+  source?: MetricSource;
   userId?: string;
   requestId?: string;
 }

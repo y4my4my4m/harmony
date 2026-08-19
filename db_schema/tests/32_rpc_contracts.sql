@@ -18,7 +18,7 @@
 
 BEGIN;
 SET LOCAL search_path = tests, public;
-SELECT plan(54);
+SELECT plan(55);
 
 CREATE OR REPLACE FUNCTION pg_temp.args(p_name text) RETURNS text LANGUAGE sql STABLE AS $fn$
   SELECT pg_get_function_arguments(p.oid)
@@ -34,6 +34,24 @@ $fn$;
 
 CREATE OR REPLACE FUNCTION pg_temp.sig(p_name text) RETURNS text LANGUAGE sql STABLE AS $fn$
   SELECT pg_temp.args(p_name) || ' -> ' || pg_temp.res(p_name);
+$fn$;
+
+-- The named grantee in proacl, not has_function_privilege. Every function
+-- postgres creates in public also carries the PUBLIC entry =X/postgres, and
+-- has_function_privilege is satisfied by that alone: a REVOKE aimed at one role
+-- leaves it answering true. A NULL proacl means owner and PUBLIC only, so
+-- aclexplode yielding nothing is the correct negative.
+CREATE OR REPLACE FUNCTION pg_temp.granted_execute(p_name text, p_role text)
+RETURNS boolean LANGUAGE sql STABLE AS $fn$
+  SELECT EXISTS (
+    SELECT 1
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    CROSS JOIN LATERAL aclexplode(p.proacl) a
+    WHERE n.nspname = 'public' AND p.proname = p_name
+      AND a.grantee = p_role::regrole
+      AND a.privilege_type = 'EXECUTE'
+  );
 $fn$;
 
 -- Dispatch surface ------------------------------------------------------------
@@ -152,7 +170,14 @@ SELECT is(pg_temp.sig('queue_federation_job'),
 -- and authenticated. Adding a contracted RPC to that list leaves the signature
 -- intact and turns every call into "permission denied for function", which the
 -- readers above answer by falling back to the legacy path and the rest answer
--- with a broken screen.
+-- with a broken screen. That REVOKE names the role, so the role's own entry in
+-- proacl is what disappears; the PUBLIC entry left behind by CREATE FUNCTION is
+-- why the privilege has to be read per grantee.
+--
+-- Invocation does not substitute for that on a function still holding the PUBLIC
+-- entry: a role-only REVOKE leaves the call working, so the behaviour assertions
+-- below stay green. Functions 98_enable_rls.sql already revokes from PUBLIC --
+-- record_push_failure among them -- do lose access, and there the two agree.
 SELECT is_empty($q$
     SELECT f.fname, f.frole
     FROM (VALUES
@@ -164,12 +189,12 @@ SELECT is_empty($q$
         ('get_current_profile_id', 'authenticated'),
         ('is_current_user_admin',  'authenticated')
     ) AS f(fname, frole)
-    WHERE NOT has_function_privilege(f.frole, ('public.' || f.fname)::regproc, 'EXECUTE')
-$q$, 'every browser-called RPC is executable by authenticated');
+    WHERE NOT pg_temp.granted_execute(f.fname, f.frole)
+$q$, 'every browser-called RPC grants EXECUTE to authenticated by name');
 
 -- getInviteDetails is documented as the anonymous shared-link preview path.
-SELECT ok(has_function_privilege('anon', 'public.lookup_invite_by_code'::regproc, 'EXECUTE'),
-          'lookup_invite_by_code is executable by anon, which the link preview needs');
+SELECT ok(pg_temp.granted_execute('lookup_invite_by_code', 'anon'),
+          'lookup_invite_by_code grants EXECUTE to anon, which the link preview needs');
 
 SELECT is_empty($q$
     SELECT f.fname
@@ -177,8 +202,8 @@ SELECT is_empty($q$
         ('get_user_push_subscriptions'), ('record_push_success'),
         ('record_push_failure'), ('verify_bot_token')
     ) AS f(fname)
-    WHERE NOT has_function_privilege('service_role', ('public.' || f.fname)::regproc, 'EXECUTE')
-$q$, 'the push and bot-auth RPCs are executable by service_role');
+    WHERE NOT pg_temp.granted_execute(f.fname, 'service_role')
+$q$, 'the push and bot-auth RPCs grant EXECUTE to service_role by name');
 
 -- ---------------------------------------------------------------------------
 -- Behaviour. A signature can match while the body is broken.
@@ -408,11 +433,17 @@ SELECT results_eq(
 
 -- The dead endpoint is excluded by failure_count < 5. record_push_failure is
 -- the only thing that raises that counter, so the two contracts are one loop.
-SELECT is_empty(
-    $q$SELECT endpoint FROM public.get_user_push_subscriptions(
-         '11111111-0000-0000-0000-000000000001')
-        WHERE endpoint = 'https://push.test/dead'$q$,
-    'a subscription at five failures is withheld from delivery');
+--
+-- Counted against what the table holds rather than asserted as the absence of
+-- the dead endpoint: an is_empty over a function result is also satisfied by a
+-- function that returns nothing at all.
+SELECT results_eq(
+    $q$SELECT (SELECT count(*) FROM public.get_user_push_subscriptions(
+                 '11111111-0000-0000-0000-000000000001')),
+              (SELECT count(*) FROM public.push_subscriptions
+                WHERE user_id = '11111111-0000-0000-0000-000000000001')$q$,
+    $q$VALUES (1::bigint, 2::bigint)$q$,
+    'one of the two seeded subscriptions is withheld, the one at five failures');
 
 SELECT results_eq(
     $q$SELECT push_enabled, push_offline_only
@@ -440,11 +471,35 @@ SELECT results_eq(
 
 -- queue_federation_job -------------------------------------------------------
 -- Trigger bodies call it with the two required arguments and use the returned
--- uuid as the job id. The body swallows every exception, so a NULL return is
--- how a failed enqueue looks from inside a trigger.
-SELECT isnt(public.queue_federation_job('federate-contract-probe',
-              '{"target_domain":"contract.example"}'::jsonb), NULL,
-            'a two-argument enqueue returns a job uuid');
+-- uuid as the job id. The uuid is generated on the first line of the body and
+-- the EXCEPTION arm returns a non-NULL one too, so a non-NULL return asserts
+-- nothing about the enqueue; only the fallback leaves an observable trace.
+--
+-- pg_notify refuses a payload of 8000 bytes or more with 22023, which is the
+-- one failure reachable without altering the schema. The EXCEPTION arm then
+-- writes the federation_delivery_queue row the delivery worker drains and
+-- returns that row's id in place of the generated one.
+CREATE TEMP TABLE contract_enqueue AS
+SELECT public.queue_federation_job('federate-contract-probe',
+         jsonb_build_object('probe', 'oversized',
+                            'target_domain', 'contract.example',
+                            'target_inbox', 'https://contract.example/users/probe/inbox',
+                            'filler', repeat('x', 9000))) AS job_id;
+
+SELECT results_eq(
+    $q$SELECT q.id = (SELECT job_id FROM contract_enqueue),
+              q.target_domain, q.target_inbox_url, q.status
+         FROM public.federation_delivery_queue q
+        WHERE q.activity_data->>'probe' = 'oversized'$q$,
+    $q$VALUES (true, 'contract.example'::text,
+               'https://contract.example/users/probe/inbox'::text, 'pending'::text)$q$,
+    'an enqueue pg_notify refuses is written to the delivery queue and its id returned');
+
+-- No target_domain, nothing to address the fallback to. NULL is how a dropped
+-- job looks from inside a trigger.
+SELECT is(public.queue_federation_job('federate-contract-probe',
+            jsonb_build_object('filler', repeat('x', 9000))), NULL::uuid,
+          'an enqueue pg_notify refuses with no target domain returns NULL');
 
 SELECT * FROM finish();
 ROLLBACK;

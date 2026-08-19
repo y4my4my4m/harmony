@@ -11,7 +11,7 @@
 
 BEGIN;
 SET LOCAL search_path = tests, public;
-SELECT plan(17);
+SELECT plan(23);
 
 -- SECURITY DEFINER search_path ------------------------------------------------
 -- A SECURITY DEFINER function runs with the owner's privileges and resolves
@@ -36,6 +36,37 @@ SELECT is_empty(
                 false)
         ORDER BY 1$q$,
     'every SECURITY DEFINER function in public pins its search_path');
+
+-- A pin that omits pg_temp is not a pin. Postgres searches the session's temporary schema
+-- first for relation names unless pg_temp is named explicitly, so `SET search_path = public`
+-- still resolves an unqualified table to the caller's pg_temp copy. Naming it anywhere but
+-- last leaves the same hole for everything after it.
+CREATE OR REPLACE FUNCTION pg_temp.pg_temp_guarded(p_pin text)
+RETURNS boolean LANGUAGE sql IMMUTABLE AS $fn$
+  SELECT btrim(
+           (string_to_array(replace(split_part(p_pin, '=', 2), ' ', ''), ','))
+           [array_length(string_to_array(replace(split_part(p_pin, '=', 2), ' ', ''), ','), 1)]
+         ) = 'pg_temp';
+$fn$;
+
+SELECT ok(NOT pg_temp.pg_temp_guarded('search_path=public'),
+          'the pin detector rejects a path that never names pg_temp');
+SELECT ok(NOT pg_temp.pg_temp_guarded('search_path=pg_temp, public'),
+          'the pin detector rejects pg_temp named first, which is the default it must undo');
+SELECT ok(pg_temp.pg_temp_guarded('search_path=public, extensions, pg_temp'),
+          'the pin detector accepts pg_temp named last');
+
+SELECT is_empty(
+    $q$SELECT p.oid::regprocedure::text || '  ' || c AS pin_without_trailing_pg_temp
+         FROM pg_proc p
+         JOIN pg_namespace n ON n.oid = p.pronamespace
+         CROSS JOIN LATERAL unnest(coalesce(p.proconfig, '{}'::text[])) c
+        WHERE n.nspname = 'public'
+          AND p.prokind = 'f'
+          AND c LIKE 'search\_path=%'
+          AND NOT pg_temp.pg_temp_guarded(c)
+        ORDER BY 1$q$,
+    'every pinned function in public names pg_temp last');
 
 -- Bare helper calls in policy expressions -------------------------------------
 -- get_current_profile_id(), is_current_user_admin(), is_current_user_moderator()
@@ -83,9 +114,14 @@ SELECT is_empty(
 -- role except one holding BYPASSRLS or owning the table. Nothing raises, so the
 -- table reads as permanently empty.
 --
--- Four tables are deny-all on purpose. They are written by federation-backend
--- and the cron jobs, both of which connect as service_role and bypass RLS, and
--- no client path selects from them. Any fifth table joining them is an outage.
+-- The four names in the NOT IN list below are deny-all on purpose, not an
+-- oversight. activity_processing_logs, activitypub_processing_stats,
+-- federation_delivery_stats and files carry RLS with zero policies, so anon and
+-- authenticated select, insert, update and delete nothing on them despite
+-- holding the full table grants. The rows are reachable only by a role with
+-- BYPASSRLS or by the owner: service_role, which is how federation-backend and
+-- the cron jobs write them. No client path reads them. Any fifth table joining
+-- the list is an outage.
 SELECT cmp_ok((SELECT count(*) FROM pg_class c
                 JOIN pg_namespace n ON n.oid = c.relnamespace
                WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p')
@@ -195,19 +231,46 @@ SELECT cmp_ok((SELECT count(*) FROM pg_policy p
               'the catalog scan still sees the FOR ALL / TO PUBLIC / no-WITH-CHECK population');
 
 SELECT is_empty(
-    $q$SELECT c.relname AS tbl, p.polname AS policy, b.branch
+    $q$SELECT c.relname AS tbl, p.polname AS policy,
+              pg_get_expr(p.polqual, p.polrelid) AS qual
          FROM pg_policy p
          JOIN pg_class c ON c.oid = p.polrelid
          JOIN pg_namespace n ON n.oid = c.relnamespace
-         CROSS JOIN LATERAL pg_temp.or_branches(pg_get_expr(p.polqual, p.polrelid)) AS b(branch)
         WHERE n.nspname = 'public'
           AND p.polcmd = '*'
           AND p.polwithcheck IS NULL
           AND p.polroles = '{0}'
-          AND branch !~ 'auth\.(uid|role|jwt)\(\)'
-          AND branch !~ '(^|[^[:alnum:]_.])(public\.)?(get_current_profile_id|is_current_user_[a-z_]+|current_user_[a-z_]+)\('
+          AND pg_temp.branch_unguarded(pg_get_expr(p.polqual, p.polrelid))
         ORDER BY 1, 2$q$,
     'every FOR ALL policy with no TO and no WITH CHECK tests identity in each OR branch');
+
+-- Always-true write checks ----------------------------------------------------
+-- A write check of `true` delegates the whole decision to the table privilege,
+-- and the image's default privileges hand anon and authenticated arwdDxt on
+-- every table in public - so such a policy admits any client key unless its TO
+-- clause names service_role, which no client can assume. FOR ALL policies that
+-- omit WITH CHECK reuse the qual as the write check, hence the coalesce.
+SELECT cmp_ok((SELECT count(*) FROM pg_policy p
+                JOIN pg_class c ON c.oid = p.polrelid
+                JOIN pg_namespace n ON n.oid = c.relnamespace
+               WHERE n.nspname = 'public' AND p.polcmd IN ('a', '*')
+                 AND coalesce(pg_get_expr(p.polwithcheck, p.polrelid),
+                              pg_get_expr(p.polqual, p.polrelid)) = 'true'),
+              '>=', 12::bigint,
+              'the catalog scan still sees the always-true write-check population');
+
+SELECT is_empty(
+    $q$SELECT c.relname AS tbl, p.polname AS policy
+         FROM pg_policy p
+         JOIN pg_class c ON c.oid = p.polrelid
+         JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'public'
+          AND p.polcmd IN ('a', '*')
+          AND coalesce(pg_get_expr(p.polwithcheck, p.polrelid),
+                       pg_get_expr(p.polqual, p.polrelid)) = 'true'
+          AND p.polroles <> ARRAY[(SELECT oid FROM pg_roles WHERE rolname = 'service_role')]
+        ORDER BY 1, 2$q$,
+    'every policy whose write check is true is restricted to service_role');
 
 -- Federation trigger lists ----------------------------------------------------
 -- Both bodies name their triggers literally. 30_reconciled_functions.sql pins

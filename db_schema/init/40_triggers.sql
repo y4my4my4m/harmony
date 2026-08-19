@@ -376,6 +376,13 @@ CREATE TRIGGER trg_update_post_reply_count
     FOR EACH ROW
     EXECUTE FUNCTION public.update_post_reply_count();
 
+-- Maintain posts_count on the author's profile
+DROP TRIGGER IF EXISTS trg_update_profile_posts_count ON public.posts;
+CREATE TRIGGER trg_update_profile_posts_count
+    AFTER INSERT OR UPDATE OF is_deleted OR DELETE ON public.posts
+    FOR EACH ROW
+    EXECUTE FUNCTION public.update_profile_posts_count();
+
 -- Check post emoji reaction limit
 DROP TRIGGER IF EXISTS trigger_check_emoji_reaction_limit ON public.post_interactions;
 CREATE TRIGGER trigger_check_emoji_reaction_limit

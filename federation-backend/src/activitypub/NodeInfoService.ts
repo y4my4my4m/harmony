@@ -11,7 +11,7 @@ const router = Router();
  */
 router.get(
   '/.well-known/nodeinfo',
-  asyncHandler(async (req: Request, res: Response) => {
+  asyncHandler(async (_req: Request, res: Response) => {
     const baseUrl = `https://${config.INSTANCE_DOMAIN}`;
 
     res.json({
@@ -66,7 +66,7 @@ async function getInstanceConfig(supabase: any) {
 
 router.get(
   '/nodeinfo/2.0',
-  asyncHandler(async (req: Request, res: Response) => {
+  asyncHandler(async (_req: Request, res: Response) => {
     const supabase = getSupabaseClient();
 
     const [instanceCfg, { count: userCount }, { count: postCount }] = await Promise.all([
@@ -129,7 +129,7 @@ router.get(
  */
 router.get(
   '/nodeinfo/2.1',
-  asyncHandler(async (req: Request, res: Response) => {
+  asyncHandler(async (_req: Request, res: Response) => {
     const supabase = getSupabaseClient();
 
     const [instanceCfg, { count: userCount }, { count: postCount }] = await Promise.all([

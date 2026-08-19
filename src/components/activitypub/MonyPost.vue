@@ -1300,6 +1300,18 @@ const displayPostForReactions = computed((): TimelinePost => {
 const favoriteOverride = ref<{ is_favorited: boolean; favorites_count: number } | null>(null)
 const repliesCountOverride = ref<number | null>(null)
 
+// The optimistic bump holds only until the server count moves, and never
+// outlives the post it counted.
+watch(
+  () => [
+    props.post.id,
+    (isPureReblog.value && props.post.reblog)
+      ? props.post.reblog.replies_count
+      : props.post.replies_count,
+  ],
+  () => { repliesCountOverride.value = null }
+);
+
 const displayInteractionCounts = computed(() => {
   const fav = favoriteOverride.value;
 

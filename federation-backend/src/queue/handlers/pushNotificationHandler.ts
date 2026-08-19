@@ -29,7 +29,6 @@ export async function handlePushNotificationJob(data: PushNotificationJobData): 
       user_id,
       type,
       data: notificationData,
-      is_read: false,
     });
     
     logger.info(`Push notification sent: ${type} to user ${user_id}`);

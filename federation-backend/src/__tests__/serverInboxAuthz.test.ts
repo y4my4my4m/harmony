@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
 // verifyActorMatch is pure URL-equality (with optional same-domain delegation);
 // stub it with a faithful minimal implementation so the helpers exercise real

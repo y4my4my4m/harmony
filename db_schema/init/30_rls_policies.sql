@@ -637,7 +637,19 @@ CREATE POLICY "federation_health_manage" ON public.federation_health
     FOR ALL USING (( SELECT public.is_current_user_admin() ));
 
 ALTER TABLE public.oauth_providers ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "oauth_providers_select_all" ON public.oauth_providers FOR SELECT USING (true);
+
+-- The table carries client_secret. Read is admin-only, matching
+-- webrtc_settings_select_admin_only. The provider list the login screen renders comes from
+-- instance_config under key 'oauth_providers' (AuthComponent.vue), not from here; no code
+-- reads this table, and production does not have it at all.
+CREATE POLICY "oauth_providers_select_admin_only" ON public.oauth_providers
+    FOR SELECT USING (
+        EXISTS (
+            SELECT 1 FROM public.profiles
+            WHERE auth_user_id = ( SELECT auth.uid() )
+            AND is_admin = true
+        )
+    );
 
 ALTER TABLE public.server_roles ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "server_roles_select" ON public.server_roles FOR SELECT USING (true);

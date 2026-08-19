@@ -11,7 +11,8 @@ const router = Router();
  * Extends ActivityPub for role management in federated servers
  */
 export interface RoleActivity {
-  '@context': string | string[];
+  // JSON-LD: a context array may hold IRIs and inline term definitions.
+  '@context': string | Array<string | Record<string, string>>;
   id: string;
   type: 'Create' | 'Update' | 'Delete' | 'Add' | 'Remove';
   actor: string;
@@ -351,7 +352,8 @@ router.get(
       .single();
 
     if (serverError || !server) {
-      return res.status(404).json({ error: 'Server not found' });
+      res.status(404).json({ error: 'Server not found' });
+      return;
     }
 
     const { data: roles, error: rolesError } = await supabase
@@ -362,7 +364,8 @@ router.get(
 
     if (rolesError) {
       logger.error('Failed to fetch server roles:', rolesError);
-      return res.status(500).json({ error: 'Failed to fetch roles' });
+      res.status(500).json({ error: 'Failed to fetch roles' });
+      return;
     }
 
     const baseUrl = `https://${config.INSTANCE_DOMAIN}`;
@@ -398,7 +401,8 @@ router.get(
       .single();
 
     if (error || !role) {
-      return res.status(404).json({ error: 'Role not found' });
+      res.status(404).json({ error: 'Role not found' });
+      return;
     }
 
     const { data: server } = await supabase

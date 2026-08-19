@@ -1490,15 +1490,8 @@ async function _fetchRemotePostReactionsImpl(
 
         if (!actorUrl) continue;
 
-        // Mastodon/Pleroma emoji image lives at tag.icon.url.
-        let emojiUrl: string | null = null;
-        if (item.tag && Array.isArray(item.tag)) {
-          const emojiTag = item.tag.find((t: any) => t.type === 'Emoji');
-          if (emojiTag?.icon) {
-            // eslint-disable-next-line unused-imports/no-unused-vars
-            emojiUrl = typeof emojiTag.icon === 'string' ? emojiTag.icon : emojiTag.icon?.url;
-          }
-        }
+        // Mastodon/Pleroma carry the custom emoji image at tag.icon.url. No
+        // column holds it, so remote reactions keep only the shortcode.
 
         // Known profiles supply full actor info; otherwise it is derived from the URL.
         let actorInfo: any = { url: actorUrl };
@@ -1537,18 +1530,33 @@ async function _fetchRemotePostReactionsImpl(
         });
 
         // Persisted only when both the post and the reactor are known locally.
+        // Every unique index over emoji_reaction rows is partial and PostgREST
+        // emits no index predicate, so ON CONFLICT infers no arbiter. Mirrors
+        // ActivityProcessor.processLike.
         if (postId && localProfile?.id) {
-          await supabase
+          const content = reactionContent || emoji;
+
+          const { data: existing } = await supabase
             .from('post_interactions')
-            .upsert({
-              user_id: localProfile.id,
-              post_id: postId,
-              interaction_type: 'emoji_reaction',
-              emoji_content: reactionContent || emoji,
-              ap_id: item.id || `${actorUrl}#like-${postId}`,
-            }, {
-              onConflict: 'user_id,post_id,interaction_type',
-            });
+            .select('id')
+            .eq('user_id', localProfile.id)
+            .eq('post_id', postId)
+            .eq('interaction_type', 'emoji_reaction')
+            .eq('custom_emoji_content', content)
+            .maybeSingle();
+
+          if (!existing) {
+            await supabase
+              .from('post_interactions')
+              .insert({
+                user_id: localProfile.id,
+                post_id: postId,
+                interaction_type: 'emoji_reaction',
+                custom_emoji_content: content,
+                ap_id: item.id || `${actorUrl}#like-${postId}`,
+                is_local: false,
+              });
+          }
         }
       } catch (err) {
         logger.debug(`Failed to process reaction:`, err);
@@ -2186,9 +2194,10 @@ router.get(
       .single();
 
     if (error || !profile) {
-      return res.status(404).json({
+      res.status(404).json({
         error: 'User not found',
       });
+      return;
     }
 
     // Incoming activity lookups key on federated_id; backfill it for local users.
@@ -2277,7 +2286,8 @@ router.get(
       .single();
 
     if (userError || !user) {
-      return res.status(404).json({ error: 'User not found' });
+      res.status(404).json({ error: 'User not found' });
+      return;
     }
 
     const baseUrl = `https://${config.INSTANCE_DOMAIN}`;
@@ -2295,7 +2305,8 @@ router.get(
 
     if (postsError) {
       logger.error('Failed to fetch pinned posts:', postsError);
-      return res.status(500).json({ error: 'Failed to fetch pinned posts' });
+      res.status(500).json({ error: 'Failed to fetch pinned posts' });
+      return;
     }
 
     const orderedItems = (pinnedPosts || []).map(post => {
@@ -2370,7 +2381,8 @@ router.get(
       .single();
 
     if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+      res.status(404).json({ error: 'User not found' });
+      return;
     }
 
     const baseUrl = `https://${config.INSTANCE_DOMAIN}`;
@@ -2385,13 +2397,14 @@ router.get(
 
       res.setHeader('Content-Type', 'application/activity+json');
       res.setHeader('Cache-Control', 'public, max-age=300');
-      return res.json({
+      res.json({
         '@context': 'https://www.w3.org/ns/activitystreams',
         id: collectionUrl,
         type: 'OrderedCollection',
         totalItems: count || 0,
         first: `${collectionUrl}?cursor=start&limit=${limit}`,
       });
+      return;
     }
 
     let query = supabase
@@ -2481,7 +2494,8 @@ router.get(
       .single();
 
     if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+      res.status(404).json({ error: 'User not found' });
+      return;
     }
 
     const baseUrl = `https://${config.INSTANCE_DOMAIN}`;
@@ -2496,13 +2510,14 @@ router.get(
 
       res.setHeader('Content-Type', 'application/activity+json');
       res.setHeader('Cache-Control', 'public, max-age=300');
-      return res.json({
+      res.json({
         '@context': 'https://www.w3.org/ns/activitystreams',
         id: collectionUrl,
         type: 'OrderedCollection',
         totalItems: count || 0,
         first: `${collectionUrl}?cursor=start&limit=${limit}`,
       });
+      return;
     }
 
     let query = supabase

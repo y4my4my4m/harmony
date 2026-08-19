@@ -128,10 +128,18 @@ export class WebSocketGateway {
     
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex')
     
-    const { data: verification } = await supabase.rpc('verify_bot_token', {
+    const { data: verification, error } = await supabase.rpc('verify_bot_token', {
       p_token_hash: tokenHash
-    }) as any
-    
+    })
+
+    // Close code stays 4004 either way; the WS close space has no server-fault
+    // range. The SQLSTATE only reaches the log from here.
+    if (error) {
+      console.error('verify_bot_token failed:', error.code, error.message, error.details)
+      ws.close(4004, 'Authentication failed')
+      return null
+    }
+
     if (!verification || !verification.valid) {
       console.warn('Invalid bot token attempt')
       ws.close(4004, 'Authentication failed')

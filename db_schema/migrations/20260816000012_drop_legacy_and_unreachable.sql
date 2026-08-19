@@ -1,44 +1,19 @@
--- Removes code that production carries and the repository does not: the
--- database-side ActivityPub pipeline, 75 unreachable functions, a duplicate
--- follow-counter trigger, and two leftover tables.
+-- Drops the database-side ActivityPub pipeline, 75 unreachable functions, a duplicate
+-- follow-counter trigger, and two leftover tables. All present on production, none in init/.
 --
--- Every statement is IF EXISTS and none of these objects exist in init/, so this
--- is a no-op against a fresh build and the drift gate stays green.
+-- The pipeline duplicated federation-backend: claim_ap_activity sets status='processing' as
+-- an idempotency guard for the worker, and that same write fired
+-- unified_activitypub_processing_trigger, so every inbound activity was processed twice. The
+-- two halves disagree on vocabulary - the trigger writes 'processed', complete_ap_activity
+-- writes 'completed'.
 --
--- ---------------------------------------------------------------------------
--- 1. The database-side ActivityPub pipeline
--- ---------------------------------------------------------------------------
--- unified_activitypub_processing_trigger fires AFTER UPDATE on ap_activities
--- whenever status becomes 'processing', and runs a full inbound pipeline:
--- Follow, Accept, Reject, Undo, Create, Update, Delete, Like and Announce, with
--- its own retry counter and exponential backoff.
---
--- federation-backend does the same work. InboxHandler stores the activity,
--- calls claim_ap_activity - which sets status = 'processing' - and then calls
--- ActivityProcessor.processIncomingActivity on the same activity. The claim was
--- meant as an idempotency guard for the worker; instead it is what starts the
--- database pipeline, so every inbound federated activity is processed twice.
---
--- This is not a fallback. claim_ap_activity is called only by
--- federation-backend, and the inbox HTTP endpoint lives in federation-backend,
--- so if that service is down no activity arrives and nothing sets 'processing'.
--- The pipeline's only entry point is an action by the service it would have to
--- be standing in for. The two halves do not even agree on a vocabulary: the
--- trigger writes status 'processed', complete_ap_activity writes 'completed'.
---
--- The 18 functions below are reachable only from that trigger; the one outside
--- caller, process_ap_activity_on_update, is itself on the unreachable list.
+-- Every statement is IF EXISTS, so this is a no-op against a fresh build.
 
 BEGIN;
 
--- Each DROP FUNCTION is wrapped so a dependency skips that one statement rather
--- than aborting the run. Against production this changes nothing: every name
--- here was checked for a trigger binding, a caller among the surviving
--- functions, a policy/view/default reference and an rpc() call site, and all
--- four are empty. Other instances carry bindings production does not - a local
--- dev database still has trigger_unified_profile_federation on profiles - and
--- there the function is left in place and named, which is the honest outcome:
--- something still uses it there.
+-- Each DROP is wrapped so a dependency skips that statement instead of aborting the run:
+-- other instances carry bindings production does not, and there the function stays and is
+-- named.
 
 DROP TRIGGER IF EXISTS unified_activitypub_processing_trigger ON public.ap_activities;
 
@@ -136,19 +111,8 @@ END $do$;
 -- ---------------------------------------------------------------------------
 -- 2. Unreachable functions
 -- ---------------------------------------------------------------------------
--- scripts/find-unreachable.sh produced this list; each name was then re-checked
--- against a production dump for a trigger binding, a caller among the functions
--- that survive this migration, a reference from a policy, view, column default
--- or constraint, and an rpc() call site in src/, federation-backend/src or
--- bot-gateway/src. All four are empty for all 75.
---
--- None is defined in init/ or in any migration, so nothing in the repository
--- loses a definition here.
---
--- Dropped rather than revoked because 20260809000001 already revoked the
--- client-facing surface and a release has passed. Restoring one means restoring
--- its definition from a dump, which is why this migration is the record of what
--- was removed.
+-- From scripts/find-unreachable.sh. None is defined in init/ or in any migration, so
+-- restoring one means restoring its definition from a dump; this file is that record.
 
 DO $do$ BEGIN
     DROP FUNCTION IF EXISTS public.check_timeline_health(p_user_id uuid);
@@ -546,6 +510,53 @@ EXCEPTION WHEN dependent_objects_still_exist THEN
     RAISE NOTICE 'kept (still referenced here): %', 'update_follow_counters';
 END $do$;
 
+-- The counter backfill is not here. It runs after COMMIT, at the end of this file.
+--
+-- Measured: run inside this transaction the four UPDATEs take 11.1 s at 150k profiles and
+-- 47.6 s at 600k. They hold only ROW EXCLUSIVE on profiles themselves and stall a
+-- concurrent writer for 1 ms. The cost is the lock they sit behind: the DROP TRIGGER above
+-- took ACCESS EXCLUSIVE on public.follows and the one at the top of this file took it on
+-- public.ap_activities, and a lock is held until COMMIT. Both tables would be closed to
+-- readers and writers for the whole backfill.
+
+-- ---------------------------------------------------------------------------
+-- 4. Leftover tables
+-- ---------------------------------------------------------------------------
+-- Neither is created by init/ or by any migration, neither is named by any
+-- function, view, policy or foreign key in production, and neither appears in
+-- application code. conversation_backup_pre_cleanup is a one-off backup taken
+-- before a cleanup; hashtag_archive carries only its own constraint.
+--
+-- No CASCADE: if something does depend on one of these, this migration should
+-- fail and say so rather than take the dependent with it.
+
+DROP TABLE IF EXISTS public.conversation_backup_pre_cleanup;
+DROP TABLE IF EXISTS public.hashtag_archive;
+
+COMMIT;
+
+-- ---------------------------------------------------------------------------
+-- 5. Follow-counter backfill, outside the DDL transaction
+-- ---------------------------------------------------------------------------
+-- Recomputes both counters from public.follows, which is the source of truth, repairing
+-- whatever the double counting left rather than trying to subtract it.
+--
+-- Separate transaction on purpose. Held inside the block above it inherits ACCESS EXCLUSIVE
+-- on follows and ap_activities and closes both for its whole duration; here it takes ROW
+-- EXCLUSIVE on profiles and nothing else, which stalls a concurrent writer for about 1 ms.
+--
+-- The trade: trg_update_follow_counts is live throughout, so a follow committed between the
+-- snapshot these statements read and the row they write can be counted by the trigger and
+-- then overwritten by a stale total. The affected profile is off by that delta until
+-- something recomputes it. Re-running this block converges; it is idempotent, and safe to
+-- run at any time on any instance:
+--
+--   psql -f - <<'EOF'   (this block, verbatim)
+--
+-- Off-by-a-few counters are worth 47 s of uptime on two hot tables.
+
+BEGIN;
+
 UPDATE public.profiles p
    SET followers_count = c.n
   FROM (SELECT following_id AS id, count(*) AS n
@@ -569,19 +580,5 @@ UPDATE public.profiles p
  WHERE p.following_count <> 0
    AND NOT EXISTS (SELECT 1 FROM public.follows f
                     WHERE f.follower_id = p.id AND f.status = 'accepted');
-
--- ---------------------------------------------------------------------------
--- 4. Leftover tables
--- ---------------------------------------------------------------------------
--- Neither is created by init/ or by any migration, neither is named by any
--- function, view, policy or foreign key in production, and neither appears in
--- application code. conversation_backup_pre_cleanup is a one-off backup taken
--- before a cleanup; hashtag_archive carries only its own constraint.
---
--- No CASCADE: if something does depend on one of these, this migration should
--- fail and say so rather than take the dependent with it.
-
-DROP TABLE IF EXISTS public.conversation_backup_pre_cleanup;
-DROP TABLE IF EXISTS public.hashtag_archive;
 
 COMMIT;

@@ -22,9 +22,7 @@ import { getFullServerBannerUrl, getFullServerIconUrl } from '../utils/urlUtils.
 
 const router = Router();
 
-// Channel type constants (matches DB schema: 0 = text, 1 = voice, 2 = category)
-// eslint-disable-next-line unused-imports/no-unused-vars
-const CHANNEL_TYPE_TEXT = 0;
+// channels.type: 0 = text, 1 = voice, 2 = category.
 const CHANNEL_TYPE_VOICE = 1;
 const CHANNEL_TYPE_CATEGORY = 2;
 
@@ -146,12 +144,14 @@ router.get(
       .single();
 
     if (serverError || !server) {
-      return res.status(404).json({ error: 'Server not found' });
+      res.status(404).json({ error: 'Server not found' });
+      return;
     }
 
     // Only serve local servers as ActivityPub actors
     if (server.is_local_server === false) {
-      return res.status(404).json({ error: 'Server is not hosted here' });
+      res.status(404).json({ error: 'Server is not hosted here' });
+      return;
     }
 
     let ownerProfile = null;
@@ -235,12 +235,14 @@ router.get(
       .single();
 
     if (error || !channel) {
-      return res.status(404).json({ error: 'Channel not found' });
+      res.status(404).json({ error: 'Channel not found' });
+      return;
     }
 
     // Only serve local channels
     if (channel.is_remote) {
-      return res.status(404).json({ error: 'Channel is not hosted here' });
+      res.status(404).json({ error: 'Channel is not hosted here' });
+      return;
     }
 
     const hostDomain = config.INSTANCE_DOMAIN;
@@ -300,7 +302,8 @@ router.get(
       .single();
 
     if (!channel) {
-      return res.status(404).json({ error: 'Channel not found' });
+      res.status(404).json({ error: 'Channel not found' });
+      return;
     }
 
     if (!page) {
@@ -314,13 +317,14 @@ router.get(
       // Short cache for message collection metadata - real-time messages are PUSHED
       // This cache helps when many instances backfill simultaneously
       res.setHeader('Cache-Control', 'public, max-age=10');
-      return res.json({
+      res.json({
         '@context': 'https://www.w3.org/ns/activitystreams',
         id: messagesUrl,
         type: 'OrderedCollection',
         totalItems: count || 0,
         first: `${messagesUrl}?page=1`,
       });
+      return;
     }
 
     const limit = 50;
@@ -412,13 +416,14 @@ router.get(
       res.setHeader('Content-Type', 'application/activity+json');
       // Member count doesn't change frequently - cache for 60 seconds
       res.setHeader('Cache-Control', 'public, max-age=60');
-      return res.json({
+      res.json({
         '@context': 'https://www.w3.org/ns/activitystreams',
         id: membersUrl,
         type: 'OrderedCollection',
         totalItems: count || 0,
         first: `${membersUrl}?page=1`,
       });
+      return;
     }
 
     // Paginated member list
@@ -491,13 +496,14 @@ router.get(
       res.setHeader('Content-Type', 'application/activity+json');
       // Server outbox is for backfill - short cache for efficiency
       res.setHeader('Cache-Control', 'public, max-age=15');
-      return res.json({
+      res.json({
         '@context': 'https://www.w3.org/ns/activitystreams',
         id: outboxUrl,
         type: 'OrderedCollection',
         totalItems: count || 0,
         first: `${outboxUrl}?page=1`,
       });
+      return;
     }
 
     const limit = 20;

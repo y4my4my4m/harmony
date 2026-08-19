@@ -255,11 +255,22 @@ REVOKE ALL ON FUNCTION public.get_timeline(p_user_id uuid, p_limit integer, p_be
 REVOKE ALL ON FUNCTION public.get_unread_notification_count(p_user_id uuid) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.get_unused_prekey(p_user_id uuid, p_device_id text) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.get_user_prekey_bundle(p_user_id uuid, p_device_id text) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.get_server_members_by_instance(p_server_id uuid) FROM PUBLIC, anon, authenticated;
+-- SECURITY DEFINER, takes any p_user_id, returns endpoint, p256dh and auth: the Web Push
+-- credential triple. Whoever holds those can push arbitrary notifications to that device.
+REVOKE ALL ON FUNCTION public.get_user_push_subscriptions(p_user_id uuid) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.get_voice_channel_participants(p_channel_id uuid) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.has_active_session(p_user_id uuid) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.has_muted(target_user_id uuid) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.is_author_suspended(p_author_id uuid) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.is_muted_by(target_user_id uuid) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.is_user_viewing_push_context(p_user_id uuid, p_server_id uuid, p_channel_id uuid, p_conversation_id uuid) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.record_metric(p_metric_type text, p_metric_name text, p_value double precision, p_unit text, p_labels jsonb, p_source text) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.record_push_failure(p_subscription_id uuid, p_reason text) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.record_push_success(p_subscription_id uuid) FROM PUBLIC, anon, authenticated;
+-- TrendingService.resetDailyCounters() holds the only .rpc() literal for this and has no
+-- caller. SECURITY DEFINER, zeroes hashtags.daily_uses instance-wide.
+REVOKE ALL ON FUNCTION public.reset_daily_hashtag_counters() FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.reset_user_encryption(p_user_id uuid, p_device_id text) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.rotate_prekeys(p_user_id uuid, p_device_id text) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.run_trending_maintenance() FROM PUBLIC, anon, authenticated;
