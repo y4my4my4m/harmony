@@ -76,8 +76,8 @@ jobs:
 
       - name: Fail if the graph is stale
         run: |
-          if ! git diff --exit-code db_schema/REACHABILITY.md; then
-            echo "::error::db_schema/REACHABILITY.md is out of date."
+          if ! git diff --exit-code db_schema/REACHABILITY.tsv; then
+            echo "::error::db_schema/REACHABILITY.tsv is out of date."
             echo "::error::Run scripts/generate-reachability.sh and commit the result."
             exit 1
           fi
