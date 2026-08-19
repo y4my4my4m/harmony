@@ -99,11 +99,9 @@ def inventory(sql: str, verbose: bool) -> list[str]:
 
     # Keyed by name and argument list so overloads stay distinct.
     #
-    # Attributes and body are digested separately. Concatenating them made a
-    # function that differs only in SET search_path indistinguishable from one
-    # whose body changed, which put three search_path-only functions on the
-    # reconciliation list in RECONCILE.md and left the drift report unable to
-    # say which kind of difference it had found.
+    # Attributes and body are digested separately. Concatenated, a function
+    # differing only in SET search_path is indistinguishable from one whose body
+    # changed, and the drift report cannot say which kind of difference it found.
     for m in re.finditer(
         r"CREATE (?:OR REPLACE )?FUNCTION ([\w.]+)\((.*?)\)(.*?)AS (\$[\w]*\$)(.*?)\4;",
         sql,

@@ -2349,17 +2349,15 @@ setup_database() {
     fi
     print_success "Init schema loaded"
 
-    # Record migrations as applied, without running them.
-    #
-    # init.sql already contains everything the migrations produce -
-    # scripts/schema-drift-check.sh asserts exactly that - so replaying them on
-    # a fresh install is redundant. It is also wrong: six of them assume a
-    # pre-init state and fail on "policy already exists", which the previous
-    # loop hid by discarding output and warning instead of stopping.
+    # A database built from init.sql is at the migration head -
+    # scripts/schema-drift-check.sh enforces that - so its migrations are
+    # recorded rather than run. Migrations written for a pre-init shape fail
+    # against the current one, on "policy already exists".
     #
     # The ledger is supabase_migrations.schema_migrations, the table the
-    # Supabase CLI uses, so a later `supabase db push` or self-host/bootstrap.sh
-    # run applies only migrations added after this install.
+    # Supabase CLI reads, so a later `supabase db push` or
+    # self-host/bootstrap.sh run applies only migrations added after this
+    # install.
     local migration_count=0
     local migration_files
     migration_files=$(find "$PROJECT_DIR/db_schema/migrations" -name '*.sql' -type f 2>/dev/null | sort)

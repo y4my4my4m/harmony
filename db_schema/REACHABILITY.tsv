@@ -2,13 +2,8 @@
 # Regenerate: scripts/generate-reachability.sh
 #
 # How execution enters every function in a schema built from db_schema/init/.
-# SURFACE.tsv lists what exists and what may execute it; this lists what reaches it.
-#
-# 364 functions. 314 entered from somewhere, 155 named by application code, 149 trigger-only,
-# 50 reachable only over HTTP with no caller (3 of those by anon), 0 dead.
-#
-# entry is a +-separated set. `http-only` means nothing in the database or the
-# application reaches it and PostgREST still publishes it. `nothing` means dead.
+# entry is a comma-separated set of entry kinds. `http anon` and `service key`
+# mean nothing reaches it and PostgREST publishes it anyway; `nothing` means dead.
 #
 # name	security	returns	grants	entry	detail
 add_bot_to_server	definer	uuid	anon+authenticated+service_role	client	rpc in src/components/settings/ServerBotsSettings.vue

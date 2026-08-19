@@ -2,6 +2,12 @@ import { WebSocketServer, WebSocket } from 'ws'
 import { supabase, config } from '../config/supabase.js'
 import * as crypto from 'crypto'
 
+function logPresenceError(op: string, error: unknown) {
+  if (!error) return
+  const message = error instanceof Error ? error.message : (error as { message?: string }).message ?? String(error)
+  console.error(`bot_presence ${op} failed:`, message)
+}
+
 export interface BotConnection {
   botId: string
   username: string
@@ -109,7 +115,10 @@ export class WebSocketGateway {
             last_heartbeat_at: new Date().toISOString()
           })
           .eq('bot_id', botConnection.botId)
-          .then()
+          .then(
+            ({ error }) => logPresenceError('offline update', error),
+            (err) => logPresenceError('offline update', err)
+          )
       }
     })
     
@@ -156,7 +165,9 @@ export class WebSocketGateway {
     
     this.connections.set(ws, botConnection)
     
-    await supabase
+    // Arbiter is explicit; PostgREST otherwise derives ON CONFLICT from the
+    // primary key, which is the surrogate id rather than bot_id.
+    const { error: presenceError } = await supabase
       .from('bot_presence')
       .upsert({
         bot_id: botConnection.botId,
@@ -164,13 +175,19 @@ export class WebSocketGateway {
         connected_at: new Date().toISOString(),
         last_heartbeat_at: new Date().toISOString(),
         gateway_session_id: botConnection.sessionId
-      })
-    
-    await supabase
+      }, { onConflict: 'bot_id' })
+
+    logPresenceError('identify upsert', presenceError)
+
+    const { error: botUpdateError } = await supabase
       .from('bots')
       .update({ last_online_at: new Date().toISOString() })
       .eq('id', botConnection.botId)
-    
+
+    if (botUpdateError) {
+      console.error('bots.last_online_at update failed:', botUpdateError.message)
+    }
+
     ws.send(JSON.stringify({
       op: 0,
       t: 'READY',
@@ -189,18 +206,27 @@ export class WebSocketGateway {
   }
   
   private handleHeartbeat(ws: WebSocket, botConnection: BotConnection) {
-    botConnection.lastHeartbeat = Date.now()
-    
+    const previousHeartbeat = botConnection.lastHeartbeat
+    const now = Date.now()
+    botConnection.lastHeartbeat = now
+
     ws.send(JSON.stringify({ op: 11 }))
-    
+
+    // Only heartbeat arrivals are observable server-side. Latency is the arrival
+    // delay past the interval advertised in READY; a client on schedule reports 0.
+    const latencyMs = Math.max(0, now - previousHeartbeat - config.websocket.heartbeatInterval)
+
     supabase
       .from('bot_presence')
       .update({
-        last_heartbeat_at: new Date().toISOString(),
-        latency_ms: Date.now() - botConnection.lastHeartbeat
+        last_heartbeat_at: new Date(now).toISOString(),
+        latency_ms: latencyMs
       })
       .eq('bot_id', botConnection.botId)
-      .then()
+      .then(
+        ({ error }) => logPresenceError('heartbeat update', error),
+        (err) => logPresenceError('heartbeat update', err)
+      )
   }
   
   private startHeartbeatCheck() {

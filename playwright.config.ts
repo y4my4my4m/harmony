@@ -4,12 +4,12 @@ import { fileURLToPath } from 'url'
 import path from 'path'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-// e2e/stack.env is written by e2e/stack.sh and absent unless that stack is up.
-// dotenv never overwrites a name already set, so loading it first points a run
-// at the ephemeral stack whenever one exists and falls back to .env.test
-// otherwise.
+// e2e/stack.env is written by e2e/stack.sh; absent unless that stack is up.
+// dotenv keeps the first value bound to a name, so it wins over .env.test.
 config({ path: path.resolve(__dirname, 'e2e/stack.env') })
 config({ path: path.resolve(__dirname, '.env.test') })
+
+const browserChannel = process.env.PW_BUNDLED ? {} : { channel: 'chrome' as const }
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -27,32 +27,34 @@ export default defineConfig({
     video: 'retain-on-failure',
     actionTimeout: 10000,
   },
+  // System Chrome everywhere, CI included: the bundled per-revision build is a 167 MiB
+  // download that `playwright install` garbage-collects across projects sharing the cache.
+  // PW_BUNDLED=1 selects the bundled chromium.
   projects: [
     {
       name: 'auth-tests',
       testMatch: 'auth.spec.ts',
-      use: { ...devices['Desktop Chrome'] },
+      use: { ...devices['Desktop Chrome'], ...browserChannel },
     },
     {
       name: 'chromium',
       testIgnore: ['auth.spec.ts', 'navigation.spec.ts'],
       dependencies: ['auth-tests'],
-      use: { ...devices['Desktop Chrome'] },
+      use: { ...devices['Desktop Chrome'], ...browserChannel },
     },
     {
       name: 'navigation',
       testMatch: 'navigation.spec.ts',
-      use: { ...devices['Desktop Chrome'] },
+      use: { ...devices['Desktop Chrome'], ...browserChannel },
     },
-    // Journey specs against the ephemeral stack from e2e/stack.sh. Their own testDir,
-    // outside the one above, and no dependency on auth-tests: each spec creates and
-    // deletes its actors through GoTrue's admin API rather than sharing a storageState.
+    // Journey specs run against the ephemeral stack from e2e/stack.sh. No auth-tests
+    // dependency: each spec creates and deletes its actors through GoTrue's admin API
+    // rather than sharing a storageState.
     {
       name: 'journeys',
       testDir: './e2e/specs',
-      use: { ...devices['Desktop Chrome'] },
+      use: { ...devices['Desktop Chrome'], ...browserChannel },
     },
-    // Opt-in: npx playwright test --project=firefox
     // {
     //   name: 'firefox',
     //   testIgnore: 'auth.spec.ts',

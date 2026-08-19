@@ -601,23 +601,6 @@ def main():
         entered[f.oid] = ", ".join(groups) if groups else ENTERED[classify(f)]
 
     ordered = sorted(fns.values(), key=lambda f: (f.name, f.args))
-    dead = [f for f in ordered if classify(f) == "dead"]
-    anon_http_only = [f for f in ordered if classify(f) == "http-anon"]
-    auth_http_only = [f for f in ordered if classify(f) == "http-authenticated"]
-    service_only = [f for f in ordered if classify(f) == "http-service_role"]
-    http_only = anon_http_only + auth_http_only + service_only
-    trigger_only = [f for f in ordered if reached.get(f.oid) == {"trigger"}]
-    handlers = [f for f in ordered
-                if any(k == "trigger" for k, _ in direct.get(f.oid, ()))]
-    orphan_handlers = [f for f in ordered if f.is_trigger and f not in handlers]
-    policy_only = [f for f in ordered if reached.get(f.oid) == {"policy"}]
-    client = [f for f in ordered if "client" in reached.get(f.oid, ())]
-    literal_rpc = [f for f in ordered
-                   if any(k == "rpc" for k, _ in direct.get(f.oid, ()))]
-    helpers = [f for f in ordered
-               if reached.get(f.oid) and f.oid not in direct]
-    anon_exec = [f for f in ordered if "anon" in f.grants and not f.is_trigger]
-    revoked = [f for f in ordered if "anon" not in f.grants]
 
     out = []
     w = out.append
@@ -625,15 +608,8 @@ def main():
     w("# Regenerate: scripts/generate-reachability.sh")
     w("#")
     w("# How execution enters every function in a schema built from db_schema/init/.")
-    w("# SURFACE.tsv lists what exists and what may execute it; this lists what reaches it.")
-    w("#")
-    w("# %d functions. %d entered from somewhere, %d named by application code, %d trigger-only,"
-      % (len(ordered), len(ordered) - len(dead) - len(http_only), len(client), len(trigger_only)))
-    w("# %d reachable only over HTTP with no caller (%d of those by anon), %d dead."
-      % (len(http_only), len(anon_http_only), len(dead)))
-    w("#")
-    w("# entry is a +-separated set. `http-only` means nothing in the database or the")
-    w("# application reaches it and PostgREST still publishes it. `nothing` means dead.")
+    w("# entry is a comma-separated set of entry kinds. `http anon` and `service key`")
+    w("# mean nothing reaches it and PostgREST publishes it anyway; `nothing` means dead.")
     w("#")
     w("# name\tsecurity\treturns\tgrants\tentry\tdetail")
     for f in ordered:

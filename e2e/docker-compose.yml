@@ -88,3 +88,4 @@ services:
       - "${E2E_PORT:-54480}:8000"
     volumes:
       - ./gateway.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./cors.inc:/etc/nginx/conf.d/cors.inc:ro

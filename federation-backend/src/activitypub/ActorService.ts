@@ -1546,7 +1546,7 @@ async function _fetchRemotePostReactionsImpl(
             .maybeSingle();
 
           if (!existing) {
-            await supabase
+            const { error: interactionError } = await supabase
               .from('post_interactions')
               .insert({
                 user_id: localProfile.id,
@@ -1556,6 +1556,10 @@ async function _fetchRemotePostReactionsImpl(
                 ap_id: item.id || `${actorUrl}#like-${postId}`,
                 is_local: false,
               });
+
+            if (interactionError) {
+              logger.error(`Failed to persist remote reaction on post ${postId}: ${interactionError.message}`);
+            }
           }
         }
       } catch (err) {

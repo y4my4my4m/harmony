@@ -1,16 +1,8 @@
 #!/usr/bin/env bash
-# =============================================================================
-# Harmony self-host database bootstrap
-# =============================================================================
-# Loads the Harmony schema into the running Supabase Postgres and provisions
-# the least-privilege `harmony_listener` role used by the federation worker.
-#
-# Run once after the first `docker compose up -d`. Safe to re-run: the schema
-# load is skipped if Harmony tables already exist, migrations are idempotent,
-# and the listener role is create-or-update.
+# Loads the Harmony schema into the running Supabase Postgres and provisions the
+# least-privilege `harmony_listener` role.
 #
 # Usage:  bash bootstrap.sh [--migrations-only]
-# =============================================================================
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -24,10 +16,8 @@ info() { printf "%s==>%s %s\n" "$c_blue" "$c_reset" "$*"; }
 ok()   { printf "%s ✓ %s%s\n" "$c_green" "$*" "$c_reset"; }
 die()  { printf "Error: %s\n" "$*" >&2; exit 1; }
 
-# A missing file makes sed exit non-zero, which `set -o pipefail` propagates and
-# `set -e` turns into a silent exit at the assignment below - before any message
-# is printed. Deployments whose compose lives outside the repo have no env files
-# here at all, so absence has to read as "empty", not as failure.
+# sed on a missing file exits non-zero; pipefail and `set -e` turn that into a
+# silent exit at the assignment. A missing env file reads as empty.
 val() {
 	[ -f "$1" ] || return 0
 	sed -n "s/^$2=//p" "$1" 2>/dev/null | head -1 || true
@@ -36,23 +26,19 @@ PG_PW="$(val "$SCRIPT_DIR/supabase/.env" POSTGRES_PASSWORD)"
 LISTENER_PW="$(val "$SCRIPT_DIR/federation.env" __LISTENER_PW)"
 DOMAIN="$(val "$SCRIPT_DIR/.env" DOMAIN)"
 INSTANCE_NAME="$(val "$SCRIPT_DIR/.env" INSTANCE_NAME)"
-# The env files are written by configure.sh and sit beside this script, which
-# assumes the bundled self-host layout. A deployment whose compose lives
-# elsewhere has neither, and neither is needed to apply migrations: psql runs
-# through `docker exec`, so it reaches Postgres over the container's local
-# socket and PGPASSWORD goes unused. Only the steps that consume these values
+# The env files sit beside this script under the bundled self-host layout.
+# psql runs through `docker exec` and reaches Postgres over the container's
+# local socket, so PGPASSWORD is unused; only the steps consuming these values
 # are skipped when they are missing.
 [[ -n "$PG_PW" ]] || info "No POSTGRES_PASSWORD found; using the container's local socket"
 
 
 docker inspect "$DB_CONTAINER" >/dev/null 2>&1 || die "$DB_CONTAINER is not running. Start the stack first: docker compose up -d"
 
-# Applying migrations means replacing functions, so the role has to own them or
-# be superuser. Which role that is depends on how the instance was built: a
-# stack whose objects were created through the Studio SQL editor has them owned
-# by supabase_admin, and `postgres` - not a superuser in this image - then fails
-# with "must be owner of function ...". Both roles are tried rather than
-# assumed, and pg_hba trusts supabase_admin over 127.0.0.1 inside the container.
+# Replacing functions requires ownership or superuser. Objects created through
+# the Studio SQL editor are owned by supabase_admin, and `postgres` - not a
+# superuser in this image - fails with "must be owner of function ...". pg_hba
+# trusts supabase_admin over 127.0.0.1 inside the container.
 DB_HOST_ARGS=()
 pick_db_role() {
 	local not_owned super
@@ -76,7 +62,6 @@ pick_db_role() {
 
 psql_exec() { docker exec -e PGPASSWORD="$PG_PW" -i "$DB_CONTAINER" psql -U "$DB_USER" "${DB_HOST_ARGS[@]}" -d "$DB_NAME" "$@"; }
 
-# Wait for Postgres to accept connections.
 info "Waiting for Postgres..."
 for _ in $(seq 1 60); do
 	if docker exec -e PGPASSWORD="$PG_PW" "$DB_CONTAINER" pg_isready -U "$DB_USER" -h localhost >/dev/null 2>&1; then break; fi
@@ -87,6 +72,7 @@ pick_db_role || die "no role can modify the schema: tried postgres and supabase_
 info "Applying as $DB_USER"
 
 MIGRATIONS_ONLY=false
+FRESH_LOAD=false
 [[ "${1:-}" == "--migrations-only" ]] && MIGRATIONS_ONLY=true
 
 # --- full schema (init.sql) --------------------------------------------------
@@ -100,19 +86,14 @@ elif ! $MIGRATIONS_ONLY; then
 	docker exec -e PGPASSWORD="$PG_PW" -w /tmp/db_schema/init "$DB_CONTAINER" \
 		psql -U "$DB_USER" "${DB_HOST_ARGS[@]}" -d "$DB_NAME" -f init.sql 2>&1 | tail -10
 	ok "Schema loaded"
+	FRESH_LOAD=true
 fi
 
 # --- migrations --------------------------------------------------------------
-# Each migration runs once, in version order, and is recorded in
-# supabase_migrations.schema_migrations - the same ledger the Supabase CLI uses,
-# so `supabase migration list --db-url ...` reports on an instance installed
-# this way and `supabase db push` continues from where this stopped.
-#
-# This loop used to run every file on every invocation with ON_ERROR_STOP=0 and
-# output discarded, printing '.' or 'x' and then "Migrations applied" either
-# way. Replaying is not merely wasteful: the 20260528 revert/restore pair was
-# applied in filename order, so every run finished by dropping the home-feed
-# trigger.
+# Each migration runs once, in version order, recorded in
+# supabase_migrations.schema_migrations - the ledger the Supabase CLI reads, so
+# `supabase migration list --db-url ...` and `supabase db push` continue from an
+# instance installed this way.
 info "Applying migrations..."
 docker exec "$DB_CONTAINER" rm -rf /tmp/db_schema 2>/dev/null || true
 docker cp "$REPO_DIR/db_schema" "$DB_CONTAINER:/tmp/db_schema"
@@ -125,6 +106,26 @@ CREATE TABLE IF NOT EXISTS supabase_migrations.schema_migrations (
 	statements text[]
 );
 SQL
+
+# init/ is the end state every migration carries an existing database towards, so
+# a database built from init.sql is already at the head and its migrations are
+# recorded rather than run. Migrations written for an older shape fail against
+# the current one - CREATE OR REPLACE cannot rename a parameter or change a
+# return type, and a policy cannot be created twice - and the loop below stops
+# at the first failure.
+if $FRESH_LOAD; then
+	info "Fresh schema: recording migration history without replaying it"
+	for f in "$REPO_DIR"/db_schema/migrations/*.sql; do
+		fname="$(basename "$f")"
+		version="${fname:0:14}"
+		name="${fname:15}"; name="${name%.sql}"
+		psql_exec -q >/dev/null <<SQL
+INSERT INTO supabase_migrations.schema_migrations (version, name)
+VALUES ('${version}', '${name}') ON CONFLICT (version) DO NOTHING;
+SQL
+	done
+	ok "Recorded $(ls "$REPO_DIR"/db_schema/migrations/*.sql | wc -l | tr -d ' ') migration(s) as applied"
+fi
 
 applied="$(psql_exec -tAc 'SELECT version FROM supabase_migrations.schema_migrations')"
 pending=0
@@ -155,9 +156,6 @@ docker exec "$DB_CONTAINER" rm -rf /tmp/db_schema 2>/dev/null || true
 if [[ $pending -eq 0 ]]; then ok "Migrations up to date"; else ok "Applied $pending migration(s)"; fi
 
 # --- least-privilege listener role ------------------------------------------
-# Needs a password to set, so it is skipped where configure.sh has not run. The
-# role is only used by the federation worker for instant job pickup; migrations
-# do not depend on it.
 if [[ -z "$LISTENER_PW" ]]; then
 	info "No listener password found; leaving harmony_listener untouched"
 else

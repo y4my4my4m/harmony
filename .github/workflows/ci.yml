@@ -11,9 +11,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # ----------------------------------------------------------------
-  # Unit tests (fast, no external dependencies)
-  # ----------------------------------------------------------------
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-latest
@@ -31,9 +28,6 @@ jobs:
         env:
           CI: true
 
-  # ----------------------------------------------------------------
-  # Federation backend tests
-  # ----------------------------------------------------------------
   federation-tests:
     name: Federation Tests
     runs-on: ubuntu-latest
@@ -54,9 +48,6 @@ jobs:
         env:
           CI: true
 
-  # ----------------------------------------------------------------
-  # Bot gateway tests (REST API, bot auth)
-  # ----------------------------------------------------------------
   bot-gateway-tests:
     name: Bot Gateway Tests
     runs-on: ubuntu-latest
@@ -79,11 +70,8 @@ jobs:
 
   # ----------------------------------------------------------------
   # Bot gateway against a database built from db_schema/init/.
-  #
   # plpgsql resolves column references at first execution, so an RPC naming a
-  # column its table lacks installs cleanly and raises only when called. Every
-  # supabase.rpc() name in bot-gateway/src is checked against the schema and the
-  # authentication and emoji paths are invoked.
+  # column its table lacks installs cleanly and raises only when called.
   # ----------------------------------------------------------------
   bot-gateway-db-tests:
     name: Bot Gateway DB Tests
@@ -112,8 +100,8 @@ jobs:
         run: docker rm -f "$BOT_GATEWAY_DB_CONTAINER" || true
 
   # ----------------------------------------------------------------
-  # Type checking. One job per package: vue-tsc reads tsconfig.app.json and
-  # tsconfig.node.json and sees neither backend.
+  # One job per package: vue-tsc reads tsconfig.app.json and tsconfig.node.json
+  # and sees neither backend.
   # ----------------------------------------------------------------
   type-check:
     name: Type Check (app)
@@ -166,9 +154,6 @@ jobs:
       - run: npm run type-check
         working-directory: bot-gateway
 
-  # ----------------------------------------------------------------
-  # Build verification
-  # ----------------------------------------------------------------
   build:
     name: Build
     runs-on: ubuntu-latest
@@ -191,12 +176,8 @@ jobs:
   # ----------------------------------------------------------------
   # Postgres, GoTrue and PostgREST raised from db_schema/init/, seeded, then
   # driven through supabase-js. e2e/stack.sh generates every credential at
-  # bring-up; no repository secret is read.
-  #
-  # Exercises the schema build, password sign-in, the JWT claims GUC reaching
-  # auth.uid(), one RLS allow, one RLS deny in each of its two shapes, and one
-  # RPC. Storage, realtime, imgproxy, the federation backend and the browser
-  # are outside the stack.
+  # bring-up; no repository secret is read. Storage, realtime, imgproxy, the
+  # federation backend and the browser are outside the stack.
   # ----------------------------------------------------------------
   e2e-stack:
     name: E2E Stack
@@ -219,12 +200,9 @@ jobs:
         run: npm run e2e:down
 
   # ----------------------------------------------------------------
-  # The browser journeys, against the same stack. e2e-stack proves the schema
-  # and RLS answer correctly through supabase-js; this drives the built app,
-  # so a query the UI issues but no unit test covers still has to work.
-  #
-  # Separate from e2e-stack because it needs a browser and a dev server, and
-  # a Playwright install failure should not be reported as a schema failure.
+  # Browser journeys against the same stack as e2e-stack, driving the built app.
+  # Separate job: it needs a browser and a dev server, and a Playwright install
+  # failure must not read as a schema failure.
   # ----------------------------------------------------------------
   e2e-journeys:
     name: E2E Journeys
@@ -240,10 +218,13 @@ jobs:
 
       - run: npm ci
 
-      - run: npx playwright install --with-deps chromium
+      # No `playwright install`: the runner image ships Google Chrome stable and
+      # playwright.config.ts defaults to channel 'chrome'. Fetching the bundled
+      # browser hangs on the runner past the job timeout.
+      - run: google-chrome --version
 
-      # stack.sh writes e2e/stack.env, which playwright.config.ts loads before
-      # .env.test, so the specs and the dev server both address this stack.
+      # stack.sh writes e2e/stack.env; playwright.config.ts loads it before
+      # .env.test.
       - run: npm run e2e:up
       - run: npm run e2e:seed
 
@@ -268,13 +249,11 @@ jobs:
   # ----------------------------------------------------------------
   # ActivityPub round trip: federation-backend's createApp() against a peer
   # inbox bound to the compose bridge gateway, over a database built from
-  # db_schema/init/. HTTP signature, Digest and delivery are asserted on the
-  # bytes each side received. e2e/federation/stack.sh generates every
-  # credential at bring-up; no repository secret is read.
+  # db_schema/init/. e2e/federation/stack.sh generates every credential at
+  # bring-up; no repository secret is read.
   #
-  # Both installs are load-bearing: roundtrip.ts resolves
-  # @supabase/supabase-js from the root node_modules, and stack.sh runs it with
-  # federation-backend's tsx.
+  # Two installs: roundtrip.ts resolves @supabase/supabase-js from the root
+  # node_modules, and stack.sh runs it with federation-backend's tsx.
   # ----------------------------------------------------------------
   federation-roundtrip:
     name: Federation Round Trip
@@ -305,12 +284,11 @@ jobs:
   # ----------------------------------------------------------------
   # Single required check for branch protection.
   #
-  # `needs` alone is not enough: a skipped or cancelled dependency leaves this
-  # job skipped, and a skipped required check reads as success. The step below
-  # inspects each result explicitly.
+  # `needs` alone does not gate: a skipped or cancelled dependency leaves this
+  # job skipped, and a skipped required check reads as success.
   #
-  # A job absent from both lists below is a job branch protection never sees.
-  # Every job in this workflow appears in `needs` and in the checks.
+  # A job absent from `needs` or from the checks below is a job branch
+  # protection never sees.
   # ----------------------------------------------------------------
   ci-verdict:
     name: CI verdict
@@ -333,8 +311,8 @@ jobs:
         run: |
           fail=0
 
-          # Only success passes. `skipped` included: no job here is conditional,
-          # so a skipped dependency means one of its own dependencies failed.
+          # Only success passes. No job here is conditional, so `skipped` means
+          # one of that job's own dependencies failed.
           check() {
             case "$2" in
               success) printf '  ok        %s\n' "$1" ;;

@@ -2,8 +2,8 @@
 # Regenerate: scripts/generate-surface.sh
 #
 # PostgREST publishes every function below as an HTTP endpoint.
-# `definer` bypasses RLS. `unreferenced` means nothing in this repo
-# calls it, not that it is unreachable.
+# `definer` bypasses RLS. `unreferenced` means uncalled within this repo,
+# not unreachable.
 #
 # name	args	returns	security	search_path	grants	reached_by
 add_bot_to_server	p_bot_id uuid, p_server_id uuid, p_installed_by uuid, p_permissions jsonb	uuid	definer	public, pg_temp	anon+authenticated+service_role	client

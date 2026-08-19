@@ -1,33 +1,16 @@
 # Migrations that error when replayed against a fresh init/ build, with the reason.
 #
-# scripts/schema-drift-check.sh replays every migration onto a fresh init/ build and
-# compares the result against init/ alone. These seven raise and do nothing. That is
-# harmless only because init/ already carries their end state, which is exactly what the
-# diff downstream proves - so this file records WHY each one fails, not merely that it does.
-# The gate fails if a name or a reason changes, because a migration failing for a new cause
-# is a different fact than a migration failing for an adjudicated one.
+# Format: <filename>\t<first ERROR line>. RI_ConstraintTrigger OIDs are masked to *; they
+# move whenever init/ changes.
 #
-# None of them runs on a real instance. All seven are at or below the 20260809000001
-# baseline cutoff, so an existing instance records them without replaying, and a fresh
-# install gets its schema from init/ and records history without replaying either.
+# scripts/schema-drift-check.sh replays as postgres and fails if a name or a reason changes.
+# The set is role-dependent: 20260308000001 succeeds as supabase_admin.
 #
-# Three causes:
-#
-#   init/ is ahead - the migration tries to change an object into a shape init/ already
-#   surpassed. CREATE OR REPLACE cannot rename a parameter or change a return type, and a
-#   policy cannot be created twice.
-#
-#   ownership - the gate runs as postgres. public objects are owned by supabase_admin and
-#   realtime.messages by supabase_realtime_admin, so DDL against them is refused. The same
-#   cause stops `supabase db push` after one migration when the CLI connects as postgres:
-#   `ERROR: must be owner of relation invites (SQLSTATE 42501)`. Connect the CLI as the
-#   owning role instead. self-host/bootstrap.sh already detects it in pick_db_role().
-#
-#   prod-only relation - public.pg_background_job is one of five tables production carries
-#   that init/ does not. It is cruft, not schema, so init/ is right to lack it.
-#
-# Format: <filename>\t<first ERROR line>. RI_ConstraintTrigger OIDs are masked to * because
-# they move whenever init/ changes.
+# Causes: init/ is ahead of the migration - CREATE OR REPLACE cannot rename a parameter or
+# change a return type, and a policy cannot be created twice; ownership - public objects are
+# owned by supabase_admin and realtime.messages by supabase_realtime_admin, so DDL as
+# postgres is refused; prod-only relation - public.pg_background_job exists in production,
+# not in init/.
 #
 20260308000001_server_moderation.sql	permission denied: "RI_ConstraintTrigger_*" is a system trigger
 20260317000003_fix_activitypub_notification_preferences.sql	cannot change name of input parameter "p_server_id"

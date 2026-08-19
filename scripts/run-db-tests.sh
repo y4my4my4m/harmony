@@ -66,10 +66,19 @@ for f in "$ROOT"/db_schema/tests/*.sql; do
     FAILED=$((FAILED + 1))
     err "$name has failing assertions"
   fi
-  if echo "$out" | grep -q '^ERROR'; then
+  # psql prefixes diagnostics: "psql:/db_schema/tests/NN_x.sql:LINE: ERROR:  ...".
+  # ERROR never appears at column 0. A raise aborts the transaction, so every
+  # assertion after it is skipped rather than failed: fewer ok lines, no not ok.
+  if echo "$out" | grep -qE '(^|:[[:space:]])ERROR:'; then
     FAILED=$((FAILED + 1))
     err "$name raised an error"
-    echo "$out" | grep -A2 '^ERROR' | head -10 >&2
+    echo "$out" | grep -E -A2 '(^|:[[:space:]])ERROR:' | head -10 >&2
+  fi
+  # finish() reports a short run only when reached. Separate from the error
+  # check: a plan can be miscounted with nothing raised.
+  if echo "$out" | grep -q '^# Looks like you planned'; then
+    FAILED=$((FAILED + 1))
+    err "$name ran a different number of assertions than it planned"
   fi
 done
 

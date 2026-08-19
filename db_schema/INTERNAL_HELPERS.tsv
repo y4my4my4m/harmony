@@ -1,14 +1,11 @@
-# Internal helpers: reachable, called only by other database code, yet
-# exposed over HTTP because Supabase grants EXECUTE on public to anon.
+# Helpers reachable over HTTP: Supabase grants EXECUTE on public to anon.
 #
-# keep-policy  referenced by an RLS policy. Policy predicates run as the
-#              querying role, so revoking locks every user out of the table.
-# keep-invoker called by a SECURITY INVOKER function, which runs it as the
-#              client. Revoking breaks that path.
-# revocable    every caller is SECURITY DEFINER, so the helper runs as the
-#              definer regardless of who called in.
+# keep-policy   an RLS policy references it; predicates run as the querying
+#               role, so revoking locks every user out of the table.
+# keep-invoker  a SECURITY INVOKER function calls it; runs as the client.
+# revocable     every caller is SECURITY DEFINER.
 #
-# Advisory. Not applied: see db_schema/REFACTOR.md on sequencing.
+# Advisory. No grants revoked.
 #
 # name	class
 build_harmony_embed	revocable

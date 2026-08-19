@@ -34,6 +34,20 @@ const VALID_VERIFICATION = {
   scopes: ['bot'],
 }
 
+const tableCalls: { table: string; method: string; args: any[] }[] = []
+
+/**
+ * Heartbeat payloads passed to `.update()` on bot_presence, in call order.
+ * Terminated sockets from an earlier test can still emit an offline update here,
+ * so status writes are excluded.
+ */
+function heartbeatUpdates(): any[] {
+  return tableCalls
+    .filter((c) => c.table === 'bot_presence' && c.method === 'update')
+    .map((c) => c.args[0])
+    .filter((payload) => payload && 'latency_ms' in payload)
+}
+
 /**
  * Every builder method chains and resolves empty. Presence writes end in a bare
  * `.then()` with no callback, so the thenable has to tolerate that.
@@ -43,13 +57,16 @@ function stubTables() {
     const result = { data: null, error: null }
     return typeof resolve === 'function' ? resolve(result) : Promise.resolve(result)
   }
-  mocks.from.mockImplementation(() => {
+  mocks.from.mockImplementation((table: string) => {
     const builder: any = new Proxy(
       { then: settle },
       {
         get(target, prop) {
           if (prop in target) return (target as any)[prop]
-          return () => builder
+          return (...args: any[]) => {
+            tableCalls.push({ table, method: String(prop), args })
+            return builder
+          }
         },
       },
     )
@@ -97,6 +114,8 @@ async function identify(token?: string) {
 
 beforeEach(async () => {
   mocks.rpc.mockReset()
+  tableCalls.length = 0
+  mocks.config.websocket.heartbeatInterval = 30_000
   stubTables()
   vi.spyOn(console, 'log').mockImplementation(() => {})
   vi.spyOn(console, 'warn').mockImplementation(() => {})
@@ -172,6 +191,60 @@ describe('gateway frames', () => {
     const event = await nextEvent(ws)
 
     expect(event.frame).toEqual({ op: 11 })
+  })
+
+  it('records the arrival delay past the advertised interval as latency', async () => {
+    mocks.rpc.mockResolvedValue({ data: VALID_VERIFICATION, error: null })
+    let clock = 1_700_000_000_000
+    vi.spyOn(Date, 'now').mockImplementation(() => clock)
+
+    const { ws } = await identify(TOKEN)
+    clock += 30_000 + 120
+    ws.send(JSON.stringify({ op: 1 }))
+    await nextEvent(ws)
+
+    await vi.waitFor(() =>
+      expect(heartbeatUpdates()).toContainEqual({
+        last_heartbeat_at: new Date(clock).toISOString(),
+        latency_ms: 120,
+      }),
+    )
+  })
+
+  it('clamps latency to 0 when a heartbeat arrives early', async () => {
+    mocks.rpc.mockResolvedValue({ data: VALID_VERIFICATION, error: null })
+    let clock = 1_700_000_000_000
+    vi.spyOn(Date, 'now').mockImplementation(() => clock)
+
+    const { ws } = await identify(TOKEN)
+    clock += 5_000
+    ws.send(JSON.stringify({ op: 1 }))
+    await nextEvent(ws)
+
+    await vi.waitFor(() =>
+      expect(heartbeatUpdates()).toContainEqual(expect.objectContaining({ latency_ms: 0 })),
+    )
+  })
+
+  // latency_ms is an integer column (db_schema/init/08_tables_bots_extended.sql).
+  it('measures each heartbeat against the previous one, as a whole number', async () => {
+    mocks.rpc.mockResolvedValue({ data: VALID_VERIFICATION, error: null })
+    let clock = 1_700_000_000_000
+    vi.spyOn(Date, 'now').mockImplementation(() => clock)
+
+    const { ws } = await identify(TOKEN)
+    clock += 30_000 + 40
+    ws.send(JSON.stringify({ op: 1 }))
+    await nextEvent(ws)
+    clock += 30_000 + 900
+    ws.send(JSON.stringify({ op: 1 }))
+    await nextEvent(ws)
+
+    await vi.waitFor(() => expect(heartbeatUpdates()).toHaveLength(2))
+    expect(heartbeatUpdates().map((u) => u.latency_ms)).toEqual([40, 900])
+    for (const update of heartbeatUpdates()) {
+      expect(Number.isInteger(update.latency_ms)).toBe(true)
+    }
   })
 
   it('ignores a heartbeat from an unidentified socket', async () => {

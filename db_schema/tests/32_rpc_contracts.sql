@@ -13,12 +13,11 @@
 -- federation-backend/src/ and bot-gateway/src/ actually send and read.
 --
 -- Signatures alone still pass while a body is broken, so each cheap,
--- side-effect-free RPC is also called and its result asserted. verify_bot_token
--- is the one exception; see the note on it below.
+-- side-effect-free RPC is also called and its result asserted.
 
 BEGIN;
 SET LOCAL search_path = tests, public;
-SELECT plan(55);
+SELECT plan(59);
 
 CREATE OR REPLACE FUNCTION pg_temp.args(p_name text) RETURNS text LANGUAGE sql STABLE AS $fn$
   SELECT pg_get_function_arguments(p.oid)
@@ -148,13 +147,51 @@ SELECT is(pg_temp.sig('record_push_failure'),
 -- Bot auth --------------------------------------------------------------------------
 -- BotAuthMiddleware.ts and WebSocketGateway.ts both hash the bearer token and
 -- read verification.valid / .bot_id / .username / .scopes off a jsonb object.
---
--- Signature only. The body selects `WHERE is_active = true` and increments
--- uses_count; bot_tokens carries neither column, so every call raises 42703
--- undefined_column. Asserting the current outcome would pin the fault, so the
--- result shape is left unasserted until the body and the table agree.
 SELECT is(pg_temp.sig('verify_bot_token'), 'p_token_hash text -> jsonb',
           'verify_bot_token takes p_token_hash and returns jsonb');
+
+SELECT tests.clear_authentication();
+
+INSERT INTO public.bots (id, username, display_name, owner_id)
+VALUES ('c0000000-0000-0000-0000-0000000000d1', 'contractbot', 'Contract Bot',
+        '11111111-0000-0000-0000-000000000001');
+
+INSERT INTO public.bot_tokens (id, bot_id, token_hash, token_prefix, name, scopes,
+                               is_active, revoked_at)
+VALUES ('c0000000-0000-0000-0000-0000000000d2', 'c0000000-0000-0000-0000-0000000000d1',
+        'contract-live-hash', 'contract', 'Live', ARRAY['bot', 'messages.write'],
+        true, NULL),
+       ('c0000000-0000-0000-0000-0000000000d3', 'c0000000-0000-0000-0000-0000000000d1',
+        'contract-revoked-hash', 'contract', 'Revoked', ARRAY['bot'],
+        false, now());
+
+-- Asserted as the whole object: a key dropped from the jsonb_build_object is
+-- undefined on the client rather than an error. An absent scopes array authorises
+-- a bot for nothing; an absent bot_id attributes its writes to no one.
+SELECT is(public.verify_bot_token('contract-live-hash'),
+          jsonb_build_object('valid', true,
+                             'bot_id', 'c0000000-0000-0000-0000-0000000000d1'::uuid,
+                             'username', 'contractbot',
+                             'scopes', ARRAY['bot', 'messages.write']),
+          'a live token verifies to the fields the gateway and the REST middleware read');
+
+-- Both callers branch on `!verification?.valid` and turn that into a 401. An
+-- exception instead reaches BotAuthMiddleware as a PostgREST error and the gateway
+-- as a dropped socket.
+SELECT is(public.verify_bot_token('no-such-token-hash')->>'valid', 'false',
+          'an unknown token hash verifies as invalid rather than raising');
+
+-- The regenerate flows revoke by writing is_active false alongside revoked_at. A
+-- body that stopped reading is_active would keep every superseded token live.
+SELECT is(public.verify_bot_token('contract-revoked-hash')->>'valid', 'false',
+          'a revoked token verifies as invalid');
+
+-- The write half of the body. One verification succeeded above.
+SELECT results_eq(
+    $q$SELECT uses_count, last_used_at IS NOT NULL FROM public.bot_tokens
+        WHERE id = 'c0000000-0000-0000-0000-0000000000d2'$q$,
+    $q$VALUES (1::bigint, true)$q$,
+    'a successful verification stamps last_used_at and counts the use');
 
 -- Federation job queue ----------------------------------------------------------------
 -- Reached from 33 trigger bodies, positionally, almost all with the two

@@ -10,9 +10,8 @@
 -- trigger_cleanup_dead_endpoint on federation_endpoints -- rather than from an
 -- operator's session, so the log line is the only record of what it removed.
 --
--- RECONCILE.md classed it "superseded anyway - revoke candidate". That is
--- wrong: trigger_cleanup_dead_endpoint calls it, that trigger is bound in
--- 40_triggers.sql, and it does not appear in UNREACHABLE.tsv. It is live.
+-- Live, not superseded: the trigger is bound in 40_triggers.sql and the function
+-- is absent from UNREACHABLE.tsv.
 
 BEGIN;
 

@@ -1620,7 +1620,7 @@ export class BotRestAPI {
         return res.status(500).json({ error: 'Failed to create emoji' })
       }
       
-      await this.logBotAction(botId, 'emoji_create', { emojiId: emoji.id, name })
+      await this.logBotAction(botId, 'emoji_created', { emojiId: emoji.id, name })
       
       res.status(201).json(emoji)
     } catch (error: any) {
@@ -1631,9 +1631,11 @@ export class BotRestAPI {
   
   // AUDIT LOGGING
   
+  // Never throws; an audit failure must not fail the request that triggered it.
   private async logBotAction(botId: string, action: string, metadata: any) {
     try {
-      await supabase
+      // supabase-js resolves with { error } rather than rejecting; a catch alone observes nothing.
+      const { error } = await supabase
         .from('bot_audit_log')
         .insert({
           bot_id: botId,
@@ -1641,8 +1643,12 @@ export class BotRestAPI {
           success: true,
           metadata
         })
-    } catch (error) {
-      console.error('Failed to log bot action:', error)
+
+      if (error) {
+        console.error(`Failed to log bot action '${action}':`, error.message, error.code ?? '')
+      }
+    } catch (error: any) {
+      console.error(`Failed to log bot action '${action}':`, error?.message ?? error)
     }
   }
 }

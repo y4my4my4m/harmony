@@ -1,14 +1,7 @@
 # plpgsql_check errors that are environmental, not defects.
 #
-# scripts/check-plpgsql.sh walks every plpgsql function in a fresh init/ build and fails on
-# anything that would raise when called. These two cannot be fixed in this repo: the test
-# image ships a minimal auth schema and GoTrue creates auth.mfa_factors during its own
-# migrations, so a real self-host has the table and the throwaway container does not.
-# db_schema/init/98_enable_rls.sql:13 already carries the same accommodation in its
-# skip-if-absent list.
-#
-# The prod dump is --schema=public so it cannot confirm either way; confirm against a live
-# GoTrue before treating these as anything other than a test-image artefact.
+# GoTrue creates auth.mfa_factors during its own migrations; the test image ships a
+# minimal auth schema without it.
 #
 # Format: <function signature>\t<sqlstate>\t<message>
 #

@@ -8,9 +8,7 @@
 -- both sides -- conversation_id, user_id, change_type -- so the row fetch is a
 -- query per participant leave whose result is discarded.
 --
--- init/ carried over: same behaviour, without the read. RECONCILE.md classed
--- this "migration loads v_leaving_profile and does more"; it does do more, but
--- the extra work has no effect.
+-- init/ carried over: same behaviour, without the read.
 
 BEGIN;
 

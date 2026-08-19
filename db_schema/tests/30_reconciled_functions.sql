@@ -1,8 +1,8 @@
 -- Behaviour pinned for functions reconciled between init/ and migrations/.
 --
--- Each entry in db_schema/RECONCILE.md gets an assertion here before its
--- migration is written, so the chosen behaviour is stated as a test rather than
--- inferred from whichever body happened to be applied last.
+-- Each reconciled function gets an assertion here before its migration is
+-- written, so the chosen behaviour is stated as a test rather than inferred from
+-- whichever body happened to be applied last.
 
 BEGIN;
 SET LOCAL search_path = tests, public;

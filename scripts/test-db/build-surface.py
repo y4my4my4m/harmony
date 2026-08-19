@@ -85,8 +85,8 @@ def main() -> None:
     print("# Regenerate: scripts/generate-surface.sh")
     print("#")
     print("# PostgREST publishes every function below as an HTTP endpoint.")
-    print("# `definer` bypasses RLS. `unreferenced` means nothing in this repo")
-    print("# calls it, not that it is unreachable.")
+    print("# `definer` bypasses RLS. `unreferenced` means uncalled within this repo,")
+    print("# not unreachable.")
     print("#")
     print("# name\targs\treturns\tsecurity\tsearch_path\tgrants\treached_by")
     for r in sorted(rows):
