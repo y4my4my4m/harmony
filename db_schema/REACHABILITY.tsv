@@ -177,7 +177,7 @@ get_unread_announcements	definer	TABLE(id uuid, title text, content text, image_
 get_unread_notification_count	invoker	integer	service_role	service key	nothing references it
 get_unused_prekey	definer	prekeys	service_role	service key	nothing references it
 get_user_conversations	invoker	jsonb	anon+authenticated+service_role	client	rpc in src/stores/useDM.ts
-get_user_cycle_donation_total	definer	numeric	anon+authenticated+service_role	client	called by recompute_supporter_tier
+get_user_cycle_donation_total	definer	numeric	service_role	client	called by recompute_supporter_tier
 get_user_emoji_stats	invoker	TABLE(emoji_id uuid, emoji_name text, emoji_url text, usage_count bigint, last_used timestamp with time zone)	anon+authenticated+service_role	client	rpc in src/services/emojiService.ts
 get_user_handle	invoker	text	anon+authenticated+service_role	client	rpc in src/services/activityPubService.ts
 get_user_highest_role_position	definer	integer	anon+authenticated+service_role	client	called by ban_server_member, kick_server_member
@@ -255,7 +255,7 @@ promote_first_user_to_admin	definer	trigger	anon+authenticated+service_role	trig
 public_instance_config_keys	invoker	text[]	anon+authenticated+service_role	policy	policy public.instance_config SELECT on Public can read instance settings
 purge_stale_invites	definer	integer	anon+authenticated+service_role	cron	cron 20 4 * * * (purge-stale-invites)
 queue_federation_job	definer	uuid	anon+authenticated+service_role	client, trigger	called by handle_conversation_participant_added, handle_group_participant_left, remove_group_icon, +24
-recompute_supporter_tier	definer	uuid	anon+authenticated+service_role	client	rpc in federation-backend/src/routes/webhooks/kofi.ts, src/services/FundingService.ts
+recompute_supporter_tier	definer	uuid	authenticated+service_role	client	rpc in federation-backend/src/routes/webhooks/kofi.ts, src/services/FundingService.ts
 record_emoji_usage	invoker	void	anon+authenticated+service_role	client	rpc in src/services/emojiService.ts
 record_metric	definer	uuid	service_role	service key	nothing references it
 record_push_failure	definer	void	service_role	client	rpc in federation-backend/src/services/PushNotificationService.ts

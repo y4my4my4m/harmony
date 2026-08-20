@@ -4,17 +4,20 @@
 # --db-url, so nothing here needs a cloud project and `supabase link` is not
 # part of the deployment path:
 #
-#   npx supabase migration list --db-url "$DATABASE_URL"
-#   npx supabase db push --dry-run --db-url "$DATABASE_URL"
-#   npx supabase db push          --db-url "$DATABASE_URL"
+#   npx supabase@2.83.0 migration list --db-url "$DATABASE_URL"
+#   npx supabase@2.83.0 db push --dry-run --db-url "$DATABASE_URL"
+#   npx supabase@2.83.0 db push          --db-url "$DATABASE_URL"
 #
-# npx, not a globally installed supabase: package.json pins an exact version and a global
-# binary of a different version accepts different flags and emits different SQL.
+# The version is named at the call site rather than held in package.json: no build step or CI
+# job runs the CLI, and as a dependency its postinstall downloads a release binary on every
+# `npm ci`, which fails the job when that fetch resets. Versions differ in the flags they
+# accept and the SQL they emit, so a bare `supabase` picking up a global binary is not
+# equivalent.
 #
 # supabase/migrations is a symlink to db_schema/migrations, which stays the
 # single source of truth alongside db_schema/init. The CLI reads through the
-# symlink; keeping the files where they are leaves install.sh, the drift gate
-# and the docs pointing at the same paths they always did.
+# symlink; keeping the files where they are leaves the drift gate and the docs
+# pointing at the same paths they always did.
 #
 # Migration filenames must be <version>_<name>.sql with a version unique across
 # the whole directory - supabase_migrations.schema_migrations has version as its
