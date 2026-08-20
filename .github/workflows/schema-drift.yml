@@ -1,7 +1,7 @@
-name: Schema drift
+name: Database
 
-# A fresh install runs init/init.sql then every migration; applying the migrations to a
-# fresh init must leave the schema unchanged.
+# db_schema/migrations/ is the only description of the schema. The gates below build a
+# database from it and check the result against what the application actually uses.
 
 # No paths filter: the coverage gates read files under src/, federation-backend/ and
 # bot-gateway/. A required check that does not run reports no result, which branch
@@ -11,27 +11,6 @@ on:
   workflow_dispatch:
 
 jobs:
-  drift:
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Check init/ against init/ + migrations/
-        run: ./scripts/schema-drift-check.sh
-
-      - name: Keep the dumps for inspection
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: schema-dumps
-          path: /tmp/harmony-drift/
-          retention-days: 7
-
   surface:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -84,10 +63,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # The drift gate compares init/ with init/ plus migrations, so a function missing
-      # from both is invisible to it. This reads the other direction: the RPC names the
-      # application calls.
-      - name: Check every called RPC exists in a fresh init/ build
+      # Reads the schema from the direction the application does: the RPC names it calls.
+      - name: Check every called RPC exists in the built schema
         run: ./scripts/check-rpc-coverage.sh
 
   schema-usage:
@@ -96,15 +73,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # A table or column in neither init/ nor the migrations is invisible to the drift
-      # gate.
-      - name: Check every table and column the app uses exists in a fresh init/ build
+      - name: Check every table and column the app uses exists in the built schema
         run: ./scripts/check-schema-usage.sh
 
   # plpgsql resolves column and relation references at first execution, not at CREATE: a
-  # body naming a column its table lacks installs cleanly and raises 42703 only when called.
-  # Drift sees identical text in init/ and the migrations; check-rpc-coverage sees a
-  # function that exists.
+  # body naming a column its table lacks installs cleanly and raises 42703 only when called,
+  # so check-rpc-coverage sees a function that exists.
   plpgsql:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -142,7 +116,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Check every ON CONFLICT target has a unique in init/
+      - name: Check every ON CONFLICT target has a unique in the schema
         run: ./scripts/check-upsert-conflicts.py
 
   # Single required check for the database gates: a skipped dependency must not read as
@@ -151,7 +125,7 @@ jobs:
     name: Database verdict
     runs-on: ubuntu-latest
     if: always()
-    needs: [drift, surface, reachability, rpc-coverage, schema-usage, plpgsql, fresh-install, pgtap, upsert-conflicts]
+    needs: [surface, reachability, rpc-coverage, schema-usage, plpgsql, fresh-install, pgtap, upsert-conflicts]
     steps:
       - name: Require every database gate to have succeeded
         run: |
@@ -162,7 +136,6 @@ jobs:
               *)       printf '  FAILED  %s (%s)\n' "$1" "$2"; fail=1 ;;
             esac
           }
-          check "drift"        "${{ needs.drift.result }}"
           check "surface"      "${{ needs.surface.result }}"
           check "reachability" "${{ needs.reachability.result }}"
           check "rpc-coverage" "${{ needs.rpc-coverage.result }}"

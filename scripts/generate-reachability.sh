@@ -606,7 +606,7 @@ def main():
     w("# Function reachability \u2014 generated, do not edit by hand.")
     w("# Regenerate: scripts/generate-reachability.sh")
     w("#")
-    w("# How execution enters every function in a schema built from db_schema/init/.")
+    w("# How execution enters every function in a schema built from db_schema/migrations/.")
     w("# entry is a comma-separated set of entry kinds. `http anon` and `service key`")
     w("# mean nothing reaches it and PostgREST publishes it anyway; `nothing` means dead.")
     w("#")

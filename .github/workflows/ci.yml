@@ -169,7 +169,7 @@ jobs:
           VITE_SUPABASE_ANON_KEY: placeholder-key
 
   # ----------------------------------------------------------------
-  # Postgres, GoTrue and PostgREST raised from db_schema/init/, seeded, then
+  # Postgres, GoTrue and PostgREST raised from db_schema/migrations/, seeded, then
   # driven through supabase-js. e2e/stack.sh generates every credential at
   # bring-up; no repository secret is read. Storage, realtime, imgproxy, the
   # federation backend and the browser are outside the stack.
