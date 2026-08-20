@@ -4,6 +4,7 @@ import { asyncHandler } from '../middleware/errorHandler.js';
 import { profileToActor } from './converters/toActivityPub.js';
 import { actorToProfile, noteToContent } from './converters/fromActivityPub.js';
 import { resolveLocalProfileEmojis } from './emojiResolver.js';
+import { stripOwnEmojiDomain } from '../utils/emojiResolvers.js';
 import { ActivityProcessor } from './ActivityProcessor.js';
 import { SignatureService } from './SignatureService.js';
 import { logger } from '../utils/logger.js';
@@ -1534,7 +1535,11 @@ async function _fetchRemotePostReactionsImpl(
         // emits no index predicate, so ON CONFLICT infers no arbiter. Mirrors
         // ActivityProcessor.processLike.
         if (postId && localProfile?.id) {
-          const content = reactionContent || emoji;
+          // A reaction this instance emitted returns qualified with our own domain, as
+          // `:name@our.domain:` against the `:name:` already stored. The dedupe below
+          // compares the shortcode literally, so the two spellings both persist and the
+          // chip splits. Strip the suffix when the domain is ours.
+          const content = stripOwnEmojiDomain(reactionContent || emoji);
 
           const { data: existing } = await supabase
             .from('post_interactions')

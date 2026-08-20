@@ -16,6 +16,7 @@ import config from '../config/index.js';
 import { harmonyVoiceMessageFromObject } from '../utils/voiceMessageFederation.js';
 import { safeFetch } from '../utils/ssrfProtection.js';
 import { pgrstOrValue } from '../utils/postgrestFilter.js';
+import { stripOwnEmojiDomain } from '../utils/emojiResolvers.js';
 
 /**
  * Extract message UUID from a URL like https://domain/messages/{uuid}
@@ -1408,6 +1409,9 @@ export class ActivityProcessor {
       if (!emoji || normalizedEmoji === '❤' || normalizedEmoji === '❤️') {
         normalizedEmoji = '❤️';
       }
+      // A reaction emitted here returns qualified with our own domain, which the duplicate
+      // check below compares literally against the `:name:` already stored.
+      normalizedEmoji = stripOwnEmojiDomain(normalizedEmoji) ?? normalizedEmoji;
       
       logger.info(`Inserting reaction: emoji_id=${emojiId}, custom_content=${normalizedEmoji}`);
       
