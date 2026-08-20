@@ -127,6 +127,12 @@ interface ManagedSubscription {
    * `retryCount > 0` test misses every wake-from-sleep / network-restore gap.
    */
   pendingGapFill: boolean
+  /**
+   * `removeChannel()` drives the CLOSED status callback synchronously:
+   * `unsubscribe()` sets the channel state to `leaving`, so `_canPush()` is
+   * false and the leave push resolves inline.
+   */
+  tearingDown: boolean
 }
 
 // Configuration
@@ -316,7 +322,8 @@ class RealtimeConnectionManagerService {
       lastError: null,
       rapidCloseCount: 0,
       lastClosedAt: null,
-      pendingGapFill: false
+      pendingGapFill: false,
+      tearingDown: false
     }
     
     this.subscriptions.set(channelName, managedSub)
@@ -356,6 +363,7 @@ class RealtimeConnectionManagerService {
       rapidCloseCount: 0,
       lastClosedAt: null,
       pendingGapFill: false,
+      tearingDown: false,
     }
 
     this.subscriptions.set(channelName, managedSub)
@@ -402,7 +410,8 @@ class RealtimeConnectionManagerService {
       lastError: null,
       rapidCloseCount: 0,
       lastClosedAt: null,
-      pendingGapFill: false
+      pendingGapFill: false,
+      tearingDown: false
     }
     
     this.subscriptions.set(channelName, managedSub)
@@ -438,7 +447,8 @@ class RealtimeConnectionManagerService {
       lastError: null,
       rapidCloseCount: 0,
       lastClosedAt: null,
-      pendingGapFill: false
+      pendingGapFill: false,
+      tearingDown: false
     }
     
     this.subscriptions.set(channelName, managedSub)
@@ -662,10 +672,15 @@ class RealtimeConnectionManagerService {
     if (!managedSub) return
     
     if (managedSub.channel) {
-      supabase.removeChannel(managedSub.channel)
+      managedSub.tearingDown = true
+      try {
+        supabase.removeChannel(managedSub.channel)
+      } finally {
+        managedSub.tearingDown = false
+      }
       managedSub.channel = null
     }
-    
+
     switch (managedSub.configType) {
       case 'table':
         this.connectTableSubscription(channelName)
@@ -699,6 +714,14 @@ class RealtimeConnectionManagerService {
         const shouldGapFill = managedSub.pendingGapFill
         managedSub.pendingGapFill = false
         managedSub.retryCount = 0
+        // The cooldown callback is the only other writer that zeroes this, and the clear
+        // below cancels it. A channel can reach SUBSCRIBED through realtime-js's own
+        // rejoin timer while that cooldown is pending, without passing through here.
+        managedSub.rapidCloseCount = 0
+        if (managedSub.retryTimeoutId) {
+          clearTimeout(managedSub.retryTimeoutId)
+          managedSub.retryTimeoutId = null
+        }
         managedSub.lastConnectedAt = new Date()
         managedSub.lastError = null
         this.updateSubscriptionStatus(channelName, 'connected')
@@ -740,9 +763,17 @@ class RealtimeConnectionManagerService {
         
       case 'CLOSED':
         managedSub.pendingGapFill = true
+
+        // Teardown close, not a server close: the replacement channel is built as this
+        // returns.
+        if (managedSub.tearingDown) {
+          debug.log(`RealtimeManager: ${channelName} closed during reconnect teardown`)
+          break
+        }
+
         this.updateSubscriptionStatus(channelName, 'disconnected')
         debug.log(`RealtimeManager: ${channelName} closed`)
-        
+
         if (this.subscriptions.has(channelName)) {
           const now = Date.now()
           

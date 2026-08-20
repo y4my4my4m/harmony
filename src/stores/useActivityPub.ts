@@ -1222,8 +1222,9 @@ export const useActivityPubStore = defineStore('activitypub', {
         return;
       }
 
+      // post_interactions.user_id references profiles(id), not auth.users(id).
       const context = await authContextService.getCurrentContext();
-      const isCurrentUser = context.isAuthenticated && context.authUser?.id === userId;
+      const isCurrentUser = context.isAuthenticated && context.profileId === userId;
 
       // Counts come from the server; local increments drift.
       const { data: postCounts, error: countsError } = await supabase
@@ -1251,9 +1252,28 @@ export const useActivityPubStore = defineStore('activitypub', {
       if (isCurrentUser) {
         switch (interactionType) {
           case 'favorite':
-          case 'emoji_reaction':
-            userStateUpdates.is_favorited = eventType === 'INSERT';
+          case 'emoji_reaction': {
+            // is_favorited is EXISTS(favorite OR emoji_reaction), and a user
+            // holds one row per emoji. A removal leaves the other rows
+            // standing, so re-read instead of clearing the heart.
+            if (eventType === 'INSERT') {
+              userStateUpdates.is_favorited = true;
+              break;
+            }
+            const { data: hearts, error: heartsError } = await supabase
+              .from('post_interactions')
+              .select('id')
+              .eq('post_id', postId)
+              .eq('user_id', userId)
+              .in('interaction_type', ['favorite', 'emoji_reaction'])
+              .limit(1);
+            if (heartsError) {
+              debug.error('Failed to re-read heart interactions for realtime update:', heartsError);
+              break;
+            }
+            userStateUpdates.is_favorited = (hearts?.length ?? 0) > 0;
             break;
+          }
           case 'reblog':
             userStateUpdates.is_reblogged = eventType === 'INSERT';
             break;
@@ -1624,6 +1644,8 @@ export const useActivityPubStore = defineStore('activitypub', {
 
     /** Runs after the cached timeline has been painted. */
     async refreshHomeFeedInBackground() {
+      if (this.loadingFeeds.home) return;
+      this.loadingFeeds.home = true;
       try {
         const context = await authContextService.getCurrentContext();
         if (!context.isAuthenticated) return;
@@ -1649,14 +1671,25 @@ export const useActivityPubStore = defineStore('activitypub', {
           this.batchFetchRemoteReactions(processedPosts),
         ]);
 
-        this.homeFeed.posts = processedPosts;
-        this.homeFeed.has_more = fullPage;
-        this.homeFeed.cursor = posts[posts.length - 1]?.created_at;
+        // The fetch covers the newest `limit` posts. Entries older than that
+        // window are beyond it, not gone: the cache holds 30 and this page
+        // holds 20, so a plain assignment drops ten.
+        const oldest = processedPosts[processedPosts.length - 1]?.created_at;
+        const freshIds = new Set(processedPosts.map((p) => p.id));
+        const tail = oldest
+          ? this.homeFeed.posts.filter((p) => !freshIds.has(p.id) && p.created_at < oldest)
+          : this.homeFeed.posts;
+
+        this.homeFeed.posts = [...processedPosts, ...tail];
+        if (tail.length === 0) this.homeFeed.has_more = fullPage;
+        this.homeFeed.cursor = this.homeFeed.posts[this.homeFeed.posts.length - 1]?.created_at;
         this.unreadCount = 0;
         this.saveTimelineToCache();
         debug.log('Background refresh complete');
       } catch (error) {
         debug.warn('Background refresh failed (cached data still shown):', error);
+      } finally {
+        this.loadingFeeds.home = false;
       }
     },
 

@@ -42,7 +42,7 @@
                     v-else-if="toast.emojiName"
                     class="toast-emoji-fallback"
                   >
-                    :{{ toast.emojiName }}:
+                    {{ reactionEmojiText(toast.emojiName) }}
                   </span>
                   <span v-if="toast.actorUserId && toast.titleSuffix">{{ toast.titleSuffix.replace(/^.*?reacted/, '') }}</span>
                   <span v-else>{{ toast.title.split('reacted')[1] }}</span>
@@ -63,7 +63,7 @@
                     v-else-if="toast.emojiName"
                     class="toast-emoji-fallback"
                   >
-                    :{{ toast.emojiName }}:
+                    {{ reactionEmojiText(toast.emojiName) }}
                   </span>
                 </template>
               </template>
@@ -136,6 +136,13 @@ const handleToastClick = (toast: NotificationToast) => {
     }
   }
   removeToast(toast.id)
+}
+
+// emoji_name is a bare shortcode, a colon-wrapped shortcode (federated), or a
+// raw unicode character. Mirrors reactionEmoji in NotificationItem.vue.
+const reactionEmojiText = (emojiName: string) => {
+  const trimmed = String(emojiName).trim()
+  return /^:[\w+-]+:$/.test(trimmed) ? trimmed.slice(1, -1) : trimmed
 }
 
 const handleAvatarError = (event: Event) => {
