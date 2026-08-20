@@ -1,13 +1,9 @@
 #!/usr/bin/env bash
-# Flattens db_schema/init/ into a single migration.
+# Flattens db_schema/init/ into one migration, so the chain builds from zero. No migration
+# creates public.servers or the other 102 tables init/ declares.
 #
-# The migration chain does not build a database from zero: no migration creates public.servers
-# or the other 102 tables init/ declares, so the first one fails with 42P01 and `supabase db
-# reset`, `migration squash` and `db diff` all stop there. Emitting init/ as the first
-# migration makes the chain self-sufficient, which is what the CLI assumes.
-#
-# init.sql drives the order through \i, and psql meta-commands do not survive into a migration
-# the CLI applies as a string, so the includes are expanded and the \echo lines dropped.
+# Includes are expanded and \echo dropped: the CLI applies a migration as a string, where psql
+# meta-commands do not resolve.
 #
 #   build-baseline-migration.sh <version>   write db_schema/migrations/<version>_baseline.sql
 #   build-baseline-migration.sh --stdout    write to stdout

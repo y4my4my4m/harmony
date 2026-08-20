@@ -72,22 +72,11 @@ pick_db_role || die "no role can modify the schema: tried postgres and supabase_
 info "Applying as $DB_USER"
 
 MIGRATIONS_ONLY=false
-FRESH_LOAD=false
 [[ "${1:-}" == "--migrations-only" ]] && MIGRATIONS_ONLY=true
 
-# --- full schema (init.sql) --------------------------------------------------
-already="$(psql_exec -tAc "SELECT to_regclass('public.profiles') IS NOT NULL" 2>/dev/null | tr -d '[:space:]')"
-if [[ "$already" == "t" ]]; then
-	info "Harmony tables already present - skipping init.sql"
-elif ! $MIGRATIONS_ONLY; then
-	info "Loading full schema (db_schema/init/init.sql)..."
-	docker exec "$DB_CONTAINER" rm -rf /tmp/db_schema 2>/dev/null || true
-	docker cp "$REPO_DIR/db_schema" "$DB_CONTAINER:/tmp/db_schema"
-	docker exec -e PGPASSWORD="$PG_PW" -w /tmp/db_schema/init "$DB_CONTAINER" \
-		psql -U "$DB_USER" "${DB_HOST_ARGS[@]}" -d "$DB_NAME" -f init.sql 2>&1 | tail -10
-	ok "Schema loaded"
-	FRESH_LOAD=true
-fi
+# The migration chain builds an empty database: 20260101000000_baseline.sql creates every
+# table and the files after it are deltas. An empty instance and an existing one take the
+# same path, the ledger deciding what runs.
 
 # --- migrations --------------------------------------------------------------
 # Each migration runs once, in version order, recorded in
@@ -106,26 +95,6 @@ CREATE TABLE IF NOT EXISTS supabase_migrations.schema_migrations (
 	statements text[]
 );
 SQL
-
-# init/ is the end state every migration carries an existing database towards, so
-# a database built from init.sql is already at the head and its migrations are
-# recorded rather than run. Migrations written for an older shape fail against
-# the current one - CREATE OR REPLACE cannot rename a parameter or change a
-# return type, and a policy cannot be created twice - and the loop below stops
-# at the first failure.
-if $FRESH_LOAD; then
-	info "Fresh schema: recording migration history without replaying it"
-	for f in "$REPO_DIR"/db_schema/migrations/*.sql; do
-		fname="$(basename "$f")"
-		version="${fname:0:14}"
-		name="${fname:15}"; name="${name%.sql}"
-		psql_exec -q >/dev/null <<SQL
-INSERT INTO supabase_migrations.schema_migrations (version, name)
-VALUES ('${version}', '${name}') ON CONFLICT (version) DO NOTHING;
-SQL
-	done
-	ok "Recorded $(ls "$REPO_DIR"/db_schema/migrations/*.sql | wc -l | tr -d ' ') migration(s) as applied"
-fi
 
 applied="$(psql_exec -tAc 'SELECT version FROM supabase_migrations.schema_migrations')"
 pending=0

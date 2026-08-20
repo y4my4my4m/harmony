@@ -66,8 +66,7 @@ docker exec "$CONTAINER" psql -U postgres -d postgres -tAc \
   err "realtime.messages missing after compat; realtime policies would be absent"
   exit 1
 }
-docker exec -w /db_schema/init "$CONTAINER" psql -U postgres -d postgres -q -v ON_ERROR_STOP=1 -f init.sql >/dev/null
-
+"$ROOT/scripts/test-db/load-schema.sh" "$CONTAINER"
 cat > "$WORK/reach-query.sql" <<'SQL'
 -- Emits the raw edges of the reachability graph, one record per line, tagged by
 -- kind and separated by '|'.
