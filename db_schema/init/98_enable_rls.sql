@@ -215,8 +215,8 @@ $$;
 --
 -- Supabase grants EXECUTE on every function in public to anon and
 -- authenticated by default, so each of these would otherwise be an
--- unauthenticated HTTP endpoint. No entry point reaches them; see
--- db_schema/UNREACHABLE.tsv and scripts/find-unreachable.sh.
+-- unauthenticated HTTP endpoint. No entry point reaches them; REACHABILITY.tsv
+-- records how execution enters each function in public.
 --
 -- Mirrors migrations/20260809_revoke_unreachable_functions.sql.
 -- ---------------------------------------------------------------------------

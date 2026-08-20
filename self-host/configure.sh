@@ -38,7 +38,7 @@ command -v python3 >/dev/null || die "python3 is required (used to trim the Supa
 rand_hex()  { openssl rand -hex "${1:-24}"; }
 rand_b64()  { openssl rand -base64 "${1:-48}" | tr -d '\n'; }
 
-# HS256 JWT signed with the Supabase JWT secret (same scheme as scripts/install.sh)
+# HS256 JWT signed with the Supabase JWT secret.
 sign_jwt() {
 	local role="$1" secret="$2" now exp header payload body sig
 	now=$(date +%s); exp=$((now + 157680000)) # 5 years

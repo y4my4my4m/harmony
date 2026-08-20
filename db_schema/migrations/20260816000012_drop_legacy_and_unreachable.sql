@@ -111,8 +111,8 @@ END $do$;
 -- ---------------------------------------------------------------------------
 -- 2. Unreachable functions
 -- ---------------------------------------------------------------------------
--- From scripts/find-unreachable.sh. None is defined in init/ or in any migration, so
--- restoring one means restoring its definition from a dump; this file is that record.
+-- None is defined in init/ or in any migration, so restoring one means restoring its
+-- definition from a dump; this file is that record.
 
 DO $do$ BEGIN
     DROP FUNCTION IF EXISTS public.check_timeline_health(p_user_id uuid);

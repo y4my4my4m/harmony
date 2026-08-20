@@ -26,3 +26,22 @@ describe('post reaction chip matching', () => {
     expect(m(REMOTE as never)).toBe(false)
   })
 })
+
+// get_post_emoji_reactions orders by MIN(created_at), so an unconstrained content match
+// returns the oldest chip whose emoji_id is null - somebody else's unicode reaction - and the
+// engine then takes the wrong add/remove branch.
+describe('unicode chips are distinguished from each other', () => {
+  const FIRE = { emoji_id: null, custom_emoji_content: '🔥' }
+  const GRIN = { emoji_id: null, custom_emoji_content: '😀' }
+
+  it('matches the picked unicode emoji, not the first null-id chip', () => {
+    expect(__test.matchesEmoji(FIRE as never, { native: '🔥' })).toBe(true)
+    expect(__test.matchesEmoji(FIRE as never, { native: '😀' })).toBe(false)
+    expect(__test.matchesEmoji(GRIN as never, { native: '😀' })).toBe(true)
+  })
+
+  it('treats a non-uuid id as the shortcode, as buildOptimisticGroups does', () => {
+    expect(__test.matchesEmoji(FIRE as never, { id: '🔥' })).toBe(true)
+    expect(__test.matchesEmoji(GRIN as never, { id: '🔥' })).toBe(false)
+  })
+})

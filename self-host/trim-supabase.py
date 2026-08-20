@@ -47,7 +47,7 @@ def main(path: str) -> None:
         elif isinstance(dep, list):
             svc["depends_on"] = [d for d in dep if d not in REMOVE]
 
-    # Relax imgproxy limits (matches scripts/install.sh behaviour).
+    # Relax imgproxy limits.
     img = services.get("imgproxy")
     if img is not None:
         env = img.setdefault("environment", {})

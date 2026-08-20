@@ -36,7 +36,11 @@ const isUuid = (str: string): boolean =>
 // chip happens to sort first.
 function matchesEmoji(group: PostReactionGroup, emoji: PostReactionInput): boolean {
   const id = emoji.id && isUuid(emoji.id) ? emoji.id : null
-  return matchesEmojiBy(id, emoji.native ?? null)(group)
+  // Keyed exactly as buildOptimisticGroups keys it. Derived differently, find and build
+  // disagree: a null content leaves the predicate matching any group whose emoji_id is null,
+  // which is the oldest unicode chip on the post rather than this one.
+  const content = emoji.native || (emoji.id && !isUuid(emoji.id) ? emoji.id : null)
+  return matchesEmojiBy(id, content)(group)
 }
 
 function buildOptimisticGroups(

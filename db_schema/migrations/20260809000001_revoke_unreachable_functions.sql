@@ -4,9 +4,9 @@
 -- authenticated by default, so each of these is an unauthenticated HTTP
 -- endpoint; 30 of them run SECURITY DEFINER and bypass RLS.
 --
--- No entry point reaches them: scripts/find-unreachable.sh traverses the call
--- graph from every RPC name, trigger, RLS policy, cron schedule, view and
--- column default, with caller matching deliberately over-inclusive.
+-- No entry point reaches them: the call graph is traversed from every RPC name,
+-- trigger, RLS policy, cron schedule, view and column default, with caller
+-- matching deliberately over-inclusive.
 --
 -- Revoked rather than dropped. If something outside this repository calls one,
 -- the failure is a permission error that names the function and is undone by a

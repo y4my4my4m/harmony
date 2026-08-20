@@ -10,8 +10,7 @@
 -- trigger_cleanup_dead_endpoint on federation_endpoints -- rather than from an
 -- operator's session, so the log line is the only record of what it removed.
 --
--- Live, not superseded: the trigger is bound in 40_triggers.sql and the function
--- is absent from UNREACHABLE.tsv.
+-- Live, not superseded: the trigger is bound in 40_triggers.sql.
 
 BEGIN;
 
