@@ -261,10 +261,10 @@ class ReportService {
             }
           }
           await supabase.rpc('send_notification_to_user', {
-            notification_type: 'report_update',
-            to_user_id: report.reporter_id,
-            notification_data: notificationData,
-            from_user_id: showResolver ? resolverProfileId : null,
+            p_notification_type: 'report_update',
+            p_to_user_id: report.reporter_id,
+            p_notification_data: notificationData,
+            p_from_user_id: showResolver ? resolverProfileId : null,
           })
         }
       } catch (notifError) {

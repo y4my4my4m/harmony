@@ -3271,9 +3271,9 @@ export class ActivityProcessor {
 
     for (const userId of recipientIds) {
       const { error: notifError } = await supabase.rpc('send_notification_to_user', {
-        notification_type: 'dm',
-        to_user_id: userId,
-        notification_data: {
+        p_notification_type: 'dm',
+        p_to_user_id: userId,
+        p_notification_data: {
           sender: inviter ? {
             user_id: inviter.id,
             username: inviter.username,
@@ -3285,11 +3285,11 @@ export class ActivityProcessor {
           preview: `You were added to ${conversationName}`,
           is_invite: true
         },
-        server_id: null,
-        channel_id: null,
-        conversation_id: conversationId,
-        from_user_id: authorId,
-        priority: 'normal'
+        p_server_id: null,
+        p_channel_id: null,
+        p_conversation_id: conversationId,
+        p_from_user_id: authorId,
+        p_priority: 'normal'
       });
       if (notifError) logger.warn('Failed to create invite notification:', notifError);
     }
