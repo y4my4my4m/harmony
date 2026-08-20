@@ -1,5 +1,5 @@
 /**
- * The bot gateway against a database built from db_schema/init/.
+ * The bot gateway against a database built from db_schema/migrations/.
  *
  * plpgsql resolves column references at first execution, so a SECURITY DEFINER
  * function naming a column its table lacks installs cleanly and raises only when
@@ -143,11 +143,12 @@ function buildSchema(): void {
   if (stub.rows[0]?.[0] !== '1') throw new Error('realtime.send stub missing after compat')
 
   const init = docker([
-    'exec', '-w', '/db_schema/init', CONTAINER, 'psql', '-U', 'postgres', '-d', 'postgres', '-q',
-    '-f', 'init.sql',
+    'exec', CONTAINER, 'sh', '-c',
+    'set -e; for f in $(ls /db_schema/migrations/*.sql | LC_ALL=C sort); do ' +
+    'psql -U postgres -d postgres -q -v ON_ERROR_STOP=1 -f "$f" >/dev/null; done',
   ])
   if (init.status !== 0) {
-    throw new Error(`init.sql failed:\n${`${init.stdout}\n${init.stderr}`.slice(-4000)}`)
+    throw new Error(`schema load failed:\n${`${init.stdout}\n${init.stderr}`.slice(-4000)}`)
   }
 
   const built = sql(`SELECT to_regclass('public.bots') IS NOT NULL

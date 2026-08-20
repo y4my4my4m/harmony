@@ -1,7 +1,7 @@
 # Function reachability — generated, do not edit by hand.
 # Regenerate: scripts/generate-reachability.sh
 #
-# How execution enters every function in a schema built from db_schema/init/.
+# How execution enters every function in a schema built from db_schema/migrations/.
 # entry is a comma-separated set of entry kinds. `http anon` and `service key`
 # mean nothing reaches it and PostgREST publishes it anyway; `nothing` means dead.
 #

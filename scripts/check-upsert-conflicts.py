@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# An upsert's ON CONFLICT target must match a unique index in init/ or Postgres raises
+# An upsert's ON CONFLICT target must match a unique index in the schema or Postgres raises
 # 42P10, at runtime and nowhere earlier.
 #
 # Inference matches full indexes only. A partial index does not satisfy ON CONFLICT
@@ -37,9 +37,9 @@ def upsert_sites():
 
 
 def unique_sets():
-    """table -> [frozenset(cols)] for every full UNIQUE or PRIMARY KEY in init/."""
+    """table -> [frozenset(cols)] for every full UNIQUE or PRIMARY KEY in the migrations."""
     sql = ''
-    for path in sorted(glob.glob(os.path.join(ROOT, 'db_schema/init/*.sql'))):
+    for path in sorted(glob.glob(os.path.join(ROOT, 'db_schema/migrations/*.sql'))):
         sql += open(path, encoding='utf-8', errors='replace').read() + '\n'
 
     out = {}
@@ -88,14 +88,14 @@ def main():
             gaps.append((table, cols, path, line))
 
     if not gaps:
-        print(f"{len(sites)} upserts, every ON CONFLICT target has a full unique in init/")
+        print(f"{len(sites)} upserts, every ON CONFLICT target has a full unique in the schema")
         return 0
 
-    print(f"\n{len(gaps)} of {len(sites)} upserts infer a unique index init/ does not declare:\n")
+    print(f"\n{len(gaps)} of {len(sites)} upserts infer a unique index the schema does not declare:\n")
     for table, cols, path, line in gaps:
         declared = '; '.join('(' + ','.join(sorted(h)) + ')' for h in have.get(table, [])) or 'none'
         print(f"  {table}({','.join(cols)})  {path}:{line}")
-        print(f"      init/ declares: {declared}")
+        print(f"      schema declares: {declared}")
     print("\nEach raises 42P10 at runtime.")
     return 1
 

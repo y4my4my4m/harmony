@@ -184,8 +184,8 @@ build_schema() {
 
   # init.sql narrates every skipped policy and index at NOTICE level; warnings
   # and errors still come through.
-  docker exec -w /db_schema/init -e PGOPTIONS='-c client_min_messages=warning' \
-    "$cid" psql -U postgres -d postgres -q -f init.sql >/dev/null
+  PGOPTIONS='-c client_min_messages=warning' \
+    "$ROOT/scripts/test-db/load-schema.sh" "$cid"
 
   # The inbox stores every activity through this RPC; without it every case
   # fails at the same place for a reason unrelated to what it covers.

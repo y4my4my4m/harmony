@@ -49,8 +49,7 @@ docker exec "$CONTAINER" psql -U postgres -d postgres -tAc \
   err "realtime.send stub missing after compat; broadcast triggers will fail"
   exit 1
 }
-docker exec -w /db_schema/init "$CONTAINER" psql -U postgres -d postgres -q -f init.sql >/dev/null
-
+"$ROOT/scripts/test-db/load-schema.sh" "$CONTAINER"
 log "installing pgtap and fixtures"
 docker exec "$CONTAINER" psql -U postgres -d postgres -q -v ON_ERROR_STOP=1 -f /db_schema/tests/00_bootstrap.sql
 docker exec "$CONTAINER" psql -U postgres -d postgres -q -v ON_ERROR_STOP=1 -f /db_schema/tests/01_fixtures.sql

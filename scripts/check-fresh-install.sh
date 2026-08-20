@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Runs self-host/bootstrap.sh against a throwaway container. bootstrap.sh loads
-# db_schema/init/ then consults supabase_migrations.schema_migrations; no other gate
+# db_schema/migrations/ and consults supabase_migrations.schema_migrations; no other gate
 # exercises that decision. A fresh install must complete and record every migration file.
 #
 #   check-fresh-install.sh          build, install, assert
@@ -62,8 +62,8 @@ log "$tables tables, $funcs functions, $recorded of $files migrations recorded"
 
 fail=0
 [ "$recorded" = "$files" ] || { err "ledger holds $recorded of $files migrations; a new install must be at the head"; fail=1; }
-[ "$tables" -ge 90 ]       || { err "only $tables tables in public; init.sql did not finish"; fail=1; }
-[ "$funcs"  -ge 300 ]      || { err "only $funcs functions in public; init.sql did not finish"; fail=1; }
+[ "$tables" -ge 90 ]       || { err "only $tables tables in public; the baseline did not finish"; fail=1; }
+[ "$funcs"  -ge 300 ]      || { err "only $funcs functions in public; the baseline did not finish"; fail=1; }
 
 log "running bootstrap.sh a second time"
 if ! SUPABASE_DB_CONTAINER="$CONTAINER" bash "$ROOT/self-host/bootstrap.sh" --migrations-only > /tmp/fresh-install-2.log 2>&1; then

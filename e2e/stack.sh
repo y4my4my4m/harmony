@@ -177,8 +177,8 @@ build_schema() {
     -v ON_ERROR_STOP=1 -f /jwt-claims-compat.sql
 
   # init.sql reports every skipped policy and index at NOTICE.
-  docker exec -w /db_schema/init -e PGOPTIONS='-c client_min_messages=warning' \
-    "$cid" psql -U postgres -d postgres -q -f init.sql >/dev/null
+  PGOPTIONS='-c client_min_messages=warning' \
+    "$ROOT/scripts/test-db/load-schema.sh" "$cid"
 
   # A null auth.uid() makes every later RLS deny look deliberate.
   local uid
