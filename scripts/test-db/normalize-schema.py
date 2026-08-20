@@ -129,11 +129,17 @@ def inventory(sql: str, verbose: bool) -> list[str]:
         emit("view", m.group(1), m.group(2))
 
     # Grants and column defaults carry authorization and behavioural meaning.
+    #
+    # The name is capped to stay readable, the digest covers the whole statement. Passing an
+    # empty body digests sha1("") for every row, and two statements agreeing up to the cap
+    # then compare equal - which for a foreign key is CASCADE against SET NULL.
     for m in re.finditer(r"(GRANT|REVOKE) (.*?);", sql, re.S):
-        emit("grant", squash(f"{m.group(1)} {m.group(2)}")[:150], "")
+        stmt = squash(f"{m.group(1)} {m.group(2)}")
+        emit("grant", stmt[:150], stmt)
 
     for m in re.finditer(r"ALTER TABLE (?:ONLY )?([\w.]+) (.*?);", sql, re.S):
-        emit("alter", f"{m.group(1)} {squash(m.group(2))[:110]}", "")
+        body = squash(m.group(2))
+        emit("alter", f"{m.group(1)} {body[:110]}", body)
 
     return sorted(set(out))
 

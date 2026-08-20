@@ -22,7 +22,9 @@ LOOKBEHIND = 2000
 
 def upsert_sites():
     for d in SOURCE_DIRS:
-        for path in sorted(glob.glob(os.path.join(ROOT, d, '**', '*.ts'), recursive=True)):
+        paths = glob.glob(os.path.join(ROOT, d, '**', '*.ts'), recursive=True)
+        paths += glob.glob(os.path.join(ROOT, d, '**', '*.vue'), recursive=True)
+        for path in sorted(paths):
             text = open(path, encoding='utf-8', errors='replace').read()
             for m in re.finditer(r"onConflict:\s*'([^']+)'", text):
                 window = text[max(0, m.start() - LOOKBEHIND):m.start()]
