@@ -169,39 +169,6 @@ export class PostService {
     return uuidRegex.test(str)
   }
 
-  async loadTimelinePosts(
-    timelineType: 'public' | 'home' | 'local' | 'federated' = 'public',
-    options: {
-      limit?: number;
-      before?: string;
-      after?: string;
-      signal?: AbortSignal;
-    } = {}
-  ): Promise<{
-    posts: TimelinePost[];
-    hasMore: boolean;
-    nextCursor?: string;
-  }> {
-    
-    // Map federated to public for core service (core doesn't distinguish federated)
-    const coreTimelineType = timelineType === 'federated' ? 'public' : timelineType
-    
-    const posts = await corePostService.loadTimelinePosts(coreTimelineType, options)
-    
-    // Transform core service response to match expected API
-    const { limit = 20 } = options
-    const hasMore = posts.length === limit
-    const nextCursor = hasMore ? posts[posts.length - 1]?.created_at : undefined
-    
-    const result = {
-      posts,
-      hasMore,
-      nextCursor
-    }
-    
-    return result
-  }
-
   async loadPost(postId: string): Promise<TimelinePost> {
     
     const post = await corePostService.loadPost(postId)

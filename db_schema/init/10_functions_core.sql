@@ -184,10 +184,12 @@ STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$
+    -- The outer COALESCE covers both a missing row and a NULL is_suspended:
+    -- the subquery yields NULL in either case.
     SELECT COALESCE(
-        (SELECT COALESCE(is_suspended, false) FROM public.profiles WHERE id = p_author_id LIMIT 1),
+        (SELECT is_suspended FROM public.profiles WHERE id = p_author_id),
         false
-    )
+    );
 $$;
 
 COMMENT ON FUNCTION public.is_author_suspended(p_author_id uuid) IS 
@@ -455,7 +457,7 @@ CREATE OR REPLACE FUNCTION public.get_or_create_dm_conversation(p_user1_id uuid,
 RETURNS uuid
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions, pg_temp
 AS $$
 DECLARE
     v_conversation_id uuid;
@@ -552,11 +554,11 @@ $$;
 -- STATUS HELPERS
 -- ---------------------------------------------------------------------------
 
--- Get custom status
+-- Get custom status. VOLATILE, not STABLE: the expiry branch clears the row it read, and
+-- Postgres rejects an UPDATE inside a non-volatile function with 0A000.
 CREATE OR REPLACE FUNCTION public.get_custom_status(p_user_id uuid)
 RETURNS jsonb
 LANGUAGE plpgsql
-STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$

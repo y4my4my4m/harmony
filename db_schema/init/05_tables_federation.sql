@@ -11,7 +11,10 @@ CREATE TABLE IF NOT EXISTS public.federated_instances (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
-    domain text NOT NULL UNIQUE CHECK (domain = lower(domain)),
+    -- Named to match migrations/20260528_federation_instance_hardening.sql; an
+    -- inline CHECK would be auto-named and would not.
+    domain text NOT NULL UNIQUE,
+    CONSTRAINT federated_instances_domain_lowercase CHECK (domain = lower(domain)),
     
     -- Instance info
     software text,
@@ -52,7 +55,8 @@ CREATE TABLE IF NOT EXISTS public.blocked_instances (
     severity text DEFAULT 'suspend'::text,
     created_at timestamp with time zone DEFAULT now(),
     created_by uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
-    
+    blocked_by uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
+
     CONSTRAINT blocked_instances_severity_check CHECK (severity IN ('silence', 'suspend'))
 );
 
@@ -259,6 +263,7 @@ GRANT ALL ON public.federation_endpoint_health TO service_role;
 CREATE TABLE IF NOT EXISTS public.server_federation_events (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
     server_id uuid NOT NULL REFERENCES public.servers(id) ON DELETE CASCADE,
+    ap_activity_id uuid REFERENCES public.ap_activities(id) ON DELETE SET NULL,
     event_type text NOT NULL,
     payload jsonb NOT NULL,
     created_at timestamp with time zone DEFAULT now()
@@ -280,6 +285,7 @@ CREATE TABLE IF NOT EXISTS public.server_membership_events (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
     server_id uuid NOT NULL REFERENCES public.servers(id) ON DELETE CASCADE,
     user_id uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
+    initiated_by uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
     event_type text NOT NULL,
     payload jsonb DEFAULT '{}'::jsonb,
     created_at timestamp with time zone DEFAULT now()
@@ -301,6 +307,7 @@ CREATE TABLE IF NOT EXISTS public.voice_federation_events (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
     channel_id uuid NOT NULL REFERENCES public.channels(id) ON DELETE CASCADE,
     user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    ap_activity_id uuid REFERENCES public.ap_activities(id) ON DELETE SET NULL,
     event_type text NOT NULL,
     payload jsonb DEFAULT '{}'::jsonb,
     created_at timestamp with time zone DEFAULT now()
@@ -318,28 +325,63 @@ COMMENT ON TABLE public.voice_federation_events IS 'Voice channel federation eve
 -- ---------------------------------------------------------------------------
 -- FEDERATED VOICE CALLS
 -- ---------------------------------------------------------------------------
+-- One row per federated DM call invite, keyed by the ActivityPub activity id.
+-- ap_id carries a UNIQUE constraint because federation-backend upserts with
+-- onConflict: 'ap_id'.
 CREATE TABLE IF NOT EXISTS public.federated_voice_calls (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    channel_id uuid NOT NULL REFERENCES public.channels(id) ON DELETE CASCADE,
-    
-    -- Call state
-    started_at timestamp with time zone DEFAULT now(),
+    ap_id text NOT NULL UNIQUE,
+
+    -- caller_id is the mirrored local profile of the remote caller and is NULL
+    -- when no mirror exists; caller_federated_id is the authoritative actor URL.
+    caller_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE,
+    caller_federated_id text NOT NULL,
+    recipient_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+
+    call_type text NOT NULL,
+    -- text, not uuid: the id is minted by the calling instance.
+    conversation_id text,
+
+    livekit_url text NOT NULL,
+    room_name text NOT NULL,
+
+    status text DEFAULT 'pending'::text NOT NULL,
+
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    accepted_at timestamp with time zone,
     ended_at timestamp with time zone,
-    
-    -- Participants from different instances
-    participants jsonb DEFAULT '[]'::jsonb,
-    
-    -- SFU info for routing
-    sfu_url text,
-    room_id text
+    -- 60s ring timeout, matching VoiceActivityHandler.handleVoiceCallInvite.
+    expires_at timestamp with time zone DEFAULT (now() + '00:01:00'::interval) NOT NULL,
+
+    CONSTRAINT federated_voice_calls_call_type_check
+        CHECK (call_type = ANY (ARRAY['voice'::text, 'video'::text])),
+    CONSTRAINT federated_voice_calls_status_check
+        CHECK (status = ANY (ARRAY['pending'::text, 'accepted'::text, 'rejected'::text,
+                                   'ended'::text, 'expired'::text, 'missed'::text])),
+    -- A CHECK, not a foreign key; the name matches production.
+    CONSTRAINT fk_recipient_local CHECK (recipient_id IS NOT NULL)
 );
 
-CREATE INDEX IF NOT EXISTS idx_federated_voice_calls_channel ON public.federated_voice_calls(channel_id);
+CREATE INDEX IF NOT EXISTS idx_federated_voice_calls_caller ON public.federated_voice_calls(caller_id);
+CREATE INDEX IF NOT EXISTS idx_federated_voice_calls_status ON public.federated_voice_calls(status);
+-- Partial: cleanup_expired_voice_calls and the incoming-call lookup both scan
+-- only pending rows.
+CREATE INDEX IF NOT EXISTS idx_federated_voice_calls_expires ON public.federated_voice_calls(expires_at)
+    WHERE status = 'pending'::text;
+CREATE INDEX IF NOT EXISTS idx_federated_voice_calls_recipient ON public.federated_voice_calls(recipient_id)
+    WHERE status = 'pending'::text;
 
+-- The image's schema-wide default privileges hand anon and authenticated
+-- arwdDxt on every new table in public, so a GRANT alone leaves the write bits
+-- set. Rows here are an authorization input: LiveKitService.validateFederatedRoomAccess
+-- admits a remote actor to a LiveKit room on the strength of one. Every writer
+-- is federation-backend, which connects as service_role.
+REVOKE ALL ON public.federated_voice_calls FROM anon;
+REVOKE ALL ON public.federated_voice_calls FROM authenticated;
 GRANT SELECT ON public.federated_voice_calls TO authenticated;
 GRANT ALL ON public.federated_voice_calls TO service_role;
 
-COMMENT ON TABLE public.federated_voice_calls IS 'Federated voice call sessions';
+COMMENT ON TABLE public.federated_voice_calls IS 'Federated DM voice/video call invites';
 
 -- ---------------------------------------------------------------------------
 -- ACTIVITY PROCESSING LOGS - Track ActivityPub activity processing

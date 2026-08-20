@@ -115,7 +115,9 @@ CREATE TABLE IF NOT EXISTS public.bot_presence (
     
     -- Version info
     gateway_version text,
-    
+    gateway_session_id text,
+    latency_ms integer,
+
     CONSTRAINT bot_presence_status_check CHECK (status IN ('online', 'idle', 'dnd', 'offline'))
 );
 
@@ -186,7 +188,8 @@ CREATE TABLE IF NOT EXISTS public.bot_audit_log (
     -- Context
     server_id uuid REFERENCES public.servers(id) ON DELETE SET NULL,
     channel_id uuid REFERENCES public.channels(id) ON DELETE SET NULL,
-    
+    user_id uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
+
     -- Request details
     request_data jsonb DEFAULT '{}'::jsonb,
     response_data jsonb DEFAULT '{}'::jsonb,
@@ -194,9 +197,11 @@ CREATE TABLE IF NOT EXISTS public.bot_audit_log (
     -- Status
     success boolean DEFAULT true,
     error_message text,
-    
+
     -- Timing
-    duration_ms integer
+    duration_ms integer,
+
+    metadata jsonb DEFAULT '{}'::jsonb
 );
 
 CREATE INDEX IF NOT EXISTS idx_bot_audit_log_bot ON public.bot_audit_log(bot_id);

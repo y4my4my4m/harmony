@@ -11,9 +11,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # ----------------------------------------------------------------
-  # Unit tests (fast, no external dependencies)
-  # ----------------------------------------------------------------
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-latest
@@ -22,7 +19,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version-file: '.nvmrc'
+          node-version-file: ".nvmrc"
           cache: npm
 
       - run: npm ci
@@ -31,9 +28,6 @@ jobs:
         env:
           CI: true
 
-  # ----------------------------------------------------------------
-  # Federation backend tests
-  # ----------------------------------------------------------------
   federation-tests:
     name: Federation Tests
     runs-on: ubuntu-latest
@@ -42,7 +36,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version-file: '.nvmrc'
+          node-version-file: ".nvmrc"
           cache: npm
           cache-dependency-path: federation-backend/package-lock.json
 
@@ -54,27 +48,107 @@ jobs:
         env:
           CI: true
 
-  # ----------------------------------------------------------------
-  # Type checking
-  # ----------------------------------------------------------------
-  type-check:
-    name: Type Check
+  bot-gateway-tests:
+    name: Bot Gateway Tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version-file: '.nvmrc'
+          node-version-file: ".nvmrc"
+          cache: npm
+          cache-dependency-path: bot-gateway/package-lock.json
+
+      - run: npm ci
+        working-directory: bot-gateway
+
+      - run: npx vitest run
+        working-directory: bot-gateway
+        env:
+          CI: true
+
+  bot-gateway-db-tests:
+    name: Bot Gateway DB Tests
+    runs-on: ubuntu-latest
+    env:
+      BOT_GATEWAY_DB_CONTAINER: ci-botgw-rpc-${{ github.run_id }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: npm
+          cache-dependency-path: bot-gateway/package-lock.json
+
+      - run: npm ci
+        working-directory: bot-gateway
+
+      - run: npm run test:db
+        working-directory: bot-gateway
+        env:
+          CI: true
+
+      - name: Remove the test database container
+        if: always()
+        run: docker rm -f "$BOT_GATEWAY_DB_CONTAINER" || true
+
+  # ----------------------------------------------------------------
+  # One job per package: vue-tsc reads tsconfig.app.json and tsconfig.node.json
+  # and sees neither backend.
+  # ----------------------------------------------------------------
+  type-check:
+    name: Type Check (app)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
           cache: npm
 
       - run: npm ci
 
       - run: npx vue-tsc --build --force
 
-  # ----------------------------------------------------------------
-  # Build verification
-  # ----------------------------------------------------------------
+  federation-type-check:
+    name: Type Check (federation-backend)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: npm
+          cache-dependency-path: federation-backend/package-lock.json
+
+      - run: npm ci
+        working-directory: federation-backend
+
+      - run: npm run type-check
+        working-directory: federation-backend
+
+  bot-gateway-type-check:
+    name: Type Check (bot-gateway)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: npm
+          cache-dependency-path: bot-gateway/package-lock.json
+
+      - run: npm ci
+        working-directory: bot-gateway
+
+      - run: npm run type-check
+        working-directory: bot-gateway
+
   build:
     name: Build
     runs-on: ubuntu-latest
@@ -84,7 +158,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version-file: '.nvmrc'
+          node-version-file: ".nvmrc"
           cache: npm
 
       - run: npm ci
@@ -95,48 +169,139 @@ jobs:
           VITE_SUPABASE_ANON_KEY: placeholder-key
 
   # ----------------------------------------------------------------
-  # E2E tests (PRs to master only; needs a real Supabase backend)
-  #
-  # Configure repo secrets (Settings → Secrets → Actions):
-  #   TEST_SUPABASE_URL, TEST_SUPABASE_ANON_KEY, TEST_SUPABASE_SERVICE_ROLE_KEY
-  # Point them at a dedicated CI/staging instance (not production).
-  # Skipped when secrets are unset (e.g. forks or before setup).
+  # Postgres, GoTrue and PostgREST raised from db_schema/init/, seeded, then
+  # driven through supabase-js. e2e/stack.sh generates every credential at
+  # bring-up; no repository secret is read. Storage, realtime, imgproxy, the
+  # federation backend and the browser are outside the stack.
   # ----------------------------------------------------------------
-  e2e-tests:
-    name: E2E Tests
+  e2e-stack:
+    name: E2E Stack
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' && github.base_ref == 'master'
-    needs: [build]
-    env:
-      # Hoist secret presence into env so step-level `if` can read it.
-      # (The `secrets` context is not reliably available in `if` expressions.)
-      HAS_TEST_SUPABASE: ${{ secrets.TEST_SUPABASE_URL != '' }}
+    timeout-minutes: 30
     steps:
-      - name: Skip notice
-        if: env.HAS_TEST_SUPABASE != 'true'
-        run: echo "TEST_SUPABASE_* secrets not configured - skipping E2E tests."
-
       - uses: actions/checkout@v4
-        if: env.HAS_TEST_SUPABASE == 'true'
 
       - uses: actions/setup-node@v4
-        if: env.HAS_TEST_SUPABASE == 'true'
         with:
-          node-version-file: '.nvmrc'
+          node-version-file: ".nvmrc"
           cache: npm
 
       - run: npm ci
-        if: env.HAS_TEST_SUPABASE == 'true'
 
-      - run: npx playwright install --with-deps chromium
-        if: env.HAS_TEST_SUPABASE == 'true'
+      - run: npm run e2e:verify
 
-      - run: npx playwright test --project=chromium
-        if: env.HAS_TEST_SUPABASE == 'true'
+      - name: Tear the stack down
+        if: always()
+        run: npm run e2e:down
+
+  # ----------------------------------------------------------------
+  # Browser journeys against the same stack as e2e-stack, driving the built app.
+  # Separate job: it needs a browser and a dev server, and a Playwright install
+  # failure must not read as a schema failure.
+  # ----------------------------------------------------------------
+  e2e-journeys:
+    name: E2E Journeys
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: npm
+
+      - run: npm ci
+
+      - run: google-chrome --version
+      - run: npm run e2e:up
+      - run: npm run e2e:seed
+
+      - run: npx playwright test --project=journeys
         env:
           CI: true
-          TEST_SUPABASE_URL: ${{ secrets.TEST_SUPABASE_URL }}
-          TEST_SUPABASE_ANON_KEY: ${{ secrets.TEST_SUPABASE_ANON_KEY }}
-          TEST_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.TEST_SUPABASE_SERVICE_ROLE_KEY }}
-          VITE_SUPABASE_URL: ${{ secrets.TEST_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.TEST_SUPABASE_ANON_KEY }}
+
+      - name: Keep the report when a journey fails
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+
+      - name: Tear the stack down
+        if: always()
+        run: npm run e2e:down
+
+  federation-roundtrip:
+    name: Federation Round Trip
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            federation-backend/package-lock.json
+
+      - run: npm ci
+
+      - run: npm ci
+        working-directory: federation-backend
+
+      - run: bash e2e/federation/stack.sh verify
+
+      - name: Tear the stack down
+        if: always()
+        run: bash e2e/federation/stack.sh down
+
+  ci-verdict:
+    name: CI verdict
+    runs-on: ubuntu-latest
+    if: always()
+    needs:
+      - unit-tests
+      - federation-tests
+      - bot-gateway-tests
+      - bot-gateway-db-tests
+      - type-check
+      - federation-type-check
+      - bot-gateway-type-check
+      - build
+      - e2e-stack
+      - e2e-journeys
+      - federation-roundtrip
+    steps:
+      - name: Require every job to have succeeded
+        run: |
+          fail=0
+
+          # Only success passes. No job here is conditional, so `skipped` means
+          # one of that job's own dependencies failed.
+          check() {
+            case "$2" in
+              success) printf '  ok        %s\n' "$1" ;;
+              *)       printf '  FAILED    %s (%s)\n' "$1" "$2"; fail=1 ;;
+            esac
+          }
+
+          check "unit-tests"             "${{ needs.unit-tests.result }}"
+          check "federation-tests"       "${{ needs.federation-tests.result }}"
+          check "bot-gateway-tests"      "${{ needs.bot-gateway-tests.result }}"
+          check "bot-gateway-db-tests"   "${{ needs.bot-gateway-db-tests.result }}"
+          check "type-check"             "${{ needs.type-check.result }}"
+          check "federation-type-check"  "${{ needs.federation-type-check.result }}"
+          check "bot-gateway-type-check" "${{ needs.bot-gateway-type-check.result }}"
+          check "build"                  "${{ needs.build.result }}"
+          check "e2e-stack"              "${{ needs.e2e-stack.result }}"
+          check "e2e-journeys"           "${{ needs.e2e-journeys.result }}"
+          check "federation-roundtrip"   "${{ needs.federation-roundtrip.result }}"
+
+          [ "$fail" -eq 0 ] || { echo "::error::one or more CI jobs failed"; exit 1; }
+          echo "all CI jobs green"

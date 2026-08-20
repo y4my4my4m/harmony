@@ -30,11 +30,17 @@ interface PostReactionInput {
 const isUuid = (str: string): boolean =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str)
 
+// A chip is identified by the PAIR (emoji_id, custom_emoji_content). The same shortcode
+// arrives as (uuid, ':name:') from the local picker and (NULL, ':name:') from a remote
+// actor, and the RPCs group on both columns, so matching on either alone picks whichever
+// chip happens to sort first.
 function matchesEmoji(group: PostReactionGroup, emoji: PostReactionInput): boolean {
-  return !!(
-    (emoji.id && group.emoji_id === emoji.id) ||
-    (emoji.native && group.custom_emoji_content === emoji.native)
-  )
+  const id = emoji.id && isUuid(emoji.id) ? emoji.id : null
+  // Keyed exactly as buildOptimisticGroups keys it. Derived differently, find and build
+  // disagree: a null content leaves the predicate matching any group whose emoji_id is null,
+  // which is the oldest unicode chip on the post rather than this one.
+  const content = emoji.native || (emoji.id && !isUuid(emoji.id) ? emoji.id : null)
+  return matchesEmojiBy(id, content)(group)
 }
 
 function buildOptimisticGroups(
@@ -43,8 +49,10 @@ function buildOptimisticGroups(
   operation: 'add' | 'remove',
 ): PostReactionGroup[] {
   const result = JSON.parse(JSON.stringify(base)) as PostReactionGroup[]
-  const emojiId = emoji.id || null
-  const customContent = emoji.native || null
+  // Same normalisation as toggleOnServer: a non-uuid id is a shortcode, and emoji_id holds
+  // uuids. Storing a shortcode there builds a group the server reply can never match.
+  const emojiId = emoji.id && isUuid(emoji.id) ? emoji.id : null
+  const customContent = emoji.native || (emoji.id && !isUuid(emoji.id) ? emoji.id : null)
   const index = result.findIndex(matchesEmojiBy(emojiId, customContent))
 
   if (operation === 'remove') {
@@ -75,9 +83,14 @@ function buildOptimisticGroups(
   return result
 }
 
+// emoji_id is compared exactly, NULL included: it is the only column separating a local
+// custom emoji from the same shortcode arriving from a remote actor. A null customContent
+// leaves the content unconstrained, matching remove_post_emoji_reaction, because the picker
+// knows only the id.
 const matchesEmojiBy = (emojiId: string | null, customContent: string | null) =>
   (g: PostReactionGroup): boolean =>
-    !!((emojiId && g.emoji_id === emojiId) || (customContent && g.custom_emoji_content === customContent))
+    (g.emoji_id ?? null) === emojiId &&
+    (customContent === null || (g.custom_emoji_content ?? null) === customContent)
 
 const USER_LIMIT = 5
 
@@ -159,3 +172,5 @@ export const usePostReactionsStore = defineStore('postReactions', () => {
     $dispose: engine.dispose,
   }
 })
+
+export const __test = { matchesEmoji, matchesEmojiBy }

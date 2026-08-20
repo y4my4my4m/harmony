@@ -19,12 +19,6 @@ export interface CoreProfileServiceError {
   details?: any
 }
 
-export interface ProfileSearchOptions {
-  limit?: number
-  includePrivate?: boolean
-  signal?: AbortSignal
-}
-
 export interface UserStats {
   posts_count: number
   followers_count: number
@@ -40,7 +34,6 @@ export class CoreProfileService {
   private static instance: CoreProfileService
   
   // Security constants
-  private readonly MAX_SEARCH_LIMIT = 50
   private readonly MAX_USERNAME_LENGTH = 30
   private readonly MAX_DISPLAY_NAME_LENGTH = 50
   private readonly MAX_DISPLAY_NAME_EMOJIS = 5
@@ -54,59 +47,6 @@ export class CoreProfileService {
   }
 
   // PROFILE LOADING (SECURE & PRIVACY-AWARE)
-
-  /**
-   * Load profile by ID with privacy controls (pure local, secure)
-   */
-  async loadProfile(profileId: string): Promise<Profile | null> {
-    try {
-      // Input validation
-      if (!profileId || typeof profileId !== 'string') {
-        throw this.createError('INVALID_INPUT', 'Profile ID is required')
-      }
-
-      debug.log(`Core: Loading profile: ${profileId}`)
-
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select(`
-          id,
-          username,
-          display_name,
-          avatar_url,
-          banner_url,
-          bio,
-          color,
-          created_at,
-          updated_at,
-          is_local,
-          domain,
-          followers_count,
-          following_count,
-          posts_count,
-          is_verified
-        `)
-        .eq('id', profileId)
-        .single()
-
-      if (error) {
-        if (error.code === 'PGRST116') {
-          debug.log(`ℹCore: Profile not found: ${profileId}`)
-          return null
-        }
-        throw this.createError('LOAD_PROFILE_FAILED', 'Failed to load profile', error)
-      }
-
-      // Privacy filtering (remove sensitive data if needed)
-      const sanitizedProfile = this.sanitizeProfileForPublicView(profile)
-
-      debug.log(`Core: Profile loaded successfully: ${profileId}`)
-      return sanitizedProfile
-    } catch (error) {
-      debug.error('Core: Failed to load profile:', error)
-      throw error
-    }
-  }
 
   /**
    * Load profile by auth user ID (secure ownership lookup)
@@ -139,74 +79,6 @@ export class CoreProfileService {
       return profile
     } catch (error) {
       debug.error('Core: Failed to load profile by auth user ID:', error)
-      throw error
-    }
-  }
-
-  /**
-   * Search profiles with security filtering (pure local, secure)
-   */
-  async searchProfiles(
-    query: string,
-    options: ProfileSearchOptions = {}
-  ): Promise<Profile[]> {
-    try {
-      const { limit = 20, signal } = options
-
-      // Security validation
-      if (!query || typeof query !== 'string') {
-        throw this.createError('INVALID_INPUT', 'Search query is required')
-      }
-
-      if (query.length < 2) {
-        throw this.createError('INVALID_INPUT', 'Search query must be at least 2 characters')
-      }
-
-      // Sanitize query to prevent injection
-      const sanitizedQuery = this.sanitizeSearchQuery(query)
-      const secureLimit = Math.min(limit, this.MAX_SEARCH_LIMIT)
-
-      debug.log(`Core: Searching profiles: "${sanitizedQuery}"`)
-
-      if (signal?.aborted) {
-        throw this.createError('ABORTED', 'Search was aborted')
-      }
-
-      const queryBuilder = supabase
-        .from('profiles')
-        .select(`
-          id,
-          username,
-          display_name,
-          avatar_url,
-          bio,
-          is_local,
-          domain,
-          followers_count,
-          is_verified,
-          is_private
-        `)
-        .or(`username.ilike.%${sanitizedQuery}%,display_name.ilike.%${sanitizedQuery}%`)
-        .limit(secureLimit)
-
-      // Privacy filtering - removed (column doesn't exist yet)
-      // if (!includePrivate) {
-      //   queryBuilder = queryBuilder.or('is_private.is.null,is_private.eq.false')
-      // }
-
-      const { data: profiles, error } = await queryBuilder
-
-      if (error) throw this.createError('SEARCH_FAILED', 'Failed to search profiles', error)
-
-      // Additional privacy filtering
-      const filteredProfiles = profiles?.map(profile => 
-        this.sanitizeProfileForPublicView(profile)
-      ) || []
-
-      debug.log(`Core: Found ${filteredProfiles.length} profiles for: "${sanitizedQuery}"`)
-      return filteredProfiles
-    } catch (error) {
-      debug.error('Core: Failed to search profiles:', error)
       throw error
     }
   }
@@ -378,17 +250,6 @@ export class CoreProfileService {
       color: data.color?.trim(),
       domain: data.domain?.trim()
     }
-  }
-
-  private sanitizeSearchQuery(query: string): string {
-    return query.trim().replace(/[<>'";&]/g, '')
-  }
-
-  private sanitizeProfileForPublicView(profile: any): Profile {
-    // Remove sensitive fields for public viewing
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { auth_user_id, ...publicProfile } = profile
-    return publicProfile
   }
 
   private validateProfileData(data: ProfileData): void {

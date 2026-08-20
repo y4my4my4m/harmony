@@ -134,6 +134,9 @@ ALTER TABLE public.channels REPLICA IDENTITY FULL;
 CREATE INDEX IF NOT EXISTS idx_channels_server ON public.channels(server_id);
 CREATE INDEX IF NOT EXISTS idx_channels_category ON public.channels(category);
 CREATE INDEX IF NOT EXISTS idx_channels_federation_status ON public.channels(federation_status) WHERE federation_status = 'pending';
+-- Upserted ON CONFLICT (ap_id). Full, not partial: ON CONFLICT infers a full index
+-- only, and NULLs are distinct, so a NULL ap_id is unconstrained.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_channels_ap_id ON public.channels(ap_id);
 
 COMMENT ON TABLE public.channels IS 'Server channels (text and voice)';
 
@@ -183,11 +186,10 @@ CREATE TABLE IF NOT EXISTS public.messages (
     CONSTRAINT messages_content_is_array CHECK (jsonb_typeof(content) = 'array'),
     CONSTRAINT messages_content_not_empty CHECK (jsonb_array_length(content) > 0),
     CONSTRAINT messages_federation_status_check CHECK (federation_status IN ('pending', 'queued', 'processing', 'completed', 'failed', 'skipped')),
-    -- Allow both NULL (message from deleted user) or exactly one non-NULL
+    -- At most one author. Both NULL is a message from a deleted user; both set
+    -- is the only rejected combination.
     CONSTRAINT messages_user_or_bot_check CHECK (
-        (user_id IS NULL AND bot_id IS NULL) OR  -- Deleted user
-        (user_id IS NOT NULL AND bot_id IS NULL) OR  -- User message
-        (user_id IS NULL AND bot_id IS NOT NULL)  -- Bot message
+        (user_id IS NULL) OR (bot_id IS NULL)
     )
     -- NOTE: per-message text length is enforced by `messages_text_length_check`
     -- added in `10_functions_core.sql` after the helper function is defined.
@@ -277,8 +279,9 @@ CREATE TABLE IF NOT EXISTS public.thread_members (
     user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
     joined_at timestamp with time zone DEFAULT now() NOT NULL,
     last_read_at timestamp with time zone,
+    last_read_message_id uuid,
     muted boolean DEFAULT false,
-    
+
     UNIQUE(thread_id, user_id)
 );
 
@@ -315,6 +318,20 @@ CREATE TABLE IF NOT EXISTS public.emojis (
     CONSTRAINT emojis_name_length_check CHECK (name IS NULL OR char_length(name::text) <= 64),
     CONSTRAINT emojis_scope_check CHECK (scope IN ('server', 'instance', 'user'))
 );
+
+-- Deferred from 03_tables_social.sql, which declares post_interactions before
+-- emojis exists.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'post_interactions_emoji_id_fkey'
+  ) THEN
+    ALTER TABLE public.post_interactions
+      ADD CONSTRAINT post_interactions_emoji_id_fkey
+      FOREIGN KEY (emoji_id) REFERENCES public.emojis(id) ON DELETE SET NULL;
+  END IF;
+END
+$$;
 
 CREATE INDEX IF NOT EXISTS idx_emojis_server ON public.emojis(server_id);
 CREATE INDEX IF NOT EXISTS idx_emojis_name ON public.emojis(lower(name::text));
@@ -417,7 +434,10 @@ CREATE TABLE IF NOT EXISTS public.user_servers (
     -- Notifications
     muted boolean DEFAULT false,
     muted_until timestamp with time zone,
-    
+
+    -- Membership created by a temporary invite; the join is not permanent.
+    temporary boolean,
+
     UNIQUE(user_id, server_id),
     CONSTRAINT user_servers_status_check CHECK (status IN ('pending', 'accepted', 'banned')),
     CONSTRAINT user_servers_nickname_length_check CHECK (nickname IS NULL OR char_length(nickname) <= 64)
@@ -462,6 +482,13 @@ CREATE TABLE IF NOT EXISTS public.server_roles (
     mentionable boolean DEFAULT true,
     hoist boolean DEFAULT false,
 
+    -- Role icon: an uploaded image or a single unicode glyph.
+    icon_url text,
+    unicode_emoji text,
+
+    -- ActivityPub id when the role originates on another instance.
+    ap_id text,
+
     CONSTRAINT server_roles_name_length_check CHECK (char_length(name) <= 100)
 );
 
@@ -469,6 +496,8 @@ ALTER TABLE public.server_roles REPLICA IDENTITY FULL;
 
 CREATE INDEX IF NOT EXISTS idx_server_roles_server ON public.server_roles(server_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_server_roles_default ON public.server_roles(server_id) WHERE is_default = true;
+-- Upserted ON CONFLICT (ap_id). Full index, as above.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_server_roles_ap_id ON public.server_roles(ap_id);
 
 COMMENT ON TABLE public.server_roles IS 'Server role definitions';
 
@@ -624,7 +653,9 @@ CREATE TABLE IF NOT EXISTS public.server_bans (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
     server_id uuid NOT NULL REFERENCES public.servers(id) ON DELETE CASCADE,
     user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-    banned_by uuid NOT NULL REFERENCES public.profiles(id) ON DELETE SET NULL,
+    -- Nullable: the FK is ON DELETE SET NULL, so NOT NULL here would make
+    -- deleting a moderator's profile fail instead of clearing the attribution.
+    banned_by uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
     reason text,
     delete_message_seconds integer DEFAULT 0,
     created_at timestamp with time zone DEFAULT now() NOT NULL,

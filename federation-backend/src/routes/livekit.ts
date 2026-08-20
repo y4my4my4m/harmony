@@ -51,7 +51,7 @@ const requireAuth = async (req: Request, res: Response, next: Function) => {
     }
     
     (req as any).user = user;
-    next();
+    return next();
   } catch (error) {
     logger.error('Auth verification failed:', error);
     return res.status(401).json({ error: 'Authentication failed' });
@@ -78,15 +78,15 @@ const isAdmin = async (authUserId: string): Promise<boolean> => {
 /**
  * Check if LiveKit is configured
  */
-const requireLiveKit = (req: Request, res: Response, next: Function) => {
+const requireLiveKit = (_req: Request, res: Response, next: Function) => {
   if (!livekitService.isConfigured()) {
-    return res.status(503).json({ 
+    return res.status(503).json({
       error: 'LiveKit is not configured',
       mode: config.WEBRTC_MODE,
       fallbackAvailable: config.WEBRTC_MODE === 'hybrid' || config.WEBRTC_MODE === 'p2p',
     });
   }
-  next();
+  return next();
 };
 
 // PUBLIC ROUTES
@@ -96,7 +96,7 @@ const requireLiveKit = (req: Request, res: Response, next: Function) => {
  * Get WebRTC configuration for clients
  * No auth required - clients need to know if SFU is available before connecting
  */
-router.get('/config', (req: Request, res: Response) => {
+router.get('/config', (_req: Request, res: Response) => {
   const clientConfig = livekitService.getClientConfig();
   
   res.json({
@@ -109,7 +109,7 @@ router.get('/config', (req: Request, res: Response) => {
  * GET /api/livekit/health
  * Health check for LiveKit service
  */
-router.get('/health', async (req: Request, res: Response) => {
+router.get('/health', async (_req: Request, res: Response) => {
   const isConfigured = livekitService.isConfigured();
   
   if (!isConfigured) {
@@ -123,15 +123,16 @@ router.get('/health', async (req: Request, res: Response) => {
   try {
     // Try to list rooms to verify connectivity
     const rooms = await livekitService.listRooms();
-    
-    res.json({
+
+    return res.json({
       status: 'healthy',
       mode: config.WEBRTC_MODE,
       activeRooms: rooms.length,
       allowFederatedVoice: config.ALLOW_FEDERATED_VOICE,
     });
   } catch (error) {
-    res.status(503).json({
+    logger.error('LiveKit health check failed:', error);
+    return res.status(503).json({
       status: 'unhealthy',
       mode: config.WEBRTC_MODE,
       error: 'Failed to connect to LiveKit server',
@@ -171,7 +172,7 @@ router.post('/token', requireAuth, requireLiveKit, async (req: Request, res: Res
     const { token, profileId } = await livekitService.generateToken(tokenRequest);
     const cfg = livekitService.getClientConfig();
     
-    res.json({
+    return res.json({
       token,
       wsUrl: cfg.wsUrl,
       roomName,
@@ -179,12 +180,12 @@ router.post('/token', requireAuth, requireLiveKit, async (req: Request, res: Res
     });
   } catch (error) {
     logger.error('Failed to generate token:', error);
-    
+
     if (error instanceof Error && error.message.includes('permission')) {
       return res.status(403).json({ error: error.message });
     }
-    
-    res.status(500).json({ error: 'Failed to generate room token' });
+
+    return res.status(500).json({ error: 'Failed to generate room token' });
   }
 });
 
@@ -255,7 +256,7 @@ router.post('/federated-token', requireLiveKit, async (req: Request, res: Respon
     const token = await livekitService.generateFederatedToken(tokenRequest);
     const cfg = livekitService.getClientConfig();
     
-    res.json({
+    return res.json({
       token,
       wsUrl: cfg.wsUrl,
       roomName,
@@ -263,7 +264,7 @@ router.post('/federated-token', requireLiveKit, async (req: Request, res: Respon
     });
   } catch (error) {
     logger.error('Failed to generate federated token:', error);
-    
+
     if (error instanceof Error) {
       if (error.message.includes('blocked')) {
         return res.status(403).json({ error: 'Instance is blocked' });
@@ -272,8 +273,8 @@ router.post('/federated-token', requireLiveKit, async (req: Request, res: Respon
         return res.status(403).json({ error: error.message });
       }
     }
-    
-    res.status(500).json({ error: 'Failed to generate federated token' });
+
+    return res.status(500).json({ error: 'Failed to generate federated token' });
   }
 });
 
@@ -298,10 +299,10 @@ router.get('/rooms', requireAuth, requireLiveKit, async (req: Request, res: Resp
     }
     
     const rooms = await livekitService.listRooms();
-    res.json({ rooms });
+    return res.json({ rooms });
   } catch (error) {
     logger.error('Failed to list rooms:', error);
-    res.status(500).json({ error: 'Failed to list rooms' });
+    return res.status(500).json({ error: 'Failed to list rooms' });
   }
 });
 
@@ -380,13 +381,12 @@ router.delete('/rooms/:roomName', requireAuth, requireLiveKit, async (req: Reque
     const success = await livekitService.deleteRoom(roomName);
     
     if (success) {
-      res.json({ message: 'Room deleted' });
-    } else {
-      res.status(500).json({ error: 'Failed to delete room' });
+      return res.json({ message: 'Room deleted' });
     }
+    return res.status(500).json({ error: 'Failed to delete room' });
   } catch (error) {
     logger.error('Failed to delete room:', error);
-    res.status(500).json({ error: 'Failed to delete room' });
+    return res.status(500).json({ error: 'Failed to delete room' });
   }
 });
 
@@ -413,13 +413,12 @@ router.post('/rooms/:roomName/participants/:identity/remove', requireAuth, requi
     const success = await livekitService.removeParticipant(roomName, identity);
     
     if (success) {
-      res.json({ message: 'Participant removed' });
-    } else {
-      res.status(500).json({ error: 'Failed to remove participant' });
+      return res.json({ message: 'Participant removed' });
     }
+    return res.status(500).json({ error: 'Failed to remove participant' });
   } catch (error) {
     logger.error('Failed to remove participant:', error);
-    res.status(500).json({ error: 'Failed to remove participant' });
+    return res.status(500).json({ error: 'Failed to remove participant' });
   }
 });
 
@@ -451,13 +450,12 @@ router.post('/rooms/:roomName/participants/:identity/permissions', requireAuth, 
     });
     
     if (success) {
-      res.json({ message: 'Permissions updated' });
-    } else {
-      res.status(500).json({ error: 'Failed to update permissions' });
+      return res.json({ message: 'Permissions updated' });
     }
+    return res.status(500).json({ error: 'Failed to update permissions' });
   } catch (error) {
     logger.error('Failed to update permissions:', error);
-    res.status(500).json({ error: 'Failed to update permissions' });
+    return res.status(500).json({ error: 'Failed to update permissions' });
   }
 });
 
@@ -502,14 +500,14 @@ router.post('/federated-call/invite', requireAuth, requireLiveKit, async (req: R
     await DeliveryQueue.sendToInbox(callee.inbox_url, activity, user.id);
     
     logger.info(`Sent federated call invite from ${callerFederatedId} to ${calleeFederatedId}`);
-    
-    res.json({ 
+
+    return res.json({
       success: true,
       activityId: activity.id,
     });
   } catch (error) {
     logger.error('Failed to send federated call invite:', error);
-    res.status(500).json({ error: 'Failed to send federated call invite' });
+    return res.status(500).json({ error: 'Failed to send federated call invite' });
   }
 });
 
@@ -576,14 +574,14 @@ router.post('/federated-call/accept', requireAuth, requireLiveKit, async (req: R
     
     logger.info(`Accepted federated call from ${callerFederatedId}`);
     
-    res.json({
+    return res.json({
       success: true,
       livekitUrl: call.livekit_url,
       roomName: call.room_name,
     });
   } catch (error) {
     logger.error('Failed to accept federated call:', error);
-    res.status(500).json({ error: 'Failed to accept federated call' });
+    return res.status(500).json({ error: 'Failed to accept federated call' });
   }
 });
 
@@ -649,11 +647,11 @@ router.post('/federated-call/reject', requireAuth, requireLiveKit, async (req: R
     }
     
     logger.info(`Rejected federated call from ${callerFederatedId}`);
-    
-    res.json({ success: true });
+
+    return res.json({ success: true });
   } catch (error) {
     logger.error('Failed to reject federated call:', error);
-    res.status(500).json({ error: 'Failed to reject federated call' });
+    return res.status(500).json({ error: 'Failed to reject federated call' });
   }
 });
 
@@ -714,11 +712,11 @@ router.post('/federated-call/end', requireAuth, requireLiveKit, async (req: Requ
     }
     
     logger.info(`Ended federated call for conversation ${conversationId}`);
-    
-    res.json({ success: true });
+
+    return res.json({ success: true });
   } catch (error) {
     logger.error('Failed to end federated call:', error);
-    res.status(500).json({ error: 'Failed to end federated call' });
+    return res.status(500).json({ error: 'Failed to end federated call' });
   }
 });
 

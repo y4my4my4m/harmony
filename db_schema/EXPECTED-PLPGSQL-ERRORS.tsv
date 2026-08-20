@@ -1,0 +1,9 @@
+# plpgsql_check errors that are environmental, not defects.
+#
+# GoTrue creates auth.mfa_factors during its own migrations; the test image ships a
+# minimal auth schema without it.
+#
+# Format: <function signature>\t<sqlstate>\t<message>
+#
+delete_my_account()	42P01	relation "auth.mfa_factors" does not exist
+redeem_recovery_code_and_disable_mfa(text)	42P01	relation "auth.mfa_factors" does not exist

@@ -22,7 +22,7 @@ export async function startPushNotificationListener(): Promise<void> {
 
   const supabase = getSupabaseClient();
 
-  const _channel = supabase
+  supabase
     .channel('push-notifications')
     .on(
       'postgres_changes',

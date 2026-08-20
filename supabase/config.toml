@@ -1,0 +1,29 @@
+# Supabase CLI project file.
+#
+# Only the migration workflow is used. The CLI is pointed at a database with
+# --db-url, so nothing here needs a cloud project and `supabase link` is not
+# part of the deployment path:
+#
+#   npx supabase migration list --db-url "$DATABASE_URL"
+#   npx supabase db push --dry-run --db-url "$DATABASE_URL"
+#   npx supabase db push          --db-url "$DATABASE_URL"
+#
+# npx, not a globally installed supabase: package.json pins an exact version and a global
+# binary of a different version accepts different flags and emits different SQL.
+#
+# supabase/migrations is a symlink to db_schema/migrations, which stays the
+# single source of truth alongside db_schema/init. The CLI reads through the
+# symlink; keeping the files where they are leaves install.sh, the drift gate
+# and the docs pointing at the same paths they always did.
+#
+# Migration filenames must be <version>_<name>.sql with a version unique across
+# the whole directory - supabase_migrations.schema_migrations has version as its
+# primary key. The repo uses YYYYMMDDNNNNNN, the counter ordering files created
+# on the same day.
+project_id = "harmony"
+
+# Deployed engine is 15.8. Absent this, the CLI raises a 17.x shadow and its pg_dump emits
+# `SET transaction_timeout = 0`, which 15 rejects with 42704 - so anything it generates is
+# unloadable on the instances it is generated for.
+[db]
+major_version = 15

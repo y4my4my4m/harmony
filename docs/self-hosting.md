@@ -47,14 +47,8 @@ bash configure.sh && docker compose up -d && bash bootstrap.sh
 See [`self-host/README.md`](https://github.com/y4my4my4m/harmony/blob/master/self-host/README.md)
 for what it runs, TLS options, and troubleshooting.
 
-For a host-native install (nginx + certbot on the machine itself), run the
-interactive installer:
-
-```bash
-bash scripts/install.sh
-```
-
-The installer will guide you through all configuration. The rest of this document covers manual setup.
+`self-host/` is the supported install path. The rest of this document covers manual setup,
+including a host-native install with nginx and certbot on the machine itself.
 
 ---
 

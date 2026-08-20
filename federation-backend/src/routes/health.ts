@@ -12,7 +12,7 @@ const router = Router();
 /**
  * Health check endpoint
  */
-router.get('/', async (req: Request, res: Response) => {
+router.get('/', async (_req: Request, res: Response) => {
   try {
     // Check database connection
     const supabase = getSupabaseClient();
@@ -31,7 +31,7 @@ router.get('/', async (req: Request, res: Response) => {
       queueStats = { status: 'unavailable' };
     }
 
-    sendSuccess(res, {
+    return sendSuccess(res, {
       status: 'healthy',
       version: config.VERSION,
       environment: config.NODE_ENV,
@@ -46,7 +46,7 @@ router.get('/', async (req: Request, res: Response) => {
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    sendError(res, error instanceof Error ? error.message : 'Unknown error', 503, { status: 'unhealthy' });
+    return sendError(res, error instanceof Error ? error.message : 'Unknown error', 503, { status: 'unhealthy' });
   }
 });
 
@@ -86,7 +86,7 @@ router.post('/maintenance', requireAuth, async (req: Request, res: Response) => 
 
     logger.info(`Maintenance task ${task} triggered via API, job: ${jobId}`);
 
-    sendSuccess(res, {
+    return sendSuccess(res, {
       status: 'queued',
       task,
       job_id: jobId,
@@ -94,7 +94,7 @@ router.post('/maintenance', requireAuth, async (req: Request, res: Response) => 
     });
   } catch (error) {
     logger.error('Failed to queue maintenance task:', error);
-    sendError(res, 'Failed to queue maintenance task', 500);
+    return sendError(res, 'Failed to queue maintenance task', 500);
   }
 });
 
@@ -130,7 +130,7 @@ router.get('/key-consistency', requireAuth, async (req: Request, res: Response) 
       });
     }
 
-    sendSuccess(res, {
+    return sendSuccess(res, {
       status: 'ok',
       users_missing_keys: missingKeysCount || 0,
       users_with_inconsistent_keys: inconsistent?.length || 0,
@@ -140,7 +140,8 @@ router.get('/key-consistency', requireAuth, async (req: Request, res: Response) 
         : 'Some users need key generation or cleanup',
     });
   } catch (error) {
-    sendError(res, 'Failed to check key consistency', 500);
+    logger.error('Failed to check key consistency:', error);
+    return sendError(res, 'Failed to check key consistency', 500);
   }
 });
 

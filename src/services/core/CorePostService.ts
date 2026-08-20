@@ -251,27 +251,33 @@ export class CorePostService {
 
       debug.log(`Core: Toggling like: post=${postId}, user=${profileId}`)
 
-      const { data: existingLike } = await supabase
+      // The heart means favorite OR emoji_reaction: is_favorited in the timeline
+      // RPCs, loadPost below, and update_post_reaction_counts all count both types.
+      // The toggle spans the same set; probing 'favorite' alone takes the insert
+      // branch on a post that already reads as favourited, raising favorites_count.
+      const HEART_TYPES = ['favorite', 'emoji_reaction']
+
+      const { data: existingLike, error: probeError } = await supabase
         .from('post_interactions')
         .select('id')
-        .match({ 
-          post_id: postId, 
-          user_id: profileId, 
-          interaction_type: 'favorite' 
-        })
-        .maybeSingle()
+        .eq('post_id', postId)
+        .eq('user_id', profileId)
+        .in('interaction_type', HEART_TYPES)
+        .limit(1)
+
+      if (probeError) throw this.createError('CHECK_LIKE_FAILED', probeError.message, probeError)
 
       let liked: boolean
 
-      if (existingLike) {
+      if (existingLike && existingLike.length > 0) {
+        // Emptying the heart deletes every row it counts. An emoji_reaction left
+        // behind holds is_favorited true and favorites_count above base.
         const { error } = await supabase
           .from('post_interactions')
           .delete()
-          .match({ 
-            post_id: postId, 
-            user_id: profileId, 
-            interaction_type: 'favorite' 
-          })
+          .eq('post_id', postId)
+          .eq('user_id', profileId)
+          .in('interaction_type', HEART_TYPES)
 
         if (error) throw this.createError('REMOVE_LIKE_FAILED', error.message, error)
         liked = false
@@ -622,122 +628,6 @@ export class CorePostService {
   }
 
   // POST LOADING (PURE LOCAL)
-
-  /**
-   * Get reactions for multiple posts using optimized database function (pure local)
-   * PERFORMANCE: Uses database function to eliminate N+1 query problem
-   */
-  private async getBatchPostReactions(postIds: string[]): Promise<Record<string, any[]>> {
-    try {
-      if (postIds.length === 0) {
-        return {}
-      }
-
-      debug.log(`Core: Batch fetching reactions for ${postIds.length} posts`)
-      
-      // Use the optimized database function
-      const { data: reactions, error } = await supabase
-        .rpc('get_batch_post_reactions', { post_ids: postIds })
-
-      if (error) {
-        debug.error('Core: Failed to batch fetch post reactions:', error)
-        throw this.createError('BATCH_FETCH_POST_REACTIONS_FAILED', error.message, error)
-      }
-
-      // Group reactions by post_id
-      const groupedReactions: Record<string, any[]> = {}
-      
-      postIds.forEach(postId => {
-        groupedReactions[postId] = []
-      })
-
-      // Group reactions by post
-      reactions?.forEach((reaction: any) => {
-        const postId = reaction.post_id
-        
-        if (!groupedReactions[postId]) {
-          groupedReactions[postId] = []
-        }
-        
-        groupedReactions[postId].push({
-          emoji_id: reaction.emoji_id,
-          emoji: {
-            id: reaction.emoji_id,
-            name: reaction.emoji_name,
-            url: reaction.emoji_url
-          },
-          count: reaction.reaction_count,
-          users: reaction.users
-        })
-      })
-
-      debug.log(`Core: Batch fetched reactions for ${postIds.length} posts (${reactions?.length || 0} reaction groups)`)
-      return groupedReactions
-    } catch (error) {
-      debug.error('Core: Error in getBatchPostReactions:', error)
-      throw error
-    }
-  }
-
-  /**
-   * Load timeline posts with pagination (pure local)
-   */
-  async loadTimelinePosts(
-    timeline: 'public' | 'home' | 'local',
-    options: {
-      limit?: number
-      before?: string
-      after?: string
-      signal?: AbortSignal
-    } = {}
-  ): Promise<TimelinePost[]> {
-    try {
-      const { limit = 20, before, after, signal } = options
-
-      debug.log(`Core: Loading ${timeline} timeline posts`)
-
-      let query = supabase
-        .from('timeline_posts')
-        .select('*')
-        .eq('timeline_type', timeline)
-        .or('is_deleted.is.null,is_deleted.eq.false')
-        .order('created_at', { ascending: false })
-        .limit(limit)
-
-      if (before) {
-        query = query.lt('created_at', before)
-      }
-      if (after) {
-        query = query.gt('created_at', after)
-      }
-
-      if (signal?.aborted) {
-        throw this.createError('ABORTED', 'Request was aborted')
-      }
-
-      const { data: posts, error } = await query
-
-      if (error) throw this.createError('LOAD_POSTS_FAILED', error.message, error)
-
-      const postList = posts || []
-
-      // Batch load reactions for all posts
-      if (postList.length > 0) {
-        const postIds = postList.map(p => p.id)
-        const reactionsByPost = await this.getBatchPostReactions(postIds)
-        
-        postList.forEach(post => {
-          post.reactions = reactionsByPost[post.id] || []
-        })
-      }
-
-      debug.log(`Core: Loaded ${postList.length} posts with reactions for ${timeline} timeline`)
-      return postList
-    } catch (error) {
-      debug.error('Core: Failed to load timeline posts:', error)
-      throw error
-    }
-  }
 
   /**
    * Load a single post by ID (pure local)

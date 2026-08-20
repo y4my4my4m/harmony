@@ -49,7 +49,7 @@ router.get(
       return res.status(404).json({ error: 'Server not found' });
     }
 
-    res.json({
+    return res.json({
       success: true,
       server: {
         id: serverData.id,
@@ -188,7 +188,7 @@ router.post(
         data.server.owner.avatar_url = makeAbsolute(data.server.owner.avatar_url);
       }
 
-      res.json(data);
+      return res.json(data);
     } catch (error: any) {
       logger.error(`Failed to resolve remote invite: ${error.message}`);
       return res.status(502).json({ error: 'Failed to connect to remote instance' });
@@ -300,7 +300,7 @@ router.get(
       );
     }
 
-    res.json({
+    return res.json({
       code: invite.code,
       expiresAt: invite.expires_at,
       maxUses: invite.max_uses,
@@ -458,7 +458,7 @@ router.post(
           .catch(err => logger.error('Failed to sync remote members:', err));
       }
 
-      res.json({
+      return res.json({
         success: true,
         message: isPublicServer ? 'Joined server' : 'Join request sent',
         serverId: localServer.id,
@@ -551,7 +551,7 @@ router.post(
       }
     }
 
-    res.json({
+    return res.json({
       success: true,
       message: 'Left server successfully',
     });
@@ -570,7 +570,7 @@ router.get(
 
     await ServerDiscoveryService.syncRemoteServer(serverId);
 
-    res.json({ success: true, message: 'Server synced' });
+    return res.json({ success: true, message: 'Server synced' });
   })
 );
 
@@ -606,11 +606,13 @@ router.get(
 
     // Local channels serve messages straight from the local table
     if (!channel.is_remote) {
+      // messages.user_id is null on bot rows, which carry bot_id instead; those
+      // embed a null author.
       let query = supabase
         .from('messages')
         .select(`
           id, content, created_at, updated_at, metadata,
-          author:profiles!messages_author_id_fkey(id, username, display_name, avatar_url, federated_id)
+          author:profiles!messages_user_id_fkey(id, username, display_name, avatar_url, federated_id)
         `)
         .eq('channel_id', channelId)
         .order('created_at', { ascending: false })
@@ -653,7 +655,7 @@ router.get(
           .from('messages')
           .select(`
             id, content, created_at, updated_at, metadata,
-            author:profiles!messages_author_id_fkey(id, username, display_name, avatar_url, federated_id)
+            author:profiles!messages_user_id_fkey(id, username, display_name, avatar_url, federated_id)
           `)
           .eq('channel_id', channelId)
           .order('created_at', { ascending: false })
@@ -847,7 +849,7 @@ router.get(
         };
       }));
 
-      res.json({ 
+      return res.json({ 
         messages: messages.filter(Boolean), 
         source: 'remote' 
       });
@@ -859,13 +861,13 @@ router.get(
         .from('messages')
         .select(`
           id, content, created_at, updated_at, metadata,
-          author:profiles!messages_author_id_fkey(id, username, display_name, avatar_url, federated_id)
+          author:profiles!messages_user_id_fkey(id, username, display_name, avatar_url, federated_id)
         `)
         .eq('channel_id', channelId)
         .order('created_at', { ascending: false })
         .limit(Number(limit));
 
-      res.json({ 
+      return res.json({ 
         messages: cachedMessages || [], 
         source: 'cache',
         error: error.message 

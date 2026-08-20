@@ -35,12 +35,19 @@ export async function botAuthMiddleware(
     
     const { data: verification, error } = await supabase.rpc('verify_bot_token', {
       p_token_hash: tokenHash
-    }) as any
-    
-    if (error || !verification || !verification.valid) {
+    })
+
+    // A lookup that never ran says nothing about the credential. 401 here would
+    // report a broken RPC as a bad token and hide the SQLSTATE.
+    if (error) {
+      console.error('verify_bot_token failed:', error.code, error.message, error.details)
+      return res.status(503).json({ error: 'Token verification unavailable' })
+    }
+
+    if (!verification || !verification.valid) {
       return res.status(401).json({ error: 'Invalid or expired token' })
     }
-    
+
     req.bot = {
       id: verification.bot_id,
       username: verification.username,
@@ -64,25 +71,17 @@ export async function botAuthMiddleware(
 }
 
 /**
- * Atomic rate-limit check + increment.
+ * Returns true when the request must be refused with 429.
  *
- * Replaces the previous read-modify-write implementation which had a
- * documented race condition (BUGS.md M37): under burst load, two
- * concurrent requests could both observe `request_count = N`, both pass
- * the `< max_requests` threshold, then both write `N + 1`, letting
- * through ~2× the allowed burst. The new path delegates to the SQL
- * function `check_and_increment_bot_rate_limit`, which combines the
- * UPSERT, window-reset, and limit check into a single statement under
- * an exclusive row lock.
+ * check_and_increment_bot_rate_limit combines the upsert, window reset and
+ * limit check into one statement under an exclusive row lock; a read-modify-write
+ * here would let a burst through twice.
  *
- * Window and limit defaults come from `config.rateLimit`
- * (`RATE_LIMIT_WINDOW_MS` / `RATE_LIMIT_MAX_REQUESTS` env vars). Callers
- * with bucket-specific needs can pass overrides directly.
+ * Window and limit come from config.rateLimit (RATE_LIMIT_WINDOW_MS,
+ * RATE_LIMIT_MAX_REQUESTS). Window is passed in seconds, floored at 1.
  *
- * Returns `true` if the request must be rejected with HTTP 429, `false`
- * if it may proceed. On any RPC error we fail open (return `false`) to
- * avoid a database hiccup taking down the bot API; this matches the
- * prior behaviour but the surface area is now much smaller.
+ * Fails open: an RPC error admits the request rather than taking the bot API
+ * offline.
  */
 async function checkRateLimit(botId: string, bucket: string): Promise<boolean> {
   try {
@@ -104,7 +103,7 @@ async function checkRateLimit(botId: string, bucket: string): Promise<boolean> {
     return data === true
   } catch (error) {
     console.error('Rate limit check error:', error)
-    return false // Allow request on error (matches pre-existing fail-open behaviour)
+    return false
   }
 }
 

@@ -306,10 +306,10 @@ BEGIN
         metric_type,
         metric_name,
         count,
-        sum_value,
-        min_value,
-        max_value,
-        avg_value,
+        sum,
+        min,
+        max,
+        avg,
         source
     )
     SELECT 
@@ -326,12 +326,15 @@ BEGIN
     WHERE timestamp >= date_trunc('hour', now() - interval '1 hour')
       AND timestamp < date_trunc('hour', now())
     GROUP BY date_trunc('hour', timestamp), metric_type, metric_name, source
+    -- Column names are the aggregate names, matching the table. Production's copy of this
+    -- function conflicts on (hour, metric_type, metric_name, labels) because its table
+    -- carries that constraint; this one keeps the source-based constraint declared above.
     ON CONFLICT (hour, metric_type, metric_name, source) DO UPDATE SET
         count = EXCLUDED.count,
-        sum_value = EXCLUDED.sum_value,
-        min_value = EXCLUDED.min_value,
-        max_value = EXCLUDED.max_value,
-        avg_value = EXCLUDED.avg_value;
+        sum = EXCLUDED.sum,
+        min = EXCLUDED.min,
+        max = EXCLUDED.max,
+        avg = EXCLUDED.avg;
     
     GET DIAGNOSTICS v_count = ROW_COUNT;
     RETURN v_count;
@@ -364,9 +367,9 @@ BEGIN
     WHERE hour < now() - (p_hourly_retention_days || ' days')::interval;
     GET DIAGNOSTICS v_hourly_deleted = ROW_COUNT;
     
-    -- Delete old slow queries
+    -- Delete old slow queries. The column is "timestamp"; slow_queries has no created_at.
     DELETE FROM public.slow_queries
-    WHERE created_at < now() - (p_slow_query_retention_days || ' days')::interval;
+    WHERE "timestamp" < now() - (p_slow_query_retention_days || ' days')::interval;
     GET DIAGNOSTICS v_slow_deleted = ROW_COUNT;
     
     RETURN jsonb_build_object(

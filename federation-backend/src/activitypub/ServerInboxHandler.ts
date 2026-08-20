@@ -11,7 +11,6 @@ import { ActivityProcessor } from './ActivityProcessor.js';
 import { DeliveryQueue } from './DeliveryQueue.js';
 import { SignatureService } from './SignatureService.js';
 import { noteToContent } from './converters/fromActivityPub.js';
-import { decodeHtmlEntities } from '../utils/contentUtils.js';
 import config from '../config/index.js';
 import { harmonyVoiceMessageFromObject } from '../utils/voiceMessageFederation.js';
 
@@ -422,7 +421,7 @@ async function processJoinServer(
 
 async function processLeaveServer(
   serverId: string,
-  server: any,
+  _server: any,
   activity: any
 ): Promise<void> {
   const supabase = getSupabaseClient();
@@ -912,7 +911,17 @@ async function processCreateActivity(
       .eq('status', 'accepted')
       .not('member_instance', 'is', null)
       .neq('member_instance', senderDomain)
-      .neq('member_instance', config.INSTANCE_DOMAIN);
+      .neq('member_instance', config.INSTANCE_DOMAIN)
+      // PostgREST returns a many-to-one embed as an object. The client is built
+      // without a generated schema, so it cannot see cardinality and widens
+      // every embed to an array.
+      .overrideTypes<
+        {
+          member_instance: string;
+          profiles: { id: string; federated_id: string | null; domain: string };
+        }[],
+        { merge: false }
+      >();
 
     if (remoteMemberGroups && remoteMemberGroups.length > 0) {
       // Group by instance for shared inbox delivery
@@ -1801,14 +1810,4 @@ async function sendRejectActivity(
   };
 
   await DeliveryQueue.sendToInbox(targetInbox, rejectActivity, server.owner);
-}
-
-// eslint-disable-next-line unused-imports/no-unused-vars
-function stripHtml(html: string): string {
-  const text = html
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<\/(?:p|div|li|blockquote|h[1-6])>/gi, '\n')
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/[ \t]+/g, ' ');
-  return decodeHtmlEntities(text).trim();
 }

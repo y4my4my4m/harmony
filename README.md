@@ -57,9 +57,8 @@ cd self-host
 bash configure.sh && docker compose up -d && bash bootstrap.sh
 ```
 
-See [self-host/README.md](self-host/README.md). The interactive
-`bash scripts/install.sh` (host nginx + certbot) remains available for advanced
-setups: [docs/self-hosting.md](docs/self-hosting.md).
+See [self-host/README.md](self-host/README.md). Manual setup, including a host-native
+install with nginx and certbot, is in [docs/self-hosting.md](docs/self-hosting.md).
 
 ## Documentation
 

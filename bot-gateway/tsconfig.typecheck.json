@@ -1,0 +1,11 @@
+{
+  // Type-checks the tests as well as src. The build config sets rootDir to src so the
+  // emitted layout stays flat, which excludes tests/ by construction; this one emits
+  // nothing, so rootDir does not apply.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": "."
+  },
+  "include": ["src/**/*", "tests/**/*"]
+}

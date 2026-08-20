@@ -16,6 +16,11 @@ import { linkPreviewService } from '../services/LinkPreviewService.js';
 import { ActivityProcessor } from '../activitypub/ActivityProcessor.js';
 import { getFullServerBannerUrl, getFullServerIconUrl } from '../utils/urlUtils.js';
 
+/** postgres_changes payloads carry `{}` for the side absent from the event. */
+function rowId(row: unknown): unknown {
+  return row && typeof row === 'object' && 'id' in row ? row.id : undefined;
+}
+
 export async function startDatabaseListener(): Promise<void> {
   logger.info('Starting database notification listener...');
 
@@ -24,7 +29,7 @@ export async function startDatabaseListener(): Promise<void> {
   let channel = supabase
     .channel('federation-events');
 
-  if (config.environment !== 'production') {
+  if (config.NODE_ENV !== 'production') {
     channel = channel.on(
       'postgres_changes',
       {
@@ -36,14 +41,14 @@ export async function startDatabaseListener(): Promise<void> {
         const noisyTables = ['timeline_entries', 'notifications', 'ap_activities'];
         if (noisyTables.includes(payload.table)) {
           logger.debug(`REALTIME EVENT: ${payload.eventType} on ${payload.table}`, {
-            id: payload.new?.id || payload.old?.id,
+            id: rowId(payload.new) ?? rowId(payload.old),
             table: payload.table
           });
           return;
         }
-        
+
         logger.info(`REALTIME EVENT: ${payload.eventType} on ${payload.table}`, {
-          id: payload.new?.id || payload.old?.id,
+          id: rowId(payload.new) ?? rowId(payload.old),
           table: payload.table
         });
       }
@@ -688,78 +693,8 @@ async function handleInteractionRemoval(deletedInteraction: any): Promise<void> 
   }
 }
 
-/** Sends Add/Remove against the author's featured collection. */
-// eslint-disable-next-line unused-imports/no-unused-vars
-async function handlePinChange(post: any, oldPost: any): Promise<void> {
-  try {
-    const supabase = getSupabaseClient();
-
-    const { data: fullPost } = await supabase
-      .from('posts')
-      .select('*')
-      .eq('id', post.id)
-      .single();
-
-    if (!fullPost || !fullPost.is_local) {
-      logger.debug('Cannot federate pin change for non-local post');
-      return;
-    }
-
-    const { data: author } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', fullPost.author_id)
-      .single();
-
-    if (!author || !author.is_local) {
-      return;
-    }
-
-    const { createAddToFeaturedActivity, createRemoveFromFeaturedActivity } = await import('./FederationHandlers.js');
-    
-    const isPinned = post.is_pinned && !oldPost?.is_pinned;
-    const isUnpinned = !post.is_pinned && oldPost?.is_pinned;
-
-    let activity;
-    if (isPinned) {
-      activity = createAddToFeaturedActivity(author, fullPost);
-      logger.info(`Federating pin for post ${post.id}`);
-    } else if (isUnpinned) {
-      activity = createRemoveFromFeaturedActivity(author, fullPost);
-      logger.info(`Federating unpin for post ${post.id}`);
-    } else {
-      return;
-    }
-
-    const { data: followers } = await supabase
-      .from('follows')
-      .select('follower:profiles!follows_follower_id_fkey(id, inbox_url, is_local, shared_inbox_url)')
-      .eq('following_id', author.id)
-      .eq('status', 'accepted');
-
-    if (!followers || followers.length === 0) {
-      logger.debug('No followers to notify about pin change');
-      return;
-    }
-
-    // Shared inbox preferred; deduplicated per instance.
-    const inboxes = new Set<string>();
-    for (const follow of followers) {
-      const follower = follow.follower as any;
-      if (!follower?.is_local && follower?.inbox_url) {
-        inboxes.add(follower.shared_inbox_url || follower.inbox_url);
-      }
-    }
-
-    await Promise.allSettled(
-      [...inboxes].map(inbox => DeliveryQueue.sendToInbox(inbox, activity, author.id))
-    );
-
-    logger.info(`Pin change federated to ${inboxes.size} inboxes`);
-  } catch (error) {
-    logger.error('Failed to handle pin change:', error);
-  }
-}
+// Pin/unpin federation (Add/Remove against the featured collection) runs in
+// `queue/handlers/postHandler.ts`.
 
 /** Sends Block to the blocked actor's inbox. */
 async function handleNewBlock(block: any): Promise<void> {
@@ -1084,10 +1019,8 @@ export async function handleChannelDeleted(channel: any): Promise<void> {
 /** Sends Update for the server Group object to remote member instances. */
 export async function handleServerUpdated(server: any, _oldServer: any): Promise<void> {
   try {
-    // eslint-disable-next-line unused-imports/no-unused-vars
-    const supabase = getSupabaseClient();
     const hostDomain = config.INSTANCE_DOMAIN;
-    
+
     if (!server.owner) {
       logger.warn(`Server ${server.id} has no owner - cannot federate server update`);
       return;
@@ -1331,7 +1264,7 @@ export async function handleNewDM(message: any): Promise<void> {
     const participantIds = participants.map(p => p.user_id);
     const { data: profiles, error: profilesError } = await supabase
       .from('profiles')
-      .select('id, username, domain, federated_id, is_local, inbox_url')
+      .select('id, username, domain, federated_id, is_local, inbox_url, shared_inbox_url')
       .in('id', participantIds);
     
     if (profilesError) {
@@ -1471,15 +1404,13 @@ export async function handleNewDM(message: any): Promise<void> {
       .eq('id', message.id);
 
     for (const profile of remoteUsers) {
-      let inboxUrl = profile.inbox_url;
-      if (!inboxUrl) {
-        const { data: instance } = await supabase
-          .from('instances')
-          .select('shared_inbox_url')
-          .eq('domain', profile.domain)
-          .single();
-        inboxUrl = instance?.shared_inbox_url || `https://${profile.domain}/inbox`;
-      }
+      // A DM addresses one actor, so the personal inbox comes first; sharedInbox is
+      // the fallback and is read off the actor document, which is where ActivityPub
+      // publishes it (endpoints.sharedInbox). Same order as federationUtils.ts and
+      // the other delivery paths.
+      const inboxUrl = profile.inbox_url
+        || profile.shared_inbox_url
+        || `https://${profile.domain}/inbox`;
       await DeliveryQueue.enqueue(activity, inboxUrl, sender.id);
       logger.info(`DM federated to ${profile.username}@${profile.domain}`);
     }

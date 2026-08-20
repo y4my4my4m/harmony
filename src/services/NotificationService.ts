@@ -36,22 +36,28 @@ export class NotificationService {
       serverId?: string
       channelId?: string
       conversationId?: string
+      fromUserId?: string
+      priority?: string
       activityId?: string
-      category?: string
     }
   ): Promise<NotificationResult> {
     try {
       debug.log('Sending notification via unified system:', { type, toUserId, data })
 
+      // activity_id is a key of the data payload, not an argument.
+      const notificationData = options?.activityId
+        ? { ...data, activity_id: options.activityId }
+        : data
+
       const { data: result, error } = await supabase.rpc('send_notification_to_user', {
-        notification_type: type,
-        to_user_id: toUserId,
-        notification_data: data,
-        server_id: options?.serverId || null,
-        channel_id: options?.channelId || null,
-        conversation_id: options?.conversationId || null,
-        activity_id: options?.activityId || null,
-        category: options?.category || null
+        p_notification_type: type,
+        p_to_user_id: toUserId,
+        p_notification_data: notificationData,
+        p_server_id: options?.serverId ?? null,
+        p_channel_id: options?.channelId ?? null,
+        p_conversation_id: options?.conversationId ?? null,
+        p_from_user_id: options?.fromUserId ?? null,
+        p_priority: options?.priority ?? 'normal'
       })
 
       if (error) {

@@ -18,7 +18,7 @@ CREATE OR REPLACE FUNCTION public.create_group_conversation(
 RETURNS uuid
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions, pg_temp
 AS $$
 DECLARE
     v_conversation_id uuid;
@@ -224,7 +224,7 @@ CREATE OR REPLACE FUNCTION public.add_post_emoji_reaction(
 RETURNS uuid
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions, pg_temp
 AS $$
 DECLARE
     v_interaction_id uuid;
@@ -251,14 +251,49 @@ BEGIN
         FROM emojis e WHERE e.id = p_emoji_id;
     END IF;
 
-    INSERT INTO post_interactions (
-        user_id, post_id, interaction_type,
-        emoji_id, custom_emoji_content, is_local
-    ) VALUES (
-        p_user_id, p_post_id, 'emoji_reaction',
-        p_emoji_id, v_resolved_content, true
-    ) RETURNING id INTO v_interaction_id;
-    
+    -- Idempotent: an existing reaction is returned, not duplicated.
+    -- update_post_reaction_counts adds 1 to favorites_count per row, and
+    -- remove_post_emoji_reaction deletes every matching row in one statement, so a second
+    -- row inflates the count on the way in and drops it by two on the way out.
+    -- IS NOT DISTINCT FROM matches idx_post_interactions_emoji_unique, which is
+    -- NULLS NOT DISTINCT: emoji_id is null on a unicode reaction, custom_emoji_content is
+    -- null on a row written without one.
+    SELECT id INTO v_interaction_id
+    FROM post_interactions
+    WHERE user_id = p_user_id
+      AND post_id = p_post_id
+      AND interaction_type = 'emoji_reaction'
+      AND emoji_id IS NOT DISTINCT FROM p_emoji_id
+      AND custom_emoji_content IS NOT DISTINCT FROM v_resolved_content
+    ORDER BY created_at, id
+    LIMIT 1;
+
+    IF v_interaction_id IS NOT NULL THEN
+        RETURN v_interaction_id;
+    END IF;
+
+    BEGIN
+        INSERT INTO post_interactions (
+            user_id, post_id, interaction_type,
+            emoji_id, custom_emoji_content, is_local
+        ) VALUES (
+            p_user_id, p_post_id, 'emoji_reaction',
+            p_emoji_id, v_resolved_content, true
+        ) RETURNING id INTO v_interaction_id;
+    EXCEPTION WHEN unique_violation THEN
+        -- Concurrent caller committed the same reaction between the check and the insert.
+        -- READ COMMITTED gives the re-read a fresh snapshot, so the winning row is visible.
+        SELECT id INTO v_interaction_id
+        FROM post_interactions
+        WHERE user_id = p_user_id
+          AND post_id = p_post_id
+          AND interaction_type = 'emoji_reaction'
+          AND emoji_id IS NOT DISTINCT FROM p_emoji_id
+          AND custom_emoji_content IS NOT DISTINCT FROM v_resolved_content
+        ORDER BY created_at, id
+        LIMIT 1;
+    END;
+
     RETURN v_interaction_id;
 END;
 $$;
@@ -836,7 +871,7 @@ CREATE OR REPLACE FUNCTION public.initialize_user_encryption(
 RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions, pg_temp
 AS $$
 DECLARE
     v_key_pair_id UUID;
@@ -996,7 +1031,7 @@ CREATE OR REPLACE FUNCTION public.create_notification_with_spam_prevention(
 RETURNS uuid
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions, pg_temp
 AS $$
 DECLARE
     v_notification_id uuid;
@@ -1274,20 +1309,18 @@ BEGIN
 END;
 $$;
 
--- Cleanup expired voice calls
--- Note: federated_voice_calls uses started_at and ended_at, no status column
+-- Expire pending invites past their TTL. expires_at defaults to now() + 60s.
 CREATE OR REPLACE FUNCTION public.cleanup_expired_voice_calls()
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path TO 'public', 'extensions', 'pg_temp'
 AS $$
 BEGIN
-    -- Mark calls as ended if started more than 4 hours ago and not already ended
-    UPDATE federated_voice_calls
-    SET ended_at = NOW()
-    WHERE ended_at IS NULL
-      AND started_at < NOW() - INTERVAL '4 hours';
+    UPDATE public.federated_voice_calls
+    SET status = 'expired'
+    WHERE status = 'pending'
+      AND expires_at < NOW();
 END;
 $$;
 
@@ -1397,10 +1430,12 @@ BEGIN
     VALUES (
         p_name,
         p_url,
+        -- Qualified. RETURNS TABLE declares an OUT parameter named id, which otherwise
+        -- shadows the table column: 42702, on every call.
         COALESCE(
-            (SELECT owner_id FROM bots WHERE id = p_created_by),
+            (SELECT owner_id FROM bots WHERE bots.id = p_created_by),
             CASE
-                WHEN EXISTS (SELECT 1 FROM profiles WHERE id = p_created_by) THEN p_created_by
+                WHEN EXISTS (SELECT 1 FROM profiles WHERE profiles.id = p_created_by) THEN p_created_by
                 ELSE NULL
             END
         ),
@@ -1968,7 +2003,7 @@ RETURNS numeric
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions, pg_temp
 AS $$
   SELECT COALESCE(SUM(dh.amount), 0)::numeric
   FROM public.instance_donation_history dh

@@ -986,16 +986,27 @@ export const useActivityPubStore = defineStore('activitypub', {
       }
     },
 
+    /**
+     * `follows` rows reach 'accepted' either on insert or through a later
+     * pending -> accepted update, and the database counts accepted rows only.
+     * Every handler below reaches the same state for a given row whatever the
+     * delivery order or count: the outgoing side derives followingCount from
+     * followedUsers, the incoming side re-reads the server count on update.
+     * broadcast_follow_event fires on the actor's own channel too, so
+     * self-originated events arrive here as well.
+     */
     async handleRealtimeFollowCreate(follow: any) {
       debug.log('New follow relationship:', follow);
-      
+
       const { userDataService } = await import('@/services/userDataService');
       const currentUser = userDataService.getCurrentUser();
       if (!currentUser?.id) return;
 
+      if (follow.status !== 'accepted') return;
+
       if (follow.follower_id === currentUser.id) {
-        this.followingCount++;
         this.followedUsers.add(follow.following_id);
+        this.followingCount = this.followedUsers.size;
       } else if (follow.following_id === currentUser.id) {
         this.followersCount++;
         // Notification is created by the DB trigger
@@ -1005,34 +1016,40 @@ export const useActivityPubStore = defineStore('activitypub', {
 
     async handleRealtimeFollowUpdate(follow: any) {
       debug.log('Follow relationship updated:', follow);
-      
-      const { userDataService } = await import('@/services/userDataService');
-      const currentUser = userDataService.getCurrentUser();
-      if (!currentUser?.id) return;
 
-      if (follow.status === 'accepted') {
-        if (follow.follower_id === currentUser.id) {
-          this.followedUsers.add(follow.following_id);
-        }
-      } else if (follow.status === 'rejected') {
-        if (follow.follower_id === currentUser.id) {
-          this.followedUsers.delete(follow.following_id);
-        }
-      }
-    },
-
-    async handleRealtimeFollowDelete(follow: any) {
-      debug.log('Follow relationship deleted:', follow);
-      
       const { userDataService } = await import('@/services/userDataService');
       const currentUser = userDataService.getCurrentUser();
       if (!currentUser?.id) return;
 
       if (follow.follower_id === currentUser.id) {
-        this.followingCount--;
-        this.followedUsers.delete(follow.following_id);
+        if (follow.status === 'accepted') {
+          this.followedUsers.add(follow.following_id);
+        } else {
+          this.followedUsers.delete(follow.following_id);
+        }
+        this.followingCount = this.followedUsers.size;
       } else if (follow.following_id === currentUser.id) {
-        this.followersCount--;
+        // The payload carries no prior status, and federation bookkeeping
+        // updates these rows without touching status, so a delta would count
+        // one acceptance repeatedly. Re-read the accepted-only count instead.
+        await this.loadFollowCounts(true, currentUser.id);
+      }
+    },
+
+    async handleRealtimeFollowDelete(follow: any) {
+      debug.log('Follow relationship deleted:', follow);
+
+      const { userDataService } = await import('@/services/userDataService');
+      const currentUser = userDataService.getCurrentUser();
+      if (!currentUser?.id) return;
+
+      if (follow.follower_id === currentUser.id) {
+        this.followedUsers.delete(follow.following_id);
+        this.followingCount = this.followedUsers.size;
+      } else if (follow.following_id === currentUser.id && follow.status === 'accepted') {
+        // `status` is the deleted row's; a withdrawn pending request was never
+        // counted.
+        this.followersCount = Math.max(0, this.followersCount - 1);
       }
     },
 
@@ -1112,8 +1129,15 @@ export const useActivityPubStore = defineStore('activitypub', {
     // createFollowNotification removed - DB trigger (handle_unified_notification_processing) handles it.
 
     /**
-     * Collects every Post object reference for `postId` loaded across the
-     * four primary feeds, the bookmarks list, and any active user feeds.
+     * Collects every object carrying `postId`'s counts across the four primary
+     * feeds, the bookmarks list, and any active user feeds: the post itself,
+     * plus the embedded `reblog` snapshot of every boost wrapper of it, which
+     * is what the timeline renders for a boost.
+     *
+     * Interaction paths resolve to the original post id before writing, so a
+     * wrapper is reachable only through its embedded object. A wrapper matched
+     * by its own id yields the wrapper alone - the Announce row's counts are
+     * not the original's.
      *
      * An empty result means the post is on no UI surface, so callers skip
      * the server resync (BUGS.md PC4).
@@ -1125,23 +1149,25 @@ export const useActivityPubStore = defineStore('activitypub', {
      */
     _findPostRefs(postId: string): any[] {
       const refs: any[] = [];
-      const feeds = [this.homeFeed, this.publicFeed, this.localFeed, this.mentionsFeed];
-      for (const feed of feeds) {
-        const post = feed.posts.find((p: any) => p.id === postId);
-        if (post) refs.push(post);
+      const collect = (posts: any) => {
+        if (!Array.isArray(posts)) return;
+        for (const post of posts) {
+          if (!post) continue;
+          if (post.id === postId) refs.push(post);
+          else if (post.reblog?.id === postId) refs.push(post.reblog);
+        }
+      };
+      for (const feed of [this.homeFeed, this.publicFeed, this.localFeed, this.mentionsFeed]) {
+        collect(feed.posts);
       }
       // Bookmarks are a top-level array, not a feed object, and hold Post
       // instances distinct from the timeline feeds. Scanned even after a
       // feed match.
-      if (Array.isArray(this.bookmarks)) {
-        const bookmarkPost = this.bookmarks.find((p: any) => p.id === postId);
-        if (bookmarkPost) refs.push(bookmarkPost);
-      }
+      collect(this.bookmarks);
       // `userFeeds` is initialized to `new Map()` and is always present,
       // so no defensive type check is needed.
       for (const feed of this.userFeeds.values()) {
-        const post = feed?.posts?.find((p: any) => p.id === postId);
-        if (post) refs.push(post);
+        collect(feed?.posts);
       }
       return refs;
     },
@@ -1237,21 +1263,13 @@ export const useActivityPubStore = defineStore('activitypub', {
         }
       }
 
-      // Single pass over every reference across primary and user feeds.
+      // Single pass over every reference across primary and user feeds. A ref
+      // is already the object the counts belong to - a post, or the embedded
+      // original of a boost wrapper.
       for (const post of refs) {
         post.favorites_count = postCounts.favorites_count;
         post.reblogs_count = postCounts.reblogs_count;
         post.replies_count = postCounts.replies_count;
-
-        const postWithReblog = post as any;
-        if (postWithReblog.reblog) {
-          postWithReblog.reblog.favorites_count = postCounts.favorites_count;
-          postWithReblog.reblog.reblogs_count = postCounts.reblogs_count;
-          postWithReblog.reblog.replies_count = postCounts.replies_count;
-          if (isCurrentUser) {
-            Object.assign(postWithReblog.reblog, userStateUpdates);
-          }
-        }
 
         if (isCurrentUser) {
           Object.assign(post, userStateUpdates);
@@ -2783,16 +2801,11 @@ export const useActivityPubStore = defineStore('activitypub', {
         const isReblogged = !!existingInteraction;
 
         if (existingInteraction) {
-          const { data: reblogPost } = await supabase
-            .from('posts')
-            .select('id')
-            .eq('author_id', profileId)
-            .eq('metadata->>reblog_of', postId)
-            .maybeSingle();
-
-          if (reblogPost) {
-            await activityPubService.unreblogPost(reblogPost.id);
-            this.removePostFromAllFeeds(reblogPost.id);
+          // Quote posts carry the same metadata.reblog_of; the service excludes
+          // them and retracts every boost row rather than exactly one.
+          const retracted = await activityPubService.retractBoostPosts(postId, profileId);
+          for (const reblogPostId of retracted) {
+            this.removePostFromAllFeeds(reblogPostId);
           }
 
           await supabase
@@ -3013,13 +3026,15 @@ export const useActivityPubStore = defineStore('activitypub', {
          debug.log('Following user via InteractionService:', userId);
          
          const result = await services.interactions.toggleFollow(userId);
-         
+
          if (result.following) {
            this.followedUsers.add(userId);
-           this.followingCount++;
+           // Derived, never incremented: the follow:change broadcast lands on
+           // the actor's own channel and would otherwise count this twice.
+           this.followingCount = this.followedUsers.size;
            debug.log('User followed successfully via service layer');
          }
-         
+
          return result;
        } catch (error) {
          debug.error('Failed to follow user via service:', error);
@@ -3035,7 +3050,7 @@ export const useActivityPubStore = defineStore('activitypub', {
          
          if (!result.following) {
            this.followedUsers.delete(userId);
-           this.followingCount--;
+           this.followingCount = this.followedUsers.size;
            debug.log('User unfollowed successfully via service layer');
          }
          
@@ -3054,11 +3069,10 @@ export const useActivityPubStore = defineStore('activitypub', {
          
          if (result.following) {
            this.followedUsers.add(userId);
-           if (!this.followedUsers.has(userId)) this.followingCount++;
          } else {
            this.followedUsers.delete(userId);
-           this.followingCount--;
          }
+         this.followingCount = this.followedUsers.size;
          
          debug.log(`Follow toggled via service: ${result.following ? 'following' : 'unfollowed'}`);
          return result;

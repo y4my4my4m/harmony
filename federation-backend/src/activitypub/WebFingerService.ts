@@ -115,7 +115,7 @@ router.get(
  * host-meta (XML) - part of the WebFinger discovery chain.
  * Some implementations fetch this first to discover the WebFinger template.
  */
-router.get('/.well-known/host-meta', (req: Request, res: Response) => {
+router.get('/.well-known/host-meta', (_req: Request, res: Response) => {
   const domain = config.INSTANCE_DOMAIN;
   res.setHeader('Content-Type', 'application/xrd+xml');
   res.send(`<?xml version="1.0" encoding="UTF-8"?>
@@ -127,7 +127,7 @@ router.get('/.well-known/host-meta', (req: Request, res: Response) => {
 /**
  * host-meta.json - JSON variant of host-meta
  */
-router.get('/.well-known/host-meta.json', (req: Request, res: Response) => {
+router.get('/.well-known/host-meta.json', (_req: Request, res: Response) => {
   const domain = config.INSTANCE_DOMAIN;
   res.json({
     links: [

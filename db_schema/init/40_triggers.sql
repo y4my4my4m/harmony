@@ -376,6 +376,13 @@ CREATE TRIGGER trg_update_post_reply_count
     FOR EACH ROW
     EXECUTE FUNCTION public.update_post_reply_count();
 
+-- Maintain posts_count on the author's profile
+DROP TRIGGER IF EXISTS trg_update_profile_posts_count ON public.posts;
+CREATE TRIGGER trg_update_profile_posts_count
+    AFTER INSERT OR UPDATE OF is_deleted OR DELETE ON public.posts
+    FOR EACH ROW
+    EXECUTE FUNCTION public.update_profile_posts_count();
+
 -- Check post emoji reaction limit
 DROP TRIGGER IF EXISTS trigger_check_emoji_reaction_limit ON public.post_interactions;
 CREATE TRIGGER trigger_check_emoji_reaction_limit
@@ -1118,3 +1125,52 @@ CREATE TRIGGER trigger_broadcast_message_delete
     AFTER DELETE ON public.messages
     FOR EACH ROW
     EXECUTE FUNCTION public.broadcast_message_event();
+
+-- Notify admins when a donation lands in a pending state.
+-- Mirrored from migrations/20260524_cumulative_tier_and_notifications.sql.
+DROP TRIGGER IF EXISTS trg_notify_admins_on_pending_donation
+    ON public.instance_pending_donations;
+CREATE TRIGGER trg_notify_admins_on_pending_donation
+    AFTER INSERT ON public.instance_pending_donations
+    FOR EACH ROW
+    EXECUTE FUNCTION public.notify_admins_on_pending_donation();
+
+-- Reblog counting. A reblog is a posts row carrying metadata.reblog_of, so the
+-- count is recomputed there rather than from post_interactions; see
+-- update_post_reblog_count. Mirrored from production.
+DROP TRIGGER IF EXISTS update_reblog_count_on_post_delete ON public.posts;
+CREATE TRIGGER update_reblog_count_on_post_delete AFTER DELETE ON public.posts FOR EACH ROW WHEN (((old.metadata ->> 'reblog_of'::text) IS NOT NULL)) EXECUTE FUNCTION public.update_post_reblog_count();
+DROP TRIGGER IF EXISTS update_reblog_count_on_post_insert ON public.posts;
+CREATE TRIGGER update_reblog_count_on_post_insert AFTER INSERT ON public.posts FOR EACH ROW WHEN (((new.metadata ->> 'reblog_of'::text) IS NOT NULL)) EXECUTE FUNCTION public.update_post_reblog_count();
+DROP TRIGGER IF EXISTS update_reblog_count_on_post_update ON public.posts;
+CREATE TRIGGER update_reblog_count_on_post_update AFTER UPDATE OF is_deleted ON public.posts FOR EACH ROW WHEN ((((new.metadata ->> 'reblog_of'::text) IS NOT NULL) OR ((old.metadata ->> 'reblog_of'::text) IS NOT NULL))) EXECUTE FUNCTION public.update_post_reblog_count();
+
+
+-- Trigger maintenance mirrored from production; see the matching functions in
+-- 11_functions_triggers.sql.
+DROP TRIGGER IF EXISTS audit_key_generation ON public.user_key_pairs;
+CREATE TRIGGER audit_key_generation AFTER INSERT ON public.user_key_pairs FOR EACH ROW EXECUTE FUNCTION public.log_key_generation();
+DROP TRIGGER IF EXISTS trigger_remove_message_index ON public.messages;
+CREATE TRIGGER trigger_remove_message_index AFTER DELETE ON public.messages FOR EACH ROW EXECUTE FUNCTION public.remove_message_from_index();
+DROP TRIGGER IF EXISTS trigger_send_push_notification ON public.notifications;
+CREATE TRIGGER trigger_send_push_notification AFTER INSERT ON public.notifications FOR EACH ROW EXECUTE FUNCTION public.trigger_queue_push_notification();
+DROP TRIGGER IF EXISTS trigger_server_folders_updated_at ON public.server_folders;
+CREATE TRIGGER trigger_server_folders_updated_at BEFORE UPDATE ON public.server_folders FOR EACH ROW EXECUTE FUNCTION public.update_server_folders_updated_at();
+DROP TRIGGER IF EXISTS trigger_status_update_timestamp ON public.profiles;
+CREATE TRIGGER trigger_status_update_timestamp BEFORE UPDATE OF custom_status ON public.profiles FOR EACH ROW EXECUTE FUNCTION public.update_status_timestamp();
+DROP TRIGGER IF EXISTS trigger_sync_avg_latency ON public.performance_metrics_hourly;
+CREATE TRIGGER trigger_sync_avg_latency BEFORE INSERT OR UPDATE ON public.performance_metrics_hourly FOR EACH ROW EXECUTE FUNCTION public.sync_avg_latency();
+DROP TRIGGER IF EXISTS trigger_sync_recorded_at ON public.slow_queries;
+CREATE TRIGGER trigger_sync_recorded_at BEFORE INSERT OR UPDATE ON public.slow_queries FOR EACH ROW EXECUTE FUNCTION public.sync_recorded_at();
+DROP TRIGGER IF EXISTS trigger_threads_updated_at ON public.threads;
+CREATE TRIGGER trigger_threads_updated_at BEFORE UPDATE ON public.threads FOR EACH ROW EXECUTE FUNCTION public.update_threads_updated_at();
+DROP TRIGGER IF EXISTS update_bot_webhooks_timestamp ON public.bot_webhooks;
+CREATE TRIGGER update_bot_webhooks_timestamp BEFORE UPDATE ON public.bot_webhooks FOR EACH ROW EXECUTE FUNCTION public.update_bot_timestamp();
+DROP TRIGGER IF EXISTS update_bots_timestamp ON public.bots;
+CREATE TRIGGER update_bots_timestamp BEFORE UPDATE ON public.bots FOR EACH ROW EXECUTE FUNCTION public.update_bot_timestamp();
+DROP TRIGGER IF EXISTS update_conversation_encryption_settings_timestamp ON public.conversation_encryption_settings;
+CREATE TRIGGER update_conversation_encryption_settings_timestamp BEFORE UPDATE ON public.conversation_encryption_settings FOR EACH ROW EXECUTE FUNCTION public.update_encryption_timestamp();
+DROP TRIGGER IF EXISTS update_megolm_backup_timestamp ON public.megolm_key_backups;
+CREATE TRIGGER update_megolm_backup_timestamp BEFORE UPDATE ON public.megolm_key_backups FOR EACH ROW EXECUTE FUNCTION public.update_megolm_backup_timestamp();
+DROP TRIGGER IF EXISTS update_server_encryption_settings_timestamp ON public.server_encryption_settings;
+CREATE TRIGGER update_server_encryption_settings_timestamp BEFORE UPDATE ON public.server_encryption_settings FOR EACH ROW EXECUTE FUNCTION public.update_encryption_timestamp();

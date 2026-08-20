@@ -79,7 +79,11 @@ CREATE TABLE IF NOT EXISTS public.megolm_session_shares (
     -- Recipient. recipient_device_id defaults to 'default' until the per-device
     -- identity model (see user_devices) starts populating it for real.
     recipient_user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-    recipient_device_id text NOT NULL DEFAULT 'default'::text,
+    -- Nullable: the client does not supply a per-device id. Made NOT NULL in
+    -- the original DDL, dropped by
+    -- migrations/20260530_align_megolm_encryption_schema.sql because writes
+    -- failed against it.
+    recipient_device_id text DEFAULT 'default'::text,
     
     -- Share status. is_claimed mirrors (claimed_at IS NOT NULL) for fast lookup
     -- by get_unclaimed_session_shares() / claim_session_share().
@@ -116,7 +120,8 @@ CREATE TABLE IF NOT EXISTS public.megolm_key_requests (
     
     -- Requester
     requester_user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-    requester_device_id text NOT NULL DEFAULT 'default'::text,
+    -- Nullable for the same reason as megolm_session_shares.recipient_device_id.
+    requester_device_id text DEFAULT 'default'::text,
     
     -- The user we are asking to fulfill (original sender / session holder).
     -- broadcast_key_request_event() routes the request to user:{sender_user_id}.
@@ -135,10 +140,17 @@ CREATE TABLE IF NOT EXISTS public.megolm_key_requests (
     
     -- Fulfillment payload (ECDH-wrapped session key for the requester).
     encrypted_key text,
-    fulfilled_at timestamp with time zone,
-
-    CONSTRAINT megolm_key_requests_status_check CHECK (status IN ('pending', 'sent', 'received', 'cancelled', 'ignored', 'fulfilled', 'expired'))
+    fulfilled_at timestamp with time zone
 );
+
+-- Added NOT VALID to match migrations/20260530_align_megolm_encryption_schema.sql,
+-- which widened the allowed statuses and deliberately left the constraint
+-- unvalidated against pre-existing rows. A fresh table has none, so the two
+-- builds enforce the same rule on every write.
+ALTER TABLE public.megolm_key_requests
+    ADD CONSTRAINT megolm_key_requests_status_check
+    CHECK (status IN ('pending', 'sent', 'received', 'cancelled', 'ignored', 'fulfilled', 'expired'))
+    NOT VALID;
 
 CREATE INDEX IF NOT EXISTS idx_megolm_key_requests_requester ON public.megolm_key_requests(requester_user_id);
 CREATE INDEX IF NOT EXISTS idx_megolm_key_requests_sender ON public.megolm_key_requests(sender_user_id);
@@ -236,7 +248,11 @@ CREATE TABLE IF NOT EXISTS public.conversation_encryption_settings (
     -- Encryption enabled?
     encryption_enabled boolean DEFAULT false,
     encryption_algorithm text DEFAULT 'm.megolm.v1.aes-sha2'::text,
-    
+
+    -- Participant device verification state. No writer sets it true; it is
+    -- read back as false until device cross-signing lands.
+    verified boolean DEFAULT false,
+
     -- Key rotation policy
     rotation_period_ms bigint DEFAULT 604800000, -- 7 days
     rotation_message_count integer DEFAULT 100,
@@ -340,6 +356,12 @@ CREATE TABLE IF NOT EXISTS public.encryption_audit_log (
     event_type text NOT NULL, -- 'key_generated', 'session_established', 'key_rotation', 'key_verification'
     severity text DEFAULT 'info'::text, -- 'info', 'warning', 'error', 'critical'
     description text,
+
+    -- Entity the event is about, when it is not the acting user.
+    related_user_id uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
+    related_conversation_id uuid REFERENCES public.conversations(id) ON DELETE SET NULL,
+    related_server_id uuid REFERENCES public.servers(id) ON DELETE SET NULL,
+
     metadata jsonb DEFAULT '{}'::jsonb,
     ip_address inet,
     user_agent text,

@@ -1,0 +1,175 @@
+name: Schema drift
+
+# A fresh install runs init/init.sql then every migration; applying the migrations to a
+# fresh init must leave the schema unchanged.
+
+# No paths filter: the coverage gates read files under src/, federation-backend/ and
+# bot-gateway/. A required check that does not run reports no result, which branch
+# protection cannot distinguish from a pass.
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Check init/ against init/ + migrations/
+        run: ./scripts/schema-drift-check.sh
+
+      - name: Keep the dumps for inspection
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: schema-dumps
+          path: /tmp/harmony-drift/
+          retention-days: 7
+
+  surface:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # Supabase grants EXECUTE on every public function to anon by default: a new
+      # function is callable without authentication the moment it exists.
+      - name: Regenerate the RPC surface manifest
+        run: ./scripts/generate-surface.sh
+
+      - name: Fail if the manifest is stale
+        run: |
+          if ! git diff --exit-code db_schema/SURFACE.tsv; then
+            echo "::error::db_schema/SURFACE.tsv is out of date."
+            echo "::error::Run scripts/generate-surface.sh and commit the result."
+            exit 1
+          fi
+
+  # Entry-point graph: which functions are reached by an RPC, a trigger, a policy, a view,
+  # a cron job or another function, and which are reached by nothing.
+  reachability:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Regenerate the reachability graph
+        run: ./scripts/generate-reachability.sh
+
+      - name: Fail if the graph is stale
+        run: |
+          if ! git diff --exit-code db_schema/REACHABILITY.tsv; then
+            echo "::error::db_schema/REACHABILITY.tsv is out of date."
+            echo "::error::Run scripts/generate-reachability.sh and commit the result."
+            exit 1
+          fi
+
+  rpc-coverage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      # The drift gate compares init/ with init/ plus migrations, so a function missing
+      # from both is invisible to it. This reads the other direction: the RPC names the
+      # application calls.
+      - name: Check every called RPC exists in a fresh init/ build
+        run: ./scripts/check-rpc-coverage.sh
+
+  schema-usage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      # A table or column in neither init/ nor the migrations is invisible to the drift
+      # gate.
+      - name: Check every table and column the app uses exists in a fresh init/ build
+        run: ./scripts/check-schema-usage.sh
+
+  # plpgsql resolves column and relation references at first execution, not at CREATE: a
+  # body naming a column its table lacks installs cleanly and raises 42703 only when called.
+  # Drift sees identical text in init/ and the migrations; check-rpc-coverage sees a
+  # function that exists.
+  plpgsql:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check every plpgsql body against the schema it ships with
+        run: ./scripts/check-plpgsql.sh
+
+  # self-host/bootstrap.sh is the only path a new instance takes; no other gate runs it.
+  fresh-install:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install from empty, twice
+        run: ./scripts/check-fresh-install.sh
+
+  pgtap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      # RLS and topic authorization depend on the querying role and the JWT claim, so
+      # they are only assertable inside the database.
+      - name: Run the pgTAP suite
+        run: ./scripts/run-db-tests.sh
+
+  # An upsert whose ON CONFLICT target has no unique index raises 42P10 at runtime only.
+  upsert-conflicts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check every ON CONFLICT target has a unique in init/
+        run: ./scripts/check-upsert-conflicts.py
+
+  # Single required check for the database gates: a skipped dependency must not read as
+  # a pass.
+  db-verdict:
+    name: Database verdict
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [drift, surface, reachability, rpc-coverage, schema-usage, plpgsql, fresh-install, pgtap, upsert-conflicts]
+    steps:
+      - name: Require every database gate to have succeeded
+        run: |
+          fail=0
+          check() {
+            case "$2" in
+              success) printf '  ok      %s\n' "$1" ;;
+              *)       printf '  FAILED  %s (%s)\n' "$1" "$2"; fail=1 ;;
+            esac
+          }
+          check "drift"        "${{ needs.drift.result }}"
+          check "surface"      "${{ needs.surface.result }}"
+          check "reachability" "${{ needs.reachability.result }}"
+          check "rpc-coverage" "${{ needs.rpc-coverage.result }}"
+          check "schema-usage" "${{ needs.schema-usage.result }}"
+          check "plpgsql"      "${{ needs.plpgsql.result }}"
+          check "fresh-install" "${{ needs.fresh-install.result }}"
+          check "pgtap"        "${{ needs.pgtap.result }}"
+          check "upsert-conflicts" "${{ needs.upsert-conflicts.result }}"
+          [ "$fail" -eq 0 ] || { echo "::error::one or more database gates failed"; exit 1; }
+          echo "all database gates green"

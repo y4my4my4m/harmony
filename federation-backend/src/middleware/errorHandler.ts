@@ -51,7 +51,7 @@ export const errorHandler = (
   }
 
   // Default error response
-  res.status(500).json({
+  return res.status(500).json({
     success: false,
     error: process.env.NODE_ENV === 'production' 
       ? 'Internal server error' 
@@ -67,7 +67,7 @@ export const asyncHandler = (
   };
 };
 
-export const notFound = (req: Request, res: Response) => {
+export const notFound = (_req: Request, res: Response) => {
   res.status(404).json({
     success: false,
     error: 'Route not found',

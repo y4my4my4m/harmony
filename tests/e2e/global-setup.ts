@@ -1,10 +1,3 @@
-/**
- * Playwright global setup.
- *
- * Creates test users via Supabase admin API, logs each in through the browser
- * to capture localStorage auth state, then saves storageState files for reuse.
- */
-
 import { chromium, type FullConfig } from '@playwright/test'
 import { createClient } from '@supabase/supabase-js'
 import fs from 'fs'
@@ -58,7 +51,10 @@ async function loginAndSaveState(
   const storageKey = `sb-${hostname}-auth-token`
   const storageValue = JSON.stringify(data.session)
 
-  const browser = await chromium.launch()
+  // Mirrors playwright.config.ts: system Chrome unless PW_BUNDLED.
+  const browser = await chromium.launch(
+    process.env.PW_BUNDLED ? {} : { channel: 'chrome' },
+  )
   const context = await browser.newContext()
   const page = await context.newPage()
 
@@ -76,7 +72,6 @@ async function loginAndSaveState(
 }
 
 async function globalSetup(_config: FullConfig): Promise<void> {
-  // Ensure .auth directory exists and is gitignored
   if (!fs.existsSync(AUTH_DIR)) {
     fs.mkdirSync(AUTH_DIR, { recursive: true })
   }
@@ -101,7 +96,7 @@ async function globalSetup(_config: FullConfig): Promise<void> {
     isPublic: true,
   })
 
-  // The server INSERT trigger auto-creates a default "general" channel - use it
+  // Server INSERT trigger creates a default "general" channel.
   const { data: defaultChannel } = await admin
     .from('channels')
     .select('id')
@@ -117,7 +112,6 @@ async function globalSetup(_config: FullConfig): Promise<void> {
   await loginAndSaveState(alice, path.resolve(AUTH_DIR, 'alice.json'), baseURL)
   await loginAndSaveState(bob, path.resolve(AUTH_DIR, 'bob.json'), baseURL)
 
-  // Persist seed data for tests to reference
   const seedData: SeedData = { alice, bob, serverId, channelId }
   fs.writeFileSync(SEED_DATA_PATH, JSON.stringify(seedData, null, 2))
 

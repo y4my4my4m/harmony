@@ -1621,16 +1621,21 @@ export class ActivityProcessor {
     if (insertError) {
       logger.error('Failed to create reblog post:', insertError);
     } else {
-      await supabase.from('post_interactions').insert({
+      const { error: interactionError } = await supabase.from('post_interactions').insert({
         user_id: user.id,
         post_id: originalPost.id,
         interaction_type: 'reblog',
         ap_id: activity.id,
         is_local: false,
-      }).catch(err => logger.warn('Failed to create reblog interaction:', err));
-      
-      await supabase.rpc('increment_post_reblogs', { p_post_id: originalPost.id })
-        .catch(err => logger.warn('Failed to increment reblog count:', err));
+      });
+      if (interactionError) {
+        logger.warn('Failed to create reblog interaction:', interactionError);
+      }
+
+      // reblogs_count follows from the post_interactions row above, through
+      // update_post_reaction_counts. An increment_post_reblogs RPC was also
+      // called here; it exists in no schema, so the call always fell into its
+      // catch, and adding the function would have double-counted.
 
       logger.info(`Created reblog of ${originalPost.id} by ${user.id}`);
     }
@@ -1772,10 +1777,10 @@ export class ActivityProcessor {
    */
   private static async processUndoReaction(object: any, _actorUrl: string): Promise<void> {
     const supabase = getSupabaseClient();
-    const { actorUrl: likeActorUrl, objectUrl } = extractLikeData(object);
-    
+    const { actorUrl: likeActorUrl, objectUrl, emoji, emojiUrl, emojiName } = extractLikeData(object);
+
     logger.info(`Undoing reaction from ${likeActorUrl} on ${objectUrl}`);
-    
+
     const { data: user } = await supabase
       .from('profiles')
       .select('id')
@@ -1787,22 +1792,42 @@ export class ActivityProcessor {
       return;
     }
 
+    // An actor holds one row per distinct emoji, so the Undo removes only the
+    // rows carrying the emoji it names.
+    const matchesUndo = await this.buildReactionUndoMatcher(supabase, emoji, emojiUrl, emojiName);
+
     if (objectUrl.includes('/messages/')) {
       const uuidMatch = objectUrl.match(/\/messages\/([a-f0-9-]{36})/);
       if (uuidMatch) {
         const messageId = uuidMatch[1];
         logger.info(`Undoing message reaction on ${messageId}`);
-        
-        const { error, count } = await supabase
+
+        const { data: rows, error: readError } = await supabase
           .from('reactions')
-          .delete()
+          .select('id, emoji_id, custom_emoji_content')
           .eq('user_id', user.id)
           .eq('message_id', messageId);
+
+        if (readError) {
+          logger.error(`Failed to read message reactions for Undo:`, readError);
+          return;
+        }
+
+        const doomed = (rows ?? []).filter(matchesUndo).map((row: any) => row.id);
+        if (doomed.length === 0) {
+          logger.info(`No matching message reaction to undo on ${objectUrl}`);
+          return;
+        }
+
+        const { error } = await supabase
+          .from('reactions')
+          .delete()
+          .in('id', doomed);
 
         if (error) {
           logger.error(`Failed to delete message reaction:`, error);
         } else {
-          logger.info(`Undid message reaction on ${objectUrl} (deleted ${count || 'unknown'} records)`);
+          logger.info(`Undid message reaction on ${objectUrl} (deleted ${doomed.length} records)`);
         }
       }
       return;
@@ -1838,18 +1863,85 @@ export class ActivityProcessor {
       return;
     }
 
-    const { error, count } = await supabase
+    const { data: rows, error: readError } = await supabase
       .from('post_interactions')
-      .delete()
+      .select('id, interaction_type, emoji_id, custom_emoji_content')
       .eq('user_id', user.id)
       .eq('post_id', post.id)
       .in('interaction_type', ['favorite', 'emoji_reaction']);
 
+    if (readError) {
+      logger.error(`Failed to read reactions for Undo:`, readError);
+      return;
+    }
+
+    const doomed = (rows ?? []).filter(matchesUndo).map((row: any) => row.id);
+    if (doomed.length === 0) {
+      logger.info(`No matching reaction to undo on ${objectUrl}`);
+      return;
+    }
+
+    const { error } = await supabase
+      .from('post_interactions')
+      .delete()
+      .in('id', doomed);
+
     if (error) {
       logger.error(`Failed to delete reaction:`, error);
     } else {
-      logger.info(`Undid reaction on ${objectUrl} (deleted ${count || 'unknown'} records)`);
+      logger.info(`Undid reaction on ${objectUrl} (deleted ${doomed.length} records)`);
     }
+  }
+
+  /**
+   * Predicate selecting the rows an Undo of Like/EmojiReaction removes: the
+   * actor's rows carrying the emoji the Undo names. A Like naming no emoji is
+   * the plain favourite, which processLike stores as a heart.
+   *
+   * One custom emoji has two stored representations, (emoji_id, ':name:') from
+   * a local reaction and (NULL, ':name:') from an inbound one; either column
+   * matching is enough. Rows are filtered in process because the predicate is a
+   * disjunction over two columns and the emoji string is remote input.
+   */
+  private static async buildReactionUndoMatcher(
+    supabase: any,
+    emoji: string | undefined,
+    emojiUrl: string | undefined,
+    emojiName: string | undefined,
+  ): Promise<(row: any) => boolean> {
+    const isCustomEmoji = !!(emojiUrl && emojiName);
+    const isPlainLike = !isCustomEmoji && !emoji;
+
+    // Lookup only: an Undo naming an unknown emoji matches nothing rather than
+    // creating a row.
+    let emojiId: string | null = null;
+    if (isCustomEmoji) {
+      const { data: emojiRow } = await supabase
+        .from('emojis')
+        .select('id')
+        .eq('url', emojiUrl)
+        .maybeSingle();
+      emojiId = emojiRow?.id ?? null;
+    }
+
+    // Content strings processLike writes for this emoji. Both heart variants
+    // count as one reaction, matching the insert-side normalization.
+    const contents = new Set<string>();
+    if (isPlainLike || emoji === '❤️' || emoji === '❤') {
+      contents.add('❤️');
+      contents.add('❤');
+    } else if (emoji) {
+      contents.add(emoji);
+    }
+    if (isCustomEmoji) {
+      contents.add(`:${emojiName!.replace(/:/g, '')}:`);
+    }
+
+    return (row: any) => {
+      if (row.interaction_type === 'favorite') return isPlainLike;
+      if (emojiId !== null && row.emoji_id === emojiId) return true;
+      return typeof row.custom_emoji_content === 'string' && contents.has(row.custom_emoji_content);
+    };
   }
 
   /**
@@ -2274,8 +2366,6 @@ export class ActivityProcessor {
    */
   private static async processAdd(activity: any): Promise<void> {
     const supabase = getSupabaseClient();
-    // eslint-disable-next-line unused-imports/no-unused-vars
-    const actorUrl = normalizeActor(activity.actor);
     const targetUrl = typeof activity.target === 'string' ? activity.target : activity.target?.id;
     const objectUrl = typeof activity.object === 'string' ? activity.object : activity.object?.id;
     const object = typeof activity.object === 'object' ? activity.object : null;
@@ -3141,7 +3231,7 @@ export class ActivityProcessor {
   private static async handleGroupInvite(object: any, authorId: string): Promise<void> {
     const supabase = getSupabaseClient();
 
-    const to = Array.isArray(object.to) ? object.to : [object.to].filter(Boolean);
+    const to: unknown[] = Array.isArray(object.to) ? object.to : [object.to].filter(Boolean);
     const resolveResults = await Promise.allSettled(
       to.filter((url): url is string => typeof url === 'string')
         .map(url => resolveProfileByActorUrl(url))
@@ -3181,9 +3271,9 @@ export class ActivityProcessor {
 
     for (const userId of recipientIds) {
       const { error: notifError } = await supabase.rpc('send_notification_to_user', {
-        notification_type: 'dm',
-        to_user_id: userId,
-        notification_data: {
+        p_notification_type: 'dm',
+        p_to_user_id: userId,
+        p_notification_data: {
           sender: inviter ? {
             user_id: inviter.id,
             username: inviter.username,
@@ -3195,11 +3285,11 @@ export class ActivityProcessor {
           preview: `You were added to ${conversationName}`,
           is_invite: true
         },
-        server_id: null,
-        channel_id: null,
-        conversation_id: conversationId,
-        from_user_id: authorId,
-        priority: 'normal'
+        p_server_id: null,
+        p_channel_id: null,
+        p_conversation_id: conversationId,
+        p_from_user_id: authorId,
+        p_priority: 'normal'
       });
       if (notifError) logger.warn('Failed to create invite notification:', notifError);
     }
