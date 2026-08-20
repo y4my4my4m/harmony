@@ -11,7 +11,7 @@
 
 BEGIN;
 SET LOCAL search_path = tests, public;
-SELECT plan(23);
+SELECT plan(24);
 
 -- SECURITY DEFINER search_path ------------------------------------------------
 -- A SECURITY DEFINER function runs with the owner's privileges and resolves
@@ -143,6 +143,21 @@ SELECT is_empty(
                                 'files')
         ORDER BY 1$q$,
     'no table has RLS enabled without a policy beyond the service-role-only four');
+
+-- The two assertions above both filter on relrowsecurity, so a table with RLS switched off
+-- is invisible to them and the >= 100 floor does not move. Supabase grants anon and
+-- authenticated full DML on every table in public by default, so that table is world
+-- writable. RLS is enabled by 103 hand-written ALTER statements across three files and
+-- nothing else notices an omission.
+SELECT is_empty(
+    $q$SELECT c.relname AS table_without_rls
+         FROM pg_class c
+         JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'public'
+          AND c.relkind IN ('r', 'p')
+          AND NOT c.relrowsecurity
+        ORDER BY 1$q$,
+    'every table in public has row level security enabled');
 
 -- FOR ALL, TO PUBLIC, no WITH CHECK -------------------------------------------
 -- A policy with no WITH CHECK reuses its USING expression as the write check,
