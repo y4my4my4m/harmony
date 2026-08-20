@@ -1,5 +1,6 @@
 import { ref } from 'vue'
 import { useActivityPubStore } from '@/stores/useActivityPub'
+import { usePostReactionsStore } from '@/stores/postReactions'
 import { services } from '@/services'
 import type { FederatedUser, TimelinePost } from '@/types'
 import { debug } from '@/utils/debug'
@@ -7,7 +8,8 @@ import { debug } from '@/utils/debug'
 // ActivityPub post/user interaction wrappers over the service layer.
 export function usePostInteractions() {
   const activityPubStore = useActivityPubStore()
-  
+  const postReactionsStore = usePostReactionsStore()
+
   // Loading states
   const isFollowLoading = ref(false)
   const isFavoriteLoading = ref(false)
@@ -106,8 +108,18 @@ export function usePostInteractions() {
 
       activityPubStore.updatePostInteractionInAllFeeds(postId, 'favorite', result.liked)
 
-      return { 
-        success: true, 
+      if (!result.liked) {
+        // Emptying the heart deletes interaction_type IN ('favorite','emoji_reaction'),
+        // so the cached chips outlive their rows. Optimistic groups shadow fetched
+        // ones, hence the clear. The toggle is committed; a failed refresh is not a
+        // failed toggle.
+        postReactionsStore.clearOptimisticState(postId)
+        await postReactionsStore.fetchPostReactions(postId, true)
+          .catch(error => debug.error('Failed to refresh reactions after unfavorite:', error))
+      }
+
+      return {
+        success: true,
         liked: result.liked,
         newCount: result.newCount
       }
@@ -134,8 +146,10 @@ export function usePostInteractions() {
     try {
       const result = await services.posts.toggleReblog(postId)
       debug.log(`Reblog toggled for post ${postId}:`, result.reblogged ? 'Reblogged' : 'Unreblogged')
-      
-      return { 
+
+      activityPubStore.updatePostInteractionInAllFeeds(postId, 'reblog', result.reblogged)
+
+      return {
         success: true, 
         reblogged: result.reblogged,
         newCount: result.newCount
@@ -163,8 +177,11 @@ export function usePostInteractions() {
     try {
       const result = await services.posts.toggleBookmark(postId)
       debug.log(`Bookmark toggled for post ${postId}:`, result.bookmarked ? 'Bookmarked' : 'Unbookmarked')
-      return { 
-        success: true, 
+
+      activityPubStore.updatePostInteractionInAllFeeds(postId, 'bookmark', result.bookmarked)
+
+      return {
+        success: true,
         bookmarked: result.bookmarked
       }
     } catch (error) {

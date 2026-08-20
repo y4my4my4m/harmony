@@ -205,19 +205,15 @@ export const useDMStore = defineStore('dm', () => {
       // CoreMessageService already decrypted these. Preserve the flags and
       // normalize to the shape the initial load produces.
       const fresh: Message[] = (freshRaw.map(msg => ({
-        id: msg.id,
-        user_id: msg.user_id,
-        content: msg.content,
+        ...msg,
         created_at: new Date(msg.created_at),
+        updated_at: msg.updated_at ? new Date(msg.updated_at) : undefined,
         channel_id: '',
         conversation_id: conversationId,
-        reply_to: msg.reply_to,
         reactions: msg.reactions || [],
-        is_system: msg.is_system,
         metadata: msg.metadata || null,
         encrypted: msg.encrypted || false,
         decrypted: msg.decrypted || false,
-        encryption_metadata: msg.encryption_metadata,
       })) as unknown as Message[])
 
       try { ensureMessageEmbeds(fresh) } catch (e) { debug.warn('Failed to prepare embeds for caught-up DM messages:', e) }
@@ -478,6 +474,12 @@ export const useDMStore = defineStore('dm', () => {
       }
 
       // Reactions load via the MessageService batch fetch, not per message here.
+
+      // Ciphertext is stored as a text part and reply previews render part.text
+      // verbatim. No session key is fetched here, so substitute a placeholder.
+      if (message.encrypted && !message.decrypted) {
+        message.content = [{ type: 'text', text: 'Encrypted message' }]
+      }
 
       try {
         ensureMessageEmbeds(message)
@@ -1510,19 +1512,15 @@ export const useDMStore = defineStore('dm', () => {
       // `user_id` is `string | undefined` on the source rows, so the mapped
       // array is cast to `Message[]` to bridge the optional/required mismatch.
       const formattedMessages: Message[] = (orderedMessages.map(msg => ({
-        id: msg.id,
-        user_id: msg.user_id,
-        content: msg.content,
+        ...msg,
         created_at: new Date(msg.created_at),
+        updated_at: msg.updated_at ? new Date(msg.updated_at) : undefined,
         channel_id: '', // DMs have no channel
         conversation_id: conversationId,
-        reply_to: msg.reply_to,
         reactions: msg.reactions || [],
-        is_system: msg.is_system,
         metadata: msg.metadata || null,
         encrypted: msg.encrypted || false,
-        decrypted: msg.decrypted || false,
-        encryption_metadata: msg.encryption_metadata
+        decrypted: msg.decrypted || false
       })) as unknown as Message[])
 
       try {
@@ -1891,19 +1889,15 @@ export const useDMStore = defineStore('dm', () => {
 
     const isOwnEncrypted = message.encrypted && message.user_id === userId
     const realMessage: Message = {
-      id: message.id,
-      user_id: message.user_id,
+      ...message,
       content: isOwnEncrypted ? content : message.content,
       created_at: new Date(message.created_at),
+      updated_at: message.updated_at ? new Date(message.updated_at) : undefined,
       channel_id: '',
-      conversation_id: message.conversation_id,
-      reply_to: message.reply_to,
       reactions: message.reactions || [],
-      is_system: message.is_system,
       metadata: message.metadata || undefined,
       encrypted: message.encrypted || false,
-      decrypted: isOwnEncrypted ? true : (message.decrypted || false),
-      encryption_metadata: message.encryption_metadata
+      decrypted: isOwnEncrypted ? true : (message.decrypted || false)
     }
 
     try { ensureMessageEmbeds(realMessage) } catch { /* embeds are best-effort */ }
@@ -2126,18 +2120,13 @@ export const useDMStore = defineStore('dm', () => {
       if (!missing.length) return 0
 
       let formatted: Message[] = missing.map((msg: any) => ({
-        id: msg.id,
-        user_id: msg.user_id,
-        content: msg.content,
+        ...msg,
         created_at: new Date(msg.created_at),
+        updated_at: msg.updated_at ? new Date(msg.updated_at) : undefined,
         channel_id: '',
-        conversation_id: msg.conversation_id,
-        reply_to: msg.reply_to,
         reactions: msg.reactions || [],
-        is_system: msg.is_system,
         metadata: msg.metadata || null,
         encrypted: msg.encrypted || false,
-        encryption_metadata: msg.encryption_metadata,
       }))
 
       // Matches the realtime path; recovered rows stay ciphertext otherwise.
@@ -2228,18 +2217,13 @@ export const useDMStore = defineStore('dm', () => {
         if (tempMessageIndex !== -1) {
           debug.warn('Temp message still exists during real-time, replacing now')
           let resolvedMessage: Message = {
-            id: message.id,
-            user_id: message.user_id,
-            content: message.content,
+            ...message,
             created_at: new Date(message.created_at),
+            updated_at: message.updated_at ? new Date(message.updated_at) : undefined,
             channel_id: '',
-            conversation_id: message.conversation_id,
-            reply_to: message.reply_to,
             reactions: message.reactions || [],
-            is_system: message.is_system,
             metadata: message.metadata || null,
-            encrypted: message.encrypted || false,
-            encryption_metadata: message.encryption_metadata
+            encrypted: message.encrypted || false
           }
           
           try {
@@ -2269,19 +2253,13 @@ export const useDMStore = defineStore('dm', () => {
         }
         
         let formattedMessage: Message = {
-          id: message.id,
-          user_id: message.user_id,
-          content: message.content,
+          ...message,
           created_at: new Date(message.created_at),
+          updated_at: message.updated_at ? new Date(message.updated_at) : undefined,
           channel_id: '',
-          conversation_id: message.conversation_id,
-          reply_to: message.reply_to,
           reactions: message.reactions || [],
-          is_system: message.is_system,
-          is_pinned: message.is_pinned,
           metadata: message.metadata || null,
-          encrypted: message.encrypted || false,
-          encryption_metadata: message.encryption_metadata
+          encrypted: message.encrypted || false
         }
         
         try {
@@ -2322,18 +2300,13 @@ export const useDMStore = defineStore('dm', () => {
         }
         
         let updatedMessage: Message = {
-          id: message.id,
-          user_id: message.user_id,
-          content: message.content,
+          ...message,
           created_at: new Date(message.created_at),
+          updated_at: message.updated_at ? new Date(message.updated_at) : undefined,
           channel_id: '',
-          conversation_id: message.conversation_id,
-          reply_to: message.reply_to,
           reactions: formattedReactions,
-          is_system: message.is_system,
           metadata: message.metadata || null,
-          encrypted: message.encrypted || false,
-          encryption_metadata: message.encryption_metadata
+          encrypted: message.encrypted || false
         }
         
         try {
@@ -2476,8 +2449,12 @@ export const useDMStore = defineStore('dm', () => {
       const unread = typeof payload.unread_messages === 'number'
         ? payload.unread_messages
         : (conv.unread_count || 0)
+      // The trigger fires on every unread_counts write, including the
+      // read-marking PATCH. Only a rising count means a new message, so only
+      // then does the sidebar's sort key move.
+      const isNewMessage = unread > (conv.unread_count || 0)
       conv.unread_count = unread
-      conv.last_activity = new Date().toISOString()
+      if (isNewMessage) conv.last_activity = new Date().toISOString()
 
       // Separate channel from the thread's postgres_changes stream; arrives
       // when that stream is silent. Reconcile rather than trust it.

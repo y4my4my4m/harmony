@@ -9,11 +9,13 @@ vi.mock('@/services/userDataService', () => ({
   },
 }))
 
+// profiles.id and auth.users.id are independent uuids; post_interactions.user_id
+// is the profile id.
 vi.mock('@/services/AuthContextService', () => ({
   authContextService: {
     getCurrentContext: async () => ({
       isAuthenticated: true,
-      authUser: { id: 'me' },
+      authUser: { id: 'auth-me' },
       profileId: 'me',
     }),
     getCurrentProfileId: async () => 'me',
@@ -22,6 +24,7 @@ vi.mock('@/services/AuthContextService', () => ({
 
 import { useActivityPubStore } from '@/stores/useActivityPub'
 import { services } from '@/services'
+import { activityPubService } from '@/services/activityPubService'
 
 function seedDb(tables: Record<string, any[]>) {
   const db = createFakePostgrest(tables)
@@ -254,5 +257,139 @@ describe('useActivityPub realtime count fan-out', () => {
     await store.updatePostInteractionCounts('orig-1', 'favorite', 'INSERT')
 
     expect((store.userFeeds.get('them') as any).posts[0].reblog.favorites_count).toBe(9)
+  })
+
+  it('leaves another profile\'s interaction out of my state', async () => {
+    seedDb({ posts: [{ id: 'p1', favorites_count: 3, reblogs_count: 0, replies_count: 0 }] })
+    const store = useActivityPubStore()
+    store.homeFeed.posts = [{ id: 'p1', is_favorited: false } as any]
+
+    await store.updatePostInteractionFromRealtime('p1', 'favorite', 'INSERT', 'them')
+
+    expect((store.homeFeed.posts[0] as any).is_favorited).toBe(false)
+  })
+
+  // is_favorited spans favorite and emoji_reaction, and a user holds one row
+  // per emoji.
+  it('keeps the heart when a removed emoji reaction leaves a favorite', async () => {
+    seedDb({
+      posts: [{ id: 'p1', favorites_count: 1, reblogs_count: 0, replies_count: 0 }],
+      post_interactions: [{ id: 'i1', post_id: 'p1', user_id: 'me', interaction_type: 'favorite' }],
+    })
+    const store = useActivityPubStore()
+    store.homeFeed.posts = [{ id: 'p1', is_favorited: true } as any]
+
+    await store.updatePostInteractionFromRealtime('p1', 'emoji_reaction', 'DELETE', 'me')
+
+    expect((store.homeFeed.posts[0] as any).is_favorited).toBe(true)
+  })
+
+  it('empties the heart once the last heart row is gone', async () => {
+    seedDb({
+      posts: [{ id: 'p1', favorites_count: 0, reblogs_count: 0, replies_count: 0 }],
+      post_interactions: [],
+    })
+    const store = useActivityPubStore()
+    store.homeFeed.posts = [{ id: 'p1', is_favorited: true } as any]
+
+    await store.updatePostInteractionFromRealtime('p1', 'favorite', 'DELETE', 'me')
+
+    expect((store.homeFeed.posts[0] as any).is_favorited).toBe(false)
+  })
+
+  it('lights the heart on an emoji reaction insert', async () => {
+    seedDb({ posts: [{ id: 'p1', favorites_count: 1, reblogs_count: 0, replies_count: 0 }] })
+    const store = useActivityPubStore()
+    store.homeFeed.posts = [{ id: 'p1', is_favorited: false } as any]
+
+    await store.updatePostInteractionFromRealtime('p1', 'emoji_reaction', 'INSERT', 'me')
+
+    expect((store.homeFeed.posts[0] as any).is_favorited).toBe(true)
+  })
+})
+
+describe('useActivityPub background home refresh', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.restoreAllMocks()
+    vi.clearAllMocks()
+  })
+
+  const makePosts = (n: number, offset = 0) =>
+    Array.from({ length: n }, (_, i) => ({
+      id: `p${i + offset}`,
+      created_at: new Date(Date.UTC(2024, 0, 1, 0, 0, 0) - (i + offset) * 60_000).toISOString(),
+    })) as any[]
+
+  function stubEnrichment(store: any) {
+    ;(supabase.rpc as any).mockResolvedValue({ data: [], error: null })
+    vi.spyOn(store, 'batchFetchReblogInteractions').mockImplementation(async (p: any) => p)
+    vi.spyOn(store, 'ensureAuthorProfilesCached').mockResolvedValue(undefined)
+    vi.spyOn(store, 'batchFetchRemoteReactions').mockResolvedValue(undefined)
+    vi.spyOn(store, 'saveTimelineToCache').mockImplementation(() => {})
+  }
+
+  // The cache holds 30 posts, the refresh page 20.
+  it('keeps the cached posts the refresh page does not cover', async () => {
+    const store = useActivityPubStore()
+    stubEnrichment(store)
+    const cached = makePosts(30)
+    store.homeFeed.posts = cached.map((p) => ({ ...p }))
+
+    vi.spyOn(activityPubService, 'getUserTimeline').mockResolvedValue({
+      posts: cached.slice(0, 20).map((p) => ({ ...p, content: 'fresh' })),
+      fullPage: true,
+    } as any)
+
+    await store.refreshHomeFeedInBackground()
+
+    expect(store.homeFeed.posts).toHaveLength(30)
+    expect((store.homeFeed.posts[0] as any).content).toBe('fresh')
+    expect(store.homeFeed.posts[29].id).toBe('p29')
+    expect(store.homeFeed.cursor).toBe(cached[29].created_at)
+  })
+
+  it('drops a post the refresh page no longer carries', async () => {
+    const store = useActivityPubStore()
+    stubEnrichment(store)
+    store.homeFeed.posts = makePosts(3)
+
+    vi.spyOn(activityPubService, 'getUserTimeline').mockResolvedValue({
+      posts: [makePosts(3)[0], makePosts(3)[2]],
+      fullPage: false,
+    } as any)
+
+    await store.refreshHomeFeedInBackground()
+
+    expect(store.homeFeed.posts.map((p) => p.id)).toEqual(['p0', 'p2'])
+  })
+
+  it('skips the refresh while a home load is in flight', async () => {
+    const store = useActivityPubStore()
+    store.loadingFeeds.home = true
+    const timeline = vi.spyOn(activityPubService, 'getUserTimeline')
+
+    await store.refreshHomeFeedInBackground()
+
+    expect(timeline).not.toHaveBeenCalled()
+  })
+
+  it('excludes a home load while the refresh is in flight', async () => {
+    const store = useActivityPubStore()
+    stubEnrichment(store)
+    store.homeFeed.posts = makePosts(2)
+
+    let release: (v: any) => void = () => {}
+    const timeline = vi.spyOn(activityPubService, 'getUserTimeline').mockReturnValue(
+      new Promise((resolve) => { release = resolve }) as any
+    )
+
+    const refresh = store.refreshHomeFeedInBackground()
+    await store.loadHomeFeed()
+
+    expect(timeline).toHaveBeenCalledTimes(1)
+
+    release({ posts: makePosts(2), fullPage: false })
+    await refresh
   })
 })

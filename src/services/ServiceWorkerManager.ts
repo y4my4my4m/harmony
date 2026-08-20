@@ -2,6 +2,7 @@
  * Service worker bridge: notification messaging between app and SW.
  */
 
+import router from '@/router'
 import { debug } from '@/utils/debug'
 
 // Quick-reply queue (IndexedDB) - schema shared with public/service-worker.js.
@@ -207,8 +208,7 @@ export class ServiceWorkerManager {
 
   private async handleNavigateToNotification(data: any): Promise<void> {
     try {
-      const { useRouter } = await import('vue-router')
-      const router = useRouter()
+      await this.handleMarkNotificationRead(data.data)
 
       if (data.data.conversation_id) {
         let dmPath = `/dm/${data.data.conversation_id}`
@@ -225,8 +225,6 @@ export class ServiceWorkerManager {
       } else if (data.data.server_id) {
         await router.push(`/chat/${data.data.server_id}`)
       }
-
-      await this.handleMarkNotificationRead(data.data)
     } catch (error) {
       debug.error('Error navigating to notification:', error)
     }
@@ -381,9 +379,10 @@ export class ServiceWorkerManager {
       const { useNotificationStore } = await import('@/stores/useNotification')
       const notificationStore = useNotificationStore()
 
-      const notification = notificationStore.notifications.find(n => 
-        n.data?.message_id === data.message_id ||
-        n.data?.conversation_id === data.conversation_id
+      // Both sides undefined would match an unrelated notification.
+      const notification = notificationStore.notifications.find(n =>
+        (data.message_id && n.data?.message_id === data.message_id) ||
+        (data.conversation_id && n.data?.conversation_id === data.conversation_id)
       )
 
       if (notification) {

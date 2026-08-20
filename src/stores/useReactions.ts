@@ -109,10 +109,16 @@ function buildOptimisticGroups(
   if (operation === 'remove') {
     if (index >= 0) {
       const group = result[index]
-      group.reactions = (group.reactions ?? []).filter(r => reactionKey(r) !== key)
-      group.count = Math.max(0, (group.count || 1) - 1)
-      if (isCurrentUser) group.current_user_reacted = false
-      if (group.count === 0) result.splice(index, 1)
+      const reactions = group.reactions ?? []
+      const remaining = reactions.filter(r => reactionKey(r) !== key)
+      // realtime.send() bypasses broadcast.self, so the actor also receives his
+      // own delete. Decrement only when the entry was still there.
+      if (remaining.length < reactions.length) {
+        group.reactions = remaining
+        group.count = Math.max(0, (group.count || 1) - 1)
+        if (isCurrentUser) group.current_user_reacted = false
+        if (group.count === 0) result.splice(index, 1)
+      }
     }
     return result
   }

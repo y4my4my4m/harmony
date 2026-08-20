@@ -36,8 +36,14 @@
         }"
       >
         <div v-if="virtualRow.index >= posts.length" class="loading-more">
-          <Icon name="loader" class="spinning" />
-          <span>Loading more...</span>
+          <template v-if="loadMoreFailed">
+            <span>Couldn't load more posts.</span>
+            <button class="retry-btn" @click="retryLoadMore">Retry</button>
+          </template>
+          <template v-else>
+            <Icon name="loader" class="spinning" />
+            <span>Loading more...</span>
+          </template>
         </div>
         <MonyPost
           v-else
@@ -181,9 +187,48 @@ const measureElement = (el: any) => {
 }
 
 const lastEmittedIndex = ref(-1)
+const loadMoreFailed = ref(false)
+
+// `load-more` handlers report failure only by settling with no new posts;
+// `hasMore` stays set. Without an explicit failed state the tail index latch
+// never reopens, since the phantom row is always the highest index.
+let attemptActive = false
+let attemptTimer: ReturnType<typeof setTimeout> | null = null
+// Covers handlers that never flip `isLoading`, leaving no edge to settle on.
+const ATTEMPT_TIMEOUT_MS = 8000
+
+const clearAttemptTimer = () => {
+  if (attemptTimer !== null) {
+    clearTimeout(attemptTimer)
+    attemptTimer = null
+  }
+}
+
+const failAttempt = () => {
+  clearAttemptTimer()
+  attemptActive = false
+  loadMoreFailed.value = true
+}
+
+const retryLoadMore = () => {
+  loadMoreFailed.value = false
+  lastEmittedIndex.value = -1
+}
 
 watch(() => props.posts.length, () => {
+  clearAttemptTimer()
+  attemptActive = false
+  loadMoreFailed.value = false
   lastEmittedIndex.value = -1
+})
+
+watch(() => props.isLoading, (loading) => {
+  if (!attemptActive) return
+  if (loading) {
+    clearAttemptTimer()
+    return
+  }
+  failAttempt()
 })
 
 watchEffect(() => {
@@ -195,9 +240,17 @@ watchEffect(() => {
     lastItem.index >= props.posts.length - 1 &&
     props.hasMore &&
     !props.isLoading &&
+    !loadMoreFailed.value &&
     lastItem.index !== lastEmittedIndex.value
   ) {
     lastEmittedIndex.value = lastItem.index
+    attemptActive = true
+    clearAttemptTimer()
+    attemptTimer = setTimeout(() => {
+      attemptTimer = null
+      if (props.isLoading) return
+      failAttempt()
+    }, ATTEMPT_TIMEOUT_MS)
     emit('load-more')
   }
 })
@@ -229,6 +282,7 @@ onUnmounted(() => {
   props.registerScroll?.(null)
   resizeObserver.disconnect()
   observedElements.clear()
+  clearAttemptTimer()
 })
 </script>
 
@@ -318,6 +372,21 @@ onUnmounted(() => {
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
   padding: var(--space-5);
+}
+
+.retry-btn {
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition: background var(--transition-base);
+}
+
+.retry-btn:hover {
+  background: var(--bg-hover);
 }
 
 .spinning {
