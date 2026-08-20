@@ -11,6 +11,18 @@ import config from '../config/index.js';
 import { getFullEmojiUrl } from './urlUtils.js';
 import { logger } from './logger.js';
 
+/**
+ * `:name@domain:` -> `:name:` when the domain is this instance. Remote instances qualify a
+ * shortcode with the emoji's origin, so a reaction emitted here returns qualified with our
+ * own domain and no longer matches the row already stored.
+ */
+export function stripOwnEmojiDomain(shortcode: string | null | undefined): string | null {
+  if (!shortcode) return shortcode ?? null;
+  const m = /^:([^:@\s]+)@([^:\s]+):$/.exec(shortcode);
+  if (!m) return shortcode;
+  return m[2].toLowerCase() === config.INSTANCE_DOMAIN.toLowerCase() ? `:${m[1]}:` : shortcode;
+}
+
 export interface ResolvedEmoji {
   /** The string to put in `content` / `_misskey_reaction` - either a unicode
    *  character (e.g. "😇") or a shortcode (e.g. ":blobcat:"). */
