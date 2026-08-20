@@ -1,0 +1,64 @@
+# Functions PostgREST publishes that nothing in this repository calls.
+#
+# Reachable over HTTP and by nothing else: no RPC call site, no trigger, no policy, no view,
+# no cron entry, no other function. Each is an endpoint whose only caller would be a client
+# holding the listed grant.
+#
+# Recorded rather than dropped: an entry here is a candidate for removal, not a defect. A
+# function reached only by a service-role client outside this repository is legitimate.
+# scripts/check-published-no-caller.sh fails when the set changes, so a NEW one is a reviewed
+# decision instead of an accident.
+#
+# Regenerate: scripts/check-published-no-caller.sh --write
+#
+# name	entry	grants
+get_batch_post_reactions	http anon	anon+authenticated+service_role
+get_conversation_context	http anon	anon+authenticated+service_role
+initialize_user_encryption	http anon	anon+authenticated+service_role
+add_user_prekeys	service key	service_role
+archive_popular_hashtags	service key	service_role
+backfill_timeline_entries	service key	service_role
+check_encryption_policy	service key	service_role
+cleanup_expired_statuses	service key	service_role
+cleanup_expired_voice_calls	service key	service_role
+cleanup_inactive_hashtags	service key	service_role
+cleanup_old_notifications	service key	service_role
+cleanup_old_trending_data	service key	service_role
+cleanup_stale_user_sessions	service key	service_role
+cleanup_stale_voice_participants	service key	service_role
+clear_orphaned_public_keys	service key	service_role
+create_default_notification_preferences	service key	service_role
+create_notification_structured	service key	service_role
+create_notification_with_spam_prevention	service key	service_role
+detect_message_features	service key	service_role
+disable_federation_triggers	service key	service_role
+enable_conversation_encryption	service key	service_role
+enable_federation_triggers	service key	service_role
+end_user_session	service key	service_role
+generate_livekit_token	service key	service_role
+get_channel_server_id	service key	service_role
+get_conversation_encryption_status	service key	service_role
+get_conversation_participants	service key	service_role
+get_conversation_thread	service key	service_role
+get_custom_status	service key	service_role
+get_livekit_config	service key	service_role
+get_next_folder_position	service key	service_role
+get_next_server_position	service key	service_role
+get_supporter_badge	service key	service_role
+get_timeline	service key	service_role
+get_unread_notification_count	service key	service_role
+get_unused_prekey	service key	service_role
+get_user_prekey_bundle	service key	service_role
+get_voice_channel_participants	service key	service_role
+has_muted	service key	service_role
+is_author_suspended	service key	service_role
+is_muted_by	service key	service_role
+record_metric	service key	service_role
+reset_user_encryption	service key	service_role
+rotate_prekeys	service key	service_role
+run_trending_maintenance	service key	service_role
+safe_upsert_remote_profile	service key	service_role
+server_has_remote_members	service key	service_role
+update_session_context	service key	service_role
+update_session_heartbeat	service key	service_role
+user_has_encryption	service key	service_role
