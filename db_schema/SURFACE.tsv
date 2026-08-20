@@ -177,7 +177,7 @@ get_unread_announcements	p_user_id uuid, p_popup_only boolean	TABLE(id uuid, tit
 get_unread_notification_count	p_user_id uuid	integer	invoker	public, extensions, pg_temp	service_role	unreferenced
 get_unused_prekey	p_user_id uuid, p_device_id text	prekeys	definer	public, pg_temp	service_role	unreferenced
 get_user_conversations		jsonb	invoker	public, pg_temp	anon+authenticated+service_role	client
-get_user_cycle_donation_total	p_user_id uuid	numeric	definer	public, pg_temp	anon+authenticated+service_role	unreferenced
+get_user_cycle_donation_total	p_user_id uuid	numeric	definer	public, pg_temp	service_role	unreferenced
 get_user_emoji_stats	p_user_id uuid, p_server_id uuid, p_limit integer	TABLE(emoji_id uuid, emoji_name text, emoji_url text, usage_count bigint, last_used timestamp with time zone)	invoker	public, extensions, pg_temp	anon+authenticated+service_role	client
 get_user_handle	p_user_id uuid	text	invoker	public, extensions, pg_temp	anon+authenticated+service_role	client
 get_user_highest_role_position	p_user_id uuid, p_server_id uuid	integer	definer	public, extensions, pg_temp	anon+authenticated+service_role	unreferenced
@@ -255,7 +255,7 @@ promote_first_user_to_admin		trigger	definer	public, extensions, pg_temp	anon+au
 public_instance_config_keys		text[]	invoker	public, pg_temp	anon+authenticated+service_role	policy
 purge_stale_invites		integer	definer	public, pg_temp	anon+authenticated+service_role	unreferenced
 queue_federation_job	p_job_name text, p_job_data jsonb, p_priority integer, p_retry_limit integer, p_expire_in_seconds integer	uuid	definer	public, pg_temp	anon+authenticated+service_role	unreferenced
-recompute_supporter_tier	p_user_id uuid	uuid	definer	public, pg_temp	anon+authenticated+service_role	client
+recompute_supporter_tier	p_user_id uuid	uuid	definer	public, pg_temp	authenticated+service_role	client
 record_emoji_usage	p_emoji_id uuid, p_user_id uuid, p_server_id uuid, p_context_type text, p_context_id uuid	void	invoker	public, extensions, pg_temp	anon+authenticated+service_role	client
 record_metric	p_metric_type text, p_metric_name text, p_value double precision, p_unit text, p_labels jsonb, p_source text	uuid	definer	public, extensions, pg_temp	service_role	unreferenced
 record_push_failure	p_subscription_id uuid, p_reason text	void	definer	public, extensions, pg_temp	service_role	client

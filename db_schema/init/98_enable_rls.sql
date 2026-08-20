@@ -255,6 +255,10 @@ REVOKE ALL ON FUNCTION public.get_timeline(p_user_id uuid, p_limit integer, p_be
 REVOKE ALL ON FUNCTION public.get_unread_notification_count(p_user_id uuid) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.get_unused_prekey(p_user_id uuid, p_device_id text) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.get_user_prekey_bundle(p_user_id uuid, p_device_id text) FROM PUBLIC, anon, authenticated;
+-- Returns any user's donation total; instance_donation_history is otherwise readable only
+-- through donation_history_select_admin. Called only from recompute_supporter_tier, which is
+-- SECURITY DEFINER and runs it as the owner.
+REVOKE ALL ON FUNCTION public.get_user_cycle_donation_total(uuid) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.get_server_members_by_instance(p_server_id uuid) FROM PUBLIC, anon, authenticated;
 -- SECURITY DEFINER, takes any p_user_id, returns endpoint, p256dh and auth: the Web Push
 -- credential triple. Whoever holds those can push arbitrary notifications to that device.
@@ -265,6 +269,10 @@ REVOKE ALL ON FUNCTION public.has_muted(target_user_id uuid) FROM PUBLIC, anon, 
 REVOKE ALL ON FUNCTION public.is_author_suspended(p_author_id uuid) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.is_muted_by(target_user_id uuid) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.is_user_viewing_push_context(p_user_id uuid, p_server_id uuid, p_channel_id uuid, p_conversation_id uuid) FROM PUBLIC, anon, authenticated;
+-- SECURITY DEFINER, takes the target from its argument and checks nothing about the caller,
+-- and ends in an UPDATE of instance_supporters. anon reaching it rewrites any user's
+-- supporter row. authenticated keeps it: the admin funding screen calls it from the browser.
+REVOKE ALL ON FUNCTION public.recompute_supporter_tier(uuid) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.record_metric(p_metric_type text, p_metric_name text, p_value double precision, p_unit text, p_labels jsonb, p_source text) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.record_push_failure(p_subscription_id uuid, p_reason text) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.record_push_success(p_subscription_id uuid) FROM PUBLIC, anon, authenticated;
