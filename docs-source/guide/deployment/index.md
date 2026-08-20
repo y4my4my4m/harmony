@@ -304,7 +304,7 @@ http {
    pre-init state.
 
    ```bash
-   psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db_schema/init/init.sql
+   for f in db_schema/migrations/*.sql; do psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$f"; done
    scripts/baseline-migrations.sh --url "$DATABASE_URL"
    ```
 

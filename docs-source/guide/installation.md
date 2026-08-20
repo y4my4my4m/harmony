@@ -58,7 +58,7 @@ supabase start
 supabase db reset
 ```
 
-The schema files live in `db_schema/init/` and are loaded by `init.sql` in numbered order. See [Supabase Deployment](./deployment/supabase) for details.
+The schema lives in `db_schema/migrations/`, applied in version order. See [Supabase Deployment](./deployment/supabase) for details.
 
 ### 5. Start the dev server
 

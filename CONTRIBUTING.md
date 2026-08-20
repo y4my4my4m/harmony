@@ -39,7 +39,7 @@ The project lives at <https://mony.lol>; the canonical instance is <https://har.
 
 4. **Set Up Supabase**
    - Create a Supabase project
-   - Import schema from `db_schema/init/` (run `init.sql` which loads all numbered SQL files)
+   - Import schema from `db_schema/migrations/`, applied in version order
    - Copy your project URL and keys to `.env` files
 
 5. **Start Development**

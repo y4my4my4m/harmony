@@ -15,7 +15,7 @@ Both are fully supported. The Docker deployment supports either via `docker-comp
 
 ### Fresh Installation
 
-The schema for a fresh install lives in `db_schema/init/`. Files are loaded in order by `init.sql`:
+The schema lives in `db_schema/migrations/`, applied in version order:
 
 | Phase | Files | Purpose |
 |-------|-------|---------|
@@ -64,7 +64,7 @@ A fresh database is built from `init/` and then has its history recorded without
 replaying anything — `init/` already contains what the migrations produce:
 
 ```bash
-psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db_schema/init/init.sql
+for f in db_schema/migrations/*.sql; do psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$f"; done
 scripts/baseline-migrations.sh --url "$DATABASE_URL"
 ```
 
@@ -79,7 +79,7 @@ supabase db push --dry-run --db-url "$DATABASE_URL"
 Files are `<version>_<name>.sql` with `version` = `YYYYMMDDNNNNNN`, unique across
 the directory — it is the primary key of the history table. Create one with
 `supabase migration new <name>`, and mirror whatever it does into
-`db_schema/init/`, or the drift gate fails.
+`db_schema/migrations/`.
 
 ```sql
 -- db_schema/migrations/20260306000001_example.sql
@@ -149,7 +149,7 @@ A database trigger creates a profile record when a new user registers.
 
 ## Reference Backup
 
-`db_schema/latest_dev_backup.sql` contains a full schema dump from a production-like environment. Use it as a reference but not as an installation source - always use `db_schema/init/` for fresh deploys.
+`db_schema/latest_dev_backup.sql` contains a full schema dump from a production-like environment. Use it as a reference but not as an installation source - always use `db_schema/migrations/` for fresh deploys.
 
 ---
 
