@@ -1,6 +1,6 @@
 import { defineConfig } from 'vitest/config'
 
-// Requires docker: the suite builds a database from db_schema/init/ and fronts it
+// Requires docker: the suite builds a database from db_schema/migrations/ and fronts it
 // with PostgREST. Kept out of vitest.config.ts so `npm test` stays dependency-free.
 export default defineConfig({
   test: {

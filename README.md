@@ -39,8 +39,8 @@ cp .env.example .env
 cp federation-backend/env.template federation-backend/.env
 # Fill in Supabase URL, anon key, instance domain.
 
-# Database: fresh install → db_schema/init/init.sql (see db_schema/init/README.md)
-# Updates → db_schema/migrations/*.sql in the SQL editor as needed
+# Database: db_schema/migrations/*.sql, applied in version order.
+# self-host/bootstrap.sh --migrations-only applies whatever is pending.
 
 npm run dev
 # Optional second terminal: cd federation-backend && npm run dev
@@ -68,7 +68,6 @@ install with nginx and certbot, is in [docs/self-hosting.md](docs/self-hosting.m
 | Self-hosting / Docker / Redis / federation-server & worker | [docs/self-hosting.md](docs/self-hosting.md) |
 | Federation / ActivityPub interop | [docs/FEDERATION.md](docs/FEDERATION.md) |
 | Roadmap | [ROADMAP.md](ROADMAP.md) |
-| DB init | [db_schema/init/README.md](db_schema/init/README.md) |
 | Contributing | [CONTRIBUTING.md](CONTRIBUTING.md) |
 | Security policy | [SECURITY.md](SECURITY.md) |
 | Changelog | [CHANGELOG.md](CHANGELOG.md) |

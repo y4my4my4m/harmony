@@ -452,14 +452,14 @@ CRON_SCHEDULE = re.compile(
 
 
 def scan_cron():
-    """Cron jobs as init/ declares them.
+    """Cron jobs as the migrations declare them.
 
-    Read from the file, not from cron.job: 99_cron_jobs.sql schedules nothing
-    when pg_cron is absent, and whether the extension loads in a throwaway
-    container is not a property of the schema.
+    Read from the file, not from cron.job: the schedule is a no-op when pg_cron
+    is absent, and whether the extension loads in a throwaway container is not a
+    property of the schema.
     """
     jobs = []
-    d = os.path.join(ROOT, "db_schema", "init")
+    d = os.path.join(ROOT, "db_schema", "migrations")
     for fname in sorted(os.listdir(d)):
         if not fname.endswith(".sql"):
             continue
