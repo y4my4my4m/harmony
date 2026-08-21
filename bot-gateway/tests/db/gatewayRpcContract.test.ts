@@ -28,8 +28,21 @@ const OWNER_PROFILE_ID = '00000000-0000-0000-0000-0000000000a1'
 const BOT_ID = '00000000-0000-0000-0000-0000000000b0'
 const BOT_TOKEN = 'hrm_bot_contract_fixture'
 
+// spawnSync blocks the event loop, so vitest's hookTimeout cannot interrupt a docker command
+// that hangs - the job runs to its own timeout instead. The timeout here is the only bound.
+const DOCKER_TIMEOUT_MS = 300_000
+
 function docker(args: string[], input?: string) {
-  return spawnSync('docker', args, { input, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
+  const r = spawnSync('docker', args, {
+    input,
+    encoding: 'utf8',
+    maxBuffer: 64 * 1024 * 1024,
+    timeout: DOCKER_TIMEOUT_MS,
+  })
+  if (r.error && (r.error as NodeJS.ErrnoException).code === 'ETIMEDOUT') {
+    throw new Error(`docker ${args.slice(0, 3).join(' ')} exceeded ${DOCKER_TIMEOUT_MS}ms`)
+  }
+  return r
 }
 
 interface SqlResult {
