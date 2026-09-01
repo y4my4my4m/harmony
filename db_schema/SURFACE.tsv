@@ -67,6 +67,7 @@ check_key_consistency		TABLE(user_id uuid, username text, has_public_key boolean
 check_message_emoji_reaction_limit		trigger	invoker	public, extensions, pg_temp	anon+authenticated+service_role	trigger
 claim_ap_activity	p_ap_id text	boolean	definer	public, pg_temp	anon+authenticated+service_role	client
 claim_session_share	p_share_id uuid, p_user_id uuid	boolean	definer	public, pg_temp	anon+authenticated+service_role	client
+clamp_profile_moderation_on_insert		trigger	invoker	public, pg_temp	anon+authenticated+service_role	trigger
 cleanup_dead_endpoint_users	p_endpoint_url text	void	definer	public, pg_temp	anon+authenticated+service_role	unreferenced
 cleanup_expired_statuses		integer	definer	public, pg_temp	service_role	unreferenced
 cleanup_expired_voice_calls		void	definer	public, extensions, pg_temp	service_role	unreferenced
@@ -260,7 +261,7 @@ record_emoji_usage	p_emoji_id uuid, p_user_id uuid, p_server_id uuid, p_context_
 record_metric	p_metric_type text, p_metric_name text, p_value double precision, p_unit text, p_labels jsonb, p_source text	uuid	definer	public, extensions, pg_temp	service_role	unreferenced
 record_push_failure	p_subscription_id uuid, p_reason text	void	definer	public, extensions, pg_temp	service_role	client
 record_push_success	p_subscription_id uuid	void	definer	public, extensions, pg_temp	service_role	client
-record_slow_query	p_duration_ms numeric, p_query_text text, p_operation_type text, p_table_name text, p_parameters jsonb, p_source text, p_user_id uuid, p_request_id text	void	definer	public, pg_temp	anon+authenticated+service_role	client
+record_slow_query	p_duration_ms double precision, p_query_text text, p_operation_type text, p_table_name text, p_parameters jsonb, p_source text, p_user_id uuid, p_request_id text	uuid	definer	public, extensions, pg_temp	anon+authenticated+service_role	client
 redeem_recovery_code_and_disable_mfa	p_code text	boolean	definer	public, pg_catalog, pg_temp	anon+authenticated+service_role	client
 regenerate_discord_bridge_pairing	p_server_id uuid	text	definer	public, pg_temp	anon+authenticated+service_role	client
 register_recovery_key	p_user_id uuid, p_verification_code text, p_word_count integer	recovery_key_metadata	definer	public, pg_temp	anon+authenticated+service_role	client

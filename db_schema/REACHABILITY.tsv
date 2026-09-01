@@ -67,6 +67,7 @@ check_key_consistency	definer	TABLE(user_id uuid, username text, has_public_key 
 check_message_emoji_reaction_limit	invoker	trigger	anon+authenticated+service_role	trigger	trigger public.reactions BEFORE INSERT (trigger_check_message_emoji_reaction_limit)
 claim_ap_activity	definer	boolean	anon+authenticated+service_role	client	rpc in federation-backend/src/activitypub/GroupService.ts, federation-backend/src/activitypub/InboxHandler.ts
 claim_session_share	definer	boolean	anon+authenticated+service_role	client	rpc in src/services/encryption/MegolmMessageEncryptionService.ts
+clamp_profile_moderation_on_insert	invoker	trigger	anon+authenticated+service_role	trigger	trigger public.profiles BEFORE INSERT (a_clamp_profile_moderation_on_insert_trigger)
 cleanup_dead_endpoint_users	definer	void	anon+authenticated+service_role	trigger	called by trigger_cleanup_dead_endpoint
 cleanup_expired_statuses	definer	integer	service_role	service key	nothing references it
 cleanup_expired_voice_calls	definer	void	service_role	service key	nothing references it
@@ -257,10 +258,10 @@ purge_stale_invites	definer	integer	anon+authenticated+service_role	cron	cron 20
 queue_federation_job	definer	uuid	anon+authenticated+service_role	client, trigger	called by handle_conversation_participant_added, handle_group_participant_left, remove_group_icon, +24
 recompute_supporter_tier	definer	uuid	authenticated+service_role	client	rpc in federation-backend/src/routes/webhooks/kofi.ts, src/services/FundingService.ts
 record_emoji_usage	invoker	void	anon+authenticated+service_role	client	rpc in src/services/emojiService.ts
-record_metric	definer	uuid	service_role	service key	nothing references it
+record_metric	definer	uuid	service_role	client	called by record_slow_query
 record_push_failure	definer	void	service_role	client	rpc in federation-backend/src/services/PushNotificationService.ts
 record_push_success	definer	void	service_role	client	rpc in federation-backend/src/services/PushNotificationService.ts
-record_slow_query	definer	void	anon+authenticated+service_role	client	rpc in federation-backend/src/services/PerformanceMonitor.ts
+record_slow_query	definer	uuid	anon+authenticated+service_role	client	rpc in federation-backend/src/services/PerformanceMonitor.ts
 redeem_recovery_code_and_disable_mfa	definer	boolean	anon+authenticated+service_role	client	rpc in src/components/AuthComponent.vue
 regenerate_discord_bridge_pairing	definer	text	anon+authenticated+service_role	client	rpc in src/components/settings/DiscordBridgeSetup.vue
 register_recovery_key	definer	recovery_key_metadata	anon+authenticated+service_role	client	rpc in src/services/encryption/MegolmMessageEncryptionService.ts
@@ -357,7 +358,7 @@ update_post_reblog_count	definer	trigger	anon+authenticated+service_role	trigger
 update_post_reply_count	definer	trigger	anon+authenticated+service_role	trigger	trigger public.posts AFTER INSERT/DELETE/UPDATE (trg_update_post_reply_count)
 update_profile_posts_count	definer	trigger	anon+authenticated+service_role	trigger	trigger public.posts AFTER INSERT/DELETE/UPDATE (trg_update_profile_posts_count)
 update_push_subscription_timestamp	invoker	trigger	anon+authenticated+service_role	trigger	trigger public.push_subscriptions BEFORE UPDATE (push_subscriptions_update_timestamp)
-update_roles_updated_at	invoker	trigger	anon+authenticated+service_role	trigger	trigger public.channel_permission_overrides BEFORE UPDATE (trigger_channel_overrides_updated_at)
+update_roles_updated_at	invoker	trigger	anon+authenticated+service_role	trigger	trigger public.channel_permission_overrides BEFORE UPDATE (trigger_channel_overrides_updated_at), public.server_roles BEFORE UPDATE (trigger_server_roles_updated_at), public.server_settings BEFORE UPDATE (trigger_server_settings_updated_at)
 update_server_folders_updated_at	invoker	trigger	anon+authenticated+service_role	trigger	trigger public.server_folders BEFORE UPDATE (trigger_server_folders_updated_at)
 update_session_context	definer	void	service_role	service key	nothing references it
 update_session_heartbeat	definer	void	service_role	service key	nothing references it

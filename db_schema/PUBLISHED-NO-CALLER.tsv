@@ -12,9 +12,6 @@
 # Regenerate: scripts/check-published-no-caller.sh --write
 #
 # name	entry	grants
-get_batch_post_reactions	http anon	anon+authenticated+service_role
-get_conversation_context	http anon	anon+authenticated+service_role
-initialize_user_encryption	http anon	anon+authenticated+service_role
 add_user_prekeys	service key	service_role
 archive_popular_hashtags	service key	service_role
 backfill_timeline_entries	service key	service_role
@@ -36,7 +33,9 @@ enable_conversation_encryption	service key	service_role
 enable_federation_triggers	service key	service_role
 end_user_session	service key	service_role
 generate_livekit_token	service key	service_role
+get_batch_post_reactions	http anon	anon+authenticated+service_role
 get_channel_server_id	service key	service_role
+get_conversation_context	http anon	anon+authenticated+service_role
 get_conversation_encryption_status	service key	service_role
 get_conversation_participants	service key	service_role
 get_conversation_thread	service key	service_role
@@ -51,9 +50,9 @@ get_unused_prekey	service key	service_role
 get_user_prekey_bundle	service key	service_role
 get_voice_channel_participants	service key	service_role
 has_muted	service key	service_role
+initialize_user_encryption	http anon	anon+authenticated+service_role
 is_author_suspended	service key	service_role
 is_muted_by	service key	service_role
-record_metric	service key	service_role
 reset_user_encryption	service key	service_role
 rotate_prekeys	service key	service_role
 run_trending_maintenance	service key	service_role

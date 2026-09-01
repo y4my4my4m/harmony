@@ -21,6 +21,8 @@
 
 BEGIN;
 
+SET LOCAL lock_timeout = '3s';
+
 DO $$
 DECLARE
     v_domain text;
@@ -39,7 +41,8 @@ BEGIN
     v_suffix := '@' || v_domain || ':';
 
     -- Ours, returned. The local row it duplicates must still be present, or this deletes the
-    -- only record of the reaction.
+    -- only record of the reaction. The keep row must carry the same shortcode unqualified:
+    -- matching on post and user alone also matches the user's reactions with other emoji.
     WITH doomed AS (
         SELECT pi.id
           FROM public.post_interactions pi
@@ -55,6 +58,9 @@ BEGIN
                   AND keep.interaction_type = 'emoji_reaction'
                   AND keep.id <> pi.id
                   AND keep.ap_id IS NULL
+                  AND keep.custom_emoji_content =
+                      left(pi.custom_emoji_content,
+                           length(pi.custom_emoji_content) - length(v_suffix)) || ':'
            )
     )
     DELETE FROM public.post_interactions t USING doomed d WHERE t.id = d.id;
