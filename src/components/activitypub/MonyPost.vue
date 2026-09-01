@@ -568,42 +568,46 @@
       />
     </Teleport>
 
-    <!-- Tooltip for reactions -->
-    <div
-      v-if="tooltip.visible"
-      class="reaction-tooltip"
-      :style="{ top: `${tooltip.y}px`, left: `${tooltip.x}px` }"
-    >
-      <div class="tooltip-header">
-        <img 
-          v-if="tooltip.emoji?.url"
-          :src="getEmojiUrl(tooltip.emoji.url, 48)"
-          :alt="formatEmojiName(tooltip.emoji?.name) || 'emoji'"
-          class="tooltip-emoji"
-        />
-        <span v-else-if="tooltip.emoji?.unicode" class="tooltip-emoji native-emoji">{{ tooltip.emoji.unicode }}</span>
-        <span v-if="tooltip.emoji?.url && tooltip.emoji?.name" class="emoji-name">:{{ formatEmojiName(tooltip.emoji.name) }}:</span>
-        <span v-else-if="tooltip.emoji?.unicode && tooltipEmojiShortcode" class="emoji-name">:{{ tooltipEmojiShortcode }}:</span>
-      </div>
-      <div v-for="user in tooltip.content" :key="user.id" class="tooltip-user">
-        <Avatar 
-          :src="user.avatarUrl"
-          size="xs"
-          class="tooltip-avatar"
-        />
-        <div class="tooltip-user-meta">
-          <span class="tooltip-username">
-            <DisplayName
-              v-if="user.displayNameParts"
-              :parts="user.displayNameParts"
-              :fallback="user.displayName"
-            />
-            <DisplayName v-else :userId="user.id" :fallback="user.displayName" />
-          </span>
-          <span v-if="user.isRemote && user.handle" class="tooltip-domain">{{ user.handle }}</span>
+    <!-- Tooltip for reactions - teleported to body: coordinates are viewport-relative,
+         and chat embeds nest this under a transformed virtual row plus
+         contain: layout paint, both containing blocks for position: fixed. -->
+    <Teleport to="body">
+      <div
+        v-if="tooltip.visible"
+        class="reaction-tooltip"
+        :style="{ top: `${tooltip.y}px`, left: `${tooltip.x}px` }"
+      >
+        <div class="tooltip-header">
+          <img
+            v-if="tooltip.emoji?.url"
+            :src="getEmojiUrl(tooltip.emoji.url, 48)"
+            :alt="formatEmojiName(tooltip.emoji?.name) || 'emoji'"
+            class="tooltip-emoji"
+          />
+          <span v-else-if="tooltip.emoji?.unicode" class="tooltip-emoji native-emoji">{{ tooltip.emoji.unicode }}</span>
+          <span v-if="tooltip.emoji?.url && tooltip.emoji?.name" class="emoji-name">:{{ formatEmojiName(tooltip.emoji.name) }}:</span>
+          <span v-else-if="tooltip.emoji?.unicode && tooltipEmojiShortcode" class="emoji-name">:{{ tooltipEmojiShortcode }}:</span>
+        </div>
+        <div v-for="user in tooltip.content" :key="user.id" class="tooltip-user">
+          <Avatar
+            :src="user.avatarUrl"
+            size="xs"
+            class="tooltip-avatar"
+          />
+          <div class="tooltip-user-meta">
+            <span class="tooltip-username">
+              <DisplayName
+                v-if="user.displayNameParts"
+                :parts="user.displayNameParts"
+                :fallback="user.displayName"
+              />
+              <DisplayName v-else :userId="user.id" :fallback="user.displayName" />
+            </span>
+            <span v-if="user.isRemote && user.handle" class="tooltip-domain">{{ user.handle }}</span>
+          </div>
         </div>
       </div>
-    </div>
+    </Teleport>
     
     <!-- Lightbox for images (only when not embedded in chat context) -->
     <vue-easy-lightbox

@@ -2142,7 +2142,8 @@ export const useServerChannelStore = defineStore('serverChannel', {
       }
       
       this.servers = this.servers.filter(s => s.id !== serverId);
-      
+      useEmojiCacheStore().forgetServer(serverId);
+
       if (this.currentServerId === serverId) {
         if (this.servers.length > 0) {
           this.setCurrentServer(this.servers[0].id);
@@ -2191,6 +2192,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
       }
       
       this.servers = this.servers.filter(s => s.id !== deletedServer.id);
+      useEmojiCacheStore().forgetServer(deletedServer.id);
       debug.log('Deleted server removed from list:', deletedServer.name || deletedServer.id);
       
       if (this.currentServerId === deletedServer.id) {

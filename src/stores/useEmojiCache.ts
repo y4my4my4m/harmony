@@ -219,11 +219,9 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
         if (hydratedServerIds.length > 0) {
           setTimeout(async () => {
             debug.log(`Revalidating ${hydratedServerIds.length} cached servers...`);
-            for (const id of hydratedServerIds) {
-              const cache = this.serverCaches.get(id);
-              if (cache) cache.isStale = true;
-            }
-            await this.loadEmojisForServers(hydratedServerIds);
+            // rebuildResolvedEmojis skips stale caches, so marking these stale
+            // would blank every hydrated group until the refetch lands.
+            await this.loadEmojisForServers(hydratedServerIds, true);
           }, 2000);
         }
         
@@ -262,12 +260,14 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
       return metadataMap;
     },
 
-    async loadEmojisForServers(serverIds: string[]) {
+    /** force bypasses the freshness filter; in-flight ids are always skipped. */
+    async loadEmojisForServers(serverIds: string[], force = false) {
       const serversToUpdate = serverIds.filter(serverId => {
         if (this._loadingServerIds.has(serverId)) {
           debug.log(`⏳ Server ${serverId} emoji load already in progress, skipping`);
           return false;
         }
+        if (force) return true;
         const cache = this.serverCaches.get(serverId);
         return !cache || cache.isStale || this.isCacheExpired(cache);
       });
@@ -282,15 +282,24 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
       try {
         debug.log(`Loading emojis for ${serversToUpdate.length} servers`);
 
-        const [serverDetails, emojiData] = await Promise.all([
-          this.fetchServerDetails(serversToUpdate),
-          this.fetchEmojisForServers(serversToUpdate),
-        ]);
+        // A failed fetch must not reach updateServerCache: it would write
+        // through an empty emoji list with a fresh lastFetched to IndexedDB.
+        let serverDetails: Map<string, any>;
+        let emojiData: Map<string, Emoji[]>;
+        try {
+          [serverDetails, emojiData] = await Promise.all([
+            this.fetchServerDetails(serversToUpdate),
+            this.fetchEmojisForServers(serversToUpdate),
+          ]);
+        } catch (error) {
+          debug.error('Emoji load failed, keeping existing caches:', error);
+          return;
+        }
 
         for (const serverId of serversToUpdate) {
           const server = serverDetails.get(serverId);
           const emojis = emojiData.get(serverId) || [];
-          
+
           this.updateServerCache(serverId, emojis, server);
         }
 
@@ -309,7 +318,7 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
 
       if (error) {
         debug.error('Error fetching server details:', error);
-        return new Map();
+        throw error;
       }
 
       const serverMap = new Map();
@@ -326,7 +335,7 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
 
       if (error) {
         debug.error('Error fetching emojis:', error);
-        return new Map();
+        throw error;
       }
 
       const emojiMap = new Map<string, Emoji[]>();
@@ -473,7 +482,8 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
       this.rebuildResolvedEmojis();
     },
 
-    removeServerFromCache(serverId: string) {
+    /** purgePersisted also deletes the IndexedDB row, losing the offline fallback. */
+    removeServerFromCache(serverId: string, purgePersisted = false) {
       const cache = this.serverCaches.get(serverId);
       if (!cache) return;
 
@@ -493,7 +503,15 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
       }
 
       this.serverCaches.delete(serverId);
-      removeCachedServerEmojis(serverId);
+      if (purgePersisted) removeCachedServerEmojis(serverId);
+    },
+
+    // Membership loss is the only grounds for dropping a cache outright; the size
+    // trim is the only other evictor and age never evicts.
+    forgetServer(serverId: string) {
+      if (!this.serverCaches.has(serverId)) return;
+      this.removeServerFromCache(serverId, true);
+      this.rebuildResolvedEmojis();
     },
 
     rebuildResolvedEmojis() {
@@ -665,11 +683,17 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
     },
 
     markServerStale(serverId: string) {
+      this.pendingInvalidations.add(serverId);
+
       const cache = this.serverCaches.get(serverId);
       if (cache) {
         cache.isStale = true;
-        this.pendingInvalidations.add(serverId);
+        return;
       }
+
+      // A realtime emoji change for a server that was never cached has nothing to
+      // mark. Fetch it instead of dropping the event.
+      void this.loadEmojisForServers([serverId], true);
     },
 
     isCacheExpired(cache: ServerEmojiCache): boolean {
@@ -689,33 +713,31 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
     cleanupRealtimeSubscriptions() {
     },
 
+    // Trims on size only. Age is not grounds for eviction: no timer refetches
+    // server emoji, so an evicted cache stays gone until the next picker open.
+    // Synthetic personal and instance groups have no serverId-keyed refetch path
+    // and are never trimmed.
     performCleanup() {
       const now = new Date();
       let cleanedServers = 0;
-      const cleanedEmojis = 0;
-
-      for (const [serverId, cache] of this.serverCaches) {
-        if (this.isCacheExpired(cache)) {
-          this.removeServerFromCache(serverId);
-          cleanedServers++;
-        }
-      }
 
       if (this.serverCaches.size > this.maxCacheSize) {
         const sortedCaches = Array.from(this.serverCaches.entries())
+          .filter(([serverId]) => !isPersonalEmojiGroup(serverId))
           .sort(([, a], [, b]) => a.lastFetched.getTime() - b.lastFetched.getTime());
 
         const toRemove = sortedCaches.slice(0, this.serverCaches.size - this.maxCacheSize);
         toRemove.forEach(([serverId]) => {
-          this.removeServerFromCache(serverId);
+          this.removeServerFromCache(serverId, true);
           cleanedServers++;
         });
       }
 
       this.lastCleanup = now;
-      
-      if (cleanedServers > 0 || cleanedEmojis > 0) {
-        debug.log(`Cache cleanup: removed ${cleanedServers} servers, ${cleanedEmojis} emojis`);
+
+      if (cleanedServers > 0) {
+        this.rebuildResolvedEmojis();
+        debug.log(`Cache cleanup: removed ${cleanedServers} servers`);
       }
     },
 
@@ -731,9 +753,10 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
 
     async refreshServer(serverId: string) {
       debug.log('Force refreshing emojis for server:', serverId);
-      
-      this.removeServerFromCache(serverId);
-      await this.loadEmojisForServers([serverId]);
+
+      // Overwrite in place. Removing first would leave the server with neither an
+      // in-memory nor a persisted cache when the refetch fails.
+      await this.loadEmojisForServers([serverId], true);
     },
 
     async preloadFrequentEmojis() {
@@ -768,8 +791,7 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
 
     async invalidate(target: { serverId?: string; emojiId?: string }) {
       if (target.serverId) {
-        this.markServerStale(target.serverId);
-        await this.loadEmojisForServers([target.serverId]);
+        await this.loadEmojisForServers([target.serverId], true);
       } else if (target.emojiId) {
         const entry = this.globalEmojiIndex.get(target.emojiId);
         if (entry && entry.emoji.server_id) {

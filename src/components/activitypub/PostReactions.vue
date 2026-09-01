@@ -202,7 +202,10 @@ const handleReactionClick = async (reaction: PostEmojiReaction) => {
     debug.warn('Invalid reaction object:', reaction);
     return;
   }
-  
+
+  // Removing the last reaction unmounts the chip, so mouseleave never fires.
+  emit('hide-reaction-tooltip');
+
   try {
     // Haptic feedback on reaction
     triggerReaction();
