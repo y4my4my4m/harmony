@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import { getSupabaseClient } from '../config/supabase.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { logger } from '../utils/logger.js';
-import { safeFetch } from '../utils/ssrfProtection.js';
+import { safeFetch, type SafeFetchOptions } from '../utils/ssrfProtection.js';
 
 // In-memory LRU of PEM public keys, keyed by actorUrl.
 //
@@ -561,8 +561,13 @@ export class SignatureService {
    * Signed GET for an ActivityPub object, for remotes running authorized
    * fetch / secure mode. Signs with any local user's key; falls back to an
    * unsigned fetch when no local user exists.
+   *
+   * `options` is forwarded to `safeFetch` so callers keep their own Accept,
+   * User-Agent, timeout, and abort signal. The signature headers
+   * (`Host`/`Date`/`Signature`) are applied last and always win.
    */
-  static async signedApFetch(url: string, timeoutMs = 8000): Promise<Response> {
+  static async signedApFetch(url: string, options: SafeFetchOptions = {}): Promise<Response> {
+    const { timeoutMs = 8000, headers: callerHeaders, signal, maxRedirects, maxBodyBytes } = options;
     const supabase = getSupabaseClient();
 
     const { data: signer } = await supabase
@@ -586,6 +591,7 @@ export class SignatureService {
 
     const headers: Record<string, string> = {
       'Accept': 'application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams", application/json',
+      ...(callerHeaders as Record<string, string> | undefined),
     };
 
     if (signingUserId) {
@@ -598,11 +604,39 @@ export class SignatureService {
     }
 
     // safeFetch enforces URL+DNS validation per hop, follows manual redirects
-    // with re-validation (max 3 hops), and bounds each attempt with timeoutMs.
+    // with re-validation (max 3 hops by default), and bounds each attempt
+    // with timeoutMs.
     return safeFetch(url, {
       headers,
       timeoutMs,
+      ...(signal !== undefined ? { signal } : {}),
+      ...(maxRedirects !== undefined ? { maxRedirects } : {}),
+      ...(maxBodyBytes !== undefined ? { maxBodyBytes } : {}),
     });
+  }
+
+  /**
+   * GET an ActivityPub resource, retrying with an HTTP signature when the
+   * remote requires authorized fetch.
+   *
+   * The unsigned request is tried first, so peers that serve public objects
+   * pay no signing cost. Only an authentication rejection (401/403) triggers
+   * a signed retry; every other status - including 404/410/500 - is returned
+   * unchanged so callers keep their existing error handling. On a remote that
+   * exposes nothing, the signed retry is the only successful path.
+   */
+  static async fetchApWithSignatureFallback(
+    url: string,
+    options: SafeFetchOptions = {},
+  ): Promise<Response> {
+    const response = await safeFetch(url, options);
+
+    if (response.status !== 401 && response.status !== 403) {
+      return response;
+    }
+
+    logger.debug(`AP GET got ${response.status}, retrying with HTTP signature: ${url}`);
+    return this.signedApFetch(url, options);
   }
 
   /** Digest header value: `SHA-256=<base64 sha256 of the body bytes>`. */

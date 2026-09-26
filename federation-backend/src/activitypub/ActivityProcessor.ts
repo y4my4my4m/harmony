@@ -14,7 +14,6 @@ import { VoiceActivityHandler } from './VoiceActivityHandler.js';
 import { SignatureService } from './SignatureService.js';
 import config from '../config/index.js';
 import { harmonyVoiceMessageFromObject } from '../utils/voiceMessageFederation.js';
-import { safeFetch } from '../utils/ssrfProtection.js';
 import { pgrstOrValue } from '../utils/postgrestFilter.js';
 import { stripOwnEmojiDomain } from '../utils/emojiResolvers.js';
 
@@ -846,18 +845,12 @@ export class ActivityProcessor {
       // influenced). safeFetch validates URL+DNS per hop, follows manual
       // redirects with re-validation, and bounds the attempt with a 10s
       // timeout.
-      let response = await safeFetch(postUrl, {
+      // Retries signed for instances requiring authorized fetch.
+      const response = await SignatureService.fetchApWithSignatureFallback(postUrl, {
         headers: {
           'Accept': 'application/activity+json, application/ld+json',
         },
       });
-
-      // Retry signed for instances requiring authorized fetch.
-      // signedApFetch routes through safeFetch internally.
-      if (response.status === 401 || response.status === 403) {
-        logger.debug(`AP fetch got ${response.status}, retrying with HTTP signature: ${postUrl}`);
-        response = await SignatureService.signedApFetch(postUrl);
-      }
 
       if (!response.ok) {
         logger.warn(`Failed to fetch remote post ${postUrl}: ${response.status}`);
@@ -1515,7 +1508,8 @@ export class ActivityProcessor {
       logger.info(`Original post not found locally, attempting to fetch: ${objectUrl}`);
       try {
         // BUGS.md H15: objectUrl is from inbox payload (attacker-influenced).
-        const response = await safeFetch(objectUrl, {
+        // Retries signed for instances requiring authorized fetch.
+        const response = await SignatureService.fetchApWithSignatureFallback(objectUrl, {
           headers: {
             'Accept': 'application/activity+json, application/ld+json',
           },
@@ -2671,17 +2665,12 @@ export class ActivityProcessor {
     // BUGS.md H15: actorUrl is attacker-influenced (from inbox or Follow
     // activity); safeFetch handles SSRF, redirect re-validation, and timeout.
     try {
-      let response = await safeFetch(actorUrl, {
+      // Retries signed for instances requiring authorized fetch.
+      const response = await SignatureService.fetchApWithSignatureFallback(actorUrl, {
         headers: {
           'Accept': 'application/activity+json, application/ld+json',
         },
       });
-
-      // Retry signed for instances requiring authorized fetch.
-      if (response.status === 401 || response.status === 403) {
-        logger.debug(`Actor fetch got ${response.status}, retrying with HTTP signature: ${actorUrl}`);
-        response = await SignatureService.signedApFetch(actorUrl);
-      }
 
       if (!response.ok) {
         logger.error(`Failed to fetch actor ${actorUrl}: ${response.status}`);

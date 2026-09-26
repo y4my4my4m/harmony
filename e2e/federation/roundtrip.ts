@@ -17,9 +17,10 @@
 //     the peer actually received.
 //
 // Not covered: the BullMQ worker, Redis (the rate limiters fall back to their
-// in-memory store), realtime broadcast (the gateway answers 501 and the voice
-// handler ignores the result), and any fetch back from the peer - the local
-// instance's own domain resolves nowhere, so it is only ever delivered to.
+// in-memory store) and realtime broadcast (the gateway answers 501 and the
+// voice handler ignores the result). Other cases only deliver to the peer; the
+// signed-GET case is the exception - the peer fetches the local actor's key
+// back over HTTP to verify the signature on the retried request.
 //
 // Run: e2e/federation/stack.sh verify
 //
@@ -97,9 +98,16 @@ class Peer {
   })
 
   readonly captured: Captured[] = []
+  // GETs to the authorized-fetch object, recorded in arrival order so a case
+  // can tell the unsigned attempt from the signed retry.
+  readonly secureGetRequests: Captured[] = []
   actorFetches = 0
   private server?: http.Server
   base = ''
+  secureNoteUrl = ''
+  // The local instance's real listen address, needed to resolve the signing
+  // actor's key (the composed https://<domain> URL does not resolve).
+  localUrl = ''
 
   get actorUrl() {
     return `${this.base}/users/fx_remote`
@@ -137,6 +145,19 @@ class Peer {
           )
           return
         }
+        // Authorized-fetch object: 401 unless the request carries a valid
+        // HTTP signature from a local actor. This is the endpoint that proves
+        // the backend's signed GET retry works against a secure peer.
+        if (req.method === 'GET' && req.url === '/objects/secure-note') {
+          this.secureGetRequests.push({
+            method: req.method,
+            url: req.url ?? '',
+            headers: req.headers as Record<string, string>,
+            raw,
+          })
+          void this.handleSecureGet(req, res)
+          return
+        }
         if (req.method === 'POST') {
           this.captured.push({
             method: req.method,
@@ -154,6 +175,59 @@ class Peer {
     await new Promise<void>((resolve) => this.server!.listen(0, '0.0.0.0', resolve))
     const port = (this.server!.address() as { port: number }).port
     this.base = `http://${host}:${port}`
+    this.secureNoteUrl = `${this.base}/objects/secure-note`
+  }
+
+  /**
+   * Answer the authorized-fetch object. Reads the signed headers and verifies
+   * the signature against the signing actor's published key, fetched back from
+   * the local instance. A missing or invalid signature is 401.
+   */
+  private async handleSecureGet(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+    const signature = req.headers.signature as string | undefined
+    if (!signature || !(await this.verifyLocalSignature(req, signature))) {
+      res.writeHead(401, { 'Content-Type': 'application/json' })
+      res.end('{"error":"authorized fetch requires a signature"}')
+      return
+    }
+
+    res.writeHead(200, { 'Content-Type': 'application/activity+json' })
+    res.end(
+      JSON.stringify({
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: this.secureNoteUrl,
+        type: 'Note',
+        attributedTo: this.actorUrl,
+        to: [`https://${INSTANCE_DOMAIN}/users/fx_bob`],
+        published: new Date().toISOString(),
+        content: '<p>secure note behind authorized fetch</p>',
+      }),
+    )
+  }
+
+  private async verifyLocalSignature(req: http.IncomingMessage, signature: string): Promise<boolean> {
+    try {
+      const params = parseSignatureHeader(signature)
+      if (!params.keyId || !params.headers || !params.signature) return false
+      if (params.headers !== '(request-target) host date') return false
+      if (!req.url || !req.headers.host || !req.headers.date) return false
+
+      // keyId minus fragment: https://<domain>/users/<name>#main-key
+      const actorUrl = params.keyId.split('#')[0]
+      const actor = await getJson(actorUrl.replace(`https://${INSTANCE_DOMAIN}`, this.localUrl))
+      const pem = actor?.publicKey?.publicKeyPem
+      if (!pem) return false
+
+      const signingString = [
+        `(request-target): get ${req.url}`,
+        `host: ${req.headers.host}`,
+        `date: ${req.headers.date}`,
+      ].join('\n')
+
+      return crypto.createVerify('SHA256').update(signingString).verify(pem, params.signature, 'base64')
+    } catch {
+      return false
+    }
   }
 
   async stop() {
@@ -216,6 +290,48 @@ function post(
     )
     req.on('error', reject)
     req.end(body)
+  })
+}
+
+// Parse a draft-cavage Signature header. Quoted values may contain commas and
+// `=` (keyId is a URI, signature is base64), so a naive split(',') corrupts
+// them. Mirrors SignatureService.parseSignatureHeader.
+function parseSignatureHeader(signature: string): Record<string, string> {
+  const parts: Record<string, string> = {}
+  const re = /([A-Za-z0-9]+)\s*=\s*(?:"([^"]*)"|([^,]*))/g
+  let m: RegExpExecArray | null
+  while ((m = re.exec(signature)) !== null) {
+    parts[m[1]] = m[2] !== undefined ? m[2] : (m[3] ?? '').trim()
+  }
+  return parts
+}
+
+// GET a JSON document over plain http (node:http, so the ephemeral port and
+// path are under our control).
+function getJson(url: string): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const u = new URL(url)
+    http
+      .get(
+        {
+          host: u.hostname,
+          port: u.port,
+          path: `${u.pathname}${u.search}`,
+          headers: { Accept: 'application/activity+json' },
+        },
+        (res) => {
+          const chunks: Buffer[] = []
+          res.on('data', (c) => chunks.push(c))
+          res.on('end', () => {
+            try {
+              resolve(JSON.parse(Buffer.concat(chunks).toString('utf-8')))
+            } catch (e) {
+              reject(e)
+            }
+          })
+        },
+      )
+      .on('error', reject)
   })
 }
 
@@ -558,6 +674,44 @@ async function caseOutboundDM(db: SupabaseClient, peer: Peer, backend: Backend) 
   )
 }
 
+async function caseSignedGetRetry(peer: Peer, localUrl: string, db: SupabaseClient) {
+  console.log('\noutbound GET against authorized fetch -> signed retry')
+
+  peer.localUrl = localUrl
+  const before = peer.secureGetRequests.length
+
+  const res = await post(
+    `${localUrl}/resolve-post`,
+    { 'Content-Type': 'application/json' },
+    JSON.stringify({ url: peer.secureNoteUrl }),
+  )
+  eq(res.status, 200, 'resolve-post succeeds against the secure peer')
+
+  const reqs = peer.secureGetRequests.slice(before)
+  eq(reqs.length, 2, 'the peer saw an unsigned attempt and exactly one signed retry')
+
+  const first = reqs[0]
+  const second = reqs[1]
+  assert(!first?.headers.signature, 'the first attempt carries no Signature header')
+  assert(!!second?.headers.signature, 'the retry carries a Signature header')
+
+  const params = second?.headers.signature ? parseSignatureHeader(second.headers.signature) : {}
+  eq(params.headers, '(request-target) host date', 'the retry signs (request-target), host and date')
+  assert(
+    (params.keyId ?? '').startsWith(`https://${INSTANCE_DOMAIN}/users/`),
+    'the retry is signed by a local actor key',
+    params.keyId,
+  )
+
+  const { data: row } = await db
+    .from('posts')
+    .select('id, ap_id, is_local')
+    .eq('ap_id', peer.secureNoteUrl)
+    .maybeSingle()
+  assert(!!row, 'the resolved note is stored locally')
+  eq(row?.is_local, false, 'the stored note is marked remote')
+}
+
 // WIRING
 
 interface Backend {
@@ -625,6 +779,7 @@ async function main() {
     await caseVoiceAccept(db, peer, localUrl, callApId)
     await caseInboundDM(db, peer, localUrl)
     await caseOutboundDM(db, peer, backend)
+    await caseSignedGetRetry(peer, localUrl, db)
   } finally {
     await new Promise<void>((resolve) => local.close(() => resolve()))
     await peer.stop()
