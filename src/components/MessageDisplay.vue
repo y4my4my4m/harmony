@@ -3890,60 +3890,6 @@ defineExpose({ editLastOwnMessage });
   font-size: 1rem;
 }
 
-/* Tooltip */
-.tooltip {
-  position: fixed;
-  background-color: var(--tooltip-bg, #18191c);
-  color: var(--tooltip-text, var(--text-primary));
-  border-radius: 8px;
-  padding: 8px 12px;
-  font-size: 0.875rem;
-  font-weight: 500;
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
-  z-index: 1000;
-  pointer-events: none;
-  max-width: 300px;
-  transform: translateX(-50%);
-}
-
-.tooltip-avatar {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  margin-right: 8px;
-}
-
-.tooltip-user {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.bridged-badge {
-  display: inline-flex;
-  align-items: center;
-  margin-left: 2px;
-}
-
-.tooltip-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 0 8px 0;
-  margin-bottom: 8px;
-  border-bottom: 1px solid color-mix(in srgb, var(--background-quinary) 30%, transparent);
-}
-.tooltip-emoji {
-  width: 48px;
-  height: 48px;
-  margin-right: 4px;
-}
-.tooltip-emoji-name {
-  font-size: 0.875rem;
-  color: var(--tooltip-text, var(--text-secondary));
-  opacity: 0.9;
-}
-
 /* Loading skeletons */
 .loading-skeleton {
   padding: 16px;

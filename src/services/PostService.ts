@@ -1,5 +1,4 @@
 /** Post operations; delegates to CorePostService. */
-import { supabase } from '@/supabase'
 import type { TimelinePost, MessagePart } from '@/types'
 
 import { corePostService } from './core'
@@ -133,40 +132,6 @@ export class PostService {
    */
   async getPinnedPosts(authorId: string): Promise<any[]> {
     return corePostService.getPinnedPosts(authorId)
-  }
-
-  async toggleReaction(postId: string, emojiId: string): Promise<{ added: boolean; newCount: number }> {
-    const coreResult = await corePostService.toggleReaction(postId, emojiId)
-
-    const isNativeEmoji = !this.isValidUUID(emojiId)
-
-    let countQuery = supabase
-      .from('post_interactions')
-      .select('*', { count: 'exact', head: true })
-      .eq('post_id', postId)
-      .eq('interaction_type', 'reaction')
-
-    if (isNativeEmoji) {
-      countQuery = countQuery.eq('custom_emoji_content', emojiId)
-    } else {
-      countQuery = countQuery.eq('emoji_id', emojiId)
-    }
-
-    const { count } = await countQuery
-
-    return {
-      added: coreResult.added,
-      newCount: count || 0
-    }
-  }
-
-  /**
-   * Check if a string is a valid UUID
-   * Uses permissive regex to handle Supabase-generated UUIDs which may not strictly follow RFC 4122
-   */
-  private isValidUUID(str: string): boolean {
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    return uuidRegex.test(str)
   }
 
   async loadPost(postId: string): Promise<TimelinePost> {
