@@ -175,7 +175,6 @@
         <!-- Federation Info (for remote users) -->
         <div v-if="isFederatedUser(user)" class="federation-section">
           <h3 class="section-title">
-            <Icon name="link" class="section-icon" />
             Federation Info
           </h3>
           <div class="federation-info">
@@ -1845,12 +1844,6 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-}
-
-.section-icon {
-  width: 16px;
-  height: 16px;
-  color: #0EA5E9;
 }
 
 .bio-section {
