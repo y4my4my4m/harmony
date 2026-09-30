@@ -1,1016 +1,617 @@
 <template>
-  <Teleport to="body">
-    <div v-if="show" class="search-modal-overlay" @click="handleOverlayClick" @keydown.esc="handleClose">
-      <div class="search-modal" @click.stop>
-        <!-- Header -->
-        <div class="search-modal-header">
-          <h2 class="search-modal-title">{{ $t('message.search') }}</h2>
-          <button @click="handleClose" class="close-btn" title="Close (Esc)">
-            <Icon name="x" />
-          </button>
-        </div>
-
-        <!-- Search Input -->
-        <div class="search-input-container">
-          <div class="search-input-wrapper">
-            <Icon name="search" class="search-icon" />
-            <input
-              ref="searchInputRef"
-              v-model="filters.query"
-              type="text"
-              :placeholder="$t('message.searchMessages')"
-              class="search-input"
-              @input="handleSearchInput"
-              @keydown.enter="executeSearch(true)"
-              @keydown.escape="handleClose"
-            />
-            <button
-              v-if="filters.query"
-              @click="clearQuery"
-              class="clear-btn"
-              title="Clear search"
-            >
-              <Icon name="x" :size="16" />
-            </button>
-          </div>
-        </div>
-
-        <!-- Filters Panel -->
-        <div class="filters-panel" v-if="showFilters">
-          <div class="filters-header">
-            <span class="filters-title">{{ $t('message.filters') }}</span>
-            <button
-              v-if="hasActiveFilters"
-              @click="clearAllFilters"
-              class="clear-filters-btn"
-            >
-              {{ $t('message.clearAll') }}
-            </button>
-          </div>
-
-          <div class="filters-grid">
-            <!-- Channel Filter -->
-            <div class="filter-group">
-              <label class="filter-label">{{ $t('message.channel') }}</label>
-              <input
-                v-model="channelFilterInput"
-                type="text"
-                :placeholder="$t('message.channelPlaceholder')"
-                class="filter-input"
-                @input="handleChannelFilterInput"
-              />
-              <div v-if="channelSuggestions.length > 0" class="filter-suggestions">
-                <button
-                  v-for="channel in channelSuggestions"
-                  :key="channel.id"
-                  @click="selectChannel(channel.id)"
-                  class="filter-suggestion-item"
-                >
-                  {{ channel.name }}
-                </button>
-              </div>
-            </div>
-
-            <!-- User Filter -->
-            <div class="filter-group">
-              <label class="filter-label">{{ $t('message.fromUser') }}</label>
-              <input
-                v-model="userFilterInput"
-                type="text"
-                :placeholder="$t('message.usernamePlaceholder')"
-                class="filter-input"
-                @input="handleUserFilterInput"
-              />
-              <div v-if="userSuggestions.length > 0" class="filter-suggestions">
-                <button
-                  v-for="user in userSuggestions"
-                  :key="user.id"
-                  @click="selectUser(user.id)"
-                  class="filter-suggestion-item"
-                >
-                  {{ getUserDisplayName(user.id).value || user.username }}
-                </button>
-              </div>
-            </div>
-
-            <!-- Date Range -->
-            <div class="filter-group">
-              <label class="filter-label">{{ $t('message.dateRange') }}</label>
-              <div class="date-range-inputs">
-                <input
-                  v-model="fromDateInput"
-                  type="date"
-                  class="filter-input date-input"
-                  :placeholder="$t('message.from')"
-                />
-                <input
-                  v-model="toDateInput"
-                  type="date"
-                  class="filter-input date-input"
-                  :placeholder="$t('message.to')"
-                />
-              </div>
-            </div>
-
-            <!-- Media/URL Filters -->
-            <div class="filter-group filter-checkboxes">
-              <label class="filter-checkbox">
-                <input
-                  type="checkbox"
-                  v-model="filters.hasMedia"
-                  @change="handleFilterChange"
-                />
-                <span>{{ $t('message.hasMedia') }}</span>
-              </label>
-              <label class="filter-checkbox">
-                <input
-                  type="checkbox"
-                  v-model="filters.hasUrl"
-                  @change="handleFilterChange"
-                />
-                <span>{{ $t('message.hasUrl') }}</span>
-              </label>
-            </div>
-          </div>
-
-          <!-- Active Filter Chips -->
-          <div v-if="hasActiveFilters" class="active-filters">
-            <div
-              v-for="(filter, key) in activeFilterChips"
-              :key="key"
-              class="filter-chip"
-            >
-              <span class="filter-chip-label">{{ filter.label }}:</span>
-              <span class="filter-chip-value">{{ filter.value }}</span>
-              <button @click="() => handleClearFilter(key)" class="filter-chip-remove">
-                <Icon name="x" :size="12" />
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Toggle Filters Button -->
-        <button
-          @click="showFilters = !showFilters"
-          class="toggle-filters-btn"
-          :class="{ active: showFilters }"
-        >
-          <Icon name="filter" />
-          <span>Filters</span>
-          <span v-if="hasActiveFilters" class="filter-badge">{{ activeFilterCount }}</span>
+  <UnifiedModal
+    :model-value="show"
+    size="lg"
+    full-height
+    hide-header
+    no-padding
+    container-class="message-search-modal"
+    @close="emit('close')"
+    @open="focusInput"
+  >
+    <div class="search-shell">
+      <div class="search-bar">
+        <SearchQueryInput
+          ref="queryInputRef"
+          v-model:tokens="tokens"
+          v-model:text="text"
+          class="search-bar-input"
+          :members="members"
+          :channels="channels"
+          :allow-channels="!conversationId"
+          :placeholder="placeholder"
+          @submit="runSearch(0)"
+        />
+        <button type="button" class="search-close" :aria-label="t('messageSearch.close')" @click="emit('close')">
+          <Icon name="x" :size="18" />
         </button>
+      </div>
 
-        <!-- Search Results -->
-        <div class="search-results-container">
-          <!-- Loading State -->
-          <div v-if="isSearching && searchResults.length === 0" class="loading-state">
-            <LoadingSpinner :size="32" />
-            <p>{{ $t('message.searchingMessages') }}</p>
-          </div>
-
-          <!-- Error State -->
-          <div v-else-if="error" class="error-state">
-            <Icon name="alert-circle" :size="48" />
-            <h3>{{ $t('message.searchError') }}</h3>
-            <p>{{ error }}</p>
-            <button @click="executeSearch(true)" class="retry-btn">{{ $t('common.retry') }}</button>
-          </div>
-
-          <!-- Empty State -->
-          <div v-else-if="!isSearching && searchResults.length === 0 && (filters.query || hasActiveFilters)" class="empty-state">
-            <Icon name="search" :size="48" />
-            <h3>{{ $t('message.noResults') }}</h3>
-            <p>{{ $t('message.tryAdjustSearch') }}</p>
-          </div>
-
-          <!-- Initial State -->
-          <div v-else-if="!filters.query && !hasActiveFilters" class="initial-state">
-            <Icon name="search" :size="48" />
-            <h3>{{ $t('message.search') }}</h3>
-            <p>{{ $t('message.searchAcrossMessages') }}</p>
-            
-            <!-- E2EE Notice -->
-            <div class="encryption-notice">
-              <Icon name="lock" :size="14" />
-              <span>{{ $t('message.encryptedSearchNotice', 'End-to-end encrypted messages cannot be searched server-side. Use in-conversation search for encrypted DMs.') }}</span>
+      <div ref="bodyRef" class="search-body">
+        <div v-if="!lastParams && !isSearching" class="search-state">
+          <Icon name="search" :size="40" class="search-state-icon" />
+          <h3>{{ t('messageSearch.title') }}</h3>
+          <p>{{ t('messageSearch.intro') }}</p>
+          <div v-if="recentSearches.length" class="search-recent">
+            <div class="search-recent-header">
+              <span>{{ t('messageSearch.recent') }}</span>
+              <button type="button" class="search-link" @click="clearRecentSearches">{{ t('messageSearch.clearRecent') }}</button>
             </div>
-            
-            <!-- Recent Searches -->
-            <div v-if="recentSearches.length > 0" class="recent-searches">
-              <h4>{{ $t('message.recentSearches') }}</h4>
-              <div class="recent-list">
-                <button
-                  v-for="(search, index) in recentSearches.slice(0, 5)"
-                  :key="index"
-                  @click="setQuery(search)"
-                  class="recent-item"
-                >
-                  <Icon name="clock" :size="14" />
-                  <span>{{ search }}</span>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Results List -->
-          <div v-else class="results-list">
-            <div
-              v-for="message in searchResults"
-              :key="message.id"
-              class="search-result-item"
-              @click="handleMessageClick(message)"
+            <button
+              v-for="entry in recentSearches.slice(0, 5)"
+              :key="entry"
+              type="button"
+              class="search-recent-item"
+              @click="loadRecent(entry)"
             >
-              <div class="result-header">
-                <Avatar
-                  :src="getUserAvatarUrl(message.user_id).value"
-                  :alt="getUserDisplayName(message.user_id).value || 'User'"
-                  size="sm"
-                />
-                <div class="result-meta">
-                  <span class="result-username" :style="{ color: getUserColor(message.user_id).value || undefined }">
-                    {{ getUserDisplayName(message.user_id).value || 'Unknown User' }}
-                  </span>
-                  <span class="result-channel" v-if="message.channel_id">
-                    in {{ getChannelName(message.channel_id) }}
-                  </span>
-                  <span class="result-time">{{ formatTime(message.created_at) }}</span>
-                </div>
-              </div>
-              <div class="result-content">
-                <UnifiedMessageContent
-                  :content="message.content"
-                  :message-id="message.id"
-                  :embed-payloads="message.metadata?.embeds"
-                />
-              </div>
-            </div>
+              <Icon name="clock" :size="14" />
+              <span>{{ entry }}</span>
+            </button>
+          </div>
+          <p class="search-e2ee"><Icon name="lock" :size="12" />{{ t('messageSearch.encryptedNote') }}</p>
+        </div>
 
-            <!-- Load More Button -->
-            <div v-if="canLoadMore" class="load-more-container">
-              <button @click="loadMore" class="load-more-btn" :disabled="isSearching">
-                <Icon v-if="isSearching" name="loader" class="spinning" />
-                <span>{{ isSearching ? 'Loading...' : 'Load more' }}</span>
+        <template v-else>
+          <div class="search-toolbar">
+            <span class="search-count" aria-live="polite">
+              <template v-if="isSearching && total === null">{{ t('messageSearch.searching') }}</template>
+              <template v-else-if="totalCapped">{{ t('messageSearch.resultsCapped', { count: formatCount(SEARCH_TOTAL_CAP) }) }}</template>
+              <template v-else>{{ t('messageSearch.results', { count: formatCount(total ?? 0) }, total ?? 0) }}</template>
+            </span>
+            <div class="search-sort" role="group" :aria-label="t('messageSearch.sort')">
+              <button
+                v-for="option in sortOptions"
+                :key="option.value"
+                type="button"
+                class="search-sort-option"
+                :class="{ active: sort === option.value }"
+                :disabled="option.value === 'relevance' && !lastParams?.p_query"
+                :aria-pressed="sort === option.value"
+                @click="changeSort(option.value)"
+              >
+                {{ option.label }}
               </button>
             </div>
           </div>
-        </div>
+          <p class="search-e2ee"><Icon name="lock" :size="12" />{{ t('messageSearch.encryptedNote') }}</p>
+
+          <section v-if="localResults.length" class="search-group">
+            <h4 class="search-group-title"><Icon name="lock" :size="12" />{{ t('messageSearch.onThisDevice') }}</h4>
+            <SearchResultItem
+              v-for="r in localResults"
+              :key="`local-${r.message.id}`"
+              :message="r.message"
+              :server-id="serverId"
+              @open="openMessage"
+            />
+          </section>
+
+          <div v-if="isSearching && results.length === 0" class="search-state">
+            <LoadingSpinner :size="32" />
+            <p>{{ t('messageSearch.searching') }}</p>
+          </div>
+
+          <div v-else-if="error" class="search-state">
+            <Icon name="alert-circle" :size="40" class="search-state-icon" />
+            <h3>{{ t('messageSearch.error') }}</h3>
+            <p>{{ error }}</p>
+            <button type="button" class="search-button" @click="runSearch(page)">{{ t('common.retry') }}</button>
+          </div>
+
+          <div v-else-if="results.length === 0" class="search-state">
+            <Icon name="search" :size="40" class="search-state-icon" />
+            <h3>{{ t('messageSearch.empty') }}</h3>
+            <p>{{ t('messageSearch.emptyHint') }}</p>
+          </div>
+
+          <div v-else class="search-results" :class="{ stale: isSearching }">
+            <section v-for="group in groups" :key="group.key" class="search-group">
+              <h4 v-if="group.label" class="search-group-title">
+                <Icon :name="group.icon" :size="12" />{{ group.label }}
+              </h4>
+              <SearchResultItem
+                v-for="message in group.messages"
+                :key="message.id"
+                :message="message"
+                :server-id="serverId"
+                @open="openMessage"
+              />
+            </section>
+
+            <nav v-if="pageCount > 1" class="search-pager" :aria-label="t('messageSearch.pages')">
+              <button type="button" class="search-page" :disabled="page === 0 || isSearching" @click="runSearch(page - 1)">
+                <Icon name="chevron-left" :size="14" />{{ t('messageSearch.previous') }}
+              </button>
+              <button
+                v-for="n in pageWindow"
+                :key="n"
+                type="button"
+                class="search-page"
+                :class="{ active: n === page }"
+                :aria-current="n === page ? 'page' : undefined"
+                :disabled="isSearching"
+                @click="runSearch(n)"
+              >
+                {{ n + 1 }}
+              </button>
+              <button type="button" class="search-page" :disabled="page >= pageCount - 1 || isSearching" @click="runSearch(page + 1)">
+                {{ t('messageSearch.next') }}<Icon name="chevron-right" :size="14" />
+              </button>
+            </nav>
+          </div>
+        </template>
       </div>
     </div>
-  </Teleport>
+  </UnifiedModal>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, nextTick } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useMessageSearch } from '@/composables/useMessageSearch'
-import { useUserData } from '@/composables/useUserData'
-import { useServerChannelStore } from '@/stores/useServerChannel'
-import type { Message, Channel } from '@/types'
-import Avatar from '@/components/common/Avatar.vue'
+import UnifiedModal from '@/components/shared/UnifiedModal.vue'
 import Icon from '@/components/common/Icon.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
-import UnifiedMessageContent from '@/components/UnifiedMessageContent.vue'
+import SearchQueryInput from '@/components/search/SearchQueryInput.vue'
+import SearchResultItem from '@/components/search/SearchResultItem.vue'
+import { useMessageSearch } from '@/composables/useMessageSearch'
+import { useLocalMessageSearch } from '@/composables/useLocalMessageSearch'
+import { SEARCH_TOTAL_CAP } from '@/services/SearchService'
+import { userDataService } from '@/services/userDataService'
+import { useServerChannelStore } from '@/stores/useServerChannel'
+import { useChatStore } from '@/stores/useChat'
+import { useDMStore } from '@/stores/useDM'
+import { useProfileStore } from '@/stores/useProfile'
+import {
+  highlightTerms,
+  messageMatchesParams,
+  parseSearchQuery,
+  resolveToken,
+  type SearchChannel,
+  type SearchMember,
+  type SearchSort,
+} from '@/utils/searchQuery'
+import type { Message } from '@/types'
 
-const { t } = useI18n()
-
-interface Props {
+const props = defineProps<{
   show: boolean
-  initialQuery?: string
-  initialChannelId?: string
-  initialConversationId?: string
-  initialServerId?: string
-}
+  serverId?: string | null
+  conversationId?: string | null
+  /** Listed first among in: suggestions. */
+  currentChannelId?: string | null
+}>()
 
-interface Emits {
+const emit = defineEmits<{
   (e: 'close'): void
-  (e: 'message-click', message: Message, searchQuery?: string): void
+  (e: 'message-click', message: Message, searchText?: string): void
+}>()
+
+const { t, locale } = useI18n()
+const serverChannelStore = useServerChannelStore()
+const chatStore = useChatStore()
+const dmStore = useDMStore()
+const profileStore = useProfileStore()
+
+const scope = computed(() => props.conversationId
+  ? { conversationId: props.conversationId }
+  : { serverId: props.serverId ?? undefined })
+
+const {
+  tokens, text, sort, page, results, total, totalCapped, pageCount, isSearching, error, lastParams,
+  recentSearches, execute, reset, clearRecentSearches,
+} = useMessageSearch(scope)
+
+const queryInputRef = ref<InstanceType<typeof SearchQueryInput>>()
+const bodyRef = ref<HTMLElement>()
+
+const placeholder = computed(() => props.conversationId
+  ? t('messageSearch.placeholderDm')
+  : t('messageSearch.placeholderServer'))
+
+const sortOptions = computed<Array<{ value: SearchSort; label: string }>>(() => [
+  { value: 'newest', label: t('messageSearch.newest') },
+  { value: 'oldest', label: t('messageSearch.oldest') },
+  { value: 'relevance', label: t('messageSearch.relevant') },
+])
+
+// ---------------------------------------------------------------------------
+// Entities for autocomplete and for resolving typed filters
+// ---------------------------------------------------------------------------
+
+const channels = computed<SearchChannel[]>(() => {
+  if (props.conversationId) return []
+  const list = serverChannelStore.channels
+    .filter(c => c.type === 0 && (!props.serverId || !c.server_id || c.server_id === props.serverId))
+    .map(c => ({ id: c.id, name: c.name }))
+  const current = list.findIndex(c => c.id === props.currentChannelId)
+  return current > 0 ? [list[current], ...list.slice(0, current), ...list.slice(current + 1)] : list
+})
+
+const members = ref<SearchMember[]>([])
+
+const loadMembers = () => {
+  const out = new Map<string, SearchMember>()
+  const add = (id?: string | null, username?: string | null, displayName?: string | null) => {
+    if (!id || !username || out.has(id)) return
+    out.set(id, { id, username, displayName: displayName || undefined })
+  }
+  if (props.conversationId) {
+    const me = profileStore.profile
+    add(me?.id, me?.username, me?.display_name)
+    const conv = dmStore.conversations.find(c => c.id === props.conversationId)
+    add(conv?.other_user?.id, conv?.other_user?.username, conv?.other_user?.display_name)
+    for (const p of conv?.participants ?? []) add(p.id, p.username, p.display_name)
+  } else {
+    const inServer = props.serverId ? userDataService.getUsersInContext(props.serverId) : []
+    for (const u of inServer.length ? inServer : userDataService.getAllUsers()) {
+      add(u.id, u.username, u.displayName)
+    }
+  }
+  members.value = [...out.values()]
 }
 
-const props = withDefaults(defineProps<Props>(), {
-  show: false,
-  initialQuery: '',
-  initialChannelId: undefined,
-  initialConversationId: undefined,
-  initialServerId: undefined
+// ---------------------------------------------------------------------------
+// Encrypted messages already decrypted on this device
+// ---------------------------------------------------------------------------
+
+const localCandidates = computed<Message[]>(() => {
+  const params = lastParams.value
+  if (!params) return []
+  const loaded = props.conversationId
+    ? (dmStore.currentConversationId === props.conversationId ? dmStore.currentDMMessages : [])
+    : chatStore.messages
+  return loaded.filter(m => m.encrypted && m.decrypted && messageMatchesParams(m, params))
 })
 
-const emit = defineEmits<Emits>()
+const localSearch = useLocalMessageSearch(localCandidates)
+const localResults = computed(() => (page.value === 0 ? localSearch.searchResults.value : []))
 
-// Composables
-const {
-  isSearching,
-  searchResults,
-  error,
-  filters,
-  recentSearches,
-  hasActiveFilters,
-  canLoadMore,
-  setQuery,
-  setFilter,
-  clearFilter,
-  clearAllFilters,
-  executeSearch,
-  loadMore
-} = useMessageSearch()
+// ---------------------------------------------------------------------------
+// Results
+// ---------------------------------------------------------------------------
 
-const {
-  getUserAvatarUrl,
-  getUserDisplayName,
-  getUserColor
-} = useUserData()
+const channelName = (id: string): string =>
+  serverChannelStore.channels.find(c => c.id === id)?.name ?? t('messageSearch.unknownChannel')
 
-const serverChannelStore = useServerChannelStore()
-
-// Component state
-const searchInputRef = ref<HTMLInputElement>()
-const showFilters = ref(false)
-const channelFilterInput = ref('')
-const userFilterInput = ref('')
-const fromDateInput = ref('')
-const toDateInput = ref('')
-const channelSuggestions = ref<Channel[]>([])
-const userSuggestions = ref<any[]>([])
-
-watch(() => props.show, (newVal, oldVal) => {
-  if (newVal && !oldVal) {
-    if (props.initialQuery) {
-      setQuery(props.initialQuery)
+/** Consecutive results from one channel share a heading; a conversation needs none. */
+const groups = computed(() => {
+  const out: Array<{ key: string; label: string | null; icon: string; messages: Message[] }> = []
+  for (const message of results.value) {
+    const where = message.thread_id ? `thread:${message.thread_id}` : message.channel_id ?? message.conversation_id ?? ''
+    const last = out[out.length - 1]
+    if (last && last.key.startsWith(`${where}|`)) {
+      last.messages.push(message)
+      continue
     }
-    if (props.initialChannelId) {
-      setFilter('channelId', props.initialChannelId)
-    }
-    if (props.initialConversationId) {
-      setFilter('conversationId', props.initialConversationId)
-    }
-    if (props.initialServerId) {
-      setFilter('serverId', props.initialServerId)
-    }
-    
-    // Focus input when modal opens
-    nextTick(() => {
-      searchInputRef.value?.focus()
-    })
-  } else if (!newVal && oldVal) {
-    clearAllFilters()
-    showFilters.value = false
+    const label = props.conversationId || !message.channel_id
+      ? null
+      : message.thread_id
+        ? t('messageSearch.threadIn', { channel: channelName(message.channel_id) })
+        : channelName(message.channel_id)
+    out.push({ key: `${where}|${out.length}`, label, icon: message.thread_id ? 'thread' : 'hash', messages: [message] })
   }
+  return out
 })
 
-// Watch date inputs
-watch([fromDateInput, toDateInput], ([from, to]) => {
-  setFilter('fromDate', from ? new Date(from) : null)
-  setFilter('toDate', to ? new Date(to) : null)
+const pageWindow = computed(() => {
+  const count = pageCount.value
+  const first = Math.max(0, Math.min(page.value - 2, count - 5))
+  return Array.from({ length: Math.min(5, count) }, (_, i) => first + i)
 })
 
-// Computed
-const activeFilterChips = computed(() => {
-  const chips: Record<string, { label: string; value: string }> = {}
-  
-  if (filters.value.channelId) {
-    const channelId = Array.isArray(filters.value.channelId) 
-      ? filters.value.channelId[0] 
-      : filters.value.channelId
-    chips.channelId = {
-      label: t('message.channel'),
-      value: getChannelName(channelId) || channelId
-    }
-  }
-  
-  if (filters.value.userId) {
-    chips.userId = {
-      label: t('message.user'),
-      value: getUserDisplayName(filters.value.userId).value || filters.value.userId
-    }
-  }
-  
-  if (filters.value.hasMedia) {
-    chips.hasMedia = { label: t('message.hasMedia'), value: t('message.yes') }
-  }
-  
-  if (filters.value.hasUrl) {
-    chips.hasUrl = { label: t('message.hasUrl'), value: t('message.yes') }
-  }
-  
-  if (filters.value.fromDate) {
-    chips.fromDate = {
-      label: t('message.from'),
-      value: new Date(filters.value.fromDate).toLocaleDateString()
-    }
-  }
-  
-  if (filters.value.toDate) {
-    chips.toDate = {
-      label: t('message.to'),
-      value: new Date(filters.value.toDate).toLocaleDateString()
-    }
-  }
-  
-  return chips
-})
+const formatCount = (n: number) => new Intl.NumberFormat(locale.value).format(n)
 
-const activeFilterCount = computed(() => {
-  return Object.keys(activeFilterChips.value).length
-})
+const runSearch = async (targetPage: number) => {
+  tokens.value = tokens.value.map(tok => resolveToken(tok, { members: members.value, channels: channels.value }))
+  await execute(targetPage)
+  if (targetPage === 0) localSearch.setQuery(text.value)
+  bodyRef.value?.scrollTo({ top: 0 })
+}
 
-// Methods
-const handleClose = () => {
+const changeSort = (value: SearchSort) => {
+  if (sort.value === value) return
+  sort.value = value
+  void runSearch(0)
+}
+
+const loadRecent = (entry: string) => {
+  const parsed = parseSearchQuery(entry)
+  tokens.value = parsed.tokens
+  text.value = parsed.text
+  void runSearch(0)
+}
+
+const openMessage = (message: Message) => {
+  emit('message-click', message, highlightTerms(text.value) || undefined)
   emit('close')
 }
 
-const handleOverlayClick = () => {
-  handleClose()
+const focusInput = () => {
+  nextTick(() => queryInputRef.value?.focus())
 }
 
-const handleSearchInput = () => {
-  // Debounced search is handled by composable
-}
-
-const clearQuery = () => {
-  setQuery('')
-  searchInputRef.value?.focus()
-}
-
-const handleFilterChange = () => {
-  executeSearch(true)
-}
-
-const handleChannelFilterInput = () => {
-  const query = channelFilterInput.value.toLowerCase()
-  if (!query) {
-    channelSuggestions.value = []
-    return
+watch(() => props.show, (open) => {
+  if (open) {
+    loadMembers()
+  } else {
+    reset()
+    localSearch.clearSearch()
   }
-  
-  const channels = serverChannelStore.channels || []
-  channelSuggestions.value = channels
-    .filter(ch => ch.name.toLowerCase().includes(query))
-    .slice(0, 5)
-}
+}, { immediate: true })
 
-const handleUserFilterInput = async () => {
-  const query = userFilterInput.value.toLowerCase()
-  if (!query) {
-    userSuggestions.value = []
-    return
-  }
-  
-  // User search is not implemented; suggestions stay empty.
-  userSuggestions.value = []
-}
-
-const selectChannel = (channelId: string) => {
-  setFilter('channelId', channelId)
-  channelFilterInput.value = ''
-  channelSuggestions.value = []
-  executeSearch(true)
-}
-
-const selectUser = (userId: string) => {
-  setFilter('userId', userId)
-  userFilterInput.value = ''
-  userSuggestions.value = []
-  executeSearch(true)
-}
-
-const getChannelName = (channelId: string): string => {
-  const channel = serverChannelStore.channels.find(c => c.id === channelId)
-  return channel?.name || 'Unknown Channel'
-}
-
-const formatTime = (date: Date | string): string => {
-  const d = typeof date === 'string' ? new Date(date) : date
-  return d.toLocaleString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: d.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined,
-    hour: 'numeric',
-    minute: '2-digit'
-  })
-}
-
-const handleClearFilter = (key: string) => {
-  clearFilter(key as keyof typeof filters.value)
-}
-
-const handleMessageClick = (message: Message) => {
-  emit('message-click', message, filters.value.query)
-  handleClose()
-}
-
-onMounted(() => {
-  if (props.show) {
-    nextTick(() => {
-      searchInputRef.value?.focus()
-    })
-  }
+watch(() => [props.serverId, props.conversationId], () => {
+  if (!props.show) return
+  loadMembers()
+  if (lastParams.value) void runSearch(0)
 })
 </script>
 
 <style scoped>
-.search-modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.8);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10000;
-  backdrop-filter: blur(4px);
-}
-
-.search-modal {
-  width: 90%;
-  max-width: 800px;
-  max-height: 90vh;
-  background: var(--background-quaternary);
-  border-radius: 8px;
+.search-shell {
   display: flex;
   flex-direction: column;
-  box-shadow: var(--shadow-modal);
+  height: 100%;
+  min-height: 0;
 }
 
-.search-modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 20px 24px;
-  border-bottom: 1px solid var(--border-primary);
-}
-
-.search-modal-title {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.close-btn {
-  background: transparent;
-  border: none;
-  color: var(--text-secondary);
-  cursor: pointer;
-  padding: 8px;
-  border-radius: 4px;
-  transition: all 0.2s;
-}
-
-.close-btn:hover {
-  background: var(--border-hover);
-  color: var(--text-primary);
-}
-
-.search-input-container {
-  padding: 16px 24px;
-  border-bottom: 1px solid var(--border-primary);
-}
-
-.search-input-wrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-.search-icon {
-  position: absolute;
-  left: 12px;
-  color: var(--text-muted);
-  pointer-events: none;
-}
-
-.search-input {
-  width: 100%;
-  padding: 12px 40px 12px 40px;
-  background: var(--background-tertiary);
-  border: 1px solid var(--border-primary);
-  border-radius: 4px;
-  color: var(--text-primary);
-  font-size: 16px;
-  outline: none;
-  transition: border-color 0.2s;
-}
-
-.search-input:focus {
-  border-color: var(--harmony-primary);
-}
-
-.clear-btn {
-  position: absolute;
-  right: 8px;
-  background: transparent;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
-  transition: all 0.2s;
-}
-
-.clear-btn:hover {
-  color: var(--text-primary);
-  background: var(--border-hover);
-}
-
-.filters-panel {
-  padding: 16px 24px;
-  border-bottom: 1px solid var(--border-primary);
-  background: var(--background-tertiary);
-}
-
-.filters-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 16px;
-}
-
-.filters-title {
-  font-weight: 600;
-  color: var(--text-primary);
-  font-size: 14px;
-}
-
-.clear-filters-btn {
-  background: transparent;
-  border: none;
-  color: var(--harmony-primary);
-  cursor: pointer;
-  font-size: 14px;
-  padding: 4px 8px;
-  border-radius: 4px;
-  transition: all 0.2s;
-}
-
-.clear-filters-btn:hover {
-  background: var(--harmony-primary-light);
-}
-
-.filters-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 16px;
-  margin-bottom: 16px;
-}
-
-.filter-group {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.filter-group.filter-checkboxes {
-  grid-column: 1 / -1;
-  flex-direction: row;
-  gap: 16px;
-}
-
-.filter-label {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.filter-input {
-  padding: 8px 12px;
-  background: var(--background-quaternary);
-  border: 1px solid var(--border-primary);
-  border-radius: 4px;
-  color: var(--text-primary);
-  font-size: 14px;
-  outline: none;
-  transition: border-color 0.2s;
-}
-
-.filter-input:focus {
-  border-color: var(--harmony-primary);
-}
-
-.date-range-inputs {
-  display: flex;
-  gap: 8px;
-}
-
-.date-input {
-  flex: 1;
-}
-
-.filter-checkbox {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  color: var(--text-secondary);
-  font-size: 14px;
-}
-
-.filter-checkbox input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
-  cursor: pointer;
-}
-
-.filter-suggestions {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  background: var(--background-quaternary);
-  border: 1px solid var(--border-primary);
-  border-radius: 4px;
-  margin-top: 4px;
-  max-height: 200px;
-  overflow-y: auto;
-  z-index: 1000;
-}
-
-.filter-suggestion-item {
-  width: 100%;
-  padding: 8px 12px;
-  background: transparent;
-  border: none;
-  color: var(--text-primary);
-  text-align: left;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.filter-suggestion-item:hover {
-  background: var(--border-hover);
-}
-
-.active-filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.filter-chip {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
-  background: var(--harmony-primary);
-  border-radius: 12px;
-  font-size: 12px;
-}
-
-.filter-chip-label {
-  font-weight: 600;
-  color: var(--text-on-primary);
-}
-
-.filter-chip-value {
-  color: var(--text-on-primary);
-  opacity: 0.9;
-}
-
-.filter-chip-remove {
-  background: transparent;
-  border: none;
-  color: var(--text-on-primary);
-  opacity: 0.8;
-  cursor: pointer;
-  padding: 2px;
-  border-radius: 2px;
-  transition: all 0.2s;
-}
-
-.filter-chip-remove:hover {
-  background: color-mix(in srgb, var(--text-on-primary) 20%, transparent);
-  opacity: 1;
-}
-
-.toggle-filters-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 24px;
-  background: transparent;
-  border: none;
-  border-top: 1px solid var(--border-primary);
-  color: var(--text-secondary);
-  cursor: pointer;
-  font-size: 14px;
-  transition: all 0.2s;
-}
-
-.toggle-filters-btn:hover {
-  background: var(--border-secondary);
-  color: var(--text-primary);
-}
-
-.toggle-filters-btn.active {
-  background: var(--background-tertiary);
-  color: var(--harmony-primary);
-}
-
-.filter-badge {
-  background: var(--harmony-primary);
-  color: var(--text-primary);
-  padding: 2px 6px;
-  border-radius: 10px;
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.search-results-container {
-  flex: 1;
-  overflow-y: auto;
-  padding: 16px 24px;
-}
-
-.loading-state,
-.error-state,
-.empty-state,
-.initial-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 48px 24px;
-  text-align: center;
-  color: var(--text-muted);
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.error-state h3,
-.empty-state h3,
-.initial-state h3 {
-  margin: 16px 0 8px;
-  color: var(--text-primary);
-  font-size: 18px;
-}
-
-.error-state p,
-.empty-state p,
-.initial-state p {
-  margin: 0 0 16px;
-  color: var(--text-secondary);
-}
-
-.retry-btn {
-  padding: 8px 16px;
-  background: var(--harmony-primary);
-  border: none;
-  border-radius: 4px;
-  color: var(--text-primary);
-  cursor: pointer;
-  font-size: 14px;
-  transition: background 0.2s;
-}
-
-.retry-btn:hover {
-  background: var(--harmony-primary-hover);
-}
-
-.encryption-notice {
+.search-bar {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
-  padding: 12px 16px;
-  background: color-mix(in srgb, var(--warning) 10%, transparent);
-  border: 1px solid color-mix(in srgb, var(--warning) 30%, transparent);
-  border-radius: 4px;
-  color: var(--warning);
-  font-size: 12px;
-  text-align: left;
-  max-width: 400px;
-  margin-top: 16px;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--border-secondary);
 }
 
-.encryption-notice span {
-  line-height: 1.4;
+.search-bar-input {
+  flex: 1;
+  min-width: 0;
 }
 
-.recent-searches {
-  margin-top: 24px;
-  width: 100%;
-  max-width: 400px;
-}
-
-.recent-searches h4 {
-  margin: 0 0 12px;
-  color: var(--text-secondary);
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.recent-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.recent-item {
+.search-close {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  background: var(--background-tertiary);
-  border: none;
-  border-radius: 4px;
-  color: var(--text-secondary);
-  text-align: left;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.recent-item:hover {
-  background: var(--background-quaternary);
-  color: var(--text-primary);
-}
-
-.results-list {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.search-result-item {
-  padding: 12px;
-  background: var(--background-tertiary);
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.search-result-item:hover {
-  background: var(--background-quaternary);
-}
-
-.result-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-
-.result-meta {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-}
-
-.result-username {
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.result-channel {
-  color: var(--text-muted);
-}
-
-.result-time {
-  color: var(--text-muted);
-  font-size: 12px;
-}
-
-.result-content {
-  color: var(--text-secondary);
-  font-size: 14px;
-  line-height: 1.5;
-}
-
-.load-more-container {
-  display: flex;
   justify-content: center;
-  padding: 16px 0;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+  cursor: pointer;
 }
 
-.load-more-btn {
+.search-close:hover {
+  color: var(--text-primary);
+  border-color: var(--border-hover);
+}
+
+.search-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-3) var(--space-4) var(--space-4);
+}
+
+.search-toolbar {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  background: var(--harmony-primary);
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.search-count {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.search-sort {
+  display: inline-flex;
+  padding: 2px;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  background: var(--background-tertiary);
+}
+
+.search-sort-option {
+  padding: var(--space-1) var(--space-3);
   border: none;
-  border-radius: 4px;
-  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
   cursor: pointer;
-  font-size: 14px;
-  transition: background 0.2s;
 }
 
-.load-more-btn:hover:not(:disabled) {
-  background: var(--harmony-primary-hover);
+.search-sort-option.active {
+  background: var(--background-modifier-selected);
+  color: var(--text-primary);
 }
 
-.load-more-btn:disabled {
-  opacity: 0.6;
+.search-sort-option:disabled {
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
-.spinning {
-  animation: spin 1s linear infinite;
+.search-e2ee {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: var(--space-2) 0 var(--space-3);
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.search-results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  transition: opacity var(--transition-fast);
+}
+
+.search-results.stale {
+  opacity: 0.6;
+}
+
+.search-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.search-group-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+}
+
+.search-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-12) var(--space-4);
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.search-state h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+}
+
+.search-state p {
+  margin: 0;
+  max-width: 420px;
+  font-size: var(--font-size-sm);
+}
+
+.search-state-icon {
+  color: var(--text-muted);
+}
+
+.search-recent {
+  width: 100%;
+  max-width: 420px;
+  margin-top: var(--space-4);
+  text-align: left;
+}
+
+.search-recent-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+}
+
+.search-recent-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.search-recent-item span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.search-recent-item:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-primary);
+}
+
+.search-link {
+  border: none;
+  background: none;
+  color: var(--harmony-primary);
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+}
+
+.search-button {
+  padding: var(--space-2) var(--space-4);
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--harmony-primary);
+  color: var(--text-on-primary);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+
+.search-button:hover {
+  background: var(--harmony-primary-hover);
+}
+
+.search-pager {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  padding-top: var(--space-2);
+}
+
+.search-page {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 32px;
+  justify-content: center;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-sm);
+  background: var(--background-secondary);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+
+.search-page.active {
+  background: var(--harmony-primary);
+  border-color: var(--harmony-primary);
+  color: var(--text-on-primary);
+}
+
+.search-page:disabled:not(.active) {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.search-page:hover:not(:disabled):not(.active) {
+  color: var(--text-primary);
+  border-color: var(--border-hover);
 }
 </style>
 
+<style>
+.message-search-modal.modal-container {
+  height: min(90vh, 900px);
+}
+
+.message-search-modal .modal-body {
+  max-height: none;
+  overflow: hidden;
+}
+</style>

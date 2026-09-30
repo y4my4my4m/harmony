@@ -378,9 +378,6 @@
     "deleted": "Mensaje eliminado",
     "system": "Sistema",
     "pinned": "Mensajes fijados",
-    "search": "Buscar mensajes",
-    "noResults": "No se encontraron mensajes",
-    "searchPlaceholder": "Buscar en este canal...",
     "jumpTo": "Ir al mensaje",
     "copyID": "Copiar ID del mensaje",
     "noMessagesHere": "No hay mensajes aquí, ¡escribe algo!",
@@ -392,37 +389,17 @@
     "dmBeginning": "Este es el comienzo de tus mensajes directos con {name}.",
     "groupBeginning": "Este es el comienzo del grupo {name}.",
     "jumpInConversation": "Saltar en la conversación",
-    "searchingMessages": "Buscando mensajes...",
-    "searchError": "Error de búsqueda",
-    "tryAdjustSearch": "Intenta ajustar tu consulta de búsqueda o filtros.",
-    "searchAcrossMessages": "Busca en todos tus mensajes con potentes filtros.",
-    "recentSearches": "Búsquedas recientes",
     "reactions": {
       "add": "Añadir reacción",
       "remove": "Quitar reacción",
       "reactedWith": "reaccionó con"
     },
-    "encryptedSearchNotice": "Los mensajes cifrados de extremo a extremo no pueden buscarse desde el servidor. Usa la búsqueda dentro de la conversación para los mensajes directos cifrados.",
     "typing": {
       "single": " está escribiendo...",
       "two": " y {name2} están escribiendo...",
       "three": ", {name2} y {name3} están escribiendo...",
       "many": "Varios usuarios están escribiendo..."
-    },
-    "searchMessages": "Buscar mensajes...",
-    "filters": "Filtros",
-    "channel": "Canal",
-    "fromUser": "De usuario",
-    "dateRange": "Rango de fechas",
-    "hasMedia": "Tiene medios",
-    "hasUrl": "Tiene URL",
-    "clearAll": "Borrar todo",
-    "channelPlaceholder": "Nombre del canal...",
-    "usernamePlaceholder": "Nombre de usuario...",
-    "from": "De",
-    "to": "Para",
-    "user": "Usuario",
-    "yes": "Sí"
+    }
   },
   "voice": {
     "join": "Unirse a voz",

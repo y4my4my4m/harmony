@@ -230,6 +230,7 @@ has_permission	p_user_id uuid, p_server_id uuid, p_permission text, p_channel_id
 import_remote_emoji	p_remote_emoji_id uuid, p_new_name text, p_server_id uuid	uuid	definer	public, pg_temp	anon+authenticated+service_role	client
 increment_unread_mentions		trigger	definer	public, extensions, pg_temp	anon+authenticated+service_role	trigger
 index_message		trigger	definer	public, extensions, pg_temp	service_role	trigger
+index_message_row	p_message messages	void	definer	public, extensions, pg_temp	service_role	unreferenced
 initialize_user_encryption	p_user_id uuid, p_identity_public_key text, p_identity_private_key_encrypted text, p_device_id text	jsonb	definer	public, extensions, pg_temp	anon+authenticated+service_role	unreferenced
 insert_ap_activity_outbound	p_ap_id text, p_ap_type text, p_actor_id uuid, p_actor_ap_id text, p_activity_data jsonb, p_object_id text, p_object_type text, p_to_addresses text[], p_cc_addresses text[], p_origin_domain text	uuid	definer	public, pg_temp	anon+authenticated+service_role	client
 is_author_suspended	p_author_id uuid	boolean	definer	public, pg_temp	service_role	unreferenced
@@ -256,6 +257,7 @@ mark_all_notifications_read	p_user_id uuid	void	definer	public, extensions, pg_t
 mark_notifications_read_by_context	p_context_type text, p_context_id text	integer	definer	public, extensions, pg_temp	anon+authenticated+service_role	client
 mark_server_as_read	p_server_id uuid	void	definer	public, extensions, pg_temp	anon+authenticated+service_role	client
 message_notification_sender_json	p_user_id uuid, p_bot_id uuid, p_metadata jsonb, p_sender_profile profiles	jsonb	invoker	public, pg_temp	anon+authenticated+service_role	unreferenced
+message_search_flags	p_message messages, OUT has_media boolean, OUT has_url boolean, OUT has_image boolean, OUT has_video boolean, OUT has_audio boolean, OUT has_embed boolean, OUT is_pinned boolean, OUT mentioned_user_ids uuid[]	record	invoker	public, extensions, pg_temp	service_role	unreferenced
 moderate_user	p_admin_id uuid, p_target_user_id uuid, p_action text, p_reason text	boolean	definer	public, pg_temp	anon+authenticated+service_role	client
 normalize_embed_url	p_url text	text	invoker	public, extensions, pg_temp	anon+authenticated+service_role	unreferenced
 notification_actor_json	p profiles	jsonb	invoker	public, pg_temp	anon+authenticated+service_role	unreferenced
@@ -313,7 +315,7 @@ sanitize_server_text		trigger	invoker	public, extensions, pg_temp	anon+authentic
 sanitize_user_list_text		trigger	invoker	public, extensions, pg_temp	anon+authenticated+service_role	trigger
 save_recovery_codes	p_user_id uuid, p_codes text[]	void	definer	public, pg_catalog, pg_temp	anon+authenticated+service_role	client
 search_federated_users	p_query text, p_limit integer	TABLE(user_id uuid, username text, display_name text, domain text, avatar_url text, handle text, is_local boolean)	invoker	public, extensions, pg_temp	anon+authenticated+service_role	client
-search_messages	p_query text, p_channel_id uuid, p_channel_ids uuid[], p_user_id uuid, p_conversation_id uuid, p_server_id uuid, p_has_media boolean, p_has_url boolean, p_from_date timestamp with time zone, p_to_date timestamp with time zone, p_limit integer, p_offset integer	TABLE(message_id uuid, relevance real, content_text text, channel_id uuid, conversation_id uuid, user_id uuid, created_at timestamp with time zone)	invoker	public, extensions, pg_temp	anon+authenticated+service_role	client
+search_messages	p_query text, p_channel_id uuid, p_channel_ids uuid[], p_user_id uuid, p_conversation_id uuid, p_server_id uuid, p_has_media boolean, p_has_url boolean, p_from_date timestamp with time zone, p_to_date timestamp with time zone, p_limit integer, p_offset integer, p_user_ids uuid[], p_mentioned_user_ids uuid[], p_has_image boolean, p_has_video boolean, p_has_audio boolean, p_has_embed boolean, p_pinned boolean, p_sort text, p_with_total boolean	TABLE(message_id uuid, relevance real, content_text text, channel_id uuid, conversation_id uuid, user_id uuid, created_at timestamp with time zone, server_id uuid, total_count bigint)	definer	public, pg_temp	authenticated+service_role	client
 seed_channel_encryption_on_insert		trigger	definer	public, extensions, pg_temp	service_role	trigger
 seed_channel_encryption_settings	p_channel_ids uuid[]	void	definer	public, extensions, pg_temp	service_role	unreferenced
 send_notification	p_notification_type character varying, to_user_ids uuid[], notification_data jsonb, p_server_id uuid, p_channel_id uuid, p_conversation_id uuid, p_from_user_id uuid, p_priority character varying	uuid[]	definer	public, pg_temp	service_role	unreferenced

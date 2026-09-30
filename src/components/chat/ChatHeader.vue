@@ -57,7 +57,8 @@
       <button 
         class="action-btn search-btn"
         @click="handleSearchClick"
-        title="Search in channel"
+        title="Search messages"
+        aria-label="Search messages"
       >
         <Icon name="search" :size="16" />
       </button>

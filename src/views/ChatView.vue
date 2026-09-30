@@ -237,108 +237,54 @@ watch(() => route.query.messageId, async (messageId) => {
   }
 }, { immediate: true })
 
-// Function to scroll to and highlight a message
+const waitForMessages = async () => {
+  if (!isLoading.value) return
+  await new Promise<void>((resolve) => {
+    const stop = watch(isLoading, (loading) => {
+      if (!loading) {
+        stop()
+        resolve()
+      }
+    })
+  })
+}
+
+// The list is virtualized: an off-window row has no element, and offsetTop is relative to
+// its virtual row. The stores' jump loads the message when needed; MessageDisplay scrolls to
+// its index and highlights it. The first page lands first, since it replaces the list.
 const scrollToMessage = async (messageId: string) => {
+  await waitForMessages()
   await nextTick()
-  
-  // Wait a bit for messages to load
-  await new Promise(resolve => setTimeout(resolve, 300))
-  
-  const messageElement = document.getElementById(`message-${messageId}`)
-  if (messageElement) {
-    const scrollContainer = messageElement.closest('.message-display') as HTMLElement
-    if (scrollContainer) {
-      const elementTop = messageElement.offsetTop
-      const elementHeight = messageElement.offsetHeight
-      const containerHeight = scrollContainer.clientHeight
-      const scrollTop = elementTop - (containerHeight / 2) + (elementHeight / 2)
-      
-      // Smooth scroll without using scrollIntoView to avoid UI deformation
-      scrollContainer.scrollTo({
-        top: Math.max(0, scrollTop),
-        behavior: 'smooth'
-      })
-    } else {
-      // Fallback to scrollIntoView if container not found
-      messageElement.scrollIntoView({ 
-        behavior: 'smooth', 
-        block: 'nearest', // Use 'nearest' instead of 'center' to minimize shifts
-        inline: 'nearest'
-      })
-    }
-    
-    const notificationStore = useNotificationStore()
-    const notification = notificationStore.notifications.find(n => 
-      n.data?.message?.id === messageId || n.data?.message_id === messageId
-    )
-    if (notification) {
-      await notificationStore.markAsRead(notification.id)
-    }
-    
-    // Highlight the message
-    messageElement.classList.add('highlighted')
-    setTimeout(() => {
-      messageElement.classList.remove('highlighted')
-    }, 3000)
-    
-    // Highlight search query text if available
-    const searchQuery = route.query.searchQuery as string
-    if (searchQuery) {
-      highlightSearchText(messageElement, searchQuery)
-    }
+
+  let found = false
+  if (props.isDM) {
+    found = await dmStore.jumpToMessage(messageId)
   } else {
-    // Message not loaded yet, try to jump to it
-    const searchQuery = route.query.searchQuery as string
-    
-    if (!props.isDM) {
-      const channelId = route.params.channelId as string
-      if (channelId) {
-        const chatStore = useChatStore()
-        await chatStore.jumpToMessage(messageId, channelId)
-        // Retry after jump
-        await nextTick()
-        await new Promise(resolve => setTimeout(resolve, 500))
-        const retryElement = document.getElementById(`message-${messageId}`)
-        if (retryElement) {
-          retryElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
-          retryElement.classList.add('highlighted')
-          setTimeout(() => retryElement.classList.remove('highlighted'), 3000)
-          if (searchQuery) {
-            highlightSearchText(retryElement, searchQuery)
-          }
-        }
-        // Mark notification as read after jump regardless of element visibility
-        const notificationStore = useNotificationStore()
-        const jumpNotification = notificationStore.notifications.find(n => 
-          (n.data?.message?.id === messageId || n.data?.message_id === messageId) && !n.is_read
-        )
-        if (jumpNotification) {
-          await notificationStore.markAsRead(jumpNotification.id)
-        }
-      }
-    } else {
-      // For DMs, try to fetch the message if not loaded
-      const conversationId = route.params.conversationId as string
-      if (conversationId) {
-        // Messages should already be loaded, but wait a bit more
-        await new Promise(resolve => setTimeout(resolve, 500))
-        const retryElement = document.getElementById(`message-${messageId}`)
-        if (retryElement) {
-          retryElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
-          retryElement.classList.add('highlighted')
-          setTimeout(() => retryElement.classList.remove('highlighted'), 3000)
-          if (searchQuery) {
-            highlightSearchText(retryElement, searchQuery)
-          }
-        }
-      }
-    }
+    const channelId = route.params.channelId as string
+    if (channelId) found = await chatStore.jumpToMessage(messageId, channelId)
+  }
+  if (!found) debug.warn(`Could not jump to message: ${messageId}`)
+
+  const notificationStore = useNotificationStore()
+  const notification = notificationStore.notifications.find(n =>
+    (n.data?.message?.id === messageId || n.data?.message_id === messageId) && !n.is_read
+  )
+  if (notification) {
+    await notificationStore.markAsRead(notification.id)
+  }
+
+  const searchQuery = route.query.searchQuery as string
+  if (found && searchQuery) {
+    // MessageDisplay scrolls 100 ms after the jump; the row renders once it is in view.
+    await new Promise(resolve => setTimeout(resolve, 400))
+    const messageElement = document.getElementById(`message-${messageId}`)
+    if (messageElement) highlightSearchText(messageElement, searchQuery)
   }
 }
 
 // Function to highlight search text within message content
 const highlightSearchText = (messageElement: HTMLElement, query: string) => {
-  const contentElements = messageElement.querySelectorAll('.message-content, .result-content')
+  const contentElements = messageElement.querySelectorAll('.unified-content .text-content')
   const searchTerms = query.trim().split(/\s+/).filter(term => term.length > 0)
   
   contentElements.forEach(element => {
