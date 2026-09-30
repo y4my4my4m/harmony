@@ -27,14 +27,12 @@ clear_orphaned_public_keys	service key	service_role
 create_default_notification_preferences	service key	service_role
 create_notification_structured	service key	service_role
 create_notification_with_spam_prevention	service key	service_role
-detect_message_features	service key	service_role
 disable_federation_triggers	service key	service_role
 enable_conversation_encryption	service key	service_role
 enable_federation_triggers	service key	service_role
 end_user_session	service key	service_role
 generate_livekit_token	service key	service_role
 get_batch_post_reactions	http anon	anon+authenticated+service_role
-get_channel_server_id	service key	service_role
 get_conversation_context	http anon	anon+authenticated+service_role
 get_conversation_encryption_status	service key	service_role
 get_conversation_participants	service key	service_role
@@ -49,6 +47,7 @@ get_unread_notification_count	service key	service_role
 get_unused_prekey	service key	service_role
 get_user_prekey_bundle	service key	service_role
 get_voice_channel_participants	service key	service_role
+has_blocked	http anon	anon+authenticated+service_role
 has_muted	service key	service_role
 initialize_user_encryption	http anon	anon+authenticated+service_role
 is_author_suspended	service key	service_role
