@@ -119,6 +119,7 @@
           @mouseover="handleMessageMouseover(item.message.id)" 
           @mouseleave="handleMessageMouseleave"
           @click="clearDividerIfMessageRead(item.message)"
+          @mousedown="handleMessageMouseDown"
           @dblclick="handleMessageDoubleClick(item.message.id, $event)"
           @touchstart.passive="handleMessageTouchStart(item.message.id, $event)"
           @touchend.passive="handleMessageTouchEnd(item.message.id)"
@@ -667,6 +668,7 @@ import type { ThreadWithDetails } from '@/services/ThreadService';
 import { messagePartsToMarkdown, isSingleEmojiMessage as checkSingleEmoji, stripLeadingSelfMention } from '@/utils/messageContentUtils';
 import { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData, resolveRoleMentionsData } from '@/utils/unifiedContentProcessing';
 import { buildChatParseOptions } from '@/utils/chatParseOptions';
+import { isPointOverText, isQuickReactDoubleClick, type PointerDown } from '@/utils/quickReactGesture';
 import { useReactionsStore } from '@/stores/useReactions';
 import { usePostReactionsStore } from '@/stores/postReactions';
 import { useVirtualizer, defaultRangeExtractor, type Range } from '@tanstack/vue-virtual';
@@ -1465,12 +1467,21 @@ const handleMessageTouchMove = () => {
   }
 };
 
-// Desktop double-click to quick-react. Clears the accidental text selection
-// that a double-click would otherwise leave behind.
+// Desktop double-click to quick-react; the rules are in isQuickReactDoubleClick.
+let quickReactFirstDown: PointerDown | null = null;
+
+const handleMessageMouseDown = (event: MouseEvent) => {
+  if (event.detail <= 1) {
+    quickReactFirstDown = { x: event.clientX, y: event.clientY, time: event.timeStamp };
+  }
+};
+
 const handleMessageDoubleClick = (messageId: string, event: MouseEvent) => {
-  // Don't hijack double-clicks on interactive content (links, media, code).
-  const target = event.target as HTMLElement | null;
-  if (target?.closest('a, button, img, video, input, textarea, [contenteditable="true"]')) return;
+  const firstDown = quickReactFirstDown;
+  quickReactFirstDown = null;
+  if (!quickReact.enabled.value) return;
+  if (!isQuickReactDoubleClick(event, firstDown, isPointOverText(event.clientX, event.clientY))) return;
+  // Hit-testing beside a line of text selects its nearest word.
   window.getSelection?.()?.removeAllRanges();
   triggerQuickReact(messageId);
 };
