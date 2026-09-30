@@ -172,7 +172,14 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
     },
 
     async initializeSelective(priorityServerIds: string[] = [], backgroundServerIds: string[] = []) {
-      if (this.isInitialized) return;
+      // Callers initialize per route and may name servers the first caller did
+      // not; an initialized cache still loads any it lacks.
+      if (this.isInitialized) {
+        const missing = [...priorityServerIds, ...backgroundServerIds]
+          .filter(id => !this.serverCaches.has(id));
+        if (missing.length > 0) await this.loadEmojisForServers(missing);
+        return;
+      }
       
       debug.log('Initializing emoji cache system (selective loading)...');
       debug.log(`Priority servers: ${priorityServerIds.length}, Background: ${backgroundServerIds.length}`);

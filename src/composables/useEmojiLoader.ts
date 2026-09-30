@@ -32,6 +32,9 @@ export async function ensureEmojiDataLoaded(): Promise<void> {
   }
 
   emojiDataLoadPromise = (async () => {
+    // A call made before the server list loads has nothing to fetch and must
+    // not start the cooldown.
+    let loadedServers = false
     try {
       const emojiCacheStore = useEmojiCacheStore()
       const serverChannelStore = useServerChannelStore()
@@ -52,6 +55,7 @@ export async function ensureEmojiDataLoaded(): Promise<void> {
             currentServerId ? [currentServerId] : [],
             otherServerIds
           )
+          loadedServers = true
           debug.log('Emoji cache initialized')
         }
       } else {
@@ -60,12 +64,13 @@ export async function ensureEmojiDataLoaded(): Promise<void> {
         const allServerIds = serverChannelStore.servers.map(server => server.id)
         if (allServerIds.length > 0) {
           await emojiCacheStore.loadEmojisForServers(allServerIds)
+          loadedServers = true
         }
       }
     } catch (error) {
       debug.warn('Failed to load emoji data:', error)
     } finally {
-      emojiDataLoadCompletedAt = Date.now()
+      if (loadedServers) emojiDataLoadCompletedAt = Date.now()
       emojiDataLoadPromise = null
     }
   })()

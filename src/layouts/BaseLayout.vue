@@ -523,12 +523,12 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
       }
       
       const allServerIds = serverChannelStore.servers.map(server => server.id)
-      const otherServerIds = allServerIds.filter(id => id !== strategy.currentServerId)
-      
-      if (strategy.currentServerId) {
+      const priorityServerId = strategy.currentServerId || allServerIds[0]
+
+      if (priorityServerId) {
         await emojiCacheStore.initializeSelective(
-          [strategy.currentServerId],
-          otherServerIds
+          [priorityServerId],
+          allServerIds.filter(id => id !== priorityServerId)
         )
       }
     }
@@ -549,7 +549,10 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
       const allServerIds = serverChannelStore.servers.map(server => server.id)
       if (allServerIds.length > 0) {
         const defaultServerId = serverChannelStore.currentServerId || allServerIds[0]
-        await emojiCacheStore.initializeSelective([defaultServerId], [])
+        await emojiCacheStore.initializeSelective(
+          [defaultServerId],
+          allServerIds.filter(id => id !== defaultServerId)
+        )
       }
       
       if (strategy.routeType === 'dm' && strategy.currentConversationId) {
@@ -590,7 +593,10 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
       const allServerIds = serverChannelStore.servers.map(server => server.id)
       if (allServerIds.length > 0) {
         const defaultServerId = serverChannelStore.currentServerId || allServerIds[0]
-        await emojiCacheStore.initializeSelective([defaultServerId], [])
+        await emojiCacheStore.initializeSelective(
+          [defaultServerId],
+          allServerIds.filter(id => id !== defaultServerId)
+        )
       }
     }
     
