@@ -665,7 +665,7 @@ async function deleteGroup() {
   border-radius: var(--radius-md);
   background: var(--background-primary);
   color: var(--text-primary);
-  font-size: var(--font-size-md);
+  font-size: var(--font-size-base);
 }
 
 .group-name-input:focus {

@@ -1259,10 +1259,10 @@ watch(() => notificationStore.preferences, (newPreferences) => {
 .dnd-status {
   padding: 4px 8px;
   border-radius: var(--radius-sm);
-font-size: var(--font-size-xs);
+  font-size: var(--font-size-xs);
   font-weight: var(--font-weight-medium);
-  background: color-mix(in srgb, var(--error) 10%, transparent);
-  color: var(--error);
+  background: var(--background-modifier-hover);
+  color: var(--text-muted);
 }
 
 .dnd-status.active {

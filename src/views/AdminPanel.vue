@@ -14,10 +14,6 @@
           <Icon name="refresh" :size="16" />
           Refresh
         </button>
-        <button @click="exportLogs" class="action-btn export-btn">
-          <Icon name="download" :size="16" />
-          Export logs
-        </button>
       </div>
     </div>
 
@@ -356,11 +352,6 @@ const loadSystemHealth = async () => {
 
 const refreshData = async () => {
   await loadInitialData()
-}
-
-const exportLogs = () => {
-  // Export system logs
-  debug.log('Exporting logs...')
 }
 
 // Utility functions
