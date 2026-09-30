@@ -27,6 +27,7 @@ clear_orphaned_public_keys	service key	service_role
 create_default_notification_preferences	service key	service_role
 create_notification_structured	service key	service_role
 create_notification_with_spam_prevention	service key	service_role
+current_user_is_member_of_server	http anon	anon+authenticated+service_role
 disable_federation_triggers	service key	service_role
 enable_conversation_encryption	service key	service_role
 enable_federation_triggers	service key	service_role

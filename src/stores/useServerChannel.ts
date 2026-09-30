@@ -17,6 +17,9 @@ import router from '@/router';
 const pendingReorderWrites = new Map<string, number>();
 const REORDER_ECHO_TTL = 5000;
 
+let visibleChannelRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+const VISIBLE_CHANNEL_REFRESH_MS = 500;
+
 export const useServerChannelStore = defineStore('serverChannel', {
   state: () => ({
     servers: [] as Server[],
@@ -1764,10 +1767,12 @@ export const useServerChannelStore = defineStore('serverChannel', {
 
           switch (type) {
             case 'channel:insert':
-              this._handleChannelInsert(data);
+              if (data.restricted) void this._reconcileRestrictedChannel(data);
+              else this._handleChannelInsert(data);
               break;
             case 'channel:update':
-              this._handleChannelUpdate(data);
+              if (data.restricted) void this._reconcileRestrictedChannel(data);
+              else this._handleChannelUpdate(data);
               break;
             case 'channel:delete':
               this._handleChannelDelete(data);
@@ -1799,15 +1804,23 @@ export const useServerChannelStore = defineStore('serverChannel', {
             case 'role:update':
             case 'role:delete':
               window.dispatchEvent(new CustomEvent('server-structure:role-change', { detail: data }));
+              this._scheduleVisibleChannelRefresh(serverId);
               break;
             case 'user_role:insert':
-            case 'user_role:delete':
+            case 'user_role:delete': {
               window.dispatchEvent(new CustomEvent('server-structure:user-role-change', { detail: data }));
+              // Every join inserts an @everyone assignment; only the caller's own rows move
+              // their channel set.
+              const ctx = await authContextService.getCurrentContext();
+              const assignee = data.new?.user_id ?? data.old?.user_id;
+              if (ctx.profileId && assignee === ctx.profileId) this._scheduleVisibleChannelRefresh(serverId);
               break;
+            }
             case 'permission_override:insert':
             case 'permission_override:update':
             case 'permission_override:delete':
               window.dispatchEvent(new CustomEvent('server-structure:permission-change', { detail: data }));
+              this._scheduleVisibleChannelRefresh(serverId);
               break;
           }
         })
@@ -1831,6 +1844,55 @@ export const useServerChannelStore = defineStore('serverChannel', {
         await this.serverStructureSubscription.unsubscribe();
         this.serverStructureSubscription = null;
       }
+    },
+
+    /**
+     * channels RLS follows VIEW_CHANNEL, so a role or override change can add or remove
+     * channels for this user. Bursts of changes collapse into one refetch.
+     */
+    _scheduleVisibleChannelRefresh(serverId: string): void {
+      if (visibleChannelRefreshTimer) clearTimeout(visibleChannelRefreshTimer);
+      visibleChannelRefreshTimer = setTimeout(() => {
+        visibleChannelRefreshTimer = null;
+        if (this.currentServerId !== serverId) return;
+        this.fetchCategoriesAndChannels(serverId, undefined, true).catch((err) => {
+          debug.error('Failed to refresh visible channels:', err);
+        });
+      }, VISIBLE_CHANNEL_REFRESH_MS);
+    },
+
+    /**
+     * A channel some member cannot view arrives without its row (broadcast_channel_change
+     * sends ids only). channels RLS decides whether this user sees it.
+     */
+    async _reconcileRestrictedChannel(payload: any): Promise<void> {
+      const id = payload.new?.id as string | undefined;
+      if (!id) return;
+
+      const pendingExpiry = pendingReorderWrites.get(id);
+      if (pendingExpiry !== undefined) {
+        pendingReorderWrites.delete(id);
+        if (pendingExpiry > Date.now()) return;
+      }
+
+      const { data, error } = await supabase
+        .from('channels')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (error) {
+        debug.error('Failed to refetch restricted channel:', error);
+        return;
+      }
+
+      const existing = this.channels.find(c => c.id === id);
+      if (!data) {
+        if (existing) this._handleChannelDelete({ old: existing });
+        return;
+      }
+      if (existing) this._handleChannelUpdate({ new: data, old: existing });
+      else this._handleChannelInsert({ new: data });
     },
 
     /**
