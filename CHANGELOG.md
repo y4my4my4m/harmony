@@ -7,6 +7,61 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-09-30
+
+### Added
+- **Onboarding**: invite links survive login, registration and profile setup
+  and open the invited server afterwards. Profile setup is a single form with
+  the username prefilled from the email or OAuth profile. The no-servers page
+  takes a pasted invite link or code, local or remote.
+- **Bot developer panel**: bot ID, gateway and REST URLs, token reset with a
+  shown-once dialog, and "Add to server". Bot creation and token rotation run
+  as single server-side transactions (`create_bot`, `rotate_bot_token`).
+- **Social**: alt text on attachments, an "N new posts" queue while scrolled,
+  skeleton and error states, Requested/Unfollow follow states, and connected
+  threads.
+- Escape cancels the reply being composed.
+
+### Changed
+- Server discovery shows only real data: actual member counts, featured
+  servers only when featured, no activity indicator on every card. Search
+  matches the browse results and tolerates punctuation.
+- Social timelines, tabs and post cards are flatter and labelled; one header
+  per page; "Boost" throughout.
+- Design-system buttons are flat fills; emoji used as icons are replaced with
+  icons; auth and onboarding screens drop decorative animation.
+- Server bot settings offer only the permissions the gateway enforces.
+- Messages are delivered over Broadcast with authorised topics.
+
+### Fixed
+- **Profiles could be created with moderator or admin flags set.** The insert
+  path accepted `is_admin` and related columns from the client; they are now
+  forced to false on insert.
+- **A bot could change the displayed author of other messages** in channels
+  it could post in, through the message metadata route.
+- The last server and channel were not remembered between sessions.
+- Server custom emoji failed to load when the app opened on DMs or Social.
+- On Android 15 and later the keyboard covered the message input.
+- Server creation could produce a duplicate server after a partial failure.
+- Invite previews showed 0 members to people outside the server.
+- A temporary network error sent existing users into profile creation.
+- Emoji reactions that federated back to their origin split into two chips;
+  existing duplicates are repaired.
+- Several listener, timer and media leaks; DM messages dropped by the
+  conversation channel are recovered.
+
+### Removed
+- Settings that were marked "Coming soon" and did nothing, and an admin chart
+  of hard-coded request numbers.
+- The unreachable admin bot management page.
+
+### Notes for self-hosters
+- Four migrations since 1.5.0; `bootstrap.sh --migrations-only` applies them.
+  `20260821000001` deletes federated duplicates of reactions and rewrites
+  their shortcodes; take a backup first.
+- The federation worker no longer inherits the image healthcheck, which
+  reported it unhealthy while it processed jobs.
+
 ## [1.5.0] - 2026-08-06
 
 ### Added
@@ -192,7 +247,8 @@ Key features at this snapshot:
 - Tauri desktop app and web app from the same codebase
 - Self-hosting via Docker Compose; install script under `scripts/install.sh`
 
-[Unreleased]: https://github.com/y4my4my4m/harmony/compare/v1.5.0...HEAD
+[Unreleased]: https://github.com/y4my4my4m/harmony/compare/v1.6.0...HEAD
+[1.6.0]: https://github.com/y4my4my4m/harmony/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/y4my4my4m/harmony/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/y4my4my4m/harmony/compare/v1.1.0...v1.4.0
 [1.1.0]: https://github.com/y4my4my4m/harmony/releases/tag/v1.1.0
