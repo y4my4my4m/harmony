@@ -412,6 +412,10 @@ optgroup {
  * with the same pattern, add it here.
  */
 [data-disable-blur="true"] .modal-container,
+[data-disable-blur="true"] .more-menu,
+[data-disable-blur="true"] .notification-panel,
+[data-disable-blur="true"] .pinned-messages-drawer,
+[data-disable-blur="true"] .device-dropdown,
 [data-disable-blur="true"] .modal-content,
 [data-disable-blur="true"] .public-servers-modal,
 [data-disable-blur="true"] .create-server-modal,
@@ -1122,6 +1126,45 @@ div.loading:has(> .harmony-spinner) {
   .hidden-desktop {
     display: none !important;
   }
+}
+
+/*
+ * Glass: floating surfaces are translucent and blur what is behind them. The
+ * Appearance "blur" toggle sets data-disable-blur on :root, which drops the
+ * blur and forces these same surfaces opaque (rules above). Specificity
+ * (0,3,0) outranks component scoped styles (0,2,0).
+ */
+:root {
+  --glass-blur: 16px;
+  --glass-bg: color-mix(in srgb, var(--background-secondary) 82%, transparent);
+}
+
+:root:not([data-disable-blur="true"]) :is(
+  .modal-container,
+  .public-servers-modal,
+  .create-server-modal,
+  .context-menu,
+  .action-dropdown,
+  .more-menu,
+  .notification-panel,
+  .message-actions,
+  .file-upload-menu,
+  .media-picker-popup,
+  .emoji-popup,
+  .pinned-messages-drawer,
+  .threads-modal,
+  .voice-dock,
+  .device-dropdown,
+  .spatial-audio-panel,
+  .incoming-call-modal,
+  .funding-modal,
+  .report-modal,
+  .announcement-popup,
+  .Vue-Toastification__toast
+) {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.3);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.3);
 }
 
 /* Default keyboard focus ring. :where() keeps specificity at zero so any
