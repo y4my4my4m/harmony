@@ -3,10 +3,10 @@
 <div class="admin-module users-module">
   <div class="module-header">
     <Icon name="users" :size="20" />
-    <h2>User Management</h2>
+    <h2>User management</h2>
     <div class="search-bar">
       <Icon name="search" :size="16" />
-      <input v-model="userSearch" placeholder="Search users..." class="cyber-input" />
+      <input v-model="userSearch" placeholder="Search users…" class="cyber-input" />
     </div>
   </div>
   <div class="users-content">
@@ -68,7 +68,7 @@
             @click="toggleModerator(user)"
             class="mod-btn"
             :class="user.is_moderator ? 'demote-btn' : 'promote-btn'"
-            :title="user.is_moderator ? 'Remove Moderator' : 'Make Moderator'"
+            :title="user.is_moderator ? 'Remove moderator' : 'Make moderator'"
           >
             <Icon :name="user.is_moderator ? 'shield-off' : 'shield'" :size="16" />
           </button>
@@ -152,7 +152,7 @@
       <div class="modal-body">
         <div v-if="loadingServers" class="loading-state">
           <LoadingSpinner :size="20" />
-          <span>Loading servers...</span>
+          <span>Loading servers…</span>
         </div>
         <div v-else-if="userServers.length === 0" class="empty-state">
           <Icon name="server" :size="32" />
@@ -245,7 +245,7 @@ const loadingServers = ref(false)
 const users = ref<AdminUser[]>([])
 const userCounts = ref({ total: 0, local: 0, federated: 0, suspended: 0 })
 const userFilters = computed(() => [
-  { key: 'all', label: 'All Users', count: userCounts.value.total },
+  { key: 'all', label: 'All users', count: userCounts.value.total },
   { key: 'local', label: 'Local', count: userCounts.value.local },
   { key: 'federated', label: 'Federated', count: userCounts.value.federated },
   { key: 'suspended', label: 'Suspended', count: userCounts.value.suspended }
@@ -322,7 +322,7 @@ const toggleModerator = async (user: any) => {
     window.dispatchEvent(new CustomEvent('admin:activity-changed'))
   } catch (error) {
     debug.error('Failed to toggle moderator status:', error)
-    toast.error('Failed to update moderator status.')
+    toast.error('Failed to update moderator status')
   }
 }
 
@@ -351,41 +351,41 @@ const moderateUser = async (user: any, action: string) => {
       await adminService.moderateUser(user.id, 'suspend', reason, authStore.session?.user?.id || '')
       patchUserRow(user.id, { is_suspended: true, suspension_reason: reason })
       window.dispatchEvent(new CustomEvent('admin:activity-changed'))
-      toast.success(`User ${user.username} has been suspended.`)
+      toast.success(`User ${user.username} suspended`)
     } else if (action === 'unsuspend') {
       if (!(await confirm({ title: 'Unsuspend user', message: `Are you sure you want to unsuspend user ${user.username}?`, confirmButtonText: 'Unsuspend' }))) return
       await adminService.moderateUser(user.id, 'unsuspend', 'Admin unsuspend', authStore.session?.user?.id || '')
       patchUserRow(user.id, { is_suspended: false, suspension_reason: null })
       window.dispatchEvent(new CustomEvent('admin:activity-changed'))
-      toast.success(`User ${user.username} has been unsuspended.`)
+      toast.success(`User ${user.username} unsuspended`)
     } else if (action === 'delete') {
       if (!(await confirm({ title: 'Delete user', message: `Are you sure you want to delete user ${user.username}? This cannot be undone.`, confirmButtonText: 'Delete', dangerAction: true }))) return
       await adminService.moderateUser(user.id, 'delete', 'Admin deletion', authStore.session?.user?.id || '')
       patchUserRow(user.id, null)
       window.dispatchEvent(new CustomEvent('admin:activity-changed'))
-      toast.success(`User ${user.username} has been deleted.`)
+      toast.success(`User ${user.username} deleted`)
     } else if (action === 'force_sensitive') {
       const reason = prompt('Reason for marking all media as sensitive:')
       if (!reason) return
       await adminService.moderateUser(user.id, 'force_sensitive', reason, authStore.session?.user?.id || '')
       patchUserRow(user.id, { force_sensitive: true })
-      toast.success(`All future media from ${user.username} will be marked sensitive.`)
+      toast.success(`All future media from ${user.username} will be marked sensitive`)
     } else if (action === 'unforce_sensitive') {
       if (!(await confirm({ title: 'Remove force-sensitive', message: `Remove force-sensitive from ${user.username}?`, confirmButtonText: 'Remove' }))) return
       await adminService.moderateUser(user.id, 'unforce_sensitive', '', authStore.session?.user?.id || '')
       patchUserRow(user.id, { force_sensitive: false })
-      toast.success(`Force-sensitive removed from ${user.username}.`)
+      toast.success(`Force-sensitive removed from ${user.username}`)
     } else if (action === 'silence') {
       const reason = prompt('Reason for silencing (hidden from public timelines):')
       if (!reason) return
       await adminService.moderateUser(user.id, 'silence', reason, authStore.session?.user?.id || '')
       patchUserRow(user.id, { is_silenced: true, silenced_reason: reason })
-      toast.success(`User ${user.username} has been silenced.`)
+      toast.success(`User ${user.username} silenced`)
     } else if (action === 'unsilence') {
       if (!(await confirm({ title: 'Remove silence', message: `Remove silence from ${user.username}?`, confirmButtonText: 'Remove' }))) return
       await adminService.moderateUser(user.id, 'unsilence', '', authStore.session?.user?.id || '')
       patchUserRow(user.id, { is_silenced: false, silenced_reason: null })
-      toast.success(`User ${user.username} has been unsilenced.`)
+      toast.success(`User ${user.username} unsilenced`)
     }
   } catch (error: any) {
     debug.error('Failed to moderate user:', error)
@@ -464,7 +464,7 @@ onUnmounted(() => window.removeEventListener('admin:users-changed', onUsersChang
   padding: 8px 16px;
   background: var(--background-tertiary);
   border: 1px solid var(--border-color);
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   color: var(--text-secondary);
   font-size: 14px;
   font-weight: 500;
@@ -477,8 +477,8 @@ onUnmounted(() => window.removeEventListener('admin:users-changed', onUsersChang
 
 
 .filter-btn:hover, .filter-btn.active {
-  background: var(--accent-color);
-  border-color: var(--accent-color);
+  background: var(--harmony-primary);
+  border-color: var(--harmony-primary);
   color: var(--text-primary);
 }
 
@@ -535,7 +535,7 @@ onUnmounted(() => window.removeEventListener('admin:users-changed', onUsersChang
   padding: 16px;
   background: var(--background-tertiary);
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   transition: all 0.2s ease;
   margin: 8px 0;
 }
@@ -545,7 +545,7 @@ onUnmounted(() => window.removeEventListener('admin:users-changed', onUsersChang
 
 
 .user-item:hover {
-  border-color: var(--accent-color);
+  border-color: var(--harmony-primary);
 }
 
 
@@ -600,7 +600,7 @@ onUnmounted(() => window.removeEventListener('admin:users-changed', onUsersChang
   font-size: inherit;
   cursor: pointer;
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   transition: all 0.2s ease;
 }
 
@@ -609,9 +609,8 @@ onUnmounted(() => window.removeEventListener('admin:users-changed', onUsersChang
 
 
 .user-stat.clickable:hover {
-  background: rgba(0, 212, 255, 0.1);
-  color: #00d4ff;
-  transform: translateY(-1px);
+  background: color-mix(in srgb, var(--harmony-primary) 10%, transparent);
+  color: var(--harmony-primary);
 }
 
 
@@ -630,7 +629,7 @@ onUnmounted(() => window.removeEventListener('admin:users-changed', onUsersChang
 .mod-btn {
   padding: 6px 8px;
   border: 1px solid var(--border-color);
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   background: var(--background-secondary);
   color: var(--text-secondary);
   cursor: pointer;
@@ -642,7 +641,7 @@ onUnmounted(() => window.removeEventListener('admin:users-changed', onUsersChang
 
 
 .mod-btn:hover {
-  border-color: var(--accent-color);
+  border-color: var(--harmony-primary);
   color: var(--text-primary);
 }
 
@@ -651,8 +650,8 @@ onUnmounted(() => window.removeEventListener('admin:users-changed', onUsersChang
 
 
 .suspend-btn:hover {
-  border-color: #ffc107;
-  color: #ffc107;
+  border-color: var(--warning);
+  color: var(--warning);
 }
 
 
@@ -660,8 +659,8 @@ onUnmounted(() => window.removeEventListener('admin:users-changed', onUsersChang
 
 
 .delete-btn:hover {
-  border-color: #ff453a;
-  color: #ff453a;
+  border-color: var(--error);
+  color: var(--error);
 }
 
 
@@ -669,8 +668,8 @@ onUnmounted(() => window.removeEventListener('admin:users-changed', onUsersChang
 
 
 .unsuspend-btn {
-  border-color: rgba(0, 255, 136, 0.3);
-  color: #00ff88;
+  border-color: color-mix(in srgb, var(--success) 30%, transparent);
+  color: var(--success);
 }
 
 
@@ -678,8 +677,8 @@ onUnmounted(() => window.removeEventListener('admin:users-changed', onUsersChang
 
 
 .unsuspend-btn:hover {
-  border-color: #00ff88;
-  background: rgba(0, 255, 136, 0.1);
+  border-color: var(--success);
+  background: color-mix(in srgb, var(--success) 10%, transparent);
 }
 
 
@@ -689,8 +688,8 @@ onUnmounted(() => window.removeEventListener('admin:users-changed', onUsersChang
 /* Suspended user styling */
 .user-item.user-suspended {
   opacity: 0.25;
-  background: rgba(255, 193, 7, 0.05);
-  border-color: rgba(255, 193, 7, 0.3);
+  background: color-mix(in srgb, var(--warning) 5%, transparent);
+  border-color: color-mix(in srgb, var(--warning) 30%, transparent);
 }
 
 
@@ -710,7 +709,7 @@ onUnmounted(() => window.removeEventListener('admin:users-changed', onUsersChang
 .user-name .badge {
   font-size: 10px;
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-weight: 600;
   text-transform: uppercase;
 }
@@ -720,8 +719,8 @@ onUnmounted(() => window.removeEventListener('admin:users-changed', onUsersChang
 
 
 .promote-btn {
-  color: #2ecc71 !important;
-  &:hover { background: rgba(46, 204, 113, 0.2) !important; }
+  color: var(--success) !important;
+  &:hover { background: color-mix(in srgb, var(--success) 20%, transparent) !important; }
 }
 
 
@@ -729,8 +728,8 @@ onUnmounted(() => window.removeEventListener('admin:users-changed', onUsersChang
 
 
 .demote-btn {
-  color: #e67e22 !important;
-  &:hover { background: rgba(230, 126, 34, 0.2) !important; }
+  color: var(--warning) !important;
+  &:hover { background: color-mix(in srgb, var(--warning) 20%, transparent) !important; }
 }
 
 
@@ -739,7 +738,7 @@ onUnmounted(() => window.removeEventListener('admin:users-changed', onUsersChang
 
 .suspension-reason {
   font-style: italic;
-  color: #ffc107;
+  color: var(--warning);
   max-width: 200px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -752,7 +751,7 @@ onUnmounted(() => window.removeEventListener('admin:users-changed', onUsersChang
 .server-icon {
   width: 100%;
   height: 100%;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   object-fit: cover;
 }
 
@@ -823,13 +822,13 @@ onUnmounted(() => window.removeEventListener('admin:users-changed', onUsersChang
 .modal-content {
   background: var(--background-secondary);
   border: 1px solid var(--border-color);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   max-width: 600px;
   width: 90%;
   max-height: 80vh;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--shadow-large);
 }
 
 
@@ -842,7 +841,6 @@ onUnmounted(() => window.removeEventListener('admin:users-changed', onUsersChang
   align-items: center;
   padding: 20px 24px;
   border-bottom: 1px solid var(--border-color);
-  background: linear-gradient(135deg, rgba(0, 212, 255, 0.05), rgba(0, 255, 136, 0.05));
 }
 
 
@@ -868,7 +866,7 @@ onUnmounted(() => window.removeEventListener('admin:users-changed', onUsersChang
   color: var(--text-secondary);
   cursor: pointer;
   padding: 4px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   transition: all 0.2s ease;
 }
 
@@ -912,7 +910,7 @@ onUnmounted(() => window.removeEventListener('admin:users-changed', onUsersChang
   padding: 16px;
   background: var(--background-tertiary);
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   transition: all 0.2s ease;
 }
 
@@ -921,7 +919,7 @@ onUnmounted(() => window.removeEventListener('admin:users-changed', onUsersChang
 
 
 .server-item:hover {
-  border-color: var(--accent-color);
+  border-color: var(--harmony-primary);
 }
 
 
@@ -931,7 +929,7 @@ onUnmounted(() => window.removeEventListener('admin:users-changed', onUsersChang
 .server-icon {
   width: 48px;
   height: 48px;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   overflow: hidden;
   flex-shrink: 0;
 }
@@ -956,8 +954,8 @@ onUnmounted(() => window.removeEventListener('admin:users-changed', onUsersChang
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, rgba(0, 212, 255, 0.2), rgba(0, 255, 136, 0.2));
-  color: var(--accent-color);
+  background: color-mix(in srgb, var(--harmony-primary) 20%, transparent);
+  color: var(--harmony-primary);
   font-size: 20px;
   font-weight: 700;
 }
@@ -1018,8 +1016,8 @@ onUnmounted(() => window.removeEventListener('admin:users-changed', onUsersChang
 
 
 .mod-btn.warning-btn {
-  background: rgba(250, 166, 26, 0.15);
-  color: #faa61a;
+  background: color-mix(in srgb, var(--warning) 15%, transparent);
+  color: var(--warning);
 }
 
 
@@ -1027,7 +1025,7 @@ onUnmounted(() => window.removeEventListener('admin:users-changed', onUsersChang
 
 
 .mod-btn.warning-btn:hover {
-  background: rgba(250, 166, 26, 0.3);
+  background: color-mix(in srgb, var(--warning) 30%, transparent);
 }
 </style>
 

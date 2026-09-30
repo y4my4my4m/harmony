@@ -12,7 +12,7 @@
         { key: 'federation', label: 'Federation', icon: 'globe' },
         { key: 'branding', label: 'Branding', icon: 'image' },
         { key: 'oauth', label: 'Authentication', icon: 'shield' },
-        { key: 'webrtc', label: 'Voice & Video', icon: 'mic' },
+        { key: 'webrtc', label: 'Voice & video', icon: 'mic' },
       ]"
       :key="tab.key"
       :class="['config-tab-btn', { active: configTab === tab.key }]"
@@ -25,17 +25,17 @@
   <div class="config-sections">
     <!-- General / Chat Settings -->
     <div v-if="configTab === 'general'" class="config-section">
-      <h3>Chat Settings</h3>
+      <h3>Chat settings</h3>
       <div class="setting-group">
-        <label>Max Server Size</label>
+        <label>Max server size</label>
         <input v-model.number="config.chat.maxServerSize" type="number" class="cyber-input" />
       </div>
       <div class="setting-group">
-        <label>Max Message Length</label>
+        <label>Max message length</label>
         <input v-model.number="config.chat.maxMessageLength" type="number" class="cyber-input" />
       </div>
       <div class="setting-group">
-        <label>Max Media Attachments per Post/Message</label>
+        <label>Max media attachments per post/message</label>
         <input v-model.number="config.chat.maxMediaAttachmentsPerPost" type="number" class="cyber-input" min="1" />
         <span class="setting-hint">Maximum images/videos/files per post or chat message. Default: 20.</span>
       </div>
@@ -43,12 +43,12 @@
         <label class="toggle-label">
           <input type="checkbox" v-model="config.chat.allowFileUploads" />
           <span class="toggle-slider"></span>
-          <span class="toggle-text">Allow File Uploads</span>
+          <span class="toggle-text">Allow file uploads</span>
         </label>
         <label class="toggle-label">
           <input type="checkbox" v-model="config.chat.enableVoiceChannels" />
           <span class="toggle-slider"></span>
-          <span class="toggle-text">Enable Voice Channels</span>
+          <span class="toggle-text">Enable voice channels</span>
         </label>
       </div>
 
@@ -174,14 +174,14 @@
         </div>
       </div>
 
-      <h3 style="margin-top: 24px;">Trending & Discovery</h3>
+      <h3 style="margin-top: 24px;">Trending & discovery</h3>
       <div class="setting-group">
-        <label>Trending Posts</label>
+        <label>Trending posts</label>
         <div class="setting-control-row">
           <button type="button" class="primary-btn-sm refresh-trending-btn" @click="refreshTrendingPosts" :disabled="loadingStates.trendingRefresh">
             <Icon v-if="loadingStates.trendingRefresh" name="loader" :size="16" class="spin" />
             <Icon v-else name="refresh-cw" :size="16" />
-            {{ loadingStates.trendingRefresh ? 'Refreshing...' : 'Refresh Trending Now' }}
+            {{ loadingStates.trendingRefresh ? 'Refreshing…' : 'Refresh trending now' }}
           </button>
           <span class="setting-hint">Manually recalculate trending posts. Normally runs every 15 minutes.</span>
         </div>
@@ -189,28 +189,28 @@
 
       <button @click="saveConfig" class="save-btn" :disabled="!configChanged" style="margin-top: 16px;">
         <Icon name="save" :size="16" />
-        Save Changes
+        Save changes
       </button>
     </div>
 
     <!-- Federation Settings -->
     <div v-if="configTab === 'federation'" class="config-section">
-      <h3>Federation Settings</h3>
+      <h3>Federation settings</h3>
       <div class="setting-group">
-        <label>Max Post Length</label>
+        <label>Max post length</label>
         <input v-model.number="config.federation.maxPostLength" type="number" class="cyber-input" />
       </div>
       <div class="setting-group">
-        <label>Delivery Retry Attempts</label>
+        <label>Delivery retry attempts</label>
         <input v-model.number="config.federation.retryAttempts" type="number" class="cyber-input" />
       </div>
       <div class="setting-group">
-        <label>Max Custom Emojis per Server</label>
+        <label>Max custom emojis per server</label>
         <input v-model.number="config.federation.maxCustomEmojisPerServer" type="number" class="cyber-input" min="0" />
         <span class="setting-hint">Maximum custom emojis allowed per server. 0 = unlimited.</span>
       </div>
       <div class="setting-group">
-        <label>Custom Emoji Image Quality</label>
+        <label>Custom emoji image quality</label>
         <input
           v-model.number="config.federation.customEmojiTransformQuality"
           type="number"
@@ -226,7 +226,7 @@
         <label class="toggle-label">
           <input type="checkbox" v-model="config.federation.allowCustomEmojisInDisplayNames" />
           <span class="toggle-slider"></span>
-          <span class="toggle-text">Allow Custom Emojis in Display Names</span>
+          <span class="toggle-text">Allow custom emojis in display names</span>
         </label>
         <span class="setting-hint">
           When off, emojis won't display in names and users can't add them.
@@ -236,26 +236,26 @@
         <label class="toggle-label">
           <input type="checkbox" v-model="config.federation.enableOutbound" />
           <span class="toggle-slider"></span>
-          <span class="toggle-text">Enable Outbound Federation</span>
+          <span class="toggle-text">Enable outbound federation</span>
         </label>
         <label class="toggle-label">
           <input type="checkbox" v-model="config.federation.enableInbound" />
           <span class="toggle-slider"></span>
-          <span class="toggle-text">Enable Inbound Federation</span>
+          <span class="toggle-text">Enable inbound federation</span>
         </label>
       </div>
 
       <button @click="saveConfig" class="save-btn" :disabled="!configChanged" style="margin-top: 16px;">
         <Icon name="save" :size="16" />
-        Save Changes
+        Save changes
       </button>
     </div>
 
     <!-- Instance Branding -->
     <div v-if="configTab === 'branding'" class="config-section">
-      <h3>Instance Branding</h3>
+      <h3>Instance branding</h3>
       <div class="setting-group">
-        <label>Instance Name</label>
+        <label>Instance name</label>
         <input 
           v-model="instanceConfig.name" 
           type="text" 
@@ -268,7 +268,7 @@
         </span>
       </div>
       <div class="setting-group">
-        <label>Instance Description</label>
+        <label>Instance description</label>
         <textarea
           v-model="instanceConfig.description"
           class="cyber-input"
@@ -281,7 +281,7 @@
         </span>
       </div>
       <div class="setting-group">
-        <label>Instance Rules</label>
+        <label>Instance rules</label>
         <textarea
           v-model="instanceRulesText"
           class="cyber-input"
@@ -297,7 +297,7 @@
       <div class="config-subsection">
         <h4>Appearance</h4>
         <div class="setting-group">
-          <label>Instance Icon</label>
+          <label>Instance icon</label>
           <div class="instance-appearance-row">
             <div
               class="instance-icon-preview"
@@ -313,13 +313,13 @@
             </div>
             <div class="instance-appearance-controls">
               <button type="button" class="save-btn" @click="($refs.instanceIconInput as HTMLInputElement)?.click()">
-                Upload Icon
+                Upload icon
               </button>
               <button
                 v-if="instanceConfig.iconUrl || instanceIconFile"
                 type="button"
                 class="save-btn"
-                style="background: #ed4245;"
+                style="background: var(--error);"
                 @click="instanceIconFile = null; instanceConfig.iconUrl = ''; instanceBrandingChanged = true"
               >
                 Remove
@@ -339,7 +339,7 @@
         </div>
 
         <div class="setting-group">
-          <label>Instance Banner</label>
+          <label>Instance banner</label>
           <div
             class="instance-banner-preview"
             :style="instanceBannerPreviewUrl ? { backgroundImage: `url(${instanceBannerPreviewUrl})` } : {}"
@@ -357,10 +357,10 @@
             <button
               type="button"
               class="save-btn"
-              style="background: #ed4245;"
+              style="background: var(--error);"
               @click="instanceBannerFile = null; instanceConfig.bannerUrl = ''; instanceBrandingChanged = true"
             >
-              Remove Banner
+              Remove banner
             </button>
           </div>
           <input
@@ -376,7 +376,7 @@
         </div>
 
         <div class="setting-group">
-          <label>Theme Color</label>
+          <label>Theme color</label>
           <div style="display: flex; align-items: center; gap: 12px;">
             <ColorPicker
               :color="instanceConfig.themeColor || '#0EA5E9'"
@@ -390,13 +390,13 @@
         </div>
 
         <div class="setting-group">
-          <label>Default Theme for New Users</label>
+          <label>Default theme for new users</label>
           <span class="setting-hint" style="margin-bottom: 8px;">
             Import a theme JSON file (exported from Appearance settings) to set as the default for new and non-signed-in users.
           </span>
           <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
             <button type="button" class="save-btn" @click="($refs.defaultThemeInput as HTMLInputElement)?.click()">
-              Import Theme JSON
+              Import theme JSON
             </button>
             <button 
               v-if="instanceConfig.defaultThemeJson"
@@ -404,7 +404,7 @@
               class="delete-btn"
               @click="clearDefaultTheme"
             >
-              Clear Default Theme
+              Clear default theme
             </button>
             <span v-if="instanceConfig.defaultThemeJson" class="setting-hint" style="margin: 0;">
               Default theme is set
@@ -421,7 +421,7 @@
       </div>
 
       <div class="config-subsection">
-        <h4>Legal & Contact</h4>
+        <h4>Legal & contact</h4>
         <div class="setting-group">
           <label>Terms of Service URL</label>
           <input
@@ -449,7 +449,7 @@
           </span>
         </div>
         <div class="setting-group">
-          <label>Maintainer Name</label>
+          <label>Maintainer name</label>
           <input
             v-model="instanceConfig.maintainerName"
             type="text"
@@ -462,7 +462,7 @@
           </span>
         </div>
         <div class="setting-group">
-          <label>Maintainer Email</label>
+          <label>Maintainer email</label>
           <input
             v-model="instanceConfig.maintainerEmail"
             type="email"
@@ -483,13 +483,13 @@
         style="margin-top: 16px;"
       >
         <Icon name="save" :size="16" />
-        {{ savingBranding ? 'Saving...' : 'Save Branding' }}
+        {{ savingBranding ? 'Saving…' : 'Save branding' }}
       </button>
     </div>
 
     <!-- OAuth Providers -->
     <div v-if="configTab === 'oauth'" class="config-section">
-      <h3>OAuth Providers</h3>
+      <h3>OAuth providers</h3>
       <p class="setting-hint" style="margin-bottom: 16px;">
         Enable or disable OAuth login providers. When disabled, the provider will not appear on the login/register page.
       </p>
@@ -538,26 +538,26 @@
         style="margin-top: 16px;"
       >
         <Icon name="save" :size="16" />
-        {{ savingOAuthProviders ? 'Saving...' : 'Save OAuth Settings' }}
+        {{ savingOAuthProviders ? 'Saving…' : 'Save OAuth settings' }}
       </button>
     </div>
 
     <!-- WebRTC / Voice Settings -->
     <div v-if="configTab === 'webrtc'" class="config-section">
-      <h3>WebRTC / Voice Settings</h3>
+      <h3>WebRTC / voice settings</h3>
       <div class="setting-group">
-        <label>WebRTC Mode</label>
+        <label>WebRTC mode</label>
         <select v-model="config.webrtc.mode" class="cyber-input">
           <option value="hybrid">Hybrid (SFU with P2P fallback)</option>
-          <option value="sfu">SFU Only (LiveKit)</option>
-          <option value="p2p">P2P Only (Peer-to-Peer)</option>
+          <option value="sfu">SFU only (LiveKit)</option>
+          <option value="p2p">P2P only (peer-to-peer)</option>
         </select>
         <span class="setting-hint">
           Hybrid uses LiveKit server when available, falls back to P2P
         </span>
       </div>
       <div class="setting-group">
-        <label>LiveKit Server URL</label>
+        <label>LiveKit server URL</label>
         <input 
           v-model="config.webrtc.livekitUrl" 
           type="text" 
@@ -569,7 +569,7 @@
         </span>
       </div>
       <div class="setting-group">
-        <label>Max Stage Listeners</label>
+        <label>Max stage listeners</label>
         <input 
           v-model.number="config.webrtc.maxStageListeners" 
           type="number" 
@@ -583,7 +583,7 @@
         <label class="toggle-label">
           <input type="checkbox" v-model="config.webrtc.allowFederatedVoice" />
           <span class="toggle-slider"></span>
-          Allow Federated Voice Calls
+          Allow federated voice calls
           <span class="setting-hint-inline">
             Enable voice/video calls with users from other instances
           </span>
@@ -592,7 +592,7 @@
 
       <button @click="saveConfig" class="save-btn" :disabled="!configChanged" style="margin-top: 16px;">
         <Icon name="save" :size="16" />
-        Save Changes
+        Save changes
       </button>
     </div>
   </div>
@@ -818,7 +818,7 @@ const saveConfig = async () => {
     })
 
     configChanged.value = false
-    toast.success('Configuration saved successfully')
+    toast.success('Configuration saved')
     debug.log('Configuration saved:', config.value)
     
     const instanceSettings = useInstanceSettingsStore()
@@ -990,7 +990,7 @@ const saveInstanceBranding = async () => {
     }, authStore.session.user.id)
 
     instanceBrandingChanged.value = false
-    toast.success('Instance branding saved successfully')
+    toast.success('Instance branding saved')
     debug.log('Instance branding saved:', instanceConfig.value)
   } catch (error: any) {
     debug.error('Failed to save instance branding:', error)
@@ -1062,7 +1062,7 @@ const saveOAuthProviders = async () => {
     )
 
     oauthProvidersChanged.value = false
-    toast.success('OAuth provider settings saved successfully')
+    toast.success('OAuth provider settings saved')
     debug.log('OAuth providers saved:', enabledProviders)
   } catch (error: any) {
     debug.error('Failed to save OAuth provider settings:', error)
@@ -1234,7 +1234,7 @@ onMounted(() => {
   height: 24px;
   background: var(--background-tertiary);
   border: 1px solid var(--border-color);
-  border-radius: 24px;
+  border-radius: var(--radius-full);
   transition: all 0.2s ease;
 }
 
@@ -1263,8 +1263,8 @@ onMounted(() => {
 
 
 .toggle-label input[type="checkbox"]:checked + .toggle-slider {
-  background: var(--accent-color);
-  border-color: var(--accent-color);
+  background: var(--harmony-primary);
+  border-color: var(--harmony-primary);
 }
 
 
@@ -1275,7 +1275,7 @@ onMounted(() => {
 
 .toggle-label input[type="checkbox"]:checked + .toggle-slider:before {
   left: 22px;
-  background: white;
+  background: var(--text-on-primary);
 }
 
 
@@ -1290,9 +1290,9 @@ onMounted(() => {
   flex-direction: column;
   gap: 4px;
   border: 1px solid var(--border-color);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   padding: 8px 16px 16px;
-  background: var(--background-secondary-alpha, rgba(0, 0, 0, 0.12));
+  background: var(--background-secondary-alpha);
 }
 
 
@@ -1401,7 +1401,7 @@ onMounted(() => {
   font-size: 11.5px;
   font-weight: 500;
   padding: 1px 6px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: var(--background-tertiary);
   color: var(--text-secondary);
 }
@@ -1436,8 +1436,8 @@ onMounted(() => {
 
 
 .delete-btn:hover {
-  border-color: #ff453a;
-  color: #ff453a;
+  border-color: var(--error);
+  color: var(--error);
 }
 
 
@@ -1474,12 +1474,12 @@ onMounted(() => {
 .config-tab-btn:hover {
   color: var(--text-primary);
   background: var(--background-tertiary);
-  border-radius: 6px 6px 0 0;
+  border-radius: var(--radius-base) var(--radius-base) 0 0;
 }
 
 .config-tab-btn.active {
-  color: var(--accent-color);
-  border-bottom-color: var(--accent-color);
+  color: var(--harmony-primary);
+  border-bottom-color: var(--harmony-primary);
 }
 
 
@@ -1564,7 +1564,7 @@ onMounted(() => {
 .instance-icon-preview {
   width: 64px;
   height: 64px;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   background: var(--background-tertiary);
   border: 2px dashed var(--border-color);
   display: flex;
@@ -1619,7 +1619,7 @@ onMounted(() => {
 .instance-banner-preview {
   width: 100%;
   height: 100px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--background-tertiary);
   background-size: cover;
   background-position: center;
@@ -1694,10 +1694,10 @@ onMounted(() => {
 
 .save-btn {
   padding: 8px 16px;
-  background: var(--accent-color);
+  background: var(--harmony-primary);
   border: none;
-  border-radius: 6px;
-  color: var(--text-primary);
+  border-radius: var(--radius-base);
+  color: var(--text-on-primary);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
@@ -1714,8 +1714,7 @@ onMounted(() => {
 
 
 .save-btn:hover {
-  background: #0099cc;
-  transform: translateY(-1px);
+  background: var(--harmony-primary-hover);
 }
 
 
@@ -1727,7 +1726,6 @@ onMounted(() => {
 .save-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-  transform: none;
 }
 
 @media (max-width: 768px) {

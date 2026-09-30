@@ -1,4 +1,3 @@
-import JSZip from 'jszip'
 import type { AudioTheme, AudioAction, AudioThemeSettings } from '@/types'
 import { debug } from '@/utils/debug'
 import { userStorage } from '@/utils/userScopedStorage'
@@ -288,6 +287,7 @@ export class AudioThemeService {
     const theme = this.themes.get(themeId)
     if (!theme) throw new Error(`Theme '${themeId}' not found`)
 
+    const { default: JSZip } = await import('jszip')
     const zip = new JSZip()
     const soundsMap: Record<string, string> = {}
     let bannerFilename: string | undefined
@@ -363,6 +363,7 @@ export class AudioThemeService {
       throw new Error(`Pack exceeds 10MB limit (${(arrayBuffer.byteLength / 1024 / 1024).toFixed(1)}MB)`)
     }
 
+    const { default: JSZip } = await import('jszip')
     const zip = await JSZip.loadAsync(arrayBuffer)
     const manifestFile = zip.file('manifest.json')
     if (!manifestFile) throw new Error('Invalid pack: missing manifest.json')

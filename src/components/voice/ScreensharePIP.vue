@@ -101,7 +101,7 @@ const pipStream = computed(() => {
 });
 
 const participantName = computed(() => {
-  if (!pipParticipant.value) return 'Screen Share';
+  if (!pipParticipant.value) return 'Screen share';
   return getUserDisplayName(pipParticipant.value.userId).value || 'User';
 });
 
@@ -264,10 +264,10 @@ onUnmounted(() => {
   bottom: 80px;
   right: 20px;
   width: 400px;
-  background: linear-gradient(145deg, var(--background-tertiary), var(--background-secondary));
-  border-radius: 12px;
-  border: 2px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  background: var(--background-floating);
+  border-radius: var(--radius-lg);
+  border: 2px solid var(--border-hover);
+  box-shadow: var(--shadow-large);
   z-index: 10000;
   overflow: hidden;
   transition: all 0.3s ease;
@@ -280,10 +280,10 @@ onUnmounted(() => {
 /* Draggable PIP */
 .pip-draggable {
   position: fixed;
-  background: linear-gradient(145deg, var(--background-tertiary), var(--background-secondary));
-  border-radius: 12px;
-  border: 2px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  background: var(--background-floating);
+  border-radius: var(--radius-lg);
+  border: 2px solid var(--border-hover);
+  box-shadow: var(--shadow-large);
   z-index: 10000;
   overflow: hidden;
   min-width: 300px;
@@ -300,8 +300,8 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 8px 12px;
-  background: rgba(0, 0, 0, 0.3);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--background-tertiary);
+  border-bottom: 1px solid var(--border-primary);
 }
 
 .pip-title {
@@ -322,7 +322,7 @@ onUnmounted(() => {
   color: var(--text-secondary);
   cursor: pointer;
   padding: 4px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -330,7 +330,7 @@ onUnmounted(() => {
 }
 
 .pip-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--background-modifier-hover);
   color: var(--text-primary);
 }
 
@@ -361,7 +361,7 @@ onUnmounted(() => {
   height: 20px;
   cursor: nwse-resize;
   background: linear-gradient(135deg, transparent 50%, rgba(255, 255, 255, 0.3) 50%);
-  border-bottom-right-radius: 12px;
+  border-bottom-right-radius: var(--radius-lg);
 }
 
 .resize-handle:hover {

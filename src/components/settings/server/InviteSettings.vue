@@ -1,7 +1,7 @@
 <template>
   <div class="invite-settings">
     <div class="settings-header">
-      <h2 class="settings-title">Invite Settings</h2>
+      <h2 class="settings-title">Invite settings</h2>
       <p class="settings-description">
         Control who can create invites and set default invite parameters for your server
       </p>
@@ -9,7 +9,7 @@
 
     <div class="settings-section">
       <div class="setting-group">
-        <h3 class="setting-title">Who Can Create Invites</h3>
+        <h3 class="setting-title">Who can create invites</h3>
         <p class="setting-description">
           Choose who has permission to create invite links for this server
         </p>
@@ -40,7 +40,7 @@
             />
             <div class="radio-content">
               <div class="radio-header">
-                <span class="radio-title">Specific Roles</span>
+                <span class="radio-title">Specific roles</span>
               </div>
               <p class="radio-description">Only members with selected roles can create invites</p>
             </div>
@@ -55,7 +55,7 @@
             />
             <div class="radio-content">
               <div class="radio-header">
-                <span class="radio-title">Administrators Only</span>
+                <span class="radio-title">Administrators only</span>
                 <span class="radio-badge secure">Secure</span>
               </div>
               <p class="radio-description">Only server administrators can create invites</p>
@@ -65,7 +65,7 @@
 
         <!-- Role Selection (only show when 'roles' is selected) -->
         <div v-if="settings.invite_permissions.who_can_create === 'roles'" class="role-selection">
-          <h4 class="subsetting-title">Allowed Roles</h4>
+          <h4 class="subsetting-title">Allowed roles</h4>
           <div class="role-list">
             <label 
               v-for="role in serverRoles" 
@@ -94,14 +94,14 @@
 
     <div class="settings-section">
       <div class="setting-group">
-        <h3 class="setting-title">Default Invite Settings</h3>
+        <h3 class="setting-title">Default invite settings</h3>
         <p class="setting-description">
           Set default parameters for new invites created by members
         </p>
 
         <div class="settings-grid">
           <div class="setting-item">
-            <label class="setting-label">Default Expiration</label>
+            <label class="setting-label">Default expiration</label>
             <select 
               v-model="settings.invite_permissions.default_expiration" 
               class="setting-select"
@@ -123,7 +123,7 @@
           </div>
 
           <div class="setting-item">
-            <label class="setting-label">Maximum Expiration</label>
+            <label class="setting-label">Maximum expiration</label>
             <select 
               v-model="settings.invite_permissions.max_expiration" 
               class="setting-select"
@@ -141,7 +141,7 @@
           </div>
 
           <div class="setting-item">
-            <label class="setting-label">Maximum Uses Limit</label>
+            <label class="setting-label">Maximum uses limit</label>
             <select 
               v-model="settings.invite_permissions.max_uses_limit" 
               class="setting-select"
@@ -164,7 +164,7 @@
         <div class="setting-item">
           <div class="toggle-setting">
             <div class="toggle-info">
-              <label class="setting-label">Allow Temporary Membership</label>
+              <label class="setting-label">Allow temporary membership</label>
               <p class="setting-hint">
                 Allow members to create invites that grant temporary access
               </p>
@@ -288,7 +288,7 @@ const saveSettings = async () => {
       originalSettings.value = { ...settings.value }
       saveMessage.value = {
         type: 'success',
-        text: 'Invite settings saved successfully!'
+        text: 'Invite settings saved'
       }
       
       // Clear success message after 3 seconds
@@ -342,19 +342,19 @@ watch(() => props.serverId, () => {
 
 .settings-header {
   padding-bottom: 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid var(--border-secondary);
 }
 
 .settings-title {
-  font-size: 28px;
-  font-weight: 700;
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
   margin: 0 0 8px;
 }
 
 .settings-description {
-  font-size: 16px;
-  color: #b5bac1;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
   margin: 0;
   line-height: 1.5;
 }
@@ -372,15 +372,15 @@ watch(() => props.serverId, () => {
 }
 
 .setting-title {
-  font-size: 18px;
-  font-weight: 600;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
   margin: 0 0 4px;
 }
 
 .setting-description {
-  font-size: 14px;
-  color: #b5bac1;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
   margin: 0;
   line-height: 1.4;
 }
@@ -396,23 +396,23 @@ watch(() => props.serverId, () => {
   align-items: flex-start;
   gap: 16px;
   padding: 16px;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.04);
-  border-radius: 12px;
+  background: var(--background-primary);
+  border: 1px solid var(--border-secondary);
+  border-radius: var(--radius-lg);
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .radio-option:hover {
-  background: rgba(255, 255, 255, 0.04);
-  border-color: rgba(255, 255, 255, 0.08);
+  background: var(--background-modifier-hover);
+  border-color: var(--border-primary);
 }
 
 .radio-option input[type="radio"] {
   width: 20px;
   height: 20px;
   margin: 2px 0 0 0;
-  accent-color: #0EA5E9;
+  accent-color: var(--harmony-primary);
 }
 
 .radio-content {
@@ -427,46 +427,44 @@ watch(() => props.serverId, () => {
 }
 
 .radio-title {
-  font-size: 16px;
-  font-weight: 600;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
 }
 
 .radio-badge {
   padding: 2px 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
+  font-weight: var(--font-weight-semibold);
 }
 
 .radio-badge.recommended {
-  background: rgba(87, 242, 135, 0.2);
-  color: #57f287;
+  background: color-mix(in srgb, var(--success) 20%, transparent);
+  color: var(--success);
 }
 
 .radio-badge.secure {
-  background: rgba(237, 66, 69, 0.2);
-  color: #ed4245;
+  background: color-mix(in srgb, var(--error) 20%, transparent);
+  color: var(--error);
 }
 
 .radio-description {
-  font-size: 14px;
-  color: #b5bac1;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
   margin: 0;
 }
 
 .role-selection {
   margin-top: 16px;
   padding: 16px;
-  background: rgba(255, 255, 255, 0.02);
-  border-radius: 8px;
+  background: var(--background-primary);
+  border-radius: var(--radius-md);
 }
 
 .subsetting-title {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
   margin: 0 0 12px;
 }
@@ -482,19 +480,19 @@ watch(() => props.serverId, () => {
   align-items: center;
   gap: 12px;
   padding: 8px;
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   cursor: pointer;
   transition: background 0.2s ease;
 }
 
 .role-checkbox:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--background-modifier-hover);
 }
 
 .role-checkbox input[type="checkbox"] {
   width: 16px;
   height: 16px;
-  accent-color: #0EA5E9;
+  accent-color: var(--harmony-primary);
 }
 
 .role-info {
@@ -511,14 +509,14 @@ watch(() => props.serverId, () => {
 }
 
 .role-name {
-  font-size: 14px;
-  font-weight: 500;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
   color: var(--text-primary);
 }
 
 .role-member-count {
-  font-size: 12px;
-  color: #b5bac1;
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
   margin-left: auto;
 }
 
@@ -535,31 +533,30 @@ watch(() => props.serverId, () => {
 }
 
 .setting-label {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
 }
 
 .setting-select {
   padding: 12px 16px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-md);
   color: var(--text-primary);
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .setting-select:focus {
   outline: none;
-  border-color: #0EA5E9;
-  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--harmony-primary);
 }
 
 .setting-hint {
-  font-size: 12px;
-  color: #b5bac1;
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
   margin: 0;
   line-height: 1.3;
 }
@@ -570,9 +567,9 @@ watch(() => props.serverId, () => {
   align-items: flex-start;
   gap: 16px;
   padding: 16px;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.04);
-  border-radius: 12px;
+  background: var(--background-primary);
+  border: 1px solid var(--border-secondary);
+  border-radius: var(--radius-lg);
 }
 
 .toggle-info {
@@ -596,8 +593,8 @@ watch(() => props.serverId, () => {
 .toggle-slider {
   position: absolute;
   inset: 0;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
+  background: var(--background-modifier-active);
+  border-radius: var(--radius-lg);
   transition: all 0.2s ease;
 }
 
@@ -626,7 +623,7 @@ watch(() => props.serverId, () => {
   justify-content: flex-end;
   gap: 12px;
   padding-top: 24px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: 1px solid var(--border-secondary);
 }
 
 .action-button {
@@ -635,9 +632,9 @@ watch(() => props.serverId, () => {
   gap: 8px;
   padding: 12px 20px;
   border: none;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 600;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -648,24 +645,23 @@ watch(() => props.serverId, () => {
 }
 
 .action-button.secondary {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: #b5bac1;
+  background: var(--background-modifier-hover);
+  border: 1px solid var(--border-primary);
+  color: var(--text-secondary);
 }
 
 .action-button.secondary:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--background-modifier-selected);
   color: var(--text-primary);
 }
 
 .action-button.primary {
-  background: linear-gradient(135deg, #0EA5E9, #0284C7);
-  color: var(--text-primary);
+  background: var(--harmony-primary);
+  color: var(--text-on-primary);
 }
 
 .action-button.primary:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3);
+  background: var(--harmony-primary-hover);
 }
 
 .button-icon {
@@ -686,21 +682,21 @@ watch(() => props.serverId, () => {
   align-items: center;
   gap: 8px;
   padding: 12px 16px;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 500;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
 }
 
 .save-message.success {
-  background: rgba(87, 242, 135, 0.1);
-  border: 1px solid rgba(87, 242, 135, 0.2);
-  color: #57f287;
+  background: color-mix(in srgb, var(--success) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--success) 20%, transparent);
+  color: var(--success);
 }
 
 .save-message.error {
-  background: rgba(237, 66, 69, 0.1);
-  border: 1px solid rgba(237, 66, 69, 0.2);
-  color: #ed4245;
+  background: color-mix(in srgb, var(--error) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--error) 20%, transparent);
+  color: var(--error);
 }
 
 .message-icon {

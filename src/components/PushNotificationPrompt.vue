@@ -8,12 +8,12 @@
           </svg>
         </div>
         <div class="banner-text">
-          <h3>Enable Push Notifications</h3>
+          <h3>Enable push notifications</h3>
           <p>Get notified of new messages even when Harmony is closed</p>
         </div>
         <div class="banner-actions">
           <button @click="dismissBanner" class="banner-btn secondary">
-            Not Now
+            Not now
           </button>
           <button @click="enablePush" class="banner-btn primary" :disabled="enabling">
             <span v-if="enabling">Enabling...</span>
@@ -172,9 +172,10 @@ onMounted(async () => {
   right: 20px;
   max-width: 500px;
   margin: 0 auto;
-  background: linear-gradient(135deg, #0EA5E9, #0284C7);
-  border-radius: 16px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  background: var(--background-floating);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-large);
   z-index: 10000;
   overflow: hidden;
 }
@@ -190,8 +191,8 @@ onMounted(async () => {
 .banner-icon {
   width: 48px;
   height: 48px;
-  background: rgba(255, 255, 255, 0.15);
-  border-radius: 12px;
+  background: color-mix(in srgb, var(--harmony-primary) 15%, transparent);
+  border-radius: var(--radius-lg);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -199,7 +200,7 @@ onMounted(async () => {
 }
 
 .banner-icon svg {
-  color: var(--text-primary);
+  color: var(--harmony-primary);
 }
 
 .banner-text {
@@ -217,7 +218,7 @@ onMounted(async () => {
 .banner-text p {
   margin: 0;
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--text-secondary);
   line-height: 1.4;
 }
 
@@ -229,22 +230,21 @@ onMounted(async () => {
 
 .banner-btn {
   padding: 8px 16px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
   border: none;
 }
 
 .banner-btn.primary {
-  background: white;
-  color: #0EA5E9;
+  background: var(--harmony-primary);
+  color: var(--text-on-primary);
 }
 
 .banner-btn.primary:hover:not(:disabled) {
-  background: #f0f0f0;
-  transform: translateY(-1px);
+  background: var(--harmony-primary-hover);
 }
 
 .banner-btn.primary:disabled {
@@ -253,12 +253,12 @@ onMounted(async () => {
 }
 
 .banner-btn.secondary {
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--background-modifier-hover);
   color: var(--text-primary);
 }
 
 .banner-btn.secondary:hover {
-  background: rgba(255, 255, 255, 0.25);
+  background: var(--background-modifier-active);
 }
 
 .close-btn {
@@ -268,18 +268,18 @@ onMounted(async () => {
   width: 28px;
   height: 28px;
   border: none;
-  background: rgba(255, 255, 255, 0.1);
+  background: transparent;
   border-radius: 50%;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: rgba(255, 255, 255, 0.7);
-  transition: all 0.2s ease;
+  color: var(--text-muted);
+  transition: background-color var(--transition-fast), color var(--transition-fast);
 }
 
 .close-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--background-modifier-hover);
   color: var(--text-primary);
 }
 

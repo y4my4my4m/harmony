@@ -149,7 +149,7 @@ const setServerLoading = (serverId: string, loading: boolean) => {
 const handleJoinServer = async (serverId: string) => {
   const userId = authStore.session?.user?.id
   if (!userId) {
-    toast.error('You must be logged in to join servers')
+    toast.error('Sign in to join servers')
     return
   }
 
@@ -165,7 +165,7 @@ const handleJoinServer = async (serverId: string) => {
     closeModal()
   } catch (error) {
     debug.error('Error joining server:', error)
-    toast.error('An error occurred while joining the server')
+    toast.error("Couldn't join server. Try again.")
   } finally {
     setServerLoading(serverId, false)
   }
@@ -190,11 +190,11 @@ const handleViewOwnerProfile = async (userId: string) => {
     if (selectedUser.value) {
       showUserProfile.value = true
     } else {
-      toast.error('Could not load user profile')
+      toast.error("Couldn't load user profile")
     }
   } catch (error) {
     debug.error('Error loading user profile:', error)
-    toast.error('Failed to load user profile')
+    toast.error("Couldn't load user profile")
   }
 }
 

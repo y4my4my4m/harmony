@@ -107,14 +107,13 @@ onUnmounted(() => {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 20px;
   z-index: 1000;
-  animation: fadeIn 0.2s ease-out;
 }
 
 @keyframes fadeIn {
@@ -124,20 +123,26 @@ onUnmounted(() => {
 
 .modal-container {
   background: var(--background-quinary);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   border: 1px solid var(--border-primary);
-  box-shadow:
-    0 25px 50px rgba(0, 0, 0, 0.6),
-    0 0 0 1px rgba(255, 255, 255, 0.03),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  box-shadow: var(--shadow-modal);
   width: 100%;
   max-width: 540px;
   max-height: 90vh;
   display: flex;
   flex-direction: column;
-  animation: slideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
   position: relative;
   overflow: hidden;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .modal-overlay {
+    animation: fadeIn 0.2s ease-out;
+  }
+
+  .modal-container {
+    animation: slideUp 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
 }
 
 .modal-bg {
@@ -175,24 +180,14 @@ onUnmounted(() => {
 }
 
 @keyframes slideUp {
-  from { 
-    opacity: 0; 
-    transform: translateY(30px) scale(0.92); 
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
   }
-  to { 
-    opacity: 1; 
-    transform: translateY(0) scale(1); 
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
-}
-
-.modal-container::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--harmony-primary-light), transparent);
 }
 
 .modal-header {
@@ -200,7 +195,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 28px 32px 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid var(--border-secondary);
   flex-shrink: 0;
 }
 
@@ -214,8 +209,8 @@ onUnmounted(() => {
 .icon-container {
   width: 56px;
   height: 56px;
-  background: linear-gradient(135deg, var(--harmony-primary), var(--harmony-primary-hover));
-  border-radius: 16px;
+  background: color-mix(in srgb, var(--harmony-primary) 15%, transparent);
+  border-radius: var(--radius-lg);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -225,7 +220,7 @@ onUnmounted(() => {
 .modal-icon {
   width: 28px;
   height: 28px;
-  color: #fff;
+  color: var(--harmony-primary);
 }
 
 .header-text {
@@ -234,7 +229,7 @@ onUnmounted(() => {
 }
 
 .modal-title {
-  font-size: 24px;
+  font-size: var(--font-size-2xl);
   font-weight: 600;
   color: var(--text-primary);
   margin: 0 0 6px;
@@ -242,8 +237,8 @@ onUnmounted(() => {
 }
 
 .modal-subtitle {
-  font-size: 16px;
-  color: #b5bac1;
+  font-size: var(--font-size-base);
+  color: var(--text-secondary);
   margin: 0;
   line-height: 1.3;
 }
@@ -251,27 +246,26 @@ onUnmounted(() => {
 .close-button {
   width: 36px;
   height: 36px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
+  background: transparent;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
   flex-shrink: 0;
 }
 
 .close-button:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.12);
-  transform: translateY(-1px);
+  background: var(--background-modifier-hover);
+  border-color: var(--border-hover);
 }
 
 .close-icon {
   width: 20px;
   height: 20px;
-  color: #b5bac1;
+  color: var(--text-secondary);
   transition: color 0.2s ease;
 }
 
@@ -290,7 +284,7 @@ onUnmounted(() => {
 
 .modal-footer {
   padding: 20px 32px 28px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: 1px solid var(--border-secondary);
   background: rgba(0, 0, 0, 0.1);
   flex-shrink: 0;
 }
@@ -305,12 +299,12 @@ onUnmounted(() => {
 }
 
 .modal-content::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 4px;
+  background: var(--border-primary);
+  border-radius: var(--radius-sm);
 }
 
 .modal-content::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.3);
+  background: var(--border-hover);
 }
 
 /* Mobile responsive adjustments */
@@ -335,7 +329,7 @@ onUnmounted(() => {
   .icon-container {
     width: 48px;
     height: 48px;
-    border-radius: 12px;
+    border-radius: var(--radius-md);
   }
   
   .modal-icon {
@@ -344,11 +338,11 @@ onUnmounted(() => {
   }
   
   .modal-title {
-    font-size: 20px;
+    font-size: var(--font-size-xl);
   }
   
   .modal-subtitle {
-    font-size: 14px;
+    font-size: var(--font-size-sm);
   }
   
   .modal-content {

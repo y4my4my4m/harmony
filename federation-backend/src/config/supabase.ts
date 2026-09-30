@@ -42,12 +42,23 @@ export const getSupabaseClient = (): SupabaseClient => {
 
 /**
  * Get Supabase client with user context (for RLS)
+ *
+ * One client per request. Outside a browser auth-js starts a 30 s refresh
+ * interval per client when autoRefreshToken is set and never clears it; the
+ * interval retains the client (about 8 KB each, measured on auth-js 2.99.3).
+ * The token arrives in the Authorization header, so there is no session to
+ * refresh or persist.
  */
 export const getSupabaseClientWithAuth = (accessToken: string): SupabaseClient => {
   return createClient(
     config.SUPABASE_URL,
     config.SUPABASE_ANON_KEY,
     {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+        detectSessionInUrl: false,
+      },
       global: {
         headers: {
           Authorization: `Bearer ${accessToken}`,

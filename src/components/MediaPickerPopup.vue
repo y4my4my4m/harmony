@@ -287,15 +287,15 @@ onUnmounted(() => {
 
 <style scoped>
 .media-picker-popup {
+  background: var(--background-floating);
   border: 1px solid var(--border-color);
-  border-radius: 8px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-large);
   width: 400px;
   max-height: 500px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  backdrop-filter: blur(8px);
   z-index: 1000;
   overscroll-behavior: contain;
 }
@@ -375,7 +375,7 @@ onUnmounted(() => {
 }
 
 .tab-icon-button.active {
-  color: var(--color-warning);
+  color: var(--warning);
 }
 
 @media (max-width: 768px) {

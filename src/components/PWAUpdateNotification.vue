@@ -8,7 +8,7 @@
           </svg>
         </div>
         <div class="update-text">
-          <h3>Update Available</h3>
+          <h3>Update available</h3>
           <p>A new version of Harmony is ready to install</p>
         </div>
         <div class="update-actions">
@@ -17,7 +17,7 @@
           </button>
           <button @click="installUpdate" class="update-btn primary" :disabled="updating">
             <span v-if="updating">Updating...</span>
-            <span v-else>Update Now</span>
+            <span v-else>Update now</span>
           </button>
         </div>
       </div>
@@ -144,11 +144,10 @@ onUnmounted(() => {
   top: 20px;
   left: 20px;
   right: 20px;
-  background: linear-gradient(135deg, #00d4aa, #00b894);
-  border-radius: 12px;
-  box-shadow: 
-    0 8px 32px rgba(0, 212, 170, 0.3),
-    0 4px 16px rgba(0, 0, 0, 0.2);
+  background: var(--background-floating);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-large);
   z-index: 1001;
   max-width: 500px;
   margin: 0 auto;
@@ -172,8 +171,9 @@ onUnmounted(() => {
 
 .update-icon {
   flex-shrink: 0;
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 10px;
+  background: color-mix(in srgb, var(--harmony-primary) 15%, transparent);
+  color: var(--harmony-primary);
+  border-radius: var(--radius-md);
   padding: 10px;
   display: flex;
   align-items: center;
@@ -195,7 +195,7 @@ onUnmounted(() => {
 .update-text p {
   margin: 0;
   font-size: 14px;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--text-secondary);
   line-height: 1.4;
 }
 
@@ -208,22 +208,21 @@ onUnmounted(() => {
 .update-btn {
   padding: 8px 16px;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color var(--transition-fast);
   white-space: nowrap;
 }
 
 .update-btn.primary {
-  background: white;
-  color: #00b894;
+  background: var(--harmony-primary);
+  color: var(--text-on-primary);
 }
 
 .update-btn.primary:hover:not(:disabled) {
-  background: #f8f9fa;
-  transform: translateY(-1px);
+  background: var(--harmony-primary-hover);
 }
 
 .update-btn.primary:disabled {
@@ -232,16 +231,15 @@ onUnmounted(() => {
 }
 
 .update-btn.secondary {
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--background-modifier-hover);
   color: var(--text-primary);
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  border: 1px solid var(--border-primary);
 }
 
 .update-btn.secondary:hover {
-  background: rgba(255, 255, 255, 0.3);
+  background: var(--background-modifier-active);
 }
 
-/* Animations */
 .update-notification-enter-active,
 .update-notification-leave-active {
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);

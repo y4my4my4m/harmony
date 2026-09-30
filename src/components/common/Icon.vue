@@ -147,6 +147,7 @@ import {
   UserMinus, MoreVertical, Zap, Star, LogIn, LogOut, DoorOpen, ShieldCheck,
   Wifi, WifiOff, CircleHelp, Clock, Repeat2, Pin, PinOff,
   DollarSign, Layers, AudioLines, Megaphone, Wrench, Tag, Menu, SmilePlus, ArrowUp, PanelRight,
+  PictureInPicture2,
 } from 'lucide-vue-next'
 
 const ICON_MAP: Record<string, Component> = {
@@ -304,6 +305,7 @@ const ICON_MAP: Record<string, Component> = {
   'smile-plus': SmilePlus,
   'arrow-up': ArrowUp,
   'panel-right': PanelRight,
+  'picture-in-picture': PictureInPicture2,
   'tag': Tag,
 }
 

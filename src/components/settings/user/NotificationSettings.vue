@@ -31,7 +31,7 @@
 
       <div v-if="preferences.dnd_enabled" class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">Quiet Hours</h4>
+          <h4 class="setting-label">Quiet hours</h4>
           <p class="setting-description">Set your do not disturb schedule (shown in your local time)</p>
         </div>
         <div class="setting-control time-range">
@@ -54,7 +54,7 @@
 
     <div class="settings-section">
       <div class="section-header">
-        <h3 class="section-title">{{ isMobileClient ? 'Enable Notifications' : $t('settings.notifications.enableDesktop') }}</h3>
+        <h3 class="section-title">{{ isMobileClient ? 'Enable notifications' : $t('settings.notifications.enableDesktop') }}</h3>
         <div class="permission-status">
           <div v-if="!systemNotificationsAvailable" class="permission-info">
             <Icon name="alert-circle" class="permission-denied" />
@@ -72,7 +72,7 @@
               :disabled="isRequestingPermission"
             >
               <Icon v-if="isRequestingPermission" name="loader" class="spinning" />
-              <span>{{ isRequestingPermission ? $t('common.loading') : 'Grant Permission' }}</span>
+              <span>{{ isRequestingPermission ? $t('common.loading') : 'Grant permission' }}</span>
             </button>
           </template>
         </div>
@@ -139,7 +139,7 @@
           <div class="category-header">
             <Icon name="globe" class="category-icon activitypub" />
             <div class="category-info">
-              <h4 class="category-title">ActivityPub & Federation</h4>
+              <h4 class="category-title">ActivityPub & federation</h4>
               <p class="category-description">Notifications from the federated network</p>
             </div>
             <ToggleSwitch 
@@ -193,12 +193,12 @@
 
     <!-- Sound Settings Section -->
     <div class="settings-section">
-      <h3 class="section-title">Sound Settings</h3>
+      <h3 class="section-title">Sound settings</h3>
       <p class="section-description">Configure sound notification behavior</p>
       
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">Master Volume</h4>
+          <h4 class="setting-label">Master volume</h4>
           <p class="setting-description">Adjust the volume for all notification sounds</p>
         </div>
         <div class="setting-control">
@@ -220,7 +220,7 @@
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">Voice Activity Sounds</h4>
+          <h4 class="setting-label">Voice activity sounds</h4>
           <p class="setting-description">Play sounds for voice channel activity</p>
         </div>
         <div class="setting-control">
@@ -236,7 +236,7 @@
       <div class="section-header">
         <h3 class="section-title">
           <Icon name="smartphone" class="section-icon" />
-          {{ isNativeClient ? 'Push to Other Devices' : 'Push Notifications' }}
+          {{ isNativeClient ? 'Push to other devices' : 'Push notifications' }}
         </h3>
         <div class="push-status-badge" :class="isNativeClient ? 'available' : pushStatusClass">
           <Icon :name="isNativeClient ? 'info' : pushStatusIcon" />
@@ -311,7 +311,7 @@
         >
           <Icon v-if="pushNotifications.isLoading.value" name="loader" class="spinning" />
           <Icon v-else name="bell" />
-          <span>Enable Push Notifications</span>
+          <span>Enable push notifications</span>
         </button>
 
         <button 
@@ -322,7 +322,7 @@
         >
           <Icon v-if="pushNotifications.isLoading.value" name="loader" class="spinning" />
           <Icon v-else name="bell-off" />
-          <span>Disable Push Notifications</span>
+          <span>Disable push notifications</span>
         </button>
 
         <button 
@@ -333,7 +333,7 @@
         >
           <Icon v-if="isTestingPush" name="loader" class="spinning" />
           <Icon v-else name="send" />
-          <span>Test Push</span>
+          <span>Test push</span>
         </button>
       </div>
 
@@ -341,7 +341,7 @@
       <div v-if="preferences.push_notifications && (pushNotifications.isSubscribed.value || pushNotifications.subscriptions.value.length > 0)" class="push-preferences">
       <div class="setting-item">
         <div class="setting-info">
-            <h4 class="setting-label">Only When Offline</h4>
+            <h4 class="setting-label">Only when offline</h4>
             <p class="setting-description">Only send push notifications when you're not actively using the app</p>
         </div>
         <div class="setting-control">
@@ -367,7 +367,7 @@
 
       <div class="setting-item">
         <div class="setting-info">
-            <h4 class="setting-label">Direct Messages</h4>
+            <h4 class="setting-label">Direct messages</h4>
             <p class="setting-description">Receive push notifications for new DMs</p>
         </div>
         <div class="setting-control">
@@ -422,7 +422,7 @@
     <!-- Haptic Feedback Section (mobile devices only) -->
     <div class="settings-section" v-if="hapticsAvailable">
       <div class="section-header">
-        <h3 class="section-title">Haptic Feedback</h3>
+        <h3 class="section-title">Haptic feedback</h3>
         <div class="haptic-status" :class="{ active: hapticSettings.isEnabled.value }">
           {{ hapticSettings.isEnabled.value ? 'Enabled' : 'Disabled' }}
         </div>
@@ -431,7 +431,7 @@
       
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">Enable Haptic Feedback</h4>
+          <h4 class="setting-label">Enable haptic feedback</h4>
           <p class="setting-description">Feel vibrations when interacting with the app</p>
         </div>
         <div class="setting-control">
@@ -444,7 +444,7 @@
       <div v-if="hapticSettings.isEnabled.value" class="haptic-categories">
         <div class="setting-item">
           <div class="setting-info">
-            <h4 class="setting-label">Sending Messages</h4>
+            <h4 class="setting-label">Sending messages</h4>
             <p class="setting-description">When sending a message</p>
           </div>
           <div class="setting-control">
@@ -483,7 +483,7 @@
 
         <div class="setting-item">
           <div class="setting-info">
-            <h4 class="setting-label">Voice & Calls</h4>
+            <h4 class="setting-label">Voice & calls</h4>
             <p class="setting-description">When joining/leaving voice channels</p>
           </div>
           <div class="setting-control">
@@ -509,7 +509,7 @@
 
         <div class="setting-item">
           <div class="setting-info">
-            <h4 class="setting-label">Toggle Switches</h4>
+            <h4 class="setting-label">Toggle switches</h4>
             <p class="setting-description">When toggling settings on/off</p>
           </div>
           <div class="setting-control">
@@ -522,7 +522,7 @@
 
         <div class="setting-item">
           <div class="setting-info">
-            <h4 class="setting-label">Destructive Actions</h4>
+            <h4 class="setting-label">Destructive actions</h4>
             <p class="setting-description">When deleting messages or leaving servers</p>
           </div>
           <div class="setting-control">
@@ -536,7 +536,7 @@
         <div class="haptic-test">
           <button @click="testHaptic" class="test-haptic-btn">
             <Icon name="zap" />
-            <span>Test Haptic Feedback</span>
+            <span>Test haptic feedback</span>
           </button>
         </div>
       </div>
@@ -544,7 +544,7 @@
 
     <!-- Test All Section -->
     <div class="settings-section">
-      <h3 class="section-title">Test Notifications</h3>
+      <h3 class="section-title">Test notifications</h3>
       <p class="section-description">Test your notification settings</p>
       
       <div class="test-actions">
@@ -555,7 +555,7 @@
         >
           <Icon v-if="isTesting" name="loader" class="spinning" />
           <Icon v-else name="zap" />
-          <span>{{ isTesting ? 'Testing...' : 'Test All Notifications' }}</span>
+          <span>{{ isTesting ? 'Testing...' : 'Test all notifications' }}</span>
         </button>
         
         <button 
@@ -564,7 +564,7 @@
           :disabled="isAtDefaults"
         >
           <Icon name="rotate-ccw" />
-          <span>Reset to Defaults</span>
+          <span>Reset to defaults</span>
         </button>
       </div>
     </div>
@@ -599,7 +599,7 @@ const systemNotificationsAvailable = isNativeClient || typeof Notification !== '
 // Test haptic feedback
 const testHaptic = () => {
   hapticSettings.hapticManager.trigger({ pattern: 'success' })
-  toast.success('Haptic feedback triggered!')
+  toast.success('Haptic feedback sent')
 }
 
 // State (initial values double as the factory defaults for reset)
@@ -939,84 +939,84 @@ const testNotification = async (type: NotificationType) => {
 const createTestNotificationData = (type: NotificationType) => {
   const testMessages = {
     mention: {
-      title: 'Test Mention',
+      title: 'Test mention',
       message: 'You were mentioned in a test message',
       avatar: userData.getUserAvatarUrlCurrent
     },
     dm: {
-      title: 'Test Direct Message',
+      title: 'Test direct message',
       message: 'This is a test direct message',
       avatar: userData.getUserAvatarUrlCurrent
     },
     reply: {
-      title: 'Test Reply',
+      title: 'Test reply',
       message: 'Someone replied to your test message',
       avatar: userData.getUserAvatarUrlCurrent
     },
     reaction: {
-      title: 'Test Reaction',
+      title: 'Test reaction',
       message: 'Someone reacted to your test message',
       avatar: userData.getUserAvatarUrlCurrent
     },
     voice_channel_activity: {
-      title: 'Test Voice Activity',
+      title: 'Test voice activity',
       message: 'Someone joined a voice channel',
       avatar: userData.getUserAvatarUrlCurrent
     },
     server_invite: {
-      title: 'Test Server Invite',
+      title: 'Test server invite',
       message: 'You were invited to join a server',
       avatar: '/default_server.webp'
     },
     friend_request: {
-      title: 'Test Follow Request',
+      title: 'Test follow request',
       message: 'Someone wants to follow you',
       avatar: userData.getUserAvatarUrlCurrent
     },
     server_update: {
-      title: 'Test Server Update',
+      title: 'Test server update',
       message: 'A server has been updated',
       avatar: '/default_server.webp'
     },
     emoji_added: {
-      title: 'Test Emoji Added',
+      title: 'Test emoji added',
       message: 'A new emoji was added to the server',
       avatar: '/default_server.webp'
     },
     activitypub_follow: {
-      title: 'Test ActivityPub Follow',
+      title: 'Test ActivityPub follow',
       message: 'Someone followed you from the fediverse',
       avatar: userData.getUserAvatarUrlCurrent
     },
     activitypub_favorite: {
-      title: 'Test ActivityPub Favorite',
+      title: 'Test ActivityPub favorite',
       message: 'Someone favorited your post on the fediverse',
       avatar: userData.getUserAvatarUrlCurrent
     },
     activitypub_reblog: {
-      title: 'Test ActivityPub Reblog',
+      title: 'Test ActivityPub reblog',
       message: 'Someone reblogged your post on the fediverse',
       avatar: userData.getUserAvatarUrlCurrent
     },
     activitypub_mention: {
-      title: 'Test ActivityPub Mention',
+      title: 'Test ActivityPub mention',
       message: 'You were mentioned in a fediverse post',
       avatar: userData.getUserAvatarUrlCurrent
     },
     activitypub_reply: {
-      title: 'Test ActivityPub Reply',
+      title: 'Test ActivityPub reply',
       message: 'Someone replied to your fediverse post',
       avatar: userData.getUserAvatarUrlCurrent
     },
     activitypub_follow_request: {
-      title: 'Test ActivityPub Follow Request',
+      title: 'Test ActivityPub follow request',
       message: 'Someone requested to follow you on the fediverse',
       avatar: userData.getUserAvatarUrlCurrent
     }
   }
   
   return (testMessages as any)[type] || {
-    title: 'Test Notification',
+    title: 'Test notification',
     message: 'This is a test notification',
     avatar: userData.getUserAvatarUrlCurrent
   }
@@ -1077,7 +1077,7 @@ const pushStatusBadgeText = computed(() => {
   if (isNativeClient) {
     return isNativeMobile ? 'This device: foreground' : 'This device: native notifications'
   }
-  if (!pushNotifications.isSupported.value) return 'Not Supported'
+  if (!pushNotifications.isSupported.value) return 'Not supported'
   if (pushNotifications.permission.value === 'denied') return 'Blocked'
   if (pushNotifications.isSubscribed.value) return 'Enabled'
   return 'Available'
@@ -1097,7 +1097,7 @@ const handlePushSubscribe = async () => {
   if (result.success) {
     preferences.push_notifications = true
     await updatePreferences()
-    toast.success('Push notifications enabled!')
+    toast.success('Push notifications enabled')
   } else {
     toast.error(result.error || 'Failed to enable push notifications')
   }
@@ -1119,7 +1119,7 @@ const handleTestPush = async () => {
   try {
     const result = await pushNotifications.sendTestNotification()
     if (result.success) {
-      toast.success('Test push notification sent!')
+      toast.success('Test push notification sent')
     } else {
       toast.error(result.error || 'Failed to send test notification')
     }
@@ -1150,18 +1150,18 @@ const getDeviceIcon = (userAgent?: string): string => {
 }
 
 const getDeviceName = (userAgent?: string): string => {
-  if (!userAgent) return 'Unknown Device'
+  if (!userAgent) return 'Unknown device'
   const ua = userAgent.toLowerCase()
   if (ua.includes('iphone')) return 'iPhone'
   if (ua.includes('ipad')) return 'iPad'
-  if (ua.includes('android')) return 'Android Device'
+  if (ua.includes('android')) return 'Android device'
   if (ua.includes('windows')) return 'Windows PC'
   if (ua.includes('mac')) return 'Mac'
   if (ua.includes('linux')) return 'Linux PC'
-  if (ua.includes('chrome')) return 'Chrome Browser'
-  if (ua.includes('firefox')) return 'Firefox Browser'
-  if (ua.includes('safari')) return 'Safari Browser'
-  return 'Unknown Device'
+  if (ua.includes('chrome')) return 'Chrome browser'
+  if (ua.includes('firefox')) return 'Firefox browser'
+  if (ua.includes('safari')) return 'Safari browser'
+  return 'Unknown device'
 }
 
 const formatDate = (dateStr: string): string => {
@@ -1213,21 +1213,21 @@ watch(() => notificationStore.preferences, (newPreferences) => {
 }
 
 .settings-title {
-  font-size: 24px;
-  font-weight: 600;
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
   margin: 0 0 8px 0;
 }
 
 .settings-description {
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   color: var(--text-secondary);
   margin: 0;
 }
 
 .settings-section {
   background-color: var(--background-secondary);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 24px;
   margin-bottom: 32px;
   border: 1px solid var(--background-quaternary);
@@ -1243,14 +1243,14 @@ watch(() => notificationStore.preferences, (newPreferences) => {
 
 
 .section-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--text-primary, #ffffff);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
   margin: 0 0 20px 0;
 }
 
 .section-description {
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   color: var(--text-secondary);
   margin: 0 0 20px 0;
   line-height: 1.5;
@@ -1258,31 +1258,31 @@ watch(() => notificationStore.preferences, (newPreferences) => {
 
 .dnd-status {
   padding: 4px 8px;
-  border-radius: 4px;
-font-size: 12px;
-  font-weight: 500;
-  background: rgba(240, 71, 71, 0.1);
-  color: #f04747;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  background: var(--background-modifier-hover);
+  color: var(--text-muted);
 }
 
 .dnd-status.active {
-  background: rgba(250, 166, 26, 0.1);
-  color: #faa61a;
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
+  color: var(--warning);
 }
 
 /* Haptic Feedback Section */
 .haptic-status {
   padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 500;
-  background: rgba(240, 71, 71, 0.1);
-  color: #f04747;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  background: color-mix(in srgb, var(--error) 10%, transparent);
+  color: var(--error);
 }
 
 .haptic-status.active {
-  background: rgba(87, 242, 135, 0.1);
-  color: #57f287;
+  background: color-mix(in srgb, var(--success) 10%, transparent);
+  color: var(--success);
 }
 
 .haptic-categories {
@@ -1300,23 +1300,18 @@ font-size: 12px;
   align-items: center;
   gap: 8px;
   padding: 10px 16px;
-  background: var(--harmony--primary, #0EA5E9);
-  color: var(--text-primary);
+  background: var(--harmony-primary);
+  color: var(--text-on-primary);
   border: none;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 500;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color var(--transition-fast);
 }
 
 .test-haptic-btn:hover {
-  background: var(--harmony--primary-dark, #0284C7);
-  transform: translateY(-1px);
-}
-
-.test-haptic-btn:active {
-  transform: translateY(0);
+  background: var(--harmony-primary-hover);
 }
 
 .setting-item {
@@ -1325,7 +1320,7 @@ font-size: 12px;
   justify-content: space-between;
   gap: 16px;
   padding: 16px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid var(--border-secondary);
 }
 
 .setting-item:last-child {
@@ -1337,14 +1332,14 @@ font-size: 12px;
 }
 
 .setting-label {
-  font-size: 14px;
-  font-weight: 500;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
   color: var(--text-primary);
   margin: 0 0 4px 0;
 }
 
 .setting-description {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--text-secondary);
   margin: 0;
   line-height: 1.4;
@@ -1363,38 +1358,38 @@ font-size: 12px;
 }
 
 .time-input {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 6px;
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-base);
   padding: 8px 12px;
   color: var(--text-primary);
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   width: 120px;
 }
 
 .time-input:focus {
   outline: none;
-  border-color: #0EA5E9;
+  border-color: var(--harmony-primary);
 }
 
 .time-separator {
   color: var(--text-secondary);
-  font-size: 14px;
+  font-size: var(--font-size-sm);
 }
 
 .select-input {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 6px;
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-base);
   padding: 8px 12px;
   color: var(--text-primary);
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   min-width: 120px;
 }
 
 .select-input:focus {
   outline: none;
-  border-color: #0EA5E9;
+  border-color: var(--harmony-primary);
 }
 
 .volume-control {
@@ -1409,7 +1404,7 @@ font-size: 12px;
 }
 
 .volume-value {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--text-secondary);
   min-width: 40px;
 }
@@ -1418,10 +1413,10 @@ font-size: 12px;
   display: flex;
   align-items: center;
   gap: 12px;
-  background: rgba(255, 255, 255, 0.02);
-  border-radius: 8px;
+  background: var(--background-primary);
+  border-radius: var(--radius-md);
   padding: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-secondary);
 }
 
 .permission-info {
@@ -1432,35 +1427,35 @@ font-size: 12px;
 }
 
 .permission-granted {
-  color: #43b581;
+  color: var(--success);
 }
 
 .permission-denied {
-  color: #f04747;
+  color: var(--error);
 }
 
 .permission-text {
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   color: var(--text-secondary);
 }
 
 .permission-btn {
   background: var(--harmony-primary);
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   padding: 8px 16px;
-  color: var(--text-primary);
-  font-size: 14px;
-  font-weight: 500;
+  color: var(--text-on-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color var(--transition-fast);
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
 .permission-btn:hover {
-  background: #0284C7;
+  background: var(--harmony-primary-hover);
 }
 
 .permission-btn:disabled {
@@ -1475,9 +1470,9 @@ font-size: 12px;
 }
 
 .notification-category {
-  background: rgba(255, 255, 255, 0.02);
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: var(--background-primary);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-secondary);
   overflow: hidden;
 }
 
@@ -1486,8 +1481,8 @@ font-size: 12px;
   align-items: center;
   gap: 16px;
   padding: 16px 20px;
-  background: rgba(255, 255, 255, 0.02);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  background: var(--background-primary);
+  border-bottom: 1px solid var(--border-secondary);
 }
 
 .category-icon {
@@ -1499,19 +1494,19 @@ font-size: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--text-primary);
-  font-size: 18px;
+  color: var(--text-on-primary);
+  font-size: var(--font-size-lg);
   padding: 8px;
   overflow: hidden;
   flex-shrink: 0;
 }
 
 .category-icon.chat {
-  background: linear-gradient(135deg, #0EA5E9, #0284C7);
+  background: var(--harmony-primary);
 }
 
 .category-icon.activitypub {
-  background: linear-gradient(135deg, #43b581, #3ba55d);
+  background: var(--success);
 }
 
 .category-info {
@@ -1519,14 +1514,14 @@ font-size: 12px;
 }
 
 .category-title {
-  font-size: 16px;
-  font-weight: 600;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
   margin: 0 0 4px 0;
 }
 
 .category-description {
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   color: var(--text-secondary);
   margin: 0;
 }
@@ -1546,9 +1541,9 @@ font-size: 12px;
   justify-content: space-between;
   gap: 16px;
   padding: 12px 16px;
-  background: rgba(255, 255, 255, 0.02);
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: var(--background-primary);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-secondary);
 }
 
 .type-header {
@@ -1565,9 +1560,9 @@ font-size: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--background-modifier-active);
   color: var(--text-primary);
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   padding: 6px;
 }
 
@@ -1576,15 +1571,15 @@ font-size: 12px;
 }
 
 .type-label {
-  font-size: 14px;
-  font-weight: 500;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
   color: var(--text-primary);
   display: block;
   margin-bottom: 2px;
 }
 
 .type-description {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--text-secondary);
   display: block;
 }
@@ -1602,26 +1597,26 @@ font-size: 12px;
 }
 
 .control-icon {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--text-secondary);
 }
 
 .test-btn {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 6px;
+  background: var(--background-modifier-hover);
+  border: 1px solid var(--border-hover);
+  border-radius: var(--radius-base);
   padding: 6px 8px;
   color: var(--text-secondary);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 12px;
+  font-size: var(--font-size-xs);
 }
 
 .test-btn:hover {
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--background-modifier-active);
   color: var(--text-primary);
 }
 
@@ -1640,30 +1635,30 @@ font-size: 12px;
 .test-all-btn, .reset-btn {
   background: var(--harmony-primary);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 12px 24px;
-  color: var(--text-primary);
-  font-size: 14px;
-  font-weight: 500;
+  color: var(--text-on-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
 .test-all-btn:hover {
-  background: #0284C7;
+  background: var(--harmony-primary-hover);
 }
 
 .reset-btn {
   background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid var(--border-hover);
   color: var(--text-secondary);
 }
 
 .reset-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--background-modifier-active);
   color: var(--text-primary);
 }
 
@@ -1693,57 +1688,57 @@ font-size: 12px;
   align-items: center;
   gap: 6px;
   padding: 4px 12px;
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: 500;
+  border-radius: var(--radius-lg);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
 }
 
 .push-status-badge.subscribed {
-  background: rgba(67, 181, 129, 0.1);
-  color: #43b581;
+  background: color-mix(in srgb, var(--success) 10%, transparent);
+  color: var(--success);
 }
 
 .push-status-badge.available {
-  background: rgba(14, 165, 233, 0.1);
-  color: #0EA5E9;
+  background: color-mix(in srgb, var(--harmony-primary) 10%, transparent);
+  color: var(--harmony-primary);
 }
 
 .push-status-badge.denied,
 .push-status-badge.not-supported {
-  background: rgba(240, 71, 71, 0.1);
-  color: #f04747;
+  background: color-mix(in srgb, var(--error) 10%, transparent);
+  color: var(--error);
 }
 
 .push-warning {
   display: flex;
   gap: 12px;
   padding: 16px;
-  background: rgba(250, 166, 26, 0.1);
-  border: 1px solid rgba(250, 166, 26, 0.3);
-  border-radius: 8px;
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warning) 30%, transparent);
+  border-radius: var(--radius-md);
   margin-bottom: 20px;
 }
 
 .push-warning.error {
-  background: rgba(240, 71, 71, 0.1);
-  border-color: rgba(240, 71, 71, 0.3);
+  background: color-mix(in srgb, var(--error) 10%, transparent);
+  border-color: color-mix(in srgb, var(--error) 30%, transparent);
 }
 
 .push-warning > svg {
   flex-shrink: 0;
   width: 20px;
   height: 20px;
-  color: #faa61a;
+  color: var(--warning);
 }
 
 .push-warning.error > svg {
-  color: #f04747;
+  color: var(--error);
 }
 
 .push-warning strong {
   display: block;
   color: var(--text-primary);
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   margin-bottom: 4px;
 }
 
@@ -1767,18 +1762,18 @@ font-size: 12px;
   padding: 8px 16px;
   margin-top: 4px;
   background: var(--harmony-primary);
-  color: var(--text-light, #fff);
+  color: var(--text-on-primary);
   border: none;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 500;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
   transition: background 0.2s ease;
   align-self: flex-start;
 }
 
 .push-error-with-retry .retry-btn:hover:not(:disabled) {
-  background: var(--harmony-primary-hover, #0284C7);
+  background: var(--harmony-primary-hover);
 }
 
 .push-error-with-retry .retry-btn:disabled {
@@ -1799,41 +1794,41 @@ font-size: 12px;
   align-items: center;
   gap: 8px;
   padding: 12px 20px;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 500;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
   transition: all 0.2s ease;
   border: none;
 }
 
 .push-subscribe-btn {
-  background: #43b581;
-  color: var(--text-primary);
+  background: var(--success);
+  color: var(--text-on-primary);
 }
 
 .push-subscribe-btn:hover:not(:disabled) {
-  background: #3ba55d;
+  background: var(--success-hover);
 }
 
 .push-unsubscribe-btn {
-  background: rgba(240, 71, 71, 0.1);
-  color: #f04747;
-  border: 1px solid rgba(240, 71, 71, 0.3);
+  background: color-mix(in srgb, var(--error) 10%, transparent);
+  color: var(--error);
+  border: 1px solid color-mix(in srgb, var(--error) 30%, transparent);
 }
 
 .push-unsubscribe-btn:hover:not(:disabled) {
-  background: rgba(240, 71, 71, 0.2);
+  background: color-mix(in srgb, var(--error) 20%, transparent);
 }
 
 .push-test-btn {
-  background: rgba(14, 165, 233, 0.1);
-  color: #0EA5E9;
-  border: 1px solid rgba(14, 165, 233, 0.3);
+  background: color-mix(in srgb, var(--harmony-primary) 10%, transparent);
+  color: var(--harmony-primary);
+  border: 1px solid color-mix(in srgb, var(--harmony-primary) 30%, transparent);
 }
 
 .push-test-btn:hover:not(:disabled) {
-  background: rgba(14, 165, 233, 0.2);
+  background: color-mix(in srgb, var(--harmony-primary) 20%, transparent);
 }
 
 .push-subscribe-btn:disabled,
@@ -1846,17 +1841,17 @@ font-size: 12px;
 .push-preferences {
   margin-bottom: 20px;
   padding: 16px;
-  background: rgba(255, 255, 255, 0.02);
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: var(--background-primary);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-secondary);
 }
 
 .push-empty-note {
   margin: 0 0 8px 0;
   padding: 12px 16px;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px dashed rgba(255, 255, 255, 0.12);
-  border-radius: 8px;
+  background: var(--background-primary);
+  border: 1px dashed var(--border-hover);
+  border-radius: var(--radius-md);
   color: var(--text-secondary);
   font-size: 13px;
   line-height: 1.5;
@@ -1870,8 +1865,8 @@ font-size: 12px;
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 14px;
-  font-weight: 500;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
   color: var(--text-primary);
   margin: 0 0 12px 0;
 }
@@ -1887,9 +1882,9 @@ font-size: 12px;
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
-  background: rgba(255, 255, 255, 0.02);
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: var(--background-primary);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-secondary);
 }
 
 .device-info {
@@ -1902,9 +1897,9 @@ font-size: 12px;
   width: 32px;
   height: 32px;
   padding: 6px;
-  background: rgba(14, 165, 233, 0.1);
-  border-radius: 8px;
-  color: #0EA5E9;
+  background: color-mix(in srgb, var(--harmony-primary) 10%, transparent);
+  border-radius: var(--radius-md);
+  color: var(--harmony-primary);
 }
 
 .device-details {
@@ -1913,13 +1908,13 @@ font-size: 12px;
 }
 
 .device-name {
-  font-size: 14px;
-  font-weight: 500;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
   color: var(--text-primary);
 }
 
 .device-date {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--text-muted);
 }
 
@@ -1927,15 +1922,15 @@ font-size: 12px;
   background: transparent;
   border: none;
   padding: 8px;
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   color: var(--text-muted);
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .device-remove-btn:hover {
-  background: rgba(240, 71, 71, 0.1);
-  color: #f04747;
+  background: color-mix(in srgb, var(--error) 10%, transparent);
+  color: var(--error);
 }
 
 /* Responsive design */

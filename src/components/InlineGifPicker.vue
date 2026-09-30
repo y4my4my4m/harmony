@@ -295,7 +295,7 @@ onUnmounted(() => {
   flex: 0 0 88px;
   width: 88px;
   height: 88px;
-  transition: transform 0.12s ease;
+  transition: filter 0.12s ease;
 }
 
 /* Clip audio toggle - bottom-right, fades in on hover; forced visible on
@@ -329,8 +329,7 @@ onUnmounted(() => {
 }
 
 .inline-gif-item:hover {
-  transform: scale(1.05);
-  z-index: 1;
+  filter: brightness(1.1);
 }
 
 .inline-gif-item img,

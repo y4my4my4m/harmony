@@ -1474,8 +1474,8 @@ onMounted(async () => {
 .rich-text-editor :deep(.token.entity) { cursor: help; }
 
 .rich-text-editor :deep(.editor-mention) {
-  color: #0EA5E9;
-  background-color: rgba(14, 165, 233, 0.15);
+  color: var(--harmony-primary);
+  background-color: color-mix(in srgb, var(--harmony-primary) 15%, transparent);
   border-radius: 3px;
   padding: 0 2px;
   cursor: pointer;
@@ -1484,7 +1484,7 @@ onMounted(async () => {
 }
 
 .rich-text-editor :deep(.editor-mention:hover) {
-  background-color: rgba(14, 165, 233, 0.3);
+  background-color: color-mix(in srgb, var(--harmony-primary) 30%, transparent);
   text-decoration: underline;
 }
 

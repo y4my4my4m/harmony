@@ -50,8 +50,8 @@
 
       <!-- Roles/Badges (non-compact only) -->
       <div v-if="!isCompact && (user.is_admin || user.is_moderator || userRoles.length > 0)" class="roles-section">
-        <div v-if="user.is_admin" class="role-badge instance-admin-badge">INSTANCE OWNER</div>
-        <div v-else-if="user.is_moderator" class="role-badge instance-mod-badge">INSTANCE MOD</div>
+        <div v-if="user.is_admin" class="role-badge instance-admin-badge">Instance owner</div>
+        <div v-else-if="user.is_moderator" class="role-badge instance-mod-badge">Instance mod</div>
         <div
           v-for="role in userRoles"
           :key="role.id"
@@ -130,7 +130,7 @@
         <div v-if="showActionsMenu" class="actions-menu" v-click-outside="closeActionsMenu">
           <button @click.stop="handleViewProfile" class="action-item">
             <Icon name="user" />
-            <span>View Profile</span>
+            <span>View profile</span>
           </button>
           
           <button @click.stop="handleMute" class="action-item">
@@ -496,8 +496,6 @@ const vClickOutside = {
 
 .profile-card.interactive:hover {
   border-color: var(--border-hover);
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-md);
 }
 
 .profile-card.compact {
@@ -599,7 +597,7 @@ const vClickOutside = {
 .verified-badge {
   width: 16px;
   height: 16px;
-  color: var(--success-primary);
+  color: var(--success);
   flex-shrink: 0;
 }
 
@@ -634,26 +632,22 @@ const vClickOutside = {
   display: inline-flex;
   align-items: center;
   padding: 0 2px;
-  background: rgba(14, 165, 233, 0.2);
-  border: 1px solid rgba(14, 165, 233, 0.3);
-  border-radius: 6px;
+  background: color-mix(in srgb, var(--harmony-primary) 20%, transparent);
+  border: 1px solid color-mix(in srgb, var(--harmony-primary) 30%, transparent);
+  border-radius: var(--radius-base);
   font-size: 11px;
   font-weight: 600;
   color: var(--text-primary);
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
 }
 
 .instance-admin-badge {
-  background: linear-gradient(135deg, rgba(212, 160, 23, 0.3), rgba(184, 134, 11, 0.3));
-  border-color: rgba(212, 160, 23, 0.5);
-  color: #f0d060;
+  background: color-mix(in srgb, var(--warning) 15%, transparent);
+  border-color: color-mix(in srgb, var(--warning) 40%, transparent);
 }
 
 .instance-mod-badge {
-  background: linear-gradient(135deg, rgba(43, 158, 143, 0.3), rgba(26, 122, 109, 0.3));
-  border-color: rgba(43, 158, 143, 0.5);
-  color: #5ed4c4;
+  background: color-mix(in srgb, var(--info) 15%, transparent);
+  border-color: color-mix(in srgb, var(--info) 40%, transparent);
 }
 
 /* ===== STATS SECTION ===== */
@@ -752,14 +746,14 @@ const vClickOutside = {
 .follow-btn {
   background: var(--harmony-primary);
   border-color: var(--harmony-primary);
-  color: var(--text-primary);
+  color: var(--text-on-primary);
 }
 
 /* Keep primary follow styling when pixel-art skin flattens .action-btn */
 .profile-card.compact .action-btn.follow-btn {
   background: var(--harmony-primary);
   border-color: var(--harmony-primary);
-  color: var(--text-primary);
+  color: var(--text-on-primary);
 }
 
 .profile-card.compact .action-btn.follow-btn.following {
@@ -769,8 +763,9 @@ const vClickOutside = {
 }
 
 .follow-btn:hover {
-  background: var(--harmony-primary-hover, #4f46e5);
-  border-color: var(--harmony-primary-hover, #4f46e5);
+  background: var(--harmony-primary-hover);
+  border-color: var(--harmony-primary-hover);
+  color: var(--text-on-primary);
 }
 
 .follow-btn.following {
@@ -782,6 +777,7 @@ const vClickOutside = {
 .follow-btn.following:hover {
   background: var(--background-tertiary);
   border-color: var(--border-hover);
+  color: var(--text-primary);
 }
 
 .action-btn:disabled {
@@ -815,7 +811,7 @@ const vClickOutside = {
   background: var(--background-primary);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-large);
   padding: var(--space-2);
   min-width: 150px;
   z-index: 9999;
@@ -846,11 +842,11 @@ const vClickOutside = {
 }
 
 .action-item.danger {
-  color: var(--error-primary);
+  color: var(--error);
 }
 
 .action-item.danger:hover {
-  background: rgba(248, 113, 113, 0.1);
+  background: color-mix(in srgb, var(--error) 10%, transparent);
 }
 
 .profile-card.has-corner-badge {

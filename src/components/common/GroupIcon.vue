@@ -163,7 +163,7 @@ function handleClick() {
   border-radius: var(--radius-md);
   overflow: hidden;
   background: var(--background-secondary);
-  transition: all 0.2s ease;
+  transition: filter 0.2s ease;
 }
 
 .group-icon.clickable {
@@ -171,8 +171,7 @@ function handleClick() {
 }
 
 .group-icon.clickable:hover {
-  transform: scale(1.05);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  filter: brightness(1.1);
 }
 
 .icon-image {
@@ -189,7 +188,7 @@ function handleClick() {
   align-items: center;
   justify-content: center;
   background: var(--harmony-primary);
-  color: var(--text-primary);
+  color: var(--text-on-primary);
   border-radius: inherit;
 }
 

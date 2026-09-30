@@ -14,7 +14,7 @@
  * - 'hybrid': Try LiveKit first, fallback to P2P
  */
 
-import { livekitWebRTC, type UserMediaState, type LiveKitConfig, type VideoSource } from './livekitWebRTC';
+import { livekitWebRTC, preloadLiveKit, type UserMediaState, type LiveKitConfig, type VideoSource } from './livekitWebRTC';
 import { unifiedWebRTC } from './unifiedWebRTC';
 import { nativeLiveKit, isNativeMediaSupported } from './nativeLiveKit';
 import { VoiceSettingsService } from './VoiceSettingsService';
@@ -196,6 +196,13 @@ class WebRTCManagerService implements WebRTCManager {
   
   // CONNECTION METHODS
   
+  /** Starts the SFU library download ahead of a join. P2P mode never loads it. */
+  preloadTransport(): void {
+    if (this.currentMode !== 'p2p') {
+      preloadLiveKit();
+    }
+  }
+
   /**
    * Join a voice channel
    * Automatically selects the best available transport

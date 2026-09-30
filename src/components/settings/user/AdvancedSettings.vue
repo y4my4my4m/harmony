@@ -37,7 +37,7 @@
     <RunOnLoginInstructionsModal v-model="showRunOnLoginModal" @enabled="onRunOnLoginEnabled" />
 
     <div class="settings-section">
-      <h3 class="section-title">Beta Features</h3>
+      <h3 class="section-title">Beta features</h3>
 
       <div class="setting-item">
         <div class="setting-info">
@@ -76,7 +76,7 @@
     </div>
 
     <div v-if="isTauriDesktop" class="settings-section">
-      <h3 class="section-title">Desktop App</h3>
+      <h3 class="section-title">Desktop app</h3>
 
       <div class="setting-item">
         <div class="setting-info">
@@ -110,7 +110,7 @@
     </div>
 
     <div class="settings-section">
-      <h3 class="section-title">Developer Settings</h3>
+      <h3 class="section-title">Developer settings</h3>
 
       <div class="setting-item">
         <div class="setting-info">
@@ -128,7 +128,7 @@
     </div>
 
     <div class="settings-section">
-      <h3 class="section-title">Data Management</h3>
+      <h3 class="section-title">Data management</h3>
 
       <div class="setting-item">
         <div class="setting-info">
@@ -169,11 +169,11 @@
     </div>
 
     <div class="settings-section danger-zone">
-      <h3 class="section-title danger">Danger Zone</h3>
+      <h3 class="section-title danger">Danger zone</h3>
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label danger">{{ $t('common.delete') }} Account</h4>
+          <h4 class="setting-label danger">{{ $t('common.delete') }} account</h4>
           <p class="setting-description">
             Permanently delete your account. Your messages and posts remain
             visible but are attributed to an anonymous "Deleted User"; your
@@ -183,7 +183,7 @@
         </div>
         <div class="setting-control">
           <button class="btn btn-danger" @click="openDeleteModal">
-            {{ $t('common.delete') }} Account
+            {{ $t('common.delete') }} account
           </button>
         </div>
       </div>
@@ -242,7 +242,7 @@
               :disabled="!canConfirmDeletion || isDeleting"
               @click="confirmDeletion"
             >
-              {{ isDeleting ? 'Deleting…' : 'Delete Account Forever' }}
+              {{ isDeleting ? 'Deleting…' : 'Delete account forever' }}
             </button>
           </div>
         </div>
@@ -498,14 +498,14 @@ const clearCache = async () => {
 }
 
 .settings-title {
-  font-size: 24px;
-  font-weight: 600;
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
   margin: 0 0 8px 0;
 }
 
 .settings-description {
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   color: var(--text-secondary);
   margin: 0;
 }
@@ -522,24 +522,24 @@ const clearCache = async () => {
   margin-bottom: 32px;
   padding: 24px;
   background-color: var(--background-secondary);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   border: 1px solid var(--background-quaternary);
 }
 
 .settings-section.danger-zone {
-  border-color: #ed4245;
-  background-color: rgba(237, 66, 69, 0.05);
+  border-color: var(--error);
+  background-color: color-mix(in srgb, var(--error) 5%, transparent);
 }
 
 .section-title {
-  font-size: 16px;
-  font-weight: 600;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
   margin: 0 0 20px 0;
 }
 
 .section-title.danger {
-  color: #ed4245;
+  color: var(--error);
 }
 
 .setting-item {
@@ -563,24 +563,24 @@ const clearCache = async () => {
 }
 
 .setting-label {
-  font-size: 14px;
-  font-weight: 500;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
   color: var(--text-primary);
   margin: 0 0 4px 0;
 }
 
 .setting-label.danger {
-  color: #ed4245;
+  color: var(--error);
 }
 
 
 
 .setting-description a {
-  color: var(--harmony-primary, #0EA5E9);
+  color: var(--harmony-primary);
 }
 
 .setting-description {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--text-secondary);
   margin: 0;
   line-height: 1.4;
@@ -589,9 +589,9 @@ const clearCache = async () => {
 .setting-description code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 11px;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--background-modifier-hover);
   padding: 1px 5px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   color: var(--text-secondary);
 }
 
@@ -609,10 +609,10 @@ const clearCache = async () => {
 
 .btn {
   padding: 8px 16px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   border: none;
-  font-weight: 500;
-  font-size: 14px;
+  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-sm);
   cursor: pointer;
   transition: all 0.15s ease;
 }
@@ -620,7 +620,7 @@ const clearCache = async () => {
 .btn-secondary {
   background-color: transparent;
   color: var(--text-secondary);
-  border: 1px solid #4f545c;
+  border: 1px solid var(--border-hover);
 }
 
 .btn-secondary:hover {
@@ -629,12 +629,12 @@ const clearCache = async () => {
 }
 
 .btn-danger {
-  background-color: #ed4245;
-  color: var(--text-primary);
+  background-color: var(--error);
+  color: var(--text-on-primary);
 }
 
 .btn-danger:hover {
-  background-color: #c73e41;
+  background-color: var(--error-hover);
 }
 
 .modal-overlay {
@@ -652,7 +652,7 @@ const clearCache = async () => {
 
 .modal-content {
   background-color: var(--background-secondary);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 24px;
   max-width: 400px;
   width: 90%;
@@ -660,14 +660,14 @@ const clearCache = async () => {
 }
 
 .modal-title {
-  font-size: 18px;
-  font-weight: 600;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
   margin: 0 0 12px 0;
 }
 
 .modal-text {
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   color: var(--text-secondary);
   margin: 0 0 20px 0;
   line-height: 1.4;
@@ -694,7 +694,7 @@ const clearCache = async () => {
 .delete-modal {
   background: var(--background-secondary);
   border: 1px solid var(--border-color);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   padding: 24px;
   max-width: 440px;
   width: 100%;
@@ -705,14 +705,14 @@ const clearCache = async () => {
 
 .delete-modal-title {
   margin: 0;
-  font-size: 18px;
-  font-weight: 700;
-  color: #ed4245;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--error);
 }
 
 .delete-modal-text {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   line-height: 1.5;
   color: var(--text-secondary);
 }
@@ -730,25 +730,25 @@ const clearCache = async () => {
 
 .delete-modal-field input {
   padding: 10px 12px;
-  border-radius: 6px;
-  border: 1px solid var(--border-color);
-  background: var(--background-tertiary);
+  border-radius: var(--radius-base);
+  border: 1px solid var(--input-border);
+  background: var(--input-bg);
   color: var(--text-primary);
-  font-size: 14px;
+  font-size: var(--font-size-sm);
 }
 
 .delete-modal-field input:focus {
   outline: none;
-  border-color: #ed4245;
+  border-color: var(--error);
 }
 
 .delete-modal-error {
   margin: 0;
   font-size: 13px;
-  color: #ed4245;
-  background: rgba(237, 66, 69, 0.08);
-  border: 1px solid rgba(237, 66, 69, 0.3);
-  border-radius: 6px;
+  color: var(--error);
+  background: color-mix(in srgb, var(--error) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--error) 30%, transparent);
+  border-radius: var(--radius-base);
   padding: 10px 12px;
 }
 

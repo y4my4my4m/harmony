@@ -7,9 +7,9 @@
           <Icon name="music" />
         </div>
         <div class="header-info">
-          <h3 class="header-title">Audio Themes</h3>
+          <h3 class="header-title">Audio themes</h3>
           <p class="header-subtitle">
-            Customize your audio experience with professional sound packs
+            Sound packs for notifications, calls and interface feedback
           </p>
         </div>
       </div>
@@ -143,7 +143,7 @@
     <div v-if="showVolumeControl" class="volume-section">
       <div class="volume-header">
         <Icon name="volume-2" />
-        <span class="volume-label">Master Volume</span>
+        <span class="volume-label">Master volume</span>
         <span class="volume-value">{{ Math.round(localVolume) }}%</span>
       </div>
       
@@ -190,7 +190,7 @@
         class="advanced-toggle"
       >
         <Icon name="settings" />
-        <span>Advanced Settings</span>
+        <span>Advanced settings</span>
         <Icon :name="showAdvancedOptions ? 'chevron-up' : 'chevron-down'" />
       </button>
       
@@ -215,15 +215,15 @@
           <div class="option-actions">
             <button @click="exportThemeSettings" class="option-btn">
               <Icon name="download" />
-              Export Settings
+              Export settings
             </button>
             <button @click="importThemeSettings" class="option-btn">
               <Icon name="upload" />
-              Import Settings
+              Import settings
             </button>
             <button @click="resetToDefaults" class="option-btn danger">
               <Icon name="rotate-ccw" />
-              Reset to Defaults
+              Reset to defaults
             </button>
           </div>
         </div>
@@ -419,7 +419,7 @@ watch(() => themeStore.currentAudioTheme, () => {
 <style scoped>
 .audio-theme-manager {
   background: var(--background-primary);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 24px;
   color: var(--text-primary);
   border: 1px solid var(--border-primary);
@@ -443,12 +443,12 @@ watch(() => themeStore.currentAudioTheme, () => {
   width: 48px;
   height: 48px;
   background: var(--harmony-primary);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--text-primary);
-  font-size: 24px;
+  color: var(--text-on-primary);
+  font-size: var(--font-size-2xl);
 }
 
 .header-info {
@@ -456,15 +456,15 @@ watch(() => themeStore.currentAudioTheme, () => {
 }
 
 .header-title {
-  font-size: 24px;
-  font-weight: 700;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
   margin: 0 0 4px 0;
   color: var(--text-primary);
 }
 
 .header-subtitle {
   color: var(--text-secondary);
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   margin: 0;
   line-height: 1.4;
 }
@@ -477,22 +477,21 @@ watch(() => themeStore.currentAudioTheme, () => {
 .action-btn {
   width: 40px;
   height: 40px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 10px;
+  border: 1px solid var(--border-hover);
+  background: var(--background-modifier-hover);
+  border-radius: var(--radius-md);
   color: var(--text-secondary);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .action-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.3);
+  background: var(--background-modifier-active);
+  border-color: var(--border-hover);
   color: var(--text-primary);
-  transform: translateY(-1px);
 }
 
 .action-btn:disabled {
@@ -515,21 +514,21 @@ watch(() => themeStore.currentAudioTheme, () => {
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 8px;
+  background: var(--background-tertiary);
+  border-radius: var(--radius-md);
   margin-bottom: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border-primary);
 }
 
 .status-indicator {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
 }
 
 .status-indicator.ready {
-  color: var(--status-online);
+  color: var(--success);
 }
 
 .status-indicator.loading,
@@ -542,7 +541,7 @@ watch(() => themeStore.currentAudioTheme, () => {
 }
 
 .cache-info {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--text-secondary);
 }
 
@@ -552,9 +551,9 @@ watch(() => themeStore.currentAudioTheme, () => {
   align-items: center;
   gap: 12px;
   padding: 12px 16px;
-  background: rgba(245, 101, 101, 0.1);
-  border: 1px solid rgba(245, 101, 101, 0.3);
-  border-radius: 8px;
+  background: color-mix(in srgb, var(--error) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--error) 30%, transparent);
+  border-radius: var(--radius-md);
   color: var(--error);
   margin-bottom: 20px;
 }
@@ -566,12 +565,12 @@ watch(() => themeStore.currentAudioTheme, () => {
   color: inherit;
   cursor: pointer;
   padding: 4px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   transition: background 0.2s ease;
 }
 
 .error-close:hover {
-  background: rgba(245, 101, 101, 0.2);
+  background: color-mix(in srgb, var(--error) 20%, transparent);
 }
 
 /* Theme Grid */
@@ -583,26 +582,22 @@ watch(() => themeStore.currentAudioTheme, () => {
 }
 
 .theme-card {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
+  background: var(--background-modifier-hover);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
   overflow: hidden;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: border-color var(--transition-fast), background-color var(--transition-fast);
   position: relative;
-  backdrop-filter: blur(10px);
 }
 
 .theme-card:hover {
-  transform: translateY(-2px);
-  border-color: rgba(255, 255, 255, 0.2);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+  border-color: var(--border-hover);
 }
 
 .theme-card.active {
   border-color: var(--harmony-primary);
-  background: rgba(102, 126, 234, 0.1);
-  box-shadow: 0 0 20px rgba(102, 126, 234, 0.3);
+  background: color-mix(in srgb, var(--harmony-primary) 10%, transparent);
 }
 
 .theme-card.loading {
@@ -642,12 +637,14 @@ watch(() => themeStore.currentAudioTheme, () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--text-primary);
-  font-size: 24px;
+  color: var(--text-light);
+  font-size: var(--font-size-2xl);
 }
 
-.pulsing {
-  animation: pulse 2s ease-in-out infinite;
+@media (prefers-reduced-motion: no-preference) {
+  .pulsing {
+    animation: pulse 2s ease-in-out infinite;
+  }
 }
 
 @keyframes pulse {
@@ -668,8 +665,8 @@ watch(() => themeStore.currentAudioTheme, () => {
 }
 
 .theme-name {
-  font-size: 18px;
-  font-weight: 600;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
   margin: 0;
   color: var(--text-primary);
 }
@@ -681,24 +678,22 @@ watch(() => themeStore.currentAudioTheme, () => {
 }
 
 .built-in-badge {
-  background: var(--harmony-primary);
-  color: var(--text-primary);
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  background: var(--background-modifier-selected);
+  color: var(--text-secondary);
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: var(--font-weight-semibold);
 }
 
 .theme-version {
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: var(--font-size-xs);
 }
 
 .theme-description {
-  color: #cbd5e0;
-  font-size: 14px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
   line-height: 1.5;
   margin: 0 0 16px 0;
 }
@@ -711,15 +706,15 @@ watch(() => themeStore.currentAudioTheme, () => {
 
 .theme-author {
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: var(--font-size-xs);
 }
 
 .mini-action-btn {
   width: 28px;
   height: 28px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 6px;
+  border: 1px solid var(--border-hover);
+  background: var(--background-modifier-hover);
+  border-radius: var(--radius-base);
   color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s ease;
@@ -729,7 +724,7 @@ watch(() => themeStore.currentAudioTheme, () => {
 }
 
 .mini-action-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--background-modifier-active);
   color: var(--text-primary);
 }
 
@@ -738,15 +733,15 @@ watch(() => themeStore.currentAudioTheme, () => {
   position: absolute;
   top: 12px;
   right: 12px;
-  color: var(--harmony-primary);
-  background: var(--text-primary);
+  color: var(--text-on-primary);
+  background: var(--harmony-primary);
   border-radius: 50%;
   width: 24px;
   height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 24px;
+  font-size: var(--font-size-2xl);
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
 }
 
@@ -757,7 +752,7 @@ watch(() => themeStore.currentAudioTheme, () => {
   left: 0;
   right: 0;
   height: 3px;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--background-modifier-active);
 }
 
 .progress-bar {
@@ -768,10 +763,10 @@ watch(() => themeStore.currentAudioTheme, () => {
 
 /* Volume Section */
 .volume-section {
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 12px;
+  background: var(--background-tertiary);
+  border-radius: var(--radius-lg);
   padding: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border-primary);
 }
 
 .volume-header {
@@ -783,14 +778,14 @@ watch(() => themeStore.currentAudioTheme, () => {
 
 .volume-label {
   flex: 1;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
 }
 
 .volume-value {
   color: var(--harmony-primary);
-  font-weight: 600;
-  font-size: 14px;
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-sm);
 }
 
 .volume-control {
@@ -802,9 +797,9 @@ watch(() => themeStore.currentAudioTheme, () => {
 .volume-mute-btn {
   width: 36px;
   height: 36px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 8px;
+  border: 1px solid var(--border-hover);
+  background: var(--background-modifier-hover);
+  border-radius: var(--radius-md);
   color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s ease;
@@ -814,7 +809,7 @@ watch(() => themeStore.currentAudioTheme, () => {
 }
 
 .volume-mute-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--background-modifier-active);
   color: var(--text-primary);
 }
 
@@ -849,7 +844,7 @@ watch(() => themeStore.currentAudioTheme, () => {
   left: 0;
   right: 0;
   height: 6px;
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--background-modifier-active);
   border-radius: 3px;
   transform: translateY(-50%);
   pointer-events: none;
@@ -872,12 +867,6 @@ watch(() => themeStore.currentAudioTheme, () => {
   cursor: pointer;
   border: 2px solid #ffffff;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-  transition: all 0.2s ease;
-}
-
-.volume-slider::-webkit-slider-thumb:hover {
-  transform: scale(1.1);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
 }
 
 .volume-presets {
@@ -887,30 +876,30 @@ watch(() => themeStore.currentAudioTheme, () => {
 
 .preset-btn {
   padding: 6px 10px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 6px;
+  border: 1px solid var(--border-hover);
+  background: var(--background-modifier-hover);
+  border-radius: var(--radius-base);
   color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s ease;
-  font-size: 12px;
-  font-weight: 500;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
 }
 
 .preset-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--background-modifier-active);
   color: var(--text-primary);
 }
 
 .preset-btn.active {
   background: var(--harmony-primary);
   border-color: var(--harmony-primary);
-  color: var(--text-primary);
+  color: var(--text-on-primary);
 }
 
 /* Advanced Section */
 .advanced-section {
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-top: 1px solid var(--border-primary);
   padding-top: 20px;
 }
 
@@ -920,24 +909,24 @@ watch(() => themeStore.currentAudioTheme, () => {
   align-items: center;
   gap: 12px;
   padding: 12px 16px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
+  background: var(--background-modifier-hover);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
   color: var(--text-primary);
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .advanced-toggle:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--background-modifier-active);
 }
 
 .advanced-options {
   margin-top: 16px;
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 8px;
+  background: var(--background-tertiary);
+  border-radius: var(--radius-md);
   padding: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border-primary);
 }
 
 .option-row {
@@ -945,7 +934,7 @@ watch(() => themeStore.currentAudioTheme, () => {
   align-items: center;
   justify-content: space-between;
   padding: 12px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid var(--border-primary);
 }
 
 .option-row:last-child {
@@ -954,12 +943,12 @@ watch(() => themeStore.currentAudioTheme, () => {
 
 .option-label {
   color: var(--text-primary);
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
 }
 
 .cache-stats {
   color: var(--text-secondary);
-  font-size: 14px;
+  font-size: var(--font-size-sm);
 }
 
 .option-actions {
@@ -974,27 +963,27 @@ watch(() => themeStore.currentAudioTheme, () => {
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 8px;
+  border: 1px solid var(--border-hover);
+  background: var(--background-modifier-hover);
+  border-radius: var(--radius-md);
   color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s ease;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
 }
 
 .option-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--background-modifier-active);
   color: var(--text-primary);
 }
 
 .option-btn.danger {
-  border-color: rgba(245, 101, 101, 0.3);
+  border-color: color-mix(in srgb, var(--error) 30%, transparent);
   color: var(--error);
 }
 
 .option-btn.danger:hover {
-  background: rgba(245, 101, 101, 0.1);
+  background: color-mix(in srgb, var(--error) 10%, transparent);
   border-color: var(--error);
 }
 
@@ -1029,7 +1018,7 @@ watch(() => themeStore.currentAudioTheme, () => {
 }
 
 .audio-theme-manager.compact .header-title {
-  font-size: 20px;
+  font-size: var(--font-size-xl);
 }
 
 /* Responsive */

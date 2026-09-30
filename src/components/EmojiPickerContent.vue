@@ -20,7 +20,8 @@
           @click="toggleSection('favorites')"
         >
           <span class="section-chevron" :class="{ collapsed: isSectionCollapsed('favorites') }">&#9662;</span>
-          &#11088; Favorites
+          <Icon name="star" :size="12" />
+          Favorites
         </h3>
         <template v-if="!isSectionCollapsed('favorites')">
           <div v-if="favoriteEmojis.length" class="emoji-list favorite-list">
@@ -63,7 +64,8 @@
           @click="toggleSection('frequent')"
         >
           <span class="section-chevron" :class="{ collapsed: isSectionCollapsed('frequent') }">&#9662;</span>
-          ⏱️ Frequently Used
+          <Icon name="clock" :size="12" />
+          Frequently used
         </h3>
         <div v-if="!isSectionCollapsed('frequent')" class="emoji-list frequent-list">
           <div
@@ -100,7 +102,8 @@
           @click="toggleSection('ai-generated')"
         >
           <span class="section-chevron" :class="{ collapsed: isSectionCollapsed('ai-generated') }">&#9662;</span>
-          ✨ AI Generated
+          <Icon name="sparkles" :size="12" />
+          AI generated
         </h3>
         <template v-if="!isSectionCollapsed('ai-generated')">
           <div v-if="aiEmojis.length" class="emoji-list">
@@ -197,7 +200,7 @@
       <!-- No Results -->
       <div v-if="searchQuery && !filteredEmojiList.length && !displayedCategories.length" class="no-results">
         <div class="no-results-content">
-          <div class="no-results-icon">🔍</div>
+          <Icon name="search" :size="32" class="no-results-icon" />
           <p>No emojis found for "{{ searchQuery }}"</p>
           <small>Try a different search term.</small>
         </div>
@@ -230,14 +233,14 @@
           @click.stop
         >
           <div class="emoji-ctx-item" @click="ctxToggleFavorite">
-            <span>{{ emojiCtx.isFav ? 'Unfavorite Emoji' : 'Favorite Emoji' }}</span>
+            <span>{{ emojiCtx.isFav ? 'Unfavorite emoji' : 'Favorite emoji' }}</span>
           </div>
           <div class="emoji-ctx-item" @click="ctxCopyId">
-            <span>Copy Emoji ID</span>
+            <span>Copy emoji ID</span>
             <span class="emoji-ctx-badge">ID</span>
           </div>
           <div v-if="emojiCtx.imageUrl" class="emoji-ctx-item" @click="ctxCopyImageLink">
-            <span>Copy Image Link</span>
+            <span>Copy image link</span>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
           </div>
           <div v-if="emojiCtx.isFrequent" class="emoji-ctx-item emoji-ctx-item-danger" @click="ctxRemoveFrequent">
@@ -266,6 +269,7 @@ import { debug } from '@/utils/debug';
 import LazyEmojiSection from '@/components/LazyEmojiSection.vue';
 import ServerIcon from '@/components/common/ServerIcon.vue';
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
+import Icon from '@/components/common/Icon.vue';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 
 // Types
@@ -605,7 +609,7 @@ function showFavToast(msg: string) {
 async function toggleFavoriteUnified(emoji: EmojiEntry) {
   try {
     const result = await emojiFavoriteService.toggleFavorite(emoji.unicode, emoji.shortcode, null, null);
-    showFavToast(result.isFavorite ? `⭐ Added :${emoji.shortcode}:` : `Removed :${emoji.shortcode}:`);
+    showFavToast(result.isFavorite ? `Added :${emoji.shortcode}: to favorites` : `Removed :${emoji.shortcode}: from favorites`);
     await loadFavorites();
   } catch (e) {
     debug.error('Failed to toggle favorite:', e);
@@ -617,7 +621,7 @@ async function toggleFavoriteServer(emoji: ResolvedEmoji) {
   try {
     const url = emoji.url ? getEmojiUrl(emoji.url, 42) : null;
     const result = await emojiFavoriteService.toggleFavorite(emoji.id, emoji.name, url, emoji.server_id || null);
-    showFavToast(result.isFavorite ? `⭐ Added :${emoji.name}:` : `Removed :${emoji.name}:`);
+    showFavToast(result.isFavorite ? `Added :${emoji.name}: to favorites` : `Removed :${emoji.name}: from favorites`);
     await loadFavorites();
   } catch (e) {
     debug.error('Failed to toggle favorite:', e);
@@ -630,7 +634,7 @@ async function toggleFavoriteFrequent(emoji: { id: string; native?: string; name
     const emojiId = emoji.native || emoji.id;
     const url = getFrequentEmojiDisplayUrl(emoji);
     const result = await emojiFavoriteService.toggleFavorite(emojiId, emoji.name, url, null);
-    showFavToast(result.isFavorite ? `⭐ Added :${emoji.name}:` : `Removed :${emoji.name}:`);
+    showFavToast(result.isFavorite ? `Added :${emoji.name}: to favorites` : `Removed :${emoji.name}: from favorites`);
     await loadFavorites();
   } catch (e) {
     debug.error('Failed to toggle favorite:', e);
@@ -775,7 +779,7 @@ async function ctxToggleFavorite() {
   closeEmojiCtx();
   try {
     const result = await emojiFavoriteService.toggleFavorite(ctx.emojiId, ctx.emojiName, ctx.imageUrl, ctx.serverIdOrNull);
-    showFavToast(result.isFavorite ? `⭐ Added :${ctx.emojiName}:` : `Removed :${ctx.emojiName}:`);
+    showFavToast(result.isFavorite ? `Added :${ctx.emojiName}: to favorites` : `Removed :${ctx.emojiName}: from favorites`);
     await loadFavorites();
   } catch (e) {
     debug.error('Failed to toggle favorite:', e);
@@ -921,7 +925,7 @@ onUnmounted(() => {
 }
 
 .section-title-collapsible:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--background-modifier-hover);
 }
 
 .section-server-icon {
@@ -950,7 +954,7 @@ onUnmounted(() => {
 
 .emoji-item {
   cursor: pointer;
-  transition: transform 0.15s ease, background-color 0.15s ease;
+  transition: background-color 0.15s ease;
   border-radius: 4px;
   padding: 2px;
   display: flex;
@@ -962,8 +966,7 @@ onUnmounted(() => {
 }
 
 .emoji-item:hover {
-  transform: scale(1.2);
-  background-color: rgba(255, 255, 255, 0.1);
+  background-color: var(--background-modifier-hover);
 }
 
 .emoji-item img,
@@ -1021,7 +1024,7 @@ onUnmounted(() => {
 .emoji-broken-icon {
   width: 22px;
   height: 22px;
-  color: var(--text-muted, #72767d);
+  color: var(--text-muted);
   opacity: 0.5;
 }
 
@@ -1061,7 +1064,7 @@ onUnmounted(() => {
 }
 
 .no-results-icon {
-  font-size: 32px;
+  opacity: 0.6;
 }
 
 .no-results p {
@@ -1093,8 +1096,8 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--harmony-primary, var(--harmony-primary-alpha));
-  color: #fff;
+  background: var(--harmony-primary);
+  color: var(--text-on-primary);
   border: none;
   border-radius: 4px;
   padding: 6px 12px;
@@ -1112,7 +1115,7 @@ onUnmounted(() => {
 .ai-gen-error {
   margin: 0 0 8px;
   font-size: 12px;
-  color: var(--color-danger, #f23f42);
+  color: var(--error);
 }
 
 /* Favorites */
@@ -1178,7 +1181,7 @@ onUnmounted(() => {
   font-size: 12px;
   font-weight: 500;
   border: 1px solid var(--border-color);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-medium);
   pointer-events: none;
   z-index: 10;
   white-space: nowrap;

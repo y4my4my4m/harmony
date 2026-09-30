@@ -6,23 +6,14 @@
  * Forwarding Unit, with built-in E2EE and per-layer quality adaptation.
  */
 
-import {
+import type {
   Room,
-  RoomEvent,
   RemoteParticipant,
   LocalParticipant,
-  Track,
   TrackPublication,
   ConnectionState,
-  ParticipantEvent,
   LocalAudioTrack,
   RemoteTrack,
-  RemoteAudioTrack,
-  VideoPresets,
-  createLocalAudioTrack,
-  createLocalVideoTrack,
-  setLogLevel,
-  LogLevel,
   ExternalE2EEKeyProvider,
 } from 'livekit-client';
 import { supabase } from '@/supabase';
@@ -220,7 +211,47 @@ async function resolveFederatedId(federatedId: string, originalIdentity: string)
   return null;
 }
 
-setLogLevel(import.meta.env.DEV ? LogLevel.debug : LogLevel.warn);
+// LIBRARY LOADING
+//
+// livekit-client is a dynamic import so it stays out of the initial bundle.
+// Every Room is constructed after loadLiveKit() resolves, so code that runs
+// only while `this.room` is set may call lib(). Getters that answer while
+// disconnected must not.
+
+type LiveKitModule = typeof import('livekit-client');
+
+let lk: LiveKitModule | null = null;
+let lkLoading: Promise<LiveKitModule> | null = null;
+
+/** Resolves to the livekit-client module. A failed load is retried on the next call. */
+export function loadLiveKit(): Promise<LiveKitModule> {
+  if (!lkLoading) {
+    lkLoading = import('livekit-client').then(
+      (mod) => {
+        mod.setLogLevel(import.meta.env.DEV ? mod.LogLevel.debug : mod.LogLevel.warn);
+        lk = mod;
+        return mod;
+      },
+      (error: unknown) => {
+        lkLoading = null;
+        throw error;
+      },
+    );
+  }
+  return lkLoading;
+}
+
+/** Starts the livekit-client download without waiting on it. */
+export function preloadLiveKit(): void {
+  loadLiveKit().catch((error: unknown) => {
+    debug.warn('[LiveKit] Preload failed; the join retries the load:', error);
+  });
+}
+
+function lib(): LiveKitModule {
+  if (!lk) throw new Error('livekit-client is not loaded');
+  return lk;
+}
 
 // TYPES
 
@@ -339,6 +370,7 @@ export class LiveKitWebRTCService {
 
   /** @param resolution - 360, 480, 720, 1080, or -1 for source. */
   private getResolutionPreset(resolution: number): { width: number; height: number; frameRate: number } {
+    const { VideoPresets } = lib();
     switch (resolution) {
       case 360:
         return { width: 640, height: 360, frameRate: 30 };
@@ -433,7 +465,11 @@ export class LiveKitWebRTCService {
       
       const roomName = roomType === 'dm_call' ? channelId : `channel-${channelId}`;
       
-      const tokenResponse = await this.getToken(roomName, roomType);
+      // Library download overlaps the token request.
+      const [tokenResponse, { Room }] = await Promise.all([
+        this.getToken(roomName, roomType),
+        loadLiveKit(),
+      ]);
       
       // Check for cancellation after getting token
       if (abortSignal?.aborted) {
@@ -554,6 +590,8 @@ export class LiveKitWebRTCService {
         await this.leaveChannel();
       }
       
+      const { Room } = await loadLiveKit();
+
       this.channelId = channelId;
       this.currentUserId = userId;
       this.roomType = 'voice_channel';
@@ -684,6 +722,7 @@ export class LiveKitWebRTCService {
   
   private async publishLocalAudio(): Promise<void> {
     if (!this.room?.localParticipant) return;
+    const { createLocalAudioTrack } = lib();
 
     // Mic acquisition can hang (no device, or a stalled permission prompt,
     // common on Android). The timeout keeps the join completing, listen-only
@@ -738,6 +777,7 @@ export class LiveKitWebRTCService {
       debug.warn('[LiveKit] No room connected');
       return false;
     }
+    const { Track, createLocalVideoTrack } = lib();
     
     try {
       if (!this.localMediaState.isVideoEnabled) {
@@ -805,6 +845,7 @@ export class LiveKitWebRTCService {
       debug.warn('[LiveKit] No room connected');
       return false;
     }
+    const { Track, VideoPresets } = lib();
     
     try {
       if (!this.localMediaState.isScreenSharing) {
@@ -1066,6 +1107,7 @@ export class LiveKitWebRTCService {
     }
     
     if (settings.resolution !== undefined || settings.frameRate !== undefined) {
+      const { Track } = lib();
       let trackCount = 0;
       for (const publication of this.room.localParticipant.videoTrackPublications.values()) {
         const track = publication.track;
@@ -1301,6 +1343,7 @@ export class LiveKitWebRTCService {
   getUserMicStream(userId: string): MediaStream | null {
     const participant = this.resolveParticipant(userId);
     if (!participant) return null;
+    const { Track } = lib();
 
     const stream = new MediaStream();
     for (const publication of participant.audioTrackPublications.values()) {
@@ -1336,6 +1379,7 @@ export class LiveKitWebRTCService {
     participant: LocalParticipant | RemoteParticipant,
     source: VideoSource
   ): TrackPublication | undefined {
+    const { Track } = lib();
     const publications: TrackPublication[] = [...participant.videoTrackPublications.values()];
     const screen = publications.find(p => p.source === Track.Source.ScreenShare);
     const camera = publications.find(p => p.source === Track.Source.Camera);
@@ -1493,6 +1537,7 @@ export class LiveKitWebRTCService {
   
   private setupRoomListeners(): void {
     if (!this.room) return;
+    const { RoomEvent, ParticipantEvent, Track, RemoteAudioTrack } = lib();
     
     // Connection state changes
     this.room.on(RoomEvent.ConnectionStateChanged, (state: ConnectionState) => {
@@ -1846,6 +1891,7 @@ export class LiveKitWebRTCService {
   }
   
   private setupParticipantListeners(participant: RemoteParticipant): void {
+    const { ParticipantEvent, Track } = lib();
     // Track mute also fires for PTT gating, so it can't be trusted as user intent.
     // Explicit mute arrives via the media-state data broadcast instead.
     participant.on(ParticipantEvent.TrackMuted, (publication: TrackPublication) => {
@@ -1875,6 +1921,7 @@ export class LiveKitWebRTCService {
    *   participant.identity.
    */
   private createMediaState(participant: RemoteParticipant, resolvedUserId?: string): UserMediaState {
+    const { Track } = lib();
     // Publication mute is only an initial guess (PTT gating also mutes the track);
     // the participant's media-state broadcast corrects it right after join.
     const hasMic = participant.audioTrackPublications.size > 0;
@@ -2010,7 +2057,7 @@ export class LiveKitWebRTCService {
   private async setupE2EEOptions(): Promise<{ keyProvider: ExternalE2EEKeyProvider; worker: Worker } | null> {
     try {
       if (!this.e2eeKeyProvider) {
-        this.e2eeKeyProvider = new ExternalE2EEKeyProvider();
+        this.e2eeKeyProvider = new (lib().ExternalE2EEKeyProvider)();
       }
       if (!this.e2eeWorker) {
         // Vite resolves this to the livekit-client e2ee worker bundle.
@@ -2234,7 +2281,7 @@ export class LiveKitWebRTCService {
     
     try {
       if (!this.e2eeKeyProvider) {
-        this.e2eeKeyProvider = new ExternalE2EEKeyProvider();
+        this.e2eeKeyProvider = new (lib().ExternalE2EEKeyProvider)();
       }
       
       await this.e2eeKeyProvider.setKey(sharedKey);
@@ -2297,7 +2344,7 @@ export class LiveKitWebRTCService {
   // UTILITY METHODS
   
   isConnected(): boolean {
-    return this.room?.state === ConnectionState.Connected;
+    return this.room !== null && this.room.state === lib().ConnectionState.Connected;
   }
   
   getCurrentChannelId(): string | null {

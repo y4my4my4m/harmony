@@ -90,7 +90,7 @@
           <div class="today-card-header">
             <Icon name="hash" :size="16" />
             <h2>Catch up</h2>
-            <span class="card-hint">busiest unread channels across your servers</span>
+            <span class="card-hint">Busiest unread channels across your servers</span>
           </div>
           <div v-if="channelsByServer.length === 0" class="empty-hint">
             All caught up - no unread channels.
@@ -509,7 +509,8 @@ onMounted(() => loadDigest())
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 16px;
+  height: 48px;
+  padding: 0 16px;
   border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
 }

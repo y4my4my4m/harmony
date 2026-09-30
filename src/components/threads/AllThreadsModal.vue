@@ -17,7 +17,7 @@
                 <input 
                   v-model="searchQuery"
                   type="text" 
-                  placeholder="Search for Thread Name"
+                  placeholder="Search for thread name"
                 />
               </div>
               <button class="close-btn" @click="close">
@@ -33,7 +33,7 @@
           <div class="modal-content">
             <!-- Joined Threads Section -->
             <div v-if="joinedThreads.length > 0" class="thread-section">
-              <h3 class="section-title">{{ joinedThreads.length }} JOINED THREADS</h3>
+              <h3 class="section-title">{{ joinedThreads.length }} joined threads</h3>
               <div class="thread-list">
                 <button
                   v-for="thread in joinedThreads"
@@ -68,7 +68,7 @@
 
             <!-- Older Threads Section -->
             <div v-if="olderThreads.length > 0" class="thread-section">
-              <h3 class="section-title">OLDER THREADS</h3>
+              <h3 class="section-title">Older threads</h3>
               <div class="thread-list">
                 <button
                   v-for="thread in olderThreads"
@@ -102,7 +102,7 @@
               </svg>
               <p v-if="searchQuery">No threads match your search</p>
               <p v-else>No threads yet</p>
-              <span>Start a thread from any message!</span>
+              <span>Start a thread from any message.</span>
             </div>
 
             <!-- Loading -->
@@ -242,7 +242,7 @@ onMounted(() => {
   border-radius: 8px;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--shadow-large);
   overflow: hidden;
 }
 

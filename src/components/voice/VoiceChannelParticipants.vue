@@ -189,7 +189,7 @@ onUnmounted(() => {
 }
 
 .status-icon.screen {
-  color: #0EA5E9;
+  color: var(--harmony-primary);
 }
 </style>
 

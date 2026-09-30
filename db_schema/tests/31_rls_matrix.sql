@@ -167,8 +167,8 @@ SELECT throws_ok(
     '42501'::char(5), NULL,
     'a user cannot author a post under another profile');
 
--- Blocking. posts_select_public gates on is_blocked_by(author_id) ahead of the
--- visibility test, so a block outranks an accepted follow.
+-- Blocking. posts_select_public gates on current_user_block_peer_ids() ahead of
+-- the visibility test, so a block outranks an accepted follow.
 SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
 SELECT lives_ok(
     $q$INSERT INTO public.user_blocks (blocker_id, blocked_user_id)

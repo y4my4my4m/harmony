@@ -137,16 +137,11 @@ const badgeStyle = computed(() => ({
   z-index: 1;
   max-width: min(55%, 160px);
   padding: 3px 7px;
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   font-size: 0.6875rem;
   font-weight: 500;
   border: 1px solid color-mix(in srgb, var(--rib-color) 35%, transparent);
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--rib-color) 18%, var(--background-secondary)) 0%,
-    color-mix(in srgb, var(--rib-color) 8%, var(--background-primary)) 100%
-  );
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+  background: color-mix(in srgb, var(--rib-color) 14%, var(--background-secondary));
 }
 
 .remote-instance-badge--corner.compact {
@@ -173,7 +168,7 @@ const badgeStyle = computed(() => ({
   max-width: 100%;
   margin: 6px auto 0;
   padding: 2px 8px 2px 5px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   font-size: 0.625rem;
   font-weight: 500;
   border: 1px solid color-mix(in srgb, var(--rib-color) 28%, transparent);
@@ -190,22 +185,17 @@ const badgeStyle = computed(() => ({
   width: fit-content;
   max-width: 100%;
   padding: 2px 8px 2px 4px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 0.6875rem;
   font-weight: 600;
-  color: #fff;
-  background: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--rib-color) 92%, black) 0%,
-    color-mix(in srgb, var(--rib-color) 70%, transparent) 65%,
-    transparent 100%
-  );
+  color: var(--text-on-primary);
+  background: color-mix(in srgb, var(--rib-color) 85%, black);
 }
 
 .remote-instance-badge--strip .rib-icon {
   width: 18px;
   height: 18px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   overflow: hidden;
   background: color-mix(in srgb, var(--rib-color) 80%, black);
 }

@@ -11,7 +11,7 @@
     <div class="settings-section security-section">
       <h3 class="section-title">
         <ShieldIcon class="section-icon" />
-        Account Security
+        Account security
       </h3>
       
       <!-- Password Change -->
@@ -111,7 +111,7 @@
             class="btn btn-primary"
             :disabled="passwordLoading || !isPasswordFormValid"
           >
-            <span v-if="!passwordLoading">Update Password</span>
+            <span v-if="!passwordLoading">Update password</span>
             <div v-else class="loading-spinner"></div>
           </button>
         </form>
@@ -119,7 +119,7 @@
 
       <!-- Two-Factor Authentication -->
       <div class="subsection">
-        <h4 class="subsection-title">Two-Factor Authentication</h4>
+        <h4 class="subsection-title">Two-factor authentication</h4>
         <p class="subsection-description">
           Add an extra layer of security to your account by requiring a verification code from your phone.
         </p>
@@ -128,7 +128,7 @@
         <div v-if="!twoFactorEnabled && !showEnroll2FA" class="twofa-status">
           <div class="status-badge status-disabled">
             <ShieldIcon />
-            <span>Two-Factor Authentication is Disabled</span>
+            <span>Two-factor authentication is disabled</span>
           </div>
           <p class="status-text">
             Secure your account with an authenticator app like Google Authenticator or Authy.
@@ -138,7 +138,7 @@
             @click="startEnroll2FA"
             :disabled="twoFactorLoading"
           >
-            Enable Two-Factor Authentication
+            Enable two-factor authentication
           </button>
         </div>
 
@@ -194,7 +194,7 @@
             </p>
             <form @submit.prevent="verifyAndEnable2FA">
               <div class="form-group">
-                <label class="form-label">Verification Code</label>
+                <label class="form-label">Verification code</label>
                 <input
                   v-model="verificationCode"
                   type="text"
@@ -215,7 +215,7 @@
                   class="btn btn-primary btn-sm"
                   :disabled="twoFactorLoading || verificationCode.length !== 6"
                 >
-                  <span v-if="!twoFactorLoading">Verify & Enable</span>
+                  <span v-if="!twoFactorLoading">Verify & enable</span>
                   <div v-else class="loading-spinner"></div>
                 </button>
                 <button 
@@ -246,13 +246,13 @@
                 @click="copyRecoveryCodes"
               >
                 <CopyIcon />
-                Copy All Codes
+                Copy all codes
               </button>
               <button 
                 class="btn btn-secondary btn-sm"
                 @click="finishEnroll2FA"
               >
-                I've Saved These Codes
+                I've saved these codes
               </button>
             </div>
           </div>
@@ -262,7 +262,7 @@
         <div v-if="twoFactorEnabled && !showEnroll2FA" class="twofa-status">
           <div class="status-badge status-enabled">
             <ShieldIcon />
-            <span>Two-Factor Authentication is Enabled</span>
+            <span>Two-factor authentication is enabled</span>
           </div>
           <p class="status-text">
             Your account is protected with two-factor authentication.
@@ -272,7 +272,7 @@
             @click="showDisable2FAModal = true"
             :disabled="twoFactorLoading"
           >
-            Disable Two-Factor Authentication
+            Disable two-factor authentication
           </button>
         </div>
       </div>
@@ -282,13 +282,13 @@
     <div class="settings-section security-section">
       <h3 class="section-title">
         <ShieldIcon class="section-icon" />
-        Encryption Settings
+        Encryption settings
       </h3>
       <EncryptionSettings :loading="loading" />
     </div>
 
     <div class="settings-section">
-      <h3 class="section-title">Data & Privacy</h3>
+      <h3 class="section-title">Data & privacy</h3>
       
       <div class="setting-item">
         <div class="setting-info">
@@ -308,7 +308,7 @@
     </div>
 
     <div class="settings-section">
-      <h3 class="section-title">Blocked Users</h3>
+      <h3 class="section-title">Blocked users</h3>
       
       <div v-if="blockedUsers.length === 0" class="empty-state">
         <p>You haven't blocked anyone yet.</p>
@@ -338,7 +338,7 @@
     </div>
 
     <div class="settings-section">
-      <h3 class="section-title">Muted Users</h3>
+      <h3 class="section-title">Muted users</h3>
       
       <div v-if="mutedUsers.length === 0" class="empty-state">
         <p>You haven't muted anyone yet.</p>
@@ -374,7 +374,7 @@
         :disabled="loading || !hasChanges"
       >
         <span v-if="loading" class="loading-spinner"></span>
-        Save Changes
+        Save changes
       </button>
       <button 
         class="btn btn-secondary" 
@@ -391,7 +391,7 @@
          Supabase requires before `mfa.unenroll` is accepted. -->
     <div v-if="showDisable2FAModal" class="modal-overlay" @click="closeDisable2FAModal">
       <div class="modal-content" @click.stop>
-        <h3 class="modal-title">Disable Two-Factor Authentication?</h3>
+        <h3 class="modal-title">Disable two-factor authentication?</h3>
         <p class="modal-description">
           This will make your account less secure. Enter your
           {{ useDisableRecoveryCode ? 'recovery code' : '6-digit authenticator code' }}
@@ -685,7 +685,7 @@ const handlePasswordChange = async () => {
 
     // `data` carries the full user record; log the outcome only.
     debug.log('Password updated successfully')
-    toast.success('Password updated successfully!')
+    toast.success('Password updated')
     
     passwordForm.value = {
       currentPassword: '',
@@ -827,7 +827,7 @@ const verifyAndEnable2FA = async () => {
     }
 
     enrollStep.value = 3
-    toast.success('Two-Factor Authentication enabled!')
+    toast.success('Two-factor authentication enabled')
   } catch (error: any) {
     debug.error('2FA verification error:', error)
     twoFactorError.value = error.message || 'Invalid verification code'
@@ -996,7 +996,7 @@ const disable2FA = async () => {
       return
     }
 
-    toast.success('Two-Factor Authentication disabled')
+    toast.success('Two-factor authentication disabled')
     showDisable2FAModal.value = false
     disable2FACode.value = ''
     useDisableRecoveryCode.value = false
@@ -1012,7 +1012,7 @@ const disable2FA = async () => {
 const copySecret = async () => {
   try {
     await navigator.clipboard.writeText(totpSecret.value)
-    toast.success('Secret key copied to clipboard')
+    toast.success('Secret key copied')
   } catch (error) {
     debug.error('Copy error:', error)
     toast.error('Failed to copy secret key')
@@ -1023,7 +1023,7 @@ const copyRecoveryCodes = async () => {
   try {
     const codesText = recoveryCodes.value.join('\n')
     await navigator.clipboard.writeText(codesText)
-    toast.success('Recovery codes copied to clipboard')
+    toast.success('Recovery codes copied')
   } catch (error) {
     debug.error('Copy error:', error)
     toast.error('Failed to copy recovery codes')
@@ -1104,14 +1104,14 @@ onMounted(async () => {
 }
 
 .settings-title {
-  font-size: 24px;
-  font-weight: 600;
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
   margin: 0 0 8px 0;
 }
 
 .settings-description {
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   color: var(--text-secondary);
   margin: 0;
 }
@@ -1120,13 +1120,13 @@ onMounted(async () => {
   margin-bottom: 32px;
   padding: 24px;
   background-color: var(--background-secondary);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   border: 1px solid var(--background-quaternary);
 }
 
 .section-title {
-  font-size: 16px;
-  font-weight: 600;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
   margin: 0 0 20px 0;
 }
@@ -1152,8 +1152,8 @@ onMounted(async () => {
 }
 
 .setting-label {
-  font-size: 14px;
-  font-weight: 500;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
   color: var(--text-primary);
   margin: 0 0 4px 0;
 }
@@ -1161,7 +1161,7 @@ onMounted(async () => {
 
 
 .setting-description {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--text-secondary);
   margin: 0;
   line-height: 1.4;
@@ -1188,19 +1188,19 @@ onMounted(async () => {
 .radio-option input[type="radio"] {
   width: 20px;
   height: 20px;
-  border: 2px solid #4f545c;
+  border: 2px solid var(--text-muted);
   border-radius: 50%;
   background-color: transparent;
   cursor: pointer;
 }
 
 .radio-option input[type="radio"]:checked {
-  border-color: #0EA5E9;
+  border-color: var(--harmony-primary);
   background-color: var(--harmony-primary);
 }
 
 .radio-label {
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   color: var(--text-primary);
   cursor: pointer;
 }
@@ -1224,7 +1224,7 @@ onMounted(async () => {
   padding: 12px;
   background-color: var(--surface-inset);
   border: 1px solid var(--input-border);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 
 .user-info {
@@ -1246,30 +1246,30 @@ onMounted(async () => {
 }
 
 .user-name {
-  font-size: 14px;
-  font-weight: 500;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
   color: var(--text-primary);
 }
 
 .user-username {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--text-secondary);
 }
 
 .unblock-btn {
   padding: 6px 12px;
-  background-color: #ed4245;
+  background-color: var(--error);
   border: none;
-  border-radius: 4px;
-  color: var(--text-on-primary, #ffffff);
-  font-size: 12px;
-  font-weight: 500;
+  border-radius: var(--radius-sm);
+  color: var(--text-on-primary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
 .unblock-btn:hover {
-  background-color: #c73e41;
+  background-color: var(--error-hover);
 }
 
 .settings-actions {
@@ -1281,10 +1281,10 @@ onMounted(async () => {
 
 .btn {
   padding: 8px 16px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   border: none;
-  font-weight: 500;
-  font-size: 14px;
+  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-sm);
   cursor: pointer;
   transition: all 0.15s ease;
   display: flex;
@@ -1299,17 +1299,17 @@ onMounted(async () => {
 
 .btn-primary {
   background-color: var(--harmony-primary);
-  color: var(--text-on-primary, #ffffff);
+  color: var(--text-on-primary);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background-color: #0284C7;
+  background-color: var(--harmony-primary-hover);
 }
 
 .btn-secondary {
   background-color: transparent;
   color: var(--text-secondary);
-  border: 1px solid #4f545c;
+  border: 1px solid var(--border-hover);
 }
 
 .btn-secondary:hover:not(:disabled) {
@@ -1321,7 +1321,7 @@ onMounted(async () => {
   width: 16px;
   height: 16px;
   border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top: 2px solid #ffffff;
+  border-top: 2px solid var(--text-on-primary);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -1349,7 +1349,7 @@ onMounted(async () => {
 
 /* Security Section Styles */
 .security-section {
-  border-left: 3px solid #0EA5E9;
+  border-left: 3px solid var(--harmony-primary);
 }
 
 .section-icon {
@@ -1372,8 +1372,8 @@ onMounted(async () => {
 }
 
 .subsection-title {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
   margin: 0 0 8px 0;
 }
@@ -1395,12 +1395,10 @@ onMounted(async () => {
 
 .form-label {
   display: block;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
   margin-bottom: 8px;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
 }
 
 .password-input-wrapper {
@@ -1415,23 +1413,23 @@ onMounted(async () => {
   padding-right: 40px;
   background-color: var(--input-bg);
   border: 1px solid var(--input-border);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   color: var(--text-primary);
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   transition: border-color 0.15s ease;
 }
 
 .form-input:focus {
   outline: none;
-  border-color: #0EA5E9;
+  border-color: var(--harmony-primary);
 }
 
 .form-input.error {
-  border-color: #ed4245;
+  border-color: var(--error);
 }
 
 .form-input.code-input {
-  font-size: 24px;
+  font-size: var(--font-size-2xl);
   letter-spacing: 0.5em;
   text-align: center;
   font-family: 'Courier New', monospace;
@@ -1457,8 +1455,8 @@ onMounted(async () => {
 
 .error-message {
   display: block;
-  color: #ed4245;
-  font-size: 12px;
+  color: var(--error);
+  font-size: var(--font-size-xs);
   margin-top: 6px;
 }
 
@@ -1477,9 +1475,9 @@ onMounted(async () => {
   align-items: center;
   gap: 8px;
   padding: 8px 14px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 13px;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   margin-bottom: 10px;
 }
 
@@ -1489,15 +1487,15 @@ onMounted(async () => {
 }
 
 .status-enabled {
-  background-color: rgba(67, 181, 129, 0.1);
-  color: #43b581;
-  border: 1px solid rgba(67, 181, 129, 0.3);
+  background-color: color-mix(in srgb, var(--success) 10%, transparent);
+  color: var(--success);
+  border: 1px solid color-mix(in srgb, var(--success) 30%, transparent);
 }
 
 .status-disabled {
-  background-color: rgba(240, 71, 71, 0.1);
-  color: #f04747;
-  border: 1px solid rgba(240, 71, 71, 0.3);
+  background-color: color-mix(in srgb, var(--error) 10%, transparent);
+  color: var(--error);
+  border: 1px solid color-mix(in srgb, var(--error) 30%, transparent);
 }
 
 .status-text {
@@ -1513,13 +1511,13 @@ onMounted(async () => {
 .enroll-step {
   padding: 16px;
   background-color: var(--surface-inset);
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   border: 1px solid var(--input-border);
 }
 
 .step-title {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
   margin: 0 0 8px 0;
 }
@@ -1531,7 +1529,7 @@ onMounted(async () => {
 }
 
 .step-description.warning {
-  color: #faa61a;
+  color: var(--warning);
 }
 
 .qr-code-container {
@@ -1539,7 +1537,7 @@ onMounted(async () => {
   justify-content: center;
   padding: 16px;
   background-color: var(--text-primary);
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   margin-bottom: 16px;
 }
 
@@ -1562,7 +1560,7 @@ onMounted(async () => {
   gap: 10px;
   padding: 12px;
   background-color: var(--background-secondary);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   margin-bottom: 16px;
 }
 
@@ -1615,11 +1613,11 @@ onMounted(async () => {
 
 .recovery-code {
   font-family: 'Courier New', monospace;
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--text-primary);
   background-color: var(--background-secondary);
   padding: 10px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   text-align: center;
   border: 1px solid var(--background-quaternary);
 }
@@ -1646,7 +1644,7 @@ onMounted(async () => {
 
 .modal-content {
   background-color: var(--background-secondary);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 24px;
   max-width: 420px;
   width: 90%;
@@ -1654,8 +1652,8 @@ onMounted(async () => {
 }
 
 .modal-title {
-  font-size: 18px;
-  font-weight: 600;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
   margin: 0 0 12px 0;
 }
@@ -1676,7 +1674,7 @@ onMounted(async () => {
 /* Inline error inside the disable-2FA modal's TOTP/recovery input. */
 .form-error {
   margin: 6px 0 0 0;
-  color: var(--color-error, #ed4245);
+  color: var(--color-error, var(--error));
   font-size: 13px;
 }
 
@@ -1687,14 +1685,14 @@ onMounted(async () => {
   border: none;
   padding: 0;
   margin: 8px 0 0 0;
-  color: var(--harmony-primary, #0EA5E9);
+  color: var(--harmony-primary);
   font-size: 13px;
   text-decoration: underline;
   cursor: pointer;
 }
 
 .link-button:hover {
-  color: var(--harmony-primary-hover, #0284C7);
+  color: var(--harmony-primary-hover);
 }
 
 @media (max-width: 768px) {

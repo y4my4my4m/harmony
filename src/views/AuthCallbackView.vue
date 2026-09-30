@@ -18,7 +18,7 @@
             <path d="M9 12l2 2 4-4"/>
           </svg>
         </div>
-        <h2>{{ $t('auth.twoFactorAuth') || 'Two-Factor Authentication' }}</h2>
+        <h2>{{ $t('auth.twoFactorAuth') || 'Two-factor authentication' }}</h2>
         <p>{{ useRecoveryCode ? ($t('auth.enterRecoveryCode') || 'Enter one of your recovery codes.') : ($t('auth.enter6DigitCode') || 'Enter the 6-digit verification code from your authenticator app.') }}</p>
 
         <form @submit.prevent="handleMFAVerification" class="mfa-form">
@@ -73,10 +73,10 @@
             <line x1="9" y1="9" x2="15" y2="15"/>
           </svg>
         </div>
-        <h2>{{ $t('auth.callback.error') || 'Authentication Failed' }}</h2>
+        <h2>{{ $t('auth.callback.error') || 'Authentication failed' }}</h2>
         <p>{{ errorMessage }}</p>
         <button @click="goToLogin" class="btn-primary">
-          {{ $t('auth.callback.tryAgain') || 'Try Again' }}
+          {{ $t('auth.callback.tryAgain') || 'Try again' }}
         </button>
       </div>
 
@@ -88,12 +88,10 @@
             <polyline points="22 4 12 14.01 9 11.01"/>
           </svg>
         </div>
-        <h2>{{ $t('auth.callback.success') || 'Welcome!' }}</h2>
+        <h2>{{ $t('auth.callback.success') || 'Signed in' }}</h2>
         <p>{{ $t('auth.callback.redirecting') || 'Redirecting you now...' }}</p>
       </div>
     </div>
-
-    <div class="bg-gradient"></div>
   </div>
 </template>
 
@@ -422,31 +420,20 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #0a0a0f;
+  background: var(--background-senary);
   position: relative;
   overflow: hidden;
-}
-
-.bg-gradient {
-  position: fixed;
-  inset: 0;
-  background: 
-    radial-gradient(ellipse 60% 40% at 50% 40%, color-mix(in srgb, var(--harmony-primary) 15%, transparent) 0%, transparent 50%),
-    radial-gradient(ellipse 40% 30% at 70% 60%, rgba(139, 92, 246, 0.1) 0%, transparent 50%);
-  pointer-events: none;
 }
 
 .callback-card {
   position: relative;
   z-index: 10;
-  background: rgba(17, 17, 23, 0.9);
-  backdrop-filter: blur(40px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 24px;
+  background: var(--background-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-xl);
   padding: 48px;
   min-width: 360px;
   text-align: center;
-  box-shadow: 0 32px 64px rgba(0, 0, 0, 0.4);
 }
 
 .callback-content {
@@ -465,7 +452,7 @@ onBeforeUnmount(() => {
 
 .callback-content p {
   font-size: 0.95rem;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--text-secondary);
   margin: 0;
   max-width: 280px;
 }
@@ -502,12 +489,12 @@ onBeforeUnmount(() => {
 .error-icon {
   width: 64px;
   height: 64px;
-  background: rgba(239, 68, 68, 0.1);
+  background: color-mix(in srgb, var(--error) 10%, transparent);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #ef4444;
+  color: var(--error);
   margin-bottom: 8px;
 }
 
@@ -517,20 +504,19 @@ onBeforeUnmount(() => {
 }
 
 .callback-content.error h2 {
-  color: #ef4444;
+  color: var(--error);
 }
 
 .success-icon {
   width: 64px;
   height: 64px;
-  background: rgba(34, 197, 94, 0.1);
+  background: color-mix(in srgb, var(--success) 10%, transparent);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #22c55e;
+  color: var(--success);
   margin-bottom: 8px;
-  animation: scaleIn 0.4s ease;
 }
 
 .success-icon svg {
@@ -538,22 +524,17 @@ onBeforeUnmount(() => {
   height: 32px;
 }
 
-@keyframes scaleIn {
-  0% { transform: scale(0); opacity: 0; }
-  100% { transform: scale(1); opacity: 1; }
-}
-
 .btn-primary {
   margin-top: 16px;
   padding: 14px 32px;
   background: var(--harmony-primary);
   border: none;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   font-size: 1rem;
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--text-on-primary);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease;
 }
 
 .btn-primary:hover:not(:disabled) {
@@ -573,7 +554,7 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #818cf8;
+  color: var(--harmony-primary);
   margin-bottom: 8px;
 }
 
@@ -598,10 +579,10 @@ onBeforeUnmount(() => {
   font-size: 1.75rem;
   letter-spacing: 0.4em;
   padding: 14px 16px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 12px;
-  color: var(--text-primary, #fff);
+  background: var(--input-bg);
+  border: 1px solid var(--border-hover);
+  border-radius: var(--radius-lg);
+  color: var(--text-primary);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   outline: none;
   transition: border-color 0.15s, background 0.15s;
@@ -613,12 +594,12 @@ onBeforeUnmount(() => {
 }
 
 .code-input.error {
-  border-color: rgba(239, 68, 68, 0.6);
+  border-color: color-mix(in srgb, var(--error) 60%, transparent);
 }
 
 .error-text {
   margin: 8px 0 0 0;
-  color: #ef4444;
+  color: var(--error);
   font-size: 0.875rem;
   text-align: center;
 }
@@ -628,7 +609,7 @@ onBeforeUnmount(() => {
   border: none;
   padding: 8px 4px;
   margin-top: 8px;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--text-secondary);
   font-size: 0.875rem;
   text-decoration: underline;
   cursor: pointer;
@@ -636,7 +617,7 @@ onBeforeUnmount(() => {
 }
 
 .link-button:hover:not(:disabled) {
-  color: #818cf8;
+  color: var(--harmony-primary);
 }
 
 .link-button:disabled {
@@ -645,7 +626,7 @@ onBeforeUnmount(() => {
 }
 
 .link-button.cancel-link {
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-muted);
 }
 
 @media (max-width: 480px) {

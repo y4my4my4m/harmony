@@ -4,7 +4,7 @@
       <div v-if="isOpen" class="modal-overlay" @click.self="close">
         <div class="modal-container">
           <div class="modal-header">
-            <h2 class="modal-title">Folder Settings</h2>
+            <h2 class="modal-title">Folder settings</h2>
             <button class="close-button" @click="close">
               <svg viewBox="0 0 24 24" width="24" height="24">
                 <path fill="currentColor" d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/>
@@ -15,7 +15,7 @@
           <div class="modal-body">
             <!-- Folder Name -->
             <div class="form-group">
-              <label class="form-label">Folder Name <span class="optional">(optional)</span></label>
+              <label class="form-label">Folder name <span class="optional">(optional)</span></label>
               <input
                 v-model="folderName"
                 type="text"
@@ -28,7 +28,7 @@
 
             <!-- Folder Color -->
             <div class="form-group">
-              <label class="form-label">Folder Color</label>
+              <label class="form-label">Folder color</label>
               <ColorPicker
                 :color="selectedColor"
                 @update:color="selectedColor = $event"
@@ -160,7 +160,7 @@ const save = async () => {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--shadow-modal);
 }
 
 .modal-header {
@@ -192,7 +192,7 @@ const save = async () => {
 }
 
 .close-button:hover {
-  color: #dcddde;
+  color: var(--text-primary);
   background: var(--background-quinary);
 }
 
@@ -212,7 +212,7 @@ const save = async () => {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   margin-bottom: 8px;
 }
 
@@ -226,17 +226,17 @@ const save = async () => {
 .form-input {
   width: 100%;
   padding: 10px 12px;
-  background: #202225;
-  border: 1px solid #040405;
-  border-radius: 4px;
-  color: #dcddde;
+  background: var(--surface-inset);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
   font-size: 16px;
   outline: none;
   transition: border-color 0.15s ease;
 }
 
 .form-input:focus {
-  border-color: var(--harmony-primary, #0EA5E9);
+  border-color: var(--harmony-primary);
 }
 
 .form-input::placeholder {
@@ -280,10 +280,6 @@ const save = async () => {
   border-radius: 6px;
 }
 
-.color-swatch:hover {
-  transform: scale(1.1);
-}
-
 .color-swatch.selected {
   border-color: var(--text-primary);
   box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.3);
@@ -304,7 +300,7 @@ const save = async () => {
 /* Footer */
 .modal-footer {
   padding: 16px;
-  background: #292b2f;
+  background: var(--background-secondary);
   display: flex;
   justify-content: flex-end;
 }
@@ -320,12 +316,12 @@ const save = async () => {
 }
 
 .btn-primary {
-  background: var(--harmony-primary, #0EA5E9);
-  color: var(--text-primary);
+  background: var(--harmony-primary);
+  color: var(--text-on-primary);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #0284C7;
+  background: var(--harmony-primary-hover);
 }
 
 .btn-primary:disabled {
@@ -361,7 +357,7 @@ const save = async () => {
 
 /* Custom color swatch - pencil icon */
 .pencil-icon {
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--text-secondary);
 }
 
 .custom-color-swatch:hover .pencil-icon {
@@ -380,16 +376,16 @@ const save = async () => {
 /* Color tooltip */
 .color-tooltip {
   position: fixed;
-  background: #18191c;
-  color: var(--text-primary);
+  background: var(--tooltip-bg);
+  color: var(--tooltip-text);
   padding: 8px 12px;
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   font-size: 13px;
   font-weight: 500;
   pointer-events: none;
   z-index: 1000;
   transform: translateX(-50%);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--shadow-medium);
 }
 
 .color-tooltip::before {
@@ -400,7 +396,7 @@ const save = async () => {
   transform: translateX(-50%);
   border-left: 6px solid transparent;
   border-right: 6px solid transparent;
-  border-bottom: 6px solid #18191c;
+  border-bottom: 6px solid var(--tooltip-arrow);
 }
 </style>
 

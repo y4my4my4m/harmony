@@ -42,8 +42,8 @@
 
       <!-- Instance & Server Badges -->
       <div v-if="!isCompact && (hasInstanceBadge || userRoles.length > 0)" class="user-roles">
-        <div v-if="user.is_admin" class="role-badge instance-admin-badge">INSTANCE OWNER</div>
-        <div v-else-if="user.is_moderator" class="role-badge instance-mod-badge">INSTANCE MOD</div>
+        <div v-if="user.is_admin" class="role-badge instance-admin-badge">Instance owner</div>
+        <div v-else-if="user.is_moderator" class="role-badge instance-mod-badge">Instance mod</div>
         <SupporterBadge v-if="user.id" :user-id="user.id" />
         <div
           v-for="role in userRoles"
@@ -496,8 +496,6 @@ const vClickOutside = {
 
 .unified-profile-card:hover {
   border-color: var(--border-hover);
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-md);
 }
 
 .unified-profile-card.interactive {
@@ -541,7 +539,7 @@ const vClickOutside = {
 .verified-icon {
   width: 16px;
   height: 16px;
-  color: var(--success-primary);
+  color: var(--success);
   background: var(--background-primary);
   border-radius: 50%;
   padding: 2px;
@@ -619,26 +617,22 @@ const vClickOutside = {
   display: inline-flex;
   align-items: center;
   padding: 0 2px;
-  background: rgba(14, 165, 233, 0.2);
-  border: 1px solid rgba(14, 165, 233, 0.3);
-  border-radius: 6px;
+  background: color-mix(in srgb, var(--harmony-primary) 20%, transparent);
+  border: 1px solid color-mix(in srgb, var(--harmony-primary) 30%, transparent);
+  border-radius: var(--radius-base);
   font-size: 11px;
   font-weight: 600;
   color: var(--text-primary);
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
 }
 
 .instance-admin-badge {
-  background: linear-gradient(135deg, rgba(212, 160, 23, 0.3), rgba(184, 134, 11, 0.3));
-  border-color: rgba(212, 160, 23, 0.5);
-  color: #f0d060;
+  background: color-mix(in srgb, var(--warning) 15%, transparent);
+  border-color: color-mix(in srgb, var(--warning) 40%, transparent);
 }
 
 .instance-mod-badge {
-  background: linear-gradient(135deg, rgba(43, 158, 143, 0.3), rgba(26, 122, 109, 0.3));
-  border-color: rgba(43, 158, 143, 0.5);
-  color: #5ed4c4;
+  background: color-mix(in srgb, var(--info) 15%, transparent);
+  border-color: color-mix(in srgb, var(--info) 40%, transparent);
 }
 
 .user-stats {
@@ -664,8 +658,6 @@ const vClickOutside = {
 .stat-label {
   font-size: var(--font-size-xs);
   color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.025em;
   font-weight: var(--font-weight-medium);
 }
 
@@ -692,31 +684,33 @@ const vClickOutside = {
 }
 
 .action-btn:hover {
-  background: var(--background-hover);
+  background: var(--background-modifier-hover);
   border-color: var(--border-hover);
   color: var(--text-primary);
 }
 
 .follow-btn.following {
-  background: var(--success-primary);
-  border-color: var(--success-primary);
-  color: var(--text-primary);
+  background: var(--success);
+  border-color: var(--success);
+  color: var(--text-on-primary);
 }
 
 .follow-btn.following:hover {
-  background: var(--error-primary);
-  border-color: var(--error-primary);
+  background: var(--error);
+  border-color: var(--error);
+  color: var(--text-on-primary);
 }
 
 .message-btn {
   background: var(--harmony-primary);
   border-color: var(--harmony-primary);
-  color: var(--text-primary);
+  color: var(--text-on-primary);
 }
 
 .message-btn:hover {
   background: var(--harmony-primary-hover);
   border-color: var(--harmony-primary-hover);
+  color: var(--text-on-primary);
 }
 
 .more-actions {
@@ -724,7 +718,7 @@ const vClickOutside = {
 }
 
 .more-btn.active {
-  background: var(--background-hover);
+  background: var(--background-modifier-active);
   border-color: var(--border-hover);
 }
 
@@ -735,7 +729,7 @@ const vClickOutside = {
   background: var(--background-primary);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-large);
   padding: var(--space-2);
   min-width: 160px;
   z-index: 9999;
@@ -758,29 +752,27 @@ const vClickOutside = {
 }
 
 .action-item:hover {
-  background: var(--background-hover);
+  background: var(--background-modifier-hover);
   color: var(--text-primary);
 }
 
 .action-item.danger {
-  color: var(--error-primary);
+  color: var(--error);
 }
 
 .action-item.danger:hover {
-  background: var(--error-secondary);
-  color: var(--error-primary);
+  background: color-mix(in srgb, var(--error) 10%, transparent);
+  color: var(--error);
 }
 
 .user-roles .instance-admin-badge {
-  background: linear-gradient(135deg, rgba(212, 160, 23, 0.3), rgba(184, 134, 11, 0.3));
-  border-color: rgba(212, 160, 23, 0.5);
-  color: #f0d060;
+  background: color-mix(in srgb, var(--warning) 15%, transparent);
+  border-color: color-mix(in srgb, var(--warning) 40%, transparent);
 }
 
 .user-roles .instance-mod-badge {
-  background: linear-gradient(135deg, rgba(43, 158, 143, 0.3), rgba(26, 122, 109, 0.3));
-  border-color: rgba(43, 158, 143, 0.5);
-  color: #5ed4c4;
+  background: color-mix(in srgb, var(--info) 15%, transparent);
+  border-color: color-mix(in srgb, var(--info) 40%, transparent);
 }
 
 .spinning {

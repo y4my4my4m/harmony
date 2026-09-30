@@ -314,6 +314,8 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         this.optimisticServerId = serverId;
         this.optimisticChannelName = channel?.name || 'Voice Channel';
         this.isConnecting = true;
+        // Library download overlaps the presence and token round trips.
+        webrtcManager.preloadTransport();
 
         // Optimistic roster of self plus known occupants. Replaced by
         // authoritative webrtc state on channel-state-synced.

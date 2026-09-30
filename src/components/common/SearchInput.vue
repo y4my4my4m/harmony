@@ -97,33 +97,29 @@ defineExpose({
   position: relative;
   display: flex;
   align-items: center;
-  background: rgba(64, 68, 75, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  background: var(--input-bg);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
   overflow: hidden;
 }
 
 .search-input:hover {
-  border-color: rgba(255, 255, 255, 0.2);
-  background: rgba(64, 68, 75, 0.9);
+  border-color: var(--border-hover);
 }
 
 .search-input--focused {
-  border-color: rgba(14, 165, 233, 0.6);
-  background: rgba(64, 68, 75, 1);
-  box-shadow: 
-    0 0 0 2px rgba(14, 165, 233, 0.2),
-    0 4px 12px rgba(0, 0, 0, 0.15);
+  border-color: color-mix(in srgb, var(--harmony-primary) 60%, transparent);
+  box-shadow: 0 0 0 2px var(--harmony-primary-alpha-strong);
 }
 
 .search-input--loading .search-input__icon {
-  color: rgba(14, 165, 233, 0.8);
+  color: color-mix(in srgb, var(--harmony-primary) 80%, transparent);
 }
 
 .search-input__icon {
   padding: 12px 16px;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-muted);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -141,13 +137,13 @@ defineExpose({
   border: none;
   outline: none;
   padding: 12px 0;
-  font-size: 16px;
+  font-size: var(--font-size-base);
   color: var(--text-primary);
   line-height: 1.5;
 }
 
 .search-input__field::placeholder {
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-muted);
 }
 
 .search-input__field:disabled {
@@ -159,9 +155,9 @@ defineExpose({
   padding: 8px 12px;
   background: transparent;
   border: none;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-muted);
   cursor: pointer;
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   transition: all 0.2s ease;
   display: flex;
   align-items: center;
@@ -170,8 +166,8 @@ defineExpose({
 }
 
 .search-input__clear:hover {
-  color: rgba(255, 255, 255, 0.8);
-  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+  background: var(--background-modifier-hover);
 }
 
 .clear-icon {
@@ -185,7 +181,7 @@ defineExpose({
   left: 0;
   right: 0;
   height: 2px;
-  background: linear-gradient(90deg, #0EA5E9, #38BDF8);
+  background: var(--harmony-primary);
   transform: scaleX(0);
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }

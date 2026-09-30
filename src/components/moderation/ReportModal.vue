@@ -80,15 +80,15 @@
             @click="submitReport"
             :disabled="!selectedReason || isSubmitting"
           >
-            {{ isSubmitting ? 'Submitting...' : 'Submit Report' }}
+            {{ isSubmitting ? 'Submitting…' : 'Submit report' }}
           </button>
         </div>
 
         <!-- Success state -->
         <div v-if="submitted" class="success-overlay">
           <div class="success-content">
-            <span class="success-icon">✓</span>
-            <h3>Report Submitted</h3>
+            <span class="success-icon"><Icon name="check" :size="28" /></span>
+            <h3>Report submitted</h3>
             <p>Thank you for helping keep the community safe. We'll review your report shortly.</p>
             <div v-if="reportType === 'message' || reportType === 'post'" class="hide-prompt">
               <button class="btn-hide" @click="hideAndClose">
@@ -108,6 +108,7 @@
 import { ref, computed } from 'vue'
 import { reportService, REPORT_REASONS, type ReportReason } from '@/services/ReportService'
 import Avatar from '@/components/common/Avatar.vue'
+import Icon from '@/components/common/Icon.vue'
 import DisplayName from '@/components/DisplayName.vue'
 
 interface Props {
@@ -196,9 +197,9 @@ const hideAndClose = () => {
 
 .report-modal {
   position: relative;
-  background: var(--background-primary, #1e1f22);
-  border: 1px solid var(--border-color, #2b2d31);
-  border-radius: 12px;
+  background: var(--background-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
   width: 90vw;
   max-width: 480px;
   max-height: 85vh;
@@ -219,7 +220,7 @@ const hideAndClose = () => {
   margin: 0;
   font-size: 18px;
   font-weight: 700;
-  color: var(--text-primary, #f2f3f5);
+  color: var(--text-primary);
 }
 
 .close-btn {
@@ -232,7 +233,7 @@ const hideAndClose = () => {
 }
 
 .close-btn:hover {
-  background: var(--background-hover);
+  background: var(--background-modifier-hover);
 }
 
 .modal-body {
@@ -246,7 +247,7 @@ const hideAndClose = () => {
   align-items: center;
   gap: 12px;
   padding: 12px;
-  background: var(--background-secondary, #2b2d31);
+  background: var(--background-secondary);
   border-radius: 8px;
   margin-bottom: 20px;
 }
@@ -285,8 +286,8 @@ const hideAndClose = () => {
 .proof-quote {
   margin: 0;
   padding: 10px 14px;
-  border-left: 3px solid var(--harmony-primary, #0EA5E9);
-  background: var(--background-secondary, #2b2d31);
+  border-left: 3px solid var(--harmony-primary);
+  background: var(--background-secondary);
   border-radius: 0 6px 6px 0;
   color: var(--text-primary);
   font-size: 14px;
@@ -320,7 +321,7 @@ const hideAndClose = () => {
   align-items: center;
   gap: 12px;
   padding: 10px 12px 10px 16px;
-  border: 1px solid var(--border-color, #3f4147);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
   cursor: pointer;
   font-size: 14px;
@@ -329,12 +330,12 @@ const hideAndClose = () => {
 }
 
 .reason-option:hover {
-  background: var(--background-hover);
+  background: var(--background-modifier-hover);
 }
 
 .reason-option.selected {
-  border-color: var(--harmony-primary, #0EA5E9);
-  background: rgba(14, 165, 233, 0.1);
+  border-color: var(--harmony-primary);
+  background: color-mix(in srgb, var(--harmony-primary) 10%, transparent);
   color: var(--text-primary);
 }
 
@@ -343,7 +344,7 @@ const hideAndClose = () => {
   margin: 0;
   width: 18px;
   height: 18px;
-  accent-color: var(--harmony-primary, #0EA5E9);
+  accent-color: var(--harmony-primary);
   vertical-align: middle;
   margin-right: 8px;
 }
@@ -357,8 +358,8 @@ const hideAndClose = () => {
 textarea {
   width: 100%;
   padding: 10px 12px;
-  background: var(--background-secondary, #2b2d31);
-  border: 1px solid var(--border-color, #3f4147);
+  background: var(--background-secondary);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
   color: var(--text-primary);
   font-size: 14px;
@@ -368,7 +369,7 @@ textarea {
 
 textarea:focus {
   outline: none;
-  border-color: var(--harmony-primary, #0EA5E9);
+  border-color: var(--harmony-primary);
 }
 
 .char-count {
@@ -402,17 +403,17 @@ textarea:focus {
 }
 
 .btn-cancel:hover {
-  background: var(--background-hover);
+  background: var(--background-modifier-hover);
 }
 
 .btn-submit {
-  background: #ed4245;
+  background: var(--error);
   border: none;
-  color: var(--text-primary);
+  color: var(--text-on-primary);
 }
 
 .btn-submit:hover:not(:disabled) {
-  background: #c03537;
+  background: var(--error-hover);
 }
 
 .btn-submit:disabled {
@@ -423,7 +424,7 @@ textarea:focus {
 .success-overlay {
   position: absolute;
   inset: 0;
-  background: var(--background-primary, #1e1f22);
+  background: var(--background-primary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -440,11 +441,9 @@ textarea:focus {
   justify-content: center;
   width: 64px;
   height: 64px;
-  background: #57f287;
-  color: var(--text-primary);
+  background: var(--success);
+  color: var(--text-on-primary);
   border-radius: 50%;
-  font-size: 28px;
-  font-weight: 700;
   margin-bottom: 16px;
 }
 
@@ -474,13 +473,13 @@ textarea:focus {
   font-weight: 600;
   cursor: pointer;
   font-size: 14px;
-  background: #ed4245;
+  background: var(--error);
   border: none;
-  color: var(--text-primary);
+  color: var(--text-on-primary);
 }
 
 .btn-hide:hover {
-  background: #c03537;
+  background: var(--error-hover);
 }
 
 .hide-hint {
@@ -489,12 +488,12 @@ textarea:focus {
 }
 
 .btn-done {
-  background: var(--harmony-primary, #0EA5E9);
+  background: var(--harmony-primary);
   border: none;
-  color: var(--text-primary);
+  color: var(--text-on-primary);
 }
 
 .btn-done:hover {
-  opacity: 0.9;
+  background: var(--harmony-primary-hover);
 }
 </style>

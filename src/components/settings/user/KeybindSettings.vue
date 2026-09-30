@@ -484,14 +484,14 @@ onUnmounted(() => {
 }
 
 .keybind-button:hover {
-  background-color: rgba(14, 165, 233, 0.2);
-  border-color: #0EA5E9;
+  background-color: color-mix(in srgb, var(--harmony-primary) 20%, transparent);
+  border-color: var(--harmony-primary);
 }
 
 .keybind-button.recording {
-  background-color: rgba(14, 165, 233, 0.3);
-  border-color: #0EA5E9;
-  color: #0EA5E9;
+  background-color: color-mix(in srgb, var(--harmony-primary) 30%, transparent);
+  border-color: var(--harmony-primary);
+  color: var(--harmony-primary);
   animation: pulse-keybind 1.5s ease-in-out infinite;
 }
 

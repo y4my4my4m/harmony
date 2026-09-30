@@ -1,709 +1,570 @@
 /**
- * Floating Video Player Composable
- * Manages floating video state for YouTube and native video elements
+ * Floating video player.
+ *
+ * A playing video embed (YouTube iframe or native <video>) that scrolls out of
+ * view moves into the mini player's slot; an in-chat placeholder keeps its
+ * footprint. The video docks back, still playing, when the placeholder scrolls
+ * into view or is clicked, on the player's return button, or when the setting
+ * is turned off. The player closes (pauses) when its source unmounts: channel
+ * or route change, message deleted or edited.
  */
 
-import { ref, computed } from 'vue'
+import { computed, ref, shallowRef } from 'vue'
+import { i18n } from '@/i18n'
+import {
+  bottomCorner,
+  clampAspect,
+  clampFrameWidth,
+  clampPoint,
+  cornerPoint,
+  excludeBottomObstacles,
+  frameSize,
+  frameWidthForLongEdge,
+  insetBox,
+  longEdgeForFrameWidth,
+  nearestCorner,
+  parsePlacement,
+  serializePlacement,
+  type Box,
+  type Insets,
+  type Placement,
+  type Point,
+  type Size,
+} from '@/utils/floatingVideoGeometry'
 
-interface VideoElement {
-  element: HTMLElement
-  originalParent: HTMLElement
-  messageId: string
-  type: 'youtube' | 'video'
-  isPlaying: boolean
-  placeholder?: HTMLElement
-  aspectRatio: number
+export type FloatingVideoType = 'youtube' | 'video'
+
+export interface FloatingVideoOptions {
+  type: FloatingVideoType
+  messageId?: string
   sourceUrl?: string
+  title?: string
 }
 
-// moveBefore (Chrome 133+/newer WebKit) relocates a node without resetting iframe
-// or media state; insertBefore fallback reloads iframes — YouTube then restores
-// playback via the seek-on-reload path in ProviderEmbedSwitch.
-function moveNode(parent: HTMLElement, el: HTMLElement, before: Node | null): void {
-  const mover = (parent as any).moveBefore
-  if (typeof mover === 'function') {
-    mover.call(parent, el, before)
-  } else if (before) {
-    parent.insertBefore(el, before)
-  } else {
-    parent.appendChild(el)
+interface Registration extends FloatingVideoOptions {
+  // Last observed intersection ratio of the embed in the chat.
+  ratio: number
+  // Cleared on every dock; set once the embed is seen again. A docked embed
+  // that is still off-screen and playing would otherwise re-float at once.
+  armed: boolean
+}
+
+interface FloatingVideo {
+  element: HTMLElement
+  placeholder: HTMLButtonElement
+  registration: Registration
+  aspect: number
+  canPictureInPicture: boolean
+}
+
+const ENABLED_KEY = 'floatingVideoEnabled'
+const PLACEMENT_KEY = 'floatingVideoPlacement'
+
+// Visibility fractions of the embed (or its placeholder) in the viewport.
+const FLOAT_BELOW = 0.2
+const ARM_ABOVE = 0.5
+const DOCK_ABOVE = 0.75
+
+// Header bar height in px; the bar is static (adds height) on hover-less
+// devices and overlays the video elsewhere.
+export const FLOATING_VIDEO_BAR_HEIGHT = 32
+
+const MOBILE_BREAKPOINT = 768
+const LAYOUT = {
+  desktop: { margin: 16, longEdge: 400, min: 240, max: 960 },
+  mobile: { margin: 12, longEdge: 240, min: 160, max: 960 },
+} as const
+
+function readStorage(storage: 'localStorage' | 'sessionStorage', key: string): string | null {
+  try {
+    return globalThis[storage]?.getItem(key) ?? null
+  } catch {
+    return null
   }
 }
 
-// keep a <video> playing across a fallback (insertBefore) move
-function withVideoPlaybackPreserved(element: HTMLElement, move: () => void): void {
-  const video = element.querySelector('video')
+function writeStorage(storage: 'localStorage' | 'sessionStorage', key: string, value: string): void {
+  try {
+    globalThis[storage]?.setItem(key, value)
+  } catch {
+    // Storage blocked or full; the value lives in memory for this page.
+  }
+}
+
+// Singleton state.
+const enabled = ref(readStorage('localStorage', ENABLED_KEY) !== 'false')
+const current = shallowRef<FloatingVideo | null>(null)
+const placement = ref<Placement>(
+  parsePlacement(readStorage('sessionStorage', PLACEMENT_KEY)) ?? { corner: 'bottom-right', longEdge: 0 },
+)
+// Viewport minus safe-area insets and the composer.
+const safeBounds = ref<Box>({ left: 0, top: 0, width: 0, height: 0 })
+const compact = ref(false)
+const staticBar = ref(false)
+const livePosition = ref<Point | null>(null)
+const interaction = ref<'drag' | 'resize' | null>(null)
+
+const registry = new Map<HTMLElement, Registration>()
+let observer: IntersectionObserver | null = null
+let host: { slot: HTMLElement; probe: HTMLElement } | null = null
+let slotObserver: MutationObserver | null = null
+let layoutFrame = 0
+
+// moveBefore (Chrome 133+) relocates a node without resetting iframe or media
+// state. insertBefore reloads iframes; ProviderEmbedSwitch then restores
+// YouTube playback through its seek-on-reload path.
+function moveNode(parent: Node, el: HTMLElement, before: Node | null): void {
+  const mover = (parent as Node & { moveBefore?: (node: Node, child: Node | null) => void }).moveBefore
+  if (typeof mover === 'function') {
+    try {
+      mover.call(parent, el, before)
+      return
+    } catch {
+      // moveBefore throws when either side is disconnected; fall through.
+    }
+  }
+  parent.insertBefore(el, before)
+}
+
+function movePreservingPlayback(parent: Node, el: HTMLElement, before: Node | null): void {
+  const video = el.querySelector('video')
   const wasPlaying = video ? !video.paused : false
   const time = video?.currentTime ?? 0
-  move()
+  moveNode(parent, el, before)
   if (video && wasPlaying && video.paused) {
     video.currentTime = time
     void video.play().catch(() => {})
   }
 }
 
-// Global state (singleton)
-const currentFloatingVideo = ref<VideoElement | null>(null)
-const floatingPosition = ref({ x: 0, y: 0 })
-const isDragging = ref(false)
-const isUserSetting = ref(true) // Default: enabled
-
-// After a manual dock the observer must not immediately re-float the video
-// (the returned embed can sit <20% visible at a viewport edge — feedback loop)
-let lastReturnAt = 0
-const REFLOAT_COOLDOWN_MS = 800
-
-// Per-element bookkeeping. WeakMaps keyed by the video element so entries
-// vanish with the element instead of living as ad-hoc expando properties.
-const videoObservers = new WeakMap<HTMLElement, IntersectionObserver>()
-const dragState = new WeakMap<HTMLElement, { onMouseDown: (e: MouseEvent) => void }>()
-const resizeHandleState = new WeakMap<HTMLElement, HTMLElement[]>()
-
-if (typeof localStorage !== 'undefined') {
-  const saved = localStorage.getItem('floatingVideoEnabled')
-  if (saved !== null) {
-    isUserSetting.value = saved === 'true'
+function isPlaying(el: HTMLElement, type: FloatingVideoType): boolean {
+  if (type === 'video') {
+    const video = el.querySelector('video')
+    return !!video && !video.paused && !video.ended && document.pictureInPictureElement !== video
   }
+  // A collapsed embed keeps the flag but has no iframe.
+  return el.dataset.isPlaying === 'true' && !!el.querySelector('iframe')
+}
+
+function pause(el: HTMLElement, type: FloatingVideoType): void {
+  if (type === 'video') {
+    el.querySelector('video')?.pause()
+    return
+  }
+  el.querySelector('iframe')?.contentWindow?.postMessage(
+    '{"event":"command","func":"pauseVideo","args":""}',
+    '*',
+  )
+  // A fallback move reloads the iframe before the pause lands; the flag keeps
+  // the seek-restore path from resuming playback.
+  el.dataset.isPlaying = 'false'
+}
+
+function mediaAspect(el: HTMLElement): number {
+  const video = el.querySelector('video')
+  if (video && video.videoWidth > 0 && video.videoHeight > 0) {
+    return clampAspect(video.videoWidth / video.videoHeight)
+  }
+  const rect = (video ?? el.querySelector('iframe'))?.getBoundingClientRect()
+  if (rect && rect.width > 0 && rect.height > 0) return clampAspect(rect.width / rect.height)
+  return 16 / 9
+}
+
+function prefersReducedMotion(): boolean {
+  if (document.documentElement.getAttribute('data-reduce-motion') === 'true') return true
+  return typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+}
+
+// True when at least `fraction` of the target, or of the viewport height, is
+// covered. The second test lets targets taller than the viewport qualify.
+function visibleEnough(entry: IntersectionObserverEntry, fraction: number): boolean {
+  if (!entry.isIntersecting) return false
+  if (entry.intersectionRatio >= fraction) return true
+  return !!entry.rootBounds && entry.intersectionRect.height >= fraction * entry.rootBounds.height
+}
+
+function getObserver(): IntersectionObserver | null {
+  if (observer) return observer
+  if (typeof IntersectionObserver === 'undefined') return null
+  observer = new IntersectionObserver(onIntersect, {
+    threshold: [0, FLOAT_BELOW, ARM_ABOVE, DOCK_ABOVE, 1],
+  })
+  return observer
+}
+
+function onIntersect(entries: IntersectionObserverEntry[]): void {
+  for (const entry of entries) {
+    const target = entry.target as HTMLElement
+    const cur = current.value
+    if (cur && target === cur.placeholder) {
+      if (!interaction.value && visibleEnough(entry, DOCK_ABOVE)) dock()
+      continue
+    }
+    const reg = registry.get(target)
+    // A floating embed reports the player frame, not the chat.
+    if (!reg || cur?.element === target) continue
+    reg.ratio = entry.isIntersecting ? entry.intersectionRatio : 0
+    if (visibleEnough(entry, ARM_ABOVE)) reg.armed = true
+    if (reg.ratio < FLOAT_BELOW) maybeFloat(target, reg)
+  }
+}
+
+function maybeFloat(el: HTMLElement, reg: Registration): void {
+  if (!enabled.value || current.value || !reg.armed || !host || !el.isConnected) return
+  // Embeds inside teleported overlays (threads, search, pinned) sit above
+  // the player's layer; only the main app tree floats.
+  const appRoot = document.getElementById('app')
+  if (appRoot && !appRoot.contains(el)) return
+  if (!isPlaying(el, reg.type)) return
+  float(el, reg)
+}
+
+// Takes the embed's exact box, margins included, so the message does not
+// reflow while the video floats.
+function createPlaceholder(el: HTMLElement): HTMLButtonElement {
+  const t = i18n.global.t
+  const rect = el.getBoundingClientRect()
+  const button = document.createElement('button')
+  button.type = 'button'
+  button.className = 'floating-video-placeholder'
+  button.style.width = `${Math.round(rect.width)}px`
+  button.style.height = `${Math.round(rect.height)}px`
+  button.style.margin = getComputedStyle(el).margin
+  // lucide picture-in-picture-2
+  button.innerHTML =
+    '<svg class="floating-video-placeholder__icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    '<path d="M21 9V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v10c0 1.1.9 2 2 2h4"/><rect width="10" height="7" x="12" y="13" rx="2"/></svg>'
+  const label = document.createElement('span')
+  label.className = 'floating-video-placeholder__label'
+  label.textContent = t('floatingVideo.placeholder')
+  const hint = document.createElement('span')
+  hint.className = 'floating-video-placeholder__hint'
+  hint.textContent = t('floatingVideo.placeholderHint')
+  button.append(label, hint)
+  button.addEventListener('click', (e) => {
+    e.stopPropagation()
+    dock()
+  })
+  return button
+}
+
+function float(el: HTMLElement, reg: Registration): void {
+  const slot = host!.slot
+  const placeholder = createPlaceholder(el)
+  el.parentNode?.insertBefore(placeholder, el)
+
+  const video = reg.type === 'video' ? el.querySelector('video') : null
+  current.value = {
+    element: el,
+    placeholder,
+    registration: reg,
+    aspect: mediaAspect(el),
+    canPictureInPicture: !!video && document.pictureInPictureEnabled === true && !video.disablePictureInPicture,
+  }
+  refreshLayout()
+
+  movePreservingPlayback(slot, el, null)
+  el.classList.add('floating-video')
+  getObserver()?.observe(placeholder)
+  attachViewportListeners()
+}
+
+/**
+ * Put the floating video back in the chat. Playback continues; closing is
+ * what pauses. With `scroll`, the chat scrolls to the returned embed.
+ */
+function dock(options: { scroll?: boolean } = {}): void {
+  const cur = current.value
+  if (!cur) return
+  const { element, placeholder, registration } = cur
+
+  observer?.unobserve(placeholder)
+  current.value = null
+  livePosition.value = null
+  endInteraction()
+  detachViewportListeners()
+  element.classList.remove('floating-video')
+  registration.armed = false
+
+  if (!host || element.parentNode !== host.slot) {
+    // The owner removed the element itself.
+    placeholder.remove()
+    return
+  }
+  if (!placeholder.isConnected || !placeholder.parentNode) {
+    // The placeholder left with its message; there is nowhere to return to.
+    placeholder.remove()
+    element.remove()
+    return
+  }
+
+  movePreservingPlayback(placeholder.parentNode, element, placeholder)
+  placeholder.remove()
+
+  // Re-observing delivers a fresh ratio for the returned embed.
+  if (observer && registry.get(element) === registration) {
+    observer.unobserve(element)
+    observer.observe(element)
+  }
+  if (options.scroll) {
+    element.scrollIntoView({ block: 'center', behavior: prefersReducedMotion() ? 'auto' : 'smooth' })
+  }
+}
+
+function close(): void {
+  const cur = current.value
+  if (!cur) return
+  pause(cur.element, cur.registration.type)
+  dock()
+}
+
+function enterPictureInPicture(): void {
+  const cur = current.value
+  const video = cur?.canPictureInPicture ? cur.element.querySelector('video') : null
+  if (!video) return
+  void video
+    .requestPictureInPicture()
+    .then(() => dock())
+    .catch(() => {})
+}
+
+// --- Layout ---------------------------------------------------------------
+
+function readSafeAreaInsets(): Insets {
+  const probe = host?.probe
+  if (!probe) return { top: 0, right: 0, bottom: 0, left: 0 }
+  const style = getComputedStyle(probe)
+  return {
+    top: parseFloat(style.paddingTop) || 0,
+    right: parseFloat(style.paddingRight) || 0,
+    bottom: parseFloat(style.paddingBottom) || 0,
+    left: parseFloat(style.paddingLeft) || 0,
+  }
+}
+
+function measureSafeBounds(): Box {
+  // The visual viewport excludes the on-screen keyboard.
+  const vv = window.visualViewport
+  const viewport: Box = vv
+    ? { left: vv.offsetLeft, top: vv.offsetTop, width: vv.width, height: vv.height }
+    : { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight }
+  const obstacles = Array.from(document.querySelectorAll<HTMLElement>('[data-floating-video-avoid]'), (el) => {
+    const r = el.getBoundingClientRect()
+    return { left: r.left, top: r.top, width: r.width, height: r.height }
+  })
+  return excludeBottomObstacles(insetBox(viewport, readSafeAreaInsets()), obstacles)
+}
+
+let hoverNoneQuery: MediaQueryList | null = null
+
+function refreshLayout(): void {
+  if (typeof window === 'undefined') return
+  if (!hoverNoneQuery && typeof window.matchMedia === 'function') {
+    hoverNoneQuery = window.matchMedia('(hover: none)')
+  }
+  compact.value = window.innerWidth <= MOBILE_BREAKPOINT
+  staticBar.value = !!hoverNoneQuery?.matches
+  safeBounds.value = measureSafeBounds()
+  if (livePosition.value) {
+    livePosition.value = clampPoint(livePosition.value, size.value, safeBounds.value)
+  }
+}
+
+function scheduleLayout(): void {
+  if (layoutFrame) return
+  layoutFrame = requestAnimationFrame(() => {
+    layoutFrame = 0
+    refreshLayout()
+  })
+}
+
+function attachViewportListeners(): void {
+  window.addEventListener('resize', scheduleLayout, { passive: true })
+  window.addEventListener('orientationchange', scheduleLayout)
+  window.visualViewport?.addEventListener('resize', scheduleLayout)
+  window.visualViewport?.addEventListener('scroll', scheduleLayout)
+  hoverNoneQuery?.addEventListener('change', scheduleLayout)
+}
+
+function detachViewportListeners(): void {
+  window.removeEventListener('resize', scheduleLayout)
+  window.removeEventListener('orientationchange', scheduleLayout)
+  window.visualViewport?.removeEventListener('resize', scheduleLayout)
+  window.visualViewport?.removeEventListener('scroll', scheduleLayout)
+  hoverNoneQuery?.removeEventListener('change', scheduleLayout)
+  if (layoutFrame) {
+    cancelAnimationFrame(layoutFrame)
+    layoutFrame = 0
+  }
+}
+
+const layout = computed(() => (compact.value ? LAYOUT.mobile : LAYOUT.desktop))
+const chrome = computed(() => (staticBar.value ? FLOATING_VIDEO_BAR_HEIGHT : 0))
+const snapBounds = computed(() => insetBox(safeBounds.value, layout.value.margin))
+// Compact layouts keep the top edge clear for the channel header.
+const corner = computed(() => (compact.value ? bottomCorner(placement.value.corner) : placement.value.corner))
+
+const frameWidth = computed(() => {
+  const cur = current.value
+  if (!cur) return 0
+  const { longEdge, min, max } = layout.value
+  const aspect = cur.aspect
+  return clampFrameWidth(
+    frameWidthForLongEdge(placement.value.longEdge || longEdge, aspect),
+    aspect,
+    chrome.value,
+    snapBounds.value,
+    { min: frameWidthForLongEdge(min, aspect), max: frameWidthForLongEdge(max, aspect) },
+  )
+})
+
+const size = computed<Size>(() => {
+  const cur = current.value
+  if (!cur) return { width: 0, height: 0 }
+  return frameSize(frameWidth.value, cur.aspect, chrome.value)
+})
+
+const position = computed<Point>(
+  () => livePosition.value ?? cornerPoint(corner.value, size.value, snapBounds.value),
+)
+
+function persistPlacement(): void {
+  writeStorage('sessionStorage', PLACEMENT_KEY, serializePlacement(placement.value))
+}
+
+function beginInteraction(kind: 'drag' | 'resize'): void {
+  interaction.value = kind
+  document.documentElement.classList.add('floating-video-interacting')
+}
+
+function endInteraction(): void {
+  interaction.value = null
+  document.documentElement.classList.remove('floating-video-interacting')
+}
+
+function dragTo(point: Point): void {
+  livePosition.value = clampPoint(point, size.value, safeBounds.value)
+}
+
+function endDrag(): void {
+  const live = livePosition.value
+  endInteraction()
+  if (!live) return
+  refreshLayout()
+  const snapped = nearestCorner(live, size.value, snapBounds.value)
+  placement.value = { ...placement.value, corner: compact.value ? bottomCorner(snapped) : snapped }
+  livePosition.value = null
+  persistPlacement()
+}
+
+function resizeTo(width: number): void {
+  const cur = current.value
+  if (!cur) return
+  const { min, max } = layout.value
+  const clamped = clampFrameWidth(width, cur.aspect, chrome.value, snapBounds.value, {
+    min: frameWidthForLongEdge(min, cur.aspect),
+    max: frameWidthForLongEdge(max, cur.aspect),
+  })
+  placement.value = { ...placement.value, longEdge: longEdgeForFrameWidth(clamped, cur.aspect) }
+}
+
+function endResize(): void {
+  endInteraction()
+  persistPlacement()
+}
+
+function onSlotMutation(): void {
+  const cur = current.value
+  if (cur && host && cur.element.parentNode !== host.slot) dock()
+}
+
+// --- Public API -------------------------------------------------------------
+
+function setEnabled(value: boolean): void {
+  enabled.value = value
+  writeStorage('localStorage', ENABLED_KEY, String(value))
+  if (!value) dock()
+}
+
+/**
+ * Observe `element` (the embed's root) for floating. The returned cleanup
+ * belongs in the owner's unmount; a floating element closes with it.
+ */
+function registerVideo(element: HTMLElement, options: FloatingVideoOptions): () => void {
+  const previous = registry.get(element)
+  const reg: Registration = { ...options, ratio: previous?.ratio ?? 1, armed: previous?.armed ?? true }
+  registry.set(element, reg)
+  if (current.value?.element === element) {
+    current.value = { ...current.value, registration: reg }
+  }
+  getObserver()?.observe(element)
+
+  return () => {
+    if (registry.get(element) !== reg) return
+    registry.delete(element)
+    observer?.unobserve(element)
+    if (current.value?.element === element) close()
+  }
+}
+
+/**
+ * Playback started on `el` or a video inside it. One video plays at a time:
+ * any other start closes the player. A registered embed that starts while
+ * mostly out of view floats on the next intersection report.
+ */
+function notifyPlaybackStarted(el: HTMLElement): void {
+  const cur = current.value
+  if (cur && !cur.element.contains(el)) close()
+
+  let node: HTMLElement | null = el
+  while (node && !registry.has(node)) node = node.parentElement
+  if (!node || !observer || node === current.value?.element) return
+  // The stored ratio can predate a scroll in the same frame; re-observing
+  // delivers a fresh one.
+  observer.unobserve(node)
+  observer.observe(node)
 }
 
 export function useFloatingVideo() {
-  const isEnabled = computed(() => isUserSetting.value)
-
-  /**
-   * Toggle floating video feature
-   */
-  const setEnabled = (enabled: boolean) => {
-    isUserSetting.value = enabled
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('floatingVideoEnabled', String(enabled))
-    }
-    
-    // If disabling, clear any floating video
-    if (!enabled && currentFloatingVideo.value) {
-      returnToOriginalPosition()
-    }
-  }
-
-  /**
-   * Register a video element for floating
-   */
-  const registerVideo = (
-    element: HTMLElement,
-    originalParent: HTMLElement,
-    messageId: string,
-    type: 'youtube' | 'video',
-    sourceUrl?: string
-  ): (() => void) => {
-    if (!isEnabled.value) return () => {}
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          // Skip if this video is already floating (prevents feedback loop)
-          if (currentFloatingVideo.value?.messageId === messageId && currentFloatingVideo.value?.element === element) {
-            return
-          }
-
-          const isPlaying = checkIfPlaying(element, type)
-
-          // If video is playing and less than 20% visible, float it
-          if (
-            isPlaying &&
-            entry.intersectionRatio < 0.2 &&
-            !currentFloatingVideo.value &&
-            Date.now() - lastReturnAt > REFLOAT_COOLDOWN_MS
-          ) {
-            floatVideo(element, originalParent, messageId, type, sourceUrl)
-          }
-          // If video is back in view and is floating, return it
-          else if (entry.intersectionRatio > 0.8 && currentFloatingVideo.value?.messageId === messageId) {
-            returnToOriginalPosition()
-          }
-        })
-      },
-      {
-        root: null, // Use viewport as root
-        rootMargin: '0px',
-        threshold: [0, 0.2, 0.8, 1.0]
-      }
-    )
-
-    // Re-registration (e.g. content re-render) must not stack observers.
-    videoObservers.get(element)?.disconnect()
-
-    observer.observe(element)
-    videoObservers.set(element, observer)
-
-    // registerVideo runs from async callbacks (nextTick after mount), where
-    // onUnmounted() has no component instance and silently no-ops, leaking one
-    // observer per rendered video (BUGS.md H43). The caller owns the lifecycle:
-    // invoke the returned cleanup in its own unmount hook.
-    return () => {
-      observer.disconnect()
-      if (videoObservers.get(element) === observer) {
-        videoObservers.delete(element)
-      }
-    }
-  }
-
-  /**
-   * Check if video is currently playing
-   */
-  const checkIfPlaying = (element: HTMLElement, type: 'youtube' | 'video'): boolean => {
-    if (type === 'video') {
-      const video = element.querySelector('video')
-      return video ? !video.paused : false
-    } else if (type === 'youtube') {
-      // YouTube play state comes via the postMessage API
-      // This requires the iframe to have enablejsapi=1
-      const iframe = element.querySelector('iframe')
-      if (!iframe) return false
-      
-      return element.dataset.isPlaying === 'true'
-    }
-    return false
-  }
-
-  /**
-   * Float the video to top-right corner
-   */
-  const floatVideo = (
-    element: HTMLElement,
-    originalParent: HTMLElement,
-    messageId: string,
-    type: 'youtube' | 'video',
-    sourceUrl?: string
-  ) => {
-    // If another video is already floating, return it first
-    if (currentFloatingVideo.value && currentFloatingVideo.value.messageId !== messageId) {
-      returnToOriginalPosition()
-    }
-
-    // Temporarily disconnect observer to prevent feedback loop
-    videoObservers.get(element)?.disconnect()
-
-    const videoEl = element.querySelector('video') || element.querySelector('iframe')
-    let aspectRatio = 16 / 9 // Default fallback
-
-    if (videoEl) {
-      const rect = videoEl.getBoundingClientRect()
-      if (rect.width > 0 && rect.height > 0) {
-        aspectRatio = rect.width / rect.height
-      }
-    }
-
-    // skeleton keeps the embed's exact footprint so the message layout doesn't shift
-    const elementRect = element.getBoundingClientRect()
-    const placeholder = document.createElement('button')
-    placeholder.type = 'button'
-    placeholder.className = 'floating-video-placeholder'
-    placeholder.title = 'Bring the video back here'
-    placeholder.style.width = `${Math.round(elementRect.width)}px`
-    placeholder.style.height = `${Math.round(elementRect.height)}px`
-    placeholder.innerHTML = `
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <rect x="2" y="4" width="20" height="16" rx="2" stroke="currentColor" stroke-width="2"/>
-        <rect x="11" y="11" width="8" height="6" rx="1" fill="currentColor"/>
-      </svg>
-      <span class="floating-video-placeholder__label">Playing in floating player</span>
-      <span class="floating-video-placeholder__hint">Click to bring back</span>
-    `
-    placeholder.addEventListener('click', (e) => {
-      e.stopPropagation()
-      returnToOriginalPosition({ scrollIntoView: true })
-    })
-
-    element.parentNode?.insertBefore(placeholder, element)
-
-    currentFloatingVideo.value = {
-      element,
-      originalParent,
-      messageId,
-      type,
-      isPlaying: true,
-      placeholder,
-      aspectRatio,
-      sourceUrl
-    }
-
-    const windowWidth = window.innerWidth
-    const videoWidth = Math.min(400, windowWidth * 0.9)
-    const videoHeight = videoWidth / aspectRatio
-
-    floatingPosition.value = {
-      x: windowWidth - videoWidth - 20,
-      y: 80
-    }
-
-    // Move element out of the virtual scroller to document.body so it
-    // survives row unmounting by the virtualizer
-    withVideoPlaybackPreserved(element, () => moveNode(document.body, element, null))
-
-    element.classList.add('floating-video')
-    element.style.position = 'fixed'
-    element.style.top = `${floatingPosition.value.y}px`
-    element.style.left = `${floatingPosition.value.x}px`
-    element.style.width = `${videoWidth}px`
-    element.style.height = `${videoHeight}px`
-    element.style.zIndex = '9000'
-    element.style.boxShadow = '0 8px 32px rgba(0, 0, 0, 0.6)'
-    element.style.borderRadius = '8px'
-    // no overflow:hidden — it would clip the resize handles sitting outside the corners
-    element.style.transition = 'none'
-    element.style.maxWidth = 'none'
-    element.style.maxHeight = 'none'
-    element.style.minWidth = '200px'
-    element.style.minHeight = `${200 / aspectRatio}px`
-
-    if (videoEl) {
-      (videoEl as HTMLElement).style.width = '100%';
-      (videoEl as HTMLElement).style.height = '100%';
-      (videoEl as HTMLElement).style.objectFit = 'contain';
-      (videoEl as HTMLElement).style.maxWidth = 'none';
-      (videoEl as HTMLElement).style.maxHeight = 'none';
-      (videoEl as HTMLElement).style.borderRadius = '8px';
-    }
-    
-    const interactionOverlay = document.createElement('div')
-    interactionOverlay.className = 'floating-video-interaction-overlay'
-    interactionOverlay.style.cssText = `
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      pointer-events: none;
-      z-index: 5;
-    `
-    element.appendChild(interactionOverlay)
-
-    buildChrome(element, sourceUrl)
-
-    makeDraggable(element)
-
-    makeResizable(element)
-  }
-
-  /**
-   * Return video to original position
-   */
-  const returnToOriginalPosition = (options: { scrollIntoView?: boolean } = {}) => {
-    if (!currentFloatingVideo.value) return
-
-    // Vue's ref unwrapping types HTMLElement props as a complex unwrapped shape;
-    // cast back to HTMLElement so DOM APIs accept these values.
-    const { element, placeholder } = currentFloatingVideo.value as unknown as VideoElement
-
-    // Playback intentionally continues across the return (Discord-style);
-    // pausing is the close button's job, not the docking move's.
-    if (placeholder && placeholder.parentNode) {
-      withVideoPlaybackPreserved(element, () =>
-        moveNode(placeholder.parentNode as HTMLElement, element, placeholder)
-      )
-      placeholder.parentNode.removeChild(placeholder)
-    }
-
-    const videoEl = element.querySelector('video') || element.querySelector('iframe')
-    if (videoEl) {
-      (videoEl as HTMLElement).style.width = '';
-      (videoEl as HTMLElement).style.height = '';
-      (videoEl as HTMLElement).style.objectFit = '';
-      (videoEl as HTMLElement).style.maxWidth = '';
-      (videoEl as HTMLElement).style.maxHeight = '';
-      (videoEl as HTMLElement).style.borderRadius = '';
-    }
-    
-    const overlay = element.querySelector('.floating-video-interaction-overlay')
-    if (overlay) overlay.remove()
-
-    element.querySelector('.floating-video-chrome')?.remove()
-
-    element.classList.remove('floating-video')
-    element.style.position = ''
-    element.style.top = ''
-    element.style.left = ''
-    element.style.width = ''
-    element.style.height = ''
-    element.style.zIndex = ''
-    element.style.boxShadow = ''
-    element.style.borderRadius = ''
-    element.style.overflow = ''
-    element.style.transition = ''
-    element.style.maxWidth = ''
-    element.style.maxHeight = ''
-    element.style.minWidth = ''
-    element.style.minHeight = ''
-
-    removeResizeHandles(element)
-
-    removeDragHandlers(element)
-
-    currentFloatingVideo.value = null
-    lastReturnAt = Date.now()
-
-    if (options.scrollIntoView) {
-      element.scrollIntoView({ block: 'center', behavior: 'smooth' })
-    }
-
-    // Reconnect after the cooldown so the initial observation (or the scroll
-    // animation) can't immediately re-float the video we just docked
-    setTimeout(() => {
-      if (currentFloatingVideo.value?.element !== element && element.isConnected) {
-        videoObservers.get(element)?.observe(element)
-      }
-    }, REFLOAT_COOLDOWN_MS)
-  }
-
-  /**
-   * Hover chrome: one top bar with drag space + open / dock / close actions
-   */
-  const buildChrome = (element: HTMLElement, sourceUrl?: string) => {
-    const bar = document.createElement('div')
-    bar.className = 'floating-video-chrome'
-
-    const grip = document.createElement('span')
-    grip.className = 'floating-video-chrome__grip'
-    grip.textContent = 'Floating player'
-    bar.appendChild(grip)
-
-    const makeButton = (label: string, svg: string, onClick: () => void): HTMLButtonElement => {
-      const btn = document.createElement('button')
-      btn.type = 'button'
-      btn.className = 'floating-video-chrome__btn'
-      btn.title = label
-      btn.setAttribute('aria-label', label)
-      btn.innerHTML = svg
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation()
-        onClick()
-      })
-      bar.appendChild(btn)
-      return btn
-    }
-
-    if (sourceUrl) {
-      makeButton(
-        'Open link',
-        '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>',
-        () => window.open(sourceUrl, '_blank', 'noopener,noreferrer')
-      )
-    }
-
-    // Native browser PiP — only possible for <video>; cross-origin iframes
-    // (YouTube) can't be sent to PiP programmatically
-    const pipVideo = currentFloatingVideo.value?.type === 'video' ? element.querySelector('video') : null
-    if (pipVideo && document.pictureInPictureEnabled && !pipVideo.disablePictureInPicture) {
-      makeButton(
-        'Picture-in-picture',
-        '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><rect x="12" y="12" width="7" height="5" rx="1" fill="currentColor" stroke="none"/></svg>',
-        () => {
-          void pipVideo.requestPictureInPicture()
-            .then(() => returnToOriginalPosition())
-            .catch(() => {})
-        }
-      )
-    }
-
-    makeButton(
-      'Back to chat',
-      '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M15 14l-5-4v3H6v2h4v3z" fill="currentColor" stroke="none"/></svg>',
-      () => returnToOriginalPosition({ scrollIntoView: true })
-    )
-
-    const closeBtn = makeButton(
-      'Close and pause',
-      '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>',
-      () => {
-        // Close means stop watching: pause, then dock
-        if (currentFloatingVideo.value?.type === 'video') {
-          element.querySelector('video')?.pause()
-        } else if (currentFloatingVideo.value?.type === 'youtube') {
-          const iframe = element.querySelector('iframe')
-          iframe?.contentWindow?.postMessage('{"event":"command","func":"pauseVideo","args":""}', '*')
-          // the docking move may reload the iframe before the pause lands; the
-          // dataset flag keeps the seek-restore path from resuming playback
-          element.dataset.isPlaying = 'false'
-        }
-        returnToOriginalPosition()
-      }
-    )
-    closeBtn.classList.add('floating-video-chrome__btn--close')
-
-    element.appendChild(bar)
-  }
-
-  /**
-   * Make video draggable
-   */
-  const makeDraggable = (element: HTMLElement) => {
-    let startX = 0
-    let startY = 0
-    let initialX = 0
-    let initialY = 0
-    // eslint-disable-next-line unused-imports/no-unused-vars
-    let hasMoved = false
-
-    const onMouseDown = (e: MouseEvent) => {
-      const target = e.target as HTMLElement
-
-      // Don't drag from action buttons or resize handles
-      if (target.closest('.floating-video-chrome__btn') || target.closest('.resize-handle')) {
-        return
-      }
-
-      isDragging.value = false
-      hasMoved = false
-      startX = e.clientX
-      startY = e.clientY
-      initialX = floatingPosition.value.x
-      initialY = floatingPosition.value.y
-
-      document.addEventListener('mousemove', onMouseMove)
-      document.addEventListener('mouseup', onMouseUp)
-
-      element.style.cursor = 'grabbing'
-      e.preventDefault()
-      e.stopPropagation()
-    }
-
-    const onMouseMove = (e: MouseEvent) => {
-      const deltaX = e.clientX - startX
-      const deltaY = e.clientY - startY
-      
-      // Consider it a drag if moved more than 3 pixels
-      if (Math.abs(deltaX) > 3 || Math.abs(deltaY) > 3) {
-        isDragging.value = true
-        hasMoved = true
-      }
-
-      if (!isDragging.value) return
-
-      const newX = initialX + deltaX
-      const newY = initialY + deltaY
-
-      // Constrain to viewport
-      const maxX = window.innerWidth - element.offsetWidth
-      const maxY = window.innerHeight - element.offsetHeight
-
-      floatingPosition.value = {
-        x: Math.max(0, Math.min(newX, maxX)),
-        y: Math.max(0, Math.min(newY, maxY))
-      }
-
-      element.style.left = `${floatingPosition.value.x}px`
-      element.style.top = `${floatingPosition.value.y}px`
-    }
-
-    const onMouseUp = (_e: MouseEvent) => {
-      document.removeEventListener('mousemove', onMouseMove)
-      document.removeEventListener('mouseup', onMouseUp)
-
-      isDragging.value = false
-      element.style.cursor = ''
-    }
-
-    element.addEventListener('mousedown', onMouseDown)
-
-    dragState.set(element, { onMouseDown })
-  }
-
-  /**
-   * Remove drag handlers
-   */
-  const removeDragHandlers = (element: HTMLElement) => {
-    const handlers = dragState.get(element)
-    if (handlers) {
-      element.removeEventListener('mousedown', handlers.onMouseDown)
-      element.style.cursor = ''
-      dragState.delete(element)
-    }
-  }
-
-  /**
-   * Make video resizable
-   */
-  const makeResizable = (element: HTMLElement) => {
-    const resizeHandles: { position: string; cursor: string }[] = [
-      { position: 'top-left', cursor: 'nwse-resize' },
-      { position: 'top-right', cursor: 'nesw-resize' },
-      { position: 'bottom-left', cursor: 'nesw-resize' },
-      { position: 'bottom-right', cursor: 'nwse-resize' },
-    ]
-
-    const handles: HTMLElement[] = []
-
-    resizeHandles.forEach(({ position, cursor }) => {
-      const handle = document.createElement('div')
-      handle.className = `resize-handle resize-${position}`
-      handle.style.cssText = `
-        position: absolute;
-        width: 12px;
-        height: 12px;
-        background: rgba(14, 165, 233, 0.8);
-        border: 2px solid white;
-        border-radius: 50%;
-        cursor: ${cursor};
-        z-index: 10;
-        opacity: 0;
-        transition: opacity 0.2s ease;
-        pointer-events: all;
-      `
-
-      // Position the handle
-      if (position.includes('top')) handle.style.top = '-6px'
-      if (position.includes('bottom')) handle.style.bottom = '-6px'
-      if (position.includes('left')) handle.style.left = '-6px'
-      if (position.includes('right')) handle.style.right = '-6px'
-
-      handle.addEventListener('mousedown', (e) => {
-        e.stopPropagation()
-        e.preventDefault()
-        startResize(e, element, position)
-      })
-
-      element.appendChild(handle)
-      handles.push(handle)
-    })
-
-    // Visibility is CSS-driven (.floating-video:hover .resize-handle). JS hover
-    // listeners here leak: this runs on every float.
-    resizeHandleState.set(element, handles)
-  }
-
-  /**
-   * Start resizing video
-   */
-  const startResize = (e: MouseEvent, element: HTMLElement, position: string) => {
-    if (!currentFloatingVideo.value) return
-    
-    const startX = e.clientX
-    const startY = e.clientY
-    const startWidth = element.offsetWidth
-    const startHeight = element.offsetHeight
-    const startLeft = parseFloat(element.style.left)
-    const startTop = parseFloat(element.style.top)
-    const aspectRatio = currentFloatingVideo.value.aspectRatio
-
-    const onMouseMove = (e: MouseEvent) => {
-      const currentX = e.clientX
-      const currentY = e.clientY
-      const deltaX = currentX - startX
-      const deltaY = currentY - startY
-      
-      let newWidth = startWidth
-      let newHeight = startHeight
-      let newLeft = startLeft
-      let newTop = startTop
-
-      const isHorizontalPrimary = Math.abs(deltaX) > Math.abs(deltaY)
-
-      if (isHorizontalPrimary) {
-        // Resize based on width, calculate height from aspect ratio
-        if (position.includes('right')) {
-          newWidth = startWidth + deltaX
-        } else if (position.includes('left')) {
-          newWidth = startWidth - deltaX
-          newLeft = startLeft + deltaX
-        }
-        
-        // Constrain width
-        newWidth = Math.max(200, Math.min(1200, newWidth))
-        
-        newHeight = newWidth / aspectRatio
-        
-        // Adjust position for top corners
-        if (position.includes('top')) {
-          newTop = startTop + startHeight - newHeight
-        }
-      } else {
-        // Resize based on height, calculate width from aspect ratio
-        if (position.includes('bottom')) {
-          newHeight = startHeight + deltaY
-        } else if (position.includes('top')) {
-          newHeight = startHeight - deltaY
-          newTop = startTop + deltaY
-        }
-        
-        newWidth = newHeight * aspectRatio
-        
-        // Constrain width
-        newWidth = Math.max(200, Math.min(1200, newWidth))
-        newHeight = newWidth / aspectRatio
-        
-        // Recalculate position
-        if (position.includes('top')) {
-          newTop = startTop + startHeight - newHeight
-        }
-        if (position.includes('left')) {
-          newLeft = startLeft + startWidth - newWidth
-        }
-      }
-
-      // Final position adjustment for left corners
-      if (position.includes('left')) {
-        newLeft = startLeft + startWidth - newWidth
-      }
-
-      // Constrain to viewport
-      const maxX = window.innerWidth - newWidth
-      const maxY = window.innerHeight - newHeight
-      newLeft = Math.max(0, Math.min(newLeft, maxX))
-      newTop = Math.max(0, Math.min(newTop, maxY))
-
-      element.style.width = `${newWidth}px`;
-      element.style.height = `${newHeight}px`;
-      element.style.left = `${newLeft}px`;
-      element.style.top = `${newTop}px`;
-      element.style.minHeight = `${200 / aspectRatio}px`;
-
-      floatingPosition.value = { x: newLeft, y: newTop }
-    }
-
-    const onMouseUp = () => {
-      document.removeEventListener('mousemove', onMouseMove)
-      document.removeEventListener('mouseup', onMouseUp)
-    }
-
-    document.addEventListener('mousemove', onMouseMove)
-    document.addEventListener('mouseup', onMouseUp)
-  }
-
-  /**
-   * Remove resize handles
-   */
-  const removeResizeHandles = (element: HTMLElement) => {
-    const handles = resizeHandleState.get(element)
-    if (handles) {
-      handles.forEach(handle => handle.remove())
-      resizeHandleState.delete(element)
-    }
-  }
-
-  /**
-   * Get current floating video
-   */
-  const getCurrentFloatingVideo = computed(() => currentFloatingVideo.value)
-
-  /**
-   * Check if a video is currently floating
-   */
-  const hasFloatingVideo = computed(() => currentFloatingVideo.value !== null)
-
-  /**
-   * Get the messageId of the currently floating video
-   */
-  const getFloatingVideoMessageId = () => {
-    return currentFloatingVideo.value?.messageId || null
-  }
-
   return {
-    isEnabled,
+    isEnabled: computed(() => enabled.value),
     setEnabled,
     registerVideo,
-    returnToOriginalPosition,
-    getCurrentFloatingVideo,
-    hasFloatingVideo,
-    getFloatingVideoMessageId
+    notifyPlaybackStarted,
+    floatingMessageId: computed(() => current.value?.registration.messageId ?? null),
   }
 }
 
+/** Player frame state and actions. */
+export function useFloatingVideoPlayer() {
+  return {
+    current,
+    corner,
+    size,
+    position,
+    chrome,
+    interaction,
+    attachHost(slot: HTMLElement, probe: HTMLElement): void {
+      host = { slot, probe }
+      slotObserver?.disconnect()
+      if (typeof MutationObserver !== 'undefined') {
+        slotObserver = new MutationObserver(onSlotMutation)
+        slotObserver.observe(slot, { childList: true })
+      }
+    },
+    detachHost(): void {
+      close()
+      slotObserver?.disconnect()
+      slotObserver = null
+      host = null
+    },
+    dock,
+    close,
+    enterPictureInPicture,
+    beginInteraction,
+    dragTo,
+    endDrag,
+    resizeTo,
+    endResize,
+  }
+}

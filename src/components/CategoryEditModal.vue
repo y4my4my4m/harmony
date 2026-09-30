@@ -3,7 +3,7 @@
     <div v-if="show" class="modal-overlay" @click="closeModal">
       <div class="modal-container" @click.stop>
         <div class="modal-header">
-          <h2 class="modal-title">Edit Category</h2>
+          <h2 class="modal-title">Edit category</h2>
           <button class="modal-close" @click="closeModal">
             <svg width="24" height="24" viewBox="0 0 24 24">
               <path fill="currentColor" d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/>
@@ -13,7 +13,7 @@
         
         <div class="modal-body">
           <div class="form-group">
-            <label for="category-name">Category Name</label>
+            <label for="category-name">Category name</label>
             <input
               id="category-name"
               v-model="editedName"
@@ -39,7 +39,7 @@
             :disabled="!isValidName || isLoading"
           >
             <span v-if="isLoading" class="loading-spinner"></span>
-            {{ isLoading ? 'Saving...' : 'Save Changes' }}
+            {{ isLoading ? 'Saving...' : 'Save changes' }}
           </button>
         </div>
       </div>
@@ -108,7 +108,7 @@ const saveChanges = async () => {
   } catch (error: any) {
     debug.error('Failed to update category:', error)
     const toast = useToast()
-    toast.error(error?.message || 'Failed to update category. Please try again.')
+    toast.error(error?.message || "Couldn't update category. Try again.")
   } finally {
     isLoading.value = false
   }
@@ -144,18 +144,26 @@ watch(() => props.show, (isVisible) => {
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  animation: fadeIn 0.15s ease-out;
 }
 
 .modal-container {
   background: var(--background-secondary);
-  border-radius: 8px;
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-large);
   width: 100%;
   max-width: 480px;
   max-height: 90vh;
   overflow: hidden;
-  animation: slideUp 0.15s ease-out;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .modal-overlay {
+    animation: fadeIn 0.15s ease-out;
+  }
+
+  .modal-container {
+    animation: slideUp 0.15s ease-out;
+  }
 }
 
 .modal-header {
@@ -183,8 +191,8 @@ watch(() => props.show, (isVisible) => {
 }
 
 .modal-close:hover {
-  background: var(--background-quinary);
-  color: var(--text-secondary);
+  background: var(--background-modifier-hover);
+  color: var(--text-primary);
 }
 
 .modal-body {
@@ -205,8 +213,6 @@ watch(() => props.show, (isVisible) => {
   font-weight: 600;
   color: var(--text-secondary);
   margin-bottom: 8px;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
 }
 
 .form-input {
@@ -222,7 +228,7 @@ watch(() => props.show, (isVisible) => {
 
 .form-input:focus {
   outline: none;
-  border-color: #0EA5E9;
+  border-color: var(--harmony-primary);
 }
 
 .character-count {
@@ -264,17 +270,17 @@ watch(() => props.show, (isVisible) => {
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background: var(--background-quinary);
-  color: var(--text-secondary);
+  background: var(--background-modifier-hover);
+  color: var(--text-primary);
 }
 
 .btn-primary {
   background: var(--harmony-primary);
-  color: var(--text-primary);
+  color: var(--text-on-primary);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #0284C7;
+  background: var(--harmony-primary-hover);
 }
 
 .loading-spinner {

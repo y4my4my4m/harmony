@@ -1253,8 +1253,8 @@ onUnmounted(() => {
   gap: 0.5rem;
   background: var(--harmony-primary);
   border: none;
-  border-radius: 8px;
-  color: var(--text-primary);
+  border-radius: var(--radius-md);
+  color: var(--text-on-primary);
   padding: 0.75rem 1.5rem;
   cursor: pointer;
   margin-top: 1rem;
@@ -1503,7 +1503,7 @@ onUnmounted(() => {
   gap: 2px;
   padding: 0.5rem 0.75rem;
   background: var(--bg-secondary);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   min-width: 120px;
   flex: 1;
   max-width: 280px;
@@ -1511,10 +1511,8 @@ onUnmounted(() => {
 
 .profile-field-item .field-label {
   font-size: 0.75rem;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
 }
 
 .profile-field-item .field-value {
@@ -1557,13 +1555,12 @@ onUnmounted(() => {
   top: calc(100% + 0.5rem);
   right: 0;
   width: 200px;
-  background: var(--background-tertiary);
+  background: var(--background-floating);
   border: 1px solid var(--border-primary);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   padding: 0.5rem;
   z-index: 100;
-  box-shadow: var(--shadow-modal);
-  backdrop-filter: blur(8px);
+  box-shadow: var(--shadow-large);
 }
 
 .actions-menu-teleported {
@@ -1581,7 +1578,7 @@ onUnmounted(() => {
   border: none;
   color: var(--text-primary);
   padding: 0.75rem;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   cursor: pointer;
   text-align: left;
   transition: all 0.2s ease;
@@ -1645,9 +1642,9 @@ onUnmounted(() => {
   background: var(--background-modifier-active);
   color: var(--text-tertiary);
   padding: 0.25rem 0.5rem;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   font-size: 0.75rem;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 
 .tab-btn.active .tab-count {
@@ -1667,12 +1664,19 @@ onUnmounted(() => {
   flex-direction: column;
 }
 
+/* Same column and edges as PostsContainer's list, so pinned posts line up
+   with the posts under them. */
 .pinned-posts-section {
   max-width: 600px;
   margin: 0 auto;
   width: 100%;
-  border-bottom: 1px solid var(--border-color);
-  padding: 6px 16px;
+}
+
+@media (min-width: 769px) {
+  .pinned-posts-section {
+    border-left: 1px solid var(--border-color);
+    border-right: 1px solid var(--border-color);
+  }
 }
 
 .following-tab,
@@ -1712,7 +1716,7 @@ onUnmounted(() => {
   padding: 4rem 2rem;
   text-align: center;
   background: var(--background-secondary);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   margin: 1rem;
 }
 
@@ -1748,7 +1752,7 @@ onUnmounted(() => {
   border: 1px solid var(--harmony-primary);
   color: var(--harmony-primary);
   border-radius: var(--radius-full);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   cursor: pointer;
   transition: background-color var(--transition-fast), color var(--transition-fast);
 }
@@ -1766,7 +1770,7 @@ onUnmounted(() => {
 .load-more-btn {
   background: var(--background-tertiary);
   border: 1px solid var(--border-primary);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   color: var(--text-primary);
   padding: 0.75rem 1.5rem;
   cursor: pointer;

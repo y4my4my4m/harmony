@@ -21,7 +21,7 @@
               <path d="M3,6H21V8H3V6M3,11H21V13H3V11M3,16H21V18H3V16Z" fill="currentColor"/>
             </svg>
           </button>
-          <h2>Direct Messages</h2>
+          <h2>Direct messages</h2>
         </div>
       </div>
     </div>
@@ -33,7 +33,7 @@
         </span>
         <span class="call-banner-text">A call is in progress</span>
         <button class="call-banner-join" @click="joinCallFromBanner">
-          Join Call
+          Join call
         </button>
       </div>
     </div>
@@ -587,7 +587,7 @@ const highlightSearchText = (messageElement: HTMLElement, query: string) => {
 
 .dm-call-banner {
   flex-shrink: 0;
-  background: var(--accent-color, #0EA5E9);
+  background: var(--harmony-primary);
   border-bottom: 1px solid rgba(0, 0, 0, 0.2);
 }
 
@@ -596,7 +596,7 @@ const highlightSearchText = (messageElement: HTMLElement, query: string) => {
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
-  color: var(--text-primary);
+  color: var(--text-on-primary);
   font-size: 13px;
   font-weight: 500;
 }
@@ -604,12 +604,6 @@ const highlightSearchText = (messageElement: HTMLElement, query: string) => {
 .call-banner-icon {
   display: flex;
   align-items: center;
-  animation: pulse-call 2s ease-in-out infinite;
-}
-
-@keyframes pulse-call {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
 }
 
 .call-banner-text {
@@ -617,8 +611,8 @@ const highlightSearchText = (messageElement: HTMLElement, query: string) => {
 }
 
 .call-banner-join {
-  background: #fff;
-  color: var(--accent-color, #0EA5E9);
+  background: var(--text-on-primary);
+  color: var(--harmony-primary);
   border: none;
   border-radius: 4px;
   padding: 4px 12px;

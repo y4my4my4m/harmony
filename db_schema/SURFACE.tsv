@@ -98,7 +98,9 @@ create_notification_structured	p_user_id uuid, p_type character varying, p_data 
 create_notification_with_spam_prevention	p_user_id uuid, p_type text, p_source_user_id uuid, p_title text, p_message text, p_data jsonb, p_server_id uuid, p_channel_id uuid, p_conversation_id uuid	uuid	definer	public, extensions, pg_temp	service_role	unreferenced
 create_or_get_direct_conversation	user1_uuid uuid, user2_uuid uuid	uuid	definer	public, pg_temp	anon+authenticated+service_role	client
 create_thread	p_message_id uuid, p_name text, p_auto_archive_duration integer	uuid	definer	public, pg_temp	anon+authenticated+service_role	client
-current_user_is_member_of_server	p_server_id uuid	boolean	definer	public, pg_temp	anon+authenticated+service_role	policy
+current_user_block_peer_ids		SETOF uuid	definer	public, extensions, pg_temp	anon+authenticated+service_role	policy
+current_user_is_member_of_server	p_server_id uuid	boolean	definer	public, pg_temp	anon+authenticated+service_role	unreferenced
+current_user_server_ids		SETOF uuid	definer	public, extensions, pg_temp	authenticated+service_role	policy
 delete_my_account		jsonb	definer	public, pg_catalog, pg_temp	anon+authenticated+service_role	client
 delete_push_subscription_by_endpoint	p_endpoint text	void	definer	public, pg_temp	anon+authenticated+service_role	client
 delete_server_with_cleanup	p_server_id uuid, p_owner_id uuid	void	definer	public, pg_temp	anon+authenticated+service_role	client
@@ -211,12 +213,12 @@ handle_role_mention_notifications		trigger	definer	public, pg_temp	anon+authenti
 handle_thread_reply_notification		trigger	definer	public, extensions, pg_temp	anon+authenticated+service_role	trigger
 handle_unified_notification_processing		trigger	definer	public, pg_temp	anon+authenticated+service_role	trigger
 has_active_session	p_user_id uuid	boolean	definer	public, extensions, pg_temp	service_role	client
-has_blocked	target_user_id uuid	boolean	definer	public, pg_temp	anon+authenticated+service_role	policy
+has_blocked	target_user_id uuid	boolean	definer	public, pg_temp	anon+authenticated+service_role	unreferenced
 has_muted	target_user_id uuid	boolean	definer	public, pg_temp	service_role	unreferenced
 has_permission	p_user_id uuid, p_server_id uuid, p_permission text, p_channel_id uuid	boolean	definer	public, extensions, pg_temp	anon+authenticated+service_role	policy
 import_remote_emoji	p_remote_emoji_id uuid, p_new_name text, p_server_id uuid	uuid	definer	public, pg_temp	anon+authenticated+service_role	client
 increment_unread_mentions		trigger	definer	public, extensions, pg_temp	anon+authenticated+service_role	trigger
-index_message		trigger	definer	public, pg_temp	anon+authenticated+service_role	trigger
+index_message		trigger	definer	public, extensions, pg_temp	service_role	trigger
 initialize_user_encryption	p_user_id uuid, p_identity_public_key text, p_identity_private_key_encrypted text, p_device_id text	jsonb	definer	public, extensions, pg_temp	anon+authenticated+service_role	unreferenced
 insert_ap_activity_outbound	p_ap_id text, p_ap_type text, p_actor_id uuid, p_actor_ap_id text, p_activity_data jsonb, p_object_id text, p_object_type text, p_to_addresses text[], p_cc_addresses text[], p_origin_domain text	uuid	definer	public, pg_temp	anon+authenticated+service_role	client
 is_author_suspended	p_author_id uuid	boolean	definer	public, pg_temp	service_role	unreferenced

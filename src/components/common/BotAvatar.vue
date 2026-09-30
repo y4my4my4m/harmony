@@ -110,7 +110,7 @@ const initials = computed(() => {
   border-radius: 50%;
   color: #fff;
   /* Default: hex var resolved per-bridge below */
-  background: var(--bot-bridge-color, var(--harmony-primary, #0EA5E9));
+  background: var(--bot-bridge-color, var(--harmony-primary));
 }
 
 .bot-avatar-platform--discord { background: #5865f2; }

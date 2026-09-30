@@ -1,6 +1,6 @@
 <template>
   <div class="auth-wrapper" :style="authStyles">
-    <!-- Animated gradient overlay -->
+    <!-- Background scrim -->
     <div class="bg-gradient-overlay"></div>
 
     <!-- Main Auth Container -->
@@ -184,8 +184,6 @@
             <div v-if="forgotPasswordStep === 1" class="modal-content">
               <!-- Decorative header -->
               <div class="modal-header-decoration">
-                <div class="decoration-ring"></div>
-                <div class="decoration-ring delay"></div>
                 <div class="modal-icon-wrapper">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                     <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
@@ -619,7 +617,7 @@ const handle2FAVerification = async () => {
       authStore.session = refreshedSession.session
       
       show2FAModal.value = false
-      toast.warning('Welcome back! Please re-enable Two-Factor Authentication in your settings.', { timeout: 8000 })
+      toast.warning('Signed in with a recovery code. Re-enable two-factor authentication in settings.', { timeout: 8000 })
       router.push('/settings/privacy')
     } else {
       await authStore.verify2FA(pendingFactorId.value, pendingChallengeId.value, twoFactorCode.value)
@@ -843,18 +841,16 @@ onMounted(async () => {
    CSS Variables & Base Styles
    ======================================== */
 .auth-wrapper {
-  --primary: var(--harmony-primary, #0EA5E9);
-  --primary-hover: var(--harmony-primary-hover, #0284C7);
+  --primary: var(--harmony-primary);
+  --primary-hover: var(--harmony-primary-hover);
   --surface: rgba(17, 17, 23, 0.92);
   --surface-light: rgba(255, 255, 255, 0.03);
   --surface-hover: rgba(255, 255, 255, 0.06);
   --border: rgba(255, 255, 255, 0.08);
-  --border-focus: rgba(14, 165, 233, 0.5);
+  --border-focus: color-mix(in srgb, var(--harmony-primary) 50%, transparent);
   --text: #ffffff;
   --text-muted: rgba(255, 255, 255, 0.6);
   --text-dim: rgba(255, 255, 255, 0.4);
-  --error: #ef4444;
-  --success: #22c55e;
   
   min-height: 100vh;
   width: 100%;
@@ -902,15 +898,11 @@ onMounted(async () => {
   position: relative;
   z-index: 1;
   background: rgba(255, 255, 255, 0.03);
-  backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 32px;
   padding: 48px 40px;
   max-width: 460px;
   width: 100%;
-  box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.02) inset,
-    0 24px 48px rgba(0, 0, 0, 0.15);
 }
 
 .brand-content {
@@ -963,11 +955,10 @@ onMounted(async () => {
   width: 100%;
   max-width: 420px;
   background: var(--surface);
-  backdrop-filter: blur(16px);
   border: 1px solid var(--border);
   border-radius: 16px;
   padding: 40px;
-  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--shadow-large);
 }
 
 .auth-card.loading-state {
@@ -1036,18 +1027,13 @@ onMounted(async () => {
   font-weight: 500;
   color: var(--text);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
   position: relative;
 }
 
 .oauth-btn:hover:not(:disabled) {
   background: var(--surface-hover);
   border-color: var(--border-focus);
-  transform: translateY(-1px);
-}
-
-.oauth-btn:active:not(:disabled) {
-  transform: translateY(0);
 }
 
 .oauth-btn:disabled {
@@ -1100,8 +1086,6 @@ onMounted(async () => {
   margin-bottom: 24px;
   color: var(--text-dim);
   font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
 }
 
 .divider::before,
@@ -1272,7 +1256,7 @@ onMounted(async () => {
   content: '';
   width: 10px;
   height: 6px;
-  border: 2px solid #fff;
+  border: 2px solid var(--text-on-primary);
   border-top: none;
   border-right: none;
   transform: rotate(-45deg) translateY(-1px);
@@ -1302,7 +1286,7 @@ onMounted(async () => {
   border-radius: 8px;
   font-size: 1rem;
   font-weight: 600;
-  color: #fff;
+  color: var(--text-on-primary);
   cursor: pointer;
   transition: background-color 0.15s ease;
   position: relative;
@@ -1311,10 +1295,6 @@ onMounted(async () => {
 
 .submit-btn:hover:not(:disabled) {
   background: var(--primary-hover);
-}
-
-.submit-btn:active:not(:disabled) {
-  transform: translateY(0);
 }
 
 .submit-btn:disabled {
@@ -1331,7 +1311,7 @@ onMounted(async () => {
 .btn-loader .dot {
   width: 8px;
   height: 8px;
-  background: #fff;
+  background: var(--text-on-primary);
   border-radius: 50%;
   animation: bounce 1.4s ease-in-out infinite;
 }
@@ -1408,7 +1388,7 @@ onMounted(async () => {
   max-width: 420px;
   width: 100%;
   position: relative;
-  box-shadow: 0 32px 64px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--shadow-large);
 }
 
 .modal-close {
@@ -1478,33 +1458,15 @@ onMounted(async () => {
   margin: 0 auto 24px;
 }
 
-.decoration-ring {
-  position: absolute;
-  inset: 0;
-  border: 2px solid var(--primary);
-  border-radius: 50%;
-  opacity: 0.2;
-  animation: ringPulse 2s ease-out infinite;
-}
-
-.decoration-ring.delay {
-  animation-delay: 1s;
-}
-
-@keyframes ringPulse {
-  0% { transform: scale(1); opacity: 0.3; }
-  100% { transform: scale(1.5); opacity: 0; }
-}
-
 .modal-icon-wrapper {
   position: absolute;
   inset: 8px;
-  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
+  background: var(--primary);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--text-primary);
+  color: var(--text-on-primary);
 }
 
 .modal-icon-wrapper svg {
@@ -1548,7 +1510,16 @@ onMounted(async () => {
   inset: 0;
   border: 3px solid var(--success);
   border-radius: 50%;
-  animation: successRing 0.6s ease-out;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .success-ring {
+    animation: successRing 0.6s ease-out;
+  }
+
+  .success-icon {
+    animation: checkDraw 0.4s ease-out 0.3s both;
+  }
 }
 
 @keyframes successRing {
@@ -1564,7 +1535,6 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   color: var(--success);
-  animation: checkDraw 0.4s ease-out 0.3s both;
 }
 
 .success-icon svg {
@@ -1624,7 +1594,7 @@ onMounted(async () => {
 }
 
 .modal-icon.shield {
-  background: rgba(14, 165, 233, 0.1);
+  background: color-mix(in srgb, var(--harmony-primary) 10%, transparent);
 }
 
 .modal-actions {
@@ -1646,7 +1616,7 @@ onMounted(async () => {
 .btn-primary {
   background: var(--primary);
   border: none;
-  color: #fff;
+  color: var(--text-on-primary);
 }
 
 .btn-primary:hover:not(:disabled) {

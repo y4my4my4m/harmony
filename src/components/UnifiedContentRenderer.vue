@@ -179,7 +179,7 @@
             rel="noopener noreferrer"
             class="file-link"
           >
-            <span class="file-icon">📎</span>
+            <Icon name="file" :size="14" class="file-icon" />
             {{ part.fileName || 'file' }}
             <span v-if="part.fileSize" class="file-size">({{ formatFileSize(part.fileSize) }})</span>
           </a>
@@ -206,6 +206,7 @@ import { escapeHtml, sanitizeMessageHtml } from '@/utils/sanitize';
 import { isTauriRuntime } from '@/services/instanceConfig';
 import { openExternalUrl } from '@/services/tauriLinks';
 import DisplayName from '@/components/DisplayName.vue';
+import Icon from '@/components/common/Icon.vue';
 import EncryptedGlyphPreview from '@/components/encryption/EncryptedGlyphPreview.vue';
 
 interface Props {
@@ -564,7 +565,6 @@ const formatFileSize = (bytes: number): string => {
 
 /* Text content */
 .text-content {
-  /* color: var(--text-secondary); */
   color: var(--text-primary);
 }
 
@@ -602,7 +602,7 @@ const formatFileSize = (bytes: number): string => {
 
 .mention:hover {
   background-color: var(--harmony-primary);
-  color: rgba(255,255,255,0.9);
+  color: var(--text-on-primary);
 }
 
 .mention.federated-mention::after {
@@ -643,9 +643,8 @@ const formatFileSize = (bytes: number): string => {
 
 /* HTML mode mentions (for ActivityPub content) */
 .content-html :deep(.mention) {
-  background-color: rgba(16, 185, 129, 0.1);
-  color: #10b981;
-  /* color: var(--harmony-accent); */
+  background-color: color-mix(in srgb, var(--success) 10%, transparent);
+  color: var(--success);
   cursor: pointer;
   padding: 1px 2px;
   border-radius: 3px;
@@ -654,34 +653,32 @@ const formatFileSize = (bytes: number): string => {
 }
 
 .content-html :deep(.mention:hover) {
-  background: rgba(16, 185, 129, 0.2);
+  background: color-mix(in srgb, var(--success) 20%, transparent);
   text-decoration: underline;
 }
 
-/* Hashtags */
+/* Hashtags: same chip as chat hashtags in UnifiedMessageContent. */
 .content-html :deep(.hashtag),
 :deep(.hashtag) {
-  background-color: var(--harmony-primary);
+  background-color: var(--harmony-primary-alpha);
   margin: 0 2px;
   border-radius: 3px;
   padding: 0 3px;
   cursor: pointer;
   font-weight: 500;
-  color: var(--text-primary);
+  color: var(--harmony-primary);
   display: inline-block;
   transition: background-color 0.2s ease;
   user-select: text;
   -webkit-user-select: text;
   -moz-user-select: text;
   -ms-user-select: text;
-  color: var(--text-primary);
-
 }
 
 .content-html :deep(.hashtag:hover),
 :deep(.hashtag:hover) {
-  background-color: var(--harmony-primary-hover);
-  color: var(--text-primary);
+  background-color: var(--harmony-primary);
+  color: var(--text-on-primary);
 }
 
 /* Emojis */
@@ -744,7 +741,7 @@ const formatFileSize = (bytes: number): string => {
   width: 20px;
   height: 20px;
   vertical-align: middle;
-  color: var(--text-muted, #72767d);
+  color: var(--text-muted);
   opacity: 0.5;
 }
 
@@ -761,22 +758,22 @@ const formatFileSize = (bytes: number): string => {
 
 /* URLs */
 .url-link {
-  color: #3b82f6;
+  color: var(--harmony-primary);
   text-decoration: underline;
   transition: color 0.2s ease;
 }
 
 .url-link:hover {
-  color: var(--harmony-primary, #2563eb);
+  color: var(--harmony-primary-hover);
 }
 
 .content-html :deep(.url-link) {
-  color: #3b82f6;
+  color: var(--harmony-primary);
   text-decoration: underline;
 }
 
 .content-html :deep(.url-link:hover) {
-  color: var(--harmony-primary, #2563eb);
+  color: var(--harmony-primary-hover);
 }
 
 .content-html :deep(.media-container) {
@@ -787,7 +784,7 @@ const formatFileSize = (bytes: number): string => {
 /* Content-embedded media grid (Misskey/federated inline images) */
 .content-html :deep(.media-gallery) {
   margin-top: 0.75rem;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   overflow: hidden;
   display: block;
 }
@@ -822,7 +819,7 @@ const formatFileSize = (bytes: number): string => {
 
 .content-html :deep(.media-gallery__item) {
   overflow: hidden;
-  background: var(--background-secondary, #313338);
+  background: var(--background-secondary);
 }
 
 .content-html :deep(.media-gallery__item img),
@@ -944,7 +941,7 @@ const formatFileSize = (bytes: number): string => {
 }
 
 .file-icon {
-  font-size: 1.1em;
+  flex-shrink: 0;
 }
 
 .file-size {
@@ -965,10 +962,9 @@ const formatFileSize = (bytes: number): string => {
   letter-spacing: 0.05em;
   user-select: none;
   opacity: 0.7;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--background-modifier-hover);
   border-radius: 3px;
   padding: 0 4px;
-  animation: encrypted-flicker 3s infinite;
 }
 
 /* Encrypted glyphs styles - uses global design-system.css */
@@ -983,13 +979,13 @@ const formatFileSize = (bytes: number): string => {
 .content-html :deep(em),
 :deep(em) {
   font-style: italic;
-  color: #e3e5e8;
+  color: var(--text-primary);
 }
 
 .content-html :deep(code),
 :deep(code) {
   background-color: var(--background-tertiary);
-  color: #f8f8f2;
+  color: var(--text-primary);
   padding: 2px 4px;
   border-radius: 3px;
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;

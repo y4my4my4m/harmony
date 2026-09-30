@@ -45,7 +45,7 @@ const toggle = () => {
   width: 44px;
   height: 24px;
   background-color: var(--background-quaternary);
-  border-radius: 12px;
+  border-radius: var(--radius-full);
   cursor: pointer;
   transition: all 0.2s ease;
   position: relative;
@@ -78,7 +78,7 @@ const toggle = () => {
 .toggle-knob {
   width: 18px;
   height: 18px;
-  background-color: var(--text-primary);
+  background-color: var(--text-on-primary);
   border-radius: 50%;
   position: absolute;
   top: 3px;

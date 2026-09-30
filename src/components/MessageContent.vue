@@ -233,7 +233,7 @@ export default defineComponent({
 }
 .mention:hover {
   background-color: var(--harmony-primary);
-  color:rgba(255,255,255,0.9);
+  color: var(--text-on-primary);
 }
 .file-container {
   margin-top: 5px;
@@ -249,16 +249,12 @@ export default defineComponent({
   max-height: 256px;
   border-radius: 5px;
   cursor: pointer;
-  transition: transform 0.2s ease-in-out;
 }
 
-.file-container img:hover {
-  transform: scale(1.05);
-}
 .file-container > video {
   max-width: 25vw!important;
   max-height: 25vh !important;
-  border: 1px solid rgba(255,255,255,0.15);
+  border: 1px solid var(--border-hover);
   border-radius: 4px;
 }
 
@@ -288,8 +284,8 @@ export default defineComponent({
 }
 
 .edit-textarea:focus {
-  border-color: #0EA5E9;
-  background-color: #383c42;
+  border-color: var(--harmony-primary);
+  background-color: var(--background-quaternary);
 }
 
 .edit-textarea::placeholder {
@@ -308,7 +304,7 @@ export default defineComponent({
 }
 
 .edit-action {
-  color: #00b0f4;
+  color: var(--harmony-primary);
   cursor: pointer;
   font-weight: 500;
 }

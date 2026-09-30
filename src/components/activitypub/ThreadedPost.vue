@@ -133,19 +133,14 @@ const expandThread = () => {
   top: 0;
   bottom: 0;
   width: 1px;
-  background: linear-gradient(
-    to bottom,
-    transparent 0%,
-    #80848e 50%,
-    transparent 100%
-  );
+  background: var(--text-tertiary);
   opacity: 0.3;
 }
 
 .post-content {
   transition: all 0.3s ease;
   position: relative;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
 }
 
 
@@ -153,22 +148,13 @@ const expandThread = () => {
   margin-left: calc(3 * 1.5rem); /* Cap indentation at 3 levels */
 }
 
-.deep-thread .thread-line {
-  background: linear-gradient(
-    135deg,
-    transparent 0%,
-    #0EA5E9 50%,
-    transparent 100%
-  );
-}
-
 .nested-reply-composer {
   margin-top: 1rem;
   margin-left: 1rem;
-  background: var(--background-secondary, #313338);
-  border-radius: 8px;
+  background: var(--background-secondary);
+  border-radius: var(--radius-md);
   padding: 0.75rem;
-  border-left: 3px solid var(--h-brand, #0EA5E9);
+  border-left: 3px solid var(--h-brand, var(--harmony-primary));
 }
 
 .nested-replies {
@@ -185,9 +171,9 @@ const expandThread = () => {
   align-items: center;
   gap: 0.5rem;
   background: none;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  color: #80848e;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  color: var(--text-tertiary);
   cursor: pointer;
   padding: 0.75rem 1rem;
   font-size: 0.875rem;
@@ -196,30 +182,15 @@ const expandThread = () => {
 }
 
 .expand-thread-btn:hover {
-  background: rgba(255, 255, 255, 0.05);
-  border-color: rgba(255, 255, 255, 0.2);
+  background: var(--background-modifier-hover);
+  border-color: var(--border-hover);
   color: var(--text-primary);
-}
-
-/* Thread depth styling adjustments */
-.threaded-post:nth-child(odd) .thread-line {
-  background: linear-gradient(
-    to bottom,
-    #80848e 0%,
-    rgba(14, 165, 233, 0.5) 50%,
-    transparent 100%
-  );
 }
 
 /* Hover effects for thread navigation */
 .threaded-post:hover .thread-line {
   opacity: 0.6;
-  background: linear-gradient(
-    to bottom,
-    var(--h-brand, #0EA5E9) 0%,
-    var(--h-brand, #0EA5E9) 50%,
-    transparent 100%
-  );
+  background: var(--harmony-primary);
 }
 
 /* Mobile responsiveness */
@@ -244,7 +215,7 @@ const expandThread = () => {
 
 /* Accessibility improvements */
 .threaded-post:focus-within .post-content {
-  outline: 2px solid var(--h-brand, #0EA5E9);
+  outline: 2px solid var(--h-brand, var(--harmony-primary));
   outline-offset: 2px;
 }
 
@@ -260,7 +231,9 @@ const expandThread = () => {
   }
 }
 
-.threaded-post.new-reply {
-  animation: slideInReply 0.3s ease-out;
+@media (prefers-reduced-motion: no-preference) {
+  .threaded-post.new-reply {
+    animation: slideInReply 0.3s ease-out;
+  }
 }
 </style> 
