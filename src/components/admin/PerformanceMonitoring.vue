@@ -125,7 +125,7 @@
           </div>
         </div>
       </div>
-
+    </div>
 
     <!-- Slow Queries Section -->
     <div class="slow-queries-section">
