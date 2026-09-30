@@ -53,26 +53,13 @@ test.describe('Auth flow - full lifecycle', () => {
       await expect(page.locator('[data-testid="new-profile-card"]')).toBeVisible({ timeout: 10000 })
     })
 
-    await test.step('profile wizard - step 1: avatar', async () => {
-      await expect(page.locator('[data-testid="profile-step-1"]')).toBeVisible({ timeout: 10000 })
-      await page.locator('[data-testid="avatar-use-default"]').click()
-      await page.locator('[data-testid="profile-next-btn"]').click()
-      await expect(page.locator('[data-testid="profile-step-2"]')).toBeVisible({ timeout: 10000 })
-    })
-
-    await test.step('profile wizard - step 2: basic info', async () => {
+    await test.step('profile setup', async () => {
       await page.locator('[data-testid="profile-display-name"]').fill(TEST_DISPLAY_NAME)
       await page.locator('[data-testid="profile-username"]').fill(TEST_USERNAME)
 
       await expect(page.locator('[data-testid="username-available"]')).toBeVisible({ timeout: 10000 })
 
-      await page.locator('[data-testid="profile-next-btn"]').click()
-      await expect(page.locator('[data-testid="profile-step-3"]')).toBeVisible({ timeout: 10000 })
-    })
-
-    await test.step('profile wizard - step 3: customization & create profile', async () => {
-      await page.locator('[data-testid="color-preset"]').first().click()
-      await page.locator('[data-testid="profile-next-btn"]').click()
+      await page.locator('[data-testid="profile-submit"]').click()
 
       await expect(page).toHaveURL(/chat/, { timeout: 30000 })
     })

@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { useProfileStore } from '@/stores/useProfile';
+import { rememberPostAuthRedirect, consumePostAuthRedirect } from '@/utils/postAuthRedirect';
 import {
   ViewType, 
   CurrentView 
@@ -445,8 +446,13 @@ router.beforeEach(async (to, from, next) => {
     return;
   }
 
+  if ((to.name === 'Login' || to.name === 'Register') && typeof to.query.redirect === 'string') {
+    rememberPostAuthRedirect(to.query.redirect);
+  }
+
   if (to.meta.requiresAuth && !isLoggedIn) {
-    next({ name: 'Login' });
+    rememberPostAuthRedirect(to.fullPath);
+    next({ name: 'Login', query: { redirect: to.fullPath } });
     return;
   }
 
@@ -478,14 +484,18 @@ router.beforeEach(async (to, from, next) => {
         await profileStore.fetchProfileByAuthUserId(authUserId);
       }
     }
-    if (profileStore.profileFetched && (!profileStore.profile || !profileStore.profile.username)) {
+    // A failed fetch is not "no profile": sending an existing user into the
+    // creation wizard shows their own username as taken.
+    if (profileStore.profileFetched && !profileStore.profileFetchFailed
+        && (!profileStore.profile || !profileStore.profile.username)) {
+      rememberPostAuthRedirect(to.fullPath);
       next({ name: 'NewProfile' });
       return;
     }
   }
 
   if ((to.name === 'Login' || to.name === 'Home') && isLoggedIn) {
-    next({ name: 'Chat' });
+    next(consumePostAuthRedirect('/chat'));
   } else {
     next();
   }

@@ -1,21 +1,6 @@
 <template>
   <div class="reset-password-wrapper" :style="authStyles">
     <div class="bg-overlay"></div>
-    <div class="bg-particles">
-      <div 
-        v-for="particle in particles" 
-        :key="particle.id" 
-        class="particle" 
-        :style="{
-          left: particle.left,
-          top: particle.top,
-          'animation-delay': particle.delay,
-          'animation-duration': particle.duration,
-          width: particle.size,
-          height: particle.size,
-        }"
-      ></div>
-    </div>
 
     <div class="reset-password-container">
       <div class="auth-branding">
@@ -289,24 +274,11 @@ const mfaFactorId = ref('')
 const mfaChallengeId = ref('')
 const useRecoveryCode = ref(false)
 
-const particles = ref<Array<{ id: number; left: string; top: string; delay: string; duration: string; size: string }>>([])
 const randomBg = ref('')
 
 const authStyles = computed(() => ({
   '--random-bg': randomBg.value
 }))
-
-const initializeParticles = () => {
-  const particleCount = 20
-  particles.value = Array.from({ length: particleCount }, (_, i) => ({
-    id: i,
-    left: `${Math.random() * 100}%`,
-    top: `${Math.random() * 100}%`,
-    delay: `${Math.random() * 3}s`,
-    duration: `${3 + Math.random() * 4}s`,
-    size: `${10 + Math.random() * 20}px`
-  }))
-}
 
 const checkMFAStatus = async () => {
   try {
@@ -330,7 +302,6 @@ const checkMFAStatus = async () => {
 
 onMounted(async () => {
   randomBg.value = `url('/img/login_bg${Math.floor(Math.random() * 65) + 1}.webp')`
-  initializeParticles()
 
   // PASSWORD_RECOVERY fires once Supabase processes the recovery token.
   // The auth store listens for the same event and sets isPasswordResetMode.
@@ -482,7 +453,7 @@ const performPasswordReset = async () => {
   
   try {
     // updateUser applies the recovery token already held from the URL.
-    const { data, error } = await supabase.auth.updateUser({
+    const { error } = await supabase.auth.updateUser({
       password: newPassword.value
     })
     
@@ -652,26 +623,6 @@ const toggleRecoveryCode = () => {
   pointer-events: none;
 }
 
-.bg-particles {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  pointer-events: none;
-}
-
-.particle {
-  position: absolute;
-  background: linear-gradient(45deg, #0EA5E9, #38BDF8);
-  border-radius: 50%;
-  opacity: 0.6;
-  animation: float var(--duration) ease-in-out infinite var(--delay);
-}
-
-@keyframes float {
-  0%, 100% { transform: translateY(0px) rotate(0deg); opacity: 0.6; }
-  50% { transform: translateY(-20px) rotate(180deg); opacity: 1; }
-}
-
 .reset-password-container {
   position: relative;
   z-index: 10;
@@ -728,10 +679,7 @@ const toggleRecoveryCode = () => {
   font-size: 3rem;
   font-weight: 700;
   margin-bottom: 16px;
-  background: linear-gradient(135deg, #0EA5E9 0%, #38BDF8 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: #fff;
 }
 
 .harmony-logo {

@@ -42,17 +42,18 @@ export async function getServerMemberCount(serverId: string, forceRefresh = fals
 
   const requestPromise = (async () => {
     try {
-      const { count, error } = await supabase
-        .from('user_servers')
-        .select('*', { count: 'exact', head: true })
-        .eq('server_id', serverId)
+      // SECURITY DEFINER: user_servers RLS hides other members from a
+      // non-member, so a direct count reads 0 on invite previews.
+      const { data, error } = await supabase.rpc('get_server_member_counts', {
+        p_server_ids: [serverId],
+      })
 
       if (error) {
         debug.error(`Failed to get member count for server ${serverId}:`, error)
         return 0
       }
 
-      const memberCount = count || 0
+      const memberCount = Number(data?.[0]?.member_count ?? 0)
 
       // Cache the result
       memberCountCache.set(serverId, { count: memberCount, timestamp: Date.now() })
@@ -94,20 +95,18 @@ export async function getServerMemberCounts(serverIds: string[]): Promise<Map<st
 
   // Batch query for uncached servers
   try {
-    const { data, error } = await supabase
-      .from('user_servers')
-      .select('server_id')
-      .in('server_id', uncachedServerIds)
+    const { data, error } = await supabase.rpc('get_server_member_counts', {
+      p_server_ids: uncachedServerIds,
+    })
 
     if (error) {
       debug.error('Failed to batch get member counts:', error)
       return results
     }
 
-    // Count members per server
     const counts = new Map<string, number>()
-    for (const item of data || []) {
-      counts.set(item.server_id, (counts.get(item.server_id) || 0) + 1)
+    for (const row of (data || []) as Array<{ server_id: string; member_count: number | string }>) {
+      counts.set(row.server_id, Number(row.member_count))
     }
 
     // Cache results and add to return map

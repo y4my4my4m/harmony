@@ -8,6 +8,8 @@ export const useProfileStore = defineStore('profile', {
   state: () => ({
     profile: null as Profile | null,
     profileFetched: false,
+    /** Last fetch errored; the profile's existence is unknown, not absent. */
+    profileFetchFailed: false,
     loadingState: createLoadingState<Profile>(),
   }),
   getters: {
@@ -110,11 +112,14 @@ export const useProfileStore = defineStore('profile', {
         this.profile = profile;
         this.loadingState = setSuccess(this.loadingState, profile);
         this.profileFetched = true;
+        this.profileFetchFailed = false;
         
         debug.log('Profile fetched by auth user ID via service layer');
       } catch (error: any) {
         debug.error('Error fetching profile by auth user ID via service:', error);
-        this.profileFetched = true;
+        // Unfetched, so the next navigation retries.
+        this.profileFetched = false;
+        this.profileFetchFailed = true;
         this.loadingState = setError(this.loadingState, {
           code: error.code || 'FETCH_BY_AUTH_ERROR',
           message: error.message || 'Failed to fetch profile by auth user ID',
@@ -135,6 +140,7 @@ export const useProfileStore = defineStore('profile', {
     clearProfile() {
       this.profile = null;
       this.profileFetched = false;
+      this.profileFetchFailed = false;
       this.loadingState = createLoadingState<Profile>();
     }
   },
