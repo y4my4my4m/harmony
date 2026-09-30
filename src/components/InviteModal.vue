@@ -474,13 +474,13 @@ const shareToEmail = () => {
 }
 
 const shareToSocial = (platform: string) => {
-  const text = encodeURIComponent(`Join "${props.serverData?.name || 'our server'}" on Harmony!`)
+  const text = encodeURIComponent(`Join "${props.serverData?.name || 'our server'}" on Harmony`)
   const url = encodeURIComponent(inviteUrl.value)
   
   let shareUrl = ''
   
   switch (platform) {
-    case '𝕏':
+    case 'twitter':
       shareUrl = `https://x.com/intent/tweet?text=${text}&url=${url}`
       break
     case 'facebook':
