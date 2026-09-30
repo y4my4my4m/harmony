@@ -5,6 +5,7 @@
       :special-view-data="bookmarks"
       :has-more-special-data="hasMoreBookmarks"
       :is-loading-feed="isLoadingBookmarks"
+      :load-error="loadError"
       view-type="bookmarks"
       current-view="bookmarks"
       @load-more-special-data="handleLoadMore"
@@ -21,7 +22,10 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { useToast } from 'vue-toastification'
 import { debug } from '@/utils/debug'
+import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import UnifiedContentArea from '@/components/common/UnifiedContentArea.vue'
 import { useActivityPubStore } from '@/stores/useActivityPub'
 import type { TimelinePost, FederatedUser } from '@/types'
@@ -42,13 +46,16 @@ const emit = defineEmits<{
   bookmarkPost: [post: TimelinePost]
   deletePost: [post: TimelinePost]
   showUserProfile: [user: FederatedUser]
-  clearAllBookmarks: []
 }>()
 
 const activityPubStore = useActivityPubStore()
+const { confirm } = useConfirmDialog()
+const { t } = useI18n()
+const toast = useToast()
 
 // State
 const isLoadingBookmarks = ref(false)
+const loadError = ref<string | null>(null)
 
 // Computed
 const bookmarks = computed(() => {
@@ -61,10 +68,12 @@ const hasMoreBookmarks = computed(() => {
 
 const loadBookmarks = async () => {
   isLoadingBookmarks.value = true
+  loadError.value = null
   try {
     await activityPubStore.loadBookmarks()
   } catch (error) {
     debug.error('Failed to load bookmarks:', error)
+    loadError.value = error instanceof Error ? error.message : String(error)
   } finally {
     isLoadingBookmarks.value = false
   }
@@ -126,12 +135,18 @@ const handleShowUserProfile = (user: FederatedUser) => {
 }
 
 const handleClearAllBookmarks = async () => {
+  const confirmed = await confirm({
+    title: t('activitypub.clearAllBookmarksTitle'),
+    message: t('activitypub.clearAllBookmarksMessage', { count: bookmarks.value.length }),
+    confirmButtonText: t('activitypub.clearAllBookmarks'),
+    dangerAction: true,
+  })
+  if (!confirmed) return
   try {
     await activityPubStore.clearAllBookmarks()
-    emit('clearAllBookmarks')
-    loadBookmarks()
   } catch (error) {
     debug.error('Failed to clear all bookmarks:', error)
+    toast.error(t('activitypub.clearAllBookmarksFailed'))
   }
 }
 

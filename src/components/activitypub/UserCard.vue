@@ -2,7 +2,13 @@
 <template>
   <div class="user-card" :class="{ compact: isCompact, 'has-corner-badge': showRemoteInstanceBadge }">
     <!-- User Avatar and Basic Info -->
-    <div class="user-info" @click="handleUserClick">
+    <div
+      class="user-info"
+      role="link"
+      tabindex="0"
+      @click="handleUserClick"
+      @keydown.enter="handleUserClick"
+    >
       <Avatar 
         :src="user.avatar_url" 
         :alt="user.display_name"

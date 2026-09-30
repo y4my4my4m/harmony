@@ -1,28 +1,7 @@
 <template>
   <div class="social-layout" :class="{ 'is-dragging': isDragging }">
-    <div class="context-bar-container">
-      <UnifiedContextBar
-        :mode="'activitypub' as any"
-        :is-mobile="isMobile"
-        :left-sidebar-open="leftSidebarOpen"
-        :right-sidebar-open="rightSidebarOpen"
-        :voice-panel-open="voicePanelOpen"
-        :current-view="currentView as any"
-        :instance-domain="instanceDomain"
-        :funding-config="fundingConfig"
-        @toggle-left-sidebar="$emit('toggleLeftSidebar')"
-        @toggle-right-sidebar="$emit('toggleRightSidebar')"
-        @toggle-search="handleToggleSearch"
-        @switch-feed="handleSwitchFeed"
-        @refresh-timeline="$emit('refreshTimeline')"
-        @open-search="handleOpenSearch"
-        @open-composer="handleOpenComposer"
-        @open-funding="showFundingModal = true"
-      />
-    </div>
-
-    <!-- Mirrors the chat layout's funding modal; the context bar exposes the
-         same donation flow in both layouts. -->
+    <!-- Social mode has no context bar; views render their own headers and the
+         funding indicator sits in the instance card. -->
     <FundingModal
       v-if="showFundingModal"
       @close="showFundingModal = false"
@@ -79,7 +58,6 @@
             @load-more-posts="handleLoadMorePosts"
             @follow-user="handleFollow"
             @unfollow-user="handleUnfollow"
-            @clear-all-bookmarks="handleClearAllBookmarks"
             @load-more-special-data="handleLoadMoreSpecialData"
             @back-to-timeline="handleBackToTimeline"
             @toggle-left-sidebar="$emit('toggleLeftSidebar')"
@@ -101,21 +79,21 @@
           <div v-if="currentView !== 'trending'" class="sidebar-section">
             <h3 class="section-title">{{ $t('activitypub.trending') }}</h3>
             <div v-if="isLoadingTrending" class="trending-loading">
-              <span>Loading...</span>
+              <span>{{ $t('activitypub.loading') }}</span>
             </div>
             <div v-else-if="trendingTopics.length > 0" class="trending-list">
-              <div 
+              <RouterLink
                 v-for="trend in trendingTopics"
                 :key="trend.tag"
+                :to="{ name: 'HashtagView', params: { tag: trend.tag } }"
                 class="trending-item"
-                @click="navigateToHashtag(trend.tag)"
               >
                 <span class="trending-tag">#{{ trend.tag }}</span>
                 <span class="trending-count">{{ formatNumber(trend.count) }} {{ $t('activitypub.posts') }}</span>
-              </div>
+              </RouterLink>
             </div>
             <div v-else class="no-trending">
-              <span>No trending hashtags yet</span>
+              <span>{{ $t('activitypub.noTrendingHashtags') }}</span>
             </div>
           </div>
 
@@ -141,6 +119,23 @@
               <p class="instance-users">{{ localInstanceUserCount }} {{ $t('server.members') }}</p>
               <p class="instance-posts">{{ localInstancePostCount }} {{ $t('activitypub.posts') }}</p>
             </div>
+            <button
+              v-if="showFunding && fundingConfig"
+              type="button"
+              class="funding-card"
+              :title="fundingTooltip"
+              @click="showFundingModal = true"
+            >
+              <span class="funding-label">{{ $t('activitypub.supportInstance') }}</span>
+              <span class="funding-track" aria-hidden="true">
+                <span class="funding-fill" :style="{ width: fundingPercent + '%' }"></span>
+              </span>
+              <span class="funding-amount">
+                {{ formatCurrency(fundingConfig.displayed_amount ?? fundingConfig.current_amount, fundingConfig.goal_currency) }}
+                /
+                {{ formatCurrency(fundingConfig.goal_amount ?? 0, fundingConfig.goal_currency) }}
+              </span>
+            </button>
           </div>
           </div>
         </div>
@@ -184,7 +179,6 @@
 import { computed, ref, onMounted } from 'vue'
 import { debug } from '@/utils/debug'
 import { useRouter, useRoute } from 'vue-router'
-import UnifiedContextBar from '@/components/common/UnifiedContextBar.vue'
 import AdaptiveChannelSidebar from '@/components/common/AdaptiveChannelSidebar.vue'
 import Composer from '@/components/activitypub/Composer.vue'
 import ProfileCard from '@/components/common/ProfileCard.vue'
@@ -450,10 +444,6 @@ onMounted(() => {
 useViewContextTracking()
 
 // Event handlers
-const handleToggleSearch = () => {
-  showSearchModal.value = !showSearchModal.value
-}
-
 const handleSwitchFeed = async (feed: string) => {
   debug.log(`Switching to ${feed} feed`)
   
@@ -512,10 +502,6 @@ const handleSwitchFeed = async (feed: string) => {
 
 const handleOpenSearch = () => {
   showSearchModal.value = true
-}
-
-const handleOpenComposer = () => {
-  activityPubStore.openComposer()
 }
 
 const handlePostCreated = async () => {
@@ -607,16 +593,6 @@ const handleUnfollow = async (user: FederatedUser | string) => {
   }
 }
 
-const handleClearAllBookmarks = async () => {
-  try {
-    await activityPubStore.clearAllBookmarks()
-    debug.log('All bookmarks cleared')
-    // The bookmarks view is not refreshed here; no bookmark loader exists.
-  } catch (error) {
-    debug.error('Failed to clear bookmarks:', error)
-  }
-}
-
 const handleLoadMoreSpecialData = async () => {
   try {
     debug.log('Loading more special data for view:', currentView.value)
@@ -656,8 +632,28 @@ const handleUserCardClick = (user: any) => {
   selectedUser.value = user as FederatedUser
 }
 
-const navigateToHashtag = (tag: string) => {
-  router.push({ name: 'HashtagView', params: { tag } })
+const showFunding = computed(() => {
+  const cfg = fundingConfig.value
+  return !!(cfg && cfg.enabled && cfg.show_in_context_bar && cfg.goal_amount)
+})
+
+const fundingPercent = computed(() => {
+  const cfg = fundingConfig.value
+  if (!cfg?.goal_amount) return 0
+  const amount = cfg.displayed_amount ?? cfg.current_amount
+  return Math.min(100, Math.round((amount / cfg.goal_amount) * 100))
+})
+
+const fundingTooltip = computed(() => {
+  const cfg = fundingConfig.value
+  if (!cfg) return ''
+  return `${fundingPercent.value}%${cfg.goal_description ? ' - ' + cfg.goal_description : ''}`
+})
+
+const formatCurrency = (amount: number, currency: string) => {
+  const symbols: Record<string, string> = { USD: '$', EUR: '€', GBP: '£', JPY: '¥' }
+  const symbol = symbols[currency] || currency + ' '
+  return symbol + amount.toFixed(0)
 }
 
 // Utility functions
@@ -676,13 +672,6 @@ const formatNumber = (num: number): string => {
   display: flex;
   flex-direction: column;
   position: relative;
-}
-
-.context-bar-container {
-  height: 36px;
-  flex-shrink: 0;
-  border-bottom: 1px solid var(--border-color);
-  z-index: 50;
 }
 
 .social-layout-content {
@@ -763,14 +752,23 @@ const formatNumber = (num: number): string => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 0;
+  padding: 8px;
+  margin: 0 -8px;
   border-bottom: 1px solid var(--border-color);
-  cursor: pointer;
+  border-radius: var(--radius-sm);
+  color: inherit;
+  text-decoration: none;
   transition: background-color 0.15s ease;
 }
 
 .trending-item:hover {
-  background: var(--background-hover);
+  background: var(--background-modifier-hover);
+}
+
+.trending-item:focus-visible,
+.funding-card:focus-visible {
+  outline: 2px solid var(--harmony-primary);
+  outline-offset: 2px;
 }
 
 .trending-item:last-child {
@@ -820,12 +818,52 @@ const formatNumber = (num: number): string => {
   margin: 0;
 }
 
+.funding-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.funding-card:hover {
+  background: var(--background-modifier-hover);
+}
+
+.funding-label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.funding-track {
+  display: block;
+  height: 4px;
+  border-radius: var(--radius-full);
+  background: var(--background-modifier-active);
+  overflow: hidden;
+}
+
+.funding-fill {
+  display: block;
+  height: 100%;
+  background: var(--harmony-primary);
+}
+
+.funding-amount {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
 /* Mobile responsiveness */
 @media (max-width: 768px) {
- 
-  .context-bar-container {
-    display: none;
-  }
   .social-sidebar-container,
   .right-sidebar-container {
     position: fixed;

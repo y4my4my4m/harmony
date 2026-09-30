@@ -24,6 +24,10 @@
         :has-more-posts="hasMorePosts"
         :view-type="(viewType as any)"
         :current-view="currentView"
+        :load-error="loadError"
+        :pending-count="pendingCount"
+        @timeline-scrolled="handleTimelineScrolled"
+        @show-pending="handleShowPending"
         @refresh-timeline="handleRefreshTimeline"
         @post-created="handlePostCreated"
         @switch-feed="handleSwitchFeed"
@@ -93,9 +97,20 @@ const { blockedUsers, mutedUsers } = storeToRefs(activityPubStore)
 // Layout state
 const { isMobile } = useLayoutState()
 
-const isLoadingFeed = computed(() =>
-  activityPubStore.isFeedLoading(props.currentView as 'home' | 'public' | 'local')
-)
+type TimelineFeed = 'home' | 'public' | 'local'
+const feedKey = computed(() => props.currentView as TimelineFeed)
+
+const isLoadingFeed = computed(() => activityPubStore.isFeedLoading(feedKey.value))
+const loadError = computed(() => activityPubStore.feedError(feedKey.value))
+const pendingCount = computed(() => activityPubStore.pendingPostCount(feedKey.value))
+
+const handleTimelineScrolled = (scrolled: boolean) => {
+  activityPubStore.setTimelineScrolled(feedKey.value, scrolled)
+}
+
+const handleShowPending = () => {
+  activityPubStore.setTimelineScrolled(feedKey.value, false)
+}
 
 // Computed - filter out posts from blocked and muted users
 const posts = computed(() => {
@@ -277,6 +292,9 @@ const handleOpenSearch = () => {
 
 // Single source of truth for timeline loading - only watch currentView prop changes
 watch(() => props.currentView, (newView, oldView) => {
+  if (oldView && oldView !== newView) {
+    activityPubStore.setTimelineScrolled(oldView as TimelineFeed, false)
+  }
   if (newView && newView !== oldView) {
     debug.log(`Timeline view changed from ${oldView} to ${newView}, loading content`)
     loadTimeline()
@@ -297,6 +315,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  activityPubStore.setTimelineScrolled(feedKey.value, false)
   activityPubStore.leaveFeedView()
 })
 </script>

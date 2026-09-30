@@ -11,7 +11,11 @@
       :key="media.id"
       class="media-item"
       :class="{ 'media-item-clickable': shouldOpenLightbox(media) }"
+      :role="shouldOpenLightbox(media) && showSensitive ? 'button' : undefined"
+      :tabindex="shouldOpenLightbox(media) && showSensitive ? 0 : undefined"
+      :aria-label="shouldOpenLightbox(media) && showSensitive ? (media.description || t('activitypub.openMedia')) : undefined"
       @click.capture="handleMediaClick($event, index, media)"
+      @keydown.enter.self="shouldOpenLightbox(media) && showSensitive && openMedia(index)"
     >
       <!-- Image -->
       <img
@@ -63,22 +67,9 @@
         </a>
       </div>
 
-      <!-- Sensitive content overlay - tap anywhere to reveal first, then tap again to open lightbox -->
-      <div
-        v-if="isSensitive && !showSensitive"
-        class="sensitive-overlay"
-        @click.stop="showSensitive = true"
-      >
-        <Icon name="eye-off" />
-        <span>Sensitive content</span>
-        <button class="show-btn">
-          Show
-        </button>
-      </div>
-
       <!-- Mobile download affordance (no right-click / long-press save on touch) -->
       <button
-        v-if="canDownloadMedia(media)"
+        v-if="canDownloadMedia(media) && showSensitive"
         type="button"
         class="media-download-overlay"
         aria-label="Download"
@@ -88,27 +79,43 @@
         <Icon name="download" />
       </button>
 
+      <button
+        v-if="media.description && showSensitive"
+        type="button"
+        class="alt-badge"
+        :aria-expanded="showAltText"
+        :title="t('activitypub.altTextShow')"
+        @click.stop="showAltText = !showAltText"
+      >
+        ALT
+      </button>
+
       <!-- Media description (alt text) -->
-      <div v-if="media.description && showAltText" class="media-description">
+      <div v-if="media.description && showAltText && showSensitive" class="media-description">
         {{ media.description }}
       </div>
     </div>
 
-    <!-- Show/Hide sensitive content toggle -->
-    <div v-if="isSensitive" class="sensitive-toggle">
-      <button @click="showSensitive = !showSensitive" class="toggle-btn">
-        <Icon :name="showSensitive ? 'eye-off' : 'eye'" />
-        {{ showSensitive ? 'Hide' : 'Show' }} sensitive content
-      </button>
-    </div>
-
-    <!-- Alt text toggle -->
-    <div v-if="hasAltText" class="alt-text-toggle">
-      <button @click="showAltText = !showAltText" class="toggle-btn">
-        <Icon name="info" />
-        {{ showAltText ? 'Hide' : 'Show' }} alt text
-      </button>
-    </div>
+    <!-- One overlay for the whole gallery; the media stays blurred until revealed. -->
+    <button
+      v-if="isSensitive && !showSensitive"
+      type="button"
+      class="sensitive-overlay"
+      @click.stop="showSensitive = true"
+    >
+      <span class="sensitive-title">{{ t('activitypub.sensitiveContent') }}</span>
+      <span class="sensitive-hint">{{ t('activitypub.clickToShow') }}</span>
+    </button>
+    <button
+      v-else-if="isSensitive"
+      type="button"
+      class="sensitive-hide-btn"
+      :aria-label="t('activitypub.hideMedia')"
+      :title="t('activitypub.hideMedia')"
+      @click.stop="showSensitive = false"
+    >
+      <Icon name="eye-off" :size="16" />
+    </button>
   </div>
 
   <!-- vue-easy-lightbox: handles images with zoom/pan/rotate/smooth scroll -->
@@ -182,6 +189,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { debug } from '@/utils/debug'
 import type { MediaAttachment } from '@/types';
 import Icon from '@/components/common/Icon.vue';
@@ -197,6 +205,8 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   isSensitive: false
 });
+
+const { t } = useI18n();
 
 const MUTE_KEY = 'harmony-lightbox-video-muted';
 
@@ -301,10 +311,6 @@ const galleryClass = computed(() => {
     'quad': count >= 4,
     'sensitive': props.isSensitive && !showSensitive.value
   };
-});
-
-const hasAltText = computed(() => {
-  return props.mediaAttachments.some(media => media.description);
 });
 
 function isVideoUrl(url: string): boolean {
@@ -414,6 +420,7 @@ function shouldOpenLightbox(media: MediaAttachment): boolean {
 }
 
 function handleMediaClick(e: MouseEvent, index: number, media: MediaAttachment) {
+  if (props.isSensitive && !showSensitive.value) return;
   if (!isViewableMedia(media)) return;
   if (viewableCount.value === 1 && isVideoMedia(media)) return;
   e.preventDefault();
@@ -443,7 +450,8 @@ const closeModal = () => {
 <style scoped>
 .media-gallery {
   margin-top: 0.75rem;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color);
   overflow: hidden;
   position: relative;
 }
@@ -456,6 +464,7 @@ const closeModal = () => {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 2px;
+  aspect-ratio: 16 / 9;
 }
 
 .media-gallery.triple {
@@ -463,6 +472,7 @@ const closeModal = () => {
   grid-template-columns: 1fr 1fr;
   grid-template-rows: 1fr 1fr;
   gap: 2px;
+  aspect-ratio: 16 / 9;
 }
 
 .media-gallery.triple .media-item:first-child {
@@ -474,13 +484,21 @@ const closeModal = () => {
   grid-template-columns: 1fr 1fr;
   grid-template-rows: 1fr 1fr;
   gap: 2px;
+  aspect-ratio: 16 / 9;
 }
 
 .media-item {
   position: relative;
-  background: var(--background-secondary, #313338);
+  min-height: 0;
+  background: var(--background-secondary);
   overflow: hidden;
   transition: opacity 0.2s;
+}
+
+.media-gallery.sensitive .media-image,
+.media-gallery.sensitive .media-video {
+  filter: blur(28px);
+  transform: scale(1.1);
 }
 
 .media-item-clickable {
@@ -489,6 +507,11 @@ const closeModal = () => {
 
 .media-item-clickable:hover {
   opacity: 0.9;
+}
+
+.media-item-clickable:focus-visible {
+  outline: 2px solid var(--harmony-primary);
+  outline-offset: -2px;
 }
 
 .media-download-overlay {
@@ -533,7 +556,7 @@ const closeModal = () => {
 .media-gallery.single .media-video {
   max-height: 400px;
   object-fit: contain;
-  background: black;
+  background: var(--background-tertiary);
 }
 
 .media-audio {
@@ -595,33 +618,77 @@ const closeModal = () => {
 
 .sensitive-overlay {
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.8);
+  inset: 0;
+  z-index: 3;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  color: var(--text-primary);
-  gap: 0.5rem;
-  backdrop-filter: blur(20px);
-}
-
-.show-btn {
-  background: var(--h-brand, #0EA5E9);
+  gap: 2px;
+  min-height: 120px;
   border: none;
-  border-radius: 6px;
-  color: var(--text-primary);
-  padding: 0.5rem 1rem;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font: inherit;
   cursor: pointer;
-  font-weight: 500;
-  transition: background 0.2s;
 }
 
-.show-btn:hover {
-  background: #0284C7;
+.sensitive-overlay:hover {
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.media-gallery.single.sensitive {
+  min-height: 160px;
+}
+
+.sensitive-title {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+}
+
+.sensitive-hint {
+  font-size: var(--font-size-sm);
+  opacity: 0.85;
+}
+
+.sensitive-hide-btn {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  cursor: pointer;
+}
+
+.alt-badge {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  z-index: 2;
+  padding: 2px 6px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+}
+
+.sensitive-overlay:focus-visible,
+.sensitive-hide-btn:focus-visible,
+.alt-badge:focus-visible {
+  outline: 2px solid var(--harmony-primary);
+  outline-offset: 2px;
 }
 
 .media-description {
@@ -629,31 +696,13 @@ const closeModal = () => {
   bottom: 0;
   left: 0;
   right: 0;
-  background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
-  color: var(--text-primary);
-  padding: 1rem;
+  z-index: 1;
+  background: rgba(0, 0, 0, 0.75);
+  color: #fff;
+  padding: 0.75rem 0.75rem 2.25rem;
   font-size: 0.875rem;
-}
-
-.sensitive-toggle,
-.alt-text-toggle {
-  margin-top: 0.5rem;
-}
-
-.toggle-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: none;
-  border: none;
-  color: #80848e;
-  cursor: pointer;
-  font-size: 0.875rem;
-  transition: color 0.2s;
-}
-
-.toggle-btn:hover {
-  color: var(--text-primary);
+  max-height: 100%;
+  overflow-y: auto;
 }
 
 /* Video overlay: centered on top of lightbox, lets chrome (close, arrows, toolbar) show through */
@@ -679,15 +728,6 @@ const closeModal = () => {
 
 /* Mobile responsiveness */
 @media (max-width: 768px) {
-  .media-gallery.triple,
-  .media-gallery.quad {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto;
-  }
-  
-  .media-gallery.triple .media-item:first-child {
-    grid-row: auto;
-  }
 
   .video-lightbox-player {
     max-width: 95vw;

@@ -7,7 +7,6 @@
         class="instance-modal-banner"
         :style="{ backgroundImage: `url(${instanceBanner})` }"
       >
-        <div class="instance-modal-banner-overlay"></div>
       </div>
 
       <header class="instance-modal-header" :class="{ 'has-banner': !!instanceBanner }">
@@ -20,12 +19,12 @@
               class="instance-icon-img"
               @error="iconFailed = true"
             />
-            <span v-else class="instance-platform-emoji">{{ platformEmoji }}</span>
+            <span v-else class="instance-monogram" aria-hidden="true">{{ instanceMonogram(instance.domain) }}</span>
           </div>
           <div class="instance-title-block">
             <h2 class="instance-domain">{{ instance.domain }}</h2>
             <p class="instance-software">
-              {{ instance.software || 'Unknown' }}{{ instance.version ? ` ${instance.version}` : '' }}
+              {{ softwareDisplayName(instance.software) || 'Unknown' }}{{ instance.version ? ` ${instance.version}` : '' }}
             </p>
           </div>
           <div class="instance-badges">
@@ -204,6 +203,7 @@ import BaseModal from '@/components/common/BaseModal.vue';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '@/components/common/Avatar.vue';
 import DisplayName from '@/components/DisplayName.vue';
+import { softwareDisplayName, instanceMonogram } from '@/utils/fediverseSoftware';
 
 const router = useRouter();
 const currentDomain = import.meta.env.VITE_DOMAIN as string;
@@ -223,21 +223,6 @@ const recentPosts = ref<TimelinePost[]>([]);
 const isLoadingPosts = ref(false);
 const urlCopied = ref(false);
 const iconFailed = ref(false);
-
-const PLATFORM_EMOJI: Record<string, string> = {
-  mastodon: '\uD83D\uDC18',
-  misskey: '\u2B50',
-  pleroma: '\uD83D\uDD35',
-  akkoma: '\uD83D\uDD35',
-  gotosocial: '\uD83D\uDC3F\uFE0F',
-  pixelfed: '\uD83D\uDCF7',
-  lemmy: '\uD83D\uDC2D',
-  harmony: '\uD83D\uDC3B\u200D\u2744\uFE0F',
-  peertube: '\uD83C\uDFAC',
-  funkwhale: '\uD83C\uDFB5',
-  writefreely: '\u270D\uFE0F',
-  bookwyrm: '\uD83D\uDCDA',
-};
 
 const instanceIcon = computed(() => props.instance.metadata?.icon_url || null);
 const instanceBanner = computed(() => props.instance.metadata?.banner_url || null);
@@ -266,14 +251,6 @@ function sanitizeHtml(raw: string): string {
 }
 
 const sanitizedDescription = computed(() => sanitizeHtml(props.instance.description || ''));
-const platformEmoji = computed(() => {
-  const sw = props.instance.software?.toLowerCase()?.replace(/[^a-z]/g, '') || '';
-  for (const [platform, emoji] of Object.entries(PLATFORM_EMOJI)) {
-    if (sw.includes(platform)) return emoji;
-  }
-  return '\uD83C\uDF10';
-});
-
 const activityStatus = computed(() => {
   if (!props.instance.last_seen_at) {
     return { text: 'No activity recorded', icon: 'help-circle', class: 'muted' };
@@ -285,17 +262,8 @@ const activityStatus = computed(() => {
 });
 
 const instanceTypeLabel = computed(() => {
-  const sw = props.instance.software?.toLowerCase();
-  if (!sw) return 'ActivityPub Instance';
-  const labels: Record<string, string> = {
-    mastodon: 'Mastodon Instance',
-    pleroma: 'Pleroma Instance',
-    misskey: 'Misskey Instance',
-    peertube: 'PeerTube Instance',
-    pixelfed: 'PixelFed Instance',
-    harmony: 'Harmony Instance',
-  };
-  return labels[sw] || `${props.instance.software} Instance`;
+  const name = softwareDisplayName(props.instance.software);
+  return name ? `${name} Instance` : 'ActivityPub Instance';
 });
 
 const formatNumber = (num: number): string => {
@@ -421,16 +389,6 @@ onMounted(() => {
   flex-shrink: 0;
 }
 
-.instance-modal-banner-overlay {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    to bottom,
-    transparent 30%,
-    var(--background-quinary) 100%
-  );
-}
-
 /* ── Header ───────────────────────────── */
 .instance-modal-header {
   display: flex;
@@ -443,9 +401,6 @@ onMounted(() => {
 }
 
 .instance-modal-header.has-banner {
-  margin-top: -32px;
-  position: relative;
-  z-index: 1;
   border-bottom: none;
   padding-bottom: 12px;
 }
@@ -479,9 +434,11 @@ onMounted(() => {
   border-radius: 11px;
 }
 
-.instance-platform-emoji {
-  font-size: 22px;
+.instance-monogram {
+  font-size: 18px;
+  font-weight: 700;
   line-height: 1;
+  color: var(--text-secondary);
 }
 
 .instance-title-block {

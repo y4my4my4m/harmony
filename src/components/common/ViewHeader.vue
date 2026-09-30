@@ -1,88 +1,108 @@
 <template>
-  <div class="view-header">
-    <div class="header-content">
-      <h1 class="page-title">
-        <Icon :name="getViewIcon(viewType)" />
-        {{ getViewTitle(viewType) }}
-      </h1>
-      <p class="page-subtitle">{{ getViewSubtitle(viewType) }}</p>
-    </div>
-    
-    <!-- Clear All Button (for bookmarks) -->
-    <button 
-      v-if="viewType === 'bookmarks' && (dataCount ?? 0) > 0"
-      @click="$emit('clear-all')"
-      class="clear-all-btn"
+  <header class="view-header">
+    <button
+      v-if="isMobile"
+      type="button"
+      class="header-icon-btn"
+      :aria-label="t('activitypub.openNavigation')"
+      :title="t('activitypub.openNavigation')"
+      @click="openLeftSidebar"
     >
-      <Icon name="trash" />
-      Clear All
+      <Icon name="menu" :size="20" />
     </button>
-  </div>
+
+    <button
+      v-if="showBack"
+      type="button"
+      class="header-icon-btn"
+      :aria-label="t('common.back')"
+      :title="t('common.back')"
+      @click="goBack"
+    >
+      <Icon name="arrow-left" :size="20" />
+    </button>
+
+    <div class="header-titles">
+      <h1 class="header-title">
+        <slot name="title">{{ resolvedTitle }}</slot>
+      </h1>
+      <p v-if="subtitle || $slots.subtitle" class="header-subtitle">
+        <slot name="subtitle">{{ subtitle }}</slot>
+      </p>
+    </div>
+
+    <div v-if="$slots.actions || showClearAll" class="header-actions">
+      <slot name="actions" />
+      <button
+        v-if="showClearAll"
+        type="button"
+        class="header-text-btn danger"
+        @click="$emit('clear-all')"
+      >
+        {{ t('activitypub.clearAllBookmarks') }}
+      </button>
+    </div>
+  </header>
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { useRouter, type RouteLocationRaw } from 'vue-router'
 import Icon from '@/components/common/Icon.vue'
+import { useLayoutState } from '@/composables/useLayoutState'
 
 interface Props {
-  viewType: string
+  viewType?: string
+  title?: string
+  subtitle?: string
   dataCount?: number
+  showBack?: boolean
+  /** Destination when there is no in-app history to return to. */
+  backFallback?: RouteLocationRaw
 }
 
-defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  viewType: undefined,
+  title: undefined,
+  subtitle: undefined,
+  dataCount: 0,
+  showBack: true,
+  backFallback: () => ({ name: 'SocialHome' }),
+})
 
 defineEmits<{
   'clear-all': []
 }>()
 
-// Helper functions
-const getViewIcon = (viewType: string) => {
-  switch (viewType) {
-    case 'explore':
-      return 'compass'
-    case 'bookmarks':
-      return 'bookmark'
-    case 'lists':
-      return 'list'
-    case 'mentions':
-      return 'at-sign'
-    case 'profile':
-      return 'user'
-    default:
-      return 'home'
-  }
+const { t } = useI18n()
+const router = useRouter()
+const { isMobile, openLeftSidebar } = useLayoutState()
+
+const VIEW_TITLE_KEYS: Record<string, string> = {
+  explore: 'activitypub.explore',
+  bookmarks: 'activitypub.bookmarks',
+  lists: 'activitypub.lists',
+  mentions: 'activitypub.mentions',
+  profile: 'activitypub.profile',
+  post: 'activitypub.post',
+  notifications: 'activitypub.notifications',
 }
 
-const getViewTitle = (viewType: string) => {
-  switch (viewType) {
-    case 'explore':
-      return 'Explore'
-    case 'bookmarks':
-      return 'Bookmarks'
-    case 'lists':
-      return 'Lists'
-    case 'mentions':
-      return 'Mentions'
-    case 'profile':
-      return 'Profile'
-    default:
-      return 'Timeline'
-  }
-}
+const resolvedTitle = computed(() => {
+  if (props.title) return props.title
+  const key = props.viewType ? VIEW_TITLE_KEYS[props.viewType] : undefined
+  return key ? t(key) : t('activitypub.home')
+})
 
-const getViewSubtitle = (viewType: string) => {
-  switch (viewType) {
-    case 'explore':
-      return 'Discover trending content and new instances'
-    case 'bookmarks':
-      return 'Posts you\'ve saved for later'
-    case 'lists':
-      return 'Curated lists of users and topics'
-    case 'mentions':
-      return 'Posts where you\'ve been @mentioned'
-    case 'profile':
-      return 'Your profile and posts'
-    default:
-      return 'Your timeline'
+const showClearAll = computed(() => props.viewType === 'bookmarks' && props.dataCount > 0)
+
+// history.state.back is set by vue-router for every in-app navigation.
+const goBack = () => {
+  if (window.history.state?.back) {
+    router.back()
+  } else {
+    router.push(props.backFallback)
   }
 }
 </script>
@@ -91,53 +111,103 @@ const getViewSubtitle = (viewType: string) => {
 .view-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 24px;
+  gap: var(--space-2);
+  min-height: 53px;
+  padding: var(--space-2) var(--space-4);
   border-bottom: 1px solid var(--border-color);
   background: var(--background-primary);
-  position: sticky;
-  top: 0;
-  z-index: 10;
+  flex-shrink: 0;
 }
 
-.header-content {
-  flex: 1;
-}
-
-.page-title {
-  display: flex;
+.header-icon-btn {
+  display: inline-flex;
   align-items: center;
-  gap: 12px;
-  font-size: 24px;
-  font-weight: 700;
-  margin: 0 0 4px 0;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-full);
+  background: transparent;
   color: var(--text-primary);
-}
-
-.page-subtitle {
-  font-size: 16px;
-  color: var(--text-secondary);
-  margin: 0;
-}
-
-.clear-all-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  background: var(--background-tertiary);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  color: var(--text-secondary);
-  font-size: 14px;
-  font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color var(--transition-fast);
 }
 
-.clear-all-btn:hover {
-  background: var(--background-hover);
-  color: var(--text-primary);
-  border-color: var(--border-hover);
+.header-icon-btn:hover {
+  background: var(--background-modifier-hover);
 }
-</style> 
+
+.header-titles {
+  flex: 1;
+  min-width: 0;
+  padding-left: var(--space-1);
+}
+
+.header-title {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  line-height: 1.25;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.header-subtitle {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  line-height: 1.3;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-shrink: 0;
+}
+
+.header-text-btn {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  transition: background-color var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.header-text-btn:hover {
+  background: var(--background-modifier-hover);
+}
+
+.header-text-btn.danger:hover {
+  color: var(--error);
+  border-color: var(--error);
+}
+
+.header-icon-btn:focus-visible,
+.header-text-btn:focus-visible {
+  outline: 2px solid var(--harmony-primary);
+  outline-offset: 2px;
+}
+
+@media (max-width: 768px) {
+  .view-header {
+    padding: var(--space-2) var(--space-3);
+  }
+
+  .header-icon-btn {
+    width: 40px;
+    height: 40px;
+  }
+}
+</style>

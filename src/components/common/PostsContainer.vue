@@ -1,18 +1,41 @@
 <template>
   <div class="posts-container" ref="scrollContainer">
     <!-- Loading State -->
-    <div v-if="isLoading && posts.length === 0" class="loading-state">
-      <LoadingSpinner :size="24" :thickness="3" />
-      <p class="loading-state-label">{{ loadingMessage }}</p>
+    <div
+      v-if="isLoading && posts.length === 0"
+      class="skeleton-list"
+      role="status"
+      aria-busy="true"
+      :aria-label="loadingMessage"
+    >
+      <div v-for="n in skeletonCount" :key="n" class="skeleton-row" aria-hidden="true">
+        <div class="skeleton-avatar" />
+        <div class="skeleton-body">
+          <div class="skeleton-line skeleton-line--name" />
+          <div class="skeleton-line" />
+          <div class="skeleton-line" :class="n % 2 ? 'skeleton-line--short' : 'skeleton-line--mid'" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Error State -->
+    <div v-else-if="error && posts.length === 0" class="empty-state error-state" role="alert">
+      <Icon name="alert-circle" :size="40" />
+      <h3>{{ errorTitle || t('activitypub.loadFailedTitle') }}</h3>
+      <p>{{ t('activitypub.loadFailedMessage') }}</p>
+      <button type="button" class="explore-btn" @click="$emit('retry')">
+        {{ t('common.retry') }}
+      </button>
     </div>
 
     <!-- Empty State -->
     <div v-else-if="!isLoading && posts.length === 0" class="empty-state">
-      <Icon :name="emptyIcon" :size="48" />
+      <Icon :name="emptyIcon" :size="40" />
       <h3>{{ emptyTitle }}</h3>
       <p>{{ emptyMessage }}</p>
       <button 
         v-if="emptyAction"
+        type="button"
         @click="$emit('empty-action')" 
         class="explore-btn"
       >
@@ -37,12 +60,12 @@
       >
         <div v-if="virtualRow.index >= posts.length" class="loading-more">
           <template v-if="loadMoreFailed">
-            <span>Couldn't load more posts.</span>
-            <button class="retry-btn" @click="retryLoadMore">Retry</button>
+            <span>{{ t('activitypub.loadMoreFailed') }}</span>
+            <button type="button" class="retry-btn" @click="retryLoadMore">{{ t('common.retry') }}</button>
           </template>
           <template v-else>
-            <Icon name="loader" class="spinning" />
-            <span>Loading more...</span>
+            <LoadingSpinner :size="18" :thickness="2" />
+            <span class="sr-only">{{ t('activitypub.loadingMore') }}</span>
           </template>
         </div>
         <MonyPost
@@ -66,6 +89,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch, onMounted, onUnmounted, watchEffect } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useVirtualizer } from '@tanstack/vue-virtual'
 import MonyPost from '@/components/activitypub/MonyPost.vue'
 import Icon from '@/components/common/Icon.vue'
@@ -83,6 +107,10 @@ interface Props {
   emptyAction?: string
   postProps?: Record<string, any>
   registerScroll?: (el: HTMLElement | null) => void
+  /** First-page load failure; replaces the empty state with a retry prompt. */
+  error?: string | null
+  errorTitle?: string
+  skeletonCount?: number
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -95,12 +123,18 @@ const props = withDefaults(defineProps<Props>(), {
   emptyIcon: 'users',
   emptyAction: undefined,
   postProps: () => ({}),
-  registerScroll: undefined
+  registerScroll: undefined,
+  error: null,
+  errorTitle: undefined,
+  skeletonCount: 5
 })
+
+const { t } = useI18n()
 
 const emit = defineEmits<{
   'load-more': []
   'empty-action': []
+  'retry': []
   'reply': [post: any]
   // favorite/reblog/bookmark/delete are pass-through chains. MonyPost
   // handles those interactions internally via usePostInteractions and only
@@ -170,6 +204,8 @@ const rowVirtualizer = useVirtualizer<HTMLElement, Element>(
     count: props.hasMore ? props.posts.length + 1 : props.posts.length,
     getScrollElement: () => scrollContainer.value,
     estimateSize: estimatePostSize,
+    // Measurements follow the post, not the index, across realtime prepends.
+    getItemKey: (index: number) => props.posts[index]?.id ?? '__loader__',
     overscan: 8,
   })) as any
 )
@@ -293,52 +329,96 @@ onUnmounted(() => {
   align-items: center;
   width: 100%;
   overflow-y: auto;
-  padding: 20px 0;
+  padding: 0;
   flex: 1;
   min-height: 0;
   height: 100%;
 }
 
-.posts-list {
+.posts-list,
+.skeleton-list {
   width: 100%;
   max-width: 600px;
 }
 
 .virtual-post-row {
-  padding: 6px 16px;
+  padding: 0;
 }
 
-.loading-state,
+.skeleton-row {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.skeleton-avatar {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: var(--radius-full);
+  background: var(--background-modifier-hover);
+}
+
+.skeleton-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-1);
+}
+
+.skeleton-line {
+  height: 10px;
+  border-radius: var(--radius-sm);
+  background: var(--background-modifier-hover);
+}
+
+.skeleton-line--name { width: 35%; }
+.skeleton-line--mid { width: 70%; }
+.skeleton-line--short { width: 45%; }
+
+.skeleton-avatar,
+.skeleton-line {
+  animation: skeleton-fade 1.4s ease-in-out infinite;
+}
+
+@keyframes skeleton-fade {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-avatar,
+  .skeleton-line {
+    animation: none;
+  }
+}
+
 .empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: var(--space-5);
+  gap: var(--space-2);
   padding: var(--space-16) var(--space-4);
   text-align: center;
   color: var(--text-secondary);
-  min-height: 400px;
-}
-
-.loading-state-label {
-  margin: 0;
-  font-size: var(--font-size-sm);
-  line-height: var(--line-height-relaxed);
-  color: var(--text-secondary);
+  min-height: 320px;
+  max-width: 600px;
 }
 
 .empty-state h3 {
-  font-size: var(--font-size-xl);
+  font-size: var(--font-size-lg);
   font-weight: var(--font-weight-semibold);
-  margin: var(--space-4) 0 var(--space-2) 0;
+  margin: var(--space-2) 0 0;
   color: var(--text-primary);
 }
 
 .empty-state p {
   font-size: var(--font-size-sm);
-  margin: 0 0 var(--space-5) 0;
-  max-width: 300px;
+  margin: 0 0 var(--space-3);
+  max-width: 320px;
   line-height: var(--line-height-relaxed);
 }
 
@@ -346,22 +426,19 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  padding: var(--space-3) var(--space-5);
-  border: 1px solid transparent;
-  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-5);
+  border: none;
+  border-radius: var(--radius-full);
   font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
+  font-weight: var(--font-weight-semibold);
   cursor: pointer;
-  transition: all var(--transition-base);
-  text-decoration: none;
+  transition: background-color var(--transition-fast);
   background: var(--harmony-primary);
-  color: var(--text-primary);
+  color: var(--text-on-primary);
 }
 
 .explore-btn:hover {
   background: var(--harmony-primary-hover);
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-md);
 }
 
 .loading-more {
@@ -376,37 +453,40 @@ onUnmounted(() => {
 
 .retry-btn {
   padding: var(--space-1) var(--space-3);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-full);
   background: transparent;
   color: var(--text-primary);
   font-size: var(--font-size-sm);
   cursor: pointer;
-  transition: background var(--transition-base);
+  transition: background-color var(--transition-fast);
 }
 
 .retry-btn:hover {
-  background: var(--bg-hover);
+  background: var(--background-modifier-hover);
 }
 
-.spinning {
-  animation: spin 1s linear infinite;
+.explore-btn:focus-visible,
+.retry-btn:focus-visible {
+  outline: 2px solid var(--harmony-primary);
+  outline-offset: 2px;
 }
 
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 
-@media (max-width: 768px) {
-  .posts-container {
-    max-width: 100%;
-  }
-  
-  .empty-state,
-  .loading-state {
-    padding: var(--space-10) var(--space-4);
-    min-height: 300px;
+@media (min-width: 769px) {
+  .posts-list,
+  .skeleton-list {
+    border-left: 1px solid var(--border-color);
+    border-right: 1px solid var(--border-color);
+    min-height: 100%;
   }
 }
 </style>
