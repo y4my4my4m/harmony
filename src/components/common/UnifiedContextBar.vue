@@ -29,7 +29,7 @@
           </div>
           <div class="dm-info" v-else-if="isDM">
             <Icon name="message-circle" />
-            <h2 class="dm-title">Direct Messages</h2>
+            <h2 class="dm-title">{{ $t('nav.directMessages') }}</h2>
           </div>
           <div class="app-info" v-else>
             <h2 class="app-name">Harmony</h2>
@@ -37,21 +37,24 @@
         </div>
       </div>
       <div class="context-right">
-        <div
+        <button
           v-if="fundingConfig && fundingConfig.enabled && fundingConfig.show_in_context_bar && fundingConfig.goal_amount"
+          type="button"
           class="funding-indicator"
-          @click="$emit('open-funding')"
           :title="fundingTooltip"
+          :aria-label="fundingTooltip"
+          @click="$emit('open-funding')"
         >
-          <div class="funding-progress-track">
-            <div class="funding-progress-fill" :style="{ width: fundingPercent + '%' }"></div>
-          </div>
+          <Icon name="heart" :size="12" class="funding-heart" />
+          <span class="funding-progress-track" aria-hidden="true">
+            <span class="funding-progress-fill" :style="{ width: fundingPercent + '%' }"></span>
+          </span>
           <span class="funding-text">
             {{ formatCurrency(fundingConfig.displayed_amount ?? fundingConfig.current_amount, fundingConfig.goal_currency) }}
             /
             {{ formatCurrency(fundingConfig.goal_amount, fundingConfig.goal_currency) }}
           </span>
-        </div>
+        </button>
       </div>
     </div>
   </div>
@@ -236,7 +239,11 @@ const formatCurrency = (amount: number, currency: string) => {
   gap: 8px;
   cursor: pointer;
   padding: 2px 8px;
+  background: none;
+  border: none;
   border-radius: 4px;
+  color: inherit;
+  font: inherit;
   transition: background 0.15s;
 }
 
@@ -244,15 +251,21 @@ const formatCurrency = (amount: number, currency: string) => {
   background: var(--background-hover);
 }
 
+.funding-heart {
+  color: var(--harmony-primary);
+}
+
 .funding-progress-track {
+  display: block;
   width: 60px;
   height: 4px;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--background-modifier-active);
   border-radius: 2px;
   overflow: hidden;
 }
 
 .funding-progress-fill {
+  display: block;
   height: 100%;
   background: var(--harmony-primary);
   border-radius: 2px;

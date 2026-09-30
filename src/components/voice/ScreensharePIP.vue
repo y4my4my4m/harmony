@@ -1,385 +1,496 @@
 <template>
   <Teleport to="body">
-    <!-- Native PIP (uses browser API) - no visual component needed -->
-    
-    <!-- Fixed Corner PIP -->
-    <div 
-      v-if="voiceStore.pipActive && voiceStore.pipMode === 'fixed' && pipParticipant"
-      class="pip-fixed"
-      :class="{ minimized: isMinimized }"
+    <!-- Native mode uses the browser's Picture-in-Picture window; nothing renders here. -->
+    <section
+      v-if="showFrame"
+      ref="frameRef"
+      class="pip"
+      :class="{ 'pip--interacting': interaction }"
+      :style="frameStyle"
+      :aria-label="participantName"
+      @keydown.esc.stop="closePIP"
     >
-      <div class="pip-header">
-        <span class="pip-title"><DisplayName v-if="pipParticipant" :userId="pipParticipant.userId" :fallback="participantName" :truncate="true" /></span>
-        <div class="pip-controls">
-          <button @click="toggleMinimize" class="pip-btn" title="Minimize">
-            <Icon :name="isMinimized ? 'maximize-2' : 'minimize-2'" />
-          </button>
-          <button @click="closePIP" class="pip-btn" title="Close">
-            <Icon name="x" />
-          </button>
-        </div>
-      </div>
-      <div v-if="!isMinimized" class="pip-video-container">
+      <header class="pip-bar" @pointerdown="onBarPointerDown">
+        <span class="pip-live">{{ t('voice.live') }}</span>
+        <span class="pip-title">
+          <DisplayName :user-id="pipParticipant!.userId" :fallback="participantName" :truncate="true" />
+        </span>
+        <TileVolumeControl
+          v-if="!isSelf"
+          class="pip-volume"
+          :user-id="pipParticipant!.userId"
+          kind="screen"
+        />
+        <button
+          type="button"
+          class="pip-btn"
+          :title="t('voice.focus')"
+          :aria-label="t('voice.focus')"
+          @click="openInCall"
+        >
+          <Icon name="maximize" :size="16" />
+        </button>
+        <button
+          type="button"
+          class="pip-btn pip-btn--close"
+          :title="t('voice.closePopOut')"
+          :aria-label="t('voice.closePopOut')"
+          @click="closePIP"
+        >
+          <Icon name="x" :size="16" />
+        </button>
+      </header>
+      <div class="pip-body" @dblclick="openInCall">
         <video
-          ref="fixedVideoElement"
+          ref="videoRef"
           autoplay
           playsinline
+          muted
           class="pip-video"
+          @loadedmetadata="onVideoMetadata"
+          @resize="onVideoMetadata"
         />
       </div>
-    </div>
-
-    <!-- Draggable PIP -->
-    <div 
-      v-if="voiceStore.pipActive && voiceStore.pipMode === 'draggable' && pipParticipant"
-      class="pip-draggable"
-      :style="draggableStyle"
-      @mousedown="startDrag"
-    >
-      <div class="pip-header" @mousedown.stop="startDrag">
-        <span class="pip-title"><DisplayName v-if="pipParticipant" :userId="pipParticipant.userId" :fallback="participantName" :truncate="true" /></span>
-        <div class="pip-controls">
-          <button @click="toggleMinimize" class="pip-btn" title="Minimize">
-            <Icon :name="isMinimized ? 'maximize-2' : 'minimize-2'" />
-          </button>
-          <button @click="closePIP" class="pip-btn" title="Close">
-            <Icon name="x" />
-          </button>
-        </div>
+      <div
+        class="pip-grip"
+        aria-hidden="true"
+        @pointerdown="onGripPointerDown"
+      >
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+          <path d="M9 1 1 9M9 5 5 9" />
+        </svg>
       </div>
-      <div v-if="!isMinimized" class="pip-video-container">
-        <video
-          ref="draggableVideoElement"
-          autoplay
-          playsinline
-          class="pip-video"
-        />
-        <!-- Resize handle -->
-        <div 
-          class="resize-handle" 
-          @mousedown.stop="startResize"
-          title="Drag to resize"
-        ></div>
-      </div>
-    </div>
+    </section>
   </Teleport>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onUnmounted } from 'vue';
-import { debug } from '@/utils/debug'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { debug } from '@/utils/debug';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { useUserData } from '@/composables/useUserData';
 import Icon from '@/components/common/Icon.vue';
 import DisplayName from '@/components/DisplayName.vue';
+import TileVolumeControl from './TileVolumeControl.vue';
+import {
+  clampAspect,
+  clampFrameWidth,
+  clampPoint,
+  cornerPoint,
+  frameSize,
+  resizedFrameWidth,
+  type Box,
+  type Point,
+} from '@/utils/floatingVideoGeometry';
 
+const { t } = useI18n();
 const voiceStore = useUnifiedVoiceChannelStore();
 const { getUserDisplayName } = useUserData();
 
-// Refs
-const fixedVideoElement = ref<HTMLVideoElement | null>(null);
-const draggableVideoElement = ref<HTMLVideoElement | null>(null);
-const isMinimized = ref(false);
+// Header bar height, px; it sits above the video and does not scale.
+const BAR_HEIGHT = 40;
+const MARGIN = 12;
+const WIDTH_LIMITS = { min: 280, max: 1920 };
+const DRAG_THRESHOLD = 4;
 
-// Draggable state
-const position = ref({ x: window.innerWidth - 420, y: window.innerHeight - 320 });
-const size = ref({ width: 400, height: 300 });
-const isDragging = ref(false);
-const isResizing = ref(false);
-const dragStart = ref({ x: 0, y: 0 });
-const resizeStart = ref({ x: 0, y: 0, width: 0, height: 0 });
+const frameRef = ref<HTMLElement | null>(null);
+const videoRef = ref<HTMLVideoElement | null>(null);
+const interaction = ref<'drag' | 'resize' | null>(null);
 
-// Computed
+// Survives close/reopen within the session.
+const aspect = ref(16 / 9);
+const width = ref(420);
+const position = ref<Point | null>(null);
+const viewport = ref<Box>({ left: 0, top: 0, width: window.innerWidth, height: window.innerHeight });
+
 const pipParticipant = computed(() => {
   if (!voiceStore.pipUserId) return null;
   return voiceStore.allParticipants.find(p => p.userId === voiceStore.pipUserId) || null;
 });
 
-const pipStream = computed(() => {
-  if (!voiceStore.pipUserId) return null;
-  return voiceStore.getUserStream(voiceStore.pipUserId);
-});
+const isSelf = computed(() => voiceStore.pipUserId === voiceStore.localState.userId);
 
 const participantName = computed(() => {
-  if (!pipParticipant.value) return 'Screen share';
+  if (!pipParticipant.value) return t('voice.live');
   return getUserDisplayName(pipParticipant.value.userId).value || 'User';
 });
 
-const draggableStyle = computed(() => ({
-  left: `${position.value.x}px`,
-  top: `${position.value.y}px`,
-  width: isMinimized.value ? 'auto' : `${size.value.width}px`,
-  height: isMinimized.value ? 'auto' : `${size.value.height}px`,
+// 'fixed' is the fallback when the browser refuses native Picture-in-Picture.
+const showFrame = computed(() =>
+  voiceStore.pipActive &&
+  (voiceStore.pipMode === 'draggable' || voiceStore.pipMode === 'fixed') &&
+  !!pipParticipant.value?.isScreenSharing
+);
+
+const bounds = computed<Box>(() => ({
+  left: viewport.value.left + MARGIN,
+  top: viewport.value.top + MARGIN,
+  width: Math.max(0, viewport.value.width - 2 * MARGIN),
+  height: Math.max(0, viewport.value.height - 2 * MARGIN),
 }));
 
-// Methods
-const closePIP = () => {
+const clampedWidth = computed(() =>
+  clampFrameWidth(width.value, aspect.value, BAR_HEIGHT, bounds.value, WIDTH_LIMITS)
+);
+
+const size = computed(() => frameSize(clampedWidth.value, aspect.value, BAR_HEIGHT));
+
+const resolvedPosition = computed<Point>(() => {
+  if (position.value) return clampPoint(position.value, size.value, bounds.value);
+  return cornerPoint('bottom-right', size.value, bounds.value);
+});
+
+const frameStyle = computed(() => ({
+  width: `${size.value.width}px`,
+  height: `${size.value.height}px`,
+  transform: `translate3d(${Math.round(resolvedPosition.value.x)}px, ${Math.round(resolvedPosition.value.y)}px, 0)`,
+}));
+
+function closePIP(): void {
   voiceStore.togglePIP(null);
-};
+}
 
-const toggleMinimize = () => {
-  isMinimized.value = !isMinimized.value;
-};
+function openInCall(): void {
+  const userId = voiceStore.pipUserId;
+  if (!userId) return;
+  voiceStore.togglePIP(null);
+  voiceStore.isOverlayVisible = true;
+  voiceStore.enterFullscreen(userId, 'screen');
+}
 
-// Draggable functionality
-const startDrag = (event: MouseEvent) => {
-  isDragging.value = true;
-  dragStart.value = {
-    x: event.clientX - position.value.x,
-    y: event.clientY - position.value.y,
-  };
-  document.addEventListener('mousemove', onDrag);
-  document.addEventListener('mouseup', stopDrag);
-};
+function onVideoMetadata(): void {
+  const v = videoRef.value;
+  if (v && v.videoWidth > 0 && v.videoHeight > 0) {
+    aspect.value = clampAspect(v.videoWidth / v.videoHeight);
+  }
+}
 
-const onDrag = (event: MouseEvent) => {
-  if (!isDragging.value) return;
-  
-  position.value = {
-    x: Math.max(0, Math.min(window.innerWidth - size.value.width, event.clientX - dragStart.value.x)),
-    y: Math.max(0, Math.min(window.innerHeight - size.value.height, event.clientY - dragStart.value.y)),
-  };
-};
+// One pointer, captured, until release or cancel. Movement under
+// `threshold` px never starts the gesture. Mirrors FloatingVideoPlayer.
+function trackPointer(
+  e: PointerEvent,
+  threshold: number,
+  handlers: { start: () => void; move: (dx: number, dy: number) => void; end: () => void },
+): void {
+  const target = e.currentTarget as HTMLElement;
+  const { pointerId, clientX: startX, clientY: startY } = e;
+  let active = false;
+  let finished = false;
 
-const stopDrag = () => {
-  isDragging.value = false;
-  document.removeEventListener('mousemove', onDrag);
-  document.removeEventListener('mouseup', stopDrag);
-};
-
-// Resizable functionality
-const startResize = (event: MouseEvent) => {
-  isResizing.value = true;
-  resizeStart.value = {
-    x: event.clientX,
-    y: event.clientY,
-    width: size.value.width,
-    height: size.value.height,
-  };
-  document.addEventListener('mousemove', onResize);
-  document.addEventListener('mouseup', stopResize);
-};
-
-const onResize = (event: MouseEvent) => {
-  if (!isResizing.value) return;
-  
-  const deltaX = event.clientX - resizeStart.value.x;
-  const deltaY = event.clientY - resizeStart.value.y;
-  
-  size.value = {
-    width: Math.max(300, Math.min(1920, resizeStart.value.width + deltaX)),
-    height: Math.max(200, Math.min(1080, resizeStart.value.height + deltaY)),
-  };
-};
-
-const stopResize = () => {
-  isResizing.value = false;
-  document.removeEventListener('mousemove', onResize);
-  document.removeEventListener('mouseup', stopResize);
-};
-
-watch(() => [voiceStore.pipActive, voiceStore.pipMode, pipStream.value], async ([active, mode, stream]) => {
-  if (active && mode === 'native' && stream) {
-    // Use browser's native PIP API
-    try {
-      const videoEl = document.createElement('video');
-      // Prefer LiveKit attach so we get the screenshare track specifically
-      // (the combined stream may also carry the user's camera track)
-      const attached = voiceStore.pipUserId
-        ? voiceStore.attachVideoToElement(voiceStore.pipUserId, videoEl, 'screen')
-        : false;
-      if (!attached) {
-        videoEl.srcObject = stream as MediaStream;
-      }
-      videoEl.autoplay = true;
-      videoEl.muted = false;
-      
-      await new Promise(resolve => {
-        videoEl.addEventListener('loadedmetadata', resolve, { once: true });
-      });
-      
-      // Enter PIP mode
-      if (document.pictureInPictureEnabled && !document.pictureInPictureElement) {
-        await videoEl.requestPictureInPicture();
-        
-        // Listen for PIP close
-        videoEl.addEventListener('leavepictureinpicture', () => {
-          voiceStore.togglePIP(null);
-          videoEl.srcObject = null;
-          videoEl.remove();
-        }, { once: true });
-      }
-    } catch (error) {
-      debug.error('Failed to enter native PIP:', error);
-      // Fall back to fixed mode
-      voiceStore.togglePIP(voiceStore.pipUserId, 'fixed');
+  const onMove = (ev: PointerEvent) => {
+    if (ev.pointerId !== pointerId) return;
+    const dx = ev.clientX - startX;
+    const dy = ev.clientY - startY;
+    if (!active) {
+      if (Math.hypot(dx, dy) < threshold) return;
+      active = true;
+      handlers.start();
     }
+    handlers.move(dx, dy);
+  };
+  const onEnd = (ev: PointerEvent) => {
+    if (ev.pointerId !== pointerId || finished) return;
+    finished = true;
+    target.removeEventListener('pointermove', onMove);
+    target.removeEventListener('pointerup', onEnd);
+    target.removeEventListener('pointercancel', onEnd);
+    target.removeEventListener('lostpointercapture', onEnd);
+    if (target.hasPointerCapture(pointerId)) target.releasePointerCapture(pointerId);
+    if (active) handlers.end();
+  };
+
+  target.setPointerCapture(pointerId);
+  target.addEventListener('pointermove', onMove);
+  target.addEventListener('pointerup', onEnd);
+  target.addEventListener('pointercancel', onEnd);
+  target.addEventListener('lostpointercapture', onEnd);
+  e.preventDefault();
+}
+
+function onBarPointerDown(e: PointerEvent): void {
+  if (!e.isPrimary || e.button !== 0) return;
+  if ((e.target as Element).closest('button, input, .pip-volume')) return;
+  const origin = { ...resolvedPosition.value };
+  trackPointer(e, DRAG_THRESHOLD, {
+    start: () => { interaction.value = 'drag'; },
+    move: (dx, dy) => {
+      position.value = clampPoint({ x: origin.x + dx, y: origin.y + dy }, size.value, bounds.value);
+    },
+    end: () => { interaction.value = null; },
+  });
+}
+
+function onGripPointerDown(e: PointerEvent): void {
+  if (!e.isPrimary || e.button !== 0) return;
+  const start = { ...size.value };
+  const origin = { ...resolvedPosition.value };
+  trackPointer(e, 0, {
+    start: () => { interaction.value = 'resize'; },
+    move: (dx, dy) => {
+      // Top-left stays put; the grip is the bottom-right corner.
+      const next = resizedFrameWidth(start, aspect.value, BAR_HEIGHT, 'bottom-right', dx, dy);
+      const room: Box = {
+        left: origin.x,
+        top: origin.y,
+        width: bounds.value.left + bounds.value.width - origin.x,
+        height: bounds.value.top + bounds.value.height - origin.y,
+      };
+      width.value = clampFrameWidth(next, aspect.value, BAR_HEIGHT, room, WIDTH_LIMITS);
+      position.value = origin;
+    },
+    end: () => { interaction.value = null; },
+  });
+}
+
+function onViewportChange(): void {
+  const vv = window.visualViewport;
+  viewport.value = vv
+    ? { left: vv.offsetLeft, top: vv.offsetTop, width: vv.width, height: vv.height }
+    : { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
+}
+
+// VIDEO
+
+let attached: { userId: string; el: HTMLVideoElement } | null = null;
+
+function detachVideo(): void {
+  if (!attached) return;
+  voiceStore.detachVideoFromElement(attached.userId, attached.el, 'screen');
+  attached.el.srcObject = null;
+  attached = null;
+}
+
+function attachVideo(): void {
+  const userId = voiceStore.pipUserId;
+  const el = videoRef.value;
+  if (!showFrame.value || !userId || !el) {
+    detachVideo();
+    return;
+  }
+  if (attached && (attached.userId !== userId || attached.el !== el)) detachVideo();
+  if (voiceStore.attachVideoToElement(userId, el, 'screen')) {
+    attached = { userId, el };
+  }
+}
+
+// A popped-out remote stream must be received.
+watch(
+  () => [voiceStore.pipActive, voiceStore.pipUserId] as const,
+  ([active, userId]) => {
+    if (active && userId && userId !== voiceStore.localState.userId) {
+      voiceStore.watchStream(userId);
+    }
+  },
+  { immediate: true },
+);
+
+watch(
+  [showFrame, videoRef, () => voiceStore.pipUserId, () => voiceStore.streamUpdateCounter],
+  () => attachVideo(),
+  { immediate: true, flush: 'post' },
+);
+
+// NATIVE PICTURE-IN-PICTURE
+
+watch(() => [voiceStore.pipActive, voiceStore.pipMode, voiceStore.pipUserId] as const, async ([active, mode, userId]) => {
+  if (!active || mode !== 'native' || !userId) return;
+  try {
+    const videoEl = document.createElement('video');
+    videoEl.autoplay = true;
+    videoEl.muted = true;
+    const ok = voiceStore.attachVideoToElement(userId, videoEl, 'screen');
+    if (!ok) {
+      const stream = voiceStore.getUserStream(userId);
+      if (!stream) throw new Error('No stream to show');
+      videoEl.srcObject = stream;
+    }
+
+    await new Promise(resolve => {
+      videoEl.addEventListener('loadedmetadata', resolve, { once: true });
+    });
+
+    if (document.pictureInPictureEnabled && !document.pictureInPictureElement) {
+      await videoEl.requestPictureInPicture();
+      videoEl.addEventListener('leavepictureinpicture', () => {
+        voiceStore.togglePIP(null);
+        voiceStore.detachVideoFromElement(userId, videoEl, 'screen');
+        videoEl.srcObject = null;
+        videoEl.remove();
+      }, { once: true });
+    }
+  } catch (error) {
+    debug.error('Failed to enter native PIP:', error);
+    voiceStore.togglePIP(userId, 'fixed');
   }
 }, { immediate: true });
 
-// Attach video to fixed PIP element using LiveKit's proper method
-// Watch streamUpdateCounter to react to stream changes
-watch(
-  [() => voiceStore.pipActive, () => voiceStore.pipMode, () => voiceStore.pipUserId, fixedVideoElement, () => voiceStore.streamUpdateCounter],
-  ([active, mode, userId, videoEl, _counter]) => {
-    if (active && mode === 'fixed' && userId && videoEl) {
-      const attached = voiceStore.attachVideoToElement(userId, videoEl as any, 'screen');
-      if (!attached && pipStream.value) {
-        // Fallback to srcObject if attach fails
-        (videoEl as HTMLVideoElement).srcObject = pipStream.value;
-      }
-    }
-  },
-  { immediate: true }
-);
+onMounted(() => {
+  window.addEventListener('resize', onViewportChange, { passive: true });
+  window.visualViewport?.addEventListener('resize', onViewportChange);
+  onViewportChange();
+});
 
-// Attach video to draggable PIP element using LiveKit's proper method
-// Watch streamUpdateCounter to react to stream changes
-watch(
-  [() => voiceStore.pipActive, () => voiceStore.pipMode, () => voiceStore.pipUserId, draggableVideoElement, () => voiceStore.streamUpdateCounter],
-  ([active, mode, userId, videoEl, _counter]) => {
-    if (active && mode === 'draggable' && userId && videoEl) {
-      const attached = voiceStore.attachVideoToElement(userId, videoEl as any, 'screen');
-      if (!attached && pipStream.value) {
-        // Fallback to srcObject if attach fails
-        (videoEl as HTMLVideoElement).srcObject = pipStream.value;
-      }
-    }
-  },
-  { immediate: true }
-);
-
-onUnmounted(() => {
-  document.removeEventListener('mousemove', onDrag);
-  document.removeEventListener('mouseup', stopDrag);
-  document.removeEventListener('mousemove', onResize);
-  document.removeEventListener('mouseup', stopResize);
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', onViewportChange);
+  window.visualViewport?.removeEventListener('resize', onViewportChange);
+  detachVideo();
 });
 </script>
 
 <style scoped>
-/* Fixed Corner PIP */
-.pip-fixed {
+.pip {
   position: fixed;
-  bottom: 80px;
-  right: 20px;
-  width: 400px;
-  background: var(--background-floating);
-  border-radius: var(--radius-lg);
-  border: 2px solid var(--border-hover);
-  box-shadow: var(--shadow-large);
+  top: 0;
+  left: 0;
   z-index: 10000;
-  overflow: hidden;
-  transition: all 0.3s ease;
-}
-
-.pip-fixed.minimized {
-  width: 300px;
-}
-
-/* Draggable PIP */
-.pip-draggable {
-  position: fixed;
-  background: var(--background-floating);
-  border-radius: var(--radius-lg);
-  border: 2px solid var(--border-hover);
-  box-shadow: var(--shadow-large);
-  z-index: 10000;
-  overflow: hidden;
-  min-width: 300px;
-  min-height: 200px;
-}
-
-.pip-draggable .pip-header {
-  cursor: move;
-}
-
-/* Common PIP styles */
-.pip-header {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 12px;
-  background: var(--background-tertiary);
-  border-bottom: 1px solid var(--border-primary);
+  flex-direction: column;
+  box-sizing: border-box;
+  overflow: hidden;
+  background: var(--background-floating);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-large);
+  transition: transform var(--transition-base), width var(--transition-base), height var(--transition-base);
 }
 
-.pip-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-secondary);
+.pip--interacting {
+  transition: none;
   user-select: none;
 }
 
-.pip-controls {
-  display: flex;
-  gap: 4px;
+@media (prefers-reduced-motion: reduce) {
+  .pip { transition: none; }
 }
 
-.pip-btn {
-  background: transparent;
-  border: none;
-  color: var(--text-secondary);
-  cursor: pointer;
-  padding: 4px;
-  border-radius: var(--radius-sm);
+:root[data-reduce-motion="true"] .pip {
+  transition: none;
+}
+
+.pip-bar {
   display: flex;
   align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
+  gap: 6px;
+  flex: none;
+  box-sizing: border-box;
+  height: 40px;
+  padding: 0 4px 0 10px;
+  background: var(--background-tertiary);
+  border-bottom: 1px solid var(--border-primary);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
 }
 
-.pip-btn:hover {
-  background: var(--background-modifier-hover);
+.pip--interacting .pip-bar {
+  cursor: grabbing;
+}
+
+.pip-live {
+  flex: none;
+  padding: 1px 5px;
+  border-radius: var(--radius-sm);
+  background: var(--error);
+  color: var(--text-on-primary);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.pip-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
   color: var(--text-primary);
 }
 
-.pip-video-container {
+.pip-volume {
+  flex: none;
+  height: 30px;
+  cursor: default;
+}
+
+.pip-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.pip-btn:hover,
+.pip-btn:focus-visible {
+  background: var(--background-modifier-hover);
+  color: var(--text-primary);
+  outline: none;
+}
+
+.pip-btn--close:hover {
+  color: var(--error);
+}
+
+.pip-body {
   position: relative;
-  width: 100%;
-  height: 300px;
+  flex: 1 1 auto;
+  min-height: 0;
   background: #000;
 }
 
-.pip-draggable .pip-video-container {
-  height: calc(100% - 42px);
+.pip--interacting .pip-body {
+  pointer-events: none;
 }
 
 .pip-video {
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: contain;
   background: #000;
 }
 
-/* Resize handle */
-.resize-handle {
+.pip-grip {
   position: absolute;
-  bottom: 0;
   right: 0;
-  width: 20px;
-  height: 20px;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  color: var(--text-secondary);
+  background: var(--background-floating);
+  border-top-left-radius: var(--radius-sm);
   cursor: nwse-resize;
-  background: linear-gradient(135deg, transparent 50%, rgba(255, 255, 255, 0.3) 50%);
-  border-bottom-right-radius: var(--radius-lg);
+  touch-action: none;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
 }
 
-.resize-handle:hover {
-  background: linear-gradient(135deg, transparent 50%, rgba(255, 255, 255, 0.5) 50%);
+.pip:hover .pip-grip,
+.pip:focus-within .pip-grip,
+.pip--interacting .pip-grip {
+  opacity: 1;
 }
 
-/* Responsive */
-@media (max-width: 768px) {
-  .pip-fixed {
-    width: 90vw;
-    max-width: 350px;
-    bottom: 60px;
-    right: 10px;
-  }
-  
-  .pip-video-container {
-    height: 200px;
+@media (hover: none), (pointer: coarse) {
+  .pip-grip {
+    width: 26px;
+    height: 26px;
+    opacity: 1;
   }
 }
 </style>
-

@@ -71,7 +71,7 @@ test('accept an invite and land in the server', async ({ browser }) => {
     await expect(joinerPage.locator('.invite-card__muted').first()).toContainText(
       "You've been invited to join",
     )
-    await expect(joinerPage.locator('.invite-btn.primary')).toHaveText(/Accept Invite/)
+    await expect(joinerPage.locator('.invite-btn.primary')).toHaveText(/Accept invite/)
   })
 
   await test.step('accepting drops them into the server', async () => {
@@ -90,7 +90,7 @@ test('accept an invite and land in the server', async ({ browser }) => {
       "You're already a member of",
       { timeout: 30000 },
     )
-    await expect(joinerPage.locator('.invite-btn.primary')).toHaveText(/Open Server/)
+    await expect(joinerPage.locator('.invite-btn.primary')).toHaveText(/Open server/)
   })
 
   await test.step('the owner sees the new member in the member list', async () => {

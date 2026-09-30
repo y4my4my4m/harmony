@@ -2174,12 +2174,13 @@ const closeLightbox = () => {
   background-color: transparent;
 }
 
-/* Boost / pinned line above the header, aligned to the text column */
+/* Boost / pinned line above the header. Starts at the avatar's left edge, where the post
+   body starts: the body is not indented under the name. */
 .post-prepend {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  padding: var(--space-3) var(--space-4) 0 calc(var(--space-4) + 48px - 14px);
+  padding: var(--space-3) var(--space-4) 0;
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
   line-height: 1.3;
@@ -2761,7 +2762,7 @@ const closeLightbox = () => {
   }
 
   .post-prepend {
-    padding: var(--space-3) var(--space-3) 0 calc(var(--space-3) + 48px - 14px);
+    padding: var(--space-3) var(--space-3) 0;
   }
 
   .author-info {

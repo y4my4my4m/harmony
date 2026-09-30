@@ -1,840 +1,520 @@
 <template>
   <Teleport to="body">
     <div
-      v-if="isVisible"
-      class="context-menu-backdrop"
+      v-if="visible"
+      class="vcm-backdrop"
       @click="close"
       @contextmenu.prevent="close"
     />
     <div
-      v-if="isVisible"
+      v-if="visible"
       ref="menuRef"
-      class="voice-context-menu"
+      class="vcm"
+      role="menu"
+      tabindex="-1"
+      data-voice-popover
+      :aria-label="displayName"
       :style="menuStyle"
       @click.stop
+      @contextmenu.prevent
+      @keydown.esc.stop.prevent="close"
     >
-      <!-- User Header -->
-      <div class="menu-header">
-        <Avatar
-          :src="userProfile?.avatar_url || '/default_avatar.webp'"
-          :alt="displayName"
-          size="sm"
-        />
-        <div class="user-info">
-          <span class="display-name"><DisplayName :userId="props.userState.userId" :fallback="displayName" /></span>
-          <span class="user-info-status">{{ userStatus }}</span>
+      <div class="vcm-header">
+        <Avatar :src="userProfile.avatar_url" :alt="displayName" size="sm" />
+        <div class="vcm-user">
+          <span class="vcm-name"><DisplayName :user-id="userState.userId" :fallback="displayName" :truncate="true" /></span>
+          <span class="vcm-status">
+            <Icon v-if="quality === 'poor' || quality === 'lost'" name="wifi-off" class="vcm-status-icon warn" :size="12" />
+            {{ statusText }}
+          </span>
         </div>
       </div>
 
-      <div class="menu-divider" />
-
-      <!-- Volume Control -->
-      <div v-if="!isSelf" class="menu-section">
-        <div class="section-label">
-          <Icon name="mic" />
-          <span>Mic volume</span>
-          <span class="volume-value">{{ currentVolume }}%</span>
-        </div>
-        <div class="volume-slider-container">
-          <input
-            type="range"
-            :value="currentVolume"
-            min="0"
-            max="200"
-            step="1"
-            class="volume-slider"
-            @input="handleVolumeChange"
-          />
-          <div class="volume-marks">
-            <span>0%</span>
-            <span>100%</span>
-            <span>200%</span>
-          </div>
-        </div>
-        <div class="volume-presets">
-          <button
-            class="preset-btn"
-            :class="{ active: currentVolume === 0 }"
-            @click="setVolume(0)"
-            title="Mute"
-          >
-            <Icon name="volume-x" />
-          </button>
-          <button
-            class="preset-btn"
-            :class="{ active: currentVolume === 50 }"
-            @click="setVolume(50)"
-            title="50%"
-          >
-            <Icon name="volume-1" />
-          </button>
-          <button
-            class="preset-btn"
-            :class="{ active: currentVolume === 100 }"
-            @click="setVolume(100)"
-            title="Normal"
-          >
-            <Icon name="volume-2" />
-          </button>
-          <button
-            class="preset-btn"
-            :class="{ active: currentVolume === 200 }"
-            @click="setVolume(200)"
-            title="Max (200%)"
-          >
-            <Icon name="volume-2" />
-            <span class="boost-indicator">+</span>
-          </button>
-        </div>
-      </div>
-      
-      <!-- Screenshare Volume Control (when user is screensharing) -->
-      <div v-if="!isSelf && isScreenSharing" class="menu-section">
-        <div class="section-label">
-          <Icon name="screen-share" />
-          <span>Screen share audio</span>
-          <span v-if="!hasScreenShareAudio" class="no-audio-hint">(no audio)</span>
-          <span class="volume-value">{{ currentScreenShareVolume }}%</span>
-        </div>
-        <div class="volume-slider-container">
-          <input
-            type="range"
-            :value="currentScreenShareVolume"
-            min="0"
-            max="200"
-            step="1"
-            class="volume-slider screenshare-slider"
-            @input="handleScreenShareVolumeChange"
-          />
-          <div class="volume-marks">
-            <span>0%</span>
-            <span>100%</span>
-            <span>200%</span>
-          </div>
-        </div>
-        <div class="volume-presets">
-          <button
-            class="preset-btn"
-            :class="{ active: currentScreenShareVolume === 0 }"
-            @click="setScreenShareVolume(0)"
-            title="Mute"
-          >
-            <Icon name="volume-x" />
-          </button>
-          <button
-            class="preset-btn"
-            :class="{ active: currentScreenShareVolume === 50 }"
-            @click="setScreenShareVolume(50)"
-            title="50%"
-          >
-            <Icon name="volume-1" />
-          </button>
-          <button
-            class="preset-btn"
-            :class="{ active: currentScreenShareVolume === 100 }"
-            @click="setScreenShareVolume(100)"
-            title="Normal"
-          >
-            <Icon name="volume-2" />
-          </button>
-          <button
-            class="preset-btn"
-            :class="{ active: currentScreenShareVolume === 200 }"
-            @click="setScreenShareVolume(200)"
-            title="Max (200%)"
-          >
-            <Icon name="volume-2" />
-            <span class="boost-indicator">+</span>
-          </button>
-        </div>
-      </div>
-
-      <!-- Actions for other users -->
+      <!-- Listener controls for someone else -->
       <template v-if="!isSelf">
-        <div class="menu-divider" />
-        <div class="menu-actions">
+        <section v-for="kind in model.volumes" :key="kind" class="vcm-section">
+          <VolumeSlider
+            :model-value="kind === 'mic' ? micVolume : streamVolume"
+            :label="kind === 'mic' ? t('voice.userVolume') : t('voice.streamVolume')"
+            :muted="kind === 'mic' ? micMuted : streamMuted"
+            @update:model-value="(v: number) => setVolume(kind, v)"
+          />
+          <p v-if="kind === 'screen' && watching && !hasStreamAudio" class="vcm-note">
+            {{ t('voice.noStreamAudio') }}
+          </p>
           <button
-            v-if="hasVideo"
-            class="menu-action"
-            @click="focusUser"
+            type="button"
+            role="menuitemcheckbox"
+            class="vcm-check"
+            :aria-checked="kind === 'mic' ? micMuted : streamMuted"
+            @click="toggleLocalMute(kind)"
           >
-            <Icon name="maximize-2" />
-            <span>{{ isFullscreen ? 'Exit focus' : 'Focus video' }}</span>
+            <span>{{ kind === 'mic' ? t('voice.muteUser') : t('voice.muteStream') }}</span>
+            <span class="vcm-checkbox" :class="{ on: kind === 'mic' ? micMuted : streamMuted }">
+              <Icon v-if="kind === 'mic' ? micMuted : streamMuted" name="check" :size="12" />
+            </span>
           </button>
-
-          <button
-            v-if="isFullscreen"
-            class="menu-action"
-            @click="toggleFullWindow"
-          >
-            <Icon name="monitor" />
-            <span>{{ isFullWindowMode ? 'Exit full window' : 'Full window' }}</span>
-          </button>
-
-          <button
-            v-if="isScreenSharing"
-            class="menu-action"
-            @click="togglePIP"
-          >
-            <Icon name="picture-in-picture" />
-            <span>{{ isPIP ? 'Exit picture-in-picture' : 'Picture-in-picture' }}</span>
-          </button>
-
-          <button
-            class="menu-action"
-            :class="{ active: currentVolume === 0 }"
-            @click="toggleMuteUser"
-          >
-            <Icon :name="currentVolume === 0 ? 'volume-x' : 'volume-2'" />
-            <span>{{ currentVolume === 0 ? 'Unmute user' : 'Mute user' }}</span>
-          </button>
-        </div>
+        </section>
+        <p class="vcm-hint">{{ t('voice.localOnlyHint') }}</p>
       </template>
 
-      <!-- Self Actions -->
-      <template v-if="isSelf">
-        <!-- Stream Quality Settings (when streaming) -->
-        <div v-if="hasVideo" class="menu-section">
-          <div class="section-label">
-            <Icon name="settings" />
-            <span>Stream quality</span>
-          </div>
-          
-          <!-- Resolution -->
-          <div class="quality-row">
-            <span class="quality-label">Resolution</span>
-            <div class="quality-options">
-              <button
-                v-for="res in resolutionOptions"
-                :key="res.value"
-                class="quality-btn"
-                :class="{ active: currentResolution === res.value }"
-                @click="setResolution(res.value)"
-                :title="res.label"
-              >
-                {{ res.short }}
-              </button>
-            </div>
-          </div>
-          
-          <!-- Frame Rate -->
-          <div class="quality-row">
-            <span class="quality-label">Frame rate</span>
-            <div class="quality-options">
-              <button
-                v-for="fps in frameRateOptions"
-                :key="fps.value"
-                class="quality-btn"
-                :class="{ active: currentFrameRate === fps.value }"
-                @click="setFrameRate(fps.value)"
-                :title="`${fps.value} FPS`"
-              >
-                {{ fps.value }}
-              </button>
-            </div>
-          </div>
-          
-          <!-- Audio Bitrate -->
-          <div class="quality-row">
-            <span class="quality-label">Audio quality</span>
-            <div class="quality-options">
-              <button
-                v-for="bitrate in audioBitrateOptions"
-                :key="bitrate.value"
-                class="quality-btn"
-                :class="{ active: currentAudioBitrate === bitrate.value }"
-                @click="setAudioBitrate(bitrate.value)"
-                :title="bitrate.label"
-              >
-                {{ bitrate.short }}
-              </button>
-            </div>
-          </div>
-        </div>
-        
-        <div class="menu-divider" />
-        
-        <div class="menu-actions">
-          <button class="menu-action" @click="toggleMute">
-            <Icon :name="localMuted ? 'mic-off' : 'mic'" />
-            <span>{{ localMuted ? 'Unmute' : 'Mute' }}</span>
-          </button>
-          <button class="menu-action" @click="toggleDeafen">
-            <Icon :name="localDeafened ? 'headphones-off' : 'headphones'" />
-            <span>{{ localDeafened ? 'Undeafen' : 'Deafen' }}</span>
-          </button>
-          <button 
-            v-if="hasVideo"
-            class="menu-action"
-            @click="focusUser"
-          >
-            <Icon name="maximize-2" />
-            <span>{{ isFullscreen ? 'Exit focus' : 'Focus video' }}</span>
-          </button>
-        </div>
-      </template>
+      <!-- Sharer controls for self -->
+      <section v-if="model.showQuality" class="vcm-section">
+        <StreamQualityOptions />
+      </section>
+
+      <div v-if="model.actions.length" class="vcm-divider" />
+      <div v-if="model.actions.length" class="vcm-actions">
+        <button
+          v-for="action in model.actions"
+          :key="action"
+          type="button"
+          role="menuitem"
+          class="vcm-action"
+          :class="{ danger: action === 'stop-streaming' || (action === 'self-mute' && localMuted) || (action === 'self-deafen' && localDeafened) }"
+          @click="run(action)"
+        >
+          <Icon :name="actionIcon(action)" :size="16" />
+          <span>{{ actionLabel(action) }}</span>
+          <kbd v-if="actionShortcut(action)" class="vcm-kbd">{{ actionShortcut(action) }}</kbd>
+        </button>
+      </div>
     </div>
   </Teleport>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import type { UserMediaState } from '@/services/unifiedWebRTC';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { useUserData } from '@/composables/useUserData';
+import { useKeybinds } from '@/composables/useKeybinds';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '@/components/common/Avatar.vue';
 import DisplayName from '@/components/DisplayName.vue';
+import VolumeSlider from './VolumeSlider.vue';
+import StreamQualityOptions from './StreamQualityOptions.vue';
+import {
+  VOICE_POPOVER_DISMISS,
+  buildVoiceMenu,
+  placePopover,
+  type VoiceMenuAction,
+  type VoiceVolumeSection,
+} from './voiceMenuModel';
 
-interface Props {
+const props = withDefaults(defineProps<{
   userState: UserMediaState;
   x: number;
   y: number;
   visible: boolean;
-}
+  source?: 'camera' | 'screen';
+  /** The host handles request-fullscreen (the call overlay does). */
+  canFullscreen?: boolean;
+}>(), {
+  source: 'camera',
+  canFullscreen: false,
+});
 
-const props = defineProps<Props>();
-
-interface Emits {
+const emit = defineEmits<{
   (e: 'close'): void;
-}
+  (e: 'request-fullscreen', source: 'camera' | 'screen'): void;
+}>();
 
-const emit = defineEmits<Emits>();
-
+const { t } = useI18n();
 const voiceStore = useUnifiedVoiceChannelStore();
 const { getUserProfile } = useUserData();
+const keybinds = useKeybinds();
 
 const menuRef = ref<HTMLElement | null>(null);
-// Initialize with props to prevent flash at 0,0
-const adjustedPosition = ref({ x: 0, y: 0 });
+const position = ref({ x: props.x, y: props.y });
 
-// Computed
-const isVisible = computed(() => props.visible);
+const userId = computed(() => props.userState.userId);
+const isSelf = computed(() => userId.value === voiceStore.localState.userId);
+
+// Live state: the prop can be a stale snapshot from the tile list.
+const live = computed<UserMediaState>(() => {
+  if (isSelf.value) return voiceStore.localState;
+  return voiceStore.allUsers.find(u => u.userId === userId.value) || props.userState;
+});
 
 const userProfile = computed(() => {
-  const profile = getUserProfile(props.userState.userId).value;
-  return profile || {
-    display_name: null,
-    username: 'Unknown User',
-    avatar_url: '/default_avatar.webp'
+  const profile = getUserProfile(userId.value).value as { display_name?: string; username?: string; avatar_url?: string } | null;
+  return {
+    display_name: profile?.display_name || null,
+    username: profile?.username || 'Unknown user',
+    avatar_url: profile?.avatar_url || '/default_avatar.webp',
   };
 });
 
-const displayName = computed(() => {
-  return userProfile.value.display_name || userProfile.value.username || 'Unknown User';
+const displayName = computed(() => userProfile.value.display_name || userProfile.value.username);
+const quality = computed(() => voiceStore.getConnectionQuality(userId.value));
+
+const statusText = computed(() => {
+  const s = live.value;
+  if (s.isScreenSharing) return t('voice.statusStreaming');
+  if (s.isVideoEnabled) return t('voice.statusCameraOn');
+  if (s.isDeafened) return t('voice.statusDeafened');
+  if (s.isMuted) return t('voice.statusMuted');
+  if (s.isSpeaking) return t('voice.statusSpeaking');
+  return t('voice.statusInVoice');
 });
 
-const isSelf = computed(() => {
-  return props.userState.userId === voiceStore.localState.userId;
-});
-
-const userStatus = computed(() => {
-  if (props.userState.isScreenSharing) return 'Screen sharing';
-  if (props.userState.isVideoEnabled) return 'Camera on';
-  if (props.userState.isDeafened) return 'Deafened';
-  if (props.userState.isMuted) return 'Muted';
-  if (props.userState.isSpeaking) return 'Speaking';
-  return 'In voice';
-});
-
-const hasVideo = computed(() => {
-  return props.userState.isVideoEnabled || props.userState.isScreenSharing;
-});
-
-const isScreenSharing = computed(() => props.userState.isScreenSharing);
-
-const isFullscreen = computed(() => {
-  return voiceStore.viewMode === 'fullscreen' && voiceStore.fullscreenUserId === props.userState.userId;
-});
-
-const isFullWindowMode = computed(() => voiceStore.isFullWindowMode);
-
-const isPIP = computed(() => {
-  return voiceStore.pipActive && voiceStore.pipUserId === props.userState.userId;
-});
-
-const currentVolume = computed(() => {
-  return voiceStore.getUserVolume(props.userState.userId);
-});
-
-const currentScreenShareVolume = computed(() => {
-  return voiceStore.getUserScreenShareVolume(props.userState.userId);
-});
-
-const hasScreenShareAudio = computed(() => {
-  return voiceStore.hasScreenShareAudio(props.userState.userId);
-});
-
+const micVolume = computed(() => voiceStore.getUserVolume(userId.value));
+const streamVolume = computed(() => voiceStore.getUserScreenShareVolume(userId.value));
+const micMuted = computed(() => voiceStore.isUserLocallyMuted(userId.value, 'mic'));
+const streamMuted = computed(() => voiceStore.isUserLocallyMuted(userId.value, 'screen'));
+const watching = computed(() => voiceStore.isWatchingStream(userId.value));
+const hasStreamAudio = computed(() => voiceStore.hasScreenShareAudio(userId.value));
 const localMuted = computed(() => voiceStore.localState.isMuted);
 const localDeafened = computed(() => voiceStore.localState.isDeafened);
 
-const menuStyle = computed(() => ({
-  left: `${adjustedPosition.value.x}px`,
-  top: `${adjustedPosition.value.y}px`,
+const isFocused = computed(() =>
+  voiceStore.viewMode === 'fullscreen' &&
+  voiceStore.fullscreenUserId === userId.value &&
+  voiceStore.fullscreenSource === focusSource.value
+);
+const isPoppedOut = computed(() => voiceStore.pipActive && voiceStore.pipUserId === userId.value);
+
+// Focus and full screen target the stream when there is one to show.
+const focusSource = computed<'camera' | 'screen'>(() => {
+  if (props.source === 'screen' && live.value.isScreenSharing) return 'screen';
+  if (!live.value.isVideoEnabled && live.value.isScreenSharing) return 'screen';
+  return 'camera';
+});
+
+const model = computed(() => buildVoiceMenu({
+  isSelf: isSelf.value,
+  source: props.source,
+  isStreaming: live.value.isScreenSharing,
+  hasCamera: live.value.isVideoEnabled,
+  canWatch: voiceStore.connectionMode === 'livekit',
+  watching: watching.value,
+  isFocused: isFocused.value,
+  isPoppedOut: isPoppedOut.value,
+  canFullscreen: props.canFullscreen,
 }));
 
-// Stream Quality Options
-// Note: -1 = Source (native resolution), other values are specific resolutions
-const resolutionOptions = [
-  { value: 360, label: '360p (Low)', short: '360p' },
-  { value: 480, label: '480p (SD)', short: '480p' },
-  { value: 720, label: '720p (HD)', short: '720p' },
-  { value: 1080, label: '1080p (Full HD)', short: '1080p' },
-  { value: 1440, label: '1440p (QHD)', short: '1440p' },
-  { value: 2160, label: '2160p (4K)', short: '4K' },
-  { value: -1, label: 'Source (Native)', short: 'Source' }, // -1 = native resolution
-];
+const menuStyle = computed(() => ({ left: `${position.value.x}px`, top: `${position.value.y}px` }));
 
-const frameRateOptions = [
-  { value: 10, label: '10 FPS (Low)' },
-  { value: 15, label: '15 FPS' },
-  { value: 24, label: '24 FPS (Cinema)' },
-  { value: 30, label: '30 FPS' },
-  { value: 60, label: '60 FPS' },
-];
-
-// Audio bitrate options (kbps)
-const audioBitrateOptions = [
-  { value: 32, label: '32 kbps (Low)', short: '32k' },
-  { value: 64, label: '64 kbps (Voice)', short: '64k' },
-  { value: 128, label: '128 kbps (Standard)', short: '128k' },
-  { value: 256, label: '256 kbps (High)', short: '256k' },
-];
-
-// Current quality settings (from store or defaults)
-// Handle -1 (source) as a valid value, default to 720 only if undefined/null
-const currentResolution = computed(() => {
-  const res = voiceStore.streamSettings?.resolution;
-  return res !== undefined && res !== null ? res : 720;
-});
-const currentFrameRate = computed(() => voiceStore.streamSettings?.frameRate || 30);
-const currentAudioBitrate = computed(() => voiceStore.streamSettings?.audioBitrate || 128);
-
-const setResolution = async (resolution: number) => {
-  await voiceStore.updateStreamQuality({ resolution });
-};
-
-const setFrameRate = async (frameRate: number) => {
-  await voiceStore.updateStreamQuality({ frameRate });
-};
-
-const setAudioBitrate = async (audioBitrate: number) => {
-  await voiceStore.updateStreamQuality({ audioBitrate });
-};
-
-// Methods
-const close = () => {
+function close(): void {
   emit('close');
-};
+}
 
-const handleVolumeChange = (event: Event) => {
-  const target = event.target as HTMLInputElement;
-  const volume = parseInt(target.value, 10);
-  voiceStore.setUserVolume(props.userState.userId, volume);
-};
+function setVolume(kind: VoiceVolumeSection, volume: number): void {
+  if (kind === 'mic') voiceStore.setUserVolume(userId.value, volume);
+  else voiceStore.setUserScreenShareVolume(userId.value, volume);
+}
 
-const setVolume = (volume: number) => {
-  voiceStore.setUserVolume(props.userState.userId, volume);
-};
+function toggleLocalMute(kind: VoiceVolumeSection): void {
+  voiceStore.toggleUserLocalMute(userId.value, kind);
+}
 
-const handleScreenShareVolumeChange = (event: Event) => {
-  const target = event.target as HTMLInputElement;
-  const volume = parseInt(target.value, 10);
-  voiceStore.setUserScreenShareVolume(props.userState.userId, volume);
-};
-
-const setScreenShareVolume = (volume: number) => {
-  voiceStore.setUserScreenShareVolume(props.userState.userId, volume);
-};
-
-const toggleMuteUser = () => {
-  if (currentVolume.value === 0) {
-    setVolume(100);
-  } else {
-    setVolume(0);
+function actionIcon(action: VoiceMenuAction): string {
+  switch (action) {
+    case 'watch': return 'eye';
+    case 'stop-watching': return 'eye-off';
+    case 'focus': return 'maximize-2';
+    case 'exit-focus': return 'minimize-2';
+    case 'fullscreen': return 'maximize';
+    case 'pop-out': return 'picture-in-picture';
+    case 'close-pop-out': return 'x';
+    case 'stop-streaming': return 'screen-share';
+    case 'self-mute': return localMuted.value ? 'mic-off' : 'mic';
+    case 'self-deafen': return localDeafened.value ? 'headphones-off' : 'headphones';
   }
-};
+  return 'circle';
+}
 
-const focusUser = () => {
-  if (isFullscreen.value) {
-    voiceStore.exitFullscreen();
-  } else {
-    voiceStore.enterFullscreen(props.userState.userId);
+function actionLabel(action: VoiceMenuAction): string {
+  switch (action) {
+    case 'watch': return t('voice.watchStream');
+    case 'stop-watching': return t('voice.stopWatching');
+    case 'focus': return t('voice.focus');
+    case 'exit-focus': return t('voice.exitFocus');
+    case 'fullscreen': return t('voice.fullScreen');
+    case 'pop-out': return t('voice.popOut');
+    case 'close-pop-out': return t('voice.closePopOut');
+    case 'stop-streaming': return t('voice.stopStreaming');
+    case 'self-mute': return localMuted.value ? t('voice.unmute') : t('voice.mute');
+    case 'self-deafen': return localDeafened.value ? t('voice.undeafen') : t('voice.deafen');
+  }
+  return '';
+}
+
+function actionShortcut(action: VoiceMenuAction): string {
+  if (action === 'self-mute') return keybinds.getKeybindDisplay('toggle-mute');
+  if (action === 'self-deafen') return keybinds.getKeybindDisplay('toggle-deafen');
+  return '';
+}
+
+function run(action: VoiceMenuAction): void {
+  const id = userId.value;
+  switch (action) {
+    case 'watch':
+      voiceStore.watchStream(id);
+      voiceStore.isOverlayVisible = true;
+      voiceStore.enterFullscreen(id, 'screen');
+      break;
+    case 'stop-watching':
+      voiceStore.stopWatchingStream(id);
+      break;
+    case 'focus':
+      voiceStore.isOverlayVisible = true;
+      voiceStore.enterFullscreen(id, focusSource.value);
+      break;
+    case 'exit-focus':
+      voiceStore.exitFullscreen();
+      break;
+    case 'fullscreen':
+      emit('request-fullscreen', focusSource.value);
+      break;
+    case 'pop-out':
+      voiceStore.togglePIP(id, 'draggable');
+      break;
+    case 'close-pop-out':
+      voiceStore.togglePIP(null);
+      break;
+    case 'stop-streaming':
+      if (voiceStore.localState.isScreenSharing) void voiceStore.toggleScreenShare();
+      break;
+    case 'self-mute':
+      void voiceStore.toggleMute();
+      break;
+    case 'self-deafen':
+      void voiceStore.toggleDeafen();
+      break;
   }
   close();
-};
+}
 
-const toggleFullWindow = () => {
-  voiceStore.toggleFullWindowMode();
-  close();
-};
-
-const togglePIP = () => {
-  if (isPIP.value) {
-    voiceStore.togglePIP(null);
-  } else {
-    // Use draggable mode for consistent drag/resize behavior
-    voiceStore.togglePIP(props.userState.userId, 'draggable');
-  }
-  close();
-};
-
-const toggleMute = () => {
-  voiceStore.toggleMute();
-  close();
-};
-
-const toggleDeafen = () => {
-  voiceStore.toggleDeafen();
-  close();
-};
-
-// Position adjustment to keep menu on screen
-const adjustPosition = async () => {
+async function place(): Promise<void> {
+  position.value = { x: props.x, y: props.y };
   await nextTick();
-  
-  if (!menuRef.value) {
-    adjustedPosition.value = { x: props.x, y: props.y };
-    return;
-  }
-  
-  const rect = menuRef.value.getBoundingClientRect();
-  const padding = 10;
-  
-  let x = props.x;
-  let y = props.y;
-  
-  // Adjust if menu goes off-screen right
-  if (x + rect.width + padding > window.innerWidth) {
-    x = window.innerWidth - rect.width - padding;
-  }
-  
-  // Adjust if menu goes off-screen bottom
-  if (y + rect.height + padding > window.innerHeight) {
-    y = window.innerHeight - rect.height - padding;
-  }
-  
-  // Ensure minimum position
-  x = Math.max(padding, x);
-  y = Math.max(padding, y);
-  
-  adjustedPosition.value = { x, y };
-};
+  const el = menuRef.value;
+  if (!el) return;
+  const rect = el.getBoundingClientRect();
+  position.value = placePopover(
+    { x: props.x, y: props.y },
+    { width: rect.width, height: rect.height },
+    { width: window.innerWidth, height: window.innerHeight },
+  );
+  el.focus({ preventScroll: true });
+}
 
-// Keyboard handler
-const handleKeydown = (event: KeyboardEvent) => {
-  if (event.key === 'Escape') {
-    close();
-  }
-};
+watch(() => [props.visible, props.x, props.y] as const, ([visible]) => {
+  if (visible) void place();
+}, { immediate: true });
 
-// Lifecycle
+// Content height changes (stream starts, quality section appears).
+watch(() => model.value, () => {
+  if (props.visible) void place();
+});
+
+function onDocumentKeydown(event: KeyboardEvent): void {
+  if (props.visible && event.key === 'Escape') close();
+}
+
+function onDismiss(): void {
+  if (props.visible) close();
+}
+
 onMounted(() => {
-  document.addEventListener('keydown', handleKeydown);
+  document.addEventListener('keydown', onDocumentKeydown);
+  window.addEventListener(VOICE_POPOVER_DISMISS, onDismiss);
+  window.addEventListener('resize', onDismiss);
 });
 
-onUnmounted(() => {
-  document.removeEventListener('keydown', handleKeydown);
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', onDocumentKeydown);
+  window.removeEventListener(VOICE_POPOVER_DISMISS, onDismiss);
+  window.removeEventListener('resize', onDismiss);
 });
-
-// Watch for visibility changes to adjust position
-watch(
-  () => props.visible,
-  async (visible) => {
-    if (visible) {
-      adjustedPosition.value = { x: props.x, y: props.y };
-      // Then adjust for screen bounds after DOM update
-      await adjustPosition();
-    }
-  },
-  { immediate: true }
-);
-
-// Also watch for position prop changes
-watch(
-  () => [props.x, props.y],
-  async () => {
-    if (props.visible) {
-      adjustedPosition.value = { x: props.x, y: props.y };
-      await adjustPosition();
-    }
-  }
-);
 </script>
 
 <style scoped>
-.context-menu-backdrop {
+.vcm-backdrop {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  inset: 0;
   z-index: 10005;
 }
 
-.voice-context-menu {
+.vcm {
   position: fixed;
   z-index: 10006;
+  width: 300px;
+  max-width: calc(100vw - 16px);
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
   background: var(--background-floating);
   border: 1px solid var(--border-primary);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-large);
-  min-width: 280px;
-  max-width: 340px;
-  overflow: hidden;
-  animation: menu-appear 0.15s ease-out;
-}
-
-@keyframes menu-appear {
-  from {
-    opacity: 0;
-    transform: scale(0.95) translateY(-4px);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
-}
-
-/* Header */
-.menu-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
-  background: var(--background-tertiary);
-}
-
-.user-info {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  overflow: hidden;
-  flex: 1;
-  min-width: 0; /* Allow text truncation */
-}
-
-.display-name {
-  font-weight: 600;
-  font-size: 14px;
-  color: var(--text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.user-info-status {
-  font-size: 12px;
-  color: var(--text-secondary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* Divider */
-.menu-divider {
-  height: 1px;
-  background: var(--border-primary);
-  margin: 0 0 4px 0;
-}
-
-/* Volume Section */
-.menu-section {
-  padding: 12px 16px;
-}
-
-.section-label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: 10px;
-}
-
-.volume-value {
-  margin-left: auto;
-  color: var(--harmony-primary);
-  font-weight: 700;
-}
-
-.no-audio-hint {
-  font-size: 10px;
-  color: var(--text-muted);
-  opacity: 0.7;
-}
-
-.volume-slider-container {
-  margin-bottom: 12px;
-}
-
-.volume-slider {
-  width: 100%;
-  height: 6px;
-  appearance: none;
-  background: var(--background-modifier-active);
-  border-radius: 3px;
   outline: none;
-  cursor: pointer;
+  animation: vcm-in 0.12s ease-out;
 }
 
-.volume-slider::-webkit-slider-thumb {
-  appearance: none;
-  width: 16px;
-  height: 16px;
-  background: var(--harmony-primary);
-  border-radius: 50%;
-  cursor: pointer;
+@keyframes vcm-in {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to { opacity: 1; transform: none; }
 }
 
-/* Screenshare slider uses the accent to tell it apart from mic volume */
-.volume-slider.screenshare-slider::-webkit-slider-thumb {
-  background: var(--harmony-accent);
+@media (prefers-reduced-motion: reduce) {
+  .vcm { animation: none; }
 }
 
-.volume-marks {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 4px;
-  font-size: 10px;
-  color: var(--text-muted);
+:root[data-reduce-motion="true"] .vcm {
+  animation: none;
 }
 
-.volume-presets {
-  display: flex;
-  gap: 8px;
-  justify-content: center;
-}
-
-.preset-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-  width: 36px;
-  height: 36px;
-  background: var(--background-modifier-hover);
-  border: 1px solid var(--border-primary);
-  border-radius: var(--radius-md);
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.preset-btn:hover {
-  background: var(--background-modifier-active);
-  color: var(--text-primary);
-  border-color: var(--border-hover);
-}
-
-.preset-btn.active {
-  background: var(--harmony-primary);
-  color: var(--text-on-primary);
-  border-color: var(--harmony-primary);
-}
-
-.boost-indicator {
-  position: absolute;
-  top: 2px;
-  right: 2px;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--success);
-}
-
-.preset-btn.active .boost-indicator {
-  color: var(--text-on-primary);
-}
-
-/* Stream Quality Options */
-.quality-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-  gap: 12px;
-}
-
-.quality-row:last-child {
-  margin-bottom: 0;
-}
-
-.quality-label {
-  font-size: 12px;
-  color: var(--text-secondary);
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.quality-options {
-  display: flex;
-  gap: 5px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
-.quality-btn {
-  padding: 5px;
-  background: var(--background-modifier-hover);
-  border: 1px solid var(--border-primary);
-  border-radius: var(--radius-base);
-  color: var(--text-secondary);
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  min-width: 42px;
-  text-align: center;
-}
-
-.quality-btn:hover {
-  background: var(--background-modifier-active);
-  color: var(--text-primary);
-  border-color: var(--border-hover);
-}
-
-.quality-btn.active {
-  background: var(--harmony-primary);
-  color: var(--text-on-primary);
-  border-color: var(--harmony-primary);
-}
-
-/* Actions */
-.menu-actions {
-  padding: 8px;
-}
-
-.menu-action {
+.vcm-header {
   display: flex;
   align-items: center;
   gap: 10px;
-  width: 100%;
-  padding: 10px 12px;
+  padding: 12px 14px;
+  background: var(--background-tertiary);
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.vcm-user {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.vcm-name {
+  font-weight: 600;
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vcm-status {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+
+.vcm-status-icon.warn {
+  color: var(--warning);
+}
+
+.vcm-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px 4px;
+}
+
+.vcm-note,
+.vcm-hint {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.vcm-hint {
+  padding: 4px 14px 10px;
+}
+
+.vcm-check {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  margin: 0 -8px;
+  width: calc(100% + 16px);
   background: transparent;
   border: none;
   border-radius: var(--radius-base);
   color: var(--text-secondary);
-  font-size: 14px;
-  cursor: pointer;
-  transition: all 0.15s ease;
+  font: inherit;
+  font-size: var(--font-size-sm);
   text-align: left;
+  cursor: pointer;
 }
 
-.menu-action:hover {
+.vcm-check:hover,
+.vcm-check:focus-visible {
   background: var(--background-modifier-hover);
   color: var(--text-primary);
+  outline: none;
 }
 
-.menu-action.active {
-  background: color-mix(in srgb, var(--error) 15%, transparent);
+.vcm-checkbox {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--text-muted);
+  border-radius: var(--radius-sm);
+  color: var(--text-on-primary);
+  flex-shrink: 0;
+}
+
+.vcm-checkbox.on {
+  background: var(--error);
+  border-color: var(--error);
+}
+
+.vcm-divider {
+  height: 1px;
+  background: var(--border-primary);
+}
+
+.vcm-actions {
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+}
+
+.vcm-action {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-base);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.vcm-action:hover,
+.vcm-action:focus-visible {
+  background: var(--background-modifier-hover);
+  color: var(--text-primary);
+  outline: none;
+}
+
+.vcm-action.danger {
   color: var(--error);
 }
 
-.menu-action.active:hover {
-  background: color-mix(in srgb, var(--error) 25%, transparent);
+.vcm-action.danger:hover,
+.vcm-action.danger:focus-visible {
+  background: color-mix(in srgb, var(--error) 15%, transparent);
+}
+
+.vcm-kbd {
+  margin-left: auto;
+  padding: 1px 6px;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
 }
 </style>
-

@@ -422,10 +422,12 @@ const router = createRouter({
         const authStore = useAuthStore();
         const isLoggedIn = authStore.isLoggedIn;
         
+        // Empty params: a named redirect otherwise inherits pathMatch, which
+        // neither 404 route declares.
         if (isLoggedIn) {
-          return { name: 'NotFound' };
+          return { name: 'NotFound', params: {} };
         } else {
-          return { name: 'NotFoundPublic' };
+          return { name: 'NotFoundPublic', params: {} };
         }
       }
     }

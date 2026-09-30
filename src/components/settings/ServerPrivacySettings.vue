@@ -3,7 +3,7 @@
     <div class="settings-section">
       <h2 class="section-title">{{ $t('server.privacySettings') }}</h2>
       <p class="section-description">
-        {{ permissions.canChangePrivacySettings ? $t('server.privacySettings') : $t('server.privacySettings') }}
+        {{ permissions.canChangePrivacySettings ? $t('server.privacySettingsDesc') : $t('server.privacySettingsViewDesc') }}
       </p>
     </div>
 

@@ -135,7 +135,11 @@
               :title="fundingTooltip"
               @click="showFundingModal = true"
             >
-              <span class="funding-label">{{ $t('activitypub.supportInstance') }}</span>
+              <span class="funding-head">
+                <Icon name="heart" :size="14" class="funding-heart" />
+                <span class="funding-label">{{ $t('activitypub.supportInstance') }}</span>
+                <span class="funding-percent">{{ fundingPercent }}%</span>
+              </span>
               <span class="funding-track" aria-hidden="true">
                 <span class="funding-fill" :style="{ width: fundingPercent + '%' }"></span>
               </span>
@@ -918,11 +922,33 @@ const formatNumber = (num: number): string => {
 
 .funding-card:hover {
   background: var(--background-modifier-hover);
+  border-color: var(--border-hover);
+}
+
+.funding-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.funding-heart {
+  flex-shrink: 0;
+  color: var(--harmony-primary);
 }
 
 .funding-label {
+  flex: 1;
+  min-width: 0;
   font-size: 13px;
   font-weight: 600;
+}
+
+.funding-percent {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
 }
 
 .funding-track {

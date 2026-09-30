@@ -10,9 +10,9 @@
         </div>
       </button>
       <h1 class="mobile-title">{{ showSidebar ? $t('server.serverSettings') : currentSectionLabel }}</h1>
-      <button class="mobile-back-btn" @click="back" aria-label="Back to chat">
-        <svg width="20" height="20" viewBox="0 0 24 24">
-          <path fill="currentColor" d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.42-1.41L7.83 13H20v-2z"/>
+      <button class="mobile-back-btn" @click="back" aria-label="Close settings">
+        <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+          <path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
         </svg>
       </button>
     </div>
@@ -60,7 +60,6 @@
       <div 
         class="server-settings-sidebar" 
         :class="{ 'mobile-hidden': isMobile && !showSidebar }"
-        v-touch:swipe.left="handleSidebarSwipe"
       >
         <nav class="settings-nav">
           <button 
@@ -267,7 +266,7 @@ const availableSections = computed(() => {
   const sections = [
     { id: 'overview', label: t('server.overview') },
     { id: 'roles', label: t('server.roles', 'Roles') },
-    { id: 'bans', label: 'Bans' },
+    { id: 'bans', label: t('server.bans') },
     { id: 'emoji', label: t('server.emoji') },
     { id: 'privacy', label: t('server.privacySettings') },
     { id: 'advanced', label: t('server.advancedSettings') }
@@ -313,12 +312,6 @@ const toggleSidebar = () => {
 
 const closeSidebar = () => {
   showSidebar.value = false
-}
-
-const handleSidebarSwipe = () => {
-  if (isMobile.value) {
-    closeSidebar()
-  }
 }
 
 const setActiveSection = (sectionId: string) => {
@@ -493,8 +486,11 @@ watch(hasChanges, (newValue) => {
 }
 
 /* Mobile Navigation */
+/* Stacks above .sidebar-overlay (z-index 999). */
 .mobile-nav {
   display: none;
+  position: relative;
+  z-index: 1001;
   height: 60px;
   background-color: var(--background-secondary);
   border-bottom: 1px solid var(--background-quaternary);
@@ -770,6 +766,7 @@ watch(hasChanges, (newValue) => {
 
   .server-settings-sidebar.mobile-hidden {
     transform: translateX(-100%);
+    box-shadow: none;
   }
   
   .server-settings-main {

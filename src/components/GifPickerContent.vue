@@ -199,9 +199,13 @@
 
       <!-- Trending/Search Results -->
       <template v-else>
-        <div v-if="items.length === 0 && !isLoading" class="empty-state">
+        <div v-if="items.length === 0 && !isLoading && loadError" class="empty-state" role="alert">
+          <p>{{ $t('gif.loadFailed', { kind: mediaNoun }) }}</p>
+          <button type="button" class="empty-retry" @click="fetchPage(true)">{{ $t('common.retry') }}</button>
+        </div>
+        <div v-else-if="items.length === 0 && !isLoading" class="empty-state">
           <p>No {{ mediaNoun }} found</p>
-          <span class="empty-hint">Try a different search term</span>
+          <span v-if="searchQuery.trim()" class="empty-hint">{{ $t('gif.tryDifferentSearch') }}</span>
         </div>
         <!-- Ads sit in full-width rows between masonry runs (masonry can't column-span). -->
         <div v-else class="gif-results-feed">
@@ -566,6 +570,8 @@ const applyFeed = (feed: Awaited<ReturnType<typeof gifProvider.trending>>) => {
 
 const isFavorited = (gifUrl: string): boolean => favoriteUrls.value.has(gifUrl);
 
+const loadError = ref(false);
+
 // Fetch a page of trending/search results. `reset` replaces the list and
 // resets pagination; otherwise the page is appended (infinite scroll).
 const fetchPage = async (reset: boolean) => {
@@ -579,10 +585,12 @@ const fetchPage = async (reset: boolean) => {
 
   const query = searchQuery.value.trim();
   const opts = { perPage: PER_PAGE, page: page.value };
+  loadError.value = false;
   try {
     const feed = query
       ? await gifProvider.search(query, opts, props.mediaType)
       : await gifProvider.trending(opts, props.mediaType);
+    loadError.value = !!feed.failed;
     if (reset) {
       applyFeed(feed);
       hasNext.value = feed.hasNext;
@@ -597,6 +605,11 @@ const fetchPage = async (reset: boolean) => {
       if (el) el.scrollTop = prevScroll;
       requestAnimationFrame(() => { if (el) el.scrollTop = prevScroll; });
     }
+  } catch (error) {
+    debug.error('GIF feed request failed:', error);
+    if (reset) items.value = [];
+    loadError.value = true;
+    hasNext.value = false;
   } finally {
     isLoading.value = false;
     loadingMore.value = false;
@@ -1162,6 +1175,21 @@ onMounted(async () => {
   color: var(--text-secondary);
 }
 
+
+.empty-retry {
+  margin-top: 4px;
+  padding: 6px 14px;
+  background: var(--background-modifier-hover);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-base);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+
+.empty-retry:hover {
+  background: var(--background-modifier-active);
+}
 
 /* Empty State */
 .empty-state {

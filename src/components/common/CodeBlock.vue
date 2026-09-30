@@ -14,13 +14,11 @@
         <span class="copy-text">{{ copied ? 'Copied' : 'Copy' }}</span>
       </button>
     </div>
-    <pre class="code-block" :data-language="language">
-      <code 
+    <pre class="code-block" :data-language="language"><code
+        ref="codeElement"
         :class="`language-${language}`"
         v-html="highlightedCode"
-        ref="codeElement"
-      ></code>
-    </pre>
+      ></code></pre>
   </div>
 </template>
 
@@ -355,9 +353,12 @@ export default defineComponent({
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', monospace;
 }
 
+/* Language and copy sit at the left: the message action bar overlays the row's top-right
+   corner, which is where a code block that opens a message has its header. */
 .code-block-header {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
+  gap: 8px;
   align-items: center;
   padding: 0 12px;
   background-color: var(--background-secondary-alpha);
@@ -374,9 +375,8 @@ export default defineComponent({
 .copy-button {
   display: flex;
   align-items: center;
-  /* gap: 4px; */
-  padding: 4px 8px;
-  margin-right: 180px;
+  gap: 4px;
+  padding: 2px 8px;
   background-color: var(--background-quinary);
   border: 1px solid var(--harmony-primary);
   border-radius: var(--radius-sm);

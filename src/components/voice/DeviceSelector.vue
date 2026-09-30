@@ -564,10 +564,6 @@ watch(isOpen, (newVal) => {
     justify-content: center;
   }
   
-  .chevron {
-    display: none;
-  }
-  
   .device-dropdown {
     min-width: 300px;
     max-width: 90vw;
@@ -607,6 +603,10 @@ watch(isOpen, (newVal) => {
   .device-dropdown-backdrop {
     background: rgba(0, 0, 0, 0.5);
     backdrop-filter: blur(4px);
+  }
+
+  :root[data-disable-blur="true"] .device-dropdown-backdrop {
+    backdrop-filter: none;
   }
   
   .device-dropdown {

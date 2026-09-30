@@ -15,13 +15,18 @@ import { debug } from '@/utils/debug'
 import { collectKlipyAdContext } from '@/utils/klipyAdContext'
 import { isMobileUserAgent } from '@/utils/pwaUtils'
 import type { GifResultItem } from '@/types'
+import { apiUrl } from '@/services/instanceConfig'
 
-const FEDERATION_API = '/api/federation'
+// apiUrl resolves against the stored instance on native builds, where relative URLs
+// point at the bundled app.
+const federationApi = (path: string) => apiUrl(`/api/federation${path}`)
 
 export interface GifFeed {
   items: GifResultItem[]
   page: number
   hasNext: boolean
+  /** The request failed; the empty item list is not a result. */
+  failed?: boolean
   meta?: {
     showAds?: boolean
     adMobileOnly?: boolean
@@ -53,7 +58,7 @@ async function clientHeaders(): Promise<Record<string, string>> {
 
 async function request(path: string, params: URLSearchParams, opts?: GifFetchOptions): Promise<GifFeed> {
   const headers = { Accept: 'application/json', ...(await clientHeaders()) }
-  const res = await fetch(`${FEDERATION_API}/gifs/${path}?${params}`, {
+  const res = await fetch(federationApi(`/gifs/${path}?${params}`), {
     method: 'GET',
     headers,
     signal: opts?.signal,
@@ -97,7 +102,7 @@ export const gifProvider = {
       return await request(`${pathPrefix(mediaType)}trending`, buildParams(opts, mediaType), opts)
     } catch (err) {
       if ((err as Error)?.name !== 'AbortError') debug.error(`Failed to fetch trending ${mediaType}:`, err)
-      return { items: [], page: 1, hasNext: false }
+      return { items: [], page: 1, hasNext: false, failed: (err as Error)?.name !== 'AbortError' }
     }
   },
 
@@ -108,7 +113,7 @@ export const gifProvider = {
       return await request(`${pathPrefix(mediaType)}search`, params, opts)
     } catch (err) {
       if ((err as Error)?.name !== 'AbortError') debug.error(`Failed to search ${mediaType}:`, err)
-      return { items: [], page: 1, hasNext: false }
+      return { items: [], page: 1, hasNext: false, failed: (err as Error)?.name !== 'AbortError' }
     }
   },
 
@@ -119,7 +124,7 @@ export const gifProvider = {
     if (opts?.locale) params.set('locale', opts.locale)
     try {
       const headers = { Accept: 'application/json', ...(await clientHeaders()) }
-      const res = await fetch(`${FEDERATION_API}/gifs/suggest?${params}`, {
+      const res = await fetch(federationApi(`/gifs/suggest?${params}`), {
         method: 'GET',
         headers,
         signal: opts?.signal,

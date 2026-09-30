@@ -1,8 +1,20 @@
 <template>
   <Teleport to="body">
     <!-- Full-screen ringing modal; clicking the backdrop minimizes instead of blocking -->
-    <div v-if="show && !isMinimized" class="incoming-call-overlay" @click.self="isMinimized = true">
-      <div class="incoming-call-modal" :class="{ 'video-call': callType === 'video' }">
+    <div
+      v-if="show && !isMinimized"
+      class="incoming-call-overlay"
+      @click.self="isMinimized = true"
+      @keydown.esc.stop.prevent="isMinimized = true"
+    >
+      <div
+        class="incoming-call-modal"
+        :class="{ 'video-call': callType === 'video' }"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="incoming-call-title"
+        aria-describedby="incoming-call-subtitle"
+      >
         <button class="minimize-btn" title="Minimize" @click="isMinimized = true">
           <Icon name="minimize-2" :size="16" />
         </button>
@@ -21,9 +33,18 @@
             </div>
           </div>
 
-          <h2 class="caller-name"><DisplayName :user-id="callerId" :fallback="callerName" /></h2>
-          <p class="call-type-text">
-            {{ callType === 'video' ? 'Incoming video call' : 'Incoming voice call' }}
+          <h2 id="incoming-call-title" class="caller-name">
+            <template v-if="groupName">{{ groupName }}</template>
+            <DisplayName v-else :user-id="callerId" :fallback="callerName" />
+          </h2>
+          <p id="incoming-call-subtitle" class="call-type-text">
+            <template v-if="groupName">
+              <DisplayName :user-id="callerId" :fallback="callerName" />
+              {{ callType === 'video' ? 'started a video call' : 'started a voice call' }}
+            </template>
+            <template v-else>
+              {{ callType === 'video' ? 'Incoming video call' : 'Incoming voice call' }}
+            </template>
           </p>
 
           <div class="ringing-text">
@@ -45,6 +66,7 @@
           </button>
 
           <button
+            ref="acceptButtonRef"
             @click="handleAccept('voice')"
             class="call-btn accept-btn voice-accept"
             title="Accept voice call"
@@ -67,7 +89,13 @@
     </div>
 
     <!-- Minimized floating card: keeps ringing without blocking the app -->
-    <div v-if="show && isMinimized" class="incoming-call-mini" @click="isMinimized = false">
+    <div
+      v-if="show && isMinimized"
+      class="incoming-call-mini"
+      role="alertdialog"
+      aria-labelledby="incoming-call-mini-name"
+      @click="isMinimized = false"
+    >
       <Avatar
         :src="callerAvatar"
         :alt="callerName"
@@ -75,7 +103,10 @@
         class="mini-avatar"
       />
       <div class="mini-info">
-        <span class="mini-name"><DisplayName :user-id="callerId" :fallback="callerName" /></span>
+        <span id="incoming-call-mini-name" class="mini-name">
+          <template v-if="groupName">{{ groupName }}</template>
+          <DisplayName v-else :user-id="callerId" :fallback="callerName" />
+        </span>
         <span class="mini-subtitle">
           {{ callType === 'video' ? 'Incoming video call' : 'Incoming call' }}
         </span>
@@ -93,11 +124,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onUnmounted } from 'vue'
+import { computed, nextTick, ref, watch, onUnmounted } from 'vue'
 import Avatar from '@/components/common/Avatar.vue'
 import Icon from '@/components/common/Icon.vue'
 import DisplayName from '@/components/DisplayName.vue'
 import { useThemeStore } from '@/stores/useTheme'
+import { useDMStore } from '@/stores/useDM'
 
 interface Props {
   show: boolean
@@ -116,7 +148,16 @@ const emit = defineEmits<{
 }>()
 
 const themeStore = useThemeStore()
+const dmStore = useDMStore()
 const isMinimized = ref(false)
+const acceptButtonRef = ref<HTMLButtonElement | null>(null)
+
+// Group DMs name the group; the caller moves to the subtitle (Discord).
+const groupName = computed(() => {
+  const conv = dmStore.conversations.find(c => c.id === props.conversationId)
+  if (!conv || conv.type !== 'group') return ''
+  return conv.name || 'Group call'
+})
 let ringtoneInterval: number | null = null
 
 const startRingtone = () => {
@@ -145,6 +186,13 @@ watch(() => props.show, (isShowing) => {
     stopRingtone()
   }
 }, { immediate: true })
+
+// Keyboard users land on Accept; Esc minimizes.
+watch(() => props.show && !isMinimized.value, async (visible) => {
+  if (!visible) return
+  await nextTick()
+  acceptButtonRef.value?.focus()
+})
 
 onUnmounted(() => {
   stopRingtone()
@@ -334,6 +382,17 @@ const handleDecline = () => {
   display: flex;
   gap: 16px;
   justify-content: center;
+}
+
+:root[data-disable-blur="true"] .incoming-call-overlay {
+  backdrop-filter: none;
+}
+
+.call-btn:focus-visible,
+.mini-btn:focus-visible,
+.minimize-btn:focus-visible {
+  outline: 2px solid var(--text-primary);
+  outline-offset: 2px;
 }
 
 .call-btn {

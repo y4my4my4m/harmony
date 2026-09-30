@@ -10,8 +10,12 @@
         class="server-name"
         :class="{ open: isDropdownOpen }"
         role="button"
+        tabindex="0"
+        aria-haspopup="menu"
         :aria-expanded="isDropdownOpen"
         @click.stop="toggleDropdown"
+        @keydown.enter.prevent.stop="toggleDropdown"
+        @keydown.space.prevent.stop="toggleDropdown"
       >
         <span class="server-name-text">{{ currentServer.name }}</span>
         <Icon name="chevron-down" :size="16" class="server-name-chevron" />
@@ -55,7 +59,11 @@
                 'channel-unread': hasUnreadMessages(element.id) && element.id !== currentChannelId,
                 'muted': mutedChannelIds.has(element.id)
               }]" 
+              role="button"
+              tabindex="0"
+              :aria-current="element.id === currentChannelId && !selectedThreadId ? 'page' : undefined"
               @click="isVoiceType(element.type) ? handleVoiceChannelClick(element.id) : selectChannel(element.id)"
+              @keydown.enter.self.prevent="isVoiceType(element.type) ? handleVoiceChannelClick(element.id) : selectChannel(element.id)"
               @contextmenu="openChannelContextMenu($event, element)"
               :style="{ cursor: getDragCursor('channel', dragState.isDragging && dragState.draggedItem?.id === element.id) }"
             >
@@ -106,7 +114,10 @@
               :key="thread.id"
               class="channel-thread-item"
               :class="{ 'selected': selectedThreadId === thread.id }"
+              role="button"
+              tabindex="0"
               @click.stop="openThread(thread)"
+              @keydown.enter.self.prevent="openThread(thread)"
               @contextmenu.stop="openThreadContextMenu($event, thread)"
             >
               <div class="thread-branch"></div>
@@ -130,7 +141,12 @@
         <div :key="category.id" class="category-section">
           <div 
             class="category-header"
+            role="button"
+            tabindex="0"
+            :aria-expanded="!collapsedCategories.has(category.id)"
             @click="toggleCategory(category.id)"
+            @keydown.enter.self.prevent="toggleCategory(category.id)"
+            @keydown.space.self.prevent="toggleCategory(category.id)"
             @contextmenu="openCategoryContextMenu($event, category)"
             :class="{ 
               'collapsed': collapsedCategories.has(category.id),
@@ -185,7 +201,11 @@
                       'channel-unread': hasUnreadMessages(channel.id) && channel.id !== currentChannelId,
                       'muted': mutedChannelIds.has(channel.id)
                     }"
+                    role="button"
+                    tabindex="0"
+                    :aria-current="currentChannelId === channel.id && !selectedThreadId ? 'page' : undefined"
                     @click="isVoiceType(channel.type) ? handleVoiceChannelClick(channel.id) : selectChannel(channel.id)"
+                    @keydown.enter.self.prevent="isVoiceType(channel.type) ? handleVoiceChannelClick(channel.id) : selectChannel(channel.id)"
                     @contextmenu="openChannelContextMenu($event, channel)"
                     :style="{ cursor: getDragCursor('channel', dragState.isDragging && dragState.draggedItem?.id === channel.id) }"
                   >
@@ -236,7 +256,10 @@
                     :key="thread.id"
                     class="channel-thread-item"
                     :class="{ 'selected': selectedThreadId === thread.id }"
+                    role="button"
+                    tabindex="0"
                     @click.stop="openThread(thread)"
+                    @keydown.enter.self.prevent="openThread(thread)"
                     @contextmenu.stop="openThreadContextMenu($event, thread)"
                   >
                     <div class="thread-branch"></div>
@@ -1234,13 +1257,23 @@ const channelMuteChangedHandler = (event: Event) => {
   mutedChannelIds.value = next;
 };
 
+const closeContextMenusOnEscape = (event: KeyboardEvent) => {
+  if (event.key === 'Escape') closeContextMenus();
+};
+
+// contextmenu is captured so any right-click, including one whose trigger
+// stops propagation, dismisses these menus before a new one opens.
 onMounted(() => {
   document.addEventListener('click', closeContextMenus);
+  document.addEventListener('contextmenu', closeContextMenus, true);
+  document.addEventListener('keydown', closeContextMenusOnEscape);
   window.addEventListener('channel-mute-changed', channelMuteChangedHandler);
 });
 
 onUnmounted(() => {
   document.removeEventListener('click', closeContextMenus);
+  document.removeEventListener('contextmenu', closeContextMenus, true);
+  document.removeEventListener('keydown', closeContextMenusOnEscape);
   window.removeEventListener('channel-mute-changed', channelMuteChangedHandler);
 });
 

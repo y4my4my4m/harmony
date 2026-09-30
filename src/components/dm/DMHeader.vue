@@ -298,12 +298,14 @@ import { authContextService } from '@/services/AuthContextService'
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
+import { dmConversationIdFromChannel, useCallSwitch } from '@/composables/useCallSwitch'
 
 const router = useRouter()
 const { confirm } = useConfirmDialog()
 const toast = useToast()
 const voiceStore = useUnifiedVoiceChannelStore()
 const authStore = useAuthStore()
+const { leaveCurrentCallFor } = useCallSwitch()
 
 let callerRingtoneInterval: ReturnType<typeof setInterval> | null = null
 let callerRingtoneCap: ReturnType<typeof setTimeout> | null = null
@@ -363,9 +365,14 @@ const emit = defineEmits<{
   'incoming-call': [payload: { callerId: string, callType: 'voice' | 'video', conversationId: string }]
 }>()
 
-// Voice/video call state mirrors the voice store.
-const isInVoiceCall = computed(() => voiceStore.isConnected && (voiceStore.currentChannelId?.startsWith('dm-') || voiceStore.currentChannelId?.startsWith('federated-dm-')))
-const isInVideoCall = computed(() => voiceStore.localState.isVideoEnabled)
+// Call state for THIS conversation. Another DM or a server voice channel
+// does not count: its buttons would otherwise read "End call" here and a
+// signal for this conversation would hang up the other call.
+const isInVoiceCall = computed(() =>
+  voiceStore.isConnectedOrJoining &&
+  dmConversationIdFromChannel(voiceStore.effectiveChannelId) === props.conversation.id
+)
+const isInVideoCall = computed(() => isInVoiceCall.value && voiceStore.localState.isVideoEnabled)
 
 // Active call state for any DM (1:1 or group). Reading callStateVersion
 // establishes the reactive dependency.
@@ -648,8 +655,8 @@ const handleStartCallRequest = (e: Event) => {
   const targetConversationId: string | undefined = detail.conversationId
   const callType: 'voice' | 'video' = detail.callType || 'voice'
   if (!targetConversationId || targetConversationId !== props.conversation.id) return
-  // An existing call takes precedence.
-  if (isInVoiceCall.value || voiceStore.isConnected) return
+  // Already in this call: nothing to start. Another call asks to switch.
+  if (isInVoiceCall.value) return
   if (callType === 'video') {
     void toggleVideoCall()
   } else {
@@ -907,20 +914,16 @@ const toggleVoiceCall = async () => {
         if (profileId) await dmCallSignaling.endFederatedCall(props.conversation.id, profileId)
       }
       await voiceStore.leaveVoiceChannel()
-      toast.info('Left call')
     } else {
       debug.log('Starting DM voice call...')
-      
+
       const profileId = await authContextService.getCurrentProfileId()
       if (!profileId) {
         toast.error('Authentication required')
         return
       }
-      
-      if (voiceStore.isConnected) {
-        toast.error('You are already in a call')
-        return
-      }
+
+      if (!(await leaveCurrentCallFor())) return
       
       // For 1-on-1 DMs, check permissions (skip for federated - permissions are local only)
       if (props.conversation.type !== 'group' && props.conversation.other_user?.id && !isFederatedUser.value) {
@@ -965,10 +968,8 @@ const startLocalCall = async (profileId: string, callType: 'voice' | 'video') =>
     if (callType === 'video') {
       await voiceStore.toggleVideo()
     }
-    toast.success('Calling...')
     startCallerRinging()
     voiceStore.isOverlayVisible = true
-    await new Promise(resolve => setTimeout(resolve, 100))
     debug.log(`${callType} call overlay opened for caller`)
   } else {
     toast.error('Failed to start call')
@@ -1015,10 +1016,8 @@ const startFederatedCall = async (profileId: string, callType: 'voice' | 'video'
     if (callType === 'video') {
       await voiceStore.toggleVideo()
     }
-    toast.success('Calling...')
     startCallerRinging()
     voiceStore.isOverlayVisible = true
-    await new Promise(resolve => setTimeout(resolve, 100))
     debug.log(`Federated ${callType} call initiated`)
   } else {
     toast.error('Failed to start call')
@@ -1046,15 +1045,14 @@ const joinActiveCall = async () => {
     }
     
     const dmChannelId = `dm-${props.conversation.id}`
-    
+    if (!(await leaveCurrentCallFor(dmChannelId))) return
+
     await dmCallSignaling.joinCall(props.conversation.id, profileId)
-    
+
     const success = await voiceStore.joinVoiceChannel(dmChannelId, 'dm')
-    
+
     if (success) {
-      toast.success('Joined call')
       voiceStore.isOverlayVisible = true
-      await new Promise(resolve => setTimeout(resolve, 100))
       debug.log('Joined group call (maximized)')
     } else {
       toast.error('Failed to join call')
@@ -1074,10 +1072,7 @@ const toggleVideoCall = async () => {
     }
     
     if (!isInVoiceCall.value) {
-      if (voiceStore.isConnected) {
-        toast.error('You are already in a call')
-        return
-      }
+      if (!(await leaveCurrentCallFor())) return
       
       // For 1-on-1 DMs, check permissions (skip for federated)
       if (props.conversation.type !== 'group' && props.conversation.other_user?.id && !isFederatedUser.value) {
@@ -1100,14 +1095,9 @@ const toggleVideoCall = async () => {
       }
     } else {
       await voiceStore.toggleVideo()
-      
-      if (voiceStore.localState.isVideoEnabled) {
-        toast.success('Camera on')
-        if (!voiceStore.isOverlayVisible) {
-          voiceStore.isOverlayVisible = true
-        }
-      } else {
-        toast.info('Camera off')
+
+      if (voiceStore.localState.isVideoEnabled && !voiceStore.isOverlayVisible) {
+        voiceStore.isOverlayVisible = true
       }
     }
   } catch (error) {

@@ -12,6 +12,7 @@
 
 import { debug } from '@/utils/debug'
 import { supabase } from '@/supabase'
+import { apiUrl } from '@/services/instanceConfig'
 
 // Types
 export interface RemoteServer {
@@ -71,7 +72,9 @@ export interface DiscoverServerResult {
 }
 
 // Federation backend base path (proxied via nginx)
-const FEDERATION_API = '/api/federation'
+// apiUrl resolves against the stored instance on native builds, where relative URLs
+// point at the bundled app.
+const federationApi = (path: string) => apiUrl(`/api/federation${path}`)
 
 const INVITE_PATH_RE = /^\/invite\/([A-Za-z0-9_-]+)\/?$/
 
@@ -144,7 +147,7 @@ export class FederationServerService {
       }
 
       const response = await fetch(
-        `${FEDERATION_API}/servers/discover?${params}`,
+        federationApi(`/servers/discover?${params}`),
         {
           method: 'GET',
           headers: {
@@ -217,7 +220,7 @@ export class FederationServerService {
       // Route through local backend to avoid CORS issues
       // Backend will proxy the request to the remote instance
       const response = await fetch(
-        `${FEDERATION_API}/invites/resolve`,
+        federationApi(`/invites/resolve`),
         {
           method: 'POST',
           headers: {
@@ -303,7 +306,7 @@ export class FederationServerService {
       }
 
       const response = await fetch(
-        `${FEDERATION_API}/servers/join`,
+        federationApi(`/servers/join`),
         {
           method: 'POST',
           headers: {
@@ -363,7 +366,7 @@ export class FederationServerService {
       }
 
       const response = await fetch(
-        `${FEDERATION_API}/servers/leave`,
+        federationApi(`/servers/leave`),
         {
           method: 'POST',
           headers: {
@@ -411,7 +414,7 @@ export class FederationServerService {
       debug.log(`Syncing server: ${serverId}`)
 
       const response = await fetch(
-        `${FEDERATION_API}/servers/${serverId}/sync`,
+        federationApi(`/servers/${serverId}/sync`),
         {
           method: 'GET',
           headers: {

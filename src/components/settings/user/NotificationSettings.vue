@@ -19,7 +19,7 @@
       <div class="setting-item">
         <div class="setting-info">
           <h4 class="setting-label">{{ $t('user.dnd') }}</h4>
-          <p class="setting-description">Suppress notifications during specified hours</p>
+          <p class="setting-description">Silence sounds, pop-ups and push during set hours. Notifications still reach your inbox.</p>
         </div>
         <div class="setting-control">
           <ToggleSwitch 
@@ -279,7 +279,7 @@
         <Icon name="x-circle" />
         <div>
           <strong>Notification permission blocked</strong>
-          <p>You've blocked notifications for this site. Please enable them in your browser settings.</p>
+          <p>Notifications are blocked for this site. Allow them in the browser's site settings, then reload; push resumes on its own.</p>
         </div>
       </div>
 
@@ -311,7 +311,7 @@
         >
           <Icon v-if="pushNotifications.isLoading.value" name="loader" class="spinning" />
           <Icon v-else name="bell" />
-          <span>Enable push notifications</span>
+          <span>Turn on for this device</span>
         </button>
 
         <button 
@@ -322,7 +322,7 @@
         >
           <Icon v-if="pushNotifications.isLoading.value" name="loader" class="spinning" />
           <Icon v-else name="bell-off" />
-          <span>Disable push notifications</span>
+          <span>Turn off for this device</span>
         </button>
 
         <button 
@@ -337,46 +337,61 @@
         </button>
       </div>
 
-      <!-- Push preferences: account-wide, shown when subscribed on any device -->
-      <div v-if="preferences.push_notifications && (pushNotifications.isSubscribed.value || pushNotifications.subscriptions.value.length > 0)" class="push-preferences">
-      <div class="setting-item">
-        <div class="setting-info">
-            <h4 class="setting-label">Only when offline</h4>
-            <p class="setting-description">Only send push notifications when you're not actively using the app</p>
-        </div>
-        <div class="setting-control">
-          <ToggleSwitch 
-              v-model="preferences.push_offline_only"
-            @change="updatePreferences"
-          />
-        </div>
-      </div>
-
+      <!-- Push preferences: account-wide, apply to every subscribed device -->
+      <div v-if="pushNotifications.isSubscribed.value || pushNotifications.subscriptions.value.length > 0" class="push-preferences">
         <div class="setting-item">
-        <div class="setting-info">
-            <h4 class="setting-label">Mentions</h4>
-            <p class="setting-description">Receive push notifications when you're mentioned</p>
-        </div>
-        <div class="setting-control">
-            <ToggleSwitch 
-              v-model="preferences.push_mentions"
-            @change="updatePreferences"
+          <div class="setting-info">
+            <h4 class="setting-label">Push to my devices</h4>
+            <p class="setting-description">Turns push off everywhere without removing any device</p>
+          </div>
+          <div class="setting-control">
+            <ToggleSwitch
+              v-model="preferences.push_notifications"
+              @change="updatePreferences"
             />
-        </div>
-      </div>
-
-      <div class="setting-item">
-        <div class="setting-info">
-            <h4 class="setting-label">Direct messages</h4>
-            <p class="setting-description">Receive push notifications for new DMs</p>
-        </div>
-        <div class="setting-control">
-          <ToggleSwitch 
-              v-model="preferences.push_dms"
-            @change="updatePreferences"
-          />
           </div>
         </div>
+
+        <template v-if="preferences.push_notifications">
+          <div class="setting-item">
+            <div class="setting-info">
+              <h4 class="setting-label">Only when I'm away</h4>
+              <p class="setting-description">Skip push while Harmony is open and in use on another device</p>
+            </div>
+            <div class="setting-control">
+              <ToggleSwitch
+                v-model="preferences.push_offline_only"
+                @change="updatePreferences"
+              />
+            </div>
+          </div>
+
+          <div class="setting-item">
+            <div class="setting-info">
+              <h4 class="setting-label">Mentions</h4>
+              <p class="setting-description">Receive push notifications when you're mentioned</p>
+            </div>
+            <div class="setting-control">
+              <ToggleSwitch
+                v-model="preferences.push_mentions"
+                @change="updatePreferences"
+              />
+            </div>
+          </div>
+
+          <div class="setting-item">
+            <div class="setting-info">
+              <h4 class="setting-label">Direct messages</h4>
+              <p class="setting-description">Receive push notifications for new DMs</p>
+            </div>
+            <div class="setting-control">
+              <ToggleSwitch
+                v-model="preferences.push_dms"
+                @change="updatePreferences"
+              />
+            </div>
+          </div>
+        </template>
       </div>
 
       <!-- Native client with nothing to manage -->
@@ -402,8 +417,13 @@
             <div class="device-info">
               <Icon :name="getDeviceIcon(sub.user_agent)" class="device-icon" />
               <div class="device-details">
-                <span class="device-name">{{ sub.device_name || getDeviceName(sub.user_agent) }}</span>
-                <span class="device-date">Added {{ formatDate(sub.created_at) }}</span>
+                <span class="device-name">
+                  {{ sub.device_name || getDeviceName(sub.user_agent) }}
+                  <span v-if="sub.endpoint === pushNotifications.currentEndpoint.value" class="device-current">This device</span>
+                </span>
+                <span class="device-date">
+                  Added {{ formatDate(sub.created_at) }}<template v-if="sub.failure_count >= 5"> · Not reachable</template>
+                </span>
               </div>
             </div>
             <button 
@@ -1095,20 +1115,24 @@ const pushSectionDescription = computed(() => {
 const handlePushSubscribe = async () => {
   const result = await pushNotifications.subscribe()
   if (result.success) {
-    preferences.push_notifications = true
-    await updatePreferences()
-    toast.success('Push notifications enabled')
+    localStorage.removeItem('harmony-push-disabled')
+    // A device just opted in; an account-wide off switch would silence it.
+    if (!preferences.push_notifications) {
+      preferences.push_notifications = true
+      await updatePreferences()
+    }
+    toast.success('Push notifications are on for this device')
   } else {
     toast.error(result.error || 'Failed to enable push notifications')
   }
 }
 
+// This device only; the account-wide switch and other devices are untouched.
 const handlePushUnsubscribe = async () => {
   const result = await pushNotifications.unsubscribe()
   if (result.success) {
-    preferences.push_notifications = false
-    await updatePreferences()
-    toast.success('Push notifications disabled')
+    localStorage.setItem('harmony-push-disabled', 'true')
+    toast.success('Push notifications are off for this device')
   } else {
     toast.error(result.error || 'Failed to disable push notifications')
   }
@@ -1190,7 +1214,8 @@ onMounted(async () => {
     hasNotificationPermission.value = typeof Notification !== 'undefined' && Notification.permission === 'granted'
   }
   loadPreferences()
-  pushNotifications.initialize()
+  if (!isNativeClient) void pushNotifications.reconcile()
+  else void pushNotifications.initialize()
 })
 
 // Watch for changes in the store
@@ -1911,6 +1936,16 @@ watch(() => notificationStore.preferences, (newPreferences) => {
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
   color: var(--text-primary);
+}
+
+.device-current {
+  margin-left: var(--spacing-xs, 4px);
+  padding: 1px 6px;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--harmony-primary) 15%, transparent);
+  color: var(--h-brand);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold, 600);
 }
 
 .device-date {

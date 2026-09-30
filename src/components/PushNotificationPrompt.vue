@@ -36,7 +36,9 @@ import { debug } from '@/utils/debug'
 import { usePushNotifications } from '@/composables/usePushNotifications'
 import { isPWA, isMobileUserAgent } from '@/utils/pwaUtils'
 import { supportsWebPush } from '@/utils/platform'
+import { useAuthStore } from '@/stores/auth'
 
+const authStore = useAuthStore()
 const showBanner = ref(false)
 const enabling = ref(false)
 
@@ -45,7 +47,7 @@ const {
   isSubscribed,
   permission,
   subscribe,
-  initialize
+  reconcile
 } = usePushNotifications()
 
 const wasRecentlyDismissed = (): boolean => {
@@ -84,6 +86,7 @@ const hasUserDecided = (): boolean => {
 }
 
 const shouldShowPrompt = (): boolean => {
+  if (!authStore.isLoggedIn) return false
   // Web push only exists in browsers - never in the native client
   if (!supportsWebPush() || !isSupported.value) {
     debug.log('Push prompt: Not supported')
@@ -120,7 +123,7 @@ const enablePush = async () => {
     
     if (result.success) {
       showBanner.value = false
-      debug.log('Push notifications enabled from prompt')
+      localStorage.removeItem('harmony-push-disabled')
     } else {
       debug.error('Failed to enable push:', result.error)
       // If permission denied, don't show again
@@ -149,18 +152,16 @@ const closeBanner = () => {
   debug.log('Push prompt closed (30 days)')
 }
 
-onMounted(async () => {
-  // Only initialize push system if PWA (to avoid unnecessary VAPID fetch)
-  if (isPWA()) {
-    await initialize()
-  }
-  
-  // Defer past app boot.
-  setTimeout(() => {
+onMounted(() => {
+  // Only installed apps are prompted. The decision waits for reconcile, which may
+  // restore an existing subscription silently.
+  if (!isPWA()) return
+  setTimeout(async () => {
+    await reconcile()
     if (shouldShowPrompt()) {
       showBanner.value = true
     }
-  }, 3000) // 3 second delay
+  }, 3000)
 })
 </script>
 

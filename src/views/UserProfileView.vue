@@ -246,6 +246,17 @@
             />
           </div>
 
+          <ProfileMediaGrid
+            v-else-if="activeTab === 'media'"
+            :author-id="user.id"
+            :display-name="plainDisplayName"
+            :is-own-profile="isCurrentUser"
+            :outbox-url="user.is_local ? null : remoteOutboxUrl"
+            :domain="user.domain"
+            :scroll-root="scrollContainerRef"
+            @imported="loadMediaCount"
+          />
+
           <!-- Following Tab -->
           <div v-else-if="activeTab === 'following'" class="following-tab">
             <div v-if="followingUsers.length === 0" class="empty-state">
@@ -306,7 +317,6 @@
 
 <script setup lang="ts">
 import { computed, ref, watch, onMounted, onUnmounted } from 'vue';
-import { apiUrl } from '@/services/instanceConfig';
 import { storeToRefs } from 'pinia';
 import { debug } from '@/utils/debug'
 import { throttle } from '@/utils/throttle'
@@ -336,6 +346,7 @@ import DisplayName from '@/components/DisplayName.vue'
 import MonyContent from '@/components/activitypub/MonyContent.vue';
 import MonyPost from '@/components/activitypub/MonyPost.vue';
 import PostsContainer from '@/components/common/PostsContainer.vue';
+import ProfileMediaGrid from '@/components/activitypub/ProfileMediaGrid.vue';
 import ProfileCard from '@/components/common/ProfileCard.vue';
 import UserProfileModal from '@/components/UserProfileModal.vue';
 import ReportModal from '@/components/moderation/ReportModal.vue';
@@ -454,6 +465,7 @@ useFeedRealtime(feedKind, {
     if (!fullPost) return
     userPosts.value = [fullPost as TimelinePost, ...userPosts.value]
     if (user.value) user.value.posts_count = (user.value.posts_count ?? 0) + 1
+    void loadMediaCount()
   },
   onUpdate: (event) => {
     if (event.author_id !== user.value?.id) return
@@ -462,6 +474,7 @@ useFeedRealtime(feedKind, {
     // component refetch. Count-update echoes are ignored.
     if (event.visibility === 'direct' || event.visibility === 'private') {
       userPosts.value = userPosts.value.filter(p => p.id !== event.id)
+      void loadMediaCount()
     }
   },
   onDelete: (event) => {
@@ -471,8 +484,12 @@ useFeedRealtime(feedKind, {
     if (user.value && before !== userPosts.value.length) {
       user.value.posts_count = Math.max(0, (user.value.posts_count ?? 1) - 1)
     }
+    void loadMediaCount()
   },
 })
+
+// Posts with images or video visible to the viewer; null until counted.
+const mediaCount = ref<number | null>(null);
 
 // Social connections
 const followingUsers = ref<FederatedUser[]>([]);
@@ -502,6 +519,12 @@ const profileTabs = computed(() => [
     label: t('activitypub.monies'), 
     icon: 'message-circle',
     count: user.value?.posts_count || 0
+  },
+  {
+    id: 'media',
+    label: t('activitypub.media'),
+    icon: 'image',
+    count: mediaCount.value ?? undefined
   },
   { 
     id: 'following',
@@ -646,6 +669,7 @@ const loadUserProfile = async (handle: string, forceRefresh: boolean = false) =>
   error.value = null;
   user.value = null;
   followRequested.value = false;
+  mediaCount.value = null;
   
   try {
     if (handle.startsWith('@')) {
@@ -741,6 +765,7 @@ const loadUserProfile = async (handle: string, forceRefresh: boolean = false) =>
       await Promise.all([
         loadUserPosts(),
         loadPinnedPosts(),
+        loadMediaCount(),
         loadFollowing(),
         loadFollowers(),
         loadRelationship()
@@ -832,6 +857,17 @@ const loadUserPosts = async (retryCount = 0) => {
   }
 };
 
+const loadMediaCount = async () => {
+  const target = user.value;
+  if (!target?.id) return;
+  try {
+    const count = await activityPubService.countProfileMedia(target.id);
+    if (user.value?.id === target.id) mediaCount.value = count;
+  } catch (err) {
+    debug.warn('Failed to count profile media:', err);
+  }
+};
+
 const loadFollowing = async () => {
   if (!user.value) return;
   
@@ -900,48 +936,36 @@ const loadMorePosts = async () => {
       try {
         const oldestPost = userPosts.value[userPosts.value.length - 1];
         const maxId = oldestPost?.ap_id || oldestRemotePostId.value;
-        
-        const response = await fetch(apiUrl('/api/federation/fetch-posts'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            user_id: user.value.id,
-            outbox_url: remoteOutboxUrl.value,
-            max_id: maxId,
-            limit: 10
-          })
+
+        const result = await activityPubService.importRemoteOutboxPage(user.value.id, remoteOutboxUrl.value, {
+          maxId,
+          limit: 10
         });
-        
-        if (response.ok) {
-          const result = await response.json();
-          oldestRemotePostId.value = result.oldest_id;
-          debug.log(`Federation response: has_more=${result.has_more}, next_page=${result.next_page}`);
+        oldestRemotePostId.value = result.oldestId;
+        debug.log(`Federation response: has_more=${result.hasMore}`);
 
-          // Newly-imported posts are merged, not swapped in wholesale: a full
-          // replace re-renders every visible note on each page fetch, and on
-          // short pages the scroll handler fires repeatedly.
-          const posts = await activityPubService.getUserPosts(user.value.id, { limit: 100 });
-          const knownIds = new Set(userPosts.value.map(p => p.id));
-          const newPosts = ((posts as TimelinePost[]) || []).filter(p => !knownIds.has(p.id));
+        // Newly-imported posts are merged, not swapped in wholesale: a full
+        // replace re-renders every visible note on each page fetch, and on
+        // short pages the scroll handler fires repeatedly.
+        const posts = await activityPubService.getUserPosts(user.value.id, { limit: 100 });
+        const knownIds = new Set(userPosts.value.map(p => p.id));
+        const newPosts = ((posts as TimelinePost[]) || []).filter(p => !knownIds.has(p.id));
 
-          if (newPosts.length > 0) {
-            userPosts.value = [...userPosts.value, ...newPosts]
-              .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-            hasMorePostsRef.value = result.has_more;
-            debug.log(`Merged ${newPosts.length} new posts (total ${userPosts.value.length})`);
+        if (newPosts.length > 0) {
+          userPosts.value = [...userPosts.value, ...newPosts]
+            .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+          hasMorePostsRef.value = result.hasMore;
+          debug.log(`Merged ${newPosts.length} new posts (total ${userPosts.value.length})`);
 
-            const postReactionsStore = usePostReactionsStore();
-            postReactionsStore.fetchMultiplePostReactions(newPosts.map(p => p.id), true);
-            activityPubStore.batchFetchRemoteReactions(newPosts);
-          } else {
-            // Nothing new; clearing the flag stops the scroll handler from
-            // re-firing this request in a loop.
-            hasMorePostsRef.value = false;
-            debug.log('Remote fetch returned no new posts - stopping pagination');
-          }
+          const postReactionsStore = usePostReactionsStore();
+          postReactionsStore.fetchMultiplePostReactions(newPosts.map(p => p.id), true);
+          activityPubStore.batchFetchRemoteReactions(newPosts);
+          void loadMediaCount();
         } else {
-          debug.warn('Failed to fetch remote posts:', response.status);
+          // Nothing new; clearing the flag stops the scroll handler from
+          // re-firing this request in a loop.
           hasMorePostsRef.value = false;
+          debug.log('Remote fetch returned no new posts - stopping pagination');
         }
       } catch (fetchError) {
         debug.error('Remote fetch error:', fetchError);
@@ -1617,15 +1641,24 @@ onUnmounted(() => {
 
 .tab-btn {
   display: flex;
+  flex: 1 1 0;
+  min-width: 0;
   align-items: center;
+  justify-content: center;
   gap: 0.5rem;
   background: none;
   border: none;
   color: var(--text-tertiary);
-  padding: 1rem 1.5rem;
+  padding: 1rem 0.5rem;
   cursor: pointer;
   transition: all 0.2s;
   border-bottom: 2px solid transparent;
+  white-space: nowrap;
+}
+
+.tab-btn:focus-visible {
+  outline: 2px solid var(--harmony-primary);
+  outline-offset: -2px;
 }
 
 .tab-btn:hover {
@@ -1834,12 +1867,11 @@ onUnmounted(() => {
   }
   
   .tab-btn {
-    flex: 1 1 0;
-    padding: 0.75rem 1rem;
+    padding: 0.75rem 0.25rem;
     font-size: 0.9rem;
     text-align: center;
-    min-width: 0;
     flex-direction: column;
+    gap: 0.25rem;
   }
   
   .actions-menu {

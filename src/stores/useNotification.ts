@@ -15,6 +15,9 @@ import { debug } from '@/utils/debug'
 import { useActivityPubStore } from '@/stores/useActivityPub'
 import { updateFaviconBadge } from '@/utils/faviconBadge'
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
+import { resolveNotificationRoute } from '@/utils/notificationRoute'
+import { isMobileUserAgent } from '@/utils/pwaUtils'
+import { UserStatus } from '@/types'
 import type { 
   Notification, 
   NotificationType,
@@ -57,6 +60,9 @@ interface NotificationState {
   lastNotificationTime: Map<string, number>
   isInitialized: boolean
   fullListLoaded: boolean
+  /** The last page of the full list was complete; more rows may exist. */
+  hasMore: boolean
+  loadError: string | null
   hasPermission: boolean
   currentFilter: string
   cachedProfileId: string | null
@@ -144,11 +150,64 @@ let _unsubUpdateNotification: (() => void) | null = null
 let _unsubBulkRead: (() => void) | null = null
 let _unsubPrefsUpdated: (() => void) | null = null
 let _unsubReconnected: (() => void) | null = null
+let _unsubDeleted: (() => void) | null = null
+let _onVisibility: (() => void) | null = null
+let _lastUnreadRefresh = 0
 let _dndInterval: ReturnType<typeof setInterval> | null = null
 const _recentlyProcessedIds = new Set<string>()
 const DEDUP_TTL_MS = 10_000
 // 12 pages at the bell's 25-row page size.
 const MAX_NOTIFICATIONS = 300
+const PAGE_SIZE = 25
+const UNREAD_FETCH_LIMIT = 200
+const UNREAD_REFRESH_MIN_MS = 30_000
+
+const DM_TYPES = new Set(['dm', 'chat_message'])
+
+type DismissCriteria = {
+  notificationIds?: string[]
+  conversationId?: string
+  channelId?: string
+  all?: boolean
+  keepIds?: string[]
+}
+
+// Web only: Tauri has no service worker, and its native notifications are not tracked.
+async function dismissSystemNotifications(criteria: DismissCriteria): Promise<void> {
+  if (isTauriRuntime() || typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return
+  try {
+    const { serviceWorkerManager } = await import('@/services/ServiceWorkerManager')
+    await serviceWorkerManager.dismissNotifications(criteria)
+  } catch (error) {
+    debug.warn('Failed to dismiss system notifications:', error)
+  }
+}
+
+/** The signed-in user's status is Busy (Do Not Disturb). */
+function isStatusBusy(): boolean {
+  try {
+    return userDataService.getCurrentUser()?.status === UserStatus.Busy
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Merges a fetched page into the loaded list by id. Loaded unread rows outside the
+ * page are kept: unreadCount derives from this list and must not drop because a
+ * page of mostly read rows replaced it.
+ */
+export function mergeNotificationPage(existing: Notification[], page: Notification[], replace: boolean): Notification[] {
+  const byId = new Map<string, Notification>()
+  for (const n of page) byId.set(n.id, n)
+  for (const n of existing) {
+    if (byId.has(n.id)) continue
+    if (!replace || !n.is_read) byId.set(n.id, n)
+  }
+  return [...byId.values()].sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  )
+}
 
 // Actor id embedded in a notification payload (shape varies by type).
 const notificationActorId = (n: Notification): string | undefined => {
@@ -181,6 +240,8 @@ export const useNotificationStore = defineStore('notification', {
     lastNotificationTime: new Map(),
     isInitialized: false,
     fullListLoaded: false,
+    hasMore: false,
+    loadError: null,
     hasPermission: false,
     currentFilter: 'all',
     cachedProfileId: null,
@@ -363,15 +424,18 @@ export const useNotificationStore = defineStore('notification', {
       return (type: NotificationType) => {
         const store = useNotificationStore()
         if (!state.preferences?.desktop_notifications || store.isQuietHours) return false
-        
+
         switch (type) {
           case 'mention':
             return state.preferences.desktop_mentions
           case 'dm':
             return state.preferences.desktop_dms
+          case 'chat_message':
+            return state.preferences.desktop_chat_messages
           case 'reaction':
             return state.preferences.desktop_reactions
           case 'reply':
+          case 'thread_reply':
             return state.preferences.desktop_replies
           
           case 'activitypub_follow':
@@ -405,8 +469,13 @@ export const useNotificationStore = defineStore('notification', {
             return state.preferences.sound_mentions
           case 'dm':
             return state.preferences.sound_dms
+          case 'chat_message':
+            return state.preferences.sound_chat_messages
           case 'reaction':
             return state.preferences.sound_reactions
+          case 'reply':
+          case 'thread_reply':
+            return state.preferences.sound_replies
           case 'voice_channel_activity':
             return state.preferences.sound_voice_activity
           
@@ -527,27 +596,8 @@ export const useNotificationStore = defineStore('notification', {
         
         // Sidebar badge getters (unreadDMs, unreadServerMentions, ActivityPub
         // count) need these rows present on first paint.
-        try {
-          const { data, error } = await supabase
-            .from('notifications')
-            .select('id, type, is_read, data, created_at, user_id')
-            .eq('user_id', profileId)
-            .eq('is_read', false)
-            .order('created_at', { ascending: false })
-            .limit(200)
+        await this.refreshUnread(profileId)
 
-          if (error) {
-            debug.error('Failed to load unread notifications:', error)
-          } else {
-            this.notifications = (data || []) as any
-            debug.log(`Loaded ${this.notifications.length} unread notifications for badges`)
-          }
-        } catch (err) {
-          debug.error('Failed to load unread notifications:', err)
-        }
-        
-        this.updateUnreadCount()
-        
         this.setupBroadcastNotificationHandlers(userId)
         
         this.setupDndCheck()
@@ -563,31 +613,91 @@ export const useNotificationStore = defineStore('notification', {
     /**
      * Loads read notifications too. Called when the notification panel opens.
      */
-    async loadFullNotificationList(userId: string) {
-      if (this.fullListLoaded) {
-        debug.log('Full notification list already loaded')
-        return
-      }
-      
+    async loadFullNotificationList(userId: string, force = false) {
+      if (this.fullListLoaded && !force) return
+
       try {
         this.isLoading = true
-        debug.log('Loading full notification list...')
-        await this.fetchNotifications(userId)
+        this.loadError = null
+        await this.fetchNotifications(userId, PAGE_SIZE, 0)
         this.fullListLoaded = true
-        debug.log('Full notification list loaded')
       } catch (error) {
         debug.error('Failed to load full notification list:', error)
+        this.loadError = "Couldn't load notifications"
       } finally {
         this.isLoading = false
       }
     },
 
-    async fetchNotifications(userId: string, limit = 50, offset = 0) {
+    /**
+     * Next page of the full list. Unread rows are preloaded regardless of age, so a
+     * page can hold only rows already shown; paging continues until one adds a row.
+     */
+    async loadMoreNotifications(userId: string) {
+      for (let page = 0; page < 10 && this.hasMore; page++) {
+        const before = this.notifications.length
+        await this.fetchNotifications(userId, PAGE_SIZE, this.loadedCount)
+        if (this.notifications.length > before) return
+      }
+    },
+
+    /**
+     * Loads the newest unread rows and reconciles them with the loaded list: rows
+     * missing locally are added without alerts, and loaded unread rows the server
+     * no longer reports unread were read elsewhere while updates were missed.
+     */
+    async refreshUnread(profileIdOrAuthId?: string) {
+      const id = profileIdOrAuthId || this.cachedProfileId || this.cachedAuthUserId
+      if (!id) return
+      _lastUnreadRefresh = Date.now()
+      try {
+        const profileId = await this.getProfileId(id)
+        const { data, error } = await supabase
+          .from('notifications')
+          .select('id, type, is_read, data, created_at, user_id')
+          .eq('user_id', profileId)
+          .eq('is_read', false)
+          .order('created_at', { ascending: false })
+          .limit(UNREAD_FETCH_LIMIT)
+        if (error) throw error
+
+        const rows = ((data || []) as Notification[]).filter(n => !isFromHiddenUser(n))
+        const serverUnread = new Set(rows.map(n => n.id))
+        // With a full page, rows older than its oldest are unknown, not read.
+        const horizon = rows.length === UNREAD_FETCH_LIMIT
+          ? new Date(rows[rows.length - 1].created_at).getTime()
+          : -Infinity
+
+        for (const n of this.notifications) {
+          if (!n.is_read && !serverUnread.has(n.id) && new Date(n.created_at).getTime() >= horizon) {
+            n.is_read = true
+          }
+        }
+        this.notifications = mergeNotificationPage(this.notifications, rows, false)
+        this._capNotifications()
+        this.updateUnreadCount()
+        this.syncSystemTray()
+      } catch (error) {
+        debug.error('Failed to load unread notifications:', error)
+      }
+    },
+
+    /**
+     * Closes system notifications for rows no longer unread. Visible window only:
+     * a hidden tab has not shown its user anything yet.
+     */
+    syncSystemTray() {
+      if (typeof document === 'undefined' || document.visibilityState !== 'visible') return
+      const keepIds = this.notifications.filter(n => !n.is_read).map(n => n.id)
+      void dismissSystemNotifications({ keepIds })
+    },
+
+    async fetchNotifications(userId: string, limit = PAGE_SIZE, offset = 0) {
       try {
         debug.log('Fetching notifications for user:', userId)
-        
+
         const profileId = await this.getProfileId(userId)
-        
+
         const data = await services.notifications.fetchNotifications(profileId, {
           limit,
           offset
@@ -597,13 +707,9 @@ export const useNotificationStore = defineStore('notification', {
 
         const visible = (data || []).filter((n: Notification) => !isFromHiddenUser(n))
 
-        if (offset === 0) {
-          this.notifications = visible
-          this.loadedCount = (data || []).length
-        } else {
-          this.notifications.push(...visible)
-          this.loadedCount += (data || []).length
-        }
+        this.notifications = mergeNotificationPage(this.notifications, visible, offset === 0)
+        this.loadedCount = offset === 0 ? (data || []).length : this.loadedCount + (data || []).length
+        this.hasMore = (data || []).length >= limit
         this._capNotifications()
 
         // Prime user cache so NotificationItem DisplayName can resolve custom emojis
@@ -620,44 +726,30 @@ export const useNotificationStore = defineStore('notification', {
         return data || []
       } catch (error) {
         debug.error('Failed to fetch notifications:', error)
-        
-        try {
-          debug.log('Falling back to direct notification fetch')
-          await this._fetchNotificationsFallback(userId, limit, offset)
-        } catch (fallbackError) {
-          debug.error('Fallback fetch also failed:', fallbackError)
-          if (import.meta.env.DEV) {
-            this.createMockNotifications(userId)
-          }
-        }
-        throw error
+        return await this._fetchNotificationsFallback(userId, limit, offset)
       }
     },
 
     /**
      * Direct table query, used when the notifications service throws.
      */
-    async _fetchNotificationsFallback(userId: string, limit = 50, offset = 0) {
+    async _fetchNotificationsFallback(userId: string, limit = PAGE_SIZE, offset = 0) {
       const profileId = await this.getProfileId(userId)
-      
+
       const { data, error } = await supabase
         .from('notifications')
         .select('*')
         .eq('user_id', profileId)
         .order('created_at', { ascending: false })
-        .limit(limit)
+        .range(offset, offset + limit - 1)
 
       if (error) throw error
 
       const visible = (data || []).filter((n: Notification) => !isFromHiddenUser(n))
 
-      if (offset === 0) {
-        this.notifications = visible
-        this.loadedCount = (data || []).length
-      } else {
-        this.notifications.push(...visible)
-        this.loadedCount += (data || []).length
-      }
+      this.notifications = mergeNotificationPage(this.notifications, visible, offset === 0)
+      this.loadedCount = offset === 0 ? (data || []).length : this.loadedCount + (data || []).length
+      this.hasMore = (data || []).length >= limit
       this._capNotifications()
 
       // Prime user cache so NotificationItem DisplayName can resolve custom emojis
@@ -715,9 +807,19 @@ export const useNotificationStore = defineStore('notification', {
         })
 
         _unsubBulkRead = userEventChannel.on('notification:bulk_read', (_data) => {
-          debug.log('Bulk read event received, marking all notifications as read locally')
           this.notifications.forEach(n => { n.is_read = true })
           this.updateUnreadCount()
+          void dismissSystemNotifications({ all: true })
+        })
+
+        _unsubDeleted = userEventChannel.on('notification:deleted', (data) => {
+          const ids = Array.isArray(data.ids) ? (data.ids as string[]) : null
+          if (!ids) {
+            // Above 500 rows the server sends no ids.
+            void this.loadFullNotificationList(profileId, true)
+            return
+          }
+          this._removeLocal(ids)
         })
 
         _unsubPrefsUpdated = userEventChannel.on('preferences:updated', () => {
@@ -731,13 +833,63 @@ export const useNotificationStore = defineStore('notification', {
         })
 
         _unsubReconnected = userEventChannel.on('_reconnected', async () => {
-          debug.log('UserEventChannel reconnected - gap-filling notifications')
-          await this.fetchNotifications(profileId)
+          // Events sent while disconnected are lost; the unread set is re-read.
+          await this.refreshUnread(profileId)
+          if (this.fullListLoaded) await this.loadFullNotificationList(profileId, true)
         })
 
-        debug.log('Broadcast notification handlers registered')
+        if (typeof document !== 'undefined' && !_onVisibility) {
+          _onVisibility = () => {
+            if (document.visibilityState !== 'visible') return
+            if (Date.now() - _lastUnreadRefresh < UNREAD_REFRESH_MIN_MS) {
+              this.syncSystemTray()
+              return
+            }
+            void this.refreshUnread(profileId)
+          }
+          document.addEventListener('visibilitychange', _onVisibility)
+        }
       }
+    },
 
+    /**
+     * Local mirror of mark_notifications_read_by_context: the same predicate over
+     * the loaded rows.
+     */
+    applyContextRead(contextType: 'channel' | 'conversation' | 'post', contextId: string) {
+      const matches = (n: Notification): boolean => {
+        const d: any = n.data || {}
+        if (contextType === 'channel') return d.channel_id === contextId || d.location?.channel_id === contextId
+        if (contextType === 'conversation') return d.conversation_id === contextId || d.conversation?.id === contextId
+        return d.post_id === contextId || d.post?.id === contextId
+      }
+      const ids: string[] = []
+      for (const n of this.notifications) {
+        if (!n.is_read && matches(n)) {
+          n.is_read = true
+          ids.push(n.id)
+        }
+      }
+      if (ids.length === 0) return
+      this.updateUnreadCount()
+      void dismissSystemNotifications({ notificationIds: ids })
+    },
+
+    /** Drops rows deleted on any device and closes their system notifications. */
+    _removeLocal(ids: string[]) {
+      const gone = new Set(ids)
+      const before = this.notifications.length
+      this.notifications = this.notifications.filter(n => !gone.has(n.id))
+      if (this.notifications.length !== before) {
+        this.loadedCount = Math.max(0, this.loadedCount - (before - this.notifications.length))
+        this.updateUnreadCount()
+      }
+      void dismissSystemNotifications({ notificationIds: ids })
+    },
+
+    /** Local user attention is elsewhere: quiet hours or Busy status. */
+    isSilenced(): boolean {
+      return this.isQuietHours || isStatusBusy()
     },
 
     /**
@@ -764,7 +916,7 @@ export const useNotificationStore = defineStore('notification', {
       }
 
       let activeConversationId: string | undefined
-      if (!notificationContext.conversation_id && newNotification.type === 'dm') {
+      if (!notificationContext.conversation_id && DM_TYPES.has(newNotification.type)) {
         try {
           const { useDMStore } = await import('./useDM')
           const dmStore = useDMStore()
@@ -782,7 +934,7 @@ export const useNotificationStore = defineStore('notification', {
         return
       }
 
-      if (this.isQuietHours && newNotification.type !== 'server_update') {
+      if (this.isSilenced() && newNotification.type !== 'server_update') {
         this.notifications.unshift(newNotification)
         this._capNotifications()
         this.updateUnreadCount()
@@ -838,6 +990,11 @@ export const useNotificationStore = defineStore('notification', {
       if (_unsubBulkRead) { _unsubBulkRead(); _unsubBulkRead = null }
       if (_unsubPrefsUpdated) { _unsubPrefsUpdated(); _unsubPrefsUpdated = null }
       if (_unsubReconnected) { _unsubReconnected(); _unsubReconnected = null }
+      if (_unsubDeleted) { _unsubDeleted(); _unsubDeleted = null }
+      if (_onVisibility) {
+        document.removeEventListener('visibilitychange', _onVisibility)
+        _onVisibility = null
+      }
       // BUGS.md M11: clearing `_dndInterval` here stops the DND check from
       // firing after logout / store reset.
       if (_dndInterval) {
@@ -890,11 +1047,17 @@ export const useNotificationStore = defineStore('notification', {
           )
         }
 
+        // A backgrounded mobile page may not get audio; the system notification
+        // carries the sound there. Elsewhere the app sound plays and the system
+        // notification stays silent.
+        const osCarriesSound = typeof document !== 'undefined' && document.hidden && isMobileUserAgent()
+        const appSound = uiDecision.playSound && this.shouldPlaySound(notification.type) && !osCarriesSound
+
         if (uiDecision.showDesktop && this.shouldShowDesktopNotification(notification.type)) {
-          this.showDesktopNotification(notification, formatted)
+          this.showDesktopNotification(notification, formatted, { silent: !osCarriesSound })
         }
 
-        if (uiDecision.playSound && this.shouldPlaySound(notification.type)) {
+        if (appSound) {
           this.playNotificationSound(notification.type)
         }
 
@@ -910,11 +1073,10 @@ export const useNotificationStore = defineStore('notification', {
       }
     },
 
-    async showDesktopNotification(notification: Notification, formatted?: any) {
+    async showDesktopNotification(notification: Notification, formatted?: any, opts: { silent?: boolean } = {}) {
       try {
-        // Desktop notifications only while the tab is hidden; in-app toasts
-        // cover the visible case.
-        if (!document.hidden) {
+        // A focused, visible window shows the in-app toast instead.
+        if (!document.hidden && document.hasFocus()) {
           return
         }
 
@@ -993,35 +1155,40 @@ export const useNotificationStore = defineStore('notification', {
           return
         }
 
-        // Per-context tags: a new notification from the same source replaces
-        // the previous one instead of stacking (e.g. DMs in one conversation).
-        const contextTag = notification.data?.conversation_id
-          ? `harmony-${notification.type}-conv-${notification.data.conversation_id}`
-          : notification.data?.channel_id
-            ? `harmony-${notification.type}-ch-${notification.data.channel_id}`
+        // Tags and data match the push payload (PushNotificationService), so a push
+        // and this notification replace each other and the worker drops the second.
+        const d: any = notification.data || {}
+        const conversationId = d.conversation_id || d.conversation?.id
+        const channelId = d.channel_id || d.location?.channel_id
+        const contextTag = conversationId
+          ? `harmony-${notification.type}-conv-${conversationId}`
+          : channelId
+            ? `harmony-${notification.type}-ch-${channelId}`
             : `harmony-${notification.type}-${notification.id}`
 
+        const pick = (v: unknown) => (typeof v === 'string' && v ? v : undefined)
         const notificationOptions = {
           body: formatted.message,
           icon: NotificationFormatter.getAvatarUrl(notification),
           badge: '/img/app_icon_badge.png',
           tag: contextTag,
           renotify: true,
-          silent: false,
+          silent: opts.silent ?? false,
           data: {
-            notificationId: notification.id,
+            notification_id: notification.id,
             type: notification.type,
-            url: this.getNotificationUrl(notification)
+            url: this.getNotificationUrl(notification),
+            conversation_id: pick(conversationId),
+            server_id: pick(d.server_id || d.location?.server_id),
+            channel_id: pick(channelId),
+            thread_id: pick(d.thread_id || d.thread?.id),
+            message_id: pick(d.message_id || d.message?.id),
           }
         }
 
-        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-          const registration = await navigator.serviceWorker.ready
-          await registration.showNotification(formatted.title, {
-            ...notificationOptions,
-            requireInteraction: false
-          })
-          debug.log(`Desktop notification shown via SW for ${notification.type}`)
+        const { serviceWorkerManager } = await import('@/services/ServiceWorkerManager')
+        if (await serviceWorkerManager.showNotification(formatted.title, { ...notificationOptions, requireInteraction: false })) {
+          debug.log(`Desktop notification queued via SW for ${notification.type}`)
         } else {
           const desktopNotification = new window.Notification(formatted.title, {
             ...notificationOptions,
@@ -1050,32 +1217,12 @@ export const useNotificationStore = defineStore('notification', {
      */
     async dismissSystemNotification(notification: Notification) {
       try {
-        if (!('serviceWorker' in navigator)) return
-        
-        const registration = await navigator.serviceWorker.ready
-        const shown = await registration.getNotifications()
-        
-        for (const sysNotif of shown) {
-          const matchesId = sysNotif.data?.notificationId === notification.id
-          const matchesConversation = notification.data?.conversation_id &&
-            sysNotif.tag?.includes(`conv-${notification.data.conversation_id}`)
-          const matchesChannel = notification.data?.channel_id &&
-            sysNotif.tag?.includes(`ch-${notification.data.channel_id}`)
-          
-          if (matchesId || matchesConversation || matchesChannel) {
-            sysNotif.close()
-            debug.log('Dismissed system notification synced from another device:', sysNotif.tag)
-          }
-        }
-        
-        if (typeof navigator !== 'undefined' && 'setAppBadge' in navigator) {
-          const remaining = await registration.getNotifications()
-          if (remaining.length > 0) {
-            ;(navigator as any).setAppBadge(remaining.length)
-          } else {
-            ;(navigator as any).clearAppBadge()
-          }
-        }
+        const d: any = notification.data || {}
+        await dismissSystemNotifications({
+          notificationIds: [notification.id],
+          conversationId: d.conversation_id || d.conversation?.id,
+          channelId: d.channel_id || d.location?.channel_id,
+        })
       } catch (error) {
         debug.error('Error dismissing system notification:', error)
       }
@@ -1093,8 +1240,8 @@ export const useNotificationStore = defineStore('notification', {
       titleSuffix?: string,
       notificationId?: string
     ) {
-      if (this.isQuietHours && type !== 'server_update') return
-      
+      if (this.isSilenced() && type !== 'server_update') return
+
       const toast: NotificationToast = {
         id: `toast-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         type,
@@ -1316,15 +1463,42 @@ export const useNotificationStore = defineStore('notification', {
         }
 
         await services.notifications.markAsRead(notificationId)
+        void dismissSystemNotifications({ notificationIds: [notificationId] })
       } catch (error) {
         debug.error('Failed to mark notification as read:', error)
-        
+
         if (notification) {
           notification.is_read = false
           this.updateUnreadCount()
         }
         throw error
       }
+    },
+
+    /**
+     * Marks read by id, including rows not loaded here (a push clicked while the app
+     * was closed). No revert: the ids come from explicit reads.
+     */
+    async markManyAsRead(ids: string[]) {
+      const unique = [...new Set(ids.filter(Boolean))]
+      if (unique.length === 0) return
+      const wanted = new Set(unique)
+      let changed = false
+      for (const n of this.notifications) {
+        if (wanted.has(n.id) && !n.is_read) {
+          n.is_read = true
+          changed = true
+        }
+      }
+      if (changed) this.updateUnreadCount()
+      void dismissSystemNotifications({ notificationIds: unique })
+
+      const { error } = await supabase
+        .from('notifications')
+        .update({ is_read: true, read_at: new Date().toISOString() })
+        .in('id', unique)
+        .eq('is_read', false)
+      if (error) debug.error('Failed to mark notifications as read:', error)
     },
 
     async markAsUnread(notificationId: string) {
@@ -1356,9 +1530,11 @@ export const useNotificationStore = defineStore('notification', {
       
       try {
         this.notifications.splice(index, 1)
+        this.loadedCount = Math.max(0, this.loadedCount - 1)
         this.updateUnreadCount()
-        
+
         await services.notifications.deleteNotification(notificationId)
+        void dismissSystemNotifications({ notificationIds: [notificationId] })
       } catch (error) {
         debug.error('Failed to delete notification:', error)
         
@@ -1433,9 +1609,11 @@ export const useNotificationStore = defineStore('notification', {
 
         this.notifications = []
         this.loadedCount = 0
+        this.hasMore = false
         this.updateUnreadCount()
 
         await services.notifications.deleteAllNotifications(profileId)
+        void dismissSystemNotifications({ all: true })
       } catch (error) {
         debug.error('Failed to clear all notifications:', error)
         // Revert on server rejection (RLS, network).
@@ -1508,55 +1686,16 @@ export const useNotificationStore = defineStore('notification', {
         debug.error('Failed to set notification volume:', error)
       }
     },
-    /**
-     * Route path for a notification. Also used by the service worker's
-     * notification-click handler.
-     */
+    /** Route path for a notification; also the url carried by system notifications. */
     getNotificationUrl(notification: Notification): string {
-      try {
-        const navData = NotificationFormatter.getNavigationData(notification)
-        
-        if (navData) {
-          switch (navData.type) {
-            case 'conversation': {
-              let dmPath = `/dm/${navData.conversationId}`
-              if (navData.messageId) {
-                dmPath += `?messageId=${navData.messageId}`
-              }
-              return dmPath
-            }
-
-            case 'channel': {
-              let path = `/chat/${navData.serverId}/${navData.channelId}`
-              if (navData.messageId) {
-                path += `?messageId=${navData.messageId}`
-              }
-              return path
-            }
-              
-            case 'server':
-              return `/server/${navData.serverId}`
-
-            case 'activitypub_post':
-              return `/post/${navData.postId}`
-
-            case 'profile':
-              return `/social/profile/${navData.handle}`
-
-            default:
-              return '/'
-          }
-        }
-        return '/'
-      } catch (error) {
-        debug.error('Error getting notification URL:', error)
-        return '/'
-      }
+      return resolveNotificationRoute(notification)
     },
 
     handleNotificationClick(notification: Notification) {
       try {
-        this.markAsRead(notification.id)
+        if (!notification.is_read) {
+          this.markAsRead(notification.id).catch(() => {})
+        }
         supabase
           .from('notifications')
           .update({ is_clicked: true })
@@ -1564,131 +1703,24 @@ export const useNotificationStore = defineStore('notification', {
           .then(({ error }) => {
             if (error) debug.warn('Failed to set is_clicked:', error)
           })
-        
-        const navData = NotificationFormatter.getNavigationData(notification)
-        
-        if (navData) {
-          switch (navData.type) {
-            case 'conversation': {
-              let dmPath = `/dm/${navData.conversationId}`
-              if (navData.messageId) {
-                dmPath += `?messageId=${navData.messageId}`
-              }
-              router.push(dmPath)
-              break
-            }
-              
-            case 'channel': {
-              let path = `/chat/${navData.serverId}/${navData.channelId}`
-              if (navData.messageId) {
-                path += `?messageId=${navData.messageId}`
-              }
-              router.push(path)
-              break
-            }
-              
-            case 'server':
-              router.push(`/server/${navData.serverId}`)
-              break
 
-            case 'activitypub_post':
-              router.push({
-                name: 'PostDetail',
-                params: { postId: navData.postId }
-              })
-              break
-
-            case 'profile':
-              router.push({ name: 'UserProfile', params: { handle: (navData.handle || '').replace(/^@/, '') } })
-              break
-
-            default:
-              // Exhaustive narrowing collapses `navData.type` to `never` in
-              // the default branch; cast through `any` to log it.
-              debug.log('No navigation data for notification type:', (navData as any).type)
-          }
-        } else {
-          // Fallback routing for notifications the formatter yielded no
-          // navigation data for.
-          debug.warn('No navigation data extracted for notification:', notification.type)
-          
-          if (notification.type.startsWith('activitypub_')) {
-            router.push('/social/home')
-          } else if (notification.type === 'dm') {
-            const conversationId = notification.data?.conversation?.id || notification.data?.conversation_id
-            if (conversationId) {
-              router.push(`/dm/${conversationId}`)
-            } else {
-              router.push('/dm')
-            }
-          } else {
-            debug.warn('Could not determine navigation for notification, going to home')
-          }
-        }
+        router.push(resolveNotificationRoute(notification)).catch((error) => {
+          debug.warn('Notification navigation failed:', error)
+        })
       } catch (error) {
         debug.error('Error handling notification click:', error)
       }
     },
 
-    createMockNotifications(userId: string) {
-      // Development-only. The mock shape carries legacy
-      // `sender`/`message`/`conversation`/`title` fields absent from the
-      // current `Notification`/`NotificationData` typings; cast through `any`.
-      const mockNotifications: Notification[] = ([
-        {
-          id: '1',
-          user_id: userId,
-          type: 'mention',
-          data: {
-            sender: {
-              user_id: 'dev-user-1',
-              username: 'Developer',
-              avatar_url: '/default_avatar.webp'
-            },
-            location: {
-              server_id: 'test-server',
-              server_name: 'Test Server',
-              channel_id: 'test-channel',
-              channel_name: 'general'
-            },
-            message: {
-              id: 'test-message-1',
-              content_preview: 'Check out this cool feature!',
-            }
-          },
-          is_read: false,
-          is_clicked: false,
-          expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-          title: ''
-        },
-        {
-          id: '2',
-          user_id: userId,
-          type: 'dm',
-          data: {
-            sender: {
-              user_id: 'dev-user-2',
-              username: 'Friend',
-              avatar_url: '/default_avatar.webp'
-            },
-            conversation: {
-              id: 'test-conv'
-            },
-            message: {
-              id: 'test-message-2',
-              content_preview: 'Hey! How are you doing?',
-            }
-          },
-          is_read: false,
-          is_clicked: false,
-          expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-          title: ''
-        }
-      ] as any) as Notification[]
-
-      this.notifications = mockNotifications
+    /**
+     * Sign-out: drops handlers and every row, restores the title, badge and favicon,
+     * and closes this account's system notifications.
+     */
+    resetForLogout() {
+      this.cleanupBroadcastHandlers()
+      this.$reset()
       this.updateUnreadCount()
-      debug.log('Created mock notifications for development')
+      void dismissSystemNotifications({ all: true })
     },
 
     async getProfileId(authUserId: string): Promise<string> {
@@ -1723,12 +1755,6 @@ export const useNotificationStore = defineStore('notification', {
     },
   }
 })
-
-// eslint-disable-next-line unused-imports/no-unused-vars
-function timeStringToMinutes(timeString: string): number {
-  const [hours, minutes] = timeString.split(':').map(Number)
-  return hours * 60 + minutes
-}
 
 function utcTimeStringToLocalMinutes(utcTimeString: string): number {
   const [h, m] = utcTimeString.split(':').map(Number)

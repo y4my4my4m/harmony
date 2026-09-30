@@ -10,10 +10,10 @@
     <!-- Global Keybinds (Voice Connected) -->
     <div class="settings-section">
       <div class="section-header">
-        <h3 class="section-title">Voice Keybinds</h3>
+        <h3 class="section-title">Voice keybinds</h3>
         <button class="reset-btn" @click="resetAllKeybinds" title="Reset all to defaults">
           <Icon name="refresh" />
-          Reset All
+          Reset all
         </button>
       </div>
       <p class="section-description">These shortcuts work when connected to a voice channel.</p>
@@ -21,10 +21,10 @@
       <!-- Push to Talk -->
       <div class="keybind-item">
         <div class="keybind-info">
-          <h4 class="keybind-label">Push to Talk</h4>
+          <h4 class="keybind-label">Push to talk</h4>
           <p class="keybind-description">
             Hold to talk in voice channels.
-            <span v-if="!isPTTMode" class="mode-note">(Currently using Voice Activity mode)</span>
+            <span v-if="!isPTTMode" class="mode-note">(Currently using voice activity mode)</span>
           </p>
         </div>
         <div class="keybind-control">
@@ -52,7 +52,7 @@
       <!-- Toggle Mute -->
       <div class="keybind-item">
         <div class="keybind-info">
-          <h4 class="keybind-label">Toggle Mute</h4>
+          <h4 class="keybind-label">Toggle mute</h4>
           <p class="keybind-description">Mute or unmute your microphone.</p>
         </div>
         <div class="keybind-control">
@@ -77,7 +77,7 @@
       <!-- Toggle Deafen -->
       <div class="keybind-item">
         <div class="keybind-info">
-          <h4 class="keybind-label">Toggle Deafen</h4>
+          <h4 class="keybind-label">Toggle deafen</h4>
           <p class="keybind-description">Deafen or undeafen yourself.</p>
         </div>
         <div class="keybind-control">
@@ -102,7 +102,7 @@
       <!-- Toggle Camera -->
       <div class="keybind-item">
         <div class="keybind-info">
-          <h4 class="keybind-label">Toggle Camera</h4>
+          <h4 class="keybind-label">Toggle camera</h4>
           <p class="keybind-description">Turn camera on or off.</p>
         </div>
         <div class="keybind-control">
@@ -127,7 +127,7 @@
       <!-- Toggle Screen Share -->
       <div class="keybind-item">
         <div class="keybind-info">
-          <h4 class="keybind-label">Toggle Screen Share</h4>
+          <h4 class="keybind-label">Toggle screen share</h4>
           <p class="keybind-description">Start or stop screen sharing.</p>
         </div>
         <div class="keybind-control">
@@ -152,7 +152,7 @@
       <!-- Voice Settings -->
       <div class="keybind-item">
         <div class="keybind-info">
-          <h4 class="keybind-label">Open Voice Settings</h4>
+          <h4 class="keybind-label">Open voice settings</h4>
           <p class="keybind-description">Open voice settings panel.</p>
         </div>
         <div class="keybind-control">

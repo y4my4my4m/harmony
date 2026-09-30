@@ -1,381 +1,495 @@
 <template>
   <div class="notification-bell-container">
-    <!-- Notification Bell Button -->
     <button
+      ref="bellRef"
+      type="button"
       class="notification-bell"
       data-testid="notification-bell"
-      :class="{ 
-        'has-unread': hasUnread,
-        'is-open': isOpen,
-        'dnd-active': isDndActive
-      }"
-      @click="togglePanel"
-      :aria-label="`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`"
+      :class="{ 'has-unread': unreadCount > 0, 'is-open': isOpen, 'dnd-active': isSilenced }"
+      :aria-label="unreadCount > 0 ? t('inbox.bellLabelUnread', { count: unreadCount }) : t('inbox.bellLabel')"
       :aria-expanded="isOpen"
+      aria-haspopup="dialog"
+      :title="t('inbox.bellLabel')"
+      @click="toggle"
     >
-      <div class="bell-icon-wrapper">
-        <span class="icon-wrap icon icon-bell icon-md">
-          <svg class="bell-icon icon-md" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/>
-          </svg>
-        </span>
-      </div>
-
-      <Transition name="badge-bounce" appear>
-        <div v-if="unreadCount > 0" class="notification-badge">
-          <span class="badge-text">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
-        </div>
-      </Transition>
-      
-      <!-- Do Not Disturb Indicator -->
-      <Transition name="dnd-fade" appear>
-        <div v-if="isDndActive" class="dnd-indicator">
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8 0-1.85.63-3.55 1.69-4.9L16.9 18.31C15.55 19.37 13.85 20 12 20zm6.31-3.1L7.1 5.69C8.45 4.63 10.15 4 12 4c4.42 0 8 3.58 8 8 0 1.85-.63 3.55-1.69 4.9z"/>
-          </svg>
-        </div>
-      </Transition>
+      <Icon name="bell" :size="20" class="bell-icon" />
+      <span v-if="unreadCount > 0" class="notification-badge" aria-hidden="true">
+        <span class="badge-text">{{ badge }}</span>
+      </span>
+      <span v-else-if="isSilenced" class="dnd-indicator" aria-hidden="true" />
     </button>
 
     <Teleport to="body">
-      <Transition name="panel-slide" appear>
-        <div v-if="isOpen" class="notification-panel" data-testid="notification-panel" @click.stop>
-        <div class="panel-header">
-          <div class="header-content">
-            <div class="header-title-section">
-              <h3 class="panel-title">Notifications</h3>
-              <div v-if="unreadCount > 0" class="unread-indicator">
-                {{ unreadCount }} new
-              </div>
+      <div v-if="isOpen" class="notification-backdrop" @click="close()" />
+      <Transition name="inbox">
+        <section
+          v-if="isOpen"
+          ref="panelRef"
+          class="notification-panel"
+          data-testid="notification-panel"
+          role="dialog"
+          aria-modal="true"
+          :aria-labelledby="titleId"
+          :style="panelStyle"
+          @keydown="onPanelKeydown"
+        >
+          <header class="inbox-header">
+            <div class="inbox-title-row">
+              <h2 :id="titleId" class="inbox-title">{{ t('inbox.title') }}</h2>
+              <span v-if="unreadCount > 0" class="new-pill">{{ t('inbox.newCount', { count: badge }) }}</span>
             </div>
-            
-            <div class="header-actions">
-              <!-- Mark All Read Button -->
-              <Transition name="button-fade">
-                <button 
-                  v-if="unreadCount > 0" 
-                  @click="markAllAsRead"
-                  class="action-button mark-all-read"
-                  data-testid="notification-mark-read"
-                  :disabled="isMarkingAllAsRead"
-                  :aria-label="'Mark all notifications as read'"
-                >
-                  <Icon v-if="!isMarkingAllAsRead" name="check" :size="16" />
-                  <div v-else class="loading-spinner"></div>
-                  <span>Mark all read</span>
-                </button>
-              </Transition>
-
-              <!-- Clear All Button (mass delete) -->
-              <Transition name="button-fade">
-                <button
-                  v-if="notifications.length > 0"
-                  @click="clearAllNotifications"
-                  class="action-button clear-all"
-                  data-testid="notification-clear-all"
-                  :disabled="isClearingAll"
-                  :aria-label="'Clear all notifications'"
-                  title="Clear all notifications"
-                >
-                  <Icon v-if="!isClearingAll" name="trash" :size="16" />
-                  <div v-else class="loading-spinner"></div>
-                  <span>Clear all</span>
-                </button>
-              </Transition>
-
-              <!-- Settings Button -->
-              <button @click="openSettings" class="action-button settings-btn" aria-label="Notification settings">
+            <div class="inbox-actions">
+              <button
+                type="button"
+                class="icon-btn"
+                data-testid="notification-mark-read"
+                :disabled="unreadCount === 0 || busy === 'read'"
+                :aria-label="t('inbox.markAllRead')"
+                :title="t('inbox.markAllRead')"
+                @click="markAllRead"
+              >
+                <Icon name="check-circle" :size="16" />
+              </button>
+              <button
+                type="button"
+                class="icon-btn"
+                data-testid="notification-clear-all"
+                :disabled="allNotifications.length === 0 || busy === 'clear'"
+                :aria-label="t('inbox.clearAll')"
+                :title="t('inbox.clearAll')"
+                @click="clearAll"
+              >
+                <Icon name="trash-2" :size="16" />
+              </button>
+              <button
+                type="button"
+                class="icon-btn"
+                :aria-label="t('inbox.settings')"
+                :title="t('inbox.settings')"
+                @click="openSettings"
+              >
                 <Icon name="settings" :size="16" />
               </button>
-              
-              <!-- Close Button -->
-              <button @click="closePanel" class="action-button close-btn" aria-label="Close notifications">
-                <Icon name="x" :size="16" />
-              </button>
-            </div>
-          </div>
-        </div>
-        
-        <!-- Panel Content -->
-        <div class="panel-content">
-          
-          <!-- Notifications List -->
-          <div class="notifications-list">
-            <!-- Quick Filter Tabs -->
-            <div class="notification-filters">
-              <button 
-                v-for="filter in notificationFilters"
-                :key="filter.key"
-                @click="activeFilter = filter.key"
-                class="filter-tab"
-                :class="{ active: activeFilter === filter.key }"
+              <button
+                type="button"
+                class="icon-btn close-btn"
+                :aria-label="t('inbox.close')"
+                :title="t('inbox.close')"
+                @click="close()"
               >
-                <Icon
-                  :name="filter.icon"
-                  class="filter-icon"
-                  :class="{ 'filter-icon-unread': filter.key === 'unread' }"
-                  :size="14"
-                />
-                <span class="filter-label">{{ filter.label }}</span>
-                <span v-if="filter.count > 0" class="filter-count">{{ filter.count }}</span>
+                <Icon name="x" :size="18" />
               </button>
             </div>
-            
-          <!-- Loading State -->
-          <div v-if="isLoading" class="notification-state loading-state">
-            <div class="state-animation">
-              <LoadingSpinner :size="32" />
+          </header>
+
+          <div class="inbox-toolbar">
+            <div class="inbox-tabs" role="tablist" :aria-label="t('inbox.tabsLabel')" @keydown="onTabKeydown">
+              <button
+                v-for="tab in INBOX_TABS"
+                :key="tab"
+                :ref="el => setTabRef(tab, el)"
+                type="button"
+                role="tab"
+                class="inbox-tab"
+                :class="{ active: activeTab === tab }"
+                :aria-selected="activeTab === tab"
+                :aria-controls="listId"
+                :aria-label="tabCounts[tab] > 0 ? t('inbox.tabLabelUnread', { tab: t(`inbox.tabs.${tab}`), count: tabCounts[tab] }) : t(`inbox.tabs.${tab}`)"
+                :tabindex="activeTab === tab ? 0 : -1"
+                @click="activeTab = tab"
+              >
+                <span>{{ t(`inbox.tabs.${tab}`) }}</span>
+                <span v-if="tabCounts[tab] > 0" class="tab-count">{{ badgeTextOf(tabCounts[tab]) }}</span>
+              </button>
             </div>
-            <h4 class="state-title">Loading notifications...</h4>
-            <p class="state-description">Fetching your latest updates</p>
+            <button
+              type="button"
+              class="unread-toggle"
+              :class="{ active: unreadOnly }"
+              :aria-pressed="unreadOnly"
+              @click="unreadOnly = !unreadOnly"
+            >
+              {{ t('inbox.unreadOnly') }}
+            </button>
           </div>
-          
-          <!-- Empty State -->
-          <div v-else-if="notifications.length === 0" class="notification-state empty-state">
-            <div class="state-animation">
-              <div class="empty-bell">
-                <svg width="64" height="64" viewBox="0 0 24 24" fill="currentColor" opacity="0.3">
-                  <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/>
-                </svg>
-              </div>
-            </div>
-            <h4 class="state-title">You're all caught up</h4>
-            <p class="state-description">No new notifications. When you get mentions, messages, or other updates, they'll show up here.</p>
-          </div>
-            <!-- Notification Items -->
-            <TransitionGroup name="notification-list" tag="div" class="notifications-container" data-testid="notification-list">
-              <NotificationItem
-                v-for="notification in notifications"
-                :key="notification.id"
-                :notification="notification"
-                @click="handleNotificationClick"
-                @mark-read="handleMarkReadToggle"
-                @dismiss="dismissNotification"
-                class="notification-item-wrapper"
-              />
-            </TransitionGroup>
-            
-            <!-- Load More Button -->
-            <div v-if="hasMoreNotifications" class="load-more-section">
-              <button @click="loadMoreNotifications" class="load-more-btn" :disabled="isLoadingMore">
-                <span v-if="!isLoadingMore">Load more notifications</span>
-                <span v-else class="loading-text">
-                  <div class="loading-dots">
-                    <span></span><span></span><span></span>
-                  </div>
-                  Loading...
+
+          <p v-if="panelSilenced" class="silenced-note">
+            <Icon name="bell-off" :size="14" />
+            <span>{{ t('inbox.silenced') }}</span>
+          </p>
+
+          <div
+            :id="listId"
+            ref="scrollRef"
+            class="inbox-scroll"
+            role="tabpanel"
+            data-testid="notification-list"
+            :aria-busy="showSkeleton"
+            @keydown="onListKeydown"
+          >
+            <ul v-if="showSkeleton" class="skeleton-list" :aria-label="t('inbox.loading')">
+              <li v-for="i in 5" :key="i" class="skeleton-row">
+                <span class="sk sk-avatar" />
+                <span class="sk-lines">
+                  <span class="sk sk-line" />
+                  <span class="sk sk-line short" />
                 </span>
-              </button>
+              </li>
+            </ul>
+
+            <div v-else-if="showError" class="inbox-state" role="alert">
+              <Icon name="alert-circle" :size="28" class="state-icon" />
+              <p class="state-title">{{ t('inbox.error') }}</p>
+              <button type="button" class="state-btn" @click="retry">{{ t('inbox.retry') }}</button>
             </div>
+
+            <div v-else-if="groups.length === 0" class="inbox-state">
+              <Icon :name="emptyIcon" :size="28" class="state-icon" />
+              <p class="state-title">{{ emptyTitle }}</p>
+              <p class="state-hint">{{ emptyHint }}</p>
+            </div>
+
+            <template v-else>
+              <section v-for="group in groups" :key="group.key" class="day-group" :aria-label="group.label">
+                <h3 class="day-label">{{ group.label }}</h3>
+                <ul class="day-list" role="list">
+                  <NotificationItem
+                    v-for="notification in group.items"
+                    :key="notification.id"
+                    :notification="notification"
+                    :now="now"
+                    @open="openNotification"
+                    @toggle-read="toggleRead"
+                    @remove="remove"
+                  />
+                </ul>
+              </section>
+
+              <div v-if="canLoadMore" ref="sentinelRef" class="load-more">
+                <button type="button" class="state-btn" :disabled="loadingMore" @click="loadMore">
+                  {{ loadingMore ? t('inbox.loading') : t('inbox.loadMore') }}
+                </button>
+              </div>
+            </template>
           </div>
-        </div>
-      </div>
-      </Transition>
-    </Teleport>
-    
-    <Teleport to="body">
-      <Transition name="backdrop-fade">
-        <div v-if="isOpen" class="notification-backdrop" @click="closePanel"></div>
+        </section>
       </Transition>
     </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, nextTick, watch, onBeforeUnmount, type ComponentPublicInstance } from 'vue'
+import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { debug } from '@/utils/debug'
 import { useNotificationStore } from '@/stores/useNotification'
 import { useAuthStore } from '@/stores/auth'
-import { useRouter } from 'vue-router'
 import { useLayoutState } from '@/composables/useLayoutState'
-import NotificationItem from './NotificationItem.vue'
+import { INBOX_TABS, badgeText, groupByDay, inTab, unreadByTab, type InboxTab } from '@/utils/notificationInbox'
 import Icon from '@/components/common/Icon.vue'
-import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
+import NotificationItem from './NotificationItem.vue'
 import type { Notification } from '@/types'
 
 const notificationStore = useNotificationStore()
 const authStore = useAuthStore()
 const router = useRouter()
+const { t, locale } = useI18n()
 const { closeMobileSidebars } = useLayoutState()
 
-// Reactive state
+const uid = Math.random().toString(36).slice(2, 8)
+const titleId = `inbox-title-${uid}`
+const listId = `inbox-list-${uid}`
+
+const MOBILE_QUERY = '(max-width: 768px)'
+const PANEL_WIDTH = 400
+const PANEL_MAX_HEIGHT = 640
+const GAP = 8
+
+const bellRef = ref<HTMLButtonElement | null>(null)
+const panelRef = ref<HTMLElement | null>(null)
+const scrollRef = ref<HTMLElement | null>(null)
+const sentinelRef = ref<HTMLElement | null>(null)
+const tabRefs = new Map<InboxTab, HTMLButtonElement>()
+
 const isOpen = ref(false)
-const isMarkingAllAsRead = ref(false)
-const isClearingAll = ref(false)
-const isLoadingMore = ref(false)
-const hasMoreNotifications = ref(false)
+const activeTab = ref<InboxTab>('all')
+const unreadOnly = ref(false)
+const busy = ref<'read' | 'clear' | null>(null)
+const loadingMore = ref(false)
+const now = ref(new Date())
+const panelStyle = ref<Record<string, string>>({})
 
-// Computed properties
-const notifications = computed(() => notificationStore.filteredNotifications)
+let clock: ReturnType<typeof setInterval> | null = null
+let observer: IntersectionObserver | null = null
+
+const allNotifications = computed(() => notificationStore.notifications)
 const unreadCount = computed(() => notificationStore.unreadCount)
-const hasUnread = computed(() => unreadCount.value > 0)
-const isDndActive = computed(() => notificationStore.isDndActive)
-const isLoading = computed(() => notificationStore.isLoading)
-const notificationFilters = computed(() => notificationStore.notificationFilters)
-const activeFilter = computed({
-  get: () => notificationStore.currentFilter,
-  set: (value) => notificationStore.setFilter(value)
-})
+const badge = computed(() => badgeText(unreadCount.value))
+const badgeTextOf = badgeText
+const tabCounts = computed(() => unreadByTab(allNotifications.value))
 
-// Suppress the document click listener for the same pointer event that
-// opened the panel. With SDR-001 the decorative mask can make the click
-// target the `.icon-button` wrapper instead of `.notification-bell-container`,
-// which would otherwise open then instantly close.
-let suppressOutsideClose = false
+const isSilenced = computed(() => notificationStore.isDndActive)
+// Also covers Busy status, which is read on open and on each clock tick.
+const panelSilenced = ref(false)
 
-// Methods
-const togglePanel = async () => {
-  const opening = !isOpen.value
-  isOpen.value = !isOpen.value
-  if (opening) {
-    suppressOutsideClose = true
-    queueMicrotask(() => {
-      suppressOutsideClose = false
-    })
+const filtered = computed(() =>
+  allNotifications.value.filter(n => inTab(activeTab.value, n.type) && (!unreadOnly.value || !n.is_read))
+)
+
+const groups = computed(() =>
+  groupByDay(filtered.value, { today: t('time.today'), yesterday: t('time.yesterday') }, now.value, locale.value)
+)
+
+const showSkeleton = computed(() => notificationStore.isLoading && filtered.value.length === 0)
+const showError = computed(() => !!notificationStore.loadError && filtered.value.length === 0)
+const canLoadMore = computed(() => notificationStore.fullListLoaded && notificationStore.hasMore && !unreadOnly.value)
+
+const emptyIcon = computed(() => (activeTab.value === 'mentions' ? 'at-sign' : activeTab.value === 'social' ? 'globe' : 'inbox'))
+const emptyTitle = computed(() => (unreadOnly.value ? t('inbox.empty.unread') : t(`inbox.empty.${activeTab.value}`)))
+const emptyHint = computed(() => (unreadOnly.value ? t('inbox.empty.unreadHint') : t(`inbox.empty.${activeTab.value}Hint`)))
+
+function setTabRef(tab: InboxTab, el: Element | ComponentPublicInstance | null) {
+  if (el instanceof HTMLButtonElement) tabRefs.set(tab, el)
+  else tabRefs.delete(tab)
+}
+
+function isMobile(): boolean {
+  return typeof window !== 'undefined' && window.matchMedia?.(MOBILE_QUERY).matches
+}
+
+// Anchors the popover to the bell: above it when the bell sits in the lower half
+// of the viewport (the profile bar), below it otherwise.
+function positionPanel() {
+  if (isMobile() || !bellRef.value) {
+    panelStyle.value = {}
+    return
   }
-  if (isOpen.value) {
-    closeMobileSidebars()
-    document.body.style.overflow = 'hidden'
-    
-    if (authStore.session?.user?.id && notifications.value.length === 0) {
-      debug.log('Loading full notification list on panel open...')
-      await notificationStore.loadFullNotificationList(authStore.session.user.id)
-    }
-  } else {
-    document.body.style.overflow = ''
+  const rect = bellRef.value.getBoundingClientRect()
+  const vw = window.innerWidth
+  const vh = window.innerHeight
+  const width = Math.min(PANEL_WIDTH, vw - GAP * 2)
+  const left = Math.min(Math.max(rect.left, GAP), vw - width - GAP)
+  const above = rect.top > vh / 2
+  const available = (above ? rect.top : vh - rect.bottom) - GAP * 2
+  const style: Record<string, string> = {
+    left: `${left}px`,
+    width: `${width}px`,
+    // Fixed, not max: switching tabs or loading never resizes the panel.
+    height: `${Math.max(240, Math.min(PANEL_MAX_HEIGHT, available))}px`,
+    transformOrigin: above ? 'bottom left' : 'top left',
+  }
+  if (above) style.bottom = `${vh - rect.top + GAP}px`
+  else style.top = `${rect.bottom + GAP}px`
+  panelStyle.value = style
+}
+
+async function open() {
+  isOpen.value = true
+  closeMobileSidebars()
+  now.value = new Date()
+  panelSilenced.value = notificationStore.isSilenced()
+  positionPanel()
+  if (isMobile()) document.body.style.overflow = 'hidden'
+  window.addEventListener('resize', positionPanel)
+  clock = setInterval(() => {
+    now.value = new Date()
+    panelSilenced.value = notificationStore.isSilenced()
+  }, 60_000)
+
+  await nextTick()
+  tabRefs.get(activeTab.value)?.focus()
+
+  const userId = authStore.session?.user?.id
+  if (userId && !notificationStore.fullListLoaded) {
+    await notificationStore.loadFullNotificationList(userId)
   }
 }
 
-const closePanel = () => {
+function close(returnFocus = true) {
+  if (!isOpen.value) return
   isOpen.value = false
   document.body.style.overflow = ''
+  window.removeEventListener('resize', positionPanel)
+  if (clock) clearInterval(clock)
+  clock = null
+  if (returnFocus) nextTick(() => bellRef.value?.focus())
 }
 
-const clearAllNotifications = async () => {
-  if (isClearingAll.value || notifications.value.length === 0) return
+function toggle() {
+  if (isOpen.value) close()
+  else void open()
+}
 
-  // Soft confirmation - destructive irreversible action. Using native
-  // confirm avoids dragging another modal into the panel for one rare op.
-  const confirmed = window.confirm('Clear all notifications? This cannot be undone.')
-  if (!confirmed) return
+async function retry() {
+  const userId = authStore.session?.user?.id
+  if (userId) await notificationStore.loadFullNotificationList(userId, true)
+}
 
+async function loadMore() {
+  const userId = authStore.session?.user?.id
+  if (!userId || loadingMore.value) return
+  loadingMore.value = true
   try {
-    isClearingAll.value = true
-    await notificationStore.clearAllNotifications()
-  } catch (error) {
-    debug.error('Failed to clear all notifications:', error)
-  } finally {
-    isClearingAll.value = false
-  }
-}
-
-const markAllAsRead = async () => {
-  if (!authStore.session?.user?.id || isMarkingAllAsRead.value) return
-  
-  try {
-    isMarkingAllAsRead.value = true
-    await notificationStore.markAllAsRead()
-  } catch (error) {
-    debug.error('Failed to mark all notifications as read:', error)
-    notificationStore.showToast(
-      'server_update',
-      "Couldn't mark notifications as read",
-      'Try again.',
-      3000
-    )
-  } finally {
-    isMarkingAllAsRead.value = false
-  }
-}
-
-const handleMarkReadToggle = async (notificationId: string) => {
-  const notification = notificationStore.notifications.find(n => n.id === notificationId)
-  if (notification?.is_read) {
-    await notificationStore.markAsUnread(notificationId)
-  } else {
-    await notificationStore.markAsRead(notificationId)
-  }
-}
-
-const dismissNotification = async (notificationId: string) => {
-  try {
-    await notificationStore.deleteNotification(notificationId)
-  } catch (error) {
-    debug.error('Failed to dismiss notification:', error)
-  }
-}
-
-const handleNotificationClick = (notification: Notification) => {
-  notificationStore.handleNotificationClick(notification)
-  closePanel()
-  closeMobileSidebars()
-}
-
-const openSettings = () => {
-  closePanel()
-  router.push({ name: 'UserSettings', params: { section: 'notifications' } })
-}
-
-const loadMoreNotifications = async () => {
-  if (isLoadingMore.value || !authStore.session?.user?.id) return
-  
-  try {
-    isLoadingMore.value = true
-    const newNotifications = await notificationStore.fetchNotifications(
-      authStore.session.user.id,
-      25,
-      notificationStore.loadedCount
-    )
-    hasMoreNotifications.value = newNotifications.length === 25
+    await notificationStore.loadMoreNotifications(userId)
   } catch (error) {
     debug.error('Failed to load more notifications:', error)
   } finally {
-    isLoadingMore.value = false
+    loadingMore.value = false
   }
 }
 
-// Click outside handler
-const handleClickOutside = (event: Event) => {
-  if (!isOpen.value || suppressOutsideClose) return
+async function markAllRead() {
+  busy.value = 'read'
+  try {
+    await notificationStore.markAllAsRead()
+  } finally {
+    busy.value = null
+  }
+}
 
-  const target = event.target as HTMLElement
-  if (
-    target.closest('.notification-bell-container') ||
-    target.closest('[data-testid="notification-bell"]') ||
-    target.closest('.notification-bell-slot')
-  ) {
+async function clearAll() {
+  if (!window.confirm(t('inbox.clearConfirm'))) return
+  busy.value = 'clear'
+  try {
+    await notificationStore.clearAllNotifications()
+  } finally {
+    busy.value = null
+  }
+}
+
+function openSettings() {
+  close(false)
+  router.push({ name: 'UserSettings', params: { section: 'notifications' } })
+}
+
+function openNotification(notification: Notification) {
+  notificationStore.handleNotificationClick(notification)
+  close(false)
+  closeMobileSidebars()
+}
+
+async function toggleRead(id: string) {
+  const notification = notificationStore.notifications.find(n => n.id === id)
+  try {
+    if (notification?.is_read) await notificationStore.markAsUnread(id)
+    else await notificationStore.markAsRead(id)
+  } catch (error) {
+    debug.error('Failed to toggle read state:', error)
+  }
+}
+
+async function remove(id: string) {
+  const index = rowButtons().findIndex(el => el.closest('li')?.contains(document.activeElement))
+  try {
+    await notificationStore.deleteNotification(id)
+  } catch (error) {
+    debug.error('Failed to remove notification:', error)
     return
   }
-
-  closePanel()
-}
-
-// Keyboard navigation
-const handleKeydown = (event: KeyboardEvent) => {
-  if (event.key === 'Escape' && isOpen.value) {
-    closePanel()
+  // Keeps keyboard focus in the list after the focused row disappears.
+  if (index >= 0) {
+    await nextTick()
+    const next = rowButtons()
+    next[Math.min(index, next.length - 1)]?.focus()
   }
 }
 
-// Display only. BaseLayout owns notification initialization.
-onMounted(() => {
-  debug.log('NotificationBell: Mounted as reactive display component')
-  
-  document.addEventListener('click', handleClickOutside)
-  document.addEventListener('keydown', handleKeydown)
+function rowButtons(): HTMLElement[] {
+  return Array.from(scrollRef.value?.querySelectorAll<HTMLElement>('[data-row-hit]') ?? [])
+}
+
+function focusables(): HTMLElement[] {
+  return Array.from(panelRef.value?.querySelectorAll<HTMLElement>(
+    'button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'
+  ) ?? []).filter(el => el.offsetParent !== null || el === document.activeElement)
+}
+
+function onPanelKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape') {
+    event.stopPropagation()
+    close()
+    return
+  }
+  if (event.key !== 'Tab') return
+  const items = focusables()
+  if (items.length === 0) return
+  const first = items[0]
+  const last = items[items.length - 1]
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault()
+    last.focus()
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault()
+    first.focus()
+  }
+}
+
+function onTabKeydown(event: KeyboardEvent) {
+  const index = INBOX_TABS.indexOf(activeTab.value)
+  let next = index
+  if (event.key === 'ArrowRight') next = (index + 1) % INBOX_TABS.length
+  else if (event.key === 'ArrowLeft') next = (index - 1 + INBOX_TABS.length) % INBOX_TABS.length
+  else if (event.key === 'Home') next = 0
+  else if (event.key === 'End') next = INBOX_TABS.length - 1
+  else if (event.key === 'ArrowDown') {
+    event.preventDefault()
+    rowButtons()[0]?.focus()
+    return
+  } else return
+  event.preventDefault()
+  activeTab.value = INBOX_TABS[next]
+  tabRefs.get(INBOX_TABS[next])?.focus()
+}
+
+function onListKeydown(event: KeyboardEvent) {
+  if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return
+  const rows = rowButtons()
+  if (rows.length === 0) return
+  const current = rows.findIndex(el => el.closest('li')?.contains(document.activeElement))
+  let next = current
+  if (event.key === 'ArrowDown') next = current < 0 ? 0 : Math.min(current + 1, rows.length - 1)
+  else if (event.key === 'ArrowUp') {
+    if (current <= 0) {
+      event.preventDefault()
+      tabRefs.get(activeTab.value)?.focus()
+      return
+    }
+    next = current - 1
+  } else if (event.key === 'Home') next = 0
+  else next = rows.length - 1
+  event.preventDefault()
+  rows[next].focus()
+}
+
+// Loads the next page as the end of the list scrolls into view.
+watch(sentinelRef, (el) => {
+  observer?.disconnect()
+  observer = null
+  if (!el || typeof IntersectionObserver === 'undefined') return
+  observer = new IntersectionObserver((entries) => {
+    if (entries.some(e => e.isIntersecting)) void loadMore()
+  }, { root: scrollRef.value, rootMargin: '120px' })
+  observer.observe(el)
 })
 
-onUnmounted(() => {
-  document.removeEventListener('click', handleClickOutside)
-  document.removeEventListener('keydown', handleKeydown)
-  document.body.style.overflow = ''
+watch(activeTab, () => {
+  scrollRef.value?.scrollTo({ top: 0 })
+})
+
+watch(() => authStore.session?.user?.id, (id) => {
+  if (!id) close(false)
+})
+
+onBeforeUnmount(() => {
+  observer?.disconnect()
+  close(false)
 })
 </script>
 
 <style scoped>
 .notification-bell-container {
   position: relative;
-  z-index: 1000;
 }
 
 .notification-bell {
@@ -385,13 +499,13 @@ onUnmounted(() => {
   justify-content: center;
   width: 32px;
   height: 32px;
-  background: transparent;
+  padding: 0;
   border: none;
-  border-radius: 4px;
+  border-radius: var(--radius-base);
+  background: transparent;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: background-color var(--transition-fast), color var(--transition-fast);
-  color: var(--text-secondary);
-  outline: none;
 }
 
 .notification-bell:hover {
@@ -399,8 +513,9 @@ onUnmounted(() => {
   color: var(--text-primary);
 }
 
-.notification-bell:focus {
-  box-shadow: 0 0 0 2px var(--harmony-primary-alpha-strong);
+.notification-bell:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 1px;
 }
 
 .notification-bell.has-unread {
@@ -412,528 +527,418 @@ onUnmounted(() => {
   color: var(--h-brand);
 }
 
-.notification-bell.dnd-active {
-  filter: saturate(0.7);
-}
-
-.bell-icon-wrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
+/* Out of flow: the count never moves the bell or its neighbours. */
 .notification-badge {
   position: absolute;
-  top: -4px;
-  right: -4px;
+  top: -3px;
+  right: -5px;
   min-width: 16px;
   height: 16px;
   padding: 0 4px;
   box-sizing: border-box;
-  background: var(--error);
-  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
+  border-radius: var(--radius-full);
+  background: var(--error);
   box-shadow: 0 0 0 2px var(--background-tertiary);
+  pointer-events: none;
 }
 
 .badge-text {
-  color: var(--text-on-primary);
+  color: #fff;
   font-size: 10px;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   line-height: 1;
+  font-variant-numeric: tabular-nums;
 }
 
 .dnd-indicator {
   position: absolute;
-  bottom: -2px;
-  right: -2px;
-  width: 18px;
-  height: 18px;
+  right: 3px;
+  bottom: 3px;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
   background: var(--status-busy);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-on-primary);
-  box-shadow: 0 0 0 3px var(--background-tertiary);
-  font-size: 8px;
+  box-shadow: 0 0 0 2px var(--background-tertiary);
+  pointer-events: none;
+}
+
+.notification-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: transparent;
 }
 
 .notification-panel {
   position: fixed;
-  bottom: 100px;
-  left: 200px;
-  width: 420px;
-  max-height: calc(100vh - 120px);
-  background: var(--background-secondary);
+  z-index: 1001;
+  display: flex;
+  flex-direction: column;
+  width: 400px;
+  max-height: 640px;
+  overflow: hidden;
+  background: var(--background-floating, var(--background-secondary));
   border: 1px solid var(--border-primary);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-large);
-  overflow: hidden;
-  z-index: 1001;
+  box-shadow: var(--shadow-modal);
+  color: var(--text-primary);
 }
 
-.panel-header {
-  background: var(--background-secondary);
-  padding: 20px;
-  border-bottom: 1px solid var(--border-primary);
-  position: relative;
-}
-
-.header-content {
+.inbox-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-3) var(--space-2) var(--space-4);
 }
 
-.header-title-section {
-  flex: 1;
+.inbox-title-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
 }
 
-.panel-title {
+.inbox-title {
   margin: 0;
-  font-size: 18px;
-  font-weight: 700;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-bold);
+}
+
+.new-pill {
+  padding: 1px 8px;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--harmony-primary) 16%, transparent);
+  color: var(--h-brand);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+}
+
+.inbox-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.icon-btn {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: var(--radius-base);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.icon-btn:hover:not(:disabled) {
+  background: var(--background-modifier-hover);
   color: var(--text-primary);
 }
 
-.unread-indicator {
-  margin-top: 4px;
-  font-size: 12px;
-  color: var(--h-brand);
-  font-weight: 600;
+.icon-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
-.header-actions {
+.icon-btn:focus-visible,
+.inbox-tab:focus-visible,
+.unread-toggle:focus-visible,
+.state-btn:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 1px;
+}
+
+.inbox-toolbar {
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 0 var(--space-3) var(--space-2);
+  border-bottom: 1px solid var(--border-primary);
 }
 
-.action-button {
+.inbox-tabs {
   display: flex;
+  gap: 2px;
+}
+
+.inbox-tab {
+  display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 12px;
+  height: 30px;
+  padding: 0 10px;
   border: none;
-  border-radius: var(--radius-md);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color var(--transition-fast), color var(--transition-fast);
-}
-
-.mark-all-read {
-  background: color-mix(in srgb, var(--success) 15%, transparent);
-  color: var(--success);
-  border: 1px solid color-mix(in srgb, var(--success) 30%, transparent);
-}
-
-.mark-all-read:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--success) 25%, transparent);
-}
-
-.mark-all-read:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.clear-all {
-  background: color-mix(in srgb, var(--error) 12%, transparent);
-  color: var(--error);
-  border: 1px solid color-mix(in srgb, var(--error) 30%, transparent);
-}
-
-.clear-all:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--error) 22%, transparent);
-}
-
-.clear-all:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.settings-btn, .close-btn {
-  background: var(--background-modifier-hover);
+  border-radius: var(--radius-base);
+  background: transparent;
   color: var(--text-secondary);
-  border: 1px solid var(--border-primary);
-  padding: 8px;
-  min-width: 32px;
-  justify-content: center;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
 }
 
-.settings-btn:hover, .close-btn:hover {
+.inbox-tab:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-primary);
+}
+
+.inbox-tab.active {
   background: var(--background-modifier-active);
   color: var(--text-primary);
 }
 
-/* Panel content */
-.panel-content {
-  max-height: calc(80vh - 100px);
-  overflow-y: auto;
-  overflow-x: hidden;
-}
-
-/* Custom scrollbar */
-.panel-content::-webkit-scrollbar {
-  width: 6px;
-}
-
-.panel-content::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.1);
-}
-
-.panel-content::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 3px;
-}
-
-/* Notification states */
-.notification-state {
-  padding: 40px 20px;
+.tab-count {
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: var(--radius-full);
+  background: var(--error);
+  color: #fff;
+  font-size: 11px;
+  font-weight: var(--font-weight-bold);
+  line-height: 18px;
   text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.unread-toggle {
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-full);
+  background: transparent;
   color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+  cursor: pointer;
 }
 
-.state-animation {
-  margin-bottom: 20px;
-  position: relative;
+.unread-toggle:hover {
+  color: var(--text-primary);
+  border-color: var(--border-hover);
 }
 
-/* Empty state */
-.empty-bell {
-  position: relative;
-  display: inline-block;
+.unread-toggle.active {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--harmony-primary) 18%, transparent);
+  color: var(--h-brand);
+}
+
+.silenced-note {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--border-primary);
+  background: color-mix(in srgb, var(--status-busy) 10%, transparent);
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+.inbox-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-bottom: var(--space-2);
+}
+
+.day-group + .day-group {
+  margin-top: var(--space-1);
+}
+
+.day-label {
+  margin: 0;
+  padding: var(--space-2) var(--space-4) var(--space-1);
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+}
+
+.day-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.skeleton-list {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  list-style: none;
+}
+
+.skeleton-row {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  height: 56px;
+}
+
+.sk {
+  display: block;
+  border-radius: var(--radius-base);
+  background: var(--background-modifier-hover);
+  animation: sk-pulse 1.4s ease-in-out infinite;
+}
+
+.sk-avatar {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: var(--radius-full);
+}
+
+.sk-lines {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sk-line {
+  height: 10px;
+  width: 80%;
+}
+
+.sk-line.short {
+  width: 50%;
+}
+
+@keyframes sk-pulse {
+  50% { opacity: 0.5; }
+}
+
+.inbox-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-10) var(--space-6);
+  text-align: center;
+}
+
+.state-icon {
+  color: var(--text-muted);
 }
 
 .state-title {
-  margin: 0 0 8px 0;
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.state-description {
   margin: 0;
-  font-size: 14px;
-  line-height: 1.5;
-  opacity: 0.8;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
 }
 
-/* Notification filters */
-.notification-filters {
-  display: flex;
-  gap: 6px;
-  padding: 8px 20px;
-  border-bottom: 1px solid var(--border-primary);
-  overflow-x: auto;
+.state-hint {
+  margin: 0;
+  max-width: 280px;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
 }
 
-.filter-tab {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
-  border: none;
-  border-radius: var(--radius-full);
+.state-btn {
+  padding: 6px 14px;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-base);
   background: var(--background-modifier-hover);
-  color: var(--text-secondary);
-  font-size: 12px;
-  font-weight: 600;
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
-  transition: background-color var(--transition-fast), color var(--transition-fast);
-  white-space: nowrap;
-  flex-shrink: 0;
 }
 
-.filter-tab:hover {
-  background: var(--background-modifier-active);
-  color: var(--text-primary);
+.state-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 
-.filter-tab.active {
-  background: color-mix(in srgb, var(--harmony-primary) 20%, transparent);
-  color: var(--h-brand);
-  border: 1px solid color-mix(in srgb, var(--harmony-primary) 30%, transparent);
-}
-
-.filter-icon {
-  flex-shrink: 0;
-  color: inherit;
-}
-
-.filter-icon-unread {
-  color: var(--error);
-}
-
-.filter-count {
-  background: var(--background-modifier-active);
-  padding: 2px 6px;
-  border-radius: 10px;
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--text-primary);
-}
-
-/* Count keeps the neutral text colour on the brand-tinted active tab. */
-.filter-tab.active .filter-count {
-  color: var(--text-primary);
-}
-
-/* Notifications container */
-.notifications-container {
-  padding: 8px 0;
-}
-
-.notification-item-wrapper {
-  border-bottom: 1px solid var(--border-secondary);
-}
-
-.notification-item-wrapper:last-child {
-  border-bottom: none;
-}
-
-/* Load more section */
-.load-more-section {
-  padding: 16px 20px;
-  border-top: 1px solid var(--border-primary);
-  text-align: center;
-}
-
-.load-more-btn {
+.load-more {
   display: flex;
-  align-items: center;
   justify-content: center;
-  gap: 8px;
-  width: 100%;
-  padding: 12px;
-  border: none;
-  border-radius: var(--radius-md);
-  background: var(--background-modifier-hover);
-  color: var(--text-secondary);
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color var(--transition-fast), color var(--transition-fast);
+  padding: var(--space-3) 0 var(--space-1);
 }
 
-.load-more-btn:hover:not(:disabled) {
-  background: var(--background-modifier-active);
-  color: var(--text-primary);
+.inbox-enter-active,
+.inbox-leave-active {
+  transition: opacity 140ms ease, transform 140ms ease;
 }
 
-.load-more-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.inbox-enter-from,
+.inbox-leave-to {
+  opacity: 0;
+  transform: scale(0.97);
 }
 
-.loading-text {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.loading-dots {
-  display: flex;
-  gap: 4px;
-}
-
-.loading-dots span {
-  width: 4px;
-  height: 4px;
-  background: currentColor;
-  border-radius: 50%;
-  animation: loading-dot 1.4s ease-in-out infinite both;
-}
-
-.loading-dots span:nth-child(1) { animation-delay: -0.32s; }
-.loading-dots span:nth-child(2) { animation-delay: -0.16s; }
-
-.loading-spinner {
-  width: 16px;
-  height: 16px;
-  border: 2px solid transparent;
-  border-top: 2px solid currentColor;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-/* Backdrop */
-.notification-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(4px);
-  z-index: 999;
-}
-
+/* Phones: a full-screen sheet instead of a popover. */
 @media (max-width: 768px) {
   .notification-backdrop {
-    z-index: 10000;
+    display: none;
   }
-}
 
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-@keyframes loading-dot {
-  0%, 80%, 100% { transform: scale(0.8); opacity: 0.5; }
-  40% { transform: scale(1); opacity: 1; }
-}
-
-/* Transitions */
-.badge-bounce-enter-active,
-.badge-bounce-leave-active {
-  transition: opacity var(--transition-fast), transform var(--transition-fast);
-}
-
-.badge-bounce-enter-from,
-.badge-bounce-leave-to {
-  opacity: 0;
-  transform: scale(0.6);
-}
-
-.dnd-fade-enter-active, .dnd-fade-leave-active {
-  transition: all 0.3s ease;
-}
-
-.dnd-fade-enter-from, .dnd-fade-leave-to {
-  opacity: 0;
-  transform: scale(0.8);
-}
-
-.panel-slide-enter-active {
-  animation: panel-slide-in 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.panel-slide-leave-active {
-  animation: panel-slide-in 0.3s reverse;
-}
-
-@keyframes panel-slide-in {
-  0% {
-    opacity: 0;
-    transform: translateY(-20px) scale(0.95);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-.backdrop-fade-enter-active, .backdrop-fade-leave-active {
-  transition: all 0.3s ease;
-}
-
-.backdrop-fade-enter-from, .backdrop-fade-leave-to {
-  opacity: 0;
-}
-
-.button-fade-enter-active, .button-fade-leave-active {
-  transition: all 0.2s ease;
-}
-
-.button-fade-enter-from, .button-fade-leave-to {
-  opacity: 0;
-  transform: scale(0.9);
-}
-
-.notification-list-enter-active {
-  transition: all 0.4s ease;
-}
-
-.notification-list-leave-active {
-  transition: all 0.3s ease;
-}
-
-.notification-list-enter-from {
-  opacity: 0;
-  transform: translateX(30px);
-}
-
-.notification-list-leave-to {
-  opacity: 0;
-  transform: translateX(-30px);
-}
-
-.notification-list-move {
-  transition: transform 0.3s ease;
-}
-
-/* Responsive design */
-@media (max-width: 768px) {
+  /* !important: the global glass rule in design-system.css outranks scoped styles,
+     and a full-screen sheet stays opaque whatever the blur setting. */
   .notification-panel {
-    width: calc(100vw - 24px);
-    right: 12px;
-    left: 12px;
-    max-height: calc(100vh - 80px);
+    inset: 0;
     z-index: 10001;
+    width: auto;
+    max-height: none;
+    border: none;
+    border-radius: 0;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    background: var(--background-primary) !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
   }
-  
-  .header-content {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
+
+  .inbox-header {
+    padding: var(--space-3) var(--space-2) var(--space-2) var(--space-4);
   }
-  
-  .header-actions {
-    width: 100%;
-    justify-content: flex-end;
+
+  .inbox-title {
+    font-size: var(--font-size-lg);
   }
-  
-  .notification-filters {
-    padding: 12px 16px 8px;
+
+  .icon-btn {
+    width: 40px;
+    height: 40px;
   }
-  
-  .filter-tab {
-    font-size: 11px;
-    padding: 6px 10px;
+
+  .inbox-enter-from,
+  .inbox-leave-to {
+    opacity: 1;
+    transform: translateY(100%);
+  }
+
+  .inbox-enter-active,
+  .inbox-leave-active {
+    transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
   }
 }
 
-@media (max-width: 480px) {
-  .panel-header {
-    padding: 16px;
-  }
-  
-  .panel-title {
-    font-size: 16px;
-  }
-  
-  .action-button {
-    font-size: 11px;
-    padding: 6px 8px;
-  }
-}
-
-/* High contrast mode support */
-@media (prefers-contrast: high) {
+@media (prefers-reduced-motion: reduce) {
+  .inbox-enter-active,
+  .inbox-leave-active,
   .notification-bell {
-    border: 2px solid currentColor;
+    transition: none;
   }
-  
+
+  .sk {
+    animation: none;
+  }
+}
+
+@media (prefers-contrast: more) {
   .notification-panel {
     border: 2px solid currentColor;
-  }
-  
-  .notification-badge {
-    background: #ff0000;
-    box-shadow: 0 0 0 2px var(--background-tertiary);
-  }
-}
-
-/* Reduced motion support */
-@media (prefers-reduced-motion: reduce) {
-  * {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
   }
 }
 </style>

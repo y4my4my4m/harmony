@@ -115,6 +115,14 @@
 
 
 
+.setting-hint {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
 .cyber-input:focus, .cyber-textarea:focus, .cyber-select:focus {
   outline: none;
   border-color: var(--harmony-primary);

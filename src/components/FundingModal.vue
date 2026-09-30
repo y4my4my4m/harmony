@@ -1,85 +1,58 @@
 <template>
   <Teleport to="body">
-    <div class="funding-overlay" @click.self="$emit('close')">
-      <div class="funding-modal">
+    <div class="funding-overlay" @click.self="close">
+      <div
+        ref="dialogRef"
+        class="funding-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="funding-modal-title"
+        tabindex="-1"
+      >
         <div class="modal-header">
-          <h2>Instance funding</h2>
-          <button @click="$emit('close')" class="close-btn">
-            <svg width="20" height="20" viewBox="0 0 24 24">
-              <path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-            </svg>
+          <div class="header-titles">
+            <h2 id="funding-modal-title">Instance funding</h2>
+            <p class="header-subtitle">{{ instanceDomain }}</p>
+          </div>
+          <button type="button" class="close-btn" aria-label="Close" @click="close">
+            <Icon name="x" :size="20" />
           </button>
         </div>
 
         <div class="modal-body">
-          <div v-if="loading" class="loading-state">Loading...</div>
+          <div v-if="loading" class="loading-state">
+            <LoadingSpinner />
+          </div>
 
           <template v-else-if="config">
-            <!-- Progress -->
-            <div v-if="config.goal_amount" class="funding-progress-section">
-              <div class="progress-header">
-                <span class="progress-amount">
-                  {{ formatCurrency(config.displayed_amount ?? config.current_amount, config.goal_currency) }}
-                </span>
+            <section v-if="config.goal_amount" class="progress-card" aria-label="Funding progress">
+              <div class="progress-figures">
+                <span class="progress-raised">{{ formatCurrency(raisedAmount, config.goal_currency) }}</span>
                 <span class="progress-goal">
-                  of {{ formatCurrency(config.goal_amount, config.goal_currency) }}
+                  raised of {{ formatCurrency(config.goal_amount, config.goal_currency) }} {{ periodLabel }}
                 </span>
               </div>
-              <div class="progress-bar-track">
+              <div
+                class="progress-bar-track"
+                role="progressbar"
+                :aria-valuenow="progressPercent"
+                aria-valuemin="0"
+                aria-valuemax="100"
+              >
                 <div class="progress-bar-fill" :style="{ width: progressPercent + '%' }"></div>
               </div>
-              <div class="progress-percent">{{ progressPercent }}% funded</div>
-            </div>
+              <div class="progress-stats">
+                <span><strong>{{ progressPercent }}%</strong> funded</span>
+                <span v-if="supporterCount > 0">
+                  <strong>{{ supporterCount }}</strong> {{ supporterCount === 1 ? 'supporter' : 'supporters' }}
+                </span>
+              </div>
+            </section>
 
-            <!-- Description -->
             <p v-if="config.goal_description" class="funding-description">{{ config.goal_description }}</p>
 
-            <!-- Funding Links -->
-            <div v-if="config.funding_links && config.funding_links.length > 0" class="funding-links">
-              <h3>Support this instance</h3>
-
-              <!-- Donor instruction callout.
-                   Loud, opt-out by admin via thank_you_message later if needed.
-                   Donors who skip this end up in the Pending Donations queue. -->
-              <div class="donor-instructions">
-                <Icon name="info" :size="16" class="donor-instructions-icon" />
-                <div class="donor-instructions-body">
-                  <p class="donor-instructions-title">Get your supporter badge automatically</p>
-                  <p class="donor-instructions-text">
-                    Include this handle <strong>anywhere</strong> in your donation message -
-                    we'll match it automatically and assign the right tier based on your
-                    cumulative donations this cycle:
-                  </p>
-                  <div class="donor-handle-row">
-                    <code class="donor-handle-example">@{{ currentUserHandle || 'username' }}@{{ instanceDomain }}</code>
-                    <button
-                      v-if="currentUserHandle"
-                      class="donor-copy-btn"
-                      type="button"
-                      @click="copyCurrentHandle"
-                      :title="'Copy your handle'"
-                    >
-                      <Icon name="copy" :size="12" /> Copy mine
-                    </button>
-                  </div>
-
-                  <details class="donor-examples">
-                    <summary>Message examples</summary>
-                    <ul class="donor-examples-list">
-                      <li><code>@{{ currentUserHandle || 'alice' }}@{{ instanceDomain }}</code></li>
-                      <li><code>thanks! @{{ currentUserHandle || 'alice' }}@{{ instanceDomain }}</code></li>
-                      <li><code>@{{ currentUserHandle || 'alice' }}@{{ instanceDomain }} love the new features</code></li>
-                      <li><code>cheers @{{ currentUserHandle || 'alice' }}@{{ instanceDomain }} keep it up</code></li>
-                    </ul>
-                  </details>
-
-                  <p class="donor-instructions-hint">
-                    Forget the handle? Your donation isn't lost - it'll be queued
-                    for the admins to attribute manually.
-                  </p>
-                </div>
-              </div>
-
+            <section v-if="config.funding_links && config.funding_links.length > 0" class="funding-links">
+              <h3>Donate</h3>
               <div class="links-list">
                 <a
                   v-for="(link, i) in config.funding_links"
@@ -88,52 +61,88 @@
                   target="_blank"
                   rel="noopener noreferrer"
                   class="funding-link"
-                  :class="`funding-link--${linkPlatformKey(link.platform)}`"
+                  :class="[`funding-link--${linkPlatformKey(link.platform)}`, { 'funding-link--primary': i === 0 }]"
                 >
-                  <PlatformIcon
-                    class="link-icon"
-                    :platform="link.platform"
-                    :size="22"
-                    :use-brand-color="true"
-                  />
+                  <span class="link-icon-wrap">
+                    <PlatformIcon
+                      class="link-icon"
+                      :platform="link.platform"
+                      :size="20"
+                      :use-brand-color="i !== 0"
+                    />
+                  </span>
                   <span class="link-text">
-                    <span class="link-platform">{{ platformLabel(link.platform) }}</span>
+                    <span class="link-platform">
+                      {{ i === 0 ? `Support on ${platformLabel(link.platform)}` : platformLabel(link.platform) }}
+                    </span>
                     <span v-if="link.label && link.label !== link.platform" class="link-label">{{ link.label }}</span>
                   </span>
                   <Icon name="external-link" :size="14" class="link-external" />
                 </a>
               </div>
-            </div>
 
-            <!-- Supporter Tiers -->
-            <div v-if="tiers.length > 0" class="tiers-section">
-              <h3>Supporter tiers</h3>
-              <div class="tier-cards">
-                <div v-for="tier in tiers" :key="tier.id" class="tier-card">
-                  <div class="tier-badge-preview">
-                    <span
-                      class="badge-inline"
-                      :style="tier.badge_color ? {
-                        backgroundColor: tier.badge_color + '20',
-                        borderColor: tier.badge_color,
-                        color: tier.badge_color
-                      } : {}"
-                    ><SupporterBadgeIcon :icon="tier.badge_icon" /></span>
+              <details class="donor-instructions">
+                <summary>
+                  <Icon name="info" :size="14" class="donor-instructions-icon" />
+                  <span class="donor-summary-label">Get your supporter badge automatically</span>
+                  <Icon name="chevron-down" :size="14" class="donor-instructions-chevron" />
+                </summary>
+                <div class="donor-instructions-body">
+                  <p class="donor-instructions-text">
+                    Include your handle anywhere in the donation message. The tier follows your
+                    total donations this cycle.
+                  </p>
+                  <div class="donor-handle-row">
+                    <code class="donor-handle">@{{ currentUserHandle || 'username' }}@{{ instanceDomain }}</code>
+                    <button
+                      v-if="currentUserHandle"
+                      class="donor-copy-btn"
+                      type="button"
+                      @click="copyCurrentHandle"
+                    >
+                      <Icon :name="handleCopied ? 'check' : 'copy'" :size="12" />
+                      {{ handleCopied ? 'Copied' : 'Copy' }}
+                    </button>
                   </div>
-                  <div class="tier-details">
-                    <span class="tier-name">{{ tier.name }}</span>
-                    <span class="tier-min">From {{ formatCurrency(tier.min_amount, config.goal_currency) }}</span>
-                  </div>
-                  <span v-if="tier.perks" class="tier-perks">{{ tier.perks }}</span>
+                  <p class="donor-instructions-hint">
+                    Donations without a handle are queued for the admins to attribute by hand.
+                  </p>
                 </div>
-              </div>
-            </div>
+              </details>
+            </section>
 
-            <!-- Current user supporter status -->
-            <div v-if="myBadge" class="my-supporter-status">
+            <section v-if="tiers.length > 0" class="tiers-section">
+              <h3>Supporter tiers</h3>
+              <ul class="tier-list">
+                <li
+                  v-for="tier in tiers"
+                  :key="tier.id"
+                  class="tier-card"
+                  :class="{ 'tier-card--current': myBadge?.tier_name === tier.name }"
+                >
+                  <span
+                    class="tier-badge"
+                    :style="tier.badge_color ? {
+                      backgroundColor: tier.badge_color + '20',
+                      borderColor: tier.badge_color,
+                      color: tier.badge_color
+                    } : {}"
+                  ><SupporterBadgeIcon :icon="tier.badge_icon" /></span>
+                  <span class="tier-details">
+                    <span class="tier-heading">
+                      <span class="tier-name">{{ tier.name }}</span>
+                      <span class="tier-min">from {{ formatCurrency(tier.min_amount, config.goal_currency) }}</span>
+                    </span>
+                    <span v-if="tier.perks" class="tier-perks">{{ tier.perks }}</span>
+                  </span>
+                </li>
+              </ul>
+            </section>
+
+            <section v-if="myBadge" class="my-supporter-status">
               <h3>Your support</h3>
               <div class="my-badge-row">
-                <span class="my-badge-icon" :style="badgeStyle">
+                <span class="tier-badge" :style="badgeStyle">
                   <SupporterBadgeIcon :icon="myBadge.badge_icon" />
                 </span>
                 <div class="my-badge-info">
@@ -141,10 +150,9 @@
                   <span class="my-badge-active">Active</span>
                 </div>
               </div>
-            </div>
+            </section>
 
-            <!-- My donation history -->
-            <div v-if="myDonations.length > 0" class="my-donations">
+            <section v-if="myDonations.length > 0" class="my-donations">
               <h3>Your donations</h3>
               <div class="donations-list">
                 <div v-for="donation in myDonations" :key="donation.id" class="donation-row">
@@ -153,9 +161,8 @@
                   <span v-if="donation.note" class="donation-note">{{ donation.note }}</span>
                 </div>
               </div>
-            </div>
+            </section>
 
-            <!-- Thank you -->
             <p v-if="config.thank_you_message && (myBadge || myDonations.length > 0)" class="thank-you-message">
               {{ config.thank_you_message }}
             </p>
@@ -171,10 +178,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { fundingService, type FundingConfigWithProgress, type SupporterTier, type SupporterBadge, type DonationRecord } from '@/services/FundingService'
 import SupporterBadgeIcon from '@/components/common/SupporterBadgeIcon.vue'
 import PlatformIcon from '@/components/common/PlatformIcon.vue'
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import Icon from '@/components/common/Icon.vue'
 import { supabase } from '@/supabase'
 import { useProfileStore } from '@/stores/useProfile'
@@ -205,28 +213,40 @@ const instanceDomain = computed(() => getInstanceDomain())
 
 const currentUserHandle = computed(() => profileStore.profile?.username ?? '')
 
+const handleCopied = ref(false)
+let handleCopiedTimer: ReturnType<typeof setTimeout> | null = null
+
 const copyCurrentHandle = async () => {
   if (!currentUserHandle.value) return
   try {
     await navigator.clipboard.writeText(`@${currentUserHandle.value}@${instanceDomain.value}`)
+    handleCopied.value = true
+    if (handleCopiedTimer) clearTimeout(handleCopiedTimer)
+    handleCopiedTimer = setTimeout(() => { handleCopied.value = false }, 2000)
   } catch {
-    /* ignore - clipboard may be unavailable */
+    /* clipboard unavailable */
   }
 }
 
-defineEmits<{ close: [] }>()
+const emit = defineEmits<{ close: [] }>()
+const close = () => emit('close')
 
+const dialogRef = ref<HTMLElement | null>(null)
 const loading = ref(true)
 const config = ref<FundingConfigWithProgress | null>(null)
 const tiers = ref<SupporterTier[]>([])
 const myBadge = ref<SupporterBadge | null>(null)
 const myDonations = ref<DonationRecord[]>([])
+const supporterCount = ref(0)
+
+const raisedAmount = computed(() => config.value?.displayed_amount ?? config.value?.current_amount ?? 0)
 
 const progressPercent = computed(() => {
   if (!config.value?.goal_amount) return 0
-  const amount = config.value.displayed_amount ?? config.value.current_amount
-  return Math.min(100, Math.round((amount / config.value.goal_amount) * 100))
+  return Math.min(100, Math.round((raisedAmount.value / config.value.goal_amount) * 100))
 })
+
+const periodLabel = computed(() => (config.value?.funding_period === 'all' ? 'in total' : 'this month'))
 
 const badgeStyle = computed(() => {
   if (!myBadge.value?.badge_color) return {}
@@ -240,21 +260,35 @@ const badgeStyle = computed(() => {
 const formatCurrency = (amount: number, currency: string) => {
   const symbols: Record<string, string> = { USD: '$', EUR: '€', GBP: '£', JPY: '¥' }
   const symbol = symbols[currency] || currency + ' '
-  return symbol + amount.toFixed(amount % 1 === 0 ? 0 : 2)
+  const value = Number(amount) || 0
+  return symbol + value.toFixed(value % 1 === 0 ? 0 : 2)
 }
 
 const formatDate = (dateStr: string) => {
   return new Date(dateStr).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
+const onKeydown = (event: KeyboardEvent) => {
+  if (event.key === 'Escape') {
+    event.stopPropagation()
+    close()
+  }
+}
+
 onMounted(async () => {
+  document.addEventListener('keydown', onKeydown)
+  await nextTick()
+  dialogRef.value?.focus()
+
   try {
-    const [fundingConfig, tierList] = await Promise.all([
+    const [fundingConfig, tierList, count] = await Promise.all([
       fundingService.getFundingWithProgress(),
       fundingService.getTiers(),
+      fundingService.getActiveSupporterCount(),
     ])
     config.value = fundingConfig
     tiers.value = tierList
+    supporterCount.value = count
 
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
@@ -269,54 +303,82 @@ onMounted(async () => {
     loading.value = false
   }
 })
+
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', onKeydown)
+  if (handleCopiedTimer) clearTimeout(handleCopiedTimer)
+})
 </script>
 
 <style scoped>
 .funding-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.6);
+  z-index: 10000;
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 10000;
+  padding: var(--space-4);
+  background: rgba(0, 0, 0, 0.6);
   backdrop-filter: blur(4px);
 }
 
 .funding-modal {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 480px;
+  max-height: min(85vh, 760px);
+  overflow: hidden;
   background: var(--background-primary);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
-  width: 90vw;
-  max-width: 460px;
-  max-height: 80vh;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+  box-shadow: var(--shadow-modal);
+  outline: none;
 }
 
 .modal-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  padding: 20px 24px;
+  gap: var(--space-3);
+  padding: var(--space-5) var(--space-6) var(--space-4);
   border-bottom: 1px solid var(--border-color);
+}
+
+.header-titles {
+  min-width: 0;
 }
 
 .modal-header h2 {
   margin: 0;
   font-size: var(--font-size-lg);
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   color: var(--text-primary);
 }
 
+.header-subtitle {
+  margin: 2px 0 0;
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .close-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  margin: -6px -8px 0 0;
   background: none;
   border: none;
+  border-radius: var(--radius-md);
   color: var(--text-secondary);
   cursor: pointer;
-  padding: 4px;
-  border-radius: var(--radius-sm);
 }
 
 .close-btn:hover {
@@ -326,258 +388,261 @@ onMounted(async () => {
 
 .modal-body {
   flex: 1;
-  overflow-y: auto;
-  padding: 20px 24px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: var(--space-5);
+  padding: var(--space-5) var(--space-6) var(--space-6);
+  overflow-y: auto;
 }
 
-.loading-state, .empty-state {
-  text-align: center;
+.loading-state,
+.empty-state {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-10) 0;
   color: var(--text-secondary);
-  padding: 40px 0;
+}
+
+.modal-body h3 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
 }
 
 /* Progress */
-.funding-progress-section {
-  text-align: center;
+.progress-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--background-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
 }
 
-.progress-header {
-  margin-bottom: 10px;
+.progress-figures {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }
 
-.progress-amount {
-  font-size: 28px;
-  font-weight: 700;
+.progress-raised {
+  font-size: var(--font-size-3xl);
+  font-weight: var(--font-weight-bold);
+  line-height: 1;
   color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
 }
 
 .progress-goal {
-  font-size: var(--font-size-base);
+  font-size: var(--font-size-sm);
   color: var(--text-secondary);
-  margin-left: 4px;
 }
 
 .progress-bar-track {
   width: 100%;
-  height: 10px;
-  background: var(--background-modifier-selected);
-  border-radius: var(--radius-full);
+  height: 8px;
   overflow: hidden;
+  background: var(--background-modifier-active);
+  border-radius: var(--radius-full);
 }
 
 .progress-bar-fill {
   height: 100%;
+  min-width: 4px;
   background: var(--harmony-primary);
   border-radius: var(--radius-full);
   transition: width 0.4s ease;
 }
 
-.progress-percent {
-  margin-top: 6px;
-  font-size: 13px;
+.progress-stats {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  font-size: var(--font-size-sm);
   color: var(--text-secondary);
 }
 
-/* Description */
+.progress-stats strong {
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+}
+
 .funding-description {
   margin: 0;
   font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
   color: var(--text-secondary);
-  line-height: 1.5;
 }
 
 /* Links */
-.funding-links h3,
-.tiers-section h3,
-.my-supporter-status h3,
-.my-donations h3 {
-  margin: 0 0 10px;
-  font-size: 13px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--text-secondary);
-}
-
 .links-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-2);
 }
 
 .funding-link {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 14px;
+  gap: var(--space-3);
+  min-height: 48px;
+  padding: var(--space-2) var(--space-4);
   background: var(--background-secondary);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   color: var(--text-primary);
   text-decoration: none;
-  transition: border-color 0.15s, background 0.15s;
+  transition: border-color var(--transition-fast), background-color var(--transition-fast);
 }
 
 .funding-link:hover {
+  background: var(--background-modifier-hover);
   border-color: var(--border-hover);
-  background: var(--background-tertiary);
 }
 
-.link-icon {
-  width: 24px;
-  height: 24px;
+.funding-link--primary {
+  background: var(--harmony-primary);
+  border-color: var(--harmony-primary);
+  color: var(--text-on-primary);
+}
+
+.funding-link--primary:hover {
+  background: var(--harmony-primary-hover);
+  border-color: var(--harmony-primary-hover);
+}
+
+.link-icon-wrap {
+  display: inline-flex;
   flex-shrink: 0;
 }
 
 .link-text {
   display: flex;
   flex-direction: column;
-  min-width: 0;
   flex: 1;
+  min-width: 0;
 }
 
 .link-platform {
-  font-weight: 600;
   font-size: var(--font-size-sm);
-  color: var(--text-primary);
+  font-weight: var(--font-weight-semibold);
 }
 
 .link-label {
+  overflow: hidden;
   font-size: var(--font-size-xs);
   color: var(--text-secondary);
-  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+.funding-link--primary .link-label {
+  color: inherit;
+  opacity: 0.85;
+}
+
 .link-external {
-  color: var(--text-tertiary, var(--text-secondary));
-  opacity: 0.6;
   flex-shrink: 0;
-  transition: opacity 0.15s;
+  opacity: 0.6;
 }
 
 .funding-link:hover .link-external {
   opacity: 1;
 }
 
-/* Donor instruction callout */
+/* Badge matching */
 .donor-instructions {
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
-  padding: 12px 14px;
-  margin-bottom: 12px;
-  background: color-mix(in srgb, var(--harmony-primary) 8%, transparent);
-  border: 1px solid color-mix(in srgb, var(--harmony-primary) 25%, transparent);
+  margin-top: var(--space-3);
+  border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
 }
 
-.donor-instructions-icon {
-  color: var(--harmony-primary);
-  flex-shrink: 0;
-  margin-top: 2px;
+.donor-instructions summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+  list-style: none;
+  cursor: pointer;
 }
 
-.donor-instructions-body {
+.donor-instructions summary::-webkit-details-marker {
+  display: none;
+}
+
+.donor-summary-label {
   flex: 1;
   min-width: 0;
 }
 
-.donor-instructions-title {
-  margin: 0 0 4px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-primary);
+.donor-instructions-icon {
+  flex-shrink: 0;
+  color: var(--harmony-primary);
 }
 
-.donor-instructions-text {
-  margin: 0 0 8px;
-  font-size: 13px;
+.donor-instructions-chevron {
+  flex-shrink: 0;
   color: var(--text-secondary);
-  line-height: 1.4;
+  transition: transform var(--transition-fast);
+}
+
+.donor-instructions[open] .donor-instructions-chevron {
+  transform: rotate(180deg);
+}
+
+.donor-instructions-body {
+  padding: 0 var(--space-4) var(--space-4);
+}
+
+.donor-instructions-text,
+.donor-instructions-hint {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-normal);
+  color: var(--text-secondary);
 }
 
 .donor-handle-row {
   display: flex;
   align-items: center;
-  gap: 8px;
   flex-wrap: wrap;
-  margin: 4px 0 8px;
+  gap: var(--space-2);
+  margin: var(--space-3) 0;
 }
 
-.donor-handle-example {
-  display: inline-block;
-  padding: 6px 10px;
-  background: var(--background-primary);
-  border: 1px dashed var(--harmony-primary);
-  border-radius: var(--radius-base);
-  font-family: 'Consolas', 'Monaco', monospace;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--harmony-primary);
-  user-select: all;
-  word-break: break-all;
-}
-
-.donor-examples {
-  margin: 4px 0 8px;
-  font-size: var(--font-size-xs);
-}
-
-.donor-examples summary {
-  cursor: pointer;
-  color: var(--text-secondary);
-  padding: 4px 0;
-  user-select: none;
-  transition: color 0.15s;
-  font-weight: 500;
-}
-
-.donor-examples summary:hover {
-  color: var(--text-primary);
-}
-
-.donor-examples-list {
-  list-style: none;
-  margin: 6px 0 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.donor-examples-list li {
-  padding: 6px 10px;
-  background: var(--background-primary);
+.donor-handle {
+  padding: var(--space-1) var(--space-2);
+  background: var(--surface-inset);
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
-}
-
-.donor-examples-list code {
-  font-family: 'Consolas', 'Monaco', monospace;
-  font-size: 11px;
-  color: var(--text-secondary);
+  border-radius: var(--radius-base);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--text-primary);
+  user-select: all;
   word-break: break-all;
 }
 
 .donor-copy-btn {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  margin-left: 8px;
-  padding: 4px 10px;
+  gap: var(--space-1);
+  min-height: 28px;
+  padding: 0 var(--space-2);
   background: transparent;
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-base);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
   color: var(--text-secondary);
-  font-size: 11px;
-  font-weight: 500;
   cursor: pointer;
-  transition: all 0.15s;
 }
 
 .donor-copy-btn:hover {
@@ -585,96 +650,86 @@ onMounted(async () => {
   color: var(--harmony-primary);
 }
 
-.donor-instructions-hint {
-  margin: 8px 0 0;
-  font-size: 11px;
-  color: var(--text-tertiary, var(--text-secondary));
-  line-height: 1.4;
-  font-style: italic;
-}
-
 /* Tiers */
-.tier-cards {
+.tier-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .tier-card {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
   background: var(--background-secondary);
+  border: 1px solid transparent;
   border-radius: var(--radius-md);
 }
 
-.tier-badge-preview {
-  flex-shrink: 0;
-  width: 80px;
-  display: flex;
-  align-items: center;
-  justify-content: start;
+.tier-card--current {
+  border-color: var(--harmony-primary);
 }
 
-.badge-inline {
+.tier-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 4px 6px;
+  flex-shrink: 0;
+  min-width: 36px;
+  height: 28px;
+  padding: 0 var(--space-2);
+  background: var(--background-modifier-hover);
+  border: 1px solid var(--border-hover);
   border-radius: var(--radius-sm);
   font-size: var(--font-size-sm);
-  border: 1px solid var(--border-hover);
   line-height: 1;
-  background: var(--background-modifier-hover);
   color: var(--text-secondary);
 }
 
 .tier-details {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 2px;
   min-width: 0;
 }
 
+.tier-heading {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  column-gap: var(--space-2);
+}
+
 .tier-name {
-  font-weight: 600;
   font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
 }
 
 .tier-min {
   font-size: var(--font-size-xs);
   color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
 }
 
 .tier-perks {
-  font-size: 11px;
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-normal);
   color: var(--text-secondary);
-  font-style: italic;
-  margin-left: auto;
-  flex-shrink: 0;
 }
 
 /* My status */
 .my-badge-row {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 14px;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
   background: var(--background-secondary);
   border-radius: var(--radius-md);
-}
-
-.my-badge-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 120px;
-  height: 36px;
-  border-radius: var(--radius-md);
-  font-size: var(--font-size-xl);
-  border: 1px solid;
 }
 
 .my-badge-info {
@@ -683,8 +738,8 @@ onMounted(async () => {
 }
 
 .my-badge-tier {
-  font-weight: 600;
   font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
 }
 
@@ -697,21 +752,21 @@ onMounted(async () => {
 .donations-list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-1);
 }
 
 .donation-row {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 8px 12px;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
   background: var(--background-secondary);
   border-radius: var(--radius-base);
   font-size: 13px;
 }
 
 .donation-amount {
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
 }
 
@@ -720,25 +775,47 @@ onMounted(async () => {
 }
 
 .donation-note {
-  color: var(--text-secondary);
-  font-style: italic;
   flex: 1;
-  text-align: right;
   overflow: hidden;
+  font-style: italic;
+  color: var(--text-secondary);
+  text-align: right;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* Thank you */
 .thank-you-message {
   margin: 0;
-  padding: 14px;
+  padding: var(--space-3) var(--space-4);
   background: color-mix(in srgb, var(--success) 8%, transparent);
   border: 1px solid color-mix(in srgb, var(--success) 25%, transparent);
   border-radius: var(--radius-md);
-  color: var(--success);
   font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+  color: var(--success);
   text-align: center;
-  line-height: 1.5;
+}
+
+/* Bottom sheet on phones. */
+@media (max-width: 600px) {
+  .funding-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .funding-modal {
+    max-width: none;
+    max-height: 92vh;
+    border-bottom: none;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  }
+
+  .modal-header {
+    padding: var(--space-4) var(--space-4) var(--space-3);
+  }
+
+  .modal-body {
+    padding: var(--space-4) var(--space-4) calc(var(--space-6) + env(safe-area-inset-bottom, 0px));
+  }
 }
 </style>

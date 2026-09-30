@@ -11,6 +11,10 @@
       @touchstart="startDockDrag"
       @click="handleDockClick"
     >
+      <!-- Call problems: reconnecting, autoplay-blocked audio -->
+      <div class="dock-banner" @mousedown.stop @touchstart.stop>
+        <VoiceCallBanner compact />
+      </div>
       <!-- Tapping expands to overlay on viewports <= 480px -->
       <div 
         class="user-section" 
@@ -42,10 +46,17 @@
           <span class="channel-name">
             <DisplayName v-if="voiceStore.dmOtherUserId" :user-id="voiceStore.dmOtherUserId" :fallback="channelName" :truncate="true" />
             <template v-else>{{ channelName }}</template>
-            <span v-if="voiceStore.isConnecting" class="dock-connecting-spinner" title="Connecting…"></span>
+            <span v-if="voiceStore.isConnecting || voiceStore.connectionState === 'reconnecting'" class="dock-connecting-spinner" :title="voiceStore.isConnecting ? 'Connecting…' : t('voice.reconnecting')"></span>
             <span v-else class="dock-connection-badge" :class="voiceStore.connectionMode || 'unknown'">
               {{ voiceStore.connectionMode === 'livekit' ? 'SFU' : voiceStore.connectionMode === 'p2p' ? 'P2P' : '' }}
             </span>
+            <Icon
+              v-if="ownQualityWarning"
+              name="wifi-off"
+              :size="12"
+              class="dock-quality-warn"
+              :title="t(`voice.quality.${ownQuality}`)"
+            />
             <VoiceEncryptionBadge v-if="voiceStore.connectionMode" :encrypted="voiceStore.isEncrypted" />
           </span>
         </div>
@@ -92,11 +103,14 @@
         </button>
 
         <button
-          @click="voiceStore.toggleScreenShare"
-          :class="['control-btn', 'screen-btn', { 
+          ref="dockShareButtonRef"
+          @click="onDockShareButton"
+          :class="['control-btn', 'screen-btn', {
             active: voiceStore.localState.isScreenSharing
           }]"
-          :title="voiceStore.localState.isScreenSharing ? 'Stop screen share' : 'Share screen'"
+          :title="voiceStore.localState.isScreenSharing ? t('voice.streamSettings') : t('voice.shareScreen')"
+          :aria-label="voiceStore.localState.isScreenSharing ? t('voice.streamSettings') : t('voice.shareScreen')"
+          aria-haspopup="dialog"
         >
           <Icon name="screen-share" />
         </button>
@@ -196,6 +210,9 @@
       @mousedown="handleMinimizedMouseDown"
       @click="handleMinimizedClick"
     >
+      <div class="dock-banner" @mousedown.stop @click.stop>
+        <VoiceCallBanner compact />
+      </div>
       <div v-if="activeVideoUser && !voiceStore.pipActive" class="minimized-video-preview" @click.stop="expandToOverlay">
         <video
           ref="minimizedVideoRef"
@@ -308,7 +325,13 @@
       </Transition>
     </div>
 
-    <VoiceSettingsPanel 
+    <StreamQualityPicker
+      :visible="showStreamPicker"
+      :anchor="streamPickerAnchor"
+      @close="showStreamPicker = false"
+    />
+
+    <VoiceSettingsPanel
       v-if="showSettings"
       @close="showSettings = false"
     />
@@ -346,7 +369,13 @@ import DisplayName from '@/components/DisplayName.vue';
 import HeadphonesIcon from '@/components/icons/Headphones.vue';
 import VoiceEncryptionBadge from './VoiceEncryptionBadge.vue';
 import PushToTalkButton from './PushToTalkButton.vue';
+import VoiceCallBanner from './VoiceCallBanner.vue';
+import StreamQualityPicker from './StreamQualityPicker.vue';
+import type { Rect } from './voiceMenuModel';
 import { isMobileUserAgent } from '@/utils/platform';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
 
 const UnifiedVoiceOverlay = defineAsyncComponent(() => import('./UnifiedVoiceOverlay.vue'));
 const VoiceSettingsPanel = defineAsyncComponent(() => import('./VoiceSettingsPanel.vue'));
@@ -525,9 +554,9 @@ const activeVideoUser = computed(() => {
   const localId = voiceStore.localState?.userId;
   const all = voiceStore.allParticipants;
   const remote = all.filter((p: any) => p.userId !== localId);
-  
-  // 1. Remote screenshare
-  const remoteScreen = remote.find((p: any) => p.isScreenSharing);
+
+  // 1. Remote screenshare being watched (unwatched streams receive no video)
+  const remoteScreen = remote.find((p: any) => p.isScreenSharing && voiceStore.isWatchingStream(p.userId));
   if (remoteScreen) return remoteScreen;
   
   // 2. Remote camera
@@ -554,6 +583,24 @@ const activeVideoUserName = computed(() => {
   const profile = getUser(activeVideoUser.value.userId)?.value;
   return profile?.displayName || profile?.username || 'User';
 });
+
+const ownQuality = computed(() => voiceStore.getConnectionQuality(voiceStore.localState.userId));
+const ownQualityWarning = computed(() => ownQuality.value === 'poor' || ownQuality.value === 'lost');
+
+// GO LIVE
+const dockShareButtonRef = ref<HTMLButtonElement | null>(null);
+const showStreamPicker = ref(false);
+const streamPickerAnchor = ref<Rect | null>(null);
+
+const onDockShareButton = () => {
+  if (showStreamPicker.value) {
+    showStreamPicker.value = false;
+    return;
+  }
+  const r = dockShareButtonRef.value?.getBoundingClientRect();
+  streamPickerAnchor.value = r ? { left: r.left, top: r.top, width: r.width, height: r.height } : null;
+  showStreamPicker.value = true;
+};
 
 // METHODS
 const expandToOverlay = () => {
@@ -1979,6 +2026,36 @@ onUnmounted(() => {
 
 @keyframes dock-spin {
   to { transform: rotate(360deg); }
+}
+
+/* Above the dock, following it while dragged. */
+.dock-banner {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: min(420px, calc(100vw - 16px));
+  cursor: default;
+}
+
+.dock-banner:empty {
+  display: none;
+}
+
+.dock-banner :deep(.vcb) {
+  box-shadow: var(--shadow-medium);
+}
+
+.dock-quality-warn {
+  color: var(--warning);
+  flex-shrink: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dock-connecting-spinner {
+    animation-duration: 2.4s;
+  }
 }
 </style>
 

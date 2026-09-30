@@ -376,7 +376,9 @@ function applyPresetTheme(themeName: 'dark' | 'light' | 'midnight') {
   root.style.setProperty('--border-hover', theme.isLightTheme ? 'rgba(0, 0, 0, 0.15)' : 'rgba(255, 255, 255, 0.12)')
   root.style.setProperty('--border-focus', theme.primary)
   root.style.setProperty('--border-color', theme.isLightTheme ? 'rgba(0, 0, 0, 0.12)' : '#232529')
-  
+  // Written inline by applyThemePalette only; the design-system alias applies to presets.
+  root.style.removeProperty('--color-border')
+
   // Icon colors for light/dark
   root.style.setProperty('--icon-primary', theme.isLightTheme ? '#5e6168' : '#9999a0')
   root.style.setProperty('--icon-secondary', theme.isLightTheme ? '#80838a' : '#66666b')
@@ -482,15 +484,20 @@ function applySettings(settings: VisualThemeSettings) {
   }
 
   if (typeof document !== 'undefined') {
+    // A built-in skin resolves from the registry; the persisted copy is the
+    // stylesheet of whichever build applied it.
+    const skinCss =
+      BUILTIN_SKINS.find((s) => s.id === settings.activeSkinId)?.globalCss ||
+      settings.customSkinCss
     let skinStyleEl = document.getElementById('harmony-skin-styles') as HTMLStyleElement | null
-    if (settings.customSkinCss) {
+    if (skinCss) {
       if (!skinStyleEl) {
         skinStyleEl = document.createElement('style')
         skinStyleEl.id = 'harmony-skin-styles'
         document.head.appendChild(skinStyleEl)
       }
-      if (skinStyleEl.textContent !== settings.customSkinCss) {
-        skinStyleEl.textContent = settings.customSkinCss
+      if (skinStyleEl.textContent !== skinCss) {
+        skinStyleEl.textContent = skinCss
       }
     } else if (skinStyleEl) {
       skinStyleEl.remove()
@@ -985,7 +992,16 @@ export function useVisualTheme() {
   function updateSettings(newSettings: Partial<VisualThemeSettings>) {
     Object.assign(settings.value, newSettings)
   }
-  
+
+  /**
+   * Write the stored settings to the DOM. The settings watcher fires only on a
+   * value change, so a live preview reverted to identical settings stays on
+   * screen without this.
+   */
+  function reapplySettings() {
+    applySettings(settings.value)
+  }
+
   /**
    * Set a single CSS variable override
    */
@@ -1336,6 +1352,7 @@ export function useVisualTheme() {
     toggleReduceMotion,
     toggleScreenReaderSupport,
     updateSettings,
+    reapplySettings,
     resetToDefaults,
     reset,
     currentSettings,

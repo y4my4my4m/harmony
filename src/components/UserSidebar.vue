@@ -149,7 +149,10 @@
               v-else
               class="user-item"
               :class="{ 'offline-user': item.isOffline }"
+              role="button"
+              tabindex="0"
               @click="handleUserItemClick(item.user!)"
+              @keydown.enter.self.prevent="handleUserItemClick(item.user!)"
               @contextmenu="handleUserContextMenu(item.user!, $event)"
               @touchstart.passive="handleUserTouchStart(item.user!, $event)"
               @touchend.passive="handleUserTouchEnd"
@@ -1222,7 +1225,7 @@ const closeInviteModal = () => {
 <style scoped>
 /* Header Section */
 .sidebar-header {
-  padding: 16px 8px 8px 16px;
+  padding: 16px 16px 8px;
   border-bottom: 1px solid var(--border-color);
   background-color: var(--background-primary-alpha);
 }

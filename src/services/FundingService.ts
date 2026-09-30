@@ -359,6 +359,21 @@ class FundingService {
     }
   }
 
+  async getActiveSupporterCount(): Promise<number> {
+    try {
+      const { count, error } = await supabase
+        .from('instance_supporters')
+        .select('id', { count: 'exact', head: true })
+        .eq('is_active', true)
+
+      if (error) throw error
+      return count ?? 0
+    } catch (error) {
+      debug.error('Failed to count supporters:', error)
+      return 0
+    }
+  }
+
   async addSupporter(userId: string, tierId?: string, amount?: number, platform?: string): Promise<boolean> {
     try {
       const { error } = await supabase

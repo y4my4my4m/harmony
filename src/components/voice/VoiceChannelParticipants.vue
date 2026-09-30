@@ -8,31 +8,59 @@
       <span v-if="sessionDuration" class="session-duration">{{ sessionDuration }}</span>
     </div>
     <div class="participants-list">
-      <div v-for="participant in participants" :key="participant.userId" class="participant-item">
+      <div
+        v-for="participant in participants"
+        :key="participant.userId"
+        class="participant-item"
+        tabindex="0"
+        @contextmenu.prevent="openMenu(participant, $event.clientX, $event.clientY)"
+        @keydown.shift.f10.prevent="openMenuFromKeyboard(participant, $event)"
+        @keydown.context-menu.prevent="openMenuFromKeyboard(participant, $event)"
+        @click="onParticipantClick(participant)"
+      >
         <Avatar
           :src="getUserAvatarUrl(participant.userId).value"
           :alt="getUserDisplayName(participant.userId).value || 'User'"
           size="xs"
-          :class="{ 'speaking': participant.isSpeaking }"
+          :class="{ 'speaking': isSpeaking(participant) }"
         />
         <span class="participant-name"><DisplayName :userId="participant.userId" /></span>
         <div class="participant-status">
-          <Icon v-if="participant.isMuted" name="mic-off" class="status-icon muted" size="xs" title="Muted" />
-          <Icon v-if="participant.isDeafened" name="headphones-off" class="status-icon deafened" size="xs" title="Deafened" />
-          <Icon v-if="participant.isVideoEnabled" name="video" class="status-icon video" size="xs" title="Video On" />
-          <Icon v-if="participant.isScreenSharing" name="screen-share" class="status-icon screen" size="xs" title="Screen Sharing" />
+          <Icon
+            v-if="isLocallyMuted(participant.userId)"
+            name="volume-x"
+            class="status-icon local-muted"
+            size="xs"
+            :title="t('voice.mutedByYou')"
+          />
+          <Icon v-if="participant.isMuted" name="mic-off" class="status-icon muted" size="xs" :title="t('voice.statusMuted')" />
+          <Icon v-if="participant.isDeafened" name="headphones-off" class="status-icon deafened" size="xs" :title="t('voice.statusDeafened')" />
+          <Icon v-if="participant.isVideoEnabled" name="video" class="status-icon video" size="xs" :title="t('voice.statusCameraOn')" />
+          <span v-if="participant.isScreenSharing" class="live-pill" :title="t('voice.statusStreaming')">{{ t('voice.live') }}</span>
         </div>
       </div>
     </div>
+
+    <VoiceUserContextMenu
+      v-if="menuUser"
+      :user-state="menuUser"
+      :x="menuPosition.x"
+      :y="menuPosition.y"
+      :visible="!!menuUser"
+      :source="menuUser.isScreenSharing ? 'screen' : 'camera'"
+      @close="menuUser = null"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 import Avatar from '@/components/common/Avatar.vue';
 import DisplayName from '@/components/DisplayName.vue';
 import Icon from '@/components/common/Icon.vue';
 import VoiceEncryptionBadge from './VoiceEncryptionBadge.vue';
+import VoiceUserContextMenu from './VoiceUserContextMenu.vue';
 import { useUserData } from '@/composables/useUserData';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import type { UserMediaState } from '@/services/unifiedWebRTC';
@@ -44,8 +72,43 @@ interface Props {
 
 const props = defineProps<Props>();
 
+const { t } = useI18n();
 const { getUserDisplayName, getUserAvatarUrl } = useUserData();
 const voiceStore = useUnifiedVoiceChannelStore();
+
+// Right-click a member for per-user volume, like Discord's channel list.
+const menuUser = ref<UserMediaState | null>(null);
+const menuPosition = ref({ x: 0, y: 0 });
+
+const openMenu = (participant: UserMediaState, x: number, y: number) => {
+  menuPosition.value = { x, y };
+  menuUser.value = participant;
+};
+
+const openMenuFromKeyboard = (participant: UserMediaState, event: KeyboardEvent) => {
+  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+  openMenu(participant, rect.left + 24, rect.bottom);
+};
+
+// A live stream opens in the call view, watched.
+const onParticipantClick = (participant: UserMediaState) => {
+  if (!participant.isScreenSharing || participant.userId === voiceStore.localState.userId) return;
+  voiceStore.watchStream(participant.userId);
+  voiceStore.isOverlayVisible = true;
+  voiceStore.enterFullscreen(participant.userId, 'screen');
+};
+
+const isLocallyMuted = (userId: string) =>
+  userId !== voiceStore.localState.userId &&
+  (voiceStore.isUserLocallyMuted(userId, 'mic') || voiceStore.getUserVolume(userId) === 0);
+
+// The local speaking flag lives in audioLevel; remote users carry isSpeaking.
+const isSpeaking = (participant: UserMediaState) => {
+  if (participant.userId === voiceStore.localState.userId) {
+    return voiceStore.localState.audioLevel > 20 && !voiceStore.localState.isMuted;
+  }
+  return participant.isSpeaking;
+};
 
 const sessionDuration = ref<string>('');
 let intervalId: number | null = null;
@@ -137,23 +200,47 @@ onUnmounted(() => {
   transition: background 0.15s ease;
 }
 
-.participant-item:hover {
-  background: rgba(255, 255, 255, 0.05);
+.participant-item:hover,
+.participant-item:focus-visible {
+  background: var(--background-modifier-hover);
+  outline: none;
 }
 
 .participant-item .speaking {
-  box-shadow: 0 0 0 2px #43b581;
+  box-shadow: 0 0 0 2px var(--success);
   animation: pulse 1.5s infinite;
   border-radius: 50%;
 }
 
 @keyframes pulse {
   0%, 100% {
-    box-shadow: 0 0 0 2px #43b581;
+    box-shadow: 0 0 0 2px var(--success);
   }
   50% {
-    box-shadow: 0 0 0 2px #43b581, 0 0 8px #43b581;
+    box-shadow: 0 0 0 2px var(--success), 0 0 8px var(--success);
   }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .participant-item .speaking {
+    animation: none;
+  }
+}
+
+:root[data-reduce-motion="true"] .participant-item .speaking {
+  animation: none;
+}
+
+.live-pill {
+  padding: 0 4px;
+  border-radius: var(--radius-sm);
+  background: var(--error);
+  color: var(--text-on-primary);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 14px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
 }
 
 .participant-name {
@@ -177,15 +264,19 @@ onUnmounted(() => {
 }
 
 .status-icon.muted {
-  color: #f04747;
+  color: var(--error);
 }
 
 .status-icon.deafened {
-  color: #faa61a;
+  color: var(--warning);
 }
 
 .status-icon.video {
-  color: #43b581;
+  color: var(--success);
+}
+
+.status-icon.local-muted {
+  color: var(--text-muted);
 }
 
 .status-icon.screen {

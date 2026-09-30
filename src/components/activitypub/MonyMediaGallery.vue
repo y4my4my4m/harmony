@@ -118,72 +118,11 @@
     </button>
   </div>
 
-  <!-- vue-easy-lightbox: handles images with zoom/pan/rotate/smooth scroll -->
-  <vue-easy-lightbox
-    teleport="body"
+  <MonyMediaLightbox
+    v-model:index="currentMediaIndex"
     :visible="showModal"
-    :imgs="lightboxImages"
-    :index="currentMediaIndex"
-    @hide="closeModal"
-    @on-index-change="onLightboxIndexChange"
-  >
-    <!-- Custom toolbar for video: use same structure/icons as vue-easy-lightbox default toolbar -->
-    <template v-if="currentLightboxIsVideo" #toolbar>
-      <div class="vel-toolbar">
-        <div role="button" aria-label="zoom in button" class="toolbar-btn toolbar-btn__zoomin" @click="videoZoomIn">
-          <svg class="vel-icon" aria-hidden="true"><use href="#icon-zoomin" /></svg>
-        </div>
-        <div role="button" aria-label="zoom out button" class="toolbar-btn toolbar-btn__zoomout" @click="videoZoomOut">
-          <svg class="vel-icon" aria-hidden="true"><use href="#icon-zoomout" /></svg>
-        </div>
-        <div role="button" aria-label="resize image button" class="toolbar-btn toolbar-btn__resize" @click="resetVideoTransforms">
-          <svg class="vel-icon" aria-hidden="true"><use href="#icon-resize" /></svg>
-        </div>
-        <div role="button" aria-label="image rotate left button" class="toolbar-btn toolbar-btn__rotate" @click="videoRotateLeft">
-          <svg class="vel-icon" aria-hidden="true"><use href="#icon-rotate-left" /></svg>
-        </div>
-        <div role="button" aria-label="image rotate right button" class="toolbar-btn toolbar-btn__rotate" @click="videoRotateRight">
-          <svg class="vel-icon" aria-hidden="true"><use href="#icon-rotate-right" /></svg>
-        </div>
-      </div>
-    </template>
-  </vue-easy-lightbox>
-
-  <!-- Video overlay: centered on top of vue-easy-lightbox when current item is a video -->
-  <Teleport to="body">
-    <Transition name="vel-fade">
-      <div
-        v-if="showModal && currentLightboxIsVideo"
-        class="video-lightbox-overlay"
-      >
-        <video
-          ref="lightboxVideoRef"
-          :key="currentVideoSrc"
-          :src="currentVideoSrc"
-          :poster="currentVideoPoster"
-          class="video-lightbox-player"
-          :style="{ transform: videoTransformStyle }"
-          controls
-          autoplay
-          preload="auto"
-          playsinline
-          loop
-          :muted="videoMuted"
-          @volumechange="onVideoVolumeChange"
-          @loadeddata="onVideoLoadedData"
-          @wheel.prevent="onVideoWheel"
-          @dblclick.prevent="onVideoDblClick"
-        >
-          Your browser does not support the video tag.
-        </video>
-      </div>
-    </Transition>
-  </Teleport>
-
-  <LightboxDownloadButton
-    :visible="showModal"
-    :url="currentDownloadUrl"
-    :filename="currentDownloadFilename"
+    :media="viewableMedia"
+    @hide="showModal = false"
   />
 </template>
 
@@ -193,8 +132,7 @@ import { useI18n } from 'vue-i18n';
 import { debug } from '@/utils/debug'
 import type { MediaAttachment } from '@/types';
 import Icon from '@/components/common/Icon.vue';
-import LightboxDownloadButton from '@/components/common/LightboxDownloadButton.vue';
-import VueEasyLightbox from 'vue-easy-lightbox';
+import MonyMediaLightbox from './MonyMediaLightbox.vue';
 import { downloadMediaFromUrl, filenameFromUrl } from '@/utils/downloadMedia';
 
 interface Props {
@@ -208,17 +146,12 @@ const props = withDefaults(defineProps<Props>(), {
 
 const { t } = useI18n();
 
-const MUTE_KEY = 'harmony-lightbox-video-muted';
-
 // State
 const galleryRef = ref<HTMLElement | null>(null);
-const lightboxVideoRef = ref<HTMLVideoElement | null>(null);
 const showSensitive = ref(!props.isSensitive);
 const showAltText = ref(false);
 const showModal = ref(false);
 const currentMediaIndex = ref(0);
-const videoMuted = ref(localStorage.getItem(MUTE_KEY) === 'true');
-const videoPositions = new Map<string, number>();
 
 // Pause all gallery videos when lightbox opens to avoid double audio
 watch(showModal, (visible) => {
@@ -226,80 +159,6 @@ watch(showModal, (visible) => {
     galleryRef.value.querySelectorAll<HTMLVideoElement>('video').forEach((v) => v.pause());
   }
 });
-
-function onVideoVolumeChange() {
-  if (lightboxVideoRef.value) {
-    videoMuted.value = lightboxVideoRef.value.muted;
-    try { localStorage.setItem(MUTE_KEY, String(videoMuted.value)); } catch { /* ignore */ }
-  }
-}
-
-// -- Playback position persistence --
-
-function saveCurrentVideoPosition() {
-  const video = lightboxVideoRef.value;
-  const src = currentVideoSrc.value;
-  if (video && src && !isNaN(video.currentTime) && video.currentTime > 0) {
-    videoPositions.set(src, video.currentTime);
-  }
-}
-
-function onVideoLoadedData() {
-  const video = lightboxVideoRef.value;
-  const src = currentVideoSrc.value;
-  if (video && src) {
-    const saved = videoPositions.get(src);
-    if (saved !== undefined && saved > 0) {
-      video.currentTime = saved;
-    }
-  }
-}
-
-function onLightboxIndexChange(_oldIdx: number, newIdx: number) {
-  saveCurrentVideoPosition();
-  resetVideoTransforms();
-  currentMediaIndex.value = newIdx;
-}
-
-// -- Video transform controls (self-contained zoom/rotate applied directly to the video) --
-
-const videoZoom = ref(1);
-const videoRotation = ref(0);
-
-const videoTransformStyle = computed(() => {
-  if (videoZoom.value === 1 && videoRotation.value === 0) return '';
-  return `scale(${videoZoom.value}) rotate(${videoRotation.value}deg)`;
-});
-
-function videoZoomIn() {
-  videoZoom.value = Math.min(videoZoom.value * 1.25, 10);
-}
-function videoZoomOut() {
-  videoZoom.value = Math.max(videoZoom.value / 1.25, 0.1);
-}
-function videoRotateLeft() {
-  videoRotation.value -= 90;
-}
-function videoRotateRight() {
-  videoRotation.value += 90;
-}
-function resetVideoTransforms() {
-  videoZoom.value = 1;
-  videoRotation.value = 0;
-}
-
-function onVideoWheel(e: WheelEvent) {
-  const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
-  videoZoom.value = Math.max(0.1, Math.min(10, videoZoom.value * factor));
-}
-
-function onVideoDblClick() {
-  if (videoZoom.value !== 1) {
-    resetVideoTransforms();
-  } else {
-    videoZoom.value = 2;
-  }
-}
 
 // Computed
 const galleryClass = computed(() => {
@@ -317,56 +176,8 @@ function isVideoUrl(url: string): boolean {
   return /\.(mp4|webm|ogv|mov|gif)(\?|$)/i.test(url);
 }
 
-const viewableCount = computed(() =>
-  props.mediaAttachments.filter(
-    (m) =>
-      m.type === 'image' ||
-      m.type === 'video' ||
-      m.type === 'gifv' ||
-      (m.type === 'unknown' && isVideoUrl(m.url))
-  ).length
-);
-
-const viewableMedia = computed(() =>
-  props.mediaAttachments.filter(
-    (m) => m.type === 'image' || m.type === 'video' || m.type === 'gifv' || (m.type === 'unknown' && isVideoUrl(m.url))
-  )
-);
-
-const lightboxImages = computed(() =>
-  viewableMedia.value.map((media) => {
-    if (isVideoMedia(media)) {
-      return { src: media.preview_url || media.url, title: media.description };
-    }
-    return { src: media.url, title: media.description };
-  })
-);
-
-const currentLightboxIsVideo = computed(() => {
-  const media = viewableMedia.value[currentMediaIndex.value];
-  return media ? isVideoMedia(media) : false;
-});
-
-const currentVideoSrc = computed(() => {
-  const media = viewableMedia.value[currentMediaIndex.value];
-  return media?.url ?? '';
-});
-
-const currentVideoPoster = computed(() => {
-  const media = viewableMedia.value[currentMediaIndex.value];
-  return media?.preview_url;
-});
-
-const currentDownloadUrl = computed(() => {
-  const media = viewableMedia.value[currentMediaIndex.value] ?? props.mediaAttachments[currentMediaIndex.value];
-  return media?.url ?? '';
-});
-
-const currentDownloadFilename = computed(() => {
-  const media = viewableMedia.value[currentMediaIndex.value] ?? props.mediaAttachments[currentMediaIndex.value];
-  if (!media) return undefined;
-  return media.filename || filenameFromUrl(media.url, media.type || 'media');
-});
+const viewableMedia = computed(() => props.mediaAttachments.filter(isViewableMedia));
+const viewableCount = computed(() => viewableMedia.value.length);
 
 function canDownloadMedia(media: MediaAttachment): boolean {
   return Boolean(media.url);
@@ -438,12 +249,6 @@ const openMedia = (index: number) => {
   }
   currentMediaIndex.value = lightboxIndex;
   showModal.value = true;
-};
-
-const closeModal = () => {
-  saveCurrentVideoPosition();
-  resetVideoTransforms();
-  showModal.value = false;
 };
 </script>
 
@@ -703,35 +508,5 @@ const closeModal = () => {
   font-size: 0.875rem;
   max-height: 100%;
   overflow-y: auto;
-}
-
-/* Video overlay: centered on top of lightbox, lets chrome (close, arrows, toolbar) show through */
-.video-lightbox-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
-}
-
-.video-lightbox-player {
-  max-width: 80vw;
-  max-height: 80vh;
-  background: #000;
-  box-shadow: 0 5px 20px 2px rgba(0, 0, 0, 0.7);
-  pointer-events: auto;
-  transform-origin: center center;
-  transition: transform 0.3s ease;
-}
-
-/* Mobile responsiveness */
-@media (max-width: 768px) {
-
-  .video-lightbox-player {
-    max-width: 95vw;
-    max-height: 85vh;
-  }
 }
 </style>

@@ -456,6 +456,9 @@ class LoggingService {
   private setupGlobalErrorHandlers(): void {
     // Unhandled errors
     window.addEventListener('error', (event) => {
+      // Chrome reports a ResizeObserver callback that resized an observed
+      // element as an error with no Error object; the observer still runs.
+      if (!event.error && /^ResizeObserver loop/.test(event.message)) return
       this.error('Unhandled error', event.error, {
         filename: event.filename,
         lineno: event.lineno,

@@ -3,6 +3,15 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 import { debug } from '@/utils/debug';
 import { userStorage } from '@/utils/userScopedStorage';
 import { VoiceSettingsService } from './VoiceSettingsService';
+import { remoteAudioMixer } from './voice/remoteAudioMixer';
+import {
+  INPUT_VOLUME_UNITY,
+  MicGainStage,
+  UNITY_RELEASE_MS,
+  clampInputVolume,
+  inputGain,
+  needsGainStage,
+} from './voice/micGain';
 
 // TYPES & INTERFACES
 
@@ -15,6 +24,8 @@ export interface UserMediaState {
   isDeafened: boolean;
   isSpeaking: boolean;
   audioLevel: number;
+  /** A stream audio track is received for this user. */
+  hasScreenShareAudio?: boolean;
 }
 
 export interface UserConnection {
@@ -116,6 +127,13 @@ export class UnifiedWebRTCService {
   private selectedInputDevice: string | null = null;
   private selectedOutputDevice: string | null = null;
   private selectedVideoDevice: string | null = null;
+
+  // Input volume. localStream's audio track is the outgoing mic: the gain
+  // stage output off unity, else the capture track itself.
+  private inputVolume = INPUT_VOLUME_UNITY;
+  private rawMicTrack: MediaStreamTrack | null = null;
+  private micGainStage: MicGainStage | null = null;
+  private micGainReleaseTimer: ReturnType<typeof setTimeout> | null = null;
   
   constructor() {
     this.setupCleanup();
@@ -214,7 +232,6 @@ export class UnifiedWebRTCService {
     
     // Connected: swap the live audio track.
     if (this.localStream && this.channelId) {
-      const currentMuteState = this.localMediaState.isMuted;
 
       // BUGS.md H22: acquire the new stream BEFORE stopping the old tracks.
       // Stopping first leaves the call with no mic until rejoin whenever
@@ -233,32 +250,9 @@ export class UnifiedWebRTCService {
 
         const newAudioTrack = newAudioStream.getAudioTracks()[0];
         if (newAudioTrack) {
-          // Swap is committed; stop the previous tracks.
-          const oldAudioTracks = this.localStream.getAudioTracks();
-          oldAudioTracks.forEach(track => {
-            track.stop();
-            this.localStream!.removeTrack(track);
-          });
-          this.localStream.addTrack(newAudioTrack);
-          
-          newAudioTrack.enabled = !currentMuteState;
-          
-          for (const [userId, conn] of this.connections) {
-            try {
-              const senders = conn.peerConnection.getSenders();
-              const audioSender = senders.find(s => s.track && s.track.kind === 'audio');
-              
-              if (audioSender) {
-                await audioSender.replaceTrack(newAudioTrack);
-                debug.log('Replaced audio track for peer:', userId);
-              }
-            } catch (error) {
-              debug.error('Error updating audio track for peer', userId, ':', error);
-            }
-          }
-          
-          this.setupAudioLevelMonitoring();
-          
+          // Swap is committed: route the new capture, then stop the old one.
+          await this.installCapturedMic(newAudioTrack);
+
           debug.log('Input device updated successfully');
           this.emit('local-stream-changed', this.localStream);
           this.emit('stream-changed', { userId: this.currentUserId, stream: this.localStream, type: 'local' });
@@ -458,6 +452,9 @@ export class UnifiedWebRTCService {
       this.localStream.getTracks().forEach(track => track.stop());
       this.localStream = null;
     }
+    this.teardownMicGain();
+    this.rawMicTrack?.stop();
+    this.rawMicTrack = null;
 
     if (this.localScreenStream) {
       this.localScreenStream.getTracks().forEach(track => track.stop());
@@ -913,6 +910,95 @@ export class UnifiedWebRTCService {
 
   // PRIVATE METHODS
 
+  // INPUT VOLUME
+
+  /** Outgoing mic level, percent 0-200. Applied live; unity sends the capture track untouched. */
+  setInputVolume(percent: number): void {
+    this.inputVolume = clampInputVolume(percent);
+    if (!this.rawMicTrack || !this.localStream) return;
+    if (needsGainStage(this.inputVolume)) {
+      this.clearMicGainRelease();
+      void this.routeMic(this.rawMicTrack).then(next => this.swapOutgoingMic(next));
+      return;
+    }
+    if (!this.micGainStage) return;
+    this.micGainStage.setGain(1);
+    if (this.micGainReleaseTimer) return;
+    this.micGainReleaseTimer = setTimeout(() => {
+      this.micGainReleaseTimer = null;
+      if (needsGainStage(this.inputVolume) || !this.rawMicTrack) return;
+      void this.swapOutgoingMic(this.rawMicTrack).then(() => this.teardownMicGain());
+    }, UNITY_RELEASE_MS);
+  }
+
+  /**
+   * Outgoing track for a capture track: the gain stage output off unity (or
+   * while a stage is still settling back to unity), else the capture itself.
+   */
+  private async routeMic(captured: MediaStreamTrack): Promise<MediaStreamTrack> {
+    this.rawMicTrack = captured;
+    if (!needsGainStage(this.inputVolume) && !this.micGainStage) return captured;
+    if (!this.micGainStage) {
+      this.micGainStage = new MicGainStage({
+        // Context lost: the unscaled mic beats a silent one.
+        onInterrupted: () => {
+          if (this.rawMicTrack) void this.swapOutgoingMic(this.rawMicTrack).then(() => this.teardownMicGain());
+        },
+      });
+    }
+    this.micGainStage.setGain(needsGainStage(this.inputVolume) ? inputGain(this.inputVolume) : 1);
+    const out = await this.micGainStage.connect(captured);
+    if (!out) {
+      this.teardownMicGain();
+      return captured;
+    }
+    return out;
+  }
+
+  /** Puts a new capture track in service and stops the previous capture. */
+  private async installCapturedMic(captured: MediaStreamTrack): Promise<void> {
+    const previousCapture = this.rawMicTrack;
+    const outgoing = await this.routeMic(captured);
+    await this.swapOutgoingMic(outgoing);
+    if (previousCapture && previousCapture !== captured) previousCapture.stop();
+  }
+
+  /** Makes `next` the outgoing mic in localStream and on every peer's sender. */
+  private async swapOutgoingMic(next: MediaStreamTrack): Promise<void> {
+    if (!this.localStream) return;
+    const previous = this.localStream.getAudioTracks()[0] ?? null;
+    if (previous === next) return;
+    if (previous) this.localStream.removeTrack(previous);
+    this.localStream.addTrack(next);
+    next.enabled = !this.isMicGated();
+
+    for (const [userId, conn] of this.connections) {
+      try {
+        // By track identity: screen share audio is an audio sender too.
+        const sender = previous ? conn.peerConnection.getSenders().find(s => s.track === previous) : undefined;
+        if (sender) await sender.replaceTrack(next);
+      } catch (error) {
+        debug.error('Error updating audio track for peer', userId, ':', error);
+      }
+    }
+
+    this.setupAudioLevelMonitoring();
+    this.emit('local-stream-changed', this.localStream);
+  }
+
+  private teardownMicGain(): void {
+    this.clearMicGainRelease();
+    this.micGainStage?.destroy();
+    this.micGainStage = null;
+  }
+
+  private clearMicGainRelease(): void {
+    if (this.micGainReleaseTimer) {
+      clearTimeout(this.micGainReleaseTimer);
+      this.micGainReleaseTimer = null;
+    }
+  }
+
   private calculateSpeakingState(audioLevel: number, isMuted: boolean): boolean {
     return audioLevel > 20 && !isMuted;
   }
@@ -956,7 +1042,10 @@ export class UnifiedWebRTCService {
         debug.log('Using default audio device as fallback during constraint update');
       }
 
-      this.localStream = newAudioStream;
+      this.inputVolume = clampInputVolume(VoiceSettingsService.getAll().inputVolume);
+      const captured = newAudioStream.getAudioTracks()[0];
+      const outgoing = captured ? await this.routeMic(captured) : null;
+      this.localStream = outgoing && outgoing !== captured ? new MediaStream([outgoing]) : newAudioStream;
 
       const audioTrack = this.localStream.getAudioTracks()[0];
       if (audioTrack) {
@@ -1593,12 +1682,14 @@ export class UnifiedWebRTCService {
    */
   private setupScreenAudio(connection: UserConnection): void {
     if (connection.screenAudioElement) {
+      remoteAudioMixer.detach(connection.userId, 'screen', connection.screenAudioElement);
       connection.screenAudioElement.pause();
       connection.screenAudioElement.srcObject = null;
       connection.screenAudioElement = null;
     }
 
     const audioTracks = connection.remoteScreenStream?.getAudioTracks() ?? [];
+    connection.mediaState.hasScreenShareAudio = audioTracks.length > 0;
     if (audioTracks.length === 0) return;
 
     const audioElement = new Audio();
@@ -1610,6 +1701,7 @@ export class UnifiedWebRTCService {
       sinkCapable.setSinkId(this.selectedOutputDevice).catch(() => { /* best effort */ });
     }
     connection.screenAudioElement = audioElement;
+    remoteAudioMixer.attach(connection.userId, 'screen', audioElement);
     debug.log('Screen audio element created for user:', connection.userId);
   }
 
@@ -1634,8 +1726,11 @@ export class UnifiedWebRTCService {
       // While spatial audio is active (enabled + initialized) the
       // HTMLAudioElement is muted, else the dry and wet paths both play.
       connection.audioElement.muted = this.localMediaState.isDeafened || isSpatialAudioActive;
-      
-      debug.log('Audio element created for user:', connection.userId, 
+      // Per-user volume and local mute; the mixer also silences its boost
+      // chain on deafen, which `muted` alone would not.
+      remoteAudioMixer.attach(connection.userId, 'mic', connection.audioElement);
+
+      debug.log('Audio element created for user:', connection.userId,
                   'muted:', connection.audioElement.muted,
                   'spatialEnabled:', spatialStore.settings.enabled,
                   'spatialInitialized:', spatialStatus.isInitialized,
@@ -1676,6 +1771,8 @@ export class UnifiedWebRTCService {
   }
 
   private cleanupRemoteAudio(connection: UserConnection): void {
+    remoteAudioMixer.detach(connection.userId, 'mic', connection.audioElement ?? undefined);
+    remoteAudioMixer.detach(connection.userId, 'screen', connection.screenAudioElement ?? undefined);
     if (connection.audioElement) {
       connection.audioElement.pause();
       connection.audioElement.srcObject = null;
@@ -1769,7 +1866,6 @@ export class UnifiedWebRTCService {
     this.saveAudioSettings();
     
     if (this.localStream && this.channelId) {
-      const currentMuteState = this.localMediaState.isMuted;
 
       // BUGS.md H22 v2, mirroring `updateInputDevice`: acquire the new stream
       // FIRST, then stop and remove the old tracks. The reverse order kills
@@ -1784,32 +1880,9 @@ export class UnifiedWebRTCService {
 
         const newAudioTrack = newAudioStream.getAudioTracks()[0];
         if (newAudioTrack) {
-          // New stream is committed; stop the old tracks.
-          const oldAudioTracks = this.localStream.getAudioTracks();
-          oldAudioTracks.forEach(track => {
-            track.stop();
-            this.localStream!.removeTrack(track);
-          });
-          this.localStream.addTrack(newAudioTrack);
-          
-          newAudioTrack.enabled = !currentMuteState;
-          
-          for (const [userId, conn] of this.connections) {
-            try {
-              const senders = conn.peerConnection.getSenders();
-              const audioSender = senders.find(s => s.track && s.track.kind === 'audio');
-              
-              if (audioSender) {
-                await audioSender.replaceTrack(newAudioTrack);
-                debug.log('Replaced audio track for peer:', userId);
-              }
-            } catch (error) {
-              debug.error('Error updating audio track for peer', userId, ':', error);
-            }
-          }
-          
-          this.setupAudioLevelMonitoring();
-          
+          // New capture is committed: route it, then stop the old one.
+          await this.installCapturedMic(newAudioTrack);
+
           debug.log('Audio stream updated with new constraints');
           this.emit('local-stream-changed', this.localStream);
         }

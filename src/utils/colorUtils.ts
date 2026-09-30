@@ -566,6 +566,18 @@ function oklchToStringAlpha(l: number, c: number, h: number, alpha: number): str
 }
 
 /**
+ * Raised-surface offsets from --background-primary, in OKLCH L percentage points.
+ * Measured from the preset hexes: dark quaternary #222327 is +3.7 over #1a1a1e,
+ * quinary #202024 +2.6; light quaternary #ebedef is -5.5 under #ffffff, quinary
+ * #e3e5e8 -7.9. Quaternary is drawn directly on primary; a step under ~3 L is not
+ * perceptible.
+ */
+const RAISED_SURFACE_L = {
+  dark: { quaternary: 4, quinary: 3 },
+  light: { quaternary: -5.5, quinary: -8 },
+} as const
+
+/**
  * Apply theme palette to CSS custom properties using OKLCH
  */
 export function applyThemePalette(palette: ThemePalette): void {
@@ -605,6 +617,9 @@ export function applyThemePalette(palette: ThemePalette): void {
   const bgPrimaryOklch = hexToOklch(palette.bgPrimary)
   const bgSecondaryOklch = hexToOklch(palette.bgSecondary)
   const bgTertiaryOklch = hexToOklch(palette.bgTertiary)
+  const raised = RAISED_SURFACE_L[palette.isLightTheme ? 'light' : 'dark']
+  const raisedL = (offset: number, fallbackL: number) =>
+    clampTone((bgPrimaryOklch?.l ?? fallbackL) + offset, 0, 100)
 
   // System background colors - use OKLCH for custom hue
   if (bgPrimaryOklch) {
@@ -612,15 +627,17 @@ export function applyThemePalette(palette: ThemePalette): void {
     // Alpha variant (0xaa = 170/255 ≈ 0.67)
     root.style.setProperty('--background-primary-alpha', oklchToStringAlpha(bgPrimaryOklch.l, bgPrimaryOklch.c, bgPrimaryOklch.h, 0.67))
   }
+  // Quaternary and quinary keep the secondary / tertiary hue and chroma; lightness
+  // is stepped from primary, the surface they are drawn on.
   if (bgSecondaryOklch) {
     root.style.setProperty('--background-secondary', oklchToString(bgSecondaryOklch.l, bgSecondaryOklch.c, bgSecondaryOklch.h))
-    root.style.setProperty('--background-quaternary', oklchToString(bgSecondaryOklch.l + 2, bgSecondaryOklch.c, bgSecondaryOklch.h))
+    root.style.setProperty('--background-quaternary', oklchToString(raisedL(raised.quaternary, bgSecondaryOklch.l), bgSecondaryOklch.c, bgSecondaryOklch.h))
     // Alpha variant
     root.style.setProperty('--background-secondary-alpha', oklchToStringAlpha(bgSecondaryOklch.l, bgSecondaryOklch.c, bgSecondaryOklch.h, 0.67))
   }
   if (bgTertiaryOklch) {
     root.style.setProperty('--background-tertiary', oklchToString(bgTertiaryOklch.l, bgTertiaryOklch.c, bgTertiaryOklch.h))
-    root.style.setProperty('--background-quinary', oklchToString(bgTertiaryOklch.l + 2, bgTertiaryOklch.c, bgTertiaryOklch.h))
+    root.style.setProperty('--background-quinary', oklchToString(raisedL(raised.quinary, bgTertiaryOklch.l), bgTertiaryOklch.c, bgTertiaryOklch.h))
     // Alpha variant
     root.style.setProperty('--background-tertiary-alpha', oklchToStringAlpha(bgTertiaryOklch.l, bgTertiaryOklch.c, bgTertiaryOklch.h, 0.67))
   }
@@ -646,7 +663,19 @@ export function applyThemePalette(palette: ThemePalette): void {
   root.style.setProperty('--border-secondary', palette.borderSecondary)
   root.style.setProperty('--border-color', palette.borderPrimary)  // Main border color used by components
   root.style.setProperty('--color-border', palette.borderPrimary)  // Alternative naming
-  
+
+  // Tokens applyPresetTheme also writes inline, with the same per-mode values.
+  // Unset here, a preset applied earlier in the session leaks its values into
+  // the custom theme.
+  const light = palette.isLightTheme
+  root.style.setProperty('--border-hover', light ? 'rgba(0, 0, 0, 0.15)' : 'rgba(255, 255, 255, 0.12)')
+  root.style.setProperty('--border-focus', palette.primary)
+  root.style.setProperty('--icon-primary', light ? '#5e6168' : '#9999a0')
+  root.style.setProperty('--icon-secondary', light ? '#80838a' : '#66666b')
+  root.style.setProperty('--icon-active', light ? '#2e3338' : '#fbfbfb')
+  root.style.setProperty('--shadow-small', light ? '0 2px 4px rgba(0, 0, 0, 0.06)' : '0 2px 4px rgba(0, 0, 0, 0.1)')
+  root.style.setProperty('--shadow-medium', light ? '0 4px 8px rgba(0, 0, 0, 0.08)' : '0 4px 8px rgba(0, 0, 0, 0.15)')
+
   root.setAttribute('data-theme', 'custom')
   root.setAttribute('data-theme-type', palette.isLightTheme ? 'light' : 'dark')
   

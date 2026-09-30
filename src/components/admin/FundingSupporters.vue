@@ -3,7 +3,7 @@
 <div class="admin-module funding-module">
   <div class="module-header">
     <Icon name="heart" :size="20" />
-    <h2>Funding & Supporters</h2>
+    <h2>Funding & supporters</h2>
     <button @click="saveFundingConfig" class="save-btn" :disabled="!fundingChanged">
       <Icon name="save" :size="16" />
       Save changes

@@ -17,7 +17,7 @@ import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
 
 type UserEventType =
-  | 'notification:new' | 'notification:update' | 'notification:bulk_read'
+  | 'notification:new' | 'notification:update' | 'notification:bulk_read' | 'notification:deleted'
   | 'unread:change'
   | 'conversation:new' | 'conversation:updated'
   | 'server:joined' | 'server:left' | 'server:updated'

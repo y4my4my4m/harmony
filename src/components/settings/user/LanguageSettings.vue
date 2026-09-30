@@ -16,7 +16,7 @@
         <div class="setting-control">
           <select 
             v-model="selectedLanguage"
-            class="select-input"
+            class="form-select"
             @change="onLanguageChange"
           >
             <option v-for="lang in availableLanguages" :key="lang.code" :value="lang.code">
@@ -158,15 +158,5 @@ onMounted(async () => {
 
 .setting-control {
   flex-shrink: 0;
-}
-
-.select-input {
-  padding: 8px 12px;
-  background-color: var(--input-bg);
-  border: 1px solid var(--input-border);
-  border-radius: 4px;
-  color: var(--text-primary);
-  font-size: 14px;
-  cursor: pointer;
 }
 </style>

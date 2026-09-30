@@ -3,7 +3,6 @@
     :show="show" 
     :title="`Group settings`"
     @close="handleClose"
-    class="group-settings-modal"
   >
     <div class="settings-content">
       <!-- Group Icon Section -->
@@ -507,10 +506,6 @@ async function deleteGroup() {
 </script>
 
 <style scoped>
-.group-settings-modal {
-  --modal-width: 600px;
-}
-
 .settings-content {
   display: flex;
   flex-direction: column;

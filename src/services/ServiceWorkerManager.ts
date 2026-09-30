@@ -4,6 +4,7 @@
 
 import router from '@/router'
 import { debug } from '@/utils/debug'
+import { toAppPath } from '@/utils/notificationRoute'
 
 // Quick-reply queue (IndexedDB) - schema shared with public/service-worker.js.
 // The SW persists notification-input replies here so they survive
@@ -183,12 +184,17 @@ export class ServiceWorkerManager {
   private handleServiceWorkerMessage(event: MessageEvent): void {
     debug.log('Message from ServiceWorker:', event.data)
 
-    switch (event.data.type) {
+    switch (event.data?.type) {
       case 'NAVIGATE_TO_NOTIFICATION':
         this.handleNavigateToNotification(event.data)
         break
       case 'MARK_NOTIFICATION_READ':
         this.handleMarkNotificationRead(event.data.data)
+        break
+      case 'PUSH_SUBSCRIPTION_CHANGED':
+        import('@/composables/usePushNotifications')
+          .then(({ usePushNotifications }) => usePushNotifications().reconcile())
+          .catch(err => debug.warn('ServiceWorker: push reconcile after subscription change failed:', err))
         break
       case 'QUICK_REPLY':
         // Pre-queue SW versions post replies directly. Routed through the
@@ -206,28 +212,83 @@ export class ServiceWorkerManager {
     }
   }
 
-  private async handleNavigateToNotification(data: any): Promise<void> {
+  /**
+   * A system notification was clicked while this window existed. The service worker
+   * resolves `url` from the payload; ids are the fallback for pre-3.6 workers.
+   */
+  private async handleNavigateToNotification(message: any): Promise<void> {
     try {
-      await this.handleMarkNotificationRead(data.data)
+      const data = message?.data || {}
+      void this.handleMarkNotificationRead(data)
 
-      if (data.data.conversation_id) {
-        let dmPath = `/dm/${data.data.conversation_id}`
-        if (data.data.message_id) {
-          dmPath += `?messageId=${encodeURIComponent(data.data.message_id)}`
-        }
-        await router.push(dmPath)
-      } else if (data.data.server_id && data.data.channel_id) {
-        let path = `/chat/${data.data.server_id}/${data.data.channel_id}`
-        if (data.data.message_id) {
-          path += `?messageId=${encodeURIComponent(data.data.message_id)}`
-        }
+      const path = toAppPath(message?.url || data.url, window.location.origin)
+      if (path) {
         await router.push(path)
-      } else if (data.data.server_id) {
-        await router.push(`/chat/${data.data.server_id}`)
+        return
+      }
+      if (data.conversation_id) {
+        const query = data.message_id ? `?messageId=${encodeURIComponent(data.message_id)}` : ''
+        await router.push(`/dm/${data.conversation_id}${query}`)
+      } else if (data.server_id && data.channel_id) {
+        const query = data.message_id ? `?messageId=${encodeURIComponent(data.message_id)}` : ''
+        await router.push(`/chat/${data.server_id}/${data.channel_id}${query}`)
       }
     } catch (error) {
       debug.error('Error navigating to notification:', error)
     }
+  }
+
+  /**
+   * Marks read the notifications clicked or marked read in the system tray while no
+   * window could take the write. Runs after sign-in; ids stay queued until then.
+   */
+  async drainPendingReads(): Promise<void> {
+    const worker = this.registration?.active
+    if (!worker) return
+    try {
+      const { useAuthStore } = await import('@/stores/auth')
+      if (!useAuthStore().isLoggedIn) return
+
+      const ids = await new Promise<string[]>((resolve) => {
+        const channel = new MessageChannel()
+        const timer = setTimeout(() => resolve([]), 3000)
+        channel.port1.onmessage = (event) => {
+          clearTimeout(timer)
+          resolve(Array.isArray(event.data?.ids) ? event.data.ids : [])
+        }
+        worker.postMessage({ type: 'TAKE_PENDING_READS' }, [channel.port2])
+      })
+      if (ids.length === 0) return
+
+      const { useNotificationStore } = await import('@/stores/useNotification')
+      await useNotificationStore().markManyAsRead(ids)
+    } catch (error) {
+      debug.warn('ServiceWorker: pending read drain failed:', error)
+    }
+  }
+
+  /**
+   * Shows a system notification through the worker, which drops it when a push for
+   * the same notification id was already shown. False when no worker is active.
+   */
+  async showNotification(title: string, options: NotificationOptions): Promise<boolean> {
+    const registration = this.registration ?? await navigator.serviceWorker?.getRegistration?.().catch(() => undefined)
+    const worker = registration?.active
+    if (!registration || !worker) return false
+
+    // Workers before 3.6 ignore SHOW_NOTIFICATION; without an answer the page shows
+    // it itself. The shared tag makes a late answer replace, not stack.
+    const acknowledged = await new Promise<boolean>((resolve) => {
+      const channel = new MessageChannel()
+      const timer = setTimeout(() => resolve(false), 1500)
+      channel.port1.onmessage = () => {
+        clearTimeout(timer)
+        resolve(true)
+      }
+      worker.postMessage({ type: 'SHOW_NOTIFICATION', title, options }, [channel.port2])
+    })
+    if (!acknowledged) await registration.showNotification(title, options)
+    return true
   }
 
   /**
@@ -251,7 +312,11 @@ export class ServiceWorkerManager {
     // so firing on every auth state change is safe.
     import('@/supabase').then(({ supabase }) => {
       supabase.auth.onAuthStateChange((_event, session) => {
-        if (session) attemptDrain()
+        if (session) {
+          attemptDrain()
+          // Deferred: isLoggedIn follows the auth store, which updates after this event.
+          setTimeout(() => { void this.drainPendingReads() }, 1500)
+        }
       })
     }).catch(err => {
       debug.warn('ServiceWorker: failed to attach quick reply drain listener:', err)
@@ -261,7 +326,10 @@ export class ServiceWorkerManager {
     // the OS delivers the SW postMessage late.
     if (typeof document !== 'undefined') {
       document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible') attemptDrain()
+        if (document.visibilityState === 'visible') {
+          attemptDrain()
+          void this.drainPendingReads()
+        }
       })
     }
   }
@@ -373,21 +441,22 @@ export class ServiceWorkerManager {
     }
   }
 
-  // Matches the stored notification by message_id or conversation_id.
+  // By notification id; payloads without one fall back to the message id.
   private async handleMarkNotificationRead(data: any): Promise<void> {
     try {
       const { useNotificationStore } = await import('@/stores/useNotification')
       const notificationStore = useNotificationStore()
 
-      // Both sides undefined would match an unrelated notification.
-      const notification = notificationStore.notifications.find(n =>
-        (data.message_id && n.data?.message_id === data.message_id) ||
-        (data.conversation_id && n.data?.conversation_id === data.conversation_id)
-      )
-
-      if (notification) {
-        await notificationStore.markAsRead(notification.id)
+      const id = data?.notification_id || data?.notificationId
+      if (id) {
+        await notificationStore.markManyAsRead([id])
+        return
       }
+      // Both sides undefined would match an unrelated notification.
+      const notification = data?.message_id
+        ? notificationStore.notifications.find(n => n.data?.message_id === data.message_id)
+        : undefined
+      if (notification) await notificationStore.markAsRead(notification.id)
     } catch (error) {
       debug.error('Error marking notification as read:', error)
     }
@@ -426,9 +495,14 @@ export class ServiceWorkerManager {
    */
   async dismissNotifications(criteria: {
     notificationId?: string
+    notificationIds?: string[]
     tag?: string
     conversationId?: string
     channelId?: string
+    /** Close every notification. */
+    all?: boolean
+    /** Close every notification whose id is not listed. */
+    keepIds?: string[]
   }): Promise<void> {
     await this.sendMessage({
       type: 'DISMISS_NOTIFICATIONS',

@@ -38,6 +38,17 @@ export class ViewContextTracker {
   private currentContext: ViewContext = {
     view_type: 'home'
   }
+  // False while the tab is hidden or idle: the view is not being seen.
+  private attentive = true
+
+  setAttentive(attentive: boolean) {
+    this.attentive = attentive
+  }
+
+  private isSeen(): boolean {
+    if (!this.attentive) return false
+    return typeof document === 'undefined' || document.visibilityState !== 'hidden'
+  }
 
   /**
    * Update the current view context
@@ -105,6 +116,10 @@ export class ViewContextTracker {
     conversation_id?: string
     type: string
   }, activeConversationId?: string): NotificationUIDecision {
+    if (!this.isSeen()) {
+      return { showToast: true, showDesktop: true, playSound: true, reason: 'Tab is hidden or idle' }
+    }
+
     // If user is viewing the exact context where notification originated, suppress
     if (notificationContext.server_id && notificationContext.channel_id) {
       if (this.isViewingChannel(notificationContext.server_id, notificationContext.channel_id)) {
@@ -186,7 +201,9 @@ export class ViewContextTracker {
       if (error) {
         debug.warn('Failed to auto-clear notifications for context:', error)
       } else if (data && data > 0) {
-        debug.log(`Auto-cleared ${data} notifications for ${contextType}:${contextId}`)
+        // The per-row broadcasts reach this tab too, but not while realtime is down.
+        const { useNotificationStore } = await import('@/stores/useNotification')
+        useNotificationStore().applyContextRead(contextType as 'channel' | 'conversation' | 'post', contextId)
       }
     } catch (error) {
       debug.error('Error clearing notifications for context:', error)
@@ -198,6 +215,7 @@ export class ViewContextTracker {
    */
   reset() {
     this.currentContext = { view_type: 'home' }
+    this.attentive = true
     debug.log('ViewContext reset')
   }
 }
