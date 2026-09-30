@@ -67,6 +67,32 @@
         </div>
       </div>
       
+      <div v-if="encryptionPolicy !== 'disabled'" class="encryption-option">
+        <div class="encryption-option-text">
+          <span class="section-label">{{ $t('channelEncryption.create.label') }}</span>
+          <span class="encryption-option-hint">
+            {{ encryptionRequired ? $t('channelEncryption.settings.serverRequired') : $t('channelEncryption.create.hint') }}
+          </span>
+        </div>
+        <ToggleSwitch
+          :model-value="encryptOnCreate"
+          :disabled="encryptionRequired"
+          :class="{ disabled: encryptionRequired }"
+          role="switch"
+          :aria-checked="encryptOnCreate"
+          :aria-label="$t('channelEncryption.create.label')"
+          :aria-disabled="encryptionRequired"
+          :tabindex="encryptionRequired ? -1 : 0"
+          @change="(value: boolean) => { encryptOnCreate = value }"
+          @keydown.enter.prevent="toggleEncryptOnCreate"
+          @keydown.space.prevent="toggleEncryptOnCreate"
+        />
+      </div>
+      <div v-if="encryptOnCreate && botCount > 0" class="encryption-warning" role="note">
+        <Icon name="alert-triangle" :size="14" />
+        <span>{{ $t('channelEncryption.create.integrationWarning') }}</span>
+      </div>
+
       <div v-if="categoryId" class="category-info">
         <div class="info-badge">
           <svg class="info-icon" viewBox="0 0 24 24" fill="currentColor">
@@ -104,7 +130,11 @@ import BaseModal from '@/components/common/BaseModal.vue'
 import ModernInput from '@/components/common/ModernInput.vue'
 import UnifiedButton from '@/components/shared/UnifiedButton.vue'
 import Icon from '@/components/common/Icon.vue'
+import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
 import { supabase } from '@/supabase'
+import { useToast } from 'vue-toastification'
+import { setChannelEncryption } from '@/services/ChannelEncryptionService'
+import { isRequiredMode, normalizeServerMode, type ServerEncryptionMode } from '@/utils/channelEncryption'
 
 // Max channels per server
 const MAX_CHANNELS_PER_SERVER = 100
@@ -124,8 +154,39 @@ const emit = defineEmits<{
   channelCreated: [channel: any]
 }>()
 
+const toast = useToast()
+
 const newChannelName = ref('')
 const channelType = ref(0) // Default to text channel
+
+// Server floor: 'disabled' hides the option, a required mode fixes it on.
+const encryptionPolicy = ref<ServerEncryptionMode>('disabled')
+const encryptOnCreate = ref(false)
+const botCount = ref(0)
+const encryptionRequired = computed(() => isRequiredMode(encryptionPolicy.value))
+
+const toggleEncryptOnCreate = () => {
+  if (!encryptionRequired.value) encryptOnCreate.value = !encryptOnCreate.value
+}
+
+const loadEncryptionPolicy = async () => {
+  if (!props.serverId) return
+  const [{ data: policy }, { count }] = await Promise.all([
+    supabase
+      .from('server_encryption_settings')
+      .select('encryption_mode')
+      .eq('server_id', props.serverId)
+      .maybeSingle(),
+    supabase
+      .from('bot_server_permissions')
+      .select('id', { count: 'exact', head: true })
+      .eq('server_id', props.serverId)
+      .eq('is_active', true),
+  ])
+  encryptionPolicy.value = normalizeServerMode(policy?.encryption_mode)
+  encryptOnCreate.value = isRequiredMode(encryptionPolicy.value)
+  botCount.value = count || 0
+}
 const channelNameError = ref('')
 const isCreating = ref(false)
 const currentChannelCount = ref(0)
@@ -164,6 +225,7 @@ const checkChannelCount = async () => {
 watch(() => props.show, (newShow) => {
   if (newShow) {
     checkChannelCount()
+    loadEncryptionPolicy().catch(error => debug.error('Error loading encryption policy:', error))
   } else {
     channelNameError.value = ''
     currentChannelCount.value = 0
@@ -301,7 +363,17 @@ const createChannel = async () => {
       .single()
 
     if (error) throw error
-    
+
+    // A new channel starts at the server floor; 'optional' starts off.
+    if (encryptOnCreate.value && encryptionPolicy.value === 'optional') {
+      try {
+        await setChannelEncryption(data.id, { messagesEncrypted: true })
+      } catch (encryptionError: any) {
+        debug.error('Error turning on channel encryption:', encryptionError)
+        toast.error(t('channelEncryption.create.failed'))
+      }
+    }
+
     emit('channelCreated', data)
     closeForm()
   } catch (error) {
@@ -316,6 +388,7 @@ const closeForm = () => {
   newChannelName.value = ''
   channelType.value = 0
   channelNameError.value = ''
+  encryptOnCreate.value = isRequiredMode(encryptionPolicy.value)
   emit('close')
 }
 </script>
@@ -430,6 +503,39 @@ const closeForm = () => {
   width: 16px;
   height: 16px;
   color: var(--text-on-primary);
+}
+
+.encryption-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.encryption-option-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.encryption-option-hint {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.encryption-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 12px;
+  margin-top: -12px;
+  font-size: var(--font-size-xs);
+  line-height: 1.4;
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
+  border-radius: var(--radius-base);
 }
 
 .category-info {

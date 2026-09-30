@@ -8,6 +8,7 @@ import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { ensureMessageEmbeds } from '@/utils/messageEmbedUtils';
 import { processMessageDecryption } from '@/utils/messageDecryption';
+import { reportChannelEncryptionError } from '@/composables/useEncryptionAction';
 import { debug } from '@/utils/debug';
 import { realtimeConnectionManager, type ConnectionStatus } from '@/services/RealtimeConnectionManager';
 import { getRandomId, createTempMessageId, findOptimisticMatchIndex } from '@/stores/shared/optimisticMessages';
@@ -69,18 +70,22 @@ export const useChatStore = defineStore('chat', {
 
         // Reactions load via MessageService batch fetch, not per-message here.
 
-        // Ciphertext is stored as a text part and reply previews render part.text
-        // verbatim. No session key is fetched here, so substitute a placeholder.
-        if (message.encrypted && !message.decrypted) {
-          message.content = [{ type: 'text', text: 'Encrypted message' }];
+        // Reply previews render part.text verbatim, so a message that stays
+        // encrypted after a decryption attempt gets a placeholder, not ciphertext.
+        let resolved: Message = message;
+        if (message.encrypted && message.encryption_metadata) {
+          resolved = (await processMessageDecryption([message]))[0] ?? message;
+        }
+        if (resolved.encrypted && !resolved.decrypted) {
+          resolved = { ...resolved, content: [{ type: 'text', text: 'Encrypted message' }] };
         }
 
-        this.replyMessageCache.set(messageId, message);
+        this.replyMessageCache.set(messageId, resolved);
         if (this.replyMessageCache.size > this.maxReplyCacheSize) {
           const oldestKey = this.replyMessageCache.keys().next().value;
           if (oldestKey) this.replyMessageCache.delete(oldestKey);
         }
-        return message;
+        return resolved;
       } catch (error) {
         debug.error('Error fetching reply message:', error);
         return null;
@@ -841,6 +846,7 @@ export const useChatStore = defineStore('chat', {
         this._replaceTempWithReal(tempId, message, userId, channelId, content);
       } catch (error) {
         debug.error('Retry failed:', error);
+        reportChannelEncryptionError(error);
         this._markMessageFailed(tempId);
       }
     },

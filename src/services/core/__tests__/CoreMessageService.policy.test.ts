@@ -51,7 +51,7 @@ vi.mock('@/services/encryption/MegolmMessageEncryptionService', () => ({
         encrypted: true,
         content: [{ type: 'text', text: 'CIPHERTEXT' }],
         encryption_metadata: {
-          algorithm: 'megolm_v1',
+          algorithm: 'megolm_v3',
           session_id: 'session-xyz',
           message_index: 0,
           sender_user_id: 'user',
@@ -67,17 +67,42 @@ import { CoreMessageService } from '@/services/core/CoreMessageService'
 // Tiny chainable mock for supabase.from(...).select(...).eq(...).maybeSingle()
 // and supabase.from('messages').insert(...).select('*').single().
 function setupSupabase({
-  encryptionMode,
+  channelEncrypted,
+  rpcError,
   conversationEnabled,
   maxMediaConfig,
   insertedMessage,
+  insertError,
 }: {
-  encryptionMode?: 'disabled' | 'optional' | 'required'
+  channelEncrypted?: boolean
+  rpcError?: boolean
   conversationEnabled?: boolean
   maxMediaConfig?: number
   insertedMessage?: any
+  insertError?: { message: string }
 } = {}) {
   const insertedRows: any[] = []
+
+  ;(supabase.rpc as any).mockImplementation((fn: string, args: any) => {
+    if (fn !== 'effective_channel_encryption') throw new Error(`Unhandled rpc in test mock: ${fn}`)
+    if (rpcError) return Promise.resolve({ data: null, error: { message: 'rpc down' } })
+    return Promise.resolve({
+      data: {
+        channel_id: args.p_channel_id,
+        server_id: SERVER_ID,
+        server_mode: channelEncrypted ? 'optional' : 'disabled',
+        voice_mode: 'disabled',
+        messages_encrypted: channelEncrypted === true,
+        voice_encrypted: false,
+        messages_locked: !channelEncrypted,
+        voice_locked: true,
+        history_visibility: 'joined',
+        bot_count: 0,
+        bridge_count: 0,
+      },
+      error: null,
+    })
+  })
 
   ;(supabase.from as any).mockImplementation((table: string) => {
     if (table === 'instance_config') {
@@ -86,18 +111,6 @@ function setupSupabase({
           eq: () => ({
             maybeSingle: () => Promise.resolve({
               data: { config_value: maxMediaConfig ?? 20 },
-              error: null,
-            }),
-          }),
-        }),
-      }
-    }
-    if (table === 'server_encryption_settings') {
-      return {
-        select: () => ({
-          eq: () => ({
-            maybeSingle: () => Promise.resolve({
-              data: encryptionMode ? { encryption_mode: encryptionMode } : null,
               error: null,
             }),
           }),
@@ -136,10 +149,9 @@ function setupSupabase({
           insertedRows.push(row)
           return {
             select: () => ({
-              single: () => Promise.resolve({
-                data: insertedMessage ?? { id: 'msg-1', ...row },
-                error: null,
-              }),
+              single: () => Promise.resolve(insertError
+                ? { data: null, error: insertError }
+                : { data: insertedMessage ?? { id: 'msg-1', ...row }, error: null }),
             }),
           }
         },
@@ -167,8 +179,17 @@ describe('CoreMessageService - encryption policy (fail-closed by default)', () =
   })
 
   describe('sendChannelMessage', () => {
-    it('inserts plaintext when server has encryption disabled', async () => {
-      const { insertedRows } = setupSupabase({ encryptionMode: 'disabled' })
+    const MENTION = {
+      type: 'mention',
+      userId: '22222222-2222-2222-2222-222222222222',
+      username: 'bob',
+      domain: 'harmony.test',
+      isLocal: true,
+      displayName: 'Bob Display',
+    }
+
+    it('inserts plaintext when the channel is not encrypted', async () => {
+      const { insertedRows } = setupSupabase({ channelEncrypted: false })
 
       const msg = await service.sendChannelMessage(SERVER_ID, CHANNEL_ID, [
         { type: 'text', text: 'hi' },
@@ -177,58 +198,52 @@ describe('CoreMessageService - encryption policy (fail-closed by default)', () =
       expect(msg).toBeDefined()
       expect(insertedRows[0].encrypted).toBe(false)
       expect(insertedRows[0].content).toEqual([{ type: 'text', text: 'hi' }])
+      expect(supabase.rpc).toHaveBeenCalledWith('effective_channel_encryption', { p_channel_id: CHANNEL_ID })
     })
 
-    it('encrypts when optional + keys unlocked', async () => {
-      const { insertedRows } = setupSupabase({ encryptionMode: 'optional' })
+    it('does not encrypt an unencrypted channel even when the sender holds keys', async () => {
+      const { insertedRows } = setupSupabase({ channelEncrypted: false })
+
+      await service.sendChannelMessage(SERVER_ID, CHANNEL_ID, [{ type: 'text', text: 'hi' }] as any)
+
+      expect(insertedRows[0].encrypted).toBe(false)
+      expect(insertedRows[0].metadata?.plaintext_override).toBeUndefined()
+    })
+
+    it('encrypts in an encrypted channel and stores mention parts beside the ciphertext', async () => {
+      const { insertedRows } = setupSupabase({ channelEncrypted: true })
 
       await service.sendChannelMessage(SERVER_ID, CHANNEL_ID, [
-        { type: 'text', text: 'hi' },
+        MENTION,
+        { type: 'text', text: ' hi' },
       ] as any)
 
       expect(insertedRows[0].encrypted).toBe(true)
-      expect(insertedRows[0].encryption_metadata?.algorithm).toBe('megolm_v1')
+      expect(insertedRows[0].encryption_metadata?.algorithm).toBe('megolm_v3')
+      expect(insertedRows[0].content).toEqual([
+        { type: 'text', text: 'CIPHERTEXT' },
+        {
+          type: 'mention',
+          userId: '22222222-2222-2222-2222-222222222222',
+          username: 'bob',
+          domain: 'harmony.test',
+          isLocal: true,
+        },
+      ])
     })
 
-    it('fails closed on optional + encryption locked', async () => {
-      setupSupabase({ encryptionMode: 'optional' })
-      encState.isUnlocked = false
-
-      await expect(
-        service.sendChannelMessage(SERVER_ID, CHANNEL_ID, [{ type: 'text', text: 'hi' }] as any),
-      ).rejects.toMatchObject({ code: 'ENCRYPTION_LOCKED' })
-    })
-
-    it('silently sends plaintext on optional + no recovery key (user never opted in)', async () => {
-      // Behavior change: in OPTIONAL mode, a user who has never set up
-      // encryption is fully within policy to send plaintext. Don't prompt
-      // them on every send - they never opted in. Only LOCKED (they did
-      // opt in but forgot to unlock) and FAILED (encrypt attempted, threw)
-      // should fail closed.
-      const { insertedRows } = setupSupabase({ encryptionMode: 'optional' })
+    it('asks a sender without keys to set up encryption instead of sending plaintext', async () => {
+      const { insertedRows } = setupSupabase({ channelEncrypted: true })
       encState.hasRecoveryKey = false
 
-      const msg = await service.sendChannelMessage(SERVER_ID, CHANNEL_ID, [
-        { type: 'text', text: 'hi' },
-      ] as any)
-
-      expect(msg).toBeDefined()
-      expect(insertedRows[0].encrypted).toBe(false)
-      expect(insertedRows[0].metadata?.plaintext_override?.authorized).toBe(true)
-      expect(insertedRows[0].metadata?.plaintext_override?.reason).toBe('optional_no_recovery_key')
-    })
-
-    it('fails closed on optional + encryption throws', async () => {
-      setupSupabase({ encryptionMode: 'optional' })
-      encState.throwOnEncrypt = true
-
       await expect(
         service.sendChannelMessage(SERVER_ID, CHANNEL_ID, [{ type: 'text', text: 'hi' }] as any),
-      ).rejects.toMatchObject({ code: 'ENCRYPTION_FAILED_NO_FALLBACK' })
+      ).rejects.toMatchObject({ code: 'ENCRYPTION_REQUIRED', reason: 'setup' })
+      expect(insertedRows).toHaveLength(0)
     })
 
-    it('still rejects on required mode even with explicit override', async () => {
-      setupSupabase({ encryptionMode: 'required' })
+    it('asks a sender with locked keys to unlock, whatever the fallback option says', async () => {
+      const { insertedRows } = setupSupabase({ channelEncrypted: true })
       encState.isUnlocked = false
 
       await expect(
@@ -240,43 +255,38 @@ describe('CoreMessageService - encryption policy (fail-closed by default)', () =
           undefined,
           { allowPlaintextFallback: true },
         ),
-      ).rejects.toMatchObject({ code: 'ENCRYPTION_REQUIRED' })
+      ).rejects.toMatchObject({ code: 'ENCRYPTION_REQUIRED', reason: 'unlock' })
+      expect(insertedRows).toHaveLength(0)
     })
 
-    it('allows plaintext when override is explicit (optional + locked)', async () => {
-      const { insertedRows } = setupSupabase({ encryptionMode: 'optional' })
-      encState.isUnlocked = false
-
-      const msg = await service.sendChannelMessage(
-        SERVER_ID,
-        CHANNEL_ID,
-        [{ type: 'text', text: 'hi' }] as any,
-        undefined,
-        undefined,
-        { allowPlaintextFallback: true },
-      )
-
-      expect(msg).toBeDefined()
-      expect(insertedRows[0].encrypted).toBe(false)
-      expect(insertedRows[0].metadata?.plaintext_override?.authorized).toBe(true)
-      expect(insertedRows[0].metadata?.plaintext_override?.reason).toBe('optional_encryption_locked')
-    })
-
-    it('allows plaintext when override is explicit (optional + encrypt throws)', async () => {
-      const { insertedRows } = setupSupabase({ encryptionMode: 'optional' })
+    it('refuses to send when encryption throws', async () => {
+      const { insertedRows } = setupSupabase({ channelEncrypted: true })
       encState.throwOnEncrypt = true
 
-      await service.sendChannelMessage(
-        SERVER_ID,
-        CHANNEL_ID,
-        [{ type: 'text', text: 'hi' }] as any,
-        undefined,
-        undefined,
-        { allowPlaintextFallback: true },
-      )
+      await expect(
+        service.sendChannelMessage(SERVER_ID, CHANNEL_ID, [{ type: 'text', text: 'hi' }] as any),
+      ).rejects.toMatchObject({ code: 'ENCRYPTION_REQUIRED', reason: 'failed' })
+      expect(insertedRows).toHaveLength(0)
+    })
 
-      expect(insertedRows[0].encrypted).toBe(false)
-      expect(insertedRows[0].metadata?.plaintext_override?.reason).toBe('optional_encrypt_failed')
+    it('refuses to send when the channel state cannot be read', async () => {
+      const { insertedRows } = setupSupabase({ rpcError: true })
+
+      await expect(
+        service.sendChannelMessage(SERVER_ID, CHANNEL_ID, [{ type: 'text', text: 'hi' }] as any),
+      ).rejects.toMatchObject({ code: 'ENCRYPTION_REQUIRED', reason: 'unavailable' })
+      expect(insertedRows).toHaveLength(0)
+    })
+
+    it('reports a database plaintext rejection as a changed channel', async () => {
+      setupSupabase({
+        channelEncrypted: false,
+        insertError: { message: 'CHANNEL_ENCRYPTED: this channel is end-to-end encrypted and rejects plaintext messages' },
+      })
+
+      await expect(
+        service.sendChannelMessage(SERVER_ID, CHANNEL_ID, [{ type: 'text', text: 'hi' }] as any),
+      ).rejects.toMatchObject({ code: 'ENCRYPTION_REQUIRED', reason: 'changed' })
     })
   })
 

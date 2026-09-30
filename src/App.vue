@@ -29,6 +29,9 @@
        the app's UI and isn't a native browser alert. -->
   <EncryptionFallbackModal />
 
+  <!-- Setup or unlock prompt for a send refused by an encrypted channel. -->
+  <EncryptionActionHost v-if="!isAuthRoute" />
+
   <!-- Single app-wide confirm dialog host. Any component can call
        `useConfirmDialog().confirm({...})` without mounting its own modal. -->
   <UnifiedConfirmationModal
@@ -100,6 +103,7 @@ import AuthLayout from '@/layouts/AuthLayout.vue'
 import NotificationToast from '@/components/NotificationToast.vue'
 import OfflineBanner from '@/components/OfflineBanner.vue'
 import EncryptionFallbackModal from '@/components/EncryptionFallbackModal.vue'
+import EncryptionActionHost from '@/components/encryption/EncryptionActionHost.vue'
 import DeviceApprovalPrompt from '@/components/encryption/DeviceApprovalPrompt.vue'
 import PersistentVoiceConnection from '@/components/PersistentVoiceConnection.vue'
 import PWAInstallBanner from '@/components/PWAInstallBanner.vue'

@@ -351,6 +351,8 @@ export class MessageService {
         pinned_at: m.pinned_at,
         pinned_by: m.pinned_by,
         metadata: m.metadata || {},
+        encrypted: m.encrypted === true,
+        encryption_metadata: m.encryption_metadata ?? undefined,
       }))
 
       debug.log(`Loaded ${messages.length} pinned messages`)
@@ -391,6 +393,8 @@ export class MessageService {
         pinned_at: m.pinned_at,
         pinned_by: m.pinned_by,
         metadata: m.metadata || {},
+        encrypted: m.encrypted === true,
+        encryption_metadata: m.encryption_metadata ?? undefined,
       }))
 
       debug.log(`Loaded ${messages.length} pinned DM messages`)

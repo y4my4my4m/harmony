@@ -3,6 +3,8 @@ import { useMessageAuthorPresentation } from '@/composables/useMessageAuthorPres
 import { useChatStore } from '@/stores/useChat'
 import { useDMStore } from '@/stores/useDM'
 import { messagePartsToPlainText } from '@/utils/messageContentUtils'
+import { isUndecrypted } from '@/utils/channelEncryption'
+import { i18n } from '@/i18n'
 import type { Message } from '@/types'
 
 type ReplyContext = {
@@ -74,6 +76,7 @@ export function useReplyTarget(
   const previewText = computed(() => {
     if (isLoading.value) return 'Loading...'
     if (!replyMessage.value) return 'Deleted message'
+    if (isUndecrypted(replyMessage.value)) return i18n.global.t('channelEncryption.encryptedMessage')
     return messagePartsToPlainText(replyMessage.value.content)
   })
 

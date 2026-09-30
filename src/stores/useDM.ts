@@ -475,19 +475,23 @@ export const useDMStore = defineStore('dm', () => {
 
       // Reactions load via the MessageService batch fetch, not per message here.
 
-      // Ciphertext is stored as a text part and reply previews render part.text
-      // verbatim. No session key is fetched here, so substitute a placeholder.
-      if (message.encrypted && !message.decrypted) {
-        message.content = [{ type: 'text', text: 'Encrypted message' }]
+      // Reply previews render part.text verbatim, so a message that stays
+      // encrypted after a decryption attempt gets a placeholder, not ciphertext.
+      let resolved: Message = message
+      if (message.encrypted && message.encryption_metadata) {
+        resolved = (await processMessageDecryption([message]))[0] ?? message
+      }
+      if (resolved.encrypted && !resolved.decrypted) {
+        resolved = { ...resolved, content: [{ type: 'text', text: 'Encrypted message' }] }
       }
 
       try {
-        ensureMessageEmbeds(message)
+        ensureMessageEmbeds(resolved)
       } catch (fetchError) {
         debug.warn('Failed to prepare embeds for DM reply message:', fetchError)
       }
 
-      return message
+      return resolved
     } catch (error) {
       debug.error('Error in _fetchSingleMessage:', error)
       return null
@@ -644,7 +648,7 @@ export const useDMStore = defineStore('dm', () => {
       const lastMessageScanLimit = Math.min(conversationIds.length * 5, 1000)
       const { data: lastMessages, error: messagesError } = await supabase
         .from('messages')
-        .select('conversation_id, content, created_at, user_id')
+        .select('conversation_id, content, encrypted, created_at, user_id')
         .in('conversation_id', conversationIds)
         .order('created_at', { ascending: false })
         .limit(lastMessageScanLimit)
@@ -695,6 +699,7 @@ export const useDMStore = defineStore('dm', () => {
           last_message: lastMessage ? {
             id: '', // preview only; ID unused
             content: lastMessage.content,
+            encrypted: lastMessage.encrypted === true,
             created_at: lastMessage.created_at,
             user_id: lastMessage.user_id,
             conversation_id: lastMessage.conversation_id
@@ -1018,6 +1023,7 @@ export const useDMStore = defineStore('dm', () => {
             id: lastMessage.id,
             user_id: lastMessage.user_id,
             content: lastMessage.content,
+            encrypted: lastMessage.encrypted === true,
             created_at: new Date(lastMessage.created_at),
             channel_id: '', // DMs have no channel
             conversation_id: row.conversation_id,
@@ -1255,6 +1261,7 @@ export const useDMStore = defineStore('dm', () => {
           id: lastMessageData.id,
           user_id: lastMessageData.user_id,
           content: lastMessageData.content,
+          encrypted: lastMessageData.encrypted === true,
           created_at: new Date(lastMessageData.created_at),
           channel_id: '', // DMs have no channel
           conversation_id: conv.conversation_id,
@@ -1377,7 +1384,7 @@ export const useDMStore = defineStore('dm', () => {
   const _fetchLastMessage = async (conversationId: string) => {
     const { data: lastMessageData, error } = await supabase
       .from('messages')
-      .select('id, user_id, content, created_at, metadata')
+      .select('id, user_id, content, encrypted, created_at, metadata')
       .eq('conversation_id', conversationId)
       .order('created_at', { ascending: false })
       .limit(1)
@@ -2379,6 +2386,8 @@ export const useDMStore = defineStore('dm', () => {
         id: message.id,
         user_id: message.user_id,
         content: message.content,
+        encrypted: message.encrypted === true,
+        decrypted: message.decrypted === true,
         created_at: new Date(message.created_at),
         channel_id: '', // DMs have no channel
         conversation_id: message.conversation_id,

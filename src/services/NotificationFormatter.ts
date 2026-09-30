@@ -71,6 +71,14 @@ function extractContentText(content: any): string | null {
   return String(content)
 }
 
+// Matches the preview redact_encrypted_notification_preview() writes server-side.
+const ENCRYPTED_MESSAGE_PREVIEW = 'Encrypted message'
+
+/** The notification names an encrypted message; its preview must not render message content. */
+function isEncryptedMessageData(data: Record<string, any>): boolean {
+  return data?.encrypted === true || data?.message?.encrypted === true
+}
+
 // Text inserted by DMCallSignaling.initiateCall for the call system message.
 // The notification trigger only forwards content_preview (no metadata), so
 // this string is the contract for detecting call notifications client-side.
@@ -426,7 +434,7 @@ export class NotificationFormatter {
 
     let message: string
     try {
-      message = template.message(data)
+      message = isEncryptedMessageData(data) ? ENCRYPTED_MESSAGE_PREVIEW : template.message(data)
     } catch (e) {
       debug.warn('Error formatting notification message:', e, notification)
       message = 'Click to view details'

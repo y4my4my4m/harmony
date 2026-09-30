@@ -4,6 +4,11 @@ import type { Thread, ThreadMember, Message } from '@/types'
 import { authContextService } from '@/services/AuthContextService'
 import { ensureMessageEmbeds } from '@/utils/messageEmbedUtils'
 import {
+  channelEncryptionError,
+  channelRequiresEncryption,
+  encryptChannelContent,
+} from '@/services/core/channelMessageEncryption'
+import {
   DEFAULT_MAX_MESSAGE_TEXT_LENGTH,
   MESSAGE_TEXT_HARD_CEILING,
   messageTextLength,
@@ -846,22 +851,20 @@ class ThreadService {
   /**
    * Send a message to a thread.
    *
-   * Threads live inside a channel, so the channel's server encryption policy
-   * applies. We reject thread sends in encryption-eligible channels unless
-   * encryption succeeds, mirroring CoreMessageService.sendChannelMessage's
-   * fail-closed policy. Pass `options.allowPlaintextFallback = true` for an
-   * explicit, user-confirmed plaintext send.
+   * Threads inherit their channel's encryption: the parent channel id is the
+   * Megolm room and effective_channel_encryption decides the payload, as in
+   * CoreMessageService.sendChannelMessage. A failure inside an encrypted
+   * channel throws ENCRYPTION_REQUIRED with a `reason`;
+   * `_options.allowPlaintextFallback` does not apply.
    *
-   * NOTE: Throwing here is intentional. Callers that previously consumed
-   * `null` should treat `null` as "could not load thread" and propagate
-   * encryption errors so the UI can prompt for fallback consent.
+   * Returns null when the thread cannot be loaded.
    */
   async sendThreadMessage(
     threadId: string,
     content: any[],
     replyTo?: string,
     extraMetadata?: Record<string, any>,
-    options?: { allowPlaintextFallback?: boolean }
+    _options?: { allowPlaintextFallback?: boolean }
   ): Promise<Message | null> {
     // Enforce max message length BEFORE encryption / DB roundtrip so the
     // error surfaces cleanly. The limit is admin-configurable via
@@ -890,116 +893,27 @@ class ThreadService {
     const thread = await this.getThread(threadId)
     if (!thread) return null
 
-    // Apply channel-level encryption policy. Look up the server for this
-    // channel, then defer to the same fail-closed flow used by chat sends.
-    let serverId: string | null = null
-    try {
+    let finalContent: any[] = content
+    let encrypted = false
+    let encryptionMetadata: any = null
+    const extra: Record<string, any> = { ...(extraMetadata || {}) }
+
+    if (await channelRequiresEncryption(thread.channel_id)) {
       const { data: channelRow } = await supabase
         .from('channels')
         .select('server_id')
         .eq('id', thread.channel_id)
         .maybeSingle()
-      serverId = (channelRow as any)?.server_id ?? null
-    } catch (lookupError) {
-      debug.warn('Failed to resolve server for thread channel:', lookupError)
-    }
 
-    let finalContent: any[] = content
-    let encrypted = false
-    let encryptionMetadata: any = null
-    const extra: Record<string, any> = { ...(extraMetadata || {}) }
-    const allowFallback = options?.allowPlaintextFallback === true
-
-    let encryptionMode: 'disabled' | 'optional' | 'required' = 'disabled'
-    if (serverId) {
-      try {
-        const { data: settings } = await supabase
-          .from('server_encryption_settings')
-          .select('encryption_mode')
-          .eq('server_id', serverId)
-          .maybeSingle()
-        encryptionMode = ((settings as any)?.encryption_mode as any) || 'disabled'
-      } catch (lookupError) {
-        debug.warn('Failed to resolve server encryption settings:', lookupError)
-      }
-    }
-
-    if (encryptionMode !== 'disabled') {
-      let encryptionService: any = null
-      try {
-        const mod = await import('@/services/encryption/MegolmMessageEncryptionService')
-        encryptionService = mod.megolmMessageEncryptionService
-      } catch (loadErr) {
-        debug.warn('Encryption service unavailable for thread send:', loadErr)
-      }
-
-      const hasService = !!encryptionService && encryptionService.isInitialized()
-      const hasRecoveryKey = hasService ? await encryptionService.hasRecoveryKey() : false
-      const isUnlocked = hasService ? encryptionService.isUnlocked() : false
-
-      if (hasService && hasRecoveryKey && isUnlocked) {
-        try {
-          let recipientIds: string[] = []
-          if (serverId) {
-            const { data: members } = await supabase
-              .from('user_servers')
-              .select('user_id')
-              .eq('server_id', serverId)
-            recipientIds = members?.map(m => m.user_id) || []
-          }
-          if (!recipientIds.includes(profileId)) recipientIds.push(profileId)
-
-          const encryptedData = await encryptionService.encryptMessage(content, thread.channel_id, recipientIds)
-          finalContent = encryptedData.content
-          encrypted = true
-          encryptionMetadata = encryptedData.encryption_metadata
-        } catch (encryptError) {
-          debug.error('Thread encryption failed:', encryptError)
-          if (encryptionMode === 'required') {
-            const err: any = new Error('Server requires encryption but encryption failed')
-            err.code = 'ENCRYPTION_REQUIRED'
-            throw err
-          }
-          if (!allowFallback) {
-            const err: any = new Error('Thread encryption failed and plaintext fallback was not authorized')
-            err.code = 'ENCRYPTION_FAILED_NO_FALLBACK'
-            throw err
-          }
-          extra.plaintext_override = { authorized: true, reason: 'thread_encrypt_failed', at: new Date().toISOString() }
-        }
-      } else if (encryptionMode === 'required') {
-        if (!hasRecoveryKey) {
-          const err: any = new Error('This server requires encryption. Set up encryption in Settings first.')
-          err.code = 'ENCRYPTION_REQUIRED'
-          throw err
-        }
-        const err: any = new Error('This server requires encryption. Unlock encryption with your recovery key first.')
-        err.code = 'ENCRYPTION_LOCKED'
-        throw err
-      } else {
-        // Optional + unable to encrypt. Mirrors `CoreMessageService`:
-        //   - keys locked  → fail closed (prompt the user, they opted in)
-        //   - no keys      → silent plaintext (user never opted in)
-        if (hasRecoveryKey && !isUnlocked) {
-          if (!allowFallback) {
-            const err: any = new Error('This thread supports encryption but your keys are locked.')
-            err.code = 'ENCRYPTION_LOCKED'
-            throw err
-          }
-          extra.plaintext_override = {
-            authorized: true,
-            reason: 'thread_encryption_locked',
-            at: new Date().toISOString(),
-          }
-        } else {
-          // No recovery key - silent plaintext, no prompt.
-          extra.plaintext_override = {
-            authorized: true,
-            reason: 'thread_no_recovery_key',
-            at: new Date().toISOString(),
-          }
-        }
-      }
+      const payload = await encryptChannelContent({
+        serverId: (channelRow as any)?.server_id ?? null,
+        channelId: thread.channel_id,
+        senderId: profileId,
+        content,
+      })
+      finalContent = payload.content
+      encrypted = true
+      encryptionMetadata = payload.encryption_metadata
     }
 
     const insertData: any = {
@@ -1020,7 +934,12 @@ class ThreadService {
       .select()
       .single()
 
-    if (error) throw error
+    if (error) {
+      if ((error.message || '').includes('CHANNEL_ENCRYPTED')) {
+        throw channelEncryptionError('changed', error)
+      }
+      throw error
+    }
 
     // Invalidate thread cache to refresh stats
     this.threadCache.delete(threadId)

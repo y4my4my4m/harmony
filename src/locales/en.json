@@ -1454,5 +1454,67 @@
     "close": "Close",
     "placeholder": "Playing in the video player",
     "placeholderHint": "Select to bring it back here"
+  },
+  "channelEncryption": {
+    "encryptedMessage": "Encrypted message",
+    "lock": {
+      "messages": "End-to-end encrypted",
+      "voice": "Voice and video are end-to-end encrypted"
+    },
+    "status": {
+      "active": "End-to-end encrypted",
+      "locked": "This channel is end-to-end encrypted. Unlock encryption to read and send messages.",
+      "setup": "This channel is end-to-end encrypted. Set up encryption to read and send messages.",
+      "recommended": "This server recommends setting up encryption."
+    },
+    "settings": {
+      "heading": "Encryption",
+      "loading": "Loading encryption settings...",
+      "unavailable": "Encryption settings couldn't be loaded.",
+      "messagesLabel": "End-to-end encrypt messages",
+      "voiceLabel": "End-to-end encrypt voice and video",
+      "messagesOnHint": "Messages are encrypted on members' devices, so the server can't read them.",
+      "messagesOffHint": "Messages are stored as plaintext. Turning encryption on applies to new messages.",
+      "serverDisabled": "Encryption is disabled for this server. The server owner can allow it in Server settings > Privacy settings.",
+      "serverRequired": "This server requires encryption in every channel.",
+      "voiceHint": "Calls are encrypted before they reach the media server. Members without encryption set up can't join.",
+      "voiceRequired": "This server requires encrypted voice and video in every voice channel.",
+      "turnedOn": "Encryption turned on",
+      "turnedOff": "Encryption turned off",
+      "voiceTurnedOn": "Voice encryption turned on",
+      "voiceTurnedOff": "Voice encryption turned off",
+      "saveFailed": "Couldn't change encryption. Try again."
+    },
+    "integrations": {
+      "bots": "{count} bot in this server can't read encrypted messages or post in this channel. | {count} bots in this server can't read encrypted messages or post in this channel.",
+      "bridges": "{count} bridge in this server can't read encrypted messages or relay them. | {count} bridges in this server can't read encrypted messages or relay them.",
+      "both": "Bots ({bots}) and bridges ({bridges}) in this server can't read encrypted messages or post in this channel."
+    },
+    "confirmOn": {
+      "title": "Turn on encryption?",
+      "confirm": "Turn on encryption"
+    },
+    "confirmOff": {
+      "title": "Turn off encryption?",
+      "message": "New messages in this channel will be stored as plaintext the server can read. Earlier messages stay encrypted, and the channel will show that you turned encryption off.",
+      "confirm": "Turn off encryption"
+    },
+    "confirmVoiceOff": {
+      "title": "Turn off voice encryption?",
+      "message": "Calls in this channel will no longer be end-to-end encrypted, and the media server will be able to access audio and video.",
+      "confirm": "Turn off voice encryption"
+    },
+    "system": {
+      "enabled": "turned on end-to-end encryption for this channel.",
+      "disabled": "turned off end-to-end encryption for this channel.",
+      "voiceEnabled": "turned on end-to-end encryption for voice and video.",
+      "voiceDisabled": "turned off end-to-end encryption for voice and video."
+    },
+    "create": {
+      "label": "End-to-end encryption",
+      "hint": "Encrypt messages in this channel so the server can't read them.",
+      "integrationWarning": "Bots and bridges in this server can't read encrypted messages or post in this channel.",
+      "failed": "The channel was created, but encryption couldn't be turned on. Turn it on in the channel settings."
+    }
   }
 }

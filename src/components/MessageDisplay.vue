@@ -270,6 +270,22 @@
                     ><DisplayName :userId="item.message.metadata.banned_by" /></span></template><template v-if="item.message.metadata?.reason"> - {{ item.message.metadata.reason }}</template>
                   </div>
                 </template>
+                <!-- Channel encryption turned on or off -->
+                <template v-else-if="channelEncryptionEventKey(item.message.metadata?.type)">
+                  <Icon
+                    :name="String(item.message.metadata?.type).endsWith('_enabled') ? 'lock' : 'unlock'"
+                    :size="16"
+                    class="system-icon"
+                  />
+                  <div class="system-text">
+                    <span
+                      class="system-user-mention"
+                      @click="showUserProfile(item.message.user_id)"
+                      :style="{ color: resolveChatUserColor(item.message.user_id) }"
+                    ><DisplayName :userId="item.message.user_id" /></span>
+                    {{ $t(channelEncryptionEventKey(item.message.metadata?.type)!) }}
+                  </div>
+                </template>
                 <!-- Default system message -->
                 <template v-else>
                   <Icon name="info" :size="16" class="system-icon" />
@@ -2612,6 +2628,17 @@ const formatSystemTimestamp = (timestamp: Date) => {
   if (isYesterday(date)) return `Yesterday at<br/>${format(date, 'p')}`;
   return `${format(date, 'MMM d, yyyy')}<br/>${format(date, 'p')}`;
 };
+
+// System message metadata.type written by set_channel_encryption().
+const CHANNEL_ENCRYPTION_EVENT_KEYS: Record<string, string> = {
+  channel_encryption_enabled: 'channelEncryption.system.enabled',
+  channel_encryption_disabled: 'channelEncryption.system.disabled',
+  channel_voice_encryption_enabled: 'channelEncryption.system.voiceEnabled',
+  channel_voice_encryption_disabled: 'channelEncryption.system.voiceDisabled',
+};
+
+const channelEncryptionEventKey = (type: unknown): string | null =>
+  typeof type === 'string' ? CHANNEL_ENCRYPTION_EVENT_KEYS[type] ?? null : null;
 
 const formatCallDuration = (seconds: number): string => {
   if (seconds < 60) return `${seconds}s`;

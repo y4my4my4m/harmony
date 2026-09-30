@@ -24,6 +24,7 @@
 
 import { ref } from 'vue'
 import { debug } from '@/utils/debug'
+import { reportChannelEncryptionError } from '@/composables/useEncryptionAction'
 
 export type EncryptionFallbackScope = 'channel' | 'dm' | 'thread'
 
@@ -171,6 +172,7 @@ export function useEncryptionFallbackPrompt() {
       }
       if (!isFallbackEligible(error)) {
         // ENCRYPTION_REQUIRED - server policy, no override allowed.
+        reportChannelEncryptionError(error)
         return { status: 'error', error }
       }
 

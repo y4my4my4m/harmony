@@ -34,6 +34,21 @@ describe('NotificationFormatter', () => {
       expect(result.message).toContain('Hey @you!')
     })
 
+    it('previews an encrypted mention generically, never its stored content', () => {
+      const notif = makeNotification('mention', {
+        data: {
+          sender: { username: 'alice', display_name: 'Alice' },
+          location: { channel_name: 'general' },
+          encrypted: true,
+          message: { content: [{ type: 'text', text: 'Q2lwaGVydGV4dA==' }], content_preview: 'Q2lwaGVydGV4dA==' },
+          preview: 'Q2lwaGVydGV4dA==',
+        },
+      })
+      const result = NotificationFormatter.formatNotification(notif)
+      expect(result.title).toContain('Alice')
+      expect(result.message).toBe('Encrypted message')
+    })
+
     it('formats a DM notification', () => {
       const notif = makeNotification('dm', {
         data: {

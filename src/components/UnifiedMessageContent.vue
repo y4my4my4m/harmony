@@ -577,6 +577,7 @@ import AttachmentRemoveButton from '@/components/common/AttachmentRemoveButton.v
 import Icon from '@/components/common/Icon.vue';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import { groupMediaGalleryParts } from '@/utils/mediaGalleryUtils';
+import { undecryptedDisplayParts } from '@/utils/channelEncryption';
 import { getAttachmentThumbnailUrl } from '@/utils/storageImageUtils';
 import {
   isDiscordCdnUrl,
@@ -904,13 +905,17 @@ export default defineComponent({
       return /\.(mp4|webm|ogg|avi|mov|wmv|flv|m4v)(?:[?#].*)?$/i.test(url);
     };
 
+    // An undecrypted message renders its ciphertext part alone: the mention
+    // parts stored beside it are server metadata, not message content.
     const displayContent = computed(() =>
-      groupMediaGalleryParts(
-        coalesceInlineContentForMarkdown(
-          props.content,
-          (url) => isImageUrl(url) || isVideoUrl(url),
-        ),
-      ),
+      props.encrypted && !props.decrypted
+        ? undecryptedDisplayParts(props.content)
+        : groupMediaGalleryParts(
+            coalesceInlineContentForMarkdown(
+              props.content,
+              (url) => isImageUrl(url) || isVideoUrl(url),
+            ),
+          ),
     );
 
     const isAudioUrl = (url: string): boolean => {

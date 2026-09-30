@@ -62,8 +62,15 @@
               <div class="unread-dot" v-if="hasUnreadMessages(element.id) && element.id !== currentChannelId"></div>
               <div class="channel-content">
                 <HashTagIcon v-if="!isVoiceType(element.type)" />
-                <SpeakerIcon v-else /> 
+                <SpeakerIcon v-else />
                 <span class="channel-name">{{ element.name }}</span>
+                <span
+                  v-if="channelLockKey(element)"
+                  class="channel-lock"
+                  role="img"
+                  :title="$t(channelLockKey(element)!)"
+                  :aria-label="$t(channelLockKey(element)!)"
+                ><Icon name="lock" :size="12" /></span>
               </div>
               <Icon v-if="mutedChannelIds.has(element.id)" name="bell-off" :size="12" class="muted-icon" />
               <div v-if="getChannelUnreadMentions(element.id) > 0" class="notification-badge">
@@ -187,6 +194,13 @@
                       <HashTagIcon v-if="!isVoiceType(channel.type)" />
                       <SpeakerIcon v-else />
                       <span class="channel-name">{{ channel.name }}</span>
+                      <span
+                        v-if="channelLockKey(channel)"
+                        class="channel-lock"
+                        role="img"
+                        :title="$t(channelLockKey(channel)!)"
+                        :aria-label="$t(channelLockKey(channel)!)"
+                      ><Icon name="lock" :size="12" /></span>
                     </div>
                     <Icon v-if="mutedChannelIds.has(channel.id)" name="bell-off" :size="12" class="muted-icon" />
                     <div v-if="getChannelUnreadMentions(channel.id) > 0" class="notification-badge">
@@ -345,6 +359,7 @@ import { useViewport } from '@/composables/useViewport';
 import { useNotificationStore } from '@/stores/useNotification';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { useThemeStore } from '@/stores/useTheme';
+import { useChannelEncryptionStore } from '@/stores/useChannelEncryption';
 import { statePersistence } from '@/services/StatePersistence';
 
 import type { PropType } from 'vue';
@@ -409,6 +424,24 @@ const emit = defineEmits<{
   (e: 'createChannel', categoryId?: string): void
   (e: 'openThread', thread: ThreadWithDetails): void
 }>();
+
+const channelEncryptionStore = useChannelEncryptionStore();
+
+watch(
+  () => [props.currentServer?.id, props.channels.map(c => c.id).join(',')] as const,
+  ([serverId]) => {
+    if (serverId) void channelEncryptionStore.loadServer(serverId, props.channels.map(c => c.id));
+  },
+  { immediate: true }
+);
+
+/** i18n key for the lock icon's label, or null for a channel without encryption. */
+const channelLockKey = (channel: Channel): string | null => {
+  const state = channelEncryptionStore.stateFor(channel.id);
+  if (!state) return null;
+  if (isVoiceType(channel.type) && state.voiceEncrypted) return 'channelEncryption.lock.voice';
+  return state.messagesEncrypted ? 'channelEncryption.lock.messages' : null;
+};
 
 // State
 const isDropdownOpen = ref(false);
@@ -1360,6 +1393,14 @@ watch(() => props.currentServer?.id, () => {
 
 .channel-item.muted.channel-unread .channel-name {
   font-weight: 400;
+}
+
+.channel-lock {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-left: 4px;
+  color: var(--text-tertiary);
 }
 
 .muted-icon {
