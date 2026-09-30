@@ -209,31 +209,20 @@
                   >
                     <label class="tp-var-name">{{ varName }}</label>
                     <div class="tp-var-controls">
-                      <div
-                        v-if="isHexCompatible(varName)"
-                        class="tp-var-swatch tp-var-swatch-clickable"
-                        :style="{ backgroundColor: getCssVarValue(varName) || 'transparent' }"
-                        :title="getCssVarValue(varName)"
-                      >
-                        <input
-                          type="color"
-                          class="tp-var-color-input-hidden"
-                          :value="getHexForPicker(varName)"
-                          @input="setCssOverrideFromInput(varName, ($event.target as HTMLInputElement).value)"
-                        />
-                      </div>
-                      <div
-                        v-else
+                      <CssVarSwatch
                         class="tp-var-swatch"
-                        :style="{ backgroundColor: getCssVarValue(varName) || 'transparent' }"
-                        :title="getCssVarValue(varName)"
-                      ></div>
+                        :value="getCssVarValue(varName)"
+                        :label="varName"
+                        @pick="setCssOverrideFromInput(varName, $event)"
+                      />
                       <input
                         type="text"
                         class="tp-var-text-input"
+                        :class="{ invalid: invalidVar?.name === varName }"
                         :value="working.customCssOverrides[varName] || ''"
                         :placeholder="getComputedVar(varName)"
-                        @change="setCssOverrideFromInput(varName, ($event.target as HTMLInputElement).value)"
+                        :title="invalidVar?.name === varName ? `Not a CSS colour: ${invalidVar.text}` : undefined"
+                        @change="commitCssOverrideText(varName, $event.target as HTMLInputElement)"
                       />
                       <button
                         v-if="working.customCssOverrides[varName]"
@@ -265,6 +254,7 @@
 <script setup lang="ts">
 import { reactive, ref, watch, computed } from 'vue'
 import ColorPicker from '@/components/common/ColorPicker.vue'
+import CssVarSwatch from '@/components/settings/user/CssVarSwatch.vue'
 import { useThemeEditorPanel } from '@/composables/useThemeEditorPanel'
 import { useVisualTheme } from '@/composables/useVisualTheme'
 import {
@@ -273,6 +263,7 @@ import {
   decomposeBackgroundToneHex,
   canonicalizeBackgroundTone,
 } from '@/utils/colorUtils'
+import { isValidCssColor } from '@/utils/cssColor'
 import { debug } from '@/utils/debug'
 
 const { isOpen, close } = useThemeEditorPanel()
@@ -300,11 +291,6 @@ const DEFAULTS: Working = {
   customCssOverrides: {},
 }
 
-const ALPHA_VAR_NAMES = new Set([
-  '--background-primary-alpha', '--background-secondary-alpha', '--background-tertiary-alpha',
-  '--background-senary-alpha',
-])
-
 const working = reactive<Working>({
   ...DEFAULTS,
   customCssOverrides: {},
@@ -318,6 +304,7 @@ const expanded = reactive({
   advanced: false,
 })
 const themableVariables = visualTheme.getThemableVariables()
+const invalidVar = ref<{ name: string; text: string } | null>(null)
 
 const overrideCount = computed(() => Object.keys(working.customCssOverrides).length)
 
@@ -364,30 +351,37 @@ const getComputedVar = (varName: string): string =>
 const getCssVarValue = (varName: string): string =>
   working.customCssOverrides[varName] || getComputedVar(varName)
 
-const isHexColor = (value: string): boolean => /^#[0-9a-fA-F]{3,8}$/.test(value.trim())
-
-const isHexCompatible = (varName: string): boolean => {
-  if (ALPHA_VAR_NAMES.has(varName)) return false
-  const current = getCssVarValue(varName)
-  if (!current) return true
-  return isHexColor(current) || !current.includes('(')
-}
-
-const getHexForPicker = (varName: string): string => {
-  const val = getCssVarValue(varName)
-  if (isHexColor(val)) return val.substring(0, 7)
-  return '#000000'
-}
-
 const setCssOverrideFromInput = (varName: string, value: string) => {
   if (!value) return
+  invalidVar.value = null
   working.customCssOverrides[varName] = value
   document.documentElement.style.setProperty(varName, value)
 }
 
+// Empty text clears the override. An invalid colour is rejected: on :root it is
+// invalid at computed-value time in every var() consumer, which then falls back
+// to inherit or initial; for backgrounds that is transparent.
+const commitCssOverrideText = (varName: string, input: HTMLInputElement) => {
+  const text = input.value.trim()
+  if (!text) {
+    invalidVar.value = null
+    if (working.customCssOverrides[varName]) removeCssOverrideVar(varName)
+    return
+  }
+  if (!isValidCssColor(text)) {
+    invalidVar.value = { name: varName, text }
+    input.value = working.customCssOverrides[varName] || ''
+    return
+  }
+  setCssOverrideFromInput(varName, text)
+}
+
+// removeProperty also drops the palette value for vars applyThemePalette writes
+// inline; applyPreview restores it.
 const removeCssOverrideVar = (varName: string) => {
   delete working.customCssOverrides[varName]
   document.documentElement.style.removeProperty(varName)
+  applyPreview()
 }
 
 const resetAllOverrides = () => {
@@ -395,6 +389,8 @@ const resetAllOverrides = () => {
     document.documentElement.style.removeProperty(varName)
   }
   working.customCssOverrides = {}
+  invalidVar.value = null
+  applyPreview()
 }
 
 function clearThemableOverrideStyles() {
@@ -416,6 +412,7 @@ function applyCssOverridesToDom() {
 watch(isOpen, (open) => {
   if (open) {
     seedFromCurrent()
+    invalidVar.value = null
     applyPreview()
     expanded.background = true
     expanded.primary = false
@@ -475,16 +472,19 @@ const applyPreview = () => {
 }
 
 const resetWorking = () => {
-  resetAllOverrides()
-  Object.assign(working, { ...DEFAULTS, customCssOverrides: {} })
+  Object.assign(working, { ...DEFAULTS, customCssOverrides: working.customCssOverrides })
   sidebarEnabled.value = false
-  applyPreview()
+  resetAllOverrides()
 }
 
+// clearThemableOverrideStyles strips palette and preset values along with the
+// overrides; reapplySettings rewrites them. updateSettings alone does not: the
+// settings watcher does not fire when the restored values equal the stored ones.
 const restoreOriginal = () => {
   if (!original) return
   clearThemableOverrideStyles()
   visualTheme.updateSettings(structuredClone(original))
+  visualTheme.reapplySettings()
 }
 
 const applyAndPersist = () => {
@@ -501,6 +501,7 @@ const applyAndPersist = () => {
     customSidebarColor: sidebarEnabled.value ? working.customSidebarColor : undefined,
     customCssOverrides: { ...working.customCssOverrides },
   })
+  visualTheme.reapplySettings()
   close()
 }
 
@@ -964,23 +965,6 @@ const cancelAndClose = () => {
   flex-shrink: 0;
 }
 
-.tp-var-swatch-clickable {
-  position: relative;
-  cursor: pointer;
-}
-
-.tp-var-color-input-hidden {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  cursor: pointer;
-  border: none;
-  padding: 0;
-  margin: 0;
-}
-
 .tp-var-text-input {
   flex: 1;
   min-width: 0;
@@ -995,6 +979,10 @@ const cancelAndClose = () => {
 
 .tp-var-text-input::placeholder {
   color: var(--text-muted);
+}
+
+.tp-var-text-input.invalid {
+  border-color: var(--error, #ed4245);
 }
 
 .tp-var-reset-btn {

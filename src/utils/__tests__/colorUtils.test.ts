@@ -12,6 +12,7 @@ import {
   adjustChroma,
   adjustHue,
   generateThemePalette,
+  applyThemePalette,
   composeBackgroundToneHex,
   decomposeBackgroundToneHex,
   generatePreviewColors,
@@ -256,6 +257,48 @@ describe('colorUtils', () => {
       const palette = generateThemePalette('#e91e8c', 'dark', '#e91e8c', 20, '#e91e8c', 2)
       const surfaceChroma = hexToOklch(palette.bgPrimary)?.c ?? 1
       expect(surfaceChroma).toBeLessThan(0.04)
+    })
+  })
+
+  describe('applyThemePalette raised surfaces', () => {
+    const lightnessOf = (varName: string): number => {
+      const value = document.documentElement.style.getPropertyValue(varName)
+      const m = /^oklch\(([\d.]+)%/.exec(value)
+      if (!m) throw new Error(`${varName} is not an oklch() value: "${value}"`)
+      return parseFloat(m[1])
+    }
+
+    const cases: Array<[string, 'dark' | 'light', number, string | undefined]> = [
+      ['dark', 'dark', 0, undefined],
+      ['dark, lightest slider', 'dark', 50, undefined],
+      ['dark, darkest slider', 'dark', -50, undefined],
+      ['dark with sidebar hue', 'dark', 0, '#8B5CF6'],
+      ['light', 'light', 0, undefined],
+      ['light, darkest slider', 'light', -50, undefined],
+    ]
+
+    it.each(cases)('keeps the composer surface distinct from the chat surface (%s)', (_label, mode, lightness, sidebar) => {
+      const palette = generateThemePalette('#0EA5E9', mode, '#0EA5E9', lightness, '#0EA5E9', 0, sidebar)
+      applyThemePalette(palette)
+      const primary = lightnessOf('--background-primary')
+      const quaternary = lightnessOf('--background-quaternary')
+      const quinary = lightnessOf('--background-quinary')
+      // The preset themes step quaternary 3.7 (dark) and 5.5 (light) L from primary.
+      expect(Math.abs(quaternary - primary)).toBeGreaterThanOrEqual(3)
+      expect(Math.abs(quinary - primary)).toBeGreaterThanOrEqual(2.5)
+      if (mode === 'dark') expect(quaternary).toBeGreaterThan(primary)
+      else expect(quaternary).toBeLessThan(primary)
+    })
+
+    it('writes the tokens presets also set, so a prior preset does not leak', () => {
+      const root = document.documentElement
+      root.style.setProperty('--icon-primary', 'stale')
+      root.style.setProperty('--border-hover', 'stale')
+      applyThemePalette(generateThemePalette('#0EA5E9', 'dark'))
+      expect(root.style.getPropertyValue('--icon-primary')).toBe('#9999a0')
+      expect(root.style.getPropertyValue('--border-hover')).not.toBe('stale')
+      applyThemePalette(generateThemePalette('#0EA5E9', 'light'))
+      expect(root.style.getPropertyValue('--icon-primary')).toBe('#5e6168')
     })
   })
 

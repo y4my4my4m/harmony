@@ -312,31 +312,20 @@
             >
               <label class="var-name">{{ varName }}</label>
               <div class="var-controls">
-                <div
-                  v-if="isHexCompatible(varName)"
-                  class="var-swatch var-swatch-clickable"
-                  :style="{ backgroundColor: getComputedVar(varName) || 'transparent' }"
-                  :title="getComputedVar(varName)"
-                >
-                  <input
-                    type="color"
-                    class="var-color-input-hidden"
-                    :value="getHexForPicker(varName)"
-                    @input="setCssOverrideFromInput(varName, ($event.target as HTMLInputElement).value)"
-                  />
-                </div>
-                <div
-                  v-else
+                <CssVarSwatch
                   class="var-swatch"
-                  :style="{ backgroundColor: getComputedVar(varName) || 'transparent' }"
-                  :title="getComputedVar(varName)"
-                ></div>
+                  :value="getCssVarValue(varName)"
+                  :label="varName"
+                  @pick="setCssOverrideFromInput(varName, $event)"
+                />
                 <input
                   type="text"
                   class="var-text-input"
+                  :class="{ invalid: invalidVar?.name === varName }"
                   :value="settings.customCssOverrides?.[varName] || ''"
                   :placeholder="getComputedVar(varName)"
-                  @change="setCssOverrideFromInput(varName, ($event.target as HTMLInputElement).value)"
+                  :title="invalidVar?.name === varName ? `Not a CSS colour: ${invalidVar.text}` : undefined"
+                  @change="commitCssOverrideText(varName, $event.target as HTMLInputElement)"
                 />
                 <button
                   v-if="settings.customCssOverrides?.[varName]"
@@ -801,12 +790,14 @@ import {
   decomposeBackgroundToneHex,
   canonicalizeBackgroundTone,
 } from '@/utils/colorUtils'
+import { isValidCssColor } from '@/utils/cssColor'
 import { useEmojiPacks } from '@/services/emojiPackService'
 import { useQuickReactSettings } from '@/composables/useQuickReactSettings'
 
 // Components
 import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
 import ColorPicker from '@/components/common/ColorPicker.vue'
+import CssVarSwatch from '@/components/settings/user/CssVarSwatch.vue'
 import Icon from '@/components/common/Icon.vue'
 import EmojiPopup from '@/components/EmojiPopup.vue'
 
@@ -1023,10 +1014,7 @@ const applyPresetTheme = (preset: ThemePreset) => {
   previewTheme()
 }
 
-const ALPHA_VAR_NAMES = new Set([
-  '--background-primary-alpha', '--background-secondary-alpha', '--background-tertiary-alpha',
-  '--background-senary-alpha',
-])
+const invalidVar = ref<{ name: string; text: string } | null>(null)
 
 const overrideCount = computed(() => {
   return Object.keys(settings.value.customCssOverrides || {}).length
@@ -1043,28 +1031,30 @@ const getComputedVar = (varName: string): string => {
   return getComputedStyle(document.documentElement).getPropertyValue(varName).trim() || ''
 }
 
-const isHexColor = (value: string): boolean => {
-  return /^#[0-9a-fA-F]{3,8}$/.test(value.trim())
-}
-
-const isHexCompatible = (varName: string): boolean => {
-  if (ALPHA_VAR_NAMES.has(varName)) return false
-  const current = getCssVarValue(varName)
-  if (!current) return true
-  return isHexColor(current) || !current.includes('(')
-}
-
-const getHexForPicker = (varName: string): string => {
-  const val = getCssVarValue(varName)
-  if (isHexColor(val)) return val.substring(0, 7)
-  return '#000000'
-}
-
 const setCssOverrideFromInput = (varName: string, value: string) => {
   if (!value) return
+  invalidVar.value = null
   visualTheme.setCssOverride(varName, value)
   if (!settings.value.customCssOverrides) settings.value.customCssOverrides = {}
   settings.value.customCssOverrides[varName] = value
+}
+
+// Empty text clears the override. An invalid colour is rejected: on :root it is
+// invalid at computed-value time in every var() consumer, which then falls back
+// to inherit or initial; for backgrounds that is transparent.
+const commitCssOverrideText = (varName: string, input: HTMLInputElement) => {
+  const text = input.value.trim()
+  if (!text) {
+    invalidVar.value = null
+    if (settings.value.customCssOverrides?.[varName]) removeCssOverrideVar(varName)
+    return
+  }
+  if (!isValidCssColor(text)) {
+    invalidVar.value = { name: varName, text }
+    input.value = settings.value.customCssOverrides?.[varName] || ''
+    return
+  }
+  setCssOverrideFromInput(varName, text)
 }
 
 const removeCssOverrideVar = (varName: string) => {
@@ -1077,6 +1067,7 @@ const removeCssOverrideVar = (varName: string) => {
 const resetAllOverrides = () => {
   visualTheme.clearCssOverrides()
   settings.value.customCssOverrides = {}
+  invalidVar.value = null
 }
 
 const themes = [
@@ -1172,7 +1163,8 @@ const previewTheme = () => {
         settings.value.customBackgroundColor,
         settings.value.customBackgroundLightness,
         settings.value.customPrimaryColor,
-        settings.value.customBackgroundChroma
+        settings.value.customBackgroundChroma,
+        visualTheme.settings.value.customSidebarColor,
       )
       applyThemePalette(palette)
       const overrides = settings.value.customCssOverrides
@@ -2608,23 +2600,6 @@ onMounted(async () => {
   flex-shrink: 0;
 }
 
-.var-swatch-clickable {
-  position: relative;
-  cursor: pointer;
-}
-
-.var-color-input-hidden {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  cursor: pointer;
-  border: none;
-  padding: 0;
-  margin: 0;
-}
-
 .var-text-input {
   width: 140px;
   padding: 4px 8px;
@@ -2638,6 +2613,10 @@ onMounted(async () => {
 
 .var-text-input::placeholder {
   color: var(--text-muted);
+}
+
+.var-text-input.invalid {
+  border-color: var(--error);
 }
 
 .var-reset-btn {
