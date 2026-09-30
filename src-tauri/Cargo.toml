@@ -39,6 +39,12 @@ tauri-plugin-notification = "2"
 tauri-plugin-single-instance = "2"
 tauri-plugin-autostart = "2"
 tauri-plugin-global-shortcut = "=2.2.0"
+# Newest releases compatible with tauri =2.9.3: updater 2.10+ needs tauri ^2.10, process 2.4+ needs ^2.12.
+tauri-plugin-updater = "=2.9.0"
+tauri-plugin-process = "=2.3.1"
+# Pubkey check mirrors tauri-plugin-updater's verify_signature decode; same crate versions.
+base64 = "0.22"
+minisign-verify = "0.2"
 sysinfo = "0.30"
 # non-grabbing global input observation for push-to-talk (X11/Windows/macOS; no Wayland)
 rdev = "0.5"

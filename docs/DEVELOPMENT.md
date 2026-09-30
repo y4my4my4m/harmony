@@ -657,6 +657,34 @@ git tag v1.0.0
 git push origin master --tags
 ```
 
+A `v*` tag triggers `.github/workflows/release.yml`, which builds the Windows
+and macOS installers and the Android APK into a draft GitHub release.
+
+### Desktop auto-updates
+
+The Windows and macOS apps update in place through `tauri-plugin-updater`.
+They poll `releases/latest/download/latest.json`, which GitHub resolves to
+the newest published, non-prerelease release, so publishing the draft is the
+rollout. Payloads are verified against the minisign public key in
+`src-tauri/tauri.conf.json` (`plugins.updater.pubkey`).
+
+Signing needs two repository secrets, `TAURI_SIGNING_PRIVATE_KEY` and
+`TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, and the matching public key committed in
+place of the `HARMONY_UPDATER_PUBKEY` placeholder. Generate the pair once with
+`npx tauri signer generate -w ~/.tauri/harmony-updater.key`, store the key file
+contents and password as the secrets, and paste the `.pub` contents into the
+config. When either half is missing, the release still ships installers but
+skips updater artifacts with a workflow warning, and builds carrying the
+placeholder disable the updater at runtime.
+
+Losing the private key or its password strands installed apps: they accept
+only payloads signed by that key. Rotating it means shipping one release with
+the new public key, signed by the old key.
+
+Linux has no release build, so there is no AppImage to update; the updater
+reports itself unsupported outside an AppImage. Android is outside the
+plugin's scope and shows a notice linking the latest release's APK instead.
+
 For self-hosters, the production deployment path lives in
 [self-hosting guide](./self-hosting.md) and the supplied
 `docker-compose.prod.yml` / `docker-compose.full.yml`. There is no Vercel

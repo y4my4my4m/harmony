@@ -283,9 +283,23 @@
       @close="showInviteModal = false"
     />
 
-    <div v-if="fundingEnabled" class="fixed-footer">
+    <div v-if="fundingEnabled || updateReady" class="fixed-footer">
       <div class="separator"></div>
       <button
+        v-if="updateReady"
+        type="button"
+        class="update-ready-button"
+        :aria-label="updateReadyLabel"
+        @click="openUpdatePrompt"
+        @mouseenter="showSidebarTooltip($event, updateReadyLabel)"
+        @mouseleave="hideSidebarTooltip"
+      >
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+          <path fill="currentColor" d="M5,20H19V18H5M19,9H15V3H9V9H5L12,16L19,9Z"/>
+        </svg>
+      </button>
+      <button
+        v-if="fundingEnabled"
         type="button"
         class="funding-button"
         aria-label="Instance funding"
@@ -340,6 +354,8 @@ import { fundingService } from '@/services/FundingService';
 import { useTodayDashboard } from '@/composables/useTodayDashboard';
 import { useViewport } from '@/composables/useViewport';
 import { useAnchoredTooltip } from '@/composables/useAnchoredTooltip';
+import { useDesktopUpdater } from '@/composables/useDesktopUpdater';
+import { useI18n } from 'vue-i18n';
 import { debug } from '@/utils/debug';
 import type { Server, ServerFolder as ServerFolderType } from '@/types';
 
@@ -356,6 +372,12 @@ const emit = defineEmits<{
 const showPublicServers = ref(false);
 const showFundingModal = ref(false);
 const fundingEnabled = ref(false);
+
+const { t } = useI18n();
+const { state: updaterState, isReady: updateReady, openUpdatePrompt } = useDesktopUpdater();
+const updateReadyLabel = computed(() =>
+  t('updater.indicatorLabel', { version: updaterState.availableVersion ?? '' }),
+);
 
 // Drag state for reordering and folder creation
 const draggingItemId = ref<string | null>(null);
@@ -1130,6 +1152,29 @@ const removeServerFromFolder = async () => {
 
 .funding-button:hover .funding-icon {
   color: var(--text-on-primary);
+}
+
+.update-ready-button {
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--background-secondary);
+  color: var(--success);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s ease, border-radius 0.2s ease, color 0.2s ease;
+  margin-top: 4px;
+}
+
+.update-ready-button:hover,
+.update-ready-button:focus-visible {
+  background: var(--success);
+  color: var(--text-on-primary);
+  border-radius: 16px;
 }
 
 .servers-scroll-area {

@@ -3,6 +3,8 @@ mod call_window;
 mod commands;
 #[cfg(desktop)]
 mod overlay;
+#[cfg(desktop)]
+mod updater;
 
 #[cfg(desktop)]
 fn setup_desktop(app: &tauri::AppHandle) -> tauri::Result<()> {
@@ -84,6 +86,7 @@ fn reveal_main(app: &tauri::AppHandle) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+  let context = tauri::generate_context!();
   let builder = tauri::Builder::default();
 
   #[cfg(desktop)]
@@ -95,7 +98,19 @@ pub fn run() {
       tauri_plugin_autostart::MacosLauncher::LaunchAgent,
       Some(vec!["--minimized"]),
     ))
-    .plugin(tauri_plugin_global_shortcut::Builder::new().build());
+    .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+    .plugin(tauri_plugin_process::init());
+
+  #[cfg(desktop)]
+  let builder = {
+    let status = updater::status(context.config());
+    let builder = builder.manage(updater::UpdaterState(status));
+    if status == updater::UpdaterStatus::Enabled {
+      builder.plugin(tauri_plugin_updater::Builder::new().build())
+    } else {
+      builder
+    }
+  };
 
   let builder = builder
     .plugin(tauri_plugin_fs::init())
@@ -144,7 +159,8 @@ pub fn run() {
     commands::ptt::ptt_set_binding,
     overlay::overlay_open,
     overlay::overlay_close,
-    overlay::overlay_set_interactive
+    overlay::overlay_set_interactive,
+    updater::updater_status
   ]);
   // desktop without the linux native engine (windows/macos, or linux feature-off)
   #[cfg(all(desktop, not(all(feature = "native-media", target_os = "linux"))))]
@@ -158,7 +174,8 @@ pub fn run() {
     commands::ptt::ptt_set_binding,
     overlay::overlay_open,
     overlay::overlay_close,
-    overlay::overlay_set_interactive
+    overlay::overlay_set_interactive,
+    updater::updater_status
   ]);
   // mobile (android/ios) — no desktop-only commands
   #[cfg(mobile)]
@@ -172,6 +189,6 @@ pub fn run() {
   ]);
 
   builder
-    .run(tauri::generate_context!())
+    .run(context)
     .expect("error running tauri");
 }

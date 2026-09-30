@@ -57,16 +57,42 @@ jobs:
         with:
           workspaces: src-tauri
       - run: npm ci
+      # Updater artifacts (minisign-signed installers and latest.json) need the
+      # private key in secrets and the matching public key committed in
+      # tauri.conf.json; tauri build fails when they are enabled without the
+      # private key. Without both, installers still ship and installed apps are
+      # not offered the release.
+      - name: Resolve updater signing
+        id: updater
+        shell: bash
+        env:
+          HAS_UPDATER_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+        run: |
+          if [ "$HAS_UPDATER_KEY" != "true" ]; then
+            echo "::warning::TAURI_SIGNING_PRIVATE_KEY is not set; building installers without updater artifacts. Installed apps will not be offered this release."
+          elif grep -q 'HARMONY_UPDATER_PUBKEY' src-tauri/tauri.conf.json; then
+            echo "::warning::plugins.updater.pubkey in src-tauri/tauri.conf.json is still the placeholder; building installers without updater artifacts."
+          else
+            echo "args=--config src-tauri/tauri.updater.conf.json" >> "$GITHUB_OUTPUT"
+          fi
+      # latest.json lands on this draft release. The updater endpoint
+      # (releases/latest/download/latest.json) resolves only to the newest
+      # published non-prerelease release, so publishing the draft is the
+      # rollout.
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ github.event.inputs.tag || github.ref_name }}
           releaseName: Harmony __VERSION__
           releaseBody: Download the installer for your platform below.
           releaseDraft: true
           prerelease: false
-          args: ${{ matrix.args }}
+          includeUpdaterJson: true
+          updaterJsonPreferNsis: true
+          args: ${{ matrix.args }} ${{ steps.updater.outputs.args }}
 
   android:
     needs: desktop

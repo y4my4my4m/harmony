@@ -1835,5 +1835,40 @@
       "onDevice": "On-device AI",
       "onDeviceHint": "Channel summaries are generated locally. Nothing leaves your device."
     }
+  },
+  "updater": {
+    "readyTitle": "Update ready",
+    "readyBody": "Harmony {version} has been downloaded. Restart to finish updating; it takes a few seconds.",
+    "readyToast": "Harmony {version} is ready. Click to restart and update.",
+    "restartToUpdate": "Restart to update",
+    "later": "Later",
+    "indicatorLabel": "Update ready: restart to install Harmony {version}",
+    "installFailed": "The update could not be installed: {error}",
+    "settings": {
+      "title": "Updates",
+      "versionLabel": "Harmony {version}",
+      "versionUnknown": "Harmony",
+      "idle": "Harmony checks for updates automatically.",
+      "upToDate": "You're on the latest version.",
+      "lastChecked": "Last checked {time}.",
+      "checking": "Checking for updates…",
+      "available": "Harmony {version} is available.",
+      "downloading": "Downloading Harmony {version}…",
+      "downloadingPercent": "Downloading Harmony {version}… {percent}%",
+      "ready": "Harmony {version} is ready. Restart to finish updating.",
+      "installing": "Installing the update…",
+      "failed": "Couldn't update: {error}",
+      "notConfigured": "Automatic updates are not configured for this build.",
+      "unsupported": "Automatic updates on Linux need the AppImage build. Update this install the way you installed it.",
+      "check": "Check for updates",
+      "download": "Download",
+      "autoDownload": "Download updates automatically",
+      "autoDownloadDescription": "When off, Harmony still checks for updates and asks before downloading."
+    },
+    "android": {
+      "available": "Harmony {version} is available.",
+      "download": "Download",
+      "dismiss": "Dismiss update notice"
+    }
   }
 }

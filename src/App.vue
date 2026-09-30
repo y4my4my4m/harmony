@@ -8,6 +8,10 @@
   >
     <span class="instance-bar__dot" />
     <span class="instance-bar__name">{{ storedInstanceName || 'No instance selected' }}</span>
+    <!-- Signed-out counterpart of the server-rail update indicator -->
+    <button v-if="updateReady" type="button" class="instance-bar__update" @click="openUpdatePrompt">
+      {{ $t('updater.readyTitle') }}
+    </button>
     <button class="instance-bar__change" @click="showInstancePicker = true">Change</button>
   </div>
 
@@ -58,6 +62,10 @@
   <!-- PWA Components -->
   <PWAInstallBanner />
   <PWAUpdateNotification />
+
+  <!-- Native app updates: in-app updater on desktop, release notice on Android -->
+  <DesktopUpdatePrompt v-if="isTauriDesktopClient" />
+  <AndroidUpdateNotice v-if="isAndroidClient" />
   
   <!-- Push Notification Prompt (only for authenticated PWA users) -->
   <PushNotificationPrompt v-if="!isAuthRoute" />
@@ -117,11 +125,19 @@ import UnifiedConfirmationModal from '@/components/shared/UnifiedConfirmationMod
 import InstancePicker from '@/components/InstancePicker.vue'
 import ScreenSharePicker from '@/components/voice/ScreenSharePicker.vue'
 import FloatingVideoPlayer from '@/components/embeds/FloatingVideoPlayer.vue'
+import DesktopUpdatePrompt from '@/components/updater/DesktopUpdatePrompt.vue'
+import AndroidUpdateNotice from '@/components/updater/AndroidUpdateNotice.vue'
 import { needsInstanceSelection, getStoredInstance, isTauriRuntime } from '@/services/instanceConfig'
+import { isAndroidApp } from '@/services/androidReleaseNotice'
+import { isTauriDesktop } from '@/utils/platform'
 import { useStatusBarTheme } from '@/composables/useStatusBarTheme'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
+import { useDesktopUpdater } from '@/composables/useDesktopUpdater'
 
 const isTauriClient = isTauriRuntime()
+const isTauriDesktopClient = isTauriDesktop()
+const isAndroidClient = isAndroidApp()
+const { isReady: updateReady, openUpdatePrompt } = useDesktopUpdater()
 const showInstancePicker = ref(needsInstanceSelection())
 const storedInstanceName = computed(() => getStoredInstance()?.name ?? null)
 
@@ -403,5 +419,21 @@ async function handleIdentityChanged(e: CustomEvent) {
   .instance-bar__change:hover {
     background: var(--background-modifier-hover);
     color: var(--text-primary);
+  }
+
+  .instance-bar__update {
+    border: none;
+    background: var(--success);
+    color: var(--text-on-primary);
+    border-radius: var(--radius-full);
+    padding: 4px 12px;
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .instance-bar__update:hover {
+    background: var(--success-hover);
   }
 </style>

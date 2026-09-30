@@ -109,6 +109,60 @@
       </div>
     </div>
 
+    <div v-if="isTauriDesktop" class="settings-section">
+      <h3 class="section-title">{{ $t('updater.settings.title') }}</h3>
+
+      <div class="setting-item">
+        <div class="setting-info">
+          <h4 class="setting-label">
+            {{ updaterState.currentVersion
+              ? $t('updater.settings.versionLabel', { version: updaterState.currentVersion })
+              : $t('updater.settings.versionUnknown') }}
+          </h4>
+          <p class="setting-description" aria-live="polite">{{ updateStatusText }}</p>
+        </div>
+        <div class="setting-control">
+          <button
+            v-if="updaterState.phase === 'ready' || updaterState.phase === 'installing'"
+            class="btn btn-success"
+            :disabled="updaterState.phase === 'installing'"
+            @click="restartToUpdate"
+          >
+            {{ $t('updater.restartToUpdate') }}
+          </button>
+          <button
+            v-else-if="updaterState.phase === 'available'"
+            class="btn btn-primary"
+            @click="downloadUpdate()"
+          >
+            {{ $t('updater.settings.download') }}
+          </button>
+          <button
+            v-else
+            class="btn btn-secondary"
+            :disabled="!updaterActive || updaterBusy"
+            @click="checkForUpdates()"
+          >
+            {{ $t('updater.settings.check') }}
+          </button>
+        </div>
+      </div>
+
+      <div class="setting-item" :class="{ 'disabled-option': !updaterActive }">
+        <div class="setting-info">
+          <h4 class="setting-label">{{ $t('updater.settings.autoDownload') }}</h4>
+          <p class="setting-description">{{ $t('updater.settings.autoDownloadDescription') }}</p>
+        </div>
+        <div class="setting-control">
+          <ToggleSwitch
+            :model-value="updaterState.autoDownload"
+            :disabled="!updaterActive"
+            @update:model-value="setAutoDownload"
+          />
+        </div>
+      </div>
+    </div>
+
     <div class="settings-section">
       <h3 class="section-title">Developer settings</h3>
 
@@ -262,6 +316,8 @@ import { isTauriDesktop as checkTauriDesktop, canInstallPWA } from '@/utils/plat
 import { isRichPresenceEnabled, setRichPresenceEnabled } from '@/services/nativePresence'
 import { isOverlayEnabled, setOverlayEnabled } from '@/services/overlayBridge'
 import { useDeveloperTools } from '@/composables/useDeveloperTools'
+import { useDesktopUpdater } from '@/composables/useDesktopUpdater'
+import { useI18n } from 'vue-i18n'
 import { useTodayDashboard } from '@/composables/useTodayDashboard'
 import { todayDigestService } from '@/services/TodayDigestService'
 import { accountDeletionService } from '@/services/AccountDeletionService'
@@ -307,6 +363,56 @@ const richPresence = ref(isRichPresenceEnabled())
 const gameOverlay = ref(isOverlayEnabled())
 function onRichPresenceChange() { setRichPresenceEnabled(richPresence.value) }
 function onGameOverlayChange() { setOverlayEnabled(gameOverlay.value) }
+
+const { t } = useI18n()
+const {
+  state: updaterState,
+  isActive: updaterActive,
+  isBusy: updaterBusy,
+  downloadPercent,
+  checkForUpdates,
+  downloadUpdate,
+  installAndRestart,
+  setAutoDownload,
+} = useDesktopUpdater()
+const updateStatusText = computed(() => {
+  const s = updaterState
+  const version = s.availableVersion ?? ''
+  switch (s.phase) {
+    case 'not-configured':
+      return t('updater.settings.notConfigured')
+    case 'unsupported':
+      return t('updater.settings.unsupported')
+    case 'checking':
+      return t('updater.settings.checking')
+    case 'available':
+      return t('updater.settings.available', { version })
+    case 'downloading': {
+      const percent = downloadPercent.value
+      return percent === null
+        ? t('updater.settings.downloading', { version })
+        : t('updater.settings.downloadingPercent', { version, percent })
+    }
+    case 'ready':
+      return t('updater.settings.ready', { version })
+    case 'installing':
+      return t('updater.settings.installing')
+    case 'error':
+      return t('updater.settings.failed', { error: s.error ?? '' })
+    default: {
+      if (s.lastOutcome !== 'up-to-date' || !s.lastCheckedAt) return t('updater.settings.idle')
+      const time = new Date(s.lastCheckedAt).toLocaleString()
+      return `${t('updater.settings.upToDate')} ${t('updater.settings.lastChecked', { time })}`
+    }
+  }
+})
+async function restartToUpdate() {
+  try {
+    await installAndRestart()
+  } catch (error) {
+    toast.error(t('updater.installFailed', { error: error instanceof Error ? error.message : String(error) }))
+  }
+}
 
 // Native autostart (tauri-plugin-autostart), invoked directly; the JS guest
 // package is not needed for three one-line commands.
