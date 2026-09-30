@@ -18,6 +18,7 @@ import { livekitWebRTC, preloadLiveKit, type UserMediaState, type LiveKitConfig,
 import { unifiedWebRTC } from './unifiedWebRTC';
 import { nativeLiveKit, isNativeMediaSupported } from './nativeLiveKit';
 import { VoiceSettingsService } from './VoiceSettingsService';
+import { remoteAudioMixer, type RemoteAudioKind } from './voice/remoteAudioMixer';
 import { debug } from '@/utils/debug';
 
 // TYPES
@@ -98,6 +99,9 @@ class WebRTCManagerService implements WebRTCManager {
       'channel-state-synced',
       'audio-level',
       'connection-state-changed',
+      'connection-lost',
+      'connection-quality-changed',
+      'stream-watch-changed',
       'error',
       'call-start-time',
       'request-call-start-time',
@@ -349,6 +353,7 @@ class WebRTCManagerService implements WebRTCManager {
     // Use P2P (unifiedWebRTC)
     // Set activeService BEFORE joining so events are forwarded during connection
     this.activeService = 'p2p';
+    void remoteAudioMixer.setOutputDevice(VoiceSettingsService.getDevices().outputDevice);
     unifiedWebRTC.setTransmitGate(this.transmitGateOpen);
 
     try {
@@ -444,7 +449,8 @@ class WebRTCManagerService implements WebRTCManager {
     } catch (e) {
       debug.warn('[WebRTCManager] Error during leaveChannel (forcing cleanup):', e);
     }
-    
+
+    remoteAudioMixer.reset();
     this.activeService = null;
   }
   
@@ -526,7 +532,9 @@ class WebRTCManagerService implements WebRTCManager {
     if (this.activeService === 'livekit') {
       return livekitWebRTC.toggleDeafen();
     } else if (this.activeService === 'p2p') {
-      return unifiedWebRTC.toggleDeafen();
+      const deafened = unifiedWebRTC.toggleDeafen();
+      remoteAudioMixer.setDeafened(deafened);
+      return deafened;
     } else if (this.activeService === 'native') {
       return nativeLiveKit.toggleDeafen();
     }
@@ -708,6 +716,7 @@ class WebRTCManagerService implements WebRTCManager {
     if (this.activeService === 'livekit') {
       await livekitWebRTC.updateOutputDevice(deviceId);
     } else if (this.activeService === 'p2p') {
+      await remoteAudioMixer.setOutputDevice(deviceId);
       await unifiedWebRTC.updateOutputDevice(deviceId);
     } else if (this.activeService === 'native') {
       await nativeLiveKit.updateOutputDevice(deviceId);
@@ -771,78 +780,172 @@ class WebRTCManagerService implements WebRTCManager {
   setTraditionalAudioEnabled(enabled: boolean): void {
     if (this.activeService === 'p2p') {
       unifiedWebRTC.setTraditionalAudioEnabled(enabled);
+      remoteAudioMixer.setDryMuted('mic', !enabled);
     } else if (this.activeService === 'livekit') {
       livekitWebRTC.setTraditionalAudioEnabled(enabled);
     }
   }
 
+  // PER-USER AUDIO
+  // Web transports play through remoteAudioMixer, which holds volumes and
+  // local mutes across joins. Native playout happens in the Rust process.
+
   /**
-   * Set volume for a user's microphone audio (0-200, 100 = normal)
+   * Seeds the mixer before a join so the first frames of every track already
+   * play at the listener's level.
    */
-  setUserMicVolume(userId: string, volume: number): void {
-    if (this.activeService === 'livekit') {
-      livekitWebRTC.setUserMicVolume(userId, volume);
-    } else if (this.activeService === 'p2p') {
-      (unifiedWebRTC as any).setUserVolume?.(userId, volume / 100); // P2P uses 0-1 scale
-    } else if (this.activeService === 'native') {
-      // playout happens in the Rust process; no WebAudio chain exists
-      nativeLiveKit.setUserMicVolume(userId, volume);
+  primeAudioPrefs(prefs: {
+    micVolumes: Map<string, number>;
+    streamVolumes: Map<string, number>;
+    mutes: Record<RemoteAudioKind, Set<string>>;
+  }): void {
+    for (const [userId, volume] of prefs.micVolumes) remoteAudioMixer.setVolume(userId, 'mic', volume);
+    for (const [userId, volume] of prefs.streamVolumes) remoteAudioMixer.setVolume(userId, 'screen', volume);
+    for (const kind of ['mic', 'screen'] as const) {
+      for (const userId of prefs.mutes[kind]) remoteAudioMixer.setLocalMute(userId, kind, true);
+    }
+  }
+
+  /** Applies every stored preference to the connected transport. */
+  applyAudioPrefs(prefs: {
+    micVolumes: Map<string, number>;
+    streamVolumes: Map<string, number>;
+    mutes: Record<RemoteAudioKind, Set<string>>;
+  }): void {
+    this.primeAudioPrefs(prefs);
+    if (this.activeService !== 'native') {
+      this.syncSpatialVolumes();
       return;
     }
+    const users = new Set([
+      ...prefs.micVolumes.keys(), ...prefs.streamVolumes.keys(), ...prefs.mutes.mic, ...prefs.mutes.screen,
+    ]);
+    for (const userId of users) {
+      this.applyNativeVolume(userId, 'mic');
+      this.applyNativeVolume(userId, 'screen');
+    }
+  }
 
-    // Also apply to spatial audio chain (operates on the outputGain node,
-    // so it works even when traditional audio elements are muted)
+  // Native degrades 0 to a disabled track; local mute maps to 0.
+  private applyNativeVolume(userId: string, kind: RemoteAudioKind): void {
+    const volume = remoteAudioMixer.getEffectiveVolume(userId, kind);
+    if (kind === 'mic') nativeLiveKit.setUserMicVolume(userId, volume);
+    else nativeLiveKit.setUserScreenShareVolume(userId, volume);
+  }
+
+  private syncSpatialVolumes(userId?: string): void {
+    // The spatial graph renders the mic on its own gain node.
     import('./spatialAudio').then(({ spatialAudioService }) => {
-      spatialAudioService.setUserVolume(userId, volume);
+      if (userId) {
+        spatialAudioService.setUserVolume(userId, remoteAudioMixer.getEffectiveVolume(userId, 'mic'));
+      } else {
+        spatialAudioService.syncUserVolumes();
+      }
     }).catch(() => {});
   }
-  
+
   /**
-   * Set volume for a user's screenshare audio (0-200, 100 = normal)
+   * Outgoing mic level, percent 0-200, applied after the browser's
+   * processing. Both web transports hold the value; the connected one
+   * applies it live. The native engine captures in Rust and has no input gain.
    */
+  setInputVolume(volume: number): void {
+    livekitWebRTC.setInputVolume(volume);
+    unifiedWebRTC.setInputVolume(volume);
+  }
+
+  /** Master output level, percent 0-200, over every remote track. */
+  setMasterVolume(volume: number): void {
+    remoteAudioMixer.setMasterVolume(volume);
+    if (this.activeService === 'native') {
+      for (const user of nativeLiveKit.getAllUsers()) {
+        this.applyNativeVolume(user.userId, 'mic');
+        this.applyNativeVolume(user.userId, 'screen');
+      }
+      return;
+    }
+    this.syncSpatialVolumes();
+  }
+
+  /** Microphone volume of a remote user, 0-200 (100 = normal). */
+  setUserMicVolume(userId: string, volume: number): void {
+    remoteAudioMixer.setVolume(userId, 'mic', volume);
+    if (this.activeService === 'native') {
+      this.applyNativeVolume(userId, 'mic');
+      return;
+    }
+    this.syncSpatialVolumes(userId);
+  }
+
+  /** Stream audio volume of a remote user, 0-200 (100 = normal). */
   setUserScreenShareVolume(userId: string, volume: number): void {
-    if (this.activeService === 'livekit') {
-      livekitWebRTC.setUserScreenShareVolume(userId, volume);
-    } else if (this.activeService === 'native') {
-      nativeLiveKit.setUserScreenShareVolume(userId, volume);
+    remoteAudioMixer.setVolume(userId, 'screen', volume);
+    if (this.activeService === 'native') {
+      this.applyNativeVolume(userId, 'screen');
     }
-    // P2P doesn't support screenshare audio separately yet
   }
-  
-  /**
-   * Get mic volume for a user (0-200)
-   */
+
+  /** Silences a remote user's mic or stream for this listener only; the volume is kept. */
+  setUserLocalMute(userId: string, kind: RemoteAudioKind, muted: boolean): void {
+    remoteAudioMixer.setLocalMute(userId, kind, muted);
+    if (this.activeService === 'native') {
+      this.applyNativeVolume(userId, kind);
+      return;
+    }
+    if (kind === 'mic') this.syncSpatialVolumes(userId);
+  }
+
   getUserMicVolume(userId: string): number {
-    if (this.activeService === 'livekit') {
-      return livekitWebRTC.getUserMicVolume(userId);
-    } else if (this.activeService === 'native') {
-      return nativeLiveKit.getUserMicVolume(userId);
-    }
-    return 100;
+    return remoteAudioMixer.getVolume(userId, 'mic');
   }
-  
-  /**
-   * Get screenshare volume for a user (0-200)
-   */
+
   getUserScreenShareVolume(userId: string): number {
-    if (this.activeService === 'livekit') {
-      return livekitWebRTC.getUserScreenShareVolume(userId);
-    } else if (this.activeService === 'native') {
-      return nativeLiveKit.getUserScreenShareVolume(userId);
-    }
-    return 100;
+    return remoteAudioMixer.getVolume(userId, 'screen');
   }
-  
-  /**
-   * Check if a user has screenshare audio available
-   */
+
   hasScreenShareAudio(userId: string): boolean {
-    if (this.activeService === 'livekit') {
-      return livekitWebRTC.hasScreenShareAudio(userId);
-    } else if (this.activeService === 'native') {
+    if (this.activeService === 'native') {
       return nativeLiveKit.hasScreenShareAudio(userId);
     }
-    return false;
+    return remoteAudioMixer.has(userId, 'screen');
+  }
+
+  /** Retries audio the browser refused to autoplay. Call from a user gesture. */
+  async startAudio(): Promise<boolean> {
+    if (this.activeService === 'livekit') {
+      return livekitWebRTC.startAudio();
+    }
+    return remoteAudioMixer.resume();
+  }
+
+  // STREAM WATCHING (LiveKit; P2P and native always receive streams)
+
+  setAutoWatchStreams(enabled: boolean): void {
+    livekitWebRTC.setAutoWatchStreams(enabled);
+  }
+
+  supportsStreamWatching(): boolean {
+    return this.activeService === 'livekit';
+  }
+
+  setStreamWatched(userId: string, watching: boolean): void {
+    if (this.activeService === 'livekit') {
+      livekitWebRTC.setStreamWatched(userId, watching);
+    }
+  }
+
+  getWatchedStreams(): string[] {
+    return this.activeService === 'livekit' ? livekitWebRTC.getWatchedStreams() : [];
+  }
+
+  /** Echo cancellation, noise suppression and gain control; applied to a live mic. */
+  async updateAudioConstraints(constraints: { echoCancellation?: boolean; noiseSuppression?: boolean; autoGainControl?: boolean }): Promise<void> {
+    VoiceSettingsService.setAudioConstraints(constraints);
+    if (this.activeService === 'livekit') {
+      await livekitWebRTC.updateAudioConstraints(constraints);
+    } else if (this.activeService === 'p2p') {
+      await unifiedWebRTC.updateAudioConstraints(constraints);
+    }
   }
   
   // EVENT SYSTEM

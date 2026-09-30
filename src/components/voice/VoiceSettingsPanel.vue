@@ -40,16 +40,21 @@
               <span class="setting-value">{{ inputVolume }}%</span>
             </label>
             <div class="volume-control">
-              <input 
-                type="range" 
-                v-model="inputVolume"
-                min="0" 
-                max="100" 
+              <input
+                type="range"
+                v-model.number="inputVolume"
+                min="0"
+                max="200"
                 class="setting-slider"
                 @input="updateInputVolume"
+                @dblclick="inputVolume = 100; updateInputVolume()"
               />
-              <div class="volume-indicator" :style="{ width: `${inputVolume}%` }"></div>
+              <div class="volume-indicator" :style="{ width: `${inputVolume / 2}%` }"></div>
             </div>
+            <small class="setting-hint">
+              {{ t('voice.inputVolumeHint') }}
+              <template v-if="autoGainControl">{{ t('voice.inputVolumeAgcHint') }}</template>
+            </small>
           </div>
 
           <div class="setting-group">
@@ -58,15 +63,16 @@
               <span class="setting-value">{{ outputVolume }}%</span>
             </label>
             <div class="volume-control">
-              <input 
-                type="range" 
-                v-model="outputVolume"
-                min="0" 
-                max="100" 
+              <input
+                type="range"
+                v-model.number="outputVolume"
+                min="0"
+                max="200"
                 class="setting-slider"
                 @input="updateOutputVolume"
+                @dblclick="outputVolume = 100; updateOutputVolume()"
               />
-              <div class="volume-indicator" :style="{ width: `${outputVolume}%` }"></div>
+              <div class="volume-indicator" :style="{ width: `${outputVolume / 2}%` }"></div>
             </div>
           </div>
 
@@ -286,8 +292,9 @@ import { defineComponent, ref, computed, onMounted, onUnmounted, watch } from 'v
 import { useViewport } from '@/composables/useViewport';
 import { enumerateMediaDevices } from '@/utils/mediaDevices';
 import { webrtcManager } from '@/services/webrtcManager';
-import { unifiedWebRTC } from '@/services/unifiedWebRTC';
-import { VoiceSettingsService } from '@/services/VoiceSettingsService';
+import { VoiceSettingsService, normalizeInputVolume, normalizeOutputVolume } from '@/services/VoiceSettingsService';
+import { useMicTest } from '@/composables/useMicTest';
+import { useI18n } from 'vue-i18n';
 import { debug } from '@/utils/debug';
 import Icon from '@/components/common/Icon.vue';
 import VoiceInputModeSettings from './VoiceInputModeSettings.vue';
@@ -308,8 +315,10 @@ export default defineComponent({
     const selectedVideoDevice = ref('');
 
     // Audio settings
-    const inputVolume = ref(75);
-    const outputVolume = ref(75);
+    const { t } = useI18n();
+    // Outgoing mic, percent 0-200; 100 sends the capture untouched.
+    const inputVolume = ref(100);
+    const outputVolume = ref(100);
     const echoCancellation = ref(true);
     const noiseSuppression = ref(true);
     const autoGainControl = ref(true);
@@ -320,8 +329,10 @@ export default defineComponent({
     const audioBitrate = ref('128');
 
     // Testing
-    const isTesting = ref(false);
-    const testLevel = ref(0);
+    // Post-gain meter: the level a call would send.
+    const micTest = useMicTest();
+    const { isTesting, testLevel } = micTest;
+    const testMicrophone = () => micTest.toggle(selectedInputDevice.value || null, inputVolume.value);
     const previewStream = ref<MediaStream | null>(null);
     const previewVideo = ref<HTMLVideoElement | null>(null);
 
@@ -359,8 +370,8 @@ export default defineComponent({
         noiseSuppression.value = constraints.noiseSuppression;
         autoGainControl.value = constraints.autoGainControl;
         
-        if (settings.inputVolume !== undefined) inputVolume.value = settings.inputVolume;
-        if (settings.outputVolume !== undefined) outputVolume.value = settings.outputVolume;
+        inputVolume.value = normalizeInputVolume(settings.inputVolume);
+        outputVolume.value = normalizeOutputVolume(settings.outputVolume);
         if (settings.videoQuality) videoQuality.value = settings.videoQuality;
         if (settings.frameRate) frameRate.value = settings.frameRate;
         if (settings.audioBitrate) audioBitrate.value = settings.audioBitrate;
@@ -405,92 +416,6 @@ export default defineComponent({
         debug.log('[VoiceSettingsPanel] Loaded settings:', settings);
       } catch (error) {
         debug.warn('Failed to load stored settings:', error);
-      }
-    };
-
-    // Test microphone
-    let testStream: MediaStream | null = null;
-    let testAudioContext: AudioContext | null = null;
-    let testRafId: number | null = null;
-    let testTimeoutId: ReturnType<typeof setTimeout> | null = null;
-// Bumped by every start and stop. A getUserMedia resolving after its run was
-// superseded discards its stream rather than overwriting the current handles.
-let testGeneration = 0;
-
-    const testMicrophone = async () => {
-      if (isTesting.value) {
-        stopTesting();
-        return;
-      }
-
-      try {
-        const generation = ++testGeneration;
-        isTesting.value = true;
-        const stream = await navigator.mediaDevices.getUserMedia({
-          audio: { deviceId: selectedInputDevice.value }
-        });
-
-        // Superseded or stopped while getUserMedia was pending.
-        if (generation !== testGeneration || !isTesting.value) {
-          stream.getTracks().forEach(track => track.stop());
-          return;
-        }
-        testStream = stream;
-
-        const audioContext = new AudioContext();
-        testAudioContext = audioContext;
-        const analyser = audioContext.createAnalyser();
-        const microphone = audioContext.createMediaStreamSource(stream);
-        const dataArray = new Uint8Array(analyser.frequencyBinCount);
-
-        microphone.connect(analyser);
-        analyser.fftSize = 256;
-
-        const updateLevel = () => {
-          if (!isTesting.value) return;
-
-          analyser.getByteFrequencyData(dataArray);
-          const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
-          testLevel.value = (average / 255) * 100;
-
-          testRafId = requestAnimationFrame(updateLevel);
-        };
-
-        updateLevel();
-
-        // Stop testing after 10 seconds
-        testTimeoutId = setTimeout(() => {
-          testTimeoutId = null;
-          stopTesting();
-        }, 10000);
-
-      } catch (error) {
-        debug.error('Error testing microphone:', error);
-        stopTesting();
-      }
-    };
-
-    const stopTesting = () => {
-      testGeneration++;
-      isTesting.value = false;
-      testLevel.value = 0;
-
-      if (testTimeoutId !== null) {
-        clearTimeout(testTimeoutId);
-        testTimeoutId = null;
-      }
-      if (testRafId !== null) {
-        cancelAnimationFrame(testRafId);
-        testRafId = null;
-      }
-      if (testStream) {
-        testStream.getTracks().forEach(track => track.stop());
-        testStream = null;
-      }
-      if (testAudioContext) {
-        const ctx = testAudioContext;
-        testAudioContext = null;
-        if (ctx.state !== 'closed') ctx.close();
       }
     };
 
@@ -553,11 +478,16 @@ let testGeneration = 0;
     };
 
     const updateInputVolume = () => {
+      inputVolume.value = normalizeInputVolume(inputVolume.value);
+      webrtcManager.setInputVolume(inputVolume.value);
+      micTest.setInputVolume(inputVolume.value);
       VoiceSettingsService.update('inputVolume', inputVolume.value);
       emit('update-settings', { type: 'inputVolume', value: inputVolume.value });
     };
 
     const updateOutputVolume = () => {
+      outputVolume.value = normalizeOutputVolume(outputVolume.value);
+      webrtcManager.setMasterVolume(outputVolume.value);
       VoiceSettingsService.update('outputVolume', outputVolume.value);
       emit('update-settings', { type: 'outputVolume', value: outputVolume.value });
     };
@@ -569,7 +499,8 @@ let testGeneration = 0;
         autoGainControl: autoGainControl.value
       };
       
-      unifiedWebRTC.updateAudioConstraints(audioConstraints);
+      // Persists and applies to a live mic on either transport.
+      void webrtcManager.updateAudioConstraints(audioConstraints);
       
       // Also emit for any parent components that might be listening
       emit('update-settings', {
@@ -605,8 +536,8 @@ let testGeneration = 0;
     };
 
     const resetSettings = () => {
-      inputVolume.value = 75;
-      outputVolume.value = 75;
+      inputVolume.value = 100;
+      outputVolume.value = 100;
       echoCancellation.value = true;
       noiseSuppression.value = true;
       autoGainControl.value = true;
@@ -662,10 +593,11 @@ let testGeneration = 0;
       if (previewStream.value) {
         previewStream.value.getTracks().forEach(track => track.stop());
       }
-      stopTesting();
+      micTest.stop();
     });
 
     return {
+      t,
       inputDevices,
       outputDevices,
       videoDevices,
@@ -815,6 +747,13 @@ let testGeneration = 0;
   outline: none;
   border-color: var(--harmony-primary);
   background: var(--background-secondary);
+}
+
+.setting-hint {
+  display: block;
+  margin-top: 6px;
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
 }
 
 .volume-control {

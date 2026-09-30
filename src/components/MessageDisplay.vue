@@ -173,17 +173,30 @@
                 <!-- Call system message (started / ended) -->
                 <template v-else-if="item.message.metadata?.type === 'call_started' || item.message.metadata?.type === 'call_ended'">
                   <div class="system-icon call-icon-container">
-                    <svg viewBox="0 0 24 24" width="18" height="18" class="call-system-icon" :class="{ active: item.message.metadata?.type === 'call_started' }">
+                    <svg viewBox="0 0 24 24" width="18" height="18" class="call-system-icon" :class="{ active: item.message.metadata?.type === 'call_started', missed: isMissedCall(item.message) }">
                       <path d="M20.01 15.38c-1.23 0-2.42-.2-3.53-.56-.35-.12-.74-.03-1.01.24l-1.57 1.97c-2.83-1.35-5.48-3.9-6.89-6.83l1.95-1.66c.27-.28.35-.67.24-1.02-.37-1.11-.56-2.3-.56-3.53 0-.54-.45-.99-.99-.99H4.19C3.65 3 3 3.24 3 3.99 3 13.28 10.73 21 20.01 21c.71 0 .99-.63.99-1.18v-3.45c0-.54-.45-.99-.99-.99z" fill="currentColor"/>
                     </svg>
                   </div>
-                  <div class="system-text call-system-text">
-                    <span 
+                  <!-- Nobody answered: the callee reads it as missed, the caller as no answer (Discord). -->
+                  <div v-if="isMissedCall(item.message) && item.message.user_id !== profileStore.profile?.id" class="system-text call-system-text">
+                    You missed a {{ item.message.metadata?.call_type || 'voice' }} call from
+                    <span
                       class="system-user-mention"
                       @click="showUserProfile(item.message.user_id)"
                       :style="{ color: resolveChatUserColor(item.message.user_id) }"
                     ><DisplayName :userId="item.message.user_id" /></span>
-                    <template v-if="item.message.metadata?.type === 'call_ended'">
+                  </div>
+                  <div v-else class="system-text call-system-text">
+                    <span
+                      class="system-user-mention"
+                      @click="showUserProfile(item.message.user_id)"
+                      :style="{ color: resolveChatUserColor(item.message.user_id) }"
+                    ><DisplayName :userId="item.message.user_id" /></span>
+                    <template v-if="isMissedCall(item.message)">
+                      started a {{ item.message.metadata?.call_type || 'voice' }} call
+                      <span class="call-missed">No answer</span>
+                    </template>
+                    <template v-else-if="item.message.metadata?.type === 'call_ended'">
                       started a {{ item.message.metadata?.call_type || 'voice' }} call that lasted
                       <span class="call-duration">
                         {{ formatCallDuration(item.message.metadata?.duration_seconds || 0) }}
@@ -2642,6 +2655,13 @@ const formatCallDuration = (seconds: number): string => {
   return remainMins > 0 ? `${hours}h ${remainMins}m` : `${hours}h`;
 };
 
+// An ended call nobody else joined. participants lists everyone who ever joined, caller included.
+const isMissedCall = (message: any): boolean => {
+  const meta = message?.metadata;
+  if (meta?.type !== 'call_ended') return false;
+  return !Array.isArray(meta.participants) || meta.participants.length < 2;
+};
+
 // A "started a call" message offers Join only while the call is live
 // (presence-derived); messages whose call ended stay inert.
 const isCallJoinable = (message: any): boolean => {
@@ -2662,13 +2682,15 @@ const joinCallFromSystemMessage = async (message: any) => {
     const { authContextService } = await import('@/services/AuthContextService');
     const voiceStore = useUnifiedVoiceChannelStore();
     
-    if (voiceStore.isConnected) {
-      debug.log('Already in a call');
+    const dmChannelId = `dm-${conversationId}`;
+    const { useCallSwitch } = await import('@/composables/useCallSwitch');
+    if (!(await useCallSwitch().leaveCurrentCallFor(dmChannelId))) return;
+    if (voiceStore.isConnected && voiceStore.currentChannelId === dmChannelId) {
+      voiceStore.isOverlayVisible = true;
       return;
     }
-    
+
     const profileId = await authContextService.getCurrentProfileId();
-    const dmChannelId = `dm-${conversationId}`;
     
     await dmCallSignaling.joinCall(conversationId, profileId);
     const success = await voiceStore.joinVoiceChannel(dmChannelId, 'dm');
@@ -4145,6 +4167,16 @@ defineExpose({ editLastOwnMessage });
 
 .call-system-icon.active {
   color: var(--success);
+}
+
+.call-system-icon.missed {
+  color: var(--error);
+}
+
+.call-missed {
+  color: var(--error);
+  font-size: 0.8rem;
+  font-weight: 600;
 }
 
 .call-system-text {

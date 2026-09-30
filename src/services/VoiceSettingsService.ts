@@ -17,34 +17,87 @@ export interface VoiceSettings {
   selectedOutputDevice: string | null;
   selectedVideoDevice: string | null;
   
-  // Volume levels (0-100)
+  // Percent, 0-200, 100 = unity. outputVolume is the master level of
+  // everything heard in a call; inputVolume scales the outgoing mic after
+  // the browser's processing.
   inputVolume: number;
   outputVolume: number;
-  
+
   // Audio processing
   echoCancellation: boolean;
   noiseSuppression: boolean;
   autoGainControl: boolean;
-  
+
   // Video settings
   videoQuality: '480p' | '720p' | '1080p';
   frameRate: string;
   audioBitrate: string;
+
+  // Receive other users' streams as soon as they start, instead of on "Watch stream".
+  autoWatchStreams: boolean;
+
+  // Stored-schema revision; see migrate().
+  settingsVersion: number;
 }
+
+export const SETTINGS_VERSION = 2;
+
+// Version 1 defaults, used to recognise untouched values during migration.
+const V1_DEFAULT_INPUT_VOLUME = 75;
+const V1_DEFAULT_OUTPUT_VOLUME = 75;
 
 const DEFAULT_SETTINGS: VoiceSettings = {
   selectedInputDevice: null,
   selectedOutputDevice: null,
   selectedVideoDevice: null,
-  inputVolume: 75,
-  outputVolume: 75,
+  inputVolume: 100,
+  outputVolume: 100,
   echoCancellation: true,
   noiseSuppression: true,
   autoGainControl: true,
   videoQuality: '720p',
   frameRate: '30',
   audioBitrate: '128',
+  autoWatchStreams: false,
+  settingsVersion: SETTINGS_VERSION,
 };
+
+/**
+ * Upgrades a stored settings object in place. Returns true when it changed.
+ *
+ * v1 -> v2: both volume defaults move from 75 to 100. Version 1 wrote every
+ * field on any save and applied neither volume, so a stored 75 is ambiguous
+ * and every v1 user heard and sent at 100 %.
+ * - Output 75 becomes 100 only when input is also at its v1 default, meaning
+ *   neither slider was moved. Any other output value is kept.
+ * - Input 75 becomes 100: that preserves what every v1 user actually sent and
+ *   keeps untouched mics off the gain stage. Other input values are kept and
+ *   take effect.
+ */
+export function migrateVoiceSettings(stored: Partial<VoiceSettings>): boolean {
+  const version = typeof stored.settingsVersion === 'number' ? stored.settingsVersion : 1;
+  if (version >= SETTINGS_VERSION) return false;
+  const input = Number(stored.inputVolume);
+  const output = Number(stored.outputVolume);
+  if (output === V1_DEFAULT_OUTPUT_VOLUME && input === V1_DEFAULT_INPUT_VOLUME) {
+    stored.outputVolume = DEFAULT_SETTINGS.outputVolume;
+  }
+  if (input === V1_DEFAULT_INPUT_VOLUME) {
+    stored.inputVolume = DEFAULT_SETTINGS.inputVolume;
+  }
+  stored.settingsVersion = SETTINGS_VERSION;
+  return true;
+}
+
+/** Master output percent, clamped to 0-200; non-numeric reads as 100. */
+export function normalizeOutputVolume(value: unknown): number {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 100;
+  return Math.round(Math.min(200, Math.max(0, n)));
+}
+
+/** Input volume percent, same scale and clamping as the master output. */
+export const normalizeInputVolume = normalizeOutputVolume;
 
 class VoiceSettingsServiceClass {
   private settings: VoiceSettings = { ...DEFAULT_SETTINGS };
@@ -63,11 +116,17 @@ class VoiceSettingsServiceClass {
       const stored = userStorage.getItem(STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
+        const migrated = migrateVoiceSettings(parsed);
         this.settings = {
           ...DEFAULT_SETTINGS,
           ...parsed,
         };
+        if (migrated) {
+          userStorage.setItem(STORAGE_KEY, JSON.stringify(this.settings));
+        }
         debug.log('[VoiceSettings] Loaded settings:', this.settings);
+      } else {
+        this.settings = { ...DEFAULT_SETTINGS };
       }
     } catch (error) {
       debug.warn('[VoiceSettings] Failed to load settings:', error);

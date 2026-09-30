@@ -33,6 +33,9 @@
               </h2>
               <p class="participant-count">
                 {{ connectionStats.total }} participant{{ connectionStats.total !== 1 ? 's' : '' }}
+                <span v-if="callDuration" class="call-duration" :title="t('voice.callDuration')">
+                  • {{ callDuration }}
+                </span>
                 <span v-if="connectionStats.speaking > 0" class="speaking-count">
                   • {{ connectionStats.speaking }} speaking
                 </span>
@@ -52,6 +55,16 @@
               <Icon :name="voiceStore.connectionMode === 'livekit' ? 'server' : 'users'" />
               <span>{{ voiceStore.connectionMode === 'livekit' ? 'SFU' : 'P2P' }}</span>
             </div>
+
+            <button
+              v-if="tiles.length > 1"
+              @click="toggleLayout"
+              class="layout-btn"
+              :title="focusedTile ? t('voice.gridView') : t('voice.focusView')"
+              :aria-label="focusedTile ? t('voice.gridView') : t('voice.focusView')"
+            >
+              <Icon :name="focusedTile ? 'grid' : 'maximize-2'" />
+            </button>
 
             <button
               @click="toggleSpatialPanel"
@@ -95,6 +108,9 @@
           :class="{ 'full-window-mode': isFullWindowActive }"
           @click="isFullWindowActive && voiceStore.toggleFullWindowMode()"
         >
+          <div class="stage-banner">
+            <VoiceCallBanner />
+          </div>
           <!-- Grid view -->
           <div v-if="!focusedTile" ref="gridEl" class="tile-grid">
             <VoiceTile
@@ -107,6 +123,19 @@
               @expand="focusTile(tile)"
               @request-fullscreen="fullscreenTile(tile)"
             />
+            <!-- DM call: people being rung who have not answered yet -->
+            <div
+              v-for="id in ringingUserIds"
+              :key="`ring:${id}`"
+              class="grid-tile ringing-tile"
+              :style="tileStyle"
+            >
+              <div class="ringing-avatar">
+                <Avatar :src="getUserAvatarUrl(id).value" :alt="getUserDisplayName(id).value || 'User'" size="xl" />
+              </div>
+              <span class="ringing-name"><DisplayName :user-id="id" :truncate="true" /></span>
+              <span class="ringing-label">{{ t('voice.ringing') }}</span>
+            </div>
           </div>
 
           <!-- Focus view -->
@@ -161,10 +190,10 @@
                   'ptt-active': isPTTActive && !voiceStore.localState.isMuted
                 }"
                 :title="voiceStore.localState.isMuted
-                  ? 'Unmute (M)'
+                  ? withShortcut(t('voice.unmute'), 'toggle-mute')
                   : isPTTMode
                     ? (isPTTActive ? `Transmitting (${pttKeyDisplay})` : `Push ${pttKeyDisplay} to talk — click to mute`)
-                    : 'Mute (M)'"
+                    : withShortcut(t('voice.mute'), 'toggle-mute')"
               >
                 <Icon :name="voiceStore.localState.isMuted ? 'mic-off' : 'mic'" />
                 <span v-if="isPTTMode && !voiceStore.localState.isMuted" class="ptt-badge" :class="{ active: isPTTActive }">PTT</span>
@@ -181,7 +210,7 @@
                   active: !voiceStore.localState.isDeafened,
                   deafened: voiceStore.localState.isDeafened
                 }"
-                :title="voiceStore.localState.isDeafened ? 'Undeafen' : 'Deafen'"
+                :title="withShortcut(voiceStore.localState.isDeafened ? t('voice.undeafen') : t('voice.deafen'), 'toggle-deafen')"
               >
                 <Icon :name="voiceStore.localState.isDeafened ? 'headphones-off' : 'headphones'" />
               </button>
@@ -194,18 +223,23 @@
                 @click="voiceStore.toggleVideo"
                 class="control-button"
                 :class="{ active: voiceStore.localState.isVideoEnabled }"
-                :title="voiceStore.localState.isVideoEnabled ? 'Turn off camera' : 'Turn on camera'"
+                :title="withShortcut(voiceStore.localState.isVideoEnabled ? 'Turn off camera' : 'Turn on camera', 'toggle-camera')"
               >
                 <Icon :name="voiceStore.localState.isVideoEnabled ? 'video' : 'video-off'" />
               </button>
               <DeviceSelector type="video" @open-settings="showSettings = true" />
             </div>
 
+            <!-- Screen share: opens Go live (quality first); while live, stream settings and stop -->
             <button
-              @click="voiceStore.toggleScreenShare"
+              ref="shareButtonRef"
+              @click="openStreamPicker"
               class="control-button"
               :class="{ streaming: voiceStore.localState.isScreenSharing }"
-              :title="voiceStore.localState.isScreenSharing ? 'Stop screen share' : 'Share screen'"
+              :title="withShortcut(voiceStore.localState.isScreenSharing ? t('voice.streamSettings') : t('voice.shareScreen'), 'toggle-screenshare')"
+              :aria-label="voiceStore.localState.isScreenSharing ? t('voice.streamSettings') : t('voice.shareScreen')"
+              aria-haspopup="dialog"
+              :aria-expanded="showStreamPicker"
             >
               <Icon name="screen-share" />
             </button>
@@ -235,6 +269,12 @@
       </div>
     </Teleport>
 
+    <StreamQualityPicker
+      :visible="showStreamPicker"
+      :anchor="streamPickerAnchor"
+      @close="showStreamPicker = false"
+    />
+
     <!-- Spatial Audio Panel -->
     <SpatialAudioPanel :is-under-overlay="true" />
 
@@ -258,15 +298,45 @@ import VoiceSettingsPanel from './VoiceSettingsPanel.vue';
 import SpatialAudioPanel from './SpatialAudioPanel.vue';
 import DeviceSelector from './DeviceSelector.vue';
 import VoiceEncryptionBadge from './VoiceEncryptionBadge.vue';
+import VoiceCallBanner from './VoiceCallBanner.vue';
+import StreamQualityPicker from './StreamQualityPicker.vue';
 import ConfettiEffect from '../easteregg/ConfettiEffect.vue';
 import Icon from '@/components/common/Icon.vue';
 import DisplayName from '@/components/DisplayName.vue';
+import { useI18n } from 'vue-i18n';
+import { dismissVoicePopovers, voicePopoverOpen, type Rect } from './voiceMenuModel';
+import Avatar from '@/components/common/Avatar.vue';
+import { useUserData } from '@/composables/useUserData';
+import { dmCallSignaling } from '@/services/DMCallSignaling';
+import { dmConversationIdFromChannel } from '@/composables/useCallSwitch';
+
+const { t } = useI18n();
 
 // Centralized keybind system
 const keybinds = useKeybinds();
 const isPTTMode = keybinds.isPTTMode;
 const isPTTActive = keybinds.isPTTActive;
 const pttKeyDisplay = computed(() => keybinds.getKeybindDisplay('push-to-talk'));
+
+const withShortcut = (label: string, action: Parameters<typeof keybinds.getKeybindDisplay>[0]): string => {
+  const key = keybinds.getKeybindDisplay(action);
+  return key ? `${label} (${key})` : label;
+};
+
+// GO LIVE
+const shareButtonRef = ref<HTMLButtonElement | null>(null);
+const showStreamPicker = ref(false);
+const streamPickerAnchor = ref<Rect | null>(null);
+
+const openStreamPicker = () => {
+  if (showStreamPicker.value) {
+    showStreamPicker.value = false;
+    return;
+  }
+  const r = shareButtonRef.value?.getBoundingClientRect();
+  streamPickerAnchor.value = r ? { left: r.left, top: r.top, width: r.width, height: r.height } : null;
+  showStreamPicker.value = true;
+};
 
 interface Props {
   channelName?: string;
@@ -339,6 +409,32 @@ const filmstripTiles = computed(() =>
 
 const connectionStats = computed(() => voiceStore.connectionStats);
 
+const { getUserAvatarUrl, getUserDisplayName } = useUserData();
+
+// DM calls ring the callees; until they answer they show as ringing tiles.
+const ringingUserIds = computed<string[]>(() => {
+  dmCallSignaling.callStateVersion.value;
+  const conversationId = dmConversationIdFromChannel(voiceStore.currentChannelId);
+  if (!conversationId) return [];
+  const call = dmCallSignaling.getActiveCall(conversationId);
+  if (!call?.ringing) return [];
+  const present = new Set(voiceStore.allParticipants.map(p => p.userId));
+  return call.receiverIds.filter(id => !present.has(id));
+});
+
+// Elapsed call time, ticking once a second while the overlay is open.
+const now = ref(Date.now());
+let durationTimer: ReturnType<typeof setInterval> | null = null;
+const callDuration = computed(() => {
+  const start = voiceStore.callStartTime ? new Date(voiceStore.callStartTime).getTime() : 0;
+  if (!start || !voiceStore.isConnected) return '';
+  const total = Math.max(0, Math.floor((now.value - start) / 1000));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const sec = String(total % 60).padStart(2, '0');
+  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m}:${sec}`;
+});
+
 // FOCUS / FULLSCREEN
 
 const focusTile = (tile: VoiceTileModel) => {
@@ -353,7 +449,23 @@ const unfocus = () => {
   voiceStore.exitFullscreen();
 };
 
+// Grid <-> focus. Focus picks a stream first, then a camera, then anyone.
+const toggleLayout = () => {
+  if (focusedTile.value) {
+    unfocus();
+    return;
+  }
+  const localId = voiceStore.localState.userId;
+  const pick =
+    tiles.value.find(t => t.source === 'screen' && t.userState.userId !== localId) ||
+    tiles.value.find(t => t.source === 'screen') ||
+    tiles.value.find(t => t.source === 'camera' && t.userState.isVideoEnabled && t.userState.userId !== localId) ||
+    tiles.value[0];
+  if (pick) focusTile(pick);
+};
+
 const fullscreenTile = (tile: VoiceTileModel) => {
+  if (tile.source === 'screen') voiceStore.watchStream(tile.userState.userId);
   voiceStore.enterFullscreen(tile.userState.userId, tile.source);
   if (!isNativeFullscreen.value) {
     void toggleNativeFullscreen();
@@ -474,7 +586,7 @@ const TILE_ASPECT = 16 / 9;
 
 const tileStyle = computed(() => {
   const { width, height } = stageSize.value;
-  const count = tiles.value.length;
+  const count = tiles.value.length + ringingUserIds.value.length;
   if (!width || !height || count === 0) {
     return { width: '320px', height: '180px' };
   }
@@ -638,6 +750,7 @@ onMounted(() => {
   }, 300);
 
   document.addEventListener('fullscreenchange', onFullscreenChange);
+  durationTimer = setInterval(() => { now.value = Date.now(); }, 1000);
 
   // Activate voice-overlay context for keybinds
   keybinds.activateContext('voice-overlay');
@@ -649,8 +762,11 @@ onMounted(() => {
   keybinds.registerHandler('toggle-screenshare', () => voiceStore.toggleScreenShare());
   keybinds.registerHandler('toggle-voice-settings', () => toggleSettings());
   keybinds.registerHandler('exit-fullscreen', () => {
-    // Priority order: native fullscreen > full window > focus > settings > minimize
-    if (document.fullscreenElement) {
+    // Priority order: popover > native fullscreen > full window > focus > settings > minimize.
+    // Popovers first: this capture-phase handler stops the event before theirs.
+    if (voicePopoverOpen()) {
+      dismissVoicePopovers();
+    } else if (document.fullscreenElement) {
       void document.exitFullscreen();
     } else if (Date.now() - lastNativeFullscreenExit < 300) {
       // Browser already consumed this Esc to leave native fullscreen
@@ -668,6 +784,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   document.removeEventListener('fullscreenchange', onFullscreenChange);
+  if (durationTimer) clearInterval(durationTimer);
   resizeObserver?.disconnect();
   if (controlsHideTimer) clearTimeout(controlsHideTimer);
 
@@ -719,6 +836,50 @@ onUnmounted(() => {
 }
 .overlay-backdrop.overlay-leaving {
   opacity: 0;
+}
+
+/* Appearance > blur off: a flat scrim instead of backdrop blur. */
+:root[data-disable-blur="true"] .overlay-backdrop {
+  backdrop-filter: none;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+:root[data-disable-blur="true"] .settings-overlay-wrapper {
+  backdrop-filter: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .voice-overlay,
+  .voice-overlay.overlay-leaving {
+    animation: none;
+  }
+  .overlay-backdrop {
+    transition: none;
+  }
+}
+
+:root[data-reduce-motion="true"] .voice-overlay,
+:root[data-reduce-motion="true"] .voice-overlay.overlay-leaving {
+  animation: none;
+}
+
+.stage {
+  position: relative;
+}
+
+.stage-banner {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  z-index: 15;
+  transform: translateX(-50%);
+  width: min(460px, calc(100% - 24px));
+  pointer-events: none;
+}
+
+.stage-banner :deep(.vcb) {
+  pointer-events: auto;
+  box-shadow: var(--shadow-medium);
 }
 
 .voice-container {
@@ -869,6 +1030,55 @@ onUnmounted(() => {
 .speaking-count {
   color: var(--success);
   font-weight: 600;
+}
+
+.call-duration {
+  font-variant-numeric: tabular-nums;
+}
+
+/* DM callee not yet answering */
+.ringing-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: var(--radius-md);
+  background: var(--background-secondary);
+  border: 1px dashed var(--border-primary);
+  color: var(--text-secondary);
+  overflow: hidden;
+}
+
+.ringing-avatar {
+  border-radius: 50%;
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--success) 60%, transparent);
+  animation: ringing-pulse 1.6s ease-out infinite;
+}
+
+@keyframes ringing-pulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--success) 55%, transparent); }
+  100% { box-shadow: 0 0 0 16px transparent; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ringing-avatar { animation: none; box-shadow: 0 0 0 3px var(--success); }
+}
+
+:root[data-reduce-motion="true"] .ringing-avatar {
+  animation: none;
+  box-shadow: 0 0 0 3px var(--success);
+}
+
+.ringing-name {
+  max-width: 90%;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.ringing-label {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
 }
 
 .header-controls {
@@ -1275,6 +1485,17 @@ onUnmounted(() => {
   /* Native fullscreen adds little on small phones; keep minimize/close only */
   .minimize-btn {
     display: none;
+  }
+
+  /* Transport and encryption detail live in the dock; the title needs the room. */
+  .connection-mode-indicator,
+  .overlay-encryption-badge {
+    display: none;
+  }
+
+  .header-controls {
+    gap: 4px;
+    flex-shrink: 0;
   }
 
   .stage {

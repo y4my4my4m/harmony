@@ -22,6 +22,8 @@
 
 import { useSpatialAudioStore } from '@/stores/spatialAudio';
 import { debug } from '@/utils/debug'
+import { getVoiceAudioContext } from './voice/voiceAudioContext';
+import { remoteAudioMixer } from './voice/remoteAudioMixer';
 
 // TYPES
 
@@ -70,11 +72,13 @@ export class SpatialAudioService {
     try {
       debug.log('Initializing Spatial Audio Service...');
       
-      this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({
-        latencyHint: 'interactive', // Lowest latency hint for voice
-        sampleRate: 48000 // Hz; matches WebRTC Opus output
-      });
-      
+      // Shared with the per-user boost chains, so both follow the selected
+      // output device.
+      this.audioContext = getVoiceAudioContext();
+      if (!this.audioContext) {
+        throw new Error('Web Audio is unavailable');
+      }
+
       // Autoplay policy starts the context suspended until a user gesture.
       if (this.audioContext.state === 'suspended') {
         await this.audioContext.resume();
@@ -216,6 +220,9 @@ export class SpatialAudioService {
       };
 
       this.spatialNodes.set(userId, spatialNode);
+      // Listener's per-user volume and local mute carry into the graph.
+      processingChain.outputGain.gain.value =
+        Math.max(0, Math.min(2, remoteAudioMixer.getEffectiveVolume(userId, 'mic') / 100));
 
       // Autoplay policy can suspend the context between setup calls.
       if (this.audioContext.state === 'suspended') {
@@ -445,6 +452,13 @@ export class SpatialAudioService {
       node.outputGain.gain.setTargetAtTime(linearGain, currentTime, 0.05);
     } catch (error) {
       debug.error('Failed to set spatial volume for user:', userId, error);
+    }
+  }
+
+  /** Re-applies every user's volume and local mute from the mixer. */
+  syncUserVolumes(): void {
+    for (const userId of this.spatialNodes.keys()) {
+      this.setUserVolume(userId, remoteAudioMixer.getEffectiveVolume(userId, 'mic'));
     }
   }
 
@@ -997,15 +1011,7 @@ export class SpatialAudioService {
       this.masterGainNode = null;
     }
     
-    if (this.audioContext && this.audioContext.state !== 'closed') {
-      try {
-        await this.audioContext.close();
-        debug.log('AudioContext closed successfully');
-      } catch (error) {
-        debug.warn('Error closing AudioContext:', error);
-      }
-    }
-    
+    // The context is shared (voiceAudioContext); its owner closes it.
     this.audioContext = null;
     this.destination = null;
     this.listenerUserId = null;

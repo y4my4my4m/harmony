@@ -4,7 +4,11 @@ import { nextTick, watch, type WatchStopHandle } from 'vue';
 import { webrtcManager } from '@/services/webrtcManager';
 import { nativeLiveKit, type NativeScreenSource } from '@/services/nativeLiveKit';
 import type { UserMediaState } from '@/services/unifiedWebRTC';
-import type { VideoSource } from '@/services/livekitWebRTC';
+import type { VideoSource, VoiceConnectionQuality } from '@/services/livekitWebRTC';
+import { clampVolume, remoteAudioMixer, type RemoteAudioKind } from '@/services/voice/remoteAudioMixer';
+import { loadAudioPrefs as readAudioPrefs, saveMutes, saveVolumes } from '@/services/voice/voiceAudioPrefs';
+import { closeVoiceAudioContext } from '@/services/voice/voiceAudioContext';
+import { VoiceSettingsService, normalizeOutputVolume } from '@/services/VoiceSettingsService';
 import { spatialAudioService } from '@/services/spatialAudio';
 import { dmCallSignaling } from '@/services/DMCallSignaling';
 import { useSpatialAudioStore } from '@/stores/spatialAudio';
@@ -69,7 +73,18 @@ interface VoiceChannelState {
   
   userVolumes: Map<string, number>;
   userScreenShareVolumes: Map<string, number>;
-  
+  // Users silenced for this listener only; their volume is kept.
+  userMicMutes: Set<string>;
+  userStreamMutes: Set<string>;
+
+  // The browser refused to start remote audio; a user gesture must resume it.
+  audioPlaybackBlocked: boolean;
+  // Transport link state while in a call.
+  connectionState: 'connected' | 'reconnecting' | null;
+  connectionQuality: Record<string, VoiceConnectionQuality>;
+  // Remote streams this client receives (LiveKit streams are opt-in).
+  watchedStreamUserIds: string[];
+
   recentSpeakers: RecentSpeaker[];
   
   isOverlayVisible: boolean;
@@ -142,7 +157,14 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     
     userVolumes: new Map(),
     userScreenShareVolumes: new Map(),
-    
+    userMicMutes: new Set(),
+    userStreamMutes: new Set(),
+
+    audioPlaybackBlocked: false,
+    connectionState: null,
+    connectionQuality: {},
+    watchedStreamUserIds: [],
+
     recentSpeakers: [],
     
     isOverlayVisible: false,
@@ -247,8 +269,24 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       return state.userScreenShareVolumes.get(userId) ?? 100;
     },
     
-    hasScreenShareAudio: () => (userId: string): boolean => {
-      return webrtcManager.hasScreenShareAudio(userId);
+    hasScreenShareAudio: (state) => (userId: string): boolean => {
+      const user = state.allUsers.find(u => u.userId === userId);
+      return !!user?.hasScreenShareAudio || webrtcManager.hasScreenShareAudio(userId);
+    },
+
+    isUserLocallyMuted: (state) => (userId: string, kind: RemoteAudioKind = 'mic'): boolean => {
+      return (kind === 'mic' ? state.userMicMutes : state.userStreamMutes).has(userId);
+    },
+
+    /** Own stream, P2P and native streams are always received. */
+    isWatchingStream: (state) => (userId: string): boolean => {
+      if (userId === state.localState.userId) return true;
+      if (state.connectionMode !== 'livekit') return true;
+      return state.watchedStreamUserIds.includes(userId);
+    },
+
+    getConnectionQuality: (state) => (userId: string): VoiceConnectionQuality => {
+      return state.connectionQuality[userId] ?? 'unknown';
     },
 
     getRecentSpeakers: (state) => {
@@ -309,6 +347,13 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         
         this.connectionAbortController = new AbortController();
         const abortSignal = this.connectionAbortController.signal;
+
+        // Listener preferences are in place before the first remote track plays.
+        this.loadAudioPrefs();
+        this.loadStreamSettings();
+        const voiceSettings = VoiceSettingsService.getAll();
+        webrtcManager.setAutoWatchStreams(voiceSettings.autoWatchStreams);
+        webrtcManager.setMasterVolume(normalizeOutputVolume(voiceSettings.outputVolume));
         
         const channel = serverChannelStore.channels.find((c: any) => c.id === channelId);
         this.optimisticChannelId = channelId;
@@ -445,7 +490,9 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       }
       
       this.connectionMode = webrtcManager.getActiveService();
+      this.connectionState = 'connected';
       this.isEncrypted = webrtcManager.isE2EEEnabled();
+      this.applyAudioPrefs();
       debug.log(`[VoiceChannel] Connected via ${this.connectionMode?.toUpperCase() || 'unknown'} mode (${roomType}), E2EE: ${this.isEncrypted}`);
       
       if (abortSignal?.aborted) {
@@ -625,8 +672,10 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
                 throw new Error('Failed to connect to remote LiveKit server');
               }
               
-              this.connectionMode = 'livekit';
+              this.connectionMode = webrtcManager.getActiveService() ?? 'livekit';
+              this.connectionState = 'connected';
               this.isEncrypted = webrtcManager.isE2EEEnabled();
+              this.applyAudioPrefs();
               debug.log('[VoiceChannel] Connected to federated voice channel via LiveKit');
               
               this.currentChannelId = channelId;
@@ -869,7 +918,8 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         await webrtcManager.leaveChannel();
 
         this.cleanupSpatialAudio();
-        
+        void closeVoiceAudioContext();
+
         this.cleanupPushToTalk();
         
         if (serverId && channelId) {
@@ -1093,32 +1143,25 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       webrtcManager.detachVideoFromElement(userId, videoElement, source);
     },
 
-    // Applies to camera, screenshare, and audio. Deferred until a track is live.
+    /**
+     * Resolution (px height, -1 source), frame rate and stream audio bitrate
+     * (kbps). Persisted; applied live to camera and screen tracks, and
+     * used by the next capture otherwise.
+     */
     async updateStreamQuality(settings: { resolution?: number; frameRate?: number; audioBitrate?: number }): Promise<void> {
       const newSettings = { ...this.streamSettings, ...settings };
       this.streamSettings = newSettings;
-      
-      debug.log('Updating stream quality:', newSettings);
-      
-      if (this.localState.isVideoEnabled || this.localState.isScreenSharing || !this.localState.isMuted) {
-        try {
-          await webrtcManager.updateStreamQuality({
-            resolution: newSettings.resolution,
-            frameRate: newSettings.frameRate,
-            audioBitrate: newSettings.audioBitrate
-          });
-          debug.log('Stream quality updated successfully');
-        } catch (error) {
-          debug.error('Failed to update stream quality:', error);
-        }
-      } else {
-        debug.log('ℹStream quality settings saved, will apply when video/audio is enabled');
-      }
-      
+
       try {
         userStorage.setItem('stream-settings', JSON.stringify(newSettings));
       } catch (error) {
         debug.warn('Failed to save stream settings:', error);
+      }
+
+      try {
+        await webrtcManager.updateStreamQuality(settings);
+      } catch (error) {
+        debug.error('Failed to update stream quality:', error);
       }
     },
 
@@ -1138,82 +1181,99 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       }
     },
 
-    // Percent, clamped to 0-200; 100 is unity gain. Persisted per user.
+    // PER-USER AUDIO (listener-side; persisted per user id)
+
+    // Percent, clamped to 0-200; 100 is unity gain.
     setUserVolume(userId: string, volume: number): void {
-      const clampedVolume = Math.max(0, Math.min(200, volume));
+      const clampedVolume = clampVolume(volume);
       this.userVolumes.set(userId, clampedVolume);
-
       webrtcManager.setUserMicVolume(userId, clampedVolume);
-
-      this.saveUserVolumes();
-      
-      debug.log(`Set mic volume for user ${userId}: ${clampedVolume}%`);
+      this.persistAudioPrefs('mic');
     },
-    
-    // Percent, clamped to 0-200; 100 is unity gain. Persisted per user.
+
+    // Percent, clamped to 0-200; 100 is unity gain.
     setUserScreenShareVolume(userId: string, volume: number): void {
-      const clampedVolume = Math.max(0, Math.min(200, volume));
+      const clampedVolume = clampVolume(volume);
       this.userScreenShareVolumes.set(userId, clampedVolume);
-
       webrtcManager.setUserScreenShareVolume(userId, clampedVolume);
-
-      this.saveScreenShareVolumes();
-      
-      debug.log(`Set screenshare volume for user ${userId}: ${clampedVolume}%`);
+      this.persistAudioPrefs('screen');
     },
 
-    saveUserVolumes(): void {
-      try {
-        const volumeObj: Record<string, number> = {};
-        this.userVolumes.forEach((volume, odUserId) => {
-          volumeObj[odUserId] = volume;
-        });
-        userStorage.setItem('user-volumes', JSON.stringify(volumeObj));
-      } catch (error) {
-        debug.warn('Failed to save user volumes:', error);
-      }
+    setUserLocalMute(userId: string, kind: RemoteAudioKind, muted: boolean): void {
+      const set = kind === 'mic' ? this.userMicMutes : this.userStreamMutes;
+      if (muted) set.add(userId);
+      else set.delete(userId);
+      webrtcManager.setUserLocalMute(userId, kind, muted);
+      this.persistAudioPrefs('mutes');
     },
-    
-    saveScreenShareVolumes(): void {
+
+    toggleUserLocalMute(userId: string, kind: RemoteAudioKind = 'mic'): boolean {
+      const muted = !this.isUserLocallyMuted(userId, kind);
+      this.setUserLocalMute(userId, kind, muted);
+      return muted;
+    },
+
+    persistAudioPrefs(which: 'mic' | 'screen' | 'mutes'): void {
       try {
-        const volumeObj: Record<string, number> = {};
-        this.userScreenShareVolumes.forEach((volume, odUserId) => {
-          volumeObj[odUserId] = volume;
-        });
-        userStorage.setItem('user-screenshare-volumes', JSON.stringify(volumeObj));
+        if (which === 'mic') saveVolumes(userStorage, 'mic', this.userVolumes);
+        else if (which === 'screen') saveVolumes(userStorage, 'screen', this.userScreenShareVolumes);
+        else saveMutes(userStorage, { mic: this.userMicMutes, screen: this.userStreamMutes });
       } catch (error) {
-        debug.warn('Failed to save screenshare volumes:', error);
+        debug.warn('Failed to save audio preferences:', error);
       }
     },
 
-    loadUserVolumes(): void {
+    /** Reads stored volumes and mutes and seeds the mixer ahead of a join. */
+    loadAudioPrefs(): void {
       try {
-        const saved = userStorage.getItem('user-volumes');
-        if (saved) {
-          const volumeObj = JSON.parse(saved) as Record<string, number>;
-          Object.entries(volumeObj).forEach(([odUserId, volume]) => {
-            this.userVolumes.set(odUserId, volume);
-          });
-          debug.log('Loaded user volumes from localStorage');
-        }
+        const prefs = readAudioPrefs(userStorage);
+        this.userVolumes = prefs.micVolumes;
+        this.userScreenShareVolumes = prefs.streamVolumes;
+        this.userMicMutes = prefs.mutes.mic;
+        this.userStreamMutes = prefs.mutes.screen;
+        webrtcManager.primeAudioPrefs(prefs);
       } catch (error) {
-        debug.warn('Failed to load user volumes:', error);
+        debug.warn('Failed to load audio preferences:', error);
       }
     },
-    
-    loadScreenShareVolumes(): void {
-      try {
-        const saved = userStorage.getItem('user-screenshare-volumes');
-        if (saved) {
-          const volumeObj = JSON.parse(saved) as Record<string, number>;
-          Object.entries(volumeObj).forEach(([odUserId, volume]) => {
-            this.userScreenShareVolumes.set(odUserId, volume);
-          });
-          debug.log('Loaded screenshare volumes from localStorage');
-        }
-      } catch (error) {
-        debug.warn('Failed to load screenshare volumes:', error);
+
+    /** Pushes stored preferences to the connected transport (native included). */
+    applyAudioPrefs(): void {
+      webrtcManager.applyAudioPrefs({
+        micVolumes: this.userVolumes,
+        streamVolumes: this.userScreenShareVolumes,
+        mutes: { mic: this.userMicMutes, screen: this.userStreamMutes },
+      });
+    },
+
+    /** Resumes audio the browser blocked. Bound to a click. */
+    async unlockAudio(): Promise<boolean> {
+      const ok = await webrtcManager.startAudio();
+      this.audioPlaybackBlocked = !ok;
+      return ok;
+    },
+
+    // STREAM WATCHING
+
+    watchStream(userId: string): void {
+      if (!webrtcManager.supportsStreamWatching()) return;
+      webrtcManager.setStreamWatched(userId, true);
+    },
+
+    stopWatchingStream(userId: string): void {
+      if (this.fullscreenUserId === userId && this.fullscreenSource === 'screen') {
+        this.exitFullscreen();
       }
+      if (this.pipActive && this.pipUserId === userId) {
+        this.togglePIP(null);
+      }
+      if (!webrtcManager.supportsStreamWatching()) return;
+      webrtcManager.setStreamWatched(userId, false);
+    },
+
+    /** Echo cancellation, noise suppression, gain control; applied mid-call. */
+    async updateAudioProcessing(constraints: { echoCancellation?: boolean; noiseSuppression?: boolean; autoGainControl?: boolean }): Promise<void> {
+      await webrtcManager.updateAudioConstraints(constraints);
     },
 
     updateRecentSpeakers(userId: string): void {
@@ -1341,6 +1401,10 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         
         this.allUsers = this.allUsers.filter(u => u.userId !== data.userId);
         this.remoteStreams.delete(data.userId);
+        if (data.userId in this.connectionQuality) {
+          const { [data.userId]: _gone, ...rest } = this.connectionQuality;
+          this.connectionQuality = rest;
+        }
         
         this.removeUserFromSpatialAudio(data.userId);
 
@@ -1469,7 +1533,47 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         }
       });
 
-      webrtcManager.on('connection-state-changed', () => {});
+      webrtcManager.on('connection-state-changed', (data: { state?: string }) => {
+        if (!this.isConnected) return;
+        const state = data?.state;
+        if (state === 'reconnecting' || state === 'signalReconnecting') {
+          this.connectionState = 'reconnecting';
+        } else if (state === 'connected') {
+          this.connectionState = 'connected';
+        }
+      });
+
+      // The transport gave up (server gone, network lost past the retry
+      // window, duplicate session). The session is torn down like a leave.
+      webrtcManager.on('connection-lost', async () => {
+        if (!this.isConnected) return;
+        debug.warn('Voice connection lost; leaving channel');
+        await this.leaveVoiceChannel();
+        useNotificationStore().showToast(
+          'server_update',
+          'Disconnected from voice',
+          'The connection to the voice server was lost.',
+          6000
+        );
+      });
+
+      webrtcManager.on('connection-quality-changed', (data: { userId: string; quality: VoiceConnectionQuality }) => {
+        if (!data?.userId) return;
+        this.connectionQuality = { ...this.connectionQuality, [data.userId]: data.quality };
+      });
+
+      webrtcManager.on('stream-watch-changed', (data: { userId: string; watching: boolean }) => {
+        if (!data?.userId) return;
+        const others = this.watchedStreamUserIds.filter(id => id !== data.userId);
+        this.watchedStreamUserIds = data.watching ? [...others, data.userId] : others;
+        if (!data.watching && this.pipActive && this.pipUserId === data.userId) {
+          this.togglePIP(null);
+        }
+      });
+
+      remoteAudioMixer.onBlockedChange((blocked) => {
+        this.audioPlaybackBlocked = blocked && this.isConnectedOrJoining;
+      });
 
       webrtcManager.on('error', (error: any) => {
         debug.error('WebRTC error:', error);
@@ -1848,6 +1952,11 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       this.pipUserId = null;
       this.connectionMode = null;
       this.isEncrypted = false;
+      this.connectionState = null;
+      this.connectionQuality = {};
+      this.watchedStreamUserIds = [];
+      this.audioPlaybackBlocked = false;
+      this.screenSourcePicker = { visible: false, sources: [] };
     },
 
     getUserProfile(userId: string) {
