@@ -7,6 +7,69 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [1.6.1] - 2026-09-30
+
+### Added
+- **Per-channel end-to-end encryption.** Channel managers (the owner, admins
+  and roles with Manage Channels) turn encryption on per channel; the server
+  policy (disabled, optional, required) is the floor. Encrypted channels show
+  a lock, mentions still notify with "Encrypted message" as the preview, and
+  voice encryption follows the channel. The database rejects unencrypted
+  messages in encrypted channels, and encrypted channels do not federate.
+- **Floating video player**: touch drag and resize, corner snapping clear of
+  the composer and keyboard, docks back when its message scrolls into view,
+  one video at a time.
+- Pins and threads update immediately: the pin badge, pinned list and thread
+  panel no longer wait on the server, and failures roll back with a message.
+  The pinned-messages button is always in the channel header.
+
+### Changed
+- App-wide visual pass: the accent colour reaches every component, surfaces
+  are flat, status colours follow the theme (light themes are readable), and
+  column headers share one height. Floating surfaces keep their glass behind
+  the Appearance blur toggle.
+- Social: trending and suggested follows are compact lists; pinned posts line
+  up with the feed.
+- Private servers, and channels hidden from @everyone, are served over
+  federation only to signed requests from accepted members who can view them.
+  Harmony signs its reads of remote servers as the reading member, and retries
+  signed when a remote instance requires authorized fetch.
+- First load is half the size (1030 kB to 515 kB of JavaScript, gzipped); the
+  voice library loads when joining a call.
+- Server member lists and the home timeline query in milliseconds on large
+  servers.
+- Server privacy settings have one discovery choice instead of two controls
+  for the same setting.
+
+### Fixed
+- **Federation authorization.** Undo, Accept/Reject and fetched documents are
+  bound to the actor that signed them: remote servers could delete local
+  posts, remove other users' follows, take over a remote actor's key, or
+  attribute posts to anyone. Remote members can no longer post into channels
+  they cannot view.
+- **Database access.** Legacy access rules on existing installs let pending
+  members read and post in every channel and let a blocked user keep posting
+  in a DM; they are removed. Channel visibility is now enforced on messages,
+  threads, reactions, search, live updates and notifications. Notification,
+  pin and message-rewrite functions no longer trust caller-supplied identity.
+- Message search returned nothing on installs created from the 1.6.0 schema.
+- The federation backend retained memory for every authenticated request.
+- The bot gateway could deliver the same event twice.
+- GoToSocial activities were rejected; unlisted posts appeared
+  followers-only elsewhere; Mastodon ignored edits; attachments and alt text
+  did not federate.
+- Light themes: unreadable toasts, grey dialogs and hashtag chips.
+
+### Notes for self-hosters
+- Eight migrations since 1.6.0 (`20260930000002` to `20261001200003`);
+  `bootstrap.sh --migrations-only` applies them. Take a backup first.
+  `20261001200001` converges RLS policies to the canonical set and prints each
+  create, keep and drop. `20261001000001` turns encryption on for channels
+  that already hold encrypted messages.
+- Apply `20261001100001` before starting the new federation backend, and
+  rebuild its image (`docker compose up -d --build`); `up -d` alone keeps the
+  old image.
+
 ## [1.6.0] - 2026-09-30
 
 ### Added
