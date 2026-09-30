@@ -1577,5 +1577,145 @@
       "integrationWarning": "Bots and bridges in this server can't read encrypted messages or post in this channel.",
       "failed": "The channel was created, but encryption couldn't be turned on. Turn it on in the channel settings."
     }
+  },
+  "today": {
+    "beta": "Beta",
+    "back": "Back",
+    "refresh": "Refresh",
+    "refreshing": "Refreshing",
+    "loading": "Loading your day",
+    "loadFailed": "Couldn't load your day",
+    "refreshFailed": "Couldn't refresh. Showing earlier results.",
+    "sinceVisit": "Since your last visit {time}",
+    "sinceVisitMoments": "Since your last visit moments ago",
+    "firstVisit": "Here's what's waiting for you",
+    "allCaughtUp": "You're all caught up",
+    "statsLabel": "Summary",
+    "seeAll": "See all",
+    "showAll": "Show all ({count})",
+    "showLess": "Show less",
+    "unread": "Unread",
+    "unknownUser": "Unknown user",
+    "noText": "No text",
+    "attachments": "{count} attachment | {count} attachments",
+    "greeting": {
+      "night": "Up late?",
+      "morning": "Good morning",
+      "afternoon": "Good afternoon",
+      "evening": "Good evening"
+    },
+    "stats": {
+      "mentions": "{count} new mention | {count} new mentions",
+      "conversations": "{count} unread conversation | {count} unread conversations",
+      "channels": "{count} unread message | {count} unread messages",
+      "threads": "{count} thread with replies | {count} threads with replies",
+      "voice": "{count} person in voice | {count} people in voice",
+      "followRequests": "{count} follow request | {count} follow requests"
+    },
+    "errors": {
+      "markRead": "Couldn't mark as read. Try again.",
+      "followRequest": "Couldn't answer the follow request. Try again.",
+      "announcement": "Couldn't dismiss the announcement. Try again."
+    },
+    "announcements": {
+      "title": "Announcements",
+      "pinned": "Pinned",
+      "dismiss": "Dismiss announcement: {title}",
+      "dismissShort": "Dismiss",
+      "more": "{count} more in Settings"
+    },
+    "mentions": {
+      "title": "Mentions and replies",
+      "empty": "No mentions or replies in the last two weeks.",
+      "error": "Couldn't load mentions.",
+      "mention": "Mention",
+      "reply": "Reply",
+      "inThread": "{thread} · {server}",
+      "inChannel": "{channel} · {server}",
+      "inGroup": "{name}",
+      "inUnnamedGroup": "Group message",
+      "inDirect": "Direct message",
+      "linkLabel": "{kind} from {author}, {location}, {time}"
+    },
+    "conversations": {
+      "title": "Direct messages",
+      "empty": "No unread direct messages.",
+      "error": "Couldn't load direct messages.",
+      "more": "{count} more unread in Direct messages",
+      "you": "You",
+      "group": "Group",
+      "groupNamesMore": "{names} and {count} more",
+      "unreadCount": "{count} unread message | {count} unread messages",
+      "linkLabel": "{name}, {count} unread message | {name}, {count} unread messages"
+    },
+    "catchUp": {
+      "title": "Catch up",
+      "empty": "No unread channels.",
+      "error": "Couldn't load unread channels.",
+      "markAllRead": "Mark all read",
+      "markRead": "Mark read",
+      "markServerRead": "Mark {server} as read",
+      "serverCounts": "{count} unread | {count} unread",
+      "serverMentions": "{count} mention | {count} mentions",
+      "moreChannels": "{count} more",
+      "channelLabel": "#{channel}, {count} unread message | #{channel}, {count} unread messages",
+      "channelLabelMentions": "#{channel}, {count} unread, {mentions} mentioning you"
+    },
+    "voice": {
+      "title": "Live now",
+      "empty": "Nobody is in voice right now.",
+      "error": "Couldn't load voice channels.",
+      "since": "for {time}",
+      "join": "Join",
+      "open": "Open",
+      "joinLabel": "Join {channel} in {server}",
+      "openLabel": "Open {channel}, you're connected",
+      "participantsMore": "{names} and {count} more",
+      "joinFailed": "Couldn't join the voice channel."
+    },
+    "threads": {
+      "title": "Your threads",
+      "empty": "No new replies in your threads.",
+      "error": "Couldn't load threads.",
+      "newReplies": "{count} new reply | {count} new replies",
+      "linkLabel": "{name}, {count} new reply | {name}, {count} new replies"
+    },
+    "social": {
+      "title": "Social",
+      "empty": "No new followers or activity on your posts.",
+      "error": "Couldn't load social activity.",
+      "followRequests": "{count} follow request | {count} follow requests",
+      "accept": "Accept",
+      "decline": "Decline",
+      "acceptLabel": "Accept follow request from {name}",
+      "declineLabel": "Decline follow request from {name}",
+      "allRequests": "See all {count} requests",
+      "activityLabel": "Unread activity on your posts",
+      "activity": {
+        "favorite": "{count} favorite | {count} favorites",
+        "reblog": "{count} boost | {count} boosts",
+        "reaction": "{count} reaction | {count} reactions",
+        "mention": "{count} mention | {count} mentions",
+        "reply": "{count} reply | {count} replies"
+      },
+      "followedOne": "{name} followed you",
+      "followedTwo": "{a} and {b} followed you",
+      "followedMany": "{name} and {count} other followed you | {name} and {count} others followed you",
+      "mentioned": "Mentioned you",
+      "replied": "Replied",
+      "mentionLabel": "Post by {name} mentioning you",
+      "replyLabel": "Reply from {name} to your post"
+    },
+    "posts": {
+      "title": "From people you follow",
+      "empty": "No new posts from people you follow.",
+      "error": "Couldn't load posts.",
+      "linkLabel": "Post by {name}"
+    },
+    "highlights": {
+      "title": "Summary",
+      "onDevice": "On-device AI",
+      "onDeviceHint": "Channel summaries are generated locally. Nothing leaves your device."
+    }
   }
 }

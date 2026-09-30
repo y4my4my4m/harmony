@@ -1,23 +1,24 @@
 /**
- * Data aggregation for the "Today" dashboard. Client-side only; no
- * server-side aggregation exists for it.
+ * Data for the Today dashboard.
  *
- * Sources:
- *   - channels with the most unread activity (unread_counts)
- *   - threads the user participates in, ordered by recent activity
- *   - trending ActivityPub posts (TrendingService)
- *   - total unread mentions
+ * The summary is one call to public.get_today_summary, shaped by utils/todaySummary.
+ * Encrypted messages in it are decrypted in a second, local pass; the view shows the
+ * "Encrypted message" placeholder until that pass replaces them.
  *
- * Summaries run through Chrome's built-in Summarizer API (Gemini Nano);
- * text stays on-device. The digest renders without them when the API is
- * unavailable.
+ * Channel highlights run through Chrome's built-in Summarizer API (Gemini Nano) and read
+ * recent messages per channel; text stays on-device. They are optional and additive.
  */
 
 import { supabase } from '@/supabase'
 import { authContextService } from '@/services/AuthContextService'
-import { trendingService } from '@/services/TrendingService'
-import type { TimelinePost } from '@/types'
+import type { Message } from '@/types'
 import { debug } from '@/utils/debug'
+import {
+  encryptedMessages,
+  shapeTodaySummary,
+  type TodayServerGroup,
+  type TodaySummary,
+} from '@/utils/todaySummary'
 
 export interface ActiveChannelEntry {
   channelId: string
@@ -38,216 +39,60 @@ export interface ChannelHighlight {
   summary: string
 }
 
-export interface ActiveThreadEntry {
-  threadId: string
-  serverId: string
-  name: string
-  messageCount: number
-  lastMessageAt: string | null
-}
-
-export interface TodayDigest {
-  unreadMentions: number
-  activeChannels: ActiveChannelEntry[]
-  activeThreads: ActiveThreadEntry[]
-  trendingPosts: TimelinePost[]
-  followedPosts: TimelinePost[]
-}
-
 class TodayDigestService {
-  async getDigest(): Promise<TodayDigest> {
-    const profileId = await authContextService.getCurrentProfileId()
-
-    const [channels, threads, trending, followed, mentions] = await Promise.all([
-      this.getActiveChannels(profileId),
-      this.getActiveThreads(profileId),
-      this.getTrendingPosts(),
-      this.getFollowedPosts(profileId),
-      this.getUnreadMentionCount(profileId),
-    ])
-
-    return {
-      unreadMentions: mentions,
-      activeChannels: channels,
-      activeThreads: threads,
-      trendingPosts: trending,
-      followedPosts: followed,
-    }
+  /** Null when the caller has no profile. */
+  async getSummary(since: string | null, signal?: AbortSignal): Promise<TodaySummary | null> {
+    let request = supabase.rpc('get_today_summary', { p_since: since })
+    if (signal) request = request.abortSignal(signal)
+    const { data, error } = await request
+    if (error) throw new Error(error.message)
+    if (data == null) return null
+    return shapeTodaySummary(data)
   }
 
-  /**
-   * Stable fingerprint of the digest's inputs. The view caches AI output
-   * against it: same signature, no model re-run.
-   */
-  digestSignature(digest: TodayDigest): string {
-    const parts = [
-      ...digest.activeChannels.map(c => `${c.channelId}:${c.unreadMessages}:${c.unreadMentions}`),
-      ...digest.activeThreads.map(t => `${t.threadId}:${t.messageCount}`),
-      ...digest.trendingPosts.map(p => p.id),
-      ...digest.followedPosts.map(p => p.id),
-      String(digest.unreadMentions),
-    ]
-    return parts.join('|')
-  }
-
-  // Cap of 12 unread channels across all servers, mentions first. The view
-  // groups them per server; one busy server can take several slots but
-  // cannot displace another server's mentions, which sort first regardless
-  // of origin.
-  private async getActiveChannels(profileId: string, limit = 12): Promise<ActiveChannelEntry[]> {
-    const { data, error } = await supabase
-      .from('unread_counts')
-      .select(`
-        channel_id,
-        server_id,
-        unread_messages,
-        unread_mentions,
-        channels ( name ),
-        servers ( name, icon )
-      `)
-      .eq('user_id', profileId)
-      .not('channel_id', 'is', null)
-      .gt('unread_messages', 0)
-      .order('unread_mentions', { ascending: false })
-      .order('unread_messages', { ascending: false })
-      .limit(limit)
-
-    if (error) {
-      debug.warn('Today digest: failed to load active channels:', error)
-      return []
-    }
-
-    return (data || [])
-      .filter((row: any) => row.channels && row.server_id)
-      .map((row: any) => ({
-        channelId: row.channel_id,
-        serverId: row.server_id,
-        channelName: row.channels.name,
-        serverName: row.servers?.name || '',
-        serverIcon: row.servers?.icon || null,
-        unreadMessages: row.unread_messages || 0,
-        unreadMentions: row.unread_mentions || 0,
-      }))
-  }
-
-  private async getActiveThreads(profileId: string, limit = 5): Promise<ActiveThreadEntry[]> {
-    const { data, error } = await supabase
-      .from('thread_members')
-      .select(`
-        thread_id,
-        threads (
-          id,
-          name,
-          message_count,
-          last_message_at,
-          archived,
-          channels ( server_id )
-        )
-      `)
-      .eq('user_id', profileId)
-      .limit(30)
-
-    if (error) {
-      debug.warn('Today digest: failed to load threads:', error)
-      return []
-    }
-
-    return (data || [])
-      .map((row: any) => row.threads)
-      .filter((t: any) => t && !t.archived && t.channels?.server_id)
-      .sort((a: any, b: any) =>
-        new Date(b.last_message_at || 0).getTime() - new Date(a.last_message_at || 0).getTime())
-      .slice(0, limit)
-      .map((t: any) => ({
-        threadId: t.id,
-        serverId: t.channels.server_id,
-        name: t.name,
-        messageCount: t.message_count || 0,
-        lastMessageAt: t.last_message_at,
-      }))
-  }
-
-  /**
-   * Posts from followed accounts within the last 48h, ranked by
-   * relevanceScore rather than recency.
-   */
-  private async getFollowedPosts(profileId: string, limit = 5): Promise<TimelinePost[]> {
-    const { data: follows, error: followsError } = await supabase
-      .from('follows')
-      .select('following_id')
-      .eq('follower_id', profileId)
-      .eq('status', 'accepted')
-      .limit(400)
-
-    if (followsError || !follows || follows.length === 0) return []
-
-    const since = new Date(Date.now() - 48 * 3600_000).toISOString()
-    const { data: posts, error } = await supabase
-      .from('posts')
-      .select(`
-        *,
-        author:profiles!posts_author_id_fkey(
-          id, username, display_name, avatar_url, color, domain, is_local
-        )
-      `)
-      .in('author_id', follows.map(f => f.following_id))
-      .in('visibility', ['public', 'unlisted'])
-      .or('is_deleted.is.null,is_deleted.eq.false')
-      .is('in_reply_to', null)
-      .gt('created_at', since)
-      .order('created_at', { ascending: false })
-      .limit(40)
-
-    if (error) {
-      debug.warn('Today digest: failed to load followed posts:', error)
-      return []
-    }
-
-    return ((posts as TimelinePost[]) || [])
-      .sort((a, b) => this.relevanceScore(b) - this.relevanceScore(a))
-      .slice(0, limit)
-  }
-
-  /**
-   * Ranking for the followed-posts section.
-   *
-   * - Replies weigh most; they signal an active conversation.
-   * - Reblogs next.
-   * - Favorites weigh least, and all three exponents are sublinear so
-   *   raw counts have diminishing returns.
-   * - Exponential time decay, 18h half-life, keeps a day-old viral post
-   *   from pinning the list.
-   */
-  private relevanceScore(p: any): number {
-    const replies = Math.pow(Math.max(0, p.replies_count || 0), 0.9) * 3
-    const reblogs = Math.pow(Math.max(0, p.reblogs_count || 0), 0.8) * 2
-    const favorites = Math.pow(Math.max(0, p.favorites_count || 0), 0.7)
-
-    const ageHours = Math.max(0, (Date.now() - new Date(p.created_at).getTime()) / 3600_000)
-    const decay = Math.pow(0.5, ageHours / 18)
-
-    return (replies + reblogs + favorites + 0.1) * decay
-  }
-
-  private async getTrendingPosts(limit = 5): Promise<TimelinePost[]> {
+  /** Decrypted copies of the summary's encrypted messages; failures are left out. */
+  async decryptSummaryMessages(summary: TodaySummary): Promise<Message[]> {
+    const targets = encryptedMessages(summary)
+    if (targets.length === 0) return []
     try {
-      const trending = await trendingService.getTrendingPosts({ limit, timeRange: '24h' })
-      return trending.map(t => t.post)
+      const { processMessageDecryption } = await import('@/utils/messageDecryption')
+      const result = await processMessageDecryption(targets.map(m => ({ ...m })))
+      return result.filter(m => m.decrypted === true)
     } catch (error) {
-      debug.warn('Today digest: failed to load trending posts:', error)
+      debug.warn('Today: decrypting summary messages failed:', error)
       return []
     }
   }
 
-  private async getUnreadMentionCount(profileId: string): Promise<number> {
-    const { data, error } = await supabase
-      .from('unread_counts')
-      .select('unread_mentions')
-      .eq('user_id', profileId)
-      .gt('unread_mentions', 0)
+  /** Unread channels across servers, mentions first, then by unread count. */
+  activeChannels(servers: readonly TodayServerGroup[], limit = 12): ActiveChannelEntry[] {
+    const out: ActiveChannelEntry[] = []
+    for (const server of servers) {
+      for (const channel of server.channels) {
+        out.push({
+          channelId: channel.id,
+          serverId: server.id,
+          channelName: channel.name,
+          serverName: server.name,
+          serverIcon: server.icon,
+          unreadMessages: channel.unreadMessages,
+          unreadMentions: channel.unreadMentions,
+        })
+      }
+    }
+    return out
+      .sort((a, b) => b.unreadMentions - a.unreadMentions || b.unreadMessages - a.unreadMessages)
+      .slice(0, limit)
+  }
 
-    if (error) return 0
-    return (data || []).reduce((sum, row: any) => sum + (row.unread_mentions || 0), 0)
+  /** Fingerprint of the highlight inputs. */
+  highlightSignature(channels: readonly ActiveChannelEntry[]): string {
+    return channels.map(c => `${c.channelId}:${c.unreadMessages}:${c.unreadMentions}`).join('|')
+  }
+
+  async markServerRead(serverId: string): Promise<void> {
+    const { error } = await supabase.rpc('mark_server_as_read', { p_server_id: serverId })
+    if (error) throw new Error(error.message)
   }
 
   // On-device AI (Chrome built-in Summarizer API / Gemini Nano)
@@ -301,7 +146,7 @@ class TodayDigestService {
           })
         }
       } catch (error) {
-        debug.warn(`Today digest: highlight failed for #${channel.channelName}:`, error)
+        debug.warn(`Today: highlight failed for #${channel.channelName}:`, error)
       } finally {
         summarizer?.destroy?.()
       }
@@ -392,7 +237,6 @@ class TodayDigestService {
       .join(' ')
       .trim()
   }
-
 }
 
 export const todayDigestService = new TodayDigestService()
