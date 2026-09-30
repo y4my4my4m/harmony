@@ -3,32 +3,13 @@
   padding: 10px 15px;
   border: none;
   border-radius: var(--radius-base);
-  color: var(--text-primary);
   cursor: pointer;
-  transition: background-color 0.2s, opacity 0.2s;
+  transition: background-color 0.2s;
   font-size: 1em;
   font-weight: 500;
 }
 
-.btn:hover {
-  opacity: 0.8;
-}
-
-.btn-primary {
-  background-color: var(--harmony-primary);
-}
-
-.btn-success {
-  background-color: var(--success);
-}
-
-.btn-danger {
-  background-color: var(--error);
-}
-
-.btn-secondary {
-  background-color: var(--harmony-primary-hover);
-}
+/* Variant colours and hover states live in design-system.css. */
 
 /* Shared Input Styles */
 .input-base {

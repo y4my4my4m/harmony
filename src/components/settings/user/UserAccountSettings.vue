@@ -3,7 +3,7 @@
     <div class="settings-header">
       <h2 class="settings-title">{{ $t('settings.account') }}</h2>
       <p class="settings-description">
-        Manage your account settings and set e-mail preferences.
+        Manage your profile and account details.
       </p>
     </div>
 
@@ -82,7 +82,7 @@
           />
         </div>
         <div class="form-hint">
-          This is how others see you.{{ instanceSettings.settings.allowCustomEmojisInDisplayNames ? ' You can use custom emoji (type : to search).' : '' }} {{ (localProfile.display_name?.length || 0) }}/50
+          This is how others see you.{{ instanceSettings.settings.allowCustomEmojisInDisplayNames ? ' Type : to add custom emoji.' : '' }} {{ (localProfile.display_name?.length || 0) }}/50
         </div>
       </div>
 
@@ -100,7 +100,7 @@
           />
         </div>
         <div class="form-hint">
-          Username cannot be changed until federation username updates are properly implemented.
+          Usernames can't be changed: other servers identify your account by it.
         </div>
       </div>
 

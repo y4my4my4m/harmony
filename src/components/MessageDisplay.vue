@@ -150,7 +150,7 @@
               <div class="system-content">
                 <!-- Thread created system message -->
                 <template v-if="item.message.metadata?.type === 'thread_created'">
-                  <div class="system-icon">🧵</div>
+                  <Icon name="thread" :size="16" class="system-icon" />
                   <div class="system-text thread-created-text">
                     <span 
                       class="system-user-mention"
@@ -202,7 +202,7 @@
                 </template>
                 <!-- Group created / users added system message (DM) -->
                 <template v-else-if="item.message.metadata?.type === 'group_created'">
-                  <div class="system-icon">👥</div>
+                  <Icon name="users" :size="16" class="system-icon" />
                   <div class="system-text">
                     <UnifiedMessageContent 
                       :content="item.message.content"
@@ -214,7 +214,7 @@
                 </template>
                 <!-- Member join system message -->
                 <template v-else-if="item.message.metadata?.type === 'member_join'">
-                  <div class="system-icon">👋</div>
+                  <Icon name="arrow-right" :size="16" class="system-icon join" />
                   <div class="system-text">
                     <span 
                       class="system-user-mention"
@@ -226,7 +226,7 @@
                 </template>
                 <!-- Member leave system message -->
                 <template v-else-if="item.message.metadata?.type === 'member_leave'">
-                  <div class="system-icon">🚪</div>
+                  <Icon name="arrow-left" :size="16" class="system-icon leave" />
                   <div class="system-text">
                     <span 
                       class="system-user-mention"
@@ -238,7 +238,7 @@
                 </template>
                 <!-- Member kick system message -->
                 <template v-else-if="item.message.metadata?.type === 'member_kick'">
-                  <div class="system-icon">🚪</div>
+                  <Icon name="user-x" :size="16" class="system-icon leave" />
                   <div class="system-text">
                     <span
                       class="system-user-mention"
@@ -255,7 +255,7 @@
                 </template>
                 <!-- Member ban system message -->
                 <template v-else-if="item.message.metadata?.type === 'member_ban'">
-                  <div class="system-icon">🔨</div>
+                  <Icon name="gavel" :size="16" class="system-icon leave" />
                   <div class="system-text">
                     <span
                       class="system-user-mention"
@@ -272,7 +272,7 @@
                 </template>
                 <!-- Default system message -->
                 <template v-else>
-                  <div class="system-icon">👋</div>
+                  <Icon name="info" :size="16" class="system-icon" />
                   <div class="system-text">
                     <UnifiedMessageContent 
                       :content="item.message.content"
@@ -350,7 +350,7 @@
                   v-if="item.message.is_pinned" 
                   class="pin-indicator"
                   title="Pinned message"
-                >📌</span>
+                ><Icon name="pin" :size="14" /></span>
                 <!-- Encryption indicators -->
                 <span
                   v-if="item.message.decrypted"
@@ -584,6 +584,7 @@
 <script setup lang="ts">
 defineOptions({ inheritAttrs: false })
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
+import Icon from '@/components/common/Icon.vue';
 import { computed, ref, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import { debug } from '@/utils/debug'
 import { getAvatarUrl } from '@/utils/avatarUtils';
@@ -4063,8 +4064,16 @@ defineExpose({ editLastOwnMessage });
 
 
 .system-icon {
-  font-size: 1rem;
   flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.system-icon.join {
+  color: var(--success);
+}
+
+.system-icon.leave {
+  color: var(--error);
 }
 
 .system-text {

@@ -27,7 +27,7 @@
         </svg>
       </div>
       <h4 class="empty-title">{{ $t('activitypub.noFollowingYet') }}</h4>
-      <p class="empty-description">{{ $t('activitypub.followUsersToSee') }}</p>
+      <p class="empty-description">{{ $t('dm.followingEmptyHint') }}</p>
       <router-link to="/social/trending" class="explore-btn">
         {{ $t('activitypub.discoverPeople') }}
       </router-link>

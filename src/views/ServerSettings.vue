@@ -3,13 +3,13 @@
     <!-- Mobile Navigation Header -->
     <div class="mobile-nav" v-if="isMobile">
       <button class="mobile-menu-btn" @click="toggleSidebar" aria-label="Toggle navigation">
-        <div class="hamburger-icon" :class="{ active: showSidebar }">
+        <div class="hamburger-icon">
           <span></span>
           <span></span>
           <span></span>
         </div>
       </button>
-      <h1 class="mobile-title">{{ currentSectionLabel }}</h1>
+      <h1 class="mobile-title">{{ showSidebar ? $t('server.serverSettings') : currentSectionLabel }}</h1>
       <button class="mobile-back-btn" @click="back" aria-label="Back to chat">
         <svg width="20" height="20" viewBox="0 0 24 24">
           <path fill="currentColor" d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.42-1.41L7.83 13H20v-2z"/>
@@ -535,17 +535,8 @@ watch(hasChanges, (newValue) => {
   transition: all 0.3s ease;
 }
 
-.hamburger-icon.active span:nth-child(1) {
-  transform: rotate(45deg) translate(6px, 6px);
-}
 
-.hamburger-icon.active span:nth-child(2) {
-  opacity: 0;
-}
 
-.hamburger-icon.active span:nth-child(3) {
-  transform: rotate(-45deg) translate(6px, -6px);
-}
 
 .mobile-title {
   font-size: 18px;

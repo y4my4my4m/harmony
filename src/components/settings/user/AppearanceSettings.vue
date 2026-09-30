@@ -110,14 +110,14 @@
               :class="{ active: settings.customThemeMode === 'dark' }"
               @click="settings.customThemeMode = 'dark'; onCustomThemeModeChange()"
             >
-              🌙 Dark
+              Dark
             </button>
             <button
               class="mode-btn"
               :class="{ active: settings.customThemeMode === 'light' }"
               @click="settings.customThemeMode = 'light'; onCustomThemeModeChange()"
             >
-              ☀️ Light
+              Light
             </button>
           </div>
         </div>

@@ -418,45 +418,6 @@
       </div>
     </div>
 
-    <!-- Email Notifications Section -->
-    <div class="settings-section">
-      <h3 class="section-title">
-        Email Notifications
-        <span class="coming-soon-badge">Coming soon</span>
-      </h3>
-      <p class="section-description">Configure email digests and summaries</p>
-
-      <div class="setting-item disabled-option">
-        <div class="setting-info">
-          <h4 class="setting-label">Email Notifications</h4>
-          <p class="setting-description">Receive email summaries of activity</p>
-        </div>
-        <div class="setting-control">
-          <ToggleSwitch
-            v-model="preferences.email_notifications"
-            disabled
-          />
-        </div>
-      </div>
-
-      <div v-if="false" class="setting-item">
-        <div class="setting-info">
-          <h4 class="setting-label">Email Digest Frequency</h4>
-          <p class="setting-description">How often to send email summaries</p>
-        </div>
-        <div class="setting-control">
-          <select 
-            v-model="preferences.email_digest_frequency"
-            @change="updatePreferences"
-            class="select-input"
-          >
-            <option value="daily">Daily</option>
-            <option value="weekly">Weekly</option>
-            <option value="never">Never</option>
-          </select>
-        </div>
-      </div>
-    </div>
 
     <!-- Haptic Feedback Section (mobile devices only) -->
     <div class="settings-section" v-if="hapticsAvailable">
@@ -1279,24 +1240,7 @@ watch(() => notificationStore.preferences, (newPreferences) => {
   margin-bottom: 20px;
 }
 
-.coming-soon-badge {
-  display: inline-block;
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: rgba(245, 158, 11, 0.15);
-  color: #f59e0b;
-  vertical-align: middle;
-  margin-left: 6px;
-}
 
-.setting-item.disabled-option .setting-label,
-.setting-item.disabled-option .setting-description {
-  opacity: 0.65;
-}
 
 .section-title {
   font-size: 16px;

@@ -3,7 +3,7 @@
     <div class="wizard-modal">
       <!-- Header -->
       <div class="wizard-header">
-        <h2>🔐 Set Up Message Encryption</h2>
+        <h2>Set up message encryption</h2>
         <button class="close-btn" @click="$emit('close')" :disabled="isProcessing">×</button>
       </div>
 
@@ -19,7 +19,7 @@
           }"
         >
           <div class="step-indicator">
-            <span v-if="currentStep > index">✓</span>
+            <Icon v-if="currentStep > index" name="check" :size="14" />
             <span v-else>{{ index + 1 }}</span>
           </div>
           <span class="step-label">{{ step }}</span>
@@ -31,7 +31,7 @@
         <!-- Step 1: Introduction -->
         <div v-if="currentStep === 0" class="step-content">
           <div class="intro-card">
-            <div class="intro-icon">🛡️</div>
+            <div class="intro-icon"><Icon name="shield" :size="40" /></div>
             <h3>End-to-End Encryption</h3>
             <p>
               Your messages will be encrypted so only you and your recipients can read them.
@@ -41,29 +41,29 @@
 
           <div class="feature-grid">
             <div class="feature-card">
-              <span class="feature-icon">🔑</span>
+              <span class="feature-icon"><Icon name="key" :size="18" /></span>
               <h4>Recovery Key</h4>
               <p>A 12-word phrase that protects all your encryption keys</p>
             </div>
             <div class="feature-card">
-              <span class="feature-icon">☁️</span>
+              <span class="feature-icon"><Icon name="database" :size="18" /></span>
               <h4>Encrypted Backup</h4>
               <p>Your keys are backed up to the server, encrypted with your recovery key</p>
             </div>
             <div class="feature-card">
-              <span class="feature-icon">📱</span>
+              <span class="feature-icon"><Icon name="smartphone" :size="18" /></span>
               <h4>Multi-Device</h4>
               <p>Use your recovery key to access messages on any device</p>
             </div>
             <div class="feature-card">
-              <span class="feature-icon">🔄</span>
+              <span class="feature-icon"><Icon name="refresh-cw" :size="18" /></span>
               <h4>Recovery</h4>
               <p>If you clear your cache, just enter your recovery key to restore access</p>
             </div>
           </div>
 
           <div class="warning-box">
-            <span class="warning-icon">⚠️</span>
+            <span class="warning-icon"><Icon name="alert-triangle" :size="18" /></span>
             <p>
               <strong>Important:</strong> Write down your recovery key and store it safely.
               If you lose it and your devices, you won't be able to read your encrypted messages.
@@ -74,7 +74,7 @@
         <!-- Step 2: Generate Recovery Key -->
         <div v-if="currentStep === 1" class="step-content">
           <div class="recovery-key-section">
-            <h3>📝 Your Recovery Key</h3>
+            <h3>Your recovery key</h3>
             <p class="instruction">
               Write down these 12 words in order. Store them somewhere safe - you'll need them to recover your encryption keys.
             </p>
@@ -101,21 +101,21 @@
                 @click="copyRecoveryKey"
                 :disabled="recoveryWords.length === 0"
               >
-                📋 Copy to Clipboard
+                Copy
               </button>
               <button
                 class="btn btn-secondary"
                 @click="downloadRecoveryKey"
                 :disabled="recoveryWords.length === 0"
               >
-                💾 Download as File
+                Download
               </button>
               <button
                 class="btn btn-secondary"
                 @click="toggleQRCode"
                 :disabled="recoveryWords.length === 0"
               >
-                {{ showQRCode ? '🙈 Hide QR Code' : '🔳 Show QR Code' }}
+                {{ showQRCode ? 'Hide QR code' : 'Show QR code' }}
               </button>
             </div>
 
@@ -137,7 +137,7 @@
         <!-- Step 3: Verify Recovery Key -->
         <div v-if="currentStep === 2" class="step-content">
           <div class="verify-section">
-            <h3>✅ Verify Your Recovery Key</h3>
+            <h3>Verify your recovery key</h3>
             <p class="instruction">
               To make sure you've saved your recovery key correctly, please enter the words at these positions:
             </p>
@@ -174,7 +174,7 @@
         <!-- Step 4: Complete -->
         <div v-if="currentStep === 3" class="step-content">
           <div class="complete-section">
-            <div class="success-icon">🎉</div>
+            <div class="success-icon"><Icon name="check-circle" :size="40" /></div>
             <h3>Encryption Setup Complete!</h3>
             <p>
               Your end-to-end encryption is now active. Your messages will be encrypted
@@ -184,15 +184,15 @@
             <div class="summary-card">
               <h4>What's Set Up:</h4>
               <ul>
-                <li>✅ Recovery key generated and verified</li>
-                <li>✅ Encryption keys created</li>
-                <li>✅ Encrypted backup stored on server</li>
-                <li>✅ Ready to send encrypted messages</li>
+                <li>Recovery key generated and verified</li>
+                <li>Encryption keys created</li>
+                <li>Encrypted backup stored on the server</li>
+                <li>Ready to send encrypted messages</li>
               </ul>
             </div>
 
             <div class="reminder-box">
-              <span class="reminder-icon">📌</span>
+              <span class="reminder-icon"><Icon name="pin" :size="16" /></span>
               <p>
                 <strong>Remember:</strong> Keep your 12-word recovery key safe.
                 You'll need it to restore access on new devices or after clearing your browser data.
@@ -240,6 +240,7 @@
 </template>
 
 <script setup lang="ts">
+import Icon from '@/components/common/Icon.vue'
 import { ref, computed, onMounted } from 'vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { debug } from '@/utils/debug'

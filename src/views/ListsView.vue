@@ -16,7 +16,7 @@
 
     <!-- Empty State -->
     <div v-else-if="lists.length === 0" class="lists-empty">
-      <div class="empty-icon">📋</div>
+      <div class="empty-icon"><Icon name="list" :size="40" /></div>
       <h2>No lists yet</h2>
       <p>Lists let you organize followed accounts and create custom timelines.</p>
       <button class="create-first-btn" @click="showCreateModal = true">
@@ -36,10 +36,10 @@
           <h3 class="list-title">{{ list.title }}</h3>
           <div class="list-badges">
             <span v-if="list.is_exclusive" class="badge exclusive" title="Exclusive list">
-              ⭐
+              <Icon name="star" :size="14" />
             </span>
             <span v-if="list.is_public" class="badge public" title="Public list">
-              🌐
+              <Icon name="globe" :size="14" />
             </span>
           </div>
         </div>
@@ -55,11 +55,11 @@
           </span>
         </div>
         <div class="list-actions" @click.stop>
-          <button class="action-btn edit" @click="editList(list)" title="Edit list">
-            ✏️
+          <button class="action-btn edit" @click="editList(list)" title="Edit list" aria-label="Edit list">
+            <Icon name="pencil" :size="16" />
           </button>
-          <button class="action-btn delete" @click="confirmDeleteList(list)" title="Delete list">
-            🗑️
+          <button class="action-btn delete" @click="confirmDeleteList(list)" title="Delete list" aria-label="Delete list">
+            <Icon name="trash" :size="16" />
           </button>
         </div>
       </div>
@@ -149,6 +149,7 @@
 </template>
 
 <script setup lang="ts">
+import Icon from '@/components/common/Icon.vue'
 import { computed, onMounted, ref, reactive } from 'vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { useRouter } from 'vue-router'

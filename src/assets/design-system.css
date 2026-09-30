@@ -628,6 +628,7 @@ strong {
   white-space: nowrap;
   text-decoration: none;
   background: none;
+  color: var(--text-primary);
   outline: none;
   min-height: 38px;
 }
@@ -645,15 +646,12 @@ strong {
 
 /* Button Variants */
 .btn-primary {
-  background: linear-gradient(135deg, var(--harmony-primary), var(--harmony-primary-hover));
+  background: var(--harmony-primary);
   color: var(--text-on-primary, #ffffff);
-  box-shadow: var(--shadow-small);
 }
 
 .btn-primary:hover:not(:disabled) {
   background: var(--harmony-primary-hover);
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-medium);
 }
 
 .btn-secondary {
@@ -668,23 +666,21 @@ strong {
 }
 
 .btn-success {
-  background: linear-gradient(135deg, var(--success), var(--success-hover));
+  background: var(--success);
   color: var(--text-on-primary, #ffffff);
 }
 
 .btn-success:hover:not(:disabled) {
   background: var(--success-hover);
-  transform: translateY(-1px);
 }
 
 .btn-danger {
-  background: linear-gradient(135deg, var(--error), var(--error-hover));
+  background: var(--error);
   color: var(--text-on-primary, #ffffff);
 }
 
 .btn-danger:hover:not(:disabled) {
   background: var(--error-hover);
-  transform: translateY(-1px);
 }
 
 .btn-ghost {
@@ -712,12 +708,13 @@ strong {
   min-height: 44px;
 }
 
-.btn-icon {
+/* Qualified by .btn: components use .btn-icon for the glyph inside a button. */
+.btn.btn-icon {
   padding: var(--space-3);
   min-width: 38px;
 }
 
-.btn-icon.btn-sm {
+.btn.btn-icon.btn-sm {
   padding: var(--space-2);
   min-width: 32px;
 }
@@ -785,8 +782,7 @@ strong {
 
 .card-hover:hover {
   border-color: var(--border-hover);
-  box-shadow: var(--shadow-medium);
-  transform: translateY(-1px);
+  background: var(--background-modifier-hover);
 }
 
 .card-header {

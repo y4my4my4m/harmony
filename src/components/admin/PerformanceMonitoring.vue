@@ -126,32 +126,6 @@
         </div>
       </div>
 
-      <div class="chart-container">
-        <h3>Request Distribution <span style="font-size: 11px; opacity: 0.5; font-weight: 400;">(hardcoded for now, would need cron queries)</span></h3>
-        <div class="distribution-list">
-          <div 
-            v-for="endpoint in endpointStats" 
-            :key="endpoint.path"
-            class="distribution-item"
-          >
-            <div class="endpoint-info">
-              <span class="method" :class="(endpoint.method ?? 'get').toLowerCase()">{{ endpoint.method }}</span>
-              <span class="path">{{ endpoint.path }}</span>
-            </div>
-            <div class="endpoint-stats">
-              <span class="requests">{{ formatNumber(endpoint.requests) }} req</span>
-              <span class="latency">{{ endpoint.avgLatency }}ms avg</span>
-            </div>
-            <div class="progress-bar">
-              <div 
-                class="progress-fill" 
-                :style="{ width: `${(endpoint.requests / maxEndpointRequests) * 100}%` }"
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
 
     <!-- Slow Queries Section -->
     <div class="slow-queries-section">
@@ -267,12 +241,6 @@ const metrics = ref({
 })
 
 const latencyData = ref<{ label: string; value: number }[]>([])
-const endpointStats = ref<{
-  path: string
-  method: string
-  requests: number
-  avgLatency: number
-}[]>([])
 const slowQueries = ref<{
   id: string
   query: string
@@ -293,7 +261,6 @@ const federationServers = ref<{
 // Computed
 const hasChartData = computed(() => latencyData.value.length > 0)
 const maxLatency = computed(() => Math.max(...latencyData.value.map(d => d.value), 1))
-const maxEndpointRequests = computed(() => Math.max(...endpointStats.value.map(e => e.requests), 1))
 
 // Methods
 const formatNumber = (num: number): string => {
@@ -364,7 +331,6 @@ const refreshData = async () => {
     await Promise.all([
       fetchOverviewMetrics(),
       fetchLatencyData(),
-      fetchEndpointStats(),
       fetchSlowQueries(),
       fetchFederationHealth(),
     ])
@@ -439,17 +405,6 @@ const fetchLatencyData = async () => {
   } catch (error) {
     console.error('Failed to fetch latency data:', error)
   }
-}
-
-const fetchEndpointStats = async () => {
-  // Placeholder data. Real source is performance_metrics_raw aggregated by endpoint.
-  endpointStats.value = [
-    { path: '/api/messages', method: 'GET', requests: 15420, avgLatency: 45 },
-    { path: '/api/messages', method: 'POST', requests: 8234, avgLatency: 78 },
-    { path: '/api/channels', method: 'GET', requests: 5621, avgLatency: 32 },
-    { path: '/inbox', method: 'POST', requests: 3215, avgLatency: 125 },
-    { path: '/api/users', method: 'GET', requests: 2890, avgLatency: 28 },
-  ]
 }
 
 const fetchSlowQueries = async () => {
@@ -833,71 +788,6 @@ onUnmounted(() => {
 .chart-labels span {
   flex: 1;
   text-align: center;
-}
-
-/* Distribution List */
-.distribution-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  max-height: 200px;
-  overflow-y: auto;
-}
-
-.distribution-item {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-}
-
-.endpoint-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-  min-width: 200px;
-}
-
-.method {
-  font-size: 10px;
-  font-weight: 600;
-  padding: 2px 6px;
-  border-radius: 4px;
-  text-transform: uppercase;
-}
-
-.method.get { background: rgba(46, 204, 113, 0.15); color: #2ECC71; }
-.method.post { background: rgba(52, 152, 219, 0.15); color: #3498DB; }
-.method.put { background: rgba(241, 196, 15, 0.15); color: #F1C40F; }
-.method.delete { background: rgba(231, 76, 60, 0.15); color: #E74C3C; }
-
-.path {
-  font-family: monospace;
-  font-size: 13px;
-  color: var(--text-primary);
-}
-
-.endpoint-stats {
-  display: flex;
-  gap: 16px;
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-.progress-bar {
-  width: 100%;
-  height: 4px;
-  background: var(--background-tertiary);
-  border-radius: 2px;
-  overflow: hidden;
-}
-
-.progress-fill {
-  height: 100%;
-  background: var(--harmony-primary);
-  border-radius: 2px;
-  transition: width 0.3s ease;
 }
 
 /* Slow Queries */

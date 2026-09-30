@@ -6,8 +6,15 @@
       @createCategory="createCategory"
     />
     <div class="server-header">
-      <div class="server-name" @click.stop="toggleDropdown">
-        {{ currentServer.name }}
+      <div
+        class="server-name"
+        :class="{ open: isDropdownOpen }"
+        role="button"
+        :aria-expanded="isDropdownOpen"
+        @click.stop="toggleDropdown"
+      >
+        <span class="server-name-text">{{ currentServer.name }}</span>
+        <Icon name="chevron-down" :size="16" class="server-name-chevron" />
       </div>
       <ServerDropdown
         :serverId="currentServer.id"
@@ -1269,11 +1276,30 @@ watch(() => props.currentServer?.id, () => {
   justify-content: center;
   line-height: 1.2rem;
   border-bottom: 1px solid var(--border-color);
+  gap: 6px;
+  padding: 0 12px;
 }
 
 .server-name:hover {
   box-shadow: 0 1px 5px 0px rgba(0,0,0,0.25);
   background: var(--background-secondary);
+}
+
+.server-name-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.server-name-chevron {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  transition: transform 0.2s ease;
+}
+
+.server-name.open .server-name-chevron {
+  transform: rotate(180deg);
 }
 
 /* draggable requires one wrapper element per item; holds channel plus participants. */

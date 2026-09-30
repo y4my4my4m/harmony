@@ -19,13 +19,6 @@
     
     <!-- DM Mode: Conversations List -->
     <div v-else-if="mode === 'chat' && isDM" class="dm-mode-container">
-      <div class="dm-header">
-        <div class="dm-title">
-          <Icon name="message-circle" />
-          <h2>Direct Messages</h2>
-        </div>
-      </div>
-      
       <div class="dm-content">
         <DMSidebar
           @conversationSelected="$emit('conversation-selected', $event)"
@@ -138,6 +131,7 @@ import { useProfileStore } from '@/stores/useProfile';
 import { useAuthStore } from '@/stores/auth';
 import { useNotificationStore } from '@/stores/useNotification';
 import { authContextService } from '@/services/AuthContextService';
+import { useLayoutState } from '@/composables/useLayoutState';
 import type { Server, Channel, Category } from '@/types';
 
 // I18n
@@ -335,12 +329,16 @@ const refreshStats = async () => {
 
 const isRefreshing = computed(() => refreshingStats.value);
 
+const { closeMobileSidebars } = useLayoutState();
+
 const navigateToFollowing = () => {
   router.push('/social/following');
+  closeMobileSidebars();
 };
 
 const navigateToFollowers = () => {
   router.push('/social/followers');
+  closeMobileSidebars();
 };
 
 const navigateToProfile = () => {
@@ -360,10 +358,13 @@ const navigateToProfile = () => {
       params: { handle } 
     });
   }
+  closeMobileSidebars();
 };
 
+// Re-selecting the active item is a no-op navigation; the drawer closes regardless.
 const navigateToRoute = (path: string) => {
   router.push(path);
+  closeMobileSidebars();
 };
 
 const handleNavItemClick = (navItem: { id: string; path: string }) => {
@@ -509,7 +510,6 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
-.dm-header,
 .social-header {
   display: flex;
   align-items: center;
@@ -517,19 +517,6 @@ onUnmounted(() => {
   padding: 16px;
   border-bottom: 1px solid var(--border-color);
   height: 48px;
-}
-
-.dm-title {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  color: var(--text-primary);
-}
-
-.dm-title h2 {
-  font-size: 16px;
-  font-weight: 700;
-  margin: 0;
 }
 
 .dm-content {

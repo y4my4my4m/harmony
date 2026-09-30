@@ -108,10 +108,13 @@
       
       <div v-else-if="sortedConversations.length === 0" class="empty-state">
         <div class="empty-icon">
-          <Icon name="bot-message-square" :size="48" />
+          <Icon name="message-circle" :size="48" />
         </div>
         <h3>{{ $t('dm.noConversations') }}</h3>
         <p>{{ $t('dm.startBySearching') }}</p>
+        <button class="empty-cta" type="button" @click="showUserSearch = true">
+          {{ $t('dm.newMessage') }}
+        </button>
       </div>
 
       <div v-else class="conversations-list">
@@ -509,7 +512,9 @@ onUnmounted(() => {
 }
 
 .dm-header {
-  padding: 16px;
+  height: 48px;
+  box-sizing: border-box;
+  padding: 0 16px;
   border-bottom: 1px solid var(--background-quaternary, var(--background-quinary));
   display: flex;
   align-items: center;
@@ -729,6 +734,22 @@ onUnmounted(() => {
   margin: 0;
   font-size: 14px;
   line-height: 1.4;
+}
+
+.empty-cta {
+  margin-top: 16px;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  background: var(--accent-color, #0EA5E9);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.empty-cta:hover {
+  filter: brightness(1.1);
 }
 
 .conversations-list {

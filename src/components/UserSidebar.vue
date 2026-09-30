@@ -58,7 +58,7 @@
 
       <!-- Member Count -->
       <div class="member-count">
-        {{ $t('server.membersCount', { count: totalMemberCount }) }}
+        {{ $t('server.membersCount', totalMemberCount) }}
       </div>
     </div>
 
@@ -167,7 +167,7 @@
                 <div class="user-name-row">
                   <span
                     class="user-name"
-                    :style="{ color: item.nameColor || getUserColor(item.user!.id).value || undefined }"
+                    :style="{ color: item.nameColor || memberNameColor(item.user!.id) }"
                   >
                     <DisplayName :user-id="item.user!.id" :truncate="true" />
                   </span>
@@ -274,6 +274,7 @@ import InviteModal from './InviteModal.vue';
 import Avatar from '@/components/common/Avatar.vue';
 import DisplayName from '@/components/DisplayName.vue';
 import { useServerChannelStore } from '@/stores/useServerChannel';
+import { useServerRolesStore } from '@/stores/useServerRoles';
 import { showInstanceStaffBadge } from '@/utils/instanceBadge';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { useDMStore } from '@/stores/useDM';
@@ -304,6 +305,15 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const serverChannelStore = useServerChannelStore();
+const serverRolesStore = useServerRolesStore();
+
+// Same precedence as chat authors (MessageDisplay.resolveChatUserColor):
+// highest colored role in the current server, then profile color.
+const memberNameColor = (userId: string): string | undefined => {
+  const serverId = serverChannelStore.currentServerId;
+  const roleColor = serverId ? serverRolesStore.getUserRoleColor(serverId, userId) : null;
+  return roleColor || getUserColor(userId).value || undefined;
+};
 const activityPubStore = useActivityPubStore();
 const router = useRouter();
 const { isMobile } = useLayoutState();
