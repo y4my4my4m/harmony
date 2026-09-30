@@ -1014,7 +1014,21 @@
     "showLess": "Show less",
     "removeAttachment": "Remove attachment",
     "supportInstance": "Support this server",
-    "openMedia": "Open media"
+    "openMedia": "Open media",
+    "gifLabel": "GIF",
+    "noMediaYet": "No media yet",
+    "noMediaOwn": "Photos and videos you post show up here.",
+    "noMediaOther": "{name} hasn't posted photos or videos yet.",
+    "loadMediaFailed": "Couldn't load media",
+    "loadMoreMediaFailed": "Couldn't load more media.",
+    "loadingMedia": "Loading media",
+    "mediaGridLabel": "Media from {name}",
+    "mediaItemsCount": "{count} item | {count} items",
+    "revealMediaLabel": "{warning}. Show media",
+    "viewPost": "View post",
+    "fetchOlderFromDomain": "Load older posts from {domain}",
+    "fetchingOlderFromDomain": "Checking {domain} for older posts",
+    "fetchOlderFailed": "Couldn't reach {domain}."
   },
   "moderation": {
     "report": "Report",

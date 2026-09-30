@@ -25,6 +25,7 @@ import type {
   PostContextOptions,
   PostWithContext
 } from '@/types';
+import type { ProfileMediaCursor, ProfileMediaRow } from '@/utils/profileMedia';
 import { debug } from '@/utils/debug'
 
 interface ProfileCacheEntry {
@@ -661,6 +662,56 @@ export class ActivityPubService {
     });
 
     return posts as Post[];
+  }
+
+  /**
+   * One page of the author's posts carrying images or video, newest first. Visibility is
+   * the posts RLS policy's: the RPC runs as the caller.
+   */
+  async getProfileMedia(
+    authorId: string,
+    options: { limit?: number; before?: ProfileMediaCursor | null } = {}
+  ): Promise<ProfileMediaRow[]> {
+    const { data, error } = await supabase.rpc('get_profile_media', {
+      p_author_id: authorId,
+      p_limit: options.limit ?? 30,
+      ...(options.before
+        ? { p_before_created_at: options.before.createdAt, p_before_id: options.before.postId }
+        : {}),
+    });
+    if (error) throw error;
+    return (data ?? []) as ProfileMediaRow[];
+  }
+
+  /** Posts in the media tab for the caller; an index-only count. */
+  async countProfileMedia(authorId: string): Promise<number> {
+    const { data, error } = await supabase.rpc('count_profile_media', { p_author_id: authorId });
+    if (error) throw error;
+    return typeof data === 'number' ? data : 0;
+  }
+
+  /**
+   * Imports the next page of a remote author's outbox (up to `limit` posts) through the
+   * federation backend. The outbox cursor is held server-side, one per author.
+   */
+  async importRemoteOutboxPage(
+    authorId: string,
+    outboxUrl: string,
+    options: { maxId?: string | null; limit?: number } = {}
+  ): Promise<{ hasMore: boolean; oldestId: string | null }> {
+    const response = await fetch(apiUrl('/api/federation/fetch-posts'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        user_id: authorId,
+        outbox_url: outboxUrl,
+        max_id: options.maxId ?? undefined,
+        limit: options.limit ?? 20,
+      }),
+    });
+    if (!response.ok) throw new Error(`Outbox import failed: ${response.status}`);
+    const result = await response.json();
+    return { hasMore: result?.has_more === true, oldestId: result?.oldest_id ?? null };
   }
 
   // Soft delete; the Delete activity is emitted by a database trigger.
