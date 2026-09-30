@@ -215,7 +215,7 @@ handle_unified_notification_processing	definer	trigger	anon+authenticated+servic
 has_active_session	definer	boolean	service_role	client	rpc in federation-backend/src/services/PushNotificationService.ts
 has_blocked	definer	boolean	anon+authenticated+service_role	policy	policy public.posts SELECT on posts_select_public
 has_muted	definer	boolean	service_role	service key	nothing references it
-has_permission	definer	boolean	anon+authenticated+service_role	client, policy, trigger	policy public.discord_bridge_pairings ALL on Server owners manage discord bridge pairing, public.server_bans SELECT on server_bans_select_moderator, storage.objects DELETE on Users can delete emojis, +5
+has_permission	definer	boolean	anon+authenticated+service_role	client, policy, trigger	policy public.discord_bridge_pairings ALL on Server owners manage discord bridge pairing, public.server_bans SELECT on server_bans_select_moderator, storage.objects DELETE on Users can delete emojis, +5; rpc in federation-backend/src/activitypub/ServerInboxHandler.ts
 import_remote_emoji	definer	uuid	anon+authenticated+service_role	client	rpc in src/components/admin/EmojiImporter.vue
 increment_unread_mentions	definer	trigger	anon+authenticated+service_role	trigger	trigger public.notifications AFTER INSERT (trigger_increment_unread_mentions)
 index_message	definer	trigger	anon+authenticated+service_role	trigger	trigger public.messages AFTER INSERT/UPDATE (trigger_index_message)

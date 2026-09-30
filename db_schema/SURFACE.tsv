@@ -215,7 +215,7 @@ handle_unified_notification_processing		trigger	definer	public, pg_temp	anon+aut
 has_active_session	p_user_id uuid	boolean	definer	public, extensions, pg_temp	service_role	client
 has_blocked	target_user_id uuid	boolean	definer	public, pg_temp	anon+authenticated+service_role	policy
 has_muted	target_user_id uuid	boolean	definer	public, pg_temp	service_role	unreferenced
-has_permission	p_user_id uuid, p_server_id uuid, p_permission text, p_channel_id uuid	boolean	definer	public, extensions, pg_temp	anon+authenticated+service_role	policy
+has_permission	p_user_id uuid, p_server_id uuid, p_permission text, p_channel_id uuid	boolean	definer	public, extensions, pg_temp	anon+authenticated+service_role	client
 import_remote_emoji	p_remote_emoji_id uuid, p_new_name text, p_server_id uuid	uuid	definer	public, pg_temp	anon+authenticated+service_role	client
 increment_unread_mentions		trigger	definer	public, extensions, pg_temp	anon+authenticated+service_role	trigger
 index_message		trigger	definer	public, pg_temp	anon+authenticated+service_role	trigger
