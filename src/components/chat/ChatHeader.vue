@@ -36,11 +36,11 @@
 
     <div class="header-actions">
       <button 
-        v-if="pinnedCount > 0"
         class="action-btn pinned-btn"
         :class="{ 'has-pins': pinnedCount > 0 }"
         @click="handlePinnedClick"
-        :title="`${pinnedCount} pinned message${pinnedCount !== 1 ? 's' : ''}`"
+        :title="pinnedCount > 0 ? `${pinnedCount} pinned message${pinnedCount !== 1 ? 's' : ''}` : 'Pinned messages'"
+        aria-label="Pinned messages"
       >
         <Icon name="pin" :size="16" />
         <span v-if="pinnedCount > 0" class="pinned-count">{{ pinnedCount }}</span>
@@ -92,9 +92,9 @@
             <!-- Mobile: pinned/threads buttons are hidden from the header
                  and exposed here instead. -->
             <template v-if="isMobile">
-              <div v-if="pinnedCount > 0" class="context-menu-item" @click="handleMenuPinned">
+              <div class="context-menu-item" @click="handleMenuPinned">
                 <Icon name="pin" :size="16" />
-                <span>Pinned messages ({{ pinnedCount }})</span>
+                <span>Pinned messages<template v-if="pinnedCount > 0"> ({{ pinnedCount }})</template></span>
               </div>
               <div class="context-menu-item" @click="handleMenuThreads">
                 <Icon name="thread" :size="16" />
@@ -183,8 +183,8 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import type { Channel, Server } from '@/types'
 import Icon from '@/components/common/Icon.vue'
-import { messageService } from '@/services'
 import { supabase } from '@/supabase'
+import { usePinsStore, pinScopeKey } from '@/stores/usePins'
 import { useNotificationStore } from '@/stores/useNotification'
 import { authContextService } from '@/services/AuthContextService'
 import { useServerPermissions } from '@/composables/useServerPermissions'
@@ -225,7 +225,8 @@ const lockKey = computed((): string | null => {
 // State
 const showMembersList = ref(false)
 const showOptionsMenu = ref(false)
-const pinnedCount = ref(0)
+const pinsStore = usePinsStore()
+const pinnedCount = computed(() => pinsStore.pinnedCount(pinScopeKey(props.channel?.id)))
 const isChannelMuted = ref(false)
 // Matches the DB default (`notification_channels.notification_level DEFAULT 'mentions'`)
 // so the UI shows the correct check mark before any explicit per-channel
@@ -276,13 +277,11 @@ async function mergeServerChannelNotificationRow(
 }
 
 // Methods
-const loadPinnedCount = async () => {
+// Cached count renders at once; the fetch revalidates it. Realtime rows and
+// local pin ops keep it current afterwards.
+const loadPinnedCount = () => {
   if (!props.channel?.id) return
-  try {
-    pinnedCount.value = await messageService.getPinnedCount(props.channel.id)
-  } catch (error) {
-    console.error('Failed to load pinned count:', error)
-  }
+  void pinsStore.loadCount(props.channel.id, null, { entering: true })
 }
 
 const loadMuteState = async () => {

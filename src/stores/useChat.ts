@@ -6,6 +6,7 @@ import type { Message, ChannelCache, CacheMetadata, Emoji, MessagePart } from '@
 import { useReactionsStore } from '@/stores/useReactions';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useServerChannelStore } from '@/stores/useServerChannel';
+import { usePinsStore } from '@/stores/usePins';
 import { ensureMessageEmbeds } from '@/utils/messageEmbedUtils';
 import { processMessageDecryption } from '@/utils/messageDecryption';
 import { reportChannelEncryptionError } from '@/composables/useEncryptionAction';
@@ -581,6 +582,18 @@ export const useChatStore = defineStore('chat', {
       }
     },
 
+    /** In place: the live list and cache entries share message objects. */
+    patchMessageFields(messageId: string, fields: Partial<Message>) {
+      for (const msg of this.messages) {
+        if (msg.id === messageId) Object.assign(msg, fields);
+      }
+      this.messageCache.forEach((cache) => {
+        for (const msg of cache.messages) {
+          if (msg.id === messageId) Object.assign(msg, fields);
+        }
+      });
+    },
+
     removeMessageFromCache(messageId: string) {
       this.messages = this.messages.filter(msg => msg.id !== messageId);
 
@@ -909,6 +922,7 @@ export const useChatStore = defineStore('chat', {
       debug.log('Setting up real-time subscription for channel:', channelId);
 
       const store = this;
+      const pinsStore = usePinsStore();
 
       this.setupEncryptionKeyListener();
 
@@ -1031,6 +1045,9 @@ export const useChatStore = defineStore('chat', {
 
       const handleMessageUpdate = async (payload: any) => {
         const payloadNew = payload.new as any;
+
+        // Before any await: the pin delta reads the message's prior state.
+        pinsStore.applyRealtimeRow(payloadNew);
         
         // Thread replies belong to the thread UI. thread_id can be set after
         // insert (federation resolving a stub thread), so drop the row from
@@ -1059,7 +1076,7 @@ export const useChatStore = defineStore('chat', {
           reactions: payloadNew.reactions,
           reply_to: payloadNew.reply_to,
           is_system: payloadNew.is_system,
-          is_pinned: payloadNew.is_pinned,
+          is_pinned: pinsStore.pending[payloadNew.id]?.pinned ?? payloadNew.is_pinned,
           updated_at: payloadNew.updated_at ? new Date(payloadNew.updated_at) : undefined,
           metadata: payloadNew.metadata || null,
           encrypted: payloadNew.encrypted || false,
@@ -1082,6 +1099,7 @@ export const useChatStore = defineStore('chat', {
 
       const handleMessageDelete = (payload: any) => {
         const payloadOld = payload.old as any;
+        pinsStore.applyRealtimeDelete(payloadOld);
         store.removeMessageFromCache(payloadOld.id);
         debug.log('Message deleted via real-time:', payloadOld.id);
       }

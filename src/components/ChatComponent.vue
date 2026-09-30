@@ -176,6 +176,7 @@
   import { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData, resolveRoleMentionsData } from '@/utils/unifiedContentProcessing';
   import { buildChatParseOptions } from '@/utils/chatParseOptions';
   import { threadService } from '@/services/ThreadService';
+  import { useThreadsStore } from '@/stores/useThreads';
   import { coreMessageService } from '@/services/core/CoreMessageService';
   import { useEncryptionFallbackPrompt } from '@/composables/useEncryptionFallbackPrompt';
   import { ENCRYPTION_STATE_CHANGED_EVENT, reportChannelEncryptionError } from '@/composables/useEncryptionAction';
@@ -618,41 +619,51 @@
       // Thread state for draft threads
       const draftParentMessage = ref<Message | null>(null);
       
-      // Thread handlers
-      const handleCreateThread = async (messageOrEvent: Message | { thread: any }) => {
+      const threadsStore = useThreadsStore();
+
+      const openExistingThread = (thread: any) => {
+        selectedThreadId.value = thread.id;
+        selectedThread.value = thread;
+        draftParentMessage.value = null;
+        showThreadView.value = true;
+      };
+
+      // Thread handlers. The panel opens without a read: an indexed thread
+      // opens directly, anything else opens as a draft.
+      const handleCreateThread = (messageOrEvent: Message | { thread: any }) => {
         if ('thread' in messageOrEvent && messageOrEvent.thread) {
-          selectedThreadId.value = messageOrEvent.thread.id;
-          selectedThread.value = messageOrEvent.thread;
-          draftParentMessage.value = null;
-          showThreadView.value = true;
+          openExistingThread(messageOrEvent.thread);
           return;
         }
-        
+
         const message = messageOrEvent as Message;
-        
+
         if (!message || !props.channelId) {
           debug.warn('Cannot create thread: missing message or channelId');
           return;
         }
-        
-        try {
-          const existingThread = await threadService.getThreadForMessage(message.id);
-          
-          if (existingThread) {
-            selectedThreadId.value = existingThread.id;
-            selectedThread.value = existingThread;
-            draftParentMessage.value = null;
-            showThreadView.value = true;
-          } else {
-            // Draft thread view; the thread is created on the first message.
-            selectedThreadId.value = undefined;
-            selectedThread.value = null;
-            draftParentMessage.value = message;
-            showThreadView.value = true;
-          }
-        } catch (error) {
-          debug.error('Failed to create/open thread:', error);
+
+        const indexed = threadsStore.threadForMessage(message.id);
+        if (indexed) {
+          openExistingThread(indexed);
+          return;
         }
+
+        // Draft thread view; the thread is created on the first message.
+        selectedThreadId.value = undefined;
+        selectedThread.value = null;
+        draftParentMessage.value = message;
+        showThreadView.value = true;
+
+        // The index holds unarchived threads of the loaded page. A thread
+        // outside it replaces the draft if the draft is still showing.
+        void threadService.getThreadForMessage(message.id).then((found) => {
+          if (!found) return;
+          const entry = threadsStore.upsert(found);
+          if (showThreadView.value && draftParentMessage.value?.id === message.id) {
+            openExistingThread(entry);
+          }
+        });
       };
       
       // Fired by ThreadView when the first message creates the thread.

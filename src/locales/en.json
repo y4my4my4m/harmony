@@ -1179,7 +1179,12 @@
     "uploading": "Uploading...",
     "dropFilesHere": "Drop files here.",
     "setupNow": "Set up now",
-    "unlockNow": "Unlock"
+    "unlockNow": "Unlock",
+    "pinFailed": "Couldn't pin the message. Try again.",
+    "unpinFailed": "Couldn't unpin the message. Try again.",
+    "pinLimitReached": "Pin limit reached. Unpin a message to pin another.",
+    "threadCreateFailed": "Couldn't start the thread. Try again.",
+    "threadReplyFailed": "Couldn't send the reply. Try again."
   },
   "invite": {
     "accepting": "Accepting invite...",

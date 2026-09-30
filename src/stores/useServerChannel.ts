@@ -5,6 +5,7 @@ import type { Server, Category, Channel, ResolvedEmoji, ServerFolder } from '@/t
 import { useEmojiCacheStore } from '@/stores/useEmojiCache';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { useChatStore } from '@/stores/useChat';
+import { useThreadsStore } from '@/stores/useThreads';
 import { statePersistence } from '@/services/StatePersistence';
 import { userEventChannel } from '@/services/UserEventChannel';
 import { authContextService } from '@/services/AuthContextService';
@@ -1794,7 +1795,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
             case 'thread:insert':
             case 'thread:update':
             case 'thread:delete':
-              window.dispatchEvent(new CustomEvent('server-structure:thread-change', { detail: data }));
+              void useThreadsStore().applyBroadcast(data);
               break;
             case 'settings:insert':
             case 'settings:update':

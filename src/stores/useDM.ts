@@ -5,6 +5,7 @@ import { services } from '@/services'
 import type { Message, MessagePart } from '@/types'
 import { useServerUsersStore } from './useServerUsers'
 import { useReactionsStore } from './useReactions'
+import { usePinsStore } from './usePins'
 import { userDataService } from '@/services/userDataService'
 import { extractMentionsFromMessageParts } from '@/utils/unifiedContentProcessing'
 import { ensureMessageEmbeds } from '@/utils/messageEmbedUtils'
@@ -288,6 +289,18 @@ export const useDMStore = defineStore('dm', () => {
     } catch (error) {
       debug.warn('Failed to refresh DM embeds for updated message:', error)
     }
+  }
+
+  /** In place: the live list and cache entries share message objects. */
+  const patchMessageFields = (messageId: string, fields: Partial<Message>) => {
+    for (const msg of currentDMMessages.value) {
+      if (msg.id === messageId) Object.assign(msg, fields)
+    }
+    messageCache.value.forEach((cache) => {
+      for (const msg of cache.messages) {
+        if (msg.id === messageId) Object.assign(msg, fields)
+      }
+    })
   }
 
   const reprocessEncryptedDMMessages = async (roomId?: string) => {
@@ -2285,6 +2298,10 @@ export const useDMStore = defineStore('dm', () => {
       const handleMessageUpdate = async (payload: any) => {
         debug.log('DM message updated:', payload.new)
         const message = payload.new as any
+
+        // Before any await: the pin delta reads the message's prior state.
+        const pinsStore = usePinsStore()
+        pinsStore.applyRealtimeRow(message)
         
         if (message.is_deleted) {
           removeMessageFromCache(message.id)
@@ -2306,7 +2323,7 @@ export const useDMStore = defineStore('dm', () => {
           }
         }
         
-        let updatedMessage: Message = {
+        let updatedMessage: Message = pinsStore.overlayPending({
           ...message,
           created_at: new Date(message.created_at),
           updated_at: message.updated_at ? new Date(message.updated_at) : undefined,
@@ -2314,7 +2331,7 @@ export const useDMStore = defineStore('dm', () => {
           reactions: formattedReactions,
           metadata: message.metadata || null,
           encrypted: message.encrypted || false
-        }
+        })
         
         try {
           if (updatedMessage.encrypted) {
@@ -2332,6 +2349,7 @@ export const useDMStore = defineStore('dm', () => {
       const handleMessageDelete = (payload: any) => {
         debug.log('DM message deleted:', payload.old)
         const payloadOld = payload.old as any
+        usePinsStore().applyRealtimeDelete(payloadOld)
         removeMessageFromCache(payloadOld.id)
       }
       
@@ -3168,6 +3186,7 @@ export const useDMStore = defineStore('dm', () => {
     checkMigrationStatus,
     
     updateMessageInCache,
+    patchMessageFields,
     reprocessEncryptedDMMessages,
     setupEncryptionKeyListener
   }

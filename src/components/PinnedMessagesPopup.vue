@@ -93,9 +93,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
-import { messageService } from '@/services'
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useServerPermissions } from '@/composables/useServerPermissions'
+import { usePinActions } from '@/composables/usePinActions'
+import { usePinsStore, pinScopeKey } from '@/stores/usePins'
 import { useUserData } from '@/composables/useUserData'
 import { format } from 'date-fns'
 import Avatar from '@/components/common/Avatar.vue'
@@ -104,7 +105,6 @@ import Icon from '@/components/common/Icon.vue'
 import DisplayName from '@/components/DisplayName.vue'
 import UnifiedMessageContent from '@/components/UnifiedMessageContent.vue'
 import type { Message } from '@/types'
-import { processMessageDecryption } from '@/utils/messageDecryption'
 import { isUndecrypted } from '@/utils/channelEncryption'
 
 interface Props {
@@ -126,35 +126,45 @@ const {
   getUserAvatarUrl: getAvatarUrl
 } = useUserData()
 
-const pinnedMessages = ref<Message[]>([])
-const loading = ref(false)
+const pinsStore = usePinsStore()
+const { setPinned } = usePinActions()
+
+// In DMs the layout still passes the last channel id; the conversation wins.
+const scope = computed(() => pinScopeKey(
+  props.conversationId ? null : props.channelId,
+  props.conversationId,
+))
+const cachedMessages = computed(() => pinsStore.pinnedMessages(scope.value))
+const pinnedMessages = computed<Message[]>(() => cachedMessages.value ?? [])
+const loadFailed = ref(false)
+// Spinner only before the first fetch; later opens render the cached list.
+const loading = computed(() => cachedMessages.value === null && !loadFailed.value)
 const pinnedCount = computed(() => pinnedMessages.value.length)
 const canUnpin = computed(() => canPinMessages.value)
 
 const loadPinnedMessages = async () => {
-  if (!props.channelId && !props.conversationId) return
-
-  loading.value = true
+  if (!scope.value) return
+  loadFailed.value = false
   try {
-    const loaded = props.channelId
-      ? await messageService.getPinnedChannelMessages(props.channelId)
-      : await messageService.getPinnedDMMessages(props.conversationId!)
-    pinnedMessages.value = await processMessageDecryption(loaded)
+    await pinsStore.loadList(
+      props.conversationId ? null : props.channelId,
+      props.conversationId,
+    )
   } catch (error) {
+    loadFailed.value = true
     console.error('Failed to load pinned messages:', error)
-  } finally {
-    loading.value = false
   }
 }
 
-const unpinMessage = async (messageId: string) => {
-  try {
-    await messageService.unpinMessage(messageId)
-    pinnedMessages.value = pinnedMessages.value.filter(m => m.id !== messageId)
-  } catch (error) {
-    console.error('Failed to unpin message:', error)
-  }
+const unpinMessage = (messageId: string) => {
+  const message = pinnedMessages.value.find(m => m.id === messageId)
+  if (message) void setPinned(message, false)
 }
+
+// A remote pin for a message not held locally leaves the list incomplete.
+watch(() => pinsStore.isListStale(scope.value), (stale) => {
+  if (stale && props.isVisible) loadPinnedMessages()
+})
 
 const jumpToMessage = (messageId: string) => {
   emit('jump-to-message', messageId)
@@ -195,11 +205,18 @@ watch(() => props.isVisible, (visible) => {
   }
 })
 
+const onKeydown = (event: KeyboardEvent) => {
+  if (event.key === 'Escape' && props.isVisible) close()
+}
+
 onMounted(() => {
+  window.addEventListener('keydown', onKeydown)
   if (props.isVisible) {
     loadPinnedMessages()
   }
 })
+
+onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 </script>
 
 <style scoped>
