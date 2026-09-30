@@ -617,7 +617,10 @@ class LinkPreviewService {
       const accept = acceptJson
         ? 'application/json'
         : 'application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams", application/json';
-      let response = await safeFetch(url, {
+      // Retries signed (401/403) for instances requiring authorized fetch.
+      // The caller's signal is reused, so the signed retry shares the same
+      // abort budget as the first attempt.
+      const response = await SignatureService.fetchApWithSignatureFallback(url, {
         headers: {
           Accept: accept,
           'User-Agent': USER_AGENT,
@@ -626,19 +629,6 @@ class LinkPreviewService {
         // safeFetch always follows redirects manually with per-hop
         // re-validation (max 3 by default) - supersedes `redirect: 'follow'`.
       });
-
-      // Retry with HTTP signature for instances requiring authorized fetch
-      if (response.status === 401 || response.status === 403) {
-        clearTimeout(timeout);
-        logger.info(`AP fetch got ${response.status}, retrying with HTTP signature: ${url}`);
-        try {
-          response = await SignatureService.signedApFetch(url);
-          logger.info(`Signed AP fetch result: ${response.status} for ${url}`);
-        } catch (signedErr) {
-          logger.warn(`Signed AP fetch failed for ${url}:`, signedErr);
-          throw new Error(`Signed AP fetch also failed for ${url}`);
-        }
-      }
 
       if (!response.ok) {
         this.apFailedDomains.set(domain, Date.now());

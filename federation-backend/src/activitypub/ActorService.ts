@@ -269,7 +269,7 @@ router.post(
       logger.info(`Fetching actor: ${selfLink.href}`);
       // BUGS.md H15: selfLink.href comes from the remote webfinger response.
       // safeFetch re-validates the URL/DNS and follows redirects manually.
-      const actorResponse = await safeFetch(selfLink.href, {
+      const actorResponse = await SignatureService.fetchApWithSignatureFallback(selfLink.href, {
         headers: { 
           'Accept': 'application/activity+json, application/ld+json',
           'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
@@ -302,7 +302,7 @@ router.post(
 
       const fetchCollectionCount = async (url: string): Promise<number> => {
         try {
-          const response = await safeFetch(url, {
+          const response = await SignatureService.fetchApWithSignatureFallback(url, {
             headers: { 
               'Accept': 'application/activity+json, application/ld+json',
               'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
@@ -1326,7 +1326,7 @@ async function _fetchRemotePostReactionsImpl(
     let likesCollection: any = null;
     let likesCollectionUrl = `${postApId}/likes`;
 
-    const shortcutResponse = await safeFetch(likesCollectionUrl, {
+    const shortcutResponse = await SignatureService.fetchApWithSignatureFallback(likesCollectionUrl, {
       headers: apHeaders,
       timeoutMs: 10000,
     });
@@ -1338,7 +1338,7 @@ async function _fetchRemotePostReactionsImpl(
         `📬 /likes shortcut returned ${shortcutResponse.status} for ${postApId}; discovering URL via post object`
       );
 
-      const postResponse = await safeFetch(postApId, {
+      const postResponse = await SignatureService.fetchApWithSignatureFallback(postApId, {
         headers: apHeaders,
         timeoutMs: 10000,
       });
@@ -1415,7 +1415,7 @@ async function _fetchRemotePostReactionsImpl(
         }
       } catch { /* invalid URL, proceed */ }
 
-      const likesResponse = await safeFetch(likesCollectionUrl, {
+      const likesResponse = await SignatureService.fetchApWithSignatureFallback(likesCollectionUrl, {
         headers: apHeaders,
         timeoutMs: 10000,
       });
@@ -1447,7 +1447,7 @@ async function _fetchRemotePostReactionsImpl(
         ? likesCollection.first 
         : likesCollection.first.id;
       
-      const pageResponse = await safeFetch(firstPageUrl, {
+      const pageResponse = await SignatureService.fetchApWithSignatureFallback(firstPageUrl, {
         headers: {
           'Accept': 'application/activity+json, application/ld+json',
           'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
@@ -1877,7 +1877,7 @@ async function fetchRemotePostReplies(
     // collection URL.
     // BUGS.md H15: postApId is attacker-influenced; safeFetch enforces SSRF
     // protection.
-    const postResponse = await safeFetch(postApId, {
+    const postResponse = await SignatureService.fetchApWithSignatureFallback(postApId, {
       headers: {
         'Accept': 'application/activity+json, application/ld+json',
         'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
@@ -1914,7 +1914,7 @@ async function fetchRemotePostReplies(
     const repliesCollectionUrl = typeof repliesUrl === 'string' ? repliesUrl : repliesUrl.id;
     logger.info(`Fetching replies from: ${repliesCollectionUrl}`);
 
-    const repliesResponse = await safeFetch(repliesCollectionUrl, {
+    const repliesResponse = await SignatureService.fetchApWithSignatureFallback(repliesCollectionUrl, {
       headers: {
         'Accept': 'application/activity+json, application/ld+json',
         'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
@@ -1944,7 +1944,7 @@ async function fetchRemotePostReplies(
         : repliesCollection.first.id;
       itemsSourceUrl = firstPageUrl;
 
-      const pageResponse = await safeFetch(firstPageUrl, {
+      const pageResponse = await SignatureService.fetchApWithSignatureFallback(firstPageUrl, {
         headers: {
           'Accept': 'application/activity+json, application/ld+json',
           'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
@@ -1971,7 +1971,7 @@ async function fetchRemotePostReplies(
         let noteSourceUrl = itemsSourceUrl;
         if (typeof item === 'string') {
           noteSourceUrl = item;
-          const noteResponse = await safeFetch(item, {
+          const noteResponse = await SignatureService.fetchApWithSignatureFallback(item, {
             headers: {
               'Accept': 'application/activity+json, application/ld+json',
               'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
@@ -2643,7 +2643,7 @@ async function fetchRecentPostsInBackground(
     
     logger.info(`Fetching posts from: ${fetchUrl}`);
     
-    const outboxResponse = await safeFetch(fetchUrl, {
+    const outboxResponse = await SignatureService.fetchApWithSignatureFallback(fetchUrl, {
       headers: {
         'Accept': 'application/activity+json, application/ld+json',
         'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
@@ -2671,7 +2671,7 @@ async function fetchRecentPostsInBackground(
       const firstPageUrl = typeof outbox.first === 'string' ? outbox.first : outbox.first.id;
       logger.info(`Fetching first page: ${firstPageUrl}`);
       
-      const pageResponse = await safeFetch(firstPageUrl, {
+      const pageResponse = await SignatureService.fetchApWithSignatureFallback(firstPageUrl, {
         headers: {
           'Accept': 'application/activity+json, application/ld+json',
           'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
@@ -3030,13 +3030,9 @@ router.post(
     }
 
     try {
-      let response = await safeFetch(post.ap_id, {
+      const response = await SignatureService.fetchApWithSignatureFallback(post.ap_id, {
         headers: { 'Accept': 'application/activity+json, application/ld+json' },
       });
-
-      if (response.status === 401 || response.status === 403) {
-        response = await SignatureService.signedApFetch(post.ap_id);
-      }
 
       if (!response.ok) {
         return res.status(502).json({ error: `Remote server returned ${response.status}` });
@@ -3052,12 +3048,9 @@ router.post(
         if (!objectUrl) {
           return res.status(400).json({ error: 'Announce has no object URL to follow' });
         }
-        let noteResponse = await safeFetch(objectUrl, {
+        const noteResponse = await SignatureService.fetchApWithSignatureFallback(objectUrl, {
           headers: { 'Accept': 'application/activity+json, application/ld+json' },
         });
-        if (noteResponse.status === 401 || noteResponse.status === 403) {
-          noteResponse = await SignatureService.signedApFetch(objectUrl);
-        }
         if (!noteResponse.ok) {
           return res.status(502).json({ error: `Remote server returned ${noteResponse.status} for announced object` });
         }

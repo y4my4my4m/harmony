@@ -1,6 +1,31 @@
 import { Request, Response, NextFunction } from 'express';
-import { getSupabaseClientWithAuth } from '../config/supabase.js';
+import { getSupabaseClient, getSupabaseClientWithAuth } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
+
+/**
+ * Local profile id behind a `Bearer <Supabase access token>` header; null when
+ * the header is absent, the token is invalid, or the account has no local
+ * profile.
+ */
+export async function localProfileIdFromBearer(authHeader: string | undefined): Promise<string | null> {
+  if (!authHeader?.startsWith('Bearer ')) return null;
+  try {
+    const supabase = getSupabaseClient();
+    const { data: { user }, error } = await supabase.auth.getUser(authHeader.substring(7));
+    if (error || !user) return null;
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('auth_user_id', user.id)
+      .eq('is_local', true)
+      .maybeSingle();
+    return profile?.id ?? null;
+  } catch (error) {
+    logger.warn('Bearer token verification failed:', error);
+    return null;
+  }
+}
 
 export interface AuthenticatedRequest extends Request {
   user: {

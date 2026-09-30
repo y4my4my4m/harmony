@@ -84,6 +84,26 @@ If you only understand vanilla ActivityPub, a chat server reads as a `Group` wit
 some members and a pile of `Note`s. That's a reasonable degraded view. You just
 won't get the channel structure, roles or permissions.
 
+#### Who can read a server
+
+A public server's Group, members, outbox, and channels @everyone can view are
+served to anyone. A private server, and any channel @everyone cannot view, is
+served only to a GET with a valid HTTP signature (signed `Date`, as on the
+inbox) whose key owner is a remote user holding an accepted membership, for the
+channels that user's roles let it view. Instance and Group actors are not
+members. Anything else is a 404 identical to an unknown id, sent
+`Cache-Control: private, no-store` when served.
+
+The Group of a private server answers an unauthorized caller with a stub: `id`,
+`type`, `name`, `inbox` and the key, which is what a `Join` by invite needs.
+
+Harmony signs its own reads of a remote server as the local user they serve:
+the requesting user for the channel-message proxy, the joiner right after its
+`Join` and after its `Accept`, the earliest accepted local member for any other
+sync. Channel messages, edits, deletions, reactions, threads, voice
+presence and channel changes are delivered only to instances with a remote
+member who can view the channel.
+
 ### Group conversations - `https://example.com/conversations/{id}`
 
 Group DMs are also `Group` actors, but tagged `harmony:type: "harmony:GroupConversation"`

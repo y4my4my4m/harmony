@@ -20,7 +20,7 @@ vi.mock('../utils/ssrfProtection.js', () => ({
   validateExternalHostname: vi.fn(),
 }))
 
-const upserts: Array<{ table: string; rows: any }> = []
+const writes: Array<{ table: string; op: string; rows: any }> = []
 const server = {
   id: 'ref-1',
   ap_id: 'https://remote.test/servers/11111111-1111-4111-8111-111111111111',
@@ -34,25 +34,32 @@ vi.mock('../config/supabase.js', () => ({
       const c: any = {
         select: () => c,
         eq: () => c,
-        update: () => c,
+        in: () => c,
+        update: (rows: any) => { writes.push({ table, op: 'update', rows }); return c },
+        insert: (rows: any) => { writes.push({ table, op: 'insert', rows }); return Promise.resolve({ error: null }) },
         single: () => Promise.resolve({ data: table === 'servers' ? server : null, error: null }),
-        upsert: (rows: any) => { upserts.push({ table, rows }); return Promise.resolve({ error: null }) },
-        then: (resolve: any) => resolve({ data: null, error: null }),
+        upsert: (rows: any) => { writes.push({ table, op: 'upsert', rows }); return Promise.resolve({ error: null }) },
+        then: (resolve: any) => resolve({ data: [], error: null }),
       }
       return c
     },
   }),
   getSupabaseClientWithAuth: vi.fn(),
 }))
+vi.mock('../activitypub/SignatureService.js', () => ({
+  SignatureService: { signedApFetch: vi.fn() },
+}))
 
 const { ServerDiscoveryService } = await import('../services/ServerDiscoveryService.js')
 const { safeFetch } = await import('../utils/ssrfProtection.js')
+const { SignatureService } = await import('../activitypub/SignatureService.js')
 
 const json = (doc: unknown) => new Response(JSON.stringify(doc), { status: 200 })
 
 beforeEach(() => {
-  upserts.length = 0
+  writes.length = 0
   vi.mocked(safeFetch).mockReset()
+  vi.mocked(SignatureService.signedApFetch).mockReset()
 })
 
 describe('fetchServerByUrl', () => {
@@ -90,8 +97,8 @@ describe('fetchServerByUrl', () => {
 })
 
 describe('syncRemoteServer', () => {
-  it('only upserts channels under the Group\'s own id', async () => {
-    vi.mocked(safeFetch).mockResolvedValue(json({
+  it('only writes channels under the Group\'s own id', async () => {
+    vi.mocked(SignatureService.signedApFetch).mockResolvedValue(json({
       type: 'Group',
       id: server.ap_id,
       inbox: `${server.ap_id}/inbox`,
@@ -102,9 +109,10 @@ describe('syncRemoteServer', () => {
       ],
     }))
 
-    await ServerDiscoveryService.syncRemoteServer('ref-1')
+    await ServerDiscoveryService.syncRemoteServer('ref-1', { asUserId: 'local-1' })
 
-    const channelRows = upserts.filter((u) => u.table === 'channels').flatMap((u) => u.rows)
+    const channelRows = writes.filter((u) => u.table === 'channels').flatMap((u) => u.rows)
     expect(channelRows.map((r: any) => r.name)).toEqual(['general'])
+    expect(channelRows[0].id).toBe('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa')
   })
 })

@@ -16,10 +16,20 @@
 //   - the DM delivery path's choice of inbox URL, asserted from the request
 //     the peer actually received.
 //
+// Private servers are exercised from both sides, one real instance each way:
+//   - hosting: the local instance serves a private server; the peer reads it
+//     with GETs signed by a member, a non-member, its instance actor, or
+//     nothing;
+//   - reading: the peer hosts a private Group; the local proxy and sync fetch
+//     it signed as the requesting local member, which the peer verifies
+//     against that member's published key.
+// The proxy authenticates its caller with a Supabase JWT; roundtrip.ts signs
+// those itself and gateway.conf answers /auth/v1/user (auth-user-shim.sql).
+//
 // Not covered: the BullMQ worker, Redis (the rate limiters fall back to their
-// in-memory store), realtime broadcast (the gateway answers 501 and the voice
-// handler ignores the result), and any fetch back from the peer - the local
-// instance's own domain resolves nowhere, so it is only ever delivered to.
+// in-memory store) and realtime broadcast (the gateway answers 501 and the
+// voice handler ignores the result). The signed-GET and reading cases fetch
+// the local actor's key back over HTTP to verify signatures.
 //
 // Run: e2e/federation/stack.sh verify
 //
@@ -43,7 +53,27 @@ const INSTANCE_DOMAIN = 'local.hmfed.test'
 const ALICE = 'fed00000-0000-0000-0000-000000000001' // local, sends the DM
 const BOB = 'fed00000-0000-0000-0000-000000000002' // local, receives calls and DMs
 const REMOTE = 'fed00000-0000-0000-0000-000000000003' // mirror of the peer's user
+const CAROL = 'fed00000-0000-0000-0000-000000000004' // local, member of nothing
 const CONVERSATION = 'fed00000-0000-0000-0000-000000000010'
+
+// auth.users rows seeded by auth-user-shim.sql.
+const ALICE_AUTH = 'fed0a000-0000-0000-0000-000000000001'
+const BOB_AUTH = 'fed0a000-0000-0000-0000-000000000002'
+const CAROL_AUTH = 'fed0a000-0000-0000-0000-000000000003'
+
+// Hosted here: a private server whose `secret` channel @everyone cannot view,
+// with the peer's user as an accepted member; and a public server.
+const PRIV_SERVER = 'fed00000-0000-0000-0000-000000000020'
+const PRIV_GENERAL = 'fed00000-0000-0000-0000-000000000021'
+const PRIV_SECRET = 'fed00000-0000-0000-0000-000000000022'
+const PUB_SERVER = 'fed00000-0000-0000-0000-000000000030'
+const PUB_GENERAL = 'fed00000-0000-0000-0000-000000000031'
+
+// Hosted by the peer: a private Group with fx_bob as a member. REMOTE_REF is
+// the local reference row, keyed by the Group's UUID as a join would key it.
+const REMOTE_REF = 'fed00000-0000-0000-0000-000000000040'
+const REMOTE_CHANNEL = 'fed00000-0000-0000-0000-000000000041'
+const REMOTE_CHANNEL_NEW = 'fed00000-0000-0000-0000-000000000042'
 
 // REPORTING
 
@@ -89,17 +119,33 @@ interface Captured {
   raw: Buffer
 }
 
-class Peer {
-  readonly key = crypto.generateKeyPairSync('rsa', {
+function rsaKeyPair() {
+  return crypto.generateKeyPairSync('rsa', {
     modulusLength: 2048,
     publicKeyEncoding: { type: 'spki', format: 'pem' },
     privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
   })
+}
+
+class Peer {
+  readonly key = rsaKeyPair()
+  // A second user with no membership anywhere, and the instance actor.
+  readonly strangerKey = rsaKeyPair()
+  readonly instanceKey = rsaKeyPair()
 
   readonly captured: Captured[] = []
+  // GETs to the authorized-fetch object, recorded in arrival order so a case
+  // can tell the unsigned attempt from the signed retry.
+  readonly secureGetRequests: Captured[] = []
+  // GETs to the peer-hosted private Group and its channel, in arrival order.
+  readonly groupGetRequests: Captured[] = []
   actorFetches = 0
   private server?: http.Server
   base = ''
+  secureNoteUrl = ''
+  // The local instance's real listen address, needed to resolve the signing
+  // actor's key (the composed https://<domain> URL does not resolve).
+  localUrl = ''
 
   get actorUrl() {
     return `${this.base}/users/fx_remote`
@@ -109,6 +155,21 @@ class Peer {
   }
   get sharedInbox() {
     return `${this.base}/inbox`
+  }
+  get strangerUrl() {
+    return `${this.base}/users/fx_stranger`
+  }
+  get instanceActorUrl() {
+    return `${this.base}/actor`
+  }
+  get groupUrl() {
+    return `${this.base}/servers/${REMOTE_REF}`
+  }
+  channelUrl(id: string) {
+    return `${this.groupUrl}/channels/${id}`
+  }
+  get remoteNoteUrl() {
+    return `${this.base}/messages/fed00000-0000-0000-0000-0000000000f1`
   }
 
   async start(host: string): Promise<void> {
@@ -137,6 +198,41 @@ class Peer {
           )
           return
         }
+        if (req.method === 'GET' && req.url === '/users/fx_stranger') {
+          this.sendActor(res, this.strangerUrl, 'Person', 'fx_stranger', this.strangerKey.publicKey)
+          return
+        }
+        if (req.method === 'GET' && req.url === '/actor') {
+          this.sendActor(res, this.instanceActorUrl, 'Application', 'remote.test', this.instanceKey.publicKey)
+          return
+        }
+        if (
+          req.method === 'GET' &&
+          (req.url === `/servers/${REMOTE_REF}` ||
+            req.url === `/servers/${REMOTE_REF}/channels/${REMOTE_CHANNEL}/messages?page=1`)
+        ) {
+          this.groupGetRequests.push({
+            method: req.method,
+            url: req.url ?? '',
+            headers: req.headers as Record<string, string>,
+            raw,
+          })
+          void this.handleGroupGet(req, res)
+          return
+        }
+        // Authorized-fetch object: 401 unless the request carries a valid
+        // HTTP signature from a local actor. This is the endpoint that proves
+        // the backend's signed GET retry works against a secure peer.
+        if (req.method === 'GET' && req.url === '/objects/secure-note') {
+          this.secureGetRequests.push({
+            method: req.method,
+            url: req.url ?? '',
+            headers: req.headers as Record<string, string>,
+            raw,
+          })
+          void this.handleSecureGet(req, res)
+          return
+        }
         if (req.method === 'POST') {
           this.captured.push({
             method: req.method,
@@ -154,6 +250,140 @@ class Peer {
     await new Promise<void>((resolve) => this.server!.listen(0, '0.0.0.0', resolve))
     const port = (this.server!.address() as { port: number }).port
     this.base = `http://${host}:${port}`
+    this.secureNoteUrl = `${this.base}/objects/secure-note`
+  }
+
+  /**
+   * Answer the authorized-fetch object. Reads the signed headers and verifies
+   * the signature against the signing actor's published key, fetched back from
+   * the local instance. A missing or invalid signature is 401.
+   */
+  private async handleSecureGet(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+    const signature = req.headers.signature as string | undefined
+    if (!signature || !(await this.verifyLocalSignature(req, signature))) {
+      res.writeHead(401, { 'Content-Type': 'application/json' })
+      res.end('{"error":"authorized fetch requires a signature"}')
+      return
+    }
+
+    res.writeHead(200, { 'Content-Type': 'application/activity+json' })
+    res.end(
+      JSON.stringify({
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: this.secureNoteUrl,
+        type: 'Note',
+        attributedTo: this.actorUrl,
+        to: [`https://${INSTANCE_DOMAIN}/users/fx_bob`],
+        published: new Date().toISOString(),
+        content: '<p>secure note behind authorized fetch</p>',
+      }),
+    )
+  }
+
+  private async verifyLocalSignature(req: http.IncomingMessage, signature: string): Promise<boolean> {
+    return (await this.localSigner(req, signature)) !== null
+  }
+
+  /**
+   * Actor URL of the local user whose key signed this GET, fetched back from
+   * the local instance and checked; null for anything else.
+   */
+  private async localSigner(req: http.IncomingMessage, signature: string | undefined): Promise<string | null> {
+    if (!signature) return null
+    try {
+      const params = parseSignatureHeader(signature)
+      if (!params.keyId || !params.headers || !params.signature) return null
+      if (params.headers !== '(request-target) host date') return null
+      if (!req.url || !req.headers.host || !req.headers.date) return null
+
+      // keyId minus fragment: https://<domain>/users/<name>#main-key
+      const actorUrl = params.keyId.split('#')[0]
+      if (!actorUrl.startsWith(`https://${INSTANCE_DOMAIN}/users/`)) return null
+      const actor = await getJson(actorUrl.replace(`https://${INSTANCE_DOMAIN}`, this.localUrl))
+      const pem = actor?.publicKey?.publicKeyPem
+      if (!pem) return null
+
+      const signingString = [
+        `(request-target): get ${req.url}`,
+        `host: ${req.headers.host}`,
+        `date: ${req.headers.date}`,
+      ].join('\n')
+
+      return crypto.createVerify('SHA256').update(signingString).verify(pem, params.signature, 'base64')
+        ? actorUrl
+        : null
+    } catch {
+      return null
+    }
+  }
+
+  private sendActor(res: http.ServerResponse, id: string, type: string, name: string, publicKeyPem: string) {
+    res.writeHead(200, { 'Content-Type': 'application/activity+json' })
+    res.end(
+      JSON.stringify({
+        '@context': ['https://www.w3.org/ns/activitystreams', 'https://w3id.org/security/v1'],
+        id,
+        type,
+        preferredUsername: name,
+        inbox: `${id}/inbox`,
+        publicKey: { id: `${id}#main-key`, owner: id, publicKeyPem },
+      }),
+    )
+  }
+
+  /**
+   * The peer's private Group, with the rules the local instance applies to
+   * its own: fx_bob, the one member, gets the Group with its channels and
+   * the channel's messages; any other caller gets the Group stub and 404s.
+   */
+  private async handleGroupGet(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+    const signer = await this.localSigner(req, req.headers.signature as string | undefined)
+    const member = signer === `https://${INSTANCE_DOMAIN}/users/fx_bob`
+
+    if (req.url === `/servers/${REMOTE_REF}`) {
+      const group: Record<string, unknown> = {
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: this.groupUrl,
+        type: 'Group',
+        name: 'Peer private',
+        inbox: `${this.groupUrl}/inbox`,
+        discoverable: false,
+      }
+      if (member) {
+        group.members = `${this.groupUrl}/members`
+        group['harmony:channels'] = [
+          { id: this.channelUrl(REMOTE_CHANNEL), localId: REMOTE_CHANNEL, name: 'peer-general', type: 'harmony:TextChannel', channelType: 'text', order: 0 },
+          { id: this.channelUrl(REMOTE_CHANNEL_NEW), localId: REMOTE_CHANNEL_NEW, name: 'peer-added', type: 'harmony:TextChannel', channelType: 'text', order: 1 },
+        ]
+      }
+      res.writeHead(200, { 'Content-Type': 'application/activity+json' })
+      res.end(JSON.stringify(group))
+      return
+    }
+
+    if (!member) {
+      res.writeHead(404, { 'Content-Type': 'application/json' })
+      res.end('{"error":"Channel not found"}')
+      return
+    }
+    res.writeHead(200, { 'Content-Type': 'application/activity+json' })
+    res.end(
+      JSON.stringify({
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: `${this.channelUrl(REMOTE_CHANNEL)}/messages?page=1`,
+        type: 'OrderedCollectionPage',
+        orderedItems: [
+          {
+            type: 'Note',
+            id: this.remoteNoteUrl,
+            attributedTo: this.actorUrl,
+            content: 'peer private message',
+            context: this.channelUrl(REMOTE_CHANNEL),
+            published: new Date().toISOString(),
+          },
+        ],
+      }),
+    )
   }
 
   async stop() {
@@ -219,17 +449,121 @@ function post(
   })
 }
 
+// Signed GET as a remote actor: (request-target), host and date, the set
+// SignatureService.signRequest produces for a GET.
+function signedGetHeaders(targetUrl: string, privateKey: string, keyId: string): Record<string, string> {
+  const u = new URL(targetUrl)
+  const date = new Date().toUTCString()
+  const signingString = [`(request-target): get ${u.pathname}${u.search}`, `host: ${u.host}`, `date: ${date}`].join('\n')
+  const signature = crypto.createSign('SHA256').update(signingString).sign(privateKey, 'base64')
+  return {
+    Host: u.host,
+    Date: date,
+    Accept: 'application/activity+json',
+    Signature: [
+      `keyId="${keyId}"`,
+      'algorithm="rsa-sha256"',
+      'headers="(request-target) host date"',
+      `signature="${signature}"`,
+    ].join(','),
+  }
+}
+
+// node:http GET with caller-controlled headers (Host is signed).
+function get(
+  targetUrl: string,
+  headers: Record<string, string> = { Accept: 'application/activity+json' },
+): Promise<{ status: number; headers: http.IncomingHttpHeaders; body: string; json: any }> {
+  const u = new URL(targetUrl)
+  return new Promise((resolve, reject) => {
+    http
+      .get({ host: u.hostname, port: u.port, path: `${u.pathname}${u.search}`, headers }, (res) => {
+        const chunks: Buffer[] = []
+        res.on('data', (c) => chunks.push(c))
+        res.on('end', () => {
+          const body = Buffer.concat(chunks).toString('utf-8')
+          let json: any = null
+          try {
+            json = JSON.parse(body)
+          } catch {
+            json = null
+          }
+          resolve({ status: res.statusCode ?? 0, headers: res.headers, body, json })
+        })
+      })
+      .on('error', reject)
+  })
+}
+
+// HS256 access token for a local user, verified by PostgREST behind /auth/v1/user.
+function userToken(authUserId: string, secret: string): string {
+  const b64 = (o: object) => Buffer.from(JSON.stringify(o)).toString('base64url')
+  const now = Math.floor(Date.now() / 1000)
+  const body = `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({
+    sub: authUserId,
+    role: 'authenticated',
+    aud: 'authenticated',
+    iat: now,
+    exp: now + 3600,
+  })}`
+  return `${body}.${crypto.createHmac('sha256', secret).update(body).digest('base64url')}`
+}
+
+// Parse a draft-cavage Signature header. Quoted values may contain commas and
+// `=` (keyId is a URI, signature is base64), so a naive split(',') corrupts
+// them. Mirrors SignatureService.parseSignatureHeader.
+function parseSignatureHeader(signature: string): Record<string, string> {
+  const parts: Record<string, string> = {}
+  const re = /([A-Za-z0-9]+)\s*=\s*(?:"([^"]*)"|([^,]*))/g
+  let m: RegExpExecArray | null
+  while ((m = re.exec(signature)) !== null) {
+    parts[m[1]] = m[2] !== undefined ? m[2] : (m[3] ?? '').trim()
+  }
+  return parts
+}
+
+// GET a JSON document over plain http (node:http, so the ephemeral port and
+// path are under our control).
+function getJson(url: string): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const u = new URL(url)
+    http
+      .get(
+        {
+          host: u.hostname,
+          port: u.port,
+          path: `${u.pathname}${u.search}`,
+          headers: { Accept: 'application/activity+json' },
+        },
+        (res) => {
+          const chunks: Buffer[] = []
+          res.on('data', (c) => chunks.push(c))
+          res.on('end', () => {
+            try {
+              resolve(JSON.parse(Buffer.concat(chunks).toString('utf-8')))
+            } catch (e) {
+              reject(e)
+            }
+          })
+        },
+      )
+      .on('error', reject)
+  })
+}
+
 // FIXTURE
 
 async function seed(db: SupabaseClient, peer: Peer) {
   const peerHost = new URL(peer.base).host
 
   // Delete before insert: ids are fixed and the tables cascade from profiles.
-  await db.from('profiles').delete().in('id', [ALICE, BOB, REMOTE])
+  await db.from('servers').delete().in('id', [PRIV_SERVER, PUB_SERVER, REMOTE_REF])
+  await db.from('profiles').delete().in('id', [ALICE, BOB, REMOTE, CAROL])
 
   const { error } = await db.from('profiles').insert([
     {
       id: ALICE,
+      auth_user_id: ALICE_AUTH,
       username: 'fx_alice',
       display_name: 'Alice',
       domain: INSTANCE_DOMAIN,
@@ -239,11 +573,22 @@ async function seed(db: SupabaseClient, peer: Peer) {
     },
     {
       id: BOB,
+      auth_user_id: BOB_AUTH,
       username: 'fx_bob',
       display_name: 'Bob',
       domain: INSTANCE_DOMAIN,
       federated_id: `https://${INSTANCE_DOMAIN}/users/fx_bob`,
       inbox_url: `https://${INSTANCE_DOMAIN}/users/fx_bob/inbox`,
+      is_local: true,
+    },
+    {
+      id: CAROL,
+      auth_user_id: CAROL_AUTH,
+      username: 'fx_carol',
+      display_name: 'Carol',
+      domain: INSTANCE_DOMAIN,
+      federated_id: `https://${INSTANCE_DOMAIN}/users/fx_carol`,
+      inbox_url: `https://${INSTANCE_DOMAIN}/users/fx_carol/inbox`,
       is_local: true,
     },
     {
@@ -272,6 +617,62 @@ async function seed(db: SupabaseClient, peer: Peer) {
     { conversation_id: CONVERSATION, user_id: REMOTE },
   ])
   if (parts.error) throw new Error(`seed participants: ${parts.error.message}`)
+}
+
+async function must(what: string, p: PromiseLike<{ data: any; error: { message: string } | null }>): Promise<any> {
+  const { data, error } = await p
+  if (error) throw new Error(`${what}: ${error.message}`)
+  return data
+}
+
+async function seedServers(db: SupabaseClient, peer: Peer) {
+  const peerHost = new URL(peer.base).host
+
+  await must('seed servers', db.from('servers').insert([
+    { id: PRIV_SERVER, name: 'Hosted private', owner: ALICE, public: false },
+    { id: PUB_SERVER, name: 'Hosted public', owner: ALICE, public: true },
+    {
+      id: REMOTE_REF,
+      name: 'Peer private',
+      owner: ALICE,
+      public: false,
+      is_local_server: false,
+      federation_enabled: true,
+      ap_id: peer.groupUrl,
+      federation_inbox_url: `${peer.groupUrl}/inbox`,
+      federation_domain: peerHost,
+      host_domain: peerHost,
+    },
+  ]))
+
+  await must('seed channels', db.from('channels').insert([
+    { id: PRIV_GENERAL, server_id: PRIV_SERVER, name: 'general', type: 0 },
+    { id: PRIV_SECRET, server_id: PRIV_SERVER, name: 'secret', type: 0 },
+    { id: PUB_GENERAL, server_id: PUB_SERVER, name: 'general', type: 0 },
+    { id: REMOTE_CHANNEL, server_id: REMOTE_REF, name: 'peer-general', type: 0, is_remote: true, ap_id: peer.channelUrl(REMOTE_CHANNEL) },
+  ]))
+
+  // @everyone loses VIEW_CHANNEL (bit 1) on `secret`.
+  const everyone = await must('everyone role', db
+    .from('server_roles').select('id').eq('server_id', PRIV_SERVER).eq('is_default', true).single())
+  await must('seed override', db.from('channel_permission_overrides').insert({
+    channel_id: PRIV_SECRET,
+    target_type: 'role',
+    role_id: everyone.id,
+    allow_permissions: 0,
+    deny_permissions: 2,
+  }))
+
+  await must('seed memberships', db.from('user_servers').insert([
+    { server_id: PRIV_SERVER, user_id: REMOTE, status: 'accepted', member_instance: peerHost },
+    { server_id: REMOTE_REF, user_id: BOB, status: 'accepted', member_instance: INSTANCE_DOMAIN },
+  ]))
+
+  await must('seed channel messages', db.from('messages').insert([
+    { channel_id: PRIV_GENERAL, user_id: ALICE, content: [{ type: 'text', text: 'private general message' }] },
+    { channel_id: PRIV_SECRET, user_id: ALICE, content: [{ type: 'text', text: 'private secret message' }] },
+    { channel_id: PUB_GENERAL, user_id: ALICE, content: [{ type: 'text', text: 'public general message' }] },
+  ]))
 }
 
 // ACTIVITIES
@@ -558,6 +959,175 @@ async function caseOutboundDM(db: SupabaseClient, peer: Peer, backend: Backend) 
   )
 }
 
+async function caseSignedGetRetry(peer: Peer, localUrl: string, db: SupabaseClient) {
+  console.log('\noutbound GET against authorized fetch -> signed retry')
+
+  peer.localUrl = localUrl
+  const before = peer.secureGetRequests.length
+
+  const res = await post(
+    `${localUrl}/resolve-post`,
+    { 'Content-Type': 'application/json' },
+    JSON.stringify({ url: peer.secureNoteUrl }),
+  )
+  eq(res.status, 200, 'resolve-post succeeds against the secure peer')
+
+  const reqs = peer.secureGetRequests.slice(before)
+  eq(reqs.length, 2, 'the peer saw an unsigned attempt and exactly one signed retry')
+
+  const first = reqs[0]
+  const second = reqs[1]
+  assert(!first?.headers.signature, 'the first attempt carries no Signature header')
+  assert(!!second?.headers.signature, 'the retry carries a Signature header')
+
+  const params = second?.headers.signature ? parseSignatureHeader(second.headers.signature) : {}
+  eq(params.headers, '(request-target) host date', 'the retry signs (request-target), host and date')
+  assert(
+    (params.keyId ?? '').startsWith(`https://${INSTANCE_DOMAIN}/users/`),
+    'the retry is signed by a local actor key',
+    params.keyId,
+  )
+
+  const { data: row } = await db
+    .from('posts')
+    .select('id, ap_id, is_local')
+    .eq('ap_id', peer.secureNoteUrl)
+    .maybeSingle()
+  assert(!!row, 'the resolved note is stored locally')
+  eq(row?.is_local, false, 'the stored note is marked remote')
+}
+
+async function caseHostedPrivateServer(peer: Peer, localUrl: string) {
+  console.log('\nhosted private server -> only a signed member that can view the channel reads it')
+
+  const page = (server: string, channel: string) =>
+    `${localUrl}/servers/${server}/channels/${channel}/messages?page=1`
+  const signedBy = (privateKey: string, actor: string) => (url: string) =>
+    get(url, signedGetHeaders(url, privateKey, `${actor}#main-key`))
+  const asMember = signedBy(peer.key.privateKey, peer.actorUrl)
+  const asStranger = signedBy(peer.strangerKey.privateKey, peer.strangerUrl)
+  const asInstance = signedBy(peer.instanceKey.privateKey, peer.instanceActorUrl)
+  const items = (res: { json: any }) => JSON.stringify(res.json?.orderedItems ?? [])
+
+  const general = page(PRIV_SERVER, PRIV_GENERAL)
+  const unsigned = await get(general)
+  eq(unsigned.status, 404, 'an unsigned read of a private channel is 404')
+
+  const member = await asMember(general)
+  eq(member.status, 200, 'the signed member reads the private channel')
+  assert(items(member).includes('private general message'), 'the member gets the channel messages', member.body)
+  eq(member.headers['cache-control'], 'private, no-store', 'the private page is not cacheable')
+
+  const secret = await asMember(page(PRIV_SERVER, PRIV_SECRET))
+  eq(secret.status, 404, 'a member without VIEW_CHANNEL on the channel gets 404')
+
+  eq((await asStranger(general)).status, 404, 'a signed non-member gets 404')
+  eq((await asInstance(general)).status, 404, 'the peer instance actor gets 404')
+
+  const unknown = await get(page(PRIV_SERVER, 'fed00000-0000-0000-0000-0000000000ff'))
+  assert(
+    unknown.status === 404 && unknown.body === unsigned.body,
+    'an unknown channel answers exactly as a hidden one',
+    `${unknown.status} ${unknown.body} / ${unsigned.body}`,
+  )
+
+  const groupUrl = `${localUrl}/servers/${PRIV_SERVER}`
+  const stub = await get(groupUrl)
+  eq(stub.status, 200, 'the private Group answers an unsigned caller')
+  assert(
+    stub.json?.type === 'Group' && String(stub.json?.inbox).endsWith(`/servers/${PRIV_SERVER}/inbox`),
+    'the stub carries the id and inbox a Join needs',
+    stub.body,
+  )
+  eq(stub.json?.['harmony:channels'], undefined, 'the stub lists no channels')
+
+  const full = await asMember(groupUrl)
+  const listed = (full.json?.['harmony:channels'] ?? []).map((c: any) => c.localId)
+  assert(
+    listed.includes(PRIV_GENERAL) && !listed.includes(PRIV_SECRET),
+    'the member\'s Group lists the channels it can view and no other',
+    JSON.stringify(listed),
+  )
+
+  const outboxUrl = `${localUrl}/servers/${PRIV_SERVER}/outbox?page=1`
+  eq((await get(outboxUrl)).status, 404, 'an unsigned read of the private outbox is 404')
+  const outbox = await asMember(outboxUrl)
+  assert(
+    outbox.status === 200 &&
+      items(outbox).includes('private general message') &&
+      !items(outbox).includes('private secret message'),
+    'the member\'s outbox holds only channels it can view',
+    outbox.body,
+  )
+
+  const pub = await get(page(PUB_SERVER, PUB_GENERAL))
+  eq(pub.status, 200, 'a public server\'s public channel still reads unsigned')
+  assert(items(pub).includes('public general message'), 'the public page carries its messages', pub.body)
+  assert(
+    String(pub.headers['cache-control']).startsWith('public'),
+    'the public page stays cacheable',
+    pub.headers['cache-control'],
+  )
+}
+
+async function caseProxyReadsAsMember(peer: Peer, localUrl: string, jwtSecret: string) {
+  console.log('\nremote private channel -> the proxy signs as the requesting member')
+
+  const proxyUrl = `${localUrl}/channels/${REMOTE_CHANNEL}/messages`
+  const as = (authUserId: string) => ({
+    Accept: 'application/json',
+    Authorization: `Bearer ${userToken(authUserId, jwtSecret)}`,
+  })
+  const before = peer.groupGetRequests.length
+
+  eq((await get(proxyUrl, { Accept: 'application/json' })).status, 401, 'the proxy refuses a caller with no session')
+
+  const carol = await get(proxyUrl, as(CAROL_AUTH))
+  eq(carol.status, 404, 'a local user who is not a member gets nothing')
+  eq(peer.groupGetRequests.length, before, 'nothing reached the host for the anonymous or non-member caller')
+
+  const bob = await get(proxyUrl, as(BOB_AUTH))
+  eq(bob.status, 200, 'the member reads the remote channel through the proxy')
+  eq(bob.json?.source, 'remote', 'the messages come from the host, not the local cache')
+  assert(
+    JSON.stringify(bob.json?.messages ?? []).includes('peer private message'),
+    'the host\'s message reaches the member',
+    bob.body,
+  )
+
+  const reqs = peer.groupGetRequests.slice(before)
+  eq(reqs.length, 1, 'the host saw one request, signed from the start with no unsigned attempt')
+  const params = reqs[0]?.headers.signature ? parseSignatureHeader(reqs[0].headers.signature) : {}
+  eq(params.keyId, `https://${INSTANCE_DOMAIN}/users/fx_bob#main-key`, 'the request carries the member\'s own key')
+}
+
+async function caseSyncSignsAsMember(db: SupabaseClient, peer: Peer, localUrl: string, jwtSecret: string) {
+  console.log('\nremote private Group sync -> signed as a member, channels under their remote ids')
+
+  const before = peer.groupGetRequests.length
+  const res = await get(`${localUrl}/servers/${REMOTE_REF}/sync`, {
+    Accept: 'application/json',
+    Authorization: `Bearer ${userToken(BOB_AUTH, jwtSecret)}`,
+  })
+  eq(res.status, 200, 'the sync answers')
+
+  const reqs = peer.groupGetRequests.slice(before)
+  eq(reqs.length, 1, 'the host saw one Group fetch')
+  const params = reqs[0]?.headers.signature ? parseSignatureHeader(reqs[0].headers.signature) : {}
+  eq(params.keyId, `https://${INSTANCE_DOMAIN}/users/fx_bob#main-key`, 'the Group fetch is signed as the member')
+
+  const { data: added } = await db
+    .from('channels')
+    .select('id, server_id, is_remote, ap_id')
+    .eq('id', REMOTE_CHANNEL_NEW)
+    .maybeSingle()
+  assert(
+    added?.server_id === REMOTE_REF && added?.is_remote === true && added?.ap_id === peer.channelUrl(REMOTE_CHANNEL_NEW),
+    'the channel only a member sees is added under its remote UUID',
+    JSON.stringify(added),
+  )
+}
+
 // WIRING
 
 interface Backend {
@@ -612,6 +1182,7 @@ async function main() {
   })
   const localUrl = `http://127.0.0.1:${(local.address() as { port: number }).port}`
   console.log(`local instance on ${localUrl} (${INSTANCE_DOMAIN})`)
+  peer.localUrl = localUrl
 
   const db = createClient(env.HMFED_SUPABASE_URL, env.HMFED_SUPABASE_SERVICE_ROLE_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },
@@ -625,6 +1196,11 @@ async function main() {
     await caseVoiceAccept(db, peer, localUrl, callApId)
     await caseInboundDM(db, peer, localUrl)
     await caseOutboundDM(db, peer, backend)
+    await caseSignedGetRetry(peer, localUrl, db)
+    await seedServers(db, peer)
+    await caseHostedPrivateServer(peer, localUrl)
+    await caseProxyReadsAsMember(peer, localUrl, env.HMFED_JWT_SECRET)
+    await caseSyncSignsAsMember(db, peer, localUrl, env.HMFED_JWT_SECRET)
   } finally {
     await new Promise<void>((resolve) => local.close(() => resolve()))
     await peer.stop()

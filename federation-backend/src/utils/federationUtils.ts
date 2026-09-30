@@ -6,6 +6,7 @@
 
 import { getSupabaseClient } from '../config/supabase.js';
 import config from '../config/index.js';
+import { logger } from './logger.js';
 
 export interface RemoteMemberGroup {
   instance: string;
@@ -70,6 +71,32 @@ export async function getRemoteMemberGroups(serverId: string): Promise<RemoteMem
   }
 
   return Array.from(instanceMap.values());
+}
+
+/**
+ * Remote instances to receive a channel's content: accepted, unbanned,
+ * unsuspended remote members who can view the channel, grouped by instance
+ * (public.federation_channel_recipients). A lookup failure yields no groups;
+ * content is never delivered to members the check did not admit.
+ */
+export async function getChannelRecipientGroups(channelId: string): Promise<RemoteMemberGroup[]> {
+  const supabase = getSupabaseClient();
+  const hostDomain = config.INSTANCE_DOMAIN.toLowerCase();
+
+  const { data, error } = await supabase.rpc('federation_channel_recipients', { p_channel_id: channelId });
+  if (error) {
+    logger.error(`federation_channel_recipients failed for channel ${channelId}: ${error.message}`);
+    return [];
+  }
+
+  return (data || [])
+    .filter((row: any) => row.instance && row.instance !== hostDomain)
+    .map((row: any) => ({
+      instance: row.instance,
+      member_ap_ids: row.member_ap_ids || [],
+      member_count: row.member_count || 0,
+      shared_inbox: row.shared_inbox || `https://${row.instance}/inbox`,
+    }));
 }
 
 /**

@@ -14,7 +14,6 @@ import { VoiceActivityHandler } from './VoiceActivityHandler.js';
 import { SignatureService } from './SignatureService.js';
 import config from '../config/index.js';
 import { harmonyVoiceMessageFromObject } from '../utils/voiceMessageFederation.js';
-import { safeFetch } from '../utils/ssrfProtection.js';
 import { pgrstOrValue } from '../utils/postgrestFilter.js';
 import { stripOwnEmojiDomain } from '../utils/emojiResolvers.js';
 import { fetchAuthoritativeDocument, sameOrigin } from '../utils/apOrigin.js';
@@ -152,16 +151,11 @@ export class ActivityProcessor {
     }
 
     try {
-      let response = await safeFetch(url, {
+      const response = await SignatureService.fetchApWithSignatureFallback(url, {
         headers: {
           'Accept': 'application/activity+json, application/ld+json',
         },
       });
-
-      if (response.status === 401 || response.status === 403) {
-        logger.debug(`AP fetch got ${response.status}, retrying with HTTP signature: ${url}`);
-        response = await SignatureService.signedApFetch(url);
-      }
 
       if (!response.ok) {
         logger.warn(`AP fetch failed for ${url}: ${response.status}`);
@@ -409,9 +403,28 @@ export class ActivityProcessor {
 
       if (error) {
         logger.error('Accept(Join): failed to update membership:', error);
-      } else {
-        logger.info(`Join accepted for user ${userProfile.id} in server ${server.id}`);
+        return;
       }
+      logger.info(`Join accepted for user ${userProfile.id} in server ${server.id}`);
+
+      // A private Group lists channels and members only to members; the
+      // reference was built from the stub a non-member is served.
+      void (async () => {
+        const { ServerDiscoveryService } = await import('../services/ServerDiscoveryService.js');
+        await ServerDiscoveryService.syncRemoteServer(server.id, { asUserId: userProfile.id });
+        const { data: synced } = await supabase
+          .from('servers')
+          .select('ap_id, federation_metadata')
+          .eq('id', server.id)
+          .maybeSingle();
+        const membersUrl = synced?.federation_metadata?.members;
+        if (typeof membersUrl === 'string' && synced?.ap_id) {
+          await ServerDiscoveryService.syncRemoteServerMembers(server.id, membersUrl, {
+            signAs: userProfile.id,
+            serverApId: synced.ap_id,
+          });
+        }
+      })().catch(err => logger.warn(`Accept(Join): sync of server ${server.id} failed:`, err));
     }
   }
 

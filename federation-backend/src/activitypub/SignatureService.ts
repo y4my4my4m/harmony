@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import { getSupabaseClient } from '../config/supabase.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { logger } from '../utils/logger.js';
-import { safeFetch } from '../utils/ssrfProtection.js';
+import { safeFetch, type SafeFetchOptions } from '../utils/ssrfProtection.js';
 
 // In-memory LRU of PEM public keys, keyed by actorUrl.
 //
@@ -78,6 +78,11 @@ export const __publicKeyCache = {
   },
   invalidate: invalidatePublicKey,
 };
+
+export interface SignedApFetchOptions extends SafeFetchOptions {
+  /** Local profile id whose key signs the request. */
+  signAs?: string;
+}
 
 export class SignatureService {
   static async generateKeyPair(): Promise<{ publicKey: string; privateKey: string }> {
@@ -650,10 +655,64 @@ export class SignatureService {
 
   /**
    * Signed GET for an ActivityPub object, for remotes running authorized
-   * fetch / secure mode. Signs with any local user's key; falls back to an
-   * unsigned fetch when no local user exists.
+   * fetch / secure mode.
+   *
+   * With `signAs`, the request is signed with that local user's key and a
+   * signing failure throws: a read on a member's behalf is never sent unsigned
+   * or under another key. Without it, any local user's key signs, and the
+   * request goes unsigned when no local user exists or signing fails.
+   *
+   * `options` is forwarded to `safeFetch` so callers keep their own Accept,
+   * User-Agent, timeout, and abort signal. The signature headers
+   * (`Host`/`Date`/`Signature`) are applied last and always win.
    */
-  static async signedApFetch(url: string, timeoutMs = 8000): Promise<Response> {
+  static async signedApFetch(url: string, options: SignedApFetchOptions = {}): Promise<Response> {
+    const { timeoutMs = 8000, headers: callerHeaders, signal, maxRedirects, maxBodyBytes, signAs } = options;
+
+    const headers: Record<string, string> = {
+      'Accept': 'application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams", application/json',
+      ...(callerHeaders as Record<string, string> | undefined),
+    };
+
+    if (signAs) {
+      // signRequest generates and stores a key pair for a profile without
+      // one; a remote profile's published key would be replaced.
+      const { data: signer } = await getSupabaseClient()
+        .from('profiles')
+        .select('is_local')
+        .eq('id', signAs)
+        .maybeSingle();
+      if (signer?.is_local !== true) {
+        throw new AppError(500, `Cannot sign as ${signAs}: not a local profile`);
+      }
+      const signed = await this.signRequest(url, 'GET', null, signAs);
+      Object.assign(headers, signed.headers);
+    } else {
+      const signingUserId = await this.anyLocalSigner();
+      if (signingUserId) {
+        try {
+          const signed = await this.signRequest(url, 'GET', null, signingUserId);
+          Object.assign(headers, signed.headers);
+        } catch (err) {
+          logger.debug(`Could not sign AP GET request, proceeding unsigned: ${err}`);
+        }
+      }
+    }
+
+    // safeFetch enforces URL+DNS validation per hop, follows manual redirects
+    // with re-validation (max 3 hops by default), and bounds each attempt
+    // with timeoutMs.
+    return safeFetch(url, {
+      headers,
+      timeoutMs,
+      ...(signal !== undefined ? { signal } : {}),
+      ...(maxRedirects !== undefined ? { maxRedirects } : {}),
+      ...(maxBodyBytes !== undefined ? { maxBodyBytes } : {}),
+    });
+  }
+
+  /** A local user holding a stored key, else the first local user (signRequest generates its pair). */
+  private static async anyLocalSigner(): Promise<string | undefined> {
     const supabase = getSupabaseClient();
 
     const { data: signer } = await supabase
@@ -661,39 +720,39 @@ export class SignatureService {
       .select('user_id')
       .limit(1)
       .maybeSingle();
+    if (signer?.user_id) return signer.user_id;
 
-    let signingUserId = signer?.user_id;
+    const { data: firstUser } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('is_local', true)
+      .limit(1)
+      .maybeSingle();
+    return firstUser?.id;
+  }
 
-    // No stored keys: signRequest generates a pair for the first local user.
-    if (!signingUserId) {
-      const { data: firstUser } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('is_local', true)
-        .limit(1)
-        .maybeSingle();
-      signingUserId = firstUser?.id;
+  /**
+   * GET an ActivityPub resource, retrying with an HTTP signature when the
+   * remote requires authorized fetch.
+   *
+   * The unsigned request is tried first, so peers that serve public objects
+   * pay no signing cost. Only an authentication rejection (401/403) triggers
+   * a signed retry; every other status - including 404/410/500 - is returned
+   * unchanged so callers keep their existing error handling. On a remote that
+   * exposes nothing, the signed retry is the only successful path.
+   */
+  static async fetchApWithSignatureFallback(
+    url: string,
+    options: SafeFetchOptions = {},
+  ): Promise<Response> {
+    const response = await safeFetch(url, options);
+
+    if (response.status !== 401 && response.status !== 403) {
+      return response;
     }
 
-    const headers: Record<string, string> = {
-      'Accept': 'application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams", application/json',
-    };
-
-    if (signingUserId) {
-      try {
-        const signed = await this.signRequest(url, 'GET', null, signingUserId);
-        Object.assign(headers, signed.headers);
-      } catch (err) {
-        logger.debug(`Could not sign AP GET request, proceeding unsigned: ${err}`);
-      }
-    }
-
-    // safeFetch enforces URL+DNS validation per hop, follows manual redirects
-    // with re-validation (max 3 hops), and bounds each attempt with timeoutMs.
-    return safeFetch(url, {
-      headers,
-      timeoutMs,
-    });
+    logger.debug(`AP GET got ${response.status}, retrying with HTTP signature: ${url}`);
+    return this.signedApFetch(url, options);
   }
 
   /** Digest header value: `SHA-256=<base64 sha256 of the body bytes>`. */

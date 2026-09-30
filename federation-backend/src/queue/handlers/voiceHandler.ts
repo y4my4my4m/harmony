@@ -11,6 +11,7 @@ import { DeliveryQueue } from '../../activitypub/DeliveryQueue.js';
 import { logger } from '../../utils/logger.js';
 import config from '../../config/index.js';
 import type { FederationJobData } from '../BullMQManager.js';
+import { getChannelRecipientGroups } from '../../utils/federationUtils.js';
 
 // VOICE CHANNEL JOIN HANDLER
 
@@ -86,7 +87,7 @@ export async function handleVoiceJoinJob(data: FederationJobData): Promise<void>
 
     // CASE 2: Local server with remote members - broadcast to them
     if (server.federation_enabled) {
-      const remoteMemberGroups = await getRemoteMemberGroups(server.id);
+      const remoteMemberGroups = await getChannelRecipientGroups(channel_id);
       
       if (remoteMemberGroups.length === 0) {
         logger.debug('No remote members, skipping voice join federation');
@@ -178,7 +179,7 @@ export async function handleVoiceLeaveJob(data: FederationJobData): Promise<void
 
     // CASE 2: Local server with remote members - broadcast to them
     if (server.federation_enabled) {
-      const remoteMemberGroups = await getRemoteMemberGroups(server.id);
+      const remoteMemberGroups = await getChannelRecipientGroups(channel_id);
       
       if (remoteMemberGroups.length === 0) {
         logger.debug('No remote members, skipping voice leave federation');
@@ -219,68 +220,5 @@ async function updateFederationStatus(
     .update({ federation_status: status })
     .eq('channel_id', channelId)
     .eq('user_id', userId);
-}
-
-interface RemoteMemberGroup {
-  instance: string;
-  member_ap_ids: string[];
-  member_count: number;
-  shared_inbox?: string;
-}
-
-async function getRemoteMemberGroups(serverId: string): Promise<RemoteMemberGroup[]> {
-  const supabase = getSupabaseClient();
-  const hostDomain = config.INSTANCE_DOMAIN;
-
-  // Try the RPC function first
-  const { data: memberGroups, error: rpcError } = await supabase
-    .rpc('get_server_members_by_instance', { p_server_id: serverId });
-
-  if (!rpcError && memberGroups) {
-    return memberGroups.filter(
-      (group: any) => group.instance !== 'local' && group.instance !== hostDomain
-    );
-  }
-
-  // Fallback: manual query
-  const { data: members } = await supabase
-    .from('user_servers')
-    .select(`
-      member_instance,
-      profile:profiles!user_servers_user_id_fkey(federated_id, shared_inbox_url)
-    `)
-    .eq('server_id', serverId)
-    .eq('status', 'accepted')
-    .not('member_instance', 'is', null);
-
-  if (!members) {
-    return [];
-  }
-
-  // Group by instance
-  const instanceMap = new Map<string, RemoteMemberGroup>();
-
-  for (const member of members) {
-    const instance = member.member_instance;
-    if (!instance || instance === hostDomain) continue;
-
-    const profile = (member as any).profile;
-    if (!profile?.federated_id) continue;
-
-    if (!instanceMap.has(instance)) {
-      instanceMap.set(instance, {
-        instance,
-        member_ap_ids: [],
-        member_count: 0,
-        shared_inbox: profile.shared_inbox_url || `https://${instance}/inbox`,
-      });
-    }
-
-    const group = instanceMap.get(instance)!;
-    group.member_ap_ids.push(profile.federated_id);
-    group.member_count++;
-  }
-
-  return Array.from(instanceMap.values());
 }
 

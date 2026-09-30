@@ -1085,9 +1085,15 @@ export class CoreMessageService {
         ? abortSignalAny([options.signal, timeoutSignal])
         : timeoutSignal
 
+      // The backend signs the remote fetch as the requesting member; it
+      // answers 401 without a session.
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) return []
+
       const response = await fetch(apiUrl(`/api/federation/channels/${channelId}/messages?${params}`), {
         headers: {
           'Accept': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
         },
         signal,
       })
