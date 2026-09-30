@@ -158,6 +158,53 @@
   --color-text-tertiary: var(--text-muted);
   --color-heading: var(--text-primary);
   --color-primary: var(--harmony-primary);
+  /* Legacy and misspelled names still referenced by components. Each was
+     previously undefined, so declarations using it without a fallback were
+     dropped. */
+  --background-hover: var(--background-modifier-hover);
+  --background-modifier-accent: var(--border-primary);
+  --color-background-secondary: var(--background-secondary);
+  --color-bg-primary: var(--background-primary);
+  --color-bg-secondary: var(--background-secondary);
+  --color-bg-tertiary: var(--background-tertiary);
+  --color-bg-hover: var(--background-modifier-hover);
+  --bg-quaternary: var(--background-quaternary);
+  --h-bg: var(--background-primary);
+  --h-background: var(--background-primary);
+  --h-black-light: var(--background-tertiary);
+  --h-server-sidebar: var(--background-tertiary);
+  --h-surface-primary: var(--background-primary);
+  --h-surface-secondary: var(--background-secondary);
+  --h-text: var(--text-primary);
+  --vt-c-divider-dark-1: var(--border-primary);
+  --accent: var(--harmony-primary);
+  --accent-hover: var(--harmony-primary-hover);
+  --color-success: var(--success);
+  --success-color: var(--success);
+  --harmony-success: var(--success);
+  --harmony-success-hover: var(--success-hover);
+  --color-warning: var(--warning);
+  --warning-color: var(--warning);
+  --danger: var(--error);
+  --danger-hover: var(--error-hover);
+  --danger-color: var(--error);
+  --color-danger: var(--error);
+  --color-error: var(--error);
+  --harmony-danger: var(--error);
+  --status-danger: var(--error);
+  /* Comma-separated channels for rgba(var(--x-rgb), a). Static: the runtime
+     accent does not update these; prefer color-mix() on the token. */
+  --color-primary-rgb: 14, 165, 233;
+  --h-brand-rgb: 14, 165, 233;
+  --color-success-rgb: 35, 165, 90;
+  --color-warning-rgb: 254, 231, 92;
+  --color-danger-rgb: 237, 66, 69;
+  --font-mono: ui-monospace, 'SFMono-Regular', 'JetBrains Mono', Menlo, Consolas, monospace;
+  /* Defaults until useVisualTheme sets the runtime accent. */
+  --harmony-primary-alpha-light: color-mix(in srgb, var(--harmony-primary) 10%, transparent);
+  --harmony-primary-alpha: color-mix(in srgb, var(--harmony-primary) 15%, transparent);
+  --harmony-primary-alpha-strong: color-mix(in srgb, var(--harmony-primary) 25%, transparent);
+
   /* Accent aliases components reach for; all follow the user's accent. */
   --accent-color: var(--harmony-primary);
   --accent-primary: var(--harmony-primary);
@@ -165,7 +212,7 @@
   --primary-hover: var(--harmony-primary-hover);
   --color-border: var(--border-secondary);
   --color-border-hover: var(--border-hover);
-  --border-color: #232529;
+  --border-color: var(--border-primary);
 
   /* Alias --bg-* to --background-* so components using the short form work */
   --bg-primary: var(--background-primary);
@@ -872,15 +919,6 @@ strong {
   position: relative;
 }
 
-.modal-container::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--harmony-primary-light), transparent);
-}
 
 .modal-header {
   display: flex;
@@ -1086,6 +1124,13 @@ div.loading:has(> .harmony-spinner) {
   }
 }
 
+/* Default keyboard focus ring. :where() keeps specificity at zero so any
+   component rule overrides it; mouse focus shows nothing. */
+:where(a, button, [role="button"], [role="tab"], [role="menuitem"], summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--harmony-primary);
+  outline-offset: 2px;
+}
+
 /* Reduced Motion Support */
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -1174,6 +1219,13 @@ div.loading:has(> .harmony-spinner) {
   .decrypt-spinner {
     animation: none;
   }
+}
+
+/* Contrast on white: #fee75c 1.3:1, #5bc0de 2.1:1. These keep the hue at
+   4.9:1 and 5.9:1. */
+:root[data-theme-type="light"] {
+  --warning: #a16207;
+  --info: #0369a1;
 }
 
 /* ===== Light-theme corrective overrides =====
