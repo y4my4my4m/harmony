@@ -49,6 +49,12 @@ const DEFAULT_STATE: PersistedState = {
   lastActiveTimestamp: Date.now()
 }
 
+// Nested records are mutated in place; every reset needs its own copy.
+const defaultState = (): PersistedState => ({
+  ...structuredClone(DEFAULT_STATE),
+  lastActiveTimestamp: Date.now(),
+})
+
 const DEFAULT_APP_STATE: ApplicationState = {
   hasInitialized: false,
   hasServers: false,
@@ -57,7 +63,7 @@ const DEFAULT_APP_STATE: ApplicationState = {
 }
 
 class StatePersistenceService {
-  private state: PersistedState = { ...DEFAULT_STATE }
+  private state: PersistedState = defaultState()
   private appState: ApplicationState = { ...DEFAULT_APP_STATE }
   private isLoaded = false
   private loadingPromise: Promise<void> | null = null
@@ -90,14 +96,14 @@ class StatePersistenceService {
         }
         
         if (!parsed.uiPreferences) {
-          parsed.uiPreferences = DEFAULT_STATE.uiPreferences
+          parsed.uiPreferences = defaultState().uiPreferences
         }
         
-        this.state = { ...DEFAULT_STATE, ...parsed }
+        this.state = { ...defaultState(), ...parsed }
         debug.log('Loaded persisted state (v' + STATE_VERSION + '):', this.state)
       } else {
         debug.log('No persisted state found, using defaults')
-        this.state = { ...DEFAULT_STATE }
+        this.state = defaultState()
       }
 
       this.appState = {
@@ -108,11 +114,12 @@ class StatePersistenceService {
       }
 
       this.isLoaded = true
+      this.bindLifecycleFlush()
       await this.updateLastActiveTimestamp()
       
     } catch (error) {
       debug.warn('Failed to load persisted state, using defaults:', error)
-      this.state = { ...DEFAULT_STATE }
+      this.state = defaultState()
       this.appState = { ...DEFAULT_APP_STATE }
       this.isLoaded = true
     }
@@ -124,7 +131,7 @@ class StatePersistenceService {
   loadState(): PersistedState {
     if (!this.isLoaded) {
       debug.warn('State not initialized, using defaults. Call initialize() first.')
-      return { ...DEFAULT_STATE }
+      return defaultState()
     }
     return this.state
   }
@@ -161,6 +168,22 @@ class StatePersistenceService {
         debug.error('Failed to persist state even after cleanup:', retryError)
       }
     }
+  }
+
+  private lifecycleBound = false
+
+  // Mobile WebViews and PWAs are killed in the background without `unload`;
+  // `pagehide` and a hidden `visibilitychange` are the last reliable events.
+  private bindLifecycleFlush(): void {
+    if (this.lifecycleBound || typeof window === 'undefined') return
+    this.lifecycleBound = true
+    const flush = () => {
+      if (this.pendingSave) void this.forceSave()
+    }
+    window.addEventListener('pagehide', flush)
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') flush()
+    })
   }
 
   /**
@@ -227,6 +250,7 @@ class StatePersistenceService {
     if (!this.isLoaded) await this.initialize()
     
     this.state.lastServerId = serverId
+    this.debouncedSave()
     debug.log('Last server saved:', serverId)
   }
 
@@ -252,6 +276,7 @@ class StatePersistenceService {
     } else {
       delete this.state.lastChannelByServer[serverId]
     }
+    this.debouncedSave()
     
     debug.log('Last channel saved for server', serverId, ':', channelId)
   }
@@ -433,7 +458,7 @@ class StatePersistenceService {
    * Clear all persisted state with confirmation
    */
   async clearState(): Promise<void> {
-    this.state = { ...DEFAULT_STATE }
+    this.state = defaultState()
     this.appState = { ...DEFAULT_APP_STATE }
     this.isLoaded = false
     
@@ -461,7 +486,7 @@ class StatePersistenceService {
    */
   async importState(stateData: Partial<PersistedState>): Promise<boolean> {
     try {
-      const validatedState = { ...DEFAULT_STATE, ...stateData }
+      const validatedState = { ...defaultState(), ...stateData }
       
       // Basic validation
       if (typeof validatedState.lastServerId !== 'string' && validatedState.lastServerId !== null) {
