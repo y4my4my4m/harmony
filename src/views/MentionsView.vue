@@ -5,6 +5,7 @@
       :special-view-data="mentionedPosts"
       :has-more-special-data="hasMoreMentions"
       :is-loading-feed="isLoadingMentions"
+      :load-error="activityPubStore.feedError('mentions')"
       view-type="mentions"
       current-view="mentions"
       @load-more-special-data="handleLoadMore"

@@ -583,7 +583,6 @@ export default withMermaid(defineConfig({
             { text: 'Avatar', link: '/components/common/avatar' },
             { text: 'Base', link: '/components/layouts/base' },
             { text: 'Bell', link: '/components/icons/bell' },
-            { text: 'Botmanagement', link: '/components/admin/botmanagement' },
             { text: 'Camera', link: '/components/icons/camera' },
             { text: 'Categorycreator', link: '/components/categorycreator' },
             { text: 'Check', link: '/components/icons/check' },

@@ -53,24 +53,11 @@ test('sign up, complete the profile, sign out, sign back in', async ({ page }) =
     await expect(page.locator('[data-testid="new-profile-card"]')).toBeVisible({ timeout: 15000 })
   })
 
-  await test.step('keep the default avatar', async () => {
-    await expect(page.locator('[data-testid="profile-step-1"]')).toBeVisible({ timeout: 15000 })
-    await page.locator('[data-testid="avatar-use-default"]').click()
-    await page.locator('[data-testid="profile-next-btn"]').click()
-    await expect(page.locator('[data-testid="profile-step-2"]')).toBeVisible({ timeout: 15000 })
-  })
-
-  await test.step('claim a username the instance reports as free', async () => {
+  await test.step('fill the profile and submit', async () => {
     await page.locator('[data-testid="profile-display-name"]').fill(DISPLAY_NAME)
     await page.locator('[data-testid="profile-username"]').fill(USERNAME)
     await expect(page.locator('[data-testid="username-available"]')).toBeVisible({ timeout: 15000 })
-    await page.locator('[data-testid="profile-next-btn"]').click()
-    await expect(page.locator('[data-testid="profile-step-3"]')).toBeVisible({ timeout: 15000 })
-  })
-
-  await test.step('finish the wizard and land in the app', async () => {
-    await page.locator('[data-testid="color-preset"]').first().click()
-    await page.locator('[data-testid="profile-next-btn"]').click()
+    await page.locator('[data-testid="profile-submit"]').click()
 
     await expect(page).toHaveURL(/\/chat/, { timeout: 60000 })
     await dismissAnnouncements(page)

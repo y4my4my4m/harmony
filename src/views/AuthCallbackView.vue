@@ -105,6 +105,7 @@ import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
 import { isTauriRuntime } from '@/services/instanceConfig'
 import type { Session } from '@supabase/supabase-js'
+import { consumePostAuthRedirect } from '@/utils/postAuthRedirect'
 import { RECOVERY_CODE_MIN_LENGTH, RECOVERY_CODE_MAX_LENGTH, RECOVERY_CODE_PLACEHOLDER } from '@/utils/mfaConstants'
 
 const router = useRouter()
@@ -160,13 +161,16 @@ const cancelMfaAndGoToLogin = async () => {
  */
 const finalizeLoginAndRedirect = async (session: Session) => {
   status.value = 'success'
-  const { data: existingProfile } = await supabase
+  const { data: existingProfile, error: profileError } = await supabase
     .from('profiles')
     .select('id, username')
     .eq('auth_user_id', session.user.id)
     .maybeSingle()
 
-  const next = !existingProfile || !existingProfile.username ? '/new-profile' : '/chat'
+  // On a query error the router guard re-checks; only a confirmed absence
+  // goes to the creation wizard.
+  const needsProfile = !profileError && (!existingProfile || !existingProfile.username)
+  const next = needsProfile ? '/new-profile' : consumePostAuthRedirect('/chat')
 
   // Native OAuth popup: the session is already persisted to storage shared
   // with the main window. Hand off; the main window closes the popup.
@@ -427,7 +431,7 @@ onBeforeUnmount(() => {
   position: fixed;
   inset: 0;
   background: 
-    radial-gradient(ellipse 60% 40% at 50% 40%, rgba(99, 102, 241, 0.15) 0%, transparent 50%),
+    radial-gradient(ellipse 60% 40% at 50% 40%, color-mix(in srgb, var(--harmony-primary) 15%, transparent) 0%, transparent 50%),
     radial-gradient(ellipse 40% 30% at 70% 60%, rgba(139, 92, 246, 0.1) 0%, transparent 50%);
   pointer-events: none;
 }
@@ -476,8 +480,8 @@ onBeforeUnmount(() => {
 .loader-ring {
   position: absolute;
   inset: 0;
-  border: 3px solid rgba(99, 102, 241, 0.2);
-  border-top-color: #6366f1;
+  border: 3px solid color-mix(in srgb, var(--harmony-primary) 20%, transparent);
+  border-top-color: var(--harmony-primary);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -542,7 +546,7 @@ onBeforeUnmount(() => {
 .btn-primary {
   margin-top: 16px;
   padding: 14px 32px;
-  background: linear-gradient(135deg, #6366f1 0%, #818cf8 100%);
+  background: var(--harmony-primary);
   border: none;
   border-radius: 12px;
   font-size: 1rem;
@@ -553,8 +557,7 @@ onBeforeUnmount(() => {
 }
 
 .btn-primary:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 32px rgba(99, 102, 241, 0.4);
+  background: var(--harmony-primary-hover);
 }
 
 .btn-primary:disabled {
@@ -565,7 +568,7 @@ onBeforeUnmount(() => {
 .mfa-icon {
   width: 64px;
   height: 64px;
-  background: rgba(99, 102, 241, 0.12);
+  background: color-mix(in srgb, var(--harmony-primary) 12%, transparent);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -605,8 +608,8 @@ onBeforeUnmount(() => {
 }
 
 .code-input:focus {
-  border-color: rgba(99, 102, 241, 0.6);
-  background: rgba(99, 102, 241, 0.06);
+  border-color: color-mix(in srgb, var(--harmony-primary) 60%, transparent);
+  background: color-mix(in srgb, var(--harmony-primary) 6%, transparent);
 }
 
 .code-input.error {

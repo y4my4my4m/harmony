@@ -393,3 +393,126 @@ describe('useActivityPub background home refresh', () => {
     await refresh
   })
 })
+
+describe('useActivityPub realtime post queue', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.restoreAllMocks()
+    vi.clearAllMocks()
+  })
+
+  const makePosts = (n: number) =>
+    Array.from({ length: n }, (_, i) => ({ id: `old${i}`, author_id: 'them' })) as any[]
+
+  function arrive(store: any, post: Record<string, unknown>) {
+    vi.spyOn(activityPubService, 'loadPostWithAuthor').mockResolvedValue(post as any)
+    vi.spyOn(store, 'playNewPostSound').mockImplementation(() => {})
+    return store.handleRealtimePostCreate({ id: post.id })
+  }
+
+  it('queues posts for a scrolled timeline without touching the loaded list', async () => {
+    const store = useActivityPubStore()
+    store.followedUsers = new Set(['them'])
+    store.homeFeed.posts = makePosts(150)
+    store.setTimelineScrolled('home', true)
+
+    await arrive(store, { id: 'new1', author_id: 'them', visibility: 'private', is_local: true })
+
+    expect(store.homeFeed.posts).toHaveLength(150)
+    expect(store.homeFeed.posts[0].id).toBe('old0')
+    expect(store.pendingPostCount('home')).toBe(1)
+
+    store.setTimelineScrolled('home', false)
+
+    expect(store.homeFeed.posts).toHaveLength(151)
+    expect(store.homeFeed.posts[0].id).toBe('new1')
+    expect(store.pendingPostCount('home')).toBe(0)
+  })
+
+  it('caps a live timeline and reopens pagination', async () => {
+    const store = useActivityPubStore()
+    store.followedUsers = new Set(['them'])
+    store.homeFeed.posts = makePosts(100)
+    store.homeFeed.has_more = false
+
+    await arrive(store, { id: 'new1', author_id: 'them', visibility: 'private', is_local: true })
+
+    expect(store.homeFeed.posts).toHaveLength(100)
+    expect(store.homeFeed.posts[0].id).toBe('new1')
+    expect(store.homeFeed.has_more).toBe(true)
+  })
+
+  it('shows the viewer\'s own post in a scrolled timeline', async () => {
+    const store = useActivityPubStore()
+    store.homeFeed.posts = makePosts(5)
+    store.setTimelineScrolled('home', true)
+
+    await arrive(store, { id: 'mine', author_id: 'me', visibility: 'private', is_local: true })
+
+    expect(store.homeFeed.posts[0].id).toBe('mine')
+    expect(store.pendingPostCount('home')).toBe(0)
+  })
+
+  it('drops a deleted post from the queue', async () => {
+    const store = useActivityPubStore()
+    store.followedUsers = new Set(['them'])
+    store.setTimelineScrolled('home', true)
+
+    await arrive(store, { id: 'new1', author_id: 'them', visibility: 'private', is_local: true })
+    store.removePostFromAllFeeds('new1')
+
+    expect(store.pendingPostCount('home')).toBe(0)
+  })
+})
+
+describe('useActivityPub feed load errors', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.restoreAllMocks()
+    vi.clearAllMocks()
+  })
+
+  it('records a first-page failure and clears it on success', async () => {
+    const store = useActivityPubStore()
+    vi.spyOn(store, 'batchFetchReblogInteractions').mockImplementation(async (p: any) => p)
+    vi.spyOn(store, 'ensureAuthorProfilesCached').mockResolvedValue(undefined)
+    vi.spyOn(store, 'batchFetchRemoteReactions').mockResolvedValue(undefined)
+    const timeline = vi.spyOn(activityPubService, 'getEnhancedPublicTimeline')
+
+    timeline.mockRejectedValueOnce(new Error('network down'))
+    await store.loadPublicFeed()
+    expect(store.feedError('public')).toBe('network down')
+
+    timeline.mockResolvedValueOnce({ posts: [], fullPage: false } as any)
+    await store.loadPublicFeed()
+    expect(store.feedError('public')).toBeNull()
+  })
+})
+
+describe('useActivityPub clearAllBookmarks', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.restoreAllMocks()
+    vi.clearAllMocks()
+  })
+
+  it('deletes my bookmark rows and unmarks loaded posts', async () => {
+    const db = seedDb({
+      post_interactions: [
+        { id: 'b1', user_id: 'me', post_id: 'p1', interaction_type: 'bookmark' },
+        { id: 'f1', user_id: 'me', post_id: 'p1', interaction_type: 'favorite' },
+        { id: 'b2', user_id: 'them', post_id: 'p1', interaction_type: 'bookmark' },
+      ],
+    })
+    const store = useActivityPubStore()
+    store.bookmarks = [{ id: 'p1', is_bookmarked: true } as any]
+    store.homeFeed.posts = [{ id: 'p1', is_bookmarked: true } as any]
+
+    await store.clearAllBookmarks()
+
+    expect(db.tables.post_interactions.map((r: any) => r.id)).toEqual(['f1', 'b2'])
+    expect(store.bookmarks).toEqual([])
+    expect(store.hasMoreBookmarks).toBe(false)
+    expect((store.homeFeed.posts[0] as any).is_bookmarked).toBe(false)
+  })
+})

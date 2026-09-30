@@ -1,20 +1,10 @@
 <!-- UserProfileView - Federated user profile page -->
 <template>
   <div class="user-profile-wrapper">
-    <!-- Mony Header -->
-    <div class="mony-header-container">
-      <MonyHeader
-        :current-view="currentView"
-        :is-mobile="isMobile"
-        :right-sidebar-open="props.rightSidebarOpen ?? false"
-        @switch-feed="handleSwitchFeed"
-        @refresh-timeline="handleRefresh"
-        @open-composer="handleOpenComposer"
-        @open-search="handleOpenSearch"
-        @toggle-left-sidebar="emit('toggleLeftSidebar')"
-        @toggle-right-sidebar="emit('toggleRightSidebar')"
-      />
-    </div>
+    <ViewHeader
+      :title="user ? plainDisplayName : t('activitypub.profile')"
+      :subtitle="user ? t('activitypub.postsCountLabel', { count: user.posts_count || 0 }, user.posts_count || 0) : undefined"
+    />
 
     <!-- Main Content -->
     <div 
@@ -43,29 +33,47 @@
       <div v-else-if="user" class="profile-content">
         <!-- Profile Header -->
         <div class="profile-header">
-          <!-- Banner with gradient overlay -->
-          <div class="profile-banner" :style="bannerStyle">
-            <div class="banner-gradient"></div>
-            
-            <!-- Action buttons overlay on banner -->
-            <div class="banner-actions">
-              <button
-                @click="mentionUser"
-                class="banner-action-btn"
-                title="Mention user"
-              >
-                <Icon name="at-sign" />
-              </button>
+          <div class="profile-banner" :style="bannerStyle"></div>
 
-              <div class="more-actions" ref="moreActionsBtnRef">
+          <!-- Profile info container -->
+          <div class="profile-info-container">
+            <div class="avatar-row">
+              <div class="avatar-wrapper">
+                <Avatar
+                  :src="user.avatar_url"
+                  :alt="plainDisplayName"
+                  size="xl"
+                  class="profile-avatar"
+                />
+                <div v-if="!user.is_local" class="federation-badge" :title="t('activitypub.fromDomain', { domain: user.domain })">
+                  <Icon name="federation" size="12" />
+                </div>
+              </div>
+
+              <div v-if="!isCurrentUser" class="profile-actions">
                 <button
-                  @click.stop="toggleActionsMenu"
-                  class="banner-action-btn"
-                  title="More actions"
+                  type="button"
+                  class="profile-icon-btn"
+                  :aria-label="t('activitypub.mentionUser', { handle: user.username })"
+                  :title="t('activitypub.mentionUser', { handle: user.username })"
+                  @click="mentionUser"
                 >
-                  <Icon name="more-horizontal" />
+                  <Icon name="at-sign" :size="18" />
                 </button>
-                
+
+                <div class="more-actions" ref="moreActionsBtnRef">
+                  <button
+                    type="button"
+                    class="profile-icon-btn"
+                    :aria-label="t('activitypub.moreOptions')"
+                    :title="t('activitypub.moreOptions')"
+                    aria-haspopup="menu"
+                    :aria-expanded="showActionsMenu"
+                    @click.stop="toggleActionsMenu"
+                  >
+                    <Icon name="more-horizontal" :size="18" />
+                  </button>
+                                
                 <Teleport to="body">
                   <div v-if="showActionsMenu" class="actions-menu actions-menu-teleported" :style="actionsMenuStyle" v-click-outside="() => showActionsMenu = false">
                   <!-- View in remote instance (for federated users) -->
@@ -99,30 +107,36 @@
                   </button>
                 </div>
                 </Teleport>
-              </div>
-            </div>
-          </div>
-          
-          <!-- Profile info container -->
-          <div class="profile-info-container">
-            <!-- Avatar section with status indicator -->
-            <div class="avatar-container">
-              <div class="avatar-wrapper">
-                <Avatar 
-                  :src="user.avatar_url" 
-                  :alt="plainDisplayName"
-                  size="2xl" 
-                  class="profile-avatar"
-                />
-                <div v-if="!user.is_local" class="federation-badge" :title="`From ${user.domain}`">
-                  <Icon name="federation" size="12" />
                 </div>
+
+                <button
+                  type="button"
+                  :class="['follow-btn', { 'is-following': isFollowing || followRequested, 'is-loading': isFollowLoading }]"
+                  :disabled="isFollowLoading"
+                  :aria-busy="isFollowLoading"
+                  :aria-label="followButtonLabel"
+                  data-testid="profile-follow-btn"
+                  @click="toggleFollow"
+                >
+                  <Icon v-if="isFollowLoading" name="loader" :size="16" class="spinning" />
+                  <template v-else>
+                    <span class="follow-label">{{ followButtonText }}</span>
+                    <span v-if="isFollowing || followRequested" class="follow-label-hover">
+                      {{ isFollowing ? t('activitypub.unfollow') : t('activitypub.cancelFollowRequest') }}
+                    </span>
+                  </template>
+                </button>
+              </div>
+
+              <div v-else class="profile-actions">
+                <RouterLink :to="{ name: 'UserSettings', params: { section: 'account' } }" class="edit-profile-btn">
+                  {{ t('activitypub.editProfile') }}
+                </RouterLink>
               </div>
             </div>
 
             <!-- Main profile content -->
             <div class="profile-main-content">
-              <!-- Top row: Name/handle + Follow button -->
               <div class="profile-top-row">
                 <div class="name-handle-section">
                   <div class="display-name-row">
@@ -130,23 +144,8 @@
                       <DisplayName :userId="user.id" :fallback="user.display_name || user.username" />
                     </h1>
                     <Icon v-if="(user as any).verified" name="verified" class="verified-icon" />
-                    <span v-if="!user.is_local" class="domain-tag">{{ user.domain }}</span>
                   </div>
                   <p class="user-handle">{{ user.handle }}</p>
-                </div>
-
-                <!-- Primary action button -->
-                <div class="primary-actions" v-if="!isCurrentUser">
-                  <button
-                    @click="toggleFollow"
-                    :disabled="isFollowLoading"
-                    :class="['primary-action-btn', 'follow-btn', { following: isFollowing }]"
-                  >
-                    <Icon v-if="isFollowLoading" name="loader" class="spinning" />
-                    <Icon v-else-if="isFollowing" name="user-check" />
-                    <Icon v-else name="user-plus" />
-                    <span>{{ followButtonText }}</span>
-                  </button>
                 </div>
               </div>
 
@@ -317,7 +316,6 @@ import { useActivityPubStore } from '@/stores/useActivityPub';
 import { usePostReactionsStore } from '@/stores/postReactions';
 import { useAuthStore } from '@/stores/auth';
 import { useProfileStore } from '@/stores/useProfile';
-import { useLayoutState } from '@/composables/useLayoutState'
 import { useUserData } from '@/composables/useUserData'
 import { useFeedRealtime, type FeedKind } from '@/composables/useFeedRealtime'
 
@@ -332,7 +330,7 @@ import { format } from 'date-fns';
 import DOMPurify from 'dompurify';
 
 // Components
-import MonyHeader from '@/components/activitypub/MonyHeader.vue'
+import ViewHeader from '@/components/common/ViewHeader.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import DisplayName from '@/components/DisplayName.vue'
 import MonyContent from '@/components/activitypub/MonyContent.vue';
@@ -343,9 +341,6 @@ import UserProfileModal from '@/components/UserProfileModal.vue';
 import ReportModal from '@/components/moderation/ReportModal.vue';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '@/components/common/Avatar.vue';
-
-// Layout state
-const { isMobile } = useLayoutState()
 
 // Props
 interface Props {
@@ -379,7 +374,7 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 // Emits
-const emit = defineEmits<{
+defineEmits<{
   toggleLeftSidebar: []
   toggleRightSidebar: []
   refreshTimeline: []
@@ -409,11 +404,9 @@ const route = useRoute();
 const router = useRouter();
 
 // User data composable
-const { getUserColor, getUserBannerUrl } = useUserData()
+const { getUserBannerUrl } = useUserData()
 
-// Header and scroll state
 const scrollContainerRef = ref<HTMLElement | null>(null);
-const isScrolled = ref(false);
 
 // State
 const user = ref<FederatedUser | null>(null);
@@ -424,6 +417,8 @@ const showActionsMenu = ref(false);
 const moreActionsBtnRef = ref<HTMLElement | null>(null);
 const actionsMenuStyle = ref<Record<string, string>>({});
 const isFollowLoading = ref(false);
+// Pending request to an account that approves followers manually.
+const followRequested = ref(false);
 
 const toggleActionsMenu = () => {
   if (!showActionsMenu.value && moreActionsBtnRef.value) {
@@ -509,14 +504,14 @@ const profileTabs = computed(() => [
     count: user.value?.posts_count || 0
   },
   { 
-    id: 'following', 
-    label: 'Following', 
+    id: 'following',
+    label: t('activitypub.following'),  
     icon: 'user-plus',
     count: user.value?.following_count || 0
   },
   { 
-    id: 'followers', 
-    label: 'Followers', 
+    id: 'followers',
+    label: t('activitypub.followers'),  
     icon: 'users',
     count: user.value?.followers_count || 0
   }
@@ -527,25 +522,11 @@ const bannerUrl = computed(() => {
   return getUserBannerUrl(user.value.id).value || (user.value as any).banner_url || null
 })
 
-const userColor = computed(() => {
-  if (!user.value) return '#0EA5E9'
-  return getUserColor(user.value.id).value || '#0EA5E9'
-})
-
 const bannerStyle = computed(() => {
   const banner = bannerUrl.value
-  if (banner) {
-    const optimizedBanner = getBannerUrl(banner, { width: 640, height: 350, quality: 80 })
-    return {
-      backgroundImage: `url(${optimizedBanner || banner})`,
-      backgroundSize: 'cover',
-      backgroundPosition: 'center',
-      backgroundRepeat: 'no-repeat'
-    }
-  }
-  return {
-    background: userColor.value || '#0EA5E9'
-  }
+  if (!banner) return {}
+  const optimizedBanner = getBannerUrl(banner, { width: 1200, height: 400, quality: 80 })
+  return { backgroundImage: `url(${optimizedBanner || banner})` }
 })
 
 // Infinite scroll for the posts tab.
@@ -554,7 +535,6 @@ const handleScroll = throttle(() => {
   
   const container = scrollContainerRef.value;
   const scrollTop = container.scrollTop;
-  isScrolled.value = scrollTop > 50;
   
   if (activeTab.value === 'posts' && !isLoadingPosts.value && !isLoadingMoreRemote.value) {
     const scrollHeight = container.scrollHeight;
@@ -566,26 +546,6 @@ const handleScroll = throttle(() => {
     }
   }
 }, 100);
-
-// Header event handlers
-const handleSwitchFeed = (feed: string) => {
-  router.push({ name: 'Social', params: { timeline: feed } })
-}
-
-const handleOpenComposer = () => {
-  activityPubStore.openComposer()
-}
-
-const handleOpenSearch = () => {
-  emit('openSearch')
-}
-
-const handleRefresh = () => {
-  const handle = currentHandle.value;
-  const isRemote = handle.includes('@') && !handle.endsWith('@' + import.meta.env.VITE_DOMAIN as string);
-  debug.log(`Refreshing profile data...${isRemote ? ' (force refresh for remote user)' : ''}`);
-  loadUserProfile(handle, isRemote);
-};
 
 // Computed
 const isCurrentUser = computed(() => {
@@ -625,9 +585,31 @@ const remoteProfileUrl = computed(() => {
 });
 
 const followButtonText = computed(() => {
-  if (isFollowLoading.value) return 'Loading...';
-  return isFollowing.value ? 'Following' : 'Follow';
+  if (isFollowing.value) return t('activitypub.following');
+  if (followRequested.value) return t('activitypub.requested');
+  return t('activitypub.follow');
 });
+
+const followButtonLabel = computed(() => {
+  const handle = user.value?.username || '';
+  if (isFollowing.value) return t('activitypub.unfollowUser', { handle });
+  if (followRequested.value) return t('activitypub.cancelFollowRequest');
+  return t('activitypub.followUser', { handle });
+});
+
+const loadRelationship = async () => {
+  const target = user.value;
+  if (!target?.id || isCurrentUser.value) return;
+  try {
+    const relationships = await services.interactions.getUserRelationships([target.id]);
+    const rel = relationships[target.id] as { followRequestPending?: boolean } | undefined;
+    if (user.value?.id === target.id) {
+      followRequested.value = !!rel?.followRequestPending;
+    }
+  } catch (err) {
+    debug.warn('Failed to load relationship:', err);
+  }
+};
 
 // Profile fields from ActivityPub PropertyValue attachments
 const userFields = computed(() => {
@@ -663,6 +645,7 @@ const loadUserProfile = async (handle: string, forceRefresh: boolean = false) =>
   isLoading.value = true;
   error.value = null;
   user.value = null;
+  followRequested.value = false;
   
   try {
     if (handle.startsWith('@')) {
@@ -759,7 +742,8 @@ const loadUserProfile = async (handle: string, forceRefresh: boolean = false) =>
         loadUserPosts(),
         loadPinnedPosts(),
         loadFollowing(),
-        loadFollowers()
+        loadFollowers(),
+        loadRelationship()
       ]);
     } else {
       debug.log('User not found');
@@ -1007,10 +991,13 @@ const toggleFollow = async () => {
   
   isFollowLoading.value = true;
   try {
-    if (isFollowing.value) {
+    if (isFollowing.value || followRequested.value) {
+      // Deletes an accepted follow or withdraws a pending request.
       await activityPubStore.unfollowUser(user.value.id);
+      followRequested.value = false;
     } else {
-      await activityPubStore.followUser(user.value.id);
+      const result = await activityPubStore.followUser(user.value.id) as { pending?: boolean } | undefined;
+      followRequested.value = !!result?.pending;
     }
   } catch (error) {
     debug.error('Failed to toggle follow:', error);
@@ -1233,10 +1220,6 @@ onUnmounted(() => {
   background: var(--background-primary);
 }
 
-.mony-header-container {
-  flex-shrink: 0;
-}
-
 /* ===== MAIN CONTENT ===== */
 
 .user-profile-view {
@@ -1280,13 +1263,22 @@ onUnmounted(() => {
 
 .back-btn:hover {
   background: var(--harmony-primary-hover);
-  transform: translateY(-1px);
 }
 
 .profile-content {
   display: flex;
   flex-direction: column;
-  min-height: calc(100vh - 64px);
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+  min-height: 100%;
+}
+
+@media (min-width: 769px) {
+  .profile-content {
+    border-left: 1px solid var(--border-color);
+    border-right: 1px solid var(--border-color);
+  }
 }
 
 .profile-header {
@@ -1295,93 +1287,157 @@ onUnmounted(() => {
 }
 
 .profile-banner {
-  height: 300px;
-  background: linear-gradient(135deg, var(--harmony-primary), var(--harmony-secondary));
+  aspect-ratio: 3 / 1;
+  width: 100%;
+  background-color: var(--background-tertiary);
   background-size: cover;
   background-position: center;
-  position: relative;
-  overflow: hidden;
-}
-
-.banner-gradient {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(180deg, 
-    rgba(0, 0, 0, 0.1) 0%, 
-    rgba(0, 0, 0, 0.2) 50%, 
-    rgba(0, 0, 0, 0.4) 100%
-  );
-}
-
-.banner-actions {
-  position: absolute;
-  top: 1rem;
-  right: 1rem;
-  display: flex;
-  gap: 0.5rem;
-  z-index: 2;
-}
-
-.banner-action-btn {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.3);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  color: var(--text-primary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.banner-action-btn:hover {
-  background: rgba(0, 0, 0, 0.6);
-  border-color: rgba(255, 255, 255, 0.25);
-  transform: scale(1.05);
+  background-repeat: no-repeat;
 }
 
 .profile-info-container {
-  background: var(--background-quaternary);
   position: relative;
-  padding: 0 1.5rem 1.5rem;
-  z-index: 2;
+  padding: 0 var(--space-4) var(--space-4);
 }
 
-.avatar-container {
-  position: relative;
-  margin-top: -50px;
-  margin-bottom: 1rem;
-  z-index: 3;
+.avatar-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: -40px;
+  margin-bottom: var(--space-3);
 }
 
 .avatar-wrapper {
   position: relative;
   display: inline-block;
+  flex-shrink: 0;
 }
 
 .profile-avatar {
-  border: 8px solid var(--background-quaternary);
-  border-radius: 50%;
+  border: 4px solid var(--background-primary);
+  border-radius: var(--radius-full);
   background: var(--background-secondary);
 }
 
 .federation-badge {
   position: absolute;
-  bottom: 6px;
-  right: 6px;
+  bottom: 4px;
+  right: 4px;
   width: 20px;
   height: 20px;
-  border-radius: 50%;
-  background: #1d9bf0;
-  border: 2px solid var(--background-secondary);
+  border-radius: var(--radius-full);
+  background: var(--harmony-primary);
+  border: 2px solid var(--background-primary);
   display: flex;
   align-items: center;
   justify-content: center;
+  color: var(--text-on-primary);
+}
+
+.profile-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-bottom: var(--space-1);
+}
+
+.profile-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-full);
+  background: transparent;
   color: var(--text-primary);
-  font-size: 10px;
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
+}
+
+.profile-icon-btn:hover {
+  background: var(--background-modifier-hover);
+}
+
+.follow-btn,
+.edit-profile-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 120px;
+  height: 36px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.follow-btn {
+  border: 1px solid var(--harmony-primary);
+  background: var(--harmony-primary);
+  color: var(--text-on-primary);
+}
+
+.follow-btn:hover:not(:disabled) {
+  background: var(--harmony-primary-hover);
+  border-color: var(--harmony-primary-hover);
+}
+
+.follow-btn.is-following {
+  border-color: var(--border-primary);
+  background: transparent;
+  color: var(--text-primary);
+}
+
+.follow-btn.is-following:hover:not(:disabled),
+.follow-btn.is-following:focus-visible {
+  border-color: var(--error);
+  background: color-mix(in srgb, var(--error) 10%, transparent);
+  color: var(--error);
+}
+
+.follow-label-hover {
+  display: none;
+}
+
+.follow-btn.is-following:hover:not(:disabled) .follow-label,
+.follow-btn.is-following:focus-visible .follow-label {
+  display: none;
+}
+
+.follow-btn.is-following:hover:not(:disabled) .follow-label-hover,
+.follow-btn.is-following:focus-visible .follow-label-hover {
+  display: inline;
+}
+
+.follow-btn:disabled {
+  cursor: progress;
+}
+
+.edit-profile-btn {
+  width: auto;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--border-primary);
+  background: transparent;
+  color: var(--text-primary);
+  text-decoration: none;
+}
+
+.edit-profile-btn:hover {
+  background: var(--background-modifier-hover);
+}
+
+.profile-icon-btn:focus-visible,
+.follow-btn:focus-visible,
+.edit-profile-btn:focus-visible {
+  outline: 2px solid var(--harmony-primary);
+  outline-offset: 2px;
 }
 
 .profile-main-content {
@@ -1389,101 +1445,39 @@ onUnmounted(() => {
 }
 
 .profile-top-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 1rem;
-  margin-bottom: 1rem;
+  margin-bottom: var(--space-3);
 }
 
 .name-handle-section {
-  flex: 1;
   min-width: 0;
 }
 
 .display-name-row {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.25rem;
+  gap: var(--space-2);
   flex-wrap: wrap;
 }
 
 .display-name {
-  font-size: 1.5rem;
-  font-weight: 800;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
   color: var(--text-primary);
   margin: 0;
-  line-height: 1.2;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 
 .verified-icon {
-  color: #1d9bf0;
+  color: var(--harmony-primary);
   flex-shrink: 0;
-}
-
-.domain-tag {
-  background: rgba(29, 155, 240, 0.1);
-  color: #1d9bf0;
-  padding: 0.125rem 0.375rem;
-  border-radius: 8px;
-  font-size: 0.7rem;
-  font-weight: 500;
-  border: 1px solid rgba(29, 155, 240, 0.2);
-  text-transform: lowercase;
 }
 
 .user-handle {
   color: var(--text-secondary);
-  font-size: 1rem;
-  margin: 0;
-  font-weight: 400;
-}
-
-.primary-actions {
-  flex-shrink: 0;
-}
-
-.primary-action-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: white;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 20px;
-  color: #000;
-  padding: 0.6rem 1.25rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  font-weight: 700;
-  font-size: 0.9rem;
-  min-width: 100px;
-  justify-content: center;
-}
-
-.primary-action-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.9);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
-
-.primary-action-btn.following {
-  background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  color: var(--text-primary);
-}
-
-.primary-action-btn.following:hover:not(:disabled) {
-  background: rgba(242, 63, 66, 0.15);
-  border-color: #f23f42;
-  color: #f23f42;
-  box-shadow: 0 4px 12px rgba(242, 63, 66, 0.2);
-}
-
-.primary-action-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  transform: none;
+  font-size: var(--font-size-sm);
+  margin: 2px 0 0;
+  overflow-wrap: anywhere;
 }
 
 .bio-section {
@@ -1595,12 +1589,12 @@ onUnmounted(() => {
 }
 
 .action-item:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--background-modifier-hover);
 }
 
 .action-item.active {
   color: var(--harmony-primary);
-  background: rgba(14, 165, 233, 0.1);
+  background: var(--harmony-primary-alpha-light);
 }
 
 .action-item.danger {
@@ -1608,7 +1602,7 @@ onUnmounted(() => {
 }
 
 .action-item.danger:hover {
-  background: rgba(242, 63, 66, 0.1);
+  background: color-mix(in srgb, var(--error) 10%, transparent);
 }
 
 .action-divider {
@@ -1639,7 +1633,7 @@ onUnmounted(() => {
 
 .tab-btn:hover {
   color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--background-modifier-hover);
 }
 
 .tab-btn.active {
@@ -1648,7 +1642,7 @@ onUnmounted(() => {
 }
 
 .tab-count {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--background-modifier-active);
   color: var(--text-tertiary);
   padding: 0.25rem 0.5rem;
   border-radius: 12px;
@@ -1751,17 +1745,17 @@ onUnmounted(() => {
   margin-top: 0.5rem;
   padding: 8px 24px;
   background: transparent;
-  border: 1px solid var(--brand-color, #0EA5E9);
-  color: var(--brand-color, #0EA5E9);
-  border-radius: 20px;
+  border: 1px solid var(--harmony-primary);
+  color: var(--harmony-primary);
+  border-radius: var(--radius-full);
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
 }
 
 .unblock-btn:hover {
-  background: var(--brand-color, #0EA5E9);
-  color: var(--text-primary);
+  background: var(--harmony-primary);
+  color: var(--text-on-primary);
 }
 
 .load-more-container {
@@ -1786,7 +1780,7 @@ onUnmounted(() => {
 
 .load-more-btn:hover:not(:disabled) {
   border-color: var(--border-hover);
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--background-modifier-hover);
 }
 
 .load-more-btn:disabled {
@@ -1806,44 +1800,20 @@ onUnmounted(() => {
 /* ===== RESPONSIVE DESIGN ===== */
 
 @media (max-width: 768px) {
-  .profile-banner {
-    height: 150px;
-  }
-  
   .profile-info-container {
-    padding: 0 1rem 1rem;
+    padding: 0 var(--space-3) var(--space-3);
   }
-  
-  .avatar-container {
-    margin-top: -35px;
+
+  .profile-icon-btn {
+    width: 40px;
+    height: 40px;
   }
-  
-  .display-name {
-    font-size: 1.25rem;
+
+  .follow-btn,
+  .edit-profile-btn {
+    height: 40px;
   }
-  
-  .profile-top-row {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.75rem;
-  }
-  
-  .primary-action-btn {
-    width: 100%;
-    justify-content: center;
-  }
-  
-  .banner-actions {
-    top: 0.75rem;
-    right: 0.75rem;
-    gap: 0.375rem;
-  }
-  
-  .banner-action-btn {
-    width: 32px;
-    height: 32px;
-  }
-  
+
   .users-grid {
     grid-template-columns: 1fr;
   }

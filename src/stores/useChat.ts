@@ -69,6 +69,12 @@ export const useChatStore = defineStore('chat', {
 
         // Reactions load via MessageService batch fetch, not per-message here.
 
+        // Ciphertext is stored as a text part and reply previews render part.text
+        // verbatim. No session key is fetched here, so substitute a placeholder.
+        if (message.encrypted && !message.decrypted) {
+          message.content = [{ type: 'text', text: 'Encrypted message' }];
+        }
+
         this.replyMessageCache.set(messageId, message);
         if (this.replyMessageCache.size > this.maxReplyCacheSize) {
           const oldestKey = this.replyMessageCache.keys().next().value;

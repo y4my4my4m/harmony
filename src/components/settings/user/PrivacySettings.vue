@@ -231,7 +231,7 @@
 
           <!-- Recovery Codes Display -->
           <div class="enroll-step" v-if="enrollStep === 3">
-            <h5 class="step-title">✅ Success! Save Your Recovery Codes</h5>
+            <h5 class="step-title">Save your recovery codes</h5>
             <p class="step-description warning">
               <strong>Important:</strong> Save these recovery codes in a safe place. Each can be used once if you lose access to your authenticator app.
             </p>
@@ -285,47 +285,6 @@
         Encryption Settings
       </h3>
       <EncryptionSettings :loading="loading" />
-    </div>
-
-    <!-- Privacy Settings -->
-    <div class="settings-section">
-      <h3 class="section-title">Direct Messages</h3>
-
-      <div class="setting-item disabled-option">
-        <div class="setting-info">
-          <h4 class="setting-label">
-            Allow direct messages from server members
-            <span class="coming-soon-badge">Coming soon</span>
-          </h4>
-          <p class="setting-description">
-            When enabled, members of servers you share will be able to DM you. When this preference is wired up, you'll be able to override it per-server.
-          </p>
-        </div>
-        <div class="setting-control">
-          <ToggleSwitch
-            v-model="settings.allowDMFromServerMembers"
-            disabled
-          />
-        </div>
-      </div>
-
-      <div class="setting-item disabled-option">
-        <div class="setting-info">
-          <h4 class="setting-label">
-            Allow direct messages from people you follow
-            <span class="coming-soon-badge">Coming soon</span>
-          </h4>
-          <p class="setting-description">
-            Restrict who can DM you to accounts you follow (locally or across the fediverse).
-          </p>
-        </div>
-        <div class="setting-control">
-          <ToggleSwitch
-            v-model="settings.allowDMFromFollows"
-            disabled
-          />
-        </div>
-      </div>
     </div>
 
     <div class="settings-section">
@@ -487,6 +446,7 @@
 </template>
 
 <script setup lang="ts">
+import { authErrorMessage } from '@/utils/authErrorMessage'
 import { ref, computed, onMounted } from 'vue'
 import { debug } from '@/utils/debug'
 import type { User } from '@/types'
@@ -570,13 +530,7 @@ const isDisable2FACodeValid = computed(() => {
 })
 
 // Privacy State
-//
-// `allowDMFromServerMembers` and `allowDMFromFollows` are UI placeholders:
-// `notification_preferences` has no column for either and no server-side
-// gate reads them. They stay in state so persistence works once wired up.
 const settings = ref({
-  allowDMFromServerMembers: true,
-  allowDMFromFollows: true,
   stripUrlTrackers: true,
 })
 
@@ -711,7 +665,7 @@ const handlePasswordChange = async () => {
     // NOTE: the current password is not verified. Supabase exposes no
     // client-side check for it; authorization rests on the active session.
 
-    const { data, error: updateError } = await supabase.auth.updateUser({
+    const { error: updateError } = await supabase.auth.updateUser({
       password: passwordForm.value.newPassword
     })
 
@@ -744,7 +698,7 @@ const handlePasswordChange = async () => {
     showConfirmPassword.value = false
   } catch (error: any) {
     debug.error('Password change error:', error)
-    toast.error(error.message || 'Failed to update password')
+    toast.error(authErrorMessage(error, 'Failed to update password'))
   } finally {
     passwordLoading.value = false
   }
@@ -1204,24 +1158,7 @@ onMounted(async () => {
   margin: 0 0 4px 0;
 }
 
-.coming-soon-badge {
-  display: inline-block;
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: rgba(245, 158, 11, 0.15);
-  color: #f59e0b;
-  vertical-align: middle;
-  margin-left: 6px;
-}
 
-.setting-item.disabled-option .setting-label,
-.setting-item.disabled-option .setting-description {
-  opacity: 0.65;
-}
 
 .setting-description {
   font-size: 12px;

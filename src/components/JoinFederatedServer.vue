@@ -1,46 +1,60 @@
 <template>
-  <div class="federated-server-modal" @click.self="$emit('close')">
-    <div class="modal-content">
-      <!-- Header -->
+  <div class="federated-server-modal" @click.self="close">
+    <div
+      class="modal-content"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="join-remote-server-title"
+    >
       <div class="modal-header">
         <div class="header-icon">
-          <svg viewBox="0 0 24 24" class="icon">
-            <path d="M17.9,17.39C17.64,16.59 16.89,16 16,16H15V13A1,1 0 0,0 14,12H8V10H10A1,1 0 0,0 11,9V7H13A2,2 0 0,0 15,5V4.59C17.93,5.77 20,8.64 20,12C20,14.08 19.2,15.97 17.9,17.39M11,19.93C7.05,19.44 4,16.08 4,12C4,11.38 4.08,10.79 4.21,10.21L9,15V16A2,2 0 0,0 11,18M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z" fill="currentColor"/>
-          </svg>
+          <Icon name="globe" :size="22" />
         </div>
-        <h2>{{ $t('federation.joinRemoteServer') }}</h2>
-        <p class="subtitle">{{ $t('federation.joinRemoteServerDesc') }}</p>
+        <div class="header-text">
+          <h2 id="join-remote-server-title">{{ $t('federation.joinRemoteServer') }}</h2>
+          <p class="subtitle">{{ $t('federation.joinRemoteServerDesc') }}</p>
+        </div>
+        <button
+          type="button"
+          class="close-button"
+          :aria-label="$t('common.close')"
+          :disabled="isJoining"
+          @click="close"
+        >
+          <Icon name="x" :size="20" />
+        </button>
       </div>
 
-      <!-- Search/Input -->
-      <div class="input-section">
+      <form class="input-section" @submit.prevent="discoverServer">
         <label for="server-url">{{ $t('federation.serverUrl') }}</label>
         <div class="input-wrapper">
           <input
             id="server-url"
-            v-model="serverUrl"
+            ref="urlInput"
+            v-model.trim="serverUrl"
             type="text"
+            inputmode="url"
+            autocomplete="off"
+            autocapitalize="off"
+            spellcheck="false"
             :placeholder="$t('federation.serverUrlPlaceholder')"
-            :disabled="isLoading"
-            @keyup.enter="discoverServer"
+            :disabled="isLoading || isJoining"
+            @keydown.enter.prevent="discoverServer"
           />
-          <button 
-            class="discover-btn"
-            :disabled="!serverUrl || isLoading"
-            @click="discoverServer"
+          <button
+            type="submit"
+            class="btn btn-secondary discover-btn"
+            :disabled="!serverUrl || isLoading || isJoining"
           >
-            <span v-if="isLoading" class="loading-spinner"></span>
+            <Icon v-if="isLoading" name="spinner" :size="16" class="spin" />
             <span v-else>{{ $t('federation.discover') }}</span>
           </button>
         </div>
         <p class="input-hint">{{ $t('federation.urlFormatHint') }}</p>
-      </div>
+      </form>
 
-      <!-- Error Message -->
-      <div v-if="error" class="error-message">
-        <svg viewBox="0 0 24 24" class="error-icon">
-          <path d="M13,13H11V7H13M13,17H11V15H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z" fill="currentColor"/>
-        </svg>
+      <div v-if="error" class="error-message" role="alert">
+        <Icon name="alert-circle" :size="16" />
         <span>
           {{ error }}
           <a
@@ -54,56 +68,45 @@
         </span>
       </div>
 
-      <!-- Server Preview -->
       <div v-if="discoveredServer" class="server-preview">
         <div class="server-icon">
-          <img 
-            v-if="discoveredServer.icon" 
-            :src="discoveredServer.icon" 
+          <img
+            v-if="discoveredServer.icon"
+            :src="discoveredServer.icon"
             :alt="discoveredServer.name"
           />
           <span v-else class="icon-placeholder">
             {{ discoveredServer.name.charAt(0).toUpperCase() }}
           </span>
         </div>
-        
+
         <div class="server-info">
           <h3 class="server-name">{{ discoveredServer.name }}</h3>
           <p class="server-instance">
-            <svg viewBox="0 0 24 24" class="instance-icon">
-              <path d="M17.9,17.39C17.64,16.59 16.89,16 16,16H15V13A1,1 0 0,0 14,12H8V10H10A1,1 0 0,0 11,9V7H13A2,2 0 0,0 15,5V4.59C17.93,5.77 20,8.64 20,12C20,14.08 19.2,15.97 17.9,17.39M11,19.93C7.05,19.44 4,16.08 4,12C4,11.38 4.08,10.79 4.21,10.21L9,15V16A2,2 0 0,0 11,18M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z" fill="currentColor"/>
-            </svg>
+            <Icon name="globe" :size="13" />
             {{ discoveredServer.instance }}
           </p>
           <p v-if="discoveredServer.description" class="server-description">
             {{ discoveredServer.description }}
           </p>
-          
+
           <div class="server-stats">
             <span class="stat">
-              <svg viewBox="0 0 24 24" class="stat-icon">
-                <path d="M12,5.5A3.5,3.5 0 0,1 15.5,9A3.5,3.5 0 0,1 12,12.5A3.5,3.5 0 0,1 8.5,9A3.5,3.5 0 0,1 12,5.5M5,8C5.56,8 6.08,8.15 6.53,8.42C6.38,9.85 6.8,11.27 7.66,12.38C7.16,13.34 6.16,14 5,14A3,3 0 0,1 2,11A3,3 0 0,1 5,8M19,8A3,3 0 0,1 22,11A3,3 0 0,1 19,14C17.84,14 16.84,13.34 16.34,12.38C17.2,11.27 17.62,9.85 17.47,8.42C17.92,8.15 18.44,8 19,8M5.5,18.25C5.5,16.18 8.41,14.5 12,14.5C15.59,14.5 18.5,16.18 18.5,18.25V20H5.5V18.25Z" fill="currentColor"/>
-              </svg>
+              <Icon name="users" :size="14" />
               {{ discoveredServer.memberCount }} {{ $t('federation.members') }}
             </span>
             <span class="stat">
-              <svg viewBox="0 0 24 24" class="stat-icon">
-                <path d="M5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3M7,7V9H17V7H7M7,11V13H17V11H7M7,15V17H14V15H7Z" fill="currentColor"/>
-              </svg>
-              {{ discoveredServer.channels.length }} {{ $t('federation.channels') }}
+              <Icon name="hash" :size="14" />
+              {{ previewChannels.length }} {{ $t('federation.channels') }}
             </span>
           </div>
 
-          <!-- Invite Info Badge -->
           <div v-if="isInvite && inviteInfo" class="invite-badge">
-            <svg width="14" height="14" viewBox="0 0 24 24" class="invite-icon">
-              <path d="M10,21V19H6.41L10.91,14.5L9.5,13.09L5,17.59V14H3V21H10M14.5,10.91L19,6.41V10H21V3H14V5H17.59L13.09,9.5L14.5,10.91Z" fill="currentColor"/>
-            </svg>
+            <Icon name="link" :size="13" />
             <span>{{ $t('federation.inviteLink') }}</span>
           </div>
 
-          <!-- Invite Details -->
-          <div v-if="isInvite && inviteInfo" class="invite-details">
+          <div v-if="isInvite && inviteInfo && (inviteInfo.createdBy || inviteInfo.expiresAt)" class="invite-details">
             <div v-if="inviteInfo.createdBy" class="invite-creator">
               <span class="detail-label">{{ $t('federation.invitedBy') }}:</span>
               <span class="detail-value">
@@ -119,8 +122,7 @@
             </div>
           </div>
 
-          <!-- Origin rules (instance + server) shown before joining -->
-          <div v-if="isInvite && combinedRules.length > 0" class="invite-rules">
+          <div v-if="isInvite && combinedRules.length > 0 && !joinedServerId" class="invite-rules">
             <div class="invite-rules__title">{{ $t('federation.serverRules', 'Rules') }}</div>
             <ol class="invite-rules__list">
               <li v-for="(rule, index) in combinedRules" :key="index">{{ rule }}</li>
@@ -128,57 +130,77 @@
             <p class="invite-rules__note">{{ $t('federation.rulesAgreeNote', 'By joining, you agree to these rules.') }}</p>
           </div>
 
-          <!-- Channel Preview -->
-          <div v-if="discoveredServer.channels.length > 0" class="channels-preview">
-            <span 
-              v-for="channel in discoveredServer.channels.slice(0, 5)" 
+          <div v-if="previewChannels.length > 0" class="channels-preview">
+            <span
+              v-for="channel in previewChannels.slice(0, 5)"
               :key="channel.id"
               class="channel-tag"
             >
-              <span class="channel-icon">{{ channel.type === 'voice' ? '🔊' : '#' }}</span>
+              <Icon :name="channelKind(channel) === 'voice' ? 'volume' : 'hash'" :size="12" />
               {{ channel.name }}
             </span>
-            <span v-if="discoveredServer.channels.length > 5" class="more-channels">
-              +{{ discoveredServer.channels.length - 5 }} {{ $t('federation.more') }}
+            <span v-if="previewChannels.length > 5" class="more-channels">
+              +{{ previewChannels.length - 5 }} {{ $t('federation.more') }}
             </span>
           </div>
         </div>
       </div>
 
-      <!-- Actions -->
+      <p v-if="joinedServerId" class="already-joined">
+        <Icon name="check-circle" :size="16" />
+        {{ $t('federation.alreadyJoined') }}
+      </p>
+
       <div class="modal-actions">
-        <button class="cancel-btn" @click="$emit('close')" :disabled="isJoining">
+        <button type="button" class="btn btn-ghost" :disabled="isJoining" @click="close">
           {{ $t('common.cancel') }}
         </button>
-        <button 
-          class="join-btn"
+        <button
+          v-if="joinedServerId"
+          type="button"
+          class="btn btn-primary"
+          :disabled="isJoining"
+          @click="openJoinedServer"
+        >
+          <Icon v-if="isJoining" name="spinner" :size="16" class="spin" />
+          <span v-else>{{ $t('federation.openServer') }}</span>
+        </button>
+        <button
+          v-else
+          type="button"
+          class="btn btn-primary"
           :disabled="!discoveredServer || isJoining"
           @click="joinServer"
         >
-          <span v-if="isJoining" class="loading-spinner"></span>
+          <Icon v-if="isJoining" name="spinner" :size="16" class="spin" />
           <span v-else>{{ $t('federation.joinServer') }}</span>
         </button>
       </div>
 
-      <!-- Federated Notice (only shown after a server is discovered) -->
-      <div v-if="discoveredServer" class="federated-notice">
-        <svg viewBox="0 0 24 24" class="notice-icon">
-          <path d="M11,9H13V7H11M12,20C7.59,20 4,16.41 4,12C4,7.59 7.59,4 12,4C16.41,4 20,7.59 20,12C20,16.41 16.41,20 12,20M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M11,17H13V11H11V17Z" fill="currentColor"/>
-        </svg>
+      <p v-if="discoveredServer" class="federated-notice">
+        <Icon name="info" :size="14" />
         <span>{{ $t('federation.federatedNotice') }}</span>
-      </div>
+      </p>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { federationServerService, type RemoteServer, type InviteInfo } from '@/services/federation'
+import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { useToast } from 'vue-toastification'
+import {
+  federationServerService,
+  remoteServerUuid,
+  type RemoteServer,
+  type InviteInfo,
+} from '@/services/federation'
 import { useAuthStore } from '@/stores/auth'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
-import { useRouter } from 'vue-router'
+import { useOpenServer } from '@/composables/useOpenServer'
 import { debug } from '@/utils/debug'
+import Icon from '@/components/common/Icon.vue'
 import DisplayName from '@/components/DisplayName.vue'
 import { userDataService } from '@/services/userDataService'
 
@@ -192,12 +214,15 @@ const emit = defineEmits<{
   joined: [serverId: string]
 }>()
 
-const router = useRouter()
+const { t } = useI18n()
+const toast = useToast()
 const authStore = useAuthStore()
 const serverChannelStore = useServerChannelStore()
 const instanceSettings = useInstanceSettingsStore()
+const openServer = useOpenServer()
 
 const serverUrl = ref('')
+const urlInput = ref<HTMLInputElement>()
 const isLoading = ref(false)
 const isJoining = ref(false)
 const error = ref('')
@@ -205,11 +230,27 @@ const discoveredServer = ref<RemoteServer | null>(null)
 const inviteInfo = ref<InviteInfo | null>(null)
 const isInvite = ref(false)
 
-onMounted(() => {
-  if (props.initialUrl) {
-    serverUrl.value = props.initialUrl
-    void discoverServer()
-  }
+type ChannelKind = 'text' | 'voice' | 'category'
+
+// ActivityPub discovery responses carry `channelType`; invite responses carry `type`.
+function channelKind(channel: RemoteServer['channels'][number]): ChannelKind | undefined {
+  const raw = (channel as { channelType?: string }).channelType ?? channel.type
+  return raw === 'text' || raw === 'voice' || raw === 'category' ? raw : undefined
+}
+
+const previewChannels = computed(() =>
+  (discoveredServer.value?.channels ?? []).filter(channel => channelKind(channel) !== 'category'),
+)
+
+const joinedServerId = computed(() => {
+  const remote = discoveredServer.value
+  if (!remote) return null
+  const uuid = remoteServerUuid(remote.id)
+  const match = serverChannelStore.servers.find(server =>
+    (uuid && server.id === uuid) ||
+    (!!remote.inbox && server.federation_inbox_url === remote.inbox),
+  )
+  return match?.id ?? null
 })
 
 const inviterDisplayNameParts = computed(() => {
@@ -226,8 +267,32 @@ const combinedRules = computed(() => [
   ...(inviteInfo.value?.serverRules ?? []),
 ])
 
+function close() {
+  if (isJoining.value) return
+  emit('close')
+}
+
+function onKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape') close()
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', onKeydown)
+  if (props.initialUrl) {
+    serverUrl.value = props.initialUrl.trim()
+    void discoverServer()
+  } else {
+    void nextTick(() => urlInput.value?.focus())
+  }
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onKeydown)
+})
+
 async function discoverServer() {
-  if (!serverUrl.value) return
+  const input = serverUrl.value.trim()
+  if (!input || isLoading.value) return
 
   error.value = ''
   discoveredServer.value = null
@@ -236,7 +301,7 @@ async function discoverServer() {
   isLoading.value = true
 
   try {
-    const result = await federationServerService.discoverServer(serverUrl.value)
+    const result = await federationServerService.discoverServer(input)
 
     if (result.success && result.server) {
       discoveredServer.value = result.server
@@ -256,57 +321,46 @@ async function discoverServer() {
 
 async function joinServer() {
   const userId = authStore.session?.user?.id
-  if (!discoveredServer.value || !userId) return
+  const remote = discoveredServer.value
+  if (!remote || !userId || isJoining.value) return
 
   error.value = ''
   isJoining.value = true
 
   try {
     const result = await federationServerService.joinServer(
-      discoveredServer.value.id,
+      remote.id,
       userId,
-      inviteInfo.value?.code // Pass invite code if present
+      inviteInfo.value?.code
     )
 
-    if (result.success && result.serverId) {
-      emit('joined', result.serverId)
-      
-      // Force refresh the server list to include the newly joined server
-      await serverChannelStore.fetchServersForUser(userId, true)
-      
-      serverChannelStore.setCurrentServer(result.serverId)
-      await serverChannelStore.fetchCategoriesAndChannels(result.serverId)
-      
-      // Navigate to the server's default channel (or server overview if no channel)
-      // NOTE: /chat/ is the chat route; /server/ is server settings.
-      if (result.defaultChannelId) {
-        serverChannelStore.setCurrentChannel(result.defaultChannelId)
-        debug.log('Navigating to default channel:', result.defaultChannelId)
-        router.push(`/chat/${result.serverId}/${result.defaultChannelId}`)
-      } else {
-        // Fallback - try to get the first channel from discovered server
-        // ActivityPub responses carry channelType ('text', 'voice', 'category');
-        // invite responses carry the same values under `type`.
-        const firstChannel = discoveredServer.value?.channels?.find((c: any) => 
-          c.channelType === 'text' || c.channelType === 'voice' ||
-          c.type === 'text' || c.type === 'voice'
-        )
-        if (firstChannel) {
-          const channelId = (firstChannel as any).localId || firstChannel.id?.split('/').pop()
-          if (channelId) {
-            debug.log('Navigating to fallback channel:', channelId)
-            router.push(`/chat/${result.serverId}/${channelId}`)
-            return
-          }
-        }
-        debug.log('No default channel found, navigating to DM page')
-        router.push('/dm')
-      }
-    } else {
+    if (!result.success || !result.serverId) {
       error.value = result.error || 'Failed to join server'
+      return
     }
+
+    await serverChannelStore.fetchServersForUser(userId, true)
+    if (result.status === 'pending') {
+      toast.info(t('federation.joinPending'))
+    }
+    await openServer(result.serverId, result.defaultChannelId)
+    emit('joined', result.serverId)
   } catch (err: any) {
+    debug.error('Error joining remote server:', err)
     error.value = err.message || 'Failed to join server'
+  } finally {
+    isJoining.value = false
+  }
+}
+
+async function openJoinedServer() {
+  const serverId = joinedServerId.value
+  if (!serverId || isJoining.value) return
+
+  isJoining.value = true
+  try {
+    await openServer(serverId)
+    emit('joined', serverId)
   } finally {
     isJoining.value = false
   }
@@ -316,128 +370,150 @@ function formatExpiry(expiresAt: string): string {
   const date = new Date(expiresAt)
   const now = new Date()
   const diff = date.getTime() - now.getTime()
-  
+
   if (diff < 0) return 'Expired'
-  
+
   const hours = Math.floor(diff / (1000 * 60 * 60))
   const days = Math.floor(hours / 24)
-  
+
   if (days > 0) return `${days} day${days > 1 ? 's' : ''}`
   if (hours > 0) return `${hours} hour${hours > 1 ? 's' : ''}`
-  
+
   const minutes = Math.floor(diff / (1000 * 60))
   return `${minutes} minute${minutes > 1 ? 's' : ''}`
 }
 </script>
 
+<style scoped src="./PublicServers/discoveryButtons.css"></style>
+
 <style scoped>
 .federated-server-modal {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.75);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: color-mix(in srgb, var(--background-tertiary) 70%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  padding: 16px;
+  padding: var(--space-4);
 }
 
 .modal-content {
-  background: linear-gradient(
-    165deg,
-    color-mix(in srgb, var(--bg-secondary, #2b2d31) 95%, transparent) 0%,
-    color-mix(in srgb, var(--bg-secondary, #1e1f22) 98%, #0ea5e9 5%) 100%
-  );
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 20px;
-  padding: 36px;
+  background: var(--background-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-modal);
+  padding: var(--space-6);
   width: 100%;
-  max-width: 540px;
+  max-width: 520px;
   max-height: 90vh;
   overflow-y: auto;
-  box-shadow:
-    0 0 0 1px rgba(14, 165, 233, 0.15),
-    0 24px 48px -12px rgba(0, 0, 0, 0.5),
-    0 0 80px -20px rgba(14, 165, 233, 0.2);
 }
 
-/* Stack vertically - global .modal-header is a row (title + close); we use icon + title + subtitle */
+/* Overrides the global .modal-header row layout and padding. */
 .modal-header {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-start;
-  text-align: center;
-  margin-bottom: 24px;
+  align-items: flex-start;
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
   padding: 0;
   border-bottom: none;
-  gap: 0;
 }
 
 .header-icon {
-  width: 56px;
-  height: 56px;
-  background: linear-gradient(135deg, #0EA5E9, #38BDF8);
-  border-radius: 14px;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  background: var(--harmony-primary-light);
+  color: var(--harmony-primary);
+  border-radius: var(--radius-lg);
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 0 auto 16px;
 }
 
-.header-icon .icon {
-  width: 28px;
-  height: 28px;
-  color: var(--text-primary);
+.header-text {
+  flex: 1;
+  min-width: 0;
 }
 
 .modal-header h2 {
-  font-size: 24px;
-  font-weight: 700;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
   color: var(--text-primary);
-  margin: 0 0 8px;
+  margin: 0 0 var(--space-1);
 }
 
 .subtitle {
   color: var(--text-secondary);
   margin: 0;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
+}
+
+.close-button {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  margin: -6px -6px 0 0;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.close-button:hover:not(:disabled) {
+  background: var(--background-modifier-hover);
+  color: var(--text-primary);
+}
+
+.close-button:focus-visible {
+  outline: 2px solid var(--harmony-primary);
+  outline-offset: 2px;
 }
 
 .input-section {
-  margin-bottom: 20px;
+  margin-bottom: var(--space-5);
 }
 
 .input-section label {
   display: block;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
   color: var(--text-secondary);
   text-transform: uppercase;
-  margin-bottom: 8px;
+  letter-spacing: 0.04em;
+  margin-bottom: var(--space-2);
 }
 
 .input-wrapper {
   display: flex;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .input-wrapper input {
   flex: 1;
-  padding: 12px 16px;
-  background: #202225;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
+  min-width: 0;
+  padding: 0 12px;
+  height: 40px;
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-md);
   color: var(--text-primary);
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   outline: none;
-  transition: border-color 0.2s;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
 .input-wrapper input:focus {
-  border-color: #0EA5E9;
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px var(--harmony-primary-light);
 }
 
 .input-wrapper input::placeholder {
@@ -445,65 +521,48 @@ function formatExpiry(expiresAt: string): string {
 }
 
 .discover-btn {
-  padding: 12px 20px;
-  background: var(--harmony-primary);
-  color: var(--text-primary);
-  border: none;
-  border-radius: 8px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.2s;
-  min-width: 100px;
-}
-
-.discover-btn:hover:not(:disabled) {
-  background: #0284C7;
-}
-
-.discover-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+  min-width: 96px;
+  min-height: 40px;
 }
 
 .input-hint {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--text-muted);
-  margin-top: 8px;
+  margin: var(--space-2) 0 0;
 }
 
 .error-message {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 16px;
-  background: rgba(237, 66, 69, 0.1);
-  border: 1px solid rgba(237, 66, 69, 0.3);
-  border-radius: 8px;
-  color: #ed4245;
-  font-size: 14px;
-  margin-bottom: 20px;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: 10px 12px;
+  background: color-mix(in srgb, var(--error) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--error) 40%, transparent);
+  border-radius: var(--radius-md);
+  color: var(--error);
+  font-size: var(--font-size-sm);
+  margin-bottom: var(--space-5);
 }
 
-.error-icon {
-  width: 20px;
-  height: 20px;
+.error-message > .icon-wrap {
   flex-shrink: 0;
+  margin-top: 2px;
 }
 
 .server-preview {
   display: flex;
-  gap: 20px;
-  padding: 24px;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 16px;
-  margin-bottom: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  gap: var(--space-4);
+  padding: var(--space-4);
+  background: var(--background-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-4);
 }
 
 .server-icon {
-  width: 72px;
-  height: 72px;
-  border-radius: 18px;
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-xl);
   overflow: hidden;
   flex-shrink: 0;
 }
@@ -520,10 +579,10 @@ function formatExpiry(expiresAt: string): string {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #0EA5E9, #38BDF8);
-  color: var(--text-primary);
-  font-size: 28px;
-  font-weight: 700;
+  background: var(--harmony-primary);
+  color: var(--text-on-primary);
+  font-size: 26px;
+  font-weight: var(--font-weight-bold);
 }
 
 .server-info {
@@ -532,11 +591,10 @@ function formatExpiry(expiresAt: string): string {
 }
 
 .server-name {
-  font-size: 20px;
-  font-weight: 700;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
   color: var(--text-primary);
-  margin: 0 0 6px;
-  letter-spacing: -0.02em;
+  margin: 0 0 var(--space-1);
 }
 
 .server-instance {
@@ -544,26 +602,21 @@ function formatExpiry(expiresAt: string): string {
   align-items: center;
   gap: 6px;
   font-size: 13px;
-  color: #00d4ff;
-  margin: 0 0 12px;
-}
-
-.instance-icon {
-  width: 14px;
-  height: 14px;
+  color: var(--text-secondary);
+  margin: 0 0 var(--space-3);
 }
 
 .server-description {
   font-size: 13px;
   color: var(--text-secondary);
-  margin: 0 0 12px;
+  margin: 0 0 var(--space-3);
   line-height: 1.4;
 }
 
 .server-stats {
   display: flex;
-  gap: 16px;
-  margin-bottom: 12px;
+  gap: var(--space-4);
+  margin-bottom: var(--space-3);
 }
 
 .stat {
@@ -574,37 +627,27 @@ function formatExpiry(expiresAt: string): string {
   color: var(--text-secondary);
 }
 
-.stat-icon {
-  width: 16px;
-  height: 16px;
-}
-
 .invite-badge {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 12px;
-  background: rgba(87, 242, 135, 0.12);
-  border: 1px solid rgba(87, 242, 135, 0.25);
-  border-radius: 10px;
-  color: #57f287;
-  font-size: 12px;
-  font-weight: 600;
-  margin-bottom: 12px;
-}
-
-.invite-icon {
-  opacity: 0.9;
+  padding: 4px 10px;
+  background: var(--harmony-primary-light);
+  border-radius: var(--radius-full);
+  color: var(--harmony-primary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  margin-bottom: var(--space-3);
 }
 
 .invite-details {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 12px 14px;
-  background: rgba(255, 255, 255, 0.03);
-  border-radius: 8px;
-  margin-bottom: 12px;
+  gap: var(--space-2);
+  padding: 10px 12px;
+  background: var(--background-modifier-hover);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-3);
   font-size: 13px;
 }
 
@@ -612,7 +655,7 @@ function formatExpiry(expiresAt: string): string {
 .invite-expiry {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   min-width: 0;
 }
 
@@ -629,192 +672,27 @@ function formatExpiry(expiresAt: string): string {
 
 .detail-value {
   color: var(--text-primary);
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
 }
 
 .detail-value :deep(.display-name) {
   display: inline;
 }
 
-.channels-preview {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-}
-
-.channel-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 5px 10px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 8px;
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-.channel-icon {
-  font-size: 11px;
-  opacity: 0.8;
-}
-
-.more-channels {
-  font-size: 12px;
-  color: var(--text-muted);
-  padding: 5px 0;
-}
-
-.modal-actions {
-  display: flex;
-  gap: 12px;
-  justify-content: flex-end;
-  margin-bottom: 20px;
-}
-
-.cancel-btn {
-  padding: 12px 24px;
-  background: transparent;
-  color: var(--text-secondary);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.cancel-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--text-primary);
-}
-
-.join-btn {
-  padding: 12px 32px;
-  background: linear-gradient(135deg, #57f287, #00d166);
-  color: var(--text-primary);
-  border: none;
-  border-radius: 8px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-  min-width: 120px;
-}
-
-.join-btn:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(87, 242, 135, 0.3);
-}
-
-.join-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  transform: none;
-}
-
-.loading-spinner {
-  display: inline-block;
-  width: 16px;
-  height: 16px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top-color: var(--text-primary);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.federated-notice {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 16px;
-  background: rgba(0, 212, 255, 0.1);
-  border: 1px solid rgba(0, 212, 255, 0.2);
-  border-radius: 8px;
-  font-size: 13px;
-  color: #00d4ff;
-}
-
-.notice-icon {
-  width: 18px;
-  height: 18px;
-  flex-shrink: 0;
-}
-
-@media (max-width: 480px) {
-  .federated-server-modal {
-    padding: 8px;
-    align-items: flex-start;
-    padding-top: 48px;
-  }
-
-  .modal-content {
-    padding: 20px;
-    max-width: 100%;
-    max-height: calc(100vh - 64px);
-    border-radius: 10px;
-  }
-
-  .modal-header h2 {
-    font-size: 18px;
-  }
-
-  .header-icon {
-    width: 44px;
-    height: 44px;
-    border-radius: 10px;
-    margin-bottom: 12px;
-  }
-
-  .server-preview {
-    flex-direction: column;
-    text-align: center;
-  }
-
-  .server-icon {
-    margin: 0 auto;
-  }
-
-  .server-instance {
-    justify-content: center;
-  }
-
-  .server-stats {
-    justify-content: center;
-  }
-
-  .channels-preview {
-    justify-content: center;
-  }
-
-  .modal-actions {
-    flex-direction: column-reverse;
-  }
-
-  .cancel-btn,
-  .join-btn {
-    width: 100%;
-    padding: 12px;
-  }
-}
-
 .invite-rules {
-  padding: 12px 14px;
-  background: rgba(255, 255, 255, 0.03);
-  border-radius: 8px;
-  margin-bottom: 12px;
+  padding: 10px 12px;
+  background: var(--background-modifier-hover);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-3);
 }
 
 .invite-rules__title {
-  font-size: 12px;
-  font-weight: 700;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--text-secondary);
-  margin-bottom: 8px;
+  margin-bottom: var(--space-2);
 }
 
 .invite-rules__list {
@@ -830,15 +708,76 @@ function formatExpiry(expiresAt: string): string {
 }
 
 .invite-rules__note {
-  margin: 8px 0 0;
+  margin: var(--space-2) 0 0;
   font-size: 11px;
   color: var(--text-muted);
+}
+
+.channels-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.channel-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: var(--background-modifier-hover);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+
+.more-channels {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.already-joined {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-4);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.already-joined > .icon-wrap {
+  color: var(--success);
+}
+
+.modal-actions {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: flex-end;
+}
+
+.modal-actions .btn-primary {
+  min-width: 112px;
+}
+
+.federated-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: var(--space-4) 0 0;
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.federated-notice > .icon-wrap {
+  flex-shrink: 0;
+  margin-top: 1px;
 }
 
 .error-fallback-link {
   display: block;
   margin-top: 4px;
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--text-secondary);
   text-decoration: underline;
 }
@@ -846,5 +785,38 @@ function formatExpiry(expiresAt: string): string {
 .error-fallback-link:hover {
   color: var(--text-primary);
 }
-</style>
 
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 480px) {
+  .federated-server-modal {
+    padding: 0;
+    align-items: stretch;
+  }
+
+  .modal-content {
+    max-width: none;
+    max-height: none;
+    height: 100vh;
+    height: 100dvh;
+    border: none;
+    border-radius: 0;
+    padding: calc(var(--space-4) + env(safe-area-inset-top, 0px)) var(--space-4)
+      calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
+  }
+
+  .server-preview {
+    flex-direction: column;
+  }
+
+  .modal-actions .btn {
+    flex: 1;
+  }
+}
+</style>

@@ -11,13 +11,13 @@
           /> Navigation Header -->
       <div class="mobile-nav" v-if="isMobile">
         <button class="mobile-menu-btn" @click="toggleSidebar" aria-label="Toggle navigation">
-          <div class="hamburger-icon" :class="{ active: showSidebar }">
+          <div class="hamburger-icon">
             <span></span>
             <span></span>
             <span></span>
           </div>
         </button>
-        <h2 class="mobile-title">{{ currentSectionLabel }}</h2>
+        <h2 class="mobile-title">{{ showSidebar ? $t('settings.userSettings') : currentSectionLabel }}</h2>
         <button class="mobile-close-btn" @click="closeSettings" aria-label="Close settings">
           <CloseIcon />
         </button>
@@ -723,17 +723,8 @@ onUnmounted(() => {
   transition: all 0.3s ease;
 }
 
-.hamburger-icon.active span:nth-child(1) {
-  transform: rotate(45deg) translate(6px, 6px);
-}
 
-.hamburger-icon.active span:nth-child(2) {
-  opacity: 0;
-}
 
-.hamburger-icon.active span:nth-child(3) {
-  transform: rotate(-45deg) translate(6px, -6px);
-}
 
 .mobile-title {
   font-size: 18px;

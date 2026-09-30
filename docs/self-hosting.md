@@ -111,7 +111,7 @@ You can use **Supabase Cloud** or **self-host** Supabase.
 ### Using Supabase Cloud
 
 1. Create project at [supabase.com](https://supabase.com)
-2. Go to **SQL Editor** and run each file from `db_schema/init/` in order (00_extensions.sql through 99_storage_buckets.sql)
+2. Go to **SQL Editor** and run each file from `db_schema/migrations/` in version order
 3. Note your credentials:
    - Project URL
    - Anon key

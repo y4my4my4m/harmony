@@ -429,15 +429,14 @@ export class ProfileService {
         .eq('auth_user_id', authUserId)
         .maybeSingle()
 
-      if (error && error.code !== 'PGRST116') {
-        debug.error('Error fetching profile by auth user ID:', error)
-        return null
-      }
+      // Errors propagate: null means "no profile row", which routes the user
+      // into profile creation.
+      if (error && error.code !== 'PGRST116') throw error
 
       return profile || null
     } catch (error) {
       debug.error('Failed to get profile by auth user ID:', error)
-      return null
+      throw error
     }
   }
 

@@ -19,7 +19,7 @@
 
         <select v-if="currentView === 'instances'" v-model="instanceSoftwareFilter" class="filter-select">
           <option value="all">{{ $t('activitypub.allSoftware', 'All Software') }}</option>
-          <option v-for="sw in availableSoftware" :key="sw" :value="sw">{{ sw }}</option>
+          <option v-for="sw in availableSoftware" :key="sw" :value="sw">{{ softwareDisplayName(sw) }}</option>
         </select>
 
         <select v-if="currentView !== 'instances'" v-model="selectedInstance" class="filter-select">
@@ -126,9 +126,10 @@
               {{ $t('activitypub.trendingHashtags') }}
             </h3>
             <div v-if="trendingHashtags.length > 0" class="hashtag-grid">
-              <div 
-                v-for="hashtag in trendingHashtags" 
+              <button
+                v-for="hashtag in trendingHashtags"
                 :key="hashtag.tag"
+                type="button"
                 @click="loadHashtagPosts(hashtag.tag)"
                 class="hashtag-item"
               >
@@ -140,7 +141,7 @@
                   <Icon :name="getTrendIcon(hashtag.trend)" :class="`trend-${hashtag.trend}`" />
                   <span class="trend-change">{{ hashtag.change_percent > 0 ? '+' : '' }}{{ hashtag.change_percent }}%</span>
                 </div>
-              </div>
+              </button>
             </div>
             <div v-else class="empty-state section-empty-state" style="display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 16px 0;">
               <Icon name="hash" :size="40" class="empty-icon" style="margin-bottom: 12px;" />
@@ -191,7 +192,10 @@
               :key="instance.domain"
               class="instance-card"
               :class="{ 'has-banner': getInstanceBanner(instance) }"
+              tabindex="0"
+              :aria-label="instance.domain"
               @click="showInstanceDetails(instance)"
+              @keydown.enter.self="showInstanceDetails(instance)"
             >
               <!-- Banner background -->
               <div
@@ -199,7 +203,6 @@
                 class="instance-card-banner"
                 :style="{ backgroundImage: `url(${getInstanceBanner(instance)})` }"
               >
-                <div class="instance-card-banner-overlay"></div>
               </div>
 
               <div class="instance-card-header">
@@ -211,14 +214,13 @@
                     class="instance-icon-img"
                     @error="handleIconError(getInstanceIcon(instance)!)"
                   />
-                  <span v-else class="instance-platform-emoji">{{ getPlatformEmoji(instance.software) }}</span>
+                  <span v-else class="instance-monogram" aria-hidden="true">{{ instanceMonogram(instance.domain) }}</span>
                 </div>
                 <div class="instance-card-meta">
                   <h4 class="instance-card-domain">{{ instance.domain }}</h4>
-                  <span class="instance-card-software">{{ instance.software || 'Unknown' }}{{ instance.version ? ` ${instance.version}` : '' }}</span>
+                  <span class="instance-card-software">{{ softwareDisplayName(instance.software) || t('activitypub.unknown') }}{{ instance.version ? ` ${instance.version}` : '' }}</span>
                 </div>
                 <span class="instance-status-pill" :class="getInstanceStatusClass(instance)">
-                  <span class="status-dot"></span>
                   {{ getInstanceStatusText(instance) }}
                 </span>
               </div>
@@ -265,15 +267,6 @@
       </div>
     </div>
 
-    <!-- Load More Button -->
-    <div v-if="hasMoreContent && !isLoading" class="load-more-section">
-      <button @click="loadMore" :disabled="isLoadingMore" class="load-more-btn">
-        <Icon v-if="isLoadingMore" name="loader" class="spinning" />
-        <Icon v-else name="chevron-down" />
-        {{ isLoadingMore ? $t('activitypub.loading') : $t('activitypub.loadMore') }}
-      </button>
-    </div>
-
     <!-- Instance Detail Modal -->
     <InstanceDetailModal
       v-if="showInstanceModal"
@@ -298,11 +291,12 @@ import Icon from '@/components/common/Icon.vue';
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 import type { TimelinePost, FederatedUser } from '@/types';
 import ProfileCard from '@/components/common/ProfileCard.vue';
+import { softwareDisplayName, instanceMonogram } from '@/utils/fediverseSoftware';
 
 // Router
 const router = useRouter();
 
-useI18n();
+const { t } = useI18n();
 
 // Props
 interface Props {
@@ -329,7 +323,6 @@ const activityPubStore = useActivityPubStore();
 
 // Loading states
 const isLoading = ref(false);
-const isLoadingMore = ref(false);
 
 const selectedContentType = ref('all');
 const selectedInstance = ref('all');
@@ -345,10 +338,6 @@ const suggestedUsers = ref<any[]>([]);
 const knownInstances = ref<any[]>([]);
 const selectedInstanceDetails = ref<any | null>(null);
 const showInstanceModal = ref(false);
-
-// Pagination
-const hasMoreContent = ref(false);
-const currentCursor = ref<string | null>(null);
 
 // Computed properties
 const availableSoftware = computed(() => {
@@ -668,7 +657,6 @@ const getInstanceStatusClass = (instance: any) => {
 };
 
 const getInstanceStatusText = (instance: any) => {
-  const { t } = useI18n();
   const status = getInstanceStatus(instance);
   switch (status) {
     case 'online':
@@ -680,30 +668,6 @@ const getInstanceStatusText = (instance: any) => {
     default:
       return t('activitypub.lastSeenLongAgo', 'Idle');
   }
-};
-
-const PLATFORM_EMOJI: Record<string, string> = {
-  mastodon: '\uD83D\uDC18',
-  misskey: '\u2B50',
-  pleroma: '\uD83D\uDD35',
-  akkoma: '\uD83D\uDD35',
-  gotosocial: '\uD83D\uDC3F\uFE0F',
-  pixelfed: '\uD83D\uDCF7',
-  lemmy: '\uD83D\uDC2D',
-  harmony: '\uD83D\uDC3B\u200D\u2744\uFE0F',
-  peertube: '\uD83C\uDFAC',
-  funkwhale: '\uD83C\uDFB5',
-  writefreely: '\u270D\uFE0F',
-  bookwyrm: '\uD83D\uDCDA',
-};
-
-const getPlatformEmoji = (software?: string): string => {
-  if (!software) return '\uD83C\uDF10';
-  const key = software.toLowerCase().replace(/[^a-z]/g, '');
-  for (const [platform, emoji] of Object.entries(PLATFORM_EMOJI)) {
-    if (key.includes(platform)) return emoji;
-  }
-  return '\uD83C\uDF10';
 };
 
 const failedIconUrls = ref(new Set<string>());
@@ -736,7 +700,6 @@ const formatNumber = (num: number): string => {
 };
 
 const getTimeAgo = (dateString: string | null | undefined): string => {
-  const { t } = useI18n();
   if (!dateString) return t('activitypub.unknown');
   const now = new Date();
   const date = new Date(dateString);
@@ -760,31 +723,7 @@ const getTrendIcon = (trend: string) => {
   }
 };
 
-const loadMore = async () => {
-  if (isLoadingMore.value || !hasMoreContent.value) return;
-  
-  try {
-    isLoadingMore.value = true;
-    
-    if (props.currentView === 'trending') {
-      const morePosts = await activityPubService.getTrendingPosts({
-        limit: 10,
-        timeframe: 'daily'
-      });
-      
-      trendingPosts.value.push(...morePosts);
-    }
-    
-  } catch (error) {
-    debug.error('Failed to load more content:', error);
-  } finally {
-    isLoadingMore.value = false;
-  }
-};
-
 const refreshContent = async () => {
-  currentCursor.value = null;
-  
   if (props.currentView === 'trending') {
     await loadTrendingContent();
   } else if (props.currentView === 'instances') {
@@ -1104,11 +1043,21 @@ defineExpose({ refreshContent });
   display: flex;
   align-items: center;
   justify-content: space-between;
+  width: 100%;
   padding: 12px;
   background: var(--background-primary);
   border-radius: 8px;
   border: 1px solid var(--border-color);
   margin-bottom: 8px;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.hashtag-item:focus-visible {
+  outline: 2px solid var(--harmony-primary);
+  outline-offset: 2px;
 }
 
 .hashtag-info {
@@ -1230,7 +1179,7 @@ defineExpose({ refreshContent });
   border-radius: 12px;
   padding: 20px;
   cursor: pointer;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+  transition: border-color 0.2s ease;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -1253,21 +1202,13 @@ defineExpose({ refreshContent });
   z-index: 0;
 }
 
-.instance-card-banner-overlay {
-  position: absolute;
-  inset: 0;
-  height: calc(100% + 1px); /* workaround chrome rendering bug */
-  background: linear-gradient(
-    to bottom,
-    rgba(0, 0, 0, 0.15) 0%,
-    var(--background-secondary) 100%
-  );
+.instance-card:hover {
+  border-color: var(--border-hover);
 }
 
-.instance-card:hover {
-  border-color: var(--harmony-primary);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-  transform: translateY(-1px);
+.instance-card:focus-visible {
+  outline: 2px solid var(--harmony-primary);
+  outline-offset: 2px;
 }
 
 .instance-card-header {
@@ -1299,9 +1240,11 @@ defineExpose({ refreshContent });
   border-radius: 9px;
 }
 
-.instance-platform-emoji {
-  font-size: 22px;
+.instance-monogram {
+  font-size: 18px;
+  font-weight: 700;
   line-height: 1;
+  color: var(--text-secondary);
 }
 
 .instance-card-meta {
@@ -1333,52 +1276,24 @@ defineExpose({ refreshContent });
   flex-shrink: 0;
 }
 
-.instance-status-pill .status-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-}
-
 .instance-status-pill.status-online {
-  background: rgba(16, 185, 129, 0.14);
-  color: #10b981;
-}
-
-.instance-status-pill.status-online .status-dot {
-  background: #10b981;
-  animation: status-pulse 2s ease-in-out infinite;
+  background: color-mix(in srgb, var(--success) 14%, transparent);
+  color: var(--success);
 }
 
 .instance-status-pill.status-slow {
-  background: rgba(245, 158, 11, 0.14);
-  color: #f59e0b;
-}
-
-.instance-status-pill.status-slow .status-dot {
-  background: #f59e0b;
+  background: color-mix(in srgb, var(--warning) 14%, transparent);
+  color: var(--warning);
 }
 
 .instance-status-pill.status-offline {
-  background: rgba(239, 68, 68, 0.14);
-  color: #ef4444;
-}
-
-.instance-status-pill.status-offline .status-dot {
-  background: #ef4444;
+  background: color-mix(in srgb, var(--error) 14%, transparent);
+  color: var(--error);
 }
 
 .instance-status-pill.status-unknown {
-  background: rgba(156, 163, 175, 0.14);
-  color: #9ca3af;
-}
-
-.instance-status-pill.status-unknown .status-dot {
-  background: #9ca3af;
-}
-
-@keyframes status-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+  background: var(--background-modifier-active);
+  color: var(--text-secondary);
 }
 
 .instance-card-desc {

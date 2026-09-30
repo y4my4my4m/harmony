@@ -1,5 +1,4 @@
 <template>
-  <!-- <h2>Login Login Login Login Login Login Login Login Login Login Login Login Login Login Login Login Login Login Login Login Login Login Login Login Login Login Login Login </h2> -->
   <AuthComponent :isLogin="true" />
 </template>
 
@@ -11,6 +10,7 @@ import { useAuthStore } from '@/stores/auth';
 import { UserStatus } from '@/types';
 import { updateUserStatus } from '@/services/ProfileService';
 import { debug } from '@/utils/debug';
+import { consumePostAuthRedirect } from '@/utils/postAuthRedirect';
 
 export default defineComponent({
   name: 'LoginView',
@@ -28,7 +28,7 @@ export default defineComponent({
           const userId = authStore.session?.user?.id || '';
           debug.log('LoginView: Navigating to chat, userId:', userId);
           updateUserStatus(userId, UserStatus.Online);
-          router.push('/chat').then(() => {
+          router.push(consumePostAuthRedirect('/chat')).then(() => {
             debug.log('LoginView: Navigation to /chat successful');
           }).catch((err) => {
             debug.error('LoginView: Navigation failed:', err);
@@ -44,26 +44,3 @@ export default defineComponent({
   },
 });
 </script>
-
-<style scoped>
-  h2 {
-    background-clip: text;
-    -webkit-text-fill-color: transparent; 
-    -moz-text-fill-color: transparent;
-    background-image: linear-gradient(45deg, #3416f7, #c41d1d);
-    width: 180%;
-    height: 100%;
-    position: absolute;
-    display: block;
-    top: -390px;
-    margin: 0 auto;
-    left: -480px;
-    right: 0;
-    text-align: center;
-    font-weight: 900;
-    opacity: .1;
-    font-size: 20em;
-    text-shadow: 0 3px 10px rgba(0,0,0,0.7);
-    transform: skew(6deg, 8deg) rotate3d(7, 0, 0, 30deg);
-  }
-</style>

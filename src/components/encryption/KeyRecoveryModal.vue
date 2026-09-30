@@ -3,7 +3,7 @@
     <div class="recovery-modal">
       <div class="modal-header">
         <h2 class="modal-title">
-          <span class="title-icon">🔑</span>
+          <span class="title-icon"><Icon name="key" :size="20" /></span>
           Restore Encryption
         </h2>
         <button class="close-btn" @click="$emit('close')" :disabled="isRestoring" aria-label="Close">
@@ -62,13 +62,13 @@
               class="btn btn-secondary btn-sm"
               @click="pasteFromClipboard"
             >
-              📋 Paste from Clipboard
+              Paste
             </button>
             <button 
               class="btn btn-secondary btn-sm"
               @click="clearWords"
             >
-              🗑️ Clear
+              Clear
             </button>
           </div>
 
@@ -89,7 +89,7 @@
               <button class="btn btn-secondary btn-sm" @click="stopQRScanner">Stop Scanner</button>
             </div>
             <div v-else class="qr-scanner-placeholder">
-              <div class="scanner-icon">📷</div>
+              <div class="scanner-icon"><Icon name="camera" :size="32" /></div>
               <p>QR Scanner</p>
               <p class="hint">{{ scannerSupported ? 'Point your camera at the QR code from your other device' : 'Camera scanning is not supported in this browser - paste the code below instead' }}</p>
               <button v-if="scannerSupported" class="btn btn-secondary" @click="startQRScanner">
@@ -205,14 +205,14 @@ async function validateWords() {
     const { recoveryKeyService } = await import('@/services/encryption/RecoveryKeyService')
     
     if (recoveryKeyService.validateMnemonic(words)) {
-      validationMessage.value = '✓ Valid recovery phrase'
+      validationMessage.value = 'Valid recovery phrase'
       isValid.value = true
     } else {
-      validationMessage.value = '✗ Invalid recovery phrase - check for typos'
+      validationMessage.value = 'Invalid recovery phrase. Check for typos.'
       isValid.value = false
     }
   } catch {
-    validationMessage.value = '✗ Validation failed'
+    validationMessage.value = 'Validation failed'
     isValid.value = false
   }
 }

@@ -606,6 +606,12 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
         return;
       }
 
+      if (event.key === 'Escape' && props.replyMessageId) {
+        event.preventDefault();
+        emit('update:replyMessageId', '');
+        return;
+      }
+
       // Up arrow on empty input → edit last own message (Discord/Telegram behavior)
       if (event.key === 'ArrowUp' && !props.modelValue?.trim()) {
         event.preventDefault();

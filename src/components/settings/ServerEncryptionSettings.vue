@@ -1,7 +1,7 @@
 <template>
   <div class="server-encryption-settings">
     <div class="settings-section">
-      <h2 class="section-title">🔐 Server Encryption Policy</h2>
+      <h2 class="section-title">Server encryption policy</h2>
       <p class="section-description">
         Control end-to-end encryption requirements for this server
       </p>
@@ -16,7 +16,7 @@
       <!-- Current Status -->
       <div class="status-card" :class="statusClass">
         <div class="status-icon">
-          {{ statusIcon }}
+          <Icon :name="statusIcon" :size="24" />
         </div>
         <div class="status-info">
           <h4>{{ statusTitle }}</h4>
@@ -48,14 +48,14 @@
                 :disabled="!canModify"
               />
               <label :for="`mode-${mode.value}`">
-                <span class="mode-icon">{{ mode.icon }}</span>
+                <span class="mode-icon"><Icon :name="mode.icon" :size="18" /></span>
                 <span class="mode-name">{{ mode.name }}</span>
               </label>
             </div>
             <p class="mode-description">{{ mode.description }}</p>
             
             <div v-if="mode.value === 'required'" class="mode-warning">
-              <span class="warning-icon">⚠️</span>
+              <span class="warning-icon"><Icon name="alert-triangle" :size="16" /></span>
               <span>Users without encryption keys won't be able to send messages</span>
             </div>
           </div>
@@ -92,18 +92,6 @@
           </label>
         </div>
 
-        <div class="checkbox-option disabled-option">
-          <input
-            type="checkbox"
-            id="encrypt-attachments"
-            v-model="encryptAttachments"
-            disabled
-          />
-          <label for="encrypt-attachments">
-            <span class="option-name">Encrypt file blobs <span class="coming-soon-badge">Coming soon</span></span>
-            <span class="option-hint">Encrypt file data before upload so files are unreadable in storage without decryption keys</span>
-          </label>
-        </div>
       </div>
 
       <!-- Voice / Video E2EE -->
@@ -128,7 +116,7 @@
         </div>
 
         <div v-if="voiceEncryptionMode === 'required'" class="mode-warning">
-          <span class="warning-icon">⚠️</span>
+          <span class="warning-icon"><Icon name="alert-triangle" :size="16" /></span>
           <span>Participants who haven't set up encryption (and federated/legacy clients) will be unable to join encrypted calls.</span>
         </div>
       </div>
@@ -153,7 +141,7 @@
         </div>
 
         <div v-if="memberStats.percentage < 100 && currentMode === 'required'" class="warning-banner">
-          <span class="warning-icon">⚠️</span>
+          <span class="warning-icon"><Icon name="alert-triangle" :size="16" /></span>
           <span>
             {{ memberStats.total - memberStats.withKeys }} members need to set up encryption before required mode can function properly
           </span>
@@ -164,14 +152,14 @@
 
       <!-- Help Section -->
       <div class="help-section">
-        <h4>📚 About End-to-End Encryption</h4>
+        <h4>About end-to-end encryption</h4>
         <ul>
           <li><strong>Disabled:</strong> Messages are stored in plaintext on the server</li>
           <li><strong>Optional:</strong> Users can enable E2EE individually</li>
           <li><strong>Required:</strong> All messages must be encrypted (users need keys)</li>
         </ul>
         <p class="help-note">
-          💡 <strong>Note:</strong> End-to-end encryption means the server cannot read message content.
+          <strong>Note:</strong> End-to-end encryption means the server cannot read message content.
           This provides maximum privacy but disables server-side features like search and content moderation.
         </p>
       </div>
@@ -179,14 +167,14 @@
 
     <!-- Error Display -->
     <div v-if="error" class="error-banner">
-      <span class="error-icon">❌</span>
+      <span class="error-icon"><Icon name="x-circle" :size="16" /></span>
       <span>{{ error }}</span>
       <button @click="error = null" class="close-btn">×</button>
     </div>
 
     <!-- Success Display -->
     <div v-if="successMessage" class="success-banner">
-      <span class="success-icon">✅</span>
+      <span class="success-icon"><Icon name="check-circle" :size="16" /></span>
       <span>{{ successMessage }}</span>
       <button @click="successMessage = null" class="close-btn">×</button>
     </div>
@@ -194,6 +182,7 @@
 </template>
 
 <script setup lang="ts">
+import Icon from '@/components/common/Icon.vue'
 import { ref, computed, onMounted } from 'vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { debug } from '@/utils/debug'
@@ -236,19 +225,19 @@ const encryptionModes = [
   {
     value: 'disabled',
     name: 'Disabled',
-    icon: '🔓',
+    icon: 'unlock',
     description: 'Messages are not encrypted. Server can read all content.'
   },
   {
     value: 'optional',
     name: 'Optional',
-    icon: '🔒',
+    icon: 'lock',
     description: 'Encryption available but not required. Users choose individually.'
   },
   {
     value: 'required',
     name: 'Required',
-    icon: '🔐',
+    icon: 'shield-check',
     description: 'All messages must be encrypted. Users need encryption keys to participate.'
   }
 ]
@@ -279,10 +268,10 @@ const statusClass = computed(() => {
 
 const statusIcon = computed(() => {
   switch (currentMode.value) {
-    case 'disabled': return '🔓'
-    case 'optional': return '🔒'
-    case 'required': return '🔐'
-    default: return '❓'
+    case 'disabled': return 'unlock'
+    case 'optional': return 'lock'
+    case 'required': return 'shield-check'
+    default: return 'help-circle'
   }
 })
 
@@ -672,28 +661,8 @@ onMounted(() => {
   color: var(--color-text-secondary);
 }
 
-.disabled-option {
-  opacity: 0.6;
-  cursor: default;
-}
 
-.disabled-option label {
-  cursor: default;
-}
 
-.coming-soon-badge {
-  display: inline-block;
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: rgba(245, 158, 11, 0.15);
-  color: #f59e0b;
-  vertical-align: middle;
-  margin-left: 6px;
-}
 
 .stats-grid {
   display: grid;

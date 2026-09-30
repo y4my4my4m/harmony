@@ -1,8 +1,7 @@
 <template>
-  <div class="auth-wrapper" @mousemove="handleMouseMove" :style="authStyles">
+  <div class="auth-wrapper" :style="authStyles">
     <!-- Animated gradient overlay -->
     <div class="bg-gradient-overlay"></div>
-    <div class="bg-noise"></div>
 
     <!-- Main Auth Container -->
     <div class="auth-container">
@@ -10,57 +9,14 @@
       <div class="auth-branding">
         <div class="brand-card">
           <div class="brand-content">
-            <div class="logo-container" @click="themeStore.playAudio('ui_click')">
-              <img src="/icon_3d.webp" alt="Harmony Logo" class="brand-logo" />
-              <div class="logo-pulse"></div>
+            <div class="logo-container">
+              <img src="/icon_3d.webp" alt="" class="brand-logo" />
             </div>
             
-            <h1 class="brand-title">
-              <span class="harmony-text" @mouseenter="isHoveringTitle = true" @mouseleave="isHoveringTitle = false">
-                <span 
-                  v-for="(letter, index) in instanceNameLetters" 
-                  :key="index"
-                  class="letter" 
-                  :style="{ 
-                    '--letter-index': index,
-                    '--offset-x': letterOffsets[index]?.x || 0,
-                    '--offset-y': letterOffsets[index]?.y || 0
-                  }"
-                >{{ letter }}</span>
-              </span>
-            </h1>
+            <h1 class="brand-title">{{ displayTitle }}</h1>
             
             <p class="brand-tagline">{{ instanceDescription }}</p>
             
-            <!-- Feature Pills -->
-            <div class="feature-pills">
-              <div class="pill">
-                <span class="pill-icon-wrap">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
-                  </svg>
-                </span>
-                <span>{{ $t('auth.features.realTimeMessaging') }}</span>
-              </div>
-              <div class="pill">
-                <span class="pill-icon-wrap">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="12" cy="12" r="10"/>
-                    <line x1="2" y1="12" x2="22" y2="12"/>
-                    <path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/>
-                  </svg>
-                </span>
-                <span>{{ $t('auth.features.federated') || 'Federated' }}</span>
-              </div>
-              <div class="pill">
-                <span class="pill-icon-wrap">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-                  </svg>
-                </span>
-                <span>{{ $t('auth.features.endToEnd') || 'E2E Encrypted' }}</span>
-              </div>
-            </div>
           </div>
         </div>
       </div>
@@ -69,9 +25,7 @@
       <div class="auth-panel">
         <div 
           class="auth-card" 
-          :class="{ 'loading-state': isLoading, 'card-focused': isCardFocused }"
-          @focusin="isCardFocused = true"
-          @focusout="isCardFocused = false"
+          :class="{ 'loading-state': isLoading }"
         >
           <!-- Mobile Logo -->
           <div class="mobile-logo">
@@ -371,11 +325,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { debug } from '@/utils/debug'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { useThemeStore } from '@/stores/useTheme'
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import { useToast } from 'vue-toastification'
 import { supabase, setRememberMe, getRememberMe } from '@/supabase'
@@ -385,6 +339,8 @@ import { getStoredInstance } from '@/services/instanceConfig'
 import { isTauriDesktop } from '@/utils/platform'
 import type { Provider } from '@supabase/supabase-js'
 import { RECOVERY_CODE_MIN_LENGTH, RECOVERY_CODE_MAX_LENGTH, RECOVERY_CODE_PLACEHOLDER } from '@/utils/mfaConstants'
+import { authErrorMessage } from '@/utils/authErrorMessage'
+import { consumePostAuthRedirect } from '@/utils/postAuthRedirect'
 
 // Props
 interface Props {
@@ -397,8 +353,8 @@ const props = withDefaults(defineProps<Props>(), {
 
 // Composables
 const router = useRouter()
+const { t } = useI18n()
 const authStore = useAuthStore()
-const themeStore = useThemeStore()
 const instanceSettings = useInstanceSettingsStore()
 const toast = useToast()
 
@@ -435,7 +391,6 @@ const rememberMe = ref(getRememberMe())
 const showPassword = ref(false)
 const isLoading = ref(false)
 const oauthLoading = ref<string | null>(null)
-const isCardFocused = ref(false)
 
 // Focus states
 const emailFocused = ref(false)
@@ -464,16 +419,10 @@ const useRecoveryCode = ref(false)
 
 // Background & effects
 const randomBg = ref('')
-const mouseX = ref(0)
-const mouseY = ref(0)
-const bgOffsetX = ref(0)
-const bgOffsetY = ref(0)
-const isHoveringTitle = ref(false)
-const letterOffsets = ref<Record<number, { x: number; y: number }>>({})
 
 // Instance branding
 const instanceName = ref('Harmony')
-const instanceDescription = ref('Connect, communicate, and create together')
+const instanceDescription = ref('')
 // The native/universal client picks an instance explicitly, so the title shows
 // that domain. Web/PWA has no stored instance and falls back to the brand name.
 const displayTitle = computed(() => {
@@ -483,65 +432,11 @@ const displayTitle = computed(() => {
   }
   return instanceName.value
 })
-const instanceNameLetters = computed(() => displayTitle.value.split(''))
 
 // Computed styles
 const authStyles = computed(() => ({
   '--bg-image': randomBg.value,
-  '--mouse-x': `${mouseX.value}px`,
-  '--mouse-y': `${mouseY.value}px`,
-  '--bg-offset-x': `${bgOffsetX.value}px`,
-  '--bg-offset-y': `${bgOffsetY.value}px`,
-  '--blur-amount': isCardFocused.value ? '12px' : '4px',
 }))
-
-// Mouse tracking with subtle parallax
-const handleMouseMove = (e: MouseEvent) => {
-  mouseX.value = e.clientX
-  mouseY.value = e.clientY
-  
-  // Subtle parallax on background
-  const centerX = window.innerWidth / 2
-  const centerY = window.innerHeight / 2
-  bgOffsetX.value = (e.clientX - centerX) * 0.015
-  bgOffsetY.value = (e.clientY - centerY) * 0.015
-  
-  if (isHoveringTitle.value) {
-    updateLetterOffsets(e)
-  }
-}
-
-const updateLetterOffsets = (e: MouseEvent) => {
-  const letters = document.querySelectorAll('.letter')
-  letters.forEach((letter, index) => {
-    const rect = letter.getBoundingClientRect()
-    const centerX = rect.left + rect.width / 2
-    const centerY = rect.top + rect.height / 2
-    
-    const dx = e.clientX - centerX
-    const dy = e.clientY - centerY
-    const distance = Math.sqrt(dx * dx + dy * dy)
-    
-    const maxDistance = 150
-    const maxOffset = 30
-    
-    if (distance < maxDistance) {
-      const force = (maxDistance - distance) / maxDistance
-      letterOffsets.value[index] = {
-        x: -(dx / distance) * force * maxOffset,
-        y: -(dy / distance) * force * maxOffset
-      }
-    } else {
-      letterOffsets.value[index] = { x: 0, y: 0 }
-    }
-  })
-}
-
-watch(isHoveringTitle, (hovering) => {
-  if (!hovering) {
-    letterOffsets.value = {}
-  }
-})
 
 // Validation
 const validateEmail = () => {
@@ -623,7 +518,7 @@ const handleOAuthLogin = async (providerId: string) => {
       return
     }
     debug.error('OAuth error:', error)
-    toast.error(error.message || `Failed to sign in with ${providerId}`)
+    toast.error(authErrorMessage(error, `Failed to sign in with ${providerId}`))
     oauthLoading.value = null
   }
 }
@@ -658,19 +553,23 @@ const handleSubmit = async () => {
         isLoading.value = false
         return
       }
-
-      toast.success('Welcome back!')
     } else {
       // New signups also respect the toggle so a user signing up on a
       // shared computer can keep their session tab-bound.
       setRememberMe(rememberMe.value)
       await authStore.register(email.value, password.value)
-      toast.success('Account created successfully!')
+      if (!authStore.session) {
+        // Email confirmation is enabled: GoTrue issues no session until the
+        // link in the confirmation email is followed.
+        toast.info(t('auth.confirmEmailSent', { email: email.value }), { timeout: 10000 })
+        router.push('/login')
+        return
+      }
       router.push('/new-profile')
     }
   } catch (error: any) {
     debug.error('Auth error:', error)
-    toast.error(error.message || 'Authentication failed')
+    toast.error(authErrorMessage(error))
   } finally {
     isLoading.value = false
   }
@@ -725,8 +624,7 @@ const handle2FAVerification = async () => {
     } else {
       await authStore.verify2FA(pendingFactorId.value, pendingChallengeId.value, twoFactorCode.value)
       show2FAModal.value = false
-      toast.success('Welcome back!')
-      router.push('/chat')
+      router.push(consumePostAuthRedirect('/chat'))
     }
   } catch (error: any) {
     debug.error('2FA verification error:', error)
@@ -923,7 +821,7 @@ const loadInstanceBranding = async () => {
     const config = await adminService.getInstanceConfig()
     if (config?.instance) {
       instanceName.value = config.instance.name || 'Harmony'
-      instanceDescription.value = config.instance.description || 'Connect, communicate, and create together'
+      instanceDescription.value = config.instance.description || ''
     }
   } catch (error) {
     debug.warn('Failed to load instance branding, using defaults:', error)
@@ -947,7 +845,6 @@ onMounted(async () => {
 .auth-wrapper {
   --primary: var(--harmony-primary, #0EA5E9);
   --primary-hover: var(--harmony-primary-hover, #0284C7);
-  --primary-glow: rgba(14, 165, 233, 0.4);
   --surface: rgba(17, 17, 23, 0.92);
   --surface-light: rgba(255, 255, 255, 0.03);
   --surface-hover: rgba(255, 255, 255, 0.06);
@@ -964,7 +861,6 @@ onMounted(async () => {
   display: flex;
   font-family: var(--font-family);
   background: var(--bg-image) center/cover no-repeat fixed;
-  background-position: calc(50% + var(--bg-offset-x, 0px)) calc(50% + var(--bg-offset-y, 0px));
   position: relative;
   overflow: hidden;
 }
@@ -975,24 +871,8 @@ onMounted(async () => {
 .bg-gradient-overlay {
   position: fixed;
   inset: 0;
-  background: 
-    radial-gradient(ellipse 80% 50% at var(--mouse-x, 50%) var(--mouse-y, 50%), 
-      rgba(14, 165, 233, 0.12) 0%, 
-      transparent 50%),
-    linear-gradient(135deg, 
-      rgba(0, 0, 0, 0.7) 0%, 
-      rgba(0, 0, 0, 0.4) 50%, 
-      rgba(0, 0, 0, 0.8) 100%);
-  backdrop-filter: blur(var(--blur-amount, 4px));
-  pointer-events: none;
-  transition: backdrop-filter 0.5s ease;
-}
-
-.bg-noise {
-  position: fixed;
-  inset: 0;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
-  opacity: 0.03;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
   pointer-events: none;
 }
 
@@ -1040,121 +920,32 @@ onMounted(async () => {
 .logo-container {
   position: relative;
   display: inline-block;
-  margin-bottom: 28px;
-  cursor: pointer;
+  margin-bottom: 24px;
 }
 
 .brand-logo {
   width: 88px;
   height: 88px;
-  filter: drop-shadow(0 8px 24px rgba(14, 165, 233, 0.3));
-  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-.logo-container:hover .brand-logo {
-  transform: scale(1.08) rotate(-5deg);
-}
-
-.logo-pulse {
-  position: absolute;
-  inset: -16px;
-  border-radius: 50%;
-  background: radial-gradient(circle, var(--primary-glow) 0%, transparent 70%);
-  animation: pulse 3s ease-in-out infinite;
-}
-
-@keyframes pulse {
-  0%, 100% { transform: scale(1); opacity: 0.3; }
-  50% { transform: scale(1.2); opacity: 0.6; }
 }
 
 .brand-title {
-  font-size: 3.25rem;
-  font-weight: 800;
+  font-size: 2.5rem;
+  font-weight: 700;
   margin: 0 0 12px;
-  line-height: 1.05;
+  line-height: 1.1;
   letter-spacing: -0.02em;
-}
-
-.harmony-text {
-  display: inline-block;
-}
-
-.letter {
-  display: inline-block;
-  background: linear-gradient(160deg, #fff 20%, rgba(255,255,255,0.7) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  transition: transform 0.15s ease-out;
-  transform: translate(
-    calc(var(--offset-x, 0) * 1px), 
-    calc(var(--offset-y, 0) * 1px)
-  );
-}
-
-.letter:hover {
-  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
+  color: var(--text);
+  overflow-wrap: anywhere;
 }
 
 .brand-tagline {
   font-size: 1.05rem;
   color: var(--text-muted);
-  margin: 0 0 36px;
+  margin: 0;
   line-height: 1.6;
   max-width: 320px;
   margin-left: auto;
   margin-right: auto;
-}
-
-.feature-pills {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  justify-content: center;
-}
-
-.pill {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 18px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 100px;
-  font-size: 0.85rem;
-  font-weight: 500;
-  color: var(--text-muted);
-  transition: all 0.25s ease;
-}
-
-.pill:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(14, 165, 233, 0.3);
-  color: var(--text);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
-}
-
-.pill-icon-wrap {
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, var(--primary), var(--primary-hover));
-  border-radius: 50%;
-  flex-shrink: 0;
-  box-shadow: 0 2px 8px rgba(14, 165, 233, 0.3);
-}
-
-.pill-icon-wrap svg {
-  width: 14px;
-  height: 14px;
-  color: #fff;
-  stroke-width: 2.5;
 }
 
 /* ========================================
@@ -1172,23 +963,11 @@ onMounted(async () => {
   width: 100%;
   max-width: 420px;
   background: var(--surface);
-  backdrop-filter: blur(40px);
+  backdrop-filter: blur(16px);
   border: 1px solid var(--border);
-  border-radius: 24px;
+  border-radius: 16px;
   padding: 40px;
-  box-shadow: 
-    0 0 0 1px rgba(255, 255, 255, 0.02) inset,
-    0 32px 64px rgba(0, 0, 0, 0.4);
-  transition: all 0.4s ease;
-}
-
-.auth-card:hover,
-.auth-card.card-focused {
-  border-color: rgba(14, 165, 233, 0.2);
-  box-shadow: 
-    0 0 0 1px rgba(255, 255, 255, 0.04) inset,
-    0 32px 64px rgba(0, 0, 0, 0.5),
-    0 0 80px rgba(14, 165, 233, 0.08);
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.35);
 }
 
 .auth-card.loading-state {
@@ -1517,36 +1296,21 @@ onMounted(async () => {
    ======================================== */
 .submit-btn {
   width: 100%;
-  padding: 16px;
-  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
+  padding: 14px;
+  background: var(--primary);
   border: none;
-  border-radius: 12px;
+  border-radius: 8px;
   font-size: 1rem;
   font-weight: 600;
-  color: var(--text-primary);
+  color: #fff;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: background-color 0.15s ease;
   position: relative;
-  overflow: hidden;
   margin-top: 8px;
 }
 
-.submit-btn::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, rgba(255,255,255,0.2) 0%, transparent 50%);
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
 .submit-btn:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 32px var(--primary-glow);
-}
-
-.submit-btn:hover:not(:disabled)::before {
-  opacity: 1;
+  background: var(--primary-hover);
 }
 
 .submit-btn:active:not(:disabled) {
@@ -1880,14 +1644,13 @@ onMounted(async () => {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
+  background: var(--primary);
   border: none;
-  color: var(--text-primary);
+  color: #fff;
 }
 
 .btn-primary:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 8px 24px var(--primary-glow);
+  background: var(--primary-hover);
 }
 
 .btn-primary:disabled {
@@ -2023,24 +1786,6 @@ onMounted(async () => {
     font-size: 0.95rem;
   }
   
-  .feature-pills {
-    gap: 8px;
-  }
-  
-  .pill {
-    padding: 8px 14px;
-    font-size: 0.8rem;
-  }
-
-  .pill-icon-wrap {
-    width: 24px;
-    height: 24px;
-  }
-
-  .pill-icon-wrap svg {
-    width: 12px;
-    height: 12px;
-  }
 }
 
 @media (max-width: 768px) {

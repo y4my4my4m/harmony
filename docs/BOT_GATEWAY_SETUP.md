@@ -16,7 +16,7 @@ cd federation-backend
 npm run dev
 # → http://localhost:3001
 
-# Terminal 3: Bot Gateway (NEW!)
+# Terminal 3: Bot Gateway
 cd bot-gateway
 npm install  # First time only
 npm run dev
@@ -57,25 +57,31 @@ Install the bridge from [harmony-discord-bridge](https://github.com/y4my4my4m/ha
 
 ### 1. Nginx Configuration
 
-The nginx config has been updated with Bot Gateway routes:
+The whole `/bot-gateway/` prefix is proxied with the prefix stripped, as `handle_path` does in
+`self-host/Caddyfile`. The web client also calls `/bot-gateway/bridged-users/*`,
+`/bot-gateway/attachments/refresh` and `/bot-gateway/bridge-setup/*`, so per-path locations are
+not enough.
 
 ```nginx
-# WebSocket Gateway (for bots)
-location /bot-gateway/gateway {
-    proxy_pass http://localhost:3002/gateway;
-    # WebSocket upgrade headers
+# http {} context
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    ''      close;
 }
 
-# REST API (for bots)
-location /bot-gateway/api/ {
-    proxy_pass http://localhost:3002/api/;
-}
-
-# Health check
-location /bot-gateway/health {
-    proxy_pass http://localhost:3002/health;
+# server {} context
+location /bot-gateway/ {
+    proxy_pass http://localhost:3002/;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $connection_upgrade;
+    proxy_set_header Host $host;
+    proxy_read_timeout 120s;
 }
 ```
+
+`proxy_read_timeout` exceeds twice the 30 s heartbeat interval, so idle gateway sessions are not cut
+by the proxy.
 
 **Reload nginx after updating:**
 ```bash
@@ -244,10 +250,10 @@ Response:
 }
 ```
 
-### 3. Create a Bot (in admin panel)
-1. Go to `http://localhost:5173/admin/bots`
-2. Click "Create New Bot"
-3. Copy the token
+### 3. Create a Bot
+1. Open User Settings → My Bots at `http://localhost:5173`
+2. Click **New bot** and submit the form
+3. Copy the token from the dialog; it is shown once
 
 ### 4. Test with Discord Bridge
 ```bash
@@ -298,7 +304,7 @@ User Bots ──> wss://har.mony.lol/bot-gateway/gateway
 **Check:**
 1. Is bot-gateway running? (`curl http://localhost:3002/health`)
 2. Correct URLs in bot config? (ws://localhost:3002/gateway)
-3. Valid bot token? (check admin panel)
+3. Valid bot token? (User Settings → My Bots → the bot → Token shows its last four characters and last use)
 4. Supabase credentials in bot-gateway/.env?
 
 ### Bot Can't Connect in Production
@@ -313,9 +319,9 @@ User Bots ──> wss://har.mony.lol/bot-gateway/gateway
 ### "Invalid or expired token"
 
 **Fix:**
-1. Go to admin panel
-2. Click "Regenerate Token" for the bot
-3. Update bot configuration with new token
+1. Open User Settings → My Bots and select the bot
+2. Click **Reset token** and copy the new token
+3. Update bot configuration with the new token
 4. Restart bot
 
 ---

@@ -57,7 +57,7 @@ const goBack = () => {
   position: fixed;
   inset: 0;
   background:
-    radial-gradient(ellipse 60% 40% at 50% 40%, rgba(99, 102, 241, 0.15) 0%, transparent 50%),
+    radial-gradient(ellipse 60% 40% at 50% 40%, color-mix(in srgb, var(--harmony-primary) 15%, transparent) 0%, transparent 50%),
     radial-gradient(ellipse 40% 30% at 70% 60%, rgba(139, 92, 246, 0.1) 0%, transparent 50%);
   pointer-events: none;
 }
@@ -85,7 +85,7 @@ const goBack = () => {
 .logout-icon {
   width: 64px;
   height: 64px;
-  background: rgba(99, 102, 241, 0.15);
+  background: color-mix(in srgb, var(--harmony-primary) 15%, transparent);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -124,7 +124,7 @@ const goBack = () => {
 
 .btn-logout {
   padding: 14px 32px;
-  background: linear-gradient(135deg, #6366f1 0%, #818cf8 100%);
+  background: var(--harmony-primary);
   border: none;
   border-radius: 12px;
   font-size: 1rem;
@@ -135,8 +135,7 @@ const goBack = () => {
 }
 
 .btn-logout:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 32px rgba(99, 102, 241, 0.4);
+  background: var(--harmony-primary-hover);
 }
 
 .btn-cancel {

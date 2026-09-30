@@ -98,7 +98,11 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
+      # The action's default package list includes `tools`, which cmdline-tools
+      # 16.0 no longer carries; sdkmanager exits 1 on it.
       - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
       - name: Install NDK
         run: sdkmanager "ndk;${NDK_VERSION}" "platforms;android-34" "build-tools;34.0.0"
       - uses: dtolnay/rust-toolchain@stable

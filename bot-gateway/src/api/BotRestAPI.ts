@@ -300,12 +300,19 @@ export class BotRestAPI {
 
       const { data: message, error: fetchError } = await supabase
         .from('messages')
-        .select('channel_id, metadata')
+        .select('channel_id, metadata, bot_id')
         .eq('id', messageId)
         .single()
 
       if (fetchError || !message) {
         return res.status(404).json({ error: 'Message not found' })
+      }
+
+      // Service-role write: without this check a bot could rewrite any
+      // message's metadata, including the discord_user field that sets the
+      // displayed author.
+      if (message.bot_id !== botId) {
+        return res.status(403).json({ error: 'Bots can only update metadata on their own messages' })
       }
 
       const canSend = await this.checkChannelPermission(botId, message.channel_id, 'send_messages')

@@ -37,12 +37,14 @@
           :posts="specialViewData || []"
           :is-loading="isLoadingFeed"
           :has-more="hasMoreSpecialData"
-          :loading-message="`Loading your ${viewType}...`"
+          :error="loadError"
+          :loading-message="t('common.loading')"
           :empty-title="getEmptyStateTitle(viewType)"
           :empty-message="getSpecialViewEmptyMessage(viewType)"
           :empty-icon="getViewIcon(viewType)"
           :empty-action="viewType === ViewType.BOOKMARKS ? $t('activitypub.browseTimeline') : undefined"
           @load-more="$emit('load-more-special-data')"
+          @retry="$emit('refresh-timeline')"
           @empty-action="$emit('switch-feed', 'home')"
           @posts-visible="$emit('posts-visible', $event)"
         />
@@ -63,28 +65,41 @@
           />
         </div>
 
-        <!-- Timeline Posts -->
-        <PostsContainer
-          :posts="posts"
-          :register-scroll="handleRegisterScroll"
-          :is-loading="isLoadingFeed"
-          :has-more="hasMorePosts"
-          :loading-message="getTimelineLoadingMessage()"
-          :empty-title="getTimelineEmptyTitle()"
-          :empty-message="getTimelineEmptyMessage()"
-          :empty-action="currentView === 'home' ? $t('activitypub.explorePublicTimeline') : undefined"
-          @load-more="$emit('load-more-posts')"
-          @empty-action="$emit('switch-feed', 'public')"
-          @reply="$emit('reply-to-post', $event)"
-          @favorite="$emit('favorite-post', $event)"
-          @reblog="$emit('reblog-post', $event)"
-          @bookmark="$emit('bookmark-post', $event)"
-          @delete="$emit('delete-post', $event)"
-          @edit="handleEditPost"
-          @user-click="$emit('show-user-profile', $event)"
-          @hashtag-click="handleHashtagClick"
-          @show-conversation="handleShowConversation"
-        />
+        <div class="timeline-list">
+          <button
+            v-if="pendingCount > 0"
+            type="button"
+            class="new-posts-pill"
+            @click="handleShowPending"
+          >
+            <Icon name="arrow-up" :size="16" />
+            {{ t('activitypub.newPostsCount', { count: pendingCount }, pendingCount) }}
+          </button>
+
+          <PostsContainer
+            :posts="posts"
+            :register-scroll="handleRegisterScroll"
+            :is-loading="isLoadingFeed"
+            :has-more="hasMorePosts"
+            :error="loadError"
+            :loading-message="t('common.loading')"
+            :empty-title="getTimelineEmptyTitle()"
+            :empty-message="getTimelineEmptyMessage()"
+            :empty-action="currentView === 'home' ? $t('activitypub.browseFederatedTimeline') : undefined"
+            @load-more="$emit('load-more-posts')"
+            @retry="$emit('refresh-timeline')"
+            @empty-action="$emit('switch-feed', 'public')"
+            @reply="$emit('reply-to-post', $event)"
+            @favorite="$emit('favorite-post', $event)"
+            @reblog="$emit('reblog-post', $event)"
+            @bookmark="$emit('bookmark-post', $event)"
+            @delete="$emit('delete-post', $event)"
+            @edit="handleEditPost"
+            @user-click="$emit('show-user-profile', $event)"
+            @hashtag-click="handleHashtagClick"
+            @show-conversation="handleShowConversation"
+          />
+        </div>
 
         <!-- Edit Composer Modal -->
         <Composer
@@ -102,10 +117,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onUnmounted } from 'vue'
+import { ref, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import ChatComponent from '@/components/ChatComponent.vue'
+import Icon from '@/components/common/Icon.vue'
 import Composer from '@/components/activitypub/Composer.vue'
 import ExploreContent from '@/components/activitypub/ExploreContent.vue'
 import PostsContainer from './PostsContainer.vue'
@@ -122,6 +138,11 @@ let scrollTicking = false
 
 const isMobileDevice = () => window.innerWidth <= 768
 
+// Scroll offset (px) past which the timeline counts as scrolled and realtime
+// posts queue behind the "new posts" pill.
+const SCROLLED_THRESHOLD = 120
+let timelineScrolled = false
+
 function handleRegisterScroll(el: HTMLElement | null) {
   if (timelineScrollEl.value && timelineScrollEl.value !== el) {
     timelineScrollEl.value.removeEventListener('scroll', handleTimelineScroll)
@@ -134,25 +155,37 @@ function handleRegisterScroll(el: HTMLElement | null) {
 }
 
 function handleTimelineScroll() {
-  if (!isMobileDevice()) {
-    composerHidden.value = false
-    return
-  }
   const el = timelineScrollEl.value
   if (!el) return
   if (scrollTicking) return
   scrollTicking = true
   requestAnimationFrame(() => {
     const currentY = el.scrollTop
-    const delta = currentY - lastScrollY
-    if (delta > 12 && currentY > 80) {
-      composerHidden.value = true
-    } else if (delta < -6) {
+    const scrolled = currentY > SCROLLED_THRESHOLD
+    if (scrolled !== timelineScrolled) {
+      timelineScrolled = scrolled
+      emit('timeline-scrolled', scrolled)
+    }
+    if (!isMobileDevice()) {
       composerHidden.value = false
+    } else {
+      const delta = currentY - lastScrollY
+      if (delta > 12 && currentY > 80) {
+        composerHidden.value = true
+      } else if (delta < -6) {
+        composerHidden.value = false
+      }
     }
     lastScrollY = currentY
     scrollTicking = false
   })
+}
+
+function handleShowPending() {
+  const el = timelineScrollEl.value
+  if (el) el.scrollTop = 0
+  composerHidden.value = false
+  emit('show-pending')
 }
 
 onUnmounted(() => {
@@ -184,6 +217,11 @@ interface Props {
   isLoadingFeed?: boolean;
   hasMorePosts?: boolean;
 
+  /** First-page load failure for the shown feed. */
+  loadError?: string | null;
+  /** Realtime posts queued behind the "new posts" pill. */
+  pendingCount?: number;
+
   // Special view props (profile, bookmarks, etc.)
   profileUser?: FederatedUser | null;
   profileHandle?: string;
@@ -206,10 +244,12 @@ const props = withDefaults(defineProps<Props>(), {
   profileUser: null,
   profileHandle: undefined,
   specialViewData: () => [],
-  hasMoreSpecialData: false
+  hasMoreSpecialData: false,
+  loadError: null,
+  pendingCount: 0
 });
 
-defineEmits<{
+const emit = defineEmits<{
   // Chat mode events
   'load-more-messages': []
   'update:is-at-bottom': [value: boolean]
@@ -222,6 +262,9 @@ defineEmits<{
   'load-more-special-data': []
   'clear-all-bookmarks': []
   'back-to-timeline': []
+  'refresh-timeline': []
+  'timeline-scrolled': [scrolled: boolean]
+  'show-pending': []
   
   // Post interaction events. See PostsContainer for why these forward
   // `post: TimelinePost` rather than a bare id - the upstream feed views
@@ -259,18 +302,15 @@ const handleEditPost = (postId: string) => {
   }
 }
 
-// Use the post interactions composable for all post-related actions
 const { t } = useI18n()
 
-// Helper functions for timeline states
-const getTimelineLoadingMessage = () => {
-  switch (props.currentView) {
-    case 'home': return t('common.loading') + '...'
-    case 'local': return t('common.loading') + '...'
-    case 'public': return t('common.loading') + '...'
-    default: return t('common.loading') + '...'
-  }
-}
+// Feed switches reuse this instance; a new feed opens at its top.
+watch(() => props.currentView, () => {
+  const el = timelineScrollEl.value
+  if (el) el.scrollTop = 0
+  timelineScrolled = false
+  composerHidden.value = false
+})
 
 const getTimelineEmptyTitle = () => {
   switch (props.currentView) {
@@ -306,22 +346,18 @@ const getViewIcon = (viewType: any) => {
 const getEmptyStateTitle = (viewType: any) => {
   const typeStr = typeof viewType === 'string' ? viewType : viewType?.toLowerCase?.() || ''
   switch (typeStr) {
-    case 'explore': return 'Nothing to explore yet'
-    case 'bookmarks': return 'No bookmarks yet'
-    case 'lists': return 'No lists yet'
-    case 'mentions': return 'No mentions yet'
-    default: return 'Nothing here yet'
+    case 'bookmarks': return t('activitypub.noBookmarksYet')
+    case 'mentions': return t('activitypub.noMentionsYet')
+    default: return t('activitypub.nothingToSee')
   }
 }
 
 const getSpecialViewEmptyMessage = (viewType: any) => {
   const typeStr = typeof viewType === 'string' ? viewType : viewType?.toLowerCase?.() || ''
   switch (typeStr) {
-    case 'explore': return 'Check back later for trending content and discover new instances.'
-    case 'bookmarks': return 'Posts you bookmark will appear here for easy access later.'
-    case 'lists': return 'Create lists to organize users and topics you follow.'
-    case 'mentions': return 'Posts where someone @mentions you will appear here - even from people you don\'t follow.'
-    default: return 'Content will appear here when available.'
+    case 'bookmarks': return t('activitypub.noBookmarksHint')
+    case 'mentions': return t('activitypub.noMentionsHint')
+    default: return t('activitypub.noPostsFound')
   }
 }
 </script>
@@ -357,8 +393,49 @@ const getSpecialViewEmptyMessage = (viewType: any) => {
   overflow: hidden;
 }
 
+.timeline-list {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.new-posts-pill {
+  position: absolute;
+  top: var(--space-3);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-4);
+  border: none;
+  border-radius: var(--radius-full);
+  background: var(--harmony-primary);
+  color: var(--text-on-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  box-shadow: var(--shadow-medium);
+  cursor: pointer;
+}
+
+.new-posts-pill:hover {
+  background: var(--harmony-primary-hover);
+}
+
+.new-posts-pill:focus-visible {
+  outline: 2px solid var(--text-primary);
+  outline-offset: 2px;
+}
+
 .composer-section {
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
   padding: var(--space-4);
+  border-bottom: 1px solid var(--border-color);
   position: relative;
   flex-shrink: 0;
   transition: transform 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94),
@@ -382,9 +459,23 @@ const getSpecialViewEmptyMessage = (viewType: any) => {
   background: var(--background-primary);
 }
 
+.composer-section :deep(.composer-inline-content) {
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  background: transparent;
+}
+
+@media (min-width: 769px) {
+  .composer-section {
+    border-left: 1px solid var(--border-color);
+    border-right: 1px solid var(--border-color);
+  }
+}
+
 @media (max-width: 768px) {
   .composer-section {
-    padding: var(--space-1);
+    padding: var(--space-3);
   }
 }
 </style>

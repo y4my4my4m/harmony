@@ -25,12 +25,12 @@
                 class="tp-mode-btn"
                 :class="{ active: working.customThemeMode === 'dark' }"
                 @click="setMode('dark')"
-              >🌙 Dark</button>
+              >Dark</button>
               <button
                 class="tp-mode-btn"
                 :class="{ active: working.customThemeMode === 'light' }"
                 @click="setMode('light')"
-              >☀️ Light</button>
+              >Light</button>
             </div>
           </div>
 

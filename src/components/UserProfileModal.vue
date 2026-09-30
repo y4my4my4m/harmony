@@ -175,7 +175,6 @@
         <!-- Federation Info (for remote users) -->
         <div v-if="isFederatedUser(user)" class="federation-section">
           <h3 class="section-title">
-            <Icon name="link" class="section-icon" />
             Federation Info
           </h3>
           <div class="federation-info">
@@ -1613,12 +1612,17 @@ onMounted(() => {
   display: flex;
   align-items: flex-start;
   gap: 20px;
-  margin-top: -40px;
   margin-bottom: 24px;
 }
 
 .avatar-container {
   flex-shrink: 0;
+}
+
+/* Only the avatar overlaps the banner; the name block stays below it.
+   Child-qualified: Avatar's root also carries .avatar-container. */
+.profile-header > .avatar-container {
+  margin-top: -40px;
 }
 
 .avatar-wrapper {
@@ -1750,8 +1754,10 @@ onMounted(() => {
 
 .user-stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
-  gap: 16px;
+  /* 6 tracks: items span 2 (rows of 3), or 3 (rows of 2) for the
+     2-then-3 social layout and the 4-item bridged layout. */
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
   margin-bottom: 24px;
   padding: 16px;
   background: rgba(255, 255, 255, 0.02);
@@ -1798,16 +1804,23 @@ onMounted(() => {
 }
 
 .stat-item {
+  grid-column: span 2;
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
+  padding: 8px;
+  border-radius: 8px;
+  min-width: 0;
+}
+
+.user-stats:has(> .stat-item.clickable) > .stat-item:not(.clickable),
+.user-stats:has(> .stat-item:nth-child(4):last-child) > .stat-item {
+  grid-column: span 3;
 }
 
 .stat-item.clickable {
   cursor: pointer;
-  padding: 8px;
-  border-radius: 8px;
   transition: all 0.2s ease;
 }
 
@@ -1845,12 +1858,6 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-}
-
-.section-icon {
-  width: 16px;
-  height: 16px;
-  color: #0EA5E9;
 }
 
 .bio-section {
@@ -2318,11 +2325,6 @@ onMounted(() => {
     align-items: center;
     text-align: center;
     gap: 16px;
-  }
-  
-  .user-stats {
-    grid-template-columns: repeat(3, 1fr);
-    gap: 12px;
   }
   
   .activity-grid {

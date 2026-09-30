@@ -80,14 +80,12 @@ Individual servers have their own settings managed by server owners:
 - Emoji pack management via `EmojiPackService`
 - Emoji indexed in `EmojiIndexedDBCache` for fast lookup
 
-## Bot Administration
+## Bots
 
-`BotManagement` provides:
-
-- View registered bots
-- Manage bot permissions
-- Monitor bot activity
-- Bot gateway health status
+The admin panel has no bot section. Any user creates and manages bots under User Settings → My Bots
+(`UserBotsManagement`): token issue and reset, connection endpoints, and adding the bot to servers the
+user owns. Server owners grant per-server permissions under Server Settings → Advanced → Server Bots
+(`ServerBotsSettings`). See the [Bot API reference](/bot-api).
 
 ## Performance Monitoring
 

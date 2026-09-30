@@ -90,8 +90,8 @@ npm run test:integration
 | Business logic | `src/services/` or `src/services/core/` |
 | State management | `src/stores/` |
 | Route definitions | `src/router/` |
-| Database schema | `db_schema/init/` (fresh) or `db_schema/migrations/` (changes) |
-| RLS policies | `db_schema/init/30_rls_policies.sql` |
+| Database schema | `db_schema/migrations/` |
+| RLS policies | `db_schema/migrations/` (search `CREATE POLICY`) |
 | Federation backend | `federation-backend/src/` |
 | Tests | `tests/` or co-located `__tests__/` directories |
 | Documentation | `docs-source/guide/` (edit here, not `docs/guide/`) |
@@ -103,7 +103,7 @@ When modifying the database schema:
 1. Create an idempotent migration file in `db_schema/migrations/` with a date prefix (e.g., `20260306_add_new_table.sql`)
 2. Wrap in `BEGIN;`/`COMMIT;`
 3. Use `CREATE OR REPLACE` for functions and `DROP POLICY IF EXISTS` before `CREATE POLICY` for RLS
-4. Update the corresponding init file in `db_schema/init/` if this is a fresh-install change
+4. Nothing else to update: the migration is the schema
 5. Test with `supabase db reset` to verify the init scripts still work
 
 ## License

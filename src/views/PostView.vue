@@ -2,46 +2,41 @@
 <!-- Supersedes PostDetailView and ConversationThreadView. -->
 <template>
   <div class="post-view">
-    <div class="post-header">
-      <button @click="goBack" class="back-btn" title="Go back">
-        <Icon name="arrow-left" />
-      </button>
-      
-      <div class="header-info">
-        <h1 class="header-title">Post</h1>
-        <p v-if="isViewingRemotePost && originalInstanceDomain" class="header-meta">
-          From {{ originalInstanceDomain }}
-          <span v-if="threadInfo && threadInfo.totalPosts > 1">
-            · {{ threadInfo.totalPosts }} posts
-          </span>
-        </p>
-        <p v-else-if="threadInfo" class="header-meta">
-          {{ threadInfo.totalPosts }} post{{ threadInfo.totalPosts !== 1 ? 's' : '' }}
-          <span v-if="threadInfo.participantCount > 1">
-            · {{ threadInfo.participantCount }} participant{{ threadInfo.participantCount !== 1 ? 's' : '' }}
-          </span>
-        </p>
-      </div>
-      
-      <div class="header-actions">
+    <ViewHeader :title="t('activitypub.post')" :subtitle="headerSubtitle">
+      <template #actions>
         <a
           v-if="isViewingRemotePost && originalInstanceUrl"
           :href="originalInstanceUrl"
           target="_blank"
           rel="noopener noreferrer"
-          class="action-btn view-original-btn"
-          :title="'View on ' + (originalInstanceDomain || 'original instance')"
+          class="action-btn"
+          :aria-label="t('activitypub.viewOnDomain', { domain: originalInstanceDomain || '' })"
+          :title="t('activitypub.viewOnDomain', { domain: originalInstanceDomain || '' })"
         >
-          <Icon name="external-link" />
+          <Icon name="external-link" :size="18" />
         </a>
-        <button @click="sharePost" class="action-btn" title="Share">
-          <Icon name="share" />
+        <button
+          type="button"
+          class="action-btn"
+          :aria-label="t('activitypub.share')"
+          :title="t('activitypub.share')"
+          @click="sharePost"
+        >
+          <Icon name="share" :size="18" />
         </button>
         <div class="more-actions-wrapper">
-          <button @click="showActionsMenu = !showActionsMenu" class="action-btn" title="More actions">
-            <Icon name="more-horizontal" />
+          <button
+            type="button"
+            class="action-btn"
+            :aria-label="t('activitypub.moreOptions')"
+            :title="t('activitypub.moreOptions')"
+            aria-haspopup="menu"
+            :aria-expanded="showActionsMenu"
+            @click="showActionsMenu = !showActionsMenu"
+          >
+            <Icon name="more-horizontal" :size="18" />
           </button>
-          <div v-if="showActionsMenu" class="actions-dropdown">
+          <div v-if="showActionsMenu" class="actions-dropdown" role="menu">
             <button @click="copyPostLink" class="dropdown-item">
               <Icon name="link" :size="16" />
               <span>Copy link</span>
@@ -79,8 +74,8 @@
             </button>
           </div>
         </div>
-      </div>
-    </div>
+      </template>
+    </ViewHeader>
 
     <div class="post-content" ref="postContainer">
       <div v-if="isLoading" class="loading-state">
@@ -110,12 +105,14 @@
       <div v-else-if="postWithContext" class="post-container">
         <!-- Thread order: ancestors, main, descendants. -->
         <article
-          v-for="post in allPostsInOrder"
+          v-for="(post, index) in allPostsInOrder"
           :key="post.id"
           class="thread-post"
-          :class="{ 
+          :class="{
             'highlighted-post': post.id === highlightedPostId,
-            'is-main-post': post.id === mainPost?.id
+            'is-main-post': post.id === mainPost?.id,
+            'thread-continues': index < ancestors.length,
+            'thread-continued': index > 0 && index <= ancestors.length
           }"
           :ref="el => post.id === highlightedPostId && setPostRef(post.id, el)"
         >
@@ -123,6 +120,7 @@
             :post="post"
             :is-in-thread="true"
             :hide-reply-context="true"
+            :detailed="post.id === mainPost?.id"
             @reply="handleReply"
             @reply-created="handleInlineReplyCreated"
             @favorite="handleFavorite"
@@ -166,8 +164,10 @@ import { useActivityPubStore } from '@/stores/useActivityPub';
 import { usePostReactionsStore } from '@/stores/postReactions';
 import { activityPubService } from '@/services/activityPubService';
 import { useToast } from 'vue-toastification';
+import { useI18n } from 'vue-i18n';
 import Icon from '@/components/common/Icon.vue';
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
+import ViewHeader from '@/components/common/ViewHeader.vue';
 import MonyPost from '@/components/activitypub/MonyPost.vue';
 import Composer from '@/components/activitypub/Composer.vue';
 import { getOriginalPost, getOriginalPostId, getOriginalApId, isReblogPost } from '@/utils/postReblog';
@@ -200,6 +200,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 const { confirm } = useConfirmDialog()
 const { toggleFavorite, toggleReblog, toggleBookmark } = usePostInteractions()
+const { t } = useI18n()
 
 const router = useRouter();
 const route = useRoute();
@@ -254,6 +255,21 @@ const ancestors = computed(() => postWithContext.value?.ancestors || []);
 const descendants = computed(() => postWithContext.value?.descendants || []);
 const threadInfo = computed(() => postWithContext.value?.threadInfo);
 const highlightedPostId = computed(() => props.highlightReply || postWithContext.value?.highlightedPost);
+
+const headerSubtitle = computed(() => {
+  const parts: string[] = [];
+  if (isViewingRemotePost.value && originalInstanceDomain.value) {
+    parts.push(t('activitypub.fromDomain', { domain: originalInstanceDomain.value }));
+  }
+  const info = threadInfo.value;
+  if (info && info.totalPosts > 1) {
+    parts.push(t('activitypub.postsCountLabel', { count: info.totalPosts }, info.totalPosts));
+  }
+  if (info && info.participantCount > 1) {
+    parts.push(t('activitypub.participantsCount', { count: info.participantCount }, info.participantCount));
+  }
+  return parts.join(' · ') || undefined;
+});
 
 // Chronological: ancestors, main, descendants.
 const allPostsInOrder = computed(() => {
@@ -622,7 +638,7 @@ const handleReblog = async (postId: string) => {
   const result = await toggleReblog(postId);
   if (result.success) {
     await loadPostWithContext();
-    toast.success(result.reblogged ? 'Post reblogged!' : 'Reblog removed');
+    toast.success(result.reblogged ? t('activitypub.boostedToast') : t('activitypub.boostRemoved'));
   } else {
     toast.error(result.error || 'Failed to reblog post');
   }
@@ -771,117 +787,35 @@ onMounted(loadPostWithContext);
 .post-view {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  height: 100dvh;
-  padding-bottom: 40px;
-}
-
-.post-header {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 1rem 1.5rem;
-  border-bottom: 1px solid var(--color-border);
-  background: var(--color-bg-secondary);
-  position: sticky;
-  top: 0;
-  z-index: 10;
-}
-
-.back-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 2.5rem;
-  height: 2.5rem;
-  border: none;
-  border-radius: 50%;
-  background: var(--color-bg-tertiary);
-  color: var(--color-text-primary);
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.back-btn:hover {
-  background: var(--color-bg-hover);
-  transform: translateX(-2px);
-}
-
-.header-info {
-  flex: 1;
-}
-
-.header-title {
-  font-size: 1.25rem;
-  font-weight: 600;
-  margin: 0 0 0.25rem 0;
-  color: var(--color-text-primary);
-}
-
-.header-meta {
-  font-size: 0.875rem;
-  color: var(--color-text-secondary);
-  margin: 0;
-}
-
-.header-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.context-switcher {
-  display: flex;
-  gap: 0.25rem;
-  margin-right: 0.5rem;
-}
-
-.context-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 2rem;
-  height: 2rem;
-  border: 1px solid var(--color-border);
-  border-radius: 0.375rem;
-  background: var(--color-bg-secondary);
-  color: var(--color-text-secondary);
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.context-btn:hover {
-  background: var(--color-bg-hover);
-  color: var(--color-text-primary);
-}
-
-.context-btn.active {
-  background: var(--color-primary);
-  color: var(--text-primary);
-  border-color: var(--color-primary);
+  height: 100%;
+  background: var(--background-primary);
 }
 
 .action-btn {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2.5rem;
-  height: 2.5rem;
+  width: 36px;
+  height: 36px;
   border: none;
-  border-radius: 50%;
-  background: var(--color-bg-tertiary);
-  color: var(--color-text-secondary);
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--text-secondary);
   cursor: pointer;
-  transition: all 0.2s ease;
+  text-decoration: none;
+  transition: color var(--transition-fast), background-color var(--transition-fast);
 }
 
 .action-btn:hover {
-  background: var(--color-bg-hover);
-  color: var(--color-text-primary);
+  background: var(--background-modifier-hover);
+  color: var(--text-primary);
 }
 
-a.action-btn {
-  text-decoration: none;
+.action-btn:focus-visible,
+.dropdown-item:focus-visible,
+.back-home-btn:focus-visible {
+  outline: 2px solid var(--harmony-primary);
+  outline-offset: 2px;
 }
 
 a.dropdown-item {
@@ -898,13 +832,13 @@ a.dropdown-item {
   top: 100%;
   right: 0;
   margin-top: 4px;
-  min-width: 160px;
-  background: var(--background-secondary, #2b2d31);
-  border: 1px solid var(--border-color, #3f4147);
-  border-radius: 8px;
-  padding: 4px;
+  min-width: 180px;
+  background: var(--background-floating, var(--background-secondary));
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  padding: var(--space-1);
   z-index: 100;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-large);
 }
 
 .dropdown-item {
@@ -915,62 +849,81 @@ a.dropdown-item {
   padding: 8px 12px;
   background: none;
   border: none;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   color: var(--text-primary);
   font-size: 14px;
   cursor: pointer;
-  transition: background 0.15s;
 }
 
 .dropdown-item:hover {
-  background: var(--background-tertiary, #35373c);
+  background: var(--background-modifier-hover);
 }
 
 .dropdown-item.danger {
-  color: #ed4245;
+  color: var(--error);
 }
 
 .dropdown-item.danger:hover {
-  background: rgba(237, 66, 69, 0.1);
+  background: color-mix(in srgb, var(--error) 10%, transparent);
 }
 
 .post-content {
   flex: 1;
   overflow-y: auto;
-  padding: 0;
+  padding: 0 0 40px;
 }
 
 .post-container {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
-  padding: 1rem;
   max-width: 600px;
+  min-height: 100%;
   margin: 0 auto;
+}
+
+@media (min-width: 769px) {
+  .post-container {
+    border-left: 1px solid var(--border-color);
+    border-right: 1px solid var(--border-color);
+  }
 }
 
 .thread-post {
   position: relative;
 }
 
-.highlighted-post :deep(.mony-post) {
-  box-shadow: 0 0 0 2px var(--harmony-primary, #0EA5E9);
-  border-radius: 12px;
+/* Thread connector through the avatar column (avatar: 48px, post padding: 12px top, 16px left). */
+.thread-post.thread-continues::after,
+.thread-post.thread-continued::before {
+  content: '';
+  position: absolute;
+  left: calc(var(--space-4) + 24px - 1px);
+  width: 2px;
+  background: var(--text-muted);
+  pointer-events: none;
 }
 
-.scroll-highlight {
-  animation: highlight-pulse 2s ease-in-out;
+.thread-post.thread-continues::after {
+  top: calc(var(--space-3) + 48px + 4px);
+  bottom: 0;
 }
 
-@keyframes highlight-pulse {
-  0%, 100% { 
-    border-color: var(--h-brand, #0EA5E9);
-    box-shadow: 0 0 20px rgba(14, 165, 233, 0.3);
-  }
-  50% { 
-    border-color: var(--h-brand, #0EA5E9);
-    box-shadow: 0 0 30px rgba(14, 165, 233, 0.5);
-  }
+.thread-post.thread-continued::before {
+  top: 0;
+  height: calc(var(--space-3) - 4px);
+}
+
+.thread-post.thread-continues :deep(.mony-post) {
+  border-bottom-color: transparent;
+}
+
+/* Ancestors indent their body into the text column so the connector runs clear of it. */
+.thread-post.thread-continues :deep(.post-content > :not(.post-header)) {
+  margin-left: calc(48px + var(--space-3));
+}
+
+.highlighted-post:not(.is-main-post) :deep(.mony-post) {
+  background: var(--harmony-primary-alpha-light);
 }
 
 .loading-state,
@@ -979,61 +932,60 @@ a.dropdown-item {
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: var(--space-2);
   padding: 3rem 2rem;
   text-align: center;
   min-height: 50vh;
+  color: var(--text-secondary);
 }
 
 .error-state h3 {
-  margin: 1rem 0 0.5rem 0;
-  color: var(--color-text-primary);
+  margin: var(--space-2) 0 0;
+  color: var(--text-primary);
 }
 
 .error-state p {
-  color: var(--color-text-secondary);
-  margin-bottom: 1.5rem;
+  color: var(--text-secondary);
+  margin: 0 0 var(--space-3);
 }
 
 .back-home-btn {
-  padding: 0.75rem 1.5rem;
-  border: 1px solid var(--color-border);
-  border-radius: 0.5rem;
-  background: var(--color-bg-secondary);
-  color: var(--color-text-primary);
+  padding: var(--space-2) var(--space-5);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--text-primary);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color var(--transition-fast);
 }
 
 .back-home-btn:hover {
-  background: var(--color-bg-hover);
+  background: var(--background-modifier-hover);
 }
 
-
-
 .scroll-highlighted {
-  background: var(--color-primary-bg);
+  background: var(--harmony-primary-alpha-light);
   transition: background-color 0.3s ease;
 }
 
-
 .reply-composer {
-  border-bottom: 1px solid var(--color-border);
-  background: var(--color-bg-secondary);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border-color);
 }
 
-
 @media (max-width: 768px) {
-  .post-header {
-    padding: 0.75rem 1rem;
-    gap: 0.75rem;
+  .thread-post.thread-continues::after,
+  .thread-post.thread-continued::before {
+    left: calc(var(--space-3) + 24px - 1px);
   }
-  
-  .header-title {
-    font-size: 1.125rem;
+
+  .thread-post.thread-continues :deep(.post-content > :not(.post-header)) {
+    margin-left: calc(48px + var(--space-2));
   }
-  
-  .post-container {
-    padding: 0.5rem;
+
+  .action-btn {
+    width: 40px;
+    height: 40px;
   }
 }
 </style>

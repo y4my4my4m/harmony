@@ -262,21 +262,8 @@ CREATE TABLE IF NOT EXISTS public.instance_config (
 
 COMMENT ON TABLE public.instance_config IS 'Server-wide configuration settings';
 
--- ---------------------------------------------------------------------------
--- OAUTH PROVIDERS - For OAuth login providers
--- ---------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS public.oauth_providers (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    provider_name text NOT NULL UNIQUE,
-    client_id text NOT NULL,
-    client_secret text,
-    enabled boolean DEFAULT true,
-    created_at timestamp with time zone DEFAULT now(),
-    updated_at timestamp with time zone DEFAULT now(),
-    settings jsonb DEFAULT '{}'::jsonb
-);
-
-COMMENT ON TABLE public.oauth_providers IS 'OAuth provider configurations';
+-- OAuth provider configuration lives in instance_config under key 'oauth_providers'
+-- (AuthComponent.vue). There is no oauth_providers table.
 
 -- ---------------------------------------------------------------------------
 -- SESSIONS / DEVICES
@@ -3940,26 +3927,39 @@ COMMENT ON VIEW public.metrics_summary_view IS 'Summary of performance metrics i
 -- RPC FUNCTIONS FOR PERFORMANCE MONITORING
 -- ---------------------------------------------------------------------------
 
--- Record slow query function
+-- p_duration_ms was numeric before this signature. CREATE OR REPLACE does not replace across a
+-- change of argument type, so without the drop an instance carrying the old form ends up with
+-- both, and PostgREST cannot resolve between two overloads taking the same argument names.
+DROP FUNCTION IF EXISTS public.record_slow_query(numeric, text, text, text, jsonb, text, uuid, text);
+
 CREATE OR REPLACE FUNCTION public.record_slow_query(
-    p_duration_ms numeric,
+    p_duration_ms double precision,
     p_query_text text DEFAULT NULL,
     p_operation_type text DEFAULT NULL,
     p_table_name text DEFAULT NULL,
     p_parameters jsonb DEFAULT NULL,
-    p_source text DEFAULT 'unknown',
+    p_source text DEFAULT 'backend',
     p_user_id uuid DEFAULT NULL,
     p_request_id text DEFAULT NULL
 )
-RETURNS void
+RETURNS uuid
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions, pg_temp
 AS $$
+DECLARE
+    v_id uuid;
+    v_query_hash text;
 BEGIN
+    -- Digits collapse to '?' so parameterised variants of one statement share a hash.
+    IF p_query_text IS NOT NULL THEN
+        v_query_hash := md5(regexp_replace(p_query_text, '\d+', '?', 'g'));
+    END IF;
+
     INSERT INTO public.slow_queries (
         duration_ms,
         query_text,
+        query_hash,
         operation_type,
         table_name,
         parameters,
@@ -3969,13 +3969,25 @@ BEGIN
     ) VALUES (
         p_duration_ms,
         p_query_text,
+        v_query_hash,
         p_operation_type,
         p_table_name,
         p_parameters,
         p_source,
         p_user_id,
         p_request_id
+    ) RETURNING id INTO v_id;
+
+    PERFORM public.record_metric(
+        'query_time',
+        COALESCE(p_operation_type || '_' || p_table_name, 'unknown'),
+        p_duration_ms,
+        'ms',
+        jsonb_build_object('slow', true, 'table', p_table_name),
+        p_source
     );
+
+    RETURN v_id;
 END;
 $$;
 
@@ -19897,21 +19909,6 @@ DROP POLICY IF EXISTS "federation_health_manage" ON public.federation_health;
 CREATE POLICY "federation_health_manage" ON public.federation_health
     FOR ALL USING (( SELECT public.is_current_user_admin() ));
 
-ALTER TABLE public.oauth_providers ENABLE ROW LEVEL SECURITY;
-
--- The table carries client_secret. Read is admin-only, matching
--- webrtc_settings_select_admin_only. The provider list the login screen renders comes from
--- instance_config under key 'oauth_providers' (AuthComponent.vue), not from here; no code
--- reads this table, and production does not have it at all.
-CREATE POLICY "oauth_providers_select_admin_only" ON public.oauth_providers
-    FOR SELECT USING (
-        EXISTS (
-            SELECT 1 FROM public.profiles
-            WHERE auth_user_id = ( SELECT auth.uid() )
-            AND is_admin = true
-        )
-    );
-
 ALTER TABLE public.server_roles ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "server_roles_select" ON public.server_roles FOR SELECT USING (true);
 CREATE POLICY "server_roles_insert" ON public.server_roles
@@ -21746,6 +21743,20 @@ CREATE TRIGGER trigger_prevent_protected_role_deletion
 DROP TRIGGER IF EXISTS trigger_channel_overrides_updated_at ON public.channel_permission_overrides;
 CREATE TRIGGER trigger_channel_overrides_updated_at
     BEFORE UPDATE ON public.channel_permission_overrides
+    FOR EACH ROW
+    EXECUTE FUNCTION public.update_roles_updated_at();
+
+-- Update server role timestamp
+DROP TRIGGER IF EXISTS trigger_server_roles_updated_at ON public.server_roles;
+CREATE TRIGGER trigger_server_roles_updated_at
+    BEFORE UPDATE ON public.server_roles
+    FOR EACH ROW
+    EXECUTE FUNCTION public.update_roles_updated_at();
+
+-- Update server settings timestamp
+DROP TRIGGER IF EXISTS trigger_server_settings_updated_at ON public.server_settings;
+CREATE TRIGGER trigger_server_settings_updated_at
+    BEFORE UPDATE ON public.server_settings
     FOR EACH ROW
     EXECUTE FUNCTION public.update_roles_updated_at();
 

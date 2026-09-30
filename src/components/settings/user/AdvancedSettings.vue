@@ -125,21 +125,6 @@
         </div>
       </div>
 
-      <div class="setting-item disabled-option">
-        <div class="setting-info">
-          <h4 class="setting-label">
-            {{ $t('settings.advanced.hardwareAcceleration') }}
-            <span class="coming-soon-badge">Coming soon</span>
-          </h4>
-          <p class="setting-description">Toggle GPU-accelerated rendering. Currently controlled by your browser/OS - an in-app override is being wired up for the Tauri desktop builds.</p>
-        </div>
-        <div class="setting-control">
-          <ToggleSwitch
-            v-model="settings.hardwareAcceleration"
-            disabled
-          />
-        </div>
-      </div>
     </div>
 
     <div class="settings-section">
@@ -160,20 +145,6 @@
         </div>
       </div>
 
-      <div class="setting-item disabled-option">
-        <div class="setting-info">
-          <h4 class="setting-label">
-            {{ $t('common.download') }} Data
-            <span class="coming-soon-badge">Coming soon</span>
-          </h4>
-          <p class="setting-description">Export your user data for backup purposes.</p>
-        </div>
-        <div class="setting-control">
-          <button class="btn btn-secondary" disabled @click="exportData">
-            {{ $t('common.download') }} Data
-          </button>
-        </div>
-      </div>
     </div>
 
     <div class="settings-section">
@@ -326,7 +297,6 @@ const reportBugUrl = 'https://github.com/y4my4my4m/harmony/issues/'
 
 const settings = ref({
   developerMode: false,
-  hardwareAcceleration: true,
 })
 
 const clearingCache = ref(false)
@@ -516,10 +486,6 @@ const clearCache = async () => {
     clearingCache.value = false
   }
 }
-
-const exportData = () => {
-  debug.log('Exporting data... (not yet implemented)')
-}
 </script>
 
 <style scoped>
@@ -607,24 +573,7 @@ const exportData = () => {
   color: #ed4245;
 }
 
-.coming-soon-badge {
-  display: inline-block;
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: rgba(245, 158, 11, 0.15);
-  color: #f59e0b;
-  vertical-align: middle;
-  margin-left: 6px;
-}
 
-.setting-item.disabled-option .setting-label,
-.setting-item.disabled-option .setting-description {
-  opacity: 0.65;
-}
 
 .setting-description a {
   color: var(--harmony-primary, #0EA5E9);

@@ -73,6 +73,30 @@ export interface DiscoverServerResult {
 // Federation backend base path (proxied via nginx)
 const FEDERATION_API = '/api/federation'
 
+const INVITE_PATH_RE = /^\/invite\/([A-Za-z0-9_-]+)\/?$/
+
+/** `https://host[:port]/invite/CODE`, tolerating surrounding whitespace, a trailing slash, query and fragment. */
+export function parseInviteUrl(input: string): { instance: string; code: string } | null {
+  let url: URL
+  try {
+    url = new URL(input.trim())
+  } catch {
+    return null
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return null
+  const match = url.pathname.match(INVITE_PATH_RE)
+  return match ? { instance: url.host, code: match[1] } : null
+}
+
+/**
+ * UUID of a Harmony Group actor (`https://host/servers/{uuid}`); equals the id
+ * of the local reference row created on join.
+ */
+export function remoteServerUuid(actorId: string): string | null {
+  const match = actorId.match(/\/servers\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/?$/i)
+  return match ? match[1].toLowerCase() : null
+}
+
 /**
  * FederationServerService - Singleton for remote server operations
  */
@@ -100,13 +124,14 @@ export class FederationServerService {
    * 
    * @param input - Server URL, handle, or invite link
    */
-  async discoverServer(input: string): Promise<DiscoverServerResult> {
+  async discoverServer(rawInput: string): Promise<DiscoverServerResult> {
+    const input = rawInput.trim()
     try {
       debug.log(`Discovering: ${input}`)
 
-      const inviteMatch = input.match(/^https?:\/\/([^/]+)\/invite\/([A-Za-z0-9]+)$/i)
-      if (inviteMatch) {
-        return await this.resolveInviteLink(input, inviteMatch[1], inviteMatch[2])
+      const invite = parseInviteUrl(input)
+      if (invite) {
+        return await this.resolveInviteLink(input, invite.instance, invite.code)
       }
 
       // Regular server discovery

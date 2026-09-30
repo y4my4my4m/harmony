@@ -1,172 +1,154 @@
 # Harmony Bot Gateway
 
-Discord-like Bot API Gateway for Harmony.
+Node service that serves Harmony's Bot API: a WebSocket gateway that pushes events to bots and a REST API under `/api/v1` that bots call to act. Bots authenticate with tokens issued in the Harmony web client. The service talks to Supabase with the service-role key and produces events by polling the `messages` and `reactions` tables.
 
-## Features
+Bot developers: the protocol reference is [docs/bot-api.md](../docs/bot-api.md).
 
-- **WebSocket Gateway**: Real-time event streaming to bots
-- **REST API**: Discord-compatible endpoints for bot actions
-- **Authentication**: Secure token-based authentication
-- **Rate Limiting**: Per-bot rate limits and quotas
-- **Event System**: Subscribe to server/channel events
-- **Permission System**: Granular bot permissions per server
+## Routes
 
-## Quick Start
+| Path | Auth | Purpose |
+|---|---|---|
+| `GET /health` | none | Liveness: `{ "status": "ok", "uptime": <seconds>, "timestamp": <ISO 8601> }` |
+| `WS /gateway` | bot token, sent in IDENTIFY | Event gateway |
+| `/api/v1/*` | `Authorization: Bot <token>` | REST API |
+| `GET /status` | Supabase user JWT | Connected bots: IDs, usernames, last heartbeat |
+| `GET /bridged-users/:channelId`<br>`GET /bridged-users/server/:serverId` | Supabase user JWT, server membership | Discord members registered by a bridge bot; feeds mention autocomplete |
+| `POST /attachments/refresh` | Supabase user JWT, server membership | Asks the owning bridge bot to re-sign expired Discord CDN URLs |
+| `GET /bridge-setup/:pairingCode` | none | Resolves a Discord bridge pairing code (`HRM-XXXX-XXXX`) to a server ID and endpoint URLs |
 
-### 1. Install Dependencies
+`/status`, `/bridged-users/*`, `/attachments/refresh` and `/bridge-setup/*` serve the Harmony web client and are not part of the Bot API.
+
+## Public URLs
+
+`self-host/Caddyfile` routes `handle_path /bot-gateway/*` to `bot-gateway:3002`. `handle_path` strips the prefix, so the service sees `/gateway`, `/api/v1/...` and `/health`.
+
+| | Behind the proxy | Direct (local development) |
+|---|---|---|
+| Gateway | `wss://<instance>/bot-gateway/gateway` | `ws://localhost:3002/gateway` |
+| REST base | `https://<instance>/bot-gateway/api/v1` | `http://localhost:3002/api/v1` |
+| Health | `https://<instance>/bot-gateway/health` | `http://localhost:3002/health` |
+
+Any other reverse proxy must forward the whole `/bot-gateway/` prefix, strip it, and pass WebSocket upgrades on `/bot-gateway/gateway`. The web client calls `/bot-gateway/bridged-users/*` and `/bot-gateway/attachments/refresh` on the app origin. The nginx equivalent is in [BOT_GATEWAY_SETUP.md](../docs/BOT_GATEWAY_SETUP.md).
+
+## Configuration
+
+The service loads `.env` from its working directory. `.env.example` is the template.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `SUPABASE_URL` | required | Supabase API URL. An internal address works (`http://supabase-kong:8000` in the self-host stack). Fallback for `PUBLIC_URL`. |
+| `SUPABASE_SERVICE_ROLE_KEY` | required | Service-role key. All queries bypass RLS; access control is enforced in the service. |
+| `PUBLIC_URL` | `SUPABASE_URL` | Public Supabase origin. Base for absolute avatar URLs, mirrored attachment URLs and invite-preview URLs. |
+| `PORT` | `3002` | HTTP and WebSocket port. |
+| `NODE_ENV` | `development` | In `development`, 500 responses from the error handler include the error message. |
+| `INSTANCE_DOMAIN` | `localhost:3000` | Harmony app origin, as a hostname or URL; `https://` is assumed without a scheme. `/bridge-setup` builds its endpoint URLs from it. |
+| `WS_HEARTBEAT_INTERVAL` | `30000` | Heartbeat interval in ms, sent to bots in READY. Connections without a heartbeat for twice this interval are closed. |
+| `RATE_LIMIT_WINDOW_MS` | `60000` | REST rate-limit window in ms. |
+| `RATE_LIMIT_MAX_REQUESTS` | `100` | REST requests allowed per bot, per request path, per window. |
+| `FEDERATION_BACKEND_URL` | `http://localhost:3001` | Federation backend. Receives a link-preview request after each bot message. Must be `https://` or a localhost address; otherwise no request is sent. |
+| `INTERNAL_API_SECRET` | `SUPABASE_SERVICE_ROLE_KEY` | Bearer token for the link-preview request. |
+
+The instance setting **Bridge attachments** (admin instance configuration, stored as `bridge_attachment_mode`) controls Discord CDN attachments posted by bots: `link` stores the URL, `mirror` copies the file into the `user_media` bucket, `refresh` enables `POST /attachments/refresh`.
+
+## Running
+
+Node 18 or later.
 
 ```bash
 npm install
+cp .env.example .env
+npm run dev        # tsx watch src/index.ts
 ```
 
-### 2. Configuration
-
-Create `.env` file:
-
-```env
-# Supabase Configuration
-SUPABASE_URL=your_supabase_url
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
-
-# Server Configuration
-PORT=3002
-NODE_ENV=development
-
-# Instance Configuration
-INSTANCE_DOMAIN=localhost:3000
-```
-
-### 3. Start Development Server
+Production build:
 
 ```bash
-npm run dev
-```
-
-The gateway will start on `http://localhost:3002` (default port; federation-backend uses port 3001)
-
-- WebSocket Gateway: `ws://localhost:3002/gateway`
-- REST API: `http://localhost:3002/api/v1`
-
-## Bot Connection
-
-### WebSocket Protocol
-
-1. **Connect** to `ws://localhost:3002/gateway`
-2. **Identify** with bot token:
-```json
-{
-  "op": 2,
-  "d": {
-    "token": "your_bot_token"
-  }
-}
-```
-3. **Receive READY** event:
-```json
-{
-  "op": 0,
-  "t": "READY",
-  "d": {
-    "bot": {
-      "id": "bot_id",
-      "username": "bot_username"
-    }
-  }
-}
-```
-4. **Heartbeat** every 30 seconds:
-```json
-{
-  "op": 1
-}
-```
-
-### REST API
-
-All REST API requests require the `Authorization` header:
-
-```
-Authorization: Bot YOUR_BOT_TOKEN
-```
-
-#### Send Message
-
-```http
-POST /api/v1/channels/:channelId/messages
-Content-Type: application/json
-
-{
-  "content": "Hello from bot!"
-}
-```
-
-#### Get Server Members
-
-```http
-GET /api/v1/guilds/:guildId/members
-```
-
-## Event Types
-
-- `MESSAGE_CREATE` - New message in channel
-- `MESSAGE_UPDATE` - Message edited
-- `MESSAGE_DELETE` - Message deleted
-- `MEMBER_JOIN` - User joined server
-- `MEMBER_LEAVE` - User left server
-- `CHANNEL_CREATE` - Channel created
-- `CHANNEL_UPDATE` - Channel updated
-- `CHANNEL_DELETE` - Channel deleted
-
-## Production Deployment
-
-### Build
-
-```bash
-npm run build
-```
-
-### Start
-
-```bash
-npm start
+npm run build      # tsc -> dist/
+npm start          # node dist/index.js
 ```
 
 ### Docker
 
-```dockerfile
-FROM node:18-alpine
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci --only=production
-COPY dist ./dist
-EXPOSE 3002
-CMD ["npm", "start"]
+`Dockerfile` is a two-stage `node:20-alpine` build. It exposes 3002 and declares a `HEALTHCHECK` against `/health`. The build stage runs `npm run build-only` (`tsc --skipLibCheck || true`), which does not fail on type errors; run `npm run type-check` separately.
+
+```bash
+docker build -t harmony-bot-gateway bot-gateway
+docker run --env-file bot-gateway/.env -p 3002:3002 harmony-bot-gateway
 ```
 
-## Architecture
+Compose files start the service under the `bots` profile:
+
+| File | Env file | Command |
+|---|---|---|
+| `self-host/docker-compose.yml` | `self-host/bot-gateway.env`, written by `self-host/configure.sh` when bots are enabled | `docker compose --profile bots up -d` |
+| `docker-compose.prod.yml` | `bot-gateway/.env` | `docker compose -f docker-compose.prod.yml --profile bots up -d` |
+| `docker-compose.full.yml` | `bot-gateway/.env` | `docker compose -f docker-compose.full.yml --profile bots up -d` |
+
+## Bots and tokens
+
+Users create bots in the web client under **User Settings → My Bots → New bot**. The token is shown once, in a dialog after creation; Harmony stores its SHA-256 hash. Tokens have the form `harmony_bot_` followed by 64 hex characters. **Reset token** on the bot's page revokes the old token immediately and shows the new one once. The gateway verifies tokens at IDENTIFY only; a connection opened with the old token stays open until it closes.
+
+Server owners add bots from the bot's page (**Add to server**) or under **Server Settings → Advanced → Server Bots**, where they also set the bot's permissions. The gateway enforces `read_messages`, `send_messages`, `manage_messages`, `add_reactions` and `manage_channels`; see [docs/bot-api.md](../docs/bot-api.md#permissions).
+
+## Events
+
+| Event | Source |
+|---|---|
+| `READY` | Successful IDENTIFY |
+| `MESSAGE_CREATE` | New row in `messages`, polled every 1 s |
+| `MESSAGE_UPDATE` | Content change on a recently seen message, polled every 2 s |
+| `MESSAGE_DELETE` | Soft or hard delete of a recently seen message, polled every 2 s |
+| `MESSAGE_REACTION_ADD` | New row in `reactions`, polled every 2 s |
+| `MESSAGE_REACTION_REMOVE` | Deleted row in `reactions`, polled every 2 s |
+| `REFRESH_ATTACHMENTS` | `POST /attachments/refresh`; sent only to the bridge bot that authored the message |
+
+Message and reaction events go to every bot with an active installation holding `read_messages` in the channel's server. Encrypted messages produce no `MESSAGE_CREATE` or `MESSAGE_UPDATE`. Direct messages produce no events. The installation lookup is cached per server for 5 minutes, so permission changes and removals reach event delivery within that time; REST checks read the database on every request.
+
+## Operational notes
+
+- The dispatcher starts from the process start time. Messages and reactions created while the service is down are never dispatched.
+- Connections, bridge member lists and the attachment-refresh dedupe live in process memory. A second replica shares none of it; run one instance.
+- IDENTIFY writes `bot_presence` (status `online`, connection time) and `bots.last_online_at`. Heartbeats update `bot_presence.last_heartbeat_at` and `latency_ms`. Disconnects set `bot_presence.status` to `offline`. The web client treats a bot as online only while its last heartbeat is under 90 s old, so a process that exits without closing its sockets does not leave bots shown online.
+- REST writes `bot_audit_log` rows for message send, edit and delete; channel, category and role creation; role update and delete; and emoji creation.
+- `SIGTERM` and `SIGINT` close all sockets with code 1000, stop polling and exit. The process exits with status 1 if shutdown takes longer than 10 s.
+
+## Source layout
 
 ```
 bot-gateway/
+├── Dockerfile
+├── .env.example
+├── package.json
+├── tsconfig.json
+├── tsconfig.typecheck.json
+├── vitest.config.ts              # unit tests
+├── vitest.db.config.ts           # database contract tests
 ├── src/
-│   ├── index.ts              # Main entry point
-│   ├── config/
-│   │   └── supabase.ts       # Supabase client
+│   ├── index.ts                  # HTTP server, /gateway mount, /api/v1 mount, web-client routes
+│   ├── config/supabase.ts        # Service-role client, environment
+│   ├── auth/BotAuthMiddleware.ts # Bot token verification, rate limiting
+│   ├── api/BotRestAPI.ts         # /api/v1 routes
 │   ├── gateway/
-│   │   ├── WebSocketGateway.ts    # WebSocket server
-│   │   ├── EventDispatcher.ts     # Event routing
-│   │   └── BotConnection.ts       # Connection management
-│   ├── api/
-│   │   ├── BotRestAPI.ts          # REST API routes
-│   │   ├── routes/                # API endpoints
-│   │   └── middleware/            # Express middleware
-│   ├── auth/
-│   │   └── BotAuthMiddleware.ts   # Token verification
+│   │   ├── WebSocketGateway.ts   # Connections, IDENTIFY, heartbeats, bridge member lists
+│   │   └── EventDispatcher.ts    # Polling, event fan-out
 │   └── utils/
-│       ├── logger.ts              # Logging
-│       └── rateLimit.ts           # Rate limiting
+│       ├── mirrorExternalMedia.ts # Bridge attachment policy
+│       └── TTLCache.ts           # Bounded TTL cache
+└── tests/db/gatewayRpcContract.test.ts
 ```
+
+Unit tests sit in `__tests__/` next to the code they cover.
+
+## Tests
+
+```bash
+npm test           # unit tests; Supabase is mocked, no services required
+npm run test:db    # requires Docker
+npm run type-check
+```
+
+`npm run test:db` builds a Postgres database from `../db_schema/migrations/` in a container and calls the RPCs the gateway depends on (`verify_bot_token`, `check_and_increment_bot_rate_limit`, `create_federated_emoji`) through psql, checks every RPC name and argument the source uses against the schema, and verifies that a token issued by `create_bot` authenticates under the hash the gateway computes.
 
 ## License
 
-Same as the Harmony repository: **GNU AGPL-3.0** (see root `LICENSE`).
-
+GNU AGPL-3.0, as the rest of the repository (see the root `LICENSE`).

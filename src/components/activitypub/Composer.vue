@@ -7,7 +7,14 @@
           <h2 class="composer-title">
             {{ headerTitle }}
           </h2>
-          <button v-if="mode === 'modal'" class="close-button" @click="handleClose">
+          <button
+            v-if="mode === 'modal'"
+            type="button"
+            class="close-button"
+            :aria-label="t('common.close')"
+            :title="t('common.close')"
+            @click="handleClose"
+          >
             <Icon name="x" />
           </button>
         </div>
@@ -74,7 +81,8 @@
               <input
                 v-model="contentWarning"
                 type="text"
-                placeholder="Content warning (optional)"
+                :placeholder="t('activitypub.contentWarningPlaceholder')"
+                :aria-label="t('activitypub.contentWarning')"
                 class="cw-input"
                 maxlength="100"
               />
@@ -175,98 +183,122 @@
                   @change="actions.handleFileUpload"
                 />
                 <button
+                  type="button"
                   class="option-button"
                   @click="triggerFileUpload"
                   :disabled="!canAddMedia"
-                  title="Add media"
+                  :title="t('activitypub.addMedia')"
+                  :aria-label="t('activitypub.addMedia')"
                 >
                   <Icon name="image" />
                 </button>
 
                 <button
                   ref="gifTriggerRef"
+                  type="button"
                   class="option-button"
                   @click="toggleGifPicker"
-                  title="Add GIF"
+                  :title="t('activitypub.addGif')"
+                  :aria-label="t('activitypub.addGif')"
+                  :aria-expanded="showGiphyPicker"
                 >
                   <GifIcon />
                 </button>
 
                 <button
                   ref="emojiTriggerRef"
+                  type="button"
                   class="option-button"
                   @click="toggleEmojiPicker"
-                  title="Add emoji"
+                  :title="t('activitypub.addEmoji')"
+                  :aria-label="t('activitypub.addEmoji')"
+                  :aria-expanded="showEmojiPicker"
                 >
                   <EmojiUI />
                 </button>
 
                 <button
+                  type="button"
                   class="option-button"
                   :class="{ active: showContentWarning }"
                   @click="toggleContentWarning"
-                  title="Add content warning"
+                  :title="t('activitypub.contentWarning')"
+                  :aria-label="t('activitypub.contentWarning')"
+                  :aria-pressed="showContentWarning"
                 >
                   <Icon name="alert-triangle" />
                 </button>
 
                 <button
+                  v-if="mediaAttachments.length > 0"
+                  type="button"
                   class="option-button"
                   :class="{ active: isSensitive }"
                   @click="isSensitive = !isSensitive"
-                  title="Mark as sensitive"
+                  :title="t('activitypub.markMediaSensitive')"
+                  :aria-label="t('activitypub.markMediaSensitive')"
+                  :aria-pressed="isSensitive"
                 >
                   <Icon name="eye-off" />
                 </button>
-                
-                <div class="visibility-selector">
-                  <button
-                    class="option-button"
-                    @click.stop="toggleVisibilityMenu"
-                    :title="visibilityOptions.find(v => v.value === visibility)?.label"
-                  >
-                    <Icon :name="visibilityOptions.find(v => v.value === visibility)?.icon || 'globe'" />
-                  </button>
-
-                  <div v-if="showVisibilityMenu" class="visibility-menu" v-click-outside="closeVisibilityMenu">
-                    <button
-                      v-for="option in visibilityOptions"
-                      :key="option.value"
-                      class="visibility-option"
-                      :class="{ active: visibility === option.value }"
-                      @click.stop="setVisibility(option.value)"
-                    >
-                      <Icon :name="option.icon" />
-                      <div class="option-details">
-                        <div class="option-label">{{ option.label }}</div>
-                        <div class="option-description">{{ option.description }}</div>
-                      </div>
-                      <Icon v-if="visibility === option.value" name="check" :size="16" />
-                    </button>
-                  </div>
-                </div>
               </div>
-              
+
+              <button
+                v-if="type !== 'edit'"
+                ref="visibilityTriggerRef"
+                type="button"
+                class="visibility-chip"
+                aria-haspopup="listbox"
+                :aria-expanded="showVisibilityMenu"
+                :aria-label="t('activitypub.visibilityLabel', { visibility: currentVisibility.label })"
+                @click.stop="toggleVisibilityMenu"
+              >
+                <Icon :name="currentVisibility.icon" :size="14" />
+                <span class="visibility-chip-label">{{ currentVisibility.label }}</span>
+                <Icon name="chevron-down" :size="14" />
+              </button>
+
               <div class="action-group">
-                <span class="character-counter" :class="characterCounterClass">
-                  {{ remainingCharacters }}
+                <span
+                  v-if="charactersUsed > 0"
+                  class="character-counter"
+                  :class="characterCounterClass"
+                  role="status"
+                  :aria-label="t('activitypub.charactersRemaining', { count: remainingCharacters })"
+                >
+                  <svg class="counter-ring" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+                    <circle class="counter-track" cx="12" cy="12" r="10" />
+                    <circle
+                      class="counter-progress"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      :stroke-dasharray="COUNTER_CIRCUMFERENCE"
+                      :stroke-dashoffset="counterDashOffset"
+                    />
+                  </svg>
+                  <span v-if="remainingCharacters <= COUNTER_NUMBER_THRESHOLD" class="counter-number" aria-hidden="true">
+                    {{ remainingCharacters }}
+                  </span>
                 </span>
 
                 <span v-if="isDraft" class="draft-indicator">
                   <Icon name="save" />
-                  Draft saved
+                  {{ t('activitypub.draftSaved') }}
                 </span>
                 
                 <button
                   v-if="mode === 'modal' || (mode === 'inline' && type === 'reply')"
+                  type="button"
                   class="cancel-button"
                   @click="handleClose"
                   :disabled="isPosting"
                 >
-                  Cancel
+                  {{ t('common.cancel') }}
                 </button>
-                
+
                 <button
+                  type="button"
                   class="post-button"
                   data-testid="compose-submit"
                   :disabled="!canSubmit || isPosting"
@@ -279,6 +311,36 @@
             </div>
           </div>
         </div>
+
+        <Teleport to="body">
+          <div
+            v-if="showVisibilityMenu"
+            v-click-outside="closeVisibilityMenu"
+            class="composer-visibility-menu"
+            role="listbox"
+            :aria-label="t('activitypub.postVisibility')"
+            :style="visibilityMenuStyle"
+            @keydown.esc="closeVisibilityMenu"
+          >
+            <button
+              v-for="option in visibilityOptions"
+              :key="option.value"
+              type="button"
+              role="option"
+              :aria-selected="visibility === option.value"
+              class="visibility-option"
+              :class="{ active: visibility === option.value }"
+              @click.stop="setVisibility(option.value)"
+            >
+              <Icon :name="option.icon" :size="18" />
+              <span class="option-details">
+                <span class="option-label">{{ option.label }}</span>
+                <span class="option-description">{{ option.description }}</span>
+              </span>
+              <Icon v-if="visibility === option.value" name="check" :size="16" />
+            </button>
+          </div>
+        </Teleport>
 
         <Teleport to="body">
           <MediaPickerPopup
@@ -359,6 +421,8 @@ const instanceSettings = useInstanceSettingsStore();
 
 const richEditorRef = ref<InstanceType<typeof RichTextEditor>>();
 const fileInputRef = ref<HTMLInputElement>();
+const visibilityTriggerRef = ref<HTMLElement | null>(null);
+const visibilityMenuStyle = ref<Record<string, string>>({});
 const emojiTriggerRef = ref<HTMLElement | null>(null);
 const gifTriggerRef = ref<HTMLElement | null>(null);
 const mediaPickerTriggerRef = computed(() => gifTriggerRef.value || emojiTriggerRef.value);
@@ -381,7 +445,12 @@ const showGiphyPicker = computed(() => showMediaPicker.value && mediaPickerIniti
 const isDraft = ref(false);
 const mediaAttachments = ref<any[]>([]);
 
-const characterLimit = 500;
+// Instance `max_post_length`; the server enforces the same limit on body text.
+const characterLimit = computed(() => instanceSettings.settings.maxPostLength || 500);
+
+// Counter ring geometry (r = 10) and the remaining count at which the number appears.
+const COUNTER_CIRCUMFERENCE = 2 * Math.PI * 10;
+const COUNTER_NUMBER_THRESHOLD = 20;
 
 const maxMediaAttachments = computed(() => instanceSettings.settings.maxMediaAttachmentsPerPost ?? 20);
 
@@ -392,26 +461,37 @@ const effectiveReplyToPost = computed(() =>
   props.replyToPost ? getOriginalPost(props.replyToPost) : undefined
 );
 
-const remainingCharacters = computed(() => characterLimit - content.value.length);
+// The content warning counts toward the limit, as on Mastodon.
+const charactersUsed = computed(() =>
+  content.value.length + (showContentWarning.value ? contentWarning.value.length : 0)
+);
+const remainingCharacters = computed(() => characterLimit.value - charactersUsed.value);
 const characterCounterClass = computed(() => {
   const remaining = remainingCharacters.value;
   if (remaining < 0) return 'over-limit';
-  if (remaining < 20) return 'warning';
+  if (remaining <= COUNTER_NUMBER_THRESHOLD) return 'warning';
   return '';
+});
+const counterDashOffset = computed(() => {
+  const ratio = Math.min(1, charactersUsed.value / Math.max(1, characterLimit.value));
+  return COUNTER_CIRCUMFERENCE * (1 - ratio);
 });
 const canSubmit = computed(() => {
   const hasContent = content.value.trim().length > 0 || mediaAttachments.value.length > 0;
-  const withinLimit = content.value.length <= characterLimit;
-  return hasContent && withinLimit;
+  return hasContent && remainingCharacters.value >= 0;
 });
 const canAddMedia = computed(() => mediaAttachments.value.length < maxMediaAttachments.value);
 
-const visibilityOptions = [
+const visibilityOptions = computed(() => [
   { value: 'public' as const, label: t('activitypub.public'), description: t('activitypub.visibleToEveryone'), icon: 'globe' },
   { value: 'unlisted' as const, label: t('activitypub.unlisted'), description: t('activitypub.notShownInPublicTimelines'), icon: 'unlock' },
-  { value: 'followers' as const, label: t('activitypub.followers'), description: t('activitypub.onlyVisibleToFollowers'), icon: 'users' },
-  { value: 'direct' as const, label: t('activitypub.direct'), description: t('activitypub.onlyMentionedUsers'), icon: 'mail' }
-];
+  { value: 'followers' as const, label: t('activitypub.followersOnly'), description: t('activitypub.onlyVisibleToFollowers'), icon: 'lock' },
+  { value: 'direct' as const, label: t('activitypub.mentionedOnly'), description: t('activitypub.onlyMentionedUsers'), icon: 'mail' }
+]);
+
+const currentVisibility = computed(() =>
+  visibilityOptions.value.find(v => v.value === visibility.value) ?? visibilityOptions.value[0]
+);
 
 const getCurrentText = () => content.value || '';
 const updateText = (newText: string, cursorPosition?: number) => {
@@ -479,12 +559,12 @@ const placeholder = computed(() => {
     return t('activitypub.whatsYourReply');
   }
   if (props.type === 'quote') {
-    return 'Add a comment...';
+    return t('activitypub.addAComment');
   }
   if (props.type === 'edit') {
     return t('activitypub.editYourPost');
   }
-  return t('activitypub.whatsHappeningInFediverse');
+  return t('activitypub.whatsOnYourMind');
 });
 
 const headerTitle = computed(() => {
@@ -654,14 +734,37 @@ const removeMediaAttachment = (index: number) => {
     URL.revokeObjectURL(media.url);
   }
   mediaAttachments.value.splice(index, 1);
+  // The sensitive toggle is hidden without media; a leftover flag would mark a text-only post.
+  if (mediaAttachments.value.length === 0) {
+    isSensitive.value = false;
+  }
 };
 
 const closeVisibilityMenu = () => {
   showVisibilityMenu.value = false;
 };
 
+// Teleported to <body>: the modal body and the mobile toolbar are scroll
+// containers and clip positioned descendants.
+const positionVisibilityMenu = () => {
+  const trigger = visibilityTriggerRef.value;
+  if (!trigger) return;
+  const rect = trigger.getBoundingClientRect();
+  const menuWidth = Math.min(280, window.innerWidth - 16);
+  const left = Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8));
+  const spaceBelow = window.innerHeight - rect.bottom;
+  const style: Record<string, string> = { left: `${left}px`, width: `${menuWidth}px` };
+  if (spaceBelow < 300 && rect.top > spaceBelow) {
+    style.bottom = `${window.innerHeight - rect.top + 6}px`;
+  } else {
+    style.top = `${rect.bottom + 6}px`;
+  }
+  visibilityMenuStyle.value = style;
+};
+
 const toggleVisibilityMenu = () => {
   showMediaPicker.value = false;
+  if (!showVisibilityMenu.value) positionVisibilityMenu();
   showVisibilityMenu.value = !showVisibilityMenu.value;
 };
 
@@ -929,12 +1032,10 @@ const vClickOutside = {
 }
 
 .composer-inline-content {
-  border: 1px solid var(--border-secondary, var(--border-color));
-  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
   background-color: var(--background-primary);
-  box-shadow: 0 2px 5px 5px #00000011;
   padding: 1rem;
-  transition: all 0.2s ease;
 }
 
 .composer-header {
@@ -960,7 +1061,7 @@ const vClickOutside = {
 .close-button {
   background: none;
   border: none;
-  color: #9ca3af;
+  color: var(--text-secondary);
   cursor: pointer;
   padding: 0.5rem;
   border-radius: 0.5rem;
@@ -1014,12 +1115,12 @@ const vClickOutside = {
 }
 
 .author-handle {
-  color: #9ca3af;
+  color: var(--text-secondary);
   font-size: 0.875rem;
 }
 
 .reply-text {
-  color: #d1d5db;
+  color: var(--text-secondary);
   font-size: 0.875rem;
   line-height: 1.5;
 }
@@ -1033,7 +1134,7 @@ const vClickOutside = {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  color: #10b981;
+  color: var(--text-secondary);
   font-size: 0.875rem;
   font-weight: 500;
   margin-bottom: 0.75rem;
@@ -1043,7 +1144,7 @@ const vClickOutside = {
   display: flex;
   gap: 0.75rem;
   padding: 0.75rem;
-  background: var(--background-tertiary, #1f1f1f);
+  background: var(--background-secondary);
   border-radius: 8px;
   border: 1px solid var(--border-primary);
 }
@@ -1061,7 +1162,7 @@ const vClickOutside = {
 }
 
 .quote-text {
-  color: #d1d5db;
+  color: var(--text-secondary);
   font-size: 0.8125rem;
   line-height: 1.4;
   overflow: hidden;
@@ -1111,7 +1212,7 @@ const vClickOutside = {
 }
 
 .cw-input::placeholder {
-  color: #9ca3af;
+  color: var(--text-muted);
 }
 
 .cw-input:focus {
@@ -1131,7 +1232,7 @@ const vClickOutside = {
 .text-input-container.is-dragging {
   border: 2px dashed var(--harmony-primary);
   border-radius: 0.5rem;
-  background-color: rgba(14, 165, 233, 0.05);
+  background-color: var(--harmony-primary-alpha-light);
 }
 
 .drag-drop-overlay {
@@ -1151,19 +1252,48 @@ const vClickOutside = {
 }
 
 .character-counter {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
   font-size: 0.8125rem;
-  color: #9ca3af;
+  color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
   user-select: none;
 }
 
+.counter-ring {
+  transform: rotate(-90deg);
+}
+
+.counter-track {
+  fill: none;
+  stroke: var(--border-primary);
+  stroke-width: 2.5;
+}
+
+.counter-progress {
+  fill: none;
+  stroke: var(--harmony-primary);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.15s linear;
+}
+
 .character-counter.warning {
-  color: #f59e0b;
+  color: var(--warning);
+}
+
+.character-counter.warning .counter-progress {
+  stroke: var(--warning);
 }
 
 .character-counter.over-limit {
-  color: #ef4444;
+  color: var(--error);
+}
+
+.character-counter.over-limit .counter-progress {
+  stroke: var(--error);
 }
 
 .compose-options {
@@ -1190,14 +1320,13 @@ const vClickOutside = {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  margin-left: auto;
 }
 
 .draft-indicator {
   display: flex;
   align-items: center;
   gap: 0.35rem;
-  color: #10b981;
+  color: var(--success);
   font-size: 0.75rem;
 }
 
@@ -1209,21 +1338,53 @@ const vClickOutside = {
   height: 36px;
   background: none;
   border: none;
-  color: #9ca3af;
+  color: var(--text-secondary);
   cursor: pointer;
-  border-radius: 0.5rem;
-  transition: all 0.2s;
+  border-radius: var(--radius-full);
+  transition: color var(--transition-fast), background-color var(--transition-fast);
   flex-shrink: 0;
 }
 
 .option-button:hover {
-  background-color: var(--background-tertiary, #374151);
+  background-color: var(--background-modifier-hover);
   color: var(--text-primary);
 }
 
 .option-button.active {
-  color: var(--harmony-primary, #2563eb);
-  background-color: rgba(37, 99, 235, 0.1);
+  color: var(--harmony-primary);
+  background-color: var(--harmony-primary-alpha);
+}
+
+.visibility-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-left: auto;
+  height: 30px;
+  padding: 0 0.625rem;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--harmony-primary);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background-color var(--transition-fast);
+}
+
+.visibility-chip:hover {
+  background: var(--harmony-primary-alpha-light);
+}
+
+.option-button:focus-visible,
+.visibility-chip:focus-visible,
+.post-button:focus-visible,
+.cancel-button:focus-visible,
+.close-button:focus-visible {
+  outline: 2px solid var(--harmony-primary);
+  outline-offset: 2px;
 }
 
 .option-button:disabled {
@@ -1235,22 +1396,14 @@ const vClickOutside = {
   display: flex;
 }
 
-.visibility-selector {
-  position: relative;
-}
-
-.visibility-menu {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  background-color: var(--background-primary);
+.composer-visibility-menu {
+  position: fixed;
+  z-index: 10000;
+  background-color: var(--background-floating, var(--background-primary));
   border: 1px solid var(--border-primary);
-  border-radius: 0.5rem;
-  padding: 0.5rem;
-  min-width: 250px;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-  z-index: 10;
-  margin-top: 0.5rem;
+  border-radius: var(--radius-md);
+  padding: 0.25rem;
+  box-shadow: var(--shadow-large);
 }
 
 .visibility-option {
@@ -1269,40 +1422,42 @@ const vClickOutside = {
 }
 
 .visibility-option:hover {
-  background-color: var(--background-tertiary);
+  background-color: var(--background-modifier-hover);
 }
 
 .visibility-option.active {
-  background-color: var(--background-quinary);
-  color: #3b82f6;
+  color: var(--harmony-primary);
 }
 
 .option-details {
+  display: flex;
+  flex-direction: column;
   flex: 1;
+  min-width: 0;
 }
 
 .option-label {
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .option-description {
-  font-size: 0.875rem;
-  color: #9ca3af;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
 }
 
 
 .cancel-button {
   padding: 0.5rem 1rem;
   background: none;
-  border: 1px solid var(--border-primary, #374151);
-  border-radius: 0.5rem;
-  color: #9ca3af;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-full);
+  color: var(--text-secondary);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
 }
 
 .cancel-button:hover {
-  background-color: var(--background-tertiary, #374151);
+  background-color: var(--background-modifier-hover);
   color: var(--text-primary);
 }
 
@@ -1310,14 +1465,14 @@ const vClickOutside = {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.5rem 1.5rem;
+  padding: 0.5rem 1.25rem;
   background-color: var(--harmony-primary);
   border: none;
-  border-radius: 0.5rem;
-  color: var(--text-primary);
+  border-radius: var(--radius-full);
+  color: var(--text-on-primary);
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background-color var(--transition-fast);
 }
 
 .post-button:hover:not(:disabled) {
@@ -1429,17 +1584,29 @@ const vClickOutside = {
   }
 
   /* ---------- Shared toolbar behaviour ---------- */
-  .visibility-button span {
-    display: none;
-  }
 
   /* One-line toolbar on mobile: action icons left, counter + Post right, no
      wrapping. The icon group is the flexible part - it shrinks and scrolls
      horizontally so the counter and Post button stay on the same row. */
+  /* The visibility chip takes its own row above the icons; the zero-height
+     ::before item forces the line break after it. */
   .compose-options {
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     align-items: center;
     column-gap: 0.25rem;
+    row-gap: 0.5rem;
+  }
+
+  .compose-options::before {
+    content: '';
+    order: -1;
+    flex-basis: 100%;
+    height: 0;
+  }
+
+  .visibility-chip {
+    order: -2;
+    margin-left: 0;
   }
 
   /* Break the toolbar out of the input column so it spans the full card

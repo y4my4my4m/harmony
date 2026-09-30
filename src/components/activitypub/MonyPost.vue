@@ -3,129 +3,101 @@
   <!-- v-show, not v-if: v-if drops the post on re-render. authorFallback covers a
        momentarily missing author so the article still renders. -->
   <article class="mony-post" data-testid="post-item"
-  v-show="post && (author || authorFallback)" :class="{ 'is-reply': post.reply_context, 'is-reblog': isPureReblog, 'is-pinned': showPinnedHeader && post.is_pinned }">
-    
+  v-show="post && (author || authorFallback)" :class="{ 'is-reply': post.reply_context, 'is-reblog': isPureReblog, 'is-pinned': showPinnedHeader && post.is_pinned, 'is-detailed': detailed }">
+
     <!-- Pinned indicator (profile timeline pinned section only) -->
-    <div v-if="showPinnedHeader && post.is_pinned" class="pinned-header">
-      <Icon name="pin" :size="14" class="pinned-icon" />
-      <span>Pinned</span>
+    <div v-if="showPinnedHeader && post.is_pinned" class="post-prepend">
+      <Icon name="pin" :size="14" class="prepend-icon" />
+      <span>{{ t('activitypub.pinned') }}</span>
     </div>
 
-    <!-- Reblog Header (pure boosts only; quotes are first-class posts) -->
-    <div v-if="isPureReblog" class="reblog-header">
-      <Icon name="reblog" class="reblog-icon" />
-      <div 
-        class="reblog-author" 
-        @click="viewProfile(author)"
-        :title="`Reblogged by ${author.display_name || author.username}`"
-      >
-        <DisplayName :userId="author.id" :fallback="author.display_name || author.username" /> reblogged
-      </div>
-      <time 
-        :datetime="post.created_at" 
-        :title="formatFullDate(post.created_at)"
-        class="reblog-time"
-      >
-        {{ formatRelativeTime(post.created_at) }}
-      </time>
+    <!-- Boost header (pure boosts only; quotes are first-class posts) -->
+    <div v-if="isPureReblog" class="post-prepend">
+      <Icon name="reblog" :size="14" class="prepend-icon" />
+      <RouterLink :to="profileRoute(author)" class="prepend-author">
+        <DisplayName :userId="author.id" :fallback="author.display_name || author.username" />
+      </RouterLink>
+      <span>{{ t('activitypub.boosted') }}</span>
     </div>
 
     <!-- Main Post Content -->
     <div class="post-content" :class="{ 'reblog-content': isPureReblog }">
       <!-- Author Info (show original author for reblogs) -->
       <div class="post-header">
-        <div 
-          class="author-info"
-          @click="viewProfile(displayAuthor)"
-        >
+        <RouterLink :to="profileRoute(displayAuthor)" class="author-info">
           <Avatar
             :src="displayAuthor.avatar_url"
             :alt="displayAuthor.display_name || displayAuthor.username"
             size="md"
-            :interactive="true"
           />
-          <div class="author-details">
-            <div class="author-name" @click="viewProfile(displayAuthor)">
+          <span class="author-details">
+            <span class="author-name">
               <DisplayName :userId="displayAuthor.id" :fallback="displayAuthor.display_name || displayAuthor.username" />
-              <span v-if="authorInstanceBadge === 'admin'" class="instance-badge admin" title="Instance Admin">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
-                ADMIN
-              </span>
-              <span v-else-if="authorInstanceBadge === 'mod'" class="instance-badge mod" title="Instance Moderator">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
-                MOD
-              </span>
+              <span v-if="authorInstanceBadge === 'admin'" class="instance-badge" :title="t('activitypub.instanceAdmin')">{{ t('activitypub.adminBadge') }}</span>
+              <span v-else-if="authorInstanceBadge === 'mod'" class="instance-badge" :title="t('activitypub.instanceModerator')">{{ t('activitypub.modBadge') }}</span>
               <SupporterBadge v-if="displayAuthor.id" :user-id="displayAuthor.id" :badge="authorSupporterBadge" />
-            </div>
-            <div class="author-handle">
-              <span>{{ displayAuthor.username }}</span>
-              <span class="instance-domain" :class="{ 'is-local': displayAuthor.is_local }">
-                @{{ isPureReblog ? originalInstanceDomain : instanceDomain }}
-              </span>
-            </div>
-          </div>
+            </span>
+            <span class="author-handle">{{ displayHandle }}</span>
+          </span>
+        </RouterLink>
+
+        <div v-if="!detailed" class="post-meta">
+          <RouterLink :to="postRoute" class="post-time" :title="formatFullDate(originalCreatedAt)">
+            <time :datetime="originalCreatedAt">{{ formatRelativeTime(originalCreatedAt) }}</time>
+          </RouterLink>
+          <span class="visibility-indicator" role="img" :title="visibilityTitle" :aria-label="visibilityTitle">
+            <Icon :name="visibilityIcon" :size="14" />
+          </span>
+          <span v-if="isEdited" class="edited-indicator" :title="t('activitypub.editedTitle')">*</span>
         </div>
-        
-        <div class="post-meta">
-          <div class="visibility-indicator" :title="visibilityTitle">
-            <Icon :name="visibilityIcon" />
-          </div>
-          <time 
-            :datetime="originalCreatedAt" 
-            :title="formatFullDate(originalCreatedAt)"
-            class="post-time"
-            @click="handleTimeClick"
-          >
-            {{ formatRelativeTime(originalCreatedAt) }}
-          </time>
-          <span v-if="isEdited" class="edited-indicator" title="This post has been edited">(edited)</span>
-        </div>
+      </div>
+
+      <!-- Reply line: parent author and a thread link, never the parent body -->
+      <div v-if="showReplyLine" class="reply-line">
+        <Icon name="reply" :size="14" class="reply-line-icon" />
+        <span>{{ t('activitypub.replyingTo') }}</span>
+        <RouterLink :to="profileRoute(displayReplyContext.author)" class="reply-author-link">
+          {{ formatHandle(displayReplyContext.author) }}
+        </RouterLink>
+        <span aria-hidden="true">·</span>
+        <button type="button" class="text-link" @click.stop="showReplyTarget">
+          {{ t('activitypub.viewThread') }}
+        </button>
       </div>
 
       <!-- Content Warning -->
       <div v-if="displayContentWarning" class="content-warning">
-        <div class="cw-header">
-          <Icon name="alert-triangle" />
-          <span>{{ displayContentWarning }}</span>
-        </div>
-        <button 
+        <p class="cw-text">{{ displayContentWarning }}</p>
+        <button
+          type="button"
           class="cw-toggle"
+          :aria-expanded="showSensitiveContent"
           @click="showSensitiveContent = !showSensitiveContent"
         >
-          {{ showSensitiveContent ? 'Hide' : 'Show' }} content
+          {{ showSensitiveContent ? t('activitypub.showLess') : t('activitypub.showMore') }}
         </button>
       </div>
 
-      <!-- Post Body -->
-      <div 
+      <!-- Post Body. Sensitive media blur lives in MonyMediaGallery; text is never blurred. -->
+      <div
         v-show="!displayContentWarning || showSensitiveContent"
         class="post-body"
-        :class="{ 
-          'is-sensitive': displayIsSensitive, 
-          'revealed': sensitiveRevealedForTouch 
-        }"
       >
-        <!-- Tap-to-reveal overlay on mobile: first tap reveals, second tap opens lightbox -->
-        <div
-          v-if="displayIsSensitive && isTouchDevice && !sensitiveRevealedForTouch"
-          class="sensitive-tap-overlay"
-          @click.stop="sensitiveRevealedForTouch = true"
-        />
         <!-- Unhydrated Reblog/Quote: Show reference link when content not loaded -->
         <div v-if="isUnhydratedReblog" class="unhydrated-reblog">
           <div class="unhydrated-reblog-notice">
-            <Icon name="reblog" />
-            <span>Reblogged from another instance</span>
+            <Icon name="reblog" :size="16" />
+            <span>{{ t('activitypub.boostedFromAnotherInstance') }}</span>
           </div>
-          <a 
+          <a
             v-if="reblogReferenceUrl"
-            :href="reblogReferenceUrl" 
-            target="_blank" 
+            :href="reblogReferenceUrl"
+            target="_blank"
             rel="noopener noreferrer"
             class="reblog-reference-link"
           >
-            <Icon name="external-link" />
-            View original post
+            <Icon name="external-link" :size="14" />
+            {{ t('activitypub.viewOriginalPost') }}
           </a>
         </div>
 
@@ -151,8 +123,8 @@
               />
               <div class="quoted-author-info">
                 <span class="quoted-author-name"><DisplayName :userId="quotedAuthor.id" :fallback="quotedAuthor.display_name || quotedAuthor.username" /></span>
-                <span class="quoted-author-handle">@{{ quotedAuthor.username }}</span>
-                <time class="quoted-post-time">{{ formatRelativeTime(quotedCreatedAt) }}</time>
+                <span class="quoted-author-handle">{{ formatHandle(quotedAuthor) }}</span>
+                <time class="quoted-post-time" :datetime="quotedCreatedAt" :title="formatFullDate(quotedCreatedAt)">{{ formatRelativeTime(quotedCreatedAt) }}</time>
               </div>
             </div>
             
@@ -230,50 +202,39 @@
         </div>
       </div>
 
-      <!-- Reply Context (shown AFTER the post content, like Twitter) -->
-      <!-- Only show in timeline view, not in thread view where parent is already visible -->
-      <div v-if="showReplyContextCard" class="reply-context-container">
-        <div class="reply-indicator-bar">
-          <Icon name="corner-down-right" class="reply-icon" :size="14" />
-          <span class="reply-text">Replying to</span>
-          <span class="reply-author-link" @click.stop="viewProfile(displayReplyContext.author)">
-            @{{ displayReplyContext.author.username }}
+      <!-- Focused post (thread view): full timestamp and counts -->
+      <template v-if="detailed">
+        <div class="detail-meta">
+          <RouterLink :to="postRoute" class="detail-time">
+            <time :datetime="originalCreatedAt">{{ formatFullDate(originalCreatedAt) }}</time>
+          </RouterLink>
+          <span aria-hidden="true">·</span>
+          <span class="visibility-indicator" role="img" :title="visibilityTitle" :aria-label="visibilityTitle">
+            <Icon :name="visibilityIcon" :size="14" />
           </span>
-          <button 
-            class="show-thread-btn"
-            @click.stop="showReplyTarget"
-            title="View full conversation"
-          >
-            <Icon name="message-square" :size="14" />
-            View thread
-          </button>
+          <template v-if="isEdited">
+            <span aria-hidden="true">·</span>
+            <span :title="t('activitypub.editedTitle')">{{ t('activitypub.edited') }}</span>
+          </template>
         </div>
-        
-        <div class="reply-parent-post" @click.stop="showReplyTarget">
-          <div class="reply-parent-header">
-            <Avatar 
-              :src="displayReplyContext.author.avatar_url"
-              :alt="displayReplyContext.author.display_name || displayReplyContext.author.username"
-              size="sm"
-            />
-            <div class="reply-parent-author-info">
-              <span class="reply-parent-name"><DisplayName :userId="displayReplyContext.author.id" :fallback="displayReplyContext.author.display_name || displayReplyContext.author.username" /></span>
-              <span class="reply-parent-handle">@{{ displayReplyContext.author.username }}</span>
-              <time class="reply-parent-time" v-if="displayReplyContext.created_at">
-                {{ formatRelativeTime(displayReplyContext.created_at) }}
-              </time>
-            </div>
-          </div>
-          
-          <div class="reply-parent-content">
-            <MonyContent 
-              :content="replyContentText" 
-              :isPreview="true" 
-              :previewLength="200" 
-            />
-          </div>
+        <div
+          v-if="displayInteractionCounts.replies_count > 0 || displayInteractionCounts.reblogs_count > 0 || displayInteractionCounts.favorites_count > 0"
+          class="detail-stats"
+        >
+          <span v-if="displayInteractionCounts.replies_count > 0">
+            <strong>{{ formatCount(displayInteractionCounts.replies_count) }}</strong>
+            {{ t('activitypub.repliesLabel', displayInteractionCounts.replies_count) }}
+          </span>
+          <span v-if="displayInteractionCounts.reblogs_count > 0">
+            <strong>{{ formatCount(displayInteractionCounts.reblogs_count) }}</strong>
+            {{ t('activitypub.boostsLabel', displayInteractionCounts.reblogs_count) }}
+          </span>
+          <span v-if="displayInteractionCounts.favorites_count > 0">
+            <strong>{{ formatCount(displayInteractionCounts.favorites_count) }}</strong>
+            {{ t('activitypub.favoritesLabel', displayInteractionCounts.favorites_count) }}
+          </span>
         </div>
-      </div>
+      </template>
 
       <!-- Post Reactions (Emoji Reactions) - Above action buttons -->
       <!-- For reblogs, we need to show reactions for the ORIGINAL post -->
@@ -286,90 +247,114 @@
 
       <!-- Action Buttons -->
       <div class="post-actions">
-        <button 
+        <button
+          type="button"
           class="action-button reply-button"
           data-testid="post-reply-btn"
           @click="onReply"
-          :title="'Reply to ' + author.display_name"
+          :title="replyLabel"
+          :aria-label="replyLabel"
+          :aria-expanded="showInlineReply"
         >
-          <Icon name="message-circle" />
-          <span v-if="displayInteractionCounts.replies_count > 0">{{ formatCount(displayInteractionCounts.replies_count) }}</span>
+          <Icon name="message-circle" :size="18" />
+          <span v-if="!detailed && displayInteractionCounts.replies_count > 0" class="action-count">{{ formatCount(displayInteractionCounts.replies_count) }}</span>
         </button>
 
         <div class="reblog-menu-container" v-click-outside="() => showReblogMenu = false">
-          <button 
+          <button
+            type="button"
             class="action-button reblog-button"
             data-testid="post-reblog-btn"
-            :class="{ 
+            :class="{
               active: displayInteractionCounts.is_reblogged,
               disabled: !canReblog && !displayInteractionCounts.is_reblogged
             }"
             @click="handleReblogClick"
             :disabled="!canReblog && !displayInteractionCounts.is_reblogged"
-            :title="!canReblog && !displayInteractionCounts.is_reblogged ? reblogDisabledReason : (displayInteractionCounts.is_reblogged ? 'Undo reblog' : 'Reblog options')"
+            :title="boostLabel"
+            :aria-label="boostLabel"
+            :aria-pressed="displayInteractionCounts.is_reblogged"
+            :aria-expanded="displayInteractionCounts.is_reblogged ? undefined : showReblogMenu"
           >
-            <Icon name="reblog" />
-            <span v-if="displayInteractionCounts.reblogs_count > 0">{{ formatCount(displayInteractionCounts.reblogs_count) }}</span>
+            <Icon name="reblog" :size="18" />
+            <span v-if="!detailed && displayInteractionCounts.reblogs_count > 0" class="action-count">{{ formatCount(displayInteractionCounts.reblogs_count) }}</span>
           </button>
-          
-          <!-- Reblog dropdown menu -->
-          <div v-if="showReblogMenu && canReblog" class="reblog-dropdown">
-            <button 
+
+          <!-- Boost dropdown menu -->
+          <div v-if="showReblogMenu && canReblog" class="reblog-dropdown" role="menu">
+            <button
+              type="button"
+              role="menuitem"
               class="reblog-option"
+              data-testid="reblog-option-boost"
               @click="handleSimpleReblog"
               :disabled="displayInteractionCounts.is_reblogged"
             >
               <Icon name="reblog" :size="16" />
-              <span>Reblog</span>
+              <span>{{ t('activitypub.boost') }}</span>
             </button>
-            <button 
+            <button
+              type="button"
+              role="menuitem"
               class="reblog-option"
               @click="handleQuoteReblog"
             >
               <Icon name="edit" :size="16" />
-              <span>Quote</span>
+              <span>{{ t('activitypub.quote') }}</span>
             </button>
           </div>
         </div>
 
-        <button 
+        <button
+          type="button"
           class="action-button favorite-button"
           data-testid="post-favorite-btn"
           :class="{ active: displayInteractionCounts.is_favorited }"
           @click="handleToggleFavorite"
-          :title="displayInteractionCounts.is_favorited ? 'Unfavorite' : 'Favorite'"
+          :title="favoriteLabel"
+          :aria-label="favoriteLabel"
+          :aria-pressed="displayInteractionCounts.is_favorited"
         >
-          <Icon :name="displayInteractionCounts.is_favorited ? 'heart-filled' : 'heart'" />
-          <span v-if="displayInteractionCounts.favorites_count > 0 || displayInteractionCounts.is_favorited">{{ formatCount(displayInteractionCounts.favorites_count || 1) }}</span>
+          <Icon :name="displayInteractionCounts.is_favorited ? 'heart-filled' : 'heart'" :size="18" />
+          <span v-if="!detailed && displayInteractionCounts.favorites_count > 0" class="action-count">{{ formatCount(displayInteractionCounts.favorites_count) }}</span>
         </button>
 
-        <button 
+        <button
           ref="emojiTriggerRef"
+          type="button"
           class="action-button add-reaction-button"
           @click.stop="handleShowEmojiPickerForOriginal"
-          title="Add reaction"
+          :title="t('activitypub.addReaction')"
+          :aria-label="t('activitypub.addReaction')"
         >
-          <Icon name="plus" />
+          <Icon name="smile-plus" :size="18" />
         </button>
 
-        <button 
+        <button
+          type="button"
           class="action-button bookmark-button"
           data-testid="post-bookmark-btn"
           :class="{ active: displayInteractionCounts.is_bookmarked }"
           @click="handleToggleBookmark"
-          :title="displayInteractionCounts.is_bookmarked ? 'Remove bookmark' : 'Bookmark'"
+          :title="bookmarkLabel"
+          :aria-label="bookmarkLabel"
+          :aria-pressed="displayInteractionCounts.is_bookmarked"
         >
-          <Icon :name="displayInteractionCounts.is_bookmarked ? 'bookmark-filled' : 'bookmark'" />
+          <Icon :name="displayInteractionCounts.is_bookmarked ? 'bookmark-filled' : 'bookmark'" :size="18" />
         </button>
 
         <div class="action-menu">
-          <button 
+          <button
             ref="menuButtonRef"
-            class="action-button menu-button" 
+            type="button"
+            class="action-button menu-button"
             @click="handleMenuToggle"
-            :title="showMenu ? 'Close menu' : 'More options'"
+            :title="t('activitypub.moreOptions')"
+            :aria-label="t('activitypub.moreOptions')"
+            aria-haspopup="menu"
+            :aria-expanded="showMenu"
           >
-            <Icon name="more-horizontal" />
+            <Icon name="more-horizontal" :size="18" />
           </button>
         
           <!-- Teleported to body to escape virtual-scroll stacking contexts -->
@@ -401,13 +386,13 @@
                 <span>{{ props.post.is_pinned ? 'Unpin from Profile' : 'Pin to Profile' }}</span>
               </button>
 
-              <button 
+              <button
                 v-if="isPureReblog && canDelete"
                 class="dropdown-item"
                 @click="onUndoReblog"
               >
                 <Icon name="reblog" />
-                <span>Undo Reblog</span>
+                <span>{{ t('activitypub.undoBoost') }}</span>
               </button>
               
               <button 
@@ -568,42 +553,46 @@
       />
     </Teleport>
 
-    <!-- Tooltip for reactions -->
-    <div
-      v-if="tooltip.visible"
-      class="reaction-tooltip"
-      :style="{ top: `${tooltip.y}px`, left: `${tooltip.x}px` }"
-    >
-      <div class="tooltip-header">
-        <img 
-          v-if="tooltip.emoji?.url"
-          :src="getEmojiUrl(tooltip.emoji.url, 48)"
-          :alt="formatEmojiName(tooltip.emoji?.name) || 'emoji'"
-          class="tooltip-emoji"
-        />
-        <span v-else-if="tooltip.emoji?.unicode" class="tooltip-emoji native-emoji">{{ tooltip.emoji.unicode }}</span>
-        <span v-if="tooltip.emoji?.url && tooltip.emoji?.name" class="emoji-name">:{{ formatEmojiName(tooltip.emoji.name) }}:</span>
-        <span v-else-if="tooltip.emoji?.unicode && tooltipEmojiShortcode" class="emoji-name">:{{ tooltipEmojiShortcode }}:</span>
-      </div>
-      <div v-for="user in tooltip.content" :key="user.id" class="tooltip-user">
-        <Avatar 
-          :src="user.avatarUrl"
-          size="xs"
-          class="tooltip-avatar"
-        />
-        <div class="tooltip-user-meta">
-          <span class="tooltip-username">
-            <DisplayName
-              v-if="user.displayNameParts"
-              :parts="user.displayNameParts"
-              :fallback="user.displayName"
-            />
-            <DisplayName v-else :userId="user.id" :fallback="user.displayName" />
-          </span>
-          <span v-if="user.isRemote && user.handle" class="tooltip-domain">{{ user.handle }}</span>
+    <!-- Tooltip for reactions - teleported to body: coordinates are viewport-relative,
+         and chat embeds nest this under a transformed virtual row plus
+         contain: layout paint, both containing blocks for position: fixed. -->
+    <Teleport to="body">
+      <div
+        v-if="tooltip.visible"
+        class="reaction-tooltip"
+        :style="{ top: `${tooltip.y}px`, left: `${tooltip.x}px` }"
+      >
+        <div class="tooltip-header">
+          <img
+            v-if="tooltip.emoji?.url"
+            :src="getEmojiUrl(tooltip.emoji.url, 48)"
+            :alt="formatEmojiName(tooltip.emoji?.name) || 'emoji'"
+            class="tooltip-emoji"
+          />
+          <span v-else-if="tooltip.emoji?.unicode" class="tooltip-emoji native-emoji">{{ tooltip.emoji.unicode }}</span>
+          <span v-if="tooltip.emoji?.url && tooltip.emoji?.name" class="emoji-name">:{{ formatEmojiName(tooltip.emoji.name) }}:</span>
+          <span v-else-if="tooltip.emoji?.unicode && tooltipEmojiShortcode" class="emoji-name">:{{ tooltipEmojiShortcode }}:</span>
+        </div>
+        <div v-for="user in tooltip.content" :key="user.id" class="tooltip-user">
+          <Avatar
+            :src="user.avatarUrl"
+            size="xs"
+            class="tooltip-avatar"
+          />
+          <div class="tooltip-user-meta">
+            <span class="tooltip-username">
+              <DisplayName
+                v-if="user.displayNameParts"
+                :parts="user.displayNameParts"
+                :fallback="user.displayName"
+              />
+              <DisplayName v-else :userId="user.id" :fallback="user.displayName" />
+            </span>
+            <span v-if="user.isRemote && user.handle" class="tooltip-domain">{{ user.handle }}</span>
+          </div>
         </div>
       </div>
-    </div>
+    </Teleport>
     
     <!-- Lightbox for images (only when not embedded in chat context) -->
     <vue-easy-lightbox
@@ -634,10 +623,9 @@ import { useActivityPubStore } from '@/stores/useActivityPub';
 import { useNotificationStore } from '@/stores/useNotification';
 import { useThemeStore } from '@/stores/useTheme';
 import { usePostInteractions } from '@/composables/usePostInteractions';
-import { useViewport } from '@/composables/useViewport';
 import { useRemotePostSync } from '@/composables/useRemotePostSync';
 import ConversationService from '@/services/ConversationService';
-import { formatDistanceToNow, format } from 'date-fns';
+import { formatShortRelativeTime, formatFullDateTime } from '@/utils/shortRelativeTime';
 import DisplayName from '@/components/DisplayName.vue';
 import { userDataService } from '@/services/userDataService';
 import { unicodeToShortcode } from '@/services/unifiedEmojiService';
@@ -677,6 +665,8 @@ interface Props {
   embedded?: boolean; // When true, delegates lightbox to parent via open-lightbox emit
   /** Show "Pinned" row (profile pinned section only; not home/local/public feeds) */
   showPinnedHeader?: boolean;
+  /** Focused post in a thread: full timestamp and count summary. */
+  detailed?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -684,7 +674,11 @@ const props = withDefaults(defineProps<Props>(), {
   isInThread: false,
   embedded: false,
   showPinnedHeader: false,
+  detailed: false,
 });
+
+const i18n = useI18n();
+const { t } = i18n;
 
 const { confirm } = useConfirmDialog()
 
@@ -713,10 +707,7 @@ const toast = useToast();
 // Composables for clean interaction handling
 const { toggleFavorite, toggleReblog, toggleBookmark, togglePinPost } = usePostInteractions();
 
-// Local state (removed isToggling since composable handles loading)
 const showSensitiveContent = ref(false);
-const sensitiveRevealedForTouch = ref(false); // On mobile: first tap reveals blur, second tap opens lightbox
-const { isTouchOnly: isTouchDevice } = useViewport();
 const showMenu = ref(false);
 const menuButtonRef = ref<HTMLElement | null>(null);
 const dropdownRef = ref<HTMLElement | null>(null);
@@ -761,9 +752,7 @@ const tooltipEmojiShortcode = computed(() => {
   return unicodeToShortcode(unicode) || ''
 })
 
-const handleTimeClick = () => {
-  router.push({ name: 'PostDetail', params: { postId: props.post.id } });
-};
+const postRoute = computed(() => ({ name: 'PostDetail', params: { postId: props.post.id } }));
 
 // Computed
 const author = computed(() => {
@@ -788,10 +777,24 @@ const displayAuthorSafe = computed(() => {
   return author.value || authorFallback.value;
 });
 
-const viewProfile = (author: { username: string; domain: string, is_local?: boolean }) => {
-  const isLocal = author.is_local ?? true;
-  const handle = isLocal ? author.username : `${author.username}@${author.domain}`;
-  router.push({ name: 'UserProfile', params: { handle } });
+const LOCAL_DOMAIN = import.meta.env.VITE_DOMAIN as string;
+
+type HandleSource = { username?: string; domain?: string | null; is_local?: boolean } | null | undefined;
+
+const isLocalAuthor = (author: HandleSource) =>
+  author?.is_local ?? (!author?.domain || author.domain === LOCAL_DOMAIN);
+
+const profileRoute = (author: HandleSource) => {
+  const username = author?.username || '';
+  const handle = isLocalAuthor(author) || !author?.domain ? username : `${username}@${author.domain}`;
+  return { name: 'UserProfile', params: { handle } };
+};
+
+/** "@user@domain"; Misskey's "." domain placeholder is dropped. */
+const formatHandle = (author: HandleSource) => {
+  const username = author?.username || '';
+  const domain = author?.domain && author.domain !== '.' ? author.domain : LOCAL_DOMAIN;
+  return domain ? `@${username}@${domain}` : `@${username}`;
 };
 
 const instanceDomain = computed(() => {
@@ -961,6 +964,11 @@ const originalInstanceDomain = computed(() => {
   if (!isPureReblog.value || !props.post.reblog_author) return instanceDomain.value;
   const { domain } = props.post.reblog_author;
   return domain || import.meta.env.VITE_DOMAIN as string;
+});
+
+const displayHandle = computed(() => {
+  const domain = isPureReblog.value ? originalInstanceDomain.value : instanceDomain.value;
+  return formatHandle({ username: displayAuthor.value?.username, domain });
 });
 
 const originalCreatedAt = computed(() => {
@@ -1134,8 +1142,8 @@ const displayReplyContext = computed(() => {
   return null;
 });
 
-const showReplyContextCard = computed(() => {
-  return displayReplyContext.value && !props.hideReplyContext && !props.isInThread;
+const showReplyLine = computed(() => {
+  return !!displayReplyContext.value?.author && !props.hideReplyContext && !props.isInThread;
 });
 
 const loadReplyContext = async () => {
@@ -1336,19 +1344,6 @@ const displayInteractionCounts = computed(() => {
   };
 });
 
-const replyContentText = computed(() => {
-  if (displayReplyContext.value && displayReplyContext.value.content) {
-    return displayReplyContext.value.content;
-  }
-  
-  // Fallback to content_preview if content is not available (backward compatibility)
-  if (displayReplyContext.value && displayReplyContext.value.content_preview) {
-    return displayReplyContext.value.content_preview;
-  }
-  
-  return '';
-});
-
 const canEdit = computed(() => {
   const currentUser = getCurrentUser.value;
   return currentUser?.id === props.post.author.id;
@@ -1398,7 +1393,6 @@ const visibilityIcon = computed(() => {
 });
 
 const visibilityTitle = computed(() => {
-  const { t } = useI18n();
   switch (props.post.visibility) {
     case 'public': return t('activitypub.publicVisibleToEveryone');
     case 'unlisted': return t('activitypub.unlistedNotShown');
@@ -1418,30 +1412,39 @@ const reblogDisabledReason = computed(() => {
   if (canReblog.value) return '';
   const originalVisibility = props.post.reblog?.visibility || props.post.visibility;
   if (originalVisibility === 'followers') {
-    return 'Followers-only posts cannot be reblogged';
+    return t('activitypub.boostDisabledFollowers');
   }
   if (originalVisibility === 'direct') {
-    return 'Direct messages cannot be reblogged';
+    return t('activitypub.boostDisabledDirect');
   }
-  return 'This post cannot be reblogged';
+  return t('activitypub.boostDisabled');
 });
 
-// Methods
-const formatRelativeTime = (dateString: string) => {
-  try {
-    return formatDistanceToNow(new Date(dateString), { addSuffix: true });
-  } catch {
-    return 'Unknown time';
-  }
+const replyLabel = computed(() => t('activitypub.replyToUser', {
+  name: displayAuthor.value?.display_name || displayAuthor.value?.username || '',
+}));
+
+const boostLabel = computed(() => {
+  const counts = displayInteractionCounts.value;
+  if (!canReblog.value && !counts.is_reblogged) return reblogDisabledReason.value;
+  return counts.is_reblogged ? t('activitypub.undoBoost') : t('activitypub.boost');
+});
+
+const favoriteLabel = computed(() =>
+  displayInteractionCounts.value.is_favorited ? t('activitypub.unfavorite') : t('activitypub.favorite'));
+
+const bookmarkLabel = computed(() =>
+  displayInteractionCounts.value.is_bookmarked ? t('activitypub.removeBookmark') : t('activitypub.bookmark'));
+
+const currentLocale = () => {
+  const loc = (i18n as { locale?: { value?: string } }).locale?.value;
+  return typeof loc === 'string' && loc ? loc : 'en';
 };
 
-const formatFullDate = (dateString: string) => {
-  try {
-    return format(new Date(dateString), 'PPP p');
-  } catch {
-    return 'Invalid date';
-  }
-};
+const formatRelativeTime = (dateString: string) =>
+  formatShortRelativeTime(dateString, { locale: currentLocale(), nowLabel: t('activitypub.now') });
+
+const formatFullDate = (dateString: string) => formatFullDateTime(dateString, currentLocale());
 
 const formatCount = (count: number) => {
   if (count < 1000) return count.toString();
@@ -1719,7 +1722,7 @@ const onDeleteAndRedraft = async () => {
   if (isDeleting.value) return;
   const confirmed = await confirm({
     title: 'Delete & re-draft',
-    message: 'Delete this post and move its content back into the composer? Favorites and reblogs on it are lost.',
+    message: 'Delete this post and move its content back into the composer? Favorites and boosts on it are lost.',
     confirmButtonText: 'Delete & Re-draft',
     dangerAction: true,
   });
@@ -1797,8 +1800,8 @@ const onUndoReblog = async () => {
       
       notificationStore.showToast(
         'server_update',
-        'Reblog removed',
-        'Your reblog has been undone',
+        t('activitypub.boostRemoved'),
+        '',
         3000
       );
     }
@@ -1806,8 +1809,8 @@ const onUndoReblog = async () => {
     debug.error('Failed to undo reblog:', error);
     notificationStore.showToast(
       'error',
-      'Failed to undo reblog',
-      'There was an error removing your reblog',
+      t('activitypub.boostRemoveFailed'),
+      '',
       5000
     );
   }
@@ -2158,446 +2161,235 @@ const closeLightbox = () => {
 
 <style scoped>
 .mony-post {
-  background-color: var(--background-quinary);
+  background: transparent;
   border-bottom: 1px solid var(--border-color);
-  transition: background-color 0.2s;
-  border-radius: 12px;
+  transition: background-color var(--transition-fast);
 }
 
 .mony-post:hover {
-  background-color: var(--background-quaternary);
+  background-color: var(--background-modifier-hover);
 }
 
-.mony-post.is-reply {
-  border-left: 3px solid var(--harmony-primary);
+.mony-post.is-detailed:hover {
+  background-color: transparent;
 }
 
-.pinned-header {
+/* Boost / pinned line above the header, aligned to the text column */
+.post-prepend {
   display: flex;
   align-items: center;
-  gap: 0.35rem;
-  padding: 0.5rem 1rem 0;
-  color: var(--text-muted, #9ca3af);
-  font-size: 0.8rem;
-  font-weight: 500;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4) 0 calc(var(--space-4) + 48px - 14px);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: 1.3;
+  min-width: 0;
 }
 
-.pinned-icon {
-  opacity: 0.7;
+.prepend-icon {
+  flex-shrink: 0;
 }
 
-.reblog-header {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1rem 0;
-  color: #9ca3af;
-  font-size: 0.875rem;
-}
-
-.reblog-icon {
-  color: var(--harmony-primary);
-  width: 1rem;
-  height: 1rem;
-}
-
-.reblog-author {
-  color: var(--harmony-primary);
+.prepend-author {
+  color: var(--text-secondary);
+  font-weight: var(--font-weight-semibold);
   text-decoration: none;
-  font-weight: 500;
-  cursor: pointer;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.reblog-author:hover {
+.prepend-author:hover {
   text-decoration: underline;
 }
 
 .post-content {
-  padding: 1rem;
+  padding: var(--space-3) var(--space-4);
 }
 
 .post-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  margin-bottom: 0.75rem;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
 }
 
 .author-info {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  text-decoration: none;
-  color: inherit;
+  gap: var(--space-3);
+  min-width: 0;
   flex: 1;
-}
-
-.author-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  object-fit: cover;
-  flex-shrink: 0;
+  color: inherit;
+  text-decoration: none;
 }
 
 .author-details {
-  flex: 1;
+  display: flex;
+  flex-direction: column;
   min-width: 0;
 }
 
 .author-name {
-  font-weight: 600;
-  /* color: var(--text-primary); */
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  font-weight: var(--font-weight-bold);
   color: var(--text-primary);
-  text-overflow: ellipsis;
-  overflow: hidden;
+  line-height: 1.3;
   white-space: nowrap;
-  user-select: text;
-  margin-bottom: 4px;
+  overflow: hidden;
 }
 
-.author-name:hover {
+.author-name > :first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.author-info:hover .author-name > :first-child {
   text-decoration: underline;
-  cursor: pointer;
 }
 
 .instance-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.15rem;
-  font-size: 0.625rem;
-  font-weight: 600;
-  padding: 0.125rem 0.3rem;
-  border-radius: 0.1875rem;
-  vertical-align: middle;
-  margin-left: 0.25rem;
-  text-decoration: none;
-  position: relative;
-  top: -1px;
-}
-
-.instance-badge.admin {
-  color: color-mix(in srgb, var(--text-secondary) 30%, transparent);
-  transition: all 0.5s ease;
-}
-
-.instance-badge.mod {
-  color: color-mix(in srgb, var(--text-secondary) 30%, transparent);
-  transition: all 0.5s ease;
-}
-
-.author-name:hover .instance-badge.admin,
-.author-name:hover .instance-badge.mod {
-  color: var(--text-primary);
-  background: var(--harmony-secondary);
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.02em;
+  line-height: 1.4;
 }
 
 .author-handle {
   color: var(--text-secondary);
-  font-size: 0.875rem;
-  text-overflow: ellipsis;
-  overflow: hidden;
-  display:flex;
-  flex-direction: row;
-  gap: 4px;
+  font-size: var(--font-size-sm);
+  line-height: 1.3;
   white-space: nowrap;
-  align-items: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .post-meta {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  justify-content: flex-end;
-  color: var(--text-secondary);
-  font-size: 0.875rem;
+  align-items: center;
+  gap: var(--space-1);
   flex-shrink: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: 1.3;
+  padding-top: 2px;
+}
+
+.post-time {
+  color: var(--text-secondary);
+  text-decoration: none;
+  white-space: nowrap;
 }
 
 .post-time:hover {
   text-decoration: underline;
-  cursor: pointer;
-}
-
-.edited-indicator {
-  color: var(--text-tertiary, #6b7280);
-  font-size: 0.75rem;
-  margin-left: 4px;
-  cursor: default;
 }
 
 .visibility-indicator {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-muted);
+}
+
+.edited-indicator {
+  color: var(--text-muted);
+  cursor: default;
+}
+
+/* Reply line */
+.reply-line {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-}
-
-.instance-domain {
-  display: flex;
-  align-items: center;
-  background: var(--background-secondary);
-  border-radius: 5px;
-  padding: 1px 5px;
-  cursor: pointer;
-  user-select: text;
-  opacity: 0.4;
-  transition: all 0.2s ease-in-out;
-}
-.instance-domain:hover {
-  opacity: 1;
-  background: var(--background-primary);
-}
-
-/* Reply Context - looks like quoted post */
-.reply-context-container {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  margin-bottom: 0.75rem;
-}
-
-.reply-indicator-bar {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-bottom: var(--space-2);
   color: var(--text-secondary);
-  font-size: 0.8rem;
+  font-size: var(--font-size-sm);
+  line-height: 1.4;
 }
 
-.reply-icon {
-  color: var(--text-secondary);
-}
-
-.reply-text {
-  color: var(--text-secondary);
+.reply-line-icon {
+  flex-shrink: 0;
 }
 
 .reply-author-link {
   color: var(--harmony-primary);
-  cursor: pointer;
-  font-weight: 500;
-}
-
-.reply-author-link:hover {
-  text-decoration: underline;
-}
-
-.show-thread-btn {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.5rem 2.5rem;
-  background: transparent;
-  border: 1px solid #3741515b;
-  border-radius: 0.375rem;
-  color: var(--text-secondary);
-  font-size: 0.75rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.show-thread-btn:hover {
-  background: var(--background-secondary);
-  color: var(--text-primary);
-}
-
-.reply-parent-post {
-  /* border: 1px solid var(--border-color); */
-  border-radius: 0.5rem;
-  padding: 0.75rem 1rem;
-  background-color: var(--background-primary);
-  cursor: pointer;
-  transition: border-color 0.2s ease;
-}
-
-.reply-parent-post:hover {
-  border-color: var(--border-secondary, #4b5563);
-}
-
-.reply-parent-header {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
-}
-
-.reply-parent-author-info {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
-.reply-parent-name {
-  font-weight: 600;
-  /* color: var(--text-primary); */
-  color: var(--text-primary);
-  font-size: 0.9rem;
-}
-
-.reply-parent-handle {
-  /* color: #9ca3af; */
-  color: var(--text-secondary);
-  font-size: 0.85rem;
-}
-
-.reply-parent-time {
-  /* color: #6b7280; */
-  color: var(--text-secondary);
-  font-size: 0.8rem;
-}
-
-.reply-parent-content {
-  /* color: #d1d5db; */
-  color: var(--text-secondary);
-  font-size: 0.9rem;
-}
-
-/* Simple reply indicator for thread view */
-.reply-indicator-simple {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  color: #6b7280;
-  font-size: 0.75rem;
-  margin-bottom: 0.5rem;
-  padding-left: 0.25rem;
-}
-
-.reply-indicator-simple .reply-icon {
-  color: #6b7280;
-}
-
-.reply-indicator-simple .reply-text {
-  color: #6b7280;
-}
-
-.reply-indicator-simple .reply-author-link {
-  color: #60a5fa;
-  cursor: pointer;
-  font-weight: 500;
-}
-
-.reply-indicator-simple .reply-author-link:hover {
-  text-decoration: underline;
-  line-height: 1.5;
-}
-
-.show-conversation-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  color: #3b82f6;
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: 0.875rem;
-  padding: 0.25rem 0.5rem;
-  border-radius: 0.375rem;
-  transition: all 0.2s;
   text-decoration: none;
+  overflow-wrap: anywhere;
 }
 
-.show-conversation-btn:hover {
-  color: #10b981;
-  background-color: rgba(16, 185, 129, 0.1);
+.reply-author-link:hover,
+.text-link:hover {
+  text-decoration: underline;
 }
 
-.btn-icon {
-  color: #3b82f6;
-  font-size: 1rem;
+.text-link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--harmony-primary);
+  font: inherit;
+  cursor: pointer;
 }
 
+/* Content warning */
 .content-warning {
-  background-color: var(--background-tertiary, #374151);
-  border-radius: 0.5rem;
-  padding: 1rem;
-  margin-bottom: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
 }
 
-.cw-header {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
-  color: #fbbf24;
-  font-weight: 500;
+.cw-text {
+  margin: 0;
+  color: var(--text-primary);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 
 .cw-toggle {
-  background-color: var(--background-hover, #4b5563);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-full);
+  background: transparent;
   color: var(--text-primary);
-  border: none;
-  padding: 0.5rem 1rem;
-  border-radius: 0.25rem;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
   cursor: pointer;
-  font-size: 0.875rem;
+  transition: background-color var(--transition-fast);
 }
 
 .cw-toggle:hover {
-  background-color: #6b7280;
+  background: var(--background-modifier-hover);
 }
 
 .post-body {
-  margin-bottom: 1rem;
-  position: relative;
-}
-
-.post-body.is-sensitive {
-  filter: blur(10px);
-  transition: filter 0.2s;
-}
-
-.post-body.is-sensitive:hover,
-.post-body.is-sensitive.revealed {
-  filter: blur(0px);
-}
-
-/* Tap-to-reveal overlay on mobile: first tap reveals, second tap opens lightbox */
-.sensitive-tap-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  cursor: pointer;
+  margin-bottom: var(--space-2);
 }
 
 .post-text {
   color: var(--text-primary);
-  line-height: 1.6;
-  word-wrap: break-word;
-  margin-bottom: 1rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
   user-select: text;
   -webkit-user-select: text;
-  cursor: text;
 }
 
-.post-link-preview {
-  display: block;
-  text-decoration: none;
-  margin-top: 0.5rem;
-  border-radius: 12px;
-  overflow: hidden;
-  border: 1px solid var(--border-color, rgba(255,255,255,0.1));
-  transition: border-color 0.2s;
-}
-
-.post-link-preview:hover {
-  border-color: var(--primary);
-}
-
-/* Compact caption variant - used right beneath an inline rich embed
-   (e.g. a YouTube iframe). Tighter margins so it visually reads as part
-   of the same "video unit" rather than a separate card, smaller radius
-   to match the slimmer chrome, and a subtler hover so the caption
-   doesn't compete for attention with the iframe above it. */
-.post-link-preview--compact {
-  margin-top: 0.25rem;
-  border-radius: 8px;
-}
-
-.post-link-preview--compact:hover {
-  border-color: var(--border-color-strong, rgba(255, 255, 255, 0.2));
+.mony-post.is-detailed .post-text {
+  font-size: 1.0625rem;
 }
 
 .post-text :deep(*) {
@@ -2618,72 +2410,152 @@ const closeLightbox = () => {
   margin: 0 1px;
 }
 
-.interaction-stats {
-  display: flex;
-  gap: 1rem;
-  margin-bottom: 0.75rem;
-  color: #9ca3af;
-  font-size: 0.875rem;
+.post-link-preview {
+  display: block;
+  text-decoration: none;
+  margin-top: var(--space-3);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  transition: border-color var(--transition-fast);
 }
 
-.stat-item {
+.post-link-preview:hover {
+  border-color: var(--border-hover);
+}
+
+/* Caption under an inline rich embed (YouTube iframe) */
+.post-link-preview--compact {
+  margin-top: var(--space-1);
+  border-radius: var(--radius-md);
+}
+
+/* Focused post */
+.detail-meta {
   display: flex;
   align-items: center;
-  gap: 0.25rem;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-top: var(--space-3);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
 }
 
+.detail-time {
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+
+.detail-time:hover {
+  text-decoration: underline;
+}
+
+.detail-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin-top: var(--space-3);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.detail-stats strong {
+  color: var(--text-primary);
+  font-weight: var(--font-weight-bold);
+}
+
+/* Action bar */
 .post-actions {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  justify-content: space-between;
+  max-width: 440px;
+  margin-left: calc(var(--space-2) * -1);
   position: relative;
 }
 
+.mony-post.is-detailed .post-actions {
+  max-width: none;
+  justify-content: space-around;
+  margin: var(--space-1) 0 0;
+}
+
 .action-button {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
-  padding: 0.5rem;
+  gap: var(--space-1);
+  min-width: 36px;
+  height: 36px;
+  padding: 0 var(--space-2);
   background: none;
   border: none;
-  color: #9ca3af;
+  border-radius: var(--radius-full);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
   cursor: pointer;
-  border-radius: 0.25rem;
-  transition: all 0.2s;
-  font-size: 0.875rem;
+  transition: color var(--transition-fast), background-color var(--transition-fast);
+}
+
+.action-count {
+  font-variant-numeric: tabular-nums;
 }
 
 .action-button:hover {
-  /* background-color: #374151; */
-  /* color: var(--text-primary); */
-  background-color: var(--background-quinary);
   color: var(--text-primary);
+  background-color: var(--background-modifier-hover);
 }
 
 .action-button:disabled {
-  opacity: 0.6;
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
-.action-button.loading {
-  opacity: 0.7;
-}
-
 .reply-button:hover {
-  color: #3b82f6;
-  background-color: rgba(59, 130, 246, 0.1);
+  color: var(--harmony-primary);
+  background-color: var(--harmony-primary-alpha);
 }
 
-.reblog-button:hover {
-  color: #10b981;
-  background-color: rgba(16, 185, 129, 0.1);
-}
-
+.reblog-button:hover:not(:disabled),
 .reblog-button.active {
-  color: #10b981;
+  color: var(--success);
 }
 
-/* Reblog dropdown menu */
+.reblog-button:hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--success) 12%, transparent);
+}
+
+.favorite-button:hover,
+.favorite-button.active {
+  color: var(--error);
+}
+
+.favorite-button:hover {
+  background-color: color-mix(in srgb, var(--error) 12%, transparent);
+}
+
+.bookmark-button:hover,
+.bookmark-button.active {
+  color: var(--warning);
+}
+
+.bookmark-button:hover {
+  background-color: color-mix(in srgb, var(--warning) 12%, transparent);
+}
+
+.mony-post :is(a, button):focus-visible {
+  outline: 2px solid var(--harmony-primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.mony-post .action-button:focus-visible {
+  border-radius: var(--radius-full);
+}
+
+/* Boost dropdown */
 .reblog-menu-container {
   position: relative;
 }
@@ -2693,34 +2565,32 @@ const closeLightbox = () => {
   bottom: 100%;
   left: 50%;
   transform: translateX(-50%);
-  background: var(--background-primary);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  padding: 0.25rem;
+  background: var(--background-floating, var(--background-primary));
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-medium);
+  padding: var(--space-1);
   min-width: 140px;
   z-index: 100;
-  margin-bottom: 0.5rem;
+  margin-bottom: var(--space-2);
 }
 
 .reblog-option {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--space-2);
   width: 100%;
-  padding: 0.625rem 0.75rem;
+  padding: var(--space-2) var(--space-3);
   background: none;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   color: var(--text-primary);
-  font-size: 0.875rem;
+  font-size: var(--font-size-sm);
   cursor: pointer;
-  transition: all 0.15s ease;
 }
 
 .reblog-option:hover:not(:disabled) {
-  background: var(--background-hover);
-  color: #10b981;
+  background: var(--background-modifier-hover);
 }
 
 .reblog-option:disabled {
@@ -2728,32 +2598,62 @@ const closeLightbox = () => {
   cursor: not-allowed;
 }
 
-.favorite-button:hover {
-  color: #ef4444;
-  background-color: rgba(239, 68, 68, 0.1);
+.action-menu {
+  position: relative;
 }
 
-.favorite-button.active {
-  color: #ef4444;
+/* Dropdown styles use :global() because the dropdown is Teleported to <body> */
+:global(.action-dropdown) {
+  position: fixed;
+  background-color: var(--background-floating, var(--background-primary));
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  padding: var(--space-1);
+  min-width: 180px;
+  box-shadow: var(--shadow-large);
+  z-index: 9999;
 }
 
-.bookmark-button:hover {
-  color: #f59e0b;
-  background-color: rgba(245, 158, 11, 0.1);
+:global(.action-dropdown .dropdown-item) {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
 }
 
-.bookmark-button.active {
-  color: #f59e0b;
+:global(.action-dropdown .dropdown-item:hover) {
+  background-color: var(--background-modifier-hover);
+}
+
+:global(.action-dropdown .dropdown-item:focus-visible) {
+  outline: 2px solid var(--harmony-primary);
+  outline-offset: -2px;
+}
+
+:global(.action-dropdown .dropdown-item.danger) {
+  color: var(--error);
+}
+
+:global(.action-dropdown .dropdown-item.danger:hover) {
+  background-color: color-mix(in srgb, var(--error) 12%, transparent);
 }
 
 :global(.action-dropdown .dropdown-divider) {
   height: 1px;
-  background: rgba(255, 255, 255, 0.1);
-  margin: 0.5rem 0;
+  background: var(--border-color);
+  margin: var(--space-1) 0;
 }
 
 :global(.action-dropdown .loading-item) {
-  color: #9ca3af;
+  color: var(--text-secondary);
   cursor: wait;
 }
 
@@ -2766,321 +2666,118 @@ const closeLightbox = () => {
   to { transform: rotate(360deg); }
 }
 
-.action-menu {
-  position: relative;
-  margin-left: auto;
-}
-
-/* Dropdown styles use :global() because the dropdown is Teleported to <body> */
-:global(.action-dropdown) {
-  position: fixed;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  background-color: var(--background-primary-alpha, rgba(30, 31, 34, 0.85));
-  border: 1px solid var(--border-color);
-  border-radius: 0.5rem;
-  padding: 0.5rem;
-  min-width: 150px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
-  z-index: 9999;
-}
-
-:global(.action-dropdown .dropdown-item) {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  width: 100%;
-  padding: 0.5rem;
-  background: none;
-  border: none;
-  color: var(--text-primary);
-  text-align: left;
-  cursor: pointer;
-  border-radius: 0.25rem;
-  font-size: 0.875rem;
-}
-
-:global(.action-dropdown .dropdown-item:hover) {
-  background-color: var(--background-secondary-alpha);
-}
-
-:global(.action-dropdown .dropdown-item.danger) {
-  color: var(--error);
-}
-
-:global(.action-dropdown .dropdown-item.danger:hover) {
-  background-color: rgba(239, 68, 68, 0.1);
-}
-
-/* Unhydrated Reblog (remote reblog without loaded content) */
+/* Unhydrated boost (remote boost without loaded content) */
 .unhydrated-reblog {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  padding: 1rem;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 0.75rem;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
 }
 
 .unhydrated-reblog-notice {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  /* color: #9ca3af; */
+  gap: var(--space-2);
   color: var(--text-secondary);
-  font-size: 0.9rem;
+  font-size: var(--font-size-sm);
 }
 
 .reblog-reference-link {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
-  color: var(--h-brand, #0EA5E9);
+  gap: var(--space-1);
+  color: var(--harmony-primary);
   text-decoration: none;
-  font-size: 0.875rem;
-  padding: 0.5rem 0.75rem;
-  background: rgba(14, 165, 233, 0.1);
-  border-radius: 0.5rem;
+  font-size: var(--font-size-sm);
   width: fit-content;
-  transition: all 0.2s;
 }
 
 .reblog-reference-link:hover {
-  background: rgba(14, 165, 233, 0.2);
   text-decoration: underline;
 }
 
-/* Quote Post Styles */
+/* Quote post */
 .quote-post-layout {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: var(--space-3);
 }
 
 .quote-comment {
   color: var(--text-primary);
-  line-height: 1.6;
-  word-wrap: break-word;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 
 .quoted-post {
-  border: 1px solid var(--border-primary, #374151);
-  border-radius: 0.75rem;
-  padding: 1rem;
-  background-color: rgba(0, 0, 0, 0.2);
-  margin-top: 0.5rem;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  padding: var(--space-3);
 }
 
 .quoted-post-header {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.75rem;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+  min-width: 0;
 }
 
 .quoted-author-info {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  font-size: 0.875rem;
+  gap: var(--space-2);
+  min-width: 0;
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+  overflow: hidden;
 }
 
 .quoted-author-name {
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
 }
 
 .quoted-author-handle {
-  color: #9ca3af;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .quoted-post-time {
-  color: #6b7280;
-  font-size: 0.8rem;
+  color: var(--text-secondary);
 }
 
 .quoted-post-content {
   color: var(--text-primary);
-  line-height: 1.6;
-  word-wrap: break-word;
-  margin-bottom: 0.75rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 
-.quoted-media-gallery {
-  display: grid;
-  gap: 4px;
-  border-radius: 0.5rem;
-  overflow: hidden;
-  max-height: 200px;
-}
-
-.quoted-media-gallery.media-count-1 { grid-template-columns: 1fr; }
-.quoted-media-gallery.media-count-2 {
-  grid-template-columns: 1fr 1fr;
-  aspect-ratio: 2 / 1;
-}
-.quoted-media-gallery.media-count-3 {
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr 1fr;
-  aspect-ratio: 1 / 1;
-}
-.quoted-media-gallery.media-count-3 .media-item:first-child {
-  grid-row: 1 / 3;
-}
-.quoted-media-gallery.media-count-4 {
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr 1fr;
-  aspect-ratio: 1 / 1;
-}
-
-.quoted-media-gallery .media-image,
-.quoted-media-gallery .media-video {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-/* Media Gallery Styles */
-
-.media-gallery {
-  display: grid;
-  gap: 4px;
-  border-radius: 0.5rem;
-  overflow: hidden;
-  margin: 0.5rem 0.75rem 0.75rem;
-  max-height: 400px;
-}
-
-.media-gallery.media-count-1 {
-  grid-template-columns: 1fr;
-}
-
-.media-gallery.media-count-2 {
-  grid-template-columns: 1fr 1fr;
-  aspect-ratio: 2 / 1; /* two side-by-side cells */
-}
-
-.media-gallery.media-count-3 {
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr 1fr;
-  aspect-ratio: 1 / 1; /* square grid for L-shape layout */
-}
-
-.media-gallery.media-count-3 .media-item:first-child {
-  grid-row: 1 / 3;
-}
-
-.media-gallery.media-count-4 {
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr 1fr;
-  aspect-ratio: 1 / 1; /* 2x2 square grid */
-}
-
-.media-item {
-  border-radius: 0;
-  overflow: hidden;
-  position: relative;
-  min-height: 0;
-}
-
-.media-image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-  cursor: pointer;
-}
-
-.media-gallery.media-count-1 .media-image {
-  max-height: 400px;
-  height: auto;
-}
-
-.media-video {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
-.media-gallery.media-count-1 .media-video {
-  max-height: 400px;
-  height: auto;
-}
-
-/* Mobile responsive */
+/* Mobile */
 @media (max-width: 768px) {
   .post-content {
-    padding: 0.75rem;
+    padding: var(--space-3);
   }
 
-  .author-avatar {
-    width: 36px;
-    height: 36px;
-  }
-
-  /* 1. Post header: keep timestamp top-right, prevent overflow */
-  .post-header {
-    align-items: flex-start;
+  .post-prepend {
+    padding: var(--space-3) var(--space-3) 0 calc(var(--space-3) + 48px - 14px);
   }
 
   .author-info {
-    min-width: 0;
-    overflow: hidden;
-  }
-
-  .author-details {
-    overflow: hidden;
-  }
-
-  .author-name {
-    font-size: 0.85rem;
-  }
-
-  .author-handle {
-    font-size: 0.75rem;
-  }
-
-  .post-meta {
-    font-size: 0.75rem;
-    align-items: flex-end;
-    justify-content: flex-start;
-  }
-
-  .post-time {
-    white-space: nowrap;
-  }
-
-  /* 2. Smaller visibility icon on mobile */
-  .visibility-indicator {
-    font-size: 0.7rem;
-  }
-  .visibility-indicator :deep(svg) {
-    width: 12px;
-    height: 12px;
-  }
-
-  /* 3. Reply indicator: stack label+author, separate View thread button */
-  .reply-indicator-bar {
-    flex-wrap: wrap;
-    gap: 0.25rem;
-  }
-
-  .show-thread-btn {
-    width: 100%;
-    justify-content: center;
-    padding: 0.4rem 0.75rem;
-    white-space: nowrap;
-    margin-left: 0;
+    gap: var(--space-2);
   }
 
   .post-actions {
-    gap: 0.5rem;
+    max-width: none;
   }
 
   .action-button {
-    padding: 0.375rem;
+    min-width: 40px;
+    height: 40px;
+    justify-content: center;
   }
 }
 

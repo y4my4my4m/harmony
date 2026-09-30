@@ -29,7 +29,6 @@
       <Transition name="badge-bounce" appear>
         <div v-if="unreadCount > 0" class="notification-badge">
           <span class="badge-text">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
-          <div class="badge-shine"></div>
         </div>
       </Transition>
       
@@ -148,14 +147,9 @@
                 <svg width="64" height="64" viewBox="0 0 24 24" fill="currentColor" opacity="0.3">
                   <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/>
                 </svg>
-                <div class="empty-sparkles">
-                  <div class="sparkle sparkle-1">✨</div>
-                  <div class="sparkle sparkle-2">⭐</div>
-                  <div class="sparkle sparkle-3">💫</div>
-                </div>
               </div>
             </div>
-            <h4 class="state-title">All caught up!</h4>
+            <h4 class="state-title">You're all caught up</h4>
             <p class="state-description">No new notifications. When you get mentions, messages, or other updates, they'll show up here.</p>
           </div>
             <!-- Notification Items -->
@@ -485,35 +479,21 @@ onUnmounted(() => {
   right: -4px;
   min-width: 16px;
   height: 16px;
-  background: linear-gradient(135deg, #ff4757, #ff3742);
+  padding: 0 4px;
+  box-sizing: border-box;
+  background: var(--error);
   border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 
-    0 0 0 2px rgba(0,0,0,0.3),
-    0 4px 12px rgba(255, 71, 87, 0.4);
-  overflow: hidden;
-  backdrop-filter: blur(8px);
+  box-shadow: 0 0 0 2px var(--background-tertiary);
 }
 
 .badge-text {
-  color: var(--text-primary);
+  color: #fff;
   font-size: 10px;
   font-weight: 700;
   line-height: 1;
-  z-index: 1;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-}
-
-.badge-shine {
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
-  animation: shine 2s ease-in-out infinite;
 }
 
 /* DND indicator */
@@ -708,35 +688,6 @@ onUnmounted(() => {
   display: inline-block;
 }
 
-.empty-sparkles {
-  position: absolute;
-  inset: 0;
-}
-
-.sparkle {
-  position: absolute;
-  font-size: 12px;
-  animation: float 3s ease-in-out infinite;
-}
-
-.sparkle-1 {
-  top: 10px;
-  right: 10px;
-  animation-delay: 0s;
-}
-
-.sparkle-2 {
-  bottom: 15px;
-  left: 5px;
-  animation-delay: 1s;
-}
-
-.sparkle-3 {
-  top: 20px;
-  left: 60px;
-  animation-delay: 2s;
-}
-
 .state-title {
   margin: 0 0 8px 0;
   font-size: 18px;
@@ -918,20 +869,9 @@ onUnmounted(() => {
   50% { transform: scale(1.1); opacity: 0.8; }
 }
 
-@keyframes shine {
-  0% { left: -100%; }
-  50%, 100% { left: 100%; }
-}
-
 @keyframes spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
-}
-
-@keyframes float {
-  0%, 100% { transform: translateY(0px) rotate(0deg); }
-  33% { transform: translateY(-10px) rotate(120deg); }
-  66% { transform: translateY(-5px) rotate(240deg); }
 }
 
 @keyframes loading-dot {
@@ -1092,8 +1032,7 @@ onUnmounted(() => {
   }
   
   .notification-glow,
-  .notification-pulse,
-  .badge-shine {
+  .notification-pulse {
     animation: none;
   }
 }
