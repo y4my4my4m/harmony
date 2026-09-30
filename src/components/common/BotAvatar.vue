@@ -21,11 +21,10 @@
     <div v-else class="bot-avatar-generic" :style="{ width: size + 'px', height: size + 'px', fontSize: Math.round(size * 0.4) + 'px' }">
       {{ initials }}
     </div>
-    <!-- Online dot (optional) -->
     <span
       v-if="showStatus"
       class="bot-avatar-status"
-      :class="{ online: !!bot?.last_online_at }"
+      :class="{ online }"
     ></span>
   </div>
 </template>
@@ -55,13 +54,16 @@ const BRIDGE_PLATFORM_MAP: Array<{ pattern: RegExp; platform: string; color: str
 ]
 
 const props = withDefaults(defineProps<{
-  bot?: { username?: string; avatar_url?: string | null; last_online_at?: string | null; bot_type?: string | null } | null
+  bot?: { username?: string; avatar_url?: string | null; bot_type?: string | null } | null
   size?: number
   showStatus?: boolean
+  /** From bot_presence heartbeats. bots.last_online_at is the last IDENTIFY, not presence. */
+  online?: boolean
 }>(), {
   bot: null,
   size: 40,
   showStatus: false,
+  online: false,
 })
 
 const avatarSize = computed(() => {

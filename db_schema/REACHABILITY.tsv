@@ -6,7 +6,7 @@
 # mean nothing reaches it and PostgREST publishes it anyway; `nothing` means dead.
 #
 # name	security	returns	grants	entry	detail
-add_bot_to_server	definer	uuid	anon+authenticated+service_role	client	rpc in src/components/settings/ServerBotsSettings.vue
+add_bot_to_server	definer	uuid	anon+authenticated+service_role	client	rpc in src/components/settings/ServerBotsSettings.vue, src/components/settings/user/UserBotsManagement.vue
 add_existing_posts_to_new_follower_timeline	definer	trigger	anon+authenticated+service_role	trigger	trigger public.follows AFTER INSERT/UPDATE (add_posts_to_new_follower_timeline)
 add_post_emoji_reaction	definer	uuid	anon+authenticated+service_role	client	rpc in src/components/activitypub/MonyPost.vue
 add_user_prekeys	definer	integer	service_role	service key	nothing references it
@@ -85,6 +85,7 @@ complete_ap_activity	definer	void	anon+authenticated+service_role	client	rpc in 
 compute_supporter_tier_for_amount	invoker	uuid	anon+authenticated+service_role	client	called by recompute_supporter_tier
 convert_jsonb_to_ap	invoker	text	anon+authenticated+service_role	client, trigger	rpc in src/services/federation/FederationActivityService.ts
 count_pinned_messages	invoker	integer	anon+authenticated+service_role	client	rpc in src/services/MessageService.ts
+create_bot	definer	jsonb	authenticated+service_role	client	rpc in src/components/settings/user/UserBotsManagement.vue
 create_comprehensive_timeline_entries	definer	trigger	anon+authenticated+service_role	trigger	trigger public.posts AFTER INSERT (create_comprehensive_timeline_entries_trigger)
 create_default_notification_preferences	definer	void	service_role	service key	nothing references it
 create_default_server_role	definer	trigger	anon+authenticated+service_role	trigger	trigger public.servers AFTER INSERT (trigger_create_default_role)
@@ -159,6 +160,7 @@ get_next_server_position	invoker	integer	service_role	service key	nothing refere
 get_or_create_discord_bridge_pairing	definer	text	anon+authenticated+service_role	client	rpc in src/components/settings/DiscordBridgeSetup.vue
 get_or_create_dm_conversation	definer	uuid	anon+authenticated+service_role	client	rpc in federation-backend/src/activitypub/ActivityProcessor.ts
 get_or_create_federated_group_conversation	definer	uuid	anon+authenticated+service_role	client	rpc in federation-backend/src/activitypub/ActivityProcessor.ts
+get_owned_bot_server_counts	definer	TABLE(bot_id uuid, server_count integer)	authenticated+service_role	client	rpc in src/components/settings/user/UserBotsManagement.vue
 get_pending_reports_count	definer	integer	anon+authenticated+service_role	client	rpc in src/services/ReportService.ts
 get_post_emoji_reactions	invoker	TABLE(emoji_id uuid, emoji_name text, emoji_url text, custom_emoji_content text, reaction_count bigint, user_reactions jsonb, current_user_reacted boolean)	anon+authenticated+service_role	client	rpc in src/services/core/CorePostService.ts, src/stores/postReactions.ts
 get_post_with_context	invoker	jsonb	anon+authenticated+service_role	client	rpc in src/services/activityPubService.ts
@@ -167,7 +169,7 @@ get_reports_with_details	definer	TABLE(id uuid, reporter_id uuid, reported_user_
 get_room_epoch	definer	integer	anon+authenticated+service_role	client	rpc in src/services/encryption/RoomEpochService.ts
 get_server_bans	definer	jsonb	anon+authenticated+service_role	client	rpc in src/services/ModerationService.ts
 get_server_encryption_stats	definer	jsonb	anon+authenticated+service_role	client	rpc in src/components/settings/ServerEncryptionSettings.vue
-get_server_member_counts	definer	TABLE(server_id uuid, member_count bigint)	anon+authenticated+service_role	client	rpc in src/components/InviteModal.vue, src/services/AdminService.ts
+get_server_member_counts	definer	TABLE(server_id uuid, member_count bigint)	anon+authenticated+service_role	client	rpc in src/components/InviteModal.vue, src/services/AdminService.ts, src/services/serverMembershipService.ts
 get_server_members_by_instance	invoker	TABLE(instance text, member_ids uuid[], member_ap_ids text[], member_count integer)	service_role	client	rpc in federation-backend/src/listeners/ChannelReactionHandler.ts, federation-backend/src/listeners/DatabaseListener.ts, federation-backend/src/listeners/ServerMembershipHandler.ts, +2
 get_supporter_badge	invoker	TABLE(tier_name text, badge_icon text, badge_color text, is_active boolean)	service_role	service key	nothing references it
 get_supporter_badges	invoker	TABLE(user_id uuid, tier_name text, badge_icon text, badge_color text, is_active boolean)	anon+authenticated+service_role	client	rpc in src/services/FundingService.ts
@@ -228,6 +230,7 @@ is_muted_by	definer	boolean	service_role	service key	nothing references it
 is_room_member	definer	boolean	anon+authenticated+service_role	client, policy	policy public.megolm_session_shares INSERT on megolm_session_shares_insert; rpc in src/services/encryption/MegolmKeyBackupService.ts
 is_user_viewing_context	definer	boolean	anon+authenticated+service_role	client, trigger	called by send_notification
 is_user_viewing_push_context	definer	boolean	service_role	client	rpc in federation-backend/src/services/PushNotificationService.ts
+issue_bot_token	definer	jsonb	service_role	client	called by create_bot, rotate_bot_token
 jsonb_text_content_length	invoker	integer	anon+authenticated+service_role	client, declarative, trigger	check public.messages messages_text_length_check, public.posts posts_text_length_check
 kick_server_member	definer	jsonb	anon+authenticated+service_role	client	rpc in src/services/ModerationService.ts
 log_admin_action	definer	uuid	anon+authenticated+service_role	client	called by admin_moderate_post, moderate_user
@@ -274,6 +277,7 @@ reset_daily_hashtag_counters	definer	void	service_role	client, cron	cron 0 0 * *
 reset_my_encryption_identity	definer	void	anon+authenticated+service_role	client	rpc in src/services/encryption/MegolmMessageEncryptionService.ts
 reset_user_encryption	definer	jsonb	service_role	service key	nothing references it
 resolve_mention_profile_id	invoker	uuid	anon+authenticated+service_role	trigger	called by handle_message_federation
+rotate_bot_token	definer	jsonb	authenticated+service_role	client	rpc in src/components/settings/user/UserBotsManagement.vue
 rotate_prekeys	definer	jsonb	service_role	service key	nothing references it
 route_channel_message	definer	trigger	anon+authenticated+service_role	trigger	trigger public.messages AFTER INSERT (smart_route_channel_message)
 route_server_leave	definer	trigger	anon+authenticated+service_role	trigger	trigger public.user_servers AFTER DELETE (route_leave_federation)

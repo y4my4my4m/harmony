@@ -10,6 +10,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { spawnSync } from 'child_process'
+import { createHash } from 'crypto'
 import { readdirSync, readFileSync, statSync } from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
@@ -250,6 +251,31 @@ describe('verify_bot_token', () => {
     const r = sql(`SELECT public.verify_bot_token('not-a-real-hash')::text`)
     expect(r.ok, why(r)).toBe(true)
     expect(JSON.parse(r.rows[0][0]).valid).toBe(false)
+  })
+
+  // create_bot stores pgcrypto's digest; BotAuthMiddleware and WebSocketGateway hash the
+  // presented token with node:crypto. The two must agree byte for byte.
+  it('authenticates a token issued by create_bot under the hash the gateway computes', () => {
+    const issued = sql(`
+      BEGIN;
+      SELECT set_config('request.jwt.claim.sub', '${OWNER_AUTH_ID}', true);
+      SELECT set_config('request.jwt.claims', '{"sub":"${OWNER_AUTH_ID}"}', true);
+      SELECT set_config('role', 'authenticated', true);
+      SELECT public.create_bot('issuedbot')->>'token';
+      COMMIT;
+    `)
+    expect(issued.ok, why(issued)).toBe(true)
+
+    const token = issued.rows.flat().find((v) => /^harmony_bot_[0-9a-f]{64}$/.test(v))
+    expect(token).toBeDefined()
+
+    const hash = createHash('sha256').update(token!).digest('hex')
+    const r = sql(`SELECT public.verify_bot_token('${hash}')::text`)
+    expect(r.ok, why(r)).toBe(true)
+
+    const verification = JSON.parse(r.rows[0][0])
+    expect(verification.valid).toBe(true)
+    expect(verification.username).toBe('issuedbot')
   })
 })
 
