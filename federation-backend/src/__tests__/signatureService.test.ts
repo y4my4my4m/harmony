@@ -16,8 +16,12 @@ vi.mock('../middleware/errorHandler.js', () => ({
 vi.mock('../utils/logger.js', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }))
+vi.mock('../utils/ssrfProtection.js', () => ({
+  safeFetch: vi.fn(),
+}))
 
 import { SignatureService } from '../activitypub/SignatureService.js'
+import { safeFetch } from '../utils/ssrfProtection.js'
 
 describe('SignatureService', () => {
   describe('generateKeyPair', () => {
@@ -297,6 +301,110 @@ describe('SignatureService', () => {
       )
       expect(parts.keyId).toBe('https://remote.test/users/alice')
       expect(parts.signature).toBe('dGVzdA==')
+    })
+  })
+
+  describe('fetchApWithSignatureFallback', () => {
+    let keyPair: { publicKey: string; privateKey: string }
+
+    beforeEach(async () => {
+      vi.clearAllMocks()
+      keyPair = await SignatureService.generateKeyPair()
+
+      const makeQuery = (result: any) => {
+        const q: any = {}
+        for (const m of ['select', 'eq', 'limit', 'order']) q[m] = vi.fn(() => q)
+        q.single = vi.fn().mockResolvedValue(result)
+        q.maybeSingle = vi.fn().mockResolvedValue(result)
+        return q
+      }
+
+      const { getSupabaseClient } = await import('../config/supabase.js')
+      ;(getSupabaseClient as any).mockReturnValue({
+        from: vi.fn((table: string) => {
+          if (table === 'profiles') {
+            return makeQuery({
+              data: { id: 'user-123', username: 'alice', domain: 'harmony.test' },
+              error: null,
+            })
+          }
+          if (table === 'user_private_keys') {
+            return makeQuery({
+              data: { user_id: 'user-123', private_key: keyPair.privateKey },
+              error: null,
+            })
+          }
+          return makeQuery({ data: null, error: null })
+        }),
+      })
+    })
+
+    it('returns the unsigned response on success without signing', async () => {
+      vi.mocked(safeFetch).mockResolvedValueOnce(new Response('{}', { status: 200 }))
+
+      const res = await SignatureService.fetchApWithSignatureFallback('https://remote.test/users/bob')
+
+      expect(res.status).toBe(200)
+      expect(safeFetch).toHaveBeenCalledTimes(1)
+    })
+
+    it('retries with an HTTP signature on 401', async () => {
+      vi.mocked(safeFetch)
+        .mockResolvedValueOnce(new Response('', { status: 401 }))
+        .mockResolvedValueOnce(new Response('{}', { status: 200 }))
+
+      const res = await SignatureService.fetchApWithSignatureFallback('https://remote.test/users/bob')
+
+      expect(res.status).toBe(200)
+      expect(safeFetch).toHaveBeenCalledTimes(2)
+      const retryHeaders = (vi.mocked(safeFetch).mock.calls[1][1] as any).headers as Record<string, string>
+      expect(retryHeaders.Signature).toContain('keyId="https://harmony.test/users/alice#main-key"')
+      expect(retryHeaders.Date).toBeDefined()
+      expect(retryHeaders.Host).toBe('remote.test')
+    })
+
+    it('retries with an HTTP signature on 403', async () => {
+      vi.mocked(safeFetch)
+        .mockResolvedValueOnce(new Response('', { status: 403 }))
+        .mockResolvedValueOnce(new Response('{}', { status: 200 }))
+
+      const res = await SignatureService.fetchApWithSignatureFallback('https://remote.test/users/bob')
+
+      expect(res.status).toBe(200)
+      expect(safeFetch).toHaveBeenCalledTimes(2)
+    })
+
+    it.each([404, 410, 500])('does not retry on %i', async (status) => {
+      vi.mocked(safeFetch).mockResolvedValueOnce(new Response('', { status }))
+
+      const res = await SignatureService.fetchApWithSignatureFallback('https://remote.test/users/bob')
+
+      expect(res.status).toBe(status)
+      expect(safeFetch).toHaveBeenCalledTimes(1)
+    })
+
+    it('forwards caller headers, timeout and signal to both attempts', async () => {
+      vi.mocked(safeFetch)
+        .mockResolvedValueOnce(new Response('', { status: 401 }))
+        .mockResolvedValueOnce(new Response('{}', { status: 200 }))
+
+      const controller = new AbortController()
+      const options = {
+        headers: { 'User-Agent': 'Harmony/1.0' },
+        timeoutMs: 4321,
+        signal: controller.signal,
+      }
+
+      await SignatureService.fetchApWithSignatureFallback('https://remote.test/users/bob', options)
+
+      const first = vi.mocked(safeFetch).mock.calls[0][1] as any
+      const second = vi.mocked(safeFetch).mock.calls[1][1] as any
+      expect(first.timeoutMs).toBe(4321)
+      expect(first.signal).toBe(controller.signal)
+      expect(first.headers['User-Agent']).toBe('Harmony/1.0')
+      expect(second.timeoutMs).toBe(4321)
+      expect(second.signal).toBe(controller.signal)
+      expect(second.headers['User-Agent']).toBe('Harmony/1.0')
     })
   })
 })
