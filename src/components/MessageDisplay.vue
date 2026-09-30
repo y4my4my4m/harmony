@@ -653,7 +653,8 @@ import { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData,
 import { buildChatParseOptions } from '@/utils/chatParseOptions';
 import { useReactionsStore } from '@/stores/useReactions';
 import { usePostReactionsStore } from '@/stores/postReactions';
-import { useVirtualizer } from '@tanstack/vue-virtual';
+import { useVirtualizer, defaultRangeExtractor, type Range } from '@tanstack/vue-virtual';
+import { useFloatingVideo } from '@/composables/useFloatingVideo';
 
 // --- PROPS & EMITS ---
 const props = defineProps({
@@ -1555,22 +1556,39 @@ const activeLightboxImages = ref<string[]>([]);
 const frozenInitialOffset = ref(0);
 let hasSetInitialOffset = false;
 
+// The row holding the floating video stays mounted while it is out of range;
+// unmounting it would close the player.
+const { floatingMessageId } = useFloatingVideo();
+const floatingRowIndex = computed(() => {
+  const id = floatingMessageId.value;
+  if (!id) return -1;
+  return displayItems.value.findIndex(item => item.type !== 'blocked-group' && item.message.id === id);
+});
+
 const rowVirtualizer = useVirtualizer<HTMLDivElement, Element>(
-  computed(() => ({
-    count: displayItems.value.length,
-    getScrollElement: () => messageDisplayContainer.value,
-    estimateSize: () => 60,
-    overscan: 15,
-    initialOffset: frozenInitialOffset.value,
-    // Stable per-item keys. Otherwise the measurement cache is keyed by
-    // INDEX: prepending a history page shifts every row's index, so each row
-    // inherits a stale height from the row previously at that index, and the
-    // cascade of corrective re-measurements bounces the viewport. With stable
-    // keys, existing measurements survive the prepend and only new rows
-    // measure in; the virtualizer's scroll adjustment compensates for those
-    // above the viewport.
-    getItemKey: (index: number) => displayItems.value[index]?.key ?? index,
-  })) as any
+  computed(() => {
+    const pinnedIndex = floatingRowIndex.value;
+    return {
+      count: displayItems.value.length,
+      getScrollElement: () => messageDisplayContainer.value,
+      estimateSize: () => 60,
+      overscan: 15,
+      initialOffset: frozenInitialOffset.value,
+      // Stable per-item keys. Otherwise the measurement cache is keyed by
+      // INDEX: prepending a history page shifts every row's index, so each row
+      // inherits a stale height from the row previously at that index, and the
+      // cascade of corrective re-measurements bounces the viewport. With stable
+      // keys, existing measurements survive the prepend and only new rows
+      // measure in; the virtualizer's scroll adjustment compensates for those
+      // above the viewport.
+      getItemKey: (index: number) => displayItems.value[index]?.key ?? index,
+      rangeExtractor: (range: Range) => {
+        const indexes = defaultRangeExtractor(range);
+        if (pinnedIndex < 0 || indexes.includes(pinnedIndex)) return indexes;
+        return [...indexes, pinnedIndex].sort((a, b) => a - b);
+      },
+    };
+  }) as any
 );
 
 const virtualRows = computed(() => rowVirtualizer.value.getVirtualItems());

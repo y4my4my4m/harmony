@@ -1,5 +1,5 @@
 <template>
-  <div class="message-input" :class="{'replying': replyMessageId, 'has-files': attachedFiles.length > 0}" data-testid="message-input">
+  <div class="message-input" :class="{'replying': replyMessageId, 'has-files': attachedFiles.length > 0}" data-testid="message-input" data-floating-video-avoid>
     <TypingIndicator
       :typing-users="typingUsers"
       class="typing-indicator-wrapper"

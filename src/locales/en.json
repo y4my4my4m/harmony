@@ -592,7 +592,7 @@
       "bridgeSourceBadgeIcon": "Platform icon",
       "bridgeSourceBadgeText": "Text label (DISCORD)",
       "floatingVideo": "Floating video player",
-      "floatingVideoDesc": "Playing videos float to corner when scrolled away. Works with YouTube and native videos.",
+      "floatingVideoDesc": "Keep a playing video in a small player when you scroll away from it. Works with YouTube and uploaded videos.",
       "showCustomEmojisInDisplayNames": "Show emojis in display names",
       "showCustomEmojisInDisplayNamesDesc": "When enabled, other users' display names show emoji images. When disabled, emojis and shortcodes are hidden entirely.",
       "greentext": "Greentext",
@@ -1444,5 +1444,15 @@
         "description": "Create and edit channels, categories, roles and channel permission overrides."
       }
     }
+  },
+  "floatingVideo": {
+    "region": "Video player",
+    "video": "Video",
+    "openSource": "Open original",
+    "pictureInPicture": "Picture-in-picture",
+    "returnToMessage": "Return to message",
+    "close": "Close",
+    "placeholder": "Playing in the video player",
+    "placeholderHint": "Select to bring it back here"
   }
 }

@@ -169,7 +169,7 @@ let lastKnownTime = 0;
 let iframeLoadCount = 0;
 let pendingRestore: { time: number; play: boolean } | null = null;
 
-const { registerVideo, returnToOriginalPosition, getFloatingVideoMessageId } = useFloatingVideo();
+const { registerVideo, notifyPlaybackStarted } = useFloatingVideo();
 
 // Detect server invite links (e.g., https://har.mony.lol/invite/ABC123)
 const isServerInvite = computed(() => {
@@ -290,15 +290,15 @@ function setupYouTubePlayer() {
 
   sendListeningEvent();
 
-  // Register the whole embed wrapper for floating so the header + video float together
-  if (props.messageId) {
-    const floatTarget = embedWrapper.value || youtubeContainer.value;
-    if (!floatTarget) return;
-    const originalParent = floatTarget.parentElement as HTMLElement;
-    if (originalParent) {
-      cleanupFloatingObserver?.();
-      cleanupFloatingObserver = registerVideo(floatTarget as unknown as HTMLElement, originalParent, props.messageId, 'youtube', props.payload.url);
-    }
+  const floatTarget = embedWrapper.value || youtubeContainer.value;
+  if (floatTarget) {
+    cleanupFloatingObserver?.();
+    cleanupFloatingObserver = registerVideo(floatTarget, {
+      type: 'youtube',
+      messageId: props.messageId,
+      sourceUrl: props.payload.url,
+      title: props.payload.title,
+    });
   }
 }
 
@@ -323,17 +323,11 @@ function sendPlayerCommand(func: string, args: unknown[] = []) {
 
 function updatePlayState(playing: boolean) {
   isPlaying.value = playing;
-  
-  if (playing && props.messageId) {
-    const floatingVideoId = getFloatingVideoMessageId();
-    if (floatingVideoId && floatingVideoId !== props.messageId) {
-      returnToOriginalPosition();
-    }
-  }
-  
+
   const floatTarget = embedWrapper.value || youtubeContainer.value;
   if (floatTarget) {
     floatTarget.dataset.isPlaying = String(playing);
+    if (playing) notifyPlaybackStarted(floatTarget);
   }
 }
 

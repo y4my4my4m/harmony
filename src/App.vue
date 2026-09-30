@@ -83,6 +83,9 @@
 
   <!-- Floating live theme editor (Discord-style side panel over the app) -->
   <ThemeCustomizerPanel v-if="!isAuthRoute" />
+
+  <!-- Mini player for video embeds scrolled out of view -->
+  <FloatingVideoPlayer v-if="!isAuthRoute" />
 </template>
 
 <script setup lang="ts">
@@ -109,6 +112,7 @@ import ThemeCustomizerPanel from '@/components/settings/user/ThemeCustomizerPane
 import UnifiedConfirmationModal from '@/components/shared/UnifiedConfirmationModal.vue'
 import InstancePicker from '@/components/InstancePicker.vue'
 import ScreenSharePicker from '@/components/voice/ScreenSharePicker.vue'
+import FloatingVideoPlayer from '@/components/embeds/FloatingVideoPlayer.vue'
 import { needsInstanceSelection, getStoredInstance, isTauriRuntime } from '@/services/instanceConfig'
 import { useStatusBarTheme } from '@/composables/useStatusBarTheme'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'

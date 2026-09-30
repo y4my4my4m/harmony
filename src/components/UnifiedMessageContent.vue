@@ -762,7 +762,7 @@ export default defineComponent({
     // Seeded from the prop, then kept merged by the watcher below.
     const imageLoadedState = reactive<Record<string, boolean>>({ ...props.imageLoaded });
 
-    const { registerVideo, returnToOriginalPosition, getFloatingVideoMessageId } = useFloatingVideo();
+    const { registerVideo, notifyPlaybackStarted } = useFloatingVideo();
     
     watch(() => props.imageLoaded, (newValue) => {
       Object.assign(imageLoadedState, newValue);
@@ -796,15 +796,8 @@ export default defineComponent({
       
       if (container) {
         container.dataset.isPlaying = 'true';
-        
-        const thisVideoId = `${props.messageId}-video-${videoIndex}`;
-        const floatingVideoId = getFloatingVideoMessageId();
-        
-        // Only one video floats at a time.
-        if (floatingVideoId && floatingVideoId !== thisVideoId) {
-          returnToOriginalPosition();
-        }
       }
+      notifyPlaybackStarted(video);
     };
     
     const handleVideoPause = (event: Event) => {
@@ -868,14 +861,11 @@ export default defineComponent({
       loadGifFavorites();
 
       nextTick(() => {
-        videoContainers.value.forEach((container, index) => {
-          if (container && props.messageId) {
-            const originalParent = container.parentElement as HTMLElement;
-            if (originalParent) {
-              floatingObserverCleanups.push(
-                registerVideo(container as unknown as HTMLElement, originalParent, `${props.messageId}-video-${index}`, 'video')
-              );
-            }
+        videoContainers.value.forEach((container) => {
+          if (container) {
+            floatingObserverCleanups.push(
+              registerVideo(container, { type: 'video', messageId: props.messageId })
+            );
           }
         });
       });
