@@ -107,13 +107,13 @@ create_thread	definer	uuid	anon+authenticated+service_role	client	rpc in src/ser
 current_user_block_peer_ids	definer	SETOF uuid	anon+authenticated+service_role	policy	policy public.posts SELECT on posts_select_public
 current_user_is_member_of_server	definer	boolean	anon+authenticated+service_role	http anon	nothing references it
 current_user_server_ids	definer	SETOF uuid	authenticated+service_role	policy	policy public.user_servers SELECT on user_servers_select_co_members
-current_user_viewable_channel_ids	definer	SETOF uuid	anon+authenticated+service_role	policy	policy public.channels SELECT on channels_select_member, public.message_search_index SELECT on message_search_index_channel_access, public.messages INSERT on messages_insert_member, +6
+current_user_viewable_channel_ids	definer	SETOF uuid	anon+authenticated+service_role	client, policy	policy public.channels SELECT on channels_select_member, public.message_search_index SELECT on message_search_index_channel_access, public.messages INSERT on messages_insert_member, +6
 delete_my_account	definer	jsonb	anon+authenticated+service_role	client	rpc in src/services/AccountDeletionService.ts
 delete_push_subscription_by_endpoint	definer	void	anon+authenticated+service_role	client	rpc in federation-backend/src/services/PushNotificationService.ts
 delete_server_with_cleanup	definer	void	anon+authenticated+service_role	client	rpc in src/stores/server.ts
 deny_device_request	definer	boolean	anon+authenticated+service_role	client	rpc in src/services/encryption/DeviceIdentityService.ts
 detect_embed_provider	invoker	text	anon+authenticated+service_role	trigger	called by fetch_link_preview
-detect_message_features	invoker	jsonb	service_role	trigger	called by index_message
+detect_message_features	invoker	jsonb	service_role	trigger	called by message_search_flags
 determine_message_federation_type	invoker	text	anon+authenticated+service_role	trigger	called by handle_message_federation
 disable_federation_triggers	definer	void	service_role	service key	nothing references it
 effective_channel_encryption	definer	jsonb	authenticated+service_role	client	rpc in src/services/ChannelEncryptionService.ts
@@ -142,7 +142,7 @@ get_admin_user_counts	definer	TABLE(user_id uuid, post_count bigint, server_coun
 get_batch_message_reactions	invoker	TABLE(message_id uuid, emoji_id uuid, emoji_name character varying, emoji_url character varying, custom_emoji_content text, reaction_count bigint, current_user_reacted boolean, users jsonb)	anon+authenticated+service_role	client	rpc in src/services/core/CoreMessageService.ts
 get_batch_post_emoji_reactions	invoker	TABLE(post_id uuid, emoji_id uuid, emoji_name text, emoji_url text, custom_emoji_content text, reaction_count bigint, user_reactions jsonb, current_user_reacted boolean)	anon+authenticated+service_role	client	rpc in src/stores/postReactions.ts
 get_batch_post_reactions	invoker	TABLE(post_id uuid, emoji_id uuid, emoji_name character varying, emoji_url character varying, reaction_count bigint, users jsonb)	anon+authenticated+service_role	http anon	nothing references it
-get_channel_server_id	invoker	uuid	service_role	trigger	called by index_message
+get_channel_server_id	invoker	uuid	service_role	trigger	called by index_message_row
 get_conversation_context	invoker	jsonb	anon+authenticated+service_role	http anon	nothing references it
 get_conversation_encryption_status	invoker	jsonb	service_role	service key	nothing references it
 get_conversation_participants	invoker	TABLE(user_id uuid, role text, joined_at timestamp with time zone, is_muted boolean, last_read_at timestamp with time zone)	service_role	service key	nothing references it
@@ -230,6 +230,7 @@ has_permission	definer	boolean	anon+authenticated+service_role	client, policy, t
 import_remote_emoji	definer	uuid	anon+authenticated+service_role	client	rpc in src/components/admin/EmojiImporter.vue
 increment_unread_mentions	definer	trigger	anon+authenticated+service_role	trigger	trigger public.notifications AFTER INSERT (trigger_increment_unread_mentions)
 index_message	definer	trigger	service_role	trigger	trigger public.messages AFTER INSERT/UPDATE (trigger_index_message)
+index_message_row	definer	void	service_role	trigger	called by index_message
 initialize_user_encryption	definer	jsonb	anon+authenticated+service_role	http anon	nothing references it
 insert_ap_activity_outbound	definer	uuid	anon+authenticated+service_role	client	rpc in src/services/federation/FederationActivityService.ts
 is_author_suspended	definer	boolean	service_role	service key	nothing references it
@@ -256,6 +257,7 @@ mark_all_notifications_read	definer	void	anon+authenticated+service_role	client	
 mark_notifications_read_by_context	definer	integer	anon+authenticated+service_role	client	rpc in src/services/ViewContextTracker.ts
 mark_server_as_read	definer	void	anon+authenticated+service_role	client	rpc in src/components/ServerSidebar.vue
 message_notification_sender_json	invoker	jsonb	anon+authenticated+service_role	trigger	called by handle_message_federation, handle_role_mention_notifications
+message_search_flags	invoker	record	service_role	trigger	called by index_message_row
 moderate_user	definer	boolean	anon+authenticated+service_role	client	rpc in src/services/AdminService.ts
 normalize_embed_url	invoker	text	anon+authenticated+service_role	trigger	called by fetch_link_preview, process_local_link_previews
 notification_actor_json(p profiles)	invoker	jsonb	anon+authenticated+service_role	trigger	called by handle_local_post_mention_notifications, handle_post_mention_notifications, handle_post_reply_notifications, +2
@@ -313,7 +315,7 @@ sanitize_server_text	invoker	trigger	anon+authenticated+service_role	trigger	tri
 sanitize_user_list_text	invoker	trigger	anon+authenticated+service_role	trigger	trigger public.user_lists BEFORE INSERT/UPDATE (sanitize_user_list_text_trigger)
 save_recovery_codes	definer	void	anon+authenticated+service_role	client	rpc in src/components/settings/user/PrivacySettings.vue
 search_federated_users	invoker	TABLE(user_id uuid, username text, display_name text, domain text, avatar_url text, handle text, is_local boolean)	anon+authenticated+service_role	client	rpc in src/services/activityPubService.ts
-search_messages	invoker	TABLE(message_id uuid, relevance real, content_text text, channel_id uuid, conversation_id uuid, user_id uuid, created_at timestamp with time zone)	anon+authenticated+service_role	client	rpc in src/services/SearchService.ts
+search_messages	definer	TABLE(message_id uuid, relevance real, content_text text, channel_id uuid, conversation_id uuid, user_id uuid, created_at timestamp with time zone, server_id uuid, total_count bigint)	authenticated+service_role	client	rpc in src/services/SearchService.ts
 seed_channel_encryption_on_insert	definer	trigger	service_role	trigger	trigger public.channels AFTER INSERT (trg_seed_channel_encryption)
 seed_channel_encryption_settings	definer	void	service_role	client, trigger	called by apply_server_encryption_floor, seed_channel_encryption_on_insert, set_channel_encryption
 send_notification	definer	uuid[]	service_role	client, trigger	called by handle_message_federation, notify_admins_on_pending_donation, send_notification_to_user

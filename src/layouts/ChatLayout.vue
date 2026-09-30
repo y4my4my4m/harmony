@@ -118,8 +118,9 @@
     
     <MessageSearchModal
       :show="showSearchModal"
-      :initial-server-id="currentServer?.id"
-      :initial-channel-id="currentChannelId"
+      :server-id="isDM ? null : currentServer?.id"
+      :conversation-id="isDM ? conversationId : null"
+      :current-channel-id="currentChannelId"
       @close="showSearchModal = false"
       @message-click="handleSearchMessageClick"
     />
@@ -182,6 +183,7 @@ import { useLayoutState } from '@/composables/useLayoutState'
 import { storeToRefs } from 'pinia'
 import { useFundingStore } from '@/stores/useFunding'
 import FundingModal from '@/components/FundingModal.vue'
+import type { Message } from '@/types'
 
 interface Props {
   leftSidebarOpen: boolean
@@ -311,8 +313,14 @@ const handleToggleSearch = () => {
   showSearchModal.value = true
 }
 
-const handleSearchMessageClick = (message: any, searchQuery?: string) => {
-  if (message.channel_id) {
+const handleSearchMessageClick = (message: Message, searchQuery?: string) => {
+  if (message.thread_id && currentServer.value?.id) {
+    router.push({
+      name: 'ThreadView',
+      params: { serverId: currentServer.value.id, threadId: message.thread_id },
+      query: { messageId: message.id, ...(searchQuery ? { searchQuery } : {}) }
+    })
+  } else if (message.channel_id) {
     router.push({
       name: 'ChatChannel',
       params: {

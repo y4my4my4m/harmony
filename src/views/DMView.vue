@@ -390,65 +390,45 @@ watch(() => route.query.messageId, async (messageId) => {
   }
 }, { immediate: true })
 
+const waitForMessages = async () => {
+  if (!isLoading.value) return
+  await new Promise<void>((resolve) => {
+    const stop = watch(isLoading, (loading) => {
+      if (!loading) {
+        stop()
+        resolve()
+      }
+    })
+  })
+}
+
+// Mirrors ChatView.scrollToMessage: the list is virtualized, so the store's jump loads the
+// message when needed and MessageDisplay scrolls to its index and highlights it.
 const scrollToMessage = async (messageId: string) => {
+  await waitForMessages()
   await nextTick()
-  
-  // 300ms allows messages to render.
-  await new Promise(resolve => setTimeout(resolve, 300))
-  
-  const messageElement = document.getElementById(`message-${messageId}`)
-  if (messageElement) {
-    const scrollContainer = messageElement.closest('.message-display') as HTMLElement
-    if (scrollContainer) {
-      const elementTop = messageElement.offsetTop
-      const elementHeight = messageElement.offsetHeight
-      const containerHeight = scrollContainer.clientHeight
-      const scrollTop = elementTop - (containerHeight / 2) + (elementHeight / 2)
-      
-      // Smooth scroll without using scrollIntoView to avoid UI deformation
-      scrollContainer.scrollTo({
-        top: Math.max(0, scrollTop),
-        behavior: 'smooth'
-      })
-    } else {
-      messageElement.scrollIntoView({ 
-        behavior: 'smooth', 
-        block: 'nearest', // Use 'nearest' instead of 'center' to minimize shifts
-        inline: 'nearest'
-      })
-    }
-    
-    const notificationStore = useNotificationStore()
-    const notification = notificationStore.notifications.find(n => 
-      n.data?.message?.id === messageId || n.data?.message_id === messageId
-    )
-    if (notification) {
-      await notificationStore.markAsRead(notification.id)
-    }
-    
-    messageElement.classList.add('highlighted')
-    setTimeout(() => {
-      messageElement.classList.remove('highlighted')
-    }, 3000)
-    
-    const searchQuery = route.query.searchQuery as string
-    if (searchQuery) {
-      highlightSearchText(messageElement, searchQuery)
-    }
-  } else {
-    // Message not in DOM (virtualized) -- still mark notification as read
-    const notificationStore = useNotificationStore()
-    const notification = notificationStore.notifications.find(n => 
-      (n.data?.message?.id === messageId || n.data?.message_id === messageId) && !n.is_read
-    )
-    if (notification) {
-      await notificationStore.markAsRead(notification.id)
-    }
+
+  const found = await dmStore.jumpToMessage(messageId)
+  if (!found) debug.warn(`Could not jump to DM message: ${messageId}`)
+
+  const notificationStore = useNotificationStore()
+  const notification = notificationStore.notifications.find(n =>
+    (n.data?.message?.id === messageId || n.data?.message_id === messageId) && !n.is_read
+  )
+  if (notification) {
+    await notificationStore.markAsRead(notification.id)
+  }
+
+  const searchQuery = route.query.searchQuery as string
+  if (found && searchQuery) {
+    await new Promise(resolve => setTimeout(resolve, 400))
+    const messageElement = document.getElementById(`message-${messageId}`)
+    if (messageElement) highlightSearchText(messageElement, searchQuery)
   }
 }
 
 const highlightSearchText = (messageElement: HTMLElement, query: string) => {
-  const contentElements = messageElement.querySelectorAll('.message-content, .result-content')
+  const contentElements = messageElement.querySelectorAll('.unified-content .text-content')
   const searchTerms = query.trim().split(/\s+/).filter(term => term.length > 0)
   
   contentElements.forEach(element => {

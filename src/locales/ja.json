@@ -383,9 +383,6 @@
     "deleted": "メッセージが削除されました",
     "system": "システム",
     "pinned": "ピン留めされたメッセージ",
-    "search": "メッセージを検索",
-    "noResults": "メッセージが見つかりません",
-    "searchPlaceholder": "このチャンネルで検索...",
     "jumpTo": "メッセージに移動",
     "copyID": "メッセージIDをコピー",
     "noMessagesHere": "ここにはメッセージがありません。何か入力してください！",
@@ -393,37 +390,17 @@
     "conversationBeginning": "これは会話の始まりです",
     "conversationBeginningSubtitle": "チャットを始めて、思い出に残るものにしましょう！",
     "jumpInConversation": "会話にジャンプ",
-    "searchingMessages": "メッセージを検索中...",
-    "searchError": "検索エラー",
-    "tryAdjustSearch": "検索クエリまたはフィルターを調整してみてください。",
-    "searchAcrossMessages": "強力なフィルターを使用してすべてのメッセージを検索します。",
-    "recentSearches": "最近の検索",
     "reactions": {
       "add": "リアクションを追加",
       "remove": "リアクションを削除",
       "reactedWith": "がリアクションしました"
     },
-    "encryptedSearchNotice": "エンドツーエンド暗号化されたメッセージはサーバー側で検索できません。暗号化された DM には会話内検索を使用してください。",
     "typing": {
       "single": " が入力中...",
       "two": " と {name2} が入力中...",
       "three": "、{name2}、{name3} が入力中...",
       "many": "複数のユーザーが入力中です..."
-    },
-    "searchMessages": "メッセージを検索...",
-    "filters": "フィルター",
-    "channel": "チャンネル",
-    "fromUser": "送信ユーザー",
-    "dateRange": "日付範囲",
-    "hasMedia": "メディア付き",
-    "hasUrl": "URL 付き",
-    "clearAll": "すべてクリア",
-    "channelPlaceholder": "チャンネル名...",
-    "usernamePlaceholder": "ユーザー名...",
-    "from": "送信元",
-    "to": "宛先",
-    "user": "ユーザー",
-    "yes": "はい"
+    }
   },
   "voice": {
     "join": "ボイスに参加",

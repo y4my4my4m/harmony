@@ -228,7 +228,7 @@
 
   <MessageSearchModal
     :show="showSearchModal"
-    :initial-conversation-id="conversation.id"
+    :conversation-id="conversation.id"
     @close="showSearchModal = false"
     @message-click="handleSearchMessageClick"
   />
@@ -287,6 +287,7 @@ import GroupSettingsModal from '@/components/dm/GroupSettingsModal.vue'
 import MessageSearchModal from '@/components/search/MessageSearchModal.vue'
 import { useUserData } from '@/composables/useUserData'
 import { useDMStore, type DMConversation } from '@/stores/useDM'
+import type { Message } from '@/types'
 import { getAvatarUrl } from '@/utils/avatarUtils'
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
 import { useAuthStore } from '@/stores/auth'
@@ -787,9 +788,13 @@ const handleMenuAddUser = () => {
   emit('add-user')
 }
 
-const handleSearchMessageClick = (_message: any) => {
-  // The modal handles scroll-to-message; this only closes it.
+const handleSearchMessageClick = (message: Message, searchQuery?: string) => {
   showSearchModal.value = false
+  router.push({
+    name: 'DMConversation',
+    params: { conversationId: props.conversation.id },
+    query: { messageId: message.id, ...(searchQuery ? { searchQuery } : {}) }
+  })
 }
 
 const handleMoreClick = (event: Event) => {
