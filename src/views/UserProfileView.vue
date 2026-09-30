@@ -115,6 +115,7 @@
                   :disabled="isFollowLoading"
                   :aria-busy="isFollowLoading"
                   :aria-label="followButtonLabel"
+                  data-testid="profile-follow-btn"
                   @click="toggleFollow"
                 >
                   <Icon v-if="isFollowLoading" name="loader" :size="16" class="spinning" />

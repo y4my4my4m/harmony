@@ -28,7 +28,9 @@ test.afterAll(async () => {
 test('following a user moves their follower count from zero to one', async ({ page }) => {
   test.setTimeout(180_000)
 
-  const followButton = page.locator('.primary-action-btn.follow-btn')
+  const followButton = page.locator('[data-testid="profile-follow-btn"]')
+  // The hover label ("Unfollow") shares the button; assert the resting label.
+  const followLabel = followButton.locator('.follow-label')
   const followersCount = page
     .locator('.tab-btn')
     .filter({ hasText: 'Followers' })
@@ -43,18 +45,18 @@ test('following a user moves their follower count from zero to one', async ({ pa
       { timeout: 30000 },
     )
     await expect(followersCount).toHaveText('0', { timeout: 30000 })
-    await expect(followButton).toHaveText('Follow', { timeout: 30000 })
+    await expect(followLabel).toHaveText('Follow', { timeout: 30000 })
   })
 
   await test.step('follow them', async () => {
     await followButton.click()
-    await expect(followButton).toHaveText('Following', { timeout: 30000 })
+    await expect(followLabel).toHaveText('Following', { timeout: 30000 })
   })
 
   await test.step('the follower count reads 1', async () => {
     await page.reload()
     await expect(followersCount).toHaveText('1', { timeout: 30000 })
-    await expect(followButton).toHaveText('Following', { timeout: 30000 })
+    await expect(followLabel).toHaveText('Following', { timeout: 30000 })
   })
 
   await test.step('the follow survives for the follower too', async () => {

@@ -21,7 +21,7 @@ test.afterAll(async () => {
 })
 
 async function createServer(page: Page, name: string): Promise<void> {
-  await page.locator('.action-card.create-card').click()
+  await page.locator('[data-testid="empty-create-server"]').click()
   const modal = page.locator('.modal-container').filter({ hasText: 'Create' })
   await expect(page.locator('[data-testid="create-server-name-input"]')).toBeVisible({
     timeout: 15000,
@@ -39,7 +39,7 @@ test('create a server, add a channel to it and open the channel', async ({ page 
 
   await test.step('sign in to an account that owns nothing', async () => {
     await signIn(page, owner)
-    await expect(page.locator('.action-card.create-card')).toBeVisible({ timeout: 30000 })
+    await expect(page.locator('[data-testid="empty-create-server"]')).toBeVisible({ timeout: 30000 })
   })
 
   await test.step('create the server from the splash screen', async () => {

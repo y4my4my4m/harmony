@@ -34,7 +34,7 @@
 
       <ul class="actions">
         <li>
-          <button type="button" class="action" @click="showCreateServerForm = true">
+          <button type="button" class="action" data-testid="empty-create-server" @click="showCreateServerForm = true">
             <span class="action-icon"><Icon name="plus" :size="20" /></span>
             <span class="action-text">
               <span class="action-title">{{ $t('emptyServers.createTitle') }}</span>

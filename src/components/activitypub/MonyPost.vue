@@ -286,6 +286,7 @@
               type="button"
               role="menuitem"
               class="reblog-option"
+              data-testid="reblog-option-boost"
               @click="handleSimpleReblog"
               :disabled="displayInteractionCounts.is_reblogged"
             >

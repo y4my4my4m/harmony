@@ -63,7 +63,7 @@ test('reblogging a fresh post moves its count from none to one', async ({ page }
         response.url().includes('/rest/v1/posts') && response.request().method() === 'POST',
       { timeout: 30000 },
     )
-    await menu.locator('.reblog-option').filter({ hasText: 'Reblog' }).first().click()
+    await menu.locator('[data-testid="reblog-option-boost"]').click()
     await boostWritten
     await expect(menu).toBeHidden({ timeout: 10000 })
   })
