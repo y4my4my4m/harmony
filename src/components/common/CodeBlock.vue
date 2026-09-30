@@ -380,9 +380,9 @@ export default defineComponent({
   padding: 4px 8px;
   margin-right: 180px;
   background-color: var(--background-quinary);
-  border: 1px solid #0EA5E9;
+  border: 1px solid var(--harmony-primary);
   border-radius: 4px;
-  color: #0EA5E9;
+  color: var(--harmony-primary);
   font-size: 0.75rem;
   font-weight: 500;
   cursor: pointer;

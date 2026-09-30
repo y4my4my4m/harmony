@@ -493,7 +493,7 @@ onMounted(() => {
 }
 
 .refresh-btn:hover {
-  background: rgba(14, 165, 233, 0.3);
+  background: color-mix(in srgb, var(--harmony-primary) 30%, transparent);
 }
 
 /* Stats */
@@ -601,7 +601,7 @@ onMounted(() => {
 
 .emoji-domain {
   font-size: 0.75rem;
-  color: #38BDF8;
+  color: var(--harmony-secondary);
   margin-bottom: 0.25rem;
 }
 
@@ -637,7 +637,7 @@ onMounted(() => {
 }
 
 .import-btn:hover:not(:disabled) {
-  background: #0284C7;
+  background: var(--harmony-primary-hover);
 }
 
 .import-btn:disabled {
@@ -796,7 +796,7 @@ onMounted(() => {
   display: flex;
   gap: 0.5rem;
   padding: 0.75rem;
-  background: rgba(14, 165, 233, 0.1);
+  background: color-mix(in srgb, var(--harmony-primary) 10%, transparent);
   border-radius: 6px;
   color: #a0a4a8;
   font-size: 0.875rem;

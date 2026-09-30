@@ -843,13 +843,13 @@ onMounted(async () => {
    CSS Variables & Base Styles
    ======================================== */
 .auth-wrapper {
-  --primary: var(--harmony-primary, #0EA5E9);
-  --primary-hover: var(--harmony-primary-hover, #0284C7);
+  --primary: var(--harmony-primary);
+  --primary-hover: var(--harmony-primary-hover);
   --surface: rgba(17, 17, 23, 0.92);
   --surface-light: rgba(255, 255, 255, 0.03);
   --surface-hover: rgba(255, 255, 255, 0.06);
   --border: rgba(255, 255, 255, 0.08);
-  --border-focus: rgba(14, 165, 233, 0.5);
+  --border-focus: color-mix(in srgb, var(--harmony-primary) 50%, transparent);
   --text: #ffffff;
   --text-muted: rgba(255, 255, 255, 0.6);
   --text-dim: rgba(255, 255, 255, 0.4);
@@ -1624,7 +1624,7 @@ onMounted(async () => {
 }
 
 .modal-icon.shield {
-  background: rgba(14, 165, 233, 0.1);
+  background: color-mix(in srgb, var(--harmony-primary) 10%, transparent);
 }
 
 .modal-actions {

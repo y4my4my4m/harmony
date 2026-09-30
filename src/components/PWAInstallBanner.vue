@@ -136,10 +136,10 @@ onUnmounted(() => {
   bottom: 20px;
   left: 20px;
   right: 20px;
-  background: linear-gradient(135deg, #0EA5E9, #0284C7);
+  background: linear-gradient(135deg, var(--harmony-primary), var(--harmony-primary-hover));
   border-radius: 16px;
   box-shadow: 
-    0 8px 32px rgba(14, 165, 233, 0.3),
+    0 8px 32px color-mix(in srgb, var(--harmony-primary) 30%, transparent),
     0 4px 16px rgba(0, 0, 0, 0.2);
   z-index: 1000;
   max-width: 500px;
@@ -222,7 +222,7 @@ onUnmounted(() => {
 
 .banner-btn.primary {
   background: white;
-  color: #0EA5E9;
+  color: var(--harmony-primary);
 }
 
 .banner-btn.primary:hover:not(:disabled) {

@@ -658,13 +658,13 @@ const toggleRecoveryCode = () => {
   height: 120px;
   position: relative;
   z-index: 2;
-  filter: drop-shadow(0 10px 30px rgba(14, 165, 233, 0.3));
+  filter: drop-shadow(0 10px 30px color-mix(in srgb, var(--harmony-primary) 30%, transparent));
 }
 
 .logo-glow {
   position: absolute;
   inset: -20px;
-  background: radial-gradient(circle, rgba(14, 165, 233, 0.4) 0%, transparent 70%);
+  background: radial-gradient(circle, color-mix(in srgb, var(--harmony-primary) 40%, transparent) 0%, transparent 70%);
   border-radius: 50%;
   animation: pulse 3s ease-in-out infinite;
   z-index: 1;
@@ -769,7 +769,7 @@ const toggleRecoveryCode = () => {
 
 .form-input:focus {
   outline: none;
-  border-color: #0EA5E9;
+  border-color: var(--harmony-primary);
   background: rgba(0, 0, 0, 0.5);
 }
 
@@ -807,7 +807,7 @@ const toggleRecoveryCode = () => {
 .submit-btn {
   width: 100%;
   padding: 14px 24px;
-  background: linear-gradient(135deg, #0EA5E9 0%, #38BDF8 100%);
+  background: linear-gradient(135deg, var(--harmony-primary) 0%, var(--harmony-secondary) 100%);
   border: none;
   border-radius: 8px;
   color: var(--text-primary);
@@ -820,7 +820,7 @@ const toggleRecoveryCode = () => {
 
 .submit-btn:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(14, 165, 233, 0.4);
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--harmony-primary) 40%, transparent);
 }
 
 .submit-btn:disabled {

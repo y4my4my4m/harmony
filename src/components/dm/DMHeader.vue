@@ -1384,7 +1384,7 @@ const getDefaultGroupName = (): string => {
   font-size: 12px;
   color: var(--text-secondary);
   font-family: 'Roboto Mono', monospace;
-  background: rgba(14, 165, 233, 0.1);
+  background: color-mix(in srgb, var(--harmony-primary) 10%, transparent);
   padding: 2px 6px;
   border-radius: 4px;
   white-space: nowrap;

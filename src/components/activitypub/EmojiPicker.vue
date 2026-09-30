@@ -388,7 +388,7 @@ onMounted(() => {
 }
 
 .pack-option.active {
-  background: rgba(14, 165, 233, 0.15);
+  background: color-mix(in srgb, var(--harmony-primary) 15%, transparent);
 }
 
 .pack-icon {
@@ -402,7 +402,7 @@ onMounted(() => {
 }
 
 .check-mark {
-  color: #0EA5E9;
+  color: var(--harmony-primary);
   font-size: 14px;
 }
 

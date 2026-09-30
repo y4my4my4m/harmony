@@ -195,7 +195,7 @@ onMounted(async () => {
 }
 
 .unread-badge {
-  background: var(--harmony-primary, #0EA5E9);
+  background: var(--harmony-primary);
   color: var(--text-primary);
   padding: 2px 8px;
   border-radius: 10px;
@@ -234,7 +234,7 @@ onMounted(async () => {
 }
 
 .announcement-card.pinned {
-  border-color: var(--harmony-primary, #0EA5E9);
+  border-color: var(--harmony-primary);
   border-width: 2px;
 }
 
@@ -258,7 +258,7 @@ onMounted(async () => {
 }
 
 .pin-badge {
-  background: var(--harmony-primary, #0EA5E9);
+  background: var(--harmony-primary);
   color: var(--text-primary);
   padding: 2px 8px;
   border-radius: 4px;
@@ -307,9 +307,9 @@ onMounted(async () => {
 }
 
 .mark-read-btn:hover {
-  background: var(--harmony-primary, #0EA5E9);
+  background: var(--harmony-primary);
   color: var(--text-primary);
-  border-color: var(--harmony-primary, #0EA5E9);
+  border-color: var(--harmony-primary);
 }
 
 .popup-footer {
@@ -323,7 +323,7 @@ onMounted(async () => {
 }
 
 .mark-all-btn {
-  background: var(--harmony-primary, #0EA5E9);
+  background: var(--harmony-primary);
   color: var(--text-primary);
   border: none;
   padding: 8px 20px;

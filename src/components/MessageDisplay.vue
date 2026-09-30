@@ -3857,8 +3857,8 @@ defineExpose({ editLastOwnMessage });
 
 /* Highlighted message */
 .highlighted {
-  background-color: rgba(14, 165, 233, 0.15) !important;
-  border-left: 3px solid #0EA5E9;
+  background-color: color-mix(in srgb, var(--harmony-primary) 15%, transparent) !important;
+  border-left: 3px solid var(--harmony-primary);
   animation: highlight-fade 3s ease-out;
 }
 
@@ -4137,7 +4137,7 @@ defineExpose({ editLastOwnMessage });
 }
 
 .call-duration {
-  color: var(--text-muted, var(--text-muted));
+  color: var(--text-muted);
   font-size: 0.8rem;
 }
 

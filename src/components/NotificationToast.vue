@@ -232,7 +232,7 @@ const getTypeIcon = (type: NotificationType) => {
 }
 
 .toast-dm {
-  --toast-color: #38BDF8;
+  --toast-color: var(--harmony-secondary);
 }
 
 .toast-reaction {
@@ -252,7 +252,7 @@ const getTypeIcon = (type: NotificationType) => {
 }
 
 .toast-voice_channel_activity {
-  --toast-color: #38BDF8;
+  --toast-color: var(--harmony-secondary);
 }
 
 .toast-server_update {

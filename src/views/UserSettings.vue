@@ -842,7 +842,7 @@ onUnmounted(() => {
   height: 18px;
   padding: 0 6px;
   border-radius: 9px;
-  background: var(--harmony-primary, #0EA5E9);
+  background: var(--harmony-primary);
   color: var(--text-primary, #ffffff);
   font-size: 11px;
   font-weight: 700;

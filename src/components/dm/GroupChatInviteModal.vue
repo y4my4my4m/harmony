@@ -569,7 +569,7 @@ watch(() => props.show, (show) => {
 .search-input:focus {
   outline: none;
   border-color: var(--harmony-primary);
-  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--harmony-primary) 10%, transparent);
 }
 
 .clear-search-btn {
@@ -630,7 +630,7 @@ watch(() => props.show, (show) => {
 }
 
 .search-result-item.selected {
-  background: rgba(14, 165, 233, 0.1);
+  background: color-mix(in srgb, var(--harmony-primary) 10%, transparent);
   border-color: var(--harmony-primary);
 }
 
@@ -796,8 +796,8 @@ watch(() => props.show, (show) => {
   align-items: flex-start;
   gap: var(--space-3);
   padding: var(--space-3);
-  background: rgba(14, 165, 233, 0.1);
-  border: 1px solid rgba(14, 165, 233, 0.2);
+  background: color-mix(in srgb, var(--harmony-primary) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--harmony-primary) 20%, transparent);
   border-radius: var(--radius-md);
 }
 

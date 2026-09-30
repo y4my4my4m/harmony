@@ -369,7 +369,7 @@ onMounted(async () => {
 
 .progress-bar-fill {
   height: 100%;
-  background: var(--harmony-primary, #0EA5E9);
+  background: var(--harmony-primary);
   border-radius: 5px;
   transition: width 0.4s ease;
 }
@@ -421,7 +421,7 @@ onMounted(async () => {
 }
 
 .funding-link:hover {
-  border-color: var(--harmony-primary, #0EA5E9);
+  border-color: var(--harmony-primary);
   background: var(--background-modifier-hover, var(--background-secondary));
   transform: translateY(-1px);
 }
@@ -471,13 +471,13 @@ onMounted(async () => {
   align-items: flex-start;
   padding: 12px 14px;
   margin-bottom: 12px;
-  background: rgba(14, 165, 233, 0.08);
-  border: 1px solid rgba(14, 165, 233, 0.25);
+  background: color-mix(in srgb, var(--harmony-primary) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--harmony-primary) 25%, transparent);
   border-radius: 8px;
 }
 
 .donor-instructions-icon {
-  color: var(--harmony-primary, #0EA5E9);
+  color: var(--harmony-primary);
   flex-shrink: 0;
   margin-top: 2px;
 }
@@ -513,12 +513,12 @@ onMounted(async () => {
   display: inline-block;
   padding: 6px 10px;
   background: var(--background-primary, #1e1f22);
-  border: 1px dashed var(--harmony-primary, #0EA5E9);
+  border: 1px dashed var(--harmony-primary);
   border-radius: 6px;
   font-family: 'Consolas', 'Monaco', monospace;
   font-size: 13px;
   font-weight: 600;
-  color: var(--harmony-primary, #0EA5E9);
+  color: var(--harmony-primary);
   user-select: all;
   word-break: break-all;
 }
@@ -581,8 +581,8 @@ onMounted(async () => {
 }
 
 .donor-copy-btn:hover {
-  border-color: var(--harmony-primary, #0EA5E9);
-  color: var(--harmony-primary, #0EA5E9);
+  border-color: var(--harmony-primary);
+  color: var(--harmony-primary);
 }
 
 .donor-instructions-hint {

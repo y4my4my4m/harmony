@@ -1300,7 +1300,7 @@ font-size: 12px;
   align-items: center;
   gap: 8px;
   padding: 10px 16px;
-  background: var(--harmony--primary, #0EA5E9);
+  background: var(--harmony--primary, var(--harmony-primary));
   color: var(--text-primary);
   border: none;
   border-radius: 8px;
@@ -1311,7 +1311,7 @@ font-size: 12px;
 }
 
 .test-haptic-btn:hover {
-  background: var(--harmony--primary-dark, #0284C7);
+  background: var(--harmony--primary-dark, var(--harmony-primary-hover));
   transform: translateY(-1px);
 }
 
@@ -1374,7 +1374,7 @@ font-size: 12px;
 
 .time-input:focus {
   outline: none;
-  border-color: #0EA5E9;
+  border-color: var(--harmony-primary);
 }
 
 .time-separator {
@@ -1394,7 +1394,7 @@ font-size: 12px;
 
 .select-input:focus {
   outline: none;
-  border-color: #0EA5E9;
+  border-color: var(--harmony-primary);
 }
 
 .volume-control {
@@ -1460,7 +1460,7 @@ font-size: 12px;
 }
 
 .permission-btn:hover {
-  background: #0284C7;
+  background: var(--harmony-primary-hover);
 }
 
 .permission-btn:disabled {
@@ -1507,7 +1507,7 @@ font-size: 12px;
 }
 
 .category-icon.chat {
-  background: linear-gradient(135deg, #0EA5E9, #0284C7);
+  background: linear-gradient(135deg, var(--harmony-primary), var(--harmony-primary-hover));
 }
 
 .category-icon.activitypub {
@@ -1653,7 +1653,7 @@ font-size: 12px;
 }
 
 .test-all-btn:hover {
-  background: #0284C7;
+  background: var(--harmony-primary-hover);
 }
 
 .reset-btn {
@@ -1704,8 +1704,8 @@ font-size: 12px;
 }
 
 .push-status-badge.available {
-  background: rgba(14, 165, 233, 0.1);
-  color: #0EA5E9;
+  background: color-mix(in srgb, var(--harmony-primary) 10%, transparent);
+  color: var(--harmony-primary);
 }
 
 .push-status-badge.denied,
@@ -1778,7 +1778,7 @@ font-size: 12px;
 }
 
 .push-error-with-retry .retry-btn:hover:not(:disabled) {
-  background: var(--harmony-primary-hover, #0284C7);
+  background: var(--harmony-primary-hover);
 }
 
 .push-error-with-retry .retry-btn:disabled {
@@ -1827,13 +1827,13 @@ font-size: 12px;
 }
 
 .push-test-btn {
-  background: rgba(14, 165, 233, 0.1);
-  color: #0EA5E9;
-  border: 1px solid rgba(14, 165, 233, 0.3);
+  background: color-mix(in srgb, var(--harmony-primary) 10%, transparent);
+  color: var(--harmony-primary);
+  border: 1px solid color-mix(in srgb, var(--harmony-primary) 30%, transparent);
 }
 
 .push-test-btn:hover:not(:disabled) {
-  background: rgba(14, 165, 233, 0.2);
+  background: color-mix(in srgb, var(--harmony-primary) 20%, transparent);
 }
 
 .push-subscribe-btn:disabled,
@@ -1902,9 +1902,9 @@ font-size: 12px;
   width: 32px;
   height: 32px;
   padding: 6px;
-  background: rgba(14, 165, 233, 0.1);
+  background: color-mix(in srgb, var(--harmony-primary) 10%, transparent);
   border-radius: 8px;
-  color: #0EA5E9;
+  color: var(--harmony-primary);
 }
 
 .device-details {

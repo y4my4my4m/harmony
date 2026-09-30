@@ -1035,7 +1035,7 @@ watch(
 
 .search-input:focus {
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.2);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--harmony-primary) 20%, transparent);
 }
 
 .search-input::placeholder {
@@ -1334,7 +1334,7 @@ watch(
 }
 
 .emoji-ctx-item:hover {
-  background-color: var(--harmony-primary, #0EA5E9);
+  background-color: var(--harmony-primary);
   color: var(--text-primary, #fff);
 }
 

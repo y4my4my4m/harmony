@@ -799,8 +799,8 @@ input:checked + .toggle-slider:before {
 
 .emoji-upload-area:hover,
 .emoji-upload-area.dragover {
-  border-color: #0EA5E9;
-  background-color: rgba(14, 165, 233, 0.1);
+  border-color: var(--harmony-primary);
+  background-color: color-mix(in srgb, var(--harmony-primary) 10%, transparent);
 }
 
 .upload-icon {
@@ -998,13 +998,13 @@ input:checked + .toggle-slider:before {
 }
 
 .emoji-item.selection-mode:hover {
-  background-color: rgba(14, 165, 233, 0.1);
-  border-color: rgba(14, 165, 233, 0.3);
+  background-color: color-mix(in srgb, var(--harmony-primary) 10%, transparent);
+  border-color: color-mix(in srgb, var(--harmony-primary) 30%, transparent);
 }
 
 .emoji-item.selected {
-  background-color: rgba(14, 165, 233, 0.2);
-  border-color: #0EA5E9;
+  background-color: color-mix(in srgb, var(--harmony-primary) 20%, transparent);
+  border-color: var(--harmony-primary);
 }
 
 .emoji-item.renaming {

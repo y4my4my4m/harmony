@@ -412,7 +412,7 @@ onBeforeUnmount(() => {
 
 .hex-input:focus {
   outline: none;
-  border-color: var(--harmony-primary, #0EA5E9);
+  border-color: var(--harmony-primary);
 }
 
 .color-preview-large {

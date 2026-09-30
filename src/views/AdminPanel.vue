@@ -2497,7 +2497,7 @@ const formatNumber = (num: number | undefined) => {
 
 
 
-.report-type-badge.user { background: rgba(14, 165, 233, 0.2); color: #38BDF8; }
+.report-type-badge.user { background: color-mix(in srgb, var(--harmony-primary) 20%, transparent); color: var(--harmony-secondary); }
 
 
 
@@ -2561,8 +2561,8 @@ const formatNumber = (num: number | undefined) => {
 
 
 .report-action-btn.investigating {
-  background: rgba(14, 165, 233, 0.3);
-  color: #38BDF8;
+  background: color-mix(in srgb, var(--harmony-primary) 30%, transparent);
+  color: var(--harmony-secondary);
 }
 
 

@@ -437,7 +437,7 @@ const onIconError = (event: Event) => {
   flex-direction: column;
   align-items: center;
   margin: 4px 0;
-  --folder-color: #0EA5E9;
+  --folder-color: var(--harmony-primary);
   position: relative;
 }
 
@@ -866,7 +866,7 @@ const onIconError = (event: Event) => {
 }
 
 .server-folder-context-menu .context-menu-item:hover {
-  background-color: var(--harmony-primary, #0EA5E9);
+  background-color: var(--harmony-primary);
   color: var(--text-primary);
 }
 

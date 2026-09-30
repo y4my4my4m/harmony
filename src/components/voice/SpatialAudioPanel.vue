@@ -839,7 +839,7 @@ onUnmounted(() => {
 .panel-icon {
   width: 40px;
   height: 40px;
-  background: linear-gradient(145deg, #0EA5E9, #0284C7);
+  background: linear-gradient(145deg, var(--harmony-primary), var(--harmony-primary-hover));
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -889,9 +889,9 @@ onUnmounted(() => {
 }
 
 .control-btn.active {
-  background: linear-gradient(145deg, #0EA5E9, #0284C7);
+  background: linear-gradient(145deg, var(--harmony-primary), var(--harmony-primary-hover));
   color: var(--text-primary);
-  border-color: rgba(14, 165, 233, 0.6);
+  border-color: color-mix(in srgb, var(--harmony-primary) 60%, transparent);
 }
 
 .toggle-btn.active {
@@ -997,7 +997,7 @@ onUnmounted(() => {
 
 .checkbox-input:checked + .checkbox-custom {
   background: var(--harmony-primary);
-  border-color: #0EA5E9;
+  border-color: var(--harmony-primary);
 }
 
 .checkbox-input:checked + .checkbox-custom::after {
@@ -1100,8 +1100,8 @@ onUnmounted(() => {
 }
 
 .spatial-avatar.is-self .avatar-image {
-  border-color: #0EA5E9;
-  box-shadow: 0 0 20px rgba(14, 165, 233, 0.4);
+  border-color: var(--harmony-primary);
+  box-shadow: 0 0 20px color-mix(in srgb, var(--harmony-primary) 40%, transparent);
 }
 
 .spatial-avatar.is-speaking .avatar-image {
@@ -1139,7 +1139,7 @@ onUnmounted(() => {
   position: absolute;
   top: -8px;
   right: -8px;
-  background: rgba(14, 165, 233, 0.9);
+  background: color-mix(in srgb, var(--harmony-primary) 90%, transparent);
   color: var(--text-primary);
   padding: 2px 4px;
   border-radius: 8px;
@@ -1160,7 +1160,7 @@ onUnmounted(() => {
 }
 
 .distance-line {
-  stroke: rgba(14, 165, 233, 0.4);
+  stroke: color-mix(in srgb, var(--harmony-primary) 40%, transparent);
   stroke-width: 1;
   stroke-dasharray: 3, 3;
 }

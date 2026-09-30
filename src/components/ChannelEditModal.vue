@@ -629,7 +629,7 @@ watch(() => props.show, (visible) => {
 
 .form-input:focus {
   outline: none;
-  border-color: #0EA5E9;
+  border-color: var(--harmony-primary);
 }
 
 .form-textarea {
@@ -648,7 +648,7 @@ watch(() => props.show, (visible) => {
 
 .form-textarea:focus {
   outline: none;
-  border-color: #0EA5E9;
+  border-color: var(--harmony-primary);
 }
 
 .character-count {
@@ -689,7 +689,7 @@ watch(() => props.show, (visible) => {
 
 .slowmode-slider {
   flex: 1;
-  accent-color: var(--harmony-primary, #0EA5E9);
+  accent-color: var(--harmony-primary);
 }
 
 .slowmode-value {
@@ -697,7 +697,7 @@ watch(() => props.show, (visible) => {
   text-align: right;
   font-size: 0.85rem;
   font-weight: 600;
-  color: var(--harmony-primary, #0EA5E9);
+  color: var(--harmony-primary);
 }
 
 .slowmode-value.off {
@@ -750,7 +750,7 @@ watch(() => props.show, (visible) => {
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #0284C7;
+  background: var(--harmony-primary-hover);
 }
 
 .loading-spinner {
@@ -836,8 +836,8 @@ watch(() => props.show, (visible) => {
 }
 
 .modal-tab.active {
-  color: var(--harmony-primary, #0EA5E9);
-  border-bottom-color: var(--harmony-primary, #0EA5E9);
+  color: var(--harmony-primary);
+  border-bottom-color: var(--harmony-primary);
 }
 
 /* Wider modal so the rail + editor layout breathes */
@@ -910,7 +910,7 @@ watch(() => props.show, (visible) => {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--harmony-primary, #0EA5E9);
+  background: var(--harmony-primary);
   flex-shrink: 0;
 }
 
@@ -962,7 +962,7 @@ watch(() => props.show, (visible) => {
   border: none;
   padding: 0;
   font-size: 12px;
-  color: var(--harmony-primary, #0EA5E9);
+  color: var(--harmony-primary);
   cursor: pointer;
   text-decoration: underline;
 }

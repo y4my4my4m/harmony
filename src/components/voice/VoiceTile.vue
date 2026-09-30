@@ -511,7 +511,7 @@ onBeforeUnmount(detach);
 }
 
 .tile-action-btn.active {
-  background: var(--harmony-primary, #0ea5e9);
+  background: var(--harmony-primary);
 }
 
 .tile-action-btn :deep(svg) {

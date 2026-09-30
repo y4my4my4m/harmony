@@ -522,7 +522,7 @@ input:checked + .toggle-slider:before {
 
 .info-card.private,
 .info-card.federation {
-  border-left-color: #0EA5E9;
+  border-left-color: var(--harmony-primary);
 }
 
 .federation-info {
@@ -532,7 +532,7 @@ input:checked + .toggle-slider:before {
 .federated-member-count {
   margin-top: 12px;
   padding: 8px 12px;
-  background: rgba(14, 165, 233, 0.1);
+  background: color-mix(in srgb, var(--harmony-primary) 10%, transparent);
   border-radius: 6px;
   font-size: 13px;
   color: #8b9dff;
@@ -566,10 +566,10 @@ input:checked + .toggle-slider:before {
 .handle-copy-btn {
   flex-shrink: 0;
   padding: 8px 14px;
-  background: rgba(14, 165, 233, 0.15);
-  border: 1px solid rgba(14, 165, 233, 0.4);
+  background: color-mix(in srgb, var(--harmony-primary) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--harmony-primary) 40%, transparent);
   border-radius: 6px;
-  color: #0ea5e9;
+  color: var(--harmony-primary);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -577,7 +577,7 @@ input:checked + .toggle-slider:before {
 }
 
 .handle-copy-btn:hover {
-  background: rgba(14, 165, 233, 0.25);
+  background: color-mix(in srgb, var(--harmony-primary) 25%, transparent);
 }
 
 .disable-federation-warning-overlay {
@@ -794,7 +794,7 @@ input:checked + .toggle-slider:before {
 }
 
 input[type="radio"]:checked + .radio-label {
-  border-color: #0EA5E9;
+  border-color: var(--harmony-primary);
 }
 
 input[type="radio"]:checked + .radio-label:before {

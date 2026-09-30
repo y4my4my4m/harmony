@@ -236,7 +236,7 @@ const save = async () => {
 }
 
 .form-input:focus {
-  border-color: var(--harmony-primary, #0EA5E9);
+  border-color: var(--harmony-primary);
 }
 
 .form-input::placeholder {
@@ -320,12 +320,12 @@ const save = async () => {
 }
 
 .btn-primary {
-  background: var(--harmony-primary, #0EA5E9);
+  background: var(--harmony-primary);
   color: var(--text-primary);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #0284C7;
+  background: var(--harmony-primary-hover);
 }
 
 .btn-primary:disabled {

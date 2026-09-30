@@ -360,9 +360,9 @@ defineExpose({
 }
 
 .reaction.reacted {
-  /* background-color: rgba(14, 165, 233, 0.15); */
+  /* background-color: color-mix(in srgb, var(--harmony-primary) 15%, transparent); */
   background-color: var(--harmony-primary-alpha);
-  /* border-color: rgba(14, 165, 233, 0.5); */
+  /* border-color: color-mix(in srgb, var(--harmony-primary) 50%, transparent); */
   border-color: var(--harmony-primary);
 }
 

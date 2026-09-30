@@ -209,22 +209,22 @@ const getServerAcronym = (serverName: string): string => {
 
 .nav-item:hover {
   border-radius: 16px;
-  background: var(--h-brand, #0EA5E9);
+  background: var(--h-brand, var(--harmony-primary));
 }
 
 .nav-item.active {
   border-radius: 16px;
-  background: var(--h-brand, #0EA5E9);
+  background: var(--h-brand, var(--harmony-primary));
 }
 
 .dm-button {
-  background: var(--background-secondary, var(--background-secondary));
+  background: var(--background-secondary);
   color: var(--text-primary);
 }
 
 .dm-button:hover,
 .dm-button.active {
-  background: var(--h-brand, #0EA5E9);
+  background: var(--h-brand, var(--harmony-primary));
 }
 
 .nav-icon {
@@ -280,16 +280,16 @@ const getServerAcronym = (serverName: string): string => {
 }
 
 .server-item {
-  background: var(--background-secondary, var(--background-secondary));
+  background: var(--background-secondary);
   position: relative;
 }
 
 .server-item:hover {
-  background: var(--h-brand, #0EA5E9);
+  background: var(--h-brand, var(--harmony-primary));
 }
 
 .server-item.active {
-  background: var(--h-brand, #0EA5E9);
+  background: var(--h-brand, var(--harmony-primary));
 }
 
 .server-icon {
@@ -321,7 +321,7 @@ const getServerAcronym = (serverName: string): string => {
 .federation-icon {
   width: 10px;
   height: 10px;
-  color: var(--h-brand, #0EA5E9);
+  color: var(--h-brand, var(--harmony-primary));
 }
 
 .server-image {
@@ -365,7 +365,7 @@ const getServerAcronym = (serverName: string): string => {
 .add-server-btn,
 .explore-btn,
 .settings-btn {
-  background: var(--background-secondary, var(--background-secondary));
+  background: var(--background-secondary);
   color: #3ba55c;
 }
 

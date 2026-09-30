@@ -554,7 +554,7 @@ const formatDate = (dateString: string | undefined): string => {
 
 .confirmation-input:focus {
   outline: none;
-  border-color: #0EA5E9;
+  border-color: var(--harmony-primary);
 }
 
 .confirmation-input.error {

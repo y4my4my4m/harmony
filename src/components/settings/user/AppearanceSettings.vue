@@ -1375,7 +1375,7 @@ onMounted(async () => {
 
 .settings-description {
   font-size: 14px;
-  color: var(--text-secondary, var(--text-secondary));
+  color: var(--text-secondary);
   margin: 0;
 }
 
@@ -1430,11 +1430,11 @@ onMounted(async () => {
 }
 
 .theme-option:hover {
-  border-color: var(--h-primary, #0EA5E9);
+  border-color: var(--h-primary, var(--harmony-primary));
 }
 
 .theme-option.active {
-  border-color: var(--h-primary, #0EA5E9);
+  border-color: var(--h-primary, var(--harmony-primary));
   background-color: color-mix(in srgb, var(--h-brand) 10%, transparent);
 }
 
@@ -1489,7 +1489,7 @@ onMounted(async () => {
 
 .theme-description {
   font-size: 12px;
-  color: var(--text-secondary, var(--text-secondary));
+  color: var(--text-secondary);
   margin: 0;
 }
 
@@ -1608,7 +1608,7 @@ onMounted(async () => {
 
 .section-help {
   font-size: 12px;
-  color: var(--text-secondary, var(--text-secondary));
+  color: var(--text-secondary);
   margin: 0 0 16px 0;
   line-height: 1.5;
 }
@@ -1635,7 +1635,7 @@ onMounted(async () => {
   padding: 12px 16px;
   border: 2px solid var(--background-quaternary);
   background-color: var(--background-senary);
-  color: var(--text-secondary, var(--text-secondary));
+  color: var(--text-secondary);
   border-radius: 6px;
   cursor: pointer;
   font-size: 14px;
@@ -1644,12 +1644,12 @@ onMounted(async () => {
 }
 
 .mode-btn:hover {
-  border-color: var(--h-primary, #0EA5E9);
+  border-color: var(--h-primary, var(--harmony-primary));
   background-color: var(--background-quaternary);
 }
 
 .mode-btn.active {
-  border-color: var(--h-primary, #0EA5E9);
+  border-color: var(--h-primary, var(--harmony-primary));
   background-color: color-mix(in srgb, var(--h-brand) 15%, transparent);
   color: var(--text-primary, #ffffff);
 }
@@ -1669,7 +1669,7 @@ onMounted(async () => {
 }
 
 .quick-react-emoji-btn:hover {
-  border-color: var(--harmony-primary, #0EA5E9);
+  border-color: var(--harmony-primary);
   transform: scale(1.05);
 }
 
@@ -1697,7 +1697,7 @@ onMounted(async () => {
   padding: 16px 20px;
   border: 2px solid var(--background-quaternary);
   background-color: var(--background-senary);
-  color: var(--text-secondary, var(--text-secondary));
+  color: var(--text-secondary);
   border-radius: 8px;
   cursor: pointer;
   font-size: 13px;
@@ -1707,13 +1707,13 @@ onMounted(async () => {
 }
 
 .emoji-pack-btn:hover {
-  border-color: var(--h-primary, #0EA5E9);
+  border-color: var(--h-primary, var(--harmony-primary));
   background-color: var(--background-quaternary);
 }
 
 .emoji-pack-btn.active {
-  border-color: var(--h-primary, #0EA5E9);
-  background-color: rgba(14, 165, 233, 0.15);
+  border-color: var(--h-primary, var(--harmony-primary));
+  background-color: color-mix(in srgb, var(--harmony-primary) 15%, transparent);
   color: var(--text-primary, #ffffff);
 }
 
@@ -1770,13 +1770,13 @@ onMounted(async () => {
 }
 
 .skin-card:hover {
-  border-color: var(--harmony-primary, #0EA5E9);
+  border-color: var(--harmony-primary);
   transform: translateY(-1px);
 }
 
 .skin-card.active {
-  border-color: var(--harmony-primary, #0EA5E9);
-  box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.3);
+  border-color: var(--harmony-primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--harmony-primary) 30%, transparent);
 }
 
 .skin-card-preview {
@@ -1886,13 +1886,13 @@ onMounted(async () => {
 }
 
 .font-family-btn:hover {
-  border-color: var(--harmony-primary, #0EA5E9);
+  border-color: var(--harmony-primary);
   background-color: var(--background-quaternary);
 }
 
 .font-family-btn.active {
-  border-color: var(--harmony-primary, #0EA5E9);
-  background-color: rgba(14, 165, 233, 0.15);
+  border-color: var(--harmony-primary);
+  background-color: color-mix(in srgb, var(--harmony-primary) 15%, transparent);
 }
 
 .font-family-name {
@@ -2032,7 +2032,7 @@ onMounted(async () => {
 
 .picker-help {
   font-size: 12px;
-  color: var(--text-secondary, var(--text-secondary));
+  color: var(--text-secondary);
   margin: 0 0 12px 0;
 }
 
@@ -2072,7 +2072,7 @@ onMounted(async () => {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: var(--h-primary, #0EA5E9);
+  background: var(--h-primary, var(--harmony-primary));
   cursor: pointer;
   border: 3px solid var(--text-primary, #ffffff);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
@@ -2087,7 +2087,7 @@ onMounted(async () => {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: var(--h-primary, #0EA5E9);
+  background: var(--h-primary, var(--harmony-primary));
   cursor: pointer;
   border: 3px solid var(--text-primary, #ffffff);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
@@ -2097,7 +2097,7 @@ onMounted(async () => {
   text-align: center;
   font-size: 12px;
   font-weight: 600;
-  color: var(--text-secondary, var(--text-secondary));
+  color: var(--text-secondary);
   margin-top: 8px;
 }
 
@@ -2137,7 +2137,7 @@ onMounted(async () => {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: var(--h-primary, #0EA5E9);
+  background: var(--h-primary, var(--harmony-primary));
   cursor: pointer;
   border: 3px solid var(--text-primary, #ffffff);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
@@ -2152,7 +2152,7 @@ onMounted(async () => {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: var(--h-primary, #0EA5E9);
+  background: var(--h-primary, var(--harmony-primary));
   cursor: pointer;
   border: 3px solid var(--text-primary, #ffffff);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
@@ -2162,7 +2162,7 @@ onMounted(async () => {
   text-align: center;
   font-size: 12px;
   font-weight: 600;
-  color: var(--text-secondary, var(--text-secondary));
+  color: var(--text-secondary);
   margin-top: 8px;
 }
 
@@ -2195,7 +2195,7 @@ onMounted(async () => {
 
 .setting-description {
   font-size: 12px;
-  color: var(--text-secondary, var(--text-secondary));
+  color: var(--text-secondary);
   margin: 0;
   line-height: 1.4;
 }
@@ -2224,7 +2224,7 @@ onMounted(async () => {
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: var(--h-primary, #0EA5E9);
+  background: var(--h-primary, var(--harmony-primary));
   cursor: pointer;
 }
 
@@ -2232,14 +2232,14 @@ onMounted(async () => {
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: var(--h-primary, #0EA5E9);
+  background: var(--h-primary, var(--harmony-primary));
   cursor: pointer;
   border: none;
 }
 
 .font-size-display {
   font-size: 12px;
-  color: var(--text-secondary, var(--text-secondary));
+  color: var(--text-secondary);
   min-width: 40px;
   text-align: center;
 }
@@ -2293,7 +2293,7 @@ onMounted(async () => {
 
 .select-input:focus {
   outline: none;
-  border-color: var(--h-primary, #0EA5E9);
+  border-color: var(--h-primary, var(--harmony-primary));
 }
 
 .settings-actions {
@@ -2601,7 +2601,7 @@ onMounted(async () => {
 
 .var-item.has-override {
   border-left-color: var(--harmony-primary);
-  background: rgba(14, 165, 233, 0.04);
+  background: color-mix(in srgb, var(--harmony-primary) 4%, transparent);
 }
 
 .var-name {

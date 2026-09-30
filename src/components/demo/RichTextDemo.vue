@@ -176,7 +176,7 @@ watch(testText, (newValue) => {
 
 .node-type {
   font-weight: bold;
-  color: #0EA5E9;
+  color: var(--harmony-primary);
   min-width: 80px;
   font-size: 12px;
   text-transform: uppercase;
@@ -240,7 +240,7 @@ select {
 
 /* Syntax highlighting classes */
 .syntax-keyword {
-  color: #0EA5E9;
+  color: var(--harmony-primary);
   font-weight: bold;
 }
 

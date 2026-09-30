@@ -587,7 +587,7 @@ const highlightSearchText = (messageElement: HTMLElement, query: string) => {
 
 .dm-call-banner {
   flex-shrink: 0;
-  background: var(--accent-color, #0EA5E9);
+  background: var(--accent-color, var(--harmony-primary));
   border-bottom: 1px solid rgba(0, 0, 0, 0.2);
 }
 
@@ -618,7 +618,7 @@ const highlightSearchText = (messageElement: HTMLElement, query: string) => {
 
 .call-banner-join {
   background: #fff;
-  color: var(--accent-color, #0EA5E9);
+  color: var(--accent-color, var(--harmony-primary));
   border: none;
   border-radius: 4px;
   padding: 4px 12px;

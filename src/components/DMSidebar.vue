@@ -572,7 +572,7 @@ onUnmounted(() => {
 .search-input {
   width: 100%;
   padding: 8px 32px 8px 12px;
-  background: var(--background-secondary, var(--background-secondary));
+  background: var(--background-secondary);
   border: 1px solid var(--background-quaternary, var(--background-quinary));
   border-radius: 4px;
   color: var(--text-primary);
@@ -582,7 +582,7 @@ onUnmounted(() => {
 }
 
 .search-input:focus {
-  border-color: var(--h-brand, #0EA5E9);
+  border-color: var(--h-brand, var(--harmony-primary));
 }
 
 .search-input::placeholder {
@@ -741,7 +741,7 @@ onUnmounted(() => {
   padding: 8px 16px;
   border: none;
   border-radius: 6px;
-  background: var(--accent-color, #0EA5E9);
+  background: var(--accent-color, var(--harmony-primary));
   color: #fff;
   font-size: 14px;
   font-weight: 600;
@@ -817,7 +817,7 @@ onUnmounted(() => {
 }
 
 .conversation-item.active {
-  background: var(--h-brand, #0EA5E9);
+  background: var(--h-brand, var(--harmony-primary));
 }
 
 .conversation-item.unread {
@@ -864,7 +864,7 @@ onUnmounted(() => {
   width: 100%;
   height: 100%;
   border-radius: 50%;
-  background: var(--h-brand, #0EA5E9);
+  background: var(--h-brand, var(--harmony-primary));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -998,7 +998,7 @@ onUnmounted(() => {
   /* Enhanced mobile touch targets */
   .dm-header {
     padding: 20px 16px;
-    border-bottom: 1px solid rgba(14, 165, 233, 0.1);
+    border-bottom: 1px solid color-mix(in srgb, var(--harmony-primary) 10%, transparent);
   }
 
   .dm-title {
@@ -1015,7 +1015,7 @@ onUnmounted(() => {
 
   .new-dm-btn:active {
     transform: scale(0.95);
-    background: rgba(14, 165, 233, 0.2);
+    background: color-mix(in srgb, var(--harmony-primary) 20%, transparent);
   }
 
   .user-search-section {

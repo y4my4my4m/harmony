@@ -538,8 +538,8 @@ onMounted(() => {
 }
 
 .step.active .step-indicator {
-  background: var(--primary, #0EA5E9);
-  border-color: var(--primary, #0EA5E9);
+  background: var(--primary, var(--harmony-primary));
+  border-color: var(--primary, var(--harmony-primary));
   color: var(--text-primary);
 }
 
@@ -584,7 +584,7 @@ onMounted(() => {
 .intro-card {
   text-align: center;
   padding: 32px;
-  background: linear-gradient(135deg, rgba(14, 165, 233, 0.1) 0%, rgba(14, 165, 233, 0.05) 100%);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--harmony-primary) 10%, transparent) 0%, color-mix(in srgb, var(--harmony-primary) 5%, transparent) 100%);
   border-radius: 12px;
   margin-bottom: 24px;
 }
@@ -803,7 +803,7 @@ onMounted(() => {
 
 .verify-input input:focus {
   outline: none;
-  border-color: var(--primary, #0EA5E9);
+  border-color: var(--primary, var(--harmony-primary));
 }
 
 .verify-status {
@@ -875,8 +875,8 @@ onMounted(() => {
   display: flex;
   gap: 12px;
   padding: 16px;
-  background: rgba(14, 165, 233, 0.1);
-  border: 1px solid rgba(14, 165, 233, 0.3);
+  background: color-mix(in srgb, var(--harmony-primary) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--harmony-primary) 30%, transparent);
   border-radius: 8px;
   text-align: left;
 }
@@ -925,12 +925,12 @@ onMounted(() => {
 }
 
 .btn-primary {
-  background: var(--primary, #0EA5E9);
+  background: var(--primary, var(--harmony-primary));
   color: var(--text-primary);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: var(--primary-hover, #0284C7);
+  background: var(--primary-hover, var(--harmony-primary-hover));
 }
 
 .btn-secondary {

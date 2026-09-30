@@ -1357,8 +1357,8 @@ onUnmounted(() => {
 }
 
 .dock-connection-badge.p2p {
-  background: rgba(14, 165, 233, 0.2);
-  color: #0EA5E9;
+  background: color-mix(in srgb, var(--harmony-primary) 20%, transparent);
+  color: var(--harmony-primary);
 }
 
 
@@ -1526,9 +1526,9 @@ onUnmounted(() => {
 }
 
 .expand-btn:hover {
-  background: linear-gradient(145deg, #0EA5E9, #0284C7);
+  background: linear-gradient(145deg, var(--harmony-primary), var(--harmony-primary-hover));
   color: var(--text-primary);
-  border-color: rgba(14, 165, 233, 0.6);
+  border-color: color-mix(in srgb, var(--harmony-primary) 60%, transparent);
 }
 
 .minimize-btn:hover {
@@ -1671,9 +1671,9 @@ onUnmounted(() => {
 }
 
 .channel-icon {
-  background: rgba(14, 165, 233, 0.2);
+  background: color-mix(in srgb, var(--harmony-primary) 20%, transparent);
   border-radius: 10px;
-  color: #0EA5E9;
+  color: var(--harmony-primary);
   width: 24px;
   height: 24px;
   padding: 4px;
@@ -1693,8 +1693,8 @@ onUnmounted(() => {
 }
 
 .participant-count {
-  background: rgba(14, 165, 233, 0.2);
-  color: #0EA5E9;
+  background: color-mix(in srgb, var(--harmony-primary) 20%, transparent);
+  color: var(--harmony-primary);
   padding: 2px 6px;
   border-radius: 10px;
   font-size: 12px;

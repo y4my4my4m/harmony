@@ -412,7 +412,7 @@ watch(() => props.serverId, () => {
   width: 20px;
   height: 20px;
   margin: 2px 0 0 0;
-  accent-color: #0EA5E9;
+  accent-color: var(--harmony-primary);
 }
 
 .radio-content {
@@ -494,7 +494,7 @@ watch(() => props.serverId, () => {
 .role-checkbox input[type="checkbox"] {
   width: 16px;
   height: 16px;
-  accent-color: #0EA5E9;
+  accent-color: var(--harmony-primary);
 }
 
 .role-info {
@@ -553,7 +553,7 @@ watch(() => props.serverId, () => {
 
 .setting-select:focus {
   outline: none;
-  border-color: #0EA5E9;
+  border-color: var(--harmony-primary);
   background: rgba(255, 255, 255, 0.06);
 }
 
@@ -659,13 +659,13 @@ watch(() => props.serverId, () => {
 }
 
 .action-button.primary {
-  background: linear-gradient(135deg, #0EA5E9, #0284C7);
+  background: linear-gradient(135deg, var(--harmony-primary), var(--harmony-primary-hover));
   color: var(--text-primary);
 }
 
 .action-button.primary:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--harmony-primary) 30%, transparent);
 }
 
 .button-icon {

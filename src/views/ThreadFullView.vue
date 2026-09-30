@@ -1231,8 +1231,8 @@ onUnmounted(() => {
 }
 
 .parent-message.highlighted {
-  background-color: rgba(14, 165, 233, 0.15);
-  border-left: 3px solid #0ea5e9;
+  background-color: color-mix(in srgb, var(--harmony-primary) 15%, transparent);
+  border-left: 3px solid var(--harmony-primary);
   border-radius: 8px;
 }
 

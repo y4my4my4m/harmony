@@ -1477,7 +1477,7 @@ onMounted(() => {
 .profile-banner {
   position: relative;
   height: 120px;
-  background: linear-gradient(135deg, #0EA5E9, #38BDF8);
+  background: linear-gradient(135deg, var(--harmony-primary), var(--harmony-secondary));
   overflow: hidden;
 }
 
@@ -1527,8 +1527,8 @@ onMounted(() => {
 }
 
 .action-button.active {
-  background: rgba(14, 165, 233, 0.8);
-  border-color: #0EA5E9;
+  background: color-mix(in srgb, var(--harmony-primary) 80%, transparent);
+  border-color: var(--harmony-primary);
 }
 
 .action-icon,
@@ -1730,8 +1730,8 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   padding: 0 2px;
-  background: rgba(14, 165, 233, 0.2);
-  border: 1px solid rgba(14, 165, 233, 0.3);
+  background: color-mix(in srgb, var(--harmony-primary) 20%, transparent);
+  border: 1px solid color-mix(in srgb, var(--harmony-primary) 30%, transparent);
   border-radius: 6px;
   font-size: 11px;
   font-weight: 600;
@@ -1825,12 +1825,12 @@ onMounted(() => {
 }
 
 .stat-item.clickable:hover {
-  background: rgba(14, 165, 233, 0.15);
+  background: color-mix(in srgb, var(--harmony-primary) 15%, transparent);
   transform: scale(1.05);
 }
 
 .stat-item.clickable:hover .stat-value {
-  color: #0EA5E9;
+  color: var(--harmony-primary);
 }
 
 .stat-value {
@@ -1959,13 +1959,13 @@ onMounted(() => {
 }
 
 .activity-card.clickable:hover {
-  background: rgba(14, 165, 233, 0.1);
-  border-color: rgba(14, 165, 233, 0.3);
+  background: color-mix(in srgb, var(--harmony-primary) 10%, transparent);
+  border-color: color-mix(in srgb, var(--harmony-primary) 30%, transparent);
   transform: translateY(-1px);
 }
 
 .activity-card.clickable:hover .activity-icon {
-  background: rgba(14, 165, 233, 0.3);
+  background: color-mix(in srgb, var(--harmony-primary) 30%, transparent);
 }
 
 .activity-icon {
@@ -1974,9 +1974,9 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(14, 165, 233, 0.2);
+  background: color-mix(in srgb, var(--harmony-primary) 20%, transparent);
   border-radius: 8px;
-  color: #0EA5E9;
+  color: var(--harmony-primary);
   flex-shrink: 0;
 }
 
@@ -2039,7 +2039,7 @@ onMounted(() => {
 }
 
 .federation-link {
-  color: #0EA5E9;
+  color: var(--harmony-primary);
   text-decoration: none;
   font-weight: 600;
 }
@@ -2110,7 +2110,7 @@ onMounted(() => {
 
 .note-input:focus {
   outline: none;
-  border-color: #0EA5E9;
+  border-color: var(--harmony-primary);
   background: rgba(255, 255, 255, 0.04);
 }
 
@@ -2177,9 +2177,9 @@ onMounted(() => {
 }
 
 .primary-action-btn {
-  background: linear-gradient(135deg, #0EA5E9, #0284C7);
+  background: linear-gradient(135deg, var(--harmony-primary), var(--harmony-primary-hover));
   color: var(--text-primary);
-  box-shadow: 0 2px 8px rgba(14, 165, 233, 0.3);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--harmony-primary) 30%, transparent);
 }
 
 
@@ -2190,7 +2190,7 @@ onMounted(() => {
 
 .primary-action-btn:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.4);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--harmony-primary) 40%, transparent);
 }
 
 .primary-action-btn.following:hover {

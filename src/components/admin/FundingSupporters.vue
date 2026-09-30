@@ -1358,8 +1358,8 @@ onMounted(() => {
 
 
 .report-action-btn.investigating {
-  background: rgba(14, 165, 233, 0.3);
-  color: #38BDF8;
+  background: color-mix(in srgb, var(--harmony-primary) 30%, transparent);
+  color: var(--harmony-secondary);
 }
 
 
@@ -1476,7 +1476,7 @@ onMounted(() => {
   font-size: 10px;
   padding: 2px 8px;
   border-radius: 10px;
-  background: rgba(14, 165, 233, 0.15);
+  background: color-mix(in srgb, var(--harmony-primary) 15%, transparent);
   color: var(--harmony-primary);
   text-transform: none;
   letter-spacing: 0;
@@ -1750,7 +1750,7 @@ onMounted(() => {
 
 .pending-suggestion:hover,
 .pending-suggestion.active {
-  background: rgba(14, 165, 233, 0.15);
+  background: color-mix(in srgb, var(--harmony-primary) 15%, transparent);
   color: var(--text-primary);
 }
 
@@ -2391,8 +2391,8 @@ onMounted(() => {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  color: var(--harmony-primary, #0ea5e9);
-  border: 1px solid var(--harmony-primary-alpha, rgba(14, 165, 233, 0.4));
+  color: var(--harmony-primary);
+  border: 1px solid var(--harmony-primary-alpha, color-mix(in srgb, var(--harmony-primary) 40%, transparent));
   border-radius: 4px;
   padding: 1px 5px;
   width: fit-content;

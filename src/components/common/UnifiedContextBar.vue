@@ -254,7 +254,7 @@ const formatCurrency = (amount: number, currency: string) => {
 
 .funding-progress-fill {
   height: 100%;
-  background: var(--harmony-primary, #0EA5E9);
+  background: var(--harmony-primary);
   border-radius: 2px;
   transition: width 0.3s ease;
 }

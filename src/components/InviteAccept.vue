@@ -210,7 +210,7 @@ onMounted(async () => {
   justify-content: center;
   width: 100%;
   height: 100%;
-  background: linear-gradient(135deg, var(--harmony-primary, #0ea5e9), var(--harmony-primary-hover, #38bdf8));
+  background: linear-gradient(135deg, var(--harmony-primary), var(--harmony-primary-hover, var(--harmony-secondary)));
   font-size: 32px;
   font-weight: 700;
   color: var(--text-primary);
@@ -281,13 +281,13 @@ onMounted(async () => {
 
 .invite-btn.primary {
   margin-top: 8px;
-  background: linear-gradient(135deg, var(--harmony-primary, #0ea5e9), var(--harmony-primary-hover, #0284c7));
+  background: linear-gradient(135deg, var(--harmony-primary), var(--harmony-primary-hover));
   color: var(--text-primary);
 }
 
 .invite-btn.primary:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(14, 165, 233, 0.35);
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--harmony-primary) 35%, transparent);
 }
 
 .invite-btn.primary:disabled {

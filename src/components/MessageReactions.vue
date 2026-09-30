@@ -344,7 +344,7 @@ watch(() => props.message.id, (newMessageId, oldMessageId) => {
   width: 16px;
   height: 16px;
   border: 2px solid var(--background-quinary);
-  border-top: 2px solid #0EA5E9;
+  border-top: 2px solid var(--harmony-primary);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }

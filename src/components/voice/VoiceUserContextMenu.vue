@@ -659,7 +659,7 @@ watch(
 
 .volume-value {
   margin-left: auto;
-  color: #0EA5E9;
+  color: var(--harmony-primary);
   font-weight: 700;
 }
 
@@ -690,7 +690,7 @@ watch(
   background: var(--harmony-primary);
   border-radius: 50%;
   cursor: pointer;
-  box-shadow: 0 2px 6px rgba(14, 165, 233, 0.4);
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--harmony-primary) 40%, transparent);
   transition: transform 0.15s ease;
 }
 
@@ -746,7 +746,7 @@ watch(
 .preset-btn.active {
   background: var(--harmony-primary);
   color: var(--text-primary);
-  border-color: #0EA5E9;
+  border-color: var(--harmony-primary);
 }
 
 .boost-indicator {
@@ -812,7 +812,7 @@ watch(
 .quality-btn.active {
   background: var(--harmony-primary);
   color: var(--text-primary);
-  border-color: #0EA5E9;
+  border-color: var(--harmony-primary);
 }
 
 /* Actions */

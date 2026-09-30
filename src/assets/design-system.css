@@ -125,9 +125,9 @@
 /* === LAYOUT SURFACE TOKENS (from base.css) === */
 :root {
   /* Layout surface colors */
-  --h-primary: #0EA5E9;
-  --h-primary-light: #38BDF8;
-  --h-primary-dark: #0369A1;
+  --h-primary: var(--harmony-primary);
+  --h-primary-light: var(--harmony-secondary);
+  --h-primary-dark: var(--harmony-primary-hover);
 
   --h-brand: var(--harmony-primary, #0EA5E9);
   --h-channel-sidebar: var(--background-tertiary);
@@ -158,6 +158,11 @@
   --color-text-tertiary: var(--text-muted);
   --color-heading: var(--text-primary);
   --color-primary: var(--harmony-primary);
+  /* Accent aliases components reach for; all follow the user's accent. */
+  --accent-color: var(--harmony-primary);
+  --accent-primary: var(--harmony-primary);
+  --primary-color: var(--harmony-primary);
+  --primary-hover: var(--harmony-primary-hover);
   --color-border: var(--border-secondary);
   --color-border-hover: var(--border-hover);
   --border-color: #232529;

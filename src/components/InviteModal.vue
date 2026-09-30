@@ -690,7 +690,7 @@ watch(() => props.show, (visible) => {
 .default-server-icon {
   width: 100%;
   height: 100%;
-  background: linear-gradient(135deg, #0EA5E9, #38BDF8);
+  background: linear-gradient(135deg, var(--harmony-primary), var(--harmony-secondary));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -747,7 +747,7 @@ watch(() => props.show, (visible) => {
 
 .invite-url-input:focus {
   outline: none;
-  border-color: #0EA5E9;
+  border-color: var(--harmony-primary);
 }
 
 .copy-button {
@@ -767,7 +767,7 @@ watch(() => props.show, (visible) => {
 }
 
 .copy-button:hover:not(:disabled) {
-  background: #0284C7;
+  background: var(--harmony-primary-hover);
   transform: translateY(-1px);
 }
 
@@ -842,7 +842,7 @@ watch(() => props.show, (visible) => {
 
 .setting-select:focus {
   outline: none;
-  border-color: #0EA5E9;
+  border-color: var(--harmony-primary);
 }
 
 .settings-hint {
@@ -1004,9 +1004,9 @@ watch(() => props.show, (visible) => {
 }
 
 .history-copy-btn:hover:not(:disabled) {
-  background: rgba(14, 165, 233, 0.2);
-  border-color: #0EA5E9;
-  color: #0EA5E9;
+  background: color-mix(in srgb, var(--harmony-primary) 20%, transparent);
+  border-color: var(--harmony-primary);
+  color: var(--harmony-primary);
 }
 
 .history-revoke-btn:hover:not(:disabled) {
@@ -1102,13 +1102,13 @@ watch(() => props.show, (visible) => {
 }
 
 .footer-button.primary {
-  background: linear-gradient(135deg, #0EA5E9, #0284C7);
+  background: linear-gradient(135deg, var(--harmony-primary), var(--harmony-primary-hover));
   color: var(--text-primary);
 }
 
 .footer-button.primary:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--harmony-primary) 30%, transparent);
 }
 
 .footer-button:disabled {

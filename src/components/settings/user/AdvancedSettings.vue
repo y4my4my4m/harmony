@@ -576,7 +576,7 @@ const clearCache = async () => {
 
 
 .setting-description a {
-  color: var(--harmony-primary, #0EA5E9);
+  color: var(--harmony-primary);
 }
 
 .setting-description {

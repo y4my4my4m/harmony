@@ -1087,8 +1087,8 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
     align-items: center;
     padding: 2px 8px;
     border-radius: 4px;
-    background: var(--harmony-primary-alpha, rgba(14, 165, 233, 0.15));
-    color: var(--accent-color, #0EA5E9);
+    background: var(--harmony-primary-alpha, color-mix(in srgb, var(--harmony-primary) 15%, transparent));
+    color: var(--accent-color, var(--harmony-primary));
     font-size: 12px;
     font-weight: 600;
   }
@@ -1166,8 +1166,8 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
   }
 
   .slowmode-indicator.cooling {
-    color: var(--harmony-primary, #0EA5E9);
-    background: rgba(14, 165, 233, 0.12);
+    color: var(--harmony-primary);
+    background: color-mix(in srgb, var(--harmony-primary) 12%, transparent);
   }
 
   .message-char-count.over-limit {
@@ -1326,7 +1326,7 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
 
   /* Send button; rendered on mobile only. */
   .send-button {
-    background-color: var(--harmony--primary, #0EA5E9) !important;
+    background-color: var(--harmony--primary, var(--harmony-primary)) !important;
     border-radius: 50% !important;
     width: 36px !important;
     height: 36px !important;
@@ -1336,7 +1336,7 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
   }
 
   .send-button:hover {
-    background-color: var(--harmony--primary-dark, #0284C7) !important;
+    background-color: var(--harmony--primary-dark, var(--harmony-primary-hover)) !important;
   }
 
   .send-button:active {

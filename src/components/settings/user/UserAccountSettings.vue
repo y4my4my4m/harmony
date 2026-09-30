@@ -964,7 +964,7 @@ onMounted(async () => {
 .form-input:focus,
 .form-textarea:focus {
   outline: none;
-  border-color: #0EA5E9;
+  border-color: var(--harmony-primary);
 }
 
 .form-input:disabled,
@@ -1011,7 +1011,7 @@ onMounted(async () => {
 }
 
 .color-hex-field:focus-within {
-  border-color: var(--harmony-primary, #0EA5E9);
+  border-color: var(--harmony-primary);
 }
 
 .color-hex-swatch {
@@ -1141,7 +1141,7 @@ onMounted(async () => {
 }
 
 .btn-primary:hover:not(:disabled) {
-  background-color: #0284C7;
+  background-color: var(--harmony-primary-hover);
 }
 
 .btn-secondary {
@@ -1285,7 +1285,7 @@ onMounted(async () => {
 
 .profile-field-add:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.04);
-  border-color: var(--harmony-primary, #0EA5E9);
+  border-color: var(--harmony-primary);
 }
 
 .profile-field-add:disabled {
@@ -1320,8 +1320,8 @@ onMounted(async () => {
 .donor-handle-callout {
   padding: 14px 16px;
   margin-bottom: 16px;
-  background: rgba(14, 165, 233, 0.06);
-  border: 1px solid rgba(14, 165, 233, 0.22);
+  background: color-mix(in srgb, var(--harmony-primary) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--harmony-primary) 22%, transparent);
   border-radius: 10px;
 }
 
@@ -1332,7 +1332,7 @@ onMounted(async () => {
   margin: 0 0 10px;
   font-size: 13px;
   font-weight: 700;
-  color: var(--harmony-primary, #0EA5E9);
+  color: var(--harmony-primary);
   text-transform: none;
   letter-spacing: 0;
 }
@@ -1356,12 +1356,12 @@ onMounted(async () => {
   display: inline-block;
   padding: 6px 10px;
   background: var(--background-primary);
-  border: 1px dashed var(--harmony-primary, #0EA5E9);
+  border: 1px dashed var(--harmony-primary);
   border-radius: 6px;
   font-family: 'Consolas', 'Monaco', monospace;
   font-size: 13px;
   font-weight: 600;
-  color: var(--harmony-primary, #0EA5E9);
+  color: var(--harmony-primary);
   user-select: all;
   word-break: break-all;
 }
@@ -1383,8 +1383,8 @@ onMounted(async () => {
 }
 
 .donor-copy-btn:hover {
-  border-color: var(--harmony-primary, #0EA5E9);
-  color: var(--harmony-primary, #0EA5E9);
+  border-color: var(--harmony-primary);
+  color: var(--harmony-primary);
 }
 
 .donor-handle-hint {
@@ -1547,7 +1547,7 @@ onMounted(async () => {
 }
 
 .supporter-link:hover {
-  border-color: var(--harmony-primary, #0EA5E9);
+  border-color: var(--harmony-primary);
   background: var(--background-modifier-hover, var(--background-secondary));
 }
 </style>

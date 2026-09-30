@@ -134,7 +134,7 @@ const markAsRead = () => {
 }
 
 .context-menu-item:hover {
-  background-color: var(--harmony-primary, #0EA5E9);
+  background-color: var(--harmony-primary);
   color: var(--text-primary);
 }
 

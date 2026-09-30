@@ -613,13 +613,13 @@ onMounted(() => {
 }
 
 .create-button {
-  background: linear-gradient(135deg, #0EA5E9, #0284C7);
+  background: linear-gradient(135deg, var(--harmony-primary), var(--harmony-primary-hover));
   color: var(--text-primary);
 }
 
 .create-button:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--harmony-primary) 30%, transparent);
 }
 
 .refresh-icon,
@@ -972,8 +972,8 @@ onMounted(() => {
 }
 
 .action-btn.copy:hover:not(:disabled) {
-  border-color: #0EA5E9;
-  color: #0EA5E9;
+  border-color: var(--harmony-primary);
+  color: var(--harmony-primary);
 }
 
 .action-btn.revoke:hover:not(:disabled) {

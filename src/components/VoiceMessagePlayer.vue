@@ -165,16 +165,16 @@ watch(() => props.src, (newSrc) => {
   height: 36px;
   border-radius: 50%;
   border: none;
-  background: var(--harmony-primary, #0EA5E9);
+  background: var(--harmony-primary);
   color: #fff;
   cursor: pointer;
   flex-shrink: 0;
   transition: background 0.15s ease, transform 0.12s ease;
-  box-shadow: 0 2px 8px rgba(14, 165, 233, 0.25);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--harmony-primary) 25%, transparent);
 }
 
 .play-btn:hover {
-  background: var(--harmony-primary-hover, #0284C7);
+  background: var(--harmony-primary-hover);
   transform: scale(1.06);
 }
 
@@ -203,7 +203,7 @@ watch(() => props.src, (newSrc) => {
 }
 
 .waveform-bar.played {
-  background: var(--harmony-primary, #0EA5E9);
+  background: var(--harmony-primary);
 }
 
 .time-row {

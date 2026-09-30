@@ -994,12 +994,12 @@ onMounted(() => {
 }
 
 .btn-primary {
-  background: var(--harmony-primary, #0EA5E9);
+  background: var(--harmony-primary);
   color: var(--text-on-primary, #ffffff);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: var(--primary-hover, #0284C7);
+  background: var(--primary-hover, var(--harmony-primary-hover));
 }
 
 .btn-secondary {

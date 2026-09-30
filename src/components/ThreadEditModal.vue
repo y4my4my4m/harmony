@@ -247,7 +247,7 @@ watch(() => props.show, (isVisible) => {
 }
 
 .form-input:focus {
-  border-color: #38BDF8;
+  border-color: var(--harmony-secondary);
 }
 
 .character-count {
@@ -272,7 +272,7 @@ watch(() => props.show, (isVisible) => {
   width: 18px;
   height: 18px;
   cursor: pointer;
-  accent-color: #38BDF8;
+  accent-color: var(--harmony-secondary);
 }
 
 .archive-note {
@@ -317,7 +317,7 @@ watch(() => props.show, (isVisible) => {
 }
 
 .btn-primary {
-  background: #38BDF8;
+  background: var(--harmony-secondary);
   color: var(--text-primary);
 }
 

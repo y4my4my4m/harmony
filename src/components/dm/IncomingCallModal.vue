@@ -234,8 +234,8 @@ const handleDecline = () => {
 }
 
 .incoming-call-modal.video-call {
-  background: linear-gradient(135deg, rgba(14, 165, 233, 0.1), rgba(14, 165, 233, 0.05));
-  border: 2px solid rgba(14, 165, 233, 0.3);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--harmony-primary) 10%, transparent), color-mix(in srgb, var(--harmony-primary) 5%, transparent));
+  border: 2px solid color-mix(in srgb, var(--harmony-primary) 30%, transparent);
 }
 
 .caller-info {
@@ -255,11 +255,11 @@ const handleDecline = () => {
 @keyframes pulse {
   0%, 100% {
     transform: scale(1);
-    box-shadow: 0 0 0 0 rgba(14, 165, 233, 0.7);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--harmony-primary) 70%, transparent);
   }
   50% {
     transform: scale(1.05);
-    box-shadow: 0 0 0 20px rgba(14, 165, 233, 0);
+    box-shadow: 0 0 0 20px color-mix(in srgb, var(--harmony-primary) 0%, transparent);
   }
 }
 
@@ -382,7 +382,7 @@ const handleDecline = () => {
 }
 
 .video-accept:hover {
-  background: #0284C7;
+  background: var(--harmony-primary-hover);
 }
 
 /* Minimized floating card */

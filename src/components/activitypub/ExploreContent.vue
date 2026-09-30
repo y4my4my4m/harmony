@@ -986,7 +986,7 @@ defineExpose({ refreshContent });
 }
 
 .hero-btn-primary:hover {
-  background: var(--harmony-primary-hover, #0284C7);
+  background: var(--harmony-primary-hover);
 }
 
 .hero-btn-secondary {
@@ -1153,7 +1153,7 @@ defineExpose({ refreshContent });
 }
 
 .follow-btn:hover {
-  background: var(--harmony-primary-hover, #0284C7);
+  background: var(--harmony-primary-hover);
 }
 
 .instance-browser {

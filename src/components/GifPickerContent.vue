@@ -801,7 +801,7 @@ onMounted(async () => {
   padding: 0 14px;
   border: none;
   border-radius: 6px;
-  background: var(--harmony-primary, #0EA5E9);
+  background: var(--harmony-primary);
   color: #fff;
   font-size: 13px;
   font-weight: 600;

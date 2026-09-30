@@ -1107,7 +1107,7 @@ const removeServerFromFolder = async () => {
 }
 
 .funding-button:hover {
-  background: var(--harmony-primary, #0EA5E9);
+  background: var(--harmony-primary);
   border-radius: 16px;
 }
 
@@ -1218,7 +1218,7 @@ const removeServerFromFolder = async () => {
 }
 
 .dm-button:hover {
-  background: var(--harmony-primary, #0284C7);
+  background: var(--harmony-primary, var(--harmony-primary-hover));
   transform: translateX(5px);
 }
 
@@ -1227,7 +1227,7 @@ const removeServerFromFolder = async () => {
 }
 
 .dm-button.selected {
-  background: var(--harmony-primary, #0284C7);
+  background: var(--harmony-primary, var(--harmony-primary-hover));
   border-radius: 50%;
 }
 
@@ -1260,12 +1260,12 @@ const removeServerFromFolder = async () => {
 }
 
 .fediverse-button:hover {
-  background: var(--harmony-primary, #0284C7);
+  background: var(--harmony-primary, var(--harmony-primary-hover));
   transform: translateX(5px);
 }
 
 .fediverse-button.selected {
-  background: var(--harmony-primary, #0284C7);
+  background: var(--harmony-primary, var(--harmony-primary-hover));
   border-radius: 50%;
 }
 .fediverse-button:hover .fediverse-icon,
@@ -1465,7 +1465,7 @@ const removeServerFromFolder = async () => {
 }
 
 .server-item-wrapper.drop-target-into .server-item {
-  border: 2px dashed var(--harmony-primary, #0EA5E9);
+  border: 2px dashed var(--harmony-primary);
   border-radius: 16px;
 }
 
@@ -1513,7 +1513,7 @@ const removeServerFromFolder = async () => {
   right: -4px;
   width: 20px;
   height: 20px;
-  background: var(--harmony-primary, #0EA5E9);
+  background: var(--harmony-primary);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -1551,7 +1551,7 @@ const removeServerFromFolder = async () => {
 }
 
 .context-menu-item:hover {
-  background-color: var(--harmony-primary, #0EA5E9);
+  background-color: var(--harmony-primary);
   color: var(--text-on-primary, #ffffff);
 }
 

@@ -490,7 +490,7 @@ watch(isOpen, (newVal) => {
 }
 
 .device-item.active:hover {
-  background: rgba(14, 165, 233, 0.18);
+  background: color-mix(in srgb, var(--harmony-primary) 18%, transparent);
 }
 
 .device-label {

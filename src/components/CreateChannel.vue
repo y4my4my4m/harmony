@@ -371,8 +371,8 @@ const closeForm = () => {
 }
 
 .channel-type-option.active {
-  background: rgba(14, 165, 233, 0.1);
-  border-color: #0EA5E9;
+  background: color-mix(in srgb, var(--harmony-primary) 10%, transparent);
+  border-color: var(--harmony-primary);
 }
 
 .option-icon {
@@ -390,7 +390,7 @@ const closeForm = () => {
 }
 
 .voice-channel {
-  background: linear-gradient(135deg, #0EA5E9, #0284C7);
+  background: linear-gradient(135deg, var(--harmony-primary), var(--harmony-primary-hover));
 }
 
 .option-icon svg {
@@ -446,11 +446,11 @@ const closeForm = () => {
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  background: rgba(14, 165, 233, 0.1);
-  border: 1px solid rgba(14, 165, 233, 0.3);
+  background: color-mix(in srgb, var(--harmony-primary) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--harmony-primary) 30%, transparent);
   border-radius: 16px;
   font-size: 12px;
-  color: #0EA5E9;
+  color: var(--harmony-primary);
   font-weight: 500;
 }
 

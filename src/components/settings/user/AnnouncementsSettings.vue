@@ -384,7 +384,7 @@ onMounted(() => {
 }
 
 .filter-tab.active {
-  background: var(--harmony-primary, #0EA5E9);
+  background: var(--harmony-primary);
   color: var(--text-primary);
 }
 
@@ -488,11 +488,11 @@ onMounted(() => {
 }
 
 .announcement-card.pinned {
-  border-color: rgba(14, 165, 233, 0.55);
+  border-color: color-mix(in srgb, var(--harmony-primary) 55%, transparent);
 }
 
 .announcement-card.unread {
-  box-shadow: inset 3px 0 0 0 var(--harmony-primary, #0EA5E9);
+  box-shadow: inset 3px 0 0 0 var(--harmony-primary);
 }
 
 .announcement-card.inactive,
@@ -539,13 +539,13 @@ onMounted(() => {
 }
 
 .badge-unread {
-  background: var(--harmony-primary, #0EA5E9);
+  background: var(--harmony-primary);
   color: var(--text-primary);
 }
 
 .badge-pinned {
-  background: rgba(14, 165, 233, 0.18);
-  color: var(--harmony-primary, #0EA5E9);
+  background: color-mix(in srgb, var(--harmony-primary) 18%, transparent);
+  color: var(--harmony-primary);
 }
 
 .badge-inactive,
@@ -568,7 +568,7 @@ onMounted(() => {
 }
 
 .announcement-content :deep(a) {
-  color: var(--harmony-primary, #0EA5E9);
+  color: var(--harmony-primary);
 }
 
 .announcement-content :deep(p) {

@@ -469,7 +469,7 @@ async function restoreEncryption() {
 }
 
 .tab-btn:hover {
-  border-color: var(--harmony-primary-alpha, rgba(14, 165, 233, 0.5));
+  border-color: var(--harmony-primary-alpha, color-mix(in srgb, var(--harmony-primary) 50%, transparent));
   color: var(--text-primary);
 }
 
@@ -558,7 +558,7 @@ async function restoreEncryption() {
 .word-input input:focus {
   outline: none;
   border-color: var(--harmony-primary);
-  box-shadow: 0 0 0 2px var(--harmony-primary-light, rgba(14, 165, 233, 0.15));
+  box-shadow: 0 0 0 2px var(--harmony-primary-light, color-mix(in srgb, var(--harmony-primary) 15%, transparent));
 }
 
 /* Quick Actions */
@@ -696,7 +696,7 @@ async function restoreEncryption() {
 
 .qr-input textarea:focus {
   outline: none;
-  border-color: var(--primary, #0EA5E9);
+  border-color: var(--primary, var(--harmony-primary));
 }
 
 /* Verification Section */
@@ -759,12 +759,12 @@ async function restoreEncryption() {
 }
 
 .btn-primary {
-  background: var(--primary, #0EA5E9);
+  background: var(--primary, var(--harmony-primary));
   color: var(--text-primary);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: var(--primary-hover, #0284C7);
+  background: var(--primary-hover, var(--harmony-primary-hover));
 }
 
 .btn-secondary {

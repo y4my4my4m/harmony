@@ -236,7 +236,7 @@ onUnmounted(() => {
 
 /* .avatar-container.interactive .avatar-image:hover {
   transform: scale(1.05);
-  border-color: #0EA5E9;
+  border-color: var(--harmony-primary);
 } */
 
 /* Size classes mirror the voice overlay. */
@@ -399,7 +399,7 @@ onUnmounted(() => {
 }
 
 .avatar-edit-btn:hover:not(:disabled) {
-  background-color: #0284C7;
+  background-color: var(--harmony-primary-hover);
   transform: scale(1.1);
 }
 

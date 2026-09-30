@@ -1195,7 +1195,7 @@ onMounted(async () => {
 }
 
 .radio-option input[type="radio"]:checked {
-  border-color: #0EA5E9;
+  border-color: var(--harmony-primary);
   background-color: var(--harmony-primary);
 }
 
@@ -1303,7 +1303,7 @@ onMounted(async () => {
 }
 
 .btn-primary:hover:not(:disabled) {
-  background-color: #0284C7;
+  background-color: var(--harmony-primary-hover);
 }
 
 .btn-secondary {
@@ -1349,7 +1349,7 @@ onMounted(async () => {
 
 /* Security Section Styles */
 .security-section {
-  border-left: 3px solid #0EA5E9;
+  border-left: 3px solid var(--harmony-primary);
 }
 
 .section-icon {
@@ -1423,7 +1423,7 @@ onMounted(async () => {
 
 .form-input:focus {
   outline: none;
-  border-color: #0EA5E9;
+  border-color: var(--harmony-primary);
 }
 
 .form-input.error {
@@ -1687,14 +1687,14 @@ onMounted(async () => {
   border: none;
   padding: 0;
   margin: 8px 0 0 0;
-  color: var(--harmony-primary, #0EA5E9);
+  color: var(--harmony-primary);
   font-size: 13px;
   text-decoration: underline;
   cursor: pointer;
 }
 
 .link-button:hover {
-  color: var(--harmony-primary-hover, #0284C7);
+  color: var(--harmony-primary-hover);
 }
 
 @media (max-width: 768px) {

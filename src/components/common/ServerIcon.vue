@@ -331,7 +331,7 @@ const handleFileSelect = async (event: Event) => {
 }
 
 .server-edit-btn:hover:not(:disabled) {
-  background-color: #0284C7;
+  background-color: var(--harmony-primary-hover);
   transform: scale(1.1);
 }
 

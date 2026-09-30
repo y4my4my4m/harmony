@@ -341,8 +341,8 @@ watch(() => props.selectedIndex, (newIndex) => {
   text-transform: uppercase;
   padding: 2px 4px;
   border-radius: 3px;
-  background: rgba(14, 165, 233, 0.2);
-  color: #0EA5E9;
+  background: color-mix(in srgb, var(--harmony-primary) 20%, transparent);
+  color: var(--harmony-primary);
 }
 
 .role-icon {
@@ -362,13 +362,13 @@ watch(() => props.selectedIndex, (newIndex) => {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: var(--accent-color, #0EA5E9);
+  background: var(--accent-color, var(--harmony-primary));
   color: var(--text-primary);
 }
 
 .command-name {
   font-weight: 600;
-  color: var(--accent-color, #0EA5E9);
+  color: var(--accent-color, var(--harmony-primary));
   flex-shrink: 0;
   overflow: visible;
   text-overflow: clip;

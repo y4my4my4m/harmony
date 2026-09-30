@@ -173,8 +173,8 @@ onUnmounted(() => {
 }
 
 .mic-trigger:hover:not(.disabled) {
-  color: var(--harmony-primary, #0EA5E9);
-  background: rgba(14, 165, 233, 0.1);
+  color: var(--harmony-primary);
+  background: color-mix(in srgb, var(--harmony-primary) 10%, transparent);
 }
 
 .mic-trigger.disabled {
@@ -217,13 +217,13 @@ onUnmounted(() => {
 }
 
 .send-btn {
-  background: var(--harmony-primary, #0EA5E9);
+  background: var(--harmony-primary);
   color: #fff;
-  box-shadow: 0 2px 8px rgba(14, 165, 233, 0.3);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--harmony-primary) 30%, transparent);
 }
 
 .send-btn:hover {
-  background: var(--harmony-primary-hover, #0284C7);
+  background: var(--harmony-primary-hover);
 }
 
 .waveform-area {
@@ -297,7 +297,7 @@ onUnmounted(() => {
   flex: 1 1 0;
   min-width: 0;
   border-radius: 1px;
-  background: var(--harmony-primary, #0EA5E9);
+  background: var(--harmony-primary);
   transition: height 0.06s ease-out;
   opacity: 0.85;
 }

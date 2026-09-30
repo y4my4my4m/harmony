@@ -817,9 +817,9 @@ onUnmounted(() => {
 }
 
 .connection-mode-indicator.p2p {
-  background: rgba(14, 165, 233, 0.15);
-  color: #0EA5E9;
-  border: 1px solid rgba(14, 165, 233, 0.3);
+  background: color-mix(in srgb, var(--harmony-primary) 15%, transparent);
+  color: var(--harmony-primary);
+  border: 1px solid color-mix(in srgb, var(--harmony-primary) 30%, transparent);
 }
 
 .connection-mode-indicator.unknown {
@@ -846,7 +846,7 @@ onUnmounted(() => {
 .channel-icon {
   width: 36px;
   height: 36px;
-  background: linear-gradient(145deg, #0EA5E9, #0284C7);
+  background: linear-gradient(145deg, var(--harmony-primary), var(--harmony-primary-hover));
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -908,9 +908,9 @@ onUnmounted(() => {
 }
 
 .layout-btn.active {
-  background: linear-gradient(145deg, #0EA5E9, #0284C7);
+  background: linear-gradient(145deg, var(--harmony-primary), var(--harmony-primary-hover));
   color: var(--text-primary);
-  border-color: rgba(14, 165, 233, 0.6);
+  border-color: color-mix(in srgb, var(--harmony-primary) 60%, transparent);
 }
 
 .spatial-btn.spatial-enabled {

@@ -230,7 +230,7 @@ watch(
   width: 44px;
   height: 44px;
   border-radius: 12px;
-  background: linear-gradient(135deg, #0EA5E9, #0284C7);
+  background: linear-gradient(135deg, var(--harmony-primary), var(--harmony-primary-hover));
   color: #fff;
   display: flex;
   align-items: center;

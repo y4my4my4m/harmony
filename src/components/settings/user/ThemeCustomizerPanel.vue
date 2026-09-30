@@ -936,7 +936,7 @@ const cancelAndClose = () => {
 
 .tp-var-item.has-override {
   border-left-color: var(--harmony-primary);
-  background: var(--harmony-primary-alpha, rgba(14, 165, 233, 0.06));
+  background: var(--harmony-primary-alpha, color-mix(in srgb, var(--harmony-primary) 6%, transparent));
 }
 
 .tp-var-name {

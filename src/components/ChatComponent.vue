@@ -1289,7 +1289,7 @@
     color: var(--color-warning, #faa61a);
   }
   .encryption-status-tag.setup-prompt {
-    color: var(--harmony-primary, #0EA5E9);
+    color: var(--harmony-primary);
     opacity: 1;
   }
   .encryption-status-tag.error {
@@ -1316,7 +1316,7 @@
     padding: 1px 6px;
     border-radius: 3px;
     border: none;
-    background: var(--harmony-primary, #0EA5E9);
+    background: var(--harmony-primary);
     color: #fff;
     font-size: 0.6rem;
     font-weight: 600;

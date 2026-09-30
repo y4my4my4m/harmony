@@ -353,7 +353,7 @@ async function confirm() {
 .form-textarea:focus,
 .form-select:focus {
   outline: none;
-  border-color: var(--accent-color, #0EA5E9);
+  border-color: var(--accent-color, var(--harmony-primary));
 }
 
 .form-select {
@@ -394,11 +394,11 @@ async function confirm() {
 }
 
 .btn-confirm {
-  background: var(--accent-color, #0EA5E9);
+  background: var(--accent-color, var(--harmony-primary));
   color: var(--text-primary);
 }
 .btn-confirm:hover:not(:disabled) {
-  background: var(--accent-hover, #0284C7);
+  background: var(--accent-hover, var(--harmony-primary-hover));
 }
 .btn-confirm.btn-ban {
   background: #ed4245;
@@ -439,7 +439,7 @@ async function confirm() {
 }
 .form-input:focus {
   outline: none;
-  border-color: var(--accent-color, #0EA5E9);
+  border-color: var(--accent-color, var(--harmony-primary));
 }
 
 .member-search-wrapper {
@@ -480,7 +480,7 @@ async function confirm() {
   background: rgba(255, 255, 255, 0.05);
 }
 .member-option.selected {
-  background: rgba(14, 165, 233, 0.2);
+  background: color-mix(in srgb, var(--harmony-primary) 20%, transparent);
 }
 
 

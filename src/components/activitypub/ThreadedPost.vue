@@ -157,7 +157,7 @@ const expandThread = () => {
   background: linear-gradient(
     135deg,
     transparent 0%,
-    #0EA5E9 50%,
+    var(--harmony-primary) 50%,
     transparent 100%
   );
 }
@@ -168,7 +168,7 @@ const expandThread = () => {
   background: var(--background-secondary, #313338);
   border-radius: 8px;
   padding: 0.75rem;
-  border-left: 3px solid var(--h-brand, #0EA5E9);
+  border-left: 3px solid var(--h-brand, var(--harmony-primary));
 }
 
 .nested-replies {
@@ -206,7 +206,7 @@ const expandThread = () => {
   background: linear-gradient(
     to bottom,
     #80848e 0%,
-    rgba(14, 165, 233, 0.5) 50%,
+    color-mix(in srgb, var(--harmony-primary) 50%, transparent) 50%,
     transparent 100%
   );
 }
@@ -216,8 +216,8 @@ const expandThread = () => {
   opacity: 0.6;
   background: linear-gradient(
     to bottom,
-    var(--h-brand, #0EA5E9) 0%,
-    var(--h-brand, #0EA5E9) 50%,
+    var(--h-brand, var(--harmony-primary)) 0%,
+    var(--h-brand, var(--harmony-primary)) 50%,
     transparent 100%
   );
 }
@@ -244,7 +244,7 @@ const expandThread = () => {
 
 /* Accessibility improvements */
 .threaded-post:focus-within .post-content {
-  outline: 2px solid var(--h-brand, #0EA5E9);
+  outline: 2px solid var(--h-brand, var(--harmony-primary));
   outline-offset: 2px;
 }
 

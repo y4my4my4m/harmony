@@ -110,15 +110,15 @@ defineExpose({
 }
 
 .search-input--focused {
-  border-color: rgba(14, 165, 233, 0.6);
+  border-color: color-mix(in srgb, var(--harmony-primary) 60%, transparent);
   background: rgba(64, 68, 75, 1);
   box-shadow: 
-    0 0 0 2px rgba(14, 165, 233, 0.2),
+    0 0 0 2px color-mix(in srgb, var(--harmony-primary) 20%, transparent),
     0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .search-input--loading .search-input__icon {
-  color: rgba(14, 165, 233, 0.8);
+  color: color-mix(in srgb, var(--harmony-primary) 80%, transparent);
 }
 
 .search-input__icon {
@@ -185,7 +185,7 @@ defineExpose({
   left: 0;
   right: 0;
   height: 2px;
-  background: linear-gradient(90deg, #0EA5E9, #38BDF8);
+  background: linear-gradient(90deg, var(--harmony-primary), var(--harmony-secondary));
   transform: scaleX(0);
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }

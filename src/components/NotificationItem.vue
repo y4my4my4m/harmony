@@ -576,16 +576,16 @@ const typeIcon = computed(() => {
 
 .notification-item--clickable:focus {
   outline: none;
-  background: rgba(14, 165, 233, 0.1);
+  background: color-mix(in srgb, var(--harmony-primary) 10%, transparent);
   box-shadow: inset 3px 0 0 var(--h-brand);
 }
 
 .notification-item--unread {
-  background: rgba(14, 165, 233, 0.04);
+  background: color-mix(in srgb, var(--harmony-primary) 4%, transparent);
 }
 
 .notification-item--unread.notification-item--clickable:hover {
-  background: rgba(14, 165, 233, 0.08);
+  background: color-mix(in srgb, var(--harmony-primary) 8%, transparent);
 }
 
 .notification-item--hovering .hover-gradient {
@@ -615,7 +615,7 @@ const typeIcon = computed(() => {
 .indicator--dm,
 .indicator--chat_message,
 .indicator--activitypub_dm {
-  background: linear-gradient(180deg, #38BDF8, #0EA5E9);
+  background: linear-gradient(180deg, var(--harmony-secondary), var(--harmony-primary));
 }
 
 .indicator--reaction,
@@ -667,8 +667,8 @@ const typeIcon = computed(() => {
 }
 
 .notification-item--unread .avatar-image {
-  border-color: rgba(14, 165, 233, 0.3);
-  box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.1);
+  border-color: color-mix(in srgb, var(--harmony-primary) 30%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--harmony-primary) 10%, transparent);
 }
 
 .type-icon-overlay {
@@ -699,8 +699,8 @@ const typeIcon = computed(() => {
 .overlay--dm svg,
 .overlay--chat_message svg,
 .overlay--activitypub_dm svg{
-  /* background: linear-gradient(135deg, #38BDF8, #0EA5E9); */
-  fill: #38BDF8;
+  /* background: linear-gradient(135deg, var(--harmony-secondary), var(--harmony-primary)); */
+  fill: var(--harmony-secondary);
   stroke: #d5d8e6;
 }
 
@@ -764,7 +764,7 @@ const typeIcon = computed(() => {
   right: -2px;
   width: 12px;
   height: 12px;
-  background: radial-gradient(circle, rgba(14, 165, 233, 0.8) 0%, transparent 70%);
+  background: radial-gradient(circle, color-mix(in srgb, var(--harmony-primary) 80%, transparent) 0%, transparent 70%);
   border-radius: 50%;
   animation: notification-pulse 2s ease-in-out infinite;
 }
@@ -851,7 +851,7 @@ const typeIcon = computed(() => {
 
 .server-name {
   font-weight: 500;
-  color: #38BDF8;
+  color: var(--harmony-secondary);
 }
 
 /* Actions */
@@ -892,7 +892,7 @@ const typeIcon = computed(() => {
 }
 
 .read-toggle.active:hover {
-  background: rgba(14, 165, 233, 0.15);
+  background: color-mix(in srgb, var(--harmony-primary) 15%, transparent);
 }
 
 .dismiss-btn:hover {
@@ -1045,16 +1045,16 @@ const typeIcon = computed(() => {
 
 .quick-action-btn.reply,
 .quick-action-btn.jump {
-  background: linear-gradient(135deg, rgba(14, 165, 233, 0.15), rgba(14, 165, 233, 0.25));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--harmony-primary) 15%, transparent), color-mix(in srgb, var(--harmony-primary) 25%, transparent));
   color: var(--h-brand);
-  border: 1px solid rgba(14, 165, 233, 0.3);
+  border: 1px solid color-mix(in srgb, var(--harmony-primary) 30%, transparent);
 }
 
 .quick-action-btn.reply:hover,
 .quick-action-btn.jump:hover {
-  background: linear-gradient(135deg, rgba(14, 165, 233, 0.25), rgba(14, 165, 233, 0.35));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--harmony-primary) 25%, transparent), color-mix(in srgb, var(--harmony-primary) 35%, transparent));
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.2);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--harmony-primary) 20%, transparent);
 }
 
 .quick-action-icon {
@@ -1066,7 +1066,7 @@ const typeIcon = computed(() => {
 .hover-gradient {
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, transparent, rgba(14, 165, 233, 0.03), transparent);
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--harmony-primary) 3%, transparent), transparent);
   opacity: 0;
   transition: opacity 0.3s ease;
   pointer-events: none;
@@ -1095,7 +1095,7 @@ const typeIcon = computed(() => {
 
 .notification-item--dm.notification-item--unread,
 .notification-item--chat_message.notification-item--unread {
-  border-left-color: #38BDF8;
+  border-left-color: var(--harmony-secondary);
 }
 
 .notification-item--reaction.notification-item--unread {

@@ -420,7 +420,7 @@ onUnmounted(() => {
 }
 
 .notification-bell:focus {
-  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.3);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--harmony-primary) 30%, transparent);
 }
 
 .notification-bell.has-unread {
@@ -428,7 +428,7 @@ onUnmounted(() => {
 }
 
 .notification-bell.is-open {
-  background: rgba(14, 165, 233, 0.15);
+  background: color-mix(in srgb, var(--harmony-primary) 15%, transparent);
   color: var(--h-brand);
 }
 
@@ -734,9 +734,9 @@ onUnmounted(() => {
 }
 
 .filter-tab.active {
-  background: rgba(14, 165, 233, 0.2);
+  background: color-mix(in srgb, var(--harmony-primary) 20%, transparent);
   color: var(--h-brand);
-  border: 1px solid rgba(14, 165, 233, 0.3);
+  border: 1px solid color-mix(in srgb, var(--harmony-primary) 30%, transparent);
 }
 
 .filter-icon {

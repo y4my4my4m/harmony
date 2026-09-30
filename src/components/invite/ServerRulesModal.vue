@@ -159,13 +159,13 @@ defineEmits<{
 }
 
 .rules-btn.primary {
-  background: linear-gradient(135deg, var(--harmony-primary, #0ea5e9), var(--harmony-primary-hover, #0284c7));
+  background: linear-gradient(135deg, var(--harmony-primary), var(--harmony-primary-hover));
   color: var(--text-primary);
 }
 
 .rules-btn.primary:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--harmony-primary) 30%, transparent);
 }
 
 .rules-btn.primary:disabled {

@@ -919,7 +919,7 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
   padding: 9px 14px;
-  background: var(--harmony-primary, #0EA5E9);
+  background: var(--harmony-primary);
   color: var(--text-on-primary, #ffffff);
   border: none;
   border-radius: 6px;
@@ -1020,7 +1020,7 @@ onMounted(() => {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--harmony-primary, #0EA5E9);
+  background: var(--harmony-primary);
   flex-shrink: 0;
 }
 
@@ -1154,8 +1154,8 @@ onMounted(() => {
 
 .tab-btn:hover { color: var(--text-primary); }
 .tab-btn.active {
-  color: var(--harmony-primary, #0EA5E9);
-  border-bottom-color: var(--harmony-primary, #0EA5E9);
+  color: var(--harmony-primary);
+  border-bottom-color: var(--harmony-primary);
 }
 
 .editor-content {
@@ -1227,7 +1227,7 @@ onMounted(() => {
   transition: border-color 0.15s;
 }
 
-.form-input:focus { border-color: var(--harmony-primary, #0EA5E9); }
+.form-input:focus { border-color: var(--harmony-primary); }
 .form-input:disabled { opacity: 0.5; cursor: not-allowed; }
 .form-input::placeholder { color: var(--text-muted); }
 
@@ -1259,7 +1259,7 @@ onMounted(() => {
   transition: border-color 0.15s;
 }
 
-.color-text:focus { border-color: var(--harmony-primary, #0EA5E9); }
+.color-text:focus { border-color: var(--harmony-primary); }
 
 .color-presets {
   display: flex;
@@ -1461,8 +1461,8 @@ onMounted(() => {
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  background: rgba(14, 165, 233, 0.15);
-  color: var(--harmony-primary, #0EA5E9);
+  background: color-mix(in srgb, var(--harmony-primary) 15%, transparent);
+  color: var(--harmony-primary);
   border: none;
   font-size: 16px;
   font-weight: 600;
@@ -1535,7 +1535,7 @@ onMounted(() => {
 .cancel-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .save-btn {
-  background: var(--harmony-primary, #0EA5E9);
+  background: var(--harmony-primary);
   color: var(--text-on-primary, #ffffff);
   border: none;
   padding: 9px 18px;
@@ -1554,7 +1554,7 @@ onMounted(() => {
   width: 28px;
   height: 28px;
   border: 3px solid var(--border-color);
-  border-top-color: var(--harmony-primary, #0EA5E9);
+  border-top-color: var(--harmony-primary);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }

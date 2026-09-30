@@ -487,7 +487,7 @@ onMounted(async () => {
 
 .theme-card.active {
   border-color: var(--h-brand);
-  background: rgba(14, 165, 233, 0.05);
+  background: color-mix(in srgb, var(--harmony-primary) 5%, transparent);
 }
 
 .theme-card.loading {
@@ -624,7 +624,7 @@ onMounted(async () => {
 .sound-test-btn:hover:not(:disabled) {
   border-color: var(--h-brand);
   color: var(--text-primary);
-  /* background: rgba(14, 165, 233, 0.1); */
+  /* background: color-mix(in srgb, var(--harmony-primary) 10%, transparent); */
   background: color-mix(in srgb, var(--h-brand) 10%, transparent);
 }
 
@@ -781,7 +781,7 @@ onMounted(async () => {
 .import-export-btn:hover:not(:disabled) {
   border-color: var(--h-brand);
   color: var(--text-primary);
-  background: rgba(14, 165, 233, 0.08);
+  background: color-mix(in srgb, var(--harmony-primary) 8%, transparent);
 }
 
 .import-export-btn:disabled {

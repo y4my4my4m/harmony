@@ -528,13 +528,13 @@ onBeforeUnmount(() => {
 }
 
 .icon-button.voice-active {
-  border: 1px solid rgba(14, 165, 233, 0.3);
-  box-shadow: 0 0 4px rgba(14, 165, 233, 0.2);
+  border: 1px solid color-mix(in srgb, var(--harmony-primary) 30%, transparent);
+  box-shadow: 0 0 4px color-mix(in srgb, var(--harmony-primary) 20%, transparent);
 }
 
 .icon-button.voice-active:hover {
-  border-color: rgba(14, 165, 233, 0.5);
-  box-shadow: 0 0 6px rgba(14, 165, 233, 0.3);
+  border-color: color-mix(in srgb, var(--harmony-primary) 50%, transparent);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--harmony-primary) 30%, transparent);
 }
 
 .icon-button.settings:hover {
@@ -597,7 +597,7 @@ onBeforeUnmount(() => {
 }
 
 .custom-status-preview .emoji-placeholder {
-  color: var(--text-muted, var(--text-muted));
+  color: var(--text-muted);
   flex-shrink: 0;
 }
 
@@ -612,7 +612,7 @@ onBeforeUnmount(() => {
 .clear-status-btn {
   background: none;
   border: none;
-  color: var(--text-muted, var(--text-muted));
+  color: var(--text-muted);
   cursor: pointer;
   padding: 4px;
   border-radius: 4px;
@@ -667,7 +667,7 @@ onBeforeUnmount(() => {
 }
 
 .custom-status-input:focus {
-  box-shadow: 0 0 0 2px #0EA5E9;
+  box-shadow: 0 0 0 2px var(--harmony-primary);
 }
 
 .custom-status-btn {
