@@ -40,6 +40,12 @@ describe('determineVisibility (ActivityPub audience targeting)', () => {
       expect(determineVisibility(note)).toBe('public')
     })
 
+    it('treats the compacted as:Public and Public forms as public', () => {
+      expect(determineVisibility({ to: ['as:Public'], cc: [FOLLOWERS] })).toBe('public')
+      expect(determineVisibility({ to: ['Public'] })).toBe('public')
+      expect(determineVisibility({ to: [FOLLOWERS], cc: ['as:Public'] })).toBe('unlisted')
+    })
+
     it('detects public from Mastodon Create activity', () => {
       const note = {
         to: ['https://www.w3.org/ns/activitystreams#Public'],

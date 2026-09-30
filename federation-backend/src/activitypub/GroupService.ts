@@ -9,6 +9,8 @@
  * - Channels are embedded as `harmony:channels` extension
  * - Messages reference channels via `context` property
  * - Join/Leave activities control membership
+ * - Private servers and channels @everyone cannot view are served only to a
+ *   signed remote member that can view them (groupAccess.ts)
  */
 
 import { Router, Request, Response } from 'express';
@@ -19,6 +21,14 @@ import config from '../config/index.js';
 import { SignatureService } from './SignatureService.js';
 import { inboxLimiter, instanceInboxLimiter } from '../middleware/rateLimit.js';
 import { getFullServerBannerUrl, getFullServerIconUrl } from '../utils/urlUtils.js';
+import {
+  canReadServer,
+  isPublicView,
+  loadGroupAccess,
+  readableChannelIds,
+  verifiedSigner,
+  type GroupAccess,
+} from './groupAccess.js';
 
 const router = Router();
 
@@ -127,7 +137,68 @@ function serverToGroup(
 }
 
 /**
+ * Group document for a caller who may not read the server: what a remote
+ * Join by invite needs (id, inbox, key, and the name its reference row
+ * stores) and no channels, member count or owner.
+ */
+function serverToJoinStub(server: any, hostDomain: string): any {
+  const serverUrl = `https://${hostDomain}/servers/${server.id}`;
+  return {
+    '@context': [
+      'https://www.w3.org/ns/activitystreams',
+      {
+        'harmony': 'https://harmonyapp.dev/ns#',
+        'ChatServer': 'harmony:ChatServer',
+      },
+    ],
+    id: serverUrl,
+    type: 'Group',
+    'harmony:type': 'ChatServer',
+    name: server.name,
+    inbox: `${serverUrl}/inbox`,
+    discoverable: false,
+    manuallyApprovesFollowers: true,
+    publicKey: server.public_key ? {
+      id: `${serverUrl}#main-key`,
+      owner: serverUrl,
+      publicKeyPem: server.public_key,
+    } : undefined,
+  };
+}
+
+const PRIVATE_CACHE = 'private, no-store';
+
+/**
+ * 404 for an unknown id and for one the caller may not read alike: same
+ * status, body and headers, so a response never confirms a private id.
+ */
+function notFound(res: Response, what: 'Server' | 'Channel'): void {
+  res.status(404).json({ error: `${what} not found` });
+}
+
+/**
+ * Cache-Control for a response. Public only when it holds nothing beyond what
+ * an unsigned caller reads; `Vary: Signature` where a signed caller can be
+ * served more at the same URL.
+ */
+function setCaching(res: Response, shareable: boolean, publicValue: string, variesBySigner: boolean): void {
+  if (!shareable) {
+    res.setHeader('Cache-Control', PRIVATE_CACHE);
+    return;
+  }
+  res.setHeader('Cache-Control', publicValue);
+  if (variesBySigner) res.setHeader('Vary', 'Signature');
+}
+
+async function accessFor(req: Request): Promise<GroupAccess | null> {
+  return loadGroupAccess(req.params.serverId, await verifiedSigner(req));
+}
+
+/**
  * GET /servers/:serverId - Server as ActivityPub Group
+ *
+ * A caller who may not read the server gets the Group stub a remote Join
+ * needs. Everyone else gets the channels it may read.
  */
 router.get(
   '/servers/:serverId',
@@ -135,22 +206,27 @@ router.get(
     const { serverId } = req.params;
     const supabase = getSupabaseClient();
 
-    logger.info(`Fetching server ${serverId} as ActivityPub Group`);
-
-    const { data: server, error: serverError } = await supabase
-      .from('servers')
-      .select('*')
-      .eq('id', serverId)
-      .single();
-
-    if (serverError || !server) {
-      res.status(404).json({ error: 'Server not found' });
+    const access = await accessFor(req);
+    if (!access) {
+      notFound(res, 'Server');
       return;
     }
 
-    // Only serve local servers as ActivityPub actors
-    if (server.is_local_server === false) {
-      res.status(404).json({ error: 'Server is not hosted here' });
+    const { data: server } = await supabase
+      .from('servers')
+      .select('*')
+      .eq('id', serverId)
+      .maybeSingle();
+
+    if (!server) {
+      notFound(res, 'Server');
+      return;
+    }
+
+    if (!canReadServer(access)) {
+      res.setHeader('Content-Type', 'application/activity+json');
+      res.setHeader('Cache-Control', PRIVATE_CACHE);
+      res.json(serverToJoinStub(server, config.INSTANCE_DOMAIN));
       return;
     }
 
@@ -174,22 +250,34 @@ router.get(
       .from('channels')
       .select('*')
       .eq('server_id', serverId)
-      .eq('is_remote', false)
+      .not('is_remote', 'is', true)
       .order('category', { ascending: true, nullsFirst: true })
       .order('order', { ascending: true });
 
-    // Merge categories (as type=2) with channels for ActivityPub export
+    const readable = readableChannelIds(access);
+    const allChannels = channelsData || [];
+    const listedChannels = allChannels.filter(c => readable.has(c.id));
+
+    // A category is listed when it holds a listed channel or holds none at
+    // all; one holding only hidden channels would name what it hides.
+    const listedCategoryIds = new Set(listedChannels.map(c => c.category).filter(Boolean));
+    const occupiedCategoryIds = new Set(allChannels.map(c => c.category).filter(Boolean));
+    const listedCategories = (categories || []).filter(
+      cat => listedCategoryIds.has(cat.id) || !occupiedCategoryIds.has(cat.id),
+    );
+
+    // Categories are exported as type 2 alongside channels.
     const channels = [
-      ...(categories || []).map(cat => ({
+      ...listedCategories.map(cat => ({
         id: cat.id,
         name: cat.name,
-        type: CHANNEL_TYPE_CATEGORY, // 2
+        type: CHANNEL_TYPE_CATEGORY,
         order: cat.order || 0,
         category: null,
         description: null,
         server_id: serverId,
       })),
-      ...(channelsData || []),
+      ...listedChannels,
     ];
 
     const { count: memberCount } = await supabase
@@ -199,17 +287,16 @@ router.get(
       .eq('status', 'accepted');
 
     const group = serverToGroup(
-      server, 
-      channels || [], 
+      server,
+      channels,
       memberCount || 0,
       ownerProfile,
       config.INSTANCE_DOMAIN
     );
 
     res.setHeader('Content-Type', 'application/activity+json');
-    // Server info (name, channels, member count) - cache for 60 seconds
-    // Balances freshness with efficiency for federated discovery
-    res.setHeader('Cache-Control', 'public, max-age=60');
+    // 60s: name, channels and member count change rarely.
+    setCaching(res, isPublicView(access, listedChannels.map(c => c.id)), 'public, max-age=60', true);
     res.json(group);
   })
 );
@@ -224,24 +311,22 @@ router.get(
     const { serverId, channelId } = req.params;
     const supabase = getSupabaseClient();
 
-    const { data: channel, error } = await supabase
-      .from('channels')
-      .select(`
-        *,
-        server:servers!channels_server_id_fkey(id, name, is_local_server)
-      `)
-      .eq('id', channelId)
-      .eq('server_id', serverId)
-      .single();
-
-    if (error || !channel) {
-      res.status(404).json({ error: 'Channel not found' });
+    const access = await accessFor(req);
+    if (!access || !readableChannelIds(access).has(channelId)) {
+      notFound(res, 'Channel');
       return;
     }
 
-    // Only serve local channels
-    if (channel.is_remote) {
-      res.status(404).json({ error: 'Channel is not hosted here' });
+    const { data: channel } = await supabase
+      .from('channels')
+      .select('*')
+      .eq('id', channelId)
+      .eq('server_id', serverId)
+      .not('is_remote', 'is', true)
+      .maybeSingle();
+
+    if (!channel) {
+      notFound(res, 'Channel');
       return;
     }
 
@@ -250,13 +335,13 @@ router.get(
     const channelUrl = `${serverUrl}/channels/${channelId}`;
 
     // Channel type: 0 = text, 1 = voice
-    const channelType = channel.type === CHANNEL_TYPE_VOICE 
-      ? 'harmony:VoiceChannel' 
+    const channelType = channel.type === CHANNEL_TYPE_VOICE
+      ? 'harmony:VoiceChannel'
       : 'harmony:TextChannel';
 
     res.setHeader('Content-Type', 'application/activity+json');
-    // Channel metadata changes rarely - cache for 60 seconds
-    res.setHeader('Cache-Control', 'public, max-age=60');
+    // 60s: channel metadata changes rarely.
+    setCaching(res, isPublicView(access, [channelId]), 'public, max-age=60', false);
     res.json({
       '@context': [
         'https://www.w3.org/ns/activitystreams',
@@ -284,9 +369,13 @@ router.get(
 
 /**
  * GET /servers/:serverId/channels/:channelId/messages - Channel message collection
+ * GET /servers/:serverId/channels/:channelId/outbox   - the same collection
+ *
+ * The outbox alias is served in place rather than redirected: a signature
+ * covers the request path, so a signed GET cannot follow a redirect.
  */
 router.get(
-  '/servers/:serverId/channels/:channelId/messages',
+  ['/servers/:serverId/channels/:channelId/messages', '/servers/:serverId/channels/:channelId/outbox'],
   asyncHandler(async (req: Request, res: Response) => {
     const { serverId, channelId } = req.params;
     const page = req.query.page ? parseInt(req.query.page as string) : undefined;
@@ -294,17 +383,26 @@ router.get(
     const hostDomain = config.INSTANCE_DOMAIN;
     const messagesUrl = `https://${hostDomain}/servers/${serverId}/channels/${channelId}/messages`;
 
+    const access = await accessFor(req);
+    if (!access || !readableChannelIds(access).has(channelId)) {
+      notFound(res, 'Channel');
+      return;
+    }
+
     const { data: channel } = await supabase
       .from('channels')
       .select('id')
       .eq('id', channelId)
       .eq('server_id', serverId)
-      .single();
+      .not('is_remote', 'is', true)
+      .maybeSingle();
 
     if (!channel) {
-      res.status(404).json({ error: 'Channel not found' });
+      notFound(res, 'Channel');
       return;
     }
+
+    const shareable = isPublicView(access, [channelId]);
 
     if (!page) {
       const { count } = await supabase
@@ -314,9 +412,8 @@ router.get(
         .eq('is_deleted', false);
 
       res.setHeader('Content-Type', 'application/activity+json');
-      // Short cache for message collection metadata - real-time messages are PUSHED
-      // This cache helps when many instances backfill simultaneously
-      res.setHeader('Cache-Control', 'public, max-age=10');
+      // 10s: live messages are pushed; this absorbs simultaneous backfills.
+      setCaching(res, shareable, 'public, max-age=10', false);
       res.json({
         '@context': 'https://www.w3.org/ns/activitystreams',
         id: messagesUrl,
@@ -342,29 +439,28 @@ router.get(
       .range(offset, offset + limit - 1);
 
     const items = (messages || []).map((message) => {
-      const authorApId = message.author?.federated_id || 
+      const authorApId = message.author?.federated_id ||
         `https://${hostDomain}/users/${message.author?.username}`;
-      
+
       return {
         type: 'Note',
         id: `https://${hostDomain}/messages/${message.id}`,
         attributedTo: authorApId,
-        content: Array.isArray(message.content) 
+        content: Array.isArray(message.content)
           ? message.content.map((c: any) => c.text || c.content || '').join('')
           : JSON.stringify(message.content),
         context: `https://${hostDomain}/servers/${serverId}/channels/${channelId}`,
         published: message.created_at,
         updated: message.updated_at !== message.created_at ? message.updated_at : undefined,
-        inReplyTo: message.reply_to 
-          ? `https://${hostDomain}/messages/${message.reply_to}` 
+        inReplyTo: message.reply_to
+          ? `https://${hostDomain}/messages/${message.reply_to}`
           : undefined,
       };
     });
 
     res.setHeader('Content-Type', 'application/activity+json');
-    // Short cache for message pages - balances near-real-time feel with efficiency
-    // Real-time messages are PUSHED, this is for backfill/sync
-    res.setHeader('Cache-Control', 'public, max-age=10');
+    // 10s: live messages are pushed; pages serve backfill and sync.
+    setCaching(res, shareable, 'public, max-age=10', false);
     res.json({
       '@context': 'https://www.w3.org/ns/activitystreams',
       id: `${messagesUrl}?page=${page}`,
@@ -374,23 +470,6 @@ router.get(
       next: items.length === limit ? `${messagesUrl}?page=${page + 1}` : undefined,
       prev: page > 1 ? `${messagesUrl}?page=${page - 1}` : undefined,
     });
-  })
-);
-
-/**
- * GET /servers/:serverId/channels/:channelId/outbox - Channel outbox (alias for messages)
- * Standard ActivityPub endpoint for fetching channel content
- */
-router.get(
-  '/servers/:serverId/channels/:channelId/outbox',
-  asyncHandler(async (req: Request, res: Response) => {
-    // Redirect to messages endpoint
-    const { serverId, channelId } = req.params;
-    const page = req.query.page;
-    const hostDomain = config.INSTANCE_DOMAIN;
-    const messagesUrl = `https://${hostDomain}/servers/${serverId}/channels/${channelId}/messages`;
-    
-    res.redirect(301, page ? `${messagesUrl}?page=${page}` : messagesUrl);
   })
 );
 
@@ -406,6 +485,12 @@ router.get(
     const hostDomain = config.INSTANCE_DOMAIN;
     const membersUrl = `https://${hostDomain}/servers/${serverId}/members`;
 
+    const access = await accessFor(req);
+    if (!access || !canReadServer(access)) {
+      notFound(res, 'Server');
+      return;
+    }
+
     if (!page) {
       const { count } = await supabase
         .from('user_servers')
@@ -414,8 +499,8 @@ router.get(
         .eq('status', 'accepted');
 
       res.setHeader('Content-Type', 'application/activity+json');
-      // Member count doesn't change frequently - cache for 60 seconds
-      res.setHeader('Cache-Control', 'public, max-age=60');
+      // 60s: membership changes occasionally.
+      setCaching(res, access.isPublic, 'public, max-age=60', false);
       res.json({
         '@context': 'https://www.w3.org/ns/activitystreams',
         id: membersUrl,
@@ -444,15 +529,15 @@ router.get(
       .range(offset, offset + limit - 1);
 
     const items = (memberships || []).map((m: any) => {
-      const memberApId = m.profile?.federated_id || 
+      const memberApId = m.profile?.federated_id ||
         (m.profile?.is_local ? `https://${hostDomain}/users/${m.profile?.username}` : null);
-      
+
       return memberApId;
     }).filter(Boolean);
 
     res.setHeader('Content-Type', 'application/activity+json');
-    // Member list changes occasionally - cache for 60 seconds
-    res.setHeader('Cache-Control', 'public, max-age=60');
+    // 60s: membership changes occasionally.
+    setCaching(res, access.isPublic, 'public, max-age=60', false);
     res.json({
       '@context': 'https://www.w3.org/ns/activitystreams',
       id: `${membersUrl}?page=${page}`,
@@ -465,7 +550,8 @@ router.get(
 );
 
 /**
- * GET /servers/:serverId/outbox - Server outbox (all channel messages as Create activities)
+ * GET /servers/:serverId/outbox - Server outbox (messages of the channels the
+ * caller may read, as Create activities)
  */
 router.get(
   '/servers/:serverId/outbox',
@@ -478,29 +564,34 @@ router.get(
     const serverUrl = `https://${hostDomain}/servers/${serverId}`;
     const outboxUrl = `${serverUrl}/outbox`;
 
-    const { data: channels } = await supabase
-      .from('channels')
-      .select('id')
-      .eq('server_id', serverId)
-      .eq('is_remote', false);
+    const access = await accessFor(req);
+    if (!access || !canReadServer(access)) {
+      notFound(res, 'Server');
+      return;
+    }
 
-    const channelIds = (channels || []).map(c => c.id);
+    const channelIds = [...readableChannelIds(access)];
+    const shareable = isPublicView(access, channelIds);
 
     if (!page) {
-      const { count } = await supabase
-        .from('messages')
-        .select('*', { count: 'exact', head: true })
-        .in('channel_id', channelIds)
-        .eq('is_deleted', false);
+      let total = 0;
+      if (channelIds.length > 0) {
+        const { count } = await supabase
+          .from('messages')
+          .select('*', { count: 'exact', head: true })
+          .in('channel_id', channelIds)
+          .eq('is_deleted', false);
+        total = count || 0;
+      }
 
       res.setHeader('Content-Type', 'application/activity+json');
-      // Server outbox is for backfill - short cache for efficiency
-      res.setHeader('Cache-Control', 'public, max-age=15');
+      // 15s: backfill only.
+      setCaching(res, shareable, 'public, max-age=15', true);
       res.json({
         '@context': 'https://www.w3.org/ns/activitystreams',
         id: outboxUrl,
         type: 'OrderedCollection',
-        totalItems: count || 0,
+        totalItems: total,
         first: `${outboxUrl}?page=1`,
       });
       return;
@@ -509,23 +600,27 @@ router.get(
     const limit = 20;
     const offset = (page - 1) * limit;
 
-    const { data: messages } = await supabase
-      .from('messages')
-      .select(`
-        *,
-        channel:channels!messages_channel_id_fkey(id, name),
-        author:profiles!messages_user_id_fkey(id, username, federated_id, display_name)
-      `)
-      .in('channel_id', channelIds)
-      .eq('is_deleted', false)
-      .order('created_at', { ascending: false })
-      .range(offset, offset + limit - 1);
+    let messages: any[] = [];
+    if (channelIds.length > 0) {
+      const { data } = await supabase
+        .from('messages')
+        .select(`
+          *,
+          channel:channels!messages_channel_id_fkey(id, name),
+          author:profiles!messages_user_id_fkey(id, username, federated_id, display_name)
+        `)
+        .in('channel_id', channelIds)
+        .eq('is_deleted', false)
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1);
+      messages = data || [];
+    }
 
-    const items = (messages || []).map((message: any) => {
-      const authorApId = message.author?.federated_id || 
+    const items = messages.map((message: any) => {
+      const authorApId = message.author?.federated_id ||
         `https://${hostDomain}/users/${message.author?.username}`;
       const channelUrl = `${serverUrl}/channels/${message.channel?.id}`;
-      
+
       const contentHtml = Array.isArray(message.content)
         ? message.content.map((c: any) => {
             if (c.type === 'text') return `<p>${c.text || ''}</p>`;
@@ -556,7 +651,7 @@ router.get(
           'harmony:serverId': serverId,
           published: message.created_at,
           updated: message.updated_at !== message.created_at ? message.updated_at : undefined,
-          inReplyTo: message.reply_to 
+          inReplyTo: message.reply_to
             ? `https://${hostDomain}/messages/${message.reply_to}`
             : undefined,
         },
@@ -564,8 +659,8 @@ router.get(
     });
 
     res.setHeader('Content-Type', 'application/activity+json');
-    // Server outbox pages - short cache for backfill efficiency
-    res.setHeader('Cache-Control', 'public, max-age=15');
+    // 15s: backfill only.
+    setCaching(res, shareable, 'public, max-age=15', true);
     res.json({
       '@context': 'https://www.w3.org/ns/activitystreams',
       id: `${outboxUrl}?page=${page}`,
@@ -615,17 +710,12 @@ router.post(
           return;
         }
         logger.warn(`Accepting invalid signature on server inbox (REQUIRE_VALID_SIGNATURES=false)`);
-      } else if (verification.actorUrl && actorUrl) {
-        // Server inbox carries Group/Service actor activities (e.g. Lemmy
-        // c/<community> announcements signed by u/<moderator>). Allow
-        // same-domain delegation here, but the strict mode used by the
-        // user inbox (`verifyActorMatch(a, b)`) still applies for Person
-        // actors and prevents cross-user impersonation. See BUGS.md C1.
-        const actorMatch = SignatureService.verifyActorMatch(
-          actorUrl,
-          verification.actorUrl,
-          true /* allowSameDomainDelegation */,
-        );
+      } else if (verification.actorUrl) {
+        // Strict match, as on the user inbox (BUGS.md C1). Every handler here
+        // treats `activity.actor` as the member acting; same-domain
+        // delegation would let any user on a host act as any other user on
+        // it. Harmony peers sign server-inbox deliveries with the actor's key.
+        const actorMatch = !!actorUrl && SignatureService.verifyActorMatch(actorUrl, verification.actorUrl);
         if (!actorMatch && config.REQUIRE_VALID_SIGNATURES) {
           logger.warn(`Rejecting: actor mismatch on server inbox. Activity: ${actorUrl}, Signer: ${verification.actorUrl}`);
           res.status(403).json({ error: 'Actor mismatch' });

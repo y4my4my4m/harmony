@@ -13,6 +13,44 @@ import config from '../config/index.js';
 import { getSupabaseClient } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Stored actor ids of the profiles a post mentions, keyed by profile id.
+ * Composer mention parts carry the profile id in `userId`.
+ */
+export async function resolveMentionActorUrls(content: any): Promise<Map<string, string>> {
+  const actorUrls = new Map<string, string>();
+  if (!Array.isArray(content)) return actorUrls;
+
+  const ids = Array.from(new Set<string>(
+    content
+      .filter((part: any) => part?.type === 'mention' && typeof part.userId === 'string' && UUID_RE.test(part.userId))
+      .map((part: any) => part.userId),
+  ));
+  if (ids.length === 0) return actorUrls;
+
+  const { data } = await getSupabaseClient()
+    .from('profiles')
+    .select('id, federated_id')
+    .in('id', ids);
+  for (const row of data || []) {
+    if (row.federated_id) actorUrls.set(row.id, row.federated_id);
+  }
+  return actorUrls;
+}
+
+/** `posts.in_reply_to` is a UUID; the Note carries the parent's AP id. */
+async function resolveInReplyTo(note: any, post: any): Promise<void> {
+  if (!post.in_reply_to) return;
+  const { data: parentPost } = await getSupabaseClient()
+    .from('posts')
+    .select('ap_id')
+    .eq('id', post.in_reply_to)
+    .single();
+  note.inReplyTo = parentPost?.ap_id || `https://${config.INSTANCE_DOMAIN}/posts/${post.in_reply_to}`;
+}
+
 /**
  * Create a Create activity for a new post
  * Handles quote posts by adding quoteUrl to the Note
@@ -35,23 +73,8 @@ export async function createPostActivity(post: any, author: any): Promise<any> {
     logger.info(`Creating quote post with quoteUrl: ${quoteUrl}`);
   }
 
-  const note = postToNote(post, author, quoteUrl);
-  
-  // Fix in_reply_to: Convert UUID to ActivityPub URL
-  if (post.in_reply_to) {
-    const { data: parentPost } = await supabase
-      .from('posts')
-      .select('ap_id')
-      .eq('id', post.in_reply_to)
-      .single();
-    
-    if (parentPost?.ap_id) {
-      note.inReplyTo = parentPost.ap_id;
-    } else {
-      // Parent post doesn't have ap_id (shouldn't happen with our trigger, but fallback)
-      note.inReplyTo = `https://${domain}/posts/${post.in_reply_to}`;
-    }
-  }
+  const note = postToNote(post, author, quoteUrl, await resolveMentionActorUrls(post.content));
+  await resolveInReplyTo(note, post);
 
   return {
     '@context': note['@context'] || 'https://www.w3.org/ns/activitystreams',
@@ -333,10 +356,18 @@ export async function createPostUpdateActivity(post: any, author: any): Promise<
   const domain = config.INSTANCE_DOMAIN;
   const authorUrl = `https://${domain}/users/${author.username}`;
   const activityId = `${authorUrl}/activities/update-${post.id}-${Date.now()}`;
-  
-  // Import postToNote to create the Note object
-  const note = postToNote(post, author);
-  
+
+  const note = postToNote(post, author, undefined, await resolveMentionActorUrls(post.content));
+  await resolveInReplyTo(note, post);
+
+  // Mastodon applies an edit only when `updated` is later than the stored
+  // edit time (ProcessStatusUpdateService#handle_explicit_update!); without
+  // it the Update is treated as a poll refresh and the content is ignored.
+  const updatedAt = Date.parse(post.updated_at);
+  note.updated = Number.isFinite(updatedAt) && updatedAt > Date.parse(post.created_at)
+    ? new Date(updatedAt).toISOString()
+    : new Date().toISOString();
+
   return {
     '@context': 'https://www.w3.org/ns/activitystreams',
     id: activityId,

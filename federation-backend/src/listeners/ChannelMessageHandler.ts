@@ -15,7 +15,7 @@ import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
 import { convertContentToHTML, extractActivityPubTags, extractAttachments } from '../utils/contentUtils.js';
 import { harmonyVoiceMessageExtension } from '../utils/voiceMessageFederation.js';
-import { getRemoteMemberGroups, type RemoteMemberGroup } from '../utils/federationUtils.js';
+import { getChannelRecipientGroups, type RemoteMemberGroup } from '../utils/federationUtils.js';
 
 // TYPES
 
@@ -147,7 +147,7 @@ export async function handleChannelMessageFederation(
       return;
     }
 
-    // CASE 2: Local server with remote members - federate to those members
+    // CASE 2: Local server - deliver to instances of remote members who can view the channel
     if (!server.federation_enabled) {
       logger.info(`Federation not enabled for server ${server_id}, skipping`);
       await supabase
@@ -160,10 +160,10 @@ export async function handleChannelMessageFederation(
       return;
     }
 
-    const remoteMemberGroups = await getRemoteMemberGroups(server_id);
+    const remoteMemberGroups = await getChannelRecipientGroups(channel_id);
 
     if (remoteMemberGroups.length === 0) {
-      logger.info('No remote members, skipping federation');
+      logger.info('No remote member can view the channel, skipping federation');
       
       await supabase
         .from('messages')
@@ -286,12 +286,12 @@ export async function handleChannelMessageUpdate(
       return;
     }
 
-    // CASE 2: Local server - broadcast edit to remote member instances
+    // CASE 2: Local server - broadcast edit to instances of members who can view the channel
     if (!server.federation_enabled) {
       return;
     }
 
-    const remoteMemberGroups = await getRemoteMemberGroups(server_id);
+    const remoteMemberGroups = await getChannelRecipientGroups(channel_id);
 
     if (remoteMemberGroups.length === 0) {
       return;
@@ -319,7 +319,7 @@ export async function handleChannelMessageDelete(
   payload: ChannelMessageDeletePayload
 ): Promise<void> {
   try {
-    const { message_id, server_id, ap_id } = payload;
+    const { message_id, channel_id, server_id, ap_id } = payload;
     const supabase = getSupabaseClient();
 
     logger.info(`Federating message deletion ${message_id}`);
@@ -362,12 +362,12 @@ export async function handleChannelMessageDelete(
       return;
     }
 
-    // CASE 2: Local server - broadcast delete to remote member instances
+    // CASE 2: Local server - broadcast delete to instances of members who can view the channel
     if (!server.federation_enabled) {
       return;
     }
 
-    const remoteMemberGroups = await getRemoteMemberGroups(server_id);
+    const remoteMemberGroups = await getChannelRecipientGroups(channel_id);
 
     if (remoteMemberGroups.length === 0) {
       return;

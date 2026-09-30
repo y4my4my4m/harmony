@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import { getSupabaseClient } from '../config/supabase.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { logger } from '../utils/logger.js';
-import { safeFetch } from '../utils/ssrfProtection.js';
+import { safeFetch, type SafeFetchOptions } from '../utils/ssrfProtection.js';
 
 // In-memory LRU of PEM public keys, keyed by actorUrl.
 //
@@ -47,12 +47,42 @@ function invalidatePublicKey(actorUrl: string): void {
   publicKeyCache.delete(actorUrl);
 }
 
+// keyId → owning actor URL, for keyIds that are not `<actor>#fragment`.
+// GoToSocial keyIds are `<actor>/main-key`; dereferencing one returns an
+// actor stub whose `id` is the owner.
+const KEY_OWNER_CACHE_MAX = 5_000;
+const keyOwnerCache = new Map<string, string>();
+
+function setKeyOwner(keyId: string, owner: string): void {
+  if (keyOwnerCache.size >= KEY_OWNER_CACHE_MAX) {
+    const oldest = keyOwnerCache.keys().next().value;
+    if (oldest !== undefined) keyOwnerCache.delete(oldest);
+  }
+  keyOwnerCache.set(keyId, owner);
+}
+
+function hostOf(url: string): string | null {
+  try {
+    return new URL(url).host.toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
 // Exported for tests and admin endpoints that wipe the cache.
 export const __publicKeyCache = {
   size: () => publicKeyCache.size,
-  clear: () => publicKeyCache.clear(),
+  clear: () => {
+    publicKeyCache.clear();
+    keyOwnerCache.clear();
+  },
   invalidate: invalidatePublicKey,
 };
+
+export interface SignedApFetchOptions extends SafeFetchOptions {
+  /** Local profile id whose key signs the request. */
+  signAs?: string;
+}
 
 export class SignatureService {
   static async generateKeyPair(): Promise<{ publicKey: string; privateKey: string }> {
@@ -243,24 +273,33 @@ export class SignatureService {
         return { verified: false, error: 'Missing signature components' };
       }
 
-      // Replay window (BUGS.md H18). Mastodon-compatible implementations
-      // always sign Date; when present, reject outside ±5 minutes of clock
-      // skew. Absent this check a captured signed request stays valid forever.
+      // Replay window (BUGS.md H18): Date must be present and covered by the
+      // signature, and within ±5 minutes. An unsigned Date can be rewritten
+      // on a captured request. Mastodon applies the same requirement
+      // (verify_signature_strength!); `(created)` is not supported here.
+      const signedHeaderList = signedHeaders.toLowerCase().split(/\s+/).filter(Boolean);
+      if (!signedHeaderList.includes('date')) {
+        return { verified: false, error: 'Date header not included in signed headers' };
+      }
       const dateHeader = headers['date'] || headers['Date'];
-      if (dateHeader) {
-        const requestTime = Date.parse(dateHeader);
-        const MAX_SKEW_MS = 5 * 60 * 1000;
-        if (Number.isNaN(requestTime)) {
-          return { verified: false, error: 'Unparseable Date header' };
-        }
-        if (Math.abs(Date.now() - requestTime) > MAX_SKEW_MS) {
-          logger.warn(`Request Date outside allowed skew: ${dateHeader}`);
-          return { verified: false, error: 'Request Date outside allowed clock skew (possible replay)' };
-        }
+      if (!dateHeader) {
+        return { verified: false, error: 'Missing Date header' };
+      }
+      const requestTime = Date.parse(dateHeader);
+      const MAX_SKEW_MS = 5 * 60 * 1000;
+      if (Number.isNaN(requestTime)) {
+        return { verified: false, error: 'Unparseable Date header' };
+      }
+      if (Math.abs(Date.now() - requestTime) > MAX_SKEW_MS) {
+        logger.warn(`Request Date outside allowed skew: ${dateHeader}`);
+        return { verified: false, error: 'Request Date outside allowed clock skew (possible replay)' };
       }
 
-      // keyId minus fragment: https://host/users/alice#main-key -> https://host/users/alice
-      const actorUrl = keyId.split('#')[0];
+      const actorUrl = await this.resolveKeyOwner(keyId);
+      if (!actorUrl) {
+        logger.warn(`Could not resolve owner of key ${keyId}`);
+        return { verified: false, error: 'Could not resolve key owner' };
+      }
 
       const publicKey = await this.fetchActorPublicKey(actorUrl);
 
@@ -425,6 +464,63 @@ export class SignatureService {
   }
 
   /**
+   * Actor URL owning `keyId`. A `<actor>#fragment` keyId names its owner. Any
+   * other keyId is dereferenced once: the document is the actor itself
+   * (`id === keyId`), a Key naming its `owner`, or an actor stub listing the
+   * keyId under `publicKey` (GoToSocial `<actor>/main-key`). The owner must
+   * be on the keyId's host.
+   */
+  private static async resolveKeyOwner(keyId: string): Promise<string | null> {
+    const hashAt = keyId.indexOf('#');
+    if (hashAt >= 0) return keyId.slice(0, hashAt);
+
+    const cached = keyOwnerCache.get(keyId);
+    if (cached) return cached;
+
+    const supabase = getSupabaseClient();
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('federated_id', keyId)
+      .maybeSingle();
+    if (profile) {
+      setKeyOwner(keyId, keyId);
+      return keyId;
+    }
+
+    try {
+      const response = await safeFetch(keyId, {
+        headers: {
+          'Accept': 'application/activity+json, application/ld+json',
+        },
+      });
+      if (!response.ok) {
+        logger.warn(`Key document fetch failed: ${response.status} for ${keyId}`);
+        return null;
+      }
+      const doc = await response.json();
+
+      let owner: string | null = null;
+      if (doc?.id === keyId) {
+        owner = typeof doc.owner === 'string' ? doc.owner : keyId;
+      } else if (typeof doc?.id === 'string') {
+        const keys = Array.isArray(doc.publicKey) ? doc.publicKey : [doc.publicKey];
+        if (keys.some((k: any) => k?.id === keyId)) owner = doc.id;
+      }
+
+      if (!owner || hostOf(owner) === null || hostOf(owner) !== hostOf(keyId)) {
+        logger.warn(`Key ${keyId} has no owner on its own host`);
+        return null;
+      }
+      setKeyOwner(keyId, owner);
+      return owner;
+    } catch (error) {
+      logger.warn(`Error resolving owner of key ${keyId}:`, error);
+      return null;
+    }
+  }
+
+  /**
    * Resolve an actor's public key. Tier order: in-memory LRU, profiles table,
    * ap_actor_cache, remote fetch.
    * @param forceRefresh Skip every cache tier and fetch from the remote server.
@@ -559,10 +655,64 @@ export class SignatureService {
 
   /**
    * Signed GET for an ActivityPub object, for remotes running authorized
-   * fetch / secure mode. Signs with any local user's key; falls back to an
-   * unsigned fetch when no local user exists.
+   * fetch / secure mode.
+   *
+   * With `signAs`, the request is signed with that local user's key and a
+   * signing failure throws: a read on a member's behalf is never sent unsigned
+   * or under another key. Without it, any local user's key signs, and the
+   * request goes unsigned when no local user exists or signing fails.
+   *
+   * `options` is forwarded to `safeFetch` so callers keep their own Accept,
+   * User-Agent, timeout, and abort signal. The signature headers
+   * (`Host`/`Date`/`Signature`) are applied last and always win.
    */
-  static async signedApFetch(url: string, timeoutMs = 8000): Promise<Response> {
+  static async signedApFetch(url: string, options: SignedApFetchOptions = {}): Promise<Response> {
+    const { timeoutMs = 8000, headers: callerHeaders, signal, maxRedirects, maxBodyBytes, signAs } = options;
+
+    const headers: Record<string, string> = {
+      'Accept': 'application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams", application/json',
+      ...(callerHeaders as Record<string, string> | undefined),
+    };
+
+    if (signAs) {
+      // signRequest generates and stores a key pair for a profile without
+      // one; a remote profile's published key would be replaced.
+      const { data: signer } = await getSupabaseClient()
+        .from('profiles')
+        .select('is_local')
+        .eq('id', signAs)
+        .maybeSingle();
+      if (signer?.is_local !== true) {
+        throw new AppError(500, `Cannot sign as ${signAs}: not a local profile`);
+      }
+      const signed = await this.signRequest(url, 'GET', null, signAs);
+      Object.assign(headers, signed.headers);
+    } else {
+      const signingUserId = await this.anyLocalSigner();
+      if (signingUserId) {
+        try {
+          const signed = await this.signRequest(url, 'GET', null, signingUserId);
+          Object.assign(headers, signed.headers);
+        } catch (err) {
+          logger.debug(`Could not sign AP GET request, proceeding unsigned: ${err}`);
+        }
+      }
+    }
+
+    // safeFetch enforces URL+DNS validation per hop, follows manual redirects
+    // with re-validation (max 3 hops by default), and bounds each attempt
+    // with timeoutMs.
+    return safeFetch(url, {
+      headers,
+      timeoutMs,
+      ...(signal !== undefined ? { signal } : {}),
+      ...(maxRedirects !== undefined ? { maxRedirects } : {}),
+      ...(maxBodyBytes !== undefined ? { maxBodyBytes } : {}),
+    });
+  }
+
+  /** A local user holding a stored key, else the first local user (signRequest generates its pair). */
+  private static async anyLocalSigner(): Promise<string | undefined> {
     const supabase = getSupabaseClient();
 
     const { data: signer } = await supabase
@@ -570,39 +720,39 @@ export class SignatureService {
       .select('user_id')
       .limit(1)
       .maybeSingle();
+    if (signer?.user_id) return signer.user_id;
 
-    let signingUserId = signer?.user_id;
+    const { data: firstUser } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('is_local', true)
+      .limit(1)
+      .maybeSingle();
+    return firstUser?.id;
+  }
 
-    // No stored keys: signRequest generates a pair for the first local user.
-    if (!signingUserId) {
-      const { data: firstUser } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('is_local', true)
-        .limit(1)
-        .maybeSingle();
-      signingUserId = firstUser?.id;
+  /**
+   * GET an ActivityPub resource, retrying with an HTTP signature when the
+   * remote requires authorized fetch.
+   *
+   * The unsigned request is tried first, so peers that serve public objects
+   * pay no signing cost. Only an authentication rejection (401/403) triggers
+   * a signed retry; every other status - including 404/410/500 - is returned
+   * unchanged so callers keep their existing error handling. On a remote that
+   * exposes nothing, the signed retry is the only successful path.
+   */
+  static async fetchApWithSignatureFallback(
+    url: string,
+    options: SafeFetchOptions = {},
+  ): Promise<Response> {
+    const response = await safeFetch(url, options);
+
+    if (response.status !== 401 && response.status !== 403) {
+      return response;
     }
 
-    const headers: Record<string, string> = {
-      'Accept': 'application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams", application/json',
-    };
-
-    if (signingUserId) {
-      try {
-        const signed = await this.signRequest(url, 'GET', null, signingUserId);
-        Object.assign(headers, signed.headers);
-      } catch (err) {
-        logger.debug(`Could not sign AP GET request, proceeding unsigned: ${err}`);
-      }
-    }
-
-    // safeFetch enforces URL+DNS validation per hop, follows manual redirects
-    // with re-validation (max 3 hops), and bounds each attempt with timeoutMs.
-    return safeFetch(url, {
-      headers,
-      timeoutMs,
-    });
+    logger.debug(`AP GET got ${response.status}, retrying with HTTP signature: ${url}`);
+    return this.signedApFetch(url, options);
   }
 
   /** Digest header value: `SHA-256=<base64 sha256 of the body bytes>`. */

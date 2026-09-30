@@ -185,19 +185,19 @@ export async function processServerInboxActivity(
     logger.debug(`Could not check instance block status: ${error}`);
   }
 
-  // Leave/Accept/Reject are always allowed so members can leave gracefully.
-  // Every other type requires federation_enabled on the server.
+  // Leave is always allowed so members can leave gracefully. Every other
+  // type requires federation_enabled on the server.
   switch (activity.type) {
     case 'Leave':
       await processLeaveServer(serverId, server, activity);
       break;
 
+    // This server is local and answers Joins itself; an Accept or Reject of a
+    // Join arriving here comes from a third party. Answers to a local user's
+    // Join of a remote server arrive at the user inbox.
     case 'Accept':
-      await processAcceptActivity(serverId, activity);
-      break;
-
     case 'Reject':
-      await processRejectActivity(serverId, activity);
+      logger.warn(`Ignoring ${activity.type} from ${activity.actor?.id ?? activity.actor} on local server inbox ${serverId}`);
       break;
 
     case 'Join':
@@ -456,85 +456,28 @@ async function processLeaveServer(
   }
 }
 
-// Accept of a Join: the remote server admitted the local user.
-async function processAcceptActivity(
-  serverId: string,
-  activity: any
-): Promise<void> {
-  const supabase = getSupabaseClient();
-
-  const object = activity.object;
-  if (!object || object.type !== 'Join') {
-    logger.info('Accept activity is not for a Join, ignoring');
-    return;
-  }
-
-  const userActorUrl = typeof object.actor === 'string' ? object.actor : object.actor?.id;
-  if (!userActorUrl) {
-    logger.warn('Could not determine user from Join object');
-    return;
-  }
-
-  const { data: user } = await supabase
-    .from('profiles')
-    .select('id, username')
-    .eq('federated_id', userActorUrl)
-    .single();
-
-  if (!user) {
-    logger.warn('User not found for Accept activity');
-    return;
-  }
-
-  const { error } = await supabase
-    .from('user_servers')
-    .update({ status: 'accepted' })
-    .eq('server_id', serverId)
-    .eq('user_id', user.id);
-
-  if (error) {
-    logger.error('Failed to update membership status:', error);
-  } else {
-    logger.info(`Membership accepted for ${user.username} in server ${serverId}`);
-  }
-}
-
-// Reject of a Join: the remote server refused the local user.
-async function processRejectActivity(
-  serverId: string,
-  activity: any
-): Promise<void> {
-  const supabase = getSupabaseClient();
-
-  const object = activity.object;
-  if (!object || object.type !== 'Join') {
-    return;
-  }
-
-  const userActorUrl = typeof object.actor === 'string' ? object.actor : object.actor?.id;
-  
-  const { data: user } = await supabase
-    .from('profiles')
-    .select('id, username')
-    .eq('federated_id', userActorUrl)
-    .single();
-
-  if (!user) {
-    return;
-  }
-
-  await supabase
-    .from('user_servers')
-    .delete()
-    .eq('server_id', serverId)
-    .eq('user_id', user.id);
-
-  logger.info(`Join rejected for ${user.username} in server ${serverId}`);
-}
-
 // MESSAGE HANDLERS
 
 // Create carries either a ChatThread or a Note in a server channel.
+/** has_permission for VIEW_CHANNEL and SEND_MESSAGES; any error denies. */
+export async function canPostInChannel(
+  supabase: ReturnType<typeof getSupabaseClient>,
+  userId: string,
+  serverId: string,
+  channelId: string,
+): Promise<boolean> {
+  for (const permission of ['VIEW_CHANNEL', 'SEND_MESSAGES']) {
+    const { data, error } = await supabase.rpc('has_permission', {
+      p_user_id: userId,
+      p_server_id: serverId,
+      p_permission: permission,
+      p_channel_id: channelId,
+    });
+    if (error || data !== true) return false;
+  }
+  return true;
+}
+
 async function processCreateActivity(
   serverId: string,
   server: any,
@@ -636,7 +579,8 @@ async function processCreateActivity(
     .from('channels')
     .select('id, name')
     .eq('ap_id', context)
-    .single();
+    .eq('server_id', serverId)
+    .maybeSingle();
 
   if (!channel) {
     // Fall back to the UUID embedded in the context URL.
@@ -670,7 +614,8 @@ async function processCreateActivity(
           .from('channels')
           .select('id, name')
           .eq('ap_id', context)
-          .single();
+          .eq('server_id', serverId)
+          .maybeSingle();
 
         if (!syncedChannel) {
           const channelIdMatch = context.match(/\/channels\/([a-f0-9-]+)/);
@@ -695,6 +640,13 @@ async function processCreateActivity(
       logger.warn(`Dropping message for unknown channel: ${context} (server: ${serverId}). Channel creation from messages is not allowed.`);
       return;
     }
+  }
+
+  // A local server enforces the author's channel permissions; a remote
+  // server's host already did.
+  if (server?.is_local_server !== false && !(await canPostInChannel(supabase, author.id, serverId, channel.id))) {
+    logger.warn(`Rejecting Create(Note): ${actorUrl} lacks VIEW_CHANNEL or SEND_MESSAGES in channel ${channel.id}`);
+    return;
   }
 
   let messageContent: any[];
@@ -732,6 +684,7 @@ async function processCreateActivity(
       .from('messages')
       .select('id')
       .eq('metadata->>ap_id', object.inReplyTo)
+      .eq('channel_id', channel.id)
       .maybeSingle();
 
     if (parentByApId) {
@@ -743,6 +696,7 @@ async function processCreateActivity(
           .from('messages')
           .select('id')
           .eq('id', replyToMatch[1])
+          .eq('channel_id', channel.id)
           .maybeSingle();
         if (parentById) {
           replyToId = parentById.id;

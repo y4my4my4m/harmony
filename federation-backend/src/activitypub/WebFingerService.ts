@@ -36,6 +36,14 @@ router.get(
       });
     }
 
+    // Usernames are [a-zA-Z0-9_], slugs [a-z0-9_-]. Anything else cannot
+    // match and must not reach ILIKE, where `%` and `*` are wildcards.
+    if (!/^[a-zA-Z0-9_-]+$/.test(username)) {
+      return res.status(404).json({ error: 'Account not found' });
+    }
+    // `_` is the ILIKE single-character wildcard: `a_b` would also match `axb`.
+    const pattern = username.replace(/_/g, '\\_');
+
     // A handle can name a user (Person) AND/OR a chat server (Group). They are
     // distinct actor types that may share a localpart, exactly like Lemmy's
     // users vs communities. WebFinger has no type field in the acct: URI, so
@@ -50,7 +58,7 @@ router.get(
       supabase
         .from('profiles')
         .select('username')
-        .ilike('username', username)
+        .ilike('username', pattern)
         .eq('is_local', true)
         .maybeSingle(),
       // Only public, federation-enabled local servers are discoverable by
@@ -59,7 +67,7 @@ router.get(
       supabase
         .from('servers')
         .select('id, slug')
-        .ilike('slug', username)
+        .ilike('slug', pattern)
         .eq('is_local_server', true)
         .eq('federation_enabled', true)
         .eq('public', true)

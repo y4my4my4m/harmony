@@ -514,9 +514,10 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px;
+  padding: 0 16px;
   border-bottom: 1px solid var(--border-color);
-  height: 48px;
+  /* 47px on the card's 1px top border: bottom edge at 48, level with the main column header. */
+  height: 47px;
 }
 
 .dm-content {

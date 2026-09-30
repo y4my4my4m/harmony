@@ -10,6 +10,10 @@ import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
 import { validateExternalHostname, safeFetch } from '../utils/ssrfProtection.js';
 import { discoveryLimiter } from '../middleware/rateLimit.js';
+import { sameOrigin, urlHost } from '../utils/apOrigin.js';
+import { SignatureService } from '../activitypub/SignatureService.js';
+import { loadGroupAccess } from '../activitypub/groupAccess.js';
+import { localProfileIdFromBearer } from '../middleware/auth.js';
 import {
   getFullAvatarUrl,
   getFullServerBannerUrl,
@@ -253,23 +257,33 @@ router.get(
       .from('channels')
       .select('id, name, type, category, order, description')
       .eq('server_id', server.id)
-      .eq('is_remote', false)
+      .not('is_remote', 'is', true)
       .order('order', { ascending: true });
 
     const serverApId = `https://${hostDomain}/servers/${server.id}`;
-    
-    const categoryList = (categories || []).map(cat => ({
-      id: `${serverApId}/channels/${cat.id}`,
-      localId: cat.id,
-      name: cat.name,
-      type: 'category',
-      category: null,
-      categoryId: null,
-      order: cat.order || 0,
-      description: null,
-    }));
 
-    const channelList = (channels || []).map(c => ({
+    // The invite holder joins as @everyone: the preview lists what @everyone
+    // can view, and a category only when it holds such a channel or none.
+    const access = await loadGroupAccess(server.id, null);
+    const everyoneIds = access?.everyoneChannelIds ?? new Set<string>();
+    const listed = (channels || []).filter(c => everyoneIds.has(c.id));
+    const listedCategoryIds = new Set(listed.map(c => c.category).filter(Boolean));
+    const occupiedCategoryIds = new Set((channels || []).map(c => c.category).filter(Boolean));
+
+    const categoryList = (categories || [])
+      .filter(cat => listedCategoryIds.has(cat.id) || !occupiedCategoryIds.has(cat.id))
+      .map(cat => ({
+        id: `${serverApId}/channels/${cat.id}`,
+        localId: cat.id,
+        name: cat.name,
+        type: 'category',
+        category: null,
+        categoryId: null,
+        order: cat.order || 0,
+        description: null,
+      }));
+
+    const channelList = listed.map(c => ({
       id: `${serverApId}/channels/${c.id}`,
       localId: c.id,
       name: c.name,
@@ -378,8 +392,12 @@ router.post(
       .single();
 
     if (!localServer) {
-      // Also check by UUID for same-instance servers that don't have ap_id set
-      const uuidMatch = remoteServer.id.match(/\/servers\/([a-f0-9-]{36})$/i);
+      // Also check by UUID for same-instance servers that don't have ap_id set.
+      // Only ids on this instance name a local row; a remote Group reusing a
+      // local server's UUID would otherwise be joined, and its member list
+      // synced, into that local server.
+      const isOwnInstance = urlHost(remoteServer.id) === config.INSTANCE_DOMAIN.toLowerCase();
+      const uuidMatch = isOwnInstance ? remoteServer.id.match(/\/servers\/([a-f0-9-]{36})$/i) : null;
       if (uuidMatch) {
         const { data: serverById } = await supabase
           .from('servers')
@@ -442,6 +460,13 @@ router.post(
         userId
       );
 
+      // A private Group lists channels only to members, and the reference
+      // was built from what a non-member sees. Delivery is attempted inline,
+      // so a host that admits on receipt already counts this user a member.
+      if (!localServer.is_local_server) {
+        await ServerDiscoveryService.syncRemoteServer(localServer.id, { asUserId: userId });
+      }
+
       const { data: defaultChannel } = await supabase
         .from('channels')
         .select('id')
@@ -453,7 +478,9 @@ router.post(
 
       logger.info(`Join complete: server=${localServer.id}, status=${initialStatus}, defaultChannel=${defaultChannel?.id || 'none'}`);
 
-      if (remoteServer.members) {
+      // A local server's members are its own rows; only remote references
+      // mirror a remote member list.
+      if (remoteServer.members && !localServer.is_local_server) {
         ServerDiscoveryService.syncRemoteServerMembers(localServer.id, remoteServer.members)
           .catch(err => logger.error('Failed to sync remote members:', err));
       }
@@ -560,7 +587,8 @@ router.post(
 
 /**
  * GET /servers/:serverId/sync
- * Sync server metadata from remote
+ * Sync server metadata from remote, signed as the requester when a bearer
+ * token names a local member of the server, else as any local member.
  */
 router.get(
   '/servers/:serverId/sync',
@@ -568,7 +596,12 @@ router.get(
   asyncHandler(async (req: Request, res: Response) => {
     const { serverId } = req.params;
 
-    await ServerDiscoveryService.syncRemoteServer(serverId);
+    const requesterId = await localProfileIdFromBearer(req.headers.authorization);
+    const asUserId = requesterId && await ServerDiscoveryService.isAcceptedMember(serverId, requesterId)
+      ? requesterId
+      : undefined;
+
+    await ServerDiscoveryService.syncRemoteServer(serverId, { asUserId });
 
     return res.json({ success: true, message: 'Server synced' });
   })
@@ -576,7 +609,8 @@ router.get(
 
 /**
  * GET /channels/:channelId/messages
- * Fetch messages from a remote channel
+ * Messages of a remote channel, fetched from its host with a GET signed as
+ * the requesting local user. The host decides what that user may read.
  */
 router.get(
   '/channels/:channelId/messages',
@@ -586,6 +620,11 @@ router.get(
     const { before, limit = 50 } = req.query;
     
     logger.info(`GET /channels/${channelId}/messages (limit: ${limit}, before: ${before || 'none'})`);
+
+    const requesterId = await localProfileIdFromBearer(req.headers.authorization);
+    if (!requesterId) {
+      return res.status(401).json({ error: 'Authorization required' });
+    }
     
     const supabase = getSupabaseClient();
 
@@ -598,17 +637,45 @@ router.get(
         )
       `)
       .eq('id', channelId)
-      .single();
+      .maybeSingle();
 
     if (channelError || !channel) {
       return res.status(404).json({ error: 'Channel not found' });
     }
 
-    // Local channels serve messages straight from the local table
+    // Local channels are read by clients through Supabase under RLS; this
+    // route reads with the service role.
     if (!channel.is_remote) {
-      // messages.user_id is null on bot rows, which carry bot_id instead; those
-      // embed a null author.
-      let query = supabase
+      return res.status(404).json({ error: 'Channel not found' });
+    }
+
+    // The GET carries the requester's signature, so it goes only to a channel
+    // under the server's own Group.
+    const server = (channel as any).server;
+    if (!server?.ap_id || typeof channel.ap_id !== 'string' || !channel.ap_id.startsWith(`${server.ap_id}/channels/`)) {
+      return res.status(404).json({ error: 'Channel not found' });
+    }
+
+    const { data: membership } = await supabase
+      .from('user_servers')
+      .select('status')
+      .eq('server_id', server.id)
+      .eq('user_id', requesterId)
+      .maybeSingle();
+
+    // Pending counts: the host holds the authoritative membership, and a
+    // local row stays pending until its Accept arrives.
+    if (!membership || (membership.status !== 'accepted' && membership.status !== 'pending')) {
+      return res.status(404).json({ error: 'Channel not found' });
+    }
+
+    // Cached rows are served only to an accepted member, and only when the
+    // host could not be reached; a refusal from the host is final.
+    const serveCache = async (reason: string) => {
+      if (membership.status !== 'accepted') {
+        return res.status(502).json({ error: reason });
+      }
+      const { data: cachedMessages } = await supabase
         .from('messages')
         .select(`
           id, content, created_at, updated_at, metadata,
@@ -618,54 +685,36 @@ router.get(
         .order('created_at', { ascending: false })
         .limit(Number(limit));
 
-      if (before) {
-        query = query.lt('created_at', before);
-      }
-
-      const { data: messages } = await query;
-      return res.json({ messages: messages || [], source: 'local' });
-    }
-
-    // For remote channels, fetch from the remote server
-    const server = (channel as any).server;
-    if (!server?.ap_id) {
-      return res.status(400).json({ error: 'Remote server not properly configured' });
-    }
+      return res.json({
+        messages: cachedMessages || [],
+        source: 'cache',
+        error: reason,
+      });
+    };
 
     try {
-      // Fetch from remote channel messages endpoint
-      // Use /messages?page=1 format as that's what GroupService returns
-      const channelMessagesUrl = `${channel.ap_id}/messages`;
-      const fetchUrl = `${channelMessagesUrl}?page=1`;
+      // GroupService serves the collection page at /messages?page=N.
+      const fetchUrl = `${channel.ap_id}/messages?page=1`;
 
       logger.info(`Fetching messages from remote channel: ${fetchUrl}`);
 
-      // BUGS.md H15: fetchUrl is constructed from remote AP response data.
-      const response = await safeFetch(fetchUrl, {
+      // BUGS.md H15: fetchUrl is constructed from remote AP response data;
+      // signedApFetch goes through safeFetch.
+      const response = await SignatureService.signedApFetch(fetchUrl, {
         headers: {
           'Accept': 'application/activity+json, application/json',
           'User-Agent': `Harmony/${config.VERSION} (+https://${config.INSTANCE_DOMAIN})`,
         },
+        timeoutMs: 10000,
+        signAs: requesterId,
       });
 
       if (!response.ok) {
         logger.warn(`Failed to fetch remote messages: ${response.status}`);
-        // Fall back to local cached messages
-        const { data: cachedMessages } = await supabase
-          .from('messages')
-          .select(`
-            id, content, created_at, updated_at, metadata,
-            author:profiles!messages_user_id_fkey(id, username, display_name, avatar_url, federated_id)
-          `)
-          .eq('channel_id', channelId)
-          .order('created_at', { ascending: false })
-          .limit(Number(limit));
-
-        return res.json({ 
-          messages: cachedMessages || [], 
-          source: 'cache',
-          error: 'Could not fetch from remote, showing cached messages'
-        });
+        if (response.status === 401 || response.status === 403 || response.status === 404 || response.status === 410) {
+          return res.status(404).json({ error: 'Channel not found' });
+        }
+        return serveCache('Could not fetch from remote, showing cached messages');
       }
 
       const data = await response.json();
@@ -855,23 +904,7 @@ router.get(
       });
     } catch (error: any) {
       logger.error('Error fetching remote messages:', error);
-      
-      // Fall back to local cached messages
-      const { data: cachedMessages } = await supabase
-        .from('messages')
-        .select(`
-          id, content, created_at, updated_at, metadata,
-          author:profiles!messages_user_id_fkey(id, username, display_name, avatar_url, federated_id)
-        `)
-        .eq('channel_id', channelId)
-        .order('created_at', { ascending: false })
-        .limit(Number(limit));
-
-      return res.json({ 
-        messages: cachedMessages || [], 
-        source: 'cache',
-        error: error.message 
-      });
+      return serveCache(error.message);
     }
   })
 );
@@ -962,17 +995,18 @@ export class ServerDiscoveryService {
   }
 
   /**
-   * Fetch server by direct ActivityPub URL
+   * Fetch a Group by its ActivityPub URL. With `signAs`, the GET is signed as
+   * that local user, which a private server requires before it lists
+   * channels; without it the GET is unsigned and sees the public view.
    */
-  static async fetchServerByUrl(url: string): Promise<any | null> {
+  static async fetchServerByUrl(url: string, opts: { signAs?: string } = {}): Promise<any | null> {
     try {
       logger.info(`Fetching remote server: ${url}`);
 
-      const response = await safeFetch(url, {
-        headers: {
-          'Accept': 'application/activity+json, application/ld+json',
-        },
-      });
+      const headers = { 'Accept': 'application/activity+json, application/ld+json' };
+      const response = opts.signAs
+        ? await SignatureService.signedApFetch(url, { headers, timeoutMs: 10000, signAs: opts.signAs })
+        : await safeFetch(url, { headers });
 
       if (!response.ok) {
         logger.warn(`Failed to fetch server: ${response.status}`);
@@ -983,6 +1017,14 @@ export class ServerDiscoveryService {
 
       if (server.type !== 'Group') {
         logger.warn(`URL does not point to a Group: ${server.type}`);
+        return null;
+      }
+
+      // The reference is stored under the Group's own id, its UUID reused as
+      // the local primary key, and Joins go to its inbox. A document naming
+      // an id or inbox on another host is not authoritative for either.
+      if (!sameOrigin(server.id, url) || !sameOrigin(server.inbox, server.id)) {
+        logger.warn(`Group at ${url} names id ${server.id} / inbox ${server.inbox} on another host`);
         return null;
       }
 
@@ -1070,8 +1112,14 @@ export class ServerDiscoveryService {
           .single();
 
         if (existingById) {
-          logger.info(`Server already exists locally by UUID: ${serverUuid} (${existingById.name})`);
-          return existingById;
+          // The row is this Group only for a same-instance id or a matching
+          // ap_id. Otherwise the UUID is taken; the reference gets a fresh one.
+          if (hostDomain.toLowerCase() === config.INSTANCE_DOMAIN.toLowerCase() || existingById.ap_id === remoteServer.id) {
+            logger.info(`Server already exists locally by UUID: ${serverUuid} (${existingById.name})`);
+            return existingById;
+          }
+          logger.warn(`Remote Group ${remoteServer.id} reuses UUID of local row ${serverUuid}; assigning a new id`);
+          serverUuid = undefined;
         }
       }
 
@@ -1299,10 +1347,50 @@ export class ServerDiscoveryService {
     logger.info(`Sent Leave request to ${inboxUrl}`);
   }
 
+  /** The profile holds an accepted membership of the server. */
+  static async isAcceptedMember(serverId: string, profileId: string): Promise<boolean> {
+    const supabase = getSupabaseClient();
+    const { data } = await supabase
+      .from('user_servers')
+      .select('status')
+      .eq('server_id', serverId)
+      .eq('user_id', profileId)
+      .maybeSingle();
+    return data?.status === 'accepted';
+  }
+
   /**
-   * Sync server metadata from remote
+   * Local user whose key signs background reads of a remote server: the
+   * earliest accepted local member. Null when the server has none.
    */
-  static async syncRemoteServer(serverId: string): Promise<void> {
+  static async pickSigningMember(serverId: string): Promise<string | null> {
+    const supabase = getSupabaseClient();
+    const { data: memberships } = await supabase
+      .from('user_servers')
+      .select('user_id')
+      .eq('server_id', serverId)
+      .eq('status', 'accepted')
+      .order('created_at', { ascending: true })
+      .limit(50);
+
+    const ids: string[] = (memberships || []).map((m: any) => m.user_id);
+    if (ids.length === 0) return null;
+
+    const { data: locals } = await supabase
+      .from('profiles')
+      .select('id')
+      .in('id', ids)
+      .eq('is_local', true);
+    const localIds = new Set((locals || []).map((p: any) => p.id));
+    return ids.find(id => localIds.has(id)) ?? null;
+  }
+
+  /**
+   * Sync a remote server's metadata and channels. The Group is fetched signed
+   * as `asUserId`, else as a local accepted member; with neither there is no
+   * member to show the result to and the sync is skipped.
+   */
+  static async syncRemoteServer(serverId: string, opts: { asUserId?: string } = {}): Promise<void> {
     const supabase = getSupabaseClient();
 
     try {
@@ -1318,10 +1406,28 @@ export class ServerDiscoveryService {
         return;
       }
 
-      const remoteServer = await this.fetchServerByUrl(server.ap_id);
+      const signer = opts.asUserId ?? await this.pickSigningMember(serverId);
+      if (!signer) {
+        logger.info(`No local member of server ${serverId} to sign its sync; skipped`);
+        return;
+      }
+
+      const remoteServer = await this.fetchServerByUrl(server.ap_id, { signAs: signer });
 
       if (!remoteServer) {
         logger.warn('Failed to fetch remote server');
+        return;
+      }
+
+      if (remoteServer.id !== server.ap_id) {
+        logger.warn(`Group at ${server.ap_id} names id ${remoteServer.id}; reference left unchanged`);
+        return;
+      }
+
+      // The stub served to a non-member carries no channel list and no
+      // artwork; applying it would blank the reference.
+      if (!Array.isArray(remoteServer['harmony:channels'])) {
+        logger.info(`Group ${server.ap_id} lists no channels to ${signer}; reference left unchanged`);
         return;
       }
 
@@ -1343,33 +1449,7 @@ export class ServerDiscoveryService {
         })
         .eq('id', serverId);
 
-      // Sync channels
-      const remoteChannels = remoteServer['harmony:channels'] || [];
-      
-      // Helper to determine channel type
-      const getChannelType = (c: any): number => {
-        if (c.type === 'harmony:Category' || c.type === 2 || c.channelType === 'category') {
-          return 2; // category
-        }
-        if (c.type === 'harmony:VoiceChannel' || c.type === 1 || c.channelType === 'voice') {
-          return 1; // voice
-        }
-        return 0; // text
-      };
-
-      const upsertRows = remoteChannels.map((channelData: any) => ({
-        server_id: serverId,
-        name: channelData.name,
-        type: getChannelType(channelData),
-        order: channelData.position || channelData.order || 0,
-        ap_id: channelData.id,
-        is_remote: true,
-        category: channelData.categoryId || null,
-      }));
-
-      if (upsertRows.length > 0) {
-        await supabase.from('channels').upsert(upsertRows, { onConflict: 'ap_id' });
-      }
+      await this.syncRemoteStructure(serverId, server.ap_id, remoteServer['harmony:channels']);
 
       logger.info(`Synced remote server: ${remoteServer.name}`);
     } catch (error) {
@@ -1378,24 +1458,123 @@ export class ServerDiscoveryService {
   }
 
   /**
-   * Sync remote server members
-   * Fetches the members collection and creates local profiles for remote users
+   * Apply a Group's `harmony:channels` to its reference. Rows keep the remote
+   * UUID as their id: pushed messages name their channel by it. Only ids
+   * under this Group are accepted, and an id already held by a row of another
+   * server is skipped, never re-parented. Channels absent from the list stay.
    */
-  static async syncRemoteServerMembers(serverId: string, membersUrl: string): Promise<void> {
+  static async syncRemoteStructure(serverId: string, serverApId: string, entries: any[]): Promise<void> {
+    const supabase = getSupabaseClient();
+    const prefix = `${serverApId}/channels/`;
+    const uuidOf = (apId: unknown): string | null => {
+      if (typeof apId !== 'string' || !apId.startsWith(prefix)) return null;
+      const m = apId.slice(prefix.length).match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+      return m ? m[0].toLowerCase() : null;
+    };
+    const isCategory = (c: any) =>
+      c.type === 'harmony:Category' || c.type === 'category' || c.type === 2 || c.channelType === 'category';
+    const isVoice = (c: any) =>
+      c.type === 'harmony:VoiceChannel' || c.type === 'voice' || c.type === 1 || c.channelType === 'voice';
+
+    const valid = (entries || []).filter((c: any) => c && uuidOf(c.id));
+    const categories = valid.filter(isCategory);
+    const channels = valid.filter((c: any) => !isCategory(c));
+
+    // channel_categories has no ap_id column; the remote UUID is the row id.
+    const ownCategoryIds = new Set<string>();
+    const categoryIds = categories.map((c: any) => uuidOf(c.id)!);
+    if (categoryIds.length > 0) {
+      const { data: existing } = await supabase
+        .from('channel_categories')
+        .select('id, server_id')
+        .in('id', categoryIds);
+      const serverOf = new Map((existing || []).map((r: any) => [r.id, r.server_id]));
+
+      for (const cat of categories) {
+        const id = uuidOf(cat.id)!;
+        const fields = { name: cat.name, order: cat.order ?? cat.position ?? 0 };
+        const owner = serverOf.get(id);
+        if (owner === undefined) {
+          const { error } = await supabase.from('channel_categories').insert({ id, server_id: serverId, ...fields });
+          if (error) logger.warn(`Could not create category ${cat.id}: ${error.message}`);
+          else ownCategoryIds.add(id);
+        } else if (owner === serverId) {
+          await supabase.from('channel_categories').update(fields).eq('id', id);
+          ownCategoryIds.add(id);
+        } else {
+          logger.warn(`Category ${cat.id} reuses the id of another server's category; skipped`);
+        }
+      }
+    }
+
+    if (channels.length === 0) return;
+
+    const [{ data: byApId }, { data: byId }] = await Promise.all([
+      supabase.from('channels').select('id, server_id, ap_id').in('ap_id', channels.map((c: any) => c.id)),
+      supabase.from('channels').select('id, server_id').in('id', channels.map((c: any) => uuidOf(c.id)!)),
+    ]);
+    const rowByApId = new Map((byApId || []).map((r: any) => [r.ap_id, r]));
+    const rowById = new Map((byId || []).map((r: any) => [r.id, r]));
+
+    for (const c of channels) {
+      const id = uuidOf(c.id)!;
+      const categoryId = [c.categoryId, uuidOf(c.category)]
+        .map(v => (typeof v === 'string' ? v.toLowerCase() : null))
+        .find((v): v is string => v !== null && ownCategoryIds.has(v));
+      const fields: Record<string, unknown> = {
+        name: c.name,
+        type: isVoice(c) ? 1 : 0,
+        order: c.order ?? c.position ?? 0,
+        category: categoryId ?? null,
+        ap_id: c.id,
+        is_remote: true,
+      };
+      if (typeof c.description === 'string') fields.description = c.description;
+
+      const existing = rowByApId.get(c.id) ?? rowById.get(id);
+      if (existing) {
+        if (existing.server_id !== serverId) {
+          logger.warn(`Channel ${c.id} collides with a channel of another server; skipped`);
+          continue;
+        }
+        await supabase.from('channels').update(fields).eq('id', existing.id);
+      } else {
+        const { error } = await supabase.from('channels').insert({ id, server_id: serverId, ...fields });
+        if (error) logger.warn(`Could not create channel ${c.id}: ${error.message}`);
+      }
+    }
+  }
+
+  /**
+   * Sync remote server members
+   * Fetches the members collection and creates local profiles for remote users.
+   * With `signAs`, the collection must sit on the server's host and the GET
+   * is signed as that local user.
+   */
+  static async syncRemoteServerMembers(
+    serverId: string,
+    membersUrl: string,
+    opts: { signAs?: string; serverApId?: string } = {},
+  ): Promise<void> {
     const supabase = getSupabaseClient();
 
     try {
       logger.info(`Syncing remote server members from: ${membersUrl}`);
 
-      // Fetch members collection (public endpoint, no signature needed).
+      if (opts.signAs && (!opts.serverApId || !sameOrigin(membersUrl, opts.serverApId))) {
+        logger.warn(`Members collection ${membersUrl} is not on the server's host; not signing a fetch to it`);
+        return;
+      }
+
       // BUGS.md H15: membersUrl is from remote AP response.
-      const response = await safeFetch(membersUrl + '?page=1', {
-        headers: {
-          'Accept': 'application/activity+json, application/json',
-          'User-Agent': `Harmony/${config.VERSION} (+https://${config.INSTANCE_DOMAIN})`,
-        },
-      });
-      
+      const headers = {
+        'Accept': 'application/activity+json, application/json',
+        'User-Agent': `Harmony/${config.VERSION} (+https://${config.INSTANCE_DOMAIN})`,
+      };
+      const response = opts.signAs
+        ? await SignatureService.signedApFetch(membersUrl + '?page=1', { headers, timeoutMs: 10000, signAs: opts.signAs })
+        : await safeFetch(membersUrl + '?page=1', { headers });
+
       if (!response.ok) {
         logger.warn(`Failed to fetch members collection: ${response.status}`);
         return;

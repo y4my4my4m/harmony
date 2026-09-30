@@ -32,26 +32,50 @@ function imageMediaTypeFromUrl(url: string): string | undefined {
 }
 
 /**
+ * Actor URL of a mention part. `mentionActorUrls` maps profile id to the
+ * stored actor id; without an entry the URL is guessed as
+ * `https://<domain>/users/<username>`, which is wrong for Misskey
+ * (`/users/<id>`) and Lemmy (`/u/<name>`).
+ */
+function mentionHref(item: any, mentionActorUrls?: Map<string, string>): string {
+  const known = item.userId ? mentionActorUrls?.get(item.userId) : undefined;
+  if (known) return known;
+  const domain = item.domain || config.INSTANCE_DOMAIN;
+  return `https://${domain}/users/${item.username || 'unknown'}`;
+}
+
+/**
  * Convert internal post format to ActivityPub Note
  * Supports quote posts via quoteUrl (Fediverse) and _misskey_quote (Misskey)
+ *
+ * Addressing follows Mastodon: public is to Public, cc followers; unlisted
+ * is to followers, cc Public; followers-only is to followers; direct is to
+ * the mentioned actors. Mentioned actors are cc'd on the first three.
  */
-export function postToNote(post: any, author: any, quoteUrl?: string): any {
+export function postToNote(
+  post: any,
+  author: any,
+  quoteUrl?: string,
+  mentionActorUrls?: Map<string, string>,
+): any {
   const domain = config.INSTANCE_DOMAIN;
   const authorUrl = `https://${domain}/users/${author.username}`;
   const postUrl = post.ap_id || `https://${domain}/posts/${post.id}`;
 
   let toAddresses = getToAddresses(post.visibility, authorUrl);
-  const ccAddresses = getCcAddresses(post.visibility, authorUrl);
+  let ccAddresses = getCcAddresses(post.visibility, authorUrl);
 
-  // For direct messages, populate 'to' with mentioned users' AP URLs
-  if (post.visibility === 'direct' && Array.isArray(post.content)) {
-    const mentionUrls = post.content
-      .filter((part: any) => part.type === 'mention')
-      .map((m: any) => {
-        const mentionDomain = m.domain || config.INSTANCE_DOMAIN;
-        return `https://${mentionDomain}/users/${m.username || 'unknown'}`;
-      });
-    toAddresses = [...toAddresses, ...mentionUrls];
+  if (Array.isArray(post.content)) {
+    const mentionUrls: string[] = Array.from(new Set<string>(
+      post.content
+        .filter((part: any) => part?.type === 'mention')
+        .map((m: any) => mentionHref(m, mentionActorUrls)),
+    ));
+    if (post.visibility === 'direct' || post.visibility === 'private') {
+      toAddresses = [...toAddresses, ...mentionUrls];
+    } else {
+      ccAddresses = [...ccAddresses, ...mentionUrls.filter((u) => !toAddresses.includes(u) && !ccAddresses.includes(u))];
+    }
   }
 
   const note: any = {
@@ -67,7 +91,7 @@ export function postToNote(post: any, author: any, quoteUrl?: string): any {
     type: 'Note',
     attributedTo: authorUrl,
     published: post.created_at,
-    content: extractContentAsHtml(post.content),
+    content: extractContentAsHtml(post.content, mentionActorUrls),
     to: toAddresses,
     cc: ccAddresses,
     likes: `${postUrl}/likes`,
@@ -84,11 +108,18 @@ export function postToNote(post: any, author: any, quoteUrl?: string): any {
   }
 
   const attachments = extractAttachments(post.content);
+  const seenAttachmentUrls = new Set(attachments.map((a) => a.url));
+  for (const media of mediaAttachmentsToAp(post.media_attachments)) {
+    if (!seenAttachmentUrls.has(media.url)) {
+      seenAttachmentUrls.add(media.url);
+      attachments.push(media);
+    }
+  }
   if (attachments.length > 0) {
     note.attachment = attachments;
   }
 
-  const tags = extractTags(post.content);
+  const tags = extractTags(post.content, mentionActorUrls);
   if (tags.length > 0) {
     note.tag = tags;
   }
@@ -508,7 +539,7 @@ function safeAttrUrlOutbound(url: string | null | undefined): string {
   return cleaned;
 }
 
-function extractContentAsHtml(content: any): string {
+function extractContentAsHtml(content: any, mentionActorUrls?: Map<string, string>): string {
   // Defensive: the DB constraint `posts_content_is_array` /
   // `messages_content_is_array` makes this path unreachable, but if a
   // raw string ever slipped through (an early migration, an unconverted
@@ -541,7 +572,7 @@ function extractContentAsHtml(content: any): string {
         // but we shouldn't emit broken HTML in the first place.
         const domain = item.domain || config.INSTANCE_DOMAIN;
         const username = item.username || 'unknown';
-        const href = safeAttrUrlOutbound(`https://${domain}/users/${username}`);
+        const href = safeAttrUrlOutbound(mentionHref(item, mentionActorUrls));
         const displayName = item.isLocal ? `@${username}` : `@${username}@${domain}`;
         return `<a href="${escapeHtmlAttr(href)}" class="mention">${escapeHtmlAttr(displayName)}</a>`;
       }
@@ -589,7 +620,7 @@ function extractAttachments(content: any): any[] {
         type: 'Document',
         mediaType,
         url: item.url,
-        name: item.altText || item.description || item.name || null, // Alt text for accessibility
+        name: firstText(item.altText, item.description), // Alt text; never the file name
       };
 
       // Add dimensions if available (important for image layout)
@@ -600,6 +631,41 @@ function extractAttachments(content: any): any[] {
       
       if (item.focalPoint) attachment.focalPoint = item.focalPoint;
       
+      return attachment;
+    });
+}
+
+/** First non-empty trimmed string among the arguments, else null. */
+function firstText(...values: unknown[]): string | null {
+  for (const v of values) {
+    if (typeof v === 'string' && v.trim()) return v.trim();
+  }
+  return null;
+}
+
+/**
+ * `posts.media_attachments` → AP attachments. Composer rows are
+ * `{ type, url, mediaType, name, description }` where `name` is the upload's
+ * file name and `description` the alt text; `name` is never sent as alt text.
+ * Imported rows may follow the Mastodon API shape (`meta`, `description`).
+ */
+function mediaAttachmentsToAp(media: any): any[] {
+  if (!Array.isArray(media)) return [];
+
+  return media
+    .filter((m) => m && typeof m.url === 'string' && /^https?:\/\//i.test(m.url))
+    .map((m) => {
+      const attachment: any = {
+        type: 'Document',
+        mediaType: getMediaType(undefined, m.mediaType || m.mimeType || m.mime_type, m.url),
+        url: m.url,
+        name: firstText(m.description, m.altText, m.alt),
+      };
+      const width = m.width ?? m.meta?.width ?? m.meta?.original?.width;
+      const height = m.height ?? m.meta?.height ?? m.meta?.original?.height;
+      if (width) attachment.width = width;
+      if (height) attachment.height = height;
+      if (m.blurhash) attachment.blurhash = m.blurhash;
       return attachment;
     });
 }
@@ -659,7 +725,7 @@ function getMediaType(fileType?: string, mimeType?: string, url?: string): strin
 /**
  * Helper: Extract tags (mentions, hashtags) from JSONB content
  */
-function extractTags(content: any): any[] {
+function extractTags(content: any, mentionActorUrls?: Map<string, string>): any[] {
   if (!Array.isArray(content)) {
     return [];
   }
@@ -680,7 +746,7 @@ function extractTags(content: any): any[] {
       // MessagePart format uses username and domain, not mention string
       const domain = item.domain || config.INSTANCE_DOMAIN;
       const username = item.username || 'unknown';
-      const href = `https://${domain}/users/${username}`;
+      const href = mentionHref(item, mentionActorUrls);
       const name = item.isLocal ? `@${username}` : `@${username}@${domain}`;
       
       tags.push({
@@ -699,15 +765,19 @@ function extractTags(content: any): any[] {
       });
     }
     
-    if (item.type === 'emoji' && item.emoji) {
-      // Custom emoji tag for Misskey/Mastodon compatibility
+    if (item.type === 'emoji' && item.emoji?.url) {
+      // Custom emoji tag for Misskey/Mastodon compatibility. `emoji.id` is a
+      // local row UUID, not an IRI; the image URL stands in as the tag id.
+      const emojiId = typeof item.emoji.id === 'string' && /^https?:\/\//i.test(item.emoji.id)
+        ? item.emoji.id
+        : item.emoji.url;
       tags.push({
         type: 'Emoji',
-        id: item.emoji.id || item.emoji.url,
+        id: emojiId,
         name: `:${item.emoji.name}:`,
         icon: {
           type: 'Image',
-          mediaType: 'image/png',
+          mediaType: imageMediaTypeFromUrl(item.emoji.url) || 'image/png',
           url: item.emoji.url
         }
       });
@@ -744,6 +814,8 @@ function getCcAddresses(visibility: string, authorUrl: string): string[] {
     case 'public':
       return [`${authorUrl}/followers`];
     case 'unlisted':
+      // Public in cc is what distinguishes unlisted from followers-only.
+      return ['https://www.w3.org/ns/activitystreams#Public'];
     case 'followers':
     case 'direct':
     case 'private':

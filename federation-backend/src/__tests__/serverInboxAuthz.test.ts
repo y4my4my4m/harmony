@@ -34,6 +34,7 @@ import {
   actorIsAcceptedMember,
   actorIsServerModerator,
   actorOwnsMessage,
+  canPostInChannel,
 } from '../activitypub/ServerInboxHandler.js';
 
 /**
@@ -156,5 +157,45 @@ describe('actorOwnsMessage', () => {
   it('rejects when message/author is missing', async () => {
     const sb = makeSupabase({ messages: null });
     expect(await actorOwnsMessage(sb, 'msg-1', ALICE)).toBe(false);
+  });
+});
+
+describe('canPostInChannel', () => {
+  const CHANNEL_ID = '00000000-0000-0000-0000-0000000000cc';
+  const rpcWith = (grants: Record<string, boolean | 'error'>) => {
+    const calls: any[] = [];
+    const sb: any = {
+      rpc(fn: string, args: any) {
+        calls.push({ fn, args });
+        const g = grants[args.p_permission];
+        if (g === 'error') return Promise.resolve({ data: null, error: { message: 'boom' } });
+        return Promise.resolve({ data: g ?? false, error: null });
+      },
+    };
+    return { sb, calls };
+  };
+
+  it('allows a member who can view the channel and send messages', async () => {
+    const { sb, calls } = rpcWith({ VIEW_CHANNEL: true, SEND_MESSAGES: true });
+    expect(await canPostInChannel(sb, 'alice-id', SERVER_ID, CHANNEL_ID)).toBe(true);
+    expect(calls.map(c => c.fn)).toEqual(['has_permission', 'has_permission']);
+    expect(calls[0].args).toEqual({
+      p_user_id: 'alice-id', p_server_id: SERVER_ID, p_permission: 'VIEW_CHANNEL', p_channel_id: CHANNEL_ID,
+    });
+  });
+
+  it('rejects a member who cannot view the channel', async () => {
+    const { sb } = rpcWith({ VIEW_CHANNEL: false, SEND_MESSAGES: true });
+    expect(await canPostInChannel(sb, 'alice-id', SERVER_ID, CHANNEL_ID)).toBe(false);
+  });
+
+  it('rejects a member who can view but not send', async () => {
+    const { sb } = rpcWith({ VIEW_CHANNEL: true, SEND_MESSAGES: false });
+    expect(await canPostInChannel(sb, 'alice-id', SERVER_ID, CHANNEL_ID)).toBe(false);
+  });
+
+  it('denies when the permission lookup fails', async () => {
+    const { sb } = rpcWith({ VIEW_CHANNEL: 'error', SEND_MESSAGES: true });
+    expect(await canPostInChannel(sb, 'alice-id', SERVER_ID, CHANNEL_ID)).toBe(false);
   });
 });

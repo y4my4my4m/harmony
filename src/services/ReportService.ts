@@ -260,11 +260,11 @@ class ReportService {
               notificationData.resolver_avatar_url = resolverProfile.avatar_url
             }
           }
-          await supabase.rpc('send_notification_to_user', {
-            p_notification_type: 'report_update',
-            p_to_user_id: report.reporter_id,
-            p_notification_data: notificationData,
-            p_from_user_id: showResolver ? resolverProfileId : null,
+          // Recipient and sender are derived server-side from the report and the caller.
+          await supabase.rpc('notify_report_update', {
+            p_report_id: reportId,
+            p_data: notificationData,
+            p_show_resolver: showResolver,
           })
         }
       } catch (notifError) {

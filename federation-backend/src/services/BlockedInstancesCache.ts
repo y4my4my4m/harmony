@@ -48,7 +48,10 @@ class BlockedInstancesCacheService {
       return;
     }
     
-    const newBlockedDomains = new Set<string>(data?.map(s => s.domain) || []);
+    // isBlocked compares lowercased hostnames.
+    const newBlockedDomains = new Set<string>(
+      (data || []).map(s => String(s.domain ?? '').toLowerCase()).filter(Boolean),
+    );
     
     const added = [...newBlockedDomains].filter(d => !this.blockedDomains.has(d));
     const removed = [...this.blockedDomains].filter(d => !newBlockedDomains.has(d));

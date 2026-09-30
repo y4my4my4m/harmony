@@ -102,7 +102,13 @@ docker compose -f docker-compose.dev.yml up
 - `GET /servers/:serverId` - Server as Group
 - `POST /servers/:serverId/inbox` - Server inbox
 - `GET /servers/:serverId/outbox` - Server outbox
+- `GET /servers/:serverId/members` - Server members
+- `GET /servers/:serverId/channels/:channelId[/messages|/outbox]` - Channel and its messages
 - `POST /inbox` - Shared inbox
+
+Private servers, and channels @everyone cannot view, are served only to a GET
+signed by a remote member that can view them; see docs/FEDERATION.md, "Who can
+read a server".
 
 ### Management
 - `GET /health` - Health check

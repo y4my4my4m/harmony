@@ -71,11 +71,102 @@ describe('toActivityPub converters', () => {
     })
 
     it('sets audience correctly for unlisted visibility', () => {
+      // Mastodon: unlisted is to followers, cc Public. Without Public in cc
+      // receivers classify the post as followers-only.
       const post = { id: 'p1', content: 'hi', visibility: 'unlisted', created_at: '' }
       const note = postToNote(post, author)
       expect(note.to).toContain('https://harmony.test/users/alice/followers')
       expect(note.to).not.toContain('https://www.w3.org/ns/activitystreams#Public')
+      expect(note.cc).toEqual(['https://www.w3.org/ns/activitystreams#Public'])
+    })
+
+    it('keeps followers-only posts off the public collection', () => {
+      const post = { id: 'p1', content: [], visibility: 'followers', created_at: '' }
+      const note = postToNote(post, author)
+      expect(note.to).toEqual(['https://harmony.test/users/alice/followers'])
+      expect([...note.to, ...note.cc]).not.toContain('https://www.w3.org/ns/activitystreams#Public')
+    })
+
+    it('cc-addresses mentioned actors on non-direct posts, using the stored actor id', () => {
+      const post = {
+        id: 'p1',
+        visibility: 'public',
+        created_at: '',
+        content: [
+          { type: 'text', text: 'hi ' },
+          { type: 'mention', userId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', username: 'bob', domain: 'misskey.test', isLocal: false },
+        ],
+      }
+      const actors = new Map([['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'https://misskey.test/users/9abc']])
+      const note = postToNote(post, author, undefined, actors)
+      expect(note.cc).toContain('https://misskey.test/users/9abc')
+      expect(note.tag).toContainEqual(expect.objectContaining({ type: 'Mention', href: 'https://misskey.test/users/9abc' }))
+      expect(note.content).toContain('href="https://misskey.test/users/9abc"')
+    })
+
+    it('addresses a direct post to the stored actor id of each mention', () => {
+      const post = {
+        id: 'p1',
+        visibility: 'direct',
+        created_at: '',
+        content: [
+          { type: 'mention', userId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', username: 'bob', domain: 'misskey.test', isLocal: false },
+        ],
+      }
+      const actors = new Map([['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'https://misskey.test/users/9abc']])
+      const note = postToNote(post, author, undefined, actors)
+      expect(note.to).toEqual(['https://misskey.test/users/9abc'])
       expect(note.cc).toEqual([])
+    })
+
+    it('federates posts.media_attachments with the description as alt text, not the file name', () => {
+      const post = {
+        id: 'p1',
+        visibility: 'public',
+        created_at: '',
+        content: [{ type: 'text', text: 'look' }],
+        media_attachments: [
+          {
+            type: 'Image',
+            url: 'https://storage.harmony.test/user_media/u/posts/1.png',
+            mediaType: 'image/png',
+            name: 'IMG_0001.png',
+            description: 'A cat on a keyboard',
+          },
+          {
+            type: 'Image',
+            url: 'https://storage.harmony.test/user_media/u/posts/2.jpg',
+            mediaType: 'image/jpeg',
+            name: 'IMG_0002.jpg',
+          },
+        ],
+      }
+      const note = postToNote(post, author)
+      expect(note.attachment).toEqual([
+        expect.objectContaining({
+          url: 'https://storage.harmony.test/user_media/u/posts/1.png',
+          mediaType: 'image/png',
+          name: 'A cat on a keyboard',
+        }),
+        expect.objectContaining({
+          url: 'https://storage.harmony.test/user_media/u/posts/2.jpg',
+          mediaType: 'image/jpeg',
+          name: null,
+        }),
+      ])
+    })
+
+    it('does not duplicate an attachment present in both content and media_attachments', () => {
+      const url = 'https://storage.harmony.test/user_media/u/posts/1.png'
+      const post = {
+        id: 'p1',
+        visibility: 'public',
+        created_at: '',
+        content: [{ type: 'file', url, fileType: 'image', altText: 'alt' }],
+        media_attachments: [{ type: 'Image', url, mediaType: 'image/png', description: 'alt' }],
+      }
+      const note = postToNote(post, author)
+      expect(note.attachment).toHaveLength(1)
     })
 
     it('sets audience correctly for followers-only visibility', () => {
