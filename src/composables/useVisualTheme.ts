@@ -484,15 +484,20 @@ function applySettings(settings: VisualThemeSettings) {
   }
 
   if (typeof document !== 'undefined') {
+    // A built-in skin resolves from the registry; the persisted copy is the
+    // stylesheet of whichever build applied it.
+    const skinCss =
+      BUILTIN_SKINS.find((s) => s.id === settings.activeSkinId)?.globalCss ||
+      settings.customSkinCss
     let skinStyleEl = document.getElementById('harmony-skin-styles') as HTMLStyleElement | null
-    if (settings.customSkinCss) {
+    if (skinCss) {
       if (!skinStyleEl) {
         skinStyleEl = document.createElement('style')
         skinStyleEl.id = 'harmony-skin-styles'
         document.head.appendChild(skinStyleEl)
       }
-      if (skinStyleEl.textContent !== settings.customSkinCss) {
-        skinStyleEl.textContent = settings.customSkinCss
+      if (skinStyleEl.textContent !== skinCss) {
+        skinStyleEl.textContent = skinCss
       }
     } else if (skinStyleEl) {
       skinStyleEl.remove()

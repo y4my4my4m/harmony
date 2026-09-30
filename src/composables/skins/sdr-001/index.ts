@@ -1,22 +1,14 @@
 /**
- * SDR-001 / NEO KOBE 1988 skin
+ * SDR-001 / NEO KOBE 1988
  *
- * Cyberpunk-noir aesthetic. CSS lives in `./skin.css` (imported via Vite's
- * `?raw` query so the file gets regular CSS syntax highlighting in the
- * editor and stays out of the TypeScript source). Theme overrides are
- * declared inline below so the skin is fully described by this folder.
+ * Snatcher-era noir: blood red and slate steel on blue-black surfaces, pixel
+ * type, square frames. CSS lives in `./skin.css`, imported through Vite's
+ * `?raw` query.
  *
- * Asset convention (for future additions):
- *   src/composables/skins/<skin-id>/skin.css       # global rules
- *   src/composables/skins/<skin-id>/index.ts       # Skin export
- *   public/assets/skins/<skin-id>/...              # static assets
- *     - <skin-id>-preview.png                      # picker thumbnail
- *     - icons/                                     # optional CSS-mask icons
- *     - bg/                                        # optional backgrounds
- *
- * To add a new skin: copy this folder, swap the CSS + theme overrides,
- * register the export in `../index.ts`. The registry is an array; no
- * TypeScript branching.
+ * Assets:
+ *   public/assets/skins/sdr-001-preview.png   picker thumbnail
+ *   public/assets/skins/sdr-001/icons/        pixelarticons (MIT) for CSS masks
+ *   public/assets/sounds/neokobe/             linked audio theme
  */
 import type { Skin } from '../types'
 import skinCss from './skin.css?raw'
@@ -25,20 +17,19 @@ export const sdr001Skin: Skin = {
   id: 'sdr-001',
   name: 'SDR-001 / Neo Kobe 1988',
   description:
-    'A noir-cyberpunk skin: blood-red accents, sharp pixel typography, ' +
-    'tactical HUD frames around panels, an optional CRT scanline overlay, ' +
-    'and a voice-chat panel that reads like a tap-dispatch console. ' +
-    'Use the toggles below to enable / disable individual decorations.',
+    'Noir cyberpunk after Snatcher: blood-red accents and slate-steel labels ' +
+    'on blue-black night surfaces, pixel typography, square frames with hard ' +
+    'drop shadows, pixel-art icons and an optional CRT scanline overlay. ' +
+    'Pairs with the Neo Kobe sound pack. Toggle the decorations below.',
   isBeta: true,
   preview: '/assets/skins/sdr-001-preview.png',
-  // Each option flips a `data-skin-<id>="on|off"` attribute on `<html>`
-  // that the skin's CSS gates decorative rules on. Defaults are all `on`;
-  // toggling off yields a quieter version of the same look.
   options: [
     {
       id: 'scanline',
       label: 'CRT scanlines',
-      description: 'Subtle horizontal-line overlay across the whole viewport.',
+      description:
+        'Static horizontal-line overlay across the viewport. Off while blur ' +
+        'effects are disabled.',
       type: 'boolean',
       default: true,
     },
@@ -52,7 +43,7 @@ export const sdr001Skin: Skin = {
     {
       id: 'hud-badge',
       label: 'SDR-001 HUD badge',
-      description: 'Small "SDR-001" identifier in the top-right corner.',
+      description: 'Small "SDR-001" tag in the top-right corner on wide screens.',
       type: 'boolean',
       default: true,
     },
@@ -60,18 +51,18 @@ export const sdr001Skin: Skin = {
       id: 'tactical-labels',
       label: 'Tactical text labels',
       description:
-        'Decorative readouts: "TX/RX READY" on the voice dock, ' +
-        '"COMMS //" on the channel name, "▶ TRANSMISSION //" on the ' +
-        'voice overlay, "── SUBJECT ID ──" / latency line on the user bar.',
+        'Terminal readouts: "//" before channel categories, a cursor on the ' +
+        'open channel, "COMMS //" on the voice dock, "TRANSMISSION //" on ' +
+        'the voice overlay and bracketed status on the user bar.',
       type: 'boolean',
       default: true,
     },
     {
       id: 'icon-flicker',
-      label: 'Server-icon flicker',
+      label: 'Icon flicker and cursor blink',
       description:
-        'Occasional CRT-style flicker on the Harmony logo and server icons. ' +
-        'Always disabled when the OS prefers reduced motion.',
+        'Occasional CRT flicker on rail icons and a blinking channel cursor. ' +
+        'Off when reduced motion is requested.',
       type: 'boolean',
       default: true,
     },
@@ -82,13 +73,13 @@ export const sdr001Skin: Skin = {
     customThemeMode: 'dark',
     customPrimaryColor: '#DC143C',
     customAccentColor: '#DC143C',
-    customBackgroundColor: '#DC143C',
-    customBackgroundLightness: 5,
-    customBackgroundChroma: -6,
-    // Colour tokens are derived from the palette (customPrimaryColor +
-    // background sliders above). Do not pin --harmony-* / --text-* /
-    // --border-* in customCssOverrides - that blocks the theme editor
-    // from updating the skin after apply.
+    // Supplies the surface hue only (OKLCH ~265, slate blue); lightness and
+    // chroma come from the two offsets below.
+    customBackgroundColor: '#1B2231',
+    customBackgroundLightness: 0,
+    customBackgroundChroma: 2,
+    // Surfaces stay palette-derived; pinning --harmony-*, --text-* or
+    // --border-* here would lock the theme editor out after apply.
     customCssOverrides: {},
     fontFamily: 'pixel',
   },
