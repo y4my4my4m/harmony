@@ -195,3 +195,40 @@ describe('route table', () => {
     expect(res.status).toBe(404)
   })
 })
+
+describe('PATCH /messages/:id/metadata', () => {
+  const MESSAGE_ID = '00000000-0000-0000-0000-0000000000c1'
+
+  // The write runs as service role; ownership is the only thing stopping a bot
+  // from rewriting discord_user on a human's message and changing its author.
+  it("refuses a message the bot didn't send", async () => {
+    routeTables({
+      messages: {
+        data: { channel_id: 'ch', metadata: {}, bot_id: null },
+        error: null,
+      },
+    })
+
+    const res = await supertest(makeApp())
+      .patch(`/api/v1/messages/${MESSAGE_ID}/metadata`)
+      .send({ metadata: { discord_user: { username: 'spoofed' } } })
+
+    expect(res.status).toBe(403)
+    expect(mocks.rpc).not.toHaveBeenCalled()
+  })
+
+  it("refuses another bot's message", async () => {
+    routeTables({
+      messages: {
+        data: { channel_id: 'ch', metadata: {}, bot_id: '00000000-0000-0000-0000-0000000000b9' },
+        error: null,
+      },
+    })
+
+    const res = await supertest(makeApp())
+      .patch(`/api/v1/messages/${MESSAGE_ID}/metadata`)
+      .send({ metadata: { discord_message_id: '1' } })
+
+    expect(res.status).toBe(403)
+  })
+})
