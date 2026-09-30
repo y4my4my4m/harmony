@@ -130,7 +130,7 @@
         <div v-if="showActionsMenu" class="actions-menu" v-click-outside="closeActionsMenu">
           <button @click.stop="handleViewProfile" class="action-item">
             <Icon name="user" />
-            <span>View Profile</span>
+            <span>View profile</span>
           </button>
           
           <button @click.stop="handleMute" class="action-item">

@@ -657,30 +657,28 @@ const formatFileSize = (bytes: number): string => {
   text-decoration: underline;
 }
 
-/* Hashtags */
+/* Hashtags: same chip as chat hashtags in UnifiedMessageContent. */
 .content-html :deep(.hashtag),
 :deep(.hashtag) {
-  background-color: var(--harmony-primary);
+  background-color: var(--harmony-primary-alpha);
   margin: 0 2px;
   border-radius: 3px;
   padding: 0 3px;
   cursor: pointer;
   font-weight: 500;
-  color: var(--text-primary);
+  color: var(--harmony-primary);
   display: inline-block;
   transition: background-color 0.2s ease;
   user-select: text;
   -webkit-user-select: text;
   -moz-user-select: text;
   -ms-user-select: text;
-  color: var(--text-primary);
-
 }
 
 .content-html :deep(.hashtag:hover),
 :deep(.hashtag:hover) {
-  background-color: var(--harmony-primary-hover);
-  color: var(--text-primary);
+  background-color: var(--harmony-primary);
+  color: var(--text-on-primary);
 }
 
 /* Emojis */

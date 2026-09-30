@@ -1664,12 +1664,19 @@ onUnmounted(() => {
   flex-direction: column;
 }
 
+/* Same column and edges as PostsContainer's list, so pinned posts line up
+   with the posts under them. */
 .pinned-posts-section {
   max-width: 600px;
   margin: 0 auto;
   width: 100%;
-  border-bottom: 1px solid var(--border-color);
-  padding: 6px 16px;
+}
+
+@media (min-width: 769px) {
+  .pinned-posts-section {
+    border-left: 1px solid var(--border-color);
+    border-right: 1px solid var(--border-color);
+  }
 }
 
 .following-tab,
