@@ -178,6 +178,10 @@
   import { threadService } from '@/services/ThreadService';
   import { coreMessageService } from '@/services/core/CoreMessageService';
   import { useEncryptionFallbackPrompt } from '@/composables/useEncryptionFallbackPrompt';
+  import { ENCRYPTION_STATE_CHANGED_EVENT, reportChannelEncryptionError } from '@/composables/useEncryptionAction';
+  import { fetchEffectiveChannelEncryption } from '@/services/ChannelEncryptionService';
+  import { getEncryptionService } from '@/services/core/channelMessageEncryption';
+  import { useChannelEncryptionStore } from '@/stores/useChannelEncryption';
   import { supabase } from '@/supabase';
   import { debug } from '@/utils/debug';
   import { isVideoMessageUrl } from '@/utils/klipyAttribution';
@@ -213,6 +217,7 @@
   const chatStore = useChatStore();
   const authStore = useAuthStore();
   const serverChannelStore = useServerChannelStore();
+  const channelEncryptionStore = useChannelEncryptionStore();
   const dmStore = useDMStore();
   const themeStore = useThemeStore();
   const draftsStore = useDraftsStore();
@@ -349,68 +354,58 @@
           return
         }
         const serverId = serverChannelStore.currentServerId
-        if (!serverId) {
+        const channelId = props.channelId || serverChannelStore.currentChannelId
+        if (!serverId || !channelId) {
           encryptionStatusData.value = null
           return
         }
         try {
-          const { data: settings } = await supabase
-            .from('server_encryption_settings')
-            .select('encryption_mode, force_key_setup')
-            .eq('server_id', serverId)
-            .maybeSingle()
+          const [state, { data: settings }] = await Promise.all([
+            fetchEffectiveChannelEncryption(channelId),
+            supabase
+              .from('server_encryption_settings')
+              .select('force_key_setup')
+              .eq('server_id', serverId)
+              .maybeSingle(),
+          ])
+          if (state) channelEncryptionStore.applyEffective(state)
 
-          const mode = settings?.encryption_mode || 'disabled'
-          const forceSetup = settings?.force_key_setup || false
-
-          if (mode === 'disabled') {
+          const channelEncrypted = state?.messagesEncrypted === true
+          const recommendSetup = settings?.force_key_setup === true && state?.serverMode !== 'disabled'
+          if (!channelEncrypted && !recommendSetup) {
             encryptionStatusData.value = null
             return
           }
 
-          const module = await import('@/services/encryption/MegolmMessageEncryptionService')
-          const svc = module.megolmMessageEncryptionService
-          if (!svc.isInitialized()) {
-            const { data: { session } } = await supabase.auth.getSession()
-            if (session?.user?.id) await svc.initialize(session.user.id)
-          }
+          const svc = await getEncryptionService()
+          const initialized = !!svc && svc.isInitialized()
+          const hasKey = initialized ? await svc.hasRecoveryKey() : false
+          const unlocked = initialized && svc.isUnlocked()
 
-          if (svc.isInitialized() && svc.isUnlocked()) {
-            const hasKey = await svc.hasRecoveryKey()
-            if (hasKey) {
-              encryptionStatusData.value = { level: 'active', icon: 'lock', text: 'End-to-end encrypted' }
-            } else {
-              encryptionStatusData.value = null
+          if (!channelEncrypted) {
+            // A user with keys is never offered setup: setup mints a new
+            // identity and orphans encrypted history.
+            encryptionStatusData.value = hasKey ? null : {
+              level: 'setup-prompt',
+              icon: 'key',
+              text: t('channelEncryption.status.recommended'),
+              showSetup: true
+            }
+          } else if (hasKey && unlocked) {
+            encryptionStatusData.value = { level: 'active', icon: 'lock', text: t('channelEncryption.status.active') }
+          } else if (hasKey) {
+            encryptionStatusData.value = {
+              level: 'locked',
+              icon: 'unlock',
+              text: t('channelEncryption.status.locked'),
+              showUnlock: true
             }
           } else {
-            const hasKey = svc.isInitialized() ? await svc.hasRecoveryKey() : false
-            if (hasKey) {
-              // Keys exist: offer unlock via recovery phrase, never setup.
-              // Setup mints a new identity and orphans encrypted history.
-              encryptionStatusData.value = {
-                level: 'locked',
-                icon: 'unlock',
-                text: mode === 'required'
-                  ? 'Encryption required - unlock to read and send messages'
-                  : 'Encryption available but locked - messages sent as plaintext',
-                showUnlock: true
-              }
-            } else if (mode === 'required') {
-              encryptionStatusData.value = {
-                level: 'error',
-                icon: 'alert-triangle',
-                text: 'Encryption required - set up in Settings > Encryption',
-                showSetup: true
-              }
-            } else if (forceSetup) {
-              encryptionStatusData.value = {
-                level: 'setup-prompt',
-                icon: 'key',
-                text: 'This server recommends encryption - set up your keys to enable E2EE',
-                showSetup: true
-              }
-            } else {
-              encryptionStatusData.value = null
+            encryptionStatusData.value = {
+              level: 'error',
+              icon: 'alert-triangle',
+              text: t('channelEncryption.status.setup'),
+              showSetup: true
             }
           }
         } catch {
@@ -497,17 +492,24 @@
         }
       }
 
-      // Server settings changes, including encryption mode, arrive on the
-      // server-structure broadcast.
+      // Server and channel encryption changes arrive on the server-structure
+      // broadcast.
       function handleServerSettingsChange(event: Event) {
         const detail = (event as CustomEvent).detail
-        if (!props.isDM && detail?.table === 'server_encryption_settings') {
+        if (props.isDM) return
+        if (detail?.table === 'server_encryption_settings'
+            || (detail?.table === 'channel_encryption_settings'
+                && detail?.new?.channel_id === (props.channelId || serverChannelStore.currentChannelId))) {
           checkEncryptionStatus()
         }
       }
 
+      function handleEncryptionStateChanged() {
+        checkEncryptionStatus()
+      }
+
       watch(
-        () => serverChannelStore.currentServerId,
+        () => [serverChannelStore.currentServerId, props.channelId || serverChannelStore.currentChannelId],
         () => { if (!props.isDM) checkEncryptionStatus() },
         { immediate: true }
       )
@@ -566,6 +568,7 @@
         window.addEventListener('dm-encryption-toggled', handleDMEncryptionToggled);
         window.addEventListener('server-structure:settings-change', handleServerSettingsChange);
         window.addEventListener('harmony-insert-mention', handleInsertMention);
+        window.addEventListener(ENCRYPTION_STATE_CHANGED_EVENT, handleEncryptionStateChanged);
       });
 
       onUnmounted(() => {
@@ -575,6 +578,7 @@
         window.removeEventListener('dm-encryption-toggled', handleDMEncryptionToggled);
         window.removeEventListener('server-structure:settings-change', handleServerSettingsChange);
         window.removeEventListener('harmony-insert-mention', handleInsertMention);
+        window.removeEventListener(ENCRYPTION_STATE_CHANGED_EVENT, handleEncryptionStateChanged);
       });
 
       const replyingTo = (messageId: string) => {
@@ -939,10 +943,13 @@
           const code = (error?.code || '').toString()
           const msg = error?.message || String(error)
           if (code === 'ENCRYPTION_REQUIRED' || msg.includes('ENCRYPTION_REQUIRED')) {
-            // Server mandates encryption; no plaintext override exists. Same
-            // rejection feedback as an over-limit send (buzz plus toast) rather
-            // than a "send plaintext" prompt.
-            toast.error(msg || 'This server requires end-to-end encryption.')
+            // The channel mandates encryption; no plaintext override exists.
+            // Same rejection feedback as an over-limit send (buzz plus toast)
+            // rather than a "send plaintext" prompt. A refusal carrying a
+            // reason has its own toast and setup or unlock prompt.
+            if (!error?.reason) {
+              toast.error(msg || 'This channel requires end-to-end encryption.')
+            }
             messageInputRef.value?.flashRejection?.()
             // The input cleared optimistically on send. Restore the draft
             // unless something new has already been typed.
@@ -1102,6 +1109,7 @@
           }
         } catch (error) {
           debug.error('Error sending voice message:', error)
+          reportChannelEncryptionError(error)
         }
       }
 

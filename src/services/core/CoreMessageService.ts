@@ -11,32 +11,12 @@ import {
   MESSAGE_TEXT_HARD_CEILING,
   messageTextLength,
 } from '@/utils/messageContentUtils'
-
-// Megolm encryption service: lazy-imported, initialized on first use.
-let megolmEncryptionService: any = null
-async function getEncryptionService() {
-  if (!megolmEncryptionService) {
-    try {
-      const module = await import('@/services/encryption/MegolmMessageEncryptionService')
-      megolmEncryptionService = module.megolmMessageEncryptionService
-    } catch (error) {
-      debug.warn('Megolm encryption service not available:', error)
-      megolmEncryptionService = null
-    }
-  }
-  if (megolmEncryptionService && !megolmEncryptionService.isInitialized()) {
-    try {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session?.user?.id) {
-        debug.log('Lazy-initializing encryption service...')
-        await megolmEncryptionService.initialize(session.user.id)
-      }
-    } catch (error) {
-      debug.warn('Failed to lazy-initialize encryption:', error)
-    }
-  }
-  return megolmEncryptionService
-}
+import {
+  channelEncryptionError,
+  channelRequiresEncryption,
+  encryptChannelContent,
+  getEncryptionService,
+} from '@/services/core/channelMessageEncryption'
 
 export interface SendMessageData {
   content: MessagePart[]
@@ -51,21 +31,23 @@ export interface CoreMessageServiceError {
   code: string
   message: string
   details?: any
+  /** ENCRYPTION_REQUIRED only: 'setup' | 'unlock' | 'failed' | 'unavailable'. */
+  reason?: string
 }
 
 /**
  * Send-time encryption policy options.
  *
- * Default policy is fail closed: when a channel or DM is configured for
- * encryption and encryption is unavailable or fails, the send is rejected
- * with an ENCRYPTION_* error code. The UI must surface that error and obtain
- * explicit consent before retrying with `allowPlaintextFallback`.
+ * Default policy is fail closed: when a DM is configured for encryption and
+ * encryption is unavailable or fails, the send is rejected with an
+ * ENCRYPTION_* error code. The UI must surface that error and obtain explicit
+ * consent before retrying with `allowPlaintextFallback`.
  */
 export interface SendOptions {
   /**
-   * Sends plaintext when encryption is unavailable or fails. Requires a
-   * user-confirmed action. No effect when the server enforces
-   * `encryption_mode = 'required'`.
+   * Sends a DM as plaintext when encryption is unavailable or fails.
+   * Requires a user-confirmed action. Channel sends ignore it: an encrypted
+   * channel rejects plaintext.
    */
   allowPlaintextFallback?: boolean
 }
@@ -145,14 +127,11 @@ export class CoreMessageService {
   /**
    * Inserts a channel message locally. No federation side effects.
    *
-   * Encryption policy by `server_encryption_settings.encryption_mode`:
-   *   - `disabled`: always plaintext.
-   *   - `required`: must encrypt. Lock/setup/encrypt failure rejects the send.
-   *     `options.allowPlaintextFallback` is ignored.
-   *   - `optional`: encrypts when keys are unlocked. Without
-   *     `options.allowPlaintextFallback === true`, missing keys, locked
-   *     encryption, or encryption errors reject the send. With explicit
-   *     opt-in, the message falls back to plaintext.
+   * The channel's effective encryption (effective_channel_encryption) decides
+   * the payload: an encrypted channel gets ciphertext plus plaintext mention
+   * parts or the send is rejected with ENCRYPTION_REQUIRED and a `reason`
+   * ('setup', 'unlock', 'failed', 'unavailable'); any other channel gets
+   * plaintext. `_options.allowPlaintextFallback` does not apply to channels.
    */
   async sendChannelMessage(
     serverId: string,
@@ -160,7 +139,7 @@ export class CoreMessageService {
     content: MessagePart[],
     replyTo?: string,
     extraMetadata?: Record<string, any>,
-    options?: SendOptions
+    _options?: SendOptions
   ): Promise<Message> {
     try {
       // Length check runs BEFORE encryption; otherwise the failure surfaces
@@ -181,106 +160,17 @@ export class CoreMessageService {
       let finalContent = content
       let encrypted = false
       let encryptionMetadata = null
-      const allowFallback = options?.allowPlaintextFallback === true
 
-      const { data: serverSettings } = await supabase
-        .from('server_encryption_settings')
-        .select('encryption_mode')
-        .eq('server_id', serverId)
-        .maybeSingle()
-      
-      const encryptionMode = serverSettings?.encryption_mode || 'disabled'
-      debug.log(`Server encryption mode: ${encryptionMode}`)
-
-      if (encryptionMode === 'disabled') {
-        debug.log('ℹServer has encryption disabled - sending plaintext')
-      } else {
-        const encryptionService = await getEncryptionService()
-        
-        if (encryptionService && encryptionService.isInitialized()) {
-          const hasRecoveryKey = await encryptionService.hasRecoveryKey()
-          const isUnlocked = encryptionService.isUnlocked()
-          
-          debug.log(`Encryption check: hasRecoveryKey=${hasRecoveryKey}, isUnlocked=${isUnlocked}`)
-          
-          if (hasRecoveryKey && isUnlocked) {
-            try {
-              debug.log('Megolm encryption active - encrypting message for channel')
-              debug.log(`Channel (room): ${channelId}`)
-              
-              const { data: members } = await supabase
-                .from('user_servers')
-                .select('user_id')
-                .eq('server_id', serverId)
-              
-              const recipientIds = members?.map(m => m.user_id) || []
-              if (!recipientIds.includes(currentUser.id)) {
-                recipientIds.push(currentUser.id)
-              }
-              
-              debug.log(`Encrypting for channel with ${recipientIds.length} members`)
-              
-              // Megolm session key is channel-wide; room id is the channel id.
-              const encryptedData = await encryptionService.encryptMessage(content, channelId, recipientIds)
-              finalContent = encryptedData.content
-              encrypted = true
-              encryptionMetadata = encryptedData.encryption_metadata
-              debug.log(`Message encrypted with Megolm (session: ${encryptionMetadata.session_id?.substring(0, 8)}...)`)
-            } catch (error) {
-              debug.error('Encryption failed:', error)
-              if (encryptionMode === 'required') {
-                throw this.createError('ENCRYPTION_REQUIRED', 'Server requires encryption but encryption failed', error)
-              }
-              if (!allowFallback) {
-                // Fail closed. The UI retries with allowPlaintextFallback
-                // after user confirmation.
-                throw this.createError('ENCRYPTION_FAILED_NO_FALLBACK',
-                  'Encryption failed and plaintext fallback was not authorized', error)
-              }
-              debug.warn('User-authorized plaintext fallback - sending unencrypted')
-              this.markPlaintextOverride(extraMetadata = extraMetadata || {}, 'optional_encrypt_failed')
-            }
-          } else if (encryptionMode === 'required') {
-            // Neither case is overridable on a required server, so the code is
-            // always ENCRYPTION_REQUIRED, never ENCRYPTION_LOCKED - the UI
-            // treats ENCRYPTION_LOCKED as fallback-eligible and would offer a
-            // plaintext send. The message text distinguishes setup vs unlock.
-            if (!hasRecoveryKey) {
-              throw this.createError('ENCRYPTION_REQUIRED', 'This server requires encryption. Set up encryption in Settings first.')
-            } else {
-              throw this.createError('ENCRYPTION_REQUIRED', 'This server requires encryption. Unlock encryption with your recovery key first.')
-            }
-          } else {
-            // Optional encryption, sender cannot encrypt. Two sub-cases:
-            //
-            //  (a) hasRecoveryKey && !isUnlocked - encryption is set up but
-            //      locked. The user has opted in, so fail closed rather than
-            //      silently downgrading; the UI prompts to unlock.
-            //
-            //  (b) !hasRecoveryKey - encryption was never set up and is
-            //      optional here, so plaintext is within policy. Send
-            //      silently; a prompt would add friction with no gain.
-            if (hasRecoveryKey && !isUnlocked) {
-              if (!allowFallback) {
-                throw this.createError('ENCRYPTION_LOCKED',
-                  'This channel supports encryption but your keys are locked. Unlock encryption to send encrypted, or confirm an unencrypted send.')
-              }
-              debug.warn('User-authorized plaintext fallback - encryption locked')
-              this.markPlaintextOverride(extraMetadata = extraMetadata || {}, 'optional_encryption_locked')
-            } else {
-              // Case (b): silent plaintext.
-              debug.log('ℹOptional encryption + no recovery key - sending plaintext')
-              this.markPlaintextOverride(extraMetadata = extraMetadata || {}, 'optional_no_recovery_key')
-            }
-          }
-        } else if (encryptionMode === 'required') {
-          throw this.createError('ENCRYPTION_REQUIRED', 'This server requires encryption. Set up encryption in Settings first.')
-        } else {
-          // Optional mode, encryption service unavailable. Same reasoning as
-          // case (b) above: no opt-in, so plaintext.
-          debug.log('ℹOptional encryption + service unavailable - sending plaintext')
-          this.markPlaintextOverride(extraMetadata = extraMetadata || {}, 'optional_service_unavailable')
-        }
+      if (await channelRequiresEncryption(channelId)) {
+        const payload = await encryptChannelContent({
+          serverId,
+          channelId,
+          senderId: currentUser.id,
+          content,
+        })
+        finalContent = payload.content
+        encrypted = true
+        encryptionMetadata = payload.encryption_metadata
       }
 
       const messageData = {
@@ -303,6 +193,9 @@ export class CoreMessageService {
 
       if (error) {
         debug.error('DATABASE INSERT FAILED:', error)
+        if ((error.message || '').includes('CHANNEL_ENCRYPTED')) {
+          throw channelEncryptionError('changed', error)
+        }
         throw this.createError('INSERT_FAILED', error.message, error)
       }
       
@@ -514,60 +407,51 @@ export class CoreMessageService {
       let encrypted = false
       let encryptionMetadata = null
 
-      if (originalMessage.encrypted && originalMessage.encryption_metadata) {
-        debug.log('Original message was encrypted - re-encrypting edited content')
-        
-        const encryptionService = await getEncryptionService()
-        if (encryptionService && encryptionService.isInitialized() && encryptionService.isUnlocked()) {
-          try {
-            const roomId = originalMessage.channel_id || originalMessage.conversation_id
-            if (!roomId) {
-              throw new Error('Cannot determine room ID for re-encryption')
-            }
-            
-            // Megolm encrypts to the current room membership.
-            let recipientIds: string[] = []
-            
-            if (originalMessage.channel_id) {
-              const { data: channel } = await supabase
-                .from('channels')
-                .select('server_id')
-                .eq('id', originalMessage.channel_id)
-                .single()
-              
-              if (channel?.server_id) {
-                const { data: members } = await supabase
-                  .from('user_servers')
-                  .select('user_id')
-                  .eq('server_id', channel.server_id)
-                recipientIds = members?.map(m => m.user_id) || []
-              }
-            } else if (originalMessage.conversation_id) {
-              const { data: participants } = await supabase
-                .from('conversation_participants')
-                .select('user_id')
-                .eq('conversation_id', originalMessage.conversation_id)
-                .is('left_at', null)
-              recipientIds = participants?.map(p => p.user_id) || []
-            }
-            
-            if (!recipientIds.includes(currentUser.id)) {
-              recipientIds.push(currentUser.id)
-            }
+      const wasEncrypted = !!(originalMessage.encrypted && originalMessage.encryption_metadata)
 
-            debug.log(`Re-encrypting with Megolm for room ${roomId.substring(0, 8)}...`)
-            
-            const encryptedData = await encryptionService.encryptMessage(newContent, roomId, recipientIds)
-            finalContent = encryptedData.content
-            encrypted = true
-            encryptionMetadata = encryptedData.encryption_metadata
-            debug.log(`Edited message re-encrypted with Megolm`)
-          } catch (error) {
-            debug.error('Re-encryption failed:', error)
-            throw this.createError('ENCRYPTION_FAILED', 'Failed to re-encrypt edited message', error)
-          }
-        } else {
+      if (originalMessage.channel_id) {
+        // An edit in an encrypted channel is encrypted even when the original
+        // predates the channel's encryption.
+        if (wasEncrypted || await channelRequiresEncryption(originalMessage.channel_id)) {
+          const { data: channel } = await supabase
+            .from('channels')
+            .select('server_id')
+            .eq('id', originalMessage.channel_id)
+            .maybeSingle()
+          const payload = await encryptChannelContent({
+            serverId: channel?.server_id ?? null,
+            channelId: originalMessage.channel_id,
+            senderId: currentUser.id,
+            content: newContent,
+          })
+          finalContent = payload.content
+          encrypted = true
+          encryptionMetadata = payload.encryption_metadata
+        }
+      } else if (wasEncrypted && originalMessage.conversation_id) {
+        const encryptionService = await getEncryptionService()
+        if (!encryptionService || !encryptionService.isInitialized() || !encryptionService.isUnlocked()) {
           throw this.createError('ENCRYPTION_SERVICE_UNAVAILABLE', 'Encryption not unlocked - enter recovery key')
+        }
+        try {
+          // Megolm encrypts to the current room membership.
+          const { data: participants } = await supabase
+            .from('conversation_participants')
+            .select('user_id')
+            .eq('conversation_id', originalMessage.conversation_id)
+            .is('left_at', null)
+          const recipientIds: string[] = participants?.map(p => p.user_id) || []
+          if (!recipientIds.includes(currentUser.id)) {
+            recipientIds.push(currentUser.id)
+          }
+
+          const encryptedData = await encryptionService.encryptMessage(newContent, originalMessage.conversation_id, recipientIds)
+          finalContent = encryptedData.content
+          encrypted = true
+          encryptionMetadata = encryptedData.encryption_metadata
+        } catch (error) {
+          debug.error('Re-encryption failed:', error)
+          throw this.createError('ENCRYPTION_FAILED', 'Failed to re-encrypt edited message', error)
         }
       }
 

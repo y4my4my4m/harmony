@@ -88,6 +88,12 @@
               </div>
               <div class="form-hint">Channel type cannot be changed after creation</div>
             </div>
+
+            <ChannelEncryptionSection
+              v-if="channel"
+              :channel="channel"
+              :can-manage="canManageEncryption"
+            />
           </template>
 
           <!-- Permissions tab -->
@@ -206,6 +212,9 @@ import { useServerChannelStore } from '@/stores/useServerChannel'
 import HashTagIcon from '@/components/icons/HashTag.vue'
 import SpeakerIcon from '@/components/icons/Speaker.vue'
 import Icon from '@/components/common/Icon.vue'
+import ChannelEncryptionSection from '@/components/ChannelEncryptionSection.vue'
+import { useServerPermissions } from '@/composables/useServerPermissions'
+import { userDataService } from '@/services/userDataService'
 import {
   roleService,
   Permission,
@@ -281,6 +290,12 @@ const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
 const serverChannelStore = useServerChannelStore()
+const { canManageChannels, isCurrentUserServerOwner } = useServerPermissions()
+
+const canManageEncryption = computed(() =>
+  isCurrentUserServerOwner.value
+  || canManageChannels.value
+  || userDataService.getCurrentUser()?.isAdmin === true)
 
 // Discord-style slowmode intervals (seconds)
 const SLOWMODE_STEPS = [0, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600, 7200, 21600]

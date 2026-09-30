@@ -19,6 +19,13 @@
         </div>
         <div class="channel-details">
           <h2 class="channel-name">{{ channel.name }}</h2>
+          <span
+            v-if="lockKey"
+            class="channel-lock"
+            role="img"
+            :title="$t(lockKey)"
+            :aria-label="$t(lockKey)"
+          ><Icon name="lock" :size="14" /></span>
           <template v-if="channel.description">
             <span class="channel-sep" aria-hidden="true">•</span>
             <span class="channel-description">{{ channel.description }}</span>
@@ -173,7 +180,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import type { Channel, Server } from '@/types'
 import Icon from '@/components/common/Icon.vue'
 import { messageService } from '@/services'
@@ -181,6 +188,7 @@ import { supabase } from '@/supabase'
 import { useNotificationStore } from '@/stores/useNotification'
 import { authContextService } from '@/services/AuthContextService'
 import { useServerPermissions } from '@/composables/useServerPermissions'
+import { useChannelEncryptionStore } from '@/stores/useChannelEncryption'
 import { debug } from '@/utils/debug'
 
 // Props
@@ -204,6 +212,15 @@ const emit = defineEmits<{
 }>()
 
 const { canManageChannels } = useServerPermissions()
+const channelEncryptionStore = useChannelEncryptionStore()
+
+// i18n key for the lock icon's label; null for a channel without encryption.
+const lockKey = computed((): string | null => {
+  const state = channelEncryptionStore.stateFor(props.channel?.id)
+  if (!state) return null
+  if (Number(props.channel?.type) === 1 && state.voiceEncrypted) return 'channelEncryption.lock.voice'
+  return state.messagesEncrypted ? 'channelEncryption.lock.messages' : null
+})
 
 // State
 const showMembersList = ref(false)
@@ -551,6 +568,13 @@ onUnmounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   flex-shrink: 0;
+}
+
+.channel-lock {
+  display: inline-flex;
+  align-self: center;
+  flex-shrink: 0;
+  color: var(--text-secondary);
 }
 
 .channel-sep {

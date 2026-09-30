@@ -68,7 +68,12 @@
                   </div>
                 </div>
                 <div class="message-content">
+                  <p v-if="isUndecrypted(message)" class="encrypted-preview">
+                    <Icon name="lock" :size="12" />
+                    <span>{{ $t('channelEncryption.encryptedMessage') }}</span>
+                  </p>
                   <UnifiedMessageContent
+                    v-else
                     :content="message.content"
                     :message-id="message.id"
                     :embed-payloads="message.metadata?.embeds"
@@ -99,6 +104,8 @@ import Icon from '@/components/common/Icon.vue'
 import DisplayName from '@/components/DisplayName.vue'
 import UnifiedMessageContent from '@/components/UnifiedMessageContent.vue'
 import type { Message } from '@/types'
+import { processMessageDecryption } from '@/utils/messageDecryption'
+import { isUndecrypted } from '@/utils/channelEncryption'
 
 interface Props {
   isVisible: boolean
@@ -129,11 +136,10 @@ const loadPinnedMessages = async () => {
 
   loading.value = true
   try {
-    if (props.channelId) {
-      pinnedMessages.value = await messageService.getPinnedChannelMessages(props.channelId)
-    } else if (props.conversationId) {
-      pinnedMessages.value = await messageService.getPinnedDMMessages(props.conversationId)
-    }
+    const loaded = props.channelId
+      ? await messageService.getPinnedChannelMessages(props.channelId)
+      : await messageService.getPinnedDMMessages(props.conversationId!)
+    pinnedMessages.value = await processMessageDecryption(loaded)
   } catch (error) {
     console.error('Failed to load pinned messages:', error)
   } finally {
@@ -379,6 +385,16 @@ onMounted(() => {
   font-size: 14px;
   line-height: 1.5;
   word-break: break-word;
+}
+
+.encrypted-preview {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: var(--font-size-sm);
+  font-style: italic;
+  color: var(--text-muted);
 }
 
 .pinned-by {

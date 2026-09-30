@@ -18,6 +18,7 @@ import { useNotificationStore } from '@/stores/useNotification';
 import { useUserData } from '@/composables/useUserData';
 import { useKeybinds } from '@/composables/useKeybinds';
 import { voiceE2EEService } from '@/services/encryption/VoiceE2EEService';
+import { fetchEffectiveChannelEncryption } from '@/services/ChannelEncryptionService';
 import { supabase } from '@/supabase';
 import { debug } from '@/utils/debug';
 import { userStorage } from '@/utils/userScopedStorage';
@@ -379,24 +380,17 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     },
     
     /**
-     * Reads `server_encryption_settings.voice_encryption_mode`. DM calls
-     * (serverId === 'dm') have no server policy and return false.
+     * The channel's effective voice encryption (effective_channel_encryption
+     * voice_encrypted). DM calls (serverId === 'dm') have no channel policy
+     * and return false.
      */
-    async resolveVoiceE2EERequired(serverId: string): Promise<boolean> {
-      if (!serverId || serverId === 'dm') return false;
+    async resolveVoiceE2EERequired(serverId: string, channelId: string): Promise<boolean> {
+      if (!serverId || serverId === 'dm' || !channelId) return false;
       try {
-        const { data, error } = await supabase
-          .from('server_encryption_settings')
-          .select('voice_encryption_mode')
-          .eq('server_id', serverId)
-          .maybeSingle();
-        if (error) {
-          debug.warn('[VoiceChannel] Failed to read voice_encryption_mode:', error);
-          return false;
-        }
-        return data?.voice_encryption_mode === 'required';
+        const state = await fetchEffectiveChannelEncryption(channelId);
+        return state?.voiceEncrypted === true;
       } catch (err) {
-        debug.warn('[VoiceChannel] resolveVoiceE2EERequired error:', err);
+        debug.warn('[VoiceChannel] Failed to read channel voice encryption:', err);
         return false;
       }
     },
@@ -421,7 +415,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       
       // Fail closed: a client that cannot encrypt is refused rather than
       // joined into a plaintext call.
-      const requireE2EE = await this.resolveVoiceE2EERequired(serverId);
+      const requireE2EE = await this.resolveVoiceE2EERequired(serverId, channelId);
       if (requireE2EE && !voiceE2EEService.canParticipate()) {
         await serverUsersStore.leaveVoiceChannel(serverId, channelId, userId);
         useNotificationStore().showToast(

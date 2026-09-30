@@ -23,6 +23,9 @@ function stripEmojiShortcodes(text: string | null | undefined): string {
 
 const supabaseAdmin = getSupabaseClient();
 
+// Matches the preview redact_encrypted_notification_preview() writes.
+const ENCRYPTED_MESSAGE_PREVIEW = 'Encrypted message';
+
 // Types for push notification payloads
 export interface PushPayload {
   title: string;
@@ -570,6 +573,12 @@ class PushNotificationServiceClass {
    * Handles JSON strings, MessagePart[] arrays, and plain strings
    */
   private extractContentPreview(data: Record<string, any>, maxLength = 100): string {
+    // redact_encrypted_notification_preview() flags notifications about an
+    // encrypted message; their content fields hold ciphertext or nothing.
+    if (data.encrypted === true || data.message?.encrypted === true) {
+      return ENCRYPTED_MESSAGE_PREVIEW;
+    }
+
     // Try structured content_preview first
     let preview = data.message?.content_preview || data.content_preview || data.preview;
     

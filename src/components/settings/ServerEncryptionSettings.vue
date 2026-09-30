@@ -79,18 +79,10 @@
           </label>
         </div>
 
-        <div class="checkbox-option">
-          <input
-            type="checkbox"
-            id="encrypt-attachment-metadata"
-            checked
-            disabled
-          />
-          <label for="encrypt-attachment-metadata">
-            <span class="option-name">Encrypt attachment metadata</span>
-            <span class="option-hint">File URLs, names, and types are encrypted within message content when encryption is enabled</span>
-          </label>
-        </div>
+        <p class="attachment-note">
+          <Icon name="info" :size="14" />
+          <span>In encrypted channels, file links, names and types are encrypted with the message. The files themselves are stored unencrypted.</span>
+        </p>
 
       </div>
 
@@ -110,8 +102,8 @@
             @change="voiceEncryptionMode = ($event.target as HTMLInputElement).checked ? 'required' : 'disabled'"
           />
           <label for="voice-e2ee">
-            <span class="option-name">Require end-to-end encrypted voice/video</span>
-            <span class="option-hint">Call audio/video is encrypted before reaching the SFU. Unlike messages, calls are all-or-nothing.</span>
+            <span class="option-name">Require end-to-end encrypted voice and video</span>
+            <span class="option-hint">Every voice channel encrypts calls before they reach the media server. Without this, channel managers choose per voice channel.</span>
           </label>
         </div>
 
@@ -154,9 +146,9 @@
       <div class="help-section">
         <h4>About end-to-end encryption</h4>
         <ul>
-          <li><strong>Disabled:</strong> Messages are stored in plaintext on the server</li>
-          <li><strong>Optional:</strong> Users can enable E2EE individually</li>
-          <li><strong>Required:</strong> All messages must be encrypted (users need keys)</li>
+          <li><strong>Disabled:</strong> channels can't turn on encryption, and messages are stored as plaintext.</li>
+          <li><strong>Optional:</strong> channel managers turn encryption on per channel. New channels start unencrypted.</li>
+          <li><strong>Required:</strong> every channel is encrypted, and members need encryption keys to post.</li>
         </ul>
         <p class="help-note">
           <strong>Note:</strong> End-to-end encryption means the server cannot read message content.
@@ -188,6 +180,7 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { debug } from '@/utils/debug'
 import { supabase } from '@/supabase'
 import { userDataService } from '@/services/userDataService'
+import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 
 interface Props {
@@ -196,6 +189,7 @@ interface Props {
 
 const props = defineProps<Props>()
 const { confirm } = useConfirmDialog()
+const serverChannelStore = useServerChannelStore()
 
 // State
 const loading = ref(true)
@@ -203,12 +197,13 @@ const saving = ref(false)
 const error = ref<string | null>(null)
 const successMessage = ref<string | null>(null)
 
-const currentMode = ref<'disabled' | 'optional' | 'required'>('optional')
-const originalMode = ref<'disabled' | 'optional' | 'required'>('optional')
+// No policy row resolves as 'disabled' (channel_messages_encrypted).
+const currentMode = ref<'disabled' | 'optional' | 'required'>('disabled')
+const originalMode = ref<'disabled' | 'optional' | 'required'>('disabled')
+// The UI shows required_local_only as required; saving keeps the stored variant.
+const storedRequiredMode = ref<'required' | 'required_local_only'>('required')
 const forceKeySetup = ref(false)
-const encryptAttachments = ref(true)
 const originalForceKeySetup = ref(false)
-const originalEncryptAttachments = ref(true)
 // Voice/video E2EE: disabled | required (no per-call "optional" - LiveKit E2EE
 // is room-wide, so a call is either fully encrypted or not).
 const voiceEncryptionMode = ref<'disabled' | 'required'>('disabled')
@@ -226,34 +221,33 @@ const encryptionModes = [
     value: 'disabled',
     name: 'Disabled',
     icon: 'unlock',
-    description: 'Messages are not encrypted. Server can read all content.'
+    description: "Channels can't turn on encryption. The server can read every message."
   },
   {
     value: 'optional',
     name: 'Optional',
     icon: 'lock',
-    description: 'Encryption available but not required. Users choose individually.'
+    description: 'Channel managers turn encryption on per channel. New channels start unencrypted.'
   },
   {
     value: 'required',
     name: 'Required',
     icon: 'shield-check',
-    description: 'All messages must be encrypted. Users need encryption keys to participate.'
+    description: "Every channel is encrypted and can't be turned off. Members need encryption keys to post."
   }
 ]
 
 // Computed
+// server_encryption_settings_modify admits the server owner only.
 const canModify = computed(() => {
   const currentUser = userDataService.getCurrentUser()
-  // Only server owner/admins can modify
-  // TODO: Check actual permissions
-  return !!currentUser
+  const server = serverChannelStore.servers.find(sv => sv.id === props.serverId)
+  return !!currentUser?.id && !!server?.owner && server.owner === currentUser.id
 })
 
 const hasChanges = computed(() => {
   return currentMode.value !== originalMode.value ||
          forceKeySetup.value !== originalForceKeySetup.value ||
-         encryptAttachments.value !== originalEncryptAttachments.value ||
          voiceEncryptionMode.value !== originalVoiceEncryptionMode.value
 })
 
@@ -287,11 +281,11 @@ const statusTitle = computed(() => {
 const statusDescription = computed(() => {
   switch (currentMode.value) {
     case 'disabled':
-      return 'Messages are stored in plaintext. Server operators can read content.'
+      return 'Messages are stored as plaintext. Server operators can read them.'
     case 'optional':
-      return 'Users can enable E2EE for their messages. Mixed encryption mode.'
+      return 'Each channel is encrypted or not, as its channel managers choose.'
     case 'required':
-      return 'All messages are end-to-end encrypted. Maximum privacy enabled.'
+      return 'Every channel is end-to-end encrypted.'
     default:
       return ''
   }
@@ -311,19 +305,17 @@ async function loadSettings() {
 
     if (policyError) throw policyError
 
-    if (policy) {
-      currentMode.value = policy.encryption_mode || 'optional'
-      forceKeySetup.value = policy.force_key_setup || false
-      encryptAttachments.value = policy.encrypt_attachments !== false
-      voiceEncryptionMode.value = policy.voice_encryption_mode === 'required' ? 'required' : 'disabled'
-      
-      originalMode.value = currentMode.value
-      originalForceKeySetup.value = forceKeySetup.value
-      originalEncryptAttachments.value = encryptAttachments.value
-      originalVoiceEncryptionMode.value = voiceEncryptionMode.value
-    } else {
-      await createDefaultPolicy()
-    }
+    const mode = policy?.encryption_mode
+    storedRequiredMode.value = mode === 'required_local_only' ? 'required_local_only' : 'required'
+    currentMode.value = mode === 'optional'
+      ? 'optional'
+      : mode === 'required' || mode === 'required_local_only' ? 'required' : 'disabled'
+    forceKeySetup.value = policy?.force_key_setup === true
+    voiceEncryptionMode.value = policy?.voice_encryption_mode === 'required' ? 'required' : 'disabled'
+
+    originalMode.value = currentMode.value
+    originalForceKeySetup.value = forceKeySetup.value
+    originalVoiceEncryptionMode.value = voiceEncryptionMode.value
 
     await loadMemberStats()
 
@@ -333,21 +325,6 @@ async function loadSettings() {
     error.value = err.message || 'Failed to load settings'
   } finally {
     loading.value = false
-  }
-}
-
-async function createDefaultPolicy() {
-  const { error: createError } = await supabase
-    .from('server_encryption_settings')
-    .insert({
-      server_id: props.serverId,
-      encryption_mode: 'optional',
-      force_key_setup: false,
-      encrypt_attachments: true
-    })
-
-  if (createError) {
-    debug.error('Failed to create default policy:', createError)
   }
 }
 
@@ -380,7 +357,6 @@ function selectMode(mode: 'disabled' | 'optional' | 'required') {
   // Disable options if encryption is disabled
   if (mode === 'disabled') {
     forceKeySetup.value = false
-    encryptAttachments.value = false
   }
 }
 
@@ -392,6 +368,19 @@ async function saveSettings() {
   successMessage.value = null
 
   try {
+    if (currentMode.value === 'disabled' && originalMode.value !== 'disabled') {
+      const confirmed = await confirm({
+        title: 'Disable encryption',
+        message: 'Channels with encryption turned on will send new messages as plaintext. Earlier encrypted messages stay encrypted.',
+        confirmButtonText: 'Disable encryption',
+        dangerAction: true,
+      })
+      if (!confirmed) {
+        saving.value = false
+        return
+      }
+    }
+
     if (currentMode.value === 'required' && memberStats.value.percentage < 50) {
       const confirmed = await confirm({
         title: 'Enable required encryption',
@@ -408,9 +397,8 @@ async function saveSettings() {
 
     const policyData = {
       server_id: props.serverId,
-      encryption_mode: currentMode.value,
+      encryption_mode: currentMode.value === 'required' ? storedRequiredMode.value : currentMode.value,
       force_key_setup: forceKeySetup.value,
-      encrypt_attachments: encryptAttachments.value,
       voice_encryption_mode: voiceEncryptionMode.value,
       updated_at: new Date().toISOString()
     }
@@ -425,7 +413,6 @@ async function saveSettings() {
 
     originalMode.value = currentMode.value
     originalForceKeySetup.value = forceKeySetup.value
-    originalEncryptAttachments.value = encryptAttachments.value
     originalVoiceEncryptionMode.value = voiceEncryptionMode.value
 
     successMessage.value = 'Encryption settings saved'
@@ -446,7 +433,6 @@ async function saveSettings() {
 function resetSettings() {
   currentMode.value = originalMode.value
   forceKeySetup.value = originalForceKeySetup.value
-  encryptAttachments.value = originalEncryptAttachments.value
   voiceEncryptionMode.value = originalVoiceEncryptionMode.value
   error.value = null
   successMessage.value = null
@@ -641,6 +627,21 @@ onMounted(() => {
 
 .checkbox-option:hover {
   background: color-mix(in srgb, var(--harmony-primary) 5%, transparent);
+}
+
+.attachment-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 0 8px;
+  padding: 12px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.attachment-note :deep(svg) {
+  flex-shrink: 0;
+  margin-top: 2px;
 }
 
 .checkbox-option label {

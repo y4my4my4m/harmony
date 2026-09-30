@@ -232,6 +232,7 @@ import GroupChatInviteModal from '@/components/dm/GroupChatInviteModal.vue'
 import { debug } from '@/utils/debug'
 import { useToast } from 'vue-toastification'
 import { useI18n } from 'vue-i18n'
+import { isUndecrypted } from '@/utils/channelEncryption'
 
 const toast = useToast()
 const { t } = useI18n()
@@ -438,6 +439,7 @@ const getLastMessagePreview = (conversation: DMConversation): string => {
 }
 
 const getMessagePreviewText = (message: Message): string => {
+  if (isUndecrypted(message)) return t('channelEncryption.encryptedMessage')
   const content = message.content as MessagePart[]
   if (!Array.isArray(content)) return 'No messages yet'
   
