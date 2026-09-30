@@ -1,59 +1,57 @@
 <template>
   <div class="public-servers-overlay" @click.self="closeModal">
-    <div class="public-servers-modal">
-      <!-- Header -->
+    <div
+      class="public-servers-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="public-servers-title"
+    >
       <PublicServersHeader @close="closeModal" />
 
-      <!-- Search Section -->
-      <PublicServersSearch 
+      <PublicServersSearch
         v-model:search-query="searchQuery"
         v-model:selected-category="selectedCategory"
         :is-searching="publicServersStore.isSearching"
+        :has-active-filter="publicServersStore.hasActiveFilter"
         :categories="publicServersStore.categories"
         :total-servers="publicServersStore.totalServers"
         :filtered-count="publicServersStore.filteredServers.length"
-        @join-by-url="showJoinFederatedServer = true"
       />
 
-      <!-- Content -->
-      <PublicServersContent 
+      <PublicServersContent
         :servers="publicServersStore.filteredServers"
-        :featured-servers="publicServersStore.featuredServers"
+        :featured-servers="publicServersStore.hasActiveFilter ? [] : publicServersStore.featuredServers"
         :is-loading="publicServersStore.isLoading"
         :is-empty="publicServersStore.isEmpty"
-        :is-empty-search="publicServersStore.isEmptySearch"
-        :search-query="searchQuery"
+        :is-empty-results="isEmptyResults"
+        :search-query="publicServersStore.searchQuery"
         :joined-server-ids="joinedServerIds"
         :loading-server-ids="loadingServerIds"
         :error="publicServersStore.error"
         @join-server="handleJoinServer"
-        @leave-server="handleLeaveServer"
+        @open-server="handleOpenServer"
         @view-owner-profile="handleViewOwnerProfile"
-        @refresh="handleRefresh"
+        @refresh="publicServersStore.retry()"
       />
 
-      <!-- Footer -->
-      <PublicServersFooter 
-        @create-server="showCreateServerForm = true" 
+      <PublicServersFooter
+        @create-server="showCreateServerForm = true"
         @join-by-url="showJoinFederatedServer = true"
       />
     </div>
 
-    <!-- Create Server Modal -->
-    <CreateServerForm 
-      v-if="showCreateServerForm" 
-      @close="showCreateServerForm = false" 
-      @created="handleServerCreated"
+    <CreateServerForm
+      v-if="showCreateServerForm"
+      @close="showCreateServerForm = false"
+      @created="closeModal"
     />
 
-    <!-- Join Federated Server Modal -->
     <JoinFederatedServer
       v-if="showJoinFederatedServer"
       @close="showJoinFederatedServer = false"
-      @joined="handleFederatedServerJoined"
+      @joined="closeModal"
     />
 
-    <!-- User Profile Modal -->
     <UserProfileModal
       v-if="showUserProfile && selectedUser"
       :show="showUserProfile"
@@ -64,22 +62,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { debug } from '@/utils/debug'
-import { useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useServerStore } from '@/stores/server'
 import { useAuthStore } from '@/stores/auth'
 import { usePublicServersStore } from '@/stores/usePublicServers'
 import { useServerUsersStore } from '@/stores/useServerUsers'
-import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
-import { useChatStore } from '@/stores/useChat'
-import { useDebouncedSearch } from '@/composables/useDebounce'
-import { useKeyboardEvents } from '@/composables/useCommonUI'
+import { useDebounce } from '@/composables/useDebounce'
 import { useHapticSettings } from '@/composables/useHapticSettings'
+import { useOpenServer } from '@/composables/useOpenServer'
 
-// Components
 import PublicServersHeader from '@/components/PublicServers/PublicServersHeader.vue'
 import PublicServersSearch from '@/components/PublicServers/PublicServersSearch.vue'
 import PublicServersContent from '@/components/PublicServers/PublicServersContent.vue'
@@ -102,19 +96,14 @@ const props = withDefaults(defineProps<Props>(), {
 })
 const emit = defineEmits<Emits>()
 
-// Stores
 const publicServersStore = usePublicServersStore()
 const serverChannelStore = useServerChannelStore()
 const serverStore = useServerStore()
 const authStore = useAuthStore()
-const { triggerDestructive, triggerMessage } = useHapticSettings()
-
-// Composables
-const router = useRouter()
+const { triggerMessage } = useHapticSettings()
 const toast = useToast()
-const { handleEscapeKey } = useKeyboardEvents()
+const openServer = useOpenServer()
 
-// State
 const searchQuery = ref('')
 const selectedCategory = ref<string | null>(null)
 const showCreateServerForm = ref(false)
@@ -123,33 +112,38 @@ const loadingServerIds = ref<Set<string>>(new Set())
 const showUserProfile = ref(false)
 const selectedUser = ref<any>(null)
 
-// Computed
 const joinedServerIds = computed(() => {
   return new Set(serverChannelStore.servers.map((server: any) => server.id))
 })
 
-// Setup debounced search
-useDebouncedSearch(searchQuery, async (query) => {
+const isEmptyResults = computed(() =>
+  publicServersStore.hasLoaded &&
+  publicServersStore.hasActiveFilter &&
+  !publicServersStore.isSearching &&
+  publicServersStore.filteredServers.length === 0
+)
+
+const { cancel: cancelPendingSearch } = useDebounce(searchQuery, async (query) => {
   if (query.trim()) {
     await publicServersStore.searchServers(query)
   } else {
     publicServersStore.clearSearch()
   }
-}, 300)
+}, { delay: 300 })
 
-// Watch category selection
 watch(selectedCategory, (newCategory) => {
   publicServersStore.setSelectedCategory(newCategory)
 })
 
-// Methods
 const closeModal = () => {
   emit('close')
 }
 
-const handleRefresh = async () => {
-  await publicServersStore.forceRefresh()
-  toast.success('Communities refreshed!')
+const setServerLoading = (serverId: string, loading: boolean) => {
+  const next = new Set(loadingServerIds.value)
+  if (loading) next.add(serverId)
+  else next.delete(serverId)
+  loadingServerIds.value = next
 }
 
 const handleJoinServer = async (serverId: string) => {
@@ -159,86 +153,39 @@ const handleJoinServer = async (serverId: string) => {
     return
   }
 
-  loadingServerIds.value.add(serverId)
-
+  setServerLoading(serverId, true)
   try {
+    // joinServer toasts its own failures.
     const success = await serverStore.joinServer(serverId, userId)
-    if (success) {
-      // Haptic feedback for successful join
-      triggerMessage('success')
-      await serverChannelStore.fetchServersForUser(userId)
-      toast.success('Successfully joined the server!')
-      
-      closeModal()
-    } else {
-      toast.error('Failed to join the server')
-    }
+    if (!success) return
+
+    triggerMessage('success')
+    await serverChannelStore.fetchServersForUser(userId, true)
+    await openServer(serverId)
+    closeModal()
   } catch (error) {
     debug.error('Error joining server:', error)
     toast.error('An error occurred while joining the server')
   } finally {
-    loadingServerIds.value.delete(serverId)
+    setServerLoading(serverId, false)
   }
 }
 
-const handleLeaveServer = async (serverId: string) => {
-  const userId = authStore.session?.user?.id
-  if (!userId) return
-
-  loadingServerIds.value.add(serverId)
-
+const handleOpenServer = async (serverId: string) => {
+  setServerLoading(serverId, true)
   try {
-    // Proactively disconnect voice chat if connected to this server
-    const voiceStore = useUnifiedVoiceChannelStore()
-    if (voiceStore.effectiveServerId === serverId) {
-      await voiceStore.leaveVoiceChannel()
-    }
-    
-    if (serverChannelStore.currentServer?.id === serverId) {
-      const chatStore = useChatStore()
-      chatStore.unsubscribeFromMessages()
-      chatStore.clearMessages()
-    }
-    
-    const success = await serverStore.leaveServer(serverId, userId)
-    if (success) {
-      triggerDestructive()
-      await serverChannelStore.fetchServersForUser(userId)
-      toast.success('Successfully left the server')
-      
-      if (serverChannelStore.currentServer?.id === serverId || serverChannelStore.servers.length === 0) {
-        router.push('/chat')
-      }
-    } else {
-      toast.error('Failed to leave the server')
-    }
-  } catch (error) {
-    debug.error('Error leaving server:', error)
-    toast.error('An error occurred while leaving the server')
+    await openServer(serverId)
+    closeModal()
   } finally {
-    loadingServerIds.value.delete(serverId)
+    setServerLoading(serverId, false)
   }
-}
-
-const handleServerCreated = (server: any) => {
-  showCreateServerForm.value = false
-  toast.success('Server created successfully!')
-  router.push({ name: 'Chat', params: { serverId: server.id } })
-  closeModal()
-}
-
-const handleFederatedServerJoined = (_serverId: string) => {
-  showJoinFederatedServer.value = false
-  toast.success('Joined federated server!')
-  // Navigation is handled by JoinFederatedServer component with the correct channel
-  closeModal()
 }
 
 const handleViewOwnerProfile = async (userId: string) => {
   try {
     const serverUsersStore = useServerUsersStore()
     await serverUsersStore.fetchUserProfiles([userId])
-    
+
     selectedUser.value = serverUsersStore.userProfiles[userId]
     if (selectedUser.value) {
       showUserProfile.value = true
@@ -256,38 +203,39 @@ const closeUserProfile = () => {
   selectedUser.value = null
 }
 
-handleEscapeKey(closeModal)
+// Escape closes the topmost layer only; the nested create/join dialogs close
+// themselves. A non-empty search field clears before the sheet closes.
+const onKeydown = (event: KeyboardEvent) => {
+  if (event.key !== 'Escape') return
+  if (showCreateServerForm.value || showJoinFederatedServer.value) return
+  if (showUserProfile.value) {
+    closeUserProfile()
+    return
+  }
+  if (event.target instanceof HTMLInputElement && event.target.value) {
+    searchQuery.value = ''
+    return
+  }
+  closeModal()
+}
 
-// Lifecycle
 onMounted(async () => {
-  debug.log('PublicServers modal opened')
-  debug.log('Current store state:', {
-    hasLoaded: publicServersStore.hasLoaded,
-    serversCount: publicServersStore.servers.length,
-    isLoading: publicServersStore.isLoading,
-    needsFreshData: publicServersStore.needsFreshData(),
-    forceRefresh: props.forceRefresh
-  })
-  
-  try {
-    // Ensure fresh data when modal opens, especially for new users
-    if (publicServersStore.needsFreshData() || props.forceRefresh) {
-      debug.log('Force refreshing data for new user or stale data')
-      await publicServersStore.forceRefresh()
-    } else {
-      debug.log('Fetching public servers normally')
-      // Fetch when nothing is cached yet.
-      await publicServersStore.fetchPublicServers()
-    }
-    
-    debug.log('PublicServers data loaded successfully')
-  } catch (error) {
-    debug.error('Error loading public servers in modal:', error)
-    toast.error('Failed to load communities. Please try again.')
+  window.addEventListener('keydown', onKeydown)
+  publicServersStore.resetFilters()
+
+  if (publicServersStore.needsFreshData() || props.forceRefresh) {
+    await publicServersStore.forceRefresh()
+  } else {
+    await publicServersStore.fetchPublicServers()
   }
 })
 
-// Watch for force refresh prop changes
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onKeydown)
+  cancelPendingSearch()
+  publicServersStore.resetFilters()
+})
+
 watch(() => props.forceRefresh, async (shouldForce) => {
   if (shouldForce) {
     await publicServersStore.forceRefresh()
@@ -299,14 +247,14 @@ watch(() => props.forceRefresh, async (shouldForce) => {
 .public-servers-overlay {
   position: fixed;
   inset: 0;
-  /* background: color-mix(in srgb, var(--background-primary), transparent 10%); */
-  backdrop-filter: blur(12px);
+  background: color-mix(in srgb, var(--background-tertiary) 70%, transparent);
+  backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  padding: var(--space-5);
   z-index: 1000;
-  animation: fadeIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: fadeIn 0.2s ease-out;
 }
 
 @keyframes fadeIn {
@@ -316,56 +264,44 @@ watch(() => props.forceRefresh, async (shouldForce) => {
 
 .public-servers-modal {
   background: var(--background-primary);
-  backdrop-filter: blur(20px);
-  border-radius: 20px;
+  border-radius: var(--radius-xl);
   border: 1px solid var(--border-primary);
-  box-shadow: 
-    0 32px 64px rgba(0, 0, 0, 0.5),
-    0 0 0 1px var(--border-primary, rgba(255, 255, 255, 0.05)),
-    inset 0 1px 0 var(--border-primary, rgba(255, 255, 255, 0.1));
+  box-shadow: var(--shadow-modal);
   width: 100%;
   max-width: 1000px;
-  max-height: 90vh;
+  height: min(90vh, 900px);
   overflow: hidden;
-  animation: slideUp 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
+  animation: slideUp 0.2s ease-out;
   display: flex;
   flex-direction: column;
 }
 
 @keyframes slideUp {
-  from { opacity: 0; transform: translateY(24px) scale(0.95); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-.public-servers-modal::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--harmony-primary, rgba(14, 165, 233, 0.5)), transparent);
-}
-
+/* Full-screen sheet on phones; dvh tracks the collapsing browser toolbar. */
 @media (max-width: 768px) {
   .public-servers-overlay {
-    padding: 10px;
+    padding: 0;
+    align-items: stretch;
   }
-  
+
   .public-servers-modal {
-    border-radius: 16px;
-    max-height: 95vh;
+    max-width: none;
+    height: 100vh;
+    height: 100dvh;
+    border: none;
+    border-radius: 0;
+    padding-top: env(safe-area-inset-top, 0px);
   }
 }
 
-@media (max-width: 480px) {
-  .public-servers-overlay {
-    padding: 8px;
-  }
-  
+@media (prefers-reduced-motion: reduce) {
+  .public-servers-overlay,
   .public-servers-modal {
-    border-radius: 12px;
+    animation: none;
   }
 }
 </style>

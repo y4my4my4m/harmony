@@ -12,7 +12,12 @@ export type {
 } from './FederationActivityService'
 
 // Handles remote server discovery, join/leave, and sync
-export { FederationServerService, federationServerService } from './FederationServerService'
+export {
+  FederationServerService,
+  federationServerService,
+  parseInviteUrl,
+  remoteServerUuid,
+} from './FederationServerService'
 export type { 
   RemoteServer, 
   RemoteChannel,

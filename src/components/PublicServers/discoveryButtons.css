@@ -1,0 +1,59 @@
+/* Flat variants of the global .btn classes. shared.css recolors .btn-secondary
+   with the primary hover blue and fades every .btn on hover; design-system.css
+   gives .btn-primary a gradient and a hover lift. */
+.btn {
+  gap: var(--space-2);
+  padding: 0 var(--space-4);
+  min-height: 38px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1;
+  transition:
+    background-color var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.btn:hover {
+  opacity: 1;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--harmony-primary);
+  color: var(--text-on-primary);
+  box-shadow: none;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--harmony-primary-hover);
+  transform: none;
+  box-shadow: none;
+}
+
+.btn-secondary {
+  background: var(--background-modifier-hover);
+  color: var(--text-primary);
+  border-color: var(--border-primary);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--background-modifier-active);
+  border-color: var(--border-hover);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.btn-ghost:hover:not(:disabled) {
+  background: var(--background-modifier-hover);
+  color: var(--text-primary);
+}

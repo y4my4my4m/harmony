@@ -1074,31 +1074,12 @@ export const useServerChannelStore = defineStore('serverChannel', {
       this.channels = data
     },
 
-    async createServer(serverData: { name: string; description?: string; public?: boolean; owner: string }) {
-      try {
-        debug.log('Creating server via service-like helper:', serverData.name)
-        
-        const newServer = await this._createServerHelper(serverData)
-        
-        debug.log('Server created successfully via service-like helper:', newServer.id)
-        return newServer
-      } catch (error) {
-        debug.error('Failed to create server via service-like helper:', error)
-        
-        try {
-          debug.log('Falling back to direct server creation')
-          return await this._createServerFallback(serverData)
-        } catch (fallbackError) {
-          debug.error('Fallback server creation also failed:', fallbackError)
-          throw fallbackError
-        }
-      }
-    },
-
     /**
-     * Service-like helper: Create server with user membership and local state
+     * Inserts the server, then the owner's membership. The insert is never
+     * retried; a second attempt after a committed insert duplicates the server.
+     * A failed membership insert deletes the new row and rethrows.
      */
-    async _createServerHelper(serverData: { name: string; description?: string; public?: boolean; owner: string }) {
+    async createServer(serverData: { name: string; description?: string; public?: boolean; owner: string }) {
       const { data, error } = await supabase
         .from('servers')
         .insert([{
@@ -1111,6 +1092,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
         .single()
 
       if (error) {
+        debug.error('Server creation failed:', error)
         throw new Error(`Server creation failed: ${error.message}`)
       }
 
@@ -1120,40 +1102,17 @@ export const useServerChannelStore = defineStore('serverChannel', {
         this.servers.push(data)
       }
 
-      await this.addUserToServer(data.id, serverData.owner)
-      
-      return data
-    },
-
-    /**
-     * Fallback method for creating server
-     */
-    async _createServerFallback(serverData: { name: string; description?: string; public?: boolean; owner: string }) {
-      const { data, error } = await supabase
-        .from('servers')
-        .insert([{
-          name: serverData.name,
-          description: serverData.description || null,
-          public: serverData.public || false,
-          owner: serverData.owner
-        }])
-        .select()
-        .single()
-
-      if (error) {
-        debug.error('Error creating server in fallback:', error)
-        throw error
+      try {
+        await this.addUserToServer(data.id, serverData.owner)
+      } catch (membershipError) {
+        this.servers = this.servers.filter(s => s.id !== data.id)
+        const { error: cleanupError } = await supabase.from('servers').delete().eq('id', data.id)
+        if (cleanupError) {
+          debug.error('Could not remove server after failed membership insert:', cleanupError)
+        }
+        throw membershipError
       }
 
-      // Add server to local state before addUserToServer so the realtime
-      // handler (_handleUserServerJoin) sees it and skips the duplicate push.
-      if (!this.servers.some(s => s.id === data.id)) {
-        this.servers.push(data)
-      }
-
-      await this.addUserToServer(data.id, serverData.owner)
-      
-      debug.log('Server created successfully with default structure:', data)
       return data
     },
 

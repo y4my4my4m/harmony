@@ -1,37 +1,23 @@
 <template>
-  <div class="skeleton-grid">
-    <div 
-      v-for="n in count" 
-      :key="n" 
+  <div class="skeleton-grid" aria-hidden="true">
+    <div
+      v-for="n in count"
+      :key="n"
       class="skeleton-server-card"
     >
-      <div class="skeleton-header">
-        <div class="skeleton-icon"></div>
-        <div class="skeleton-status"></div>
-      </div>
-      
+      <div class="skeleton-icon"></div>
+
       <div class="skeleton-content">
         <div class="skeleton-name"></div>
-        <div class="skeleton-description">
-          <div class="skeleton-line"></div>
-          <div class="skeleton-line short"></div>
-        </div>
-        
-        <div class="skeleton-info">
-          <div class="skeleton-stats">
-            <div class="skeleton-stat"></div>
-            <div class="skeleton-stat"></div>
-          </div>
-          <div class="skeleton-owner">
-            <div class="skeleton-avatar"></div>
-            <div class="skeleton-owner-name"></div>
-          </div>
+        <div class="skeleton-line"></div>
+        <div class="skeleton-line short"></div>
+        <div class="skeleton-stats">
+          <div class="skeleton-stat"></div>
+          <div class="skeleton-stat"></div>
         </div>
       </div>
-      
-      <div class="skeleton-actions">
-        <div class="skeleton-button"></div>
-      </div>
+
+      <div class="skeleton-button"></div>
     </div>
   </div>
 </template>
@@ -47,127 +33,81 @@ withDefaults(defineProps<Props>(), {
 </script>
 
 <style scoped>
+/* Mirrors ServerCard and the discovery grid. */
 .skeleton-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--space-3);
 }
 
 .skeleton-server-card {
-  background: rgba(47, 49, 54, 0.98);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 16px;
-  padding: 20px;
-  overflow: hidden;
-}
-
-.skeleton-header {
+  background: var(--background-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 16px;
+  flex-direction: column;
+  gap: var(--space-3);
 }
 
 .skeleton-icon {
   width: 64px;
   height: 64px;
-  border-radius: 16px;
-}
-
-.skeleton-status {
-  width: 60px;
-  height: 20px;
-  border-radius: 10px;
+  border-radius: var(--radius-xl);
 }
 
 .skeleton-content {
-  margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }
 
 .skeleton-name {
-  width: 70%;
-  height: 24px;
-  border-radius: 4px;
-  margin-bottom: 12px;
-}
-
-.skeleton-description {
-  margin-bottom: 16px;
+  width: 60%;
+  height: 18px;
+  border-radius: var(--radius-sm);
 }
 
 .skeleton-line {
-  height: 16px;
-  border-radius: 4px;
-  margin-bottom: 8px;
+  height: 13px;
+  border-radius: var(--radius-sm);
 }
 
 .skeleton-line.short {
-  width: 60%;
-}
-
-.skeleton-info {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+  width: 70%;
 }
 
 .skeleton-stats {
   display: flex;
-  gap: 12px;
+  gap: var(--space-3);
+  margin-top: var(--space-1);
 }
 
 .skeleton-stat {
-  width: 80px;
-  height: 16px;
-  border-radius: 4px;
-}
-
-.skeleton-owner {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.skeleton-avatar {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-}
-
-.skeleton-owner-name {
-  width: 60px;
-  height: 14px;
-  border-radius: 4px;
-}
-
-.skeleton-actions {
-  display: flex;
-  justify-content: flex-end;
+  width: 72px;
+  height: 12px;
+  border-radius: var(--radius-sm);
 }
 
 .skeleton-button {
-  width: 80px;
   height: 36px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
 }
 
 .skeleton-icon,
-.skeleton-status,
 .skeleton-name,
 .skeleton-line,
 .skeleton-stat,
-.skeleton-avatar,
-.skeleton-owner-name,
 .skeleton-button {
-  background-color: rgba(255, 255, 255, 0.06);
+  background-color: var(--background-modifier-hover);
   background-image: linear-gradient(
     90deg,
     transparent 0%,
-    color-mix(in srgb, var(--harmony-primary) 18%, transparent) 50%,
+    var(--background-modifier-hover) 50%,
     transparent 100%
   );
   background-size: 200% 100%;
-  animation: shimmer 1.8s ease-in-out infinite;
+  animation: shimmer 1.6s ease-in-out infinite;
 }
 
 @keyframes shimmer {
@@ -179,11 +119,19 @@ withDefaults(defineProps<Props>(), {
   }
 }
 
-/* Responsive adjustments */
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-icon,
+  .skeleton-name,
+  .skeleton-line,
+  .skeleton-stat,
+  .skeleton-button {
+    animation: none;
+  }
+}
+
 @media (max-width: 768px) {
   .skeleton-grid {
     grid-template-columns: 1fr;
-    gap: 16px;
   }
 }
 </style>

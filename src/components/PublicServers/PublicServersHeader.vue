@@ -6,25 +6,25 @@
           src="/img/app_icon_badge.png"
           alt=""
           class="discover-portal-bear"
-          width="30"
-          height="30"
+          width="26"
+          height="26"
         />
       </div>
       <div class="header-text">
-        <h1 class="modal-title">{{ $t('server.discoverCommunities') }}</h1>
+        <h1 id="public-servers-title" class="modal-title">{{ $t('server.discoverCommunities') }}</h1>
         <p class="modal-subtitle">{{ $t('server.findNextFavoriteServer') }}</p>
       </div>
     </div>
-    
-    <button @click="$emit('close')" class="close-button" aria-label="Close">
-      <svg viewBox="0 0 24 24" class="close-icon">
-        <path d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z" fill="currentColor"/>
-      </svg>
+
+    <button type="button" class="close-button" :aria-label="$t('common.close')" @click="$emit('close')">
+      <Icon name="x" :size="20" />
     </button>
   </div>
 </template>
 
 <script setup lang="ts">
+import Icon from '@/components/common/Icon.vue'
+
 interface Emits {
   (e: 'close'): void
 }
@@ -37,147 +37,94 @@ defineEmits<Emits>()
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 24px 32px;
+  gap: var(--space-4);
+  padding: var(--space-5) var(--space-6);
   border-bottom: 1px solid var(--border-primary);
-  background: linear-gradient(135deg, color-mix(in srgb, var(--harmony-primary) 8%, var(--background-primary)) 0%, var(--background-primary) 100%);
 }
 
 .header-content {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: var(--space-3);
+  min-width: 0;
 }
 
 .icon-container {
-  width: 48px;
-  height: 48px;
-  background: linear-gradient(135deg, var(--harmony-primary), var(--harmony-primary-hover));
-  border-radius: 12px;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  background: var(--harmony-primary);
+  border-radius: var(--radius-lg);
   display: flex;
   align-items: center;
   justify-content: center;
-  position: relative;
 }
 
-.icon-container::before {
-  content: '';
-  position: absolute;
-  inset: -1px;
-  background: linear-gradient(135deg, var(--harmony-primary), var(--harmony-primary-hover));
-  border-radius: 12px;
-  opacity: 0.3;
-  z-index: -1;
-  filter: blur(4px);
-}
-
-/* Same white bear as Harmony Portal (ServerSidebar) */
 .discover-portal-bear {
-  width: 30px;
-  height: 30px;
+  width: 26px;
+  height: 26px;
   object-fit: contain;
   display: block;
-  position: relative;
-  z-index: 1;
-}
-
-.discover-icon {
-  width: 24px;
-  height: 24px;
-  color: var(--text-primary);
 }
 
 .header-text {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
+  min-width: 0;
 }
 
 .modal-title {
-  font-size: 24px;
-  font-weight: 700;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
   color: var(--text-primary);
   margin: 0;
   line-height: 1.2;
 }
 
 .modal-subtitle {
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   color: var(--text-secondary);
   margin: 0;
   line-height: 1.4;
 }
 
 .close-button {
-  width: 40px;
-  height: 40px;
-  background: var(--background-modifier-hover);
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  background: transparent;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   color: var(--text-secondary);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s ease;
-  position: relative;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
 }
 
 .close-button:hover {
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--background-modifier-hover);
   color: var(--text-primary);
-  transform: scale(1.05);
 }
 
-.close-button:active {
-  transform: scale(0.95);
+.close-button:focus-visible {
+  outline: 2px solid var(--harmony-primary);
+  outline-offset: 2px;
 }
 
-.close-icon {
-  width: 20px;
-  height: 20px;
-}
-
-/* Mobile responsive */
 @media (max-width: 768px) {
   .public-servers-header {
-    padding: 20px 24px;
+    padding: var(--space-4);
   }
-  
-  .header-content {
-    gap: 12px;
-  }
-  
-  .icon-container {
-    width: 40px;
-    height: 40px;
-  }
-  
-  .discover-icon {
-    width: 20px;
-    height: 20px;
-  }
-  
+
   .modal-title {
-    font-size: 20px;
+    font-size: var(--font-size-lg);
   }
-  
+
   .modal-subtitle {
     font-size: 13px;
-  }
-}
-
-@media (max-width: 480px) {
-  .public-servers-header {
-    padding: 16px 20px;
-  }
-  
-  .modal-title {
-    font-size: 18px;
-  }
-  
-  .close-button {
-    width: 36px;
-    height: 36px;
   }
 }
 </style>
