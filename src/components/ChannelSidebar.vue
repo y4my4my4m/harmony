@@ -1270,7 +1270,8 @@ watch(() => props.currentServer?.id, () => {
   text-align: center;
   cursor: pointer;
   transition: 0.2s ease-in-out;
-  height: 48px;
+  /* 47px on the sidebar card's 1px top border: bottom edge at 48. */
+  height: 47px;
   display: flex;
   align-items: center;
   justify-content: center;

@@ -210,7 +210,8 @@ const handleTabKeydown = (event: KeyboardEvent) => {
   display: flex;
   align-items: stretch;
   gap: var(--space-2);
-  height: 53px;
+  /* 47px plus the header's 1px border: 48, the height of every column header. */
+  height: 47px;
   padding: 0 var(--space-3) 0 var(--space-2);
 }
 

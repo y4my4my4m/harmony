@@ -112,8 +112,8 @@ const goBack = () => {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  min-height: 53px;
-  padding: var(--space-2) var(--space-4);
+  min-height: 48px;
+  padding: var(--space-1) var(--space-4);
   border-bottom: 1px solid var(--border-color);
   background: var(--background-primary);
   flex-shrink: 0;
