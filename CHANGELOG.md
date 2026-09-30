@@ -7,6 +7,82 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [1.6.2] - 2026-10-01
+
+### Added
+- **Desktop auto-updates.** The desktop app downloads new releases in the
+  background and shows "Update ready" in the server rail; it restarts into the
+  new version only when you click. Settings › Advanced shows the version, a
+  check button and an auto-download toggle. The Android app shows a notice
+  with a link when a new APK is published. This release is the last one to
+  install by hand.
+- **Voice and video, closer to Discord.** Per-user volume from 0 to 200% with
+  a local mute that keeps the level, remembered per user. Screen share opens a
+  Go live panel (720p, 1080p or source, 30 or 60 fps); stream audio is its own
+  track, so viewers can turn a stream down separately from the voice. Watching
+  a stream is opt-in. Tiles gain a menu button, hover volume, live and
+  connection badges, grid and focus layouts, a call timer and a reconnecting
+  state. Master and input volume sliders now work; master defaults to 100%.
+- **Notifications inbox.** The bell opens All, Mentions and Social tabs with
+  an unread filter, day groups, inline mark read and remove, and keyboard
+  navigation.
+- **Today**, rebuilt: announcements, mentions and replies, unread DMs, unread
+  channels by server with mark read, active threads, live voice, follow
+  requests and top posts from people you follow.
+- **Media tab** on every profile, local and remote: a grid of photos and
+  videos with sensitive media blurred.
+- **Message search filters**, as in Discord: `from:`, `mentions:`, `has:`,
+  `in:`, `before:`/`after:`/`during:` and `pinned:`, with suggestions, results
+  grouped by channel and jump to message.
+
+### Changed
+- DM calls: the call buttons reflect only their own conversation, switching
+  calls asks first, callers see ringing tiles, and missed calls say so.
+- Spatial audio is off by default and remembers your choice.
+- SDR-001 / Neo Kobe 1988 skin reworked: readable red and steel text, square
+  frames, fixed icons, lighter scanlines. Existing users get the new
+  background after picking the skin again.
+- The instance funding window shows progress toward the goal and leads with
+  the donation link.
+- Double-click to react fires only on empty space in a message;
+  double-clicking a word selects it.
+- The code block copy button sits beside the language label, clear of the
+  message toolbar.
+
+### Fixed
+- **@everyone and role mentions** notified everyone regardless of permission.
+  @everyone now requires Mention @everyone, roles not marked mentionable need
+  the same permission, and bots need it on their install.
+- **Push notifications**: enabling push on one device removed it from others;
+  replies, reactions and social pushes were never sent; clicks opened the
+  wrong page; subscriptions that expired or rotated were never renewed. Push
+  now repairs itself after sign-in without prompting again.
+- A closed tab or a phone in the background kept notifications for its last
+  channel suppressed indefinitely.
+- Quiet hours dropped notifications instead of silencing them.
+- Creating a server folder, including dragging one server onto another,
+  failed.
+- Desktop and Android apps: GIFs, federated server discovery and joining,
+  user lookup and post links failed.
+- Theme editor: the message box disappeared into the background while
+  editing, and many colour swatches could not be clicked.
+- The file drop overlay could stay on screen; folder tooltips could stay open;
+  right-click menus did not close with Escape.
+- Author names on posts showed a heavy highlight on hover; the Appearance
+  dropdowns were unstyled.
+- Code blocks had a blank line above and below.
+
+### Notes for self-hosters
+- Six migrations since 1.6.1 (`20261002000001` to `20261003500001`);
+  `bootstrap.sh --migrations-only` applies them. Take a backup first.
+  `20261003400001` changes who can ping @everyone and unmentionable roles;
+  bots without `mention_everyone` on their install stop pinging @everyone.
+- Rebuild the federation backend image (`docker compose up -d --build`); the
+  push routes changed.
+- Desktop auto-updates are signed with a key held in the release repository's
+  secrets; forks that publish their own builds need their own key (see
+  `docs/DEVELOPMENT.md`).
+
 ## [1.6.1] - 2026-09-30
 
 ### Added
