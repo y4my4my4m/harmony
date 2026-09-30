@@ -505,7 +505,7 @@ self.addEventListener('fetch', (event) => {
   }
 
   // /assets/emojis/ SVG and JSON are immutable: cache-first.
-  if (requestUrl.hostname === self.location.hostname &&
+  if (requestUrl.origin === self.location.origin &&
       requestUrl.pathname.startsWith('/assets/emojis/')) {
     event.respondWith(emojiCacheFirst(event.request))
     return
@@ -524,8 +524,9 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  // Same-origin only; cross-origin interception loops on avatars.
-  if (requestUrl.hostname !== self.location.hostname) {
+  // Same-origin only; cross-origin interception loops on avatars. Compared by
+  // origin: a backend on the same host and another port is cross-origin.
+  if (requestUrl.origin !== self.location.origin) {
     return
   }
 
