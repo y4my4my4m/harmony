@@ -14,7 +14,7 @@
               :src="callerAvatar"
               :alt="callerName"
               size="lg"
-              class="caller-avatar pulsing"
+              class="caller-avatar"
             />
             <div class="call-type-indicator">
               <Icon :name="callType === 'video' ? 'video' : 'phone'" :size="24" />
@@ -169,13 +169,50 @@ const handleDecline = () => {
   right: 0;
   bottom: 0;
   background: rgba(0, 0, 0, 0.85);
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 10000;
-  animation: fadeIn 0.3s ease;
   cursor: pointer;
+}
+
+.incoming-call-modal {
+  position: relative;
+  background: var(--background-primary);
+  border-radius: var(--radius-xl);
+  padding: 48px 32px;
+  box-shadow: var(--shadow-large);
+  text-align: center;
+  min-width: 320px;
+  max-width: 400px;
+  cursor: default;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .incoming-call-overlay {
+    animation: fadeIn 0.3s ease;
+  }
+
+  .incoming-call-modal {
+    animation: slideUp 0.3s ease-out;
+  }
+
+  .incoming-call-mini {
+    animation: slideInRight 0.25s ease;
+  }
+
+  .dot {
+    animation: blink 1.4s ease-in-out infinite;
+  }
+
+  .dot:nth-child(2) {
+    animation-delay: 0.2s;
+  }
+
+  .dot:nth-child(3) {
+    animation-delay: 0.4s;
+  }
 }
 
 @keyframes fadeIn {
@@ -187,26 +224,33 @@ const handleDecline = () => {
   }
 }
 
-.incoming-call-modal {
-  position: relative;
-  background: var(--background-primary);
-  border-radius: 16px;
-  padding: 48px 32px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-  text-align: center;
-  min-width: 320px;
-  max-width: 400px;
-  animation: slideUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-  cursor: default;
-}
-
 @keyframes slideUp {
   from {
-    transform: translateY(50px);
+    transform: translateY(16px);
     opacity: 0;
   }
   to {
     transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes blink {
+  0%, 60%, 100% {
+    opacity: 0.3;
+  }
+  30% {
     opacity: 1;
   }
 }
@@ -218,7 +262,7 @@ const handleDecline = () => {
   width: 32px;
   height: 32px;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
@@ -229,13 +273,8 @@ const handleDecline = () => {
 }
 
 .minimize-btn:hover {
-  background: var(--background-secondary);
+  background: var(--background-modifier-hover);
   color: var(--text-primary);
-}
-
-.incoming-call-modal.video-call {
-  background: linear-gradient(135deg, color-mix(in srgb, var(--harmony-primary) 10%, transparent), color-mix(in srgb, var(--harmony-primary) 5%, transparent));
-  border: 2px solid color-mix(in srgb, var(--harmony-primary) 30%, transparent);
 }
 
 .caller-info {
@@ -246,21 +285,6 @@ const handleDecline = () => {
   position: relative;
   display: inline-block;
   margin-bottom: 24px;
-}
-
-.caller-avatar {
-  animation: pulse 2s ease-in-out infinite;
-}
-
-@keyframes pulse {
-  0%, 100% {
-    transform: scale(1);
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--harmony-primary) 70%, transparent);
-  }
-  50% {
-    transform: scale(1.05);
-    box-shadow: 0 0 0 20px color-mix(in srgb, var(--harmony-primary) 0%, transparent);
-  }
 }
 
 .call-type-indicator {
@@ -275,17 +299,7 @@ const handleDecline = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--text-primary);
-  animation: bounce 1s ease-in-out infinite;
-}
-
-@keyframes bounce {
-  0%, 100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-5px);
-  }
+  color: var(--text-on-primary);
 }
 
 .caller-name {
@@ -313,24 +327,7 @@ const handleDecline = () => {
   height: 8px;
   background: var(--harmony-primary);
   border-radius: 50%;
-  animation: blink 1.4s ease-in-out infinite;
-}
-
-.dot:nth-child(2) {
-  animation-delay: 0.2s;
-}
-
-.dot:nth-child(3) {
-  animation-delay: 0.4s;
-}
-
-@keyframes blink {
-  0%, 60%, 100% {
-    opacity: 0.3;
-  }
-  30% {
-    opacity: 1;
-  }
+  opacity: 0.6;
 }
 
 .call-actions {
@@ -346,35 +343,30 @@ const handleDecline = () => {
   gap: 8px;
   padding: 16px 20px;
   border: none;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease;
   min-width: 90px;
 }
 
-.call-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
-}
-
 .decline-btn {
-  background: #ed4245;
-  color: var(--text-primary);
+  background: var(--error);
+  color: var(--text-on-primary);
 }
 
 .decline-btn:hover {
-  background: #c03537;
+  background: var(--error-hover);
 }
 
 .accept-btn {
-  background: #43b581;
-  color: var(--text-primary);
+  background: var(--success);
+  color: var(--text-on-primary);
 }
 
 .accept-btn:hover {
-  background: #369968;
+  background: var(--success-hover);
 }
 
 .video-accept {
@@ -395,27 +387,14 @@ const handleDecline = () => {
   align-items: center;
   gap: 10px;
   padding: 10px 12px;
-  background: var(--background-primary);
+  background: var(--background-floating);
   border: 1px solid var(--border-color);
-  border-radius: 12px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-large);
   cursor: pointer;
-  animation: slideInRight 0.25s ease;
-}
-
-@keyframes slideInRight {
-  from {
-    transform: translateX(24px);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
 }
 
 .mini-avatar {
-  animation: pulse 2s ease-in-out infinite;
   flex-shrink: 0;
 }
 
@@ -452,32 +431,28 @@ const handleDecline = () => {
   height: 34px;
   border: none;
   border-radius: 50%;
-  color: #fff;
+  color: var(--text-on-primary);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.15s ease;
-}
-
-.mini-btn:hover {
-  transform: scale(1.08);
+  transition: background-color 0.15s ease;
 }
 
 .mini-decline {
-  background: #ed4245;
+  background: var(--error);
 }
 
 .mini-decline:hover {
-  background: #c03537;
+  background: var(--error-hover);
 }
 
 .mini-accept {
-  background: #43b581;
+  background: var(--success);
 }
 
 .mini-accept:hover {
-  background: #369968;
+  background: var(--success-hover);
 }
 
 /* Mobile responsive */

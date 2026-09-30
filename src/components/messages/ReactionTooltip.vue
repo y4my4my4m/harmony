@@ -100,13 +100,13 @@ const label = computed(() => {
 <style scoped>
 .reaction-tooltip {
   position: fixed;
-  background-color: var(--tooltip-bg, #18191c);
+  background-color: var(--tooltip-bg, var(--background-floating));
   color: var(--tooltip-text, var(--text-primary));
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 8px 12px;
   font-size: 0.875rem;
   font-weight: 500;
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
+  box-shadow: var(--shadow-large);
   z-index: 1000;
   pointer-events: none;
   max-width: 300px;

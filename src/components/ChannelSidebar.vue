@@ -76,7 +76,7 @@
                 <button
                   @click.stop="openVoiceChannelChat(element.id)"
                   class="voice-btn chat-btn"
-                  title="Open Chat"
+                  title="Open chat"
                 >
                   <ChatBubbleIcon />
                 </button>
@@ -199,7 +199,7 @@
                       <button
                         @click.stop="openVoiceChannelChat(channel.id)"
                         class="voice-btn chat-btn"
-                        title="Open Chat"
+                        title="Open chat"
                       >
                         <ChatBubbleIcon />
                       </button>
@@ -996,10 +996,10 @@ const handleEditChannel = (channel: Channel) => {
 const handleDeleteChannel = (channel: Channel) => {
   selectedChannel.value = channel;
   confirmationConfig.value = {
-    title: 'Delete Channel',
+    title: 'Delete channel',
     message: `Are you sure you want to delete #${channel.name}?`,
     secondaryMessage: 'This action cannot be undone. All messages in this channel will be permanently deleted.',
-    confirmButtonText: 'Delete Channel',
+    confirmButtonText: 'Delete channel',
     requireConfirmation: true,
     confirmationText: channel.name,
     onConfirm: async () => {
@@ -1036,10 +1036,10 @@ const handleDeleteCategory = (category: Category) => {
   }
   
   confirmationConfig.value = {
-    title: 'Delete Category',
+    title: 'Delete category',
     message: `Are you sure you want to delete "${category.name}"?`,
     secondaryMessage: secondaryMsg,
-    confirmButtonText: 'Delete Category',
+    confirmButtonText: 'Delete category',
     requireConfirmation: true,
     confirmationText: category.name,
     onConfirm: async () => {
@@ -1116,10 +1116,10 @@ const handleUnlockThread = async (thread: ThreadWithDetails) => {
 
 const handleDeleteThread = (thread: ThreadWithDetails) => {
   confirmationConfig.value = {
-    title: 'Delete Thread',
+    title: 'Delete thread',
     message: `Are you sure you want to delete "${thread.name}"?`,
     secondaryMessage: 'This will permanently delete the thread and all its messages. This action cannot be undone.',
-    confirmButtonText: 'Delete Thread',
+    confirmButtonText: 'Delete thread',
     requireConfirmation: false,
     confirmationText: thread.name,
     onConfirm: async () => {
@@ -1281,7 +1281,6 @@ watch(() => props.currentServer?.id, () => {
 }
 
 .server-name:hover {
-  box-shadow: 0 1px 5px 0px rgba(0,0,0,0.25);
   background: var(--background-secondary);
 }
 
@@ -1317,14 +1316,13 @@ watch(() => props.currentServer?.id, () => {
   width: calc(100% - 8px);
   font-size: 14px;
   font-weight: 500;
-  color: var(--text-secondary, #949BA4);
+  color: var(--text-secondary);
   position: relative;
   border-radius: 4px;
   margin: 1px 4px;
 }
 
 .channel-item:hover {
-  transform: translateX(2px);
   background-color: var(--channel-item-hover-bg, var(--background-quaternary));
 }
 
@@ -1335,11 +1333,11 @@ watch(() => props.currentServer?.id, () => {
 }
 
 .channel-item.voice-connected {
-  background-color: rgba(87, 242, 135, 0.1);
+  background-color: color-mix(in srgb, var(--success) 10%, transparent);
 }
 
 .channel-item.voice-connected:hover {
-  background-color: rgba(87, 242, 135, 0.15);
+  background-color: color-mix(in srgb, var(--success) 15%, transparent);
 }
 
 /* Muted channels dim the name and icon. The bell-off indicator and the
@@ -1356,7 +1354,7 @@ watch(() => props.currentServer?.id, () => {
 /* Overrides channel-unread bold/white on muted channels regardless of the
    unread count reported by the store. */
 .channel-item.muted.channel-unread {
-  color: var(--text-secondary, #949BA4);
+  color: var(--text-secondary);
 }
 
 .channel-item.muted.channel-unread .channel-name {
@@ -1374,14 +1372,14 @@ watch(() => props.currentServer?.id, () => {
 .channel-item.dragging {
   opacity: 0.6;
   transform: scale(1.02) rotate(2deg);
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--shadow-large);
   z-index: 1000;
   background-color: color-mix(in srgb, var(--harmony-primary) 20%, transparent);
   border: 1px solid var(--harmony-primary);
 }
 
 .channel-item.channel-unread {
-  color: var(--text-primary, #f2f3f5);
+  color: var(--text-primary);
 }
 
 .channel-item.channel-unread .channel-name {
@@ -1394,7 +1392,7 @@ watch(() => props.currentServer?.id, () => {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--text-primary, #f2f3f5);
+  background: var(--text-primary);
   flex-shrink: 0;
 }
 
@@ -1441,11 +1439,11 @@ watch(() => props.currentServer?.id, () => {
   margin: 2px 4px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: var(--text-secondary, #949BA4);
+  color: var(--text-secondary);
 }
 
 .category-header:hover {
-  background-color: rgba(255, 255, 255, 0.05);
+  background-color: var(--background-modifier-hover);
 }
 
 .category-arrow {
@@ -1489,8 +1487,8 @@ watch(() => props.currentServer?.id, () => {
 .notification-badge {
   min-width: 18px;
   height: 18px;
-  background-color: #f23f42;
-  border-radius: 9px;
+  background-color: var(--error);
+  border-radius: var(--radius-full);
   margin-left: auto;
   margin-right: 8px;
   display: flex;
@@ -1499,7 +1497,7 @@ watch(() => props.currentServer?.id, () => {
   padding: 0 6px;
   font-size: 11px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--text-on-primary);
   line-height: 1;
   flex-shrink: 0;
 }
@@ -1530,12 +1528,12 @@ watch(() => props.currentServer?.id, () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--text-muted, #b5bac1);
+  color: var(--text-muted);
 }
 
 .voice-btn:hover {
-  background-color: rgba(255, 255, 255, 0.1);
-  color: var(--text-normal, #fff);
+  background-color: var(--background-modifier-hover);
+  color: var(--text-primary);
 }
 
 .voice-btn svg {
@@ -1544,19 +1542,19 @@ watch(() => props.currentServer?.id, () => {
 }
 
 .chat-btn {
-  color: var(--text-muted, #b5bac1);
+  color: var(--text-muted);
 }
 
 .chat-btn:hover {
-  background-color: rgba(255, 255, 255, 0.1);
-  color: var(--text-normal, #fff);
+  background-color: var(--background-modifier-hover);
+  color: var(--text-primary);
 }
 
 .user-count {
   font-size: 10px;
-  background-color: rgba(255, 255, 255, 0.1);
+  background-color: var(--background-modifier-active);
   padding: 2px 6px;
-  border-radius: 10px;
+  border-radius: var(--radius-full);
   color: var(--text-primary);
   font-weight: 600;
   min-width: 16px;
@@ -1585,7 +1583,7 @@ watch(() => props.currentServer?.id, () => {
   padding: 2px 0 2px 34px;
   border-radius: 4px;
   cursor: pointer;
-  color: var(--text-secondary, #949BA4);
+  color: var(--text-secondary);
   font-size: 14px;
   transition: all 0.1s ease;
   position: relative;
@@ -1602,10 +1600,10 @@ watch(() => props.currentServer?.id, () => {
 }
 
 .channel-thread-item.selected {
-  color: var(--text-primary, #FFFFFF);
+  color: var(--text-primary);
 }
 .channel-thread-item.selected .thread-name {
-  color: var(--text-primary, #FFFFFF);
+  color: var(--text-primary);
   background: var(--channel-item-selected-bg, var(--background-quaternary));
 }
 
@@ -1626,7 +1624,7 @@ watch(() => props.currentServer?.id, () => {
   top: 0;
   bottom: 50%;
   width: 2px;
-  background: var(--text-muted, #4f545c);
+  background: var(--text-muted);
   opacity: 0.5;
 }
 
@@ -1639,7 +1637,7 @@ watch(() => props.currentServer?.id, () => {
   transform: translateY(-50%);
   width: 14px;
   height: 2px;
-  background: var(--text-muted, #4f545c);
+  background: var(--text-muted);
   opacity: 0.5;
   border-radius: 0 2px 2px 0;
 }
@@ -1673,25 +1671,25 @@ watch(() => props.currentServer?.id, () => {
   padding: 10px;
   text-align: center;
   font-size: 12px;
-  color: rgb(142, 146, 151);
-  border: 1px dashed rgba(255, 255, 255, 0.2);
+  color: var(--text-tertiary);
+  border: 1px dashed var(--border-hover);
   border-radius: 4px;
   margin: 4px 0;
   transition: background-color 0.2s ease;
 }
 
 .empty-category-placeholder:hover {
-  background-color: rgba(255, 255, 255, 0.05);
+  background-color: var(--background-modifier-hover);
 }
 
 .channel-context-menu,
 .category-context-menu {
   position: absolute;
   z-index: 1000;
-  background: var(--background-tertiary);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--background-floating);
+  border: 1px solid var(--border-primary);
   border-radius: 4px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--shadow-medium);
   padding: 8px 0;
   width: 200px;
 }
@@ -1701,11 +1699,11 @@ watch(() => props.currentServer?.id, () => {
   cursor: pointer;
   transition: background 0.2s ease;
   font-size: 14px;
-  color: rgb(220, 220, 220);
+  color: var(--text-primary);
 }
 
 .context-menu-item:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--background-modifier-hover);
 }
 
 .channel-context-menu,
@@ -1744,7 +1742,7 @@ watch(() => props.currentServer?.id, () => {
 
   .channel-item:active {
     transform: scale(0.98);
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--background-modifier-active);
   }
 
   .channel-content {
@@ -1794,7 +1792,7 @@ watch(() => props.currentServer?.id, () => {
     width: 90vw;
     max-width: 280px;
     border-radius: 12px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+    box-shadow: var(--shadow-large);
   }
 
   .context-menu-item {

@@ -166,16 +166,14 @@ watch(() => props.src, (newSrc) => {
   border-radius: 50%;
   border: none;
   background: var(--harmony-primary);
-  color: #fff;
+  color: var(--text-on-primary);
   cursor: pointer;
   flex-shrink: 0;
-  transition: background 0.15s ease, transform 0.12s ease;
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--harmony-primary) 25%, transparent);
+  transition: background 0.15s ease;
 }
 
 .play-btn:hover {
   background: var(--harmony-primary-hover);
-  transform: scale(1.06);
 }
 
 .player-body {
@@ -198,7 +196,7 @@ watch(() => props.src, (newSrc) => {
   flex: 1;
   min-width: 2px;
   border-radius: 1px;
-  background: rgba(255, 255, 255, 0.18);
+  background: color-mix(in srgb, var(--text-primary) 18%, transparent);
   transition: background 0.1s ease, height 0.15s ease;
 }
 
@@ -211,7 +209,7 @@ watch(() => props.src, (newSrc) => {
   align-items: center;
   justify-content: space-between;
   font-size: 11px;
-  color: var(--text-secondary, #94a3b8);
+  color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
 }
 
@@ -226,8 +224,8 @@ watch(() => props.src, (newSrc) => {
 
 .speed-btn {
   border: none;
-  background: rgba(255, 255, 255, 0.08);
-  color: var(--text-secondary, #94a3b8);
+  background: var(--background-modifier-hover);
+  color: var(--text-secondary);
   font-size: 10px;
   font-weight: 700;
   padding: 1px 6px;
@@ -238,7 +236,7 @@ watch(() => props.src, (newSrc) => {
 }
 
 .speed-btn:hover {
-  background: rgba(255, 255, 255, 0.14);
-  color: var(--text-primary, #e2e8f0);
+  background: var(--background-modifier-active);
+  color: var(--text-primary);
 }
 </style>

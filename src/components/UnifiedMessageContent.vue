@@ -83,7 +83,7 @@
         v-if="decrypted && senderVerified === false"
         class="unverified-author-badge"
         title="This message was decrypted but the sender's identity could not be cryptographically verified. The sender may be running an older client, or the message may have been tampered with."
-      >⚠ unverified author</span>
+      >Unverified author</span>
       <template v-for="(part, partIndex) in displayContent" :key="partIndex">
         <!-- Grouped image/video mosaic (Discord-style) -->
         <MessageMediaGallery
@@ -112,7 +112,7 @@
               class="encrypted-no-decrypt encrypted-unrecoverable encrypted-glyphs"
               title="This message was encrypted with a previous key that no longer exists on this account, so it can't be decrypted."
             >
-              <span class="unrecoverable-lock" aria-hidden="true">🔒</span>
+              <Icon name="lock" :size="12" class="unrecoverable-lock" aria-hidden="true" />
               <EncryptedGlyphPreview
                 :content="part.text || 'encrypted'"
                 :message-id="messageId"
@@ -127,7 +127,7 @@
               :title="decrypting ? 'Decrypting...' : 'Click to decrypt'"
             >
               <span v-if="decrypting" class="decrypt-loading">
-                <span class="decrypt-spinner">🔓</span>
+                <Icon name="spinner" :size="20" class="decrypt-spinner" />
               </span>
               <EncryptedGlyphPreview
                 :content="part.text || 'encrypted'"
@@ -494,7 +494,7 @@
             v-if="canEditAttachments"
             @click="requestRemoveAttachment(part.url)"
           />
-          <div class="file-icon">📎</div>
+          <Icon name="file" :size="20" class="file-icon" />
           <a
             v-if="sanitizeUrl(part.url)"
             :href="sanitizeUrl(part.url)"
@@ -548,7 +548,7 @@
       :show="showRemoveAttachmentConfirm"
       title="Are you sure?"
       message="This will remove this attachment from this message permanently."
-      confirm-button-text="Remove Attachment"
+      confirm-button-text="Remove attachment"
       @close="cancelRemoveAttachment"
       @confirm="confirmRemoveAttachment"
     />
@@ -574,6 +574,7 @@ import EncryptedGlyphPreview from '@/components/encryption/EncryptedGlyphPreview
 import ProviderEmbedSwitch from '@/components/embeds/ProviderEmbedSwitch.vue';
 import MessageMediaGallery from '@/components/common/MessageMediaGallery.vue';
 import AttachmentRemoveButton from '@/components/common/AttachmentRemoveButton.vue';
+import Icon from '@/components/common/Icon.vue';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import { groupMediaGalleryParts } from '@/utils/mediaGalleryUtils';
 import { getAttachmentThumbnailUrl } from '@/utils/storageImageUtils';
@@ -614,6 +615,7 @@ export default defineComponent({
     AttachmentRemoveButton,
     ConfirmationModal,
     EncryptedGlyphPreview,
+    Icon,
   },
   props: {
     content: {
@@ -1386,14 +1388,12 @@ export default defineComponent({
   display: inline-block;
   margin-right: 6px;
   padding: 0 6px;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   line-height: 1.4;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--color-warning, #d97706);
-  background: rgba(217, 119, 6, 0.1);
-  border: 1px dashed rgba(217, 119, 6, 0.55);
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
+  border: 1px dashed color-mix(in srgb, var(--warning) 55%, transparent);
   border-radius: 3px;
   cursor: help;
   vertical-align: 1px;
@@ -1435,7 +1435,7 @@ export default defineComponent({
 }
 
 .text-content :deep(.md-blockquote) {
-  border-left: 4px solid var(--background-modifier-accent, #4f545c);
+  border-left: 4px solid var(--text-muted);
   padding: 2px 0 2px 12px;
   user-select: text;
   -webkit-user-select: text;
@@ -1462,7 +1462,7 @@ export default defineComponent({
 
 /* URL links */
 .url-link {
-  color: #00aff4;
+  color: var(--harmony-primary);
   text-decoration: none;
   word-break: break-all;
   user-select: text;
@@ -1493,7 +1493,7 @@ export default defineComponent({
 
 .mention:hover {
   background-color: var(--harmony-primary);
-  color: rgba(255,255,255,0.9);
+  color: var(--text-on-primary);
 }
 
 .role-mention {
@@ -1508,12 +1508,12 @@ export default defineComponent({
 
 /* Hashtag styling */
 .hashtag {
-  background-color: #3c4270;
+  background-color: var(--harmony-primary-alpha);
   border-radius: 3px;
   padding: 0 2px;
   cursor: pointer;
   font-weight: 500;
-  color: #c9c9ee;
+  color: var(--harmony-primary);
   display: inline-block;
   transition: background-color 0.2s ease;
   user-select: text;
@@ -1524,7 +1524,7 @@ export default defineComponent({
 
 .hashtag:hover {
   background-color: var(--harmony-primary);
-  color: rgba(255,255,255,0.9);
+  color: var(--text-on-primary);
 }
 
 /* Emoji styling */
@@ -1551,7 +1551,7 @@ export default defineComponent({
   width: 20px;
   height: 20px;
   vertical-align: middle;
-  color: var(--text-muted, #72767d);
+  color: var(--text-muted);
   opacity: 0.5;
 }
 
@@ -1592,11 +1592,6 @@ export default defineComponent({
   max-height: 300px;
   border-radius: 8px;
   cursor: pointer;
-  transition: transform 0.2s ease-in-out;
-}
-
-.content-image:hover {
-  transform: scale(1.02);
 }
 
 /* Stickers render small and inline with no lightbox affordance or hover zoom. */
@@ -1611,10 +1606,6 @@ export default defineComponent({
   cursor: default;
 }
 
-.sticker-image:hover {
-  transform: none;
-}
-
 /* Klipy AI emoji render at jumbo-emoji size, like a single custom emoji. */
 .ai-emoji-container .media-frame {
   max-width: 64px;
@@ -1625,10 +1616,6 @@ export default defineComponent({
   max-height: 64px;
   border-radius: 0;
   cursor: default;
-}
-
-.ai-emoji-image:hover {
-  transform: none;
 }
 
 /* GIF Favorite Button */
@@ -1662,11 +1649,10 @@ export default defineComponent({
 
 .gif-favorite-button:hover {
   background: rgba(0, 0, 0, 0.9);
-  transform: scale(1.1);
 }
 
 .gif-favorite-button.favorited {
-  color: var(--color-warning, #faa61a);
+  color: var(--warning);
 }
 
 /* KLIPY attribution watermark - official logo, fades in on hover */
@@ -1716,7 +1702,7 @@ export default defineComponent({
 /* Media skeletons */
 .media-skeleton {
   border-radius: 8px;
-  background-color: #2b2d31;
+  background-color: var(--background-quaternary);
   background-image: linear-gradient(
     90deg,
     transparent 0%,
@@ -1760,11 +1746,12 @@ export default defineComponent({
 }
 
 .file-icon {
-  font-size: 20px;
+  flex-shrink: 0;
+  color: var(--text-secondary);
 }
 
 .file-name {
-  color: #00aff4;
+  color: var(--harmony-primary);
   text-decoration: none;
   font-weight: 500;
   flex: 1;
@@ -1890,7 +1877,7 @@ export default defineComponent({
 }
 
 .edit-attachment-remove:hover {
-  background-color: var(--status-danger, #ed4245);
+  background-color: var(--error);
 }
 
 /* Touch devices: remove button is always visible (no hover). */
@@ -2043,7 +2030,6 @@ export default defineComponent({
 
 .encrypted-unrecoverable .unrecoverable-lock {
   margin-right: 4px;
-  font-size: 0.85em;
   opacity: 0.8;
 }
 </style>

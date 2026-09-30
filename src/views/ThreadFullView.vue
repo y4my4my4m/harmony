@@ -39,7 +39,7 @@
           <line x1="20" y1="8" x2="20" y2="14"/>
           <line x1="23" y1="11" x2="17" y2="11"/>
         </svg>
-        Join Thread
+        Join thread
       </button>
       <button v-if="isMember" @click="leaveThread" class="option-item">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -47,7 +47,7 @@
           <polyline points="16 17 21 12 16 7"/>
           <line x1="21" y1="12" x2="9" y2="12"/>
         </svg>
-        Leave Thread
+        Leave thread
       </button>
 
       <div class="options-divider"></div>
@@ -56,42 +56,42 @@
         <svg width="16" height="16" viewBox="0 0 24 24">
           <path fill="currentColor" d="M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z"/>
         </svg>
-        Edit Thread
+        Edit thread
       </button>
 
       <button v-if="canManageThread && !thread?.archived" @click="closeThread" class="option-item">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
           <path d="M20.54 5.23l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 17.5L6.5 12H10v-2h4v2h3.5L12 17.5zM5.12 5l.81-1h12l.94 1H5.12z"/>
         </svg>
-        Close Thread
+        Close thread
       </button>
 
       <button v-if="canManageThread && thread?.archived" @click="reopenThread" class="option-item">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
           <path d="M20.54 5.23l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 6.5L17.5 12H14v2h-4v-2H6.5L12 6.5zM5.12 5l.81-1h12l.94 1H5.12z"/>
         </svg>
-        Reopen Thread
+        Reopen thread
       </button>
 
       <button v-if="canManageThread && !thread?.locked" @click="lockThread" class="option-item">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
           <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/>
         </svg>
-        Lock Thread
+        Lock thread
       </button>
 
       <button v-if="canManageThread && thread?.locked" @click="unlockThread" class="option-item">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
           <path d="M12 17c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm6-9h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6h1.9c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm0 12H6V10h12v10z"/>
         </svg>
-        Unlock Thread
+        Unlock thread
       </button>
 
       <button v-if="canManageThread" @click="deleteThread" class="option-item danger">
         <svg width="16" height="16" viewBox="0 0 24 24">
           <path fill="currentColor" d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z"/>
         </svg>
-        Delete Thread
+        Delete thread
       </button>
 
       <div class="options-divider"></div>
@@ -103,7 +103,7 @@
         <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
           <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>
         </svg>
-        {{ isMuted ? 'Unmute Thread' : 'Mute Thread' }}
+        {{ isMuted ? 'Unmute thread' : 'Mute thread' }}
       </button>
 
       <div class="options-divider"></div>
@@ -112,20 +112,20 @@
         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
           <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/>
         </svg>
-        Copy Link
+        Copy link
       </button>
 
       <button @click="copyThreadId" class="option-item">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
           <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
         </svg>
-        Copy Thread ID
+        Copy thread ID
       </button>
     </div>
 
     <!-- Parent Message (Starter Message) -->
     <div class="parent-message-section" v-if="thread?.parent_message">
-      <div class="section-label">Original Message</div>
+      <div class="section-label">Original message</div>
       <div class="parent-message" :id="`message-${thread.parent_message.id}`">
         <Avatar 
           :src="getAvatarUrl(thread.parent_message.user_id).value" 
@@ -162,9 +162,9 @@
       </button>
 
       <div v-if="!loading && messages.length === 0" class="empty-state">
-        <div class="empty-icon">💬</div>
+        <Icon name="message-circle" :size="40" class="empty-icon" />
         <h3>No messages yet</h3>
-        <p>Be the first to reply in this thread!</p>
+        <p>Be the first to reply in this thread.</p>
       </div>
 
       <!-- Use the same MessageDisplay component as the main chat -->
@@ -240,6 +240,7 @@ import { format } from 'date-fns'
 import Avatar from '@/components/common/Avatar.vue'
 import DisplayName from '@/components/DisplayName.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
+import Icon from '@/components/common/Icon.vue'
 import UnifiedMessageContent from '@/components/UnifiedMessageContent.vue'
 import MessageInput from '@/components/MessageInput.vue'
 import MessageDisplay from '@/components/MessageDisplay.vue'
@@ -1118,7 +1119,7 @@ onUnmounted(() => {
 }
 
 .thread-channel:hover {
-  color: var(--text-link);
+  color: var(--harmony-primary);
   text-decoration: underline;
 }
 
@@ -1169,7 +1170,7 @@ onUnmounted(() => {
   border-radius: 8px;
   padding: 8px;
   min-width: 180px;
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
+  box-shadow: var(--shadow-large);
   z-index: 100;
 }
 
@@ -1197,15 +1198,15 @@ onUnmounted(() => {
 }
 
 .option-item.danger {
-  color: #ed4245;
+  color: var(--error);
 }
 
 .option-item.danger:hover {
-  background: rgba(237, 66, 69, 0.1);
+  background: color-mix(in srgb, var(--error) 10%, transparent);
 }
 
 .option-item.danger svg {
-  color: #ed4245;
+  color: var(--error);
 }
 
 .options-divider {
@@ -1290,8 +1291,8 @@ onUnmounted(() => {
 }
 
 .empty-icon {
-  font-size: 48px;
   margin-bottom: 16px;
+  color: var(--text-muted);
 }
 
 .empty-state h3 {
@@ -1311,7 +1312,7 @@ onUnmounted(() => {
   background: var(--background-secondary);
   border: none;
   border-radius: 4px;
-  color: var(--text-link);
+  color: var(--harmony-primary);
   font-size: 13px;
   cursor: pointer;
   transition: background 0.15s;

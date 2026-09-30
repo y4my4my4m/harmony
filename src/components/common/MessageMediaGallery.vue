@@ -167,7 +167,7 @@ function thumbnailFor(item: GalleryMediaItem): string {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  background: var(--background-secondary, #2b2d31);
+  background: var(--background-secondary);
 }
 
 /* Single attachment: natural aspect ratio, capped height */
@@ -382,7 +382,8 @@ function thumbnailFor(item: GalleryMediaItem): string {
 .image-skeleton {
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, #2b2d31 25%, #383a40 50%, #2b2d31 75%);
+  background-color: var(--background-quaternary);
+  background-image: linear-gradient(90deg, transparent 25%, rgba(255, 255, 255, 0.04) 50%, transparent 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
 }

@@ -11,7 +11,7 @@
       <!-- User Search Section -->
       <div class="search-section">
         <div class="section-header">
-          <h3 class="section-title">Add People</h3>
+          <h3 class="section-title">Add people</h3>
           <p class="section-description">
             Search for users to {{ isNewGroup ? 'create a group chat with' : 'add to this conversation' }}
           </p>
@@ -76,9 +76,9 @@
       <!-- Selected Users Section -->
       <div v-if="selectedUsers.length > 0" class="selected-users-section">
         <div class="section-header">
-          <h3 class="section-title">Selected Users ({{ selectedUsers.length }})</h3>
+          <h3 class="section-title">Selected users ({{ selectedUsers.length }})</h3>
           <button @click="clearAllSelections" class="clear-all-btn">
-            Clear All
+            Clear all
           </button>
         </div>
 
@@ -109,12 +109,12 @@
       <!-- Group Chat Settings (for new groups) -->
       <div v-if="isNewGroup && selectedUsers.length > 0" class="group-settings-section">
         <div class="section-header">
-          <h3 class="section-title">Group Settings</h3>
+          <h3 class="section-title">Group settings</h3>
           <p class="section-description">Configure your new group chat</p>
         </div>
 
         <div class="setting-row">
-          <label for="groupName" class="setting-label">Group Name (Optional)</label>
+          <label for="groupName" class="setting-label">Group name (optional)</label>
           <input
             id="groupName"
             v-model="groupName"
@@ -132,7 +132,7 @@
               type="checkbox"
               class="setting-checkbox"
             />
-            Private Group
+            Private group
           </label>
           <p class="setting-description">
             Only invited members can join. {{ isPrivateGroup ? 'Members must be added manually.' : 'Members can invite others.' }}
@@ -143,7 +143,7 @@
       <!-- Existing Participants (for adding to existing conversation) -->
       <div v-if="!isNewGroup && (existingParticipants?.length ?? 0) > 0" class="existing-participants-section">
         <div class="section-header">
-          <h3 class="section-title">Current Participants ({{ existingParticipants?.length ?? 0 }})</h3>
+          <h3 class="section-title">Current participants ({{ existingParticipants?.length ?? 0 }})</h3>
         </div>
 
         <div class="participants-list">
@@ -171,7 +171,7 @@
       <div v-if="hasExternalUsers" class="federation-notice">
         <Icon name="federation" />
         <div class="notice-content">
-          <strong>Federated Group Chat</strong>
+          <strong>Federated group chat</strong>
           <p>This conversation includes users from other servers. Messages will be federated according to ActivityPub standards.</p>
         </div>
       </div>
@@ -244,7 +244,7 @@ const isNewGroup = computed(() => !props.conversationId)
 const currentUserId = computed(() => authStore.session?.user?.id)
 
 const modalTitle = computed(() => {
-  return isNewGroup.value ? 'Create Group Chat' : 'Add People'
+  return isNewGroup.value ? 'Create group chat' : 'Add people'
 })
 
 const modalSubtitle = computed(() => {
@@ -257,12 +257,12 @@ const actionButtonText = computed(() => {
   if (isProcessing.value) return 'Processing...'
   if (isNewGroup.value) {
     return selectedUsers.value.length === 1 
-      ? 'Create Chat' 
-      : `Create Group (${selectedUsers.value.length + 1})`
+      ? 'Create chat' 
+      : `Create group (${selectedUsers.value.length + 1})`
   }
   return selectedUsers.value.length === 1
-    ? 'Add 1 Person'
-    : `Add ${selectedUsers.value.length} People`
+    ? 'Add 1 person'
+    : `Add ${selectedUsers.value.length} people`
 })
 
 const hasExternalUsers = computed(() => {
@@ -434,7 +434,7 @@ const createDirectConversation = async () => {
     if (conversationId) {
       emit('conversationCreated', conversationId);
       emit('close');
-      toast.success('Conversation created!');
+      toast.success('Conversation created');
     }
   } catch (error) {
     debug.error('Failed to create direct conversation:', error);
@@ -455,7 +455,7 @@ const createGroupConversation = async () => {
     if (conversationId) {
       emit('conversationCreated', conversationId);
       emit('close');
-      toast.success('Group conversation created!');
+      toast.success('Group conversation created');
     } else {
       toast.error('Failed to create group conversation');
     }
@@ -569,7 +569,7 @@ watch(() => props.show, (show) => {
 .search-input:focus {
   outline: none;
   border-color: var(--harmony-primary);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--harmony-primary) 10%, transparent);
+  box-shadow: 0 0 0 2px var(--harmony-primary-alpha-strong);
 }
 
 .clear-search-btn {
@@ -705,13 +705,13 @@ watch(() => props.show, (show) => {
   background: none;
   color: var(--text-secondary);
   cursor: pointer;
-  border-radius: var(--radius-xs);
+  border-radius: var(--radius-sm);
   transition: all 0.2s ease;
 }
 
 .remove-user-btn:hover {
-  color: var(--error-primary);
-  background: rgba(239, 68, 68, 0.1);
+  color: var(--error);
+  background: color-mix(in srgb, var(--error) 10%, transparent);
 }
 
 /* Group Settings */
@@ -787,7 +787,7 @@ watch(() => props.show, (show) => {
   color: var(--text-primary);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-medium);
-  border-radius: var(--radius-xs);
+  border-radius: var(--radius-sm);
 }
 
 /* Federation Notice */
@@ -843,12 +843,12 @@ watch(() => props.show, (show) => {
 
 .footer-button.primary {
   background: var(--harmony-primary);
-  color: var(--text-primary);
+  color: var(--text-on-primary);
   border-color: var(--harmony-primary);
 }
 
 .footer-button.primary:hover:not(:disabled) {
-  background: var(--harmony-primary-hover, #4f46e5);
+  background: var(--harmony-primary-hover);
 }
 
 .footer-button:disabled {

@@ -1,14 +1,14 @@
 <template>
   <BaseModal 
     :show="show" 
-    :title="`Group Settings`"
+    :title="`Group settings`"
     @close="handleClose"
     class="group-settings-modal"
   >
     <div class="settings-content">
       <!-- Group Icon Section -->
       <div class="setting-section">
-        <h3 class="section-title">Group Icon</h3>
+        <h3 class="section-title">Group icon</h3>
         <div class="icon-upload-section">
           <div class="current-icon">
             <GroupIcon
@@ -68,7 +68,7 @@
 
       <!-- Group Name Section -->
       <div class="setting-section">
-        <h3 class="section-title">Group Name</h3>
+        <h3 class="section-title">Group name</h3>
         <div class="name-input-section">
           <input
             v-model="localGroupName"
@@ -89,7 +89,7 @@
           :disabled="savingGroupName"
           @click="saveGroupName"
         >
-          {{ savingGroupName ? 'Saving...' : 'Save Changes' }}
+          {{ savingGroupName ? 'Saving...' : 'Save changes' }}
         </button>
       </div>
 
@@ -151,14 +151,14 @@
 
       <!-- Danger Zone -->
       <div class="setting-section danger-zone">
-        <h3 class="section-title danger-title">Danger Zone</h3>
+        <h3 class="section-title danger-title">Danger zone</h3>
         <div class="danger-actions">
           <button 
             class="danger-btn leave-group"
             @click="showLeaveConfirm = true"
           >
             <Icon name="x" />
-            Leave Group
+            Leave group
           </button>
           <button 
             v-if="isCreator"
@@ -166,7 +166,7 @@
             @click="showDeleteConfirm = true"
           >
             <Icon name="trash" />
-            Delete Group
+            Delete group
           </button>
         </div>
       </div>
@@ -193,7 +193,7 @@
     <!-- Confirmation Modals -->
     <ConfirmationModal
       :show="showLeaveConfirm"
-      title="Leave Group"
+      title="Leave group"
       message="Are you sure you want to leave this group? You won't be able to see new messages."
       confirm-button-text="Leave"
       @confirm="leaveGroup"
@@ -202,7 +202,7 @@
 
     <ConfirmationModal
       :show="showDeleteConfirm"
-      title="Delete Group"
+      title="Delete group"
       message="Are you sure you want to delete this group? This cannot be undone and all messages will be lost."
       confirm-button-text="Delete"
       :require-confirmation="true"
@@ -346,7 +346,7 @@ function handleDrop(event: DragEvent) {
   if (file && file.type.startsWith('image/')) {
     uploadIconFile(file)
   } else {
-    toast.error('Please drop an image file')
+    toast.error('Drop an image file')
   }
 }
 
@@ -367,7 +367,7 @@ async function uploadIconFile(file: File) {
     
     if (result.success && result.iconPath) {
       localIconPath.value = result.iconPath
-      toast.success('Group icon updated!')
+      toast.success('Group icon updated')
       emit('updated')
     } else {
       toast.error(result.error || 'Failed to upload icon')
@@ -417,7 +417,7 @@ async function saveGroupName() {
       return
     }
 
-    toast.success('Group name updated!')
+    toast.success('Group name updated')
     emit('updated')
   } catch (error: any) {
     debug.error('Group name update failed:', error)
@@ -458,7 +458,7 @@ async function removeParticipant(participant: DMUser) {
 }
 
 function handleUsersAdded() {
-  toast.success('Users added to group!')
+  toast.success('Users added to group')
   emit('updated')
 }
 
@@ -573,7 +573,7 @@ async function deleteGroup() {
 
 .upload-btn {
   background: var(--harmony-primary);
-  color: var(--text-primary);
+  color: var(--text-on-primary);
 }
 
 .upload-btn:hover:not(:disabled) {
@@ -581,12 +581,13 @@ async function deleteGroup() {
 }
 
 .remove-btn {
-  background: var(--error-bg);
-  color: var(--error-text);
+  background: color-mix(in srgb, var(--error) 10%, transparent);
+  color: var(--error);
 }
 
 .remove-btn:hover:not(:disabled) {
   background: var(--error-hover);
+  color: var(--text-on-primary);
 }
 
 .icon-btn:disabled {
@@ -612,7 +613,7 @@ async function deleteGroup() {
 .drop-zone:hover,
 .drop-zone.drag-over {
   border-color: var(--harmony-primary);
-  background: var(--harmony-primary-bg);
+  background: var(--harmony-primary-alpha-light);
 }
 
 .drop-zone.uploading {
@@ -670,7 +671,7 @@ async function deleteGroup() {
 .group-name-input:focus {
   outline: none;
   border-color: var(--harmony-primary);
-  box-shadow: 0 0 0 3px var(--harmony-primary-bg);
+  box-shadow: 0 0 0 2px var(--harmony-primary-alpha-strong);
 }
 
 .char-count {
@@ -757,8 +758,8 @@ async function deleteGroup() {
 }
 
 .participant-item.is-creator {
-  background: var(--harmony-primary-bg);
-  border: 1px solid var(--harmony-primary-border);
+  background: var(--harmony-primary-alpha-light);
+  border: 1px solid var(--harmony-primary-alpha-strong);
 }
 
 .participant-info {
@@ -778,7 +779,7 @@ async function deleteGroup() {
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-bold);
   color: var(--harmony-primary);
-  background: var(--harmony-primary-bg);
+  background: var(--harmony-primary-alpha-light);
   padding: 2px var(--space-1);
   border-radius: var(--radius-sm);
 }
@@ -806,12 +807,13 @@ async function deleteGroup() {
 }
 
 .remove-participant {
-  background: var(--error-bg);
-  color: var(--error-text);
+  background: color-mix(in srgb, var(--error) 10%, transparent);
+  color: var(--error);
 }
 
 .remove-participant:hover {
   background: var(--error-hover);
+  color: var(--text-on-primary);
 }
 
 /* Danger Zone */
@@ -821,7 +823,7 @@ async function deleteGroup() {
 }
 
 .danger-title {
-  color: var(--error-text);
+  color: var(--error);
 }
 
 .danger-actions {
@@ -834,9 +836,9 @@ async function deleteGroup() {
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-2) var(--space-3);
-  background: var(--error-bg);
-  color: var(--error-text);
-  border: 1px solid var(--error-border);
+  background: color-mix(in srgb, var(--error) 10%, transparent);
+  color: var(--error);
+  border: 1px solid color-mix(in srgb, var(--error) 30%, transparent);
   border-radius: var(--radius-md);
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
@@ -846,6 +848,7 @@ async function deleteGroup() {
 
 .danger-btn:hover {
   background: var(--error-hover);
+  color: var(--text-on-primary);
 }
 
 /* Mobile Responsiveness */

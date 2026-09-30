@@ -97,7 +97,7 @@
         title="Join call"
       >
         <Icon name="phone" :size="16" />
-        <span class="join-text">Join Call</span>
+        <span class="join-text">Join call</span>
       </button>
       
       <button 
@@ -150,7 +150,7 @@
             @click="handleMenuVideoCall"
           >
             <Icon :name="isInVideoCall ? 'video-off' : 'video'" :size="16" />
-            <span>{{ isInVideoCall ? 'Turn Off Camera' : 'Start Video Call' }}</span>
+            <span>{{ isInVideoCall ? 'Turn off camera' : 'Start video call' }}</span>
           </button>
 
           <button
@@ -159,7 +159,7 @@
             @click="handleMenuAddUser"
           >
             <Icon name="user-plus" :size="16" />
-            <span>Add People</span>
+            <span>Add people</span>
           </button>
 
           <button
@@ -168,17 +168,17 @@
             @click="openGroupSettings"
           >
             <Icon name="settings" :size="16" />
-            <span>Group Settings</span>
+            <span>Group settings</span>
           </button>
 
           <button class="action-item" @click="handleMenuSearch">
             <Icon name="search" :size="16" />
-            <span>Search Messages</span>
+            <span>Search messages</span>
           </button>
           
           <button class="action-item" @click="handleNotificationSettings">
             <Icon :name="isConversationMuted ? 'bell-off' : 'bell'" :size="16" />
-            <span>{{ isConversationMuted ? 'Unmute Conversation' : 'Mute Conversation' }}</span>
+            <span>{{ isConversationMuted ? 'Unmute conversation' : 'Mute conversation' }}</span>
           </button>
           
           <button 
@@ -189,7 +189,7 @@
             :title="encryptionToggleTitle"
           >
             <Icon :name="encryptionEnabled ? 'lock' : 'unlock'" :size="16" />
-            <span>{{ encryptionEnabled ? 'Disable Encryption' : 'Enable Encryption' }}</span>
+            <span>{{ encryptionEnabled ? 'Disable encryption' : 'Enable encryption' }}</span>
             <span v-if="encryptionLoading" class="loading-indicator">...</span>
           </button>
           
@@ -201,7 +201,7 @@
             @click="handleLeaveGroup"
           >
             <Icon name="log-out" :size="16" />
-            <span>Leave Group</span>
+            <span>Leave group</span>
           </button>
           
           <button 
@@ -237,7 +237,7 @@
     <div v-if="showEncryptionSetupModal" class="modal-overlay" @click.self="showEncryptionSetupModal = false">
       <div class="modal-content encryption-setup-modal">
         <div class="modal-header">
-          <h3>🔐 Encryption Setup Required</h3>
+          <h3>Encryption setup required</h3>
           <button class="close-btn" @click="showEncryptionSetupModal = false">
             <Icon name="x" :size="20" />
           </button>
@@ -260,7 +260,7 @@
           </div>
           <p class="note">
             <Icon name="info" :size="14" />
-            Your recovery key is the only way to decrypt your messages. Keep it safe!
+            Your recovery key is the only way to decrypt your messages. Keep it safe.
           </p>
         </div>
         <div class="modal-footer">
@@ -268,7 +268,7 @@
             Cancel
           </button>
           <button class="btn btn-primary" @click="goToEncryptionSettings">
-            Go to Settings
+            Go to settings
           </button>
         </div>
       </div>
@@ -1236,48 +1236,27 @@ const getDefaultGroupName = (): string => {
   display: flex;
   align-items: center;
   gap: 6px;
-  color: #43b581;
+  color: var(--success);
   font-size: 14px;
   font-weight: 600;
-  animation: pulse-text 2s ease-in-out infinite;
-}
-
-@keyframes pulse-text {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.7;
-  }
 }
 
 .call-icon {
-  color: #43b581;
+  color: var(--success);
 }
 
 .join-call-btn {
-  background: #43b581 !important;
-  color: var(--text-primary) !important;
+  background: var(--success) !important;
+  color: var(--text-on-primary) !important;
   padding: 8px 16px !important;
   width: auto !important;
   gap: 8px;
   font-weight: 600;
   font-size: 14px;
-  animation: pulse-button 2s ease-in-out infinite;
 }
 
 .join-call-btn:hover {
-  background: #369968 !important;
-  transform: translateY(-1px);
-}
-
-@keyframes pulse-button {
-  0%, 100% {
-    box-shadow: 0 0 0 0 rgba(67, 181, 129, 0.7);
-  }
-  50% {
-    box-shadow: 0 0 0 6px rgba(67, 181, 129, 0);
-  }
+  background: var(--success-hover) !important;
 }
 
 .join-text {
@@ -1377,7 +1356,7 @@ const getDefaultGroupName = (): string => {
 .federated-indicator svg {
   width: 10px;
   height: 10px;
-  color: var(--text-primary);
+  color: var(--text-on-primary);
 }
 
 .federated-handle {
@@ -1401,10 +1380,10 @@ const getDefaultGroupName = (): string => {
   position: absolute;
   top: 100%;
   right: 0;
-  background: var(--background-primary);
+  background: var(--background-floating);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-large);
   padding: var(--space-2);
   min-width: 190px;
   z-index: 10;
@@ -1431,11 +1410,11 @@ const getDefaultGroupName = (): string => {
 }
 
 .action-item.danger {
-  color: var(--error-primary);
+  color: var(--error);
 }
 
 .action-item.danger:hover {
-  background: rgba(248, 113, 113, 0.1);
+  background: color-mix(in srgb, var(--error) 10%, transparent);
 }
 
 .action-item.action-item-disabled {
@@ -1491,21 +1470,29 @@ const getDefaultGroupName = (): string => {
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  animation: fadeIn 0.2s ease;
+}
+
+.encryption-setup-modal {
+  background: var(--background-primary);
+  border-radius: var(--radius-lg);
+  max-width: 460px;
+  width: 90%;
+  box-shadow: var(--shadow-large);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .modal-overlay {
+    animation: fadeIn 0.2s ease;
+  }
+
+  .encryption-setup-modal {
+    animation: slideUp 0.3s ease;
+  }
 }
 
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
-}
-
-.encryption-setup-modal {
-  background: var(--background-primary);
-  border-radius: 12px;
-  max-width: 460px;
-  width: 90%;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-  animation: slideUp 0.3s ease;
 }
 
 @keyframes slideUp {
@@ -1571,7 +1558,7 @@ const getDefaultGroupName = (): string => {
   width: 24px;
   height: 24px;
   background: var(--primary-color);
-  color: var(--text-primary);
+  color: var(--text-on-primary);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -1591,8 +1578,8 @@ const getDefaultGroupName = (): string => {
   align-items: flex-start;
   gap: 8px;
   padding: 12px;
-  background: rgba(var(--primary-rgb), 0.1);
-  border-radius: 8px;
+  background: var(--harmony-primary-alpha-light);
+  border-radius: var(--radius-md);
   color: var(--text-secondary) !important;
   font-size: 13px;
   margin-bottom: 0 !important;
@@ -1633,10 +1620,10 @@ const getDefaultGroupName = (): string => {
 .modal-footer .btn-primary {
   background: var(--primary-color);
   border: none;
-  color: var(--text-primary);
+  color: var(--text-on-primary);
 }
 
 .modal-footer .btn-primary:hover {
-  filter: brightness(1.1);
+  background: var(--harmony-primary-hover);
 }
 </style>

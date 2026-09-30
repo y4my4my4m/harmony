@@ -31,9 +31,7 @@
             @click="setChannelType(0)"
           >
             <div class="option-icon text-channel">
-              <svg viewBox="0 0 24 24" fill="currentColor">
-                <path d="M5.8 21L7.4 14L2 9.2L9.2 8.6L12 2L14.8 8.6L22 9.2L18.8 12H18C17.3 12 16.6 12.1 15.9 12.4L18.1 10.5L13.7 10.1L12 6.1L10.3 10.1L5.9 10.5L9.2 13.4L8.2 17.7L12 15.4L12.5 15.7C12.3 16.2 12.1 16.8 12.1 17.4L5.8 21M17 14V17H22V19H17V22H15V19H10V17H15V14H17Z"/>
-              </svg>
+              <Icon name="hash" :size="24" />
             </div>
             <div class="option-content">
               <h4 class="option-title">{{ $t('channel.text') }}</h4>
@@ -105,6 +103,7 @@ import { useI18n } from 'vue-i18n'
 import BaseModal from '@/components/common/BaseModal.vue'
 import ModernInput from '@/components/common/ModernInput.vue'
 import UnifiedButton from '@/components/shared/UnifiedButton.vue'
+import Icon from '@/components/common/Icon.vue'
 import { supabase } from '@/supabase'
 
 // Max channels per server
@@ -192,9 +191,7 @@ const channelNameHint = computed(() => {
     return ''
   }
   
-  return channelType.value === 0
-    ? 'Perfect! This will be a great text channel name'
-    : 'Great choice for a voice channel!'
+  return 'Looks good'
 })
 
 const formatChannelName = (name: string): string => {
@@ -340,7 +337,7 @@ const closeForm = () => {
 .section-label {
   font-size: 12px;
   font-weight: 700;
-  color: #b5bac1;
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.02em;
   margin: 0;
@@ -366,8 +363,8 @@ const closeForm = () => {
 }
 
 .channel-type-option:hover {
-  background: #32343a;
-  border-color: rgba(255, 255, 255, 0.1);
+  background: color-mix(in srgb, var(--text-primary) 8%, var(--background-quinary));
+  border-color: var(--border-hover);
 }
 
 .channel-type-option.active {
@@ -383,20 +380,20 @@ const closeForm = () => {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  color: var(--text-on-primary);
 }
 
 .text-channel {
-  background: linear-gradient(135deg, #23a55a, #1f8b4c);
+  background: var(--success);
 }
 
 .voice-channel {
-  background: linear-gradient(135deg, var(--harmony-primary), var(--harmony-primary-hover));
+  background: var(--harmony-primary);
 }
 
 .option-icon svg {
   width: 24px;
   height: 24px;
-  color: var(--text-primary);
 }
 
 .option-content {
@@ -413,7 +410,7 @@ const closeForm = () => {
 
 .option-description {
   font-size: 14px;
-  color: #b5bac1;
+  color: var(--text-secondary);
   margin: 0;
   line-height: 1.3;
 }
@@ -421,7 +418,7 @@ const closeForm = () => {
 .option-check {
   width: 24px;
   height: 24px;
-  background: #23a55a;
+  background: var(--success);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -432,7 +429,7 @@ const closeForm = () => {
 .option-check svg {
   width: 16px;
   height: 16px;
-  color: var(--text-primary);
+  color: var(--text-on-primary);
 }
 
 .category-info {
@@ -487,13 +484,14 @@ const closeForm = () => {
   }
 }
 
-/* Animation for type selection */
-.channel-type-option {
-  animation: slideInUp 0.3s ease-out;
-}
+@media (prefers-reduced-motion: no-preference) {
+  .channel-type-option {
+    animation: slideInUp 0.3s ease-out;
+  }
 
-.channel-type-option:nth-child(2) {
-  animation-delay: 0.1s;
+  .channel-type-option:nth-child(2) {
+    animation-delay: 0.1s;
+  }
 }
 
 @keyframes slideInUp {

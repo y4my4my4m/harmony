@@ -72,7 +72,7 @@
           :disabled="isLoadingMore"
         >
           <span v-if="isLoadingMore" class="loading-spinner-sm"></span>
-          <span>{{ isLoadingMore ? 'Loading...' : 'Load More' }}</span>
+          <span>{{ isLoadingMore ? 'Loading...' : 'Load more' }}</span>
         </button>
       </div>
     </div>
@@ -313,17 +313,16 @@ onMounted(() => {
   gap: 8px;
   padding: 10px 20px;
   background: var(--harmony-primary);
-  color: #fff;
+  color: var(--text-on-primary);
   border-radius: 20px;
   text-decoration: none;
   font-weight: 600;
   font-size: 14px;
-  transition: all 0.15s ease;
+  transition: background-color 0.15s ease;
 }
 
 .explore-btn:hover {
-  filter: brightness(1.1);
-  transform: translateY(-1px);
+  background: var(--harmony-primary-hover);
 }
 
 /* Users List */

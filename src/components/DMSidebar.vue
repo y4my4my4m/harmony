@@ -453,10 +453,10 @@ const getMessagePreviewText = (message: Message): string => {
   
   // Check for other content types
   const filePart = content.find(part => part.type === 'file')
-  if (filePart) return '📎 File'
+  if (filePart) return 'File'
   
   const emojiPart = content.find(part => part.type === 'emoji')
-  if (emojiPart) return '😊 Emoji'
+  if (emojiPart) return 'Emoji'
   
   return 'Message'
 }
@@ -741,15 +741,15 @@ onUnmounted(() => {
   padding: 8px 16px;
   border: none;
   border-radius: 6px;
-  background: var(--accent-color, var(--harmony-primary));
-  color: #fff;
+  background: var(--harmony-primary);
+  color: var(--text-on-primary);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
 }
 
 .empty-cta:hover {
-  filter: brightness(1.1);
+  background: var(--harmony-primary-hover);
 }
 
 .conversations-list {
@@ -805,8 +805,8 @@ onUnmounted(() => {
 }
 
 .conversation-dismiss:hover {
-  background: var(--h-danger, #da373c);
-  color: #fff;
+  background: var(--error);
+  color: var(--text-on-primary);
 }
 
 @media (hover: none) {
@@ -821,7 +821,7 @@ onUnmounted(() => {
 }
 
 .conversation-item.unread {
-  background: rgba(114, 118, 125, 0.1);
+  background: var(--background-modifier-hover);
 }
 
 .conversation-item.unread:hover {
@@ -869,7 +869,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--text-on-primary);
   font-size: 14px;
 }
 
@@ -879,7 +879,7 @@ onUnmounted(() => {
   right: -2px;
   width: 12px;
   height: 12px;
-  background: #3ba55c;
+  background: var(--status-online);
   border: 2px solid var(--h-channel-sidebar, var(--background-tertiary));
   border-radius: 50%;
 }
@@ -945,12 +945,12 @@ onUnmounted(() => {
 }
 
 .unread-count {
-  background: #f04747;
-  color: var(--text-primary);
+  background: var(--error);
+  color: var(--text-on-primary);
   font-size: 10px;
   font-weight: 600;
   padding: 2px 6px;
-  border-radius: 10px;
+  border-radius: var(--radius-full);
   min-width: 16px;
   height: 16px;
   display: flex;
@@ -1039,7 +1039,7 @@ onUnmounted(() => {
 
   .conversation-item:active {
     transform: scale(0.98);
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--background-modifier-active);
   }
 
   .user-avatar {

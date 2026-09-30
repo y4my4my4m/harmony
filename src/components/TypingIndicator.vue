@@ -77,20 +77,22 @@ const { getUserDisplayName } = useUserData()
   width: 4px;
   height: 4px;
   border-radius: 50%;
-  background-color: var(--text-muted, rgba(255, 255, 255, 0.4));
-  animation: typing-dot 1.4s infinite ease-in-out;
+  background-color: var(--text-muted);
+  opacity: 0.6;
 }
 
-.typing-dots span:nth-child(1) {
-  animation-delay: 0s;
-}
+@media (prefers-reduced-motion: no-preference) {
+  .typing-dots span {
+    animation: typing-dot 1.4s infinite ease-in-out;
+  }
 
-.typing-dots span:nth-child(2) {
-  animation-delay: 0.2s;
-}
+  .typing-dots span:nth-child(2) {
+    animation-delay: 0.2s;
+  }
 
-.typing-dots span:nth-child(3) {
-  animation-delay: 0.4s;
+  .typing-dots span:nth-child(3) {
+    animation-delay: 0.4s;
+  }
 }
 
 @keyframes typing-dot {
@@ -105,7 +107,7 @@ const { getUserDisplayName } = useUserData()
 }
 
 .typing-text {
-  color: var(--text-muted, rgba(255, 255, 255, 0.6));
+  color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
