@@ -3,7 +3,7 @@
     <div class="admin-header">
       <div class="admin-title">
         <Icon name="admin-terminal" :size="24" />
-        <h1>Instance Control Panel</h1>
+        <h1>Instance control panel</h1>
         <div class="system-status" :class="systemStatus.class">
           <div class="status-indicator"></div>
           <span>{{ systemStatus.text }}</span>
@@ -16,7 +16,7 @@
         </button>
         <button @click="exportLogs" class="action-btn export-btn">
           <Icon name="download" :size="16" />
-          Export Logs
+          Export logs
         </button>
       </div>
     </div>
@@ -40,7 +40,7 @@
       <div class="admin-module overview-module">
         <div class="module-header">
           <Icon name="dashboard" :size="20" />
-          <h2>System Overview</h2>
+          <h2>System overview</h2>
           <div class="uptime">{{ formatUptime(systemStats.uptime) }}</div>
         </div>
         <div class="stats-grid">
@@ -50,7 +50,7 @@
             </div>
             <div class="stat-content">
               <div class="stat-value">{{ systemStats.totalUsers }}</div>
-              <div class="stat-label">Total Users</div>
+              <div class="stat-label">Total users</div>
               <div class="stat-change positive">+{{ systemStats.newUsersToday }} today</div>
             </div>
           </div>
@@ -60,7 +60,7 @@
             </div>
             <div class="stat-content">
               <div class="stat-value">{{ systemStats.totalServers }}</div>
-              <div class="stat-label">Chat Servers</div>
+              <div class="stat-label">Chat servers</div>
               <div class="stat-change">{{ systemStats.activeServers }} active</div>
             </div>
           </div>
@@ -70,7 +70,7 @@
             </div>
             <div class="stat-content">
               <div class="stat-value">{{ systemStats.federatedInstances }}</div>
-              <div class="stat-label">Federated Instances</div>
+              <div class="stat-label">Federated instances</div>
               <div class="stat-change positive">{{ systemStats.federationHealth }}% healthy</div>
             </div>
           </div>
@@ -80,7 +80,7 @@
             </div>
             <div class="stat-content">
               <div class="stat-value">{{ formatNumber(systemStats.totalPosts) }}</div>
-              <div class="stat-label">Total Posts</div>
+              <div class="stat-label">Total posts</div>
               <div class="stat-change">{{ systemStats.postsToday }} today</div>
             </div>
           </div>
@@ -91,7 +91,7 @@
       <div class="admin-module health-module">
         <div class="module-header">
           <Icon name="health" :size="20" />
-          <h2>System Health</h2>
+          <h2>System health</h2>
           <div class="health-indicator" :class="healthStatus.class">
             {{ healthStatus.text }}
           </div>
@@ -107,7 +107,7 @@
           </div>
           <div class="metric-card">
             <div class="metric-header">
-              <span>Federation Queue</span>
+              <span>Federation queue</span>
               <div class="metric-status" :class="systemHealth.federation.status"></div>
             </div>
             <div class="metric-value">{{ systemHealth.federation.pending }}</div>
@@ -115,7 +115,7 @@
           </div>
           <div class="metric-card">
             <div class="metric-header">
-              <span>Database Size</span>
+              <span>Database size</span>
               <div class="metric-status healthy"></div>
             </div>
             <div class="metric-value">{{ systemHealth.storage.total }}</div>
@@ -166,7 +166,7 @@
       <div class="admin-module performance-module">
         <div class="module-header">
           <Icon name="activity" :size="20" />
-          <h2>Performance Monitoring</h2>
+          <h2>Performance monitoring</h2>
         </div>
         <div class="performance-content">
           <PerformanceMonitoring />
@@ -177,7 +177,7 @@
       <div class="admin-module emoji-module">
         <div class="module-header">
           <Icon name="emoji" :size="20" />
-          <h2>Remote Emoji Importer</h2>
+          <h2>Remote emoji importer</h2>
         </div>
         <div class="emoji-content">
           <EmojiImporter />
@@ -282,12 +282,12 @@ const systemHealth = ref({
 const systemStatus = computed(() => {
   const health = systemHealth.value
   if (health.federation.status === 'error') {
-    return { class: 'error', text: 'Federation Issues' }
+    return { class: 'error', text: 'Federation issues' }
   }
   if (health.memory.used > 90) {
-    return { class: 'warning', text: 'High Memory Usage' }
+    return { class: 'warning', text: 'High memory usage' }
   }
-  return { class: 'healthy', text: 'All Systems Operational' }
+  return { class: 'healthy', text: 'All systems operational' }
 })
 
 // eslint-disable-next-line unused-imports/no-unused-vars
@@ -296,7 +296,7 @@ const federationStatus = computed(() => {
   if (pending > 100) {
     return { class: 'warning', text: `${pending} pending deliveries` }
   }
-  return { class: 'healthy', text: 'Federation Active' }
+  return { class: 'healthy', text: 'Federation active' }
 })
 
 const healthStatus = computed(() => {
@@ -305,8 +305,8 @@ const healthStatus = computed(() => {
   if (systemHealth.value.federation.status === 'error') issues.push('federation')
   
   if (issues.length === 0) return { class: 'healthy', text: 'Healthy' }
-  if (issues.length === 1) return { class: 'warning', text: 'Minor Issues' }
-  return { class: 'error', text: 'Critical Issues' }
+  if (issues.length === 1) return { class: 'warning', text: 'Minor issues' }
+  return { class: 'error', text: 'Critical issues' }
 })
 
 
@@ -455,13 +455,10 @@ const formatNumber = (num: number | undefined) => {
 
 
 .admin-title h1 {
-  font-size: 28px;
+  font-size: var(--font-size-2xl);
   font-weight: 700;
   margin: 0;
-  background: linear-gradient(135deg, #00d4ff, #00ff88);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--text-primary);
 }
 
 
@@ -477,11 +474,9 @@ const formatNumber = (num: number | undefined) => {
   align-items: center;
   gap: 8px;
   padding: 4px 12px;
-  border-radius: 16px;
+  border-radius: var(--radius-full);
   font-size: 12px;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
 }
 
 
@@ -493,9 +488,9 @@ const formatNumber = (num: number | undefined) => {
 
 
 .system-status.healthy {
-  background: rgba(0, 255, 136, 0.1);
-  color: #00ff88;
-  border: 1px solid rgba(0, 255, 136, 0.3);
+  background: color-mix(in srgb, var(--success) 10%, transparent);
+  color: var(--success);
+  border: 1px solid color-mix(in srgb, var(--success) 30%, transparent);
 }
 
 
@@ -507,9 +502,9 @@ const formatNumber = (num: number | undefined) => {
 
 
 .system-status.warning {
-  background: rgba(255, 193, 7, 0.1);
-  color: #ffc107;
-  border: 1px solid rgba(255, 193, 7, 0.3);
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
+  color: var(--warning);
+  border: 1px solid color-mix(in srgb, var(--warning) 30%, transparent);
 }
 
 
@@ -521,9 +516,9 @@ const formatNumber = (num: number | undefined) => {
 
 
 .system-status.error {
-  background: rgba(255, 69, 58, 0.1);
-  color: #ff453a;
-  border: 1px solid rgba(255, 69, 58, 0.3);
+  background: color-mix(in srgb, var(--error) 10%, transparent);
+  color: var(--error);
+  border: 1px solid color-mix(in srgb, var(--error) 30%, transparent);
 }
 
 
@@ -539,7 +534,6 @@ const formatNumber = (num: number | undefined) => {
   height: 8px;
   border-radius: 50%;
   background: currentColor;
-  animation: pulse 2s infinite;
 }
 
 
@@ -550,10 +544,6 @@ const formatNumber = (num: number | undefined) => {
 
 
 
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
-}
 
 
 
@@ -583,7 +573,7 @@ const formatNumber = (num: number | undefined) => {
   padding: 8px 16px;
   background: var(--background-secondary);
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   color: var(--text-primary);
   font-size: 14px;
   font-weight: 500;
@@ -601,8 +591,7 @@ const formatNumber = (num: number | undefined) => {
 
 .action-btn:hover {
   background: var(--background-tertiary);
-  border-color: var(--accent-color);
-  transform: translateY(-1px);
+  border-color: var(--harmony-primary);
 }
 
 
@@ -616,7 +605,6 @@ const formatNumber = (num: number | undefined) => {
 .action-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-  transform: none;
 }
 
 
@@ -642,7 +630,7 @@ const formatNumber = (num: number | undefined) => {
   gap: 7px;
   padding: 8px 14px;
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--background-secondary);
   color: var(--text-secondary);
   font-size: 13px;
@@ -653,13 +641,13 @@ const formatNumber = (num: number | undefined) => {
 
 .admin-tab-btn:hover {
   color: var(--text-primary);
-  border-color: var(--accent-color);
+  border-color: var(--harmony-primary);
 }
 
 .admin-tab-btn.active {
-  color: var(--accent-color);
-  border-color: var(--accent-color);
-  background: color-mix(in srgb, var(--accent-color) 10%, transparent);
+  color: var(--harmony-primary);
+  border-color: var(--harmony-primary);
+  background: color-mix(in srgb, var(--harmony-primary) 10%, transparent);
 }
 
 .admin-grid.single {
@@ -684,10 +672,9 @@ const formatNumber = (num: number | undefined) => {
 .admin-module {
   background: var(--background-secondary);
   border: 1px solid var(--border-color);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   overflow: hidden;
   min-width: 0;
-  transition: all 0.3s ease;
 }
 
 
@@ -698,11 +685,6 @@ const formatNumber = (num: number | undefined) => {
 
 
 
-.admin-module:hover {
-  border-color: var(--accent-color);
-  box-shadow: 0 8px 32px rgba(0, 212, 255, 0.1);
-  transform: translateY(-2px);
-}
 
 
 
@@ -717,7 +699,6 @@ const formatNumber = (num: number | undefined) => {
   align-items: center;
   gap: 12px;
   padding: 20px 24px;
-  background: linear-gradient(135deg, rgba(0, 212, 255, 0.05), rgba(0, 255, 136, 0.05));
   border-bottom: 1px solid var(--border-color);
 }
 
@@ -765,9 +746,8 @@ const formatNumber = (num: number | undefined) => {
   gap: 16px;
   padding: 20px;
   background: var(--background-tertiary);
-  border: 1px solid rgba(0, 212, 255, 0.2);
-  border-radius: 8px;
-  transition: all 0.2s ease;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
 }
 
 
@@ -778,10 +758,6 @@ const formatNumber = (num: number | undefined) => {
 
 
 
-.stat-card:hover {
-  border-color: var(--accent-color);
-  box-shadow: 0 4px 16px rgba(0, 212, 255, 0.1);
-}
 
 
 
@@ -793,9 +769,9 @@ const formatNumber = (num: number | undefined) => {
 
 .stat-icon {
   padding: 12px;
-  background: linear-gradient(135deg, rgba(0, 212, 255, 0.1), rgba(0, 255, 136, 0.1));
-  border-radius: 8px;
-  color: #00d4ff;
+  background: color-mix(in srgb, var(--harmony-primary) 10%, transparent);
+  border-radius: var(--radius-md);
+  color: var(--harmony-primary);
 }
 
 
@@ -861,7 +837,7 @@ const formatNumber = (num: number | undefined) => {
 
 
 .stat-change.positive {
-  color: #00ff88;
+  color: var(--success);
 }
 
 
@@ -890,7 +866,7 @@ const formatNumber = (num: number | undefined) => {
   padding: 12px 16px;
   background: var(--background-tertiary);
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   color: var(--text-primary);
   font-size: 14px;
   transition: all 0.2s ease;
@@ -906,8 +882,8 @@ const formatNumber = (num: number | undefined) => {
 
 .cyber-input:focus, .cyber-textarea:focus, .cyber-select:focus {
   outline: none;
-  border-color: var(--accent-color);
-  box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.1);
+  border-color: var(--harmony-primary);
+  box-shadow: 0 0 0 2px var(--harmony-primary-alpha-strong);
 }
 
 
@@ -1007,7 +983,7 @@ const formatNumber = (num: number | undefined) => {
   height: 24px;
   background: var(--background-tertiary);
   border: 1px solid var(--border-color);
-  border-radius: 24px;
+  border-radius: var(--radius-full);
   transition: all 0.2s ease;
 }
 
@@ -1040,8 +1016,8 @@ const formatNumber = (num: number | undefined) => {
 
 
 .toggle-label input[type="checkbox"]:checked + .toggle-slider {
-  background: var(--accent-color);
-  border-color: var(--accent-color);
+  background: var(--harmony-primary);
+  border-color: var(--harmony-primary);
 }
 
 
@@ -1054,7 +1030,7 @@ const formatNumber = (num: number | undefined) => {
 
 .toggle-label input[type="checkbox"]:checked + .toggle-slider:before {
   left: 22px;
-  background: white;
+  background: var(--text-on-primary);
 }
 
 
@@ -1084,8 +1060,8 @@ const formatNumber = (num: number | undefined) => {
   align-items: center;
   padding: 16px;
   background: var(--background-tertiary);
-  border: 1px solid rgba(255, 69, 58, 0.2);
-  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--error) 20%, transparent);
+  border-radius: var(--radius-md);
   margin-bottom: 12px;
 }
 
@@ -1127,10 +1103,10 @@ const formatNumber = (num: number | undefined) => {
 
 .unblock-btn {
   padding: 8px 12px;
-  background: rgba(255, 69, 58, 0.1);
-  border: 1px solid rgba(255, 69, 58, 0.3);
-  border-radius: 6px;
-  color: #ff453a;
+  background: color-mix(in srgb, var(--error) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--error) 30%, transparent);
+  border-radius: var(--radius-base);
+  color: var(--error);
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -1163,10 +1139,10 @@ const formatNumber = (num: number | undefined) => {
   align-items: center;
   gap: 6px;
   padding: 8px 16px;
-  background: var(--accent-color);
+  background: var(--harmony-primary);
   border: none;
-  border-radius: 6px;
-  color: var(--text-primary);
+  border-radius: var(--radius-base);
+  color: var(--text-on-primary);
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -1194,8 +1170,7 @@ const formatNumber = (num: number | undefined) => {
 
 
 .primary-btn:hover, .primary-btn-sm:hover {
-  background: #0099cc;
-  transform: translateY(-1px);
+  background: var(--harmony-primary-hover);
 }
 
 
@@ -1209,8 +1184,8 @@ const formatNumber = (num: number | undefined) => {
 .spinner-small {
   width: 14px;
   height: 14px;
-  border: 2px solid rgba(255, 69, 58, 0.3);
-  border-top-color: #ff453a;
+  border: 2px solid color-mix(in srgb, var(--error) 30%, transparent);
+  border-top-color: var(--error);
   border-radius: 50%;
   display: inline-block;
   animation: spin 0.8s linear infinite;
@@ -1283,7 +1258,7 @@ const formatNumber = (num: number | undefined) => {
 
 
 .error-text {
-  color: #ff453a;
+  color: var(--error);
 }
 
 
@@ -1342,7 +1317,7 @@ const formatNumber = (num: number | undefined) => {
 
 .badge {
   padding: 2px 8px;
-  border-radius: 12px;
+  border-radius: var(--radius-full);
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
@@ -1357,8 +1332,8 @@ const formatNumber = (num: number | undefined) => {
 
 
 .badge.trusted {
-  background: rgba(0, 255, 136, 0.2);
-  color: #00ff88;
+  background: color-mix(in srgb, var(--success) 20%, transparent);
+  color: var(--success);
 }
 
 
@@ -1370,8 +1345,8 @@ const formatNumber = (num: number | undefined) => {
 
 
 .badge.blocked {
-  background: rgba(255, 69, 58, 0.2);
-  color: #ff453a;
+  background: color-mix(in srgb, var(--error) 20%, transparent);
+  color: var(--error);
 }
 
 
@@ -1383,8 +1358,8 @@ const formatNumber = (num: number | undefined) => {
 
 
 .badge.inactive {
-  background: rgba(156, 163, 175, 0.2);
-  color: #9ca3af;
+  background: var(--background-modifier-active);
+  color: var(--text-muted);
 }
 
 
@@ -1396,8 +1371,8 @@ const formatNumber = (num: number | undefined) => {
 
 
 .badge.success {
-  background: rgba(0, 255, 136, 0.2);
-  color: #00ff88;
+  background: color-mix(in srgb, var(--success) 20%, transparent);
+  color: var(--success);
 }
 
 
@@ -1409,8 +1384,8 @@ const formatNumber = (num: number | undefined) => {
 
 
 .badge.info {
-  background: rgba(0, 212, 255, 0.2);
-  color: #00d4ff;
+  background: color-mix(in srgb, var(--info) 20%, transparent);
+  color: var(--info);
 }
 
 
@@ -1436,7 +1411,7 @@ const formatNumber = (num: number | undefined) => {
 .action-btn-sm, .danger-btn-sm {
   padding: 6px 8px;
   border: 1px solid var(--border-color);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: var(--background-tertiary);
   color: var(--text-secondary);
   cursor: pointer;
@@ -1452,8 +1427,8 @@ const formatNumber = (num: number | undefined) => {
 
 
 .action-btn-sm:hover {
-  border-color: var(--accent-color);
-  color: var(--accent-color);
+  border-color: var(--harmony-primary);
+  color: var(--harmony-primary);
 }
 
 
@@ -1465,8 +1440,8 @@ const formatNumber = (num: number | undefined) => {
 
 
 .action-btn-sm.trusted {
-  border-color: rgba(0, 255, 136, 0.5);
-  color: #00ff88;
+  border-color: color-mix(in srgb, var(--success) 50%, transparent);
+  color: var(--success);
 }
 
 
@@ -1478,8 +1453,8 @@ const formatNumber = (num: number | undefined) => {
 
 
 .danger-btn-sm:hover {
-  border-color: rgba(255, 69, 58, 0.5);
-  color: #ff453a;
+  border-color: color-mix(in srgb, var(--error) 50%, transparent);
+  color: var(--error);
 }
 
 
@@ -1511,7 +1486,7 @@ const formatNumber = (num: number | undefined) => {
   padding: 8px 16px;
   background: var(--background-tertiary);
   border: 1px solid var(--border-color);
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   color: var(--text-primary);
   cursor: pointer;
   transition: all 0.2s ease;
@@ -1526,8 +1501,8 @@ const formatNumber = (num: number | undefined) => {
 
 
 .pagination-btn:hover:not(:disabled) {
-  border-color: var(--accent-color);
-  color: var(--accent-color);
+  border-color: var(--harmony-primary);
+  color: var(--harmony-primary);
 }
 
 
@@ -1569,7 +1544,7 @@ const formatNumber = (num: number | undefined) => {
   padding: 8px 16px;
   background: transparent;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   color: var(--text-secondary);
   font-weight: 500;
   cursor: pointer;
@@ -1585,8 +1560,8 @@ const formatNumber = (num: number | undefined) => {
 
 
 .tab-btn.active {
-  background: var(--accent-color);
-  color: var(--text-primary);
+  background: var(--harmony-primary);
+  color: var(--text-on-primary);
 }
 
 
@@ -1703,7 +1678,7 @@ const formatNumber = (num: number | undefined) => {
 .user-name .badge {
   font-size: 10px;
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-weight: 600;
   text-transform: uppercase;
 }
@@ -1717,8 +1692,8 @@ const formatNumber = (num: number | undefined) => {
 
 
 .badge.suspended {
-  background: rgba(255, 193, 7, 0.2);
-  color: #ffc107;
+  background: color-mix(in srgb, var(--warning) 20%, transparent);
+  color: var(--warning);
 }
 
 
@@ -1730,8 +1705,8 @@ const formatNumber = (num: number | undefined) => {
 
 
 .badge.admin {
-  background: rgba(0, 212, 255, 0.2);
-  color: #00d4ff;
+  background: color-mix(in srgb, var(--harmony-primary) 20%, transparent);
+  color: var(--harmony-primary);
 }
 
 
@@ -1743,8 +1718,8 @@ const formatNumber = (num: number | undefined) => {
 
 
 .badge.moderator {
-  background: rgba(46, 204, 113, 0.2);
-  color: #2ecc71;
+  background: color-mix(in srgb, var(--success) 20%, transparent);
+  color: var(--success);
 }
 
 
@@ -1775,7 +1750,7 @@ const formatNumber = (num: number | undefined) => {
   padding: 20px;
   background: var(--background-tertiary);
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
 }
 
 
@@ -1831,7 +1806,7 @@ const formatNumber = (num: number | undefined) => {
 
 
 .metric-status.healthy {
-  background: #00ff88;
+  background: var(--success);
 }
 
 
@@ -1843,7 +1818,7 @@ const formatNumber = (num: number | undefined) => {
 
 
 .metric-status.warning {
-  background: #ffc107;
+  background: var(--warning);
 }
 
 
@@ -1855,7 +1830,7 @@ const formatNumber = (num: number | undefined) => {
 
 
 .metric-status.error {
-  background: #ff453a;
+  background: var(--error);
 }
 
 
@@ -1982,7 +1957,7 @@ const formatNumber = (num: number | undefined) => {
 .announcement-form .form-hint {
   margin: 4px 0 0 0;
   font-size: 11px;
-  color: var(--text-muted, #949ba4);
+  color: var(--text-muted);
   line-height: 1.35;
 }
 
@@ -2037,7 +2012,7 @@ const formatNumber = (num: number | undefined) => {
   gap: 12px;
   padding: 12px 16px;
   background: var(--background-tertiary);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   border: 1px solid var(--border-color);
   transition: all 0.2s ease;
 }
@@ -2049,7 +2024,7 @@ const formatNumber = (num: number | undefined) => {
 
 
 
-.featured-server-item:hover { border-color: var(--accent-color); }
+.featured-server-item:hover { border-color: var(--harmony-primary); }
 
 
 
@@ -2059,8 +2034,8 @@ const formatNumber = (num: number | undefined) => {
 
 
 .featured-server-item.featured {
-  border-color: rgba(255, 193, 7, 0.5);
-  background: rgba(255, 193, 7, 0.05);
+  border-color: color-mix(in srgb, var(--warning) 50%, transparent);
+  background: color-mix(in srgb, var(--warning) 5%, transparent);
 }
 
 
@@ -2087,7 +2062,7 @@ const formatNumber = (num: number | undefined) => {
 .server-icon {
   width: 100%;
   height: 100%;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   object-fit: cover;
 }
 
@@ -2102,7 +2077,7 @@ const formatNumber = (num: number | undefined) => {
   position: absolute;
   bottom: -4px;
   right: -4px;
-  color: var(--accent-color);
+  color: var(--harmony-primary);
   background: var(--background-secondary);
   border-radius: 50%;
   padding: 2px;
@@ -2142,7 +2117,7 @@ const formatNumber = (num: number | undefined) => {
 
 
 
-.featured-server-item .action-btn-sm.pin-btn { color: var(--accent-color); }
+.featured-server-item .action-btn-sm.pin-btn { color: var(--harmony-primary); }
 
 
 
@@ -2251,7 +2226,7 @@ const formatNumber = (num: number | undefined) => {
 .config-tab-btn:hover {
   color: var(--text-primary);
   background: var(--background-tertiary);
-  border-radius: 6px 6px 0 0;
+  border-radius: var(--radius-base) var(--radius-base) 0 0;
 }
 
 
@@ -2263,8 +2238,8 @@ const formatNumber = (num: number | undefined) => {
 
 
 .config-tab-btn.active {
-  color: var(--accent-color);
-  border-bottom-color: var(--accent-color);
+  color: var(--harmony-primary);
+  border-bottom-color: var(--harmony-primary);
 }
 
 
@@ -2420,7 +2395,7 @@ const formatNumber = (num: number | undefined) => {
 .server-icon {
   width: 48px;
   height: 48px;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   overflow: hidden;
   flex-shrink: 0;
 }
@@ -2465,11 +2440,11 @@ const formatNumber = (num: number | undefined) => {
 
 
 .badge.owner {
-  background: rgba(255, 193, 7, 0.2);
-  color: #ffc107;
+  background: color-mix(in srgb, var(--warning) 20%, transparent);
+  color: var(--warning);
   font-size: 10px;
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-weight: 600;
   text-transform: uppercase;
 }
@@ -2497,7 +2472,7 @@ const formatNumber = (num: number | undefined) => {
 
 
 
-.report-type-badge.user { background: color-mix(in srgb, var(--harmony-primary) 20%, transparent); color: var(--harmony-secondary); }
+.report-type-badge.user { background: var(--background-modifier-active); color: var(--text-secondary); }
 
 
 
@@ -2506,7 +2481,7 @@ const formatNumber = (num: number | undefined) => {
 
 
 
-.report-type-badge.post { background: rgba(87, 242, 135, 0.2); color: #57f287; }
+.report-type-badge.post { background: var(--background-modifier-active); color: var(--text-secondary); }
 
 
 
@@ -2515,7 +2490,7 @@ const formatNumber = (num: number | undefined) => {
 
 
 
-.report-type-badge.message { background: rgba(254, 231, 92, 0.2); color: #fee75c; }
+.report-type-badge.message { background: var(--background-modifier-active); color: var(--text-secondary); }
 
 
 
@@ -2524,7 +2499,7 @@ const formatNumber = (num: number | undefined) => {
 
 
 
-.report-type-badge.server { background: rgba(235, 69, 158, 0.2); color: #eb459e; }
+.report-type-badge.server { background: var(--background-modifier-active); color: var(--text-secondary); }
 
 
 
@@ -2535,7 +2510,7 @@ const formatNumber = (num: number | undefined) => {
 
 
 .report-proof :deep(.report-link) {
-  color: var(--accent-color);
+  color: var(--harmony-primary);
   text-decoration: underline;
   word-break: break-all;
 }
@@ -2561,8 +2536,8 @@ const formatNumber = (num: number | undefined) => {
 
 
 .report-action-btn.investigating {
-  background: color-mix(in srgb, var(--harmony-primary) 30%, transparent);
-  color: var(--harmony-secondary);
+  background: color-mix(in srgb, var(--info) 30%, transparent);
+  color: var(--info);
 }
 
 
@@ -2574,8 +2549,8 @@ const formatNumber = (num: number | undefined) => {
 
 
 .badge.sensitive {
-  background: rgba(250, 166, 26, 0.2);
-  color: #faa61a;
+  background: color-mix(in srgb, var(--warning) 20%, transparent);
+  color: var(--warning);
 }
 
 
@@ -2587,8 +2562,8 @@ const formatNumber = (num: number | undefined) => {
 
 
 .badge.cw {
-  background: rgba(88, 101, 242, 0.2);
-  color: #7c8af5;
+  background: color-mix(in srgb, var(--info) 20%, transparent);
+  color: var(--info);
 }
 
 
@@ -2600,8 +2575,8 @@ const formatNumber = (num: number | undefined) => {
 
 
 .badge.silenced {
-  background: rgba(250, 166, 26, 0.2);
-  color: #faa61a;
+  background: color-mix(in srgb, var(--warning) 20%, transparent);
+  color: var(--warning);
 }
 
 
@@ -2613,8 +2588,8 @@ const formatNumber = (num: number | undefined) => {
 
 
 .mod-btn.warning-btn {
-  background: rgba(250, 166, 26, 0.15);
-  color: #faa61a;
+  background: color-mix(in srgb, var(--warning) 15%, transparent);
+  color: var(--warning);
 }
 
 
@@ -2626,7 +2601,7 @@ const formatNumber = (num: number | undefined) => {
 
 
 .mod-btn.warning-btn:hover {
-  background: rgba(250, 166, 26, 0.3);
+  background: color-mix(in srgb, var(--warning) 30%, transparent);
 }
 
 
@@ -2716,7 +2691,7 @@ const formatNumber = (num: number | undefined) => {
 
 
 .supporter-suggestion-item.selected .supporter-suggestion-handle {
-  color: rgba(255, 255, 255, 0.6);
+  color: color-mix(in srgb, var(--text-on-primary) 60%, transparent);
 }
 
 
@@ -2727,14 +2702,4 @@ const formatNumber = (num: number | undefined) => {
 
 
 
-/* Dark theme variables (these should be in your global CSS) */
-:root {
-  --background-primary: #1a1a1a;
-  --background-secondary: #2a2a2a;
-  --background-tertiary: #3a3a3a;
-  --text-primary: #ffffff;
-  --text-secondary: #b0b0b0;
-  --border-color: #404040;
-  --accent-color: #00d4ff;
-}
 </style> 

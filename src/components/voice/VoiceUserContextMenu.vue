@@ -32,7 +32,7 @@
       <div v-if="!isSelf" class="menu-section">
         <div class="section-label">
           <Icon name="mic" />
-          <span>Mic Volume</span>
+          <span>Mic volume</span>
           <span class="volume-value">{{ currentVolume }}%</span>
         </div>
         <div class="volume-slider-container">
@@ -92,7 +92,7 @@
       <div v-if="!isSelf && isScreenSharing" class="menu-section">
         <div class="section-label">
           <Icon name="screen-share" />
-          <span>Screenshare Audio</span>
+          <span>Screen share audio</span>
           <span v-if="!hasScreenShareAudio" class="no-audio-hint">(no audio)</span>
           <span class="volume-value">{{ currentScreenShareVolume }}%</span>
         </div>
@@ -159,7 +159,7 @@
             @click="focusUser"
           >
             <Icon name="maximize-2" />
-            <span>{{ isFullscreen ? 'Exit Focus' : 'Focus Video' }}</span>
+            <span>{{ isFullscreen ? 'Exit focus' : 'Focus video' }}</span>
           </button>
 
           <button
@@ -168,7 +168,7 @@
             @click="toggleFullWindow"
           >
             <Icon name="monitor" />
-            <span>{{ isFullWindowMode ? 'Exit Full Window' : 'Full Window' }}</span>
+            <span>{{ isFullWindowMode ? 'Exit full window' : 'Full window' }}</span>
           </button>
 
           <button
@@ -177,7 +177,7 @@
             @click="togglePIP"
           >
             <Icon name="picture-in-picture" />
-            <span>{{ isPIP ? 'Exit PiP' : 'Picture in Picture' }}</span>
+            <span>{{ isPIP ? 'Exit picture-in-picture' : 'Picture-in-picture' }}</span>
           </button>
 
           <button
@@ -186,7 +186,7 @@
             @click="toggleMuteUser"
           >
             <Icon :name="currentVolume === 0 ? 'volume-x' : 'volume-2'" />
-            <span>{{ currentVolume === 0 ? 'Unmute User' : 'Mute User' }}</span>
+            <span>{{ currentVolume === 0 ? 'Unmute user' : 'Mute user' }}</span>
           </button>
         </div>
       </template>
@@ -197,7 +197,7 @@
         <div v-if="hasVideo" class="menu-section">
           <div class="section-label">
             <Icon name="settings" />
-            <span>Stream Quality</span>
+            <span>Stream quality</span>
           </div>
           
           <!-- Resolution -->
@@ -219,7 +219,7 @@
           
           <!-- Frame Rate -->
           <div class="quality-row">
-            <span class="quality-label">Frame Rate</span>
+            <span class="quality-label">Frame rate</span>
             <div class="quality-options">
               <button
                 v-for="fps in frameRateOptions"
@@ -236,7 +236,7 @@
           
           <!-- Audio Bitrate -->
           <div class="quality-row">
-            <span class="quality-label">Audio Quality</span>
+            <span class="quality-label">Audio quality</span>
             <div class="quality-options">
               <button
                 v-for="bitrate in audioBitrateOptions"
@@ -269,7 +269,7 @@
             @click="focusUser"
           >
             <Icon name="maximize-2" />
-            <span>{{ isFullscreen ? 'Exit Focus' : 'Focus Video' }}</span>
+            <span>{{ isFullscreen ? 'Exit focus' : 'Focus video' }}</span>
           </button>
         </div>
       </template>
@@ -575,12 +575,10 @@ watch(
 .voice-context-menu {
   position: fixed;
   z-index: 10006;
-  background: linear-gradient(145deg, var(--background-tertiary), var(--background-secondary));
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
-  box-shadow: 
-    0 8px 32px rgba(0, 0, 0, 0.6),
-    0 4px 16px rgba(0, 0, 0, 0.4);
+  background: var(--background-floating);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-large);
   min-width: 280px;
   max-width: 340px;
   overflow: hidden;
@@ -604,7 +602,7 @@ watch(
   align-items: center;
   gap: 12px;
   padding: 12px 16px;
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--background-tertiary);
 }
 
 .user-info {
@@ -636,7 +634,7 @@ watch(
 /* Divider */
 .menu-divider {
   height: 1px;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--border-primary);
   margin: 0 0 4px 0;
 }
 
@@ -677,7 +675,7 @@ watch(
   width: 100%;
   height: 6px;
   appearance: none;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--background-modifier-active);
   border-radius: 3px;
   outline: none;
   cursor: pointer;
@@ -690,22 +688,11 @@ watch(
   background: var(--harmony-primary);
   border-radius: 50%;
   cursor: pointer;
-  box-shadow: 0 2px 6px color-mix(in srgb, var(--harmony-primary) 40%, transparent);
-  transition: transform 0.15s ease;
 }
 
-.volume-slider::-webkit-slider-thumb:hover {
-  transform: scale(1.1);
-}
-
-/* Screenshare slider - purple/violet accent */
+/* Screenshare slider uses the accent to tell it apart from mic volume */
 .volume-slider.screenshare-slider::-webkit-slider-thumb {
-  background: var(--harmony-accent);;
-  box-shadow: 0 2px 6px var(--harmony-accent-alpha);
-}
-
-.volume-slider.screenshare-slider::-webkit-slider-runnable-track {
-  /* background: linear-gradient(to right, rgba(155, 89, 182, 0.3), rgba(155, 89, 182, 0.5)); */
+  background: var(--harmony-accent);
 }
 
 .volume-marks {
@@ -729,23 +716,23 @@ watch(
   position: relative;
   width: 36px;
   height: 36px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
+  background: var(--background-modifier-hover);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
   color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .preset-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--background-modifier-active);
   color: var(--text-primary);
-  border-color: rgba(255, 255, 255, 0.2);
+  border-color: var(--border-hover);
 }
 
 .preset-btn.active {
   background: var(--harmony-primary);
-  color: var(--text-primary);
+  color: var(--text-on-primary);
   border-color: var(--harmony-primary);
 }
 
@@ -755,11 +742,11 @@ watch(
   right: 2px;
   font-size: 12px;
   font-weight: 700;
-  color: #00d4aa;
+  color: var(--success);
 }
 
 .preset-btn.active .boost-indicator {
-  color: var(--text-primary);
+  color: var(--text-on-primary);
 }
 
 /* Stream Quality Options */
@@ -791,9 +778,9 @@ watch(
 
 .quality-btn {
   padding: 5px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 6px;
+  background: var(--background-modifier-hover);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-base);
   color: var(--text-secondary);
   font-size: 11px;
   font-weight: 600;
@@ -804,14 +791,14 @@ watch(
 }
 
 .quality-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--background-modifier-active);
   color: var(--text-primary);
-  border-color: rgba(255, 255, 255, 0.2);
+  border-color: var(--border-hover);
 }
 
 .quality-btn.active {
   background: var(--harmony-primary);
-  color: var(--text-primary);
+  color: var(--text-on-primary);
   border-color: var(--harmony-primary);
 }
 
@@ -828,7 +815,7 @@ watch(
   padding: 10px 12px;
   background: transparent;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   color: var(--text-secondary);
   font-size: 14px;
   cursor: pointer;
@@ -837,17 +824,17 @@ watch(
 }
 
 .menu-action:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--background-modifier-hover);
   color: var(--text-primary);
 }
 
 .menu-action.active {
-  background: rgba(237, 66, 69, 0.15);
-  color: #ed4245;
+  background: color-mix(in srgb, var(--error) 15%, transparent);
+  color: var(--error);
 }
 
 .menu-action.active:hover {
-  background: rgba(237, 66, 69, 0.25);
+  background: color-mix(in srgb, var(--error) 25%, transparent);
 }
 </style>
 

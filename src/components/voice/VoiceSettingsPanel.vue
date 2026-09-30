@@ -2,7 +2,7 @@
   <div class="settings-overlay" @click.self="$emit('close')">
     <div class="settings-panel">
       <div class="settings-header">
-        <h3>Voice & Video Settings</h3>
+        <h3>Voice & video settings</h3>
         <button @click="$emit('close')" class="close-btn">
           <Icon name="x" />
         </button>
@@ -17,7 +17,7 @@
           </h4>
           
           <div class="setting-group">
-            <label class="setting-label">Input Device</label>
+            <label class="setting-label">Input device</label>
             <select v-model="selectedInputDevice" class="setting-select" @change="updateInputDevice">
               <option v-for="device in inputDevices" :key="device.deviceId" :value="device.deviceId">
                 {{ device.label || `Microphone ${device.deviceId.slice(0, 8)}` }}
@@ -26,7 +26,7 @@
           </div>
 
           <div class="setting-group">
-            <label class="setting-label">Output Device</label>
+            <label class="setting-label">Output device</label>
             <select v-model="selectedOutputDevice" class="setting-select" @change="updateOutputDevice">
               <option v-for="device in outputDevices" :key="device.deviceId" :value="device.deviceId">
                 {{ device.label || `Speaker ${device.deviceId.slice(0, 8)}` }}
@@ -36,7 +36,7 @@
 
           <div class="setting-group">
             <label class="setting-label">
-              Input Volume
+              Input volume
               <span class="setting-value">{{ inputVolume }}%</span>
             </label>
             <div class="volume-control">
@@ -54,7 +54,7 @@
 
           <div class="setting-group">
             <label class="setting-label">
-              Output Volume
+              Output volume
               <span class="setting-value">{{ outputVolume }}%</span>
             </label>
             <div class="volume-control">
@@ -75,7 +75,7 @@
             <div class="audio-test">
               <button @click="testMicrophone" class="test-btn" :class="{ active: isTesting }">
                 <Icon name="mic" />
-                {{ isTesting ? 'Testing...' : 'Test Microphone' }}
+                {{ isTesting ? 'Testing…' : 'Test microphone' }}
               </button>
               <div v-if="isTesting" class="test-indicator">
                 <div class="test-level" :style="{ width: `${testLevel}%` }"></div>
@@ -88,7 +88,7 @@
         <div class="settings-section">
           <h4 class="section-title">
             <Icon name="settings" />
-            Audio Quality
+            Audio quality
           </h4>
 
           <div class="setting-group checkbox-group">
@@ -101,7 +101,7 @@
               />
               <div class="checkbox-custom"></div>
               <div class="checkbox-content">
-                <span>Echo Cancellation</span>
+                <span>Echo cancellation</span>
                 <small>Reduces echo from your speakers</small>
               </div>
             </label>
@@ -117,7 +117,7 @@
               />
               <div class="checkbox-custom"></div>
               <div class="checkbox-content">
-                <span>Noise Suppression</span>
+                <span>Noise suppression</span>
                 <small>Filters background noise</small>
               </div>
             </label>
@@ -133,7 +133,7 @@
               />
               <div class="checkbox-custom"></div>
               <div class="checkbox-content">
-                <span>Auto Gain Control</span>
+                <span>Auto gain control</span>
                 <small>Automatically adjusts microphone sensitivity</small>
               </div>
             </label>
@@ -150,7 +150,7 @@
           <div class="setting-group">
             <label class="setting-label">Camera</label>
             <select v-model="selectedVideoDevice" class="setting-select">
-              <option value="">No Camera</option>
+              <option value="">No camera</option>
               <option v-for="device in videoDevices" :key="device.deviceId" :value="device.deviceId">
                 {{ device.label || `Camera ${device.deviceId.slice(0, 8)}` }}
               </option>
@@ -169,7 +169,7 @@
           </div>
 
           <div class="setting-group">
-            <label class="setting-label">Frame Rate</label>
+            <label class="setting-label">Frame rate</label>
             <select v-model="frameRate" class="setting-select" @change="updateVideoSettings">
               <option value="10">10 FPS (Low)</option>
               <option value="15">15 FPS</option>
@@ -180,7 +180,7 @@
           </div>
 
           <div class="setting-group">
-            <label class="setting-label">Audio Bitrate</label>
+            <label class="setting-label">Audio bitrate</label>
             <select v-model="audioBitrate" class="setting-select" @change="updateVideoSettings">
               <option value="32">32 kbps (Low)</option>
               <option value="64">64 kbps (Voice)</option>
@@ -201,7 +201,7 @@
               ></video>
               <div v-if="!previewStream" class="preview-placeholder">
                 <Icon name="video-off" size="xl" />
-                <span>Camera Preview</span>
+                <span>Camera preview</span>
               </div>
             </div>
           </div>
@@ -210,7 +210,7 @@
         <div class="settings-section">
           <h4 class="section-title">
             <Icon name="mic" />
-            Input Mode
+            Input mode
           </h4>
           <VoiceInputModeSettings />
         </div>
@@ -225,31 +225,31 @@
 
           <div class="keybind-list">
             <div class="keybind-item">
-              <span>Toggle Mute</span>
+              <span>Toggle mute</span>
               <div class="keybind-combo">
                 <kbd>M</kbd>
               </div>
             </div>
             <div class="keybind-item">
-              <span>Toggle Deafen</span>
+              <span>Toggle deafen</span>
               <div class="keybind-combo">
                 <kbd>D</kbd>
               </div>
             </div>
             <div class="keybind-item">
-              <span>Toggle Camera</span>
+              <span>Toggle camera</span>
               <div class="keybind-combo">
                 <kbd>V</kbd>
               </div>
             </div>
             <div class="keybind-item">
-              <span>Toggle Screen Share</span>
+              <span>Toggle screen share</span>
               <div class="keybind-combo">
                 <kbd>S</kbd>
               </div>
             </div>
             <div class="keybind-item">
-              <span>Voice Settings</span>
+              <span>Voice settings</span>
               <div class="keybind-combo">
                 <kbd>,</kbd>
               </div>
@@ -266,14 +266,14 @@
 
       <div class="settings-footer">
         <button @click="resetSettings" class="reset-btn">
-          Reset to Default
+          Reset to default
         </button>
         <div class="footer-actions">
           <button @click="$emit('close')" class="cancel-btn">
             Cancel
           </button>
           <button @click="saveSettings" class="save-btn">
-            Save Changes
+            Save changes
           </button>
         </div>
       </div>
@@ -714,7 +714,7 @@ let testGeneration = 0;
 
 .settings-panel {
   background: var(--background-quinary);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   border: 1px solid var(--border-primary);
   box-shadow: var(--shadow-modal);
   width: 90vw;
@@ -746,12 +746,12 @@ let testGeneration = 0;
   color: var(--text-secondary);
   cursor: pointer;
   padding: 8px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   transition: all 0.2s ease;
 }
 
 .close-btn:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--background-modifier-hover);
   color: var(--text-primary);
 }
 
@@ -804,7 +804,7 @@ let testGeneration = 0;
   width: 100%;
   background: var(--background-tertiary);
   border: 1px solid var(--border-primary);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 12px 16px;
   color: var(--text-secondary);
   font-size: 14px;
@@ -824,7 +824,7 @@ let testGeneration = 0;
 .setting-slider {
   width: 100%;
   height: 6px;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--background-modifier-active);
   border-radius: 3px;
   outline: none;
   -webkit-appearance: none;
@@ -840,7 +840,6 @@ let testGeneration = 0;
   background: var(--harmony-primary);
   border-radius: 50%;
   cursor: pointer;
-  box-shadow: 0 2px 6px color-mix(in srgb, var(--harmony-primary) 30%, transparent);
 }
 
 .volume-indicator {
@@ -864,12 +863,12 @@ let testGeneration = 0;
   gap: 12px;
   cursor: pointer;
   padding: 12px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   transition: background 0.2s ease;
 }
 
 .checkbox-label:hover {
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--background-modifier-hover);
 }
 
 .setting-checkbox {
@@ -882,7 +881,7 @@ let testGeneration = 0;
   width: 20px;
   height: 20px;
   border: 2px solid var(--text-muted);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: transparent;
   position: relative;
   transition: all 0.2s ease;
@@ -901,7 +900,7 @@ let testGeneration = 0;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  color: var(--text-primary);
+  color: var(--text-on-primary);
   font-size: 12px;
   font-weight: bold;
 }
@@ -931,9 +930,9 @@ let testGeneration = 0;
 .test-btn {
   background: var(--harmony-primary);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 8px 16px;
-  color: var(--text-primary);
+  color: var(--text-on-primary);
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -953,7 +952,7 @@ let testGeneration = 0;
 .test-indicator {
   flex: 1;
   height: 6px;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--background-modifier-active);
   border-radius: 3px;
   overflow: hidden;
 }
@@ -967,7 +966,7 @@ let testGeneration = 0;
 .video-preview {
   width: 100%;
   background: #000;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   overflow: hidden;
   position: relative;
   display: flex;
@@ -1008,8 +1007,8 @@ let testGeneration = 0;
   justify-content: space-between;
   align-items: center;
   padding: 12px;
-  background: rgba(255, 255, 255, 0.02);
-  border-radius: 8px;
+  background: var(--background-secondary);
+  border-radius: var(--radius-md);
   color: var(--text-secondary);
 }
 
@@ -1021,7 +1020,7 @@ let testGeneration = 0;
 kbd {
   background: var(--background-tertiary);
   border: 1px solid var(--border-hover);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   padding: 4px 8px;
   font-size: 12px;
   font-family: monospace;
@@ -1040,7 +1039,7 @@ kbd {
 .reset-btn {
   background: none;
   border: 1px solid var(--border-hover);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 8px 16px;
   color: var(--text-secondary);
   cursor: pointer;
@@ -1060,7 +1059,7 @@ kbd {
 .cancel-btn {
   background: none;
   border: 1px solid var(--border-hover);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 8px 16px;
   color: var(--text-secondary);
   cursor: pointer;
@@ -1074,9 +1073,9 @@ kbd {
 .save-btn {
   background: var(--harmony-primary);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 8px 20px;
-  color: var(--text-primary);
+  color: var(--text-on-primary);
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -1279,8 +1278,8 @@ kbd {
   .checkbox-label {
     padding: 16px;
     min-height: 64px;
-    border-radius: 10px;
-    background: rgba(255, 255, 255, 0.02);
+    border-radius: var(--radius-md);
+    background: var(--background-secondary);
   }
   
   .checkbox-custom {

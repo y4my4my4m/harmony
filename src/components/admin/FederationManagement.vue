@@ -2,11 +2,11 @@
 <div class="admin-module federation-module">
   <div class="module-header">
     <Icon name="federation" :size="20" />
-    <h2>Federation Management</h2>
+    <h2>Federation management</h2>
     <div class="module-actions">
       <button @click="handleAddInstance" class="primary-btn">
         <Icon name="plus" :size="16" />
-        Add Instance
+        Add instance
       </button>
       <button @click="refreshFederationData" class="action-btn" :disabled="loadingStates.federationStats">
         <Icon name="refresh-cw" :size="16" />
@@ -19,7 +19,7 @@
   <div class="federation-stats">
     <div class="stat-card">
       <div class="stat-value">{{ formatNumber(instanceStats?.total_instances) }}</div>
-      <div class="stat-label">Total Instances</div>
+      <div class="stat-label">Total instances</div>
     </div>
     <div class="stat-card">
       <div class="stat-value">{{ formatNumber(instanceStats?.active_instances) }}</div>
@@ -38,7 +38,7 @@
   <!-- Endpoint Health Stats -->
   <div class="federation-section" v-if="federationStats">
     <div class="section-header">
-      <h3>Endpoint Health</h3>
+      <h3>Endpoint health</h3>
       <div class="health-indicator" :class="getEndpointHealthClass(federationStats.endpoint_health)">
         {{ federationStats.endpoint_health.success_rate }}% success rate
       </div>
@@ -46,13 +46,13 @@
     <div class="federation-stats">
       <div class="stat-card">
         <div class="stat-value">{{ formatNumber(federationStats.endpoint_health.total_endpoints) }}</div>
-        <div class="stat-label">Total Endpoints</div>
+        <div class="stat-label">Total endpoints</div>
       </div>
       <div class="stat-card">
         <div class="stat-value" :class="{ 'error-text': federationStats.endpoint_health.dead_endpoints > 0 }">
           {{ formatNumber(federationStats.endpoint_health.dead_endpoints) }}
         </div>
-        <div class="stat-label">Dead Endpoints</div>
+        <div class="stat-label">Dead endpoints</div>
       </div>
       <div class="stat-card">
         <div class="stat-value">{{ formatNumber(federationStats.endpoint_health.healthy_endpoints) }}</div>
@@ -60,7 +60,7 @@
       </div>
       <div class="stat-card">
         <div class="stat-value">{{ formatNumber(federationStats.endpoint_health.endpoints_with_failures) }}</div>
-        <div class="stat-label">With Failures</div>
+        <div class="stat-label">With failures</div>
       </div>
     </div>
     <div class="endpoint-details" v-if="federationStats.endpoint_health.dead_endpoints > 0">
@@ -74,7 +74,7 @@
         >
           <Icon v-if="!loadingStates.purgingDead" name="trash" :size="14" />
           <span v-if="loadingStates.purgingDead" class="spinner-small"></span>
-          Purge All
+          Purge all
         </button>
       </div>
       <div class="dead-endpoints-list" v-if="deadEndpointsList.length > 0">
@@ -112,7 +112,7 @@
   <!-- Federation Maintenance -->
   <div class="federation-section">
     <div class="section-header-row">
-      <h3>Federation Maintenance</h3>
+      <h3>Federation maintenance</h3>
       <button @click="refreshKeyConsistency" class="action-btn" :disabled="loadingStates.keyConsistency">
         <Icon name="refresh-cw" :size="16" />
       </button>
@@ -134,7 +134,7 @@
     <div class="maintenance-actions">
       <div class="maintenance-card">
         <div class="maintenance-info">
-          <h4>Key Generation Sweep</h4>
+          <h4>Key generation sweep</h4>
           <p>Generate missing RSA keys for local users who don't have them</p>
         </div>
         <button 
@@ -144,13 +144,13 @@
         >
           <Icon v-if="loadingStates.keySweep" name="loader" :size="16" class="spin" />
           <Icon v-else name="key" :size="16" />
-          Run Sweep
+          Run sweep
         </button>
       </div>
       
       <div class="maintenance-card">
         <div class="maintenance-info">
-          <h4>Orphan Cleanup</h4>
+          <h4>Orphan cleanup</h4>
           <p>Fix users with inconsistent key states (public without private or vice versa)</p>
         </div>
         <button 
@@ -160,7 +160,7 @@
         >
           <Icon v-if="loadingStates.orphanCleanup" name="loader" :size="16" class="spin" />
           <Icon v-else name="trash-2" :size="16" />
-          Run Cleanup
+          Run cleanup
         </button>
       </div>
     </div>
@@ -168,17 +168,17 @@
     <!-- Scheduled Jobs Info -->
     <div class="scheduled-info">
       <Icon name="clock" :size="14" />
-      <span>Maintenance jobs run automatically: Key sweep at 03:00 UTC, Orphan cleanup at 04:00 UTC</span>
+      <span>Maintenance jobs run automatically: key sweep at 03:00 UTC, orphan cleanup at 04:00 UTC</span>
     </div>
   </div>
 
   <!-- Instance Management -->
   <div class="federation-section">
     <div class="section-controls">
-      <h3>Instance Directory</h3>
+      <h3>Instance directory</h3>
       <div class="filter-controls">
         <select v-model="instanceFilter" @change="loadFederatedInstances" class="cyber-select">
-          <option value="all">All Instances</option>
+          <option value="all">All instances</option>
           <option value="active">Active</option>
           <option value="trusted">Trusted</option>
           <option value="blocked">Blocked</option>
@@ -186,7 +186,7 @@
         <input
           v-model="instanceSearch"
           @input="debouncedSearchInstances"
-          placeholder="Search instances..."
+          placeholder="Search instances…"
           class="cyber-input"
         />
       </div>
@@ -195,7 +195,7 @@
     <!-- Loading State -->
     <div v-if="loadingStates.instances" class="loading-state">
       <LoadingSpinner :size="20" />
-      <span>Loading instances...</span>
+      <span>Loading instances…</span>
     </div>
 
     <!-- Instance List -->
@@ -315,14 +315,14 @@
 
   <!-- Discovery Section -->
   <div class="federation-section">
-    <h3>Instance Discovery</h3>
+    <h3>Instance discovery</h3>
     <div class="discovery-tabs">
       <button 
         @click="discoveryTab = 'discovered'" 
         :class="{ active: discoveryTab === 'discovered' }"
         class="tab-btn"
       >
-        From Interactions
+        From interactions
       </button>
       <button 
         @click="discoveryTab = 'search'" 
@@ -339,7 +339,7 @@
         <Icon name="search" :size="32" />
         <p>No instances discovered from user interactions yet.</p>
         <button @click="loadDiscoveredInstances" class="primary-btn">
-          Scan for Interactions
+          Scan for interactions
         </button>
       </div>
       <div v-else class="discovered-list">
@@ -379,7 +379,7 @@
         >
           <Icon v-if="loadingStates.discovering" name="loader" :size="16" class="spinning" />
           <Icon v-else name="search" :size="16" />
-          {{ loadingStates.discovering ? 'Discovering...' : 'Discover' }}
+          {{ loadingStates.discovering ? 'Discovering…' : 'Discover' }}
         </button>
       </div>
 
@@ -388,8 +388,8 @@
         <div class="result-header">
           <h4>{{ discoveryResult.domain }}</h4>
           <div class="result-badges">
-            <span v-if="discoveryResult.federation_enabled" class="badge success">Federation Enabled</span>
-            <span v-if="discoveryResult.api_available" class="badge info">API Available</span>
+            <span v-if="discoveryResult.federation_enabled" class="badge success">Federation enabled</span>
+            <span v-if="discoveryResult.api_available" class="badge info">API available</span>
           </div>
         </div>
         <div class="result-details">
@@ -416,7 +416,7 @@
           </label>
           <button @click="addInstanceFromDiscovery" class="primary-btn">
             <Icon name="plus" :size="16" />
-            Add Instance
+            Add instance
           </button>
         </div>
       </div>
@@ -771,7 +771,7 @@ const addInstanceFromDiscovery = async () => {
     discoveryResult.value = null
     addAsTrusted.value = false
     
-    toast.success('Instance added successfully!')
+    toast.success('Instance added')
   } catch (error) {
     debug.error('Failed to add instance:', error)
     toast.error('Failed to add instance')
@@ -863,7 +863,7 @@ onMounted(() => {
 
 .health-indicator {
   padding: 4px 12px;
-  border-radius: 12px;
+  border-radius: var(--radius-full);
   font-size: 12px;
   font-weight: 600;
 }
@@ -871,22 +871,22 @@ onMounted(() => {
 
 
 .health-indicator.healthy {
-  background: rgba(0, 255, 136, 0.2);
-  color: #00ff88;
+  background: color-mix(in srgb, var(--success) 20%, transparent);
+  color: var(--success);
 }
 
 
 
 .health-indicator.warning {
-  background: rgba(255, 193, 7, 0.2);
-  color: #ffc107;
+  background: color-mix(in srgb, var(--warning) 20%, transparent);
+  color: var(--warning);
 }
 
 
 
 .health-indicator.error {
-  background: rgba(255, 69, 58, 0.2);
-  color: #ff453a;
+  background: color-mix(in srgb, var(--error) 20%, transparent);
+  color: var(--error);
 }
 
 
@@ -902,10 +902,10 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
   padding: 12px 16px;
-  background: rgba(255, 193, 7, 0.1);
-  border: 1px solid rgba(255, 193, 7, 0.3);
-  border-radius: 8px;
-  color: #ffc107;
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warning) 30%, transparent);
+  border-radius: var(--radius-md);
+  color: var(--warning);
   font-size: 14px;
   flex-wrap: wrap;
 }
@@ -918,13 +918,13 @@ onMounted(() => {
   align-items: center;
   gap: 6px;
   padding: 5px 12px;
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   font-size: 0.8125rem;
   font-weight: 600;
   cursor: pointer;
-  border: 1px solid rgba(255, 69, 58, 0.4);
-  background: rgba(255, 69, 58, 0.15);
-  color: #ff453a;
+  border: 1px solid color-mix(in srgb, var(--error) 40%, transparent);
+  background: color-mix(in srgb, var(--error) 15%, transparent);
+  color: var(--error);
   transition: all 0.2s ease;
   white-space: nowrap;
 }
@@ -932,8 +932,8 @@ onMounted(() => {
 
 
 .purge-btn:hover:not(:disabled) {
-  background: rgba(255, 69, 58, 0.3);
-  border-color: rgba(255, 69, 58, 0.6);
+  background: color-mix(in srgb, var(--error) 30%, transparent);
+  border-color: color-mix(in srgb, var(--error) 60%, transparent);
 }
 
 
@@ -950,7 +950,7 @@ onMounted(() => {
   max-height: 280px;
   overflow-y: auto;
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--background-secondary);
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
@@ -1011,28 +1011,28 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
   padding: 12px 16px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   font-size: 14px;
   width: 100%;
 }
 
 .maintenance-status .status-indicator.ok {
-  background: rgba(0, 255, 136, 0.1);
-  border: 1px solid rgba(0, 255, 136, 0.3);
-  color: #00ff88;
+  background: color-mix(in srgb, var(--success) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--success) 30%, transparent);
+  color: var(--success);
 }
 
 .maintenance-status .status-indicator.needs_attention {
-  background: rgba(255, 193, 7, 0.1);
-  border: 1px solid rgba(255, 193, 7, 0.3);
-  color: #ffc107;
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warning) 30%, transparent);
+  color: var(--warning);
 }
 
 .meta-tag {
   font-size: 0.7rem;
   padding: 1px 6px;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-sm);
+  background: var(--background-modifier-hover);
   color: var(--text-secondary);
   white-space: nowrap;
 }
@@ -1040,15 +1040,15 @@ onMounted(() => {
 
 
 .meta-tag.domain {
-  color: var(--harmony-primary, #7c8aff);
-  background: rgba(124, 138, 255, 0.12);
+  color: var(--harmony-primary);
+  background: color-mix(in srgb, var(--harmony-primary) 12%, transparent);
 }
 
 
 
 .meta-tag.failures {
-  color: #ff453a;
-  background: rgba(255, 69, 58, 0.12);
+  color: var(--error);
+  background: color-mix(in srgb, var(--error) 12%, transparent);
 }
 
 
@@ -1060,7 +1060,7 @@ onMounted(() => {
   justify-content: center;
   width: 30px;
   height: 30px;
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   border: 1px solid transparent;
   background: transparent;
   color: var(--text-muted);
@@ -1072,9 +1072,9 @@ onMounted(() => {
 
 
 .purge-single-btn:hover:not(:disabled) {
-  background: rgba(255, 69, 58, 0.15);
-  border-color: rgba(255, 69, 58, 0.3);
-  color: #ff453a;
+  background: color-mix(in srgb, var(--error) 15%, transparent);
+  border-color: color-mix(in srgb, var(--error) 30%, transparent);
+  color: var(--error);
 }
 
 
@@ -1122,9 +1122,9 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 16px;
-  background: var(--surface-primary);
+  background: var(--background-tertiary);
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
 }
 
 
@@ -1158,8 +1158,8 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  background: rgba(255, 255, 255, 0.03);
-  border-radius: 6px;
+  background: var(--background-modifier-hover);
+  border-radius: var(--radius-base);
   font-size: 12px;
   color: var(--text-muted);
 }
@@ -1203,28 +1203,28 @@ onMounted(() => {
 
 .instance-item {
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   transition: all 0.2s ease;
 }
 
 
 
 .instance-item:hover {
-  border-color: var(--accent-color);
+  border-color: var(--harmony-primary);
 }
 
 
 
 .instance-item.blocked {
-  border-color: rgba(255, 69, 58, 0.5);
-  background: rgba(255, 69, 58, 0.05);
+  border-color: color-mix(in srgb, var(--error) 50%, transparent);
+  background: color-mix(in srgb, var(--error) 5%, transparent);
 }
 
 
 
 .instance-item.trusted {
-  border-color: rgba(0, 255, 136, 0.5);
-  background: rgba(0, 255, 136, 0.05);
+  border-color: color-mix(in srgb, var(--success) 50%, transparent);
+  background: color-mix(in srgb, var(--success) 5%, transparent);
 }
 
 
@@ -1304,7 +1304,7 @@ onMounted(() => {
   gap: 2px;
   margin-bottom: 20px;
   background: var(--background-tertiary);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 4px;
 }
 
@@ -1315,7 +1315,7 @@ onMounted(() => {
   padding: 8px 16px;
   background: transparent;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   color: var(--text-secondary);
   font-weight: 500;
   cursor: pointer;
@@ -1325,8 +1325,8 @@ onMounted(() => {
 
 
 .tab-btn.active {
-  background: var(--accent-color);
-  color: var(--text-primary);
+  background: var(--harmony-primary);
+  color: var(--text-on-primary);
 }
 
 
@@ -1352,7 +1352,7 @@ onMounted(() => {
   padding: 12px 16px;
   background: var(--background-tertiary);
   border: 1px solid var(--border-color);
-  border-radius: 6px;
+  border-radius: var(--radius-base);
 }
 
 
@@ -1388,7 +1388,7 @@ onMounted(() => {
 
 .discovery-result {
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   overflow: hidden;
 }
 

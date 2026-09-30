@@ -20,7 +20,7 @@
           <Icon name="audio-lines" />
         </div>
         <div class="panel-title">
-          <h3>Spatial Audio</h3>
+          <h3>Spatial audio</h3>
           <p>{{ allParticipants.length }} participant{{ allParticipants.length !== 1 ? 's' : '' }}</p>
         </div>
       </div>
@@ -30,17 +30,17 @@
         <button
           @click="spatialStore.toggleSpatialAudio()"
           :class="['control-btn', 'toggle-btn', { active: spatialStore.settings.enabled }]"
-          :title="spatialStore.settings.enabled ? 'Disable Spatial Audio' : 'Enable Spatial Audio'"
+          :title="spatialStore.settings.enabled ? 'Disable spatial audio' : 'Enable spatial audio'"
         >
           <Icon :name="spatialStore.settings.enabled ? 'volume-spatial' : 'volume-off'" />
-          <span>{{ spatialStore.settings.enabled ? 'ON' : 'OFF' }}</span>
+          <span>{{ spatialStore.settings.enabled ? 'On' : 'Off' }}</span>
         </button>
         
         <!-- Settings -->
         <button
           @click="toggleSettings"
           :class="['control-btn', 'settings-btn', { active: showSettings }]"
-          title="Spatial Audio Settings"
+          title="Spatial audio settings"
         >
           <Icon name="settings" />
         </button>
@@ -49,7 +49,7 @@
         <button
           @click="spatialStore.hidePanel()"
           class="control-btn close-btn"
-          title="Close Panel"
+          title="Close"
         >
           <Icon name="x" />
         </button>
@@ -60,7 +60,7 @@
     <div v-if="showSettings" class="settings-panel">
       <div class="settings-grid">
         <div class="setting-group">
-          <label>Max Distance</label>
+          <label>Max distance</label>
           <input
             v-model.number="localSettings.maxDistance"
             type="range"
@@ -74,7 +74,7 @@
         </div>
         
         <div class="setting-group">
-          <label>Rolloff Factor</label>
+          <label>Rolloff factor</label>
           <input
             v-model.number="localSettings.rolloffFactor"
             type="range"
@@ -88,7 +88,7 @@
         </div>
         
         <div class="setting-group">
-          <label>Distance Model</label>
+          <label>Distance model</label>
           <select v-model="localSettings.distanceModel" @change="updateSettings" class="select-input">
             <option value="linear">Linear</option>
             <option value="inverse">Inverse</option>
@@ -97,9 +97,9 @@
         </div>
         
         <div class="setting-group">
-          <label>Panning Model</label>
+          <label>Panning model</label>
           <select v-model="localSettings.panningModel" @change="updateSettings" class="select-input">
-            <option value="equalpower">Equal Power</option>
+            <option value="equalpower">Equal power</option>
             <option value="HRTF">HRTF</option>
           </select>
         </div>
@@ -113,12 +113,12 @@
               class="checkbox-input"
             />
             <span class="checkbox-custom"></span>
-            Enable Reverb
+            Enable reverb
           </label>
         </div>
         
         <div v-if="localSettings.enableReverb" class="setting-group">
-          <label>Room Size</label>
+          <label>Room size</label>
           <input
             v-model.number="localSettings.roomSize"
             type="range"
@@ -232,19 +232,19 @@
       <div class="footer-info">
         <span v-if="showUpdatedMessage" class="status-updated">
           <Icon name="check-circle" />
-          Updated!
+          Updated
         </span>
         <span v-else-if="isUpdatingSpatialAudio" class="status-updating">
           <Icon name="refresh" />
-          Updating Audio...
+          Updating audio…
         </span>
         <span v-else-if="spatialStore.settings.enabled" class="status-enabled">
           <Icon name="check-circle" />
-          Spatial Audio Active
+          Spatial audio active
         </span>
         <span v-else class="status-disabled">
           <Icon name="circle" />
-          Spatial Audio Disabled
+          Spatial audio disabled
         </span>
       </div>
       
@@ -252,7 +252,7 @@
         <button
           @click="resetAllPositions"
           class="action-btn reset-btn"
-          title="Reset All Positions"
+          title="Reset all positions"
         >
           <Icon name="refresh" />
           Reset
@@ -261,7 +261,7 @@
         <button
           @click="randomizePositions"
           class="action-btn randomize-btn"
-          title="Randomize Positions"
+          title="Randomize positions"
         >
           <Icon name="shuffle" />
           Randomize
@@ -784,14 +784,10 @@ onUnmounted(() => {
 <style scoped>
 .spatial-audio-panel {
   position: fixed;
-  background: linear-gradient(145deg, #1e1f22, #2b2d31);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 16px;
-  box-shadow: 
-    0 20px 60px rgba(0, 0, 0, 0.6),
-    0 8px 32px rgba(0, 0, 0, 0.4),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(20px);
+  background: var(--background-floating);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-large);
   width: 600px;
   height: 500px;
   z-index: 10500;
@@ -826,8 +822,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 16px 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  background: linear-gradient(145deg, #2b2d31, #1e1f22);
+  border-bottom: 1px solid var(--border-primary);
 }
 
 .header-left {
@@ -839,12 +834,12 @@ onUnmounted(() => {
 .panel-icon {
   width: 40px;
   height: 40px;
-  background: linear-gradient(145deg, var(--harmony-primary), var(--harmony-primary-hover));
+  background: var(--harmony-primary);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--text-primary);
+  color: var(--text-on-primary);
   font-size: 18px;
 }
 
@@ -857,7 +852,7 @@ onUnmounted(() => {
 
 .panel-title p {
   margin: 0;
-  color: #b5bac1;
+  color: var(--text-secondary);
   font-size: 12px;
 }
 
@@ -872,10 +867,10 @@ onUnmounted(() => {
   align-items: center;
   gap: 6px;
   padding: 8px 12px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  color: #b5bac1;
+  background: var(--background-modifier-hover);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s ease;
   font-size: 12px;
@@ -883,33 +878,33 @@ onUnmounted(() => {
 }
 
 .control-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--background-modifier-active);
   color: var(--text-primary);
-  border-color: rgba(255, 255, 255, 0.2);
+  border-color: var(--border-hover);
 }
 
 .control-btn.active {
-  background: linear-gradient(145deg, var(--harmony-primary), var(--harmony-primary-hover));
-  color: var(--text-primary);
-  border-color: color-mix(in srgb, var(--harmony-primary) 60%, transparent);
+  background: var(--harmony-primary);
+  color: var(--text-on-primary);
+  border-color: var(--harmony-primary);
 }
 
 .toggle-btn.active {
-  background: linear-gradient(145deg, #00d4aa, #00b894);
-  border-color: rgba(0, 212, 170, 0.6);
+  background: var(--success);
+  border-color: var(--success);
 }
 
 .close-btn:hover {
-  background: #ed4245;
-  color: var(--text-primary);
-  border-color: #ed4245;
+  background: var(--error);
+  color: var(--text-on-primary);
+  border-color: var(--error);
 }
 
 /* Settings Panel */
 .settings-panel {
   padding: 16px 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(0, 0, 0, 0.2);
+  border-bottom: 1px solid var(--border-primary);
+  background: var(--background-tertiary);
 }
 
 .settings-grid {
@@ -925,18 +920,16 @@ onUnmounted(() => {
 }
 
 .setting-group label {
-  color: #b5bac1;
+  color: var(--text-secondary);
   font-size: 12px;
   font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
 }
 
 .range-input {
   appearance: none;
   width: 100%;
   height: 4px;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--background-modifier-active);
   border-radius: 2px;
   outline: none;
 }
@@ -951,9 +944,9 @@ onUnmounted(() => {
 }
 
 .select-input {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 6px;
+  background: var(--background-modifier-hover);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-base);
   color: var(--text-primary);
   padding: 6px 8px;
   font-size: 12px;
@@ -975,7 +968,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 8px;
   cursor: pointer;
-  color: #b5bac1;
+  color: var(--text-secondary);
   font-size: 12px;
 }
 
@@ -989,9 +982,9 @@ onUnmounted(() => {
 .checkbox-custom {
   width: 16px;
   height: 16px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 3px;
+  background: var(--background-modifier-hover);
+  border: 1px solid var(--border-hover);
+  border-radius: var(--radius-sm);
   position: relative;
 }
 
@@ -1003,7 +996,7 @@ onUnmounted(() => {
 .checkbox-input:checked + .checkbox-custom::after {
   content: '✓';
   position: absolute;
-  color: var(--text-primary);
+  color: var(--text-on-primary);
   font-size: 10px;
   top: 50%;
   left: 50%;
@@ -1045,15 +1038,13 @@ onUnmounted(() => {
 .center-dot {
   width: 8px;
   height: 8px;
-  background: rgba(255, 255, 255, 0.4);
+  background: var(--text-muted);
   border-radius: 50%;
 }
 
 .center-label {
-  color: rgba(255, 255, 255, 0.3);
+  color: var(--text-muted);
   font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 1px;
 }
 
 /* User Avatars */
@@ -1067,8 +1058,6 @@ onUnmounted(() => {
 }
 
 .spatial-avatar:not(.is-dragging):hover {
-  transition: all 0.2s ease; /* Re-enable transition for hover when not dragging */
-  transform: scale(1.1);
   z-index: 10 !important;
 }
 
@@ -1095,18 +1084,16 @@ onUnmounted(() => {
   height: 100%;
   border-radius: 50%;
   object-fit: cover;
-  border: 2px solid rgba(255, 255, 255, 0.2);
+  border: 2px solid var(--border-hover);
   transition: all 0.2s ease;
 }
 
 .spatial-avatar.is-self .avatar-image {
   border-color: var(--harmony-primary);
-  box-shadow: 0 0 20px color-mix(in srgb, var(--harmony-primary) 40%, transparent);
 }
 
 .spatial-avatar.is-speaking .avatar-image {
-  border-color: #00d4aa;
-  box-shadow: 0 0 20px rgba(0, 212, 170, 0.6);
+  border-color: var(--success);
 }
 
 .speaking-ring {
@@ -1115,9 +1102,8 @@ onUnmounted(() => {
   left: -4px;
   right: -4px;
   bottom: -4px;
-  border: 2px solid #00d4aa;
+  border: 2px solid var(--success);
   border-radius: 50%;
-  animation: pulse-ring 2s infinite;
 }
 
 .username-label {
@@ -1125,24 +1111,23 @@ onUnmounted(() => {
   top: 55px;
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(0, 0, 0, 0.8);
+  background: var(--background-floating);
   color: var(--text-primary);
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 10px;
   white-space: nowrap;
   pointer-events: none;
-  backdrop-filter: blur(10px);
 }
 
 .distance-indicator {
   position: absolute;
   top: -8px;
   right: -8px;
-  background: color-mix(in srgb, var(--harmony-primary) 90%, transparent);
-  color: var(--text-primary);
+  background: var(--harmony-primary);
+  color: var(--text-on-primary);
   padding: 2px 4px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   font-size: 8px;
   font-weight: 600;
   min-width: 20px;
@@ -1166,7 +1151,7 @@ onUnmounted(() => {
 }
 
 .distance-text {
-  fill: rgba(255, 255, 255, 0.7);
+  fill: var(--text-secondary);
   font-size: 10px;
   font-weight: 600;
 }
@@ -1177,8 +1162,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 12px 20px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  background: linear-gradient(145deg, #1e1f22, #2b2d31);
+  border-top: 1px solid var(--border-primary);
 }
 
 .footer-info {
@@ -1189,30 +1173,34 @@ onUnmounted(() => {
 }
 
 .status-enabled {
-  color: #00d4aa;
+  color: var(--success);
   display: flex;
   align-items: center;
   gap: 4px;
 }
 
 .status-updating {
-  color: #ffa500;
+  color: var(--warning);
   display: flex;
   align-items: center;
   gap: 4px;
-  animation: pulse-updating 1.5s infinite;
 }
 
 .status-updated {
-  color: #00d4aa;
+  color: var(--success);
   display: flex;
   align-items: center;
   gap: 4px;
-  animation: fade-in-out 1.5s ease-in-out;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .status-updated {
+    animation: fade-in-out 1.5s ease-in-out;
+  }
 }
 
 .status-disabled {
-  color: #b5bac1;
+  color: var(--text-secondary);
   display: flex;
   align-items: center;
   gap: 4px;
@@ -1228,32 +1216,19 @@ onUnmounted(() => {
   align-items: center;
   gap: 4px;
   padding: 6px 10px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 6px;
-  color: #b5bac1;
+  background: var(--background-modifier-hover);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-base);
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s ease;
   font-size: 11px;
 }
 
 .action-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--background-modifier-active);
   color: var(--text-primary);
-  border-color: rgba(255, 255, 255, 0.2);
-}
-
-/* Animations */
-@keyframes pulse-ring {
-  0% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.1); opacity: 0.7; }
-  100% { transform: scale(1.2); opacity: 0; }
-}
-
-@keyframes pulse-updating {
-  0% { opacity: 1; }
-  50% { opacity: 0.6; }
-  100% { opacity: 1; }
+  border-color: var(--border-hover);
 }
 
 @keyframes fade-in-out {

@@ -60,7 +60,7 @@
                 active: spatialStore.isPanelVisible,
                 'spatial-enabled': spatialStore.settings.enabled
               }"
-              :title="spatialStore.settings.enabled ? 'Spatial Audio: ON' : 'Spatial Audio: OFF'"
+              :title="spatialStore.settings.enabled ? 'Spatial audio on' : 'Spatial audio off'"
             >
               <Icon name="audio-lines" />
             </button>
@@ -68,7 +68,7 @@
               @click="toggleSettings"
               class="layout-btn"
               :class="{ active: showSettings }"
-              title="Voice Settings"
+              title="Voice settings"
             >
               <Icon name="settings" />
             </button>
@@ -710,7 +710,7 @@ onUnmounted(() => {
   right: 0;
   bottom: 0;
   z-index: 1000;
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(8px);
   transition: all 0.3s ease;
   opacity: 1;
 }
@@ -723,14 +723,10 @@ onUnmounted(() => {
 
 .voice-container {
   position: relative;
-  background: linear-gradient(145deg, color-mix(in srgb, var(--background-tertiary) 60%, #000), color-mix(in srgb, var(--background-secondary) 55%, #000));
-  backdrop-filter: blur(20px);
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow:
-    0 20px 60px rgba(0, 0, 0, 0.6),
-    0 8px 32px rgba(0, 0, 0, 0.4),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  background: var(--background-secondary);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border-primary);
+  box-shadow: var(--shadow-large);
   width: 100%;
   height: 100%;
   max-width: 1600px;
@@ -794,7 +790,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 12px 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid var(--border-primary);
   flex-shrink: 0;
 }
 
@@ -803,17 +799,15 @@ onUnmounted(() => {
   align-items: center;
   gap: 4px;
   padding: 6px 10px;
-  border-radius: 6px;
-  font-size: 12px;
+  border-radius: var(--radius-base);
+  font-size: var(--font-size-xs);
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
 }
 
 .connection-mode-indicator.livekit {
-  background: rgba(87, 242, 135, 0.15);
-  color: #57f287;
-  border: 1px solid rgba(87, 242, 135, 0.3);
+  background: color-mix(in srgb, var(--success) 15%, transparent);
+  color: var(--success);
+  border: 1px solid color-mix(in srgb, var(--success) 30%, transparent);
 }
 
 .connection-mode-indicator.p2p {
@@ -823,9 +817,9 @@ onUnmounted(() => {
 }
 
 .connection-mode-indicator.unknown {
-  background: rgba(255, 255, 255, 0.1);
-  color: #b9bbbe;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--background-modifier-active);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-primary);
 }
 .connection-mode-indicator :deep(span) {
   display: flex;
@@ -846,18 +840,18 @@ onUnmounted(() => {
 .channel-icon {
   width: 36px;
   height: 36px;
-  background: linear-gradient(145deg, var(--harmony-primary), var(--harmony-primary-hover));
+  background: var(--harmony-primary);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--text-primary);
+  color: var(--text-on-primary);
   font-size: 16px;
   flex-shrink: 0;
 }
 
 .channel-name {
-  font-size: 17px;
+  font-size: var(--font-size-lg);
   font-weight: 700;
   color: var(--text-primary);
   margin: 0 0 2px 0;
@@ -873,7 +867,7 @@ onUnmounted(() => {
 }
 
 .speaking-count {
-  color: #00d4aa;
+  color: var(--success);
   font-weight: 600;
 }
 
@@ -889,8 +883,8 @@ onUnmounted(() => {
   width: 36px;
   height: 36px;
   background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 8px;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
   color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s ease;
@@ -902,32 +896,35 @@ onUnmounted(() => {
 
 .layout-btn:hover,
 .minimize-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--background-modifier-hover);
   color: var(--text-primary);
-  border-color: rgba(255, 255, 255, 0.3);
+  border-color: var(--border-hover);
 }
 
 .layout-btn.active {
-  background: linear-gradient(145deg, var(--harmony-primary), var(--harmony-primary-hover));
-  color: var(--text-primary);
-  border-color: color-mix(in srgb, var(--harmony-primary) 60%, transparent);
+  background: var(--harmony-primary);
+  color: var(--text-on-primary);
+  border-color: var(--harmony-primary);
+}
+
+.layout-btn.active:hover {
+  background: var(--harmony-primary-hover);
 }
 
 .spatial-btn.spatial-enabled {
-  background: linear-gradient(145deg, #00d4aa, #00b894);
-  color: var(--text-primary);
-  border-color: rgba(0, 212, 170, 0.6);
-  box-shadow: 0 0 12px rgba(0, 212, 170, 0.4);
+  background: var(--success);
+  color: var(--text-on-primary);
+  border-color: var(--success);
 }
 
 .spatial-btn.spatial-enabled:hover {
-  background: linear-gradient(145deg, #00e5b8, #00c9a0);
+  background: var(--success-hover);
 }
 
 .close-btn:hover {
-  background: #ed4245;
-  color: var(--text-primary);
-  border-color: #ed4245;
+  background: var(--error);
+  color: var(--text-on-primary);
+  border-color: var(--error);
 }
 
 /* Stage */
@@ -989,7 +986,7 @@ onUnmounted(() => {
   height: 18px;
   background: rgba(0, 0, 0, 0.5);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 4px 4px 0 0;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
   color: rgba(255, 255, 255, 0.7);
   cursor: pointer;
   transition: all 0.2s ease;
@@ -1040,7 +1037,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 12px 20px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid var(--border-primary);
   flex-shrink: 0;
 }
 
@@ -1059,8 +1056,8 @@ onUnmounted(() => {
   width: 48px;
   height: 48px;
   border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.2);
-  background: rgba(0, 0, 0, 0.3);
+  border: 2px solid var(--border-primary);
+  background: var(--background-modifier-hover);
   color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s ease;
@@ -1068,36 +1065,31 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   font-size: 18px;
-  backdrop-filter: blur(10px);
 }
 
 .control-button:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--background-modifier-active);
   color: var(--text-primary);
-  border-color: rgba(255, 255, 255, 0.4);
-  transform: scale(1.05);
+  border-color: var(--border-hover);
 }
 
 .control-button.active {
-  background: linear-gradient(145deg, #00d4aa, #00b894);
-  color: var(--text-primary);
-  border-color: rgba(0, 212, 170, 0.6);
-  box-shadow: 0 4px 16px rgba(0, 212, 170, 0.3);
+  background: var(--success);
+  color: var(--text-on-primary);
+  border-color: var(--success);
 }
 
 .control-button.muted {
-  background: linear-gradient(145deg, #ed4245, #c73e1d);
-  color: var(--text-primary);
-  border-color: rgba(237, 66, 69, 0.6);
-  box-shadow: 0 4px 16px rgba(237, 66, 69, 0.3);
+  background: var(--error);
+  color: var(--text-on-primary);
+  border-color: var(--error);
 }
 
 /* Active screenshare: red like Discord's stop-streaming affordance */
 .control-button.streaming {
-  background: linear-gradient(145deg, #ed4245, #c73e1d);
-  color: var(--text-primary);
-  border-color: rgba(237, 66, 69, 0.6);
-  box-shadow: 0 4px 16px rgba(237, 66, 69, 0.3);
+  background: var(--error);
+  color: var(--text-on-primary);
+  border-color: var(--error);
 }
 
 /* PTT Mode Styles */
@@ -1106,20 +1098,9 @@ onUnmounted(() => {
 }
 
 .control-button.ptt-active {
-  background: linear-gradient(145deg, #00d4aa, #00b894) !important;
-  color: var(--text-primary) !important;
-  border-color: rgba(0, 212, 170, 0.6) !important;
-  box-shadow: 0 4px 16px rgba(0, 212, 170, 0.4), 0 0 20px rgba(0, 212, 170, 0.3) !important;
-  animation: ptt-transmit 0.5s ease-in-out infinite;
-}
-
-@keyframes ptt-transmit {
-  0%, 100% {
-    box-shadow: 0 4px 16px rgba(0, 212, 170, 0.4), 0 0 20px rgba(0, 212, 170, 0.3);
-  }
-  50% {
-    box-shadow: 0 4px 20px rgba(0, 212, 170, 0.6), 0 0 30px rgba(0, 212, 170, 0.4);
-  }
+  background: var(--success) !important;
+  color: var(--text-on-primary) !important;
+  border-color: var(--success) !important;
 }
 
 .ptt-badge {
@@ -1129,30 +1110,29 @@ onUnmounted(() => {
   font-size: 9px;
   font-weight: 700;
   padding: 2px 5px;
-  background: rgba(0, 0, 0, 0.7);
-  color: #888;
-  border-radius: 4px;
+  background: var(--background-tertiary);
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
 .ptt-badge.active {
-  background: #00d4aa;
-  color: var(--text-primary);
+  background: var(--success);
+  color: var(--text-on-primary);
 }
 
 .control-button.deafened {
-  background: linear-gradient(145deg, #faa61a, #e67e22);
-  color: var(--text-primary);
-  border-color: rgba(250, 166, 26, 0.6);
-  box-shadow: 0 4px 16px rgba(250, 166, 26, 0.3);
+  background: var(--warning);
+  color: var(--text-inverse);
+  border-color: var(--warning);
 }
 
 .leave-button {
-  background: linear-gradient(145deg, #ed4245, #c73e1d);
-  color: var(--text-primary);
+  background: var(--error);
+  color: var(--text-on-primary);
   border: none;
-  border-radius: 25px;
+  border-radius: var(--radius-full);
   padding: 12px 24px;
   font-size: 14px;
   font-weight: 600;
@@ -1161,13 +1141,10 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-  box-shadow: 0 4px 16px rgba(237, 66, 69, 0.3);
 }
 
 .leave-button:hover {
-  background: linear-gradient(145deg, #c73e1d, #a0281a);
-  transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(237, 66, 69, 0.4);
+  background: var(--error-hover);
 }
 
 /* Animations */
@@ -1207,7 +1184,7 @@ onUnmounted(() => {
   .voice-container {
     max-width: 100%;
     max-height: 100%;
-    border-radius: 12px;
+    border-radius: var(--radius-lg);
   }
 
   .voice-header {
@@ -1338,7 +1315,7 @@ onUnmounted(() => {
     justify-content: center;
     padding: 14px 24px;
     font-size: 14px;
-    border-radius: 12px;
+    border-radius: var(--radius-lg);
   }
 
   .ptt-badge {
@@ -1398,22 +1375,24 @@ onUnmounted(() => {
    EASTER EGG: RAINBOW PARTY MODE
    ============================================ */
 
-.voice-container.rainbow-party {
-  animation: rainbow-border 3s linear infinite;
-  box-shadow:
-    0 20px 60px rgba(0, 0, 0, 0.6),
-    0 8px 32px rgba(0, 0, 0, 0.4),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1),
-    0 0 40px rgba(255, 0, 150, 0.5);
-}
+@media (prefers-reduced-motion: no-preference) {
+  .voice-container.rainbow-party {
+    animation: rainbow-border 3s linear infinite;
+    box-shadow:
+      0 20px 60px rgba(0, 0, 0, 0.6),
+      0 8px 32px rgba(0, 0, 0, 0.4),
+      inset 0 1px 0 rgba(255, 255, 255, 0.1),
+      0 0 40px rgba(255, 0, 150, 0.5);
+  }
 
-.voice-container.rainbow-party .grid-tile {
-  animation: rainbow-glow 2s ease-in-out infinite;
-}
+  .voice-container.rainbow-party .grid-tile {
+    animation: rainbow-glow 2s ease-in-out infinite;
+  }
 
-.voice-container.screen-shake {
-  animation: screen-shake 0.5s ease-in-out;
-  animation-fill-mode: forwards;
+  .voice-container.screen-shake {
+    animation: screen-shake 0.5s ease-in-out;
+    animation-fill-mode: forwards;
+  }
 }
 
 @keyframes rainbow-border {

@@ -3,7 +3,7 @@
     <div class="importer-header">
       <h2>
         <Icon name="package-import" />
-        Remote Emoji Importer
+        Remote emoji importer
       </h2>
       <p class="description">
         Browse custom emojis encountered from remote instances. Import the ones you like to make them available locally.
@@ -13,7 +13,7 @@
     <!-- Filters -->
     <div class="filters">
       <div class="filter-group">
-        <label>Filter by Domain</label>
+        <label>Filter by domain</label>
         <select v-model="selectedDomain" @change="loadEmojis">
           <option value="">All domains</option>
           <option v-for="domain in uniqueDomains" :key="domain" :value="domain">
@@ -25,9 +25,9 @@
       <div class="filter-group">
         <label>Sort by</label>
         <select v-model="sortBy" @change="sortEmojis">
-          <option value="usage_count">Most Used</option>
-          <option value="last_seen_at">Recently Seen</option>
-          <option value="first_seen_at">First Seen</option>
+          <option value="usage_count">Most used</option>
+          <option value="last_seen_at">Recently seen</option>
+          <option value="first_seen_at">First seen</option>
           <option value="shortcode">Name (A-Z)</option>
         </select>
       </div>
@@ -35,8 +35,8 @@
       <div class="filter-group">
         <label>Status</label>
         <select v-model="importStatus" @change="loadEmojis">
-          <option value="not_imported">Not Imported</option>
-          <option value="imported">Already Imported</option>
+          <option value="not_imported">Not imported</option>
+          <option value="imported">Already imported</option>
           <option value="all">All</option>
         </select>
       </div>
@@ -51,7 +51,7 @@
     <div class="stats">
       <div class="stat">
         <span class="stat-value">{{ totalEmojis }}</span>
-        <span class="stat-label">Total Remote Emojis</span>
+        <span class="stat-label">Total remote emojis</span>
       </div>
       <div class="stat">
         <span class="stat-value">{{ importedCount }}</span>
@@ -66,7 +66,7 @@
     <!-- Loading -->
     <div v-if="isLoading" class="loading">
       <Icon name="loader" class="spinning" />
-      <span>Loading emojis...</span>
+      <span>Loading emojis…</span>
     </div>
 
     <!-- Emoji Grid -->
@@ -109,7 +109,7 @@
           >
             <Icon v-if="importingIds.has(emoji.id)" name="loader" class="spinning" />
             <Icon v-else name="download" />
-            <span>{{ importingIds.has(emoji.id) ? 'Importing...' : 'Import' }}</span>
+            <span>{{ importingIds.has(emoji.id) ? 'Importing…' : 'Import' }}</span>
           </button>
           <div v-else class="imported-badge">
             <Icon name="check-circle" />
@@ -137,7 +137,7 @@
     <div v-if="showImportModal" class="modal-overlay" @click.self="closeImportModal">
       <div class="import-modal">
         <div class="modal-header">
-          <h3>Import Emoji</h3>
+          <h3>Import emoji</h3>
           <button @click="closeImportModal" class="close-btn">
             <Icon name="x" />
           </button>
@@ -149,7 +149,7 @@
           </div>
 
           <div class="form-group">
-            <label>Emoji Name (without colons)</label>
+            <label>Emoji name (without colons)</label>
             <input 
               v-model="importName" 
               type="text"
@@ -171,7 +171,7 @@
           <button @click="confirmImport" class="confirm-btn" :disabled="isImporting">
             <Icon v-if="isImporting" name="loader" class="spinning" />
             <Icon v-else name="download" />
-            {{ isImporting ? 'Importing...' : 'Import Emoji' }}
+            {{ isImporting ? 'Importing…' : 'Import emoji' }}
           </button>
         </div>
       </div>
@@ -379,7 +379,7 @@ const confirmImport = async () => {
     
   } catch (error) {
     debug.error('Error importing emoji:', error);
-    toast.error('An error occurred while importing the emoji.');
+    toast.error('Failed to import emoji');
   } finally {
     isImporting.value = false;
     if (selectedEmoji.value) {
@@ -438,7 +438,7 @@ onMounted(() => {
 }
 
 .description {
-  color: #a0a4a8;
+  color: var(--text-secondary);
   margin: 0;
 }
 
@@ -449,8 +449,8 @@ onMounted(() => {
   gap: 1rem;
   margin-bottom: 1.5rem;
   padding: 1rem;
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 8px;
+  background: var(--background-tertiary);
+  border-radius: var(--radius-md);
 }
 
 .filter-group {
@@ -461,18 +461,14 @@ onMounted(() => {
 
 .filter-group label {
   font-size: 0.75rem;
-  color: #a0a4a8;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  color: var(--text-secondary);
 }
 
 .filter-group select {
   padding: 0.5rem 1rem;
-  /* background: #2a2d32; */
   background: var(--background-secondary);
-  /* border: 1px solid rgba(255, 255, 255, 0.1); */
   border: 1px solid var(--border-primary);
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   color: var(--text-primary);
   font-size: 0.875rem;
   min-width: 150px;
@@ -485,15 +481,15 @@ onMounted(() => {
   padding: 0.5rem 1rem;
   background: var(--harmony-primary);
   border: 1px solid var(--border-primary);
-  border-radius: 6px;
-  color: var(--text-primary);
+  border-radius: var(--radius-base);
+  color: var(--text-on-primary);
   cursor: pointer;
   margin-left: auto;
   align-self: flex-end;
 }
 
 .refresh-btn:hover {
-  background: color-mix(in srgb, var(--harmony-primary) 30%, transparent);
+  background: var(--harmony-primary-hover);
 }
 
 /* Stats */
@@ -507,8 +503,8 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   padding: 1rem 1.5rem;
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 8px;
+  background: var(--background-tertiary);
+  border-radius: var(--radius-md);
 }
 
 .stat-value {
@@ -519,8 +515,7 @@ onMounted(() => {
 
 .stat-label {
   font-size: 0.75rem;
-  color: #a0a4a8;
-  text-transform: uppercase;
+  color: var(--text-secondary);
 }
 
 /* Loading */
@@ -530,7 +525,7 @@ onMounted(() => {
   justify-content: center;
   gap: 0.5rem;
   padding: 3rem;
-  color: #a0a4a8;
+  color: var(--text-secondary);
 }
 
 /* Emoji Grid */
@@ -547,23 +542,18 @@ onMounted(() => {
   align-items: center;
   gap: 1rem;
   padding: 1rem;
-  /* background: #2a2d32; */
-  /* border: 1px solid rgba(255, 255, 255, 0.08); */
   background: var(--background-secondary);
   border: 1px solid var(--border-primary);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   transition: all 0.2s;
 }
 
 .emoji-card:hover {
-  /* border-color: rgba(255, 255, 255, 0.16); */
-  border-color: var(--border-secondary);
-  transform: translateY(-1px);
+  border-color: var(--border-hover);
 }
 
 .emoji-card.imported {
   opacity: 0.7;
-  /* background: rgba(88, 166, 88, 0.1); */
   background: var(--background-tertiary);
 }
 
@@ -573,9 +563,8 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  /* background: rgba(0, 0, 0, 0.3); */
   background: var(--background-primary-alpha);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   flex-shrink: 0;
 }
 
@@ -609,7 +598,7 @@ onMounted(() => {
   display: flex;
   gap: 0.75rem;
   font-size: 0.75rem;
-  color: #a0a4a8;
+  color: var(--text-secondary);
 }
 
 .emoji-stats span {
@@ -629,8 +618,8 @@ onMounted(() => {
   padding: 0.5rem 1rem;
   background: var(--harmony-primary);
   border: none;
-  border-radius: 6px;
-  color: var(--text-primary);
+  border-radius: var(--radius-base);
+  color: var(--text-on-primary);
   font-size: 0.875rem;
   cursor: pointer;
   transition: background 0.2s;
@@ -650,9 +639,9 @@ onMounted(() => {
   align-items: center;
   gap: 0.25rem;
   padding: 0.5rem 1rem;
-  background: rgba(88, 166, 88, 0.2);
-  border-radius: 6px;
-  color: #58a658;
+  background: color-mix(in srgb, var(--success) 20%, transparent);
+  border-radius: var(--radius-base);
+  color: var(--success);
   font-size: 0.875rem;
 }
 
@@ -664,7 +653,7 @@ onMounted(() => {
   justify-content: center;
   padding: 4rem 2rem;
   text-align: center;
-  color: #a0a4a8;
+  color: var(--text-secondary);
 }
 
 .emoji-pagination {
@@ -673,14 +662,14 @@ onMounted(() => {
   justify-content: center;
   gap: 16px;
   padding: 16px;
-  border-top: 1px solid var(--border-color, #2b2d31);
+  border-top: 1px solid var(--border-color);
 }
 
 .page-btn {
   padding: 8px 16px;
-  background: var(--background-tertiary, #2b2d31);
-  border: 1px solid var(--border-color, #3f4147);
-  border-radius: 6px;
+  background: var(--background-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-base);
   color: var(--text-primary);
   cursor: pointer;
   font-weight: 500;
@@ -692,7 +681,7 @@ onMounted(() => {
 }
 
 .page-btn:hover:not(:disabled) {
-  background: var(--background-hover);
+  background: var(--background-quaternary);
 }
 
 .page-info {
@@ -717,8 +706,10 @@ onMounted(() => {
 }
 
 .import-modal {
-  background: #2a2d32;
-  border-radius: 12px;
+  background: var(--background-floating);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-large);
   width: 100%;
   max-width: 400px;
   overflow: hidden;
@@ -729,7 +720,7 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 1rem 1.5rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid var(--border-primary);
 }
 
 .modal-header h3 {
@@ -740,7 +731,7 @@ onMounted(() => {
 .close-btn {
   background: none;
   border: none;
-  color: #a0a4a8;
+  color: var(--text-secondary);
   cursor: pointer;
   padding: 0.25rem;
 }
@@ -754,8 +745,8 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   padding: 2rem;
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 8px;
+  background: var(--background-tertiary);
+  border-radius: var(--radius-md);
   margin-bottom: 1.5rem;
 }
 
@@ -771,16 +762,16 @@ onMounted(() => {
 .form-group label {
   display: block;
   margin-bottom: 0.5rem;
-  color: #a0a4a8;
+  color: var(--text-secondary);
   font-size: 0.875rem;
 }
 
 .form-group input {
   width: 100%;
   padding: 0.75rem 1rem;
-  background: #1a1d21;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 6px;
+  background: var(--input-bg);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-base);
   color: var(--text-primary);
   font-size: 1rem;
 }
@@ -788,7 +779,7 @@ onMounted(() => {
 .form-group small {
   display: block;
   margin-top: 0.25rem;
-  color: #6b7280;
+  color: var(--text-muted);
   font-size: 0.75rem;
 }
 
@@ -797,8 +788,8 @@ onMounted(() => {
   gap: 0.5rem;
   padding: 0.75rem;
   background: color-mix(in srgb, var(--harmony-primary) 10%, transparent);
-  border-radius: 6px;
-  color: #a0a4a8;
+  border-radius: var(--radius-base);
+  color: var(--text-secondary);
   font-size: 0.875rem;
 }
 
@@ -814,14 +805,14 @@ onMounted(() => {
   justify-content: flex-end;
   gap: 0.75rem;
   padding: 1rem 1.5rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid var(--border-primary);
 }
 
 .cancel-btn {
   padding: 0.75rem 1.5rem;
   background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 6px;
+  border: 1px solid var(--border-hover);
+  border-radius: var(--radius-base);
   color: var(--text-primary);
   cursor: pointer;
 }
@@ -833,8 +824,8 @@ onMounted(() => {
   padding: 0.75rem 1.5rem;
   background: var(--harmony-primary);
   border: none;
-  border-radius: 6px;
-  color: var(--text-primary);
+  border-radius: var(--radius-base);
+  color: var(--text-on-primary);
   cursor: pointer;
 }
 

@@ -41,9 +41,9 @@ function release() {
   gap: 8px;
   width: 100%;
   padding: 12px 16px;
-  border-radius: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(0, 0, 0, 0.3);
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-primary);
+  background: var(--background-modifier-hover);
   color: var(--text-secondary);
   font-size: 14px;
   font-weight: 600;
@@ -51,15 +51,13 @@ function release() {
   user-select: none;
   -webkit-user-select: none;
   touch-action: none;
-  backdrop-filter: blur(10px);
   transition: all 0.15s ease;
 }
 
 .ptt-hold-btn.transmitting {
-  background: linear-gradient(145deg, #00d4aa, #00b894);
-  color: var(--text-primary);
-  border-color: rgba(0, 212, 170, 0.6);
-  box-shadow: 0 4px 12px rgba(0, 212, 170, 0.4), 0 0 20px rgba(0, 212, 170, 0.3);
+  background: var(--success);
+  color: var(--text-on-primary);
+  border-color: var(--success);
 }
 
 .ptt-hold-btn.disabled {

@@ -6,13 +6,13 @@
     <h2>Funding & Supporters</h2>
     <button @click="saveFundingConfig" class="save-btn" :disabled="!fundingChanged">
       <Icon name="save" :size="16" />
-      Save Changes
+      Save changes
     </button>
   </div>
   <div class="funding-content">
     <!-- Funding Config -->
     <div class="funding-section">
-      <h3>Funding Goal</h3>
+      <h3>Funding goal</h3>
       <div class="setting-row">
         <label class="toggle-label">
           <input type="checkbox" v-model="fundingEnabled" />
@@ -62,7 +62,7 @@
         </div>
         <div class="funding-field" style="margin-top: 8px;">
           <label>Description</label>
-          <input type="text" v-model="fundingDescription" class="cyber-input" placeholder="What the funding is for..." />
+          <input type="text" v-model="fundingDescription" class="cyber-input" placeholder="What the funding is for…" />
         </div>
         <div class="funding-field" style="margin-top: 8px;">
           <label>Thank you message</label>
@@ -71,7 +71,7 @@
 
         <!-- Funding Links -->
         <div class="funding-links-section" style="margin-top: 16px;">
-          <label style="font-size: 12px; color: var(--text-secondary); font-weight: 600; display: block; margin-bottom: 8px;">Donation Links</label>
+          <label style="font-size: 12px; color: var(--text-secondary); font-weight: 600; display: block; margin-bottom: 8px;">Donation links</label>
           <div v-if="fundingLinks.length > 0" class="funding-links-list">
             <div v-for="(link, i) in fundingLinks" :key="i" class="funding-link-row">
               <select v-model="link.platform" class="cyber-select" style="width: 160px;">
@@ -86,7 +86,7 @@
           </div>
           <div class="funding-link-row" style="margin-top: 6px;">
             <select v-model="newLinkPlatform" class="cyber-select" style="width: 160px;">
-              <option value="" disabled>Platform...</option>
+              <option value="" disabled>Platform…</option>
               <option v-for="opt in FUNDING_PLATFORMS" :key="opt" :value="opt">{{ platformLabel(opt) }}</option>
             </select>
             <input v-model="newLinkUrl" class="cyber-input" placeholder="https://..." style="flex: 1;" />
@@ -101,12 +101,12 @@
 
     <!-- Ko-fi Webhook (automation) -->
     <div class="funding-section">
-      <h3>Ko-fi Webhook <span class="section-badge">Automation</span></h3>
+      <h3>Ko-fi webhook <span class="section-badge">Automation</span></h3>
       <p class="section-description" style="margin-bottom: 12px;">
         Auto-record donations from Ko-fi. Requires a Ko-fi Gold subscription.
         Paste your verification token from
         <a href="https://ko-fi.com/manage/webhooks" target="_blank" rel="noopener noreferrer">Ko-fi Settings → API</a>
-        and set the Webhook URL to:
+        and set the webhook URL to:
       </p>
       <div class="webhook-url-display">
         <code>{{ kofiWebhookUrl }}</code>
@@ -116,7 +116,7 @@
       </div>
       <div class="funding-form-row" style="margin-top: 12px;">
         <div class="funding-field" style="flex: 1;">
-          <label>Verification Token</label>
+          <label>Verification token</label>
           <input
             v-model="kofiWebhookToken"
             :type="showKofiToken ? 'text' : 'password'"
@@ -138,7 +138,7 @@
       <p class="section-hint">
         Donors include their handle (<code>@username@{{ instanceDomain }}</code>) anywhere in their Ko-fi
         message - the webhook auto-attributes it and recomputes their tier based on cumulative cycle
-        donations. Donations without a matched handle land in the <strong>Pending Donations</strong>
+        donations. Donations without a matched handle land in the <strong>Pending donations</strong>
         queue below, and you (and instance moderators) get a notification.
       </p>
     </div>
@@ -146,7 +146,7 @@
     <!-- Pending Donations -->
     <div class="funding-section" v-if="pendingDonations.length > 0 || pendingDonationCount > 0">
       <h3>
-        Pending Donations
+        Pending donations
         <span v-if="pendingDonationCount > 0" class="pending-count-badge">{{ pendingDonationCount }}</span>
       </h3>
       <p class="section-description" style="margin-bottom: 12px;">
@@ -170,7 +170,7 @@
             <input
               v-model="pendingResolveSearch[pending.id]"
               class="cyber-input"
-              placeholder="Search user by username..."
+              placeholder="Search user by username…"
               @input="onPendingResolveSearch(pending.id)"
               style="flex: 1;"
             />
@@ -199,7 +199,7 @@
 
     <!-- Supporter Tiers -->
     <div class="funding-section">
-      <h3>Supporter Tiers</h3>
+      <h3>Supporter tiers</h3>
       <div class="tiers-list" v-if="supporterTiers.length > 0">
         <div v-for="tier in supporterTiers" :key="tier.id" class="tier-item">
           <template v-if="editingTierId === tier.id">
@@ -213,7 +213,7 @@
                 title="Pick emoji"
               >
                 <SupporterBadgeIcon v-if="editTierIcon" :icon="editTierIcon" />
-                <span v-else>😀</span>
+                <Icon v-else name="smile-plus" :size="16" />
               </button>
               <EmojiPopup
                 v-if="showEditTierEmojiPicker"
@@ -267,7 +267,7 @@
             title="Pick emoji"
           >
             <SupporterBadgeIcon v-if="newTierIcon" :icon="newTierIcon" />
-            <span v-else>😀</span>
+            <Icon v-else name="smile-plus" :size="16" />
           </button>
           <EmojiPopup
             v-if="showNewTierEmojiPicker"
@@ -293,7 +293,7 @@
 
     <!-- Supporters -->
     <div class="funding-section">
-      <h3>Active Supporters</h3>
+      <h3>Active supporters</h3>
       <div class="supporters-list" v-if="supporters.length > 0">
         <div v-for="supporter in supporters" :key="supporter.id" class="supporter-item">
           <Avatar :src="supporter.user?.avatar_url" :alt="supporter.user?.username" size="sm" />
@@ -326,7 +326,7 @@
             ref="supporterSearchInputRef"
             v-model="addSupporterSearch"
             class="cyber-input"
-            placeholder="Username to add as supporter..."
+            placeholder="Username to add as supporter…"
             @input="onSupporterSearchInput"
             @keydown="onSupporterSearchKeydown"
             @focus="supporterSearchFocused = true"
@@ -366,7 +366,7 @@
 
     <!-- Edit Supporter Modal (inline) -->
     <div v-if="editingSupporterData" class="funding-section edit-supporter-panel">
-      <h3>Edit Supporter: <DisplayName v-if="editingSupporterData.user_id" :user-id="editingSupporterData.user_id" :fallback="editingSupporterData.user?.display_name || editingSupporterData.user?.username" /><template v-else>{{ editingSupporterData.user?.display_name || editingSupporterData.user?.username }}</template></h3>
+      <h3>Edit supporter: <DisplayName v-if="editingSupporterData.user_id" :user-id="editingSupporterData.user_id" :fallback="editingSupporterData.user?.display_name || editingSupporterData.user?.username" /><template v-else>{{ editingSupporterData.user?.display_name || editingSupporterData.user?.username }}</template></h3>
       <div class="funding-form-row">
         <div class="funding-field">
           <label>Tier</label>
@@ -392,7 +392,7 @@
 
     <!-- Record Donation Modal (inline) -->
     <div v-if="recordDonationSupporter" class="funding-section edit-supporter-panel">
-      <h3>Record Donation for <DisplayName v-if="recordDonationSupporter.user_id" :user-id="recordDonationSupporter.user_id" :fallback="recordDonationSupporter.user?.display_name || recordDonationSupporter.user?.username" /><template v-else>{{ recordDonationSupporter.user?.display_name || recordDonationSupporter.user?.username }}</template></h3>
+      <h3>Record donation for <DisplayName v-if="recordDonationSupporter.user_id" :user-id="recordDonationSupporter.user_id" :fallback="recordDonationSupporter.user?.display_name || recordDonationSupporter.user?.username" /><template v-else>{{ recordDonationSupporter.user?.display_name || recordDonationSupporter.user?.username }}</template></h3>
       <div class="funding-form-row">
         <div class="funding-field">
           <label>Amount</label>
@@ -411,7 +411,7 @@
       </div>
       <div class="funding-field" style="margin-top: 8px;">
         <label>Note</label>
-        <input v-model="recordDonationNote" class="cyber-input" placeholder="Optional note..." />
+        <input v-model="recordDonationNote" class="cyber-input" placeholder="Optional note…" />
       </div>
       <div class="report-action-buttons" style="margin-top: 8px;">
         <button class="report-action-btn resolve" @click="saveRecordDonation" :disabled="!recordDonationAmount">Record</button>
@@ -421,7 +421,7 @@
 
     <!-- Donation History -->
     <div class="funding-section">
-      <h3>Donation History</h3>
+      <h3>Donation history</h3>
       <div v-if="donationStats.donationCount > 0" class="donation-stats-row">
         <div class="donation-stat">
           <span class="donation-stat-value">{{ donationStats.totalDonated.toFixed(2) }}</span>
@@ -1151,7 +1151,7 @@ onMounted(() => {
   height: 24px;
   background: var(--background-tertiary);
   border: 1px solid var(--border-color);
-  border-radius: 24px;
+  border-radius: var(--radius-full);
   transition: all 0.2s ease;
 }
 
@@ -1180,8 +1180,8 @@ onMounted(() => {
 
 
 .toggle-label input[type="checkbox"]:checked + .toggle-slider {
-  background: var(--accent-color);
-  border-color: var(--accent-color);
+  background: var(--harmony-primary);
+  border-color: var(--harmony-primary);
 }
 
 
@@ -1192,7 +1192,7 @@ onMounted(() => {
 
 .toggle-label input[type="checkbox"]:checked + .toggle-slider:before {
   left: 22px;
-  background: white;
+  background: var(--text-on-primary);
 }
 
 
@@ -1204,7 +1204,7 @@ onMounted(() => {
 .mod-btn {
   padding: 6px 8px;
   border: 1px solid var(--border-color);
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   background: var(--background-secondary);
   color: var(--text-secondary);
   cursor: pointer;
@@ -1218,7 +1218,7 @@ onMounted(() => {
 
 
 .mod-btn:hover {
-  border-color: var(--accent-color);
+  border-color: var(--harmony-primary);
   color: var(--text-primary);
 }
 
@@ -1230,10 +1230,10 @@ onMounted(() => {
 
 .save-btn {
   padding: 8px 16px;
-  background: var(--accent-color);
+  background: var(--harmony-primary);
   border: none;
-  border-radius: 6px;
-  color: var(--text-primary);
+  border-radius: var(--radius-base);
+  color: var(--text-on-primary);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
@@ -1250,8 +1250,7 @@ onMounted(() => {
 
 
 .save-btn:hover {
-  background: #0099cc;
-  transform: translateY(-1px);
+  background: var(--harmony-primary-hover);
 }
 
 
@@ -1263,7 +1262,6 @@ onMounted(() => {
 .save-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-  transform: none;
 }
 
 @media (max-width: 768px) {
@@ -1300,8 +1298,8 @@ onMounted(() => {
 
 
 .report-action-btn.danger {
-  background: rgba(237, 66, 69, 0.2);
-  color: #ed4245;
+  background: color-mix(in srgb, var(--error) 20%, transparent);
+  color: var(--error);
 }
 
 
@@ -1311,7 +1309,7 @@ onMounted(() => {
 
 
 .report-action-btn.danger:hover {
-  background: rgba(237, 66, 69, 0.4);
+  background: color-mix(in srgb, var(--error) 40%, transparent);
 }
 
 
@@ -1334,7 +1332,7 @@ onMounted(() => {
 .report-action-btn {
   padding: 6px 14px;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
@@ -1358,8 +1356,8 @@ onMounted(() => {
 
 
 .report-action-btn.investigating {
-  background: color-mix(in srgb, var(--harmony-primary) 30%, transparent);
-  color: var(--harmony-secondary);
+  background: color-mix(in srgb, var(--info) 30%, transparent);
+  color: var(--info);
 }
 
 
@@ -1369,8 +1367,8 @@ onMounted(() => {
 
 
 .report-action-btn.resolve {
-  background: rgba(87, 242, 135, 0.3);
-  color: #57f287;
+  background: color-mix(in srgb, var(--success) 30%, transparent);
+  color: var(--success);
 }
 
 
@@ -1380,7 +1378,7 @@ onMounted(() => {
 
 
 .report-action-btn.dismiss {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--background-modifier-active);
   color: var(--text-secondary);
 }
 
@@ -1391,8 +1389,8 @@ onMounted(() => {
 
 
 .report-action-btn.warning {
-  background: rgba(250, 166, 26, 0.2);
-  color: #faa61a;
+  background: color-mix(in srgb, var(--warning) 20%, transparent);
+  color: var(--warning);
 }
 
 
@@ -1402,7 +1400,7 @@ onMounted(() => {
 
 
 .report-action-btn.warning:hover {
-  background: rgba(250, 166, 26, 0.4);
+  background: color-mix(in srgb, var(--warning) 40%, transparent);
 }
 
 
@@ -1412,8 +1410,8 @@ onMounted(() => {
 
 
 .mod-btn.warning-btn {
-  background: rgba(250, 166, 26, 0.15);
-  color: #faa61a;
+  background: color-mix(in srgb, var(--warning) 15%, transparent);
+  color: var(--warning);
 }
 
 
@@ -1423,7 +1421,7 @@ onMounted(() => {
 
 
 .mod-btn.warning-btn:hover {
-  background: rgba(250, 166, 26, 0.3);
+  background: color-mix(in srgb, var(--warning) 30%, transparent);
 }
 
 
@@ -1475,7 +1473,7 @@ onMounted(() => {
 .section-badge {
   font-size: 10px;
   padding: 2px 8px;
-  border-radius: 10px;
+  border-radius: var(--radius-full);
   background: color-mix(in srgb, var(--harmony-primary) 15%, transparent);
   color: var(--harmony-primary);
   text-transform: none;
@@ -1514,7 +1512,7 @@ onMounted(() => {
 
 .section-hint {
   font-size: 12px;
-  color: var(--text-tertiary, var(--text-secondary));
+  color: var(--text-tertiary);
   margin: 8px 0 0;
   line-height: 1.5;
   font-style: italic;
@@ -1529,7 +1527,7 @@ onMounted(() => {
 .section-hint code {
   background: var(--background-secondary);
   padding: 1px 5px;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   font-size: 11px;
   font-style: normal;
 }
@@ -1547,7 +1545,7 @@ onMounted(() => {
   padding: 8px 12px;
   background: var(--background-secondary);
   border: 1px solid var(--border-color);
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   font-family: 'Consolas', 'Monaco', monospace;
   font-size: 12px;
 }
@@ -1573,9 +1571,9 @@ onMounted(() => {
 .pending-count-badge {
   font-size: 11px;
   padding: 2px 8px;
-  border-radius: 10px;
-  background: var(--status-danger, #ed4245);
-  color: #fff;
+  border-radius: var(--radius-full);
+  background: var(--error);
+  color: var(--text-on-primary);
   text-transform: none;
   letter-spacing: 0;
   font-weight: 700;
@@ -1603,7 +1601,7 @@ onMounted(() => {
   padding: 12px;
   background: var(--background-secondary);
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -1642,8 +1640,8 @@ onMounted(() => {
 .pending-platform {
   font-size: 11px;
   padding: 2px 8px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-full);
+  background: var(--background-modifier-selected);
   color: var(--text-secondary);
   text-transform: capitalize;
 }
@@ -1656,7 +1654,7 @@ onMounted(() => {
 
 .pending-date {
   font-size: 12px;
-  color: var(--text-tertiary, var(--text-secondary));
+  color: var(--text-tertiary);
   margin-left: auto;
 }
 
@@ -1680,7 +1678,7 @@ onMounted(() => {
 
 
 .pending-email {
-  color: var(--text-tertiary, var(--text-secondary));
+  color: var(--text-tertiary);
 }
 
 
@@ -1693,7 +1691,7 @@ onMounted(() => {
   padding: 8px 12px;
   background: var(--background-tertiary);
   border-left: 3px solid var(--harmony-primary);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 13px;
   color: var(--text-secondary);
   font-style: italic;
@@ -1735,7 +1733,7 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
   padding: 6px 10px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   font-size: 13px;
   color: var(--text-secondary);
@@ -1830,7 +1828,7 @@ onMounted(() => {
   gap: 10px;
   padding: 8px 12px;
   background: var(--background-tertiary);
-  border-radius: 6px;
+  border-radius: var(--radius-base);
 }
 
 
@@ -1941,7 +1939,7 @@ onMounted(() => {
   width: 36px;
   height: 36px;
   border: 1px solid var(--border-color);
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   background: var(--background-tertiary);
   cursor: pointer;
   padding: 2px;
@@ -1971,7 +1969,7 @@ onMounted(() => {
   gap: 10px;
   padding: 8px 12px;
   background: var(--background-tertiary);
-  border-radius: 6px;
+  border-radius: var(--radius-base);
 }
 
 
@@ -2045,7 +2043,7 @@ onMounted(() => {
   align-items: center;
   padding: 12px 16px;
   background: var(--background-tertiary);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   flex: 1;
 }
 
@@ -2058,7 +2056,7 @@ onMounted(() => {
 .donation-stat-value {
   font-size: 20px;
   font-weight: 700;
-  color: var(--accent-color);
+  color: var(--harmony-primary);
 }
 
 
@@ -2070,7 +2068,6 @@ onMounted(() => {
 .donation-stat-label {
   font-size: 11px;
   color: var(--text-secondary);
-  text-transform: uppercase;
 }
 
 
@@ -2207,8 +2204,8 @@ onMounted(() => {
   z-index: 100;
   background: var(--background-tertiary);
   border: 1px solid var(--background-quinary);
-  border-radius: 8px;
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-large);
   max-height: 220px;
   overflow-y: auto;
   margin-top: 4px;
@@ -2287,7 +2284,7 @@ onMounted(() => {
 
 
 .supporter-suggestion-item.selected .supporter-suggestion-handle {
-  color: rgba(255, 255, 255, 0.6);
+  color: color-mix(in srgb, var(--text-on-primary) 60%, transparent);
 }
 
 
@@ -2298,8 +2295,8 @@ onMounted(() => {
 
 .edit-supporter-panel {
   background: var(--background-tertiary);
-  border: 1px solid var(--accent-color);
-  border-radius: 8px;
+  border: 1px solid var(--harmony-primary);
+  border-radius: var(--radius-md);
   padding: 16px;
 }
 
@@ -2311,8 +2308,8 @@ onMounted(() => {
 
 .edit-donation-panel {
   background: var(--background-tertiary);
-  border: 1px solid var(--accent-color);
-  border-radius: 8px;
+  border: 1px solid var(--harmony-primary);
+  border-radius: var(--radius-md);
   padding: 12px;
   margin-top: 8px;
 }
@@ -2389,11 +2386,9 @@ onMounted(() => {
 .tier-adfree-badge {
   font-size: 10px;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
   color: var(--harmony-primary);
   border: 1px solid var(--harmony-primary-alpha, color-mix(in srgb, var(--harmony-primary) 40%, transparent));
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   padding: 1px 5px;
   width: fit-content;
 }
@@ -2410,7 +2405,7 @@ onMounted(() => {
   padding: 12px;
   text-align: center;
   background: var(--background-tertiary);
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   margin-bottom: 12px;
 }
 </style>

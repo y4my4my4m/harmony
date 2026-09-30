@@ -52,7 +52,7 @@
           <div v-if="type === 'output' || type === 'all'" class="device-section">
             <div class="section-header">
               <Icon name="volume-2" />
-              <span>Speaker / Headphones</span>
+              <span>Speaker / headphones</span>
             </div>
             <div class="device-list">
               <button
@@ -97,7 +97,7 @@
           <div class="dropdown-footer">
             <button class="settings-link" @click="openSettings">
               <Icon name="settings" />
-              <span>Audio Settings</span>
+              <span>Audio settings</span>
             </button>
           </div>
         </div>
@@ -380,9 +380,9 @@ watch(isOpen, (newVal) => {
   align-items: center;
   gap: 2px;
   padding: 4px 6px;
-  background: rgba(0, 0, 0, 0.3);
+  background: var(--background-modifier-hover);
   border: 1px solid var(--border-primary);
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s ease;
@@ -390,7 +390,7 @@ watch(isOpen, (newVal) => {
 }
 
 .selector-trigger:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--background-modifier-active);
   color: var(--text-primary);
   border-color: var(--border-hover);
 }
@@ -416,8 +416,8 @@ watch(isOpen, (newVal) => {
   z-index: 10010;
   background: var(--background-quaternary);
   border: 1px solid var(--border-primary);
-  border-radius: 8px;
-  box-shadow: var(--shadow-modal);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-large);
   min-width: 280px;
   max-width: 360px;
   max-height: 400px;
@@ -480,7 +480,7 @@ watch(isOpen, (newVal) => {
 }
 
 .device-item:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--background-modifier-hover);
   color: var(--text-primary);
 }
 
@@ -521,7 +521,7 @@ watch(isOpen, (newVal) => {
   padding: 8px 12px;
   background: transparent;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   color: var(--text-secondary);
   font-size: 13px;
   cursor: pointer;
@@ -529,7 +529,7 @@ watch(isOpen, (newVal) => {
 }
 
 .settings-link:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--background-modifier-hover);
   color: var(--text-primary);
 }
 
@@ -601,7 +601,7 @@ watch(isOpen, (newVal) => {
     padding: 8px 10px;
     min-width: 40px;
     min-height: 40px;
-    border-radius: 8px;
+    border-radius: var(--radius-md);
   }
   
   .device-dropdown-backdrop {
@@ -618,7 +618,7 @@ watch(isOpen, (newVal) => {
     min-width: 100%;
     max-width: 100%;
     max-height: 70vh;
-    border-radius: 12px 12px 0 0;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
     padding-bottom: env(safe-area-inset-bottom, 0px);
     transform: none !important;
   }
@@ -666,7 +666,7 @@ watch(isOpen, (newVal) => {
   }
   
   .device-item:active {
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--background-modifier-selected);
   }
   
   .no-devices {
@@ -683,13 +683,13 @@ watch(isOpen, (newVal) => {
     padding: 14px;
     min-height: 52px;
     font-size: 15px;
-    border-radius: 8px;
+    border-radius: var(--radius-md);
     justify-content: center;
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--background-modifier-hover);
   }
-  
+
   .settings-link:active {
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--background-modifier-active);
   }
 }
 
