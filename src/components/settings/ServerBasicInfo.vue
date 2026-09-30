@@ -60,7 +60,7 @@
       </div>
 
       <div class="form-group">
-        <label class="form-label" for="server-rules">{{ $t('server.rulesLabel', 'Server Rules') }}</label>
+        <label class="form-label" for="server-rules">{{ $t('server.rulesLabel', 'Server rules') }}</label>
         <textarea
           id="server-rules"
           v-model="rulesText"

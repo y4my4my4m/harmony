@@ -9,6 +9,8 @@
           data-testid="dm-new-conversation"
           @click="showUserSearch = !showUserSearch"
           title="Start a new DM"
+          aria-label="Start a new DM"
+          :aria-expanded="showUserSearch"
         >
           <svg viewBox="0 0 24 24" class="icon">
             <path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z" fill="currentColor"/>
@@ -18,6 +20,7 @@
           class="group-chat-btn"
           @click="showGroupChatModal = true"
           title="Create group chat"
+          aria-label="Create group chat"
         >
           <svg viewBox="0 0 24 24" class="icon">
             <path d="M12,5.5A3.5,3.5 0 0,1 15.5,9A3.5,3.5 0 0,1 12,12.5A3.5,3.5 0 0,1 8.5,9A3.5,3.5 0 0,1 12,5.5M5,8C5.56,8 6.08,8.15 6.53,8.42C6.38,9.85 6.8,11.27 7.66,12.38C7.16,13.34 6.16,14 5,14A3,3 0 0,1 2,11A3,3 0 0,1 5,8M19,8A3,3 0 0,1 22,11A3,3 0 0,1 19,14C17.84,14 16.84,13.34 16.34,12.38C17.2,11.27 17.62,9.85 17.47,8.42C17.92,8.15 18.44,8 19,8M5.5,18.25C5.5,16.18 8.41,14.5 12,14.5C15.59,14.5 18.5,16.18 18.5,18.25V20H5.5V18.25M0,20V18.5C0,17.11 1.89,15.94 4.45,15.6C3.86,16.28 3.5,17.22 3.5,18.25V20H0M24,20H20.5V18.25C20.5,17.22 20.14,16.28 19.55,15.6C22.11,15.94 24,17.11 24,18.5V20Z" fill="currentColor"/>
@@ -30,6 +33,7 @@
     <div v-if="showUserSearch" class="user-search-section">
       <div class="search-input-container">
         <input
+          ref="userSearchInputRef"
           v-model="searchQuery"
           type="text"
           :placeholder="$t('dm.searchUsersPlaceholder')"
@@ -219,7 +223,7 @@
 
 <script setup lang="ts">
 // TODO: Consider virtualizing conversation list for users with many DMs
-import { ref, computed, onUnmounted } from 'vue'
+import { ref, computed, onUnmounted, watch, nextTick } from 'vue'
 import Icon from '@/components/common/Icon.vue'
 import { useDMStore, type DMUser, type DMConversation } from '@/stores/useDM'
 import { useActivityPubStore } from '@/stores/useActivityPub'
@@ -259,6 +263,12 @@ const {
 
 // State
 const showUserSearch = ref(false)
+const userSearchInputRef = ref<HTMLInputElement | null>(null)
+watch(showUserSearch, async (open) => {
+  if (!open) return
+  await nextTick()
+  userSearchInputRef.value?.focus()
+})
 const showGroupChatModal = ref(false)
 const searchQuery = ref('')
 const searchTimeout = ref<NodeJS.Timeout | null>(null)
@@ -811,15 +821,27 @@ onUnmounted(() => {
   color: var(--text-on-primary);
 }
 
+/* The dismiss button sits over the timestamp's corner. */
+@media (hover: hover) {
+  .conversation-item:hover .conversation-time {
+    visibility: hidden;
+  }
+}
+
 @media (hover: none) {
   .conversation-dismiss {
     opacity: 0.55;
     pointer-events: auto;
   }
+
+  .conversation-time {
+    margin-right: 22px;
+  }
 }
 
+/* Same selection surface as the channel list. */
 .conversation-item.active {
-  background: var(--h-brand, var(--harmony-primary));
+  background: var(--channel-item-selected-bg, var(--background-modifier-selected));
 }
 
 .conversation-item.unread {

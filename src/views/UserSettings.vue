@@ -27,7 +27,6 @@
       <div 
         class="settings-sidebar" 
         :class="{ 'mobile-hidden': isMobile && !showSidebar }"
-        v-touch:swipe.left="handleSidebarSwipe"
       >
         <div class="settings-sidebar-content">
           <h2 class="settings-title" v-if="!isMobile">{{ $t('settings.userSettings') }}</h2>
@@ -69,7 +68,7 @@
             </div>
 
             <div class="nav-section" v-if="adminSections.length > 0 && isAdmin">
-              <h3 class="nav-section-title">Administration</h3>
+              <h3 class="nav-section-title">{{ $t('settings.administration') }}</h3>
               <router-link
                 v-for="section in adminSections" 
                 :key="section.id"
@@ -321,7 +320,7 @@ const adminSections = computed(() => {
   
   // Visibility is gated in the template by `isAdmin`.
   return [
-    { id: 'admin', label: 'Instance Admin', icon: CogIcon, isExternal: true, path: '/admin' },
+    { id: 'admin', label: 'settings.instanceAdmin', icon: CogIcon, isExternal: true, path: '/admin' },
   ]
 })
 
@@ -347,12 +346,6 @@ const toggleSidebar = () => {
 
 const closeSidebar = () => {
   showSidebar.value = false
-}
-
-const handleSidebarSwipe = () => {
-  if (isMobile.value) {
-    closeSidebar()
-  }
 }
 
 // Touch gesture handlers for opening sidebar from anywhere
@@ -943,6 +936,7 @@ onUnmounted(() => {
 
   .settings-sidebar.mobile-hidden {
     transform: translateX(-100%);
+    box-shadow: none;
   }
   
   .settings-main {

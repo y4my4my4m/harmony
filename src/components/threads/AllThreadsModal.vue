@@ -20,7 +20,7 @@
                   placeholder="Search for thread name"
                 />
               </div>
-              <button class="close-btn" @click="close">
+              <button class="close-btn" aria-label="Close" @click="close">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <line x1="18" y1="6" x2="6" y2="18"/>
                   <line x1="6" y1="6" x2="18" y2="18"/>
@@ -97,9 +97,7 @@
 
             <!-- Empty State -->
             <div v-if="!loading && filteredThreads.length === 0" class="empty-state">
-              <svg width="64" height="64" viewBox="0 0 24 24" fill="currentColor" class="empty-icon">
-                <path d="M5.43 21L3 3h2.23l1.41 14.24L13.42 11H6.88L6.11 4h15.22l-.87 8.5-7.59 7.75L10.04 21H5.43z"/>
-              </svg>
+              <Icon name="thread" :size="48" class="empty-icon" />
               <p v-if="searchQuery">No threads match your search</p>
               <p v-else>No threads yet</p>
               <span>Start a thread from any message.</span>
@@ -118,7 +116,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useThreadsStore, isOptimisticThreadId } from '@/stores/useThreads'
 import { useUserData } from '@/composables/useUserData'
 import { formatDistanceToNow } from 'date-fns'
@@ -218,10 +216,19 @@ watch(() => props.isVisible, (visible) => {
   }
 })
 
+const onKeydown = (event: KeyboardEvent) => {
+  if (event.key === 'Escape' && props.isVisible) close()
+}
+
 onMounted(() => {
+  document.addEventListener('keydown', onKeydown)
   if (props.isVisible) {
     loadThreads()
   }
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', onKeydown)
 })
 </script>
 

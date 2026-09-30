@@ -1,14 +1,30 @@
 <template>
   <div class="server-dropdown" v-if="isVisible" v-click-outside="closeDropdown">
-    <ul>
-      <li v-if="canViewServerSettings" @click="goToServerSettings">
-        {{ canManageServer ? $t('server.settings') : $t('server.overview') }}
+    <ul role="menu" @keydown.esc.stop="closeDropdown">
+      <li v-if="canViewServerSettings" role="none">
+        <button type="button" role="menuitem" class="dropdown-item" @click="goToServerSettings">
+          {{ canManageServer ? $t('server.settings') : $t('server.overview') }}
+        </button>
       </li>
-      <li v-if="canCreateCategories" @click="createCategory">{{ $t('server.createCategory') }}</li>
-      <li v-if="canCreateChannels" @click="createChannel">{{ $t('channel.create') }}</li>
-      <li @click="generateInviteLink">{{ $t('server.inviteLink') }}</li>
-      <li v-if="!isOwner" class="leave-server" @click="confirmLeaveServer">
-        {{ $t('server.leaveServer') }}
+      <li v-if="canCreateCategories" role="none">
+        <button type="button" role="menuitem" class="dropdown-item" @click="createCategory">
+          {{ $t('server.createCategory') }}
+        </button>
+      </li>
+      <li v-if="canCreateChannels" role="none">
+        <button type="button" role="menuitem" class="dropdown-item" @click="createChannel">
+          {{ $t('channel.create') }}
+        </button>
+      </li>
+      <li role="none">
+        <button type="button" role="menuitem" class="dropdown-item" @click="generateInviteLink">
+          {{ $t('server.inviteLink') }}
+        </button>
+      </li>
+      <li v-if="!isOwner" role="none" class="leave-server">
+        <button type="button" role="menuitem" class="dropdown-item" @click="confirmLeaveServer">
+          {{ $t('server.leaveServer') }}
+        </button>
       </li>
     </ul>
   </div>
@@ -17,6 +33,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import { useServerPermissions } from '@/composables/useServerPermissions';
 import { useConfirmDialog } from '@/composables/useConfirmDialog';
 import { useServerChannelStore } from '@/stores/useServerChannel';
@@ -44,6 +61,7 @@ const emit = defineEmits<{
 }>();
 
 const router = useRouter();
+const { t } = useI18n();
 const toast = useToast();
 const authStore = useAuthStore();
 const serverChannelStore = useServerChannelStore();
@@ -96,7 +114,7 @@ const confirmLeaveServer = async () => {
   if (!server || !props.serverId) return;
   
   const confirmed = await confirm({
-    title: 'Leave server',
+    title: t('server.leaveServer'),
     message: `Are you sure you want to leave "${server.name}"? You will lose access to all channels and messages.`,
     confirmButtonText: 'Leave',
     dangerAction: true,
@@ -183,25 +201,40 @@ const leaveServer = async () => {
     margin: 0;
   }
   
-  .server-dropdown li {
+  .dropdown-item {
+    display: block;
+    width: 100%;
     padding: 10px;
+    background: none;
+    border: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
     cursor: pointer;
     transition: background-color 0.2s;
   }
-  
-  .server-dropdown li:hover {
+
+  .dropdown-item:hover,
+  .dropdown-item:focus-visible {
     background-color: var(--background-modifier-hover);
   }
 
-  .server-dropdown li.leave-server {
-    color: var(--error);
-    border-top: 1px solid var(--border-primary);
-    margin-top: 4px;
-    padding-top: 14px;
+  .dropdown-item:focus-visible {
+    outline: none;
   }
 
-  .server-dropdown li.leave-server:hover {
-    background-color: color-mix(in srgb, var(--error) 20%, transparent);
+  .server-dropdown li.leave-server {
+    border-top: 1px solid var(--border-primary);
+    margin-top: 4px;
+    padding-top: 4px;
+  }
+
+  .leave-server .dropdown-item {
     color: var(--error);
+  }
+
+  .leave-server .dropdown-item:hover,
+  .leave-server .dropdown-item:focus-visible {
+    background-color: color-mix(in srgb, var(--error) 20%, transparent);
   }
 </style>

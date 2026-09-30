@@ -11,12 +11,12 @@
           {{ isFullscreen ? '⛶' : '⛶' }}
         </button>
         <select v-model="timeRange" class="time-selector">
-          <option value="1h">Last Hour</option>
-          <option value="6h">Last 6 Hours</option>
-          <option value="24h">Last 24 Hours</option>
-          <option value="7d">Last 7 Days</option>
-          <option value="30d">Last 1 Month</option>
-          <option value="90d">Last 3 Months</option>
+          <option value="1h">Last hour</option>
+          <option value="6h">Last 6 hours</option>
+          <option value="24h">Last 24 hours</option>
+          <option value="7d">Last 7 days</option>
+          <option value="30d">Last month</option>
+          <option value="90d">Last 3 months</option>
         </select>
         <button class="refresh-btn" @click="refreshData" :disabled="loading">
           <svg 

@@ -25,6 +25,8 @@ export interface GifFeed {
   items: GifResultItem[]
   page: number
   hasNext: boolean
+  /** The request failed; the empty item list is not a result. */
+  failed?: boolean
   meta?: {
     showAds?: boolean
     adMobileOnly?: boolean
@@ -100,7 +102,7 @@ export const gifProvider = {
       return await request(`${pathPrefix(mediaType)}trending`, buildParams(opts, mediaType), opts)
     } catch (err) {
       if ((err as Error)?.name !== 'AbortError') debug.error(`Failed to fetch trending ${mediaType}:`, err)
-      return { items: [], page: 1, hasNext: false }
+      return { items: [], page: 1, hasNext: false, failed: (err as Error)?.name !== 'AbortError' }
     }
   },
 
@@ -111,7 +113,7 @@ export const gifProvider = {
       return await request(`${pathPrefix(mediaType)}search`, params, opts)
     } catch (err) {
       if ((err as Error)?.name !== 'AbortError') debug.error(`Failed to search ${mediaType}:`, err)
-      return { items: [], page: 1, hasNext: false }
+      return { items: [], page: 1, hasNext: false, failed: (err as Error)?.name !== 'AbortError' }
     }
   },
 

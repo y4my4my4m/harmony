@@ -51,14 +51,14 @@
         </div>
         <div class="user-stats">
           <button @click="navigateToUserPosts(user)" class="user-stat clickable">
-            {{ user.postCount }} posts
+            {{ user.postCount }} {{ user.postCount === 1 ? 'post' : 'posts' }}
           </button>
           <button 
             v-if="user.is_local" 
             @click="navigateToUserServers(user)" 
             class="user-stat clickable"
           >
-            {{ user.serverCount }} servers
+            {{ user.serverCount }} {{ user.serverCount === 1 ? 'server' : 'servers' }}
           </button>
           <span v-else class="user-stat">federated</span>
         </div>

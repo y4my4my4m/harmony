@@ -5,11 +5,16 @@
 
       <div
         class="portal"
+        role="button"
+        tabindex="0"
+        aria-label="Harmony Portal"
         @click="togglePublicServers"
+        @keydown.enter.prevent="togglePublicServers"
+        @keydown.space.prevent="togglePublicServers"
         @mouseenter="showSidebarTooltip($event, 'Harmony Portal')"
         @mouseleave="hideSidebarTooltip"
       >
-      <span class="portal-icon" role="img" aria-label="Harmony Portal"></span>
+      <span class="portal-icon" aria-hidden="true"></span>
       </div>
 
       <!-- Today button; gated by the Advanced settings flag -->
@@ -23,7 +28,13 @@
         <div
           class="dm-button today-button"
           :class="{ 'selected': isTodaySelected }"
+          role="button"
+          tabindex="0"
+          aria-label="Today"
+          :aria-current="isTodaySelected ? 'page' : undefined"
           @click="goToToday"
+          @keydown.enter.prevent="goToToday"
+          @keydown.space.prevent="goToToday"
         >
           <svg viewBox="0 0 24 24" class="dm-icon">
             <path d="M12,7A5,5 0 0,1 17,12A5,5 0 0,1 12,17A5,5 0 0,1 7,12A5,5 0 0,1 12,7M12,9A3,3 0 0,0 9,12A3,3 0 0,0 12,15A3,3 0 0,0 15,12A3,3 0 0,0 12,9M12,2L14.39,5.42C13.65,5.15 12.84,5 12,5C11.16,5 10.35,5.15 9.61,5.42L12,2M3.34,7L7.5,6.65C6.9,7.16 6.36,7.78 5.94,8.5C5.5,9.24 5.25,10 5.11,10.79L3.34,7M3.36,17L5.12,13.23C5.26,14 5.53,14.78 5.95,15.5C6.37,16.24 6.91,16.86 7.5,17.37L3.36,17M20.65,7L18.88,10.79C18.74,10 18.47,9.23 18.05,8.5C17.63,7.78 17.1,7.15 16.5,6.64L20.65,7M20.64,17L16.5,17.36C17.09,16.85 17.62,16.22 18.04,15.5C18.46,14.77 18.73,14 18.87,13.21L20.64,17M12,22L9.59,18.56C10.33,18.83 11.14,19 12,19C12.82,19 13.63,18.83 14.37,18.56L12,22Z" fill="currentColor"/>
@@ -47,7 +58,13 @@
         <div
           class="dm-button"
           :class="{ 'selected': isDMSelected }"
+          role="button"
+          tabindex="0"
+          aria-label="Direct messages"
+          :aria-current="isDMSelected ? 'page' : undefined"
           @click="goToDMs"
+          @keydown.enter.prevent="goToDMs"
+          @keydown.space.prevent="goToDMs"
         >
           <svg viewBox="0 0 24 24" class="dm-icon">
             <path d="M20,2H4A2,2 0 0,0 2,4V22L6,18H20A2,2 0 0,0 22,16V4A2,2 0 0,0 20,2M4,4H20V16H5.17L4,17.17V4Z" fill="currentColor"/>
@@ -67,7 +84,13 @@
         <div
           class="fediverse-button"
           :class="{ 'selected': isFediverseSelected }"
+          role="button"
+          tabindex="0"
+          aria-label="Fediverse"
+          :aria-current="isFediverseSelected ? 'page' : undefined"
           @click="goToFediverse"
+          @keydown.enter.prevent="goToFediverse"
+          @keydown.space.prevent="goToFediverse"
         >
           <div class="fediverse-icon">#</div>
           <div v-if="unreadCount > 0" class="unread-badge">
@@ -146,7 +169,13 @@
           @dragover.prevent="handleItemDragOver($event, item)"
           @dragleave.prevent="handleItemDragLeave"
           @drop.prevent="handleItemDrop($event, item)"
+          role="button"
+          tabindex="0"
+          :aria-label="item.name"
+          :aria-current="isSelected(item.id) ? 'page' : undefined"
           @click.stop="selectServer(item.id)"
+          @keydown.enter.prevent="selectServer(item.id)"
+          @keydown.space.prevent="selectServer(item.id)"
           @contextmenu.prevent="openServerContextMenu($event, item)"
           @mouseenter="showSidebarTooltip($event, item.name)"
           @mouseleave="hideSidebarTooltip"
@@ -256,16 +285,18 @@
 
     <div v-if="fundingEnabled" class="fixed-footer">
       <div class="separator"></div>
-      <div
+      <button
+        type="button"
         class="funding-button"
+        aria-label="Instance funding"
         @click="showFundingModal = true"
         @mouseenter="showSidebarTooltip($event, 'Instance funding')"
         @mouseleave="hideSidebarTooltip"
       >
-        <svg viewBox="0 0 24 24" class="funding-icon" width="22" height="22">
+        <svg viewBox="0 0 24 24" class="funding-icon" width="22" height="22" aria-hidden="true">
           <path fill="currentColor" d="M12,21.35L10.55,20.03C5.4,15.36 2,12.27 2,8.5C2,5.41 4.42,3 7.5,3C9.24,3 10.91,3.81 12,5.08C13.09,3.81 14.76,3 16.5,3C19.58,3 22,5.41 22,8.5C22,12.27 18.6,15.36 13.45,20.03L12,21.35Z"/>
         </svg>
-      </div>
+      </button>
     </div>
 
     <FundingModal v-if="showFundingModal" @close="showFundingModal = false" />
@@ -275,9 +306,9 @@
   <Teleport to="body">
     <Transition name="tooltip-fade">
       <div 
-        v-if="sidebarTooltip.visible"
+        v-if="sidebarTooltipVisible && sidebarTooltip"
         class="sidebar-tooltip"
-        :style="{ top: sidebarTooltip.y + 'px' }"
+        :style="{ top: sidebarTooltipY + 'px' }"
       >
         <div class="sidebar-tooltip-content">
           <span class="sidebar-tooltip-name">{{ sidebarTooltip.name }}</span>
@@ -308,6 +339,7 @@ import FundingModal from '@/components/FundingModal.vue';
 import { fundingService } from '@/services/FundingService';
 import { useTodayDashboard } from '@/composables/useTodayDashboard';
 import { useViewport } from '@/composables/useViewport';
+import { useAnchoredTooltip } from '@/composables/useAnchoredTooltip';
 import { debug } from '@/utils/debug';
 import type { Server, ServerFolder as ServerFolderType } from '@/types';
 
@@ -333,13 +365,13 @@ const dropPosition = ref<'before' | 'after' | 'into'>('after');
 const folderWasExpanded = ref<boolean>(false); // Track if folder was expanded before drag
 const isDraggingOverBottom = ref(false); // Track when dragging over empty bottom area
 
-const sidebarTooltip = ref<{
-  visible: boolean;
-  name: string;
-  y: number;
-  serverCount?: number;
-}>({ visible: false, name: '', y: 0 });
-const tooltipTimer = ref<ReturnType<typeof setTimeout> | null>(null);
+const {
+  visible: sidebarTooltipVisible,
+  y: sidebarTooltipY,
+  payload: sidebarTooltip,
+  show: showAnchoredTooltip,
+  hide: hideSidebarTooltip,
+} = useAnchoredTooltip<{ name: string; serverCount?: number }>();
 
 // Legacy refs retained for backwards compatibility
 // eslint-disable-next-line unused-imports/no-unused-vars
@@ -799,29 +831,7 @@ const isTouchDevice = ref(isTouchOnly);
 
 const showSidebarTooltip = (event: MouseEvent, name: string, serverCount?: number) => {
   if (isTouchDevice.value) return;
-  if (tooltipTimer.value) clearTimeout(tooltipTimer.value);
-  
-  const target = event.currentTarget as HTMLElement;
-  if (!target) return;
-  const rect = target.getBoundingClientRect();
-  const y = rect.top + rect.height / 2;
-  
-  tooltipTimer.value = setTimeout(() => {
-    sidebarTooltip.value = {
-      visible: true,
-      name: name || 'Unnamed',
-      y,
-      serverCount
-    };
-  }, 400);
-};
-
-const hideSidebarTooltip = () => {
-  if (tooltipTimer.value) {
-    clearTimeout(tooltipTimer.value);
-    tooltipTimer.value = null;
-  }
-  sidebarTooltip.value.visible = false;
+  showAnchoredTooltip(event, { name: name || 'Unnamed', serverCount });
 };
 
 const handleScrollAreaDragOver = (event: DragEvent) => {
@@ -1096,6 +1106,8 @@ const removeServerFromFolder = async () => {
 .funding-button {
   width: 48px;
   height: 48px;
+  padding: 0;
+  border: none;
   border-radius: 50%;
   background: var(--background-secondary);
   display: flex;

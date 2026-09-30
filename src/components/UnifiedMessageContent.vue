@@ -1459,7 +1459,7 @@ export default defineComponent({
 .url-link {
   color: var(--harmony-primary);
   text-decoration: none;
-  word-break: break-all;
+  overflow-wrap: anywhere;
   user-select: text;
   -webkit-user-select: text;
   -moz-user-select: text;

@@ -1,5 +1,8 @@
 import type { Directive } from 'vue';
 
+// Also closes on a right-click elsewhere and on Escape, so opening one menu
+// dismisses another. contextmenu is captured: menu triggers stop its
+// propagation, and the capture phase runs before the next menu mounts.
 const ClickOutsideDirective: Directive = {
   beforeMount(el, binding) {
     el.clickOutsideEvent = function(event: Event) {
@@ -7,11 +10,17 @@ const ClickOutsideDirective: Directive = {
         binding.value(event);
       }
     };
-    // Listen for clicks outside the element
+    el.clickOutsideKeydown = function(event: KeyboardEvent) {
+      if (event.key === 'Escape') binding.value(event);
+    };
     document.addEventListener('click', el.clickOutsideEvent);
+    document.addEventListener('contextmenu', el.clickOutsideEvent, true);
+    document.addEventListener('keydown', el.clickOutsideKeydown);
   },
   unmounted(el) {
     document.removeEventListener('click', el.clickOutsideEvent);
+    document.removeEventListener('contextmenu', el.clickOutsideEvent, true);
+    document.removeEventListener('keydown', el.clickOutsideKeydown);
   },
 };
 

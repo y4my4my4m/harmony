@@ -20,20 +20,27 @@
     </div>
     <div class="user-info">
       <p class="user-name"><DisplayName :userId="currentUser.id" :fallback="currentUser.displayName" :truncate="true" /></p>
-      <div class="user-status-container" @click="toggleStatusDropdown">
-        <div class="status-dot" :class="currentStatusDisplay.class"></div>
+      <button
+        type="button"
+        class="user-status-container"
+        aria-haspopup="menu"
+        :aria-expanded="showStatusDropdown"
+        @click="toggleStatusDropdown"
+      >
+        <span class="status-dot" :class="currentStatusDisplay.class"></span>
         <span class="status-text">{{ currentStatusDisplay.text }}</span>
-        <svg class="dropdown-arrow" :class="{ rotated: showStatusDropdown }" width="12" height="8" viewBox="0 0 12 8" fill="currentColor">
+        <svg class="dropdown-arrow" :class="{ rotated: showStatusDropdown }" width="12" height="8" viewBox="0 0 12 8" fill="currentColor" aria-hidden="true">
           <path d="M6 6L10.5 1.5L9 0L6 3L3 0L1.5 1.5L6 6Z"/>
         </svg>
-      </div>
+      </button>
     </div>
 
     <div class="buttons profile-bar-buttons">
       <div class="icon-button notification-bell-slot" data-action="bell">
         <NotificationBell />
       </div>
-      <div
+      <button
+        type="button"
         class="icon-button"
         data-action="mic"
         @click="toggleMic"
@@ -42,10 +49,12 @@
           'voice-active': isInVoiceChannel
         }"
         :title="isMicActive ? 'Mute' : 'Unmute'"
+        :aria-label="isMicActive ? 'Mute' : 'Unmute'"
       >
         <Icon :name="isMicActive ? 'mic' : 'mic-off'" />
-      </div>
-      <div
+      </button>
+      <button
+        type="button"
         class="icon-button"
         data-action="deafen"
         @click="toggleHeadphones"
@@ -54,13 +63,21 @@
           'voice-active': isInVoiceChannel
         }"
         :title="isHeadphonesActive ? 'Deafen' : 'Undeafen'"
+        :aria-label="isHeadphonesActive ? 'Deafen' : 'Undeafen'"
       >
         <HeadphonesIcon :isHeadphonesActive="isHeadphonesActive" />
-      </div>
-      <div class="icon-button settings" data-action="settings" @click="goToSettings" title="Settings"><SettingsIcon/></div>
+      </button>
+      <button
+        type="button"
+        class="icon-button settings"
+        data-action="settings"
+        title="Settings"
+        aria-label="Settings"
+        @click="goToSettings"
+      ><SettingsIcon/></button>
     </div>
 
-    <div class="status-dropdown" v-if="showStatusDropdown">
+    <div class="status-dropdown" v-if="showStatusDropdown" role="menu">
       <!-- Custom Status: click row to open edit popup, [X] to clear only -->
       <div 
         class="custom-status-preview"
@@ -83,7 +100,7 @@
           <svg v-else-if="!currentCustomStatus?.type || currentCustomStatus?.type === 'custom'" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" class="emoji-placeholder">
             <path d="M12 2a10 10 0 1010 10A10 10 0 0012 2zm0 18a8 8 0 118-8 8 8 0 01-8 8zm2.44-9a1.5 1.5 0 101.5-1.5 1.5 1.5 0 00-1.5 1.5zM8.5 11a1.5 1.5 0 101.5-1.5A1.5 1.5 0 008.5 11zm7.56 3.15a.76.76 0 00-1.06-.21 4.85 4.85 0 01-6 0 .76.76 0 10-.85 1.26 6.33 6.33 0 007.7 0 .76.76 0 00.21-1.05z"/>
           </svg>
-          <span class="preview-text">{{ customStatusDisplayText || 'Set Custom Status' }}</span>
+          <span class="preview-text">{{ customStatusDisplayText || 'Set custom status' }}</span>
         </div>
         <button 
           v-if="currentCustomStatus" 
@@ -101,17 +118,20 @@
       <div class="status-divider"></div>
       
       <!-- Status Options -->
-      <div 
-        v-for="status in statusOptions" 
+      <button
+        v-for="status in statusOptions"
         :key="status.value"
+        type="button"
         class="status-option"
+        role="menuitemradio"
+        :aria-checked="currentStatus === status.value"
         :class="{ active: currentStatus === status.value }"
         @click="selectStatus(status.value)"
       >
-        <div class="status-dot" :class="status.class"></div>
+        <span class="status-dot" :class="status.class"></span>
         <span class="status-text">{{ status.label }}</span>
         <Icon v-if="currentStatus === status.value" name="check" :size="14" class="checkmark" />
-      </div>
+      </button>
     </div>
     
     <!-- Status Picker Modal -->
@@ -217,7 +237,7 @@ const currentStatusDisplay = computed(() => {
     case UserStatus.Away:
       return { class: 'status-away', text: 'Away' }
     case UserStatus.Busy:
-      return { class: 'status-busy', text: 'Do Not Disturb' }
+      return { class: 'status-busy', text: 'Do not disturb' }
     case UserStatus.Invisible:
       return { class: 'status-invisible', text: 'Invisible' }
     case UserStatus.Offline:
@@ -247,7 +267,7 @@ const currentStatusForAvatar = computed(() => {
 const statusOptions = [
   { value: UserStatus.Online, label: 'Online', class: 'status-online' },
   { value: UserStatus.Away, label: 'Away', class: 'status-away' },
-  { value: UserStatus.Busy, label: 'Do Not Disturb', class: 'status-busy' },
+  { value: UserStatus.Busy, label: 'Do not disturb', class: 'status-busy' },
   { value: UserStatus.Invisible, label: 'Invisible', class: 'status-invisible' }
 ]
 
@@ -353,6 +373,12 @@ const onClickOutside = (event: any) => {
   }
 }
 
+const onKeydown = (event: KeyboardEvent) => {
+  if (event.key === 'Escape' && showStatusDropdown.value) {
+    showStatusDropdown.value = false
+  }
+}
+
 const goToSettings = () => {
   if (isMobile.value) {
     closeMobileSidebars()
@@ -380,10 +406,12 @@ onMounted(async () => {
   // All profile changes (avatar, display name, status, etc.) are handled reactively
   // via the unified user data system
   document.addEventListener('click', onClickOutside)
+  document.addEventListener('keydown', onKeydown)
 })
 
 onBeforeUnmount(() => {
   document.removeEventListener('click', onClickOutside)
+  document.removeEventListener('keydown', onKeydown)
 })
 </script>
 
@@ -463,7 +491,13 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   cursor: pointer;
+  background: none;
+  border: none;
+  font: inherit;
   font-size: 0.8em;
+  text-align: left;
+  /* Buttons shrink to content; full row width less the 10px right margin. */
+  width: calc(100% - 10px);
   color: var(--text-muted);
   padding: 4px 6px;
   border-radius: 3px;
@@ -500,6 +534,9 @@ onBeforeUnmount(() => {
   height: 32px;
   min-width: 32px;
   min-height: 32px;
+  padding: 0;
+  background: none;
+  border: none;
   border-radius: 6px;
   display: flex;
   align-items: center;
@@ -647,6 +684,11 @@ onBeforeUnmount(() => {
 .status-option {
   display: flex;
   align-items: center;
+  width: 100%;
+  background: none;
+  border: none;
+  font: inherit;
+  text-align: left;
   padding: 8px 10px;
   cursor: pointer;
   border-radius: 4px;

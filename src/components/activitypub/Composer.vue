@@ -384,6 +384,7 @@ import Avatar from '../common/Avatar.vue';
 import DisplayName from '@/components/DisplayName.vue';
 import AutoSuggest from '@/components/AutoSuggest.vue';
 import RichTextEditor from '@/components/RichTextEditor.vue';
+import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
 
 const { t } = useI18n();
 const toast = useToast();
@@ -427,7 +428,17 @@ const emojiTriggerRef = ref<HTMLElement | null>(null);
 const gifTriggerRef = ref<HTMLElement | null>(null);
 const mediaPickerTriggerRef = computed(() => gifTriggerRef.value || emojiTriggerRef.value);
 const isPosting = ref(false);
-const isDragging = ref(false);
+const {
+  visible: isDragging,
+  onDragEnter: handleDragEnter,
+  onDragOver: handleDragOver,
+  onDragLeave: handleDragLeave,
+  reset: resetDragging,
+} = useFileDragOverlay((dt) =>
+  Array.from(dt.items || []).some(
+    (item) => item.type.startsWith('image/') || item.type.startsWith('video/'),
+  ),
+);
 
 // State is held locally, not in a composable.
 const content = ref('');
@@ -662,37 +673,10 @@ const triggerFileUpload = () => {
   fileInputRef.value?.click();
 };
 
-const handleDragEnter = (event: DragEvent) => {
-  event.preventDefault();
-  // Overlay appears only for image/video drags.
-  const items = event.dataTransfer?.items;
-  if (items) {
-    for (const item of Array.from(items)) {
-      if (item.type.startsWith('image/') || item.type.startsWith('video/')) {
-        isDragging.value = true;
-        break;
-      }
-    }
-  }
-};
-
-const handleDragOver = (event: DragEvent) => {
-  event.preventDefault();
-};
-
-const handleDragLeave = (event: DragEvent) => {
-  event.preventDefault();
-  const currentTarget = event.currentTarget as HTMLElement;
-  const relatedTarget = event.relatedTarget as Node | null;
-  if (!currentTarget?.contains(relatedTarget)) {
-    isDragging.value = false;
-  }
-};
-
 const handleDrop = async (event: DragEvent) => {
   event.preventDefault();
   event.stopPropagation();
-  isDragging.value = false;
+  resetDragging();
 
   const files = event.dataTransfer?.files;
   if (!files || files.length === 0) return;

@@ -10,7 +10,13 @@
         v-if="!folder.is_expanded"
         class="folder-collapsed"
         :style="{ '--folder-color': folder.color }"
+        role="button"
+        tabindex="0"
+        :aria-label="folder.name || 'Folder'"
+        aria-expanded="false"
         @click="toggleExpanded"
+        @keydown.enter.prevent="toggleExpanded"
+        @keydown.space.prevent="toggleExpanded"
         @dragenter.prevent="handleDragEnter"
         @dragleave.prevent="handleDragLeave"
         @dragover.prevent
@@ -61,8 +67,14 @@
       >
         <!-- Folder top cap with folder icon -->
         <div 
-          class="folder-cap folder-cap-top" 
+          class="folder-cap folder-cap-top"
+          role="button"
+          tabindex="0"
+          :aria-label="folder.name || 'Folder'"
+          aria-expanded="true"
           @click="toggleExpanded"
+          @keydown.enter.prevent="toggleExpanded"
+          @keydown.space.prevent="toggleExpanded"
           @mouseenter="showFolderTooltip"
           @mouseleave="hideFolderTooltip"
         >
@@ -90,7 +102,13 @@
             @dragover="handleServerDragOverItem($event, server)"
             @dragleave="handleServerDragLeaveItem($event)"
             @drop="handleServerDropOnItem($event, server)"
+            role="button"
+            tabindex="0"
+            :aria-label="server.name"
+            :aria-current="isSelected(server.id) ? 'page' : undefined"
             @click.stop="handleServerClick(server.id)"
+            @keydown.enter.prevent="handleServerClick(server.id)"
+            @keydown.space.prevent="handleServerClick(server.id)"
             @contextmenu.prevent.stop="openServerContextMenu($event, server)"
             @mouseenter="showServerTooltip($event, server.name)"
             @mouseleave="hideServerTooltip"
@@ -139,11 +157,11 @@
   <Teleport to="body">
     <Transition name="tooltip-fade">
       <div 
-        v-if="serverTooltip.visible"
+        v-if="serverTooltipVisible"
         class="server-tooltip"
-        :style="{ top: serverTooltip.y + 'px' }"
+        :style="{ top: serverTooltipY + 'px' }"
       >
-        <span class="server-tooltip-name">{{ serverTooltip.name }}</span>
+        <span class="server-tooltip-name">{{ serverTooltipPayload?.name }}</span>
         <div class="server-tooltip-arrow"></div>
       </div>
     </Transition>
@@ -158,6 +176,7 @@ import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useNotificationStore } from '@/stores/useNotification';
 import { useUnreadCounts } from '@/composables/useUnreadCounts';
 import { useViewport } from '@/composables/useViewport';
+import { useAnchoredTooltip } from '@/composables/useAnchoredTooltip';
 import type { Server, ServerFolder } from '@/types';
 
 interface Props {
@@ -194,13 +213,13 @@ const dropTargetServerId = ref<string | null>(null);
 const dropPosition = ref<'before' | 'after'>('after');
 const isExternalDragOver = ref(false); // Track when external server is being dragged over
 
-// Tooltip state
-const serverTooltip = ref<{
-  visible: boolean;
-  name: string;
-  y: number;
-}>({ visible: false, name: '', y: 0 });
-const tooltipTimer = ref<ReturnType<typeof setTimeout> | null>(null);
+const {
+  visible: serverTooltipVisible,
+  y: serverTooltipY,
+  payload: serverTooltipPayload,
+  show: showAnchoredTooltip,
+  hide: hideServerTooltip,
+} = useAnchoredTooltip<{ name: string }>();
 
 // First 4 servers for the grid preview
 const previewServers = computed(() => {
@@ -357,33 +376,13 @@ const handleServerClick = (serverId: string) => {
 const { isTouchOnly: isTouchDevice } = useViewport();
 
 const showServerTooltip = (event: MouseEvent, name: string) => {
-  if (isTouchDevice) return;
-  if (tooltipTimer.value) clearTimeout(tooltipTimer.value);
-  
-  const target = event.currentTarget as HTMLElement;
-  if (!target) return;
-  const rect = target.getBoundingClientRect();
-  const y = rect.top + rect.height / 2;
-  
-  tooltipTimer.value = setTimeout(() => {
-    serverTooltip.value = {
-      visible: true,
-      name: name || 'Unnamed Server',
-      y
-    };
-  }, 400);
+  if (isTouchDevice || !props.folder.is_expanded) return;
+  showAnchoredTooltip(event, { name: name || 'Unnamed server' });
 };
 
-const hideServerTooltip = () => {
-  if (tooltipTimer.value) {
-    clearTimeout(tooltipTimer.value);
-    tooltipTimer.value = null;
-  }
-  serverTooltip.value.visible = false;
-};
-
-watch(() => props.folder.is_expanded, (expanded) => {
-  if (!expanded) hideServerTooltip();
+watch(() => props.folder.is_expanded, () => {
+  hideServerTooltip();
+  hideFolderTooltip();
 });
 
 onBeforeUnmount(() => {

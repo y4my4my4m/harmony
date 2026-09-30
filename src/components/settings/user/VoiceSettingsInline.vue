@@ -4,7 +4,7 @@
     <div class="settings-section">
       <h4 class="section-title">
         <Icon name="mic" />
-        Input Mode
+        Input mode
       </h4>
       
       <VoiceInputModeSettings @input-mode-change="onInputModeChange" />
@@ -14,11 +14,11 @@
     <div class="settings-section">
       <h4 class="section-title">
         <Icon name="volume-2" />
-        Audio Devices
+        Audio devices
       </h4>
       
       <div class="setting-group">
-        <label class="setting-label">Input Device</label>
+        <label class="setting-label">Input device</label>
         <select v-model="selectedInputDevice" class="setting-select" @change="updateInputDevice">
           <option v-for="device in inputDevices" :key="device.deviceId" :value="device.deviceId">
             {{ device.label || `Microphone ${device.deviceId.slice(0, 8)}` }}
@@ -27,7 +27,7 @@
       </div>
 
       <div class="setting-group">
-        <label class="setting-label">Output Device</label>
+        <label class="setting-label">Output device</label>
         <select v-model="selectedOutputDevice" class="setting-select" @change="updateOutputDevice">
           <option v-for="device in outputDevices" :key="device.deviceId" :value="device.deviceId">
             {{ device.label || `Speaker ${device.deviceId.slice(0, 8)}` }}
@@ -37,7 +37,7 @@
 
       <div class="setting-group">
         <label class="setting-label">
-          Input Volume
+          Input volume
           <span class="setting-value">{{ inputVolume }}%</span>
         </label>
         <div class="volume-control">
@@ -55,7 +55,7 @@
 
       <div class="setting-group">
         <label class="setting-label">
-          Output Volume
+          Output volume
           <span class="setting-value">{{ outputVolume }}%</span>
         </label>
         <div class="volume-control">
@@ -76,7 +76,7 @@
         <div class="audio-test">
           <button @click="testMicrophone" class="test-btn" :class="{ active: isTesting }">
             <Icon name="mic" />
-            {{ isTesting ? 'Testing...' : 'Test Microphone' }}
+            {{ isTesting ? 'Testing...' : 'Test microphone' }}
           </button>
           <div v-if="isTesting" class="test-indicator">
             <div class="test-level" :style="{ width: `${testLevel}%` }"></div>
@@ -89,7 +89,7 @@
     <div class="settings-section">
       <h4 class="section-title">
         <Icon name="settings" />
-        Audio Quality
+        Audio quality
       </h4>
 
       <div class="setting-group checkbox-group">
@@ -102,7 +102,7 @@
           />
           <div class="checkbox-custom"></div>
           <div class="checkbox-content">
-            <span>Echo Cancellation</span>
+            <span>Echo cancellation</span>
             <small>Reduces echo from your speakers</small>
           </div>
         </label>
@@ -118,7 +118,7 @@
           />
           <div class="checkbox-custom"></div>
           <div class="checkbox-content">
-            <span>Noise Suppression</span>
+            <span>Noise suppression</span>
             <small>Filters background noise</small>
           </div>
         </label>
@@ -134,7 +134,7 @@
           />
           <div class="checkbox-custom"></div>
           <div class="checkbox-content">
-            <span>Auto Gain Control</span>
+            <span>Auto gain control</span>
             <small>Automatically adjusts microphone sensitivity</small>
           </div>
         </label>
@@ -151,7 +151,7 @@
       <div class="setting-group">
         <label class="setting-label">Camera</label>
         <select v-model="selectedVideoDevice" class="setting-select" @change="updateVideoSettings">
-          <option value="">No Camera</option>
+          <option value="">No camera</option>
           <option v-for="device in videoDevices" :key="device.deviceId" :value="device.deviceId">
             {{ device.label || `Camera ${device.deviceId.slice(0, 8)}` }}
           </option>
@@ -168,7 +168,7 @@
       </div>
 
       <div class="setting-group">
-        <label class="setting-label">Frame Rate</label>
+        <label class="setting-label">Frame rate</label>
         <select v-model="frameRate" class="setting-select" @change="updateVideoSettings">
           <option value="15">15 FPS</option>
           <option value="30">30 FPS</option>
@@ -188,7 +188,7 @@
           ></video>
           <div v-if="!previewStream" class="preview-placeholder">
             <Icon name="video-off" size="xl" />
-            <span>Camera Preview</span>
+            <span>Camera preview</span>
           </div>
         </div>
       </div>

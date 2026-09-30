@@ -4,9 +4,10 @@
       <button 
         v-if="isMobile"
         class="mobile-menu-btn"
+        aria-label="Toggle navigation"
         @click="$emit('toggle-left-sidebar')"
       >
-        <svg viewBox="0 0 24 24" class="menu-icon">
+        <svg viewBox="0 0 24 24" class="menu-icon" aria-hidden="true">
           <path d="M3,6H21V8H3V6M3,11H21V13H3V11M3,16H21V18H3V16Z" fill="currentColor"/>
         </svg>
       </button>
@@ -50,6 +51,7 @@
         class="action-btn threads-btn"
         @click="handleThreadsClick"
         title="View all threads"
+        aria-label="View all threads"
       >
         <Icon name="thread" :size="16" />
       </button>
@@ -67,7 +69,9 @@
         class="action-btn members-btn"
         :class="{ active: props.rightSidebarOpen }"
         @click="handleMembersClick"
-        title="Show member list"
+        :title="props.rightSidebarOpen ? 'Hide member list' : 'Show member list'"
+        :aria-label="props.rightSidebarOpen ? 'Hide member list' : 'Show member list'"
+        :aria-pressed="!!props.rightSidebarOpen"
       >
         <Icon name="users" :size="16" />
       </button>
@@ -78,6 +82,9 @@
           :class="{ active: showOptionsMenu }"
           @click="handleMoreClick"
           title="More options"
+          aria-label="More options"
+          aria-haspopup="menu"
+          :aria-expanded="showOptionsMenu"
         >
           <Icon name="dots-vertical" :size="16" />
         </button>

@@ -524,9 +524,11 @@ strong {
   width: 600px;
 }
 
+/* Classless links come from rendered message and post HTML. Component links
+   (author rows, nav items, link-styled buttons) define their own hover. */
 @media (hover: hover) {
-  a:hover {
-    background-color: rgba(14, 165, 233, 0.15);
+  a:not([class]):hover {
+    text-decoration: underline;
   }
 }
 
@@ -799,6 +801,41 @@ strong {
 }
 
 .form-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Native select in field chrome. The chevron is a data URI and cannot follow
+   currentColor; #949ba4 reads on both theme surfaces. Matches KickBanModal. */
+.form-select {
+  appearance: none;
+  -webkit-appearance: none;
+  min-height: 36px;
+  padding: var(--space-2) 30px var(--space-2) var(--space-3);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-tight);
+  color: var(--text-primary);
+  background-color: var(--input-bg);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23949ba4' d='M6 8.825a.5.5 0 0 1-.354-.146l-4-4a.5.5 0 0 1 .708-.708L6 7.617l3.646-3.646a.5.5 0 0 1 .708.708l-4 4A.5.5 0 0 1 6 8.825z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-base);
+  cursor: pointer;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.form-select:hover:not(:disabled) {
+  border-color: var(--border-hover);
+}
+
+.form-select:focus-visible {
+  outline: none;
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px var(--harmony-primary-light);
+}
+
+.form-select:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }

@@ -57,7 +57,7 @@
 
       <!-- Preview -->
       <div class="color-preview-large" :style="{ backgroundColor: localColor }">
-        <span class="preview-text">Sample Text</span>
+        <span class="preview-text">Sample text</span>
       </div>
     </div>
   </div>

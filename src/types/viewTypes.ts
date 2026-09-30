@@ -201,7 +201,7 @@ export const getViewModeFromRoute = (routeName: string | null | undefined): View
     'Social', 'Fediverse', 'Explore', // Legacy routes
     'SocialHome', 'SocialLocal', 'SocialPublic', // Timeline routes
     'UserProfile', 'Followers', 'Following', // Profile routes
-    'Lists', 'Mentions', 'Bookmarks', // Social feature routes
+    'Lists', 'ListDetail', 'Mentions', 'Bookmarks', 'FollowRequests', 'HashtagView', // Social feature routes
     'SocialTrending', 'SocialInstances', // Explore routes
     'PostView', 'PostDetail', 'RemotePostDetail', 'DirectPost', 'ConversationThread' // Post routes
   ];

@@ -549,7 +549,7 @@
         <div class="setting-control">
           <select
             v-model="settings.bridgeSourceBadge"
-            class="setting-select"
+            class="form-select"
             @change="onSettingChange"
           >
             <option value="icon">{{ $t('settings.appearance.bridgeSourceBadgeIcon') }}</option>

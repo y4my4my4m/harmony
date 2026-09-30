@@ -35,45 +35,45 @@
             v-if="canGoBack"
           >
             <Icon name="arrow-left" />
-            Go back
+            {{ t('notFound.goBack') }}
           </button>
         </div>
         
         <!-- Helpful Links for authenticated users -->
         <div v-if="isAuthenticated" class="helpful-links">
-          <h3>Quick navigation:</h3>
+          <h3>{{ t('notFound.quickNavigation') }}</h3>
           <div class="link-grid">
             <router-link to="/chat" class="quick-link">
               <Icon name="message-circle" />
-              Chat
+              {{ t('nav.chat') }}
             </router-link>
             <router-link to="/social/home" class="quick-link">
               <Icon name="users" />
-              Social
+              {{ t('nav.social') }}
             </router-link>
             <router-link to="/dm" class="quick-link">
               <Icon name="mail" />
-              Direct messages
+              {{ t('nav.directMessages') }}
             </router-link>
             <router-link to="/social/mentions" class="quick-link">
               <Icon name="at-sign" />
-              Mentions
+              {{ t('nav.mentions') }}
             </router-link>
           </div>
         </div>
 
         <!-- Login prompt for unauthenticated users -->
         <div v-else class="auth-prompt">
-          <h3>Join Harmony</h3>
-          <p>Sign in to access all features and connect with the community.</p>
+          <h3>{{ t('notFound.joinHarmony') }}</h3>
+          <p>{{ t('notFound.signInPrompt') }}</p>
           <div class="auth-actions">
             <router-link to="/login" class="auth-btn primary">
               <Icon name="log-in" />
-              Sign in
+              {{ t('auth.signIn') }}
             </router-link>
             <router-link to="/register" class="auth-btn secondary">
               <Icon name="user-plus" />
-              Create account
+              {{ t('auth.createAccountButton') }}
             </router-link>
           </div>
         </div>
@@ -86,6 +86,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { debug } from '@/utils/debug'
 import { useRouter, useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import Icon from '@/components/common/Icon.vue'
 import { getRandom404Image } from '@/utils/backgroundUtils'
@@ -108,6 +109,7 @@ const props = withDefaults(defineProps<Props>(), {
   suggestedRoute: ''
 })
 
+const { t } = useI18n()
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
@@ -133,7 +135,7 @@ const notFoundContext = computed(() => {
 
 const computedTitle = computed(() => {
   if (props.title) return props.title
-  return 'Page not found'
+  return t('notFound.pageNotFound')
 })
 
 const computedDescription = computed(() => {
@@ -141,14 +143,14 @@ const computedDescription = computed(() => {
   
   // Context-aware description based on the route
   if (route.path.startsWith('/social/')) {
-    return "This social content doesn't exist or has been removed."
+    return t('notFound.socialNotFound')
   } else if (route.path.startsWith('/chat/') || route.path.startsWith('/dm/')) {
-    return "This chat or conversation doesn't exist or you don't have access to it."
+    return t('notFound.chatNotFound')
   } else if (route.path.startsWith('/settings/')) {
-    return "This settings page doesn't exist."
+    return t('notFound.settingsNotFound')
   }
   
-  return "The page you're looking for doesn't exist or has been moved."
+  return t('notFound.defaultNotFound')
 })
 
 const computedHomeButtonText = computed(() => {
@@ -157,14 +159,14 @@ const computedHomeButtonText = computed(() => {
   if (isAuthenticated.value) {
     // Context-aware button text
     if (route.path.startsWith('/social/')) {
-      return 'Back to social'
+      return t('notFound.backToSocial')
     } else if (route.path.startsWith('/chat/') || route.path.startsWith('/dm/')) {
-      return 'Back to chat'
+      return t('notFound.backToChat')
     }
-    return 'Go home'
+    return t('notFound.goHome')
   }
   
-  return 'Go home'
+  return t('notFound.goHome')
 })
 
 const defaultRoute = computed(() => {
@@ -218,17 +220,19 @@ onMounted(() => {
 </script>
 
 <style scoped>
+/* Auto margins centre the card without clipping its top when it outgrows
+   the viewport; align-items: center would. */
 .not-found-404 {
   width: 100%;
   min-height: 100%;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  overflow-y: auto;
   padding: 2rem;
   color: var(--text-primary);
 }
 
 .error-container {
+  margin: auto;
   text-align: center;
   display: flex;
   flex-direction: column;

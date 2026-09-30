@@ -176,6 +176,7 @@
   import { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData, resolveRoleMentionsData } from '@/utils/unifiedContentProcessing';
   import { buildChatParseOptions } from '@/utils/chatParseOptions';
   import { threadService } from '@/services/ThreadService';
+import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
   import { useThreadsStore } from '@/stores/useThreads';
   import { coreMessageService } from '@/services/core/CoreMessageService';
   import { useEncryptionFallbackPrompt } from '@/composables/useEncryptionFallbackPrompt';
@@ -224,7 +225,14 @@
   const draftsStore = useDraftsStore();
   const { hasCurrentUserPermission, Permission, isCurrentUserServerOwner } = useServerPermissions();
   
-  const showDragDropArea = ref(false);
+  const {
+    visible: showDragDropArea,
+    onDragEnter: handleDragEnter,
+    onDragOver: handleDragOver,
+    onDragLeave: handleDragLeave,
+    reset: resetDragDropArea,
+    hold: holdDragDropArea,
+  } = useFileDragOverlay();
   const uploading = ref(false);
   const sendError = ref<string | null>(null);
 
@@ -787,7 +795,7 @@
       // Fallback drop handler for the chat container.
       const triggerFileDrop = async (event: any) => {
         debug.log("triggerFileDrop called - File dropped on chat container:", event);
-        showDragDropArea.value = false;
+        resetDragDropArea();
         
         const files = event.dataTransfer.files;
         if (files.length > 0) {
@@ -810,10 +818,10 @@
         const { getCurrentWebview } = await import('@tauri-apps/api/webview');
         unlistenTauriFileDrop = await getCurrentWebview().onDragDropEvent(async (event) => {
           if (event.payload.type === 'enter' || event.payload.type === 'over') {
-            showDragDropArea.value = true;
+            holdDragDropArea();
             return;
           }
-          showDragDropArea.value = false;
+          resetDragDropArea();
           if (event.payload.type !== 'drop') return;
 
           const files: File[] = [];
@@ -1194,29 +1202,6 @@
         }
       };
 
-      // Drag and drop handlers for chat container
-      const handleDragEnter = (event: DragEvent) => {
-        event.preventDefault();
-        if (event.dataTransfer?.types.includes('Files')) {
-          showDragDropArea.value = true;
-        }
-      };
-
-      const handleDragOver = (event: DragEvent) => {
-        event.preventDefault();
-      };
-
-      const handleDragLeave = (event: DragEvent) => {
-        event.preventDefault();
-        // Hide only when the pointer leaves the chat container entirely.
-        const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-        const x = event.clientX;
-        const y = event.clientY;
-        
-        if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
-          showDragDropArea.value = false;
-        }
-      };
 
 </script>
 

@@ -51,7 +51,7 @@
         class="invite-btn primary"
         @click="openServer(info.serverId)"
       >
-        {{ t('invite.openServer', 'Open Server') }}
+        {{ t('invite.openServer', 'Open server') }}
       </button>
       <button
         v-else
@@ -59,7 +59,7 @@
         :disabled="isJoining"
         @click="requestJoin"
       >
-        {{ isJoining ? t('invite.joining', 'Joining…') : t('invite.accept', 'Accept Invite') }}
+        {{ isJoining ? t('invite.joining', 'Joining…') : t('invite.accept', 'Accept invite') }}
       </button>
 
       <button v-if="!info.isMember" class="invite-btn ghost" @click="$router.push('/chat')">

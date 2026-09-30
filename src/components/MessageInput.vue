@@ -127,16 +127,17 @@
             @recording-complete="handleVoiceRecordingComplete"
             @recording-cancelled="isVoiceRecording = false"
           />
-          <button ref="gifTriggerRef" @click.stop="toggleGiphy" class="icon-button">
+          <button ref="gifTriggerRef" @click.stop="toggleGiphy" class="icon-button" aria-label="GIFs" title="GIFs">
             <GifIcon />
           </button>
-          <button ref="emojiTriggerRef" @click.stop="toggleEmojiList" class="icon-button">
+          <button ref="emojiTriggerRef" @click.stop="toggleEmojiList" class="icon-button" aria-label="Emoji" title="Emoji">
             <EmojiUI />
           </button>
           <button 
             v-if="isMobile && hasContent" 
             @click.stop="send" 
             class="icon-button send-button"
+            :aria-label="$t('common.send')"
             data-testid="message-send-btn"
             :disabled="!hasContent"
           >
