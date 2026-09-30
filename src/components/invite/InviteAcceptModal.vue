@@ -17,7 +17,7 @@
 
       <div class="invite-consent__meta">
         <span class="meta-dot"></span>
-        <span>{{ memberCount }} {{ memberCount === 1 ? 'Member' : 'Members' }}</span>
+        <span>{{ memberCount }} {{ memberCount === 1 ? 'member' : 'members' }}</span>
       </div>
 
       <p v-if="description" class="invite-consent__description">{{ description }}</p>
@@ -26,7 +26,7 @@
         {{ joining ? 'Joining…' : acceptLabel }}
       </button>
       <button class="invite-consent__btn ghost" @click="$emit('close')">
-        No Thanks
+        No thanks
       </button>
     </div>
   </BaseModal>
@@ -54,7 +54,7 @@ defineEmits<{
 
 const serverInitial = computed(() => props.serverName?.charAt(0).toUpperCase() || 'S')
 const acceptLabel = computed(() =>
-  props.acceptAsName ? `Accept as ${props.acceptAsName}` : 'Accept Invite'
+  props.acceptAsName ? `Accept as ${props.acceptAsName}` : 'Accept invite'
 )
 </script>
 
@@ -71,9 +71,8 @@ const acceptLabel = computed(() =>
 .invite-consent__icon {
   width: 72px;
   height: 72px;
-  border-radius: 20px;
+  border-radius: var(--radius-2xl);
   overflow: hidden;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
 }
 
 .invite-consent__icon img {
@@ -88,10 +87,10 @@ const acceptLabel = computed(() =>
   justify-content: center;
   width: 100%;
   height: 100%;
-  background: linear-gradient(135deg, var(--harmony-primary), var(--harmony-primary-hover, var(--harmony-secondary)));
+  background: var(--harmony-primary);
   font-size: 28px;
   font-weight: 700;
-  color: var(--text-primary);
+  color: var(--text-on-primary);
 }
 
 .invite-consent__muted {
@@ -120,7 +119,7 @@ const acceptLabel = computed(() =>
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--text-muted, #80848e);
+  background: var(--text-muted);
 }
 
 .invite-consent__description {
@@ -139,22 +138,21 @@ const acceptLabel = computed(() =>
   width: 100%;
   padding: 12px 20px;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   font-size: 15px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 .invite-consent__btn.primary {
   margin-top: 8px;
-  background: linear-gradient(135deg, var(--harmony-primary), var(--harmony-primary-hover));
-  color: var(--text-primary);
+  background: var(--harmony-primary);
+  color: var(--text-on-primary);
 }
 
 .invite-consent__btn.primary:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 16px color-mix(in srgb, var(--harmony-primary) 35%, transparent);
+  background: var(--harmony-primary-hover);
 }
 
 .invite-consent__btn.primary:disabled {

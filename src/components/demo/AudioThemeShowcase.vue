@@ -1,14 +1,14 @@
 <template>
   <div class="audio-theme-showcase">
     <div class="showcase-header">
-      <h1>🎵 Audio Theme System Showcase</h1>
-      <p>Professional audio theme management for Harmony</p>
+      <h1>Audio themes</h1>
+      <p>Preview and test notification and interface sounds.</p>
     </div>
 
     <div class="showcase-grid">
       <!-- Main Theme Manager -->
       <div class="showcase-section main">
-        <h2>Audio Theme Manager</h2>
+        <h2>Audio theme manager</h2>
         <AudioThemeManager 
           :show-test-button="true"
           :show-volume-control="true"
@@ -23,7 +23,7 @@
 
       <!-- Compact Version -->
       <div class="showcase-section">
-        <h2>Compact Version</h2>
+        <h2>Compact version</h2>
         <AudioThemeManager 
           compact
           :show-advanced="false"
@@ -33,7 +33,7 @@
 
       <!-- Quick Actions -->
       <div class="showcase-section">
-        <h2>Quick Test Actions</h2>
+        <h2>Quick test actions</h2>
         <div class="test-actions">
           <button 
             v-for="action in testActions"
@@ -50,7 +50,7 @@
 
       <!-- System Status -->
       <div class="showcase-section">
-        <h2>System Information</h2>
+        <h2>System information</h2>
         <div class="system-info">
           <div class="info-item">
             <Icon name="info" />
@@ -61,7 +61,7 @@
           </div>
           <div class="info-item">
             <Icon name="music" />
-            <span>Current Theme:</span>
+            <span>Current theme:</span>
             <span class="theme-name">{{ currentTheme?.name || 'None' }}</span>
           </div>
           <div class="info-item">
@@ -81,30 +81,30 @@
 
       <!-- Developer Tools -->
       <div class="showcase-section">
-        <h2>Developer Tools</h2>
+        <h2>Developer tools</h2>
         <div class="dev-tools">
           <button @click="exportSettings" class="dev-btn">
             <Icon name="download" />
-            Export Settings
+            Export settings
           </button>
           <button @click="clearCache" class="dev-btn">
             <Icon name="trash-2" />
-            Clear Cache
+            Clear cache
           </button>
           <button @click="resetSystem" class="dev-btn danger">
             <Icon name="rotate-ccw" />
-            Reset System
+            Reset system
           </button>
         </div>
 
         <div v-if="showDebugInfo" class="debug-info">
-          <h4>Debug Information</h4>
+          <h4>Debug information</h4>
           <pre>{{ debugInfo }}</pre>
         </div>
         
         <button @click="showDebugInfo = !showDebugInfo" class="debug-toggle">
           <Icon :name="showDebugInfo ? 'eye-off' : 'eye'" />
-          {{ showDebugInfo ? 'Hide' : 'Show' }} Debug Info
+          {{ showDebugInfo ? 'Hide' : 'Show' }} debug info
         </button>
       </div>
     </div>
@@ -117,7 +117,7 @@
           :key="toast.id"
           :class="['toast', toast.type]"
         >
-          <Icon :name="getToastIcon(toast.type)" />
+          <Icon :name="getToastIcon(toast.type)" class="toast-icon" />
           <span>{{ toast.message }}</span>
           <button @click="removeToast(toast.id)" class="toast-close">
             <Icon name="x" />
@@ -147,10 +147,10 @@ const cacheInfo = ref<any>(null)
 // Test actions for demonstration
 const testActions = [
   { id: 'mention', label: 'Mention', icon: 'at-sign', category: 'notification' },
-  { id: 'dm', label: 'Direct Message', icon: 'message-circle', category: 'notification' },
+  { id: 'dm', label: 'Direct message', icon: 'message-circle', category: 'notification' },
   { id: 'reaction', label: 'Reaction', icon: 'heart', category: 'notification' },
-  { id: 'voice_connect', label: 'Voice Connect', icon: 'phone', category: 'voice' },
-  { id: 'voice_disconnect', label: 'Voice Disconnect', icon: 'phone-off', category: 'voice' },
+  { id: 'voice_connect', label: 'Voice connect', icon: 'phone', category: 'voice' },
+  { id: 'voice_disconnect', label: 'Voice disconnect', icon: 'phone-off', category: 'voice' },
   { id: 'ui_success', label: 'Success', icon: 'check-circle', category: 'ui' },
   { id: 'ui_error', label: 'Error', icon: 'alert-circle', category: 'ui' },
   { id: 'ui_click', label: 'Click', icon: 'mouse-pointer', category: 'ui' }
@@ -177,10 +177,10 @@ const debugInfo = computed(() => ({
 const testAction = async (actionId: string): Promise<void> => {
   try {
     await themeStore.testAudio(actionId as AudioAction)
-    showToast('success', `Tested ${actionId} successfully`)
+    showToast('success', `Played ${actionId}`)
   } catch (error) {
     debug.error('Test failed:', error)
-    showToast('error', `Failed to test ${actionId}`)
+    showToast('error', `Couldn't play ${actionId}`)
   }
 }
 
@@ -207,9 +207,9 @@ const exportSettings = (): void => {
     a.download = `harmony-audio-settings-${new Date().toISOString().slice(0, 10)}.json`
     a.click()
     URL.revokeObjectURL(url)
-    showToast('success', 'Settings exported successfully')
+    showToast('success', 'Settings exported')
   } catch (error) {
-    showToast('error', 'Failed to export settings')
+    showToast('error', "Couldn't export settings")
   }
 }
 
@@ -226,7 +226,7 @@ const resetSystem = async (): Promise<void> => {
       updateCacheInfo()
       showToast('success', 'System reset to defaults')
     } catch (error) {
-      showToast('error', 'Failed to reset system')
+      showToast('error', "Couldn't reset audio settings")
     }
   }
 }
@@ -277,7 +277,7 @@ onMounted(async () => {
     showToast('success', 'Audio theme system initialized')
   } catch (error) {
     debug.error('Failed to initialize:', error)
-    showToast('error', 'Failed to initialize audio system')
+    showToast('error', "Couldn't start the audio system")
   }
 })
 </script>
@@ -285,7 +285,7 @@ onMounted(async () => {
 <style scoped>
 .audio-theme-showcase {
   min-height: 100vh;
-  background: linear-gradient(135deg, #0f1419 0%, #1a202c 50%, #2d3748 100%);
+  background: var(--background-primary);
   color: var(--text-primary);
   padding: 32px;
 }
@@ -296,18 +296,15 @@ onMounted(async () => {
 }
 
 .showcase-header h1 {
-  font-size: 48px;
-  font-weight: 800;
-  margin: 0 0 16px 0;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  font-size: var(--font-size-3xl);
+  font-weight: 700;
+  margin: 0 0 8px 0;
+  color: var(--text-primary);
 }
 
 .showcase-header p {
-  font-size: 20px;
-  color: #a0aec0;
+  font-size: var(--font-size-base);
+  color: var(--text-secondary);
   margin: 0;
 }
 
@@ -320,11 +317,10 @@ onMounted(async () => {
 }
 
 .showcase-section {
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 16px;
+  background: var(--background-secondary);
+  border-radius: var(--radius-lg);
   padding: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
+  border: 1px solid var(--border-primary);
 }
 
 .showcase-section.main {
@@ -332,8 +328,8 @@ onMounted(async () => {
 }
 
 .showcase-section h2 {
-  font-size: 24px;
-  font-weight: 700;
+  font-size: var(--font-size-xl);
+  font-weight: 600;
   margin: 0 0 20px 0;
   color: var(--text-primary);
 }
@@ -350,37 +346,24 @@ onMounted(async () => {
   align-items: center;
   gap: 12px;
   padding: 16px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
+  background: var(--background-tertiary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
   color: var(--text-primary);
   cursor: pointer;
-  transition: all 0.2s ease;
-  font-size: 14px;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+  font-size: var(--font-size-sm);
   font-weight: 500;
 }
 
 .test-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.2);
-  transform: translateY(-1px);
+  background: var(--background-modifier-hover);
+  border-color: var(--border-hover);
 }
 
 .test-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-}
-
-.test-btn.notification {
-  border-color: rgba(102, 126, 234, 0.3);
-}
-
-.test-btn.voice {
-  border-color: rgba(72, 187, 120, 0.3);
-}
-
-.test-btn.ui {
-  border-color: rgba(237, 137, 54, 0.3);
 }
 
 /* System Info */
@@ -395,49 +378,47 @@ onMounted(async () => {
   align-items: center;
   gap: 12px;
   padding: 12px 16px;
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--background-tertiary);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-primary);
 }
 
 .info-item > span:first-of-type {
   flex: 1;
   font-weight: 500;
-  color: #a0aec0;
+  color: var(--text-secondary);
 }
 
 .status-badge {
   padding: 4px 12px;
-  border-radius: 16px;
-  font-size: 12px;
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
 }
 
 .status-badge.ready {
-  background: rgba(72, 187, 120, 0.2);
-  color: #68d391;
-  border: 1px solid rgba(72, 187, 120, 0.3);
+  background: color-mix(in srgb, var(--success) 15%, transparent);
+  color: var(--success);
+  border: 1px solid color-mix(in srgb, var(--success) 30%, transparent);
 }
 
 .status-badge.loading,
 .status-badge.preloading {
-  background: rgba(66, 153, 225, 0.2);
-  color: #63b3ed;
-  border: 1px solid rgba(66, 153, 225, 0.3);
+  background: var(--harmony-primary-alpha);
+  color: var(--harmony-primary);
+  border: 1px solid var(--harmony-primary-alpha-strong);
 }
 
 .status-badge.error {
-  background: rgba(245, 101, 101, 0.2);
-  color: #fc8181;
-  border: 1px solid rgba(245, 101, 101, 0.3);
+  background: color-mix(in srgb, var(--error) 15%, transparent);
+  color: var(--error);
+  border: 1px solid color-mix(in srgb, var(--error) 30%, transparent);
 }
 
 .theme-name,
 .volume-display,
 .cache-display {
-  color: #667eea;
+  color: var(--text-primary);
   font-weight: 600;
 }
 
@@ -454,36 +435,35 @@ onMounted(async () => {
   align-items: center;
   gap: 8px;
   padding: 12px 16px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
+  background: var(--background-tertiary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
   color: var(--text-primary);
   cursor: pointer;
-  transition: all 0.2s ease;
-  font-size: 14px;
+  transition: background-color 0.2s ease;
+  font-size: var(--font-size-sm);
   font-weight: 500;
 }
 
 .dev-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  transform: translateY(-1px);
+  background: var(--background-modifier-hover);
 }
 
 .dev-btn.danger {
-  border-color: rgba(245, 101, 101, 0.3);
-  color: #fc8181;
+  border-color: color-mix(in srgb, var(--error) 30%, transparent);
+  color: var(--error);
 }
 
 .dev-btn.danger:hover {
-  background: rgba(245, 101, 101, 0.1);
+  background: color-mix(in srgb, var(--error) 10%, transparent);
 }
 
 .debug-info {
-  background: rgba(0, 0, 0, 0.4);
-  border-radius: 8px;
+  background: var(--background-tertiary);
+  border-radius: var(--radius-md);
   padding: 16px;
   margin-bottom: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border-primary);
 }
 
 .debug-info h4 {
@@ -492,8 +472,8 @@ onMounted(async () => {
 }
 
 .debug-info pre {
-  color: #a0aec0;
-  font-size: 12px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
   line-height: 1.4;
   margin: 0;
   white-space: pre-wrap;
@@ -505,17 +485,17 @@ onMounted(async () => {
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 6px;
-  color: #a0aec0;
+  background: transparent;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-base);
+  color: var(--text-secondary);
   cursor: pointer;
-  transition: all 0.2s ease;
-  font-size: 12px;
+  transition: background-color 0.2s ease, color 0.2s ease;
+  font-size: var(--font-size-xs);
 }
 
 .debug-toggle:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--background-modifier-hover);
   color: var(--text-primary);
 }
 
@@ -536,57 +516,51 @@ onMounted(async () => {
   align-items: center;
   gap: 12px;
   padding: 16px;
-  background: rgba(0, 0, 0, 0.9);
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  background: var(--background-floating);
+  color: var(--text-primary);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-primary);
+  box-shadow: var(--shadow-large);
 }
 
-.toast.success {
-  border-color: rgba(72, 187, 120, 0.3);
-  color: #68d391;
+.toast.success .toast-icon {
+  color: var(--success);
 }
 
-.toast.error {
-  border-color: rgba(245, 101, 101, 0.3);
-  color: #fc8181;
+.toast.error .toast-icon {
+  color: var(--error);
 }
 
-.toast.info {
-  border-color: rgba(66, 153, 225, 0.3);
-  color: #63b3ed;
+.toast.info .toast-icon {
+  color: var(--info);
 }
 
 .toast-close {
   margin-left: auto;
   background: none;
   border: none;
-  color: inherit;
+  color: var(--text-muted);
   cursor: pointer;
   padding: 4px;
-  border-radius: 4px;
-  transition: background 0.2s ease;
+  border-radius: var(--radius-sm);
+  transition: background-color 0.2s ease;
 }
 
 .toast-close:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--background-modifier-hover);
+  color: var(--text-primary);
 }
 
 /* Toast Transitions */
 .toast-enter-active,
 .toast-leave-active {
-  transition: all 0.3s ease;
+  transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
-.toast-enter-from {
-  opacity: 0;
-  transform: translateX(100%) scale(0.8);
-}
-
+.toast-enter-from,
 .toast-leave-to {
   opacity: 0;
-  transform: translateX(100%) scale(0.8);
+  transform: translateX(16px);
 }
 
 /* Responsive */
@@ -606,7 +580,7 @@ onMounted(async () => {
   }
   
   .showcase-header h1 {
-    font-size: 36px;
+    font-size: var(--font-size-2xl);
   }
   
   .test-actions {

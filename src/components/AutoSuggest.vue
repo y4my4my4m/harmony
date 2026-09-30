@@ -199,8 +199,8 @@ watch(() => props.selectedIndex, (newIndex) => {
 <style>
 .auto-suggest {
   background: var(--background-tertiary);
-  border-radius: 8px;
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-large);
   border: 1px solid var(--background-quinary);
   overflow-y: auto;
   min-width: 200px;
@@ -230,9 +230,8 @@ watch(() => props.selectedIndex, (newIndex) => {
   border-bottom: 1px solid transparent;
 }
 
-.suggest-item:hover,
-.suggest-item.selected {
-  background: var(--background-quinary);
+.suggest-item:hover {
+  background: var(--background-modifier-hover);
 }
 
 .suggest-item.selected {
@@ -240,7 +239,7 @@ watch(() => props.selectedIndex, (newIndex) => {
 }
 
 .suggest-item.selected .suggest-server, .suggest-item.selected .suggest-name {
-  color: #dcddde !important; /* Better contrast on selected background */
+  color: var(--text-on-primary) !important;
 }
 
 .suggest-item:hover .suggest-server, .suggest-item:hover .suggest-name {
@@ -248,7 +247,7 @@ watch(() => props.selectedIndex, (newIndex) => {
 }
 
 .suggest-item.selected .suggest-description {
-  color: var(--text-secondary) !important; /* Better contrast on selected background */
+  color: color-mix(in srgb, var(--text-on-primary) 80%, transparent) !important;
 }
 
 .suggest-item:hover .suggest-description {
@@ -336,11 +335,10 @@ watch(() => props.selectedIndex, (newIndex) => {
 }
 
 .bridge-badge.role-badge {
-  font-size: 9px;
+  font-size: var(--font-size-xs);
   font-weight: 600;
-  text-transform: uppercase;
-  padding: 2px 4px;
-  border-radius: 3px;
+  padding: 0 4px;
+  border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--harmony-primary) 20%, transparent);
   color: var(--harmony-primary);
 }
@@ -363,7 +361,7 @@ watch(() => props.selectedIndex, (newIndex) => {
   justify-content: center;
   border-radius: 50%;
   background: var(--accent-color, var(--harmony-primary));
-  color: var(--text-primary);
+  color: var(--text-on-primary);
 }
 
 .command-name {
@@ -391,7 +389,7 @@ watch(() => props.selectedIndex, (newIndex) => {
 
 .suggest-command-description {
   font-size: 0.75rem;
-  color: var(--text-muted, #949ba4);
+  color: var(--text-muted);
   line-height: 1.3;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -399,7 +397,7 @@ watch(() => props.selectedIndex, (newIndex) => {
 }
 
 .suggest-item.selected .suggest-command-description {
-  color: var(--text-secondary) !important;
+  color: color-mix(in srgb, var(--text-on-primary) 80%, transparent) !important;
 }
 
 .suggest-item:hover .suggest-command-description {
@@ -415,7 +413,7 @@ watch(() => props.selectedIndex, (newIndex) => {
 .suggest-param-tag {
   font-size: 0.7rem;
   padding: 1px 6px;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--text-primary) 12%, transparent);
   color: var(--text-secondary);
   font-weight: 500;
@@ -423,7 +421,7 @@ watch(() => props.selectedIndex, (newIndex) => {
 
 .suggest-description {
   font-size: 0.75rem;
-  color: var(--text-muted, #949ba4);
+  color: var(--text-muted);
   margin-left: 6px;
   white-space: nowrap;
   overflow: hidden;
@@ -431,11 +429,11 @@ watch(() => props.selectedIndex, (newIndex) => {
 }
 
 .selected .bridge-badge {
-  color: var(--text-primary);
+  color: var(--text-on-primary);
 }
 
 .selected .bridge-badge.role-badge {
-  background: rgba(255, 255, 255, 0.2);
+  background: color-mix(in srgb, var(--text-on-primary) 20%, transparent);
 }
 
 .suggest-username {
@@ -462,7 +460,7 @@ watch(() => props.selectedIndex, (newIndex) => {
 }
 .selected .suggest-server,
 .selected .suggest-domain {
-  color: rgba(255, 255, 255, 0.5);
+  color: color-mix(in srgb, var(--text-on-primary) 60%, transparent);
 }
 /* Scrollbar styling */
 .auto-suggest::-webkit-scrollbar {
@@ -479,6 +477,6 @@ watch(() => props.selectedIndex, (newIndex) => {
 }
 
 .auto-suggest::-webkit-scrollbar-thumb:hover {
-  background: #4f545c;
+  background: var(--border-hover);
 }
 </style>

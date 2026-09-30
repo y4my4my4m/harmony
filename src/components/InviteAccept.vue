@@ -41,7 +41,7 @@
 
       <div class="invite-card__meta">
         <span class="meta-dot"></span>
-        <span>{{ info.memberCount }} {{ info.memberCount === 1 ? t('invite.member', 'Member') : t('invite.members', 'Members') }}</span>
+        <span>{{ info.memberCount }} {{ info.memberCount === 1 ? t('invite.member', 'member') : t('invite.members', 'members') }}</span>
       </div>
 
       <p v-if="info.description" class="invite-card__description">{{ info.description }}</p>
@@ -63,7 +63,7 @@
       </button>
 
       <button v-if="!info.isMember" class="invite-btn ghost" @click="$router.push('/chat')">
-        {{ t('invite.noThanks', 'No Thanks') }}
+        {{ t('invite.noThanks', 'No thanks') }}
       </button>
     </div>
 
@@ -160,7 +160,7 @@ onMounted(async () => {
   justify-content: center;
   min-height: 100vh;
   padding: 24px;
-  background: var(--background-primary, #1a1a2e);
+  background: var(--background-primary);
   background-size: cover;
   background-position: center;
 }
@@ -168,9 +168,9 @@ onMounted(async () => {
 .invite-accept__scrim {
   position: absolute;
   inset: 0;
-  background: color-mix(in srgb, var(--background-primary, #1a1a2e) 78%, transparent);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
+  background: color-mix(in srgb, var(--background-primary) 78%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 .invite-card {
@@ -182,20 +182,19 @@ onMounted(async () => {
   width: 100%;
   max-width: 420px;
   padding: 40px 32px 28px;
-  border-radius: 16px;
-  background: var(--background-quinary, #16213e);
-  border: 1px solid var(--border-primary, rgba(255, 255, 255, 0.08));
-  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
+  border-radius: var(--radius-xl);
+  background: var(--background-quinary);
+  border: 1px solid var(--border-primary);
+  box-shadow: var(--shadow-large);
   text-align: center;
 }
 
 .invite-card__icon {
   width: 80px;
   height: 80px;
-  border-radius: 22px;
+  border-radius: var(--radius-2xl);
   overflow: hidden;
   margin-bottom: 4px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
 }
 
 .invite-card__icon img {
@@ -210,21 +209,21 @@ onMounted(async () => {
   justify-content: center;
   width: 100%;
   height: 100%;
-  background: linear-gradient(135deg, var(--harmony-primary), var(--harmony-primary-hover, var(--harmony-secondary)));
+  background: var(--harmony-primary);
   font-size: 32px;
   font-weight: 700;
-  color: var(--text-primary);
+  color: var(--text-on-primary);
 }
 
 .invite-card__muted {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   color: var(--text-secondary);
 }
 
 .invite-card__title {
   margin: 0;
-  font-size: 24px;
+  font-size: var(--font-size-2xl);
   font-weight: 700;
   color: var(--text-primary);
   overflow-wrap: anywhere;
@@ -242,12 +241,12 @@ onMounted(async () => {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--text-muted, #80848e);
+  background: var(--text-muted);
 }
 
 .invite-card__description {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   line-height: 1.5;
   color: var(--text-secondary);
   display: -webkit-box;
@@ -264,30 +263,29 @@ onMounted(async () => {
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  background: rgba(237, 66, 69, 0.15);
-  color: #ed4245;
+  background: color-mix(in srgb, var(--error) 15%, transparent);
+  color: var(--error);
 }
 
 .invite-btn {
   width: 100%;
   padding: 12px 20px;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   font-size: 15px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 .invite-btn.primary {
   margin-top: 8px;
-  background: linear-gradient(135deg, var(--harmony-primary), var(--harmony-primary-hover));
-  color: var(--text-primary);
+  background: var(--harmony-primary);
+  color: var(--text-on-primary);
 }
 
 .invite-btn.primary:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 16px color-mix(in srgb, var(--harmony-primary) 35%, transparent);
+  background: var(--harmony-primary-hover);
 }
 
 .invite-btn.primary:disabled {

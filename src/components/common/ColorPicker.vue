@@ -385,7 +385,7 @@ onBeforeUnmount(() => {
 }
 
 .preset-color:hover {
-  transform: scale(1.1);
+  border-color: var(--border-hover);
 }
 
 .preset-color.active {
@@ -404,9 +404,9 @@ onBeforeUnmount(() => {
   padding: 8px 12px;
   background-color: var(--input-bg);
   border: 1px solid var(--input-border);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   color: var(--text-primary);
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   font-family: 'Courier New', monospace;
 }
 
@@ -417,7 +417,7 @@ onBeforeUnmount(() => {
 
 .color-preview-large {
   height: 56px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -427,7 +427,7 @@ onBeforeUnmount(() => {
 }
 
 .preview-text {
-  font-size: 16px;
+  font-size: var(--font-size-base);
   font-weight: 600;
   color: var(--text-on-primary, #ffffff);
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6), 0 0 8px rgba(0, 0, 0, 0.4);

@@ -35,7 +35,7 @@
             v-if="canGoBack"
           >
             <Icon name="arrow-left" />
-            Go Back
+            Go back
           </button>
         </div>
         
@@ -53,7 +53,7 @@
             </router-link>
             <router-link to="/dm" class="quick-link">
               <Icon name="mail" />
-              Direct Messages
+              Direct messages
             </router-link>
             <router-link to="/social/mentions" class="quick-link">
               <Icon name="at-sign" />
@@ -69,11 +69,11 @@
           <div class="auth-actions">
             <router-link to="/login" class="auth-btn primary">
               <Icon name="log-in" />
-              Sign In
+              Sign in
             </router-link>
             <router-link to="/register" class="auth-btn secondary">
               <Icon name="user-plus" />
-              Create Account
+              Create account
             </router-link>
           </div>
         </div>
@@ -157,14 +157,14 @@ const computedHomeButtonText = computed(() => {
   if (isAuthenticated.value) {
     // Context-aware button text
     if (route.path.startsWith('/social/')) {
-      return 'Back to Social'
+      return 'Back to social'
     } else if (route.path.startsWith('/chat/') || route.path.startsWith('/dm/')) {
-      return 'Back to Chat'
+      return 'Back to chat'
     }
-    return 'Go Home'
+    return 'Go home'
   }
   
-  return 'Go Home'
+  return 'Go home'
 })
 
 const defaultRoute = computed(() => {
@@ -225,8 +225,7 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   padding: 2rem;
-  background: var(--h-background);
-  color: var(--h-text-primary);
+  color: var(--text-primary);
 }
 
 .error-container {
@@ -246,11 +245,6 @@ onMounted(() => {
 .error-img {
   width: 100%;
   height: auto;
-  transition: transform 0.3s ease;
-}
-
-.error-img:hover {
-  transform: scale(1.02);
 }
 
 .error-content {
@@ -262,26 +256,21 @@ onMounted(() => {
 
 .error-title {
   font-size: 4rem;
-  font-weight: 900;
-  color: var(--h-primary);
+  font-weight: 700;
+  color: var(--text-primary);
   margin: 0;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-  background: linear-gradient(135deg, var(--harmony-primary), var(--harmony-secondary));
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
 }
 
 .error-subtitle {
-  font-size: 1.5rem;
+  font-size: var(--font-size-2xl);
   font-weight: 600;
-  color: var(--h-text-primary);
+  color: var(--text-primary);
   margin: 0;
 }
 
 .error-description {
-  font-size: 1rem;
-  color: var(--h-text-secondary);
+  font-size: var(--font-size-base);
+  color: var(--text-secondary);
   margin: 0;
   line-height: 1.5;
   max-width: 400px;
@@ -301,10 +290,10 @@ onMounted(() => {
   align-items: center;
   gap: 0.5rem;
   padding: 0.75rem 1.5rem;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
   text-decoration: none;
   border: none;
   font-size: 0.95rem;
@@ -313,57 +302,46 @@ onMounted(() => {
 }
 
 .primary-btn {
-  background: var(--h-primary);
-  color: var(--text-primary);
+  background: var(--harmony-primary);
+  color: var(--text-on-primary);
 }
 
 .primary-btn:hover {
-  background: var(--h-primary-hover);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  background: var(--harmony-primary-hover);
 }
 
 .secondary-btn {
-  background: var(--h-background-secondary);
-  color: var(--h-text-primary);
-  border: 1px solid var(--h-border);
+  background: var(--background-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-primary);
 }
 
 .secondary-btn:hover {
-  background: var(--h-background-tertiary);
-  border-color: var(--h-primary);
-  transform: translateY(-1px);
+  background: var(--background-tertiary);
+  border-color: var(--border-hover);
 }
 
 .helpful-links,
 .auth-prompt {
   margin-top: 2rem;
   padding: 2rem;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   width: 100%;
-}
-
-.helpful-links {
-  background: linear-gradient(135deg, var(--h-background-secondary), var(--h-background-tertiary));
-  border: 1px solid var(--h-border);
+  background: var(--background-secondary);
+  border: 1px solid var(--border-primary);
 }
 
 .helpful-links h3,
 .auth-prompt h3 {
-  font-size: 1.1rem;
+  font-size: var(--font-size-lg);
   font-weight: 600;
-  color: var(--h-text-primary);
+  color: var(--text-primary);
   margin: 0 0 1.5rem 0;
   text-align: center;
 }
 
-.auth-prompt {
-  background: linear-gradient(135deg, var(--h-background-secondary), var(--h-background-tertiary));
-  border: 1px solid var(--h-border);
-}
-
 .auth-prompt p {
-  color: var(--h-text-secondary);
+  color: var(--text-secondary);
   margin: 0 0 1.5rem 0;
   font-size: 0.95rem;
   line-height: 1.5;
@@ -382,39 +360,21 @@ onMounted(() => {
   align-items: center;
   gap: 0.75rem;
   padding: 1rem 1.25rem;
-  background: var(--h-background-tertiary);
-  color: var(--h-text-primary);
+  background: var(--background-tertiary);
+  color: var(--text-primary);
   text-decoration: none;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   font-size: 0.95rem;
   font-weight: 500;
-  transition: all 0.2s ease;
-  border: 1px solid var(--h-border);
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+  border: 1px solid var(--border-primary);
   position: relative;
   overflow: hidden;
 }
 
-.quick-link::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
-  transition: left 0.5s;
-}
-
-.quick-link:hover::before {
-  left: 100%;
-}
-
 .quick-link:hover {
-  background: var(--h-primary);
-  color: var(--text-primary);
-  border-color: var(--h-primary);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  background: var(--background-modifier-hover);
+  border-color: var(--border-hover);
 }
 
 .auth-actions {
@@ -429,55 +389,36 @@ onMounted(() => {
   align-items: center;
   gap: 0.6rem;
   padding: 0.9rem 2rem;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   font-weight: 600;
   text-decoration: none;
-  transition: all 0.3s ease;
-  font-size: 1rem;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+  font-size: var(--font-size-base);
   min-width: 140px;
   justify-content: center;
   position: relative;
   overflow: hidden;
 }
 
-.auth-btn::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-  transition: left 0.5s;
-}
-
-.auth-btn:hover::before {
-  left: 100%;
-}
-
 .auth-btn.primary {
-  background: linear-gradient(135deg, var(--h-primary), var(--h-primary-hover));
-  color: var(--text-primary);
+  background: var(--harmony-primary);
+  color: var(--text-on-primary);
   border: none;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
 }
 
 .auth-btn.primary:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+  background: var(--harmony-primary-hover);
 }
 
 .auth-btn.secondary {
-  background: var(--h-background-tertiary);
-  color: var(--h-text-primary);
-  border: 2px solid var(--h-border);
+  background: var(--background-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-primary);
 }
 
 .auth-btn.secondary:hover {
-  background: var(--h-background-secondary);
-  border-color: var(--h-primary);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  background: var(--background-secondary);
+  border-color: var(--border-hover);
 }
 
 /* Mobile responsiveness */
@@ -496,7 +437,7 @@ onMounted(() => {
   }
   
   .error-subtitle {
-    font-size: 1.25rem;
+    font-size: var(--font-size-xl);
   }
   
   .error-actions,
@@ -557,39 +498,15 @@ onMounted(() => {
 
 /* Loading state for when image is loading */
 .error-img {
-  background: var(--h-background-secondary);
+  background: var(--background-secondary);
 }
 
 .error-img[src=""] {
   opacity: 0.5;
 }
 
-/* Accessibility improvements */
-@media (prefers-reduced-motion: reduce) {
-  .error-img:hover {
-    transform: none;
-  }
-  
-  .primary-btn:hover,
-  .secondary-btn:hover,
-  .quick-link:hover,
-  .auth-btn:hover {
-    transform: none;
-  }
-  
-  .quick-link::before,
-  .auth-btn::before {
-    display: none;
-  }
-}
-
 /* High contrast mode support */
 @media (prefers-contrast: high) {
-  .error-title {
-    -webkit-text-fill-color: var(--h-primary);
-    background: none;
-  }
-  
   .primary-btn,
   .secondary-btn,
   .quick-link,

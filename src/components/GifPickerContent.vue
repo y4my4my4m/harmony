@@ -784,7 +784,7 @@ onMounted(async () => {
 }
 
 .gif-generate-quota.at-limit {
-  color: var(--status-danger, #f04747);
+  color: var(--error);
 }
 
 .gif-generate-input {
@@ -800,13 +800,17 @@ onMounted(async () => {
   justify-content: center;
   padding: 0 14px;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   background: var(--harmony-primary);
-  color: #fff;
+  color: var(--text-on-primary);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   transition: opacity 0.15s ease, background 0.15s ease;
+}
+
+.gif-generate-button:hover:not(:disabled) {
+  background: var(--harmony-primary-hover);
 }
 
 .gif-generate-button:disabled {
@@ -840,12 +844,12 @@ onMounted(async () => {
   border: none;
   background: transparent;
   cursor: pointer;
-  border-radius: 8px;
-  transition: transform 0.15s ease;
+  border-radius: var(--radius-md);
+  transition: background 0.15s ease;
 }
 
 .ai-gen-reveal:hover {
-  transform: scale(1.06);
+  background: var(--background-modifier-hover);
 }
 
 .ai-gen-reveal-img {
@@ -887,12 +891,11 @@ onMounted(async () => {
   border-radius: 8px;
   background: transparent;
   cursor: pointer;
-  transition: background 0.15s ease, transform 0.15s ease;
+  transition: background 0.15s ease;
 }
 
 .ai-gen-item:hover {
   background: var(--background-modifier-hover);
-  transform: scale(1.06);
 }
 
 .ai-gen-item-img {
@@ -1060,14 +1063,14 @@ onMounted(async () => {
   position: relative;
   cursor: pointer;
   border-radius: 4px;
-  transition: transform 0.15s ease;
+  transition: filter 0.15s ease;
   width: 100%;
   height: auto;
   overflow: hidden;
 }
 
 .gif-item:hover {
-  transform: scale(1.03);
+  filter: brightness(1.1);
 }
 
 .gif-item img {
@@ -1098,8 +1101,8 @@ onMounted(async () => {
   border-radius: 4px;
   cursor: pointer;
   opacity: 0;
-  transition: all 0.15s ease;
-  color: var(--text-primary);
+  transition: opacity 0.15s ease, background 0.15s ease;
+  color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1111,11 +1114,10 @@ onMounted(async () => {
 
 .favorite-button:hover {
   background: rgba(0, 0, 0, 0.8);
-  transform: scale(1.1);
 }
 
 .favorite-button.favorited {
-  color: var(--color-warning);
+  color: var(--warning);
   opacity: 1;
 }
 
@@ -1132,12 +1134,12 @@ onMounted(async () => {
   padding: 0;
   border-radius: 50%;
   cursor: pointer;
-  color: var(--text-primary, #fff);
+  color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
   opacity: 0;
-  transition: opacity 0.15s ease, background 0.15s ease, transform 0.15s ease;
+  transition: opacity 0.15s ease, background 0.15s ease;
   z-index: 2;
 }
 
@@ -1147,7 +1149,6 @@ onMounted(async () => {
 
 .clip-audio-button:hover {
   background: rgba(0, 0, 0, 0.85);
-  transform: scale(1.1);
 }
 
 /* Loading State */

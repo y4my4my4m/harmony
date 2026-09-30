@@ -360,18 +360,17 @@ async function handleIdentityChanged(e: CustomEvent) {
     align-items: center;
     gap: 8px;
     padding: calc(env(safe-area-inset-top, 0px) + 8px) 14px 8px;
-    background: rgba(20, 20, 30, 0.9);
-    backdrop-filter: blur(8px);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-    font-size: 0.82rem;
-    color: rgba(255, 255, 255, 0.7);
+    background: var(--background-floating);
+    border-bottom: 1px solid var(--border-primary);
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
   }
 
   .instance-bar__dot {
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background: #43b581;
+    background: var(--success);
     flex-shrink: 0;
   }
 
@@ -383,18 +382,18 @@ async function handleIdentityChanged(e: CustomEvent) {
   }
 
   .instance-bar__change {
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    border: 1px solid var(--border-hover);
     background: transparent;
-    color: #8ab4ff;
-    border-radius: 999px;
+    color: var(--harmony-primary);
+    border-radius: var(--radius-full);
     padding: 4px 12px;
-    font-size: 0.8rem;
+    font-size: var(--font-size-xs);
     cursor: pointer;
     flex-shrink: 0;
   }
 
   .instance-bar__change:hover {
-    border-color: rgba(255, 255, 255, 0.4);
-    color: white;
+    background: var(--background-modifier-hover);
+    color: var(--text-primary);
   }
 </style>
