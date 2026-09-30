@@ -8,6 +8,7 @@ import type { UserData, FederatedUser } from '@/types';
 import { debug } from '@/utils/debug'
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import { sanitizeInlineHtml } from '@/utils/sanitize';
+import { apiUrl } from '@/services/instanceConfig'
 
 export interface MentionMatch {
   full: string;          // "@tester004@mastodon.social"
@@ -329,7 +330,7 @@ export function formatMentionsForActivityPub(
 export async function resolveRemoteMention(username: string, domain: string, forceRefresh: boolean = false): Promise<FederatedUser | null> {
   try {
     // Use relative URL - federation backend is proxied through the same domain
-    const lookupUrl = '/api/federation/lookup-user';
+    const lookupUrl = apiUrl('/api/federation/lookup-user');
     
     debug.log(`Looking up remote user via backend: ${username}@${domain}${forceRefresh ? ' (force refresh)' : ''}`);
     

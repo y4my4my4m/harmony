@@ -15,8 +15,11 @@ import { debug } from '@/utils/debug'
 import { collectKlipyAdContext } from '@/utils/klipyAdContext'
 import { isMobileUserAgent } from '@/utils/pwaUtils'
 import type { GifResultItem } from '@/types'
+import { apiUrl } from '@/services/instanceConfig'
 
-const FEDERATION_API = '/api/federation'
+// apiUrl resolves against the stored instance on native builds, where relative URLs
+// point at the bundled app.
+const federationApi = (path: string) => apiUrl(`/api/federation${path}`)
 
 export interface GifFeed {
   items: GifResultItem[]
@@ -53,7 +56,7 @@ async function clientHeaders(): Promise<Record<string, string>> {
 
 async function request(path: string, params: URLSearchParams, opts?: GifFetchOptions): Promise<GifFeed> {
   const headers = { Accept: 'application/json', ...(await clientHeaders()) }
-  const res = await fetch(`${FEDERATION_API}/gifs/${path}?${params}`, {
+  const res = await fetch(federationApi(`/gifs/${path}?${params}`), {
     method: 'GET',
     headers,
     signal: opts?.signal,
@@ -119,7 +122,7 @@ export const gifProvider = {
     if (opts?.locale) params.set('locale', opts.locale)
     try {
       const headers = { Accept: 'application/json', ...(await clientHeaders()) }
-      const res = await fetch(`${FEDERATION_API}/gifs/suggest?${params}`, {
+      const res = await fetch(federationApi(`/gifs/suggest?${params}`), {
         method: 'GET',
         headers,
         signal: opts?.signal,

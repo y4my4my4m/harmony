@@ -9,13 +9,14 @@
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
 import type { TimelinePost } from '@/types'
+import { apiUrl } from '@/services/instanceConfig'
 
 async function getFederationApiUrl(): Promise<string> {
   try {
     const { useActivityPubStore } = await import('@/stores/useActivityPub')
     return useActivityPubStore().federationApiUrl
   } catch {
-    return '/api/federation'
+    return apiUrl('/api/federation')
   }
 }
 
@@ -88,8 +89,8 @@ async function loadPostFromDb(postId: string): Promise<TimelinePost | null> {
 
 async function importRemotePost(url: string): Promise<string | null> {
   try {
-    const apiUrl = await getFederationApiUrl()
-    const response = await fetch(`${apiUrl}/resolve-post`, {
+    const federationBase = await getFederationApiUrl()
+    const response = await fetch(`${federationBase}/resolve-post`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url }),

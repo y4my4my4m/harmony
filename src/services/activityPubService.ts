@@ -2048,7 +2048,7 @@ export class ActivityPubService {
       const { useActivityPubStore } = require('@/stores/useActivityPub');
       return useActivityPubStore().federationApiUrl;
     } catch {
-      return '/api/federation';
+      return apiUrl('/api/federation');
     }
   }
 
