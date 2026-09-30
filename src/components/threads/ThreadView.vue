@@ -14,7 +14,7 @@
               <div class="thread-info">
                 <h3>{{ displayThreadName }}</h3>
                 <p class="thread-channel">
-                  <span class="hash">#</span>{{ thread?.channel_name || 'channel' }}
+                  <span class="hash">#</span>{{ displayChannelName }}
                 </p>
               </div>
             </div>
@@ -278,6 +278,16 @@ import { buildChatParseOptions } from '@/utils/chatParseOptions'
 import { debug } from '@/utils/debug'
 import { isVideoMessageUrl } from '@/utils/klipyAttribution'
 import { realtimeConnectionManager } from '@/services/RealtimeConnectionManager'
+import {
+  useThreadsStore,
+  isOptimisticThreadId,
+  mergeFreshThreadMessages,
+  type StoredThread,
+} from '@/stores/useThreads'
+import { usePinsStore } from '@/stores/usePins'
+import { useI18n } from 'vue-i18n'
+import { useToast } from 'vue-toastification'
+import { isChannelEncryptionError } from '@/services/core/channelMessageEncryption'
 import type { Message, MessagePart, Emoji, Gif } from '@/types'
 import type { ThreadWithDetails } from '@/services/ThreadService'
 import type { FilePreviewData } from '@/components/FilePreview.vue'
@@ -306,7 +316,16 @@ const {
 } = useUserData()
 
 const chatStore = useChatStore()
+const threadsStore = useThreadsStore()
+const pinsStore = usePinsStore()
 const draftsStore = useDraftsStore()
+const toast = useToast()
+
+// Encryption failures are reported by the send wrapper (setup or unlock prompt).
+const notifySendFailure = (error: unknown) => {
+  if (!isChannelEncryptionError(error)) toast.error(t('chat.threadReplyFailed'))
+}
+const { t } = useI18n()
 const themeStore = useThemeStore()
 const serverChannelStore = useServerChannelStore()
 const { canManageChannels } = useServerPermissions()
@@ -323,7 +342,7 @@ const currentUserId = computed(() => profileStore.profileId)
 const effectiveThreadIdForTyping = computed(() => {
   if (props.threadId) return props.threadId
   if (props.initialThread?.id) return props.initialThread.id
-  if (thread.value?.id) return thread.value.id
+  if (thread.value?.id && !isOptimisticThreadId(thread.value.id)) return thread.value.id
   if (props.draftParentMessage?.id) return `draft:${props.draftParentMessage.id}`
   return undefined
 })
@@ -387,8 +406,10 @@ watch(messageText, (val) => {
 const messagesContainer = ref<HTMLElement | null>(null)
 const threadSubscription = ref<(() => void) | null>(null)
 
-// Draft mode - thread not yet created
-const isDraftMode = computed(() => !props.threadId && !props.initialThread && !!props.draftParentMessage)
+// Draft mode - thread not yet created. An optimistic thread ends it before
+// the parent learns the server id.
+const isDraftByProps = () => !props.threadId && !props.initialThread && !!props.draftParentMessage
+const isDraftMode = computed(() => !thread.value && isDraftByProps())
 
 // Parent message to display (from thread or draft)
 const displayParentMessage = computed(() => {
@@ -412,55 +433,177 @@ const displayThreadName = computed(() => {
 })
 
 
+// Drafts have no thread row; the channel list names the parent's channel.
+const displayChannelName = computed(() => {
+  if (thread.value?.channel_name) return thread.value.channel_name
+  const channelId = thread.value?.channel_id || props.draftParentMessage?.channel_id || props.channelId
+  return serverChannelStore.channels.find(c => c.id === channelId)?.name || 'channel'
+})
+
+// Realtime inserts that land while a refresh is in flight; the merge keeps them.
+let loadSeq = 0
+let refreshInFlight = false
+let refreshingThreadId: string | null = null
+const arrivedDuringFetch = new Set<string>()
+
+/**
+ * Stale-while-revalidate. The store entry (or the opener's copy) and any
+ * cached messages render first; metadata and messages then refresh in
+ * parallel. The parent message comes from the channel list when loaded.
+ */
 const loadThread = async () => {
   // Draft mode: no load, parent message only.
-  if (isDraftMode.value) {
+  if (isDraftByProps()) {
+    ++loadSeq
+    refreshInFlight = false
+    refreshingThreadId = null
     thread.value = null
     loading.value = false
     messages.value = []
+    hasMore.value = false
     return
   }
-  
+
   const threadId = props.threadId || props.initialThread?.id
-  if (!threadId) return
-  
-  // Cached messages render immediately, without the loading indicator.
-  const cachedMessages = threadService.getCachedMessages(threadId)
-  if (cachedMessages) {
-    messages.value = cachedMessages.messages
-    hasMore.value = cachedMessages.has_more
-    
-    // Still load thread metadata in background (for fresh membership status, etc.)
-    thread.value = await threadService.getThread(threadId, false) // use cache if available
-    isMember.value = thread.value?.is_member ?? true
-    
-    // Scroll to bottom
+  if (!threadId || isOptimisticThreadId(threadId)) return
+  // One open changes both isVisible and threadId; the second watcher joins
+  // the refresh the first started.
+  if (refreshInFlight && refreshingThreadId === threadId) return
+  const seq = ++loadSeq
+
+  const seeded = threadsStore.byId[threadId] ?? props.initialThread ?? null
+  thread.value = seeded
+  if (seeded && !seeded.parent_message && seeded.parent_message_id) {
+    const parent = chatStore.messages.find(m => m.id === seeded.parent_message_id)
+    if (parent) seeded.parent_message = parent
+  }
+  isMember.value = seeded?.is_member ?? true
+
+  const cached = threadService.getCachedMessages(threadId, { allowStale: true })
+  if (cached) {
+    messages.value = cached.messages
+    hasMore.value = cached.has_more
+    loading.value = false
     await nextTick()
     scrollToBottom()
-    return
+  } else {
+    messages.value = []
+    loading.value = true
   }
-  
-  // No cache - show loading indicator
-  loading.value = true
+
+  refreshInFlight = true
+  refreshingThreadId = threadId
+  arrivedDuringFetch.clear()
   try {
-    thread.value = await threadService.getThread(threadId, false)
-    
-    isMember.value = thread.value?.is_member ?? true
-    
-    if (thread.value) {
-      const result = await threadService.getThreadMessages(thread.value.id)
-      messages.value = result.messages
-      hasMore.value = result.has_more
-      
-      // Scroll to bottom after loading
+    const [details, fresh] = await Promise.all([
+      threadService.getThread(threadId, true),
+      threadService.getThreadMessages(threadId, { force: true }),
+    ])
+    if (seq !== loadSeq) return
+
+    if (details) {
+      thread.value = threadsStore.upsert(details)
+      isMember.value = details.is_member ?? true
+    }
+    const before = messages.value.length
+    messages.value = mergeFreshThreadMessages(messages.value, fresh.messages, {
+      freshHasMore: fresh.has_more,
+      arrivedDuringFetch,
+    })
+    hasMore.value = fresh.has_more
+    if (!cached || messages.value.length !== before) {
       await nextTick()
       scrollToBottom()
     }
   } catch (error) {
     console.error('Failed to load thread:', error)
   } finally {
-    loading.value = false
+    if (seq === loadSeq) {
+      refreshInFlight = false
+      refreshingThreadId = null
+      loading.value = false
+    }
   }
+}
+
+interface DraftThreadStart {
+  tempId: string
+  created: Promise<StoredThread | null>
+}
+
+/**
+ * Leaves draft mode at once with an optimistic thread: the parent message's
+ * indicator and the channel's thread lists show it immediately. create_thread
+ * runs behind it; `created` resolves to the entry bound to the server id, or
+ * to null once the optimistic entry is rolled back.
+ */
+const startDraftThread = (): DraftThreadStart | null => {
+  const parent = props.draftParentMessage
+  const channelId = parent?.channel_id || props.channelId
+  if (!parent || !channelId) return null
+
+  const channel = serverChannelStore.channels.find(c => c.id === channelId)
+  const optimistic = threadsStore.addOptimistic({
+    parent,
+    name: displayThreadName.value,
+    channelId,
+    channelName: channel?.name,
+    serverId: channel?.server_id ?? serverChannelStore.currentServerId ?? undefined,
+    creatorId: currentUserId.value ?? undefined,
+  })
+  const tempId = optimistic.id
+  thread.value = optimistic
+  isMember.value = true
+
+  const created = threadService.createThread({ message_id: parent.id, name: optimistic.name })
+    .then((serverId) => {
+      const bound = threadsStore.reconcileOptimistic(tempId, serverId)
+      if (!bound) return null
+      threadService.primeThread(bound)
+      if (thread.value === optimistic || thread.value?.id === serverId) thread.value = bound
+      emit('thread-created', bound, parent)
+      return bound
+    })
+    .catch((error) => {
+      debug.error('Failed to create thread:', error)
+      threadsStore.remove(tempId)
+      if (thread.value === optimistic) {
+        thread.value = null
+        messages.value = []
+      }
+      toast.error(t('chat.threadCreateFailed'))
+      return null
+    })
+
+  return { tempId, created }
+}
+
+/** Counts a local reply on the shown thread; the returned function settles it. */
+const countLocalReply = (): ((delivered: boolean) => void) => {
+  const target = thread.value as StoredThread | null
+  if (!target) return () => {}
+  const previousActivity = target.last_message_at
+  const localActivity = new Date().toISOString()
+  target.message_count = (target.message_count || 0) + 1
+  target.last_message_at = localActivity
+  target.pending_replies = (target.pending_replies ?? 0) + 1
+  return (delivered: boolean) => {
+    target.pending_replies = Math.max(0, (target.pending_replies ?? 1) - 1)
+    if (delivered) return
+    target.message_count = Math.max(0, (target.message_count || 1) - 1)
+    // Reverts only if no later reply moved it.
+    if (target.last_message_at === localActivity) target.last_message_at = previousActivity
+  }
+}
+
+const removeMessageById = (id: string) => {
+  const index = messages.value.findIndex(m => m.id === id)
+  if (index !== -1) messages.value.splice(index, 1)
+}
+
+const setMessageThreadId = (id: string, threadId: string) => {
+  const index = messages.value.findIndex(m => m.id === id)
+  if (index !== -1) messages.value[index] = { ...messages.value[index], thread_id: threadId }
 }
 
 const loadMore = async () => {
@@ -491,7 +634,8 @@ const joinThread = async () => {
   try {
     await threadService.joinThread(thread.value.id)
     isMember.value = true
-    thread.value = await threadService.getThread(thread.value.id, true)
+    const refreshed = await threadService.getThread(thread.value.id, true)
+    if (refreshed) thread.value = threadsStore.upsert(refreshed)
     emit('thread-updated', thread.value!)
   } catch (error) {
     console.error('Failed to join thread:', error)
@@ -614,7 +758,9 @@ const deleteThread = async () => {
   if (!thread.value) return
   if (!(await confirm({ title: 'Delete thread', message: `Are you sure you want to delete "${thread.value.name}"? This cannot be undone.`, confirmButtonText: 'Delete', dangerAction: true }))) return
   try {
-    await threadService.deleteThread(thread.value.id)
+    const deletedId = thread.value.id
+    await threadService.deleteThread(deletedId)
+    threadsStore.remove(deletedId)
     close()
   } catch (error) {
     debug.error('Failed to delete thread:', error)
@@ -685,29 +831,19 @@ const handleSendMessage = async (content: string, files: FilePreviewData[] = [],
   
   try {
     let targetThreadId = thread.value?.id
-    
-    // If in draft mode, create the thread first
-    if (isDraftMode.value && props.draftParentMessage) {
-      const threadName = displayThreadName.value
-      const newThread = await threadService.createThread({
-        message_id: props.draftParentMessage.id,
-        name: threadName,
-      })
-      
-      if (!newThread) {
-        throw new Error('Failed to create thread')
-      }
-      
-      targetThreadId = newThread.id
-      thread.value = await threadService.getThread(newThread.id, true)
-      
-      emit('thread-created', thread.value!, props.draftParentMessage)
+    let draft: DraftThreadStart | null = null
+
+    // Draft mode: the thread is created optimistically alongside this send.
+    if (isDraftMode.value) {
+      draft = startDraftThread()
+      if (!draft) throw new Error('Draft thread has no channel')
+      targetThreadId = draft.tempId
     }
-    
+
     if (!targetThreadId) {
       throw new Error('No thread ID')
     }
-    
+
     const messageParts: MessagePart[] = []
     
     if (savedContent.trim()) {
@@ -736,68 +872,75 @@ const handleSendMessage = async (content: string, files: FilePreviewData[] = [],
       }
     }
     
-    if (messageParts.length > 0) {
-      // Optimistic: add a temporary message immediately
-      const tempId = `temp-${crypto.randomUUID()}`
-      const { authContextService } = await import('@/services/AuthContextService')
-      const profileId = await authContextService.getCurrentProfileId()
-      // reply_to/metadata are optional strings/objects in the Message type; use
-      // undefined instead of null to satisfy the optional-property shape.
-      const optimisticMessage: Message = {
-        id: tempId,
-        created_at: new Date(),
-        channel_id: thread.value?.channel_id || '',
-        user_id: profileId,
-        content: messageParts,
-        thread_id: targetThreadId,
-        reply_to: savedReplyTo || undefined,
-        is_system: false,
-        encrypted: false,
-        reactions: [],
-        metadata: undefined,
-      }
-      messages.value.push(optimisticMessage)
-      
-      // Optimistic thread count update
-      if (thread.value) {
-        thread.value.message_count = (thread.value.message_count || 0) + 1
-        thread.value.last_message_at = new Date().toISOString()
-      }
-      
-      await nextTick()
-      scrollToBottom()
-      
-      const sendResult = await runWithEncryptionFallback(
-        ({ allowPlaintextFallback }) =>
-          threadService.sendThreadMessage(targetThreadId!, messageParts, savedReplyTo, undefined, {
-            allowPlaintextFallback,
-          }),
-        { scope: 'thread' },
-      )
+    if (messageParts.length === 0) {
+      if (draft) await draft.created
+      return
+    }
 
-      if (sendResult.status === 'ok' && sendResult.result) {
-        const newMessage = sendResult.result
-        // Replace optimistic message with real one
-        const tempIndex = messages.value.findIndex(m => m.id === tempId)
-        if (tempIndex !== -1) {
-          messages.value[tempIndex] = newMessage
-        }
-        threadService.addMessageToCache(targetThreadId, newMessage)
-      } else {
-        const tempIndex = messages.value.findIndex(m => m.id === tempId)
-        if (tempIndex !== -1) {
-          messages.value.splice(tempIndex, 1)
-        }
-        if (thread.value) {
-          thread.value.message_count = Math.max(0, (thread.value.message_count || 1) - 1)
-        }
-        if (sendResult.status === 'error') {
-          debug.error('Failed to send thread message:', sendResult.error)
-        }
+    // Optimistic: add a temporary message immediately
+    const tempId = `temp-${crypto.randomUUID()}`
+    // reply_to/metadata are optional strings/objects in the Message type; use
+    // undefined instead of null to satisfy the optional-property shape.
+    const optimisticMessage: Message = {
+      id: tempId,
+      created_at: new Date(),
+      channel_id: thread.value?.channel_id || '',
+      user_id: currentUserId.value ?? '',
+      content: messageParts,
+      thread_id: targetThreadId,
+      reply_to: savedReplyTo || undefined,
+      is_system: false,
+      encrypted: false,
+      reactions: [],
+      metadata: undefined,
+    }
+    messages.value.push(optimisticMessage)
+    const settleReply = countLocalReply()
+
+    await nextTick()
+    scrollToBottom()
+
+    if (draft) {
+      const bound = await draft.created
+      if (!bound) {
+        removeMessageById(tempId)
+        settleReply(false)
+        if (!messageText.value) messageText.value = savedContent
+        return
+      }
+      targetThreadId = bound.id
+      setMessageThreadId(tempId, bound.id)
+    }
+
+    const sendResult = await runWithEncryptionFallback(
+      ({ allowPlaintextFallback }) =>
+        threadService.sendThreadMessage(targetThreadId!, messageParts, savedReplyTo, undefined, {
+          allowPlaintextFallback,
+        }),
+      { scope: 'thread' },
+    )
+
+    if (sendResult.status === 'ok' && sendResult.result) {
+      const newMessage = sendResult.result
+      // Replace optimistic message with real one
+      const tempIndex = messages.value.findIndex(m => m.id === tempId)
+      if (tempIndex !== -1) {
+        messages.value[tempIndex] = newMessage
+      }
+      threadService.addMessageToCache(targetThreadId, newMessage)
+      settleReply(true)
+    } else {
+      removeMessageById(tempId)
+      settleReply(false)
+      if (!messageText.value) messageText.value = savedContent
+      if (sendResult.status === 'error') {
+        debug.error('Failed to send thread message:', sendResult.error)
+        notifySendFailure(sendResult.error)
       }
     }
   } catch (error) {
     debug.error('Failed to send message:', error)
+    notifySendFailure(error)
   } finally {
     sending.value = false
   }
@@ -922,21 +1065,12 @@ const handleSendVoiceMessage = async (data: { url: string, duration: number, wav
   sending.value = true
   try {
     let targetThreadId = thread.value?.id
+    let draft: DraftThreadStart | null = null
 
-    if (isDraftMode.value && props.draftParentMessage) {
-      const threadName = displayThreadName.value
-      const newThread = await threadService.createThread({
-        message_id: props.draftParentMessage.id,
-        name: threadName,
-      })
-
-      if (!newThread) {
-        throw new Error('Failed to create thread')
-      }
-
-      targetThreadId = newThread.id
-      thread.value = await threadService.getThread(newThread.id, true)
-      emit('thread-created', thread.value!, props.draftParentMessage)
+    if (isDraftMode.value) {
+      draft = startDraftThread()
+      if (!draft) throw new Error('Draft thread has no channel')
+      targetThreadId = draft.tempId
     }
 
     if (!targetThreadId) {
@@ -958,13 +1092,11 @@ const handleSendVoiceMessage = async (data: { url: string, duration: number, wav
     }
 
     const tempId = `temp-${crypto.randomUUID()}`
-    const { authContextService } = await import('@/services/AuthContextService')
-    const profileId = await authContextService.getCurrentProfileId()
     const optimisticMessage: Message = {
       id: tempId,
       created_at: new Date(),
       channel_id: thread.value?.channel_id || '',
-      user_id: profileId,
+      user_id: currentUserId.value ?? '',
       content: messageParts,
       thread_id: targetThreadId,
       reply_to: undefined,
@@ -974,14 +1106,21 @@ const handleSendVoiceMessage = async (data: { url: string, duration: number, wav
       metadata: voiceMetadata,
     }
     messages.value.push(optimisticMessage)
-
-    if (thread.value) {
-      thread.value.message_count = (thread.value.message_count || 0) + 1
-      thread.value.last_message_at = new Date().toISOString()
-    }
+    const settleReply = countLocalReply()
 
     await nextTick()
     scrollToBottom()
+
+    if (draft) {
+      const bound = await draft.created
+      if (!bound) {
+        removeMessageById(tempId)
+        settleReply(false)
+        return
+      }
+      targetThreadId = bound.id
+      setMessageThreadId(tempId, bound.id)
+    }
 
     const sendResult = await runWithEncryptionFallback(
       ({ allowPlaintextFallback }) =>
@@ -998,20 +1137,18 @@ const handleSendVoiceMessage = async (data: { url: string, duration: number, wav
         messages.value[tempIndex] = newMessage
       }
       threadService.addMessageToCache(targetThreadId, newMessage)
+      settleReply(true)
     } else {
-      const tempIndex = messages.value.findIndex(m => m.id === tempId)
-      if (tempIndex !== -1) {
-        messages.value.splice(tempIndex, 1)
-      }
-      if (thread.value) {
-        thread.value.message_count = Math.max(0, (thread.value.message_count || 1) - 1)
-      }
+      removeMessageById(tempId)
+      settleReply(false)
       if (sendResult.status === 'error') {
         debug.error('Error sending voice message in thread:', sendResult.error)
+        notifySendFailure(sendResult.error)
       }
     }
   } catch (error) {
     debug.error('Error sending voice message in thread:', error)
+    notifySendFailure(error)
   } finally {
     sending.value = false
   }
@@ -1026,24 +1163,16 @@ const handleSendGif = async (gif: Gif) => {
   sending.value = true
   try {
     let targetThreadId = thread.value?.id
-    
-    // If in draft mode, create the thread first
-    if (isDraftMode.value && props.draftParentMessage) {
-      const threadName = displayThreadName.value
-      const newThread = await threadService.createThread({
-        message_id: props.draftParentMessage.id,
-        name: threadName,
-      })
-      
-      if (!newThread) {
-        throw new Error('Failed to create thread')
-      }
-      
-      targetThreadId = newThread.id
-      thread.value = await threadService.getThread(newThread.id, true)
-      emit('thread-created', thread.value!, props.draftParentMessage)
+
+    // Draft mode: the thread shows at once; the GIF follows the server id.
+    if (isDraftMode.value) {
+      const draft = startDraftThread()
+      if (!draft) throw new Error('Draft thread has no channel')
+      const bound = await draft.created
+      if (!bound) return
+      targetThreadId = bound.id
     }
-    
+
     if (!targetThreadId) {
       throw new Error('No thread ID')
     }
@@ -1073,9 +1202,11 @@ const handleSendGif = async (gif: Gif) => {
       scrollToBottom()
     } else if (sendResult.status === 'error') {
       debug.error('Failed to send GIF:', sendResult.error)
+      notifySendFailure(sendResult.error)
     }
   } catch (error) {
     debug.error('Failed to send GIF:', error)
+    notifySendFailure(error)
   } finally {
     sending.value = false
   }
@@ -1120,7 +1251,10 @@ const cleanupSubscription = () => {
 }
 
 const setupRealtimeSubscription = () => {
-  if (!thread.value?.id) return
+  if (!thread.value?.id || isOptimisticThreadId(thread.value.id)) {
+    cleanupSubscription()
+    return
+  }
 
   if (threadSubscription.value) {
     threadSubscription.value()
@@ -1171,9 +1305,11 @@ const setupRealtimeSubscription = () => {
         } else {
           messages.value.push(newMessage)
         }
+        if (refreshInFlight) arrivedDuringFetch.add(newMessage.id)
 
+        // message_count is absolute on the thread:update broadcast that
+        // follows every insert; only the activity time moves here.
         if (thread.value) {
-          thread.value.message_count = (thread.value.message_count || 0) + (tempIndex === -1 ? 1 : 0)
           thread.value.last_message_at = payloadNew.created_at
         }
 
@@ -1206,6 +1342,7 @@ const setupRealtimeSubscription = () => {
           content: payloadNew.content,
           updated_at: payloadNew.updated_at ? new Date(payloadNew.updated_at) : undefined,
           metadata: payloadNew.metadata || null,
+          is_pinned: pinsStore.pending[payloadNew.id]?.pinned ?? payloadNew.is_pinned,
         }
         messages.value[index] = updatedMessage
         if (thread.value?.id) {
@@ -1241,10 +1378,11 @@ watch(() => props.isVisible, (visible) => {
   }
 })
 
-watch(() => props.threadId, () => {
-  if (props.isVisible) {
-    loadThread()
-  }
+watch(() => props.threadId, (threadId) => {
+  if (!props.isVisible) return
+  // Already shown: the thread was created in this panel and just bound.
+  if (threadId && thread.value?.id === threadId) return
+  loadThread()
 })
 
 watch(() => [thread.value?.id, props.isVisible] as const, ([threadId, isVisible]) => {

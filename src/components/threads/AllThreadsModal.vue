@@ -119,7 +119,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
-import { threadService } from '@/services/ThreadService'
+import { useThreadsStore, isOptimisticThreadId } from '@/stores/useThreads'
 import { useUserData } from '@/composables/useUserData'
 import { formatDistanceToNow } from 'date-fns'
 import Avatar from '@/components/common/Avatar.vue'
@@ -142,8 +142,13 @@ const emit = defineEmits<{
 
 const { getUserDisplayName, getUserAvatarUrl } = useUserData()
 
-const threads = ref<ThreadWithDetails[]>([])
-const loading = ref(false)
+const threadsStore = useThreadsStore()
+// Indexed threads, optimistic ones included, render before the read returns.
+const threads = computed<ThreadWithDetails[]>(() =>
+  props.channelId ? threadsStore.channelThreads(props.channelId, { includeArchived: true }) : []
+)
+const fetching = ref(false)
+const loading = computed(() => fetching.value && threads.value.length === 0)
 const searchQuery = ref('')
 
 const filteredThreads = computed(() => {
@@ -165,15 +170,14 @@ const olderThreads = computed(() =>
 
 const loadThreads = async () => {
   if (!props.channelId) return
-  
-  loading.value = true
+
+  fetching.value = true
   try {
-    threads.value = await threadService.getChannelThreads(props.channelId, { includeArchived: true })
+    await threadsStore.loadChannelThreads(props.channelId, { includeArchived: true })
   } catch (error) {
     console.error('Failed to load threads:', error)
-    threads.value = []
   } finally {
-    loading.value = false
+    fetching.value = false
   }
 }
 
@@ -197,7 +201,9 @@ const formatRelativeTime = (date?: Date | string | null) => {
   }
 }
 
+// An optimistic thread has no server id to open yet.
 const selectThread = (thread: ThreadWithDetails) => {
+  if (isOptimisticThreadId(thread.id)) return
   emit('select-thread', thread)
   close()
 }

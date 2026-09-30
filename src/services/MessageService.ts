@@ -405,19 +405,18 @@ export class MessageService {
     }
   }
 
+  /** Throws on failure; a failed fetch is not a count of zero. */
   async getPinnedCount(channelId?: string, conversationId?: string): Promise<number> {
-    try {
-      const { data, error } = await supabase.rpc('count_pinned_messages', {
-        p_channel_id: channelId || null,
-        p_conversation_id: conversationId || null,
-      })
+    const { data, error } = await supabase.rpc('count_pinned_messages', {
+      p_channel_id: channelId || null,
+      p_conversation_id: conversationId || null,
+    })
 
-      if (error) throw error
-      return data || 0
-    } catch (error) {
+    if (error) {
       debug.error('Failed to get pinned count:', error)
-      return 0
+      throw this.createError('LOAD_PIN_COUNT_FAILED', error.message)
     }
+    return data || 0
   }
 
   private async getCurrentUserProfileId(): Promise<string> {

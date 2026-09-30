@@ -81,15 +81,15 @@ class ThreadService {
   }
 
   /**
-   * Get cached messages instantly (returns null if not cached/stale)
-   * For optimistic UI rendering
+   * Cached messages for instant rendering; null if absent. Stale entries are
+   * returned only with `allowStale`, for callers that revalidate at once.
    */
-  getCachedMessages(threadId: string): ThreadMessagesResult | null {
+  getCachedMessages(threadId: string, options: { allowStale?: boolean } = {}): ThreadMessagesResult | null {
     const cached = this.messageCache.get(threadId)
     if (!cached) return null
-    
+
     const cacheAge = Date.now() - cached.lastFetchedAt.getTime()
-    if (cacheAge >= this.cacheValidityDuration) return null
+    if (cacheAge >= this.cacheValidityDuration && !options.allowStale) return null
     
     return {
       messages: [...cached.messages],
@@ -101,31 +101,34 @@ class ThreadService {
   // Thread CRUD Operations
 
   /**
-   * Create a new thread from a message
+   * Creates a thread from a message; resolves to the id create_thread
+   * returns. No read follows: name, channel, parent and creator are known
+   * before the call.
    */
-  async createThread(params: CreateThreadParams): Promise<Thread | null> {
-    try {
-      const { data, error } = await supabase.rpc('create_thread', {
-        p_message_id: params.message_id,
-        p_name: params.name,
-        p_auto_archive_duration: params.auto_archive_duration || 1440,
-      })
+  async createThread(params: CreateThreadParams): Promise<string> {
+    const { data, error } = await supabase.rpc('create_thread', {
+      p_message_id: params.message_id,
+      p_name: params.name,
+      p_auto_archive_duration: params.auto_archive_duration || 1440,
+    })
 
-      if (error) {
-        debug.error('Failed to create thread:', error)
-        return null
-      }
-
-      const thread = await this.getThread(data)
-      return thread
-    } catch (error) {
-      debug.error('Error creating thread:', error)
-      return null
+    if (error || !data) {
+      debug.error('Failed to create thread:', error)
+      const err: any = new Error(error?.message || 'create_thread returned no id')
+      err.code = 'THREAD_CREATE_FAILED'
+      throw err
     }
+    return data as string
+  }
+
+  /** Seeds the metadata cache with a thread assembled on the client. */
+  primeThread(thread: ThreadWithDetails): void {
+    this.threadCache.set(thread.id, { ...thread })
   }
 
   /**
-   * Get a single thread by ID
+   * Get a single thread by ID. One read for the row, then the channel,
+   * creator, parent message and membership reads in parallel.
    */
   async getThread(threadId: string, forceRefresh = false): Promise<ThreadWithDetails | null> {
     if (!forceRefresh && this.threadCache.has(threadId)) {
@@ -142,52 +145,37 @@ class ThreadService {
 
       if (error) throw error
 
-      let channelData = null
-      let creatorData = null
-      let parentMessage = null
+      const channelRead = data.channel_id
+        ? supabase.from('channels').select('name, server_id').eq('id', data.channel_id).single()
+        : null
+      const creatorRead = data.created_by
+        ? supabase.from('profiles').select('username, display_name, avatar_url').eq('id', data.created_by).single()
+        : null
+      const parentRead = data.parent_message_id
+        ? supabase.from('messages').select('id, content, user_id, created_at').eq('id', data.parent_message_id).single()
+        : null
+      const membershipRead = (async () => {
+        try {
+          const profileId = await authContextService.getCurrentProfileId()
+          const { data: membership } = await supabase
+            .from('thread_members')
+            .select('id')
+            .eq('thread_id', threadId)
+            .eq('user_id', profileId)
+            .maybeSingle()
+          return !!membership
+        } catch {
+          // User not authenticated or profile not found
+          return false
+        }
+      })()
 
-      if (data.channel_id) {
-        const { data: channel } = await supabase
-          .from('channels')
-          .select('name, server_id')
-          .eq('id', data.channel_id)
-          .single()
-        channelData = channel
-      }
-
-      if (data.created_by) {
-        const { data: creator } = await supabase
-          .from('profiles')
-          .select('username, display_name, avatar_url')
-          .eq('id', data.created_by)
-          .single()
-        creatorData = creator
-      }
-
-      if (data.parent_message_id) {
-        const { data: msg } = await supabase
-          .from('messages')
-          .select('id, content, user_id, created_at')
-          .eq('id', data.parent_message_id)
-          .single()
-        parentMessage = msg
-      }
-
-      let isMember = false
-      try {
-        const profileId = await authContextService.getCurrentProfileId()
-        const { data: membership } = await supabase
-          .from('thread_members')
-          .select('id')
-          .eq('thread_id', threadId)
-          .eq('user_id', profileId)
-          .maybeSingle()
-        
-        isMember = !!membership
-      } catch {
-        // User not authenticated or profile not found
-        isMember = false
-      }
+      const [channelRes, creatorRes, parentRes, isMember] = await Promise.all([
+        channelRead, creatorRead, parentRead, membershipRead,
+      ])
+      const channelData = channelRes?.data ?? null
+      const creatorData = creatorRes?.data ?? null
+      const parentMessage = parentRes?.data ?? null
 
       const thread: ThreadWithDetails = {
         ...data,
@@ -692,7 +680,8 @@ class ThreadService {
 
 
   /**
-   * Get messages in a thread (with intelligent caching)
+   * Get messages in a thread (with intelligent caching). `force` skips the
+   * cache read and refreshes it.
    */
   async getThreadMessages(
     threadId: string,
@@ -700,12 +689,13 @@ class ThreadService {
       limit?: number
       before?: string
       after?: string
+      force?: boolean
     } = {}
   ): Promise<ThreadMessagesResult> {
-    const { limit = 50, before, after } = options
+    const { limit = 50, before, after, force = false } = options
 
     // For initial load (no pagination), check cache first
-    if (!before && !after) {
+    if (!before && !after && !force) {
       const cached = this.messageCache.get(threadId)
       if (cached) {
         const cacheAge = Date.now() - cached.lastFetchedAt.getTime()
@@ -866,11 +856,16 @@ class ThreadService {
     extraMetadata?: Record<string, any>,
     _options?: { allowPlaintextFallback?: boolean }
   ): Promise<Message | null> {
-    // Enforce max message length BEFORE encryption / DB roundtrip so the
-    // error surfaces cleanly. The limit is admin-configurable via
-    // `instance_config.max_message_length`; fall back to the default and
-    // clamp at the DB-side hard ceiling.
-    const maxLength = await this.getMaxMessageLength()
+    // Limits, identity and thread metadata are independent reads; one round
+    // trip covers them. Limits are checked before encryption and the insert.
+    // `instance_config.max_message_length` is clamped at the DB-side ceiling.
+    const [maxLength, maxMedia, profileId, thread] = await Promise.all([
+      this.getMaxMessageLength(),
+      this.getMaxMediaAttachments(),
+      authContextService.getCurrentProfileId(),
+      this.getThread(threadId),
+    ])
+
     const textLen = messageTextLength(content as any)
     if (textLen > maxLength) {
       const err: any = new Error(
@@ -880,17 +875,11 @@ class ThreadService {
       throw err
     }
 
-    // Enforce max media attachments per message (instance config, default 20)
     const fileParts = content.filter((p: any) => p?.type === 'file')
-    const maxMedia = await this.getMaxMediaAttachments()
     if (fileParts.length > maxMedia) {
       throw new Error(`Maximum ${maxMedia} media attachments per message`)
     }
 
-    const profileId = await authContextService.getCurrentProfileId()
-
-    // Get channel_id from thread (cannot proceed without it)
-    const thread = await this.getThread(threadId)
     if (!thread) return null
 
     let finalContent: any[] = content
@@ -899,14 +888,19 @@ class ThreadService {
     const extra: Record<string, any> = { ...(extraMetadata || {}) }
 
     if (await channelRequiresEncryption(thread.channel_id)) {
-      const { data: channelRow } = await supabase
-        .from('channels')
-        .select('server_id')
-        .eq('id', thread.channel_id)
-        .maybeSingle()
+      // getThread carries the server id; the channel read covers entries cached without it.
+      let serverId: string | null = (thread as any).server_id ?? null
+      if (!serverId) {
+        const { data: channelRow } = await supabase
+          .from('channels')
+          .select('server_id')
+          .eq('id', thread.channel_id)
+          .maybeSingle()
+        serverId = (channelRow as any)?.server_id ?? null
+      }
 
       const payload = await encryptChannelContent({
-        serverId: (channelRow as any)?.server_id ?? null,
+        serverId,
         channelId: thread.channel_id,
         senderId: profileId,
         content,
@@ -941,8 +935,14 @@ class ThreadService {
       throw error
     }
 
-    // Invalidate thread cache to refresh stats
-    this.threadCache.delete(threadId)
+    // Stats move in place. Dropping the entry would cost the next send a full
+    // metadata read.
+    const cachedThread = this.threadCache.get(threadId)
+    if (cachedThread) {
+      cachedThread.message_count = (cachedThread.message_count || 0) + 1
+      cachedThread.last_message_id = (data as any).id
+      cachedThread.last_message_at = (data as any).created_at
+    }
 
     const message = data as Message
 
@@ -958,13 +958,14 @@ class ThreadService {
   // Utility Methods
 
   /**
-   * Get thread for a message (if exists)
+   * The thread row for a message, if one exists. One read; enrichment is
+   * left to getThread.
    */
   async getThreadForMessage(messageId: string): Promise<ThreadWithDetails | null> {
     try {
       const { data, error } = await supabase
         .from('threads')
-        .select('id')
+        .select('*')
         .eq('parent_message_id', messageId)
         .maybeSingle()
 
@@ -972,14 +973,23 @@ class ThreadService {
         debug.warn('Error checking for thread:', error)
         return null
       }
-      
-      if (!data) return null
 
-      return this.getThread(data.id)
+      return (data as ThreadWithDetails) ?? null
     } catch (error) {
       debug.warn('Exception checking for thread:', error)
       return null
     }
+  }
+
+  /** The bare thread row, or null when absent or not visible to the caller. */
+  async getThreadRow(threadId: string): Promise<Thread | null> {
+    const { data, error } = await supabase
+      .from('threads')
+      .select('*')
+      .eq('id', threadId)
+      .maybeSingle()
+    if (error) throw error
+    return (data as Thread) ?? null
   }
 
   /**

@@ -160,7 +160,7 @@
                     started a thread: 
                     <span 
                       class="system-thread-link"
-                      @click="handleOpenThread(item.message.metadata?.thread_id)"
+                      @click="handleOpenThread(item.message.metadata?.thread_id, item.message.metadata?.thread_name)"
                     >{{ item.message.metadata?.thread_name || 'Thread' }}</span>. 
                     See 
                     <span 
@@ -482,8 +482,8 @@
         
           <!-- Thread Indicator (if this message started a thread) - hidden in thread view -->
           <ThreadIndicator
-            v-if="!props.hideThreadActions && getThreadForMessage(item.message.id)"
-            :thread="getThreadForMessage(item.message.id)"
+            v-if="!props.hideThreadActions && getThreadIndicator(item.message.id)"
+            :thread="getThreadIndicator(item.message.id)"
             @open="openThread"
             class="message-thread-indicator"
           />
@@ -662,7 +662,7 @@ import ThreadIndicator from '@/components/threads/ThreadIndicator.vue';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import MessageFloatingActions from '@/components/messages/MessageFloatingActions.vue';
 import MessageReplyReference from '@/components/messages/MessageReplyReference.vue';
-import { threadService } from '@/services/ThreadService';
+import { useThreadsStore } from '@/stores/useThreads';
 import type { ThreadWithDetails } from '@/services/ThreadService';
 import { messagePartsToMarkdown, isSingleEmojiMessage as checkSingleEmoji, stripLeadingSelfMention } from '@/utils/messageContentUtils';
 import { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData, resolveRoleMentionsData } from '@/utils/unifiedContentProcessing';
@@ -1084,34 +1084,26 @@ const {
 const botDataCache = ref<Map<string, { username: string; display_name: string; avatar_url: string }>>(new Map());
 const fetchingBots = ref<Set<string>>(new Set());
 
-// Thread data cache - map message ID -> thread data
-const threadsByMessageId = ref<Map<string, ThreadWithDetails>>(new Map());
-const loadingThreads = ref(false);
+const threadsStore = useThreadsStore();
 
+// Thread views hide indicators and skip the read.
 const loadChannelThreads = async () => {
-  if (!props.channelId) {
-    threadsByMessageId.value.clear();
-    return;
-  }
-  
-  loadingThreads.value = true;
+  if (!props.channelId || props.hideThreadActions) return;
   try {
-    const threads = await threadService.getThreadsForChannel(props.channelId);
-    threadsByMessageId.value.clear();
-    threads.forEach(thread => {
-      if (thread.parent_message_id) {
-        threadsByMessageId.value.set(thread.parent_message_id, thread);
-      }
-    });
+    await threadsStore.loadChannelThreads(props.channelId);
   } catch (error) {
     debug.error('Failed to load threads:', error);
-  } finally {
-    loadingThreads.value = false;
   }
 };
 
 const getThreadForMessage = (messageId: string): ThreadWithDetails | undefined => {
-  return threadsByMessageId.value.get(messageId);
+  return threadsStore.threadForMessage(messageId);
+};
+
+// Archived threads carry no indicator.
+const getThreadIndicator = (messageId: string): ThreadWithDetails | undefined => {
+  const thread = threadsStore.threadForMessage(messageId);
+  return thread && !thread.archived ? thread : undefined;
 };
 
 // Accepts the lighter `ThreadData` shape emitted by `<ThreadIndicator>` as
@@ -1121,25 +1113,16 @@ const openThread = (thread: unknown) => {
   emit('createThread', { thread } as any);
 };
 
-const handleOpenThread = async (threadId?: string) => {
+// Opens at once from the store entry, or from the id and name the system
+// message carries; the thread view fills in the rest.
+const handleOpenThread = (threadId?: string, threadName?: string) => {
   if (!threadId) return;
-  
-  try {
-    const thread = await threadService.getThread(threadId);
-    if (thread) {
-      emit('createThread', { thread } as any);
-    }
-  } catch (error) {
-    debug.error('Failed to open thread:', error);
-  }
+  const thread = threadsStore.byId[threadId] ?? { id: threadId, name: threadName || 'Thread' };
+  emit('createThread', { thread } as any);
 };
 
 // Encryption capability check (cached - only updates when service state changes)
 const canDecryptMessages = ref(false);
-
-const handleThreadBroadcast = () => {
-  loadChannelThreads();
-};
 
 // Re-check unlock state whenever the encryption service signals progress.
 // The mount-time check races the service's lazy init/auto-unlock: on a
@@ -1175,7 +1158,6 @@ onMounted(async () => {
   window.addEventListener('megolm-key-received', refreshCanDecrypt);
 
   loadChannelThreads();
-  window.addEventListener('server-structure:thread-change', handleThreadBroadcast);
   // Bot owners can change avatar/display_name in settings. UserBotsManagement
   // fires `bot:updated` after a successful save, which refreshes the
   // in-memory cache instead of waiting for a full re-render.
@@ -2289,7 +2271,6 @@ watch(virtualRows, () => {
 
 onUnmounted(() => {
   window.removeEventListener('megolm-key-received', refreshCanDecrypt);
-  window.removeEventListener('server-structure:thread-change', handleThreadBroadcast);
   window.removeEventListener('bot:updated', handleBotUpdated as EventListener);
 
   if (virtualRowObserverTimeout) {
@@ -2887,7 +2868,7 @@ const confirmDeleteMessage = async () => {
   }
   
   if (hasThread) {
-    threadsByMessageId.value.delete(messageId);
+    threadsStore.removeByParent(messageId);
   }
   
   showDeleteConfirmModal.value = false;

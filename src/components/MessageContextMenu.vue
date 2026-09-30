@@ -156,7 +156,7 @@ import { useFrequentEmojis } from '@/composables/useFrequentEmojis';
 import { useHapticSettings } from '@/composables/useHapticSettings';
 import { useServerPermissions } from '@/composables/useServerPermissions';
 import { useDeveloperTools } from '@/composables/useDeveloperTools';
-import { messageService } from '@/services';
+import { usePinActions } from '@/composables/usePinActions';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import { messagePartsToPlainText } from '@/utils/messageContentUtils';
 import { downloadMediaFromUrl, filenameFromUrl } from '@/utils/downloadMedia';
@@ -216,6 +216,7 @@ const emit = defineEmits<{
 const { topEmojisForContextMenu, hasFrequentEmojis, recordEmojiUsage } = useFrequentEmojis();
 const { triggerReaction } = useHapticSettings();
 const { canPinMessages } = useServerPermissions();
+const { setPinned } = usePinActions();
 const { developerToolsEnabled } = useDeveloperTools();
 
 const isPinned = computed(() => props.message?.is_pinned || false);
@@ -472,20 +473,16 @@ const copyText = async () => {
   emit('close');
 };
 
-const togglePin = async () => {
+// The menu closes at once; the pin state is already applied locally and
+// reverts with a toast if the RPC fails.
+const togglePin = () => {
   if (!props.message) return;
-  
-  try {
-    if (isPinned.value) {
-      await messageService.unpinMessage(props.message.id);
-    } else {
-      await messageService.pinMessage(props.message.id);
-    }
-    emit('pin-changed');
-    emit('close');
-  } catch (error) {
-    debug.error('Failed to toggle pin:', error);
-  }
+  const message = props.message;
+  const pinned = !isPinned.value;
+  emit('close');
+  void setPinned(message, pinned).then((ok) => {
+    if (ok) emit('pin-changed');
+  });
 };
 
 const reportMessage = () => {

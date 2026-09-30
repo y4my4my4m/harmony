@@ -254,6 +254,8 @@ import { buildChatParseOptions } from '@/utils/chatParseOptions'
 import { debug } from '@/utils/debug'
 import { isVideoMessageUrl } from '@/utils/klipyAttribution'
 import { realtimeConnectionManager } from '@/services/RealtimeConnectionManager'
+import { useThreadsStore, mergeFreshThreadMessages } from '@/stores/useThreads'
+import { usePinsStore } from '@/stores/usePins'
 import type { Message, MessagePart, Emoji, Gif } from '@/types'
 import type { ThreadWithDetails } from '@/services/ThreadService'
 import type { FilePreviewData } from '@/components/FilePreview.vue'
@@ -278,6 +280,8 @@ const {
 
 const chatStore = useChatStore()
 const reactionsStore = useReactionsStore()
+const threadsStore = useThreadsStore()
+const pinsStore = usePinsStore()
 const { canManageChannels } = useServerPermissions()
 const { runWithEncryptionFallback } = useEncryptionFallbackPrompt()
 
@@ -335,41 +339,65 @@ const formatDate = (date: string | Date) => {
 
 
 
+// Realtime inserts that land while a refresh is in flight; the merge keeps them.
+let loadSeq = 0
+let refreshInFlight = false
+const arrivedDuringFetch = new Set<string>()
+
+/**
+ * Stale-while-revalidate. The store entry and any cached messages render
+ * first; metadata and messages then refresh in parallel.
+ */
 const loadThread = async () => {
-  // Check if we have cached messages - if so, show instantly without loading indicator
-  const cachedMessages = threadService.getCachedMessages(props.threadId)
-  if (cachedMessages) {
-    // Use cached data instantly - no loading indicator
-    messages.value = cachedMessages.messages
-    hasMore.value = cachedMessages.has_more
-    
-    // Still load thread metadata in background
-    thread.value = await threadService.getThread(props.threadId, false)
-    isMember.value = thread.value?.is_member ?? true
-    
+  const seq = ++loadSeq
+  const threadId = props.threadId
+
+  const seeded = threadsStore.byId[threadId] ?? null
+  thread.value = seeded
+  isMember.value = seeded?.is_member ?? true
+
+  const cached = threadService.getCachedMessages(threadId, { allowStale: true })
+  if (cached) {
+    messages.value = cached.messages
+    hasMore.value = cached.has_more
+    loading.value = false
     await nextTick()
     scrollToBottom()
-    return
+  } else {
+    messages.value = []
+    loading.value = true
   }
-  
-  // No cache - show loading indicator
-  loading.value = true
+
+  refreshInFlight = true
+  arrivedDuringFetch.clear()
   try {
-    thread.value = await threadService.getThread(props.threadId, false)
-    isMember.value = thread.value?.is_member ?? true
-    
-    if (thread.value) {
-      const result = await threadService.getThreadMessages(thread.value.id)
-      messages.value = result.messages
-      hasMore.value = result.has_more
-      
+    const [details, fresh] = await Promise.all([
+      threadService.getThread(threadId, true),
+      threadService.getThreadMessages(threadId, { force: true }),
+    ])
+    if (seq !== loadSeq) return
+
+    if (details) {
+      thread.value = threadsStore.upsert(details)
+      isMember.value = details.is_member ?? true
+    }
+    const before = messages.value.length
+    messages.value = mergeFreshThreadMessages(messages.value, fresh.messages, {
+      freshHasMore: fresh.has_more,
+      arrivedDuringFetch,
+    })
+    hasMore.value = fresh.has_more
+    if (!cached || messages.value.length !== before) {
       await nextTick()
       scrollToBottom()
     }
   } catch (error) {
     console.error('Failed to load thread:', error)
   } finally {
-    loading.value = false
+    if (seq === loadSeq) {
+      refreshInFlight = false
+      loading.value = false
+    }
   }
 }
 
@@ -532,7 +560,9 @@ const deleteThread = async () => {
   if (!thread.value) return
   if (!(await confirm({ title: 'Delete thread', message: `Are you sure you want to delete "${thread.value.name}"? This cannot be undone.`, confirmButtonText: 'Delete', dangerAction: true }))) return
   try {
-    await threadService.deleteThread(thread.value.id)
+    const deletedId = thread.value.id
+    await threadService.deleteThread(deletedId)
+    threadsStore.remove(deletedId)
     goBack()
   } catch (error) {
     debug.error('Failed to delete thread:', error)
@@ -893,6 +923,7 @@ const setupRealtimeSubscription = () => {
         }
         
         messages.value.push(newMessage)
+        if (refreshInFlight) arrivedDuringFetch.add(newMessage.id)
         threadService.addMessageToCache(thread.value!.id, newMessage)
         await nextTick()
         scrollToBottom()
@@ -922,6 +953,7 @@ const setupRealtimeSubscription = () => {
           content: payloadNew.content,
           updated_at: payloadNew.updated_at ? new Date(payloadNew.updated_at) : undefined,
           metadata: payloadNew.metadata || null,
+          is_pinned: pinsStore.pending[payloadNew.id]?.pinned ?? payloadNew.is_pinned,
         }
         messages.value[index] = updatedMessage
         if (thread.value?.id) {

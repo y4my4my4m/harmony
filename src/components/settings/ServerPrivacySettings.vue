@@ -106,26 +106,48 @@
 
     <div class="settings-card">
       <div class="form-group">
-        <div class="setting-row">
-          <div class="setting-info">
-            <label class="form-label">{{ $t('server.publicServer') }}</label>
-            <div class="form-hint">
-              {{ permissions.canChangePrivacySettings 
-                ? $t('server.publicServerDesc')
-                : $t('server.publicServerDesc')
-              }}
+        <label class="form-label">{{ $t('server.serverDiscovery') }}</label>
+        <div class="discovery-options">
+          <div class="discovery-option">
+            <div class="option-content">
+              <div class="option-title">{{ $t('server.inviteOnly') }}</div>
+              <div class="option-description">
+                {{ $t('server.inviteOnlyDesc') }}
+              </div>
             </div>
-          </div>
-          <div class="setting-control">
-            <label class="toggle-switch">
+            <div class="option-control">
               <input
-                type="checkbox"
-                :checked="isPublic"
-                @change="handlePublicToggle"
+                type="radio"
+                id="invite-only"
+                name="discovery"
+                value="invite-only"
+                :checked="!isPublic"
+                @change="setDiscoveryMode('invite-only')"
                 :disabled="loading || !permissions.canChangePrivacySettings"
               />
-              <span class="toggle-slider" :class="{ 'disabled': !permissions.canChangePrivacySettings }"></span>
-            </label>
+              <label for="invite-only" class="radio-label"></label>
+            </div>
+          </div>
+
+          <div class="discovery-option">
+            <div class="option-content">
+              <div class="option-title">{{ $t('server.publicDirectory') }}</div>
+              <div class="option-description">
+                {{ $t('server.publicDirectoryDesc') }}
+              </div>
+            </div>
+            <div class="option-control">
+              <input
+                type="radio"
+                id="public-directory"
+                name="discovery"
+                value="public-directory"
+                :checked="isPublic"
+                @change="setDiscoveryMode('public-directory')"
+                :disabled="loading || !permissions.canChangePrivacySettings"
+              />
+              <label for="public-directory" class="radio-label"></label>
+            </div>
           </div>
         </div>
       </div>
@@ -177,54 +199,6 @@
       </div>
     </div>
 
-    <div class="settings-card" v-if="permissions.canChangePrivacySettings">
-      <div class="form-group">
-        <label class="form-label">{{ $t('server.serverDiscovery') }}</label>
-        <div class="discovery-options">
-          <div class="discovery-option">
-            <div class="option-content">
-              <div class="option-title">{{ $t('server.inviteOnly') }}</div>
-              <div class="option-description">
-                {{ $t('server.inviteOnlyDesc') }}
-              </div>
-            </div>
-            <div class="option-control">
-              <input
-                type="radio"
-                id="invite-only"
-                name="discovery"
-                value="invite-only"
-                :checked="!isPublic"
-                @change="setDiscoveryMode('invite-only')"
-                :disabled="loading"
-              />
-              <label for="invite-only" class="radio-label"></label>
-            </div>
-          </div>
-
-          <div class="discovery-option">
-            <div class="option-content">
-              <div class="option-title">{{ $t('server.publicDirectory') }}</div>
-              <div class="option-description">
-                {{ $t('server.publicDirectoryDesc') }}
-              </div>
-            </div>
-            <div class="option-control">
-              <input
-                type="radio"
-                id="public-directory"
-                name="discovery"
-                value="public-directory"
-                :checked="isPublic"
-                @change="setDiscoveryMode('public-directory')"
-                :disabled="loading"
-              />
-              <label for="public-directory" class="radio-label"></label>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -315,12 +289,6 @@ watch(() => props.serverId, () => {
   fetchFederatedMemberCount()
   fetchServerHandle()
 })
-
-const handlePublicToggle = (event: Event) => {
-  if (!props.permissions.canChangePrivacySettings) return
-  const target = event.target as HTMLInputElement
-  emit('update:isPublic', target.checked)
-}
 
 const handleFederationToggle = (event: Event) => {
   if (!props.permissions.canChangePrivacySettings) return
