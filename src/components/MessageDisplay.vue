@@ -820,15 +820,7 @@ const isMessageFromBlockedUser = (message: Message): boolean => {
   const authorId = message.user_id || message.bot_id;
   if (!authorId) return false;
   
-  const isBlocked = activityPubStore.isBlocked(authorId);
-  
-  // First few messages only. debug.log short-circuits when debug logging is
-  // disabled.
-  if (props.messages.indexOf(message) < 3) {
-    debug.log(`Block check: author=${authorId}, blocked=${isBlocked}, blockedUsers size=${activityPubStore.blockedUsers.size}`);
-  }
-  
-  return isBlocked;
+  return activityPubStore.isBlocked(authorId);
 };
 
 // Computed: Group consecutive blocked messages together (Discord-like)

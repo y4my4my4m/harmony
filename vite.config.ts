@@ -3,6 +3,39 @@ import { defineConfig, type Plugin } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { selectivePreload } from './vite-plugin-selective-preload'
 
+type ModuleInfoLookup = (id: string) => { isEntry: boolean; importers: readonly string[] } | null
+
+let reachMemo = new Map<string, boolean>()
+let reachMemoOwner: ModuleInfoLookup | null = null
+
+/**
+ * True when a chain of static importers links the module to an entry, i.e.
+ * the module executes on first load. Modules behind a dynamic import return
+ * false.
+ */
+function isStaticallyReachable(id: string, getModuleInfo: ModuleInfoLookup): boolean {
+  if (reachMemoOwner !== getModuleInfo) {
+    reachMemo = new Map()
+    reachMemoOwner = getModuleInfo
+  }
+  const known = reachMemo.get(id)
+  if (known !== undefined) return known
+  const visited = new Set<string>([id])
+  const stack = [id]
+  let found = false
+  while (stack.length && !found) {
+    const info = getModuleInfo(stack.pop()!)
+    if (!info) continue
+    if (info.isEntry) { found = true; break }
+    for (const importer of info.importers) {
+      if (reachMemo.get(importer) === true) { found = true; break }
+      if (!visited.has(importer)) { visited.add(importer); stack.push(importer) }
+    }
+  }
+  reachMemo.set(id, found)
+  return found
+}
+
 /** Strip HTML comments from index.html during production build. */
 function stripHtmlComments(): Plugin {
   return {
@@ -90,8 +123,8 @@ export default defineConfig({
     rollupOptions: {
       external: [],
       output: {
-        // Better code splitting - split by route and vendor
-        manualChunks: (id) => {
+        // Vendor chunks only; routes split at their dynamic imports.
+        manualChunks: (id, { getModuleInfo }) => {
           // Rollup's virtual commonjs interop helpers are imported by BOTH
           // vendor and vue-vendor (a CJS package in vendor requires
           // vue-router, so its augmented-namespace wrapper is emitted inside
@@ -119,25 +152,18 @@ export default defineConfig({
             if (id.includes('node_modules/@privacyresearch/')) {
               return 'crypto-vendor'
             }
-            // Other node_modules
-            return 'vendor'
-          }
-          // Route-based chunks
-          if (id.includes('/views/')) {
-            const viewName = id.match(/\/views\/([^/]+)\.vue/)?.[1]
-            if (viewName) {
-              return `view-${viewName}`
+            // Other node_modules needed on first load. Packages reached only
+            // through dynamic imports (vuedraggable, qrcode, date-fns, tauri
+            // plugins) stay with the lazy chunks that use them.
+            if (isStaticallyReachable(id, getModuleInfo)) {
+              return 'vendor'
             }
+            return
           }
-          // Large components get their own chunks
-          if (id.includes('/components/')) {
-            if (id.includes('RichTextEditor') || id.includes('Composer')) {
-              return 'editor'
-            }
-            if (id.includes('MessageDisplay') || id.includes('UnifiedMessageContent')) {
-              return 'message'
-            }
-          }
+          // Application modules stay unassigned. A manual chunk absorbs the
+          // unassigned static dependencies of its members, so a per-view chunk
+          // takes shared stores and services with it and the entry then
+          // imports that view chunk statically.
         },
       }
     },
