@@ -47,10 +47,35 @@ function invalidatePublicKey(actorUrl: string): void {
   publicKeyCache.delete(actorUrl);
 }
 
+// keyId → owning actor URL, for keyIds that are not `<actor>#fragment`.
+// GoToSocial keyIds are `<actor>/main-key`; dereferencing one returns an
+// actor stub whose `id` is the owner.
+const KEY_OWNER_CACHE_MAX = 5_000;
+const keyOwnerCache = new Map<string, string>();
+
+function setKeyOwner(keyId: string, owner: string): void {
+  if (keyOwnerCache.size >= KEY_OWNER_CACHE_MAX) {
+    const oldest = keyOwnerCache.keys().next().value;
+    if (oldest !== undefined) keyOwnerCache.delete(oldest);
+  }
+  keyOwnerCache.set(keyId, owner);
+}
+
+function hostOf(url: string): string | null {
+  try {
+    return new URL(url).host.toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
 // Exported for tests and admin endpoints that wipe the cache.
 export const __publicKeyCache = {
   size: () => publicKeyCache.size,
-  clear: () => publicKeyCache.clear(),
+  clear: () => {
+    publicKeyCache.clear();
+    keyOwnerCache.clear();
+  },
   invalidate: invalidatePublicKey,
 };
 
@@ -243,24 +268,33 @@ export class SignatureService {
         return { verified: false, error: 'Missing signature components' };
       }
 
-      // Replay window (BUGS.md H18). Mastodon-compatible implementations
-      // always sign Date; when present, reject outside ±5 minutes of clock
-      // skew. Absent this check a captured signed request stays valid forever.
+      // Replay window (BUGS.md H18): Date must be present and covered by the
+      // signature, and within ±5 minutes. An unsigned Date can be rewritten
+      // on a captured request. Mastodon applies the same requirement
+      // (verify_signature_strength!); `(created)` is not supported here.
+      const signedHeaderList = signedHeaders.toLowerCase().split(/\s+/).filter(Boolean);
+      if (!signedHeaderList.includes('date')) {
+        return { verified: false, error: 'Date header not included in signed headers' };
+      }
       const dateHeader = headers['date'] || headers['Date'];
-      if (dateHeader) {
-        const requestTime = Date.parse(dateHeader);
-        const MAX_SKEW_MS = 5 * 60 * 1000;
-        if (Number.isNaN(requestTime)) {
-          return { verified: false, error: 'Unparseable Date header' };
-        }
-        if (Math.abs(Date.now() - requestTime) > MAX_SKEW_MS) {
-          logger.warn(`Request Date outside allowed skew: ${dateHeader}`);
-          return { verified: false, error: 'Request Date outside allowed clock skew (possible replay)' };
-        }
+      if (!dateHeader) {
+        return { verified: false, error: 'Missing Date header' };
+      }
+      const requestTime = Date.parse(dateHeader);
+      const MAX_SKEW_MS = 5 * 60 * 1000;
+      if (Number.isNaN(requestTime)) {
+        return { verified: false, error: 'Unparseable Date header' };
+      }
+      if (Math.abs(Date.now() - requestTime) > MAX_SKEW_MS) {
+        logger.warn(`Request Date outside allowed skew: ${dateHeader}`);
+        return { verified: false, error: 'Request Date outside allowed clock skew (possible replay)' };
       }
 
-      // keyId minus fragment: https://host/users/alice#main-key -> https://host/users/alice
-      const actorUrl = keyId.split('#')[0];
+      const actorUrl = await this.resolveKeyOwner(keyId);
+      if (!actorUrl) {
+        logger.warn(`Could not resolve owner of key ${keyId}`);
+        return { verified: false, error: 'Could not resolve key owner' };
+      }
 
       const publicKey = await this.fetchActorPublicKey(actorUrl);
 
@@ -422,6 +456,63 @@ export class SignatureService {
       `Actor mismatch (delegation=${allowSameDomainDelegation}): activity.actor=${activityActor}, signing key owner=${signingActorUrl}`,
     );
     return false;
+  }
+
+  /**
+   * Actor URL owning `keyId`. A `<actor>#fragment` keyId names its owner. Any
+   * other keyId is dereferenced once: the document is the actor itself
+   * (`id === keyId`), a Key naming its `owner`, or an actor stub listing the
+   * keyId under `publicKey` (GoToSocial `<actor>/main-key`). The owner must
+   * be on the keyId's host.
+   */
+  private static async resolveKeyOwner(keyId: string): Promise<string | null> {
+    const hashAt = keyId.indexOf('#');
+    if (hashAt >= 0) return keyId.slice(0, hashAt);
+
+    const cached = keyOwnerCache.get(keyId);
+    if (cached) return cached;
+
+    const supabase = getSupabaseClient();
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('federated_id', keyId)
+      .maybeSingle();
+    if (profile) {
+      setKeyOwner(keyId, keyId);
+      return keyId;
+    }
+
+    try {
+      const response = await safeFetch(keyId, {
+        headers: {
+          'Accept': 'application/activity+json, application/ld+json',
+        },
+      });
+      if (!response.ok) {
+        logger.warn(`Key document fetch failed: ${response.status} for ${keyId}`);
+        return null;
+      }
+      const doc = await response.json();
+
+      let owner: string | null = null;
+      if (doc?.id === keyId) {
+        owner = typeof doc.owner === 'string' ? doc.owner : keyId;
+      } else if (typeof doc?.id === 'string') {
+        const keys = Array.isArray(doc.publicKey) ? doc.publicKey : [doc.publicKey];
+        if (keys.some((k: any) => k?.id === keyId)) owner = doc.id;
+      }
+
+      if (!owner || hostOf(owner) === null || hostOf(owner) !== hostOf(keyId)) {
+        logger.warn(`Key ${keyId} has no owner on its own host`);
+        return null;
+      }
+      setKeyOwner(keyId, owner);
+      return owner;
+    } catch (error) {
+      logger.warn(`Error resolving owner of key ${keyId}:`, error);
+      return null;
+    }
   }
 
   /**

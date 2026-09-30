@@ -7,6 +7,21 @@ import { validateExternalUrl, safeFetch } from '../utils/ssrfProtection.js';
 
 const MAX_CONCURRENT_DOMAINS = 10;
 
+/**
+ * HTTP statuses a redelivery cannot fix: 4xx except 401, 408 and 429.
+ * Mirrors Mastodon DeliveryWorker#response_error_unsalvageable?.
+ */
+export function isUnsalvageableStatus(status?: number): boolean {
+  return status !== undefined && status >= 400 && status < 500 && status !== 401 && status !== 408 && status !== 429;
+}
+
+/** Outcome of one immediate delivery attempt. */
+interface DirectDeliveryResult {
+  delivered: boolean;
+  /** False when queueing a retry is pointless (blocked, dead, unsafe, unsalvageable). */
+  retry: boolean;
+}
+
 function parseInboxDomain(inboxUrl: string): string | null {
   try {
     return new URL(inboxUrl).hostname.toLowerCase();
@@ -70,15 +85,19 @@ export class DeliveryQueue {
     
     // Try immediate delivery first (realtime!)
     try {
-      const success = await this.deliverActivityDirect(
+      const result = await this.deliverActivityDirect(
         activityData,
         targetInbox,
         senderId
       );
-      
-      if (success) {
+
+      if (result.delivered) {
         logger.info(`Immediate delivery succeeded to ${targetInbox}`);
         return; // Success! No need to queue
+      }
+      if (!result.retry) {
+        logger.info(`Not queueing a retry to ${targetInbox}`);
+        return;
       }
     } catch (error) {
       logger.warn(`Immediate delivery failed, queuing for retry:`, error);
@@ -318,23 +337,23 @@ export class DeliveryQueue {
     activityData: any,
     targetInbox: string,
     senderId: string
-  ): Promise<boolean> {
+  ): Promise<DirectDeliveryResult> {
     const targetDomain = parseInboxDomain(targetInbox);
     if (!targetDomain) {
       logger.warn(`Invalid inbox URL, skipping delivery: ${targetInbox}`);
-      return false;
+      return { delivered: false, retry: false };
     }
 
     if (BlockedInstancesCache.isBlocked(targetDomain)) {
       logger.info(`Skipping delivery to blocked instance: ${targetDomain}`);
-      return false;
+      return { delivered: false, retry: false };
     }
 
     // Check if endpoint is dead before attempting delivery
     const isDead = await this.isEndpointDead(targetInbox);
     if (isDead) {
       logger.info(`Skipping delivery to dead endpoint: ${targetInbox}`);
-      return false;
+      return { delivered: false, retry: false };
     }
 
     // SSRF protection: validate inbox URL before fetching
@@ -342,7 +361,7 @@ export class DeliveryQueue {
       validateExternalUrl(targetInbox);
     } catch (err: any) {
       logger.warn(`SSRF: Blocked delivery to unsafe inbox URL: ${targetInbox} - ${err.message}`);
-      return false;
+      return { delivered: false, retry: false };
     }
 
     const startedAt = process.hrtime.bigint();
@@ -373,7 +392,7 @@ export class DeliveryQueue {
         await this.updateEndpointHealth(targetInbox, targetDomain, true, response.status);
         this.recordDeliveryOutcome(targetDomain, true, durationMs, activityData);
         logger.info(`Delivered to ${targetInbox} (${response.status})`);
-        return true;
+        return { delivered: true, retry: false };
       } else {
         const durationMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
         await this.updateEndpointHealth(
@@ -391,7 +410,7 @@ export class DeliveryQueue {
           `HTTP ${response.status}`
         );
         logger.warn(`Failed to deliver to ${targetInbox}: ${response.status}`);
-        return false;
+        return { delivered: false, retry: !isUnsalvageableStatus(response.status) };
       }
     } catch (error) {
       const durationMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
@@ -399,7 +418,7 @@ export class DeliveryQueue {
       await this.updateEndpointHealth(targetInbox, targetDomain, false, undefined, errorMessage);
       this.recordDeliveryOutcome(targetDomain, false, durationMs, activityData, errorMessage);
       logger.error(`Delivery error to ${targetInbox}:`, error);
-      return false;
+      return { delivered: false, retry: true };
     }
   }
 
@@ -579,7 +598,7 @@ export class DeliveryQueue {
     const supabase = getSupabaseClient();
     const newAttempts = item.attempts + 1;
 
-    if (newAttempts >= item.max_attempts) {
+    if (newAttempts >= item.max_attempts || isUnsalvageableStatus(httpStatus)) {
       // Max attempts reached - mark as failed
       await supabase
         .from('federation_delivery_queue')

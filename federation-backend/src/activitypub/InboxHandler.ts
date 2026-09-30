@@ -274,6 +274,38 @@ router.get(
   })
 );
 
+/**
+ * True when `recipients` names the sender's followers collection and the
+ * local user follows the sender. Followers-only posts carry only that
+ * collection; senders without shared-inbox delivery (GoToSocial) post them to
+ * each follower's personal inbox.
+ */
+async function addressedViaFollowers(
+  userId: string,
+  actorUrl: string,
+  recipients: unknown[],
+): Promise<boolean> {
+  const supabase = getSupabaseClient();
+  const { data: sender } = await supabase
+    .from('profiles')
+    .select('id, followers_url')
+    .eq('federated_id', actorUrl)
+    .maybeSingle();
+  if (!sender) return false;
+
+  const followersUrl = sender.followers_url || `${actorUrl}/followers`;
+  if (!recipients.includes(followersUrl)) return false;
+
+  const { data: follow } = await supabase
+    .from('follows')
+    .select('id')
+    .eq('follower_id', userId)
+    .eq('following_id', sender.id)
+    .eq('status', 'accepted')
+    .maybeSingle();
+  return !!follow;
+}
+
 async function handleInbox(
   req: Request,
   res: Response,
@@ -290,21 +322,24 @@ async function handleInbox(
     return;
   }
 
-  logger.info(`Received ${activity.type} activity from ${activity.actor}`);
-
+  // `actor` may be an embedded object; the block check runs on its id.
+  const actorUrl: string | undefined = typeof activity.actor === 'string' ? activity.actor : activity.actor?.id;
+  let actorDomain: string;
   try {
-    const actorUrl = new URL(activity.actor);
-    const actorDomain = actorUrl.hostname;
-    
-    const { BlockedInstancesCache } = await import('../services/BlockedInstancesCache.js');
-    if (BlockedInstancesCache.isBlocked(actorDomain)) {
-      logger.info(`Rejecting activity from blocked instance: ${actorDomain}`);
-      res.status(403).json({ error: 'Instance is blocked' });
-      return;
-    }
-  } catch (error) {
-    // Unparseable actor URL: processing continues.
-    logger.debug(`Could not check instance block status: ${error}`);
+    actorDomain = new URL(actorUrl as string).hostname.toLowerCase();
+  } catch {
+    logger.warn(`Rejecting activity with unparseable actor: ${JSON.stringify(activity.actor)?.substring(0, 200)}`);
+    res.status(400).json({ error: 'Invalid activity actor' });
+    return;
+  }
+
+  logger.info(`Received ${activity.type} activity from ${actorUrl}`);
+
+  const { BlockedInstancesCache } = await import('../services/BlockedInstancesCache.js');
+  if (BlockedInstancesCache.isBlocked(actorDomain)) {
+    logger.info(`Rejecting activity from blocked instance: ${actorDomain}`);
+    res.status(403).json({ error: 'Instance is blocked' });
+    return;
   }
 
   // CRITICAL: ActivityPub authenticates requests with HTTP Signatures.
@@ -312,10 +347,9 @@ async function handleInbox(
   // 2. Public key is fetched from the actor document over HTTPS.
   // 3. Signature is verified against the request.
   // 4. activity.actor must match the signing key's owner.
-  
+
   const signature = req.headers.signature as string;
-  const actorUrl = typeof activity.actor === 'string' ? activity.actor : activity.actor?.id;
-  
+
   if (!signature) {
     if (config.REQUIRE_VALID_SIGNATURES) {
       logger.warn(`Rejecting unsigned activity from ${actorUrl}`);
@@ -370,7 +404,7 @@ async function handleInbox(
     const supabase = getSupabaseClient();
     const { data: user } = await supabase
       .from('profiles')
-      .select('federated_id')
+      .select('id, federated_id')
       .eq('username', username)
       .eq('is_local', true)
       .single();
@@ -409,7 +443,7 @@ async function handleInbox(
             tag.href === canonicalUrl
           )
         );
-        if (!isPublic && !mentionedInTags) {
+        if (!isPublic && !mentionedInTags && !(await addressedViaFollowers(user.id, actorUrl!, recipients))) {
           logger.warn(`Rejecting activity not addressed to ${username} (type: ${activity.type})`);
           res.status(202).json({ status: 'ignored', reason: 'not addressed to this user' });
           return;

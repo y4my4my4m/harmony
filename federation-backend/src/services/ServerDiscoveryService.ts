@@ -10,6 +10,7 @@ import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
 import { validateExternalHostname, safeFetch } from '../utils/ssrfProtection.js';
 import { discoveryLimiter } from '../middleware/rateLimit.js';
+import { sameOrigin, urlHost } from '../utils/apOrigin.js';
 import {
   getFullAvatarUrl,
   getFullServerBannerUrl,
@@ -378,8 +379,12 @@ router.post(
       .single();
 
     if (!localServer) {
-      // Also check by UUID for same-instance servers that don't have ap_id set
-      const uuidMatch = remoteServer.id.match(/\/servers\/([a-f0-9-]{36})$/i);
+      // Also check by UUID for same-instance servers that don't have ap_id set.
+      // Only ids on this instance name a local row; a remote Group reusing a
+      // local server's UUID would otherwise be joined, and its member list
+      // synced, into that local server.
+      const isOwnInstance = urlHost(remoteServer.id) === config.INSTANCE_DOMAIN.toLowerCase();
+      const uuidMatch = isOwnInstance ? remoteServer.id.match(/\/servers\/([a-f0-9-]{36})$/i) : null;
       if (uuidMatch) {
         const { data: serverById } = await supabase
           .from('servers')
@@ -453,7 +458,9 @@ router.post(
 
       logger.info(`Join complete: server=${localServer.id}, status=${initialStatus}, defaultChannel=${defaultChannel?.id || 'none'}`);
 
-      if (remoteServer.members) {
+      // A local server's members are its own rows; only remote references
+      // mirror a remote member list.
+      if (remoteServer.members && !localServer.is_local_server) {
         ServerDiscoveryService.syncRemoteServerMembers(localServer.id, remoteServer.members)
           .catch(err => logger.error('Failed to sync remote members:', err));
       }
@@ -604,26 +611,11 @@ router.get(
       return res.status(404).json({ error: 'Channel not found' });
     }
 
-    // Local channels serve messages straight from the local table
+    // This route is unauthenticated and reads with the service role. Local
+    // channels are read by clients through Supabase under RLS; serving them
+    // here would expose every channel, private servers included, by UUID.
     if (!channel.is_remote) {
-      // messages.user_id is null on bot rows, which carry bot_id instead; those
-      // embed a null author.
-      let query = supabase
-        .from('messages')
-        .select(`
-          id, content, created_at, updated_at, metadata,
-          author:profiles!messages_user_id_fkey(id, username, display_name, avatar_url, federated_id)
-        `)
-        .eq('channel_id', channelId)
-        .order('created_at', { ascending: false })
-        .limit(Number(limit));
-
-      if (before) {
-        query = query.lt('created_at', before);
-      }
-
-      const { data: messages } = await query;
-      return res.json({ messages: messages || [], source: 'local' });
+      return res.status(404).json({ error: 'Channel not found' });
     }
 
     // For remote channels, fetch from the remote server
@@ -986,6 +978,14 @@ export class ServerDiscoveryService {
         return null;
       }
 
+      // The reference is stored under the Group's own id, its UUID reused as
+      // the local primary key, and Joins go to its inbox. A document naming
+      // an id or inbox on another host is not authoritative for either.
+      if (!sameOrigin(server.id, url) || !sameOrigin(server.inbox, server.id)) {
+        logger.warn(`Group at ${url} names id ${server.id} / inbox ${server.inbox} on another host`);
+        return null;
+      }
+
       // Single inbound-boundary shim: older/non-compliant peers may still
       // advertise the built-in default icon sentinel. Treat it as "no icon"
       // here, once, so every discovery consumer (discover / join / sync) sees a
@@ -1070,8 +1070,14 @@ export class ServerDiscoveryService {
           .single();
 
         if (existingById) {
-          logger.info(`Server already exists locally by UUID: ${serverUuid} (${existingById.name})`);
-          return existingById;
+          // The row is this Group only for a same-instance id or a matching
+          // ap_id. Otherwise the UUID is taken; the reference gets a fresh one.
+          if (hostDomain.toLowerCase() === config.INSTANCE_DOMAIN.toLowerCase() || existingById.ap_id === remoteServer.id) {
+            logger.info(`Server already exists locally by UUID: ${serverUuid} (${existingById.name})`);
+            return existingById;
+          }
+          logger.warn(`Remote Group ${remoteServer.id} reuses UUID of local row ${serverUuid}; assigning a new id`);
+          serverUuid = undefined;
         }
       }
 
@@ -1343,8 +1349,13 @@ export class ServerDiscoveryService {
         })
         .eq('id', serverId);
 
-      // Sync channels
-      const remoteChannels = remoteServer['harmony:channels'] || [];
+      // Sync channels. The upsert keys on channels.ap_id, so only ids under
+      // this Group are accepted; any other id would re-parent a channel row
+      // of another server.
+      const channelPrefix = `${server.ap_id}/channels/`;
+      const remoteChannels = (remoteServer['harmony:channels'] || []).filter(
+        (c: any) => typeof c?.id === 'string' && c.id.startsWith(channelPrefix),
+      );
       
       // Helper to determine channel type
       const getChannelType = (c: any): number => {

@@ -17,6 +17,8 @@ import { harmonyVoiceMessageFromObject } from '../utils/voiceMessageFederation.j
 import { safeFetch } from '../utils/ssrfProtection.js';
 import { pgrstOrValue } from '../utils/postgrestFilter.js';
 import { stripOwnEmojiDomain } from '../utils/emojiResolvers.js';
+import { fetchAuthoritativeDocument, sameOrigin } from '../utils/apOrigin.js';
+import { BlockedInstancesCache } from '../services/BlockedInstancesCache.js';
 
 /**
  * Extract message UUID from a URL like https://domain/messages/{uuid}
@@ -35,10 +37,12 @@ export function determineVisibility(object: any): string {
   const to = Array.isArray(object.to) ? object.to : [object.to].filter(Boolean);
   const cc = Array.isArray(object.cc) ? object.cc : [object.cc].filter(Boolean);
 
-  const publicUrl = 'https://www.w3.org/ns/activitystreams#Public';
+  // JSON-LD compaction yields `as:Public` or `Public` for the same IRI.
+  const isPublic = (v: unknown) =>
+    v === 'https://www.w3.org/ns/activitystreams#Public' || v === 'as:Public' || v === 'Public';
 
-  if (to.includes(publicUrl)) return 'public';
-  if (cc.includes(publicUrl)) return 'unlisted';
+  if (to.some(isPublic)) return 'public';
+  if (cc.some(isPublic)) return 'unlisted';
 
   const allRecipients = [...to, ...cc];
   const hasFollowersCollection = allRecipients.some(
@@ -73,16 +77,22 @@ async function resolveProfileByActorUrl(actorUrl: string): Promise<{ id: string 
     'i'
   );
   const match = actorUrl.match(localPattern);
-  if (match) {
-    const username = match[1];
+  // The path segment is sender-supplied: only a valid username reaches ILIKE
+  // (`%`, `*` and `_` are wildcards there). The backfill writes the stored
+  // username, and only when federated_id is unset, so `/users/ALICE` cannot
+  // rewrite a local user's actor URLs.
+  if (match && /^[A-Za-z0-9_]+$/.test(match[1])) {
     const { data: byUsername } = await supabase
       .from('profiles')
-      .select('id')
-      .ilike('username', username)
+      .select('id, username, federated_id')
+      .ilike('username', match[1].replace(/_/g, '\\_'))
       .eq('is_local', true)
       .maybeSingle();
+    if (byUsername && byUsername.federated_id) {
+      return { id: byUsername.id };
+    }
     if (byUsername) {
-      // Backfill federated_id so future lookups are fast
+      const username = byUsername.username;
       await supabase
         .from('profiles')
         .update({
@@ -122,6 +132,46 @@ export class ActivityProcessor {
       .maybeSingle();
     
     return data?.is_suspended === true;
+  }
+
+  /**
+   * GET an ActivityPub document; parsed body or null. Retries signed on
+   * 401/403 for remotes running authorized fetch. Blocked hosts are never
+   * contacted, so a boost, reply or quote cannot import their content.
+   */
+  private static async fetchApJson(url: string): Promise<any | null> {
+    let host: string;
+    try {
+      host = new URL(url).hostname.toLowerCase();
+    } catch {
+      return null;
+    }
+    if (BlockedInstancesCache.isBlocked(host)) {
+      logger.info(`Not fetching ${url}: instance is blocked`);
+      return null;
+    }
+
+    try {
+      let response = await safeFetch(url, {
+        headers: {
+          'Accept': 'application/activity+json, application/ld+json',
+        },
+      });
+
+      if (response.status === 401 || response.status === 403) {
+        logger.debug(`AP fetch got ${response.status}, retrying with HTTP signature: ${url}`);
+        response = await SignatureService.signedApFetch(url);
+      }
+
+      if (!response.ok) {
+        logger.warn(`AP fetch failed for ${url}: ${response.status}`);
+        return null;
+      }
+      return await response.json();
+    } catch (error) {
+      logger.warn(`AP fetch error for ${url}:`, error);
+      return null;
+    }
   }
 
   static async processIncomingActivity(activity: any): Promise<void> {
@@ -264,20 +314,65 @@ export class ActivityProcessor {
     }
   }
 
+  /**
+   * The follows row an Accept/Reject refers to. The responder must be the
+   * followee. Lookup is by Follow id, then by the (follower, followee) pair:
+   * the id on an outbound Follow is not the id the client stores on the row.
+   */
+  private static async findFollowForResponse(
+    followObject: any,
+    responderUrl: string,
+  ): Promise<{ id: string } | null> {
+    const supabase = getSupabaseClient();
+    const followee = await resolveProfileByActorUrl(responderUrl);
+    if (!followee) return null;
+
+    const followId = typeof followObject === 'string' ? followObject : followObject?.id;
+    if (typeof followId === 'string' && followId) {
+      const { data: byId } = await supabase
+        .from('follows')
+        .select('id')
+        .eq('ap_id', followId)
+        .eq('following_id', followee.id)
+        .maybeSingle();
+      if (byId) return byId;
+    }
+
+    if (typeof followObject !== 'object' || !followObject?.actor) return null;
+    const targetUrl = followObject.object ? normalizeActor(followObject.object) : responderUrl;
+    if (!targetUrl || !SignatureService.verifyActorMatch(targetUrl, responderUrl)) return null;
+
+    const follower = await resolveProfileByActorUrl(normalizeActor(followObject.actor));
+    if (!follower) return null;
+
+    const { data: byPair } = await supabase
+      .from('follows')
+      .select('id')
+      .eq('follower_id', follower.id)
+      .eq('following_id', followee.id)
+      .maybeSingle();
+    return byPair ?? null;
+  }
+
   private static async processAccept(activity: any): Promise<void> {
     const supabase = getSupabaseClient();
 
     if (!activity.object) return;
 
-    if (activity.object.type === 'Follow') {
-      // follows stores the originating Follow activity id in `ap_id` (see
-      // processFollow); the column is `ap_id`, not `ap_activity_id`.
+    if (typeof activity.object === 'string' || activity.object.type === 'Follow') {
+      const responderUrl = normalizeActor(activity.actor);
+      const follow = await this.findFollowForResponse(activity.object, responderUrl);
+      if (!follow) {
+        logger.warn(`Accept(Follow) from ${responderUrl} matches no follow it is the target of`);
+        return;
+      }
+
       await supabase
         .from('follows')
         .update({ status: 'accepted', accepted_at: new Date().toISOString() })
-        .eq('ap_id', activity.object.id);
+        .eq('id', follow.id);
 
-      logger.info(`Follow accepted: ${activity.object.id}`);
+      logger.info(`Follow accepted by ${responderUrl}: ${follow.id}`);
     } else if (activity.object.type === 'Join') {
       const serverApId = typeof activity.actor === 'string' ? activity.actor : activity.actor?.id;
       const userActorUrl = typeof activity.object.actor === 'string'
@@ -325,13 +420,20 @@ export class ActivityProcessor {
 
     if (!activity.object) return;
 
-    if (activity.object.type === 'Follow') {
+    if (typeof activity.object === 'string' || activity.object.type === 'Follow') {
+      const responderUrl = normalizeActor(activity.actor);
+      const follow = await this.findFollowForResponse(activity.object, responderUrl);
+      if (!follow) {
+        logger.warn(`Reject(Follow) from ${responderUrl} matches no follow it is the target of`);
+        return;
+      }
+
       await supabase
         .from('follows')
         .delete()
-        .eq('ap_id', activity.object.id);
+        .eq('id', follow.id);
 
-      logger.info(`Follow rejected: ${activity.object.id}`);
+      logger.info(`Follow rejected by ${responderUrl}: ${follow.id}`);
     } else if (activity.object.type === 'Join') {
       const serverApId = typeof activity.actor === 'string' ? activity.actor : activity.actor?.id;
       const userActorUrl = typeof activity.object.actor === 'string'
@@ -385,6 +487,10 @@ export class ActivityProcessor {
 
     // Question is a poll; stored as a post carrying poll metadata.
     if (object.type === 'Question') {
+      if (!sameOrigin(object.id, normalizeActor(activity.actor))) {
+        logger.warn(`Create rejected: poll ${object.id} is not on the host of actor ${normalizeActor(activity.actor)}`);
+        return;
+      }
       logger.info(`Processing poll: ${object.id}`);
       await this.processCreatePoll(activity, object);
       return;
@@ -411,6 +517,14 @@ export class ActivityProcessor {
             return;
           }
         } catch { /* not a valid URL, continue */ }
+      }
+
+      // The actor's host is authoritative only for objects on that host. A
+      // foreign id would squat another server's post: its real Create is
+      // later dropped as a duplicate.
+      if (!sameOrigin(object.id, normalizeActor(activity.actor))) {
+        logger.warn(`Create rejected: object ${object.id} is not on the host of actor ${normalizeActor(activity.actor)}`);
+        return;
       }
 
       const harmonyServerId = object['harmony:serverId'];
@@ -843,28 +957,12 @@ export class ActivityProcessor {
       }
 
       // BUGS.md H15: postUrl comes from inbox-supplied AP objects (attacker-
-      // influenced). safeFetch validates URL+DNS per hop, follows manual
-      // redirects with re-validation, and bounds the attempt with a 10s
-      // timeout.
-      let response = await safeFetch(postUrl, {
-        headers: {
-          'Accept': 'application/activity+json, application/ld+json',
-        },
-      });
-
-      // Retry signed for instances requiring authorized fetch.
-      // signedApFetch routes through safeFetch internally.
-      if (response.status === 401 || response.status === 403) {
-        logger.debug(`AP fetch got ${response.status}, retrying with HTTP signature: ${postUrl}`);
-        response = await SignatureService.signedApFetch(postUrl);
-      }
-
-      if (!response.ok) {
-        logger.warn(`Failed to fetch remote post ${postUrl}: ${response.status}`);
+      // influenced); fetchApJson goes through safeFetch.
+      const remoteObject = await fetchAuthoritativeDocument(postUrl, (u) => this.fetchApJson(u));
+      if (!remoteObject) {
+        logger.warn(`Failed to fetch remote post ${postUrl}`);
         return null;
       }
-
-      const remoteObject = await response.json();
 
       // Only handle Note/Article types
       if (remoteObject.type !== 'Note' && remoteObject.type !== 'Article') {
@@ -897,6 +995,10 @@ export class ActivityProcessor {
       }
 
       const authorUrl = normalizeActor(remoteObject.attributedTo || remoteObject.actor);
+      if (!sameOrigin(authorUrl, apId)) {
+        logger.warn(`Remote post ${apId} attributed to ${authorUrl} on another host, skipping`);
+        return null;
+      }
       await this.ensureRemoteUser(authorUrl);
 
       const { data: author } = await supabase
@@ -1007,7 +1109,9 @@ export class ActivityProcessor {
     const supabase = getSupabaseClient();
     const actorUrl = normalizeActor(activity.actor);
 
-    if (object.type === 'Person') {
+    // Bot accounts are `Service` (Mastodon) or `Application`; Group is a
+    // Harmony server and handled below.
+    if (['Person', 'Service', 'Application', 'Organization'].includes(object.type)) {
       // The object is the actor being updated; the signer must equal it.
       if (!SignatureService.verifyActorMatch(actorUrl, object.id || '')) {
         logger.warn(
@@ -1515,16 +1619,11 @@ export class ActivityProcessor {
       logger.info(`Original post not found locally, attempting to fetch: ${objectUrl}`);
       try {
         // BUGS.md H15: objectUrl is from inbox payload (attacker-influenced).
-        const response = await safeFetch(objectUrl, {
-          headers: {
-            'Accept': 'application/activity+json, application/ld+json',
-          },
-        });
-        
-        if (response.ok) {
-          const remotePost = await response.json();
-          if (remotePost.type === 'Note' || remotePost.type === 'Article') {
-            const authorUrl = normalizeActor(remotePost.attributedTo || remotePost.actor);
+        const remotePost = await fetchAuthoritativeDocument(objectUrl, (u) => this.fetchApJson(u));
+
+        if (remotePost) {
+          const authorUrl = normalizeActor(remotePost.attributedTo || remotePost.actor);
+          if ((remotePost.type === 'Note' || remotePost.type === 'Article') && sameOrigin(authorUrl, remotePost.id)) {
             await this.ensureRemoteUser(authorUrl);
             
             const { data: author } = await supabase
@@ -1645,11 +1744,19 @@ export class ActivityProcessor {
     }
   }
 
+  /**
+   * Undo of Follow, Like/EmojiReaction or Announce.
+   *
+   * The undone activity's actor must be the signer. InboxHandler binds
+   * `activity.actor` to the signing key; the embedded or stored inner
+   * activity carries its own `actor`, which is sender-chosen.
+   */
   private static async processUndo(activity: any): Promise<void> {
     const object = activity.object;
     const supabase = getSupabaseClient();
+    const signerUrl = normalizeActor(activity.actor);
 
-    logger.info(`Processing Undo activity from ${activity.actor}`);
+    logger.info(`Processing Undo activity from ${signerUrl}`);
     logger.debug(`Undo object: ${JSON.stringify(object)?.substring(0, 500)}`);
 
     if (!object) {
@@ -1657,131 +1764,51 @@ export class ActivityProcessor {
       return;
     }
 
-    const objectType = typeof object === 'string' ? null : object.type;
-    
-    // String object refs need a lookup to determine their original type
+    // A bare id refers to an activity stored by the inbox; type and actor
+    // come from that row.
     if (typeof object === 'string') {
       logger.info(`Undo object is a string ID: ${object}`);
       const { data: originalActivity } = await supabase
         .from('ap_activities')
-        .select('ap_type, activity_data')
+        .select('ap_type, activity_data, actor_ap_id')
         .eq('ap_id', object)
         .maybeSingle();
-      
-      if (originalActivity) {
-        logger.info(`Found original activity type: ${originalActivity.ap_type}`);
-        await this.processUndoByType(originalActivity.ap_type, originalActivity.activity_data, activity.actor);
-        return;
-      } else {
+
+      if (!originalActivity) {
         logger.warn(`Could not find original activity: ${object}`);
         return;
       }
+
+      const storedActor = originalActivity.activity_data?.actor;
+      const originalActor = originalActivity.actor_ap_id
+        || (storedActor ? normalizeActor(storedActor) : null);
+      if (!originalActor || !SignatureService.verifyActorMatch(signerUrl, originalActor)) {
+        logger.warn(`Undo rejected: ${signerUrl} is not the actor of ${object} (${originalActor ?? 'unknown'})`);
+        return;
+      }
+
+      logger.info(`Found original activity type: ${originalActivity.ap_type}`);
+      await this.processUndoByType(originalActivity.ap_type, originalActivity.activity_data, signerUrl);
+      return;
     }
 
-    switch (objectType) {
-      case 'Follow': {
-        const { followerUrl, followingUrl } = extractFollowData(object);
-        logger.info(`Undoing follow: ${followerUrl} → ${followingUrl}`);
-        
-        const { data: follower } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('federated_id', followerUrl)
-          .single();
-
-        const { data: following } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('federated_id', followingUrl)
-          .single();
-
-        if (!follower) {
-          logger.warn(`Follower not found: ${followerUrl}`);
-        }
-        if (!following) {
-          logger.warn(`Following not found: ${followingUrl}`);
-        }
-
-        if (follower && following) {
-          const { error } = await supabase
-            .from('follows')
-            .delete()
-            .eq('follower_id', follower.id)
-            .eq('following_id', following.id);
-
-          if (error) {
-            logger.error(`Failed to delete follow:`, error);
-          } else {
-            logger.info(`Undid follow: ${followerUrl} → ${followingUrl}`);
-          }
-        }
-        break;
-      }
-
-      case 'Like':
-      case 'EmojiReaction': {
-        await this.processUndoReaction(object, activity.actor);
-        break;
-      }
-
-      case 'Announce': {
-        const announceId = typeof object === 'string' ? object : object.id;
-        logger.info(`Undoing announce: ${announceId}`);
-        
-        // The reblog post carries metadata.reblog_of pointing at the original.
-        const { data: reblogPost } = await supabase
-          .from('posts')
-          .select('id, metadata')
-          .eq('ap_id', announceId)
-          .maybeSingle();
-        
-        if (reblogPost) {
-          const { error: deleteError } = await supabase
-            .from('posts')
-            .delete()
-            .eq('id', reblogPost.id);
-          
-          if (deleteError) {
-            logger.error(`Failed to delete reblog post:`, deleteError);
-          }
-          
-          // Also remove the interaction record if the original post is known
-          const originalPostId = reblogPost.metadata?.reblog_of;
-          if (originalPostId) {
-            const actorUrl = normalizeActor(activity.actor);
-        const { data: user } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('federated_id', actorUrl)
-          .single();
-
-            if (user) {
-              await supabase
-                .from('post_interactions')
-                .delete()
-                .eq('user_id', user.id)
-                .eq('post_id', originalPostId)
-                .eq('interaction_type', 'reblog');
-            }
-          }
-          logger.info(`Undid announce: ${announceId}`);
-        } else {
-          logger.warn(`Reblog post not found for Undo: ${announceId}`);
-        }
-        break;
-      }
-      
-      default:
-        logger.warn(`Unhandled Undo object type: ${objectType}`);
+    const innerActor = object.actor ? normalizeActor(object.actor) : signerUrl;
+    if (!innerActor || !SignatureService.verifyActorMatch(signerUrl, innerActor)) {
+      logger.warn(`Undo rejected: ${signerUrl} cannot undo an activity by ${innerActor ?? 'unknown'}`);
+      return;
     }
+
+    await this.processUndoByType(object.type, object, signerUrl);
   }
 
   /**
    * Undo of Like/EmojiReaction. Handles both posts and messages/DMs.
+   * `actorUrl` is the verified signer; the reaction removed is theirs.
    */
-  private static async processUndoReaction(object: any, _actorUrl: string): Promise<void> {
+  private static async processUndoReaction(object: any, actorUrl: string): Promise<void> {
     const supabase = getSupabaseClient();
-    const { actorUrl: likeActorUrl, objectUrl, emoji, emojiUrl, emojiName } = extractLikeData(object);
+    const { objectUrl, emoji, emojiUrl, emojiName } = extractLikeData({ ...object, actor: actorUrl });
+    const likeActorUrl = actorUrl;
 
     logger.info(`Undoing reaction from ${likeActorUrl} on ${objectUrl}`);
 
@@ -1949,56 +1976,126 @@ export class ActivityProcessor {
   }
 
   /**
-   * Process Undo by looking up the original activity type
+   * Undo dispatch. `actorUrl` is the verified signer and has already been
+   * matched against the undone activity's actor.
    */
   private static async processUndoByType(activityType: string, activityData: any, actorUrl: string): Promise<void> {
     logger.info(`Processing Undo by type: ${activityType}`);
-    
+
     switch (activityType) {
       case 'Like':
       case 'EmojiReaction':
-        await this.processUndoReaction(activityData, actorUrl);
+      case 'EmojiReact':
+        if (activityData) {
+          await this.processUndoReaction(activityData, actorUrl);
+        }
         break;
       case 'Follow':
         if (activityData) {
-          const supabase = getSupabaseClient();
-          const { followerUrl, followingUrl } = extractFollowData(activityData);
-          
-          const { data: follower } = await supabase
-            .from('profiles')
-            .select('id')
-            .eq('federated_id', followerUrl)
-            .single();
-
-          const { data: following } = await supabase
-              .from('profiles')
-              .select('id')
-            .eq('federated_id', followingUrl)
-              .single();
-            
-          if (follower && following) {
-              await supabase
-              .from('follows')
-                .delete()
-              .eq('follower_id', follower.id)
-              .eq('following_id', following.id);
-            logger.info(`Undid follow: ${followerUrl} → ${followingUrl}`);
-          }
+          await this.processUndoFollow(activityData, actorUrl);
         }
         break;
       case 'Announce':
-        if (activityData?.id) {
-          const supabase = getSupabaseClient();
-          await supabase
-            .from('posts')
-            .delete()
-            .eq('ap_id', activityData.id);
-          logger.info(`Undid announce: ${activityData.id}`);
+        if (typeof activityData?.id === 'string') {
+          await this.processUndoAnnounce(activityData.id, actorUrl);
         }
         break;
       default:
-        logger.warn(`Unknown activity type for Undo: ${activityType}`);
+        logger.warn(`Unhandled Undo object type: ${activityType}`);
     }
+  }
+
+  /** Undo Follow: removes the signer's follow of the target. */
+  private static async processUndoFollow(followActivity: any, actorUrl: string): Promise<void> {
+    const supabase = getSupabaseClient();
+    const { followingUrl } = extractFollowData({ ...followActivity, actor: actorUrl });
+    logger.info(`Undoing follow: ${actorUrl} → ${followingUrl}`);
+
+    const { data: follower } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('federated_id', actorUrl)
+      .maybeSingle();
+
+    const { data: following } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('federated_id', followingUrl)
+      .maybeSingle();
+
+    if (!follower || !following) {
+      logger.warn(`Undo follow: unknown profile (follower=${!!follower}, following=${!!following})`);
+      return;
+    }
+
+    const { error } = await supabase
+      .from('follows')
+      .delete()
+      .eq('follower_id', follower.id)
+      .eq('following_id', following.id);
+
+    if (error) {
+      logger.error(`Failed to delete follow:`, error);
+    } else {
+      logger.info(`Undid follow: ${actorUrl} → ${followingUrl}`);
+    }
+  }
+
+  /**
+   * Undo Announce: removes the signer's reblog row. Only a row authored by
+   * the signer and carrying reblog markers qualifies; a quote post or an
+   * ordinary post sharing the id is left alone.
+   */
+  private static async processUndoAnnounce(announceId: string, actorUrl: string): Promise<void> {
+    const supabase = getSupabaseClient();
+    logger.info(`Undoing announce: ${announceId}`);
+
+    const { data: user } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('federated_id', actorUrl)
+      .maybeSingle();
+
+    if (!user) {
+      logger.warn(`Undo announce: unknown actor ${actorUrl}`);
+      return;
+    }
+
+    const { data: reblogPost } = await supabase
+      .from('posts')
+      .select('id, ap_type, metadata')
+      .eq('ap_id', announceId)
+      .eq('author_id', user.id)
+      .maybeSingle();
+
+    const originalPostId = reblogPost?.metadata?.reblog_of;
+    const isReblog = !!reblogPost
+      && (reblogPost.ap_type === 'Announce' || !!originalPostId)
+      && !reblogPost.metadata?.is_quote;
+    if (!isReblog) {
+      logger.warn(`Reblog post not found for Undo: ${announceId} by ${actorUrl}`);
+      return;
+    }
+
+    const { error: deleteError } = await supabase
+      .from('posts')
+      .delete()
+      .eq('id', reblogPost.id);
+
+    if (deleteError) {
+      logger.error(`Failed to delete reblog post:`, deleteError);
+      return;
+    }
+
+    if (originalPostId) {
+      await supabase
+        .from('post_interactions')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('post_id', originalPostId)
+        .eq('interaction_type', 'reblog');
+    }
+    logger.info(`Undid announce: ${announceId}`);
   }
 
   /**
@@ -2671,24 +2768,15 @@ export class ActivityProcessor {
     // BUGS.md H15: actorUrl is attacker-influenced (from inbox or Follow
     // activity); safeFetch handles SSRF, redirect re-validation, and timeout.
     try {
-      let response = await safeFetch(actorUrl, {
-        headers: {
-          'Accept': 'application/activity+json, application/ld+json',
-        },
-      });
-
-      // Retry signed for instances requiring authorized fetch.
-      if (response.status === 401 || response.status === 403) {
-        logger.debug(`Actor fetch got ${response.status}, retrying with HTTP signature: ${actorUrl}`);
-        response = await SignatureService.signedApFetch(actorUrl);
-      }
-
-      if (!response.ok) {
-        logger.error(`Failed to fetch actor ${actorUrl}: ${response.status}`);
+      // The stored profile is keyed by the document's own id; a document
+      // claiming an id on another host would overwrite that host's actor,
+      // public key included.
+      const actor = await fetchAuthoritativeDocument(actorUrl, (u) => this.fetchApJson(u));
+      if (!actor) {
+        logger.error(`Failed to fetch actor ${actorUrl}`);
         return existing || null;
       }
 
-      const actor = await response.json();
       const profileData = actorToProfile(actor);
 
       // SECURITY: a remote actor claiming the instance domain is a spoofing

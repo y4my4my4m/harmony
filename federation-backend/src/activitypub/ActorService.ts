@@ -11,6 +11,7 @@ import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
 import { validateExternalHostname, validateExternalUrl, safeFetch } from '../utils/ssrfProtection.js';
 import { discoveryLimiter } from '../middleware/rateLimit.js';
+import { sameOrigin } from '../utils/apOrigin.js';
 
 const router = Router();
 
@@ -284,6 +285,14 @@ router.post(
       }
 
       const actor = await actorResponse.json();
+      // The profile is upserted under the document's own id and domain; an id
+      // on another host would overwrite that host's actor and key.
+      if (!sameOrigin(actor?.id, selfLink.href)) {
+        logger.warn(`Actor document at ${selfLink.href} claims foreign id ${actor?.id}`);
+        return res.status(502).json({
+          error: 'Remote actor document id does not match its host'
+        });
+      }
       logger.info(`Actor fetched: ${actor.preferredUsername || actor.name}`);
       
       // Step 3: Fetch follower/following/posts counts from collections
@@ -1921,16 +1930,20 @@ async function fetchRemotePostReplies(
     const repliesCollection = await repliesResponse.json();
     
     let items: any[] = [];
-    
+    // Document the items were read from; embedded notes are trusted only for
+    // ids on its host.
+    let itemsSourceUrl = repliesCollectionUrl;
+
     if (repliesCollection.orderedItems) {
       items = repliesCollection.orderedItems;
     } else if (repliesCollection.items) {
       items = repliesCollection.items;
     } else if (repliesCollection.first) {
-      const firstPageUrl = typeof repliesCollection.first === 'string' 
-        ? repliesCollection.first 
+      const firstPageUrl = typeof repliesCollection.first === 'string'
+        ? repliesCollection.first
         : repliesCollection.first.id;
-      
+      itemsSourceUrl = firstPageUrl;
+
       const pageResponse = await safeFetch(firstPageUrl, {
         headers: {
           'Accept': 'application/activity+json, application/ld+json',
@@ -1955,7 +1968,9 @@ async function fetchRemotePostReplies(
       try {
         // Collection entries are Note objects, Create activities, or URLs.
         let note = item;
+        let noteSourceUrl = itemsSourceUrl;
         if (typeof item === 'string') {
+          noteSourceUrl = item;
           const noteResponse = await safeFetch(item, {
             headers: {
               'Accept': 'application/activity+json, application/ld+json',
@@ -1969,7 +1984,14 @@ async function fetchRemotePostReplies(
           note = item.object;
         }
 
-        if (note.type !== 'Note' && note.type !== 'Article') {
+        if (!note || (note.type !== 'Note' && note.type !== 'Article')) {
+          continue;
+        }
+
+        // A copy of a note served by a host other than its own is not
+        // authoritative; neither is an attribution to another host.
+        if (!sameOrigin(note.id, noteSourceUrl)) {
+          logger.debug(`Skipping reply ${note.id}: served by ${noteSourceUrl}`);
           continue;
         }
 
@@ -1984,11 +2006,11 @@ async function fetchRemotePostReplies(
           continue;
         }
 
-        const authorUrl = typeof note.attributedTo === 'string' 
-          ? note.attributedTo 
+        const authorUrl = typeof note.attributedTo === 'string'
+          ? note.attributedTo
           : note.attributedTo?.id;
-        
-        if (!authorUrl) continue;
+
+        if (!authorUrl || !sameOrigin(authorUrl, note.id)) continue;
 
         let { data: author } = await supabase
           .from('profiles')
@@ -1997,34 +2019,7 @@ async function fetchRemotePostReplies(
           .maybeSingle();
 
         if (!author) {
-          try {
-            const actorResponse = await safeFetch(authorUrl, {
-              headers: {
-                'Accept': 'application/activity+json, application/ld+json',
-                'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
-              },
-              timeoutMs: 5000,
-            });
-            if (actorResponse.ok) {
-              const actor = await actorResponse.json();
-              const { actorToProfile } = await import('./converters/fromActivityPub.js');
-              const profileData = actorToProfile(actor);
-              
-              const { data: newProfile } = await supabase
-                .from('profiles')
-                .insert({
-                  ...profileData,
-                  is_local: false,
-                })
-                .select('id')
-                .single();
-              
-              author = newProfile;
-            }
-          } catch (err) {
-            logger.debug(`Failed to create author for reply:`, err);
-            continue;
-          }
+          author = await ActivityProcessor['ensureRemoteUser'](authorUrl);
         }
 
         if (!author) continue;
@@ -2715,9 +2710,11 @@ async function fetchRecentPostsInBackground(
       try {
         const activityType = item.type;
         
+        // Outbox entries are the actor's own activities, on the outbox host.
         if (activityType === 'Announce') {
           oldestId = item.id;
-          
+          if (!sameOrigin(item.id, outboxUrl)) continue;
+
           const { data: existingReblog } = await supabase
             .from('posts')
             .select('id')
@@ -2796,7 +2793,10 @@ async function fetchRecentPostsInBackground(
         const note = activityType === 'Create' ? item.object : item;
         
         // Question is a poll and is kept.
-        if (note.type !== 'Note' && note.type !== 'Article' && note.type !== 'Question') {
+        if (!note || (note.type !== 'Note' && note.type !== 'Article' && note.type !== 'Question')) {
+          continue;
+        }
+        if (!sameOrigin(note.id, outboxUrl)) {
           continue;
         }
         

@@ -11,6 +11,7 @@ import { createPostActivity, createDeleteActivity, createPostUpdateActivity, cre
 import { enrichPostLinkPreviews } from '../../listeners/DatabaseListener.js';
 import config from '../../config/index.js';
 import { logger } from '../../utils/logger.js';
+import { pgrstOrValue } from '../../utils/postgrestFilter.js';
 import type { FederationJobData } from '../BullMQManager.js';
 
 /**
@@ -83,13 +84,7 @@ export async function handlePostJob(data: FederationJobData): Promise<void> {
           await deliverToMentionedUsers(post, activity, author, supabase);
           logger.info(`Direct post ${post.id} delivered to ${mentions.length} mentioned user(s)`);
         } else {
-          // Public/unlisted/followers: broadcast to followers
-          await DeliveryQueue.broadcastToFollowers(author.id, activity);
-          
-          // Also deliver to mentioned users who might not be followers
-          if (Array.isArray(post.content)) {
-            await deliverToMentionedUsers(post, activity, author, supabase);
-          }
+          await deliverToAudience(post, activity, author, supabase);
         }
 
         // Pure reblogs (Announce, no quote) reuse the original Note's
@@ -117,7 +112,7 @@ export async function handlePostJob(data: FederationJobData): Promise<void> {
 
       case 'update':
         activity = await createPostUpdateActivity(post, author);
-        await DeliveryQueue.broadcastToFollowers(author.id, activity);
+        await deliverToAudience(post, activity, author, supabase);
 
         try {
           const wrote = await enrichPostLinkPreviews(post);
@@ -134,9 +129,13 @@ export async function handlePostJob(data: FederationJobData): Promise<void> {
 
       case 'delete':
         activity = createDeleteActivity(author, post);
-        
-        // Broadcast deletion to followers
+        // A Delete carries only the object id, so followers receive it for
+        // every visibility. Deletion wipes content to '[Deleted]' before this
+        // job runs; a direct post's mentioned recipients are no longer known.
         await DeliveryQueue.broadcastToFollowers(author.id, activity);
+        if (Array.isArray(post.content)) {
+          await deliverToMentionedUsers(post, activity, author, supabase);
+        }
         break;
 
       case 'pin_change':
@@ -166,6 +165,25 @@ export async function handlePostJob(data: FederationJobData): Promise<void> {
 }
 
 /**
+ * Deliver to the post's audience: followers unless the post is direct, plus
+ * every mentioned remote user. A direct post's content never goes to
+ * followers' inboxes.
+ */
+async function deliverToAudience(
+  post: any,
+  activity: any,
+  author: any,
+  supabase: any
+): Promise<void> {
+  if (post.visibility !== 'direct') {
+    await DeliveryQueue.broadcastToFollowers(author.id, activity);
+  }
+  if (Array.isArray(post.content)) {
+    await deliverToMentionedUsers(post, activity, author, supabase);
+  }
+}
+
+/**
  * Deliver post to mentioned users who might not be followers
  */
 async function deliverToMentionedUsers(
@@ -182,7 +200,7 @@ async function deliverToMentionedUsers(
   // One batched lookup instead of a query per mention (N+1), then deliver in
   // parallel - a post mentioning N remote users used to serialize N round-trips.
   const orFilter = remoteMentions
-    .map((m: any) => `and(username.eq.${m.username},domain.eq.${m.domain})`)
+    .map((m: any) => `and(username.eq.${pgrstOrValue(String(m.username))},domain.eq.${pgrstOrValue(String(m.domain))})`)
     .join(',');
   const { data: mentionedUsers } = await supabase
     .from('profiles')

@@ -615,17 +615,12 @@ router.post(
           return;
         }
         logger.warn(`Accepting invalid signature on server inbox (REQUIRE_VALID_SIGNATURES=false)`);
-      } else if (verification.actorUrl && actorUrl) {
-        // Server inbox carries Group/Service actor activities (e.g. Lemmy
-        // c/<community> announcements signed by u/<moderator>). Allow
-        // same-domain delegation here, but the strict mode used by the
-        // user inbox (`verifyActorMatch(a, b)`) still applies for Person
-        // actors and prevents cross-user impersonation. See BUGS.md C1.
-        const actorMatch = SignatureService.verifyActorMatch(
-          actorUrl,
-          verification.actorUrl,
-          true /* allowSameDomainDelegation */,
-        );
+      } else if (verification.actorUrl) {
+        // Strict match, as on the user inbox (BUGS.md C1). Every handler here
+        // treats `activity.actor` as the member acting; same-domain
+        // delegation would let any user on a host act as any other user on
+        // it. Harmony peers sign server-inbox deliveries with the actor's key.
+        const actorMatch = !!actorUrl && SignatureService.verifyActorMatch(actorUrl, verification.actorUrl);
         if (!actorMatch && config.REQUIRE_VALID_SIGNATURES) {
           logger.warn(`Rejecting: actor mismatch on server inbox. Activity: ${actorUrl}, Signer: ${verification.actorUrl}`);
           res.status(403).json({ error: 'Actor mismatch' });

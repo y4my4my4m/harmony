@@ -206,6 +206,43 @@ describe('Inbox handler', () => {
       expect(res.status).toBe(403)
       expect(res.body.error).toContain('Actor mismatch')
     })
+
+    it('blocks an instance that sends actor as an embedded object', async () => {
+      const { BlockedInstancesCache } = await import('../../services/BlockedInstancesCache.js')
+      ;(BlockedInstancesCache.isBlocked as any).mockImplementation((d: string) => d === 'blocked.example')
+      const { SignatureService } = await import('../../activitypub/SignatureService.js')
+      ;(SignatureService.verifySignature as any).mockResolvedValue({
+        verified: true,
+        actorUrl: 'https://blocked.example/users/spam',
+      })
+      ;(SignatureService.verifyActorMatch as any).mockReturnValue(true)
+      const { ActivityProcessor } = await import('../../activitypub/ActivityProcessor.js')
+
+      const app = await createTestApp()
+      const res = await supertest(app)
+        .post('/inbox')
+        .set('Content-Type', 'application/activity+json')
+        .set('Signature', 'keyId="https://blocked.example/users/spam#main-key",signature="sig"')
+        .send({
+          id: 'https://blocked.example/activities/1',
+          type: 'Create',
+          actor: { id: 'https://blocked.example/users/spam', type: 'Person' },
+          object: { id: 'https://blocked.example/notes/1', type: 'Note', content: 'spam' },
+        })
+      expect(res.status).toBe(403)
+      expect(res.body.error).toBe('Instance is blocked')
+      expect(ActivityProcessor.processIncomingActivity).not.toHaveBeenCalled()
+      ;(BlockedInstancesCache.isBlocked as any).mockImplementation(() => false)
+    })
+
+    it('rejects an actor that is not a URL', async () => {
+      const app = await createTestApp()
+      const res = await supertest(app)
+        .post('/inbox')
+        .set('Content-Type', 'application/activity+json')
+        .send({ id: 'x', type: 'Follow', actor: { name: 'nobody' }, object: 'https://harmony.test/users/bob' })
+      expect(res.status).toBe(400)
+    })
   })
 
   describe('POST /users/:username/inbox', () => {

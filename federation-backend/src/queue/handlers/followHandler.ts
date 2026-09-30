@@ -82,7 +82,10 @@ export async function handleFollowJob(data: FederationJobData): Promise<void> {
         id: `${baseUrl}/activities/undo-follow/${follow_id}`,
         type: 'Undo',
         actor: followerActorUrl,
+        // Same id as the Follow sent on create; Pleroma and GoToSocial
+        // resolve the undone activity by id.
         object: {
+          id: `${baseUrl}/activities/follow/${follow_id}`,
           type: 'Follow',
           actor: followerActorUrl,
           object: following.federated_id || following.ap_id

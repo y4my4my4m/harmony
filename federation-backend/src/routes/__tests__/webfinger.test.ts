@@ -163,6 +163,26 @@ describe('WebFinger endpoint', () => {
     )
   })
 
+  it('does not pass ILIKE wildcards through to the lookup', async () => {
+    setupMockUser('alice')
+    const app = await createTestApp()
+    for (const localpart of ['%25', '*', 'a%25']) {
+      const res = await supertest(app).get(`/.well-known/webfinger?resource=acct:${localpart}@harmony.test`)
+      expect(res.status).toBe(404)
+    }
+  })
+
+  it('escapes _ so a_b does not match axb', async () => {
+    setupMockUser('a_b')
+    mockSupabase.from.mockClear()
+    const app = await createTestApp()
+    await supertest(app).get('/.well-known/webfinger?resource=acct:a_b@harmony.test')
+    const profilesChain = mockSupabase.from.mock.results.find(
+      (_r: any, i: number) => mockSupabase.from.mock.calls[i][0] === 'profiles',
+    )?.value
+    expect(profilesChain.ilike).toHaveBeenCalledWith('username', 'a\\_b')
+  })
+
   it('returns BOTH actors when a user and a server share a handle (type-tagged)', async () => {
     setupMocks({ user: 'general', server: { id: 'srv-9', slug: 'general' } })
     const app = await createTestApp()
