@@ -96,7 +96,7 @@ const confirmLeaveServer = async () => {
   if (!server || !props.serverId) return;
   
   const confirmed = await confirm({
-    title: 'Leave Server',
+    title: 'Leave server',
     message: `Are you sure you want to leave "${server.name}"? You will lose access to all channels and messages.`,
     confirmButtonText: 'Leave',
     dangerAction: true,
@@ -147,14 +147,14 @@ const leaveServer = async () => {
       if (error) throw error;
     }
     
-    toast.success('Left server successfully');
+    toast.success('Left server');
     await unsubscribeFromContext(props.serverId);
     emit('serverLeft');
     
     router.push('/');
   } catch (error: any) {
     console.error('Error leaving server:', error);
-    toast.error(error.message || 'Failed to leave server');
+    toast.error(error.message || "Couldn't leave server");
   } finally {
     isLeaving.value = false;
     closeDropdown();
@@ -172,9 +172,9 @@ const leaveServer = async () => {
     width: 226px;
     background-color: var(--background-secondary);
     color: var(--text-primary);
-    border-radius: 5px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: var(--radius-base);
+    box-shadow: var(--shadow-medium);
+    border: 1px solid var(--border-primary);
   }
   
   .server-dropdown ul {
@@ -190,18 +190,18 @@ const leaveServer = async () => {
   }
   
   .server-dropdown li:hover {
-    background-color: #424753;
+    background-color: var(--background-modifier-hover);
   }
 
   .server-dropdown li.leave-server {
-    color: #ed4245;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--error);
+    border-top: 1px solid var(--border-primary);
     margin-top: 4px;
     padding-top: 14px;
   }
 
   .server-dropdown li.leave-server:hover {
-    background-color: rgba(237, 66, 69, 0.2);
-    color: #ff6b6b;
+    background-color: color-mix(in srgb, var(--error) 20%, transparent);
+    color: var(--error);
   }
 </style>

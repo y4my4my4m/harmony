@@ -7,7 +7,6 @@
         <div class="brand-content">
           <div class="logo-container">
             <img src="/icon_3d.webp" alt="Harmony Logo" class="brand-logo" />
-            <div class="logo-glow"></div>
           </div>
           <h1 class="brand-title">
             <span class="harmony-logo">Harmony</span>
@@ -23,11 +22,11 @@
           <div v-if="isSuccess" class="success-state">
             <div class="success-icon">
               <svg width="64" height="64" viewBox="0 0 24 24" fill="none">
-                <circle cx="12" cy="12" r="10" fill="#43b581" opacity="0.2"/>
-                <path d="M9 12l2 2 4-4" stroke="#43b581" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <circle cx="12" cy="12" r="10" fill="currentColor" opacity="0.2"/>
+                <path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
             </div>
-            <h2 class="form-title">Password Reset Successful!</h2>
+            <h2 class="form-title">Password reset</h2>
             <p class="form-subtitle">
               Your password has been updated. You can now log in with your new password.
             </p>
@@ -36,33 +35,33 @@
               class="submit-btn"
               @click="goToLogin"
             >
-              Go to Login
+              Go to login
             </button>
           </div>
 
           <div v-else-if="isError" class="error-state">
             <div class="error-icon">
               <svg width="64" height="64" viewBox="0 0 24 24" fill="none">
-                <circle cx="12" cy="12" r="10" fill="#ed4245" opacity="0.2"/>
-                <path d="M12 8v4M12 16h.01" stroke="#ed4245" stroke-width="2" stroke-linecap="round"/>
+                <circle cx="12" cy="12" r="10" fill="currentColor" opacity="0.2"/>
+                <path d="M12 8v4M12 16h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
               </svg>
             </div>
-            <h2 class="form-title">Invalid or Expired Link</h2>
+            <h2 class="form-title">Invalid or expired link</h2>
             <p class="form-subtitle">
-              {{ errorMessage || 'This password reset link is invalid or has expired. Please request a new one.' }}
+              {{ errorMessage || 'This password reset link is invalid or has expired. Request a new one.' }}
             </p>
             <button 
               type="button" 
               class="submit-btn"
               @click="goToLogin"
             >
-              Go to Login
+              Go to login
             </button>
           </div>
 
           <div v-else-if="isValidToken">
             <div class="form-header">
-              <h2 class="form-title">Reset Your Password</h2>
+              <h2 class="form-title">Reset your password</h2>
               <p class="form-subtitle">
                 Enter your new password below
               </p>
@@ -70,7 +69,7 @@
 
             <form @submit.prevent="handleResetPassword" class="auth-form">
               <div class="input-group">
-                <label class="input-label">New Password</label>
+                <label class="input-label">New password</label>
                 <div class="input-container">
                   <input 
                     v-model="newPassword" 
@@ -101,7 +100,7 @@
               </div>
 
               <div class="input-group">
-                <label class="input-label">Confirm New Password</label>
+                <label class="input-label">Confirm new password</label>
                 <div class="input-container">
                   <input 
                     v-model="confirmPassword" 
@@ -137,7 +136,7 @@
                 :class="{ 'loading': isLoading }"
                 :disabled="isLoading || !newPassword || !confirmPassword"
               >
-                <span v-if="!isLoading">Reset Password</span>
+                <span v-if="!isLoading">Reset password</span>
                 <div v-else class="loading-spinner"></div>
               </button>
 
@@ -150,7 +149,7 @@
                 class="switch-mode-btn"
                 @click="goToLogin"
               >
-                Back to Login
+                Back to login
               </button>
             </form>
           </div>
@@ -175,11 +174,11 @@
         <div class="modal-header">
           <div class="modal-icon">
             <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
-              <circle cx="12" cy="12" r="10" stroke="#0EA5E9" stroke-width="2"/>
-              <path d="M12 6v6l4 2" stroke="#0EA5E9" stroke-width="2" stroke-linecap="round"/>
+              <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+              <path d="M12 6v6l4 2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
             </svg>
           </div>
-          <h2 class="modal-title">Two-Factor Authentication</h2>
+          <h2 class="modal-title">Two-factor authentication</h2>
           <p class="modal-subtitle">
             {{ useRecoveryCode ? 'Enter your 8-character recovery code' : 'Enter the 6-digit code from your authenticator app' }}
           </p>
@@ -188,7 +187,7 @@
         <form @submit.prevent="handleMFAVerification" class="modal-form">
           <div class="input-group">
             <label class="input-label">
-              {{ useRecoveryCode ? 'Recovery Code' : '6-Digit Code' }}
+              {{ useRecoveryCode ? 'Recovery code' : '6-digit code' }}
             </label>
             <input 
               v-model="mfaCode" 
@@ -210,7 +209,7 @@
             :class="{ 'loading': mfaLoading }"
             :disabled="mfaLoading"
           >
-            <span v-if="!mfaLoading">Verify & Reset Password</span>
+            <span v-if="!mfaLoading">Verify and reset password</span>
             <div v-else class="loading-spinner"></div>
           </button>
 
@@ -219,7 +218,7 @@
             class="switch-mode-btn"
             @click="toggleRecoveryCode"
           >
-            {{ useRecoveryCode ? 'Use Authenticator Code' : 'Use Recovery Code' }}
+            {{ useRecoveryCode ? 'Use authenticator code' : 'Use recovery code' }}
           </button>
 
           <button 
@@ -356,7 +355,7 @@ onMounted(async () => {
     // A session means the token was accepted.
     if (sessionError || !sessionData.session) {
       isError.value = true
-      errorMessage.value = 'This password reset link is invalid or has expired. Please request a new one.'
+      errorMessage.value = 'This password reset link is invalid or has expired. Request a new one.'
       authStateListener?.subscription.unsubscribe()
     } else {
       isValidToken.value = true
@@ -432,7 +431,7 @@ const handleResetPassword = async () => {
       
       if (challengeError) {
         debug.error('MFA challenge error:', challengeError)
-        passwordError.value = 'Failed to create MFA challenge. Please try again.'
+        passwordError.value = "Couldn't create MFA challenge. Try again."
         return
       }
       
@@ -440,7 +439,7 @@ const handleResetPassword = async () => {
       showMFAModal.value = true
     } catch (error: any) {
       debug.error('MFA challenge error:', error)
-      passwordError.value = 'Failed to create MFA challenge. Please try again.'
+      passwordError.value = "Couldn't create MFA challenge. Try again."
     }
     return
   }
@@ -462,12 +461,12 @@ const performPasswordReset = async () => {
       
       if (error.message.includes('expired') || error.message.includes('invalid')) {
         isError.value = true
-        errorMessage.value = 'This password reset link has expired. Please request a new one.'
+        errorMessage.value = 'This password reset link has expired. Request a new one.'
       } else if (error.message.includes('Password should be at least')) {
         passwordError.value = error.message
       } else if (error.message.includes('AAL2') || error.message.includes('aal2')) {
         // AAL2 required; unreachable once the MFA path has run.
-        passwordError.value = 'Multi-factor authentication is required. Please verify your 2FA code.'
+        passwordError.value = 'Multi-factor authentication is required. Verify your 2FA code.'
       } else {
         passwordError.value = error.message || 'Failed to reset password'
       }
@@ -485,7 +484,7 @@ const performPasswordReset = async () => {
     await supabase.auth.signOut()
     authStore.session = null
     
-    toast.success('Password reset successful! Please log in with your new password.')
+    toast.success('Password reset. Log in with your new password.')
     
     setTimeout(() => {
       router.push('/login')
@@ -557,7 +556,7 @@ const handleMFAVerification = async () => {
       
       await performPasswordReset()
       
-      toast.warning('2FA has been disabled. Please re-enable it after logging in with your new password.')
+      toast.warning('2FA is disabled. Re-enable it after you log in with your new password.')
     } else {
       debug.log('Verifying TOTP code...')
       
@@ -658,21 +657,6 @@ const toggleRecoveryCode = () => {
   height: 120px;
   position: relative;
   z-index: 2;
-  filter: drop-shadow(0 10px 30px color-mix(in srgb, var(--harmony-primary) 30%, transparent));
-}
-
-.logo-glow {
-  position: absolute;
-  inset: -20px;
-  background: radial-gradient(circle, color-mix(in srgb, var(--harmony-primary) 40%, transparent) 0%, transparent 70%);
-  border-radius: 50%;
-  animation: pulse 3s ease-in-out infinite;
-  z-index: 1;
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 0.4; transform: scale(1); }
-  50% { opacity: 0.6; transform: scale(1.1); }
 }
 
 .brand-title {
@@ -703,12 +687,10 @@ const toggleRecoveryCode = () => {
 .auth-form-container {
   width: 100%;
   max-width: 450px;
-  background: rgba(30, 30, 30, 0.95);
-  backdrop-filter: blur(20px);
-  border-radius: 16px;
+  background: var(--background-secondary);
+  border-radius: var(--radius-xl);
   padding: 40px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border-primary);
 }
 
 .form-header {
@@ -725,7 +707,7 @@ const toggleRecoveryCode = () => {
 
 .form-subtitle {
   font-size: 0.95rem;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--text-secondary);
   line-height: 1.5;
 }
 
@@ -744,7 +726,7 @@ const toggleRecoveryCode = () => {
 .input-label {
   font-size: 0.875rem;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -759,26 +741,25 @@ const toggleRecoveryCode = () => {
   width: 100%;
   padding: 12px 16px;
   padding-right: 48px;
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
+  background: var(--input-bg);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
   color: var(--text-primary);
   font-size: 1rem;
-  transition: all 0.2s ease;
+  transition: border-color 0.2s ease;
 }
 
 .form-input:focus {
   outline: none;
   border-color: var(--harmony-primary);
-  background: rgba(0, 0, 0, 0.5);
 }
 
 .form-input.error {
-  border-color: #ed4245;
+  border-color: var(--error);
 }
 
 .form-input::placeholder {
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-muted);
 }
 
 .password-toggle {
@@ -786,7 +767,7 @@ const toggleRecoveryCode = () => {
   right: 12px;
   background: none;
   border: none;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--text-muted);
   cursor: pointer;
   padding: 4px;
   display: flex;
@@ -796,31 +777,30 @@ const toggleRecoveryCode = () => {
 }
 
 .password-toggle:hover {
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--text-primary);
 }
 
 .error-message {
   font-size: 0.875rem;
-  color: #ed4245;
+  color: var(--error);
 }
 
 .submit-btn {
   width: 100%;
   padding: 14px 24px;
-  background: linear-gradient(135deg, var(--harmony-primary) 0%, var(--harmony-secondary) 100%);
+  background: var(--harmony-primary);
   border: none;
-  border-radius: 8px;
-  color: var(--text-primary);
+  border-radius: var(--radius-md);
+  color: var(--text-on-primary);
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease;
   margin-top: 8px;
 }
 
 .submit-btn:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 20px color-mix(in srgb, var(--harmony-primary) 40%, transparent);
+  background: var(--harmony-primary-hover);
 }
 
 .submit-btn:disabled {
@@ -836,7 +816,7 @@ const toggleRecoveryCode = () => {
   width: 20px;
   height: 20px;
   border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top-color: var(--text-primary);
+  border-top-color: var(--text-on-primary);
   border-radius: 50%;
   animation: spin 0.6s linear infinite;
   margin: 0 auto;
@@ -850,7 +830,7 @@ const toggleRecoveryCode = () => {
   text-align: center;
   margin: 20px 0;
   position: relative;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-muted);
   font-size: 0.875rem;
 }
 
@@ -858,18 +838,18 @@ const toggleRecoveryCode = () => {
   width: 100%;
   padding: 12px 24px;
   background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 8px;
-  color: rgba(255, 255, 255, 0.9);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
   font-size: 0.95rem;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
 .switch-mode-btn:hover {
-  background: rgba(255, 255, 255, 0.05);
-  border-color: rgba(255, 255, 255, 0.3);
+  background: var(--background-modifier-hover);
+  border-color: var(--border-hover);
 }
 
 .success-state,
@@ -883,6 +863,14 @@ const toggleRecoveryCode = () => {
   margin: 0 auto 24px;
   width: 64px;
   height: 64px;
+}
+
+.success-icon {
+  color: var(--success);
+}
+
+.error-icon {
+  color: var(--error);
 }
 
 .success-icon svg,
@@ -933,16 +921,20 @@ const toggleRecoveryCode = () => {
 }
 
 .modal-content {
-  background: rgba(30, 30, 30, 0.98);
-  backdrop-filter: blur(20px);
-  border-radius: 16px;
+  background: var(--background-secondary);
+  border-radius: var(--radius-xl);
   padding: 32px;
   width: 100%;
   max-width: 420px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: var(--shadow-modal);
+  border: 1px solid var(--border-primary);
   position: relative;
-  animation: slideUp 0.3s ease-out;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .modal-content {
+    animation: slideUp 0.3s ease-out;
+  }
 }
 
 @keyframes slideUp {
@@ -962,7 +954,7 @@ const toggleRecoveryCode = () => {
   right: 16px;
   background: transparent;
   border: none;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--text-muted);
   cursor: pointer;
   padding: 8px;
   display: flex;
@@ -973,8 +965,8 @@ const toggleRecoveryCode = () => {
 }
 
 .modal-close:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.9);
+  background: var(--background-modifier-hover);
+  color: var(--text-primary);
 }
 
 .modal-header {
@@ -986,6 +978,7 @@ const toggleRecoveryCode = () => {
   margin: 0 auto 16px;
   width: 48px;
   height: 48px;
+  color: var(--harmony-primary);
 }
 
 .modal-title {
@@ -997,7 +990,7 @@ const toggleRecoveryCode = () => {
 
 .modal-subtitle {
   font-size: 0.95rem;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--text-secondary);
   line-height: 1.5;
 }
 
@@ -1011,18 +1004,18 @@ const toggleRecoveryCode = () => {
   width: 100%;
   padding: 12px 24px;
   background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 8px;
-  color: rgba(255, 255, 255, 0.9);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
   font-size: 0.95rem;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
 .cancel-btn:hover {
-  background: rgba(255, 255, 255, 0.05);
-  border-color: rgba(255, 255, 255, 0.3);
+  background: var(--background-modifier-hover);
+  border-color: var(--border-hover);
 }
 
 @media (max-width: 480px) {

@@ -1,7 +1,7 @@
 <template>
   <Transition name="offline-slide">
     <div v-if="isOffline" class="offline-banner">
-      <span class="offline-icon">&#9888;</span>
+      <Icon name="wifi-off" :size="14" class="offline-icon" />
       <span>{{ t('offline.banner') }}</span>
     </div>
   </Transition>
@@ -10,6 +10,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import Icon from '@/components/common/Icon.vue'
 
 const { t } = useI18n()
 
@@ -41,15 +42,15 @@ onUnmounted(() => {
   justify-content: center;
   gap: 8px;
   padding: 6px 16px;
-  background: var(--color-error, #e53935);
-  color: #fff;
+  background: var(--error);
+  color: var(--text-on-primary);
   font-size: 13px;
   font-weight: 500;
   text-align: center;
 }
 
 .offline-icon {
-  font-size: 15px;
+  flex-shrink: 0;
 }
 
 .offline-slide-enter-active,

@@ -3,7 +3,7 @@
     <div v-if="show" class="modal-overlay" @click="$emit('close')">
       <div class="modal-container" @click.stop>
         <div class="modal-header" :class="{ 'ban-header': mode === 'ban' }">
-          <h2 class="modal-title">{{ mode === 'ban' ? 'Ban Member' : 'Kick Member' }}</h2>
+          <h2 class="modal-title">{{ mode === 'ban' ? 'Ban member' : 'Kick member' }}</h2>
           <button class="modal-close" @click="$emit('close')">
             <svg width="24" height="24" viewBox="0 0 24 24">
               <path fill="currentColor" d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/>
@@ -79,7 +79,7 @@
           </div>
 
           <div class="form-group">
-            <label for="delete-messages">Delete Message History</label>
+            <label for="delete-messages">Delete message history</label>
             <select id="delete-messages" v-model="deleteSeconds" class="form-select">
               <option v-for="opt in deleteOptions" :key="opt.value" :value="opt.value">
                 {{ opt.label }}
@@ -246,13 +246,13 @@ async function confirm() {
 }
 
 .modal-container {
-  background: var(--bg-secondary, #2b2d31);
-  border-radius: 8px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
   width: 100%;
   max-width: 440px;
   max-height: 90vh;
   overflow-y: auto;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--shadow-modal);
 }
 
 .modal-header {
@@ -265,21 +265,21 @@ async function confirm() {
 .modal-title {
   font-size: 1.15rem;
   font-weight: 600;
-  color: var(--text-primary, #f2f3f5);
+  color: var(--text-primary);
   margin: 0;
 }
 
 .modal-close {
   background: none;
   border: none;
-  color: var(--text-muted, #949ba4);
+  color: var(--text-muted);
   cursor: pointer;
   padding: 4px;
   border-radius: 4px;
   display: flex;
 }
 .modal-close:hover {
-  color: var(--text-primary, #f2f3f5);
+  color: var(--text-primary);
 }
 
 .modal-body {
@@ -294,7 +294,7 @@ async function confirm() {
   align-items: center;
   gap: 12px;
   padding: 10px 12px;
-  background: var(--bg-tertiary, #1e1f22);
+  background: var(--bg-tertiary);
   border-radius: 8px;
 }
 
@@ -306,21 +306,21 @@ async function confirm() {
 
 .user-display-name {
   font-weight: 600;
-  color: var(--text-primary, #f2f3f5);
+  color: var(--text-primary);
   font-size: 0.95rem;
 }
 
 .user-username {
-  color: var(--text-muted, #949ba4);
+  color: var(--text-muted);
   font-size: 0.8rem;
 }
 
 .warning-banner {
   padding: 10px 12px;
-  background: rgba(237, 66, 69, 0.15);
-  border-left: 3px solid #ed4245;
-  border-radius: 4px;
-  color: #f9a8aa;
+  background: color-mix(in srgb, var(--error) 15%, transparent);
+  border-left: 3px solid var(--error);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
   font-size: 0.85rem;
   line-height: 1.4;
 }
@@ -336,16 +336,16 @@ async function confirm() {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.02em;
-  color: var(--text-secondary, #b5bac1);
+  color: var(--text-secondary);
 }
 
 .form-textarea,
 .form-select {
-  background: var(--bg-tertiary, #1e1f22);
-  border: 1px solid var(--border-color, #3f4147);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   padding: 10px;
-  color: var(--text-primary, #f2f3f5);
+  color: var(--text-primary);
   font-size: 0.9rem;
   resize: none;
   font-family: inherit;
@@ -387,7 +387,7 @@ async function confirm() {
 
 .btn-cancel {
   background: transparent;
-  color: var(--text-secondary, #b5bac1);
+  color: var(--text-secondary);
 }
 .btn-cancel:hover:not(:disabled) {
   text-decoration: underline;
@@ -395,16 +395,16 @@ async function confirm() {
 
 .btn-confirm {
   background: var(--accent-color, var(--harmony-primary));
-  color: var(--text-primary);
+  color: var(--text-on-primary);
 }
 .btn-confirm:hover:not(:disabled) {
   background: var(--accent-hover, var(--harmony-primary-hover));
 }
 .btn-confirm.btn-ban {
-  background: #ed4245;
+  background: var(--error);
 }
 .btn-confirm.btn-ban:hover:not(:disabled) {
-  background: #c03537;
+  background: var(--error-hover);
 }
 
 .btn-confirm:disabled,
@@ -427,11 +427,11 @@ async function confirm() {
 }
 
 .form-input {
-  background: var(--bg-tertiary, #1e1f22);
-  border: 1px solid var(--border-color, #3f4147);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   padding: 10px;
-  color: var(--text-primary, #f2f3f5);
+  color: var(--text-primary);
   font-size: 0.9rem;
   font-family: inherit;
   width: 100%;
@@ -454,15 +454,15 @@ async function confirm() {
   overflow-y: auto;
   margin-top: 4px;
   border-radius: 4px;
-  background: var(--bg-tertiary, #1e1f22);
-  border: 1px solid var(--border-color, #3f4147);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
   z-index: 10;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-medium);
 }
 
 .member-list-empty {
   padding: 12px;
-  color: var(--text-muted, #949ba4);
+  color: var(--text-muted);
   font-size: 0.85rem;
   text-align: center;
 }
@@ -474,10 +474,10 @@ async function confirm() {
   padding: 8px 10px;
   cursor: pointer;
   font-size: 0.85rem;
-  color: var(--text-primary, #f2f3f5);
+  color: var(--text-primary);
 }
 .member-option:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--background-modifier-hover);
 }
 .member-option.selected {
   background: color-mix(in srgb, var(--harmony-primary) 20%, transparent);
@@ -485,7 +485,7 @@ async function confirm() {
 
 
 .member-option-username {
-  color: var(--text-muted, #949ba4);
+  color: var(--text-muted);
   font-size: 0.78rem;
   margin-left: auto;
 }
@@ -493,7 +493,7 @@ async function confirm() {
 .clear-member-btn {
   background: none;
   border: none;
-  color: var(--text-muted, #949ba4);
+  color: var(--text-muted);
   cursor: pointer;
   padding: 4px;
   border-radius: 4px;
@@ -502,8 +502,8 @@ async function confirm() {
   flex-shrink: 0;
 }
 .clear-member-btn:hover {
-  color: var(--text-primary, #f2f3f5);
-  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+  background: var(--background-modifier-hover);
 }
 
 @media (max-width: 480px) {

@@ -331,12 +331,12 @@ onUnmounted(() => {
 .modal-icon {
   width: 48px;
   height: 48px;
-  background: linear-gradient(135deg, var(--harmony-primary), var(--harmony-primary-hover));
+  background: color-mix(in srgb, var(--harmony-primary) 15%, transparent);
   border-radius: var(--radius-lg);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--text-primary);
+  color: var(--harmony-primary);
   flex-shrink: 0;
 }
 
@@ -395,11 +395,10 @@ onUnmounted(() => {
   }
 }
 
-/* Animation improvements for better UX */
 .modal-container {
   transform-origin: center;
   will-change: transform, opacity;
-  background: var(--background-primary-alpha);
+  background: var(--background-primary);
 }
 
 /* Focus management */

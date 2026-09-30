@@ -7,11 +7,11 @@
         </div>
         <div class="banner-text">
           <h3>Install Harmony</h3>
-          <p>Get the full app experience with faster loading and offline access</p>
+          <p>Faster loading and offline access</p>
         </div>
         <div class="banner-actions">
           <button @click="dismissBanner" class="banner-btn secondary">
-            Maybe Later
+            Maybe later
           </button>
           <button @click="installApp" class="banner-btn primary" :disabled="installing">
             <span v-if="installing">Installing...</span>
@@ -136,11 +136,10 @@ onUnmounted(() => {
   bottom: 20px;
   left: 20px;
   right: 20px;
-  background: linear-gradient(135deg, var(--harmony-primary), var(--harmony-primary-hover));
-  border-radius: 16px;
-  box-shadow: 
-    0 8px 32px color-mix(in srgb, var(--harmony-primary) 30%, transparent),
-    0 4px 16px rgba(0, 0, 0, 0.2);
+  background: var(--background-floating);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-large);
   z-index: 1000;
   max-width: 500px;
   margin: 0 auto;
@@ -171,8 +170,7 @@ onUnmounted(() => {
 .banner-icon img {
   width: 48px;
   height: 48px;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  border-radius: var(--radius-lg);
 }
 
 .banner-text {
@@ -190,7 +188,7 @@ onUnmounted(() => {
 .banner-text p {
   margin: 0;
   font-size: 14px;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--text-secondary);
   line-height: 1.4;
 }
 
@@ -211,23 +209,22 @@ onUnmounted(() => {
 .banner-btn {
   padding: 10px 16px;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
   min-width: 100px;
   white-space: nowrap;
 }
 
 .banner-btn.primary {
-  background: white;
-  color: var(--harmony-primary);
+  background: var(--harmony-primary);
+  color: var(--text-on-primary);
 }
 
 .banner-btn.primary:hover:not(:disabled) {
-  background: #f8f9fa;
-  transform: translateY(-1px);
+  background: var(--harmony-primary-hover);
 }
 
 .banner-btn.primary:disabled {
@@ -236,36 +233,36 @@ onUnmounted(() => {
 }
 
 .banner-btn.secondary {
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--background-modifier-hover);
   color: var(--text-primary);
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  border: 1px solid var(--border-primary);
 }
 
 .banner-btn.secondary:hover {
-  background: rgba(255, 255, 255, 0.3);
+  background: var(--background-modifier-active);
 }
 
 .close-btn {
   position: absolute;
   top: 12px;
   right: 12px;
-  background: rgba(255, 255, 255, 0.2);
+  background: transparent;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   padding: 6px;
-  color: var(--text-primary);
+  color: var(--text-muted);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .close-btn:hover {
-  background: rgba(255, 255, 255, 0.3);
+  background: var(--background-modifier-hover);
+  color: var(--text-primary);
 }
 
-/* Animations */
 .install-banner-enter-active,
 .install-banner-leave-active {
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);

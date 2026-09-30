@@ -1,8 +1,8 @@
 <template>
   <BaseModal
     :show="show"
-    title="One last step!"
-    subtitle="Read & agree to the rules before joining"
+    title="Before you join"
+    subtitle="Read and agree to the rules before joining"
     icon="shield-check"
     :compact="true"
     @close="$emit('close')"
@@ -35,7 +35,7 @@
         </button>
         <span class="rules-agreement-note">By joining, you agree to these rules.</span>
         <button class="rules-btn primary" type="button" :disabled="joining" @click="$emit('agree')">
-          {{ joining ? 'Joining…' : 'Agree & Join' }}
+          {{ joining ? 'Joining…' : 'Agree and join' }}
         </button>
       </div>
     </template>
@@ -87,9 +87,9 @@ defineEmits<{
   padding: 0;
   list-style: none;
   counter-reset: rule;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid var(--border-primary, rgba(255, 255, 255, 0.08));
-  border-radius: 8px;
+  background: var(--background-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
 }
 
 .rules-item {
@@ -111,7 +111,7 @@ defineEmits<{
 }
 
 .rules-item + .rules-item {
-  border-top: 1px solid var(--border-primary, rgba(255, 255, 255, 0.06));
+  border-top: 1px solid var(--border-secondary);
 }
 
 .rules-note {
@@ -140,32 +140,31 @@ defineEmits<{
   justify-content: center;
   padding: 10px 18px;
   border: none;
-  border-radius: 8px;
-  font-size: 14px;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
 }
 
 .rules-btn.secondary {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--background-modifier-hover);
+  border: 1px solid var(--border-primary);
   color: var(--text-secondary);
 }
 
 .rules-btn.secondary:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--background-modifier-active);
   color: var(--text-primary);
 }
 
 .rules-btn.primary {
-  background: linear-gradient(135deg, var(--harmony-primary), var(--harmony-primary-hover));
-  color: var(--text-primary);
+  background: var(--harmony-primary);
+  color: var(--text-on-primary);
 }
 
 .rules-btn.primary:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--harmony-primary) 30%, transparent);
+  background: var(--harmony-primary-hover);
 }
 
 .rules-btn.primary:disabled {

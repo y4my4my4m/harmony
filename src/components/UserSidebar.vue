@@ -1235,7 +1235,7 @@ const closeInviteModal = () => {
   position: relative;
   background-color: rgba(0, 0, 0, 0.1);
   border-radius: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border-primary);
   transition: border-color 0.15s ease;
 }
 
@@ -1319,12 +1319,12 @@ const closeInviteModal = () => {
 }
 
 .control-btn:hover {
-  background-color: rgba(255, 255, 255, 0.1);
-  color: var(--text-secondary);
+  background-color: var(--background-modifier-hover);
+  color: var(--text-primary);
 }
 
 .control-btn:active {
-  background-color: rgba(255, 255, 255, 0.06);
+  background-color: var(--background-modifier-active);
 }
 
 .control-btn svg {
@@ -1427,7 +1427,7 @@ const closeInviteModal = () => {
   width: 40%;
   border-radius: 5px;
   margin: 4px 8px 10px;
-  background: var(--background-modifier-hover, rgba(255, 255, 255, 0.06));
+  background: var(--background-modifier-hover);
   animation: memberSkeletonPulse 1.4s ease-in-out infinite;
 }
 
@@ -1443,14 +1443,14 @@ const closeInviteModal = () => {
   height: 32px;
   border-radius: 50%;
   flex-shrink: 0;
-  background: var(--background-modifier-hover, rgba(255, 255, 255, 0.06));
+  background: var(--background-modifier-hover);
   animation: memberSkeletonPulse 1.4s ease-in-out infinite;
 }
 
 .member-skeleton-line {
   height: 10px;
   border-radius: 5px;
-  background: var(--background-modifier-hover, rgba(255, 255, 255, 0.06));
+  background: var(--background-modifier-hover);
   animation: memberSkeletonPulse 1.4s ease-in-out infinite;
 }
 
@@ -1535,19 +1535,19 @@ const closeInviteModal = () => {
 }
 
 .status-indicator.online {
-  background-color: var(--status-online, #3ba55c);
+  background-color: var(--status-online);
 }
 
 .status-indicator.away {
-  background-color: var(--status-away, #faa61a);
+  background-color: var(--status-away);
 }
 
 .status-indicator.busy {
-  background-color: var(--status-busy, #ed4245);
+  background-color: var(--status-busy);
 }
 
 .status-indicator.offline {
-  background-color: var(--status-offline, #747f8d);
+  background-color: var(--status-offline);
 }
 
 .group-title {
@@ -1578,11 +1578,11 @@ const closeInviteModal = () => {
 }
 
 .user-item:hover {
-  background-color: var(--background-modifier-hover, rgba(255, 255, 255, 0.04));
+  background-color: var(--background-modifier-hover);
 }
 
 .user-item:active {
-  background-color: var(--background-modifier-active, rgba(255, 255, 255, 0.02));
+  background-color: var(--background-modifier-active);
 }
 
 .user-avatar {
@@ -1656,7 +1656,7 @@ const closeInviteModal = () => {
 }
 
 .bridged-discord-user:hover {
-  background-color: var(--background-modifier-hover, rgba(79, 84, 92, 0.32));
+  background-color: var(--background-modifier-hover);
 }
 
 .instance-badge {
@@ -1744,7 +1744,7 @@ const closeInviteModal = () => {
 
   .user-item:active {
     transform: scale(0.98);
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--background-modifier-selected);
   }
 
   .search-input {

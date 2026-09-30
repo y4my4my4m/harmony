@@ -13,19 +13,14 @@
       :aria-label="`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`"
       :aria-expanded="isOpen"
     >
-      <!-- Bell Icon with Glow Effect -->
       <div class="bell-icon-wrapper">
         <span class="icon-wrap icon icon-bell icon-md">
           <svg class="bell-icon icon-md" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
             <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/>
           </svg>
         </span>
-
-        <!-- Pulsing Dot Animation -->
-        <div v-if="hasUnread" class="notification-pulse"></div>
       </div>
-      
-      <!-- Unread Badge with Modern Design -->
+
       <Transition name="badge-bounce" appear>
         <div v-if="unreadCount > 0" class="notification-badge">
           <span class="badge-text">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
@@ -42,11 +37,9 @@
       </Transition>
     </button>
 
-    <!-- Modern Notification Panel - Teleported to body -->
     <Teleport to="body">
       <Transition name="panel-slide" appear>
         <div v-if="isOpen" class="notification-panel" data-testid="notification-panel" @click.stop>
-        <!-- Panel Header with Gradient -->
         <div class="panel-header">
           <div class="header-content">
             <div class="header-title-section">
@@ -101,9 +94,6 @@
               </button>
             </div>
           </div>
-          
-          <!-- Decorative Gradient Line -->
-          <div class="header-gradient-line"></div>
         </div>
         
         <!-- Panel Content -->
@@ -183,7 +173,6 @@
       </Transition>
     </Teleport>
     
-    <!-- Modern Backdrop with Blur - Also teleported -->
     <Teleport to="body">
       <Transition name="backdrop-fade">
         <div v-if="isOpen" class="notification-backdrop" @click="closePanel"></div>
@@ -286,19 +275,12 @@ const markAllAsRead = async () => {
   try {
     isMarkingAllAsRead.value = true
     await notificationStore.markAllAsRead()
-    
-    // notificationStore.showToast(
-    //   'server_update',
-    //   'All notifications marked as read',
-    //   'Successfully updated all notifications',
-    //   2000
-    // )
   } catch (error) {
     debug.error('Failed to mark all notifications as read:', error)
     notificationStore.showToast(
       'server_update',
-      'Failed to mark notifications as read',
-      'Please try again',
+      "Couldn't mark notifications as read",
+      'Try again.',
       3000
     )
   } finally {
@@ -391,7 +373,6 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* Modern notification bell with gaming aesthetics */
 .notification-bell-container {
   position: relative;
   z-index: 1000;
@@ -408,19 +389,18 @@ onUnmounted(() => {
   border: none;
   border-radius: 4px;
   cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background-color var(--transition-fast), color var(--transition-fast);
   color: var(--text-secondary);
   outline: none;
 }
 
 .notification-bell:hover {
-  background: rgba(79, 84, 92, 0.32);
-  color: var(--text-secondary);
-  transform: translateY(-1px);
+  background: var(--background-modifier-hover);
+  color: var(--text-primary);
 }
 
 .notification-bell:focus {
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--harmony-primary) 30%, transparent);
+  box-shadow: 0 0 0 2px var(--harmony-primary-alpha-strong);
 }
 
 .notification-bell.has-unread {
@@ -436,7 +416,6 @@ onUnmounted(() => {
   filter: saturate(0.7);
 }
 
-/* Bell icon with wrapper for effects */
 .bell-icon-wrapper {
   position: relative;
   display: flex;
@@ -444,35 +423,6 @@ onUnmounted(() => {
   justify-content: center;
 }
 
-.bell-icon {
-  transition: transform 0.3s ease;
-}
-
-.notification-bell:hover .bell-icon {
-  transform: rotate(-5deg) scale(1.05);
-}
-
-/* Glowing ring effect for unread notifications */
-.notification-glow {
-  position: absolute;
-  inset: -8px;
-  border-radius: 50%;
-  background: var(--h-brand);
-  opacity: 0.4;
-  animation: pulse 2s ease-in-out infinite;
-  z-index: -1;
-}
-
-.notification-pulse {
-  position: absolute;
-  inset: -4px;
-  border-radius: 50%;
-  background: radial-gradient(circle, var(--h-brand) 0%, transparent 70%);
-  opacity: 0.3;
-  animation: pulse 2s ease-in-out infinite;
-}
-
-/* Modern notification badge */
 .notification-badge {
   position: absolute;
   top: -4px;
@@ -490,30 +440,28 @@ onUnmounted(() => {
 }
 
 .badge-text {
-  color: #fff;
+  color: var(--text-on-primary);
   font-size: 10px;
   font-weight: 700;
   line-height: 1;
 }
 
-/* DND indicator */
 .dnd-indicator {
   position: absolute;
   bottom: -2px;
   right: -2px;
   width: 18px;
   height: 18px;
-  background: linear-gradient(135deg, #ffa502, #ff6348);
+  background: var(--status-busy);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--text-primary);
+  color: var(--text-on-primary);
   box-shadow: 0 0 0 3px var(--background-tertiary);
   font-size: 8px;
 }
 
-/* Modern notification panel */
 .notification-panel {
   position: fixed;
   bottom: 100px;
@@ -521,22 +469,17 @@ onUnmounted(() => {
   width: 420px;
   max-height: calc(100vh - 120px);
   background: var(--background-secondary);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 16px;
-  box-shadow: 
-    0 16px 32px rgba(0, 0, 0, 0.24),
-    0 8px 16px rgba(0, 0, 0, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(16px);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-large);
   overflow: hidden;
   z-index: 1001;
 }
 
-/* Panel header with subtle brand tint */
 .panel-header {
-  background: linear-gradient(135deg, var(--background-senary) 0%, rgba(var(--h-brand-rgb, 14, 165, 233), 0.08) 100%);
+  background: var(--background-secondary);
   padding: 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid var(--border-primary);
   position: relative;
 }
 
@@ -556,7 +499,6 @@ onUnmounted(() => {
   font-size: 18px;
   font-weight: 700;
   color: var(--text-primary);
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 .unread-indicator {
@@ -564,8 +506,6 @@ onUnmounted(() => {
   font-size: 12px;
   color: var(--h-brand);
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
 }
 
 .header-actions {
@@ -580,73 +520,55 @@ onUnmounted(() => {
   gap: 6px;
   padding: 8px 12px;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
-  backdrop-filter: blur(8px);
+  transition: background-color var(--transition-fast), color var(--transition-fast);
 }
 
 .mark-all-read {
-  background: linear-gradient(135deg, rgba(67, 181, 129, 0.15), rgba(67, 181, 129, 0.25));
-  color: #43b581;
-  border: 1px solid rgba(67, 181, 129, 0.3);
+  background: color-mix(in srgb, var(--success) 15%, transparent);
+  color: var(--success);
+  border: 1px solid color-mix(in srgb, var(--success) 30%, transparent);
 }
 
 .mark-all-read:hover:not(:disabled) {
-  background: linear-gradient(135deg, rgba(67, 181, 129, 0.25), rgba(67, 181, 129, 0.35));
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(67, 181, 129, 0.2);
+  background: color-mix(in srgb, var(--success) 25%, transparent);
 }
 
 .mark-all-read:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-  transform: none;
 }
 
 .clear-all {
-  background: linear-gradient(135deg, rgba(237, 66, 69, 0.12), rgba(237, 66, 69, 0.22));
-  color: #ed4245;
-  border: 1px solid rgba(237, 66, 69, 0.3);
+  background: color-mix(in srgb, var(--error) 12%, transparent);
+  color: var(--error);
+  border: 1px solid color-mix(in srgb, var(--error) 30%, transparent);
 }
 
 .clear-all:hover:not(:disabled) {
-  background: linear-gradient(135deg, rgba(237, 66, 69, 0.22), rgba(237, 66, 69, 0.32));
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(237, 66, 69, 0.2);
+  background: color-mix(in srgb, var(--error) 22%, transparent);
 }
 
 .clear-all:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-  transform: none;
 }
 
 .settings-btn, .close-btn {
-  background: rgba(79, 84, 92, 0.3);
+  background: var(--background-modifier-hover);
   color: var(--text-secondary);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border-primary);
   padding: 8px;
   min-width: 32px;
   justify-content: center;
 }
 
 .settings-btn:hover, .close-btn:hover {
-  background: rgba(79, 84, 92, 0.5);
-  color: var(--text-secondary);
-  transform: translateY(-1px);
-}
-
-.header-gradient-line {
-  position: absolute;
-  bottom: 0;
-  left: 20px;
-  right: 20px;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, var(--h-brand), transparent);
-  opacity: 0.6;
+  background: var(--background-modifier-active);
+  color: var(--text-primary);
 }
 
 /* Panel content */
@@ -707,7 +629,7 @@ onUnmounted(() => {
   display: flex;
   gap: 6px;
   padding: 8px 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid var(--border-primary);
   overflow-x: auto;
 }
 
@@ -717,20 +639,20 @@ onUnmounted(() => {
   gap: 6px;
   padding: 8px 12px;
   border: none;
-  border-radius: 20px;
-  background: rgba(79, 84, 92, 0.3);
+  border-radius: var(--radius-full);
+  background: var(--background-modifier-hover);
   color: var(--text-secondary);
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
   white-space: nowrap;
   flex-shrink: 0;
 }
 
 .filter-tab:hover {
-  background: rgba(79, 84, 92, 0.5);
-  color: var(--text-secondary);
+  background: var(--background-modifier-active);
+  color: var(--text-primary);
 }
 
 .filter-tab.active {
@@ -745,11 +667,11 @@ onUnmounted(() => {
 }
 
 .filter-icon-unread {
-  color: #ef4444;
+  color: var(--error);
 }
 
 .filter-count {
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--background-modifier-active);
   padding: 2px 6px;
   border-radius: 10px;
   font-size: 10px;
@@ -757,10 +679,7 @@ onUnmounted(() => {
   color: var(--text-primary);
 }
 
-/* When a filter tab is active the label takes on the brand color (blue),
-   but the count pill should stay white so it stays readable on top of
-   the translucent brand-tinted background. Without this override the
-   number inherits the active brand color and disappears into the pill. */
+/* Count keeps the neutral text colour on the brand-tinted active tab. */
 .filter-tab.active .filter-count {
   color: var(--text-primary);
 }
@@ -771,7 +690,7 @@ onUnmounted(() => {
 }
 
 .notification-item-wrapper {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid var(--border-secondary);
 }
 
 .notification-item-wrapper:last-child {
@@ -781,7 +700,7 @@ onUnmounted(() => {
 /* Load more section */
 .load-more-section {
   padding: 16px 20px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-top: 1px solid var(--border-primary);
   text-align: center;
 }
 
@@ -793,18 +712,18 @@ onUnmounted(() => {
   width: 100%;
   padding: 12px;
   border: none;
-  border-radius: 8px;
-  background: rgba(79, 84, 92, 0.3);
+  border-radius: var(--radius-md);
+  background: var(--background-modifier-hover);
   color: var(--text-secondary);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
 }
 
 .load-more-btn:hover:not(:disabled) {
-  background: rgba(79, 84, 92, 0.5);
-  color: var(--text-secondary);
+  background: var(--background-modifier-active);
+  color: var(--text-primary);
 }
 
 .load-more-btn:disabled {
@@ -858,17 +777,6 @@ onUnmounted(() => {
   }
 }
 
-/* Animations */
-@keyframes rotate {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-@keyframes pulse {
-  0%, 100% { transform: scale(1); opacity: 0.6; }
-  50% { transform: scale(1.1); opacity: 0.8; }
-}
-
 @keyframes spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
@@ -880,18 +788,15 @@ onUnmounted(() => {
 }
 
 /* Transitions */
-.badge-bounce-enter-active {
-  animation: badge-bounce-in 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-}
-
+.badge-bounce-enter-active,
 .badge-bounce-leave-active {
-  animation: badge-bounce-in 0.3s reverse;
+  transition: opacity var(--transition-fast), transform var(--transition-fast);
 }
 
-@keyframes badge-bounce-in {
-  0% { transform: scale(0) rotate(180deg); opacity: 0; }
-  50% { transform: scale(1.3) rotate(90deg); opacity: 0.8; }
-  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+.badge-bounce-enter-from,
+.badge-bounce-leave-to {
+  opacity: 0;
+  transform: scale(0.6);
 }
 
 .dnd-fade-enter-active, .dnd-fade-leave-active {
@@ -1029,11 +934,6 @@ onUnmounted(() => {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
-  }
-  
-  .notification-glow,
-  .notification-pulse {
-    animation: none;
   }
 }
 </style>

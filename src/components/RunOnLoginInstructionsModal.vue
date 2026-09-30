@@ -183,16 +183,16 @@ watch(
 
 .modal-content {
   position: relative;
-  background: var(--background-secondary, #2b2d31);
-  border: 1px solid var(--background-quaternary, #3f4147);
-  border-radius: 14px;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-quaternary);
+  border-radius: var(--radius-lg);
   padding: 24px;
   max-width: 520px;
   width: 100%;
   max-height: 92vh;
   overflow-y: auto;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
-  color: var(--text-primary, #fff);
+  box-shadow: var(--shadow-modal);
+  color: var(--text-primary);
 }
 
 .close-x {
@@ -202,9 +202,9 @@ watch(
   width: 32px;
   height: 32px;
   border: none;
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--text-secondary, #b9bbbe);
-  border-radius: 8px;
+  background: var(--background-modifier-hover);
+  color: var(--text-secondary);
+  border-radius: var(--radius-md);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -213,8 +213,8 @@ watch(
 }
 
 .close-x:hover {
-  background: rgba(255, 255, 255, 0.12);
-  color: var(--text-primary, #fff);
+  background: var(--background-modifier-active);
+  color: var(--text-primary);
 }
 
 .modal-header {
@@ -229,9 +229,9 @@ watch(
   flex-shrink: 0;
   width: 44px;
   height: 44px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, var(--harmony-primary), var(--harmony-primary-hover));
-  color: #fff;
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--harmony-primary) 15%, transparent);
+  color: var(--harmony-primary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -246,7 +246,7 @@ watch(
 .modal-subtitle {
   margin: 0;
   font-size: 14px;
-  color: var(--text-secondary, #b9bbbe);
+  color: var(--text-secondary);
   line-height: 1.45;
 }
 
@@ -270,8 +270,8 @@ watch(
   width: 26px;
   height: 26px;
   border-radius: 50%;
-  background: var(--harmony-primary, #5865f2);
-  color: #fff;
+  background: var(--harmony-primary);
+  color: var(--text-on-primary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -294,8 +294,8 @@ watch(
 
 .step-title em {
   font-style: normal;
-  background: rgba(88, 101, 242, 0.18);
-  color: var(--text-primary, #fff);
+  background: color-mix(in srgb, var(--harmony-primary) 18%, transparent);
+  color: var(--text-primary);
   padding: 1px 6px;
   border-radius: 4px;
   font-weight: 700;
@@ -310,7 +310,7 @@ watch(
 .step-hint {
   margin: 0;
   font-size: 12px;
-  color: var(--text-muted, #80848e);
+  color: var(--text-muted);
   line-height: 1.45;
 }
 
@@ -318,9 +318,9 @@ watch(
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid var(--background-quaternary, #3f4147);
-  border-radius: 8px;
+  background: var(--background-modifier-hover);
+  border: 1px solid var(--background-quaternary);
+  border-radius: var(--radius-md);
   padding: 4px 4px 4px 12px;
   width: fit-content;
   max-width: 100%;
@@ -329,7 +329,7 @@ watch(
 .url-pill code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 13px;
-  color: var(--text-primary, #fff);
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -339,34 +339,33 @@ watch(
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: var(--harmony-primary, #5865f2);
-  color: #fff;
+  background: var(--harmony-primary);
+  color: var(--text-on-primary);
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   padding: 6px 10px;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s ease, transform 0.15s ease;
+  transition: background 0.15s ease;
 }
 
 .copy-btn:hover {
-  background: #4752c4;
+  background: var(--harmony-primary-hover);
 }
 
 .copy-btn.copied {
-  background: #3ba55d;
+  background: var(--success);
 }
 
 .menu-mock {
   margin-top: 4px;
-  background: #1e1f22;
-  border: 1px solid var(--background-quaternary, #3f4147);
-  border-radius: 8px;
+  background: var(--background-floating);
+  border: 1px solid var(--background-quaternary);
+  border-radius: var(--radius-md);
   overflow: hidden;
   width: fit-content;
   max-width: 100%;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
 }
 
 .menu-mock-header {
@@ -374,11 +373,11 @@ watch(
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  background: rgba(255, 255, 255, 0.04);
-  border-bottom: 1px solid var(--background-quaternary, #3f4147);
+  background: var(--background-modifier-hover);
+  border-bottom: 1px solid var(--background-quaternary);
   font-size: 12px;
   font-weight: 600;
-  color: var(--text-secondary, #b9bbbe);
+  color: var(--text-secondary);
 }
 
 .menu-icon {
@@ -396,41 +395,41 @@ watch(
 
 .menu-mock-items li {
   padding: 6px 14px;
-  color: var(--text-secondary, #b9bbbe);
+  color: var(--text-secondary);
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
 .menu-mock-items li.highlight {
-  background: rgba(88, 101, 242, 0.18);
-  color: var(--text-primary, #fff);
+  background: color-mix(in srgb, var(--harmony-primary) 18%, transparent);
+  color: var(--text-primary);
   font-weight: 600;
   position: relative;
 }
 
 .menu-mock-items li.highlight svg {
-  color: #3ba55d;
+  color: var(--success);
 }
 
 .menu-mock-items li.danger {
-  color: #ed4245;
+  color: var(--error);
 }
 
 .footnote {
   margin: 8px 0 18px;
   padding: 10px 12px;
-  background: rgba(255, 255, 255, 0.03);
-  border-left: 3px solid var(--harmony-primary, #5865f2);
+  background: var(--background-modifier-hover);
+  border-left: 3px solid var(--harmony-primary);
   border-radius: 0 6px 6px 0;
   font-size: 12px;
-  color: var(--text-muted, #80848e);
+  color: var(--text-muted);
   line-height: 1.5;
 }
 
 .footnote code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  color: var(--text-secondary, #b9bbbe);
+  color: var(--text-secondary);
 }
 
 .modal-actions {
@@ -446,28 +445,27 @@ watch(
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
+  transition: background 0.15s ease, color 0.15s ease;
 }
 
 .btn-secondary {
   background: transparent;
-  color: var(--text-secondary, #b9bbbe);
-  border: 1px solid #4f545c;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-hover);
 }
 
 .btn-secondary:hover {
-  background: var(--background-quaternary, #3f4147);
-  color: var(--text-primary, #fff);
+  background: var(--background-quaternary);
+  color: var(--text-primary);
 }
 
 .btn-primary {
-  background: var(--harmony-primary, #5865f2);
-  color: #fff;
+  background: var(--harmony-primary);
+  color: var(--text-on-primary);
 }
 
 .btn-primary:hover {
-  background: #4752c4;
-  transform: translateY(-1px);
+  background: var(--harmony-primary-hover);
 }
 
 .run-on-login-modal-enter-active,

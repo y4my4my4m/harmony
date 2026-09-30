@@ -12,7 +12,7 @@
           <p>{{ browserLabel }} can start Harmony automatically when you log into your computer.</p>
         </div>
         <div class="banner-actions">
-          <button class="banner-btn secondary" @click="dismiss">Not Now</button>
+          <button class="banner-btn secondary" @click="dismiss">Not now</button>
           <button class="banner-btn primary" @click="openInstructions">Show me how</button>
         </div>
         <button class="close-btn" aria-label="Close" @click="close">
@@ -137,9 +137,10 @@ onUnmounted(() => {
   right: 20px;
   max-width: 500px;
   margin: 0 auto;
-  background: linear-gradient(135deg, #5865f2, #4752c4);
-  border-radius: 16px;
-  box-shadow: 0 8px 32px rgba(88, 101, 242, 0.35);
+  background: var(--background-floating);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-large);
   z-index: 9999;
   overflow: hidden;
 }
@@ -158,14 +159,15 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 12px;
-  color: var(--text-primary, #fff);
+  color: var(--text-primary);
 }
 
 .banner-icon {
   width: 48px;
   height: 48px;
-  background: rgba(255, 255, 255, 0.18);
-  border-radius: 12px;
+  background: color-mix(in srgb, var(--harmony-primary) 15%, transparent);
+  color: var(--harmony-primary);
+  border-radius: var(--radius-lg);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -186,7 +188,7 @@ onUnmounted(() => {
 .banner-text p {
   margin: 0;
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.92);
+  color: var(--text-secondary);
   line-height: 1.4;
 }
 
@@ -198,32 +200,31 @@ onUnmounted(() => {
 
 .banner-btn {
   padding: 8px 14px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s ease, transform 0.15s ease;
+  transition: background 0.15s ease;
   border: none;
   white-space: nowrap;
 }
 
 .banner-btn.primary {
-  background: #fff;
-  color: #4752c4;
+  background: var(--harmony-primary);
+  color: var(--text-on-primary);
 }
 
 .banner-btn.primary:hover {
-  background: #f3f4f6;
-  transform: translateY(-1px);
+  background: var(--harmony-primary-hover);
 }
 
 .banner-btn.secondary {
-  background: rgba(255, 255, 255, 0.18);
-  color: #fff;
+  background: var(--background-modifier-hover);
+  color: var(--text-primary);
 }
 
 .banner-btn.secondary:hover {
-  background: rgba(255, 255, 255, 0.28);
+  background: var(--background-modifier-active);
 }
 
 .close-btn {
@@ -233,19 +234,19 @@ onUnmounted(() => {
   width: 26px;
   height: 26px;
   border: none;
-  background: rgba(255, 255, 255, 0.12);
-  border-radius: 6px;
+  background: transparent;
+  border-radius: var(--radius-base);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: rgba(255, 255, 255, 0.85);
-  transition: background 0.15s ease;
+  color: var(--text-muted);
+  transition: background 0.15s ease, color 0.15s ease;
 }
 
 .close-btn:hover {
-  background: rgba(255, 255, 255, 0.25);
-  color: #fff;
+  background: var(--background-modifier-hover);
+  color: var(--text-primary);
 }
 
 @media (max-width: 540px) {

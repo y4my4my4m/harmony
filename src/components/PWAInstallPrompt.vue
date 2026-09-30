@@ -6,7 +6,7 @@
       </div>
       <div class="install-text">
         <h4>Install Harmony</h4>
-        <p>Get the full app experience with faster loading and offline access</p>
+        <p>Faster loading and offline access</p>
       </div>
       <div class="install-actions">
         <button @click="installApp" class="install-btn">
@@ -33,7 +33,7 @@
     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
       <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
     </svg>
-    Install Harmony App
+    Install Harmony app
   </button>
 
   <!-- Share Button -->
@@ -106,7 +106,7 @@ const dismissPrompt = () => {
 const shareApp = async () => {
   const success = await pwaManager.shareContent({
     title: 'Harmony - Secure Chat App',
-    text: 'Check out Harmony, a secure and private chat application!',
+    text: 'Harmony is a secure, private chat app.',
     url: window.location.origin
   })
   
@@ -114,7 +114,6 @@ const shareApp = async () => {
     // Fallback to clipboard
     try {
       await navigator.clipboard.writeText(window.location.origin)
-      // You could show a toast here
       debug.log('App URL copied to clipboard')
     } catch (error) {
       debug.error('Failed to share or copy URL:', error)
@@ -171,11 +170,17 @@ onUnmounted(() => {
   bottom: 20px;
   left: 20px;
   right: 20px;
-  background: linear-gradient(135deg, var(--harmony-primary), var(--harmony-primary-hover));
-  border-radius: 12px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  background: var(--background-floating);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-large);
   z-index: 1000;
-  animation: slideUp 0.3s ease-out;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .pwa-install-banner {
+    animation: slideUp 0.3s ease-out;
+  }
 }
 
 @keyframes slideUp {
@@ -199,8 +204,7 @@ onUnmounted(() => {
 .install-icon .app-icon {
   width: 48px;
   height: 48px;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  border-radius: var(--radius-lg);
 }
 
 .install-text {
@@ -217,7 +221,7 @@ onUnmounted(() => {
 .install-text p {
   margin: 0;
   font-size: 14px;
-  opacity: 0.9;
+  color: var(--text-secondary);
   line-height: 1.3;
 }
 
@@ -231,38 +235,38 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 6px;
-  background: rgba(255, 255, 255, 0.2);
-  color: var(--text-primary);
+  background: var(--harmony-primary);
+  color: var(--text-on-primary);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 8px 16px;
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color var(--transition-fast);
 }
 
 .install-btn:hover {
-  background: rgba(255, 255, 255, 0.3);
-  transform: translateY(-1px);
+  background: var(--harmony-primary-hover);
 }
 
 .dismiss-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--text-primary);
+  background: transparent;
+  color: var(--text-muted);
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   width: 32px;
   height: 32px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
 }
 
 .dismiss-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--background-modifier-hover);
+  color: var(--text-primary);
 }
 
 .settings-install-btn {
@@ -270,39 +274,38 @@ onUnmounted(() => {
   align-items: center;
   gap: 8px;
   width: 100%;
-  background: linear-gradient(135deg, var(--harmony-primary), var(--harmony-primary-hover));
-  color: var(--text-on-primary, #ffffff);
+  background: var(--harmony-primary);
+  color: var(--text-on-primary);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 12px 16px;
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color var(--transition-fast);
 }
 
 .settings-install-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--harmony-primary) 30%, transparent);
+  background: var(--harmony-primary-hover);
 }
 
 .share-btn {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: #4f545c;
+  background: var(--background-modifier-hover);
   color: var(--text-secondary);
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   padding: 8px 12px;
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
 }
 
 .share-btn:hover {
-  background: var(--harmony-primary);
+  background: var(--background-modifier-active);
   color: var(--text-primary);
 }
 
@@ -312,7 +315,7 @@ onUnmounted(() => {
   padding: 12px 16px;
   margin-top: 8px;
   background: var(--background-quaternary);
-  color: var(--text-on-primary, #ffffff);
+  color: var(--text-primary);
 }
 
 /* Mobile responsiveness */

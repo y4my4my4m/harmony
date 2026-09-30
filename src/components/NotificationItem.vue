@@ -34,9 +34,6 @@
         <div class="type-icon-overlay" :class="`overlay--${notification.type}`">
           <component :is="typeIcon" class="type-icon" />
         </div>
-        
-        <!-- Unread Pulse -->
-        <div v-if="!notification.is_read" class="unread-pulse"></div>
       </div>
     </div>
     
@@ -145,7 +142,7 @@
         <template v-if="notification.type === 'server_invite'">
           <button @click="acceptInvite" class="quick-action-btn accept">
             <AcceptIcon class="quick-action-icon" />
-            Join Server
+            Join server
           </button>
           <button @click="declineInvite" class="quick-action-btn decline">
             <DeclineIcon class="quick-action-icon" />
@@ -177,14 +174,11 @@
         <template v-if="notification.type === 'mention' || notification.type === 'reply'">
           <button @click="jumpToMessage" class="quick-action-btn jump">
             <JumpIcon class="quick-action-icon" />
-            Jump to Message
+            Jump to message
           </button>
         </template>
       </div>
     </div>
-    
-    <!-- Hover gradient effect -->
-    <div class="hover-gradient"></div>
   </div>
 </template>
 
@@ -560,7 +554,7 @@ const typeIcon = computed(() => {
   gap: 12px;
   padding: 16px 20px;
   background: transparent;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background-color var(--transition-fast);
   cursor: default;
   overflow: hidden;
   border-radius: 0;
@@ -571,7 +565,7 @@ const typeIcon = computed(() => {
 }
 
 .notification-item--clickable:hover {
-  background: rgba(79, 84, 92, 0.16);
+  background: var(--background-modifier-hover);
 }
 
 .notification-item--clickable:focus {
@@ -586,10 +580,6 @@ const typeIcon = computed(() => {
 
 .notification-item--unread.notification-item--clickable:hover {
   background: color-mix(in srgb, var(--harmony-primary) 8%, transparent);
-}
-
-.notification-item--hovering .hover-gradient {
-  opacity: 1;
 }
 
 /* Visual indicator bar */
@@ -609,41 +599,41 @@ const typeIcon = computed(() => {
 
 .indicator--mention,
 .indicator--activitypub_mention  {
-  background: linear-gradient(180deg, #f04747, #d63031);
+  background: var(--error);
 }
 
 .indicator--dm,
 .indicator--chat_message,
 .indicator--activitypub_dm {
-  background: linear-gradient(180deg, var(--harmony-secondary), var(--harmony-primary));
+  background: var(--harmony-primary);
 }
 
 .indicator--reaction,
 .indicator--activitypub_reaction,
 .indicator--activitypub_favorite,
 .indicator--activitypub_reblog {
-  background: linear-gradient(180deg, #faa61a, #f39c12);
+  background: var(--warning);
 }
 
 .indicator--reply,
 .indicator--activitypub_reply {
-  background: linear-gradient(180deg, #43b581, #00b894);
+  background: var(--success);
 }
 
 .indicator--server_invite {
-  background: linear-gradient(180deg, #9c88ff, #7c3aed);
+  background: var(--harmony-primary);
 }
 
 .indicator--voice_channel_activity {
-  background: linear-gradient(180deg, #1dd1a1, #55a3ff);
+  background: var(--success);
 }
 
 .indicator--emoji_added {
-  background: linear-gradient(180deg, #fd79a8, #e84393);
+  background: var(--harmony-accent);
 }
 
 .indicator--activitypub_follow {
-  background: linear-gradient(180deg, #117dd6, #30a2ff);
+  background: var(--harmony-primary);
 }
 
 /* Avatar section */
@@ -663,12 +653,11 @@ const typeIcon = computed(() => {
   border-radius: 50%;
   object-fit: cover;
   border: 2px solid transparent;
-  transition: all 0.3s ease;
+  transition: border-color var(--transition-fast);
 }
 
 .notification-item--unread .avatar-image {
   border-color: color-mix(in srgb, var(--harmony-primary) 30%, transparent);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--harmony-primary) 10%, transparent);
 }
 
 .type-icon-overlay {
@@ -692,58 +681,49 @@ const typeIcon = computed(() => {
 
 .overlay--mention svg,
 .overlay--activitypub_mention svg{
-  /* background: linear-gradient(135deg, #9647f0, #5a1c7e); */
-  fill: #9647f0;
+  fill: var(--error);
 }
 
 .overlay--dm svg,
 .overlay--chat_message svg,
 .overlay--activitypub_dm svg{
-  /* background: linear-gradient(135deg, var(--harmony-secondary), var(--harmony-primary)); */
-  fill: var(--harmony-secondary);
-  stroke: #d5d8e6;
+  fill: var(--harmony-primary);
+  stroke: var(--text-secondary);
 }
 
 .overlay--reaction svg,
 .overlay--reaction .reactionIcon path,
 .overlay--activitypub_reaction svg,
 .overlay--activitypub_reaction .reactionIcon path{
-  /* background: linear-gradient(135deg, #faa61a, #f39c12); */
-  fill: #faa61a!important;
+  fill: var(--warning)!important;
 }
 
 .overlay--reply svg,
 .overlay--activitypub_reply svg {
-  /* background: linear-gradient(135deg, #43b581, #00b894); */
-  fill: #43b581;
+  fill: var(--success);
 }
 
 .overlay--server_invite svg {
-  /* background: linear-gradient(135deg, #9c88ff, #7c3aed); */
-  fill: #9c88ff;
+  fill: var(--harmony-primary);
 }
 
 .overlay--voice_channel_activity svg {
-  /* background: linear-gradient(135deg, #1dd1a1, #55a3ff); */
-  fill: #1dd1a1;
+  fill: var(--success);
 }
 
 .overlay--emoji_added svg {
-  /* background: linear-gradient(135deg, #fd79a8, #e84393); */
-  fill: #fd79a8;
+  fill: var(--harmony-accent);
 }
 
 .overlay--activitypub_favorite svg,
 .overlay--activitypub_favorite .reactionIcon path,
 .overlay--activitypub_reblog svg,
 .overlay--activitypub_reblog .reactionIcon path {
-  /* background: linear-gradient(135deg, #d6a811, #ff8d30); */
-  fill: #d6a811!important;
+  fill: var(--warning)!important;
 }
 
 .overlay--activitypub_follow svg {
-  /* background: linear-gradient(180deg, #117dd6, #30a2ff); */
-  fill: #117dd6;
+  fill: var(--harmony-primary);
 }
 
 .type-icon {
@@ -755,18 +735,7 @@ const typeIcon = computed(() => {
   stroke-width: 1px;
   z-index: 5;
   color: var(--text-primary);
-  stroke: #fff;
-}
-
-.unread-pulse {
-  position: absolute;
-  top: -2px;
-  right: -2px;
-  width: 12px;
-  height: 12px;
-  background: radial-gradient(circle, color-mix(in srgb, var(--harmony-primary) 80%, transparent) 0%, transparent 70%);
-  border-radius: 50%;
-  animation: notification-pulse 2s ease-in-out infinite;
+  stroke: var(--text-on-primary);
 }
 
 /* Content section */
@@ -842,7 +811,7 @@ const typeIcon = computed(() => {
 }
 
 .separator {
-  color: #4f545c;
+  color: var(--text-muted);
 }
 
 .timestamp {
@@ -879,11 +848,11 @@ const typeIcon = computed(() => {
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
 }
 
 .action-btn:hover {
-  background: rgba(79, 84, 92, 0.32);
+  background: var(--background-modifier-active);
   color: var(--text-secondary);
 }
 
@@ -896,8 +865,8 @@ const typeIcon = computed(() => {
 }
 
 .dismiss-btn:hover {
-  background: rgba(240, 71, 71, 0.15);
-  color: #f04747;
+  background: color-mix(in srgb, var(--error) 15%, transparent);
+  color: var(--error);
 }
 
 .action-icon {
@@ -962,9 +931,9 @@ const typeIcon = computed(() => {
   flex-direction: row;
   align-items: center;
   gap: 4px;
-  background: rgba(79, 84, 92, 0.3);
+  background: var(--background-modifier-hover);
   padding: 6px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 
 .reaction-emoji-image {
@@ -995,14 +964,12 @@ const typeIcon = computed(() => {
   gap: 8px;
   margin-top: 8px;
   opacity: 0;
-  transform: translateY(4px);
-  transition: all 0.3s ease;
+  transition: opacity var(--transition-fast);
 }
 
 .notification-item--hovering .quick-actions,
 .notification-item:focus .quick-actions {
   opacity: 1;
-  transform: translateY(0);
 }
 
 .quick-action-btn {
@@ -1011,77 +978,48 @@ const typeIcon = computed(() => {
   gap: 6px;
   padding: 6px 12px;
   border: none;
-  border-radius: 16px;
+  border-radius: var(--radius-full);
   font-size: 11px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
-  backdrop-filter: blur(8px);
+  transition: background-color var(--transition-fast);
 }
 
 .quick-action-btn.accept {
-  background: linear-gradient(135deg, rgba(67, 181, 129, 0.15), rgba(67, 181, 129, 0.25));
-  color: #43b581;
-  border: 1px solid rgba(67, 181, 129, 0.3);
+  background: color-mix(in srgb, var(--success) 15%, transparent);
+  color: var(--success);
+  border: 1px solid color-mix(in srgb, var(--success) 30%, transparent);
 }
 
 .quick-action-btn.accept:hover {
-  background: linear-gradient(135deg, rgba(67, 181, 129, 0.25), rgba(67, 181, 129, 0.35));
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(67, 181, 129, 0.2);
+  background: color-mix(in srgb, var(--success) 25%, transparent);
 }
 
 .quick-action-btn.decline {
-  background: linear-gradient(135deg, rgba(240, 71, 71, 0.15), rgba(240, 71, 71, 0.25));
-  color: #f04747;
-  border: 1px solid rgba(240, 71, 71, 0.3);
+  background: color-mix(in srgb, var(--error) 15%, transparent);
+  color: var(--error);
+  border: 1px solid color-mix(in srgb, var(--error) 30%, transparent);
 }
 
 .quick-action-btn.decline:hover {
-  background: linear-gradient(135deg, rgba(240, 71, 71, 0.25), rgba(240, 71, 71, 0.35));
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(240, 71, 71, 0.2);
+  background: color-mix(in srgb, var(--error) 25%, transparent);
 }
 
 .quick-action-btn.reply,
 .quick-action-btn.jump {
-  background: linear-gradient(135deg, color-mix(in srgb, var(--harmony-primary) 15%, transparent), color-mix(in srgb, var(--harmony-primary) 25%, transparent));
+  background: color-mix(in srgb, var(--harmony-primary) 15%, transparent);
   color: var(--h-brand);
   border: 1px solid color-mix(in srgb, var(--harmony-primary) 30%, transparent);
 }
 
 .quick-action-btn.reply:hover,
 .quick-action-btn.jump:hover {
-  background: linear-gradient(135deg, color-mix(in srgb, var(--harmony-primary) 25%, transparent), color-mix(in srgb, var(--harmony-primary) 35%, transparent));
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--harmony-primary) 20%, transparent);
+  background: color-mix(in srgb, var(--harmony-primary) 25%, transparent);
 }
 
 .quick-action-icon {
   width: 12px;
   height: 12px;
-}
-
-/* Hover gradient effect */
-.hover-gradient {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--harmony-primary) 3%, transparent), transparent);
-  opacity: 0;
-  transition: opacity 0.3s ease;
-  pointer-events: none;
-}
-
-/* Animations */
-@keyframes notification-pulse {
-  0%, 100% { 
-    transform: scale(1); 
-    opacity: 0.8; 
-  }
-  50% { 
-    transform: scale(1.2); 
-    opacity: 1; 
-  }
 }
 
 /* Type-specific styling */
@@ -1090,7 +1028,7 @@ const typeIcon = computed(() => {
 }
 
 .notification-item--mention.notification-item--unread {
-  border-left-color: #f04747;
+  border-left-color: var(--error);
 }
 
 .notification-item--dm.notification-item--unread,
@@ -1099,11 +1037,11 @@ const typeIcon = computed(() => {
 }
 
 .notification-item--reaction.notification-item--unread {
-  border-left-color: #faa61a;
+  border-left-color: var(--warning);
 }
 
 .notification-item--reply.notification-item--unread {
-  border-left-color: #43b581;
+  border-left-color: var(--success);
 }
 
 /* Responsive design */
@@ -1141,7 +1079,6 @@ const typeIcon = computed(() => {
   
   .quick-actions {
     opacity: 1;
-    transform: translateY(0);
     flex-wrap: wrap;
   }
   
@@ -1172,10 +1109,6 @@ const typeIcon = computed(() => {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
-  }
-  
-  .unread-pulse {
-    animation: none;
   }
 }
 </style>
