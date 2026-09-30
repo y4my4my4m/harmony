@@ -79,6 +79,11 @@ export const __publicKeyCache = {
   invalidate: invalidatePublicKey,
 };
 
+export interface SignedApFetchOptions extends SafeFetchOptions {
+  /** Local profile id whose key signs the request. */
+  signAs?: string;
+}
+
 export class SignatureService {
   static async generateKeyPair(): Promise<{ publicKey: string; privateKey: string }> {
     return new Promise((resolve, reject) => {
@@ -650,47 +655,47 @@ export class SignatureService {
 
   /**
    * Signed GET for an ActivityPub object, for remotes running authorized
-   * fetch / secure mode. Signs with any local user's key; falls back to an
-   * unsigned fetch when no local user exists.
+   * fetch / secure mode.
+   *
+   * With `signAs`, the request is signed with that local user's key and a
+   * signing failure throws: a read on a member's behalf is never sent unsigned
+   * or under another key. Without it, any local user's key signs, and the
+   * request goes unsigned when no local user exists or signing fails.
    *
    * `options` is forwarded to `safeFetch` so callers keep their own Accept,
    * User-Agent, timeout, and abort signal. The signature headers
    * (`Host`/`Date`/`Signature`) are applied last and always win.
    */
-  static async signedApFetch(url: string, options: SafeFetchOptions = {}): Promise<Response> {
-    const { timeoutMs = 8000, headers: callerHeaders, signal, maxRedirects, maxBodyBytes } = options;
-    const supabase = getSupabaseClient();
-
-    const { data: signer } = await supabase
-      .from('user_private_keys')
-      .select('user_id')
-      .limit(1)
-      .maybeSingle();
-
-    let signingUserId = signer?.user_id;
-
-    // No stored keys: signRequest generates a pair for the first local user.
-    if (!signingUserId) {
-      const { data: firstUser } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('is_local', true)
-        .limit(1)
-        .maybeSingle();
-      signingUserId = firstUser?.id;
-    }
+  static async signedApFetch(url: string, options: SignedApFetchOptions = {}): Promise<Response> {
+    const { timeoutMs = 8000, headers: callerHeaders, signal, maxRedirects, maxBodyBytes, signAs } = options;
 
     const headers: Record<string, string> = {
       'Accept': 'application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams", application/json',
       ...(callerHeaders as Record<string, string> | undefined),
     };
 
-    if (signingUserId) {
-      try {
-        const signed = await this.signRequest(url, 'GET', null, signingUserId);
-        Object.assign(headers, signed.headers);
-      } catch (err) {
-        logger.debug(`Could not sign AP GET request, proceeding unsigned: ${err}`);
+    if (signAs) {
+      // signRequest generates and stores a key pair for a profile without
+      // one; a remote profile's published key would be replaced.
+      const { data: signer } = await getSupabaseClient()
+        .from('profiles')
+        .select('is_local')
+        .eq('id', signAs)
+        .maybeSingle();
+      if (signer?.is_local !== true) {
+        throw new AppError(500, `Cannot sign as ${signAs}: not a local profile`);
+      }
+      const signed = await this.signRequest(url, 'GET', null, signAs);
+      Object.assign(headers, signed.headers);
+    } else {
+      const signingUserId = await this.anyLocalSigner();
+      if (signingUserId) {
+        try {
+          const signed = await this.signRequest(url, 'GET', null, signingUserId);
+          Object.assign(headers, signed.headers);
+        } catch (err) {
+          logger.debug(`Could not sign AP GET request, proceeding unsigned: ${err}`);
+        }
       }
     }
 
@@ -704,6 +709,26 @@ export class SignatureService {
       ...(maxRedirects !== undefined ? { maxRedirects } : {}),
       ...(maxBodyBytes !== undefined ? { maxBodyBytes } : {}),
     });
+  }
+
+  /** A local user holding a stored key, else the first local user (signRequest generates its pair). */
+  private static async anyLocalSigner(): Promise<string | undefined> {
+    const supabase = getSupabaseClient();
+
+    const { data: signer } = await supabase
+      .from('user_private_keys')
+      .select('user_id')
+      .limit(1)
+      .maybeSingle();
+    if (signer?.user_id) return signer.user_id;
+
+    const { data: firstUser } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('is_local', true)
+      .limit(1)
+      .maybeSingle();
+    return firstUser?.id;
   }
 
   /**

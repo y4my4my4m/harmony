@@ -4,7 +4,8 @@
 # e2e/federation/stack.env at bring-up.
 #
 # GoTrue is absent. The federation backend reaches the database as
-# service_role with a static JWT; nothing in this run signs in as a user.
+# service_role with a static JWT. User tokens are HS256 JWTs roundtrip.ts
+# signs itself; gateway.conf answers /auth/v1/user from them.
 #
 # The default network carries an explicit subnet from RFC 5737 TEST-NET-3.
 # The bridge gateway address (.1) is an address on the host, and the federation

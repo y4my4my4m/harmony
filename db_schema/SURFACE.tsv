@@ -117,6 +117,8 @@ enforce_post_length		trigger	invoker	public, pg_temp	anon+authenticated+service_
 extract_hashtags_from_content	p_content jsonb	text[]	invoker	public, extensions, pg_temp	anon+authenticated+service_role	unreferenced
 extract_message_text	content_parts jsonb	text	invoker	public, extensions, pg_temp	anon+authenticated+service_role	unreferenced
 extract_url_host	p_url text	text	invoker	public, extensions, pg_temp	anon+authenticated+service_role	unreferenced
+federation_channel_recipients	p_channel_id uuid	TABLE(instance text, member_ap_ids text[], member_count integer, shared_inbox text)	definer	public, extensions, pg_temp	service_role	client
+federation_group_access	p_server_id uuid, p_actor_ap_id text	TABLE(is_public boolean, member_id uuid, everyone_channel_ids uuid[], member_channel_ids uuid[])	definer	public, extensions, pg_temp	service_role	client
 fetch_link_preview	p_url text	jsonb	definer	public, pg_temp	anon+authenticated+service_role	unreferenced
 finalize_dm_call_message	p_message_id uuid, p_ended_at timestamp with time zone, p_duration_seconds integer, p_participants uuid[]	void	definer	public, pg_temp	anon+authenticated+service_role	client
 generate_discord_bridge_pairing_code		text	invoker	public, pg_temp	anon+authenticated+service_role	unreferenced

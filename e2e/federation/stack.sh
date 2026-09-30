@@ -187,6 +187,12 @@ build_schema() {
   PGOPTIONS='-c client_min_messages=warning' \
     "$ROOT/scripts/test-db/load-schema.sh" "$cid"
 
+  # /auth/v1/user stand-in and the auth users behind the round trip's local
+  # profiles; the remote channel proxy authenticates its caller.
+  docker cp "$FED/auth-user-shim.sql" "$cid:/auth-user-shim.sql" >/dev/null
+  docker exec "$cid" psql -U supabase_admin -h 127.0.0.1 -d postgres -q \
+    -v ON_ERROR_STOP=1 -f /auth-user-shim.sql
+
   # The inbox stores every activity through this RPC; without it every case
   # fails at the same place for a reason unrelated to what it covers.
   docker exec "$cid" psql -U postgres -d postgres -tAc \

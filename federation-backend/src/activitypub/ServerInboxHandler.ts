@@ -459,6 +459,25 @@ async function processLeaveServer(
 // MESSAGE HANDLERS
 
 // Create carries either a ChatThread or a Note in a server channel.
+/** has_permission for VIEW_CHANNEL and SEND_MESSAGES; any error denies. */
+export async function canPostInChannel(
+  supabase: ReturnType<typeof getSupabaseClient>,
+  userId: string,
+  serverId: string,
+  channelId: string,
+): Promise<boolean> {
+  for (const permission of ['VIEW_CHANNEL', 'SEND_MESSAGES']) {
+    const { data, error } = await supabase.rpc('has_permission', {
+      p_user_id: userId,
+      p_server_id: serverId,
+      p_permission: permission,
+      p_channel_id: channelId,
+    });
+    if (error || data !== true) return false;
+  }
+  return true;
+}
+
 async function processCreateActivity(
   serverId: string,
   server: any,
@@ -560,7 +579,8 @@ async function processCreateActivity(
     .from('channels')
     .select('id, name')
     .eq('ap_id', context)
-    .single();
+    .eq('server_id', serverId)
+    .maybeSingle();
 
   if (!channel) {
     // Fall back to the UUID embedded in the context URL.
@@ -594,7 +614,8 @@ async function processCreateActivity(
           .from('channels')
           .select('id, name')
           .eq('ap_id', context)
-          .single();
+          .eq('server_id', serverId)
+          .maybeSingle();
 
         if (!syncedChannel) {
           const channelIdMatch = context.match(/\/channels\/([a-f0-9-]+)/);
@@ -619,6 +640,13 @@ async function processCreateActivity(
       logger.warn(`Dropping message for unknown channel: ${context} (server: ${serverId}). Channel creation from messages is not allowed.`);
       return;
     }
+  }
+
+  // A local server enforces the author's channel permissions; a remote
+  // server's host already did.
+  if (server?.is_local_server !== false && !(await canPostInChannel(supabase, author.id, serverId, channel.id))) {
+    logger.warn(`Rejecting Create(Note): ${actorUrl} lacks VIEW_CHANNEL or SEND_MESSAGES in channel ${channel.id}`);
+    return;
   }
 
   let messageContent: any[];
@@ -656,6 +684,7 @@ async function processCreateActivity(
       .from('messages')
       .select('id')
       .eq('metadata->>ap_id', object.inReplyTo)
+      .eq('channel_id', channel.id)
       .maybeSingle();
 
     if (parentByApId) {
@@ -667,6 +696,7 @@ async function processCreateActivity(
           .from('messages')
           .select('id')
           .eq('id', replyToMatch[1])
+          .eq('channel_id', channel.id)
           .maybeSingle();
         if (parentById) {
           replyToId = parentById.id;

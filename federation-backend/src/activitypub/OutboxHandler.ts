@@ -4,6 +4,7 @@ import { asyncHandler } from '../middleware/errorHandler.js';
 import { postToNote } from './converters/toActivityPub.js';
 import { renderPostPage, renderOEmbed } from './postPageRenderer.js';
 import config from '../config/index.js';
+import { isPublicView, loadGroupAccess, readableChannelIds, verifiedSigner } from './groupAccess.js';
 
 const router = Router();
 
@@ -579,9 +580,10 @@ router.get(
     const { data: message, error } = await supabase
       .from('messages')
       .select(`
-        id, content, created_at, metadata,
+        id, content, created_at, metadata, channel_id,
         user:profiles!messages_user_id_fkey(id, username),
-        conversation:conversations!messages_conversation_id_fkey(id, type)
+        conversation:conversations!messages_conversation_id_fkey(id, type),
+        channel:channels!messages_channel_id_fkey(server_id)
       `)
       .eq('id', messageId)
       .eq('federation_status', 'completed')
@@ -590,6 +592,19 @@ router.get(
     if (error || !message || !message.user) {
       res.status(404).json({ error: 'Not found' });
       return;
+    }
+
+    // A channel message is served under its channel's read rules
+    // (groupAccess.ts); anything else reads as absent.
+    let cacheControl = 'max-age=300';
+    if (message.channel_id) {
+      const serverId = (message.channel as any)?.server_id;
+      const access = serverId ? await loadGroupAccess(serverId, await verifiedSigner(req)) : null;
+      if (!access || !readableChannelIds(access).has(message.channel_id)) {
+        res.status(404).json({ error: 'Not found' });
+        return;
+      }
+      if (!isPublicView(access, [message.channel_id])) cacheControl = 'private, no-store';
     }
 
     const author = message.user as any;
@@ -619,7 +634,7 @@ router.get(
     note.directMessage = true;
 
     res.set('Content-Type', 'application/activity+json; charset=utf-8');
-    res.set('Cache-Control', 'max-age=300');
+    res.set('Cache-Control', cacheControl);
     res.json(note);
   })
 );

@@ -403,9 +403,28 @@ export class ActivityProcessor {
 
       if (error) {
         logger.error('Accept(Join): failed to update membership:', error);
-      } else {
-        logger.info(`Join accepted for user ${userProfile.id} in server ${server.id}`);
+        return;
       }
+      logger.info(`Join accepted for user ${userProfile.id} in server ${server.id}`);
+
+      // A private Group lists channels and members only to members; the
+      // reference was built from the stub a non-member is served.
+      void (async () => {
+        const { ServerDiscoveryService } = await import('../services/ServerDiscoveryService.js');
+        await ServerDiscoveryService.syncRemoteServer(server.id, { asUserId: userProfile.id });
+        const { data: synced } = await supabase
+          .from('servers')
+          .select('ap_id, federation_metadata')
+          .eq('id', server.id)
+          .maybeSingle();
+        const membersUrl = synced?.federation_metadata?.members;
+        if (typeof membersUrl === 'string' && synced?.ap_id) {
+          await ServerDiscoveryService.syncRemoteServerMembers(server.id, membersUrl, {
+            signAs: userProfile.id,
+            serverApId: synced.ap_id,
+          });
+        }
+      })().catch(err => logger.warn(`Accept(Join): sync of server ${server.id} failed:`, err));
     }
   }
 

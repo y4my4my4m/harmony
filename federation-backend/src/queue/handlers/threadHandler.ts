@@ -11,7 +11,7 @@ import { logger } from '../../utils/logger.js';
 import config from '../../config/index.js';
 import type { FederationJobData } from '../BullMQManager.js';
 import { createThreadActivity } from '../../activitypub/ThreadActivityHandler.js';
-import { getRemoteMemberGroups } from '../../utils/federationUtils.js';
+import { getChannelRecipientGroups } from '../../utils/federationUtils.js';
 
 export async function handleThreadJob(data: FederationJobData): Promise<void> {
   const supabase = getSupabaseClient();
@@ -126,7 +126,7 @@ export async function handleThreadJob(data: FederationJobData): Promise<void> {
 
     // CASE 2: Local server with remote members - broadcast to all remote instances
     if (server.federation_enabled) {
-      const remoteMemberGroups = await getRemoteMemberGroups(server.id);
+      const remoteMemberGroups = await getChannelRecipientGroups(channel.id);
 
       if (remoteMemberGroups.length === 0) {
         logger.info('No remote members, skipping thread federation');

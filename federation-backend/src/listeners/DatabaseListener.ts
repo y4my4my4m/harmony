@@ -15,6 +15,7 @@ import { convertContentToHTML, extractActivityPubTags, extractAttachments } from
 import { linkPreviewService } from '../services/LinkPreviewService.js';
 import { ActivityProcessor } from '../activitypub/ActivityProcessor.js';
 import { getFullServerBannerUrl, getFullServerIconUrl } from '../utils/urlUtils.js';
+import { getChannelRecipientGroups } from '../utils/federationUtils.js';
 
 /** postgres_changes payloads carry `{}` for the side absent from the event. */
 function rowId(row: unknown): unknown {
@@ -834,7 +835,18 @@ async function handleNewReport(report: any): Promise<void> {
 
 // CHANNEL CRUD FEDERATION HANDLERS
 
-/** Sends Add to instances hosting remote members of the server. */
+/**
+ * Instances to tell about a channel change. A channel reaches members who can
+ * view it; a category (type 2, from channel_categories) has no permissions of
+ * its own and reaches every accepted remote member.
+ */
+async function channelChangeRecipients(channel: any): Promise<any[]> {
+  return channel.type === 2
+    ? getRemoteMemberGroups(channel.server_id)
+    : getChannelRecipientGroups(channel.id);
+}
+
+/** Sends Add to instances hosting remote members who can view the channel. */
 export async function handleChannelCreated(channel: any): Promise<void> {
   try {
     const supabase = getSupabaseClient();
@@ -855,7 +867,7 @@ export async function handleChannelCreated(channel: any): Promise<void> {
       return;
     }
     
-    const remoteMemberGroups = await getRemoteMemberGroups(channel.server_id);
+    const remoteMemberGroups = await channelChangeRecipients(channel);
     if (remoteMemberGroups.length === 0) {
       return;
     }
@@ -899,7 +911,7 @@ export async function handleChannelCreated(channel: any): Promise<void> {
   }
 }
 
-/** Sends Update to instances hosting remote members of the server. */
+/** Sends Update to instances hosting remote members who can view the channel. */
 export async function handleChannelUpdated(channel: any, _oldChannel: any): Promise<void> {
   try {
     const supabase = getSupabaseClient();
@@ -920,7 +932,7 @@ export async function handleChannelUpdated(channel: any, _oldChannel: any): Prom
       return;
     }
     
-    const remoteMemberGroups = await getRemoteMemberGroups(channel.server_id);
+    const remoteMemberGroups = await channelChangeRecipients(channel);
     if (remoteMemberGroups.length === 0) {
       return;
     }

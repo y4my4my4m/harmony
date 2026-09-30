@@ -117,6 +117,8 @@ enforce_post_length	invoker	trigger	anon+authenticated+service_role	client, trig
 extract_hashtags_from_content	invoker	text[]	anon+authenticated+service_role	trigger	called by process_post_hashtags
 extract_message_text	invoker	text	anon+authenticated+service_role	trigger	called by handle_local_post_mention_notifications, handle_message_federation, handle_post_mention_notifications, +3
 extract_url_host	invoker	text	anon+authenticated+service_role	trigger	called by detect_embed_provider, process_local_link_previews
+federation_channel_recipients	definer	TABLE(instance text, member_ap_ids text[], member_count integer, shared_inbox text)	service_role	client	rpc in federation-backend/src/utils/federationUtils.ts
+federation_group_access	definer	TABLE(is_public boolean, member_id uuid, everyone_channel_ids uuid[], member_channel_ids uuid[])	service_role	client	rpc in federation-backend/src/activitypub/groupAccess.ts
 fetch_link_preview	definer	jsonb	anon+authenticated+service_role	trigger	called by process_local_link_previews
 finalize_dm_call_message	definer	void	anon+authenticated+service_role	client	rpc in src/services/DMCallSignaling.ts
 generate_discord_bridge_pairing_code	invoker	text	anon+authenticated+service_role	client	called by get_or_create_discord_bridge_pairing, regenerate_discord_bridge_pairing
@@ -170,7 +172,7 @@ get_room_epoch	definer	integer	anon+authenticated+service_role	client	rpc in src
 get_server_bans	definer	jsonb	anon+authenticated+service_role	client	rpc in src/services/ModerationService.ts
 get_server_encryption_stats	definer	jsonb	anon+authenticated+service_role	client	rpc in src/components/settings/ServerEncryptionSettings.vue
 get_server_member_counts	definer	TABLE(server_id uuid, member_count bigint)	anon+authenticated+service_role	client	rpc in src/components/InviteModal.vue, src/services/AdminService.ts, src/services/serverMembershipService.ts
-get_server_members_by_instance	invoker	TABLE(instance text, member_ids uuid[], member_ap_ids text[], member_count integer)	service_role	client	rpc in federation-backend/src/listeners/ChannelReactionHandler.ts, federation-backend/src/listeners/DatabaseListener.ts, federation-backend/src/listeners/ServerMembershipHandler.ts, +2
+get_server_members_by_instance	invoker	TABLE(instance text, member_ids uuid[], member_ap_ids text[], member_count integer)	service_role	client	rpc in federation-backend/src/listeners/DatabaseListener.ts, federation-backend/src/listeners/ServerMembershipHandler.ts, federation-backend/src/utils/federationUtils.ts
 get_supporter_badge	invoker	TABLE(tier_name text, badge_icon text, badge_color text, is_active boolean)	service_role	service key	nothing references it
 get_supporter_badges	invoker	TABLE(user_id uuid, tier_name text, badge_icon text, badge_color text, is_active boolean)	anon+authenticated+service_role	client	rpc in src/services/FundingService.ts
 get_timeline	definer	SETOF posts	service_role	service key	nothing references it
