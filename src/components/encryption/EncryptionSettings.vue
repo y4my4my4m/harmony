@@ -7,7 +7,7 @@
     
     <div v-else>
       <div class="subsection">
-        <h4 class="subsection-title">Encryption Status</h4>
+        <h4 class="subsection-title">Encryption status</h4>
         <p class="subsection-description">
           End-to-end encryption protects your messages so only you and your recipients can read them.
         </p>
@@ -23,7 +23,7 @@
             @click="showSetupWizard = true"
             class="btn btn-primary btn-sm"
           >
-            Set Up Encryption
+            Set up encryption
           </button>
           <button 
             v-else-if="!encryptionStatus.enabled"
@@ -36,17 +36,17 @@
       </div>
       
       <div v-if="encryptionStatus.hasRecoveryKey" class="subsection">
-        <h4 class="subsection-title">Recovery Key</h4>
+        <h4 class="subsection-title">Recovery key</h4>
         
         <div class="info-card">
           <Icon name="key" class="info-icon" :size="24" />
           <div class="info-content">
-            <strong>Recovery Key Active</strong>
+            <strong>Recovery key active</strong>
             <p>Your encryption keys are protected by a 12-word recovery phrase.</p>
           </div>
           <div class="info-actions">
             <button @click="showViewRecoveryInfo = true" class="btn btn-secondary btn-sm">
-              View Info
+              View info
             </button>
           </div>
         </div>
@@ -61,17 +61,17 @@
       </div>
       
       <div v-if="encryptionStatus.enabled" class="subsection">
-        <h4 class="subsection-title">Session Keys</h4>
+        <h4 class="subsection-title">Session keys</h4>
         
         <div class="stats-grid">
           <div class="stat-card">
             <div class="stat-value">{{ sessionStats.outbound }}</div>
-            <div class="stat-label">Active Rooms</div>
+            <div class="stat-label">Active rooms</div>
             <div class="stat-description">Rooms where you can send encrypted messages</div>
           </div>
           <div class="stat-card">
             <div class="stat-value">{{ sessionStats.inbound }}</div>
-            <div class="stat-label">Received Keys</div>
+            <div class="stat-label">Received keys</div>
             <div class="stat-description">Keys received from other users</div>
           </div>
         </div>
@@ -82,7 +82,7 @@
           class="btn btn-secondary"
         >
           <span v-if="isSyncing">Syncing...</span>
-          <span v-else class="sync-label"><Icon name="refresh-cw" :size="16" /> Sync Keys</span>
+          <span v-else class="sync-label"><Icon name="refresh-cw" :size="16" /> Sync keys</span>
         </button>
       </div>
 
@@ -97,7 +97,7 @@
         <ul v-if="diagnostics.length" class="diagnostic-list">
           <li v-for="d in diagnostics" :key="d.label" class="diagnostic-row">
             <span class="diagnostic-state" :class="d.ok === true ? 'ok' : d.ok === false ? 'fail' : 'na'">
-              {{ d.ok === true ? '✓' : d.ok === false ? '✗' : '–' }}
+              <Icon :name="d.ok === true ? 'check' : d.ok === false ? 'x' : 'minus'" :size="14" />
             </span>
             <span class="diagnostic-label">{{ d.label }}</span>
             <span class="diagnostic-detail">{{ d.detail }}</span>
@@ -106,7 +106,7 @@
       </div>
       
       <div v-if="encryptionStatus.hasRecoveryKey" class="subsection">
-        <h4 class="subsection-title">Your Devices</h4>
+        <h4 class="subsection-title">Your devices</h4>
         <p class="subsection-description">
           Devices signed in to your account. New logins can read new messages right away;
           approving a device lets it unlock your encrypted message history.
@@ -115,13 +115,13 @@
       </div>
 
       <div v-if="encryptionStatus.hasRecoveryKey" class="subsection">
-        <h4 class="subsection-title">Backup & Recovery</h4>
+        <h4 class="subsection-title">Backup & recovery</h4>
         
         <div class="backup-options">
           <div class="option-card">
             <Icon name="server" class="option-icon" :size="22" />
             <div class="option-info">
-              <strong>Create Backup Now</strong>
+              <strong>Create backup now</strong>
               <p>Manually trigger an encrypted backup to the server</p>
             </div>
             <button 
@@ -136,7 +136,7 @@
           <div class="option-card">
             <Icon name="save" class="option-icon" :size="22" />
             <div class="option-info">
-              <strong>Export Backup File</strong>
+              <strong>Export backup file</strong>
               <p>Download an encrypted backup file to store locally</p>
             </div>
             <button @click="exportBackupFile" class="btn btn-secondary">Export</button>
@@ -145,7 +145,7 @@
           <div class="option-card">
             <Icon name="upload" class="option-icon" :size="22" />
             <div class="option-info">
-              <strong>Import Backup File</strong>
+              <strong>Import backup file</strong>
               <p>Restore from an exported backup file</p>
             </div>
             <button @click="showImportModal = true" class="btn btn-secondary">Import</button>
@@ -154,7 +154,7 @@
           <div class="option-card">
             <Icon name="smartphone" class="option-icon" :size="22" />
             <div class="option-info">
-              <strong>Restore on New Device</strong>
+              <strong>Restore on new device</strong>
               <p>Use your recovery key to restore encryption on another device</p>
             </div>
             <button @click="showRecoveryModal = true" class="btn btn-secondary">Restore</button>
@@ -169,18 +169,18 @@
           <div class="option-card">
             <Icon name="key" class="option-icon" :size="22" />
             <div class="option-info">
-              <strong>Restore with Recovery Key</strong>
+              <strong>Restore with recovery key</strong>
               <p>Have a recovery phrase? Enter it to restore your encryption</p>
             </div>
             <button @click="showRecoveryModal = true" class="btn btn-secondary">
-              Enter Recovery Key
+              Enter recovery key
             </button>
           </div>
           
           <div class="option-card">
             <Icon name="upload" class="option-icon" :size="22" />
             <div class="option-info">
-              <strong>Import Backup File</strong>
+              <strong>Import backup file</strong>
               <p>Restore from an exported backup file</p>
             </div>
             <button @click="showImportModal = true" class="btn btn-secondary">Import</button>
@@ -189,12 +189,12 @@
       </div>
       
       <div v-if="encryptionStatus.hasRecoveryKey" class="subsection danger-zone">
-        <h4 class="subsection-title">Danger Zone</h4>
+        <h4 class="subsection-title">Danger zone</h4>
         
         <div class="option-card warning">
           <Icon name="alert-triangle" class="option-icon" :size="22" />
           <div class="option-info">
-            <strong>Reset Encryption</strong>
+            <strong>Reset encryption</strong>
             <p>Delete all encryption keys and start fresh. You will lose access to all encrypted messages.</p>
           </div>
           <button @click="confirmReset = true" class="btn btn-danger">Reset</button>
@@ -221,7 +221,7 @@
     <Teleport to="body">
       <div v-if="showViewRecoveryInfo" class="modal-overlay" @click.self="showViewRecoveryInfo = false">
         <div class="modal">
-          <h2 class="modal-title-with-icon"><Icon name="key" :size="24" /> Recovery Key Information</h2>
+          <h2 class="modal-title-with-icon"><Icon name="key" :size="24" /> Recovery key information</h2>
           <div class="recovery-info-content">
             <div class="info-item">
               <span class="label">Status:</span>
@@ -254,7 +254,7 @@
     <Teleport to="body">
       <div v-if="confirmReset" class="modal-overlay" @click.self="confirmReset = false">
         <div class="modal">
-          <h2 class="modal-title-with-icon"><Icon name="alert-triangle" :size="24" /> Reset Encryption?</h2>
+          <h2 class="modal-title-with-icon"><Icon name="alert-triangle" :size="24" /> Reset encryption?</h2>
           <p>
             This will permanently delete all your encryption keys and backups.
             <strong>You will not be able to read any previously encrypted messages.</strong>
@@ -265,7 +265,7 @@
           <div class="modal-actions">
             <button @click="confirmReset = false" class="btn btn-secondary">Cancel</button>
             <button @click="resetEncryption" :disabled="isResetting" class="btn btn-danger">
-              {{ isResetting ? 'Resetting...' : 'Reset Encryption' }}
+              {{ isResetting ? 'Resetting...' : 'Reset encryption' }}
             </button>
           </div>
         </div>
@@ -275,10 +275,10 @@
     <Teleport to="body">
       <div v-if="showImportModal" class="modal-overlay" @click.self="showImportModal = false">
         <div class="modal">
-          <h2 class="modal-title-with-icon"><Icon name="upload" :size="24" /> Import Backup File</h2>
+          <h2 class="modal-title-with-icon"><Icon name="upload" :size="24" /> Import backup file</h2>
           <p>Select your encrypted backup file to restore your encryption keys.</p>
           <div class="form-group">
-            <label>Backup File</label>
+            <label>Backup file</label>
             <input 
               type="file" 
               accept=".harmony-backup,.txt,.json"
@@ -353,9 +353,9 @@ const statusIcon = computed(() => {
 })
 
 const statusTitle = computed(() => {
-  if (!encryptionStatus.value.hasRecoveryKey) return 'Encryption Not Set Up'
-  if (!encryptionStatus.value.enabled) return 'Encryption Locked'
-  return 'Encryption Active'
+  if (!encryptionStatus.value.hasRecoveryKey) return 'Encryption not set up'
+  if (!encryptionStatus.value.enabled) return 'Encryption locked'
+  return 'Encryption active'
 })
 
 const statusDescription = computed(() => {
@@ -495,7 +495,7 @@ async function createBackup() {
   try {
     const { megolmMessageEncryptionService } = await import('@/services/encryption/MegolmMessageEncryptionService')
     await megolmMessageEncryptionService.backupSessions()
-    toast.success('Backup created successfully')
+    toast.success('Backup created')
     await loadEncryptionStatus()
   } catch (error: any) {
     toast.error(error.message || 'Failed to create backup')
@@ -587,14 +587,14 @@ async function resetEncryption() {
 async function handleSetupComplete() {
   showSetupWizard.value = false
   await loadEncryptionStatus()
-  toast.success('Encryption enabled!')
+  toast.success('Encryption enabled')
   await autoSyncAfterEnable()
 }
 
 async function handleRecoveryComplete() {
   showRecoveryModal.value = false
   await loadEncryptionStatus()
-  toast.success('Encryption restored!')
+  toast.success('Encryption restored')
   await autoSyncAfterEnable()
 }
 
@@ -635,7 +635,7 @@ onMounted(() => {
 .subsection {
   margin-bottom: 32px;
   padding-bottom: 32px;
-  border-bottom: 1px solid var(--border-color, #333);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .subsection:last-child {
@@ -645,15 +645,15 @@ onMounted(() => {
 }
 
 .subsection-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--text-primary, #fff);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
   margin: 0 0 8px 0;
 }
 
 .subsection-description {
-  font-size: 14px;
-  color: var(--text-secondary, #888);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
   margin: 0 0 20px 0;
   line-height: 1.5;
 }
@@ -663,23 +663,23 @@ onMounted(() => {
   align-items: center;
   gap: 16px;
   padding: 20px;
-  background: var(--bg-secondary, #2a2a3e);
-  border: 1px solid var(--border-color, #444);
-  border-radius: 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
 }
 
 .status-card.enabled {
-  border-color: var(--success, #27ae60);
-  background: rgba(39, 174, 96, 0.05);
+  border-color: var(--success);
+  background: color-mix(in srgb, var(--success) 5%, transparent);
 }
 
 .status-card.locked {
-  border-color: var(--warning, #f1c40f);
-  background: rgba(241, 196, 15, 0.05);
+  border-color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 5%, transparent);
 }
 
 .status-card.not-setup {
-  border-color: var(--text-secondary, #888);
+  border-color: var(--text-secondary);
 }
 
 .status-icon {
@@ -693,13 +693,13 @@ onMounted(() => {
 
 .status-info strong {
   display: block;
-  color: var(--text-primary, #fff);
-  font-size: 16px;
+  color: var(--text-primary);
+  font-size: var(--font-size-base);
   margin-bottom: 4px;
 }
 
 .status-info p {
-  color: var(--text-secondary, #888);
+  color: var(--text-secondary);
   font-size: 13px;
   margin: 0;
 }
@@ -709,8 +709,8 @@ onMounted(() => {
   align-items: center;
   gap: 16px;
   padding: 16px;
-  background: var(--bg-secondary, #2a2a3e);
-  border-radius: 8px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
   margin-bottom: 16px;
 }
 
@@ -725,12 +725,12 @@ onMounted(() => {
 
 .info-content strong {
   display: block;
-  color: var(--text-primary, #fff);
+  color: var(--text-primary);
   margin-bottom: 4px;
 }
 
 .info-content p {
-  color: var(--text-secondary, #888);
+  color: var(--text-secondary);
   font-size: 13px;
   margin: 0;
 }
@@ -740,10 +740,10 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
   padding: 12px 16px;
-  background: rgba(39, 174, 96, 0.1);
-  border-radius: 8px;
-  font-size: 14px;
-  color: var(--success, #27ae60);
+  background: color-mix(in srgb, var(--success) 10%, transparent);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  color: var(--success);
 }
 
 .backup-icon {
@@ -753,8 +753,8 @@ onMounted(() => {
 
 .backup-time {
   margin-left: auto;
-  font-size: 12px;
-  color: var(--text-secondary, #888);
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
 }
 
 .stats-grid {
@@ -766,27 +766,27 @@ onMounted(() => {
 
 .stat-card {
   padding: 16px;
-  background: var(--bg-secondary, #2a2a3e);
-  border-radius: 8px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
 }
 
 .stat-value {
   font-size: 28px;
-  font-weight: 600;
-  color: var(--text-primary, #fff);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
   margin-bottom: 4px;
 }
 
 .stat-label {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text-primary, #fff);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
   margin-bottom: 4px;
 }
 
 .stat-description {
-  font-size: 12px;
-  color: var(--text-secondary, #888);
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
 }
 
 .backup-options {
@@ -800,13 +800,13 @@ onMounted(() => {
   align-items: center;
   gap: 16px;
   padding: 16px;
-  background: var(--bg-secondary, #2a2a3e);
-  border-radius: 8px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
 }
 
 .option-card.warning {
-  border: 1px solid rgba(231, 76, 60, 0.3);
-  background: rgba(231, 76, 60, 0.05);
+  border: 1px solid color-mix(in srgb, var(--error) 30%, transparent);
+  background: color-mix(in srgb, var(--error) 5%, transparent);
 }
 
 .option-icon {
@@ -820,18 +820,18 @@ onMounted(() => {
 
 .option-info strong {
   display: block;
-  color: var(--text-primary, #fff);
+  color: var(--text-primary);
   margin-bottom: 4px;
 }
 
 .option-info p {
-  color: var(--text-secondary, #888);
+  color: var(--text-secondary);
   font-size: 13px;
   margin: 0;
 }
 
 .danger-zone .subsection-title {
-  color: var(--danger, #e74c3c);
+  color: var(--error);
 }
 
 .modal-overlay {
@@ -846,17 +846,17 @@ onMounted(() => {
 }
 
 .modal {
-  background: var(--bg-primary, #1a1a2e);
+  background: var(--bg-primary);
   padding: 24px;
-  border-radius: 12px;
-  border: 1px solid var(--border-color, #444);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color);
   max-width: 480px;
   width: 100%;
 }
 
 .modal h2 {
-  font-size: 20px;
-  color: var(--text-primary, #fff);
+  font-size: var(--font-size-xl);
+  color: var(--text-primary);
   margin: 0 0 16px 0;
 }
 
@@ -878,20 +878,20 @@ onMounted(() => {
 }
 
 .modal p {
-  color: var(--text-secondary, #888);
-  font-size: 14px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
   line-height: 1.5;
   margin-bottom: 12px;
 }
 
 .warning-text {
-  color: var(--danger, #e74c3c) !important;
-  font-weight: 500;
+  color: var(--error) !important;
+  font-weight: var(--font-weight-medium);
 }
 
 .error-text {
-  color: var(--danger, #e74c3c);
-  font-size: 14px;
+  color: var(--error);
+  font-size: var(--font-size-sm);
 }
 
 .modal-actions {
@@ -909,7 +909,7 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   padding: 12px 0;
-  border-bottom: 1px solid var(--border-color, #333);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .info-item:last-child {
@@ -917,30 +917,30 @@ onMounted(() => {
 }
 
 .info-item .label {
-  color: var(--text-secondary, #888);
+  color: var(--text-secondary);
 }
 
 .info-item .value {
-  color: var(--text-primary, #fff);
-  font-weight: 500;
+  color: var(--text-primary);
+  font-weight: var(--font-weight-medium);
 }
 
 .info-item .value.success {
-  color: var(--success, #27ae60);
+  color: var(--success);
 }
 
 .info-item .value.code {
   font-family: 'JetBrains Mono', monospace;
-  background: var(--bg-secondary, #2a2a3e);
+  background: var(--bg-secondary);
   padding: 4px 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 
 .warning-note {
   padding: 16px;
-  background: rgba(241, 196, 15, 0.1);
-  border: 1px solid rgba(241, 196, 15, 0.3);
-  border-radius: 8px;
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warning) 30%, transparent);
+  border-radius: var(--radius-md);
 }
 
 .warning-note p {
@@ -958,27 +958,27 @@ onMounted(() => {
 
 .form-group label {
   display: block;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text-primary, #fff);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
   margin-bottom: 8px;
 }
 
 .form-group input[type="file"] {
   width: 100%;
   padding: 12px;
-  background: var(--bg-secondary, #2a2a3e);
-  border: 1px solid var(--border-color, #444);
-  border-radius: 8px;
-  color: var(--text-primary, #fff);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
   cursor: pointer;
 }
 
 .btn {
   padding: 12px 24px;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 500;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
   transition: all 0.2s;
   border: none;
@@ -995,30 +995,30 @@ onMounted(() => {
 
 .btn-primary {
   background: var(--harmony-primary);
-  color: var(--text-on-primary, #ffffff);
+  color: var(--text-on-primary);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: var(--primary-hover, var(--harmony-primary-hover));
+  background: var(--harmony-primary-hover);
 }
 
 .btn-secondary {
-  background: var(--bg-secondary, #2a2a3e);
-  color: var(--text-primary, #fff);
-  border: 1px solid var(--border-color, #444);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background: var(--bg-tertiary, #3a3a4e);
+  background: var(--bg-tertiary);
 }
 
 .btn-danger {
-  background: var(--danger, #e74c3c);
-  color: var(--text-on-primary, #ffffff);
+  background: var(--error);
+  color: var(--text-on-primary);
 }
 
 .btn-danger:hover:not(:disabled) {
-  background: #c0392b;
+  background: var(--error-hover);
 }
 
 .diagnostic-list {
@@ -1035,28 +1035,29 @@ onMounted(() => {
   align-items: baseline;
   gap: 10px;
   padding: 8px 12px;
-  border-radius: 8px;
-  background: var(--bg-secondary, #2a2a3e);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
   font-size: 13px;
 }
 
 .diagnostic-state {
-  font-weight: 700;
+  display: inline-flex;
+  align-self: center;
   width: 14px;
   flex-shrink: 0;
 }
-.diagnostic-state.ok { color: var(--success, #2ecc71); }
-.diagnostic-state.fail { color: var(--danger, #e74c3c); }
-.diagnostic-state.na { color: var(--text-secondary, #999); }
+.diagnostic-state.ok { color: var(--success); }
+.diagnostic-state.fail { color: var(--error); }
+.diagnostic-state.na { color: var(--text-secondary); }
 
 .diagnostic-label {
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   flex-shrink: 0;
   min-width: 110px;
 }
 
 .diagnostic-detail {
-  color: var(--text-secondary, #999);
+  color: var(--text-secondary);
   min-width: 0;
 }
 </style>

@@ -12,9 +12,9 @@
               @click="showPackMenu = !showPackMenu"
               :title="`Current: ${currentPackName}`"
             >
-              <span v-if="isNativePack">🔤</span>
-              <span v-else-if="isTwemojiPack">🐦</span>
-              <span v-else>🎨</span>
+              <Icon v-if="isNativePack" name="monitor" :size="16" />
+              <Icon v-else-if="isTwemojiPack" name="smile" :size="16" />
+              <Icon v-else name="image" :size="16" />
             </button>
             <div v-if="showPackMenu" class="pack-menu" v-click-outside="() => showPackMenu = false">
               <div 
@@ -22,18 +22,18 @@
                 :class="{ active: currentPack === 'twemoji' }"
                 @click="switchPack('twemoji')"
               >
-                <span class="pack-icon">🐦</span>
+                <Icon name="smile" :size="16" class="pack-icon" />
                 <span class="pack-name">Twemoji</span>
-                <span v-if="currentPack === 'twemoji'" class="check-mark">✓</span>
+                <Icon v-if="currentPack === 'twemoji'" name="check" :size="14" class="check-mark" />
               </div>
               <div 
                 class="pack-option"
                 :class="{ active: currentPack === 'native' }"
                 @click="switchPack('native')"
               >
-                <span class="pack-icon">🔤</span>
+                <Icon name="monitor" :size="16" class="pack-icon" />
                 <span class="pack-name">System</span>
-                <span v-if="currentPack === 'native'" class="check-mark">✓</span>
+                <Icon v-if="currentPack === 'native'" name="check" :size="14" class="check-mark" />
               </div>
             </div>
           </div>
@@ -313,11 +313,12 @@ onMounted(() => {
 }
 
 .emoji-picker {
-  border-radius: 12px;
+  background: var(--background-floating);
+  border-radius: var(--radius-lg);
   width: 90vw;
   max-width: 400px;
   max-height: 80vh;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-large);
   border: 1px solid var(--color-border);
   display: flex;
   flex-direction: column;
@@ -344,20 +345,20 @@ onMounted(() => {
 .pack-btn {
   width: 32px;
   height: 32px;
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   border: none;
-  background: var(--color-bg-secondary);
+  background: var(--background-secondary);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
+  font-size: var(--font-size-base);
   transition: all 0.15s ease;
 }
 
 .pack-btn:hover,
 .pack-btn.active {
-  background: var(--color-bg-tertiary);
+  background: var(--background-tertiary);
 }
 
 .pack-menu {
@@ -365,10 +366,10 @@ onMounted(() => {
   top: 100%;
   right: 0;
   margin-top: 4px;
-  background: var(--color-bg-primary);
+  background: var(--background-floating);
   border: 1px solid var(--color-border);
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-medium);
   min-width: 180px;
   z-index: 100;
   overflow: hidden;
@@ -384,7 +385,7 @@ onMounted(() => {
 }
 
 .pack-option:hover {
-  background: var(--color-bg-secondary);
+  background: var(--background-secondary);
 }
 
 .pack-option.active {
@@ -392,7 +393,7 @@ onMounted(() => {
 }
 
 .pack-icon {
-  font-size: 16px;
+  font-size: var(--font-size-base);
 }
 
 .pack-name {
@@ -403,7 +404,7 @@ onMounted(() => {
 
 .check-mark {
   color: var(--harmony-primary);
-  font-size: 14px;
+  font-size: var(--font-size-sm);
 }
 
 .emoji-picker-header h3 {
@@ -418,7 +419,7 @@ onMounted(() => {
   color: var(--color-text-secondary);
   cursor: pointer;
   padding: 0.25rem;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -426,7 +427,7 @@ onMounted(() => {
 }
 
 .close-btn:hover {
-  background: var(--color-bg-hover);
+  background: var(--background-modifier-hover);
   color: var(--color-text-primary);
 }
 
@@ -451,7 +452,7 @@ onMounted(() => {
 
 .quick-reactions-title {
   font-size: 0.75rem;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: var(--color-text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -465,9 +466,9 @@ onMounted(() => {
 }
 
 .emoji-btn {
-  background: var(--color-bg-secondary);
+  background: var(--background-secondary);
   border: 1px solid var(--color-border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 0.5rem;
   cursor: pointer;
   font-size: 1.5rem;
@@ -480,9 +481,8 @@ onMounted(() => {
 }
 
 .emoji-btn:hover {
-  background: var(--color-bg-hover);
+  background: var(--background-modifier-hover);
   border-color: var(--color-primary);
-  transform: scale(1.05);
 }
 
 .emoji-img {
@@ -509,9 +509,9 @@ onMounted(() => {
 }
 
 .category-tab {
-  background: var(--color-bg-secondary);
+  background: var(--background-secondary);
   border: 1px solid var(--color-border);
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   padding: 0.5rem 0.75rem;
   cursor: pointer;
   font-size: 1.25rem;
@@ -580,8 +580,8 @@ onMounted(() => {
 }
 
 .emoji-preview-name {
-  font-size: 12px;
-  color: var(--color-text-secondary, var(--text-secondary));
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

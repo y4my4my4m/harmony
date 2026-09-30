@@ -11,7 +11,7 @@
     <div v-if="!permissions.canUpload && !permissions.canDelete" class="permission-notice">
       <div class="notice-content">
         <svg class="notice-icon" width="20" height="20" viewBox="0 0 24 24">
-          <path fill="#faa61a" d="M13,14H11V10H13M13,18H11V16H13M1,21H23L12,2L1,21Z"/>
+          <path fill="currentColor" d="M13,14H11V10H13M13,18H11V16H13M1,21H23L12,2L1,21Z"/>
         </svg>
         <div class="notice-text">
           <h4>{{ $t('confirmation.emojiViewOnlyAccess') }}</h4>
@@ -612,7 +612,7 @@ const cancelEmojiRename = () => {
 
 const copyEmojiName = (name: string) => {
   navigator.clipboard.writeText(`:${name}:`)
-  toast.success('Emoji name copied to clipboard!')
+  toast.success('Emoji name copied')
 }
 
 const formatFileSize = (bytes: number): string => {
@@ -652,23 +652,23 @@ const getEmojiAnalytics = () => {
 }
 
 .section-title {
-  font-size: 24px;
-  font-weight: 600;
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
   margin: 0 0 8px 0;
 }
 
 .section-description {
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   color: var(--text-secondary);
   margin: 0;
 }
 
 .permission-notice {
   padding: 16px;
-  background-color: rgba(250, 166, 26, 0.1);
-  border: 1px solid rgba(250, 166, 26, 0.3);
-  border-radius: 8px;
+  background-color: color-mix(in srgb, var(--warning) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warning) 30%, transparent);
+  border-radius: var(--radius-md);
 }
 
 .notice-content {
@@ -680,14 +680,14 @@ const getEmojiAnalytics = () => {
 .notice-icon {
   flex-shrink: 0;
   margin-top: 2px;
-  color: #faa61a;
+  color: var(--warning);
 }
 
 .notice-text h4 {
   margin: 0 0 4px 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: #faa61a;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--warning);
 }
 
 .notice-text p {
@@ -699,7 +699,7 @@ const getEmojiAnalytics = () => {
 
 .settings-card {
   background-color: var(--background-secondary);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 24px;
   border: 1px solid var(--background-quaternary);
 }
@@ -714,16 +714,14 @@ const getEmojiAnalytics = () => {
 
 .form-label {
   display: block;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
   margin-bottom: 8px;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
 }
 
 .form-hint {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--text-muted);
   margin-top: 4px;
 }
@@ -789,7 +787,7 @@ input:checked + .toggle-slider:before {
 
 .emoji-upload-area {
   border: 2px dashed var(--input-border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 32px;
   text-align: center;
   cursor: pointer;
@@ -809,13 +807,13 @@ input:checked + .toggle-slider:before {
 }
 
 .upload-text {
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   color: var(--text-primary);
   margin: 0 0 4px 0;
 }
 
 .upload-hint {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--text-muted);
   margin: 0;
 }
@@ -838,18 +836,18 @@ input:checked + .toggle-slider:before {
 }
 
 .emoji-list-title {
-  font-size: 16px;
-  font-weight: 600;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
   margin: 0;
 }
 
 .emoji-count {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--text-muted);
   background-color: var(--surface-inset);
   padding: 4px 8px;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
 }
 
 .header-right {
@@ -863,7 +861,7 @@ input:checked + .toggle-slider:before {
   margin-top: 16px;
   padding: 12px;
   background-color: var(--surface-inset);
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   border: 1px solid var(--background-quaternary);
 }
 
@@ -880,7 +878,7 @@ input:checked + .toggle-slider:before {
 }
 
 .progress-count {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--text-muted);
 }
 
@@ -922,9 +920,9 @@ input:checked + .toggle-slider:before {
   gap: 6px;
   padding: 6px 12px;
   border: none;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 13px;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
   transition: all 0.15s ease;
 }
@@ -946,12 +944,12 @@ input:checked + .toggle-slider:before {
 }
 
 .btn-danger {
-  background-color: #ed4245;
-  color: var(--text-on-primary, #ffffff);
+  background-color: var(--error);
+  color: var(--text-on-primary);
 }
 
 .btn-danger:hover:not(:disabled) {
-  background-color: #c53030;
+  background-color: var(--error-hover);
 }
 
 .empty-state {
@@ -965,13 +963,13 @@ input:checked + .toggle-slider:before {
 }
 
 .empty-text {
-  font-size: 16px;
+  font-size: var(--font-size-base);
   color: var(--text-secondary);
   margin: 0 0 4px 0;
 }
 
 .empty-hint {
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   color: var(--text-muted);
   margin: 0;
 }
@@ -988,7 +986,7 @@ input:checked + .toggle-slider:before {
   gap: 12px;
   padding: 12px;
   background-color: var(--surface-inset);
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   border: 1px solid var(--background-quaternary);
   transition: all 0.15s ease;
 }
@@ -1008,8 +1006,8 @@ input:checked + .toggle-slider:before {
 }
 
 .emoji-item.renaming {
-  border-color: #57f287;
-  background-color: rgba(87, 242, 135, 0.1);
+  border-color: var(--harmony-primary);
+  background-color: color-mix(in srgb, var(--harmony-primary) 10%, transparent);
 }
 
 /* Selection Checkbox */
@@ -1028,7 +1026,7 @@ input:checked + .toggle-slider:before {
   display: inline-block;
   width: 16px;
   height: 16px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
+  border: 2px solid color-mix(in srgb, currentColor 30%, transparent);
   border-top-color: currentColor;
   border-radius: 50%;
   animation: btn-spin 0.6s linear infinite;
@@ -1054,8 +1052,8 @@ input:checked + .toggle-slider:before {
 }
 
 .emoji-name {
-  font-size: 14px;
-  font-weight: 500;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
   color: var(--text-primary);
   margin-bottom: 2px;
 }
@@ -1067,24 +1065,24 @@ input:checked + .toggle-slider:before {
 .emoji-name-input {
   width: 100%;
   padding: 4px 8px;
-  font-size: 14px;
-  font-weight: 500;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
   color: var(--text-primary);
   background-color: var(--background-secondary);
-  border: 1px solid #57f287;
-  border-radius: 4px;
+  border: 1px solid var(--harmony-primary);
+  border-radius: var(--radius-sm);
   outline: none;
 }
 
 .emoji-name-input:focus {
-  border-color: #43b581;
-  box-shadow: 0 0 0 2px rgba(67, 181, 129, 0.2);
+  border-color: var(--harmony-primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--harmony-primary) 25%, transparent);
 }
 
 .emoji-meta {
   display: flex;
   gap: 8px;
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--text-muted);
 }
 
@@ -1101,7 +1099,7 @@ input:checked + .toggle-slider:before {
   height: 28px;
   background: none;
   border: none;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   transition: all 0.15s ease;
   color: var(--text-secondary);
@@ -1112,15 +1110,15 @@ input:checked + .toggle-slider:before {
 }
 
 .copy-btn:hover {
-  color: #57f287;
+  color: var(--text-primary);
 }
 
 .rename-btn:hover {
-  color: #57f287;
+  color: var(--text-primary);
 }
 
 .delete-btn:hover {
-  color: #ed4245;
+  color: var(--error);
 }
 
 .action-btn:disabled {

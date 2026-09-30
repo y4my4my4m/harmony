@@ -1,7 +1,7 @@
 <template>
   <div class="invite-management">
     <div class="management-header">
-      <h2 class="management-title">Invite Management</h2>
+      <h2 class="management-title">Invite management</h2>
       <p class="management-description">
         View and manage all active invites for this server
       </p>
@@ -16,7 +16,7 @@
           <svg viewBox="0 0 24 24" class="plus-icon">
             <path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z" fill="currentColor"/>
           </svg>
-          Create Invite
+          Create invite
         </button>
       </div>
     </div>
@@ -26,18 +26,18 @@
       <div class="filter-group">
         <label class="filter-label">Status</label>
         <select v-model="statusFilter" class="filter-select" @change="applyFilters">
-          <option value="all">All Invites</option>
+          <option value="all">All invites</option>
           <option value="active">Active</option>
           <option value="expired">Expired</option>
-          <option value="used-up">Used Up</option>
+          <option value="used-up">Used up</option>
           <option value="revoked">Revoked</option>
         </select>
       </div>
       
       <div class="filter-group">
-        <label class="filter-label">Created By</label>
+        <label class="filter-label">Created by</label>
         <select v-model="creatorFilter" class="filter-select" @change="applyFilters">
-          <option value="all">All Members</option>
+          <option value="all">All members</option>
           <option v-for="creator in uniqueCreators" :key="creator.id" :value="creator.id">
             {{ creator.display_name }}
           </option>
@@ -65,7 +65,7 @@
     <div class="stats-section">
       <div class="stat-card">
         <div class="stat-value">{{ stats.total }}</div>
-        <div class="stat-label">Total Invites</div>
+        <div class="stat-label">Total invites</div>
       </div>
       <div class="stat-card">
         <div class="stat-value">{{ stats.active }}</div>
@@ -77,7 +77,7 @@
       </div>
       <div class="stat-card">
         <div class="stat-value">{{ stats.totalUses }}</div>
-        <div class="stat-label">Total Uses</div>
+        <div class="stat-label">Total uses</div>
       </div>
     </div>
 
@@ -98,8 +98,8 @@
 
       <div v-else class="invites-table">
         <div class="table-header">
-          <div class="header-cell code">Invite Code</div>
-          <div class="header-cell creator">Created By</div>
+          <div class="header-cell code">Invite code</div>
+          <div class="header-cell creator">Created by</div>
           <div class="header-cell status">Status</div>
           <div class="header-cell usage">Usage</div>
           <div class="header-cell expires">Expires</div>
@@ -131,7 +131,7 @@
                   </svg>
                 </button>
               </div>
-              <div v-if="invite.temporary" class="temp-indicator">TEMP</div>
+              <div v-if="invite.temporary" class="temp-indicator">Temporary</div>
             </div>
 
             <div class="cell creator">
@@ -240,7 +240,7 @@
     <BaseModal 
       :show="showRevokeConfirm" 
       @close="showRevokeConfirm = false"
-      title="Revoke Invite"
+      title="Revoke invite"
       subtitle="Are you sure you want to revoke this invite?"
     >
       <div v-if="selectedInvite" class="revoke-confirm-content">
@@ -249,7 +249,7 @@
         </p>
         <div class="invite-details">
           <div class="detail-row">
-            <span class="detail-label">Invite Code:</span>
+            <span class="detail-label">Invite code:</span>
             <code class="detail-value">{{ selectedInvite.code }}</code>
           </div>
           <div class="detail-row">
@@ -275,7 +275,7 @@
             <svg v-else viewBox="0 0 24 24" class="footer-btn-icon">
               <path d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z" fill="currentColor"/>
             </svg>
-            {{ isRevoking ? 'Revoking...' : 'Revoke Invite' }}
+            {{ isRevoking ? 'Revoking...' : 'Revoke invite' }}
           </button>
         </div>
       </template>
@@ -449,7 +449,7 @@ const isInviteUsedUp = (invite: Invite): boolean => {
 const getInviteStatus = (invite: Invite): string => {
   if (invite.used && !isInviteUsedUp(invite)) return 'Revoked'
   if (isInviteExpired(invite)) return 'Expired'
-  if (isInviteUsedUp(invite)) return 'Used Up'
+  if (isInviteUsedUp(invite)) return 'Used up'
   return 'Active'
 }
 
@@ -492,7 +492,7 @@ const formatFullDate = (dateString: string): string => {
 const copyInviteCode = async (code: string) => {
   try {
     await navigator.clipboard.writeText(code)
-    toast.success('Invite code copied!')
+    toast.success('Invite code copied')
   } catch (error) {
     toast.error('Failed to copy invite code')
   }
@@ -503,7 +503,7 @@ const copyInviteUrl = async (code: string) => {
     const baseUrl = import.meta.env.VITE_APP_URL || window.location.origin
     const url = `${baseUrl}/invite/${code}`
     await navigator.clipboard.writeText(url)
-    toast.success('Invite URL copied!')
+    toast.success('Invite link copied')
   } catch (error) {
     toast.error('Failed to copy invite URL')
   }
@@ -523,7 +523,7 @@ const confirmRevokeInvite = async () => {
     
     if (success) {
       await loadInvites()
-      toast.success('Invite revoked successfully')
+      toast.success('Invite revoked')
       showRevokeConfirm.value = false
       selectedInvite.value = null
     } else {
@@ -565,19 +565,19 @@ onMounted(() => {
   align-items: flex-start;
   gap: 20px;
   padding-bottom: 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid var(--border-secondary);
 }
 
 .management-title {
-  font-size: 28px;
-  font-weight: 700;
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
   margin: 0 0 8px;
 }
 
 .management-description {
-  font-size: 16px;
-  color: #b5bac1;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
   margin: 0;
 }
 
@@ -594,32 +594,31 @@ onMounted(() => {
   gap: 8px;
   padding: 10px 16px;
   border: none;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 600;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
 }
 
 .refresh-button {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: #b5bac1;
+  background: var(--background-modifier-hover);
+  border: 1px solid var(--border-primary);
+  color: var(--text-secondary);
 }
 
 .refresh-button:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--background-modifier-selected);
   color: var(--text-primary);
 }
 
 .create-button {
-  background: linear-gradient(135deg, var(--harmony-primary), var(--harmony-primary-hover));
-  color: var(--text-primary);
+  background: var(--harmony-primary);
+  color: var(--text-on-primary);
 }
 
 .create-button:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--harmony-primary) 30%, transparent);
+  background: var(--harmony-primary-hover);
 }
 
 .refresh-icon,
@@ -641,8 +640,8 @@ onMounted(() => {
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 16px;
   padding: 20px;
-  background: rgba(255, 255, 255, 0.02);
-  border-radius: 12px;
+  background: var(--background-primary);
+  border-radius: var(--radius-lg);
 }
 
 .filter-group {
@@ -652,18 +651,18 @@ onMounted(() => {
 }
 
 .filter-label {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
 }
 
 .filter-select {
   padding: 10px 12px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-md);
   color: var(--text-primary);
-  font-size: 14px;
+  font-size: var(--font-size-sm);
 }
 
 .search-input-container {
@@ -684,11 +683,11 @@ onMounted(() => {
 .search-input {
   width: 100%;
   padding: 10px 12px 10px 36px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-md);
   color: var(--text-primary);
-  font-size: 14px;
+  font-size: var(--font-size-sm);
 }
 
 .search-input::placeholder {
@@ -703,31 +702,29 @@ onMounted(() => {
 
 .stat-card {
   padding: 20px;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.04);
-  border-radius: 12px;
+  background: var(--background-primary);
+  border: 1px solid var(--border-secondary);
+  border-radius: var(--radius-lg);
   text-align: center;
 }
 
 .stat-value {
   font-size: 32px;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   color: var(--text-primary);
   margin-bottom: 4px;
 }
 
 .stat-label {
-  font-size: 14px;
-  color: #b5bac1;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-  font-weight: 600;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  font-weight: var(--font-weight-medium);
 }
 
 .invites-table-container {
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.04);
-  border-radius: 12px;
+  background: var(--background-primary);
+  border: 1px solid var(--border-secondary);
+  border-radius: var(--radius-lg);
   overflow: hidden;
 }
 
@@ -758,11 +755,11 @@ onMounted(() => {
   grid-template-columns: 2fr 1.5fr 1fr 1fr 1fr 1fr 1fr;
   gap: 16px;
   padding: 16px 20px;
-  background: rgba(255, 255, 255, 0.04);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  font-size: 12px;
-  font-weight: 700;
-  color: #b5bac1;
+  background: var(--background-modifier-hover);
+  border-bottom: 1px solid var(--border-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.02em;
 }
@@ -777,12 +774,12 @@ onMounted(() => {
   grid-template-columns: 2fr 1.5fr 1fr 1fr 1fr 1fr 1fr;
   gap: 16px;
   padding: 16px 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid var(--border-secondary);
   transition: background 0.2s ease;
 }
 
 .table-row:hover {
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--background-modifier-hover);
 }
 
 .table-row.expired {
@@ -791,18 +788,18 @@ onMounted(() => {
 
 .table-row.used-up {
   opacity: 0.7;
-  background: rgba(255, 165, 0, 0.05);
+  background: color-mix(in srgb, var(--warning) 5%, transparent);
 }
 
 .table-row.revoked {
   opacity: 0.6;
-  background: rgba(237, 66, 69, 0.05);
+  background: color-mix(in srgb, var(--error) 5%, transparent);
 }
 
 .cell {
   display: flex;
   align-items: center;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
 }
 
 .invite-code-display {
@@ -815,9 +812,9 @@ onMounted(() => {
   font-family: 'Fira Code', monospace;
   font-size: 13px;
   color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--background-modifier-active);
   padding: 4px 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 
 .copy-code-btn {
@@ -827,13 +824,13 @@ onMounted(() => {
   border: none;
   color: var(--text-muted);
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   transition: all 0.2s ease;
 }
 
 .copy-code-btn:hover {
   color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--background-modifier-active);
 }
 
 .copy-icon {
@@ -842,13 +839,12 @@ onMounted(() => {
 }
 
 .temp-indicator {
-  font-size: 10px;
-  font-weight: 700;
-  background: #f0b232;
-  color: #000000;
-  padding: 2px 6px;
-  border-radius: 4px;
-  text-transform: uppercase;
+  font-size: 11px;
+  font-weight: var(--font-weight-semibold);
+  background: color-mix(in srgb, var(--warning) 15%, transparent);
+  color: var(--warning);
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
 }
 
 .creator-info {
@@ -865,34 +861,33 @@ onMounted(() => {
 
 .creator-name {
   color: var(--text-primary);
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
 }
 
 .status-badge {
   padding: 4px 8px;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
+  border-radius: var(--radius-base);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
 }
 
 .status-badge.active {
-  background: rgba(87, 242, 135, 0.2);
-  color: #57f287;
+  background: color-mix(in srgb, var(--success) 20%, transparent);
+  color: var(--success);
 }
 
 .status-badge.expired {
-  background: rgba(237, 66, 69, 0.2);
-  color: #ed4245;
+  background: color-mix(in srgb, var(--error) 20%, transparent);
+  color: var(--error);
 }
 
 .status-badge.used-up {
-  background: rgba(255, 165, 0, 0.2);
-  color: #ffa500;
+  background: color-mix(in srgb, var(--warning) 20%, transparent);
+  color: var(--warning);
 }
 
 .status-badge.revoked {
-  background: rgba(114, 118, 125, 0.2);
+  background: var(--background-modifier-selected);
   color: var(--text-muted);
 }
 
@@ -905,7 +900,7 @@ onMounted(() => {
 
 .usage-count {
   color: var(--text-primary);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 
 .usage-separator {
@@ -913,26 +908,26 @@ onMounted(() => {
 }
 
 .usage-max {
-  color: #b5bac1;
+  color: var(--text-secondary);
 }
 
 .usage-bar {
   width: 60px;
   height: 4px;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--background-modifier-active);
   border-radius: 2px;
   overflow: hidden;
 }
 
 .usage-fill {
   height: 100%;
-  background: linear-gradient(90deg, #57f287, #f0b232);
+  background: var(--harmony-primary);
   transition: width 0.3s ease;
 }
 
 .expires-time,
 .created-time {
-  color: #b5bac1;
+  color: var(--text-secondary);
   font-size: 13px;
 }
 
@@ -950,10 +945,10 @@ onMounted(() => {
 .action-btn {
   width: 28px;
   height: 28px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 6px;
-  color: #b5bac1;
+  background: var(--background-modifier-hover);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-base);
+  color: var(--text-secondary);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -962,7 +957,7 @@ onMounted(() => {
 }
 
 .action-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--background-modifier-selected);
   color: var(--text-primary);
 }
 
@@ -977,8 +972,8 @@ onMounted(() => {
 }
 
 .action-btn.revoke:hover:not(:disabled) {
-  border-color: #ed4245;
-  color: #ed4245;
+  border-color: var(--error);
+  color: var(--error);
 }
 
 .action-icon {
@@ -991,8 +986,8 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 16px 20px;
-  background: rgba(255, 255, 255, 0.02);
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--background-primary);
+  border-top: 1px solid var(--border-secondary);
 }
 
 .pagination-btn {
@@ -1000,17 +995,17 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 6px;
-  color: #b5bac1;
+  background: var(--background-modifier-hover);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-base);
+  color: var(--text-secondary);
   cursor: pointer;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   transition: all 0.2s ease;
 }
 
 .pagination-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--background-modifier-selected);
   color: var(--text-primary);
 }
 
@@ -1025,8 +1020,8 @@ onMounted(() => {
 }
 
 .pagination-info {
-  font-size: 14px;
-  color: #b5bac1;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
 }
 
 .revoke-confirm-content {
@@ -1036,8 +1031,8 @@ onMounted(() => {
 }
 
 .invite-details {
-  background: rgba(255, 255, 255, 0.02);
-  border-radius: 8px;
+  background: var(--background-primary);
+  border-radius: var(--radius-md);
   padding: 16px;
 }
 
@@ -1046,7 +1041,7 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 8px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid var(--border-secondary);
 }
 
 .detail-row:last-child {
@@ -1054,15 +1049,15 @@ onMounted(() => {
 }
 
 .detail-label {
-  font-size: 14px;
-  color: #b5bac1;
-  font-weight: 500;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  font-weight: var(--font-weight-medium);
 }
 
 .detail-value {
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   color: var(--text-primary);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 
 .modal-footer-content {
@@ -1078,33 +1073,32 @@ onMounted(() => {
   gap: 8px;
   padding: 12px 20px;
   border: none;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 600;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
   cursor: pointer;
   transition: all 0.2s ease;
   flex: 1;
 }
 
 .footer-button.secondary {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: #b5bac1;
+  background: var(--background-modifier-hover);
+  border: 1px solid var(--border-primary);
+  color: var(--text-secondary);
 }
 
 .footer-button.secondary:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--background-modifier-selected);
   color: var(--text-primary);
 }
 
 .footer-button.danger {
-  background: linear-gradient(135deg, #ed4245, #c23616);
-  color: var(--text-primary);
+  background: var(--error);
+  color: var(--text-on-primary);
 }
 
 .footer-button.danger:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(237, 66, 69, 0.3);
+  background: var(--error-hover);
 }
 
 .footer-button:disabled {
@@ -1161,9 +1155,9 @@ onMounted(() => {
   
   .cell::before {
     content: attr(data-label);
-    font-size: 12px;
-    font-weight: 600;
-    color: #b5bac1;
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-secondary);
     text-transform: uppercase;
   }
 }

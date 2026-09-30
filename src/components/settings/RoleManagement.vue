@@ -20,7 +20,7 @@
         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
           <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
         </svg>
-        Create Role
+        Create role
       </button>
     </header>
 
@@ -105,7 +105,7 @@
           <!-- Display Tab -->
           <div v-if="activeTab === 'display'" class="tab-content">
             <div class="form-group">
-              <label>Role Name</label>
+              <label>Role name</label>
               <input
                 v-model="editForm.name"
                 type="text"
@@ -120,7 +120,7 @@
             </div>
 
             <div class="form-group">
-              <label>Role Color</label>
+              <label>Role color</label>
               <ColorPicker
                 :color="editForm.color || '#99AAB5'"
                 @update:color="editForm.color = $event"
@@ -291,7 +291,7 @@
             class="delete-btn"
             @click="deleteRole"
           >
-            Delete Role
+            Delete role
           </button>
           <div class="footer-spacer"></div>
           <button
@@ -308,7 +308,7 @@
             @click="saveRole"
             :disabled="saving || !hasChanges"
           >
-            {{ saving ? 'Saving...' : 'Save Changes' }}
+            {{ saving ? 'Saving...' : 'Save changes' }}
           </button>
         </footer>
         </template>
@@ -902,15 +902,15 @@ onMounted(() => {
 }
 
 .header-text h2 {
-  margin: 0 0 4px;
-  font-size: 20px;
-  font-weight: 600;
+  margin: 0 0 8px;
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
 }
 
 .header-text p {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--font-size-sm);
   color: var(--text-secondary);
 }
 
@@ -920,17 +920,17 @@ onMounted(() => {
   gap: 8px;
   padding: 9px 14px;
   background: var(--harmony-primary);
-  color: var(--text-on-primary, #ffffff);
+  color: var(--text-on-primary);
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   font-size: 13px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   cursor: pointer;
-  transition: filter 0.15s;
+  transition: background-color var(--transition-fast);
   flex-shrink: 0;
 }
 
-.create-role-btn:hover { filter: brightness(1.1); }
+.create-role-btn:hover { background: var(--harmony-primary-hover); }
 
 .role-layout {
   display: grid;
@@ -955,7 +955,7 @@ onMounted(() => {
 
 .rail-section-label {
   font-size: 11px;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--text-muted);
@@ -982,10 +982,10 @@ onMounted(() => {
   padding: 8px 10px;
   background: transparent;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   color: var(--text-secondary);
   font-size: 13px;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
   text-align: left;
   transition: background 0.12s, color 0.12s;
@@ -1049,18 +1049,16 @@ onMounted(() => {
 
 /* Badges shared with the editor header */
 .role-badge {
-  font-size: 10px;
-  padding: 2px 6px;
-  border-radius: 4px;
-  text-transform: uppercase;
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  font-weight: var(--font-weight-semibold);
   flex-shrink: 0;
 }
 
 .role-badge.admin {
-  background: rgba(231, 76, 60, 0.18);
-  color: #E74C3C;
+  background: color-mix(in srgb, var(--error) 15%, transparent);
+  color: var(--error);
 }
 
 .role-badge.default {
@@ -1069,24 +1067,22 @@ onMounted(() => {
 }
 
 .owner-badge {
-  font-size: 10px;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: rgba(241, 196, 15, 0.18);
-  color: #F1C40F;
-  text-transform: uppercase;
-  font-weight: 600;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--warning) 15%, transparent);
+  color: var(--warning);
+  font-weight: var(--font-weight-semibold);
   margin-left: 6px;
 }
 
 .protected-badge {
-  font-size: 10px;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: rgba(149, 165, 166, 0.18);
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--background-modifier-selected);
   color: var(--text-secondary);
-  text-transform: uppercase;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   flex-shrink: 0;
 }
 
@@ -1100,7 +1096,7 @@ onMounted(() => {
   min-height: 0;
   background: var(--background-secondary);
   border: 1px solid var(--border-color);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   overflow: hidden;
 }
 
@@ -1129,8 +1125,8 @@ onMounted(() => {
 
 .editor-title h3 {
   margin: 0;
-  font-size: 16px;
-  font-weight: 600;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
 }
 
@@ -1146,7 +1142,7 @@ onMounted(() => {
   border-bottom: 2px solid transparent;
   color: var(--text-secondary);
   font-size: 13px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   cursor: pointer;
   margin-bottom: -1px;
   transition: color 0.12s, border-color 0.12s;
@@ -1165,8 +1161,10 @@ onMounted(() => {
   min-height: 0;
 }
 
-.tab-content {
-  animation: fadeIn 0.15s ease;
+@media (prefers-reduced-motion: no-preference) {
+  .tab-content {
+    animation: fadeIn 0.15s ease;
+  }
 }
 
 @keyframes fadeIn {
@@ -1182,11 +1180,9 @@ onMounted(() => {
 
 .form-group label {
   display: block;
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
   margin-bottom: 8px;
 }
 
@@ -1201,8 +1197,8 @@ onMounted(() => {
 
 .toggle-title {
   display: block;
-  font-size: 14px;
-  font-weight: 500;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
   color: var(--text-primary);
   margin-bottom: 4px;
   text-transform: none;
@@ -1211,7 +1207,7 @@ onMounted(() => {
 
 .form-help {
   margin: 6px 0 0;
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--text-secondary);
 }
 
@@ -1220,9 +1216,9 @@ onMounted(() => {
   padding: 10px 12px;
   background: var(--input-bg);
   border: 1px solid var(--input-border);
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   color: var(--text-primary);
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   outline: none;
   transition: border-color 0.15s;
 }
@@ -1240,7 +1236,7 @@ onMounted(() => {
   width: 42px;
   height: 42px;
   border: 1px solid var(--border-color);
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   cursor: pointer;
   padding: 0;
   background: transparent;
@@ -1251,7 +1247,7 @@ onMounted(() => {
   padding: 10px 12px;
   background: var(--input-bg);
   border: 1px solid var(--input-border);
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   color: var(--text-primary);
   font-size: 13px;
   font-family: ui-monospace, SFMono-Regular, monospace;
@@ -1271,24 +1267,24 @@ onMounted(() => {
 .color-preset {
   width: 24px;
   height: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-secondary);
   border-radius: 50%;
   cursor: pointer;
   padding: 0;
-  transition: transform 0.12s;
+  transition: border-color var(--transition-fast);
 }
 
-.color-preset:hover { transform: scale(1.15); }
+.color-preset:hover { border-color: var(--border-hover); }
 
 /* ===== Permissions tab ===== */
 .perm-intro {
   margin: 0 0 16px;
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--text-secondary);
   line-height: 1.5;
   padding: 10px 12px;
   background: var(--background-tertiary);
-  border-radius: 6px;
+  border-radius: var(--radius-base);
 }
 
 .perm-group {
@@ -1307,19 +1303,19 @@ onMounted(() => {
 
 .perm-group-label {
   font-size: 11px;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--text-muted);
 }
 
 .perm-group-warn {
-  font-size: 11px;
-  color: #F1C40F;
+  font-size: var(--font-size-xs);
+  color: var(--warning);
 }
 
 .perm-group-dangerous .perm-group-label {
-  color: #E74C3C;
+  color: var(--error);
 }
 
 .perm-row {
@@ -1344,12 +1340,12 @@ onMounted(() => {
 
 .perm-row-label {
   font-size: 13px;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   color: var(--text-primary);
 }
 
 .perm-row-desc {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--text-secondary);
   line-height: 1.4;
 }
@@ -1358,7 +1354,7 @@ onMounted(() => {
 .members-everyone-note {
   padding: 16px;
   background: var(--background-tertiary);
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   color: var(--text-secondary);
   font-size: 13px;
   line-height: 1.5;
@@ -1377,7 +1373,7 @@ onMounted(() => {
 
 .members-block-label {
   font-size: 11px;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--text-muted);
@@ -1391,23 +1387,21 @@ onMounted(() => {
   background: var(--background-tertiary);
   color: var(--text-primary);
   padding: 2px 8px;
-  border-radius: 10px;
+  border-radius: var(--radius-full);
   font-size: 10px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 
 .bridged-member-badge {
   display: inline-flex;
   align-items: center;
   margin-left: 6px;
-  padding: 1px 5px;
-  border-radius: 3px;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  color: #fff;
-  background: #5865F2;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-secondary);
+  background: var(--background-modifier-selected);
   vertical-align: middle;
 }
 
@@ -1427,7 +1421,7 @@ onMounted(() => {
   padding: 8px 10px;
   background: transparent;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   color: var(--text-primary);
   font: inherit;
   text-align: left;
@@ -1464,18 +1458,20 @@ onMounted(() => {
   background: color-mix(in srgb, var(--harmony-primary) 15%, transparent);
   color: var(--harmony-primary);
   border: none;
-  font-size: 16px;
-  font-weight: 600;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
   cursor: pointer;
-  transition: filter 0.12s;
+  transition: background-color var(--transition-fast);
 }
 
-.member-action-icon:hover { filter: brightness(1.2); }
+.member-action-icon:hover { background: color-mix(in srgb, var(--harmony-primary) 25%, transparent); }
 
 .member-action-icon.danger {
-  background: rgba(240, 71, 71, 0.15);
-  color: #F04747;
+  background: color-mix(in srgb, var(--error) 15%, transparent);
+  color: var(--error);
 }
+
+.member-action-icon.danger:hover { background: color-mix(in srgb, var(--error) 25%, transparent); }
 
 .loading-members {
   display: flex;
@@ -1506,16 +1502,16 @@ onMounted(() => {
 .delete-btn {
   background: transparent;
   border: none;
-  color: #F04747;
+  color: var(--error);
   font-size: 13px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   cursor: pointer;
   padding: 8px 12px;
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   transition: background 0.15s;
 }
 
-.delete-btn:hover { background: rgba(240, 71, 71, 0.1); }
+.delete-btn:hover { background: color-mix(in srgb, var(--error) 10%, transparent); }
 
 .cancel-btn {
   background: transparent;
@@ -1524,7 +1520,7 @@ onMounted(() => {
   font-size: 13px;
   cursor: pointer;
   padding: 8px 12px;
-  border-radius: 6px;
+  border-radius: var(--radius-base);
 }
 
 .cancel-btn:not(:disabled):hover {
@@ -1536,17 +1532,17 @@ onMounted(() => {
 
 .save-btn {
   background: var(--harmony-primary);
-  color: var(--text-on-primary, #ffffff);
+  color: var(--text-on-primary);
   border: none;
   padding: 9px 18px;
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   font-size: 13px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   cursor: pointer;
-  transition: filter 0.15s;
+  transition: background-color var(--transition-fast);
 }
 
-.save-btn:hover:not(:disabled) { filter: brightness(1.1); }
+.save-btn:hover:not(:disabled) { background: var(--harmony-primary-hover); }
 .save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* ===== Misc ===== */

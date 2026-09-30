@@ -18,13 +18,13 @@
       <div class="user-details">
         <div class="user-name-row">
           <DisplayName class="user-name" :userId="user.id" :fallback="user.display_name || user.username" />
-          <span v-if="user.is_admin" class="instance-badge admin" title="Instance Admin">
+          <span v-if="user.is_admin" class="instance-badge admin" title="Instance admin">
             <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
-            ADMIN
+            Admin
           </span>
-          <span v-else-if="user.is_moderator" class="instance-badge mod" title="Instance Moderator">
+          <span v-else-if="user.is_moderator" class="instance-badge mod" title="Instance moderator">
             <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
-            MOD
+            Mod
           </span>
           <SupporterBadge v-if="user.id" :user-id="user.id" />
         </div>
@@ -316,11 +316,11 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .user-card {
-  background: var(--background-tertiary, #2b2d31);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
+  background: var(--background-tertiary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
   padding: 1rem;
-  transition: all 0.2s;
+  transition: border-color var(--transition-fast);
   position: relative;
   z-index: 1;
 }
@@ -331,8 +331,7 @@ onBeforeUnmount(() => {
 }
 
 .user-card:hover {
-  border-color: rgba(255, 255, 255, 0.16);
-  transform: translateY(-1px);
+  border-color: var(--border-hover);
 }
 
 .user-card.compact {
@@ -356,16 +355,11 @@ onBeforeUnmount(() => {
   border-radius: 50%;
   object-fit: cover;
   flex-shrink: 0;
-  transition: transform 0.2s;
 }
 
 .user-card.compact .user-avatar {
   width: 40px;
   height: 40px;
-}
-
-.user-info:hover .user-avatar {
-  transform: scale(1.05);
 }
 
 .user-details {
@@ -377,7 +371,7 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
   margin-bottom: 0.25rem;
 }
@@ -390,12 +384,12 @@ onBeforeUnmount(() => {
 }
 
 .verified-icon {
-  color: #1d9bf0;
+  color: var(--harmony-primary);
   flex-shrink: 0;
 }
 
 .user-handle {
-  color: #80848e;
+  color: var(--text-tertiary);
   font-size: 0.875rem;
   margin-bottom: 0.5rem;
 }
@@ -411,7 +405,7 @@ onBeforeUnmount(() => {
   display: flex;
   gap: 1rem;
   font-size: 0.75rem;
-  color: #80848e;
+  color: var(--text-tertiary);
   margin-bottom: 0.5rem;
 }
 
@@ -425,7 +419,7 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   gap: 0.5rem;
   padding-top: 0.75rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid var(--border-primary);
 }
 
 .user-card.compact .user-actions {
@@ -439,10 +433,10 @@ onBeforeUnmount(() => {
   gap: 0.5rem;
   background: var(--h-brand, var(--harmony-primary));
   border: none;
-  border-radius: 6px;
-  color: var(--text-primary);
+  border-radius: var(--radius-base);
+  color: var(--text-on-primary);
   padding: 0.5rem 1rem;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
   transition: all 0.2s;
   flex: 1;
@@ -460,9 +454,9 @@ onBeforeUnmount(() => {
 }
 
 .follow-btn.following:hover:not(:disabled) {
-  background: rgba(242, 63, 66, 0.1);
-  border-color: #f23f42;
-  color: #f23f42;
+  background: color-mix(in srgb, var(--error) 10%, transparent);
+  border-color: var(--error);
+  color: var(--error);
 }
 
 .follow-btn:disabled {
@@ -482,14 +476,14 @@ onBeforeUnmount(() => {
   height: 32px;
   background: none;
   border: none;
-  border-radius: 6px;
-  color: #80848e;
+  border-radius: var(--radius-base);
+  color: var(--text-tertiary);
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .more-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--background-modifier-selected);
   color: var(--text-primary);
 }
 
@@ -498,13 +492,13 @@ onBeforeUnmount(() => {
   top: 100%;
   right: 0;
   width: 180px;
-  background: var(--background-tertiary, #2b2d31);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
+  background: var(--background-floating);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
   padding: 0.5rem;
   z-index: 9999;
   margin-top: 0.5rem;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--shadow-large);
 }
 
 .actions-menu {
@@ -512,13 +506,13 @@ onBeforeUnmount(() => {
   top: 100%;
   right: 0;
   width: 180px;
-  background: var(--background-tertiary, #2b2d31);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
+  background: var(--background-floating);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
   padding: 0.5rem;
   z-index: 9999;
   margin-top: 0.5rem;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--shadow-large);
 }
 
 .action-item {
@@ -530,14 +524,14 @@ onBeforeUnmount(() => {
   border: none;
   color: var(--text-primary);
   padding: 0.75rem;
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   cursor: pointer;
   text-align: left;
   transition: background 0.2s;
 }
 
 .action-item:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--background-modifier-hover);
 }
 
 .action-item.active {
@@ -545,11 +539,11 @@ onBeforeUnmount(() => {
 }
 
 .action-item.danger {
-  color: #f23f42;
+  color: var(--error);
 }
 
 .action-item.danger:hover {
-  background: rgba(242, 63, 66, 0.1);
+  background: color-mix(in srgb, var(--error) 10%, transparent);
 }
 
 .user-card.has-corner-badge {
@@ -572,27 +566,19 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 0.15rem;
   font-size: 0.625rem;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   padding: 0.125rem 0.3rem;
-  border-radius: 0.1875rem;
+  border-radius: var(--radius-sm);
   vertical-align: middle;
 }
 
 .instance-badge.admin {
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--harmony-accent) 20%, transparent),
-    color-mix(in srgb, var(--harmony-accent-hover) 20%, transparent)
-  );
+  background: color-mix(in srgb, var(--harmony-accent) 20%, transparent);
   color: var(--text-primary);
 }
 
 .instance-badge.mod {
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--harmony-primary) 20%, transparent),
-    color-mix(in srgb, var(--harmony-primary-hover) 20%, transparent)
-  );
+  background: color-mix(in srgb, var(--harmony-primary) 20%, transparent);
   color: var(--text-primary);
 }
 

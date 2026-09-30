@@ -3,7 +3,7 @@
     <div class="settings-header">
       <h2 class="settings-title">{{ $t('settings.audio.title') }}</h2>
       <p class="settings-description">
-        Choose your preferred audio experience with different sound themes.
+        Choose the sounds played for notifications, calls and interface actions.
       </p>
     </div>
 
@@ -40,16 +40,16 @@
 
     <!-- Import / Export audio theme packs -->
     <div class="settings-section import-export-section">
-      <h3 class="section-title">Import & Export Theme Packs</h3>
+      <h3 class="section-title">Import & export theme packs</h3>
       <p class="section-description">Export a full audio theme (sounds + metadata) to share or backup. Import a pack to add it as a custom theme.</p>
       <div class="import-export-actions">
         <button @click="exportThemePack" class="import-export-btn" :disabled="!themeStore.isReady || isExportingPack">
           <Icon :name="isExportingPack ? 'loader' : 'download'" :class="{ spinning: isExportingPack }" />
-          {{ isExportingPack ? 'Exporting...' : 'Export Pack' }}
+          {{ isExportingPack ? 'Exporting...' : 'Export pack' }}
         </button>
         <button @click="importThemePack" class="import-export-btn" :disabled="!themeStore.isReady">
           <Icon name="upload" />
-          Import Pack
+          Import pack
         </button>
       </div>
     </div>
@@ -60,7 +60,7 @@
       
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">Audio System Status</h4>
+          <h4 class="setting-label">Audio system status</h4>
           <p class="setting-description">Current status of the audio theme system</p>
         </div>
         <div class="setting-control">
@@ -72,7 +72,7 @@
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">{{ $t('common.clear') }} Audio Cache</h4>
+          <h4 class="setting-label">{{ $t('common.clear') }} audio cache</h4>
           <p class="setting-description">Clear cached audio files to force reload of all sounds</p>
         </div>
         <div class="setting-control">
@@ -85,7 +85,7 @@
       
       <div class="setting-item" v-if="cacheInfo">
         <div class="setting-info">
-          <h4 class="setting-label">Cache Information</h4>
+          <h4 class="setting-label">Cache information</h4>
           <p class="setting-description">{{ cacheInfo.size }}/{{ cacheInfo.maxSize }} sounds loaded</p>
         </div>
       </div>
@@ -138,8 +138,8 @@ const testActions = [
   { id: 'mention', label: 'Mention', icon: 'at-sign', category: 'notification' },
   { id: 'dm', label: 'Message', icon: 'message-circle', category: 'notification' },
   { id: 'reaction', label: 'Reaction', icon: 'heart', category: 'notification' },
-  { id: 'voice_connect', label: 'Voice Join', icon: 'phone', category: 'voice' },
-  { id: 'voice_disconnect', label: 'Voice Leave', icon: 'phone-off', category: 'voice' },
+  { id: 'voice_connect', label: 'Voice join', icon: 'phone', category: 'voice' },
+  { id: 'voice_disconnect', label: 'Voice leave', icon: 'phone-off', category: 'voice' },
   { id: 'ui_success', label: 'Success', icon: 'check-circle', category: 'ui' },
   { id: 'ui_error', label: 'Error', icon: 'alert-circle', category: 'ui' },
   { id: 'ui_click', label: 'Click', icon: 'mouse-pointer', category: 'ui' }
@@ -158,15 +158,15 @@ const testSound = async (actionId: string): Promise<void> => {
     await themeStore.testAudio(actionId as AudioAction)
     notificationStore.showToast(
       'ui_success',
-      'Sound Test',
-      `Tested ${actionId} successfully`,
+      'Sound test',
+      `Played ${actionId}`,
       2000
     )
   } catch (error) {
     debug.error('Failed to test sound:', error)
     notificationStore.showToast(
       'ui_error',
-      'Sound Test Failed',
+      'Sound test failed',
       `Failed to test ${actionId}`,
       3000
     )
@@ -179,15 +179,15 @@ const clearCache = async (): Promise<void> => {
     await themeStore.clearAudioCache()
     notificationStore.showToast(
       'ui_success',
-      'Cache Cleared',
-      'Audio cache cleared successfully',
+      'Cache cleared',
+      'Audio cache cleared',
       2000
     )
   } catch (error) {
     debug.error('Failed to clear cache:', error)
     notificationStore.showToast(
       'ui_error',
-      'Cache Clear Failed',
+      "Couldn't clear cache",
       'Failed to clear audio cache',
       3000
     )
@@ -202,15 +202,15 @@ const resetSystem = async (): Promise<void> => {
     await themeStore.resetToDefaults()
     notificationStore.showToast(
       'ui_success',
-      'System Reset',
-      'Audio system reset successfully',
+      'Audio reset',
+      'Audio settings restored to defaults',
       2000
     )
   } catch (error) {
     debug.error('Failed to reset system:', error)
     notificationStore.showToast(
       'ui_error',
-      'Reset Failed',
+      'Reset failed',
       'Failed to reset audio system',
       3000
     )
@@ -222,7 +222,7 @@ const resetSystem = async (): Promise<void> => {
 const onThemeChanged = (themeId: string): void => {
   notificationStore.showToast(
     'ui_success',
-    'Theme Changed',
+    'Theme changed',
     `Switched to ${themeId} theme`,
     2000
   )
@@ -287,7 +287,7 @@ onMounted(async () => {
     debug.error('Failed to initialize audio theme store:', error)
     notificationStore.showToast(
       'ui_error',
-      'Initialization Failed',
+      'Initialization failed',
       'Failed to initialize audio system',
       3000
     )
@@ -305,30 +305,30 @@ onMounted(async () => {
 }
 
 .settings-title {
-  font-size: 24px;
-  font-weight: 600;
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
   margin: 0 0 8px 0;
 }
 
 .settings-description {
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   color: var(--text-secondary);
   margin: 0;
 }
 
 .settings-section {
   background-color: var(--background-secondary);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 24px;
   margin-bottom: 32px;
   border: 1px solid var(--background-quaternary);
 }
 
 .section-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--text-primary, #ffffff);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
   margin: 0 0 20px 0;
 }
 
@@ -338,13 +338,13 @@ onMounted(async () => {
 }
 
 .current-theme-card {
-  background: linear-gradient(135deg, var(--h-brand), #677bc4);
-  border-radius: 12px;
+  background: var(--harmony-primary);
+  border-radius: var(--radius-lg);
   padding: 24px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  color: var(--text-primary);
+  color: var(--text-on-primary);
 }
 
 .theme-preview {
@@ -360,35 +360,35 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--background-modifier-active);
   border-radius: 50%;
 }
 
 .theme-info h3 {
   margin: 0 0 4px 0;
-  font-size: 18px;
-  font-weight: 600;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
 }
 
 .theme-info p {
   margin: 0 0 4px 0;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   opacity: 0.9;
 }
 
 .theme-author {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   opacity: 0.7;
 }
 
 .test-btn {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 6px;
+  background: var(--background-modifier-hover);
+  border: 1px solid var(--border-hover);
+  border-radius: var(--radius-base);
   padding: 8px 16px;
   color: var(--text-primary);
-  font-size: 14px;
-  font-weight: 500;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
   transition: all 0.2s ease;
   display: flex;
@@ -397,7 +397,7 @@ onMounted(async () => {
 }
 
 .test-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--background-modifier-active);
 }
 
 .test-btn:disabled {
@@ -458,8 +458,8 @@ onMounted(async () => {
 .volume-display {
   min-width: 40px;
   text-align: center;
-  font-size: 14px;
-  font-weight: 500;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
   color: var(--text-primary);
 }
 
@@ -473,16 +473,15 @@ onMounted(async () => {
 .theme-card {
   background: var(--background-secondary);
   border: 2px solid var(--background-quaternary);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 16px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: border-color var(--transition-fast);
   position: relative;
 }
 
 .theme-card:hover {
   border-color: var(--h-brand);
-  transform: translateY(-2px);
 }
 
 .theme-card.active {
@@ -503,14 +502,14 @@ onMounted(async () => {
 }
 
 .theme-icon-small {
-  font-size: 20px;
+  font-size: var(--font-size-xl);
   width: 32px;
   height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: var(--background-quaternary);
-  border-radius: 6px;
+  border-radius: var(--radius-base);
 }
 
 .theme-title {
@@ -519,13 +518,13 @@ onMounted(async () => {
 
 .theme-title h4 {
   margin: 0;
-  font-size: 16px;
-  font-weight: 600;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
 }
 
 .theme-version {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--text-secondary);
 }
 
@@ -571,14 +570,14 @@ onMounted(async () => {
 }
 
 .theme-author-small {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--text-muted);
 }
 
 .test-theme-btn {
   background: transparent;
   border: 1px solid var(--background-quaternary);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   padding: 6px;
   color: var(--text-secondary);
   cursor: pointer;
@@ -608,11 +607,11 @@ onMounted(async () => {
 .sound-test-btn {
   background: transparent;
   border: 1px solid var(--background-quaternary);
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   padding: 12px 8px;
   color: var(--text-secondary);
-  font-size: 12px;
-  font-weight: 500;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
   transition: all 0.2s ease;
   display: flex;
@@ -624,7 +623,6 @@ onMounted(async () => {
 .sound-test-btn:hover:not(:disabled) {
   border-color: var(--h-brand);
   color: var(--text-primary);
-  /* background: color-mix(in srgb, var(--harmony-primary) 10%, transparent); */
   background: color-mix(in srgb, var(--h-brand) 10%, transparent);
 }
 
@@ -651,10 +649,10 @@ onMounted(async () => {
   padding: 10px 16px;
   background: transparent;
   border: 1px solid var(--background-quaternary);
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   color: var(--text-secondary);
   font-size: 13px;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -695,14 +693,14 @@ onMounted(async () => {
 }
 
 .setting-label {
-  font-size: 14px;
-  font-weight: 500;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
   color: var(--text-primary);
   margin: 0 0 4px 0;
 }
 
 .setting-description {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--text-secondary);
   margin: 0;
   line-height: 1.4;
@@ -714,18 +712,18 @@ onMounted(async () => {
 
 .clear-cache-btn {
   background: transparent;
-  border: 1px solid #f04747;
-  border-radius: 4px;
+  border: 1px solid var(--error);
+  border-radius: var(--radius-sm);
   padding: 8px 12px;
-  color: #f04747;
-  font-size: 12px;
-  font-weight: 500;
+  color: var(--error);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .clear-cache-btn:hover {
-  background: rgba(240, 71, 71, 0.1);
+  background: color-mix(in srgb, var(--error) 10%, transparent);
 }
 
 .advanced-toggle {
@@ -736,7 +734,7 @@ onMounted(async () => {
 .toggle-btn {
   background: transparent;
   border: 1px solid var(--background-quaternary);
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   padding: 8px 16px;
   color: var(--text-secondary);
   font-size: 13px;
@@ -770,10 +768,10 @@ onMounted(async () => {
   padding: 10px 18px;
   background: transparent;
   border: 1px solid var(--background-quaternary);
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   color: var(--text-secondary);
   font-size: 13px;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
   transition: all 0.2s ease;
 }

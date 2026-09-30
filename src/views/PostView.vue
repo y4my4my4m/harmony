@@ -589,7 +589,7 @@ const handleReplyCreated = async (newReply?: TimelinePost) => {
     debug.log('Reply added optimistically:', newReply.id);
   }
   
-  toast.success('Reply posted!');
+  toast.success('Reply posted');
   
   setTimeout(() => {
     loadPostWithContext().catch(err => {
@@ -648,7 +648,7 @@ const handleBookmark = async (postId: string) => {
   const result = await toggleBookmark(postId);
   if (result.success) {
     await loadPostWithContext();
-    toast.success(result.bookmarked ? 'Post bookmarked!' : 'Bookmark removed');
+    toast.success(result.bookmarked ? 'Post bookmarked' : 'Bookmark removed');
   } else {
     toast.error(result.error || 'Failed to bookmark post');
   }
@@ -688,7 +688,7 @@ const sharePost = async () => {
   } else {
     try {
       await navigator.clipboard.writeText(url);
-      toast.success('Link copied to clipboard');
+      toast.success('Link copied');
     } catch (err) {
       toast.error('Failed to copy link');
     }
@@ -707,7 +707,7 @@ const copyPostLink = async () => {
   const url = getPostUrl();
   try {
     await navigator.clipboard.writeText(url);
-    toast.success('Link copied to clipboard');
+    toast.success('Link copied');
   } catch {
     toast.error('Failed to copy link');
   }
@@ -851,7 +851,7 @@ a.dropdown-item {
   border: none;
   border-radius: var(--radius-sm);
   color: var(--text-primary);
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   cursor: pointer;
 }
 

@@ -56,7 +56,7 @@
           class="discover-btn"
         >
           <Icon name="globe" />
-          Discover Users
+          Discover users
         </router-link>
       </div>
 
@@ -119,7 +119,7 @@
             @click="loadMore"
             class="load-more-btn"
           >
-            Load More
+            Load more
           </button>
         </div>
       </div>
@@ -219,7 +219,7 @@ const targetUserId = computed(() => {
 const isOwnProfile = computed(() => targetUserId.value === currentUserId.value);
 
 const viewTitle = computed(() => {
-  if (currentView.value === 'requests') return 'Follow Requests';
+  if (currentView.value === 'requests') return 'Follow requests';
   return currentView.value === 'followers' ? 'Followers' : 'Following';
 });
 
@@ -454,7 +454,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 12px;
   font-size: 28px;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   margin: 0 0 8px 0;
   color: var(--text-primary);
 }
@@ -462,14 +462,14 @@ onUnmounted(() => {
 .page-subtitle {
   color: var(--text-secondary);
   margin: 0;
-  font-size: 16px;
+  font-size: var(--font-size-base);
 }
 
 .view-toggle {
   display: flex;
   gap: 8px;
   background: var(--background-secondary);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 4px;
 }
 
@@ -480,40 +480,40 @@ onUnmounted(() => {
   padding: 8px 16px;
   background: none;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s ease;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
 }
 
 .toggle-btn:hover {
-  background: var(--background-hover);
+  background: var(--background-modifier-hover);
   color: var(--text-primary);
 }
 
 .toggle-btn.active {
   background: var(--harmony-primary);
-  color: var(--text-primary);
+  color: var(--text-on-primary);
 }
 
 .count {
   background: var(--background-tertiary);
   color: var(--text-secondary);
   padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 600;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
 }
 
 .toggle-btn.active .count {
   background: rgba(255, 255, 255, 0.2);
-  color: var(--text-primary);
+  color: var(--text-on-primary);
 }
 
 .count-pending {
   background: var(--harmony-primary);
-  color: var(--text-primary);
+  color: var(--text-on-primary);
 }
 
 .request-actions {
@@ -532,8 +532,8 @@ onUnmounted(() => {
   flex: 1;
   padding: 8px 16px;
   border: none;
-  border-radius: 6px;
-  font-weight: 600;
+  border-radius: var(--radius-base);
+  font-weight: var(--font-weight-semibold);
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -545,7 +545,7 @@ onUnmounted(() => {
 
 .request-btn.accept {
   background: var(--harmony-primary);
-  color: var(--text-primary);
+  color: var(--text-on-primary);
 }
 
 .request-btn.accept:hover:not(:disabled) {
@@ -559,7 +559,7 @@ onUnmounted(() => {
 }
 
 .request-btn.reject:hover:not(:disabled) {
-  background: var(--background-hover);
+  background: var(--background-modifier-hover);
   color: var(--text-primary);
 }
 
@@ -580,14 +580,14 @@ onUnmounted(() => {
 }
 
 .empty-state h3 {
-  font-size: 20px;
-  font-weight: 600;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
   margin: 0 0 8px 0;
   color: var(--text-primary);
 }
 
 .empty-state p {
-  font-size: 16px;
+  font-size: var(--font-size-base);
   margin: 0 0 24px 0;
   max-width: 400px;
   line-height: 1.5;
@@ -599,16 +599,15 @@ onUnmounted(() => {
   gap: 8px;
   padding: 12px 24px;
   background: var(--harmony-primary);
-  color: var(--text-primary);
+  color: var(--text-on-primary);
   text-decoration: none;
-  border-radius: 8px;
-  font-weight: 600;
-  transition: all 0.2s ease;
+  border-radius: var(--radius-md);
+  font-weight: var(--font-weight-semibold);
+  transition: background-color var(--transition-fast);
 }
 
 .discover-btn:hover {
   background: var(--harmony-primary-hover);
-  transform: translateY(-1px);
 }
 
 .users-container {
@@ -622,13 +621,13 @@ onUnmounted(() => {
 .user-item {
   background: var(--background-secondary);
   border: 1px solid var(--border-color);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   padding: 16px;
   transition: all 0.2s ease;
 }
 
 .user-item:hover {
-  background: var(--background-hover);
+  background: var(--background-modifier-hover);
   border-color: var(--border-hover);
 }
 
@@ -653,14 +652,14 @@ onUnmounted(() => {
   padding: 12px 24px;
   background: var(--background-secondary);
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   color: var(--text-primary);
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .load-more-btn:hover:not(:disabled) {
-  background: var(--background-hover);
+  background: var(--background-modifier-hover);
   border-color: var(--border-hover);
 }
 

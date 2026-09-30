@@ -11,7 +11,7 @@
     <div v-if="!permissions.canChangePrivacySettings" class="permission-notice">
       <div class="notice-content">
         <svg class="notice-icon" width="20" height="20" viewBox="0 0 24 24">
-          <path fill="#faa61a" d="M13,14H11V10H13M13,18H11V16H13M1,21H23L12,2L1,21Z"/>
+          <path fill="currentColor" d="M13,14H11V10H13M13,18H11V16H13M1,21H23L12,2L1,21Z"/>
         </svg>
         <div class="notice-text">
           <h4>{{ $t('server.viewOnlyAccess') }}</h4>
@@ -48,7 +48,7 @@
         <div class="info-card federation">
           <div class="info-header">
             <svg class="info-icon" width="20" height="20" viewBox="0 0 24 24">
-              <path fill="#0EA5E9" d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4M12,6A6,6 0 0,1 18,12A6,6 0 0,1 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6Z"/>
+              <path fill="currentColor" d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4M12,6A6,6 0 0,1 18,12A6,6 0 0,1 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6Z"/>
             </svg>
             <h4 class="info-title">{{ $t('server.federationActive', 'Federation Active') }}</h4>
           </div>
@@ -82,9 +82,9 @@
         <div class="disable-federation-warning">
           <div class="warning-header">
             <svg class="warning-icon" width="24" height="24" viewBox="0 0 24 24">
-              <path fill="#ed4245" d="M13,14H11V10H13M13,18H11V16H13M1,21H23L12,2L1,21Z"/>
+              <path fill="currentColor" d="M13,14H11V10H13M13,18H11V16H13M1,21H23L12,2L1,21Z"/>
             </svg>
-            <h3>Disable Federation?</h3>
+            <h3>Disable federation?</h3>
           </div>
           <p class="warning-body">
             This server currently has <strong>{{ federatedMemberCount }}</strong> federated member{{ federatedMemberCount !== 1 ? 's' : '' }}
@@ -98,7 +98,7 @@
           </ul>
           <div class="warning-actions">
             <button class="btn-cancel" @click="cancelDisableFederation">Cancel</button>
-            <button class="btn-confirm-danger" @click="confirmDisableFederation">Disable Federation</button>
+            <button class="btn-confirm-danger" @click="confirmDisableFederation">Disable federation</button>
           </div>
         </div>
       </div>
@@ -134,7 +134,7 @@
         <div class="info-card">
           <div class="info-header">
             <svg class="info-icon" width="20" height="20" viewBox="0 0 24 24">
-              <path fill="#57f287" d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M11,16.5L18,9.5L16.59,8.09L11,13.67L7.41,10.09L6,11.5L11,16.5Z"/>
+              <path fill="currentColor" d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M11,16.5L18,9.5L16.59,8.09L11,13.67L7.41,10.09L6,11.5L11,16.5Z"/>
             </svg>
             <h4 class="info-title">{{ $t('server.publicServerBenefits') }}</h4>
           </div>
@@ -149,7 +149,7 @@
         <div class="warning-card">
           <div class="warning-header">
             <svg class="warning-icon" width="20" height="20" viewBox="0 0 24 24">
-              <path fill="#faa61a" d="M13,14H11V10H13M13,18H11V16H13M1,21H23L12,2L1,21Z"/>
+              <path fill="currentColor" d="M13,14H11V10H13M13,18H11V16H13M1,21H23L12,2L1,21Z"/>
             </svg>
             <h4 class="warning-title">{{ $t('server.importantConsiderations') }}</h4>
           </div>
@@ -166,7 +166,7 @@
         <div class="info-card private">
           <div class="info-header">
             <svg class="info-icon" width="20" height="20" viewBox="0 0 24 24">
-              <path fill="#0EA5E9" d="M18,8A2,2 0 0,1 20,10V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V10A2,2 0 0,1 6,8H7V6A5,5 0 0,1 12,1A5,5 0 0,1 17,6V8H18M12,3A3,3 0 0,0 9,6V8H15V6A3,3 0 0,0 12,3Z"/>
+              <path fill="currentColor" d="M18,8A2,2 0 0,1 20,10V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V10A2,2 0 0,1 6,8H7V6A5,5 0 0,1 12,1A5,5 0 0,1 17,6V8H18M12,3A3,3 0 0,0 9,6V8H15V6A3,3 0 0,0 12,3Z"/>
             </svg>
             <h4 class="info-title">{{ $t('server.privateServer') }}</h4>
           </div>
@@ -364,23 +364,23 @@ const setDiscoveryMode = (mode: 'invite-only' | 'public-directory') => {
 }
 
 .section-title {
-  font-size: 24px;
-  font-weight: 600;
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
   margin: 0 0 8px 0;
 }
 
 .section-description {
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   color: var(--text-secondary);
   margin: 0;
 }
 
 .permission-notice {
   padding: 16px;
-  background-color: rgba(250, 166, 26, 0.1);
-  border: 1px solid rgba(250, 166, 26, 0.3);
-  border-radius: 8px;
+  background-color: color-mix(in srgb, var(--warning) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warning) 30%, transparent);
+  border-radius: var(--radius-md);
 }
 
 .notice-content {
@@ -392,14 +392,14 @@ const setDiscoveryMode = (mode: 'invite-only' | 'public-directory') => {
 .notice-icon {
   flex-shrink: 0;
   margin-top: 2px;
-  color: #faa61a;
+  color: var(--warning);
 }
 
 .notice-text h4 {
   margin: 0 0 4px 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: #faa61a;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--warning);
 }
 
 .notice-text p {
@@ -411,7 +411,7 @@ const setDiscoveryMode = (mode: 'invite-only' | 'public-directory') => {
 
 .settings-card {
   background-color: var(--background-secondary);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 24px;
   border: 1px solid var(--background-quaternary);
 }
@@ -426,16 +426,14 @@ const setDiscoveryMode = (mode: 'invite-only' | 'public-directory') => {
 
 .form-label {
   display: block;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
   margin-bottom: 8px;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
 }
 
 .form-hint {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--text-muted);
   margin-top: 4px;
 }
@@ -515,9 +513,9 @@ input:checked + .toggle-slider:before {
 
 .info-card {
   background-color: var(--surface-inset);
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   padding: 16px;
-  border-left: 4px solid #57f287;
+  border-left: 4px solid var(--success);
 }
 
 .info-card.private,
@@ -533,9 +531,9 @@ input:checked + .toggle-slider:before {
   margin-top: 12px;
   padding: 8px 12px;
   background: color-mix(in srgb, var(--harmony-primary) 10%, transparent);
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   font-size: 13px;
-  color: #8b9dff;
+  color: var(--harmony-primary);
 }
 
 .server-handle-card {
@@ -552,9 +550,9 @@ input:checked + .toggle-slider:before {
 .handle-value {
   flex: 1;
   padding: 8px 12px;
-  background: var(--background-tertiary, rgba(0, 0, 0, 0.2));
-  border: 1px solid var(--border-secondary, rgba(255, 255, 255, 0.1));
-  border-radius: 6px;
+  background: var(--background-tertiary);
+  border: 1px solid var(--border-secondary);
+  border-radius: var(--radius-base);
   font-family: var(--font-mono, monospace);
   font-size: 13px;
   color: var(--text-primary);
@@ -568,10 +566,10 @@ input:checked + .toggle-slider:before {
   padding: 8px 14px;
   background: color-mix(in srgb, var(--harmony-primary) 15%, transparent);
   border: 1px solid color-mix(in srgb, var(--harmony-primary) 40%, transparent);
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   color: var(--harmony-primary);
   font-size: 13px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   cursor: pointer;
   transition: background 0.15s ease;
 }
@@ -594,11 +592,12 @@ input:checked + .toggle-slider:before {
 
 .disable-federation-warning {
   background: var(--background-primary);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   padding: 28px;
   max-width: 480px;
   width: 100%;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--border-primary);
+  box-shadow: var(--shadow-large);
 }
 
 .disable-federation-warning .warning-header {
@@ -610,14 +609,14 @@ input:checked + .toggle-slider:before {
 
 .disable-federation-warning .warning-header h3 {
   margin: 0;
-  font-size: 18px;
-  font-weight: 700;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
   color: var(--text-primary);
 }
 
 .disable-federation-warning .warning-body {
   color: var(--text-secondary);
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   line-height: 1.5;
   margin: 0 0 12px;
 }
@@ -644,38 +643,38 @@ input:checked + .toggle-slider:before {
   padding: 10px 20px;
   background: transparent;
   color: var(--text-secondary);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  font-weight: 500;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .btn-cancel:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--background-modifier-active);
   color: var(--text-primary);
 }
 
 .btn-confirm-danger {
   padding: 10px 20px;
-  background: #ed4245;
-  color: #fff;
+  background: var(--error);
+  color: var(--text-on-primary);
   border: none;
-  border-radius: 8px;
-  font-weight: 600;
+  border-radius: var(--radius-md);
+  font-weight: var(--font-weight-semibold);
   cursor: pointer;
   transition: background 0.2s;
 }
 
 .btn-confirm-danger:hover {
-  background: #d63638;
+  background: var(--error-hover);
 }
 
 .warning-card {
   background-color: var(--surface-inset);
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   padding: 16px;
-  border-left: 4px solid #faa61a;
+  border-left: 4px solid var(--warning);
 }
 
 .info-header,
@@ -688,8 +687,8 @@ input:checked + .toggle-slider:before {
 
 .info-title,
 .warning-title {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
   margin: 0;
 }
@@ -697,6 +696,23 @@ input:checked + .toggle-slider:before {
 .info-icon,
 .warning-icon {
   flex-shrink: 0;
+}
+
+.info-icon {
+  color: var(--success);
+}
+
+.info-card.private .info-icon,
+.info-card.federation .info-icon {
+  color: var(--harmony-primary);
+}
+
+.warning-card .warning-icon {
+  color: var(--warning);
+}
+
+.disable-federation-warning .warning-icon {
+  color: var(--error);
 }
 
 .info-list,
@@ -732,7 +748,7 @@ input:checked + .toggle-slider:before {
   gap: 16px;
   padding: 16px;
   background-color: var(--surface-inset);
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   border: 1px solid var(--background-quaternary);
   cursor: pointer;
   transition: all 0.15s ease;
@@ -747,14 +763,14 @@ input:checked + .toggle-slider:before {
 }
 
 .option-title {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
   margin-bottom: 4px;
 }
 
 .option-description {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--text-muted);
   line-height: 1.4;
 }

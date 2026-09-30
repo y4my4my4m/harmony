@@ -403,7 +403,7 @@ const closeSettings = () => {
 const handleLogout = async () => {
   try {
     await authStore.logout()
-    toast.success('Logged out successfully')
+    toast.success('Logged out')
   } catch (error) {
     debug.error('Error logging out:', error)
     toast.error('Failed to log out')
@@ -434,7 +434,7 @@ const handleProfileUpdate = async (updatedProfile: Partial<User>) => {
       // Note: verified field not included as it's not in UserPresence interface
     })
     
-    toast.success('Profile updated successfully')
+    toast.success('Profile updated')
   } catch (error) {
     debug.error('Error updating profile:', error)
     toast.error('Failed to update profile')
@@ -467,7 +467,7 @@ const handleAvatarUpload = async (file: File) => {
       avatarUrl: normalizedPath || undefined
     })
     
-    toast.success('Avatar updated successfully')
+    toast.success('Avatar updated')
   } catch (error: any) {
     debug.error('Error uploading avatar:', error)
     toast.error(error?.message || 'Failed to upload avatar')
@@ -513,7 +513,7 @@ const handleBannerUpload = async (file: File) => {
       debug.error('Banner broadcast failed (upload still succeeded):', broadcastError)
     }
     
-    toast.success('Banner updated successfully')
+    toast.success('Banner updated')
     debug.log('Banner upload completed successfully')
   } catch (error: any) {
     debug.error('Error uploading banner:', error)
@@ -697,7 +697,7 @@ onUnmounted(() => {
   border: none;
   padding: 8px;
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   transition: background-color 0.15s ease;
 }
 
@@ -727,8 +727,8 @@ onUnmounted(() => {
 
 
 .mobile-title {
-  font-size: 18px;
-  font-weight: 600;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
   margin: 0;
   text-align: center;
@@ -740,7 +740,7 @@ onUnmounted(() => {
   border: none;
   padding: 8px;
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   color: var(--text-secondary);
   display: flex;
   align-items: center;
@@ -770,8 +770,8 @@ onUnmounted(() => {
 }
 
 .settings-title {
-  font-size: 20px;
-  font-weight: 600;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
   margin: 0 0 24px 0;
   padding: 0 8px;
@@ -789,8 +789,8 @@ onUnmounted(() => {
 }
 
 .nav-section-title {
-  font-size: 12px;
-  font-weight: 700;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.02em;
@@ -805,11 +805,11 @@ onUnmounted(() => {
   background: none;
   border: none;
   color: var(--text-secondary);
-  font-size: 14px;
-  font-weight: 500;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
   text-align: left;
   cursor: pointer;
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   transition: all 0.15s ease;
   min-height: 44px; /* Better touch target */
 }
@@ -821,7 +821,7 @@ onUnmounted(() => {
 
 .nav-item.active {
   background-color: var(--harmony-primary);
-  color: var(--text-on-primary, #ffffff);
+  color: var(--text-on-primary);
 }
 
 .nav-icon {
@@ -841,11 +841,11 @@ onUnmounted(() => {
   min-width: 18px;
   height: 18px;
   padding: 0 6px;
-  border-radius: 9px;
+  border-radius: var(--radius-full);
   background: var(--harmony-primary);
-  color: var(--text-primary, #ffffff);
+  color: var(--text-on-primary);
   font-size: 11px;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   line-height: 1;
 }
 
@@ -853,17 +853,17 @@ onUnmounted(() => {
   /* Already inside a primary-colored active nav item; flip to a neutral
      pill so the badge stays visible against the accent background. */
   background: rgba(255, 255, 255, 0.22);
-  color: var(--text-on-primary, #ffffff);
+  color: var(--text-on-primary);
 }
 
 .logout-btn {
-  color: #ed4245 !important;
+  color: var(--error) !important;
   margin-top: 16px;
 }
 
 .logout-btn:hover {
-  background-color: rgba(237, 66, 69, 0.1) !important;
-  color: #ed4245 !important;
+  background-color: color-mix(in srgb, var(--error) 10%, transparent) !important;
+  color: var(--error) !important;
 }
 
 /* Main Content */
@@ -889,7 +889,7 @@ onUnmounted(() => {
   height: 36px;
   border-radius: 50%;
   border: none;
-  background-color: rgba(79, 84, 92, 0.12);
+  background-color: var(--background-modifier-hover);
   color: var(--text-secondary);
   cursor: pointer;
   display: flex;
@@ -900,7 +900,7 @@ onUnmounted(() => {
 }
 
 .settings-close:hover {
-  background-color: rgba(79, 84, 92, 0.24);
+  background-color: var(--background-modifier-active);
   color: var(--text-primary);
 }
 
@@ -954,7 +954,7 @@ onUnmounted(() => {
   }
   
   .settings-title {
-    font-size: 18px;
+    font-size: var(--font-size-lg);
   }
 
   /* Hide desktop close button on mobile */
@@ -995,7 +995,7 @@ onUnmounted(() => {
   }
 
   .mobile-title {
-    font-size: 16px;
+    font-size: var(--font-size-base);
   }
 }
 
