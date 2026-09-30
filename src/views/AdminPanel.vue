@@ -41,7 +41,6 @@
         <div class="module-header">
           <Icon name="dashboard" :size="20" />
           <h2>System overview</h2>
-          <div class="uptime">{{ formatUptime(systemStats.uptime) }}</div>
         </div>
         <div class="stats-grid">
           <div class="stat-card">
@@ -71,7 +70,6 @@
             <div class="stat-content">
               <div class="stat-value">{{ systemStats.federatedInstances }}</div>
               <div class="stat-label">Federated instances</div>
-              <div class="stat-change positive">{{ systemStats.federationHealth }}% healthy</div>
             </div>
           </div>
           <div class="stat-card">
@@ -100,7 +98,6 @@
           <div class="metric-card">
             <div class="metric-header">
               <span>Database</span>
-              <div class="metric-status healthy"></div>
             </div>
             <div class="metric-value">{{ systemHealth.database.responseTime }}ms</div>
             <div class="metric-detail">{{ systemHealth.database.connections }} connections</div>
@@ -116,18 +113,9 @@
           <div class="metric-card">
             <div class="metric-header">
               <span>Database size</span>
-              <div class="metric-status healthy"></div>
             </div>
             <div class="metric-value">{{ systemHealth.storage.total }}</div>
             <div class="metric-detail">total size</div>
-          </div>
-          <div class="metric-card placeholder-metric">
-            <div class="metric-header">
-              <span>Memory</span>
-              <div class="metric-status healthy"></div>
-            </div>
-            <div class="metric-value">--</div>
-            <div class="metric-detail">not available via Supabase</div>
           </div>
         </div>
       </div>
@@ -258,13 +246,11 @@ const loading = ref(false)
 
 // System stats
 const systemStats = ref({
-  uptime: 0,
   totalUsers: 0,
   newUsersToday: 0,
   totalServers: 0,
   activeServers: 0,
   federatedInstances: 0,
-  federationHealth: 0,
   totalPosts: 0,
   postsToday: 0
 })
@@ -273,8 +259,7 @@ const systemStats = ref({
 const systemHealth = ref({
   database: { responseTime: 0, connections: 0 },
   federation: { pending: 0, status: 'healthy' },
-  storage: { used: 0, total: '100GB' },
-  memory: { used: 0, total: '16GB' }
+  storage: { used: 0, total: '—' },
 })
 
 
@@ -283,9 +268,6 @@ const systemStatus = computed(() => {
   const health = systemHealth.value
   if (health.federation.status === 'error') {
     return { class: 'error', text: 'Federation issues' }
-  }
-  if (health.memory.used > 90) {
-    return { class: 'warning', text: 'High memory usage' }
   }
   return { class: 'healthy', text: 'All systems operational' }
 })
@@ -301,7 +283,6 @@ const federationStatus = computed(() => {
 
 const healthStatus = computed(() => {
   const issues = []
-  if (systemHealth.value.memory.used > 90) issues.push('memory')
   if (systemHealth.value.federation.status === 'error') issues.push('federation')
   
   if (issues.length === 0) return { class: 'healthy', text: 'Healthy' }
@@ -338,27 +319,23 @@ const loadSystemStats = async () => {
     const stats = await adminService.getSystemStats()
     
     systemStats.value = {
-      uptime: stats.uptime || Date.now() - (7 * 24 * 60 * 60 * 1000),
       totalUsers: stats.total_users,
       newUsersToday: stats.newUsersToday || 0,
       totalServers: stats.total_servers,
       activeServers: stats.active_servers,
       federatedInstances: stats.federated_instances,
-      federationHealth: 95, // Mock for now
       totalPosts: stats.total_posts,
       postsToday: stats.postsToday || 0
     }
   } catch (error) {
     debug.error('Failed to load system stats:', error)
     systemStats.value = {
-      uptime: Date.now() - (7 * 24 * 60 * 60 * 1000),
       totalUsers: 0,
       newUsersToday: 0,
       totalServers: 0,
       activeServers: 0,
       federatedInstances: 0,
-      federationHealth: 0,
-      totalPosts: 0,
+          totalPosts: 0,
       postsToday: 0
     }
   }
@@ -372,8 +349,7 @@ const loadSystemHealth = async () => {
     systemHealth.value = {
       database: { responseTime: 0, connections: 0 },
       federation: { pending: 0, status: 'error' },
-      storage: { used: 0, total: '100GB' },
-      memory: { used: 0, total: '16GB' }
+      storage: { used: 0, total: '—' },
     }
   }
 }
@@ -388,13 +364,6 @@ const exportLogs = () => {
 }
 
 // Utility functions
-const formatUptime = (timestamp: number) => {
-  const diff = Date.now() - timestamp
-  const days = Math.floor(diff / (24 * 60 * 60 * 1000))
-  const hours = Math.floor((diff % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000))
-  return `${days}d ${hours}h`
-}
-
 const formatNumber = (num: number | undefined) => {
   if (num === undefined || num === null) return '0'
   if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M'
