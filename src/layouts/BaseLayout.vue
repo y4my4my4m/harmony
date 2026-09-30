@@ -782,7 +782,15 @@ const initializeBackgroundData = async (userId: string, _strategy: any) => {
     const { useNotificationStore } = await import('@/stores/useNotification')
     const notificationStore = useNotificationStore()
     await notificationStore.initializeUnreadCountOnly(userId)
-    
+
+    // Re-registers this browser's push subscription for the signed-in account
+    // without prompting. Tauri has no Web Push.
+    const { isTauriRuntime } = await import('@/services/instanceConfig')
+    if (!isTauriRuntime()) {
+      const { usePushNotifications } = await import('@/composables/usePushNotifications')
+      void usePushNotifications().reconcile()
+    }
+
     const { useUserData } = await import('@/composables/useUserData')
     const userData = useUserData()
     await userData.initializeBackgroundFeatures()

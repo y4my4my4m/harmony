@@ -20,6 +20,10 @@ if (supabaseUrl === 'https://instance-not-selected.invalid' && !isTauriRuntime()
   );
 }
 
+// For requests that must outlive the page (fetch keepalive), which the client cannot issue.
+export const SUPABASE_URL = supabaseUrl;
+export const SUPABASE_ANON_KEY = supabaseAnonKey;
+
 // "Remember me" - session persistence preference.
 //
 // Supabase's default storage adapter writes the session token to

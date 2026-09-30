@@ -1,25 +1,41 @@
 /**
- * Composable to track and update user's current view context in ephemeral presence
- * This enables database-level notification suppression (Discord-like behavior)
- * Uses Supabase Realtime presence - completely ephemeral, no database table needed
- * 
- * Architecture:
- * - Frontend tracks view context in presence
- * - Database triggers read presence to suppress notifications for active contexts
- * - Session heartbeat syncs to DB for push notification smart delivery
+ * Where this tab is looking, for notification suppression.
+ *
+ * The view goes to device_view_contexts through sync_view_context_from_presence:
+ * send_notification skips a channel or DM a device is viewing, and push checks
+ * whether any device is active. A row counts for 150 s after its last write, so the
+ * context is rewritten every 60 s while the tab is visible, and replaced by 'away'
+ * when the tab hides or has had no input for IDLE_MS.
  */
 
 import { watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { supabase } from '@/supabase'
+import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '@/supabase'
 import { debug } from '@/utils/debug'
 import { viewContextTracker } from '@/services/ViewContextTracker'
 import { sessionHeartbeat } from '@/services/SessionHeartbeat'
 import { authContextService } from '@/services/AuthContextService'
+import { getClientDeviceId } from '@/utils/clientDeviceId'
+
+type ViewType = 'server_channel' | 'dm' | 'activitypub_home' | 'settings' | 'home'
+
+interface SyncedView {
+  viewType: ViewType | 'away'
+  serverId?: string
+  channelId?: string
+  conversationId?: string
+}
+
+const HEARTBEAT_MS = 60_000
+const IDLE_MS = 10 * 60_000
 
 let viewContextChannel: ReturnType<typeof supabase.channel> | null = null
-// eslint-disable-next-line unused-imports/no-unused-vars
-let currentUserId: string | null = null
+let lastView: SyncedView = { viewType: 'home' }
+let away = false
+let lastInputAt = Date.now()
+let heartbeat: ReturnType<typeof setInterval> | null = null
+let accessToken: string | null = null
+let detachListeners: (() => void) | null = null
 
 /**
  * Get the view context presence channel (for use in other modules)
@@ -35,19 +51,120 @@ export function getCurrentViewContext() {
   return viewContextTracker.getCurrentContext()
 }
 
+function rpcArgs(view: SyncedView) {
+  return {
+    p_view_type: view.viewType,
+    p_server_id: view.serverId || null,
+    p_channel_id: view.channelId || null,
+    p_conversation_id: view.conversationId || null,
+    p_device_id: getClientDeviceId(),
+  }
+}
+
+function syncView(view: SyncedView): Promise<void> {
+  return Promise.resolve(supabase.rpc('sync_view_context_from_presence', rpcArgs(view))).then(({ error }) => {
+    if (error) debug.warn('Failed to sync view context to DB:', error)
+  }, (error) => debug.warn('Failed to sync view context to DB:', error))
+}
+
+// A hiding or closing page may be torn down before a normal request completes.
+function syncAwayKeepalive(): void {
+  if (!accessToken) {
+    void syncView({ viewType: 'away' })
+    return
+  }
+  try {
+    void fetch(`${SUPABASE_URL}/rest/v1/rpc/sync_view_context_from_presence`, {
+      method: 'POST',
+      keepalive: true,
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(rpcArgs({ viewType: 'away' })),
+    }).catch(() => {})
+  } catch {
+    void syncView({ viewType: 'away' })
+  }
+}
+
+function setAway(next: boolean, viaKeepalive = false): void {
+  if (away === next) return
+  away = next
+  viewContextTracker.setAttentive(!next)
+  if (next) {
+    if (viaKeepalive) syncAwayKeepalive()
+    else void syncView({ viewType: 'away' })
+  } else {
+    void syncView(lastView)
+  }
+}
+
+function isHidden(): boolean {
+  return typeof document !== 'undefined' && document.visibilityState === 'hidden'
+}
+
+function attachListeners(): void {
+  if (detachListeners || typeof window === 'undefined') return
+
+  const onVisibility = () => {
+    if (isHidden()) {
+      setAway(true, true)
+    } else {
+      lastInputAt = Date.now()
+      setAway(false)
+    }
+  }
+  const onInput = () => {
+    lastInputAt = Date.now()
+    if (away && !isHidden()) setAway(false)
+  }
+  const onPageHide = () => setAway(true, true)
+
+  document.addEventListener('visibilitychange', onVisibility)
+  window.addEventListener('pagehide', onPageHide)
+  const inputEvents = ['pointerdown', 'keydown', 'wheel', 'touchstart'] as const
+  inputEvents.forEach((type) => window.addEventListener(type, onInput, { passive: true, capture: true }))
+
+  heartbeat = setInterval(() => {
+    if (isHidden()) return
+    if (Date.now() - lastInputAt > IDLE_MS) {
+      setAway(true)
+      return
+    }
+    if (!away) void syncView(lastView)
+  }, HEARTBEAT_MS)
+
+  const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+    accessToken = session?.access_token ?? null
+  })
+  void supabase.auth.getSession().then(({ data: { session } }) => {
+    accessToken = session?.access_token ?? accessToken
+  })
+
+  detachListeners = () => {
+    document.removeEventListener('visibilitychange', onVisibility)
+    window.removeEventListener('pagehide', onPageHide)
+    inputEvents.forEach((type) => window.removeEventListener(type, onInput, { capture: true }))
+    if (heartbeat) clearInterval(heartbeat)
+    heartbeat = null
+    data.subscription.unsubscribe()
+  }
+}
+
 /**
- * Update the user's current view context in ephemeral presence
- * Called when navigating to channels/DMs to suppress notifications
+ * Records the view this tab shows: local suppression immediately, then presence
+ * and the database. A hidden or idle tab keeps reporting 'away' until it is used.
  */
 export async function updateViewContext(
-  viewType: 'server_channel' | 'dm' | 'activitypub_home' | 'settings' | 'home',
+  viewType: ViewType,
   serverId?: string,
   channelId?: string,
   conversationId?: string
 ): Promise<void> {
   try {
-    // Update local tracker FIRST so client-side notification suppression
-    // works immediately, before any async network calls complete
+    // Local tracker first: client-side suppression must not wait for the network.
     viewContextTracker.updateContext({
       view_type: viewType === 'activitypub_home' ? 'home' : viewType,
       server_id: serverId,
@@ -55,11 +172,22 @@ export async function updateViewContext(
       conversation_id: conversationId
     })
 
+    lastView = { viewType, serverId, channelId, conversationId }
+    attachListeners()
+    // Navigation is input; a tab that shows a new view is not idle.
+    lastInputAt = Date.now()
+    if (isHidden()) {
+      away = true
+      viewContextTracker.setAttentive(false)
+    } else {
+      away = false
+      viewContextTracker.setAttentive(true)
+    }
+
     if (!viewContextChannel) {
       // Use the cached auth context instead of a fresh network getUser() call.
       const userId = (await authContextService.getCurrentContext()).authUser?.id
       if (!userId) return
-      currentUserId = userId
 
       viewContextChannel = supabase.channel(`view-context:${userId}`)
         .on('presence', { event: 'sync' }, () => {
@@ -72,7 +200,6 @@ export async function updateViewContext(
         })
     }
 
-    // Track current view context in ephemeral presence (async, non-blocking for UI)
     await viewContextChannel.track({
       view_type: viewType,
       server_id: serverId || null,
@@ -81,29 +208,29 @@ export async function updateViewContext(
       updated_at: new Date().toISOString()
     })
 
-    // Sync view context to database so send_notification() can suppress
-    // notifications for the channel/conversation the user is actively viewing
-    supabase.rpc('sync_view_context_from_presence', {
-      p_view_type: viewType,
-      p_server_id: serverId || null,
-      p_channel_id: channelId || null,
-      p_conversation_id: conversationId || null,
-    }).then(({ error }) => {
-      if (error) {
-        debug.warn('Failed to sync view context to DB:', error)
-      }
-    })
+    void syncView(away ? { viewType: 'away' } : lastView)
 
     sessionHeartbeat.updateContext({
       serverId,
       channelId,
       conversationId
     })
-
-    debug.log('View context updated:', { viewType, serverId, channelId, conversationId })
   } catch (error) {
     debug.error('Error updating view context:', error)
   }
+}
+
+/**
+ * Marks this tab away while the session is still valid. Used on sign-out; bounded
+ * so it cannot hold sign-out up.
+ */
+export async function markDeviceAway(timeoutMs = 2000): Promise<void> {
+  away = true
+  viewContextTracker.setAttentive(false)
+  await Promise.race([
+    syncView({ viewType: 'away' }),
+    new Promise(resolve => setTimeout(resolve, timeoutMs)),
+  ])
 }
 
 /**
@@ -118,13 +245,18 @@ export async function initializeSessionHeartbeat(userId: string): Promise<void> 
  * Cleanup view context channel on logout
  */
 export async function cleanupViewContext(): Promise<void> {
+  if (detachListeners) {
+    detachListeners()
+    detachListeners = null
+  }
+  lastView = { viewType: 'home' }
+  away = false
   if (viewContextChannel) {
     await supabase.removeChannel(viewContextChannel)
     viewContextChannel = null
-    currentUserId = null
-    viewContextTracker.reset()
   }
-  
+  viewContextTracker.reset()
+
   await sessionHeartbeat.stop()
 }
 

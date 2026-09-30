@@ -739,6 +739,17 @@ export const useAuthStore = defineStore('auth', {
       }
       this.cleanupOfflineHandlers();
 
+      // Both need the session: this device stops receiving the account's pushes and
+      // stops counting as viewing a channel. Each is bounded, so neither holds up sign-out.
+      await Promise.all([
+        import('@/composables/usePushNotifications')
+          .then(({ usePushNotifications }) => usePushNotifications().detachForLogout())
+          .catch((error) => debug.warn('Push detach failed:', error)),
+        import('@/composables/useViewContext')
+          .then(({ markDeviceAway }) => markDeviceAway())
+          .catch((error) => debug.warn('View context release failed:', error)),
+      ]);
+
       // Null session and sign out FIRST - this makes isLoggedIn false immediately,
       // preventing reactive components from firing queries with stale/undefined data
       // (e.g. user_roles with server_id=undefined, get_supporter_badge after auth gone)
@@ -939,10 +950,7 @@ export const useAuthStore = defineStore('auth', {
         
         Promise.all([
           import('@/stores/useNotification').then(({ useNotificationStore }) => {
-            const notificationStore = useNotificationStore();
-            notificationStore.cleanupBroadcastHandlers();
-            notificationStore.$reset();
-            notificationStore.isInitialized = false;
+            useNotificationStore().resetForLogout();
           }),
           import('@/services/UserEventChannel').then(({ userEventChannel }) => {
             userEventChannel.disconnect();

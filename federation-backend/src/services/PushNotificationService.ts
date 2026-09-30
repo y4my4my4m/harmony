@@ -10,6 +10,13 @@ import { getSupabaseClient } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
 import { getFullAvatarUrl } from '../utils/urlUtils.js';
 import config from '../config/index.js';
+import {
+  PROFILE_STATUS_BUSY,
+  clip,
+  compactPushData,
+  isWithinQuietHours,
+  pushAllowedForType,
+} from './pushPolicy.js';
 
 /**
  * Custom emojis (e.g. `:xp:`) cannot be rendered as images inside a Web Push
@@ -48,27 +55,17 @@ export interface PushSubscriptionData {
   push_offline_only: boolean;
 }
 
-// Maps notification types to the notification_preferences column that controls
-// whether push is sent. Types not listed here fall through to the global
-// push_notifications toggle only.
-const NOTIFICATION_TYPE_PREFERENCES: Record<string, { enabled: string; desktop?: string }> = {
-  mention: { enabled: 'push_mentions' },
-  dm: { enabled: 'push_dms' },
-  reply: { enabled: 'desktop_replies' },
-  reaction: { enabled: 'desktop_reactions' },
-  voice_channel_activity: { enabled: 'sound_voice_activity' },
-  server_invite: { enabled: 'push_notifications' },
-  friend_request: { enabled: 'push_notifications' },
-  server_update: { enabled: 'push_notifications' },
-  activitypub_follow: { enabled: 'activitypub_follows' },
-  activitypub_favorite: { enabled: 'activitypub_favorites' },
-  activitypub_reaction: { enabled: 'activitypub_favorites' },
-  activitypub_reblog: { enabled: 'activitypub_reblogs' },
-  activitypub_mention: { enabled: 'activitypub_mentions' },
-  activitypub_reply: { enabled: 'activitypub_replies' },
-  activitypub_follow_request: { enabled: 'activitypub_follow_requests' },
-  activitypub_follow_accepted: { enabled: 'activitypub_follows' },
-};
+const MAX_ENDPOINT_LENGTH = 2048;
+
+function isValidSubscription(subscription: any): subscription is PushSubscription {
+  return (
+    typeof subscription?.endpoint === 'string' &&
+    /^https:\/\//.test(subscription.endpoint) &&
+    subscription.endpoint.length <= MAX_ENDPOINT_LENGTH &&
+    typeof subscription.keys?.p256dh === 'string' &&
+    typeof subscription.keys?.auth === 'string'
+  );
+}
 
 class PushNotificationServiceClass {
   private isInitialized = false;
@@ -122,40 +119,47 @@ class PushNotificationServiceClass {
   }
 
   /**
-   * Save a push subscription for a user
+   * Registers this browser's subscription for userId.
+   *
+   * An endpoint belongs to one browser profile, so rows holding it with the same auth
+   * secret for another account are removed: a shared browser must not keep receiving the
+   * previous account's pushes. The secret match keeps a caller who knows only the endpoint
+   * URL from detaching another account's device.
+   * previousEndpoint is the endpoint the same browser registered before a rotation or a
+   * VAPID key change; only that row is replaced. Other devices of the user are untouched,
+   * whatever their user agent.
    */
   async saveSubscription(
     userId: string,
     subscription: PushSubscription,
     userAgent?: string,
-    deviceName?: string
+    deviceName?: string,
+    previousEndpoint?: string | null
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      const { endpoint, keys } = subscription;
-      
-      if (!endpoint || !keys?.p256dh || !keys?.auth) {
+      if (!isValidSubscription(subscription)) {
         return { success: false, error: 'Invalid subscription data' };
       }
+      const { endpoint, keys } = subscription;
 
-      // Clean up old subscriptions from the same browser/device
-      // This handles the case where site data was cleared but old subscription exists
-      // We identify "same device" by matching user_agent
-      if (userAgent) {
-        const { data: existingSubs } = await supabaseAdmin
+      const { error: claimError } = await supabaseAdmin
+        .from('push_subscriptions')
+        .delete()
+        .eq('endpoint', endpoint)
+        .eq('auth', keys.auth)
+        .neq('user_id', userId);
+      if (claimError) {
+        logger.warn('Failed to release endpoint from other accounts:', claimError);
+      }
+
+      if (previousEndpoint && previousEndpoint !== endpoint) {
+        const { error: replaceError } = await supabaseAdmin
           .from('push_subscriptions')
-          .select('id, endpoint')
+          .delete()
           .eq('user_id', userId)
-          .eq('user_agent', userAgent)
-          .neq('endpoint', endpoint);
-        
-        if (existingSubs && existingSubs.length > 0) {
-          logger.info(`Cleaning up ${existingSubs.length} old subscription(s) from same device for user ${userId}`);
-          
-          const oldIds = existingSubs.map(s => s.id);
-          await supabaseAdmin
-            .from('push_subscriptions')
-            .delete()
-            .in('id', oldIds);
+          .eq('endpoint', previousEndpoint);
+        if (replaceError) {
+          logger.warn('Failed to remove replaced push subscription:', replaceError);
         }
       }
 
@@ -184,6 +188,52 @@ class PushNotificationServiceClass {
       return { success: true };
     } catch (error) {
       logger.error('Error saving push subscription:', error);
+      return { success: false, error: 'Internal server error' };
+    }
+  }
+
+  /**
+   * Replaces a subscription the browser rotated (pushsubscriptionchange). The service
+   * worker holds no session, so the old endpoint together with its auth secret, known
+   * only to that browser and this server, identifies the row.
+   */
+  async rotateSubscription(
+    oldEndpoint: string,
+    oldAuth: string,
+    subscription: PushSubscription
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      if (!oldEndpoint || !oldAuth || !isValidSubscription(subscription)) {
+        return { success: false, error: 'Invalid subscription data' };
+      }
+
+      const { data: rows, error: lookupError } = await supabaseAdmin
+        .from('push_subscriptions')
+        .select('id, user_id, user_agent, device_name')
+        .eq('endpoint', oldEndpoint)
+        .eq('auth', oldAuth)
+        .order('updated_at', { ascending: false })
+        .limit(1);
+      if (lookupError) {
+        logger.error('Push rotation lookup failed:', lookupError);
+        return { success: false, error: 'Lookup failed' };
+      }
+      const row = rows?.[0];
+      if (!row) {
+        return { success: false, error: 'Unknown subscription' };
+      }
+
+      const result = await this.saveSubscription(
+        row.user_id,
+        subscription,
+        row.user_agent ?? undefined,
+        row.device_name ?? undefined,
+        oldEndpoint
+      );
+      if (result.success) logger.info('Push subscription rotated by the service worker');
+      return result;
+    } catch (error) {
+      logger.error('Error rotating push subscription:', error);
       return { success: false, error: 'Internal server error' };
     }
   }
@@ -427,22 +477,29 @@ class PushNotificationServiceClass {
     }
 
     try {
-      // Check user's notification preferences
       const { data: prefs } = await supabaseAdmin
         .from('notification_preferences')
-        .select('push_notifications, push_offline_only, push_mentions, push_dms')
+        .select('*')
         .eq('user_id', notification.user_id)
         .maybeSingle();
 
-      if (prefs && !prefs.push_notifications) {
-        logger.debug('Push notifications disabled for user');
+      if (!pushAllowedForType(notification.type, prefs)) {
+        logger.debug(`Push disabled by preferences for ${notification.type}`);
         return;
       }
 
-      // Check type-specific preference
-      const typePref = NOTIFICATION_TYPE_PREFERENCES[notification.type];
-      if (typePref && prefs && !prefs[typePref.enabled as keyof typeof prefs]) {
-        logger.debug(`Push disabled for notification type: ${notification.type}`);
+      if (isWithinQuietHours(prefs)) {
+        logger.debug('Skipping push - quiet hours');
+        return;
+      }
+
+      const { data: recipient } = await supabaseAdmin
+        .from('profiles')
+        .select('status')
+        .eq('id', notification.user_id)
+        .maybeSingle();
+      if (recipient?.status === PROFILE_STATUS_BUSY) {
+        logger.debug('Skipping push - recipient is in Do Not Disturb');
         return;
       }
 
@@ -469,8 +526,8 @@ class PushNotificationServiceClass {
 
       const hasActiveSession = await this.hasActiveSession(notification.user_id);
       
-      // If push_offline_only is enabled and user has active session, skip
-      if (prefs?.push_offline_only && hasActiveSession) {
+      // push_offline_only defaults to true, as in notification_preferences.
+      if ((prefs?.push_offline_only ?? true) && hasActiveSession) {
         logger.debug(`Skipping push - user has active session and offline-only is enabled`);
         return;
       }
@@ -655,11 +712,27 @@ class PushNotificationServiceClass {
         title = `${senderName}${senderDomain} sent you a message`;
         message = this.extractContentPreview(data) || 'New direct message';
         break;
-      
+
+      case 'chat_message':
+        title = data.conversation?.name
+          ? `${senderName}${senderDomain} in ${stripEmojiShortcodes(data.conversation.name)}`
+          : `${senderName}${senderDomain} sent a message`;
+        message = this.extractContentPreview(data) || 'New message';
+        break;
+
       case 'reply':
         title = `${senderName}${senderDomain} replied to you`;
         message = this.extractContentPreview(data) || 'New reply';
         break;
+
+      case 'thread_reply': {
+        const channelName = data.location?.channel_name || data.channel_name;
+        title = channelName
+          ? `${senderName}${senderDomain} replied in a thread in #${channelName}`
+          : `${senderName}${senderDomain} replied in a thread`;
+        message = this.extractContentPreview(data) || 'New thread reply';
+        break;
+      }
       
       case 'reaction':
         title = `${senderName}${senderDomain} reacted to your message`;
@@ -730,21 +803,17 @@ class PushNotificationServiceClass {
         ? `harmony-${notification.type}-ch-${channelId}`
         : `harmony-${notification.type}-${notification.id}`;
 
+    const body = clip(message, 240);
     return {
-      title,
-      message,
-      body: message,
+      title: clip(title, 120),
+      message: body,
+      body,
       type: notification.type,
       icon,
       badge: '/img/app_icon_square.webp',
       tag,
       requireInteraction: ['mention', 'dm', 'activitypub_mention'].includes(notification.type),
-      data: {
-        notification_id: notification.id,
-        user_id: notification.user_id,
-        ...data,
-        avatar_url: resolvedAvatar || undefined,
-      }
+      data: compactPushData(notification.id, notification.type, data, resolvedAvatar),
     };
   }
 

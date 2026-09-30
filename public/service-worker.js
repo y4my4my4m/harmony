@@ -1,13 +1,15 @@
 // Service worker: push notifications and PWA caching.
-// Version 3.5 - canonical imgproxy transform sizes; stale-while-revalidate
-// cache for emoji/avatar/server icon/banner/attachment render URLs.
+// Version 3.6 - notification dedupe by id, pushsubscriptionchange renewal,
+// click-through via the payload url, pending reads for closed apps.
 
 const CACHE_NAME = 'harmony-v5-mobile'
-const NOTIFICATION_CACHE = 'harmony-notifications-v2'
 const STATIC_CACHE = 'harmony-static-v3'
 const API_CACHE = 'harmony-api-v3'
 const EMOJI_CACHE = 'harmony-emoji-v2'
 const TRANSFORM_CACHE = 'harmony-transform-v1'
+// Notification bookkeeping, not HTTP responses. Keys encode their timestamp.
+const NOTIF_STATE_CACHE = 'harmony-notif-state-v1'
+const SW_VERSION = '3.6'
 
 const STATIC_RESOURCES = [
   '/',
@@ -37,10 +39,10 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME && 
-              cacheName !== STATIC_CACHE && 
-              cacheName !== API_CACHE && 
-              cacheName !== NOTIFICATION_CACHE &&
+          if (cacheName !== CACHE_NAME &&
+              cacheName !== STATIC_CACHE &&
+              cacheName !== API_CACHE &&
+              cacheName !== NOTIF_STATE_CACHE &&
               cacheName !== EMOJI_CACHE &&
               cacheName !== TRANSFORM_CACHE) {
             console.log('Service Worker: Deleting old cache:', cacheName)
@@ -60,122 +62,207 @@ self.addEventListener('activate', (event) => {
 
 // Fetch handler and caching strategies are defined further down.
 
+// Notification bookkeeping ---------------------------------------------------
+//
+// shown:    ids already displayed, so a push and the app's own system notification
+//           for the same row alert once. Kept for SHOWN_TTL_MS.
+// read:     ids clicked or marked read while no window could take the write; the app
+//           drains them after sign-in.
+
+const SHOWN_TTL_MS = 24 * 60 * 60 * 1000
+const recentlyShown = new Map()
+
+function stateKey(kind, id, stamp) {
+  return `${self.registration.scope}__notif/${kind}/${encodeURIComponent(id)}?t=${stamp}`
+}
+
+function stampOf(request) {
+  return Number(new URL(request.url).searchParams.get('t')) || 0
+}
+
+async function pruneState(cache) {
+  const cutoff = Date.now() - SHOWN_TTL_MS
+  const keys = await cache.keys()
+  await Promise.all(keys
+    .filter((request) => request.url.includes('__notif/shown/') && stampOf(request) < cutoff)
+    .map((request) => cache.delete(request)))
+}
+
+// The in-memory claim is taken before the first await: two events racing inside one
+// worker instance see it. The cache covers a restarted worker.
+async function claimShown(id) {
+  if (!id) return true
+  const now = Date.now()
+  for (const [key, at] of recentlyShown) {
+    if (now - at > SHOWN_TTL_MS) recentlyShown.delete(key)
+  }
+  if (recentlyShown.has(id)) return false
+  recentlyShown.set(id, now)
+  try {
+    const cache = await caches.open(NOTIF_STATE_CACHE)
+    if (await cache.match(stateKey('shown', id, 0), { ignoreSearch: true })) return false
+    await cache.put(stateKey('shown', id, now), new Response(''))
+    pruneState(cache).catch(() => {})
+  } catch (e) {
+    // Cache Storage unavailable; the in-memory claim stands.
+  }
+  return true
+}
+
+function notificationIdOf(data) {
+  return (data && (data.notification_id || data.notificationId)) || null
+}
+
+async function queuePendingRead(data) {
+  const id = notificationIdOf(data)
+  if (!id) return
+  try {
+    const cache = await caches.open(NOTIF_STATE_CACHE)
+    await cache.put(stateKey('read', id, Date.now()), new Response(''))
+  } catch (e) {
+    // Lost only if no window ever opens; the route visit also clears it.
+  }
+}
+
+async function showOnce(title, options) {
+  const id = notificationIdOf(options.data)
+  if (!(await claimShown(id))) return false
+  await self.registration.showNotification(title, options)
+  await updateBadgeCount()
+  return true
+}
+
+function isSameOrigin(client) {
+  try {
+    return new URL(client.url).origin === self.location.origin
+  } catch {
+    return false
+  }
+}
+
+async function windowClients() {
+  const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+  return all.filter(isSameOrigin)
+}
+
+// Push -----------------------------------------------------------------------
+
 // event.waitUntil() must be called synchronously, before any await, or the
 // browser may terminate the worker before the notification is shown.
 self.addEventListener('push', (event) => {
-  console.log('Service Worker: Push event received', event)
-  
-  if (!event.data) {
-    console.log('Service Worker: No data in push event')
-    return
-  }
-
+  if (!event.data) return
   event.waitUntil(handlePushEvent(event))
 })
 
 async function handlePushEvent(event) {
+  let payload
   try {
-    const data = event.data.json()
-    console.log('Service Worker: Notification data:', data)
+    payload = event.data.json()
+  } catch {
+    payload = { title: 'Harmony', body: event.data.text() }
+  }
+  const data = payload.data || {}
 
-    // A focused window already raises desktop notifications from the
-    // realtime subscription.
-    const windowClients = await self.clients.matchAll({ type: 'window', includeUncontrolled: false })
-    const hasFocusedClient = windowClients.some(client => client.focused)
-    if (hasFocusedClient) {
-      console.log('Service Worker: App is focused, skipping push notification')
-      return
-    }
+  try {
+    // A focused window shows its own toast from the realtime event. Uncontrolled
+    // windows count: a page loaded before this worker activated is still the app.
+    const clients = await windowClients()
+    if (clients.some((client) => client.focused)) return
 
-    const notificationOptions = {
-      body: data.message || data.body,
-      icon: data.data?.avatar_url || data.icon || '/favicon/android-icon-192x192.png',
+    await showOnce(payload.title || getDefaultTitle(payload.type), {
+      body: payload.message || payload.body || '',
+      icon: data.avatar_url || payload.icon || '/favicon/android-icon-192x192.png',
       badge: '/img/app_icon_badge.png',
-      tag: data.tag || (data.data?.conversation_id
-        ? `harmony-${data.type}-conv-${data.data.conversation_id}`
-        : data.data?.channel_id
-          ? `harmony-${data.type}-ch-${data.data.channel_id}`
-          : `harmony-${data.type}-${data.data?.user_id || 'unknown'}`),
+      tag: payload.tag || fallbackTag(payload.type, data),
       renotify: true,
-      data: data.data || {},
-      requireInteraction: ['mention', 'dm', 'reply', 'friend_request', 'server_invite'].includes(data.type),
+      data,
+      requireInteraction: ['mention', 'dm', 'reply', 'friend_request', 'server_invite'].includes(payload.type),
       silent: false,
       timestamp: Date.now(),
-      actions: getNotificationActions(data.type),
-      image: data.data?.image_url,
-      vibrate: getVibrationPattern(data.type),
-      color: '#0EA5E9'
-    }
-
-    await storeNotification(data)
-
-    // Badging API works from the worker on Android Chrome.
-    try {
-      const notifications = await self.registration.getNotifications()
-      const badgeCount = notifications.length + 1
-      if (navigator.setAppBadge) {
-        await navigator.setAppBadge(badgeCount)
-      }
-    } catch (e) {
-      // Badging API unsupported here.
-    }
-
-    const title = data.title || getDefaultTitle(data.type)
-    await self.registration.showNotification(title, notificationOptions)
-
+      actions: getNotificationActions(payload.type),
+      vibrate: getVibrationPattern(payload.type),
+    })
   } catch (error) {
     console.error('Service Worker: Error handling push event:', error)
   }
 }
 
+function fallbackTag(type, data) {
+  if (data.conversation_id) return `harmony-${type}-conv-${data.conversation_id}`
+  if (data.channel_id) return `harmony-${type}-ch-${data.channel_id}`
+  return `harmony-${type}-${notificationIdOf(data) || Date.now()}`
+}
+
+// The browser rotated or expired the subscription. Renew it with the same key and
+// hand the server the old endpoint plus its auth secret as proof of ownership. When
+// no key is available the app renews it on its next reconcile.
+self.addEventListener('pushsubscriptionchange', (event) => {
+  event.waitUntil(handleSubscriptionChange(event))
+})
+
+async function handleSubscriptionChange(event) {
+  const previous = event.oldSubscription ? event.oldSubscription.toJSON() : null
+  let next = event.newSubscription || null
+  try {
+    const key = event.oldSubscription && event.oldSubscription.options
+      ? event.oldSubscription.options.applicationServerKey
+      : null
+    if (!next && key) {
+      next = await self.registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key })
+    }
+    if (next && previous && previous.endpoint && previous.keys && previous.keys.auth) {
+      await fetch('/api/federation/push/resubscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          oldEndpoint: previous.endpoint,
+          oldAuth: previous.keys.auth,
+          subscription: next.toJSON(),
+        }),
+      })
+    }
+  } catch (error) {
+    console.warn('Service Worker: push subscription renewal failed:', error)
+  }
+  const clients = await windowClients()
+  clients.forEach((client) => client.postMessage({ type: 'PUSH_SUBSCRIPTION_CHANGED' }))
+}
+
+// Clicks ---------------------------------------------------------------------
+
 self.addEventListener('notificationclick', (event) => {
-  console.log('Service Worker: Notification clicked', event)
   event.notification.close()
   event.waitUntil(handleNotificationClick(event))
 })
 
 async function handleNotificationClick(event) {
-  const data = event.notification.data
+  const data = event.notification.data || {}
   const action = event.action
 
   await updateBadgeCount()
 
   if (action === 'reply' && (data.conversation_id || data.server_id)) {
-    const replyText = event.reply || null
-    return handleQuickReply(data, replyText)
+    return handleQuickReply(data, event.reply || null)
   }
+
+  if (action === 'dismiss') return
+
+  await queuePendingRead(data)
+  const clients = await windowClients()
 
   if (action === 'mark_read') {
-    return markAsRead(data)
-  }
-
-  if (action === 'dismiss') {
+    clients.forEach((client) => client.postMessage({ type: 'MARK_NOTIFICATION_READ', data }))
     return
   }
 
-  // Default click: focus an existing same-origin window and navigate it in
-  // place; open a new window only when none exists.
   const url = getNavigationUrl(data)
-  const clientList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
-  const sameOriginClients = clientList.filter(client => {
-    try {
-      return new URL(client.url).origin === self.location.origin
-    } catch {
-      return false
-    }
-  })
-  const harmonyClient = sameOriginClients.find(client => client.focused) || sameOriginClients[0]
-
-  if (harmonyClient) {
-    await harmonyClient.focus()
-    return harmonyClient.postMessage({
-      type: 'NAVIGATE_TO_NOTIFICATION',
-      data: data,
-      url: url
-    })
-  } else {
-    return self.clients.openWindow(url)
+  const target = clients.find((client) => client.focused) || clients[0]
+  if (target) {
+    await target.focus().catch(() => {})
+    target.postMessage({ type: 'NAVIGATE_TO_NOTIFICATION', data, url })
+    return
   }
+  return self.clients.openWindow(url)
 }
 
 // Swipe-away also lands here.
@@ -183,8 +270,11 @@ self.addEventListener('notificationclose', (event) => {
   event.waitUntil(updateBadgeCount())
 })
 
+// An open window sets the badge to its unread count; the displayed-notification
+// count stands in only while no window exists.
 async function updateBadgeCount() {
   try {
+    if ((await windowClients()).length > 0) return
     const notifications = await self.registration.getNotifications()
     if (navigator.setAppBadge) {
       if (notifications.length > 0) {
@@ -198,64 +288,98 @@ async function updateBadgeCount() {
   }
 }
 
-self.addEventListener('sync', (event) => {
-  console.log('Service Worker: Background sync event', event.tag)
-  
-  if (event.tag === 'send-notification') {
-    event.waitUntil(processPendingNotifications())
-  }
-})
+// Messages -------------------------------------------------------------------
 
 self.addEventListener('message', (event) => {
-  console.log('Service Worker: Received message', event.data)
-  
-  switch (event.data.type) {
+  const message = event.data || {}
+  switch (message.type) {
     case 'SKIP_WAITING':
       // Sole path to activation; the install handler never skips waiting.
-      console.log('Service Worker: Manual skip waiting requested')
       self.skipWaiting()
       break
     case 'GET_VERSION':
-      event.ports[0]?.postMessage({
-        version: '3.5',
-        updated: new Date().toISOString()
-      })
+      event.ports[0]?.postMessage({ version: SW_VERSION, updated: new Date().toISOString() })
       break
-    // PREFETCH_CRITICAL, UPDATE_NOTIFICATION_SETTINGS and CLEAR_NOTIFICATIONS
-    // log only; no implementation behind them.
-    case 'PREFETCH_CRITICAL':
-      console.log('Service Worker: Prefetch critical resources requested')
-      break
-    case 'UPDATE_NOTIFICATION_SETTINGS':
-      console.log('Service Worker: Notification settings updated')
-      break
-    case 'CLEAR_NOTIFICATIONS':
-      console.log('Service Worker: Clearing notifications')
+    case 'SHOW_NOTIFICATION':
+      // The app's own system notification, deduplicated against pushes by id. The
+      // reply tells the page this worker handled it.
+      if (message.title && message.options) {
+        event.waitUntil(showOnce(message.title, message.options)
+          .catch((error) => console.error('Service Worker: Error showing notification:', error))
+          .finally(() => event.ports?.[0]?.postMessage({ handled: true })))
+      }
       break
     case 'DISMISS_NOTIFICATIONS':
-      // Matches by notificationId, tag, conversation or channel; used for
-      // cross-device dismissal.
-      event.waitUntil(handleDismissNotifications(event.data))
+      event.waitUntil(handleDismissNotifications(message))
+      break
+    case 'TAKE_PENDING_READS':
+      event.waitUntil(takePendingReads(event))
+      break
+    case 'PREFETCH_CRITICAL':
+    case 'UPDATE_NOTIFICATION_SETTINGS':
+    case 'CLEAR_NOTIFICATIONS':
       break
     default:
-      console.log('Service Worker: Unknown message type:', event.data.type)
+      console.log('Service Worker: Unknown message type:', message.type)
   }
 })
+
+// Replies on event.ports[0] with the queued ids and forgets them.
+async function takePendingReads(event) {
+  const port = event.ports && event.ports[0]
+  let ids = []
+  try {
+    const cache = await caches.open(NOTIF_STATE_CACHE)
+    const keys = (await cache.keys()).filter((request) => request.url.includes('__notif/read/'))
+    ids = keys.map((request) => decodeURIComponent(new URL(request.url).pathname.split('/').pop()))
+    await Promise.all(keys.map((request) => cache.delete(request)))
+  } catch (e) {
+    ids = []
+  }
+  if (port) port.postMessage({ ids })
+}
+
+// Matches by notification id, tag, conversation or channel; `all` closes everything.
+async function handleDismissNotifications(criteria) {
+  try {
+    const ids = new Set(criteria.notificationIds || (criteria.notificationId ? [criteria.notificationId] : []))
+    const notifications = await self.registration.getNotifications()
+    let dismissed = 0
+
+    for (const notification of notifications) {
+      const id = notificationIdOf(notification.data)
+      const matches = criteria.all === true ||
+        (id && ids.has(id)) ||
+        (criteria.tag && notification.tag === criteria.tag) ||
+        (criteria.conversationId && notification.tag?.includes(`conv-${criteria.conversationId}`)) ||
+        (criteria.channelId && notification.tag?.includes(`ch-${criteria.channelId}`)) ||
+        (Array.isArray(criteria.keepIds) && id && !criteria.keepIds.includes(id))
+
+      if (matches) {
+        notification.close()
+        dismissed++
+      }
+    }
+
+    if (dismissed > 0) await updateBadgeCount()
+  } catch (error) {
+    console.error('Service Worker: Error dismissing notifications:', error)
+  }
+}
 
 // Helper functions
 function getNotificationActions(type) {
   const baseActions = [
-    { action: 'mark_read', title: 'Mark as Read', icon: '/icons/check.png' },
-    { action: 'dismiss', title: 'Dismiss', icon: '/icons/close.png' }
+    { action: 'mark_read', title: 'Mark as read' },
+    { action: 'dismiss', title: 'Dismiss' }
   ]
 
-  if (type === 'dm' || type === 'mention' || type === 'reply') {
+  if (type === 'dm' || type === 'chat_message' || type === 'mention' || type === 'reply') {
     baseActions.unshift({
       action: 'reply',
-      title: 'Quick Reply',
+      title: 'Reply',
       type: 'text',
-      placeholder: 'Type a reply...',
-      icon: '/icons/reply.png'
+      placeholder: 'Type a reply...'
     })
   }
 
@@ -266,14 +390,13 @@ function getVibrationPattern(type) {
   switch (type) {
     case 'mention':
     case 'dm':
+    case 'chat_message':
       return [300, 100, 300, 100, 300]
     case 'reply':
+    case 'thread_reply':
       return [200, 100, 200, 100, 200]
     case 'reaction':
       return [150, 50, 150]
-    case 'friend_request':
-    case 'server_invite':
-      return [200, 100, 200]
     default:
       return [200, 100, 200]
   }
@@ -282,63 +405,37 @@ function getVibrationPattern(type) {
 function getDefaultTitle(type) {
   switch (type) {
     case 'mention': return 'You were mentioned'
-    case 'dm': return 'New message'
+    case 'dm':
+    case 'chat_message': return 'New message'
     case 'reaction': return 'Someone reacted'
-    case 'reply': return 'New reply'
+    case 'reply':
+    case 'thread_reply': return 'New reply'
     case 'server_invite': return 'Server invitation'
     case 'voice_channel_activity': return 'Voice activity'
     default: return 'Harmony'
   }
 }
 
+// Payloads from this backend carry `url`; the id-based fallback covers payloads
+// queued by an older backend. Only same-origin paths are opened.
 function getNavigationUrl(data) {
-  const baseUrl = self.location.origin
+  const origin = self.location.origin
 
-  // The notification store pre-computes `url`; it may be absolute or relative.
   if (data.url) {
-    return data.url.startsWith('/') ? `${baseUrl}${data.url}` : data.url
-  }
-
-  // Backend push payloads carry ids instead, under different field names.
-  if (data.conversation_id) {
-    let url = `${baseUrl}/dm/${data.conversation_id}`
-    if (data.message_id) {
-      url += `?messageId=${encodeURIComponent(data.message_id)}`
+    try {
+      const target = new URL(data.url, origin)
+      if (target.origin === origin) return target.href
+    } catch (e) {
+      // Malformed url; fall through to the ids.
     }
-    return url
   }
 
-  if (data.server_id && data.channel_id) {
-    let url = `${baseUrl}/chat/${data.server_id}/${data.channel_id}`
-    if (data.message_id) {
-      url += `?messageId=${encodeURIComponent(data.message_id)}`
-    }
-    return url
-  }
-
-  if (data.server_id) {
-    return `${baseUrl}/chat/${data.server_id}`
-  }
-
-  return baseUrl
-}
-
-async function storeNotification(data) {
-  try {
-    const cache = await caches.open(NOTIFICATION_CACHE)
-    const key = `notification-${Date.now()}-${Math.random()}`
-    
-    await cache.put(
-      new Request(key),
-      new Response(JSON.stringify({
-        ...data,
-        timestamp: Date.now(),
-        read: false
-      }))
-    )
-  } catch (error) {
-    console.error('Service Worker: Error storing notification:', error)
-  }
+  const query = data.message_id ? `?messageId=${encodeURIComponent(data.message_id)}` : ''
+  if (data.conversation_id) return `${origin}/dm/${data.conversation_id}${query}`
+  if (data.server_id && data.thread_id) return `${origin}/chat/${data.server_id}/thread/${data.thread_id}${query}`
+  if (data.server_id && data.channel_id) return `${origin}/chat/${data.server_id}/${data.channel_id}${query}`
+  if (data.post_id) return `${origin}/social/post/${data.post_id}`
+  return `${origin}/chat`
 }
 
 // Quick-reply queue (IndexedDB)
@@ -419,74 +516,6 @@ async function handleQuickReply(data, replyText) {
   } catch (error) {
     console.error('Service Worker: Error handling quick reply:', error)
   }
-}
-
-async function markAsRead(data) {
-  try {
-    const clients = await self.clients.matchAll({ type: 'window' })
-    clients.forEach(client => {
-      client.postMessage({
-        type: 'MARK_NOTIFICATION_READ',
-        data: data
-      })
-    })
-  } catch (error) {
-    console.error('Service Worker: Error marking as read:', error)
-  }
-}
-
-async function processPendingNotifications() {
-  try {
-    const cache = await caches.open(NOTIFICATION_CACHE)
-    const requests = await cache.keys()
-    
-    for (const request of requests) {
-      const response = await cache.match(request)
-      const data = await response.json()
-      
-      if (!data.processed) {
-        await processNotification(data)
-        
-        await cache.put(
-          request,
-          new Response(JSON.stringify({ ...data, processed: true }))
-        )
-      }
-    }
-  } catch (error) {
-    console.error('Service Worker: Error processing pending notifications:', error)
-  }
-}
-
-async function handleDismissNotifications(data) {
-  try {
-    const notifications = await self.registration.getNotifications()
-    let dismissed = 0
-    
-    for (const notification of notifications) {
-      const matchesId = data.notificationId && notification.data?.notificationId === data.notificationId
-      const matchesTag = data.tag && notification.tag === data.tag
-      const matchesConversation = data.conversationId && notification.tag?.includes(`conv-${data.conversationId}`)
-      const matchesChannel = data.channelId && notification.tag?.includes(`ch-${data.channelId}`)
-      
-      if (matchesId || matchesTag || matchesConversation || matchesChannel) {
-        notification.close()
-        dismissed++
-      }
-    }
-    
-    if (dismissed > 0) {
-      console.log(`Service Worker: Dismissed ${dismissed} notification(s) via cross-device sync`)
-      await updateBadgeCount()
-    }
-  } catch (error) {
-    console.error('Service Worker: Error dismissing notifications:', error)
-  }
-}
-
-async function processNotification(data) {
-  // Logging only; no processing implemented.
-  console.log('Service Worker: Processing notification:', data)
 }
 
 // Install and activate listeners are at the top of the file.

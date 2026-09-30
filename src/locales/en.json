@@ -1119,6 +1119,46 @@
     "custom": "Custom",
     "noResults": "No emoji found"
   },
+  "inbox": {
+    "title": "Notifications",
+    "bellLabel": "Notifications",
+    "bellLabelUnread": "Notifications, {count} unread",
+    "newCount": "{count} new",
+    "tabsLabel": "Filter notifications",
+    "tabLabelUnread": "{tab}, {count} unread",
+    "tabs": {
+      "all": "All",
+      "mentions": "Mentions",
+      "social": "Social"
+    },
+    "unreadOnly": "Unread only",
+    "markAllRead": "Mark all as read",
+    "clearAll": "Clear all",
+    "clearConfirm": "Clear all notifications? This can't be undone.",
+    "settings": "Notification settings",
+    "close": "Close",
+    "markRead": "Mark as read",
+    "markUnread": "Mark as unread",
+    "remove": "Remove",
+    "unread": "Unread",
+    "loadMore": "Show older",
+    "loading": "Loading notifications",
+    "error": "Couldn't load notifications.",
+    "retry": "Try again",
+    "silenced": "Do not disturb is on. Notifications arrive silently.",
+    "accept": "Accept",
+    "reject": "Reject",
+    "empty": {
+      "all": "You're all caught up",
+      "allHint": "Mentions, replies and messages show up here.",
+      "mentions": "No mentions",
+      "mentionsHint": "When someone mentions or replies to you, it shows up here.",
+      "social": "No social notifications",
+      "socialHint": "Follows, likes and boosts from the fediverse show up here.",
+      "unread": "Nothing unread",
+      "unreadHint": "Read notifications stay under All."
+    }
+  },
   "time": {
     "now": "now",
     "justNow": "just now",

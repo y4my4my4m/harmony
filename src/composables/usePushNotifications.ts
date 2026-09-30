@@ -1,15 +1,25 @@
 /**
  * Web Push subscription management.
- * Requires iOS 16.4+ (installed PWA only); Android and desktop browsers work directly.
+ *
+ * The browser owns the PushSubscription; the server keeps one row per (account,
+ * endpoint). This device's last registered endpoint and VAPID key are kept in
+ * localStorage so a rotated, expired or re-keyed subscription is replaced
+ * silently on the next reconcile instead of asking the user to set push up again.
+ * Only a revoked permission needs the user.
+ *
+ * iOS delivers Web Push only to an installed PWA (16.4+).
  */
 
 import { ref, computed } from 'vue'
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
 import { isPWA } from '@/utils/pwaUtils'
+import { apiUrl } from '@/services/instanceConfig'
 
-// Federation backend base path (proxied via nginx)
-const FEDERATION_BACKEND_URL = '/api/federation'
+const PUSH_BASE = '/api/federation/push'
+const DEVICE_KEY = 'harmony.push.device'
+// Server-side get_user_push_subscriptions skips rows at this failure count.
+const MAX_SERVER_FAILURES = 5
 
 const isSupported = ref(false)
 const isSubscribed = ref(false)
@@ -17,11 +27,12 @@ const isLoading = ref(false)
 const permission = ref<NotificationPermission>('default')
 const vapidPublicKey = ref<string | null>(null)
 const subscriptions = ref<PushSubscriptionInfo[]>([])
+const currentEndpoint = ref<string | null>(null)
 const error = ref<string | null>(null)
 
-// Guards against duplicate initialize() API calls.
-let isInitializing = false
-let isInitialized = false
+let initPromise: Promise<void> | null = null
+let reconcilePromise: Promise<void> | null = null
+let permissionWatchAttached = false
 
 export interface PushSubscriptionInfo {
   id: string
@@ -33,14 +44,75 @@ export interface PushSubscriptionInfo {
   failure_count: number
 }
 
+export interface DeviceRecord {
+  endpoint: string
+  vapidKey: string
+}
+
+export type ReconcileAction =
+  | { kind: 'none' }
+  | { kind: 'register'; previousEndpoint?: string }
+  | { kind: 'resubscribe'; previousEndpoint?: string }
+  | { kind: 'forget' }
+
+export interface ReconcileInput {
+  permission: NotificationPermission
+  /** keyMatches is false when the subscription was made with another VAPID key. */
+  subscription: { endpoint: string; keyMatches: boolean } | null
+  stored: DeviceRecord | null
+  /** endpoint -> failure_count for the signed-in account; null when the list is unavailable. */
+  serverEndpoints: Map<string, number> | null
+}
+
+/**
+ * What this device needs so that pushes reach it, given browser, local and server
+ * state. Never asks for permission: 'resubscribe' runs only under a granted one.
+ */
+export function decideReconcile(input: ReconcileInput): ReconcileAction {
+  const { subscription, stored, serverEndpoints } = input
+
+  if (input.permission === 'denied') return stored ? { kind: 'forget' } : { kind: 'none' }
+  if (input.permission !== 'granted') return { kind: 'none' }
+
+  if (!subscription) {
+    return stored ? { kind: 'resubscribe', previousEndpoint: stored.endpoint } : { kind: 'none' }
+  }
+  if (!subscription.keyMatches) {
+    return { kind: 'resubscribe', previousEndpoint: subscription.endpoint }
+  }
+
+  const previousEndpoint = stored && stored.endpoint !== subscription.endpoint ? stored.endpoint : undefined
+  if (previousEndpoint) return { kind: 'register', previousEndpoint }
+  if (!serverEndpoints) return { kind: 'register' }
+
+  const failures = serverEndpoints.get(subscription.endpoint)
+  if (failures === undefined || failures >= MAX_SERVER_FAILURES) return { kind: 'register' }
+  return { kind: 'none' }
+}
+
+export function readDeviceRecord(): DeviceRecord | null {
+  try {
+    const raw = localStorage.getItem(DEVICE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    return typeof parsed?.endpoint === 'string' && typeof parsed?.vapidKey === 'string' ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+function writeDeviceRecord(record: DeviceRecord | null): void {
+  try {
+    if (record) localStorage.setItem(DEVICE_KEY, JSON.stringify(record))
+    else localStorage.removeItem(DEVICE_KEY)
+  } catch {
+    // Storage unavailable; the next reconcile falls back to server state.
+  }
+}
+
 function checkSupport(): boolean {
   if (typeof window === 'undefined') return false
-  
-  const hasServiceWorker = 'serviceWorker' in navigator
-  const hasPushManager = 'PushManager' in window
-  const hasNotification = 'Notification' in window
-  
-  return hasServiceWorker && hasPushManager && hasNotification
+  return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
 }
 
 async function getAuthToken(): Promise<string | null> {
@@ -48,23 +120,38 @@ async function getAuthToken(): Promise<string | null> {
   return session?.access_token || null
 }
 
-/** base64url to Uint8Array, as required by pushManager.subscribe applicationServerKey. */
-function urlBase64ToUint8Array(base64String: string): Uint8Array {
+/** base64url to Uint8Array, as pushManager.subscribe expects for applicationServerKey. */
+export function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = '='.repeat((4 - base64String.length % 4) % 4)
-  const base64 = (base64String + padding)
-    .replace(/-/g, '+')
-    .replace(/_/g, '/')
-
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
   const rawData = window.atob(base64)
   const outputArray = new Uint8Array(rawData.length)
-
-  for (let i = 0; i < rawData.length; ++i) {
-    outputArray[i] = rawData.charCodeAt(i)
-  }
+  for (let i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i)
   return outputArray
 }
 
-/** Carries retryAfter (seconds) when the server responds 429. */
+/**
+ * True unless the subscription provably uses another key. PushSubscription.options
+ * is missing on some engines; the stored key covers those.
+ */
+function subscriptionKeyMatches(sub: PushSubscription, vapidKey: string, stored: DeviceRecord | null): boolean {
+  const key = sub.options?.applicationServerKey
+  if (key) {
+    const a = new Uint8Array(key)
+    const b = urlBase64ToUint8Array(vapidKey)
+    return a.length === b.length && a.every((v, i) => v === b[i])
+  }
+  if (stored && stored.endpoint === sub.endpoint) return stored.vapidKey === vapidKey
+  return true
+}
+
+async function pushFetch(path: string, init: RequestInit = {}, token?: string | null): Promise<Response> {
+  const headers: Record<string, string> = { ...(init.headers as Record<string, string> | undefined) }
+  if (token) headers.Authorization = `Bearer ${token}`
+  if (init.body) headers['Content-Type'] = 'application/json'
+  return fetch(apiUrl(`${PUSH_BASE}${path}`), { ...init, headers })
+}
+
 interface VapidFetchResult {
   publicKey: string | null
   rateLimited?: boolean
@@ -73,33 +160,33 @@ interface VapidFetchResult {
 
 async function fetchVapidKey(): Promise<VapidFetchResult> {
   try {
-    const response = await fetch(`${FEDERATION_BACKEND_URL}/push/vapid-key`)
-
+    const response = await pushFetch('/vapid-key')
     if (response.status === 429) {
       const data = await response.json().catch(() => ({}))
-      return {
-        publicKey: null,
-        rateLimited: true,
-        retryAfter: data.retryAfter || 60
-      }
+      return { publicKey: null, rateLimited: true, retryAfter: data.retryAfter || 60 }
     }
-
-    if (!response.ok) {
-      debug.warn('Push notifications not available on server')
-      return { publicKey: null }
-    }
-
+    if (!response.ok) return { publicKey: null }
     const data = await response.json()
     return { publicKey: data.publicKey || null }
   } catch (err) {
-    debug.error('Failed to fetch VAPID key:', JSON.stringify(err))
+    debug.warn('Failed to fetch VAPID key:', err)
     return { publicKey: null }
   }
 }
 
-async function getCurrentSubscription(): Promise<PushSubscription | null> {
+async function getRegistration(): Promise<ServiceWorkerRegistration | null> {
   try {
-    const registration = await navigator.serviceWorker.ready
+    return await navigator.serviceWorker.ready
+  } catch (err) {
+    debug.error('Service worker not ready:', err)
+    return null
+  }
+}
+
+async function getCurrentSubscription(): Promise<PushSubscription | null> {
+  const registration = await getRegistration()
+  if (!registration) return null
+  try {
     return await registration.pushManager.getSubscription()
   } catch (err) {
     debug.error('Failed to get current subscription:', err)
@@ -107,63 +194,182 @@ async function getCurrentSubscription(): Promise<PushSubscription | null> {
   }
 }
 
-async function subscribe(deviceName?: string): Promise<{ success: boolean; error?: string }> {
+async function fetchSubscriptions(): Promise<boolean> {
+  try {
+    const token = await getAuthToken()
+    if (!token) return false
+    const response = await pushFetch('/subscriptions', {}, token)
+    if (!response.ok) return false
+    const data = await response.json()
+    subscriptions.value = data.subscriptions || []
+    return true
+  } catch (err) {
+    debug.error('Failed to fetch subscriptions:', err)
+    return false
+  }
+}
+
+async function registerWithServer(sub: PushSubscription, previousEndpoint?: string): Promise<void> {
+  const token = await getAuthToken()
+  if (!token) throw new Error('Not authenticated')
+  const response = await pushFetch('/subscribe', {
+    method: 'POST',
+    body: JSON.stringify({ subscription: sub.toJSON(), previousEndpoint }),
+  }, token)
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}))
+    throw new Error(data.error || data.message || `Server error ${response.status}`)
+  }
+  writeDeviceRecord({ endpoint: sub.endpoint, vapidKey: vapidPublicKey.value! })
+  currentEndpoint.value = sub.endpoint
+}
+
+async function createBrowserSubscription(existing: PushSubscription | null): Promise<PushSubscription> {
+  const registration = await getRegistration()
+  if (!registration) throw new Error('Service worker unavailable')
+  if (existing) await existing.unsubscribe().catch(() => false)
+  return registration.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: urlBase64ToUint8Array(vapidPublicKey.value!) as BufferSource,
+  })
+}
+
+function refreshSubscribedFlag(sub: PushSubscription | null): void {
+  currentEndpoint.value = sub?.endpoint ?? null
+  isSubscribed.value = !!sub && subscriptions.value.some(s => s.endpoint === sub.endpoint)
+}
+
+function watchPermission(): void {
+  if (permissionWatchAttached || !navigator.permissions?.query) return
+  permissionWatchAttached = true
+  navigator.permissions.query({ name: 'notifications' as PermissionName }).then((status) => {
+    status.onchange = () => {
+      permission.value = Notification.permission
+      void reconcile()
+    }
+  }).catch(() => {
+    permissionWatchAttached = false
+  })
+}
+
+/**
+ * Loads support, permission, VAPID key and the account's device list. Idempotent;
+ * concurrent callers share one run.
+ */
+async function initialize(): Promise<void> {
+  if (!initPromise) {
+    initPromise = (async () => {
+      error.value = null
+      isSupported.value = checkSupport()
+      if (!isSupported.value) {
+        // Devices can still be managed from a browser that cannot subscribe itself.
+        await fetchSubscriptions()
+        return
+      }
+      permission.value = Notification.permission
+      watchPermission()
+
+      if (!vapidPublicKey.value) {
+        const result = await fetchVapidKey()
+        if (result.rateLimited) {
+          error.value = `Too many requests. Please wait ${result.retryAfter ?? 60} seconds and try again.`
+          initPromise = null
+          return
+        }
+        vapidPublicKey.value = result.publicKey
+      }
+
+      await fetchSubscriptions()
+      refreshSubscribedFlag(await getCurrentSubscription())
+    })().catch((err) => {
+      initPromise = null
+      debug.error('Push initialization failed:', err)
+    })
+  }
+  return initPromise
+}
+
+/**
+ * Brings this device's server registration in line with the browser without any
+ * prompt. Runs after sign-in, on service worker PUSH_SUBSCRIPTION_CHANGED and when
+ * the permission changes.
+ */
+async function reconcile(): Promise<void> {
+  if (reconcilePromise) return reconcilePromise
+  reconcilePromise = (async () => {
+    await initialize()
+    if (!isSupported.value || !vapidPublicKey.value) return
+    if (!(await getAuthToken())) return
+
+    permission.value = Notification.permission
+    const stored = readDeviceRecord()
+    let sub = await getCurrentSubscription()
+    const listed = await fetchSubscriptions()
+
+    const action = decideReconcile({
+      permission: permission.value,
+      subscription: sub ? { endpoint: sub.endpoint, keyMatches: subscriptionKeyMatches(sub, vapidPublicKey.value, stored) } : null,
+      stored,
+      serverEndpoints: listed ? new Map(subscriptions.value.map(s => [s.endpoint, s.failure_count ?? 0])) : null,
+    })
+
+    try {
+      if (action.kind === 'forget') {
+        writeDeviceRecord(null)
+      } else if (action.kind === 'resubscribe') {
+        sub = await createBrowserSubscription(sub)
+        await registerWithServer(sub, action.previousEndpoint)
+        await fetchSubscriptions()
+        debug.log('Push subscription renewed')
+      } else if (action.kind === 'register') {
+        await registerWithServer(sub!, action.previousEndpoint)
+        await fetchSubscriptions()
+        debug.log('Push subscription registered for this account')
+      } else if (sub && !stored) {
+        writeDeviceRecord({ endpoint: sub.endpoint, vapidKey: vapidPublicKey.value })
+      }
+    } catch (err) {
+      debug.warn('Push reconcile failed:', err)
+    }
+    refreshSubscribedFlag(sub)
+  })().finally(() => {
+    reconcilePromise = null
+  })
+  return reconcilePromise
+}
+
+/** Enables push on this device. Prompts for permission only when it is 'default'. */
+async function subscribe(): Promise<{ success: boolean; error?: string }> {
+  await initialize()
   if (!isSupported.value || !vapidPublicKey.value) {
     return { success: false, error: 'Push notifications not supported or not configured' }
   }
 
   isLoading.value = true
   error.value = null
-
   try {
     if (Notification.permission === 'default') {
-      const result = await Notification.requestPermission()
-      permission.value = result
-      
-      if (result !== 'granted') {
-        return { success: false, error: 'Notification permission denied' }
-      }
-    } else if (Notification.permission === 'denied') {
-      return { success: false, error: 'Notification permission denied. Please enable in browser settings.' }
+      permission.value = await Notification.requestPermission()
+    } else {
+      permission.value = Notification.permission
+    }
+    if (permission.value !== 'granted') {
+      return { success: false, error: 'Notification permission denied. Allow notifications for this site in your browser settings.' }
     }
 
-    const registration = await navigator.serviceWorker.ready
-    
-    const subscription = await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(vapidPublicKey.value)
-    })
-
-    const token = await getAuthToken()
-    if (!token) {
-      return { success: false, error: 'Not authenticated' }
+    const stored = readDeviceRecord()
+    let sub = await getCurrentSubscription()
+    let previousEndpoint = stored?.endpoint
+    if (!sub || !subscriptionKeyMatches(sub, vapidPublicKey.value, stored)) {
+      previousEndpoint = sub?.endpoint ?? previousEndpoint
+      sub = await createBrowserSubscription(sub)
     }
-
-    const response = await fetch(`${FEDERATION_BACKEND_URL}/push/subscribe`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({
-        subscription: subscription.toJSON(),
-        deviceName
-      })
-    })
-
-    if (!response.ok) {
-      const data = await response.json()
-      throw new Error(data.error || 'Failed to save subscription')
-    }
-
-    isSubscribed.value = true
-    debug.log('Push notification subscription successful')
-    
+    await registerWithServer(sub, previousEndpoint !== sub.endpoint ? previousEndpoint : undefined)
     await fetchSubscriptions()
-    
+    refreshSubscribedFlag(sub)
     return { success: true }
   } catch (err: any) {
-    error.value = err.message || 'Failed to subscribe to push notifications'
+    error.value = err?.message || 'Failed to subscribe to push notifications'
     debug.error('Push subscription error:', err)
     return { success: false, error: error.value ?? undefined }
   } finally {
@@ -171,60 +377,35 @@ async function subscribe(deviceName?: string): Promise<{ success: boolean; error
   }
 }
 
-/** Unsubscribes the current device, browser-side first, then server-side. */
+/** Disables push on this device only: server row first, then the browser subscription. */
 async function unsubscribe(): Promise<{ success: boolean; error?: string }> {
   isLoading.value = true
   error.value = null
-
   try {
-    const subscription = await getCurrentSubscription()
-    
-    if (!subscription) {
-      isSubscribed.value = false
-      return { success: true }
-    }
-
-    await subscription.unsubscribe()
-    
-    // Browser-side unsubscribe succeeded; reflect it before the server round-trip.
-    isSubscribed.value = false
-
+    const sub = await getCurrentSubscription()
+    const endpoint = sub?.endpoint ?? readDeviceRecord()?.endpoint
     const token = await getAuthToken()
-    if (!token) {
-      // Server keeps its record; the browser subscription is already gone.
-      debug.warn('Browser unsubscribed but could not notify server (not authenticated)')
-      return { success: true }
-    }
 
-    const response = await fetch(`${FEDERATION_BACKEND_URL}/push/unsubscribe`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({
-        endpoint: subscription.endpoint
-      })
-    })
-
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}))
-      const errMsg = data.message || data.error || `Server error ${response.status}`
-      // 429 is surfaced to the caller: the server still holds the subscription.
-      if (response.status === 429) {
-        error.value = errMsg
-        return { success: false, error: error.value ?? undefined }
+    if (endpoint && token) {
+      const response = await pushFetch('/unsubscribe', { method: 'POST', body: JSON.stringify({ endpoint }) }, token)
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
+        const message = data.message || data.error || `Server error ${response.status}`
+        if (response.status === 429) {
+          error.value = message
+          return { success: false, error: message }
+        }
+        debug.warn('Server unsubscribe failed:', message)
       }
-      debug.warn('Server unsubscribe failed:', errMsg)
     }
 
-    debug.log('Push notification unsubscribed')
-    
+    if (sub) await sub.unsubscribe().catch(() => false)
+    writeDeviceRecord(null)
     await fetchSubscriptions()
-    
+    refreshSubscribedFlag(null)
     return { success: true }
   } catch (err: any) {
-    error.value = err.message || 'Failed to unsubscribe'
+    error.value = err?.message || 'Failed to unsubscribe'
     debug.error('Push unsubscribe error:', err)
     return { success: false, error: error.value ?? undefined }
   } finally {
@@ -233,53 +414,44 @@ async function unsubscribe(): Promise<{ success: boolean; error?: string }> {
 }
 
 /**
- * Removes a device from the subscription list.
- * Current browser routes through unsubscribe() (POST /push/unsubscribe), which
- * avoids the DELETE-by-id rate limit; other devices go to deleteSubscription().
+ * Stops pushes to this device for the account signing out. The browser subscription
+ * and device record stay, so the next sign-in on this device re-registers silently.
+ * Bounded so a slow server cannot hold up sign-out.
  */
+async function detachForLogout(timeoutMs = 3000): Promise<void> {
+  if (!checkSupport()) return
+  const work = (async () => {
+    const sub = await getCurrentSubscription()
+    const token = await getAuthToken()
+    if (!sub || !token) return
+    await pushFetch('/unsubscribe', { method: 'POST', body: JSON.stringify({ endpoint: sub.endpoint }) }, token)
+  })().catch((err) => debug.warn('Push detach on logout failed:', err))
+  await Promise.race([work, new Promise(resolve => setTimeout(resolve, timeoutMs))])
+}
+
+/** Removes a device from the account; this browser routes through unsubscribe(). */
 async function removeSubscription(subscription: { id: string; endpoint: string }): Promise<{ success: boolean; error?: string }> {
-  try {
-    const currentSub = await getCurrentSubscription()
-    const isCurrentDevice = currentSub && currentSub.endpoint === subscription.endpoint
-    if (isCurrentDevice) {
-      return unsubscribe()
-    }
-  } catch {
-    // Current device indeterminate; fall through to deleteSubscription.
-  }
+  const current = await getCurrentSubscription().catch(() => null)
+  if (current && current.endpoint === subscription.endpoint) return unsubscribe()
   return deleteSubscription(subscription.id)
 }
 
-/** DELETE by subscription id. Intended for devices other than this browser. */
 async function deleteSubscription(subscriptionId: string): Promise<{ success: boolean; error?: string }> {
   isLoading.value = true
   error.value = null
-
   try {
     const token = await getAuthToken()
-    if (!token) {
-      return { success: false, error: 'Not authenticated' }
-    }
-
-    const response = await fetch(`${FEDERATION_BACKEND_URL}/push/subscriptions/${subscriptionId}`, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    })
-
+    if (!token) return { success: false, error: 'Not authenticated' }
+    const response = await pushFetch(`/subscriptions/${encodeURIComponent(subscriptionId)}`, { method: 'DELETE' }, token)
     if (!response.ok) {
-      const data = await response.json()
+      const data = await response.json().catch(() => ({}))
       throw new Error(data.error || 'Failed to delete subscription')
     }
-
     await fetchSubscriptions()
-    
-    await checkSubscriptionStatus()
-
+    refreshSubscribedFlag(await getCurrentSubscription())
     return { success: true }
   } catch (err: any) {
-    error.value = err.message || 'Failed to delete subscription'
+    error.value = err?.message || 'Failed to delete subscription'
     debug.error('Delete subscription error:', err)
     return { success: false, error: error.value ?? undefined }
   } finally {
@@ -287,137 +459,58 @@ async function deleteSubscription(subscriptionId: string): Promise<{ success: bo
   }
 }
 
-async function fetchSubscriptions(): Promise<void> {
-  try {
-    const token = await getAuthToken()
-    if (!token) return
-
-    const response = await fetch(`${FEDERATION_BACKEND_URL}/push/subscriptions`, {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    })
-
-    if (response.ok) {
-      const data = await response.json()
-      subscriptions.value = data.subscriptions || []
-    }
-  } catch (err) {
-    debug.error('Failed to fetch subscriptions:', err)
-  }
-}
-
-/**
- * Resolves isSubscribed by matching this browser's endpoint against the
- * server-side list for the logged-in user.
- * A PushSubscription is browser-scoped, not user-scoped, so after an account
- * switch it may still belong to the previous user.
- */
 async function checkSubscriptionStatus(): Promise<void> {
-  try {
-    const subscription = await getCurrentSubscription()
-    if (!subscription) {
-      isSubscribed.value = false
-      return
-    }
-
-    if (subscriptions.value.length > 0) {
-      const endpoint = subscription.endpoint
-      const belongsToUser = subscriptions.value.some(s => s.endpoint === endpoint)
-      isSubscribed.value = belongsToUser
-      return
-    }
-
-    // Subscription list not loaded yet.
-    await fetchSubscriptions()
-    const endpoint = subscription.endpoint
-    isSubscribed.value = subscriptions.value.some(s => s.endpoint === endpoint)
-  } catch (err) {
-    debug.error('Failed to check subscription status:', err)
-  }
+  await fetchSubscriptions()
+  refreshSubscribedFlag(await getCurrentSubscription())
 }
 
-/** Clears the init guards so initialize() runs again, e.g. after a 429. */
 async function retryInitialize(): Promise<void> {
-  isInitialized = false
-  isInitializing = false
+  initPromise = null
   error.value = null
   await initialize()
 }
 
-/**
- * Resets push state on logout.
- * The browser subscription is left intact so it can be re-associated when the
- * same user logs back in.
- */
+/** Clears account-scoped state on sign-out; the browser subscription is kept. */
 function resetState(): void {
   isSubscribed.value = false
   subscriptions.value = []
   error.value = null
-  isInitialized = false
-  isInitializing = false
-  debug.log('Push notification state reset (logout)')
+  initPromise = null
 }
 
 /**
- * Sends a test push to this device.
- * When the server has no record of this endpoint (typical after a
- * logout/login cycle), the device is re-registered and the send retried once.
+ * Sends a test push to this device. A device the server lost track of is
+ * re-registered and the send retried once.
  */
 async function sendTestNotification(): Promise<{ success: boolean; error?: string }> {
   isLoading.value = true
   error.value = null
-
   try {
     const token = await getAuthToken()
-    if (!token) {
-      return { success: false, error: 'Not authenticated' }
-    }
-
-    let currentEndpoint: string | undefined
-    try {
-      const registration = await navigator.serviceWorker?.ready
-      const subscription = await registration?.pushManager?.getSubscription()
-      if (subscription) {
-        currentEndpoint = subscription.endpoint
-      }
-    } catch {
-      // Endpoint unavailable; send to all devices.
-    }
+    if (!token) return { success: false, error: 'Not authenticated' }
+    const endpoint = (await getCurrentSubscription())?.endpoint
 
     const sendTest = async () => {
-      const response = await fetch(`${FEDERATION_BACKEND_URL}/push/test`, {
+      const response = await pushFetch('/test', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(currentEndpoint ? { endpoint: currentEndpoint } : {})
-      })
-      const data = await response.json()
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to send test notification')
-      }
+        body: JSON.stringify(endpoint ? { endpoint } : {}),
+      }, token)
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(data.error || 'Failed to send test notification')
       return data
     }
 
     let data = await sendTest()
-
-    // sent === 0 for a known endpoint means server/browser desync; re-register and retry once.
-    if (data.sent === 0 && currentEndpoint) {
-      debug.log('Test notification found no subscription, re-registering device...')
-      const resubResult = await subscribe()
-      if (resubResult.success) {
-        data = await sendTest()
-      }
+    if (data.sent === 0 && endpoint) {
+      const resub = await subscribe()
+      if (resub.success) data = await sendTest()
     }
-
-    return { 
-      success: data.sent > 0, 
-      error: data.sent === 0 ? 'No active subscriptions found' : undefined 
+    return {
+      success: data.sent > 0,
+      error: data.sent === 0 ? (data.message || 'No active subscriptions found') : undefined,
     }
   } catch (err: any) {
-    error.value = err.message || 'Failed to send test notification'
+    error.value = err?.message || 'Failed to send test notification'
     debug.error('Test notification error:', err)
     return { success: false, error: error.value ?? undefined }
   } finally {
@@ -425,129 +518,51 @@ async function sendTestNotification(): Promise<{ success: boolean; error?: strin
   }
 }
 
-/**
- * Idempotent: repeat calls are no-ops once initialized.
- * The VAPID key is fetched unconditionally so subscribe() stays available after
- * the user removes every subscription.
- */
-async function initialize(): Promise<void> {
-  if (isInitialized || isInitializing) {
-    debug.log('Push notifications already initialized, skipping')
-    return
-  }
-  
-  isInitializing = true
-  error.value = null
-  
-  try {
-    isSupported.value = checkSupport()
-    
-    if (!isSupported.value) {
-      // No PushManager here, but subscriptions and prefs live server-side and
-      // remain manageable across devices.
-      debug.log('Push subscribe unsupported here; loading subscriptions for management only')
-      await fetchSubscriptions().catch(() => {})
-      return
-    }
-
-    permission.value = Notification.permission
-
-    if (!vapidPublicKey.value) {
-      const result = await fetchVapidKey()
-      if (result.rateLimited) {
-        error.value = `Too many requests. Please wait ${result.retryAfter ?? 60} seconds and try again.`
-        return // isInitialized stays false so retryInitialize() can re-run
-      }
-      vapidPublicKey.value = result.publicKey
-    }
-    
-    if (!vapidPublicKey.value) {
-      debug.log('Push notifications not configured on server')
-      return
-    }
-
-    await checkSubscriptionStatus()
-    
-    if (subscriptions.value.length === 0) {
-      await fetchSubscriptions()
-    }
-
-    isInitialized = true
-    debug.log('Push notification system initialized', {
-      supported: isSupported.value,
-      permission: permission.value,
-      subscribed: isSubscribed.value,
-      subscriptionCount: subscriptions.value.length,
-      isPWA: isPWA()
-    })
-  } finally {
-    isInitializing = false
-  }
-}
-
 export function usePushNotifications() {
-  // initialize() is not auto-called; callers invoke it explicitly to avoid
-  // duplicate API calls when several components mount at once.
+  const canSubscribe = computed(() =>
+    isSupported.value && !!vapidPublicKey.value && permission.value !== 'denied' && !isSubscribed.value
+  )
 
-  const canSubscribe = computed(() => {
-    return isSupported.value && 
-           vapidPublicKey.value && 
-           permission.value !== 'denied' &&
-           !isSubscribed.value
-  })
-
-  const canUnsubscribe = computed(() => {
-    return isSupported.value && isSubscribed.value
-  })
+  const canUnsubscribe = computed(() => isSupported.value && isSubscribed.value)
 
   const statusText = computed(() => {
-    if (!isSupported.value) {
-      return 'Push notifications are not supported in this browser'
-    }
-    if (!vapidPublicKey.value) {
-      return 'Push notifications are not configured on this server'
-    }
-    if (permission.value === 'denied') {
-      return 'Notification permission denied. Please enable in browser settings.'
-    }
-    if (isSubscribed.value) {
-      return 'Push notifications are enabled'
-    }
-    return 'Push notifications are available'
+    if (!isSupported.value) return 'Push notifications are not supported in this browser'
+    if (!vapidPublicKey.value) return 'Push notifications are not configured on this server'
+    if (permission.value === 'denied') return 'Notifications are blocked for this site'
+    if (isSubscribed.value) return 'Push notifications are on for this device'
+    return 'Push notifications are off for this device'
   })
 
   const requiresPWA = computed(() => {
-    // iOS delivers push only to an installed PWA.
     const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent)
     return isIOS && !isPWA()
   })
 
   return {
-    // State
     isSupported,
     isSubscribed,
     isLoading,
     permission,
     subscriptions,
+    currentEndpoint,
     error,
-    
-    // Computed
+
     canSubscribe,
     canUnsubscribe,
     statusText,
     requiresPWA,
-    
-    // Methods
+
     initialize,
+    reconcile,
     subscribe,
     unsubscribe,
+    detachForLogout,
     deleteSubscription,
     removeSubscription,
     fetchSubscriptions,
     sendTestNotification,
     checkSubscriptionStatus,
     resetState,
-    retryInitialize
+    retryInitialize,
   }
 }
-
