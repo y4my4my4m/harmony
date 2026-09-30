@@ -1,5 +1,25 @@
 import { defineStore } from 'pinia';
 import { debug } from '@/utils/debug'
+import { userStorage } from '@/utils/userScopedStorage'
+
+// Off unless the user turned it on; the choice persists per user.
+const ENABLED_KEY = 'spatial-audio-enabled';
+
+function readEnabled(): boolean {
+  try {
+    return userStorage.getItem(ENABLED_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+function writeEnabled(enabled: boolean): void {
+  try {
+    userStorage.setItem(ENABLED_KEY, String(enabled));
+  } catch (error) {
+    debug.warn('Failed to save spatial audio setting:', error);
+  }
+}
 
 export interface UserPosition {
   userId: string;
@@ -33,7 +53,7 @@ interface SpatialAudioState {
 export const useSpatialAudioStore = defineStore('spatialAudio', {
   state: (): SpatialAudioState => ({
     settings: {
-      enabled: true,
+      enabled: readEnabled(),
       maxDistance: 300,
       rolloffFactor: 1,
       panningModel: 'HRTF',
@@ -175,6 +195,7 @@ export const useSpatialAudioStore = defineStore('spatialAudio', {
           debug.log('Traditional audio re-enabled');
         }
 
+        writeEnabled(this.settings.enabled);
         debug.log('Spatial audio toggle completed');
       } catch (error) {
         debug.error('Failed to toggle spatial audio:', error);
