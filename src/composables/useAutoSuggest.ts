@@ -324,9 +324,12 @@ export function useAutoSuggest(
         }
       }
 
+      // MENTION_EVERYONE covers @everyone and roles not marked mentionable
+      // (migration 20261003400001 enforces the same rule).
+      const canMentionAll = hasCurrentUserPermission(Permission.MENTION_EVERYONE);
       for (const role of serverRoles.value) {
-        if (!role.mentionable) continue;
-        
+        if (!canMentionAll && (role.is_default || !role.mentionable)) continue;
+
         const roleName = role.name?.toLowerCase() || '';
         
         if (roleName.includes(query)) {

@@ -415,10 +415,11 @@ SELECT is((SELECT data->>'message_preview' FROM public.notifications
 SELECT set_config('tests.everyone_role',
                   (SELECT id::text FROM public.server_roles
                     WHERE server_id = 'e3920000-0000-0000-0000-000000000001' AND is_default), true);
-SELECT tests.authenticate_as('e3900000-0000-0000-0000-0000000000a3');
+-- @everyone needs MENTION_EVERYONE (20261003400001); the owner holds it.
+SELECT tests.authenticate_as('e3900000-0000-0000-0000-0000000000a1');
 INSERT INTO public.messages (id, channel_id, user_id, content, encrypted, encryption_metadata)
 VALUES ('e3950000-0000-0000-0000-000000000004', 'e3930000-0000-0000-0000-000000000001',
-        'e3910000-0000-0000-0000-0000000000a3',
+        'e3910000-0000-0000-0000-0000000000a1',
         pg_temp.enc(jsonb_build_array(jsonb_build_object(
             'type', 'role_mention', 'roleId', current_setting('tests.everyone_role')))),
         true, pg_temp.meta());
