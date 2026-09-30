@@ -1,7 +1,7 @@
 <template>
   <div class="bans-settings">
     <div class="settings-header">
-      <h2 class="settings-title">Server Bans</h2>
+      <h2 class="settings-title">Server bans</h2>
       <p class="settings-description">
         View and manage banned users. Users with the Ban Members permission can unban users from this list.
       </p>
@@ -21,7 +21,7 @@
       <svg width="48" height="48" viewBox="0 0 24 24" class="empty-icon">
         <path fill="currentColor" d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4M12,6A6,6 0 0,1 18,12A6,6 0 0,1 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6M12,8A4,4 0 0,0 8,12A4,4 0 0,0 12,16A4,4 0 0,0 16,12A4,4 0 0,0 12,8Z"/>
       </svg>
-      <h3>No Banned Users</h3>
+      <h3>No banned users</h3>
       <p>There are no banned users in this server.</p>
     </div>
 
@@ -42,7 +42,7 @@
         </div>
         <button class="btn-unban" @click="handleUnban(ban)" :disabled="unbanningId === ban.user_id">
           <span v-if="unbanningId === ban.user_id" class="loading-spinner small"></span>
-          <span v-else>Revoke Ban</span>
+          <span v-else>Revoke ban</span>
         </button>
       </div>
     </div>
@@ -107,15 +107,15 @@ onMounted(loadBans)
 }
 
 .settings-title {
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: var(--text-primary, #f2f3f5);
-  margin: 0 0 4px;
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  margin: 0 0 8px;
 }
 
 .settings-description {
-  color: var(--text-muted, #949ba4);
-  font-size: 0.85rem;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
   margin: 0;
 }
 
@@ -127,7 +127,7 @@ onMounted(loadBans)
   align-items: center;
   justify-content: center;
   padding: 48px 16px;
-  color: var(--text-muted, #949ba4);
+  color: var(--text-muted);
   text-align: center;
   gap: 8px;
 }
@@ -139,7 +139,7 @@ onMounted(loadBans)
 
 .empty-state h3 {
   margin: 0;
-  color: var(--text-primary, #f2f3f5);
+  color: var(--text-primary);
   font-size: 1.1rem;
 }
 
@@ -152,10 +152,10 @@ onMounted(loadBans)
 .btn-retry {
   margin-top: 8px;
   padding: 6px 16px;
-  background: var(--accent-color, #0EA5E9);
-  color: var(--text-primary);
+  background: var(--harmony-primary);
+  color: var(--text-on-primary);
   border: none;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   font-size: 0.85rem;
 }
@@ -171,8 +171,8 @@ onMounted(loadBans)
   align-items: center;
   gap: 12px;
   padding: 12px;
-  background: var(--bg-tertiary, #1e1f22);
-  border-radius: 6px;
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-base);
 }
 
 .ban-user {
@@ -196,14 +196,14 @@ onMounted(loadBans)
 }
 
 .ban-display-name {
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   font-size: 0.9rem;
-  color: var(--text-primary, #f2f3f5);
+  color: var(--text-primary);
 }
 
 .ban-username {
   font-size: 0.78rem;
-  color: var(--text-muted, #949ba4);
+  color: var(--text-muted);
 }
 
 .ban-details {
@@ -216,7 +216,7 @@ onMounted(loadBans)
 
 .ban-reason {
   font-size: 0.85rem;
-  color: var(--text-secondary, #b5bac1);
+  color: var(--text-secondary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -224,15 +224,15 @@ onMounted(loadBans)
 
 .ban-meta {
   font-size: 0.75rem;
-  color: var(--text-muted, #949ba4);
+  color: var(--text-muted);
 }
 
 .btn-unban {
   padding: 6px 14px;
   background: transparent;
-  border: 1px solid var(--border-color, #3f4147);
-  border-radius: 4px;
-  color: var(--text-secondary, #b5bac1);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
   font-size: 0.8rem;
   cursor: pointer;
   white-space: nowrap;
@@ -241,8 +241,8 @@ onMounted(loadBans)
   gap: 4px;
 }
 .btn-unban:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.05);
-  border-color: var(--text-muted, #949ba4);
+  background: var(--background-modifier-hover);
+  border-color: var(--text-muted);
 }
 .btn-unban:disabled {
   opacity: 0.5;
@@ -252,8 +252,8 @@ onMounted(loadBans)
 .loading-spinner {
   width: 20px;
   height: 20px;
-  border: 2px solid rgba(255, 255, 255, 0.2);
-  border-top-color: var(--text-primary, #f2f3f5);
+  border: 2px solid var(--border-hover);
+  border-top-color: var(--text-primary);
   border-radius: 50%;
   animation: spin 0.6s linear infinite;
 }

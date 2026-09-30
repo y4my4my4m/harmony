@@ -5,7 +5,7 @@
         <div class="status-modal">
           <!-- Header -->
           <div class="modal-header">
-            <h2>{{ hasCurrentStatus ? 'Edit Custom Status' : 'Set Custom Status' }}</h2>
+            <h2>{{ hasCurrentStatus ? 'Edit custom status' : 'Set custom status' }}</h2>
             <button class="close-btn" @click="close">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M18.3 5.71a1 1 0 00-1.42 0L12 10.59 7.11 5.7A1 1 0 105.7 7.11L10.59 12 5.7 16.89a1 1 0 101.41 1.41L12 13.41l4.89 4.89a1 1 0 001.41-1.41L13.41 12l4.89-4.89a1 1 0 000-1.4z"/>
@@ -15,7 +15,7 @@
 
           <!-- Current Status Preview -->
           <div class="status-preview" v-if="hasCurrentStatus">
-            <div class="preview-label">Current Status</div>
+            <div class="preview-label">Current status</div>
             <div class="preview-content">
               <img 
                 v-if="currentStatus?.emoji_url" 
@@ -26,7 +26,7 @@
               <span v-else-if="currentStatus?.emoji" class="preview-emoji">{{ currentStatus.emoji }}</span>
               <span class="preview-text">{{ currentStatusDisplayText }}</span>
             </div>
-            <button class="clear-btn" @click="clearStatus">Clear Status</button>
+            <button class="clear-btn" @click="clearStatus">Clear status</button>
           </div>
 
           <!-- Form -->
@@ -78,7 +78,7 @@
 
             <!-- Activity: Custom = plain text/emoji only; others add a prefix (e.g. "Playing: ...") -->
             <div class="input-row activity-row">
-              <label class="input-label">ACTIVITY</label>
+              <label class="input-label">Activity</label>
               <div class="activity-selector">
                 <button
                   v-for="activity in activityTypes"
@@ -346,14 +346,14 @@ watch(() => props.isVisible, (visible) => {
 
 .status-modal {
   background: var(--background-secondary);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   width: 100%;
   max-width: 480px;
   max-height: 90vh;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--shadow-modal);
 }
 
 .modal-header {
@@ -549,7 +549,7 @@ watch(() => props.isVisible, (visible) => {
 
 .activity-btn.active {
   border-color: var(--harmony-primary);
-  background: var(--harmony-primary-alpha, rgba(14, 165, 233, 0.15));
+  background: var(--harmony-primary-alpha, color-mix(in srgb, var(--harmony-primary) 15%, transparent));
   color: var(--harmony-primary);
 }
 
@@ -571,7 +571,7 @@ watch(() => props.isVisible, (visible) => {
 }
 
 .duration-select:focus {
-  box-shadow: 0 0 0 2px var(--harmony-primary);
+  box-shadow: 0 0 0 2px var(--harmony-primary-alpha-strong);
 }
 
 .duration-select option {

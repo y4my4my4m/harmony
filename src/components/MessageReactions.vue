@@ -52,7 +52,7 @@
         class="add-reaction-btn"
         data-testid="add-reaction-btn"
         @click="handleAddReactionClick"
-        title="Add Reaction"
+        title="Add reaction"
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="10"/>
@@ -344,7 +344,7 @@ watch(() => props.message.id, (newMessageId, oldMessageId) => {
   width: 16px;
   height: 16px;
   border: 2px solid var(--background-quinary);
-  border-top: 2px solid #0EA5E9;
+  border-top: 2px solid var(--harmony-primary);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -363,18 +363,18 @@ watch(() => props.message.id, (newMessageId, oldMessageId) => {
   height: 22px;
   padding: 0;
   background-color: transparent;
-  border: 1px dashed rgba(255, 255, 255, 0.2);
+  border: 1px dashed var(--border-hover);
   border-radius: 8px;
   cursor: pointer;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-muted);
   transition: all 0.15s ease-out;
   flex-shrink: 0;
 }
 
 .add-reaction-btn:hover {
-  background-color: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.3);
-  color: rgba(255, 255, 255, 0.7);
+  background-color: var(--background-modifier-hover);
+  border-color: var(--text-muted);
+  color: var(--text-secondary);
 }
 
 .add-reaction-btn:active {
@@ -392,27 +392,29 @@ watch(() => props.message.id, (newMessageId, oldMessageId) => {
   }
 }
 
-/* TransitionGroup animations for smooth reaction chip add/remove */
-.reaction-list-enter-active {
-  animation: reaction-pop-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
+/* TransitionGroup add/remove */
+@media (prefers-reduced-motion: no-preference) {
+  .reaction-list-enter-active {
+    animation: reaction-pop-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
 
-.reaction-list-leave-active {
-  transition: opacity 0.15s ease, transform 0.15s ease;
-}
+  .reaction-list-leave-active {
+    transition: opacity 0.15s ease, transform 0.15s ease;
+  }
 
-.reaction-list-enter-from {
-  opacity: 0;
-  transform: scale(0.5);
-}
+  .reaction-list-enter-from {
+    opacity: 0;
+    transform: scale(0.5);
+  }
 
-.reaction-list-leave-to {
-  opacity: 0;
-  transform: scale(0.7);
-}
+  .reaction-list-leave-to {
+    opacity: 0;
+    transform: scale(0.7);
+  }
 
-.reaction-list-move {
-  transition: transform 0.2s ease;
+  .reaction-list-move {
+    transition: transform 0.2s ease;
+  }
 }
 
 @keyframes reaction-pop-in {

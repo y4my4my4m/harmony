@@ -157,26 +157,26 @@ async function copyText(text: string, label: string) {
 
 .guide-card {
   background: var(--color-background-primary);
-  border: 1px solid var(--color-border);
-  border-radius: 12px;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
   padding: 20px;
   margin-bottom: 20px;
 }
 
 .guide-card.highlight {
-  border-color: rgba(88, 101, 242, 0.45);
+  border-color: color-mix(in srgb, var(--harmony-primary) 45%, transparent);
 }
 
 .card-header h3 {
   margin: 0 0 16px;
-  font-size: 16px;
-  font-weight: 600;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
 }
 
 .intro {
   margin: 0 0 16px;
   line-height: 1.5;
-  color: var(--color-text-secondary);
+  color: var(--text-secondary);
 }
 
 .intro a,
@@ -192,17 +192,17 @@ async function copyText(text: string, label: string) {
   display: block;
   margin-bottom: 6px;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 
 .text-input {
   width: 100%;
   max-width: 420px;
   padding: 10px 12px;
-  border-radius: 8px;
-  border: 1px solid var(--color-border);
-  background: var(--color-background-secondary);
-  color: var(--color-text-primary);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--input-border);
+  background: var(--input-bg);
+  color: var(--text-primary);
   font-family: var(--font-mono, ui-monospace, monospace);
   font-size: 13px;
 }
@@ -210,12 +210,12 @@ async function copyText(text: string, label: string) {
 .subsection {
   margin-top: 20px;
   padding-top: 16px;
-  border-top: 1px solid var(--color-border);
+  border-top: 1px solid var(--border-primary);
 }
 
 .subsection h4 {
   margin: 0 0 8px;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
 }
 
 .checklist {
@@ -228,7 +228,7 @@ async function copyText(text: string, label: string) {
   display: flex;
   gap: 10px;
   margin-bottom: 10px;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   line-height: 1.45;
 }
 
@@ -240,30 +240,29 @@ async function copyText(text: string, label: string) {
 
 .badge {
   display: inline-block;
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  padding: 2px 6px;
-  border-radius: 4px;
+  font-size: 11px;
+  font-weight: var(--font-weight-semibold);
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
   margin-left: 6px;
   vertical-align: middle;
 }
 
 .badge.required {
-  background: rgba(var(--color-success-rgb, 46, 160, 67), 0.15);
-  color: var(--color-success, #2ea043);
+  background: color-mix(in srgb, var(--success) 15%, transparent);
+  color: var(--success);
 }
 
 .badge.optional {
-  background: var(--color-background-secondary);
-  color: var(--color-text-secondary);
+  background: var(--background-modifier-selected);
+  color: var(--text-secondary);
 }
 
 .toggle-row {
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   cursor: pointer;
   margin-bottom: 12px;
 }
@@ -275,12 +274,12 @@ async function copyText(text: string, label: string) {
 .hint {
   margin: 12px 0 0;
   font-size: 13px;
-  color: var(--color-text-secondary);
+  color: var(--text-secondary);
   line-height: 1.5;
 }
 
 .hint code {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
 }
 
 .repo-hint {
@@ -297,39 +296,39 @@ async function copyText(text: string, label: string) {
 .invite-url {
   display: block;
   word-break: break-all;
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   padding: 10px;
-  background: var(--color-background-secondary);
-  border-radius: 8px;
-  border: 1px solid var(--color-border);
+  background: var(--surface-inset);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-primary);
 }
 
 .numbered-steps {
   margin: 0;
   padding-left: 20px;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   line-height: 1.6;
 }
 
 .btn-primary,
 .btn-secondary {
   padding: 10px 16px;
-  border-radius: 8px;
-  font-weight: 600;
-  font-size: 14px;
+  border-radius: var(--radius-md);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-sm);
   cursor: pointer;
   border: none;
 }
 
 .btn-primary {
   background: var(--harmony-primary);
-  color: var(--text-on-primary, #fff);
+  color: var(--text-on-primary);
 }
 
 .btn-secondary {
   background: transparent;
-  border: 1px solid var(--color-border);
-  color: var(--color-text-primary);
+  border: 1px solid var(--border-primary);
+  color: var(--text-primary);
 }
 
 .link-btn {

@@ -40,7 +40,7 @@
       </div> -->
       <div
         class="header-item-wrapper"
-        @mouseenter="showSidebarTooltip($event, 'Direct Messages')"
+        @mouseenter="showSidebarTooltip($event, 'Direct messages')"
         @mouseleave="hideSidebarTooltip"
       >
         <div class="server-pill" :class="{ 'visible': isDMSelected, 'has-unread': dmUnreadMentions > 0 && !isDMSelected }"></div>
@@ -200,24 +200,24 @@
         <svg width="16" height="16" viewBox="0 0 24 24">
           <path fill="currentColor" d="M0.41,13.41L6,19L7.41,17.58L1.83,12M22.24,5.58L11.66,16.17L7.5,12L6.07,13.41L11.66,19L23.66,7L22.24,5.58M18,7L16.59,5.58L10.24,11.93L11.66,13.34L18,7Z"/>
         </svg>
-        <span>Mark as Read</span>
+        <span>Mark as read</span>
       </div>
       <div class="context-menu-item" @click="openInviteFromContextMenu">
         <svg width="16" height="16" viewBox="0 0 24 24">
           <path fill="currentColor" d="M15,14C12.33,14 7,15.33 7,18V20H23V18C23,15.33 17.67,14 15,14M6,10V7H4V10H1V12H4V15H6V12H9V10M15,12A4,4 0 0,0 19,8A4,4 0 0,0 15,4A4,4 0 0,0 11,8A4,4 0 0,0 15,12Z"/>
         </svg>
-        <span>Invite People</span>
+        <span>Invite people</span>
       </div>
       <div class="context-menu-divider"></div>
       <div class="context-menu-item" @click="createFolderFromServer">
         <svg width="16" height="16" viewBox="0 0 24 24">
           <path fill="currentColor" d="M10,4H4C2.89,4 2,4.89 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V8C22,6.89 21.1,6 20,6H12L10,4Z"/>
         </svg>
-        <span>Create Folder</span>
+        <span>Create folder</span>
       </div>
       <template v-if="serverChannelStore.folders.length > 0">
         <div class="context-menu-divider"></div>
-        <div class="context-menu-label">Move to Folder</div>
+        <div class="context-menu-label">Move to folder</div>
         <div 
           v-for="folder in serverChannelStore.folders" 
           :key="folder.id"
@@ -234,7 +234,7 @@
           <svg width="16" height="16" viewBox="0 0 24 24">
             <path fill="currentColor" d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/>
           </svg>
-          <span>Remove from Folder</span>
+          <span>Remove from folder</span>
         </div>
       </template>
     </div>
@@ -259,7 +259,7 @@
       <div
         class="funding-button"
         @click="showFundingModal = true"
-        @mouseenter="showSidebarTooltip($event, 'Instance Funding')"
+        @mouseenter="showSidebarTooltip($event, 'Instance funding')"
         @mouseleave="hideSidebarTooltip"
       >
         <svg viewBox="0 0 24 24" class="funding-icon" width="22" height="22">
@@ -1097,7 +1097,7 @@ const removeServerFromFolder = async () => {
   width: 48px;
   height: 48px;
   border-radius: 50%;
-  background: var(--background-secondary, #2b2d31);
+  background: var(--background-secondary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1107,7 +1107,7 @@ const removeServerFromFolder = async () => {
 }
 
 .funding-button:hover {
-  background: var(--harmony-primary, #0EA5E9);
+  background: var(--harmony-primary);
   border-radius: 16px;
 }
 
@@ -1117,7 +1117,7 @@ const removeServerFromFolder = async () => {
 }
 
 .funding-button:hover .funding-icon {
-  color: var(--text-on-primary, #ffffff);
+  color: var(--text-on-primary);
 }
 
 .servers-scroll-area {
@@ -1147,10 +1147,9 @@ const removeServerFromFolder = async () => {
 .bottom-drop-indicator {
   width: calc(100% - 16px);
   height: 4px;
-  background: #3ba55d;
+  background: var(--success);
   border-radius: 2px;
   margin: 8px auto;
-  box-shadow: 0 0 8px rgba(59, 165, 93, 0.8), 0 0 16px rgba(59, 165, 93, 0.4);
   flex-shrink: 0;
 }
 
@@ -1191,7 +1190,7 @@ const removeServerFromFolder = async () => {
 }
 
 .portal:hover .portal-icon {
-  background-color: var(--text-on-primary, #ffffff);
+  background-color: var(--text-on-primary);
 }
 
 .dm-button {
@@ -1218,21 +1217,20 @@ const removeServerFromFolder = async () => {
 }
 
 .dm-button:hover {
-  background: var(--harmony-primary, #0284C7);
-  transform: translateX(5px);
+  background: var(--harmony-primary, var(--harmony-primary-hover));
 }
 
 .dm-button:hover .dm-icon {
-  color: var(--text-on-primary, #ffffff);
+  color: var(--text-on-primary);
 }
 
 .dm-button.selected {
-  background: var(--harmony-primary, #0284C7);
+  background: var(--harmony-primary, var(--harmony-primary-hover));
   border-radius: 50%;
 }
 
 .dm-button.selected .dm-icon {
-  color: var(--text-on-primary, #ffffff);
+  color: var(--text-on-primary);
 }
 
 .fediverse-button {
@@ -1260,25 +1258,24 @@ const removeServerFromFolder = async () => {
 }
 
 .fediverse-button:hover {
-  background: var(--harmony-primary, #0284C7);
-  transform: translateX(5px);
+  background: var(--harmony-primary, var(--harmony-primary-hover));
 }
 
 .fediverse-button.selected {
-  background: var(--harmony-primary, #0284C7);
+  background: var(--harmony-primary, var(--harmony-primary-hover));
   border-radius: 50%;
 }
 .fediverse-button:hover .fediverse-icon,
 .fediverse-button.selected .fediverse-icon {
-  color: var(--text-on-primary, #ffffff);
+  color: var(--text-on-primary);
 }
 
 .unread-badge {
   position: absolute;
   top: -8px;
   right: -8px;
-  background: #f04747;
-  color: var(--text-primary);
+  background: var(--error);
+  color: var(--text-on-primary);
   font-size: 10px;
   font-weight: bold;
   padding: 2px 6px;
@@ -1289,13 +1286,6 @@ const removeServerFromFolder = async () => {
   align-items: center;
   justify-content: center;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-  animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-  0% { transform: scale(1); }
-  50% { transform: scale(1.1); }
-  100% { transform: scale(1); }
 }
 
 .sidebar-item-wrapper {
@@ -1315,10 +1305,9 @@ const removeServerFromFolder = async () => {
   left: -8px;
   right: -8px;
   height: 4px;
-  background: #3ba55d;
+  background: var(--success);
   border-radius: 2px;
   z-index: 10;
-  box-shadow: 0 0 3px rgba(59, 165, 93, 0.8), 0 0 8px rgba(59, 165, 93, 0.4);
 }
 
 .sidebar-item-wrapper.drop-target-before::before {
@@ -1336,14 +1325,6 @@ const removeServerFromFolder = async () => {
   /* Drag animation hint */
   will-change: transform, opacity;
   transition: transform 0.15s ease-out, left 0.2s ease-out, opacity 0.15s ease-out;
-}
-
-.server-item-wrapper:hover {
-  left: 5px;
-}
-
-.server-item-wrapper.drop-target-into:hover {
-  left: 0;
 }
 
 .portal,
@@ -1365,8 +1346,6 @@ const removeServerFromFolder = async () => {
 .portal {
   width: 48px;
   height: 48px;
-  /* background: linear-gradient(135deg, var(--harmony-primary), var(--harmony-primary-hover)); */
-  /* background: transparent; */
   background-color: var(--nav-rail-button-bg, var(--background-secondary));
   margin: 10px 10px 5px 10px;
   transition: background 0.2s ease-in-out;
@@ -1386,9 +1365,7 @@ const removeServerFromFolder = async () => {
   border-radius: 12px;
 }
 .portal:hover {
-  /* background: var(--h-black-light); */
   background: var(--harmony-primary);
-  transform: translateX(5px);
 }
 
 .separator {
@@ -1406,7 +1383,7 @@ const removeServerFromFolder = async () => {
   transform: translateY(-50%);
   width: 4px;
   height: 0;
-  background: var(--text-primary, #ffffff);
+  background: var(--text-primary);
   border-radius: 0 4px 4px 0;
   opacity: 0;
   transition: all 0.15s ease;
@@ -1422,18 +1399,15 @@ const removeServerFromFolder = async () => {
   height: 8px;
 }
 
-/* Server wrappers move via left, so pill counter-shifts to stay in gutter */
 .server-item-wrapper:hover .server-pill {
   opacity: 1;
   height: 20px;
-  transform: translate(-5px, -50%);
 }
 
 .server-item-wrapper:hover .server-pill.visible {
   height: 36px;
 }
 
-/* Header wrappers do not move; pill grows without counter-shift */
 .header-item-wrapper:hover .server-pill {
   opacity: 1;
   height: 20px;
@@ -1443,11 +1417,6 @@ const removeServerFromFolder = async () => {
   height: 36px;
 }
 
-/* .dm-button.selected,
-.fediverse-button.selected,
-.portal.selected {
-} */
- 
 .server-item.selected {
   border: 2px solid var(--harmony-secondary);
   border-radius: 50%;
@@ -1465,7 +1434,7 @@ const removeServerFromFolder = async () => {
 }
 
 .server-item-wrapper.drop-target-into .server-item {
-  border: 2px dashed var(--harmony-primary, #0EA5E9);
+  border: 2px dashed var(--harmony-primary);
   border-radius: 16px;
 }
 
@@ -1513,29 +1482,23 @@ const removeServerFromFolder = async () => {
   right: -4px;
   width: 20px;
   height: 20px;
-  background: var(--harmony-primary, #0EA5E9);
+  background: var(--harmony-primary);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--text-primary);
+  color: var(--text-on-primary);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-  animation: pulse-folder 0.5s ease-in-out infinite alternate;
-}
-
-@keyframes pulse-folder {
-  from { transform: scale(1); }
-  to { transform: scale(1.15); }
 }
 
 .context-menu {
   position: fixed;
-  background: var(--background-floating, #18191c);
+  background: var(--background-floating);
   border: 1px solid var(--border-color);
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   padding: 6px 0;
   min-width: 180px;
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
+  box-shadow: var(--shadow-large);
   z-index: 1000;
 }
 
@@ -1544,15 +1507,15 @@ const removeServerFromFolder = async () => {
   align-items: center;
   gap: 10px;
   padding: 8px 12px;
-  color: var(--text-secondary, #b9bbbe);
+  color: var(--text-secondary);
   cursor: pointer;
   font-size: 14px;
   transition: background-color 0.1s ease;
 }
 
 .context-menu-item:hover {
-  background-color: var(--harmony-primary, #0EA5E9);
-  color: var(--text-on-primary, #ffffff);
+  background-color: var(--harmony-primary);
+  color: var(--text-on-primary);
 }
 
 .context-menu-divider {
@@ -1580,8 +1543,8 @@ const removeServerFromFolder = async () => {
   position: fixed;
   left: 80px;
   transform: translateY(-50%);
-  background: var(--tooltip-bg, #18191c);
-  border-radius: 8px;
+  background: var(--tooltip-bg);
+  border-radius: var(--radius-md);
   padding: 6px 14px;
   box-shadow: var(--shadow-small);
   z-index: 1001;
@@ -1603,7 +1566,7 @@ const removeServerFromFolder = async () => {
 
 .sidebar-tooltip-count {
   font-size: 12px;
-  color: var(--tooltip-text, #b9bbbe);
+  color: var(--tooltip-text);
   opacity: 0.9;
 }
 
@@ -1616,7 +1579,7 @@ const removeServerFromFolder = async () => {
   height: 0;
   border-top: 6px solid transparent;
   border-bottom: 6px solid transparent;
-  border-right: 6px solid var(--tooltip-arrow, #18191c);
+  border-right: 6px solid var(--tooltip-arrow);
 }
 
 .tooltip-fade-enter-active {
@@ -1650,8 +1613,8 @@ const removeServerFromFolder = async () => {
   position: fixed;
   left: 80px;
   transform: translateY(-50%);
-  background: var(--tooltip-bg, #18191c);
-  border-radius: 8px;
+  background: var(--tooltip-bg);
+  border-radius: var(--radius-md);
   padding: 6px 14px;
   box-shadow: var(--shadow-small);
   z-index: 10001;
@@ -1673,7 +1636,7 @@ const removeServerFromFolder = async () => {
 
 .sidebar-tooltip-count {
   font-size: 12px;
-  color: var(--tooltip-text, #b9bbbe);
+  color: var(--tooltip-text);
   opacity: 0.9;
 }
 
@@ -1686,6 +1649,6 @@ const removeServerFromFolder = async () => {
   height: 0;
   border-top: 6px solid transparent;
   border-bottom: 6px solid transparent;
-  border-right: 6px solid var(--tooltip-arrow, #18191c);
+  border-right: 6px solid var(--tooltip-arrow);
 }
 </style>

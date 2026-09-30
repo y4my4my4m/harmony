@@ -88,8 +88,17 @@
                 :to="{ name: 'HashtagView', params: { tag: trend.tag } }"
                 class="trending-item"
               >
-                <span class="trending-tag">#{{ trend.tag }}</span>
-                <span class="trending-count">{{ formatNumber(trend.count) }} {{ $t('activitypub.posts') }}</span>
+                <span class="trending-text">
+                  <span class="trending-tag">#{{ trend.tag }}</span>
+                  <span class="trending-count">{{ $t('activitypub.postsCountLabel', { count: formatNumber(trend.count) }, trend.count) }}</span>
+                </span>
+                <Icon
+                  v-if="trend.trend === 'up'"
+                  name="trending-up"
+                  :size="14"
+                  class="trending-rising"
+                  :aria-label="$t('activitypub.trendingRising')"
+                />
               </RouterLink>
             </div>
             <div v-else class="no-trending">
@@ -117,7 +126,7 @@
             <div class="instance-info">
               <p class="instance-domain">{{ localInstanceDomain }}</p>
               <p class="instance-users">{{ localInstanceUserCount }} {{ $t('server.members') }}</p>
-              <p class="instance-posts">{{ localInstancePostCount }} {{ $t('activitypub.posts') }}</p>
+              <p class="instance-posts">{{ $t('activitypub.postsCountLabel', { count: formatNumber(localInstancePostCount) }, localInstancePostCount) }}</p>
             </div>
             <button
               v-if="showFunding && fundingConfig"
@@ -188,6 +197,7 @@ import { useActivityPubStore } from '@/stores/useActivityPub'
 import { useFundingStore } from '@/stores/useFunding'
 import { storeToRefs } from 'pinia'
 import { trendingService } from '@/services/TrendingService'
+import Icon from '@/components/common/Icon.vue'
 import { useViewContextTracking } from '@/composables/useViewContext'
 import { useLayoutState } from '@/composables/useLayoutState'
 import { getOriginalPost } from '@/utils/postReblog'
@@ -386,7 +396,7 @@ const composerType = computed(() => {
   if (activityPubStore.composerState.quotePost) return 'quote'
   return 'post'
 })
-const trendingTopics = ref<Array<{ tag: string; count: number }>>([])
+const trendingTopics = ref<Array<{ tag: string; count: number; trend: 'up' | 'down' | 'stable' }>>([])
 const isLoadingTrending = ref(false)
 
 // Store-cached, already filtered to exclude followed users.
@@ -406,7 +416,8 @@ const loadTrendingHashtags = async () => {
     
     trendingTopics.value = hashtags.map(h => ({
       tag: h.tag,
-      count: h.daily_uses || h.weekly_uses || 0
+      count: h.daily_uses || h.weekly_uses || 0,
+      trend: h.trend,
     }))
     
     // Empty result renders the no-trending state; no placeholder rows.
@@ -736,25 +747,24 @@ const formatNumber = (num: number): string => {
 }
 
 .section-title {
-  font-size: 18px;
-  font-weight: 700;
-  margin: 0 0 12px 0;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  margin: 0 0 8px 0;
   color: var(--text-primary);
 }
 
 .trending-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
 }
 
 .trending-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px;
+  gap: 8px;
+  padding: 6px 8px;
   margin: 0 -8px;
-  border-bottom: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
   color: inherit;
   text-decoration: none;
@@ -771,10 +781,6 @@ const formatNumber = (num: number): string => {
   outline-offset: 2px;
 }
 
-.trending-item:last-child {
-  border-bottom: none;
-}
-
 .trending-loading,
 .no-trending {
   padding: 16px;
@@ -783,20 +789,96 @@ const formatNumber = (num: number): string => {
   font-size: 14px;
 }
 
+.trending-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
 .trending-tag {
-  font-weight: 600;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trending-item:hover .trending-tag {
   color: var(--harmony-primary);
 }
 
 .trending-count {
-  font-size: 12px;
-  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.trending-rising {
+  flex-shrink: 0;
+  color: var(--success);
 }
 
 .suggested-users {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 2px;
+}
+
+/* Sidebar rows: avatar, name and handle, Follow. The ancestor chain puts these
+   at (0,4,0), above ProfileCard's own .compact rules at (0,3,0). */
+.sidebar-section .suggested-users :deep(.profile-card.compact) {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  margin: 0 -8px;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}
+
+.sidebar-section .suggested-users :deep(.profile-card.compact:hover) {
+  background: var(--background-modifier-hover);
+}
+
+.sidebar-section .suggested-users :deep(.compact .user-info) {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+}
+
+.sidebar-section .suggested-users :deep(.compact .name-section) {
+  margin-bottom: 0;
+}
+
+.sidebar-section .suggested-users :deep(.compact .display-name) {
+  justify-content: flex-start;
+}
+
+.sidebar-section .suggested-users :deep(.compact .user-handle) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-section .suggested-users :deep(.compact .stats-section),
+.sidebar-section .suggested-users :deep(.compact .mention-btn),
+.sidebar-section .suggested-users :deep(.compact .message-btn),
+.sidebar-section .suggested-users :deep(.compact .more-actions) {
+  display: none;
+}
+
+.sidebar-section .suggested-users :deep(.compact .actions-section) {
+  width: auto;
+  flex: none;
+  padding-top: 0;
+  border-top: none;
+}
+
+.sidebar-section .suggested-users :deep(.compact .follow-btn) {
+  flex: none;
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
 }
 
 .instance-info {

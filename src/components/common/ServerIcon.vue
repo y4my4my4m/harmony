@@ -321,18 +321,17 @@ const handleFileSelect = async (event: Event) => {
   border-radius: 50%;
   border: none;
   background-color: var(--harmony-primary);
-  color: var(--text-primary);
+  color: var(--text-on-primary);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.15s ease;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  transition: background-color 0.15s ease;
+  box-shadow: var(--shadow-small);
 }
 
 .server-edit-btn:hover:not(:disabled) {
-  background-color: #0284C7;
-  transform: scale(1.1);
+  background-color: var(--harmony-primary-hover);
 }
 
 .server-edit-btn:disabled {

@@ -44,7 +44,7 @@ const spinnerStyle = computed(() => {
   box-sizing: border-box;
   border-style: solid;
   border-color: rgba(255, 255, 255, 0.08);
-  border-top-color: var(--harmony-primary, var(--h-brand, #0ea5e9));
+  border-top-color: var(--harmony-primary, var(--h-brand, var(--harmony-primary)));
   border-radius: 50%;
   animation: harmony-spin 1s linear infinite;
 }

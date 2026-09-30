@@ -453,10 +453,10 @@ const getMessagePreviewText = (message: Message): string => {
   
   // Check for other content types
   const filePart = content.find(part => part.type === 'file')
-  if (filePart) return '📎 File'
+  if (filePart) return 'File'
   
   const emojiPart = content.find(part => part.type === 'emoji')
-  if (emojiPart) return '😊 Emoji'
+  if (emojiPart) return 'Emoji'
   
   return 'Message'
 }
@@ -572,7 +572,7 @@ onUnmounted(() => {
 .search-input {
   width: 100%;
   padding: 8px 32px 8px 12px;
-  background: var(--background-secondary, var(--background-secondary));
+  background: var(--background-secondary);
   border: 1px solid var(--background-quaternary, var(--background-quinary));
   border-radius: 4px;
   color: var(--text-primary);
@@ -582,7 +582,7 @@ onUnmounted(() => {
 }
 
 .search-input:focus {
-  border-color: var(--h-brand, #0EA5E9);
+  border-color: var(--h-brand, var(--harmony-primary));
 }
 
 .search-input::placeholder {
@@ -741,15 +741,15 @@ onUnmounted(() => {
   padding: 8px 16px;
   border: none;
   border-radius: 6px;
-  background: var(--accent-color, #0EA5E9);
-  color: #fff;
+  background: var(--harmony-primary);
+  color: var(--text-on-primary);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
 }
 
 .empty-cta:hover {
-  filter: brightness(1.1);
+  background: var(--harmony-primary-hover);
 }
 
 .conversations-list {
@@ -805,8 +805,8 @@ onUnmounted(() => {
 }
 
 .conversation-dismiss:hover {
-  background: var(--h-danger, #da373c);
-  color: #fff;
+  background: var(--error);
+  color: var(--text-on-primary);
 }
 
 @media (hover: none) {
@@ -817,11 +817,11 @@ onUnmounted(() => {
 }
 
 .conversation-item.active {
-  background: var(--h-brand, #0EA5E9);
+  background: var(--h-brand, var(--harmony-primary));
 }
 
 .conversation-item.unread {
-  background: rgba(114, 118, 125, 0.1);
+  background: var(--background-modifier-hover);
 }
 
 .conversation-item.unread:hover {
@@ -864,12 +864,12 @@ onUnmounted(() => {
   width: 100%;
   height: 100%;
   border-radius: 50%;
-  background: var(--h-brand, #0EA5E9);
+  background: var(--h-brand, var(--harmony-primary));
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--text-on-primary);
   font-size: 14px;
 }
 
@@ -879,7 +879,7 @@ onUnmounted(() => {
   right: -2px;
   width: 12px;
   height: 12px;
-  background: #3ba55c;
+  background: var(--status-online);
   border: 2px solid var(--h-channel-sidebar, var(--background-tertiary));
   border-radius: 50%;
 }
@@ -945,12 +945,12 @@ onUnmounted(() => {
 }
 
 .unread-count {
-  background: #f04747;
-  color: var(--text-primary);
+  background: var(--error);
+  color: var(--text-on-primary);
   font-size: 10px;
   font-weight: 600;
   padding: 2px 6px;
-  border-radius: 10px;
+  border-radius: var(--radius-full);
   min-width: 16px;
   height: 16px;
   display: flex;
@@ -998,7 +998,7 @@ onUnmounted(() => {
   /* Enhanced mobile touch targets */
   .dm-header {
     padding: 20px 16px;
-    border-bottom: 1px solid rgba(14, 165, 233, 0.1);
+    border-bottom: 1px solid color-mix(in srgb, var(--harmony-primary) 10%, transparent);
   }
 
   .dm-title {
@@ -1015,7 +1015,7 @@ onUnmounted(() => {
 
   .new-dm-btn:active {
     transform: scale(0.95);
-    background: rgba(14, 165, 233, 0.2);
+    background: color-mix(in srgb, var(--harmony-primary) 20%, transparent);
   }
 
   .user-search-section {
@@ -1039,7 +1039,7 @@ onUnmounted(() => {
 
   .conversation-item:active {
     transform: scale(0.98);
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--background-modifier-active);
   }
 
   .user-avatar {

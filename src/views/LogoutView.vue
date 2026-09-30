@@ -21,7 +21,6 @@
         </div>
       </div>
     </div>
-    <div class="bg-gradient"></div>
   </div>
 </template>
 
@@ -48,31 +47,20 @@ const goBack = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #0a0a0f;
+  background: var(--background-senary);
   position: relative;
   overflow: hidden;
-}
-
-.bg-gradient {
-  position: fixed;
-  inset: 0;
-  background:
-    radial-gradient(ellipse 60% 40% at 50% 40%, color-mix(in srgb, var(--harmony-primary) 15%, transparent) 0%, transparent 50%),
-    radial-gradient(ellipse 40% 30% at 70% 60%, rgba(139, 92, 246, 0.1) 0%, transparent 50%);
-  pointer-events: none;
 }
 
 .logout-card {
   position: relative;
   z-index: 10;
-  background: rgba(17, 17, 23, 0.9);
-  backdrop-filter: blur(40px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 24px;
+  background: var(--background-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-xl);
   padding: 48px;
   min-width: 360px;
   text-align: center;
-  box-shadow: 0 32px 64px rgba(0, 0, 0, 0.4);
 }
 
 .logout-content {
@@ -90,7 +78,7 @@ const goBack = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #818cf8;
+  color: var(--harmony-primary);
   margin-bottom: 8px;
 }
 
@@ -102,13 +90,13 @@ const goBack = () => {
 .logout-content h2 {
   font-size: 1.5rem;
   font-weight: 600;
-  color: var(--text-primary, #fff);
+  color: var(--text-primary);
   margin: 0;
 }
 
 .logout-content p {
   font-size: 0.95rem;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--text-secondary);
   margin: 0;
   max-width: 280px;
 }
@@ -126,12 +114,12 @@ const goBack = () => {
   padding: 14px 32px;
   background: var(--harmony-primary);
   border: none;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   font-size: 1rem;
   font-weight: 600;
-  color: #fff;
+  color: var(--text-on-primary);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease;
 }
 
 .btn-logout:hover {
@@ -142,15 +130,15 @@ const goBack = () => {
   padding: 12px;
   background: transparent;
   border: none;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   font-size: 0.95rem;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--text-secondary);
   cursor: pointer;
   transition: color 0.2s ease;
 }
 
 .btn-cancel:hover {
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--text-primary);
 }
 
 @media (max-width: 480px) {

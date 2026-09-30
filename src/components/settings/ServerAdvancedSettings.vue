@@ -11,7 +11,7 @@
     <div v-if="!permissions.canDeleteServer" class="permission-notice">
       <div class="notice-content">
         <svg class="notice-icon" width="20" height="20" viewBox="0 0 24 24">
-          <path fill="#faa61a" d="M13,14H11V10H13M13,18H11V16H13M1,21H23L12,2L1,21Z"/>
+          <path fill="currentColor" d="M13,14H11V10H13M13,18H11V16H13M1,21H23L12,2L1,21Z"/>
         </svg>
         <div class="notice-text">
           <h4>{{ $t('server.viewOnlyAccess') }}</h4>
@@ -83,7 +83,7 @@
         <div class="modal-body">
           <div class="warning-section">
             <svg class="warning-icon" width="48" height="48" viewBox="0 0 24 24">
-              <path fill="#ed4245" d="M13,14H11V10H13M13,18H11V16H13M1,21H23L12,2L1,21Z"/>
+              <path fill="currentColor" d="M13,14H11V10H13M13,18H11V16H13M1,21H23L12,2L1,21Z"/>
             </svg>
             <h4 class="warning-title">{{ $t('server.deleteServerConfirmTitle') }}</h4>
             <p class="warning-text">
@@ -211,7 +211,7 @@ const confirmDeleteServer = async () => {
     const success = await serverStore.deleteServer(props.serverId, userId)
     
     if (success) {
-      toast.success('Server deleted successfully')
+      toast.success('Server deleted')
       hideDeleteConfirmation()
       
       await serverChannelStore.fetchServersForUser(userId)
@@ -258,32 +258,32 @@ const formatDate = (dateString: string | undefined): string => {
 }
 
 .section-title {
-  font-size: 24px;
-  font-weight: 600;
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
   margin: 0 0 8px 0;
 }
 
 .section-title.danger {
-  color: #ed4245;
-  font-size: 18px;
+  color: var(--error);
+  font-size: var(--font-size-lg);
 }
 
 .section-description {
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   color: var(--text-secondary);
   margin: 0;
 }
 
 .section-description.danger {
-  color: #ed4245;
+  color: var(--error);
 }
 
 .permission-notice {
   padding: 16px;
-  background-color: rgba(250, 166, 26, 0.1);
-  border: 1px solid rgba(250, 166, 26, 0.3);
-  border-radius: 8px;
+  background-color: color-mix(in srgb, var(--warning) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warning) 30%, transparent);
+  border-radius: var(--radius-md);
 }
 
 .notice-content {
@@ -295,14 +295,14 @@ const formatDate = (dateString: string | undefined): string => {
 .notice-icon {
   flex-shrink: 0;
   margin-top: 2px;
-  color: #faa61a;
+  color: var(--warning);
 }
 
 .notice-text h4 {
   margin: 0 0 4px 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: #faa61a;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--warning);
 }
 
 .notice-text p {
@@ -314,14 +314,14 @@ const formatDate = (dateString: string | undefined): string => {
 
 .settings-card {
   background-color: var(--background-secondary);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 24px;
   border: 1px solid var(--background-quaternary);
 }
 
 .settings-card.danger-zone {
-  border-color: #ed4245;
-  background-color: rgba(237, 66, 69, 0.05);
+  border-color: var(--error);
+  background-color: color-mix(in srgb, var(--error) 5%, transparent);
 }
 
 .form-group {
@@ -334,12 +334,10 @@ const formatDate = (dateString: string | undefined): string => {
 
 .form-label {
   display: block;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
   margin-bottom: 8px;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
 }
 
 .stats-grid {
@@ -351,20 +349,18 @@ const formatDate = (dateString: string | undefined): string => {
 .stat-item {
   padding: 12px;
   background-color: var(--surface-inset);
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   border: 1px solid var(--background-quaternary);
 }
 
 .stat-label {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
   margin-bottom: 4px;
 }
 
 .stat-value {
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   color: var(--text-primary);
   font-family: 'Courier New', monospace;
 }
@@ -375,9 +371,9 @@ const formatDate = (dateString: string | undefined): string => {
   align-items: flex-start;
   gap: 16px;
   padding: 16px;
-  background-color: rgba(237, 66, 69, 0.1);
-  border: 1px solid rgba(237, 66, 69, 0.3);
-  border-radius: 6px;
+  background-color: color-mix(in srgb, var(--error) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--error) 30%, transparent);
+  border-radius: var(--radius-base);
 }
 
 .danger-info {
@@ -385,14 +381,14 @@ const formatDate = (dateString: string | undefined): string => {
 }
 
 .danger-label {
-  font-size: 16px;
-  font-weight: 600;
-  color: #ed4245;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--error);
   margin: 0 0 4px 0;
 }
 
 .danger-description {
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   color: var(--text-secondary);
   margin: 0;
   line-height: 1.4;
@@ -404,10 +400,10 @@ const formatDate = (dateString: string | undefined): string => {
 
 .btn {
   padding: 8px 16px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   border: none;
-  font-weight: 500;
-  font-size: 14px;
+  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-sm);
   cursor: pointer;
   transition: all 0.15s ease;
   display: flex;
@@ -421,18 +417,18 @@ const formatDate = (dateString: string | undefined): string => {
 }
 
 .btn-danger {
-  background-color: #ed4245;
-  color: var(--text-on-primary, #ffffff);
+  background-color: var(--error);
+  color: var(--text-on-primary);
 }
 
 .btn-danger:hover:not(:disabled) {
-  background-color: #c53030;
+  background-color: var(--error-hover);
 }
 
 .btn-secondary {
   background-color: transparent;
   color: var(--text-secondary);
-  border: 1px solid #4f545c;
+  border: 1px solid var(--border-hover);
 }
 
 .btn-secondary:hover:not(:disabled) {
@@ -454,11 +450,11 @@ const formatDate = (dateString: string | undefined): string => {
 
 .modal-content {
   background: var(--background-secondary);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   width: 100%;
   max-width: 500px;
   border: 1px solid var(--background-quaternary);
-  box-shadow: 0 32px 64px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--shadow-modal);
 }
 
 .modal-header {
@@ -470,8 +466,8 @@ const formatDate = (dateString: string | undefined): string => {
 }
 
 .modal-title {
-  font-size: 18px;
-  font-weight: 600;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
   margin: 0;
 }
@@ -482,7 +478,7 @@ const formatDate = (dateString: string | undefined): string => {
   color: var(--text-secondary);
   cursor: pointer;
   padding: 4px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   transition: all 0.15s ease;
 }
 
@@ -502,17 +498,18 @@ const formatDate = (dateString: string | undefined): string => {
 
 .warning-icon {
   margin-bottom: 12px;
+  color: var(--error);
 }
 
 .warning-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: #ed4245;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--error);
   margin: 0 0 8px 0;
 }
 
 .warning-text {
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   color: var(--text-secondary);
   margin: 0 0 12px 0;
 }
@@ -535,10 +532,10 @@ const formatDate = (dateString: string | undefined): string => {
 
 .confirmation-label {
   display: block;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   color: var(--text-primary);
   margin-bottom: 8px;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
 }
 
 .confirmation-input {
@@ -546,24 +543,24 @@ const formatDate = (dateString: string | undefined): string => {
   padding: 12px;
   background-color: var(--surface-inset);
   border: 1px solid var(--background-quaternary);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   color: var(--text-primary);
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   transition: border-color 0.15s ease;
 }
 
 .confirmation-input:focus {
   outline: none;
-  border-color: #0EA5E9;
+  border-color: var(--harmony-primary);
 }
 
 .confirmation-input.error {
-  border-color: #ed4245;
+  border-color: var(--error);
 }
 
 .error-message {
-  font-size: 12px;
-  color: #ed4245;
+  font-size: var(--font-size-xs);
+  color: var(--error);
   margin-top: 4px;
 }
 
@@ -579,7 +576,7 @@ const formatDate = (dateString: string | undefined): string => {
   width: 16px;
   height: 16px;
   border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top: 2px solid #ffffff;
+  border-top: 2px solid var(--text-on-primary);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }

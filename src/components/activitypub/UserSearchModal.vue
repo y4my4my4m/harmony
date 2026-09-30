@@ -5,7 +5,7 @@
       <div class="search-modal" @click.stop>
         <!-- Header -->
         <div class="modal-header">
-          <h2 class="modal-title">Search Users</h2>
+          <h2 class="modal-title">Search users</h2>
           <button @click="$emit('close')" class="close-btn" title="Close">
             <Icon name="x" />
           </button>
@@ -75,12 +75,12 @@
           <!-- Initial State -->
           <div v-else-if="!searchQuery" class="initial-state">
             <Icon name="search" :size="48" />
-            <h3>Search for Users</h3>
+            <h3>Search for users</h3>
             <p>Find users from this instance or across the fediverse.</p>
             
             <!-- Recent Searches -->
             <div v-if="recentSearches.length > 0" class="recent-searches">
-              <h4>Recent Searches</h4>
+              <h4>Recent searches</h4>
               <div class="recent-list">
                 <button
                   v-for="search in recentSearches"
@@ -103,7 +103,7 @@
 
             <!-- Suggested Users -->
             <div v-if="suggestedUsers.length > 0" class="suggested-users">
-              <h4>Suggested Users</h4>
+              <h4>Suggested users</h4>
               <div class="suggested-list">
                 <UserCard
                   v-for="user in suggestedUsers"
@@ -139,7 +139,7 @@
             class="load-more-btn"
           >
             <Icon v-if="isLoadingMore" name="loader" class="spinning" />
-            <span>{{ isLoadingMore ? 'Loading...' : 'Load More' }}</span>
+            <span>{{ isLoadingMore ? 'Loading...' : 'Load more' }}</span>
           </button>
         </div>
       </div>
@@ -372,7 +372,8 @@ onUnmounted(() => {
   max-width: 600px;
   height: 80vh;
   background: var(--background-quaternary);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-modal);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -383,13 +384,13 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 1rem 1.5rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid var(--border-primary);
   flex-shrink: 0;
 }
 
 .modal-title {
   font-size: 1.25rem;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
   margin: 0;
 }
@@ -402,20 +403,20 @@ onUnmounted(() => {
   height: 32px;
   background: none;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   color: var(--text-tertiary);
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .close-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--background-modifier-selected);
   color: var(--text-primary);
 }
 
 .search-container {
   padding: 1rem 1.5rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid var(--border-primary);
   flex-shrink: 0;
 }
 
@@ -435,9 +436,9 @@ onUnmounted(() => {
 
 .search-input {
   width: 100%;
-  background: var(--background-tertiary);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-md);
   padding: 0.75rem 2.5rem 0.75rem 2.5rem;
   color: var(--text-primary);
   font-size: 1rem;
@@ -462,13 +463,13 @@ onUnmounted(() => {
   border: none;
   color: var(--text-tertiary);
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   padding: 0.25rem;
   transition: all 0.2s;
 }
 
 .clear-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--background-modifier-selected);
   color: var(--text-primary);
 }
 
@@ -482,8 +483,8 @@ onUnmounted(() => {
   align-items: center;
   gap: 0.5rem;
   background: none;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 6px;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-base);
   color: var(--text-tertiary);
   padding: 0.5rem 0.75rem;
   font-size: 0.875rem;
@@ -492,14 +493,14 @@ onUnmounted(() => {
 }
 
 .filter-btn:hover {
-  border-color: rgba(255, 255, 255, 0.16);
+  border-color: var(--border-hover);
   color: var(--text-primary);
 }
 
 .filter-btn.active {
   background: var(--harmony-primary);
   border-color: var(--harmony-primary);
-  color: var(--text-primary);
+  color: var(--text-on-primary);
 }
 
 .search-results {
@@ -529,7 +530,7 @@ onUnmounted(() => {
 
 .search-tips {
   background: var(--background-tertiary);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 1rem;
   margin-top: 1rem;
   text-align: left;
@@ -582,7 +583,7 @@ onUnmounted(() => {
   border: none;
   color: var(--text-primary);
   padding: 0.75rem;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   cursor: pointer;
   text-align: left;
   transition: background 0.2s;
@@ -590,7 +591,7 @@ onUnmounted(() => {
 }
 
 .recent-item:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--background-modifier-selected);
 }
 
 .recent-avatar {
@@ -605,7 +606,7 @@ onUnmounted(() => {
 }
 
 .recent-name {
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   margin-bottom: 0.25rem;
 }
 
@@ -622,15 +623,15 @@ onUnmounted(() => {
 
 .search-actions {
   padding: 1rem 1.5rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid var(--border-primary);
   flex-shrink: 0;
 }
 
 .load-more-btn {
   width: 100%;
   background: var(--background-tertiary);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
   color: var(--text-primary);
   padding: 0.75rem;
   cursor: pointer;
@@ -642,8 +643,8 @@ onUnmounted(() => {
 }
 
 .load-more-btn:hover:not(:disabled) {
-  border-color: rgba(255, 255, 255, 0.16);
-  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--border-hover);
+  background: var(--background-modifier-hover);
 }
 
 .load-more-btn:disabled {

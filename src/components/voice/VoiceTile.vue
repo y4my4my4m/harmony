@@ -277,7 +277,7 @@ onBeforeUnmount(detach);
   position: relative;
   width: 100%;
   height: 100%;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   overflow: hidden;
   background: var(--background-secondary);
   cursor: pointer;
@@ -303,7 +303,7 @@ onBeforeUnmount(detach);
   width: 100%;
   height: 100%;
   border: none;
-  background: linear-gradient(135deg, var(--background-tertiary), var(--background-secondary));
+  background: var(--background-tertiary);
   color: var(--text-secondary);
   cursor: pointer;
   font-size: 0.85rem;
@@ -325,7 +325,7 @@ onBeforeUnmount(detach);
 }
 
 .voice-tile.speaking {
-  outline-color: #00d4aa;
+  outline-color: var(--success);
 }
 
 /* above the banner/video which fill the tile */
@@ -333,9 +333,8 @@ onBeforeUnmount(detach);
   content: '';
   position: absolute;
   inset: 0;
-  border: 2px solid #00d4aa;
-  border-radius: 10px;
-  box-shadow: inset 0 0 14px rgba(0, 212, 170, 0.55);
+  border: 2px solid var(--success);
+  border-radius: var(--radius-md);
   pointer-events: none;
   z-index: 3;
 }
@@ -394,7 +393,7 @@ onBeforeUnmount(detach);
 }
 
 .avatar-ring.speaking {
-  box-shadow: 0 0 0 3px #00d4aa, 0 0 24px rgba(0, 212, 170, 0.4);
+  box-shadow: 0 0 0 3px var(--success);
 }
 
 /* Identity pill */
@@ -407,9 +406,8 @@ onBeforeUnmount(detach);
   gap: 6px;
   max-width: calc(100% - 16px);
   padding: 4px 10px;
-  border-radius: 14px;
+  border-radius: var(--radius-full);
   background: rgba(0, 0, 0, 0.65);
-  backdrop-filter: blur(6px);
   color: #fff;
   font-size: 13px;
   font-weight: 500;
@@ -435,19 +433,19 @@ onBeforeUnmount(detach);
 }
 
 .pill-icon.danger {
-  color: #ed4245;
+  color: var(--error);
 }
 
 .pill-icon.live {
-  color: #57f287;
+  color: var(--success);
 }
 
 .pill-live-badge {
   flex-shrink: 0;
   padding: 1px 5px;
-  border-radius: 4px;
-  background: #ed4245;
-  color: #fff;
+  border-radius: var(--radius-sm);
+  background: var(--error);
+  color: var(--text-on-primary);
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.5px;
@@ -462,7 +460,7 @@ onBeforeUnmount(detach);
   height: 24px;
   border-radius: 50%;
   background: rgba(0, 0, 0, 0.65);
-  color: #ed4245;
+  color: var(--error);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -494,10 +492,9 @@ onBeforeUnmount(detach);
 .tile-action-btn {
   width: 32px;
   height: 32px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   border: none;
   background: rgba(0, 0, 0, 0.65);
-  backdrop-filter: blur(6px);
   color: #fff;
   cursor: pointer;
   display: flex;
@@ -511,7 +508,7 @@ onBeforeUnmount(detach);
 }
 
 .tile-action-btn.active {
-  background: var(--harmony-primary, #0ea5e9);
+  background: var(--harmony-primary);
 }
 
 .tile-action-btn :deep(svg) {

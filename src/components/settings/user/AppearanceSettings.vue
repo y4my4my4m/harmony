@@ -6,7 +6,7 @@
         {{ $t('settings.appearance.description') }}
       </p>
       <button class="live-editor-btn" @click="openLiveEditor">
-        <Icon name="sparkles" :size="16" />
+        <Icon name="pencil" :size="16" />
         Edit on live preview
       </button>
     </div>
@@ -56,7 +56,7 @@
               title="Delete theme"
               @click.stop="confirmDeleteSavedTheme(saved)"
             >
-              &times;
+              <Icon name="x" :size="14" />
             </button>
           </div>
           <div class="theme-info">
@@ -80,7 +80,7 @@
       <div v-if="settings.theme === 'custom'" class="custom-color-section">
         <!-- Community Presets -->
         <div class="community-presets-section">
-          <h4 class="section-subtitle">Community Presets</h4>
+          <h4 class="section-subtitle">Community presets</h4>
           <p class="section-help">Quick-apply curated themes from the community</p>
           <div class="presets-grid">
             <button
@@ -103,7 +103,7 @@
         
         <!-- Theme Mode Selector -->
         <div class="custom-theme-mode">
-          <label class="mode-label">Theme Mode</label>
+          <label class="mode-label">Theme mode</label>
           <div class="mode-options">
             <button
               class="mode-btn"
@@ -137,7 +137,7 @@
                 <span class="theme-collapse-hint">Tone, lightness &amp; saturation</span>
               </span>
               <span class="theme-collapse-hex">{{ settings.customBackgroundColor }}</span>
-              <span class="theme-collapse-arrow" :class="{ open: colorExpanded.background }">&#9660;</span>
+              <span class="theme-collapse-arrow" :class="{ open: colorExpanded.background }"><Icon name="chevron-down" :size="14" /></span>
             </button>
             <div v-show="colorExpanded.background" class="theme-collapse-body">
               <p class="picker-help">Sets the color hue for all background elements</p>
@@ -198,7 +198,7 @@
                 <span class="theme-collapse-hint">Buttons &amp; key actions</span>
               </span>
               <span class="theme-collapse-hex">{{ settings.customPrimaryColor }}</span>
-              <span class="theme-collapse-arrow" :class="{ open: colorExpanded.primary }">&#9660;</span>
+              <span class="theme-collapse-arrow" :class="{ open: colorExpanded.primary }"><Icon name="chevron-down" :size="14" /></span>
             </button>
             <div v-show="colorExpanded.primary" class="theme-collapse-body">
               <p class="picker-help">Main brand color for buttons and key actions</p>
@@ -225,7 +225,7 @@
                 <span class="theme-collapse-hint">Links &amp; highlights</span>
               </span>
               <span class="theme-collapse-hex">{{ settings.customAccentColor }}</span>
-              <span class="theme-collapse-arrow" :class="{ open: colorExpanded.accent }">&#9660;</span>
+              <span class="theme-collapse-arrow" :class="{ open: colorExpanded.accent }"><Icon name="chevron-down" :size="14" /></span>
             </button>
             <div v-show="colorExpanded.accent" class="theme-collapse-body">
               <p class="picker-help">Used for links, highlights, and accents</p>
@@ -256,7 +256,7 @@
 
       <!-- Import / Export -->
       <div class="theme-import-export-section">
-        <h4 class="section-subtitle">Import & Export</h4>
+        <h4 class="section-subtitle">Import and export</h4>
         <p class="section-help">Export your theme as JSON or import a previously exported theme</p>
         <div class="import-export-buttons">
           <button class="preset-card export-btn" @click="exportTheme">
@@ -291,7 +291,7 @@
             <span class="theme-collapse-hint">Override individual variables</span>
           </span>
           <span v-if="overrideCount > 0" class="override-badge">{{ overrideCount }}</span>
-          <span class="theme-collapse-arrow" :class="{ open: showAdvancedCss }">&#9660;</span>
+          <span class="theme-collapse-arrow" :class="{ open: showAdvancedCss }"><Icon name="chevron-down" :size="14" /></span>
         </button>
 
         <div v-show="showAdvancedCss" class="theme-collapse-body css-overrides-panel">
@@ -344,7 +344,7 @@
                   @click="removeCssOverrideVar(varName)"
                   title="Reset to default"
                 >
-                  &#10005;
+                  <Icon name="x" :size="14" />
                 </button>
               </div>
             </div>
@@ -669,11 +669,11 @@
     </div>
 
     <div class="settings-section">
-      <h3 class="section-title">Emoji Style</h3>
+      <h3 class="section-title">Emoji style</h3>
       
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">Emoji Pack</h4>
+          <h4 class="setting-label">Emoji pack</h4>
           <p class="setting-description">Choose which emoji style to use throughout the app</p>
         </div>
         <div class="setting-control">
@@ -1367,15 +1367,15 @@ onMounted(async () => {
 }
 
 .settings-title {
-  font-size: 24px;
-  font-weight: 600;
-  color: var(--text-primary, #ffffff);
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
   margin: 0 0 8px 0;
 }
 
 .settings-description {
-  font-size: 14px;
-  color: var(--text-secondary, var(--text-secondary));
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
   margin: 0;
 }
 
@@ -1385,33 +1385,33 @@ onMounted(async () => {
   gap: 8px;
   margin-top: 14px;
   padding: 9px 14px;
-  border-radius: 8px;
-  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-primary);
   background: var(--background-quaternary);
   color: var(--text-primary);
   font-size: 13px;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
-  transition: all 0.12s ease;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast);
 }
 
 .live-editor-btn:hover {
-  border-color: var(--harmony-primary);
-  background: var(--harmony-primary-alpha, var(--background-quinary));
+  border-color: var(--border-hover);
+  background: var(--background-modifier-hover);
 }
 
 .settings-section {
   margin-bottom: 32px;
   padding: 24px;
   background-color: var(--background-secondary);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   border: 1px solid var(--background-quaternary);
 }
 
 .section-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--text-primary, #ffffff);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
   margin: 0 0 20px 0;
 }
 
@@ -1423,25 +1423,25 @@ onMounted(async () => {
 
 .theme-option {
   border: 2px solid var(--background-quaternary);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 16px;
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
 .theme-option:hover {
-  border-color: var(--h-primary, #0EA5E9);
+  border-color: var(--h-primary, var(--harmony-primary));
 }
 
 .theme-option.active {
-  border-color: var(--h-primary, #0EA5E9);
+  border-color: var(--h-primary, var(--harmony-primary));
   background-color: color-mix(in srgb, var(--h-brand) 10%, transparent);
 }
 
 .theme-preview {
   width: 100%;
   height: 80px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   margin-bottom: 12px;
   position: relative;
   overflow: hidden;
@@ -1481,15 +1481,15 @@ onMounted(async () => {
 }
 
 .theme-name {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary, #ffffff);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
   margin: 0 0 4px 0;
 }
 
 .theme-description {
-  font-size: 12px;
-  color: var(--text-secondary, var(--text-secondary));
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
   margin: 0;
 }
 
@@ -1518,8 +1518,7 @@ onMounted(async () => {
   border-radius: 50%;
   border: none;
   background: rgba(0, 0, 0, 0.55);
-  color: #fff;
-  font-size: 14px;
+  color: var(--text-on-primary);
   line-height: 1;
   cursor: pointer;
   opacity: 0;
@@ -1535,7 +1534,7 @@ onMounted(async () => {
 }
 
 .saved-theme-delete-btn:hover {
-  background: var(--error, #ed4245);
+  background: var(--error);
 }
 
 .delete-theme-confirm {
@@ -1545,14 +1544,14 @@ onMounted(async () => {
   gap: 12px;
   padding: 12px 16px;
   background: var(--background-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
   margin-top: 8px;
 }
 
 .delete-theme-confirm p {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   color: var(--text-primary);
 }
 
@@ -1564,33 +1563,33 @@ onMounted(async () => {
 
 .cancel-delete-btn {
   padding: 6px 14px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 13px;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
   background: transparent;
   color: var(--text-secondary);
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border-primary);
 }
 
 .cancel-delete-btn:hover {
-  background: var(--background-tertiary);
+  background: var(--background-modifier-hover);
   color: var(--text-primary);
 }
 
 .confirm-delete-btn {
   padding: 6px 14px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 13px;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
-  background: var(--error, #ed4245);
-  color: #fff;
+  background: var(--error);
+  color: var(--text-on-primary);
   border: none;
 }
 
 .confirm-delete-btn:hover {
-  filter: brightness(1.1);
+  background: var(--error-hover);
 }
 
 .custom-color-section {
@@ -1600,15 +1599,15 @@ onMounted(async () => {
 }
 
 .section-subtitle {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary, #ffffff);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
   margin: 0 0 8px 0;
 }
 
 .section-help {
-  font-size: 12px;
-  color: var(--text-secondary, var(--text-secondary));
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
   margin: 0 0 16px 0;
   line-height: 1.5;
 }
@@ -1619,9 +1618,9 @@ onMounted(async () => {
 
 .mode-label {
   display: block;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary, #ffffff);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
   margin-bottom: 8px;
 }
 
@@ -1635,23 +1634,23 @@ onMounted(async () => {
   padding: 12px 16px;
   border: 2px solid var(--background-quaternary);
   background-color: var(--background-senary);
-  color: var(--text-secondary, var(--text-secondary));
-  border-radius: 6px;
+  color: var(--text-secondary);
+  border-radius: var(--radius-base);
   cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
   transition: all 0.2s ease;
 }
 
 .mode-btn:hover {
-  border-color: var(--h-primary, #0EA5E9);
+  border-color: var(--h-primary, var(--harmony-primary));
   background-color: var(--background-quaternary);
 }
 
 .mode-btn.active {
-  border-color: var(--h-primary, #0EA5E9);
+  border-color: var(--h-primary, var(--harmony-primary));
   background-color: color-mix(in srgb, var(--h-brand) 15%, transparent);
-  color: var(--text-primary, #ffffff);
+  color: var(--text-primary);
 }
 
 .quick-react-emoji-btn {
@@ -1662,15 +1661,14 @@ onMounted(async () => {
   height: 44px;
   border: 2px solid var(--background-quaternary, var(--border-color));
   background-color: var(--background-senary, var(--background-tertiary));
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   cursor: pointer;
   transition: all 0.15s ease;
   padding: 0;
 }
 
 .quick-react-emoji-btn:hover {
-  border-color: var(--harmony-primary, #0EA5E9);
-  transform: scale(1.05);
+  border-color: var(--harmony-primary);
 }
 
 .quick-react-emoji-img {
@@ -1680,7 +1678,7 @@ onMounted(async () => {
 }
 
 .quick-react-emoji-native {
-  font-size: 24px;
+  font-size: var(--font-size-2xl);
   line-height: 1;
 }
 
@@ -1697,24 +1695,24 @@ onMounted(async () => {
   padding: 16px 20px;
   border: 2px solid var(--background-quaternary);
   background-color: var(--background-senary);
-  color: var(--text-secondary, var(--text-secondary));
-  border-radius: 8px;
+  color: var(--text-secondary);
+  border-radius: var(--radius-md);
   cursor: pointer;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   transition: all 0.2s ease;
   min-width: 120px;
 }
 
 .emoji-pack-btn:hover {
-  border-color: var(--h-primary, #0EA5E9);
+  border-color: var(--h-primary, var(--harmony-primary));
   background-color: var(--background-quaternary);
 }
 
 .emoji-pack-btn.active {
-  border-color: var(--h-primary, #0EA5E9);
-  background-color: rgba(14, 165, 233, 0.15);
-  color: var(--text-primary, #ffffff);
+  border-color: var(--h-primary, var(--harmony-primary));
+  background-color: color-mix(in srgb, var(--harmony-primary) 15%, transparent);
+  color: var(--text-primary);
 }
 
 .pack-preview {
@@ -1731,21 +1729,19 @@ onMounted(async () => {
 /* Skin picker (Beta) */
 .beta-badge {
   display: inline-block;
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: rgba(245, 158, 11, 0.15);
-  color: #f59e0b;
+  font-size: 11px;
+  font-weight: var(--font-weight-medium);
+  padding: 1px 6px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-hover);
+  color: var(--text-secondary);
   vertical-align: middle;
   margin-left: 8px;
 }
 
 .beta-badge-inline {
-  font-size: 9px;
-  padding: 1px 5px;
+  font-size: 10px;
+  padding: 0 5px;
 }
 
 .skin-options {
@@ -1759,30 +1755,29 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   border: 2px solid var(--background-quaternary);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: var(--background-secondary);
   color: var(--text-primary);
   cursor: pointer;
-  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
   text-align: left;
   overflow: hidden;
   padding: 0;
 }
 
 .skin-card:hover {
-  border-color: var(--harmony-primary, #0EA5E9);
-  transform: translateY(-1px);
+  border-color: var(--harmony-primary);
 }
 
 .skin-card.active {
-  border-color: var(--harmony-primary, #0EA5E9);
-  box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.3);
+  border-color: var(--harmony-primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--harmony-primary) 30%, transparent);
 }
 
 .skin-card-preview {
   width: 100%;
   height: 140px;
-  background: linear-gradient(135deg, #0d0d10, #1a1a20);
+  background: var(--background-senary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1807,11 +1802,9 @@ onMounted(async () => {
 }
 
 .skin-card-none-label {
-  font-size: 16px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
   color: var(--text-secondary);
-  text-transform: uppercase;
 }
 
 .skin-card-info {
@@ -1819,14 +1812,14 @@ onMounted(async () => {
 }
 
 .skin-card-name {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
   margin: 0 0 6px 0;
   color: var(--text-primary);
 }
 
 .skin-card-description {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   margin: 0;
   color: var(--text-secondary);
   line-height: 1.4;
@@ -1838,17 +1831,15 @@ onMounted(async () => {
   margin-top: 18px;
   padding: 14px 16px;
   border: 1px solid var(--border-primary);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--background-quaternary);
 }
 
 .skin-active-options-title {
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
   margin: 0 0 8px 0;
-  color: var(--text-secondary);
+  color: var(--text-primary);
 }
 
 .skin-option-item {
@@ -1877,7 +1868,7 @@ onMounted(async () => {
   gap: 4px;
   padding: 12px 14px;
   border: 2px solid var(--background-quaternary);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background-color: var(--background-secondary);
   color: var(--text-primary);
   cursor: pointer;
@@ -1886,18 +1877,18 @@ onMounted(async () => {
 }
 
 .font-family-btn:hover {
-  border-color: var(--harmony-primary, #0EA5E9);
+  border-color: var(--harmony-primary);
   background-color: var(--background-quaternary);
 }
 
 .font-family-btn.active {
-  border-color: var(--harmony-primary, #0EA5E9);
-  background-color: rgba(14, 165, 233, 0.15);
+  border-color: var(--harmony-primary);
+  background-color: color-mix(in srgb, var(--harmony-primary) 15%, transparent);
 }
 
 .font-family-name {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
 }
 
 .font-family-sample {
@@ -1915,7 +1906,7 @@ onMounted(async () => {
 
 .theme-collapse {
   border: 1px solid var(--background-quaternary);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   overflow: hidden;
   background: var(--background-primary);
 }
@@ -1945,7 +1936,7 @@ onMounted(async () => {
 .theme-collapse-swatch {
   width: 28px;
   height: 28px;
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   border: 1px solid var(--background-quaternary);
   flex-shrink: 0;
 }
@@ -1958,7 +1949,7 @@ onMounted(async () => {
 .theme-collapse-title {
   display: block;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
 }
 
@@ -1986,15 +1977,15 @@ onMounted(async () => {
   background: var(--background-quaternary) !important;
   font-family: monospace;
   font-size: 11px;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   color: var(--text-secondary);
 }
 
 .theme-collapse-arrow {
-  font-size: 9px;
+  display: inline-flex;
   color: var(--text-secondary);
   flex-shrink: 0;
-  transition: transform 0.2s ease;
+  transition: transform var(--transition-base);
 }
 
 .theme-collapse-arrow.open {
@@ -2024,15 +2015,15 @@ onMounted(async () => {
 
 .picker-label {
   display: block;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary, #ffffff);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
   margin-bottom: 4px;
 }
 
 .picker-help {
-  font-size: 12px;
-  color: var(--text-secondary, var(--text-secondary));
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
   margin: 0 0 12px 0;
 }
 
@@ -2045,10 +2036,8 @@ onMounted(async () => {
 }
 
 .lightness-label {
-  font-size: 11px;
-  color: var(--text-tertiary, #80848e);
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
   min-width: 50px;
   text-align: center;
 }
@@ -2056,7 +2045,7 @@ onMounted(async () => {
 .lightness-slider {
   flex: 1;
   height: 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: linear-gradient(to right, 
     oklch(15% 0.02 260), 
     oklch(50% 0.02 260), 
@@ -2072,32 +2061,27 @@ onMounted(async () => {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: var(--h-primary, #0EA5E9);
+  background: var(--h-primary, var(--harmony-primary));
   cursor: pointer;
-  border: 3px solid var(--text-primary, #ffffff);
+  border: 3px solid var(--text-primary);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
-  transition: transform 0.15s ease;
-}
-
-.lightness-slider::-webkit-slider-thumb:hover {
-  transform: scale(1.1);
 }
 
 .lightness-slider::-moz-range-thumb {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: var(--h-primary, #0EA5E9);
+  background: var(--h-primary, var(--harmony-primary));
   cursor: pointer;
-  border: 3px solid var(--text-primary, #ffffff);
+  border: 3px solid var(--text-primary);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
 }
 
 .lightness-value {
   text-align: center;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-secondary, var(--text-secondary));
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-secondary);
   margin-top: 8px;
 }
 
@@ -2110,10 +2094,8 @@ onMounted(async () => {
 }
 
 .chroma-label {
-  font-size: 11px;
-  color: var(--text-tertiary, #80848e);
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
   min-width: 50px;
   text-align: center;
 }
@@ -2121,7 +2103,7 @@ onMounted(async () => {
 .chroma-slider {
   flex: 1;
   height: 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: linear-gradient(to right, 
     oklch(30% 0.00 260), 
     oklch(30% 0.06 260), 
@@ -2137,32 +2119,27 @@ onMounted(async () => {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: var(--h-primary, #0EA5E9);
+  background: var(--h-primary, var(--harmony-primary));
   cursor: pointer;
-  border: 3px solid var(--text-primary, #ffffff);
+  border: 3px solid var(--text-primary);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
-  transition: transform 0.15s ease;
-}
-
-.chroma-slider::-webkit-slider-thumb:hover {
-  transform: scale(1.1);
 }
 
 .chroma-slider::-moz-range-thumb {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: var(--h-primary, #0EA5E9);
+  background: var(--h-primary, var(--harmony-primary));
   cursor: pointer;
-  border: 3px solid var(--text-primary, #ffffff);
+  border: 3px solid var(--text-primary);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
 }
 
 .chroma-value {
   text-align: center;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-secondary, var(--text-secondary));
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-secondary);
   margin-top: 8px;
 }
 
@@ -2187,15 +2164,15 @@ onMounted(async () => {
 }
 
 .setting-label {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text-primary, #ffffff);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
   margin: 0 0 4px 0;
 }
 
 .setting-description {
-  font-size: 12px;
-  color: var(--text-secondary, var(--text-secondary));
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
   margin: 0;
   line-height: 1.4;
 }
@@ -2224,7 +2201,7 @@ onMounted(async () => {
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: var(--h-primary, #0EA5E9);
+  background: var(--h-primary, var(--harmony-primary));
   cursor: pointer;
 }
 
@@ -2232,14 +2209,14 @@ onMounted(async () => {
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: var(--h-primary, #0EA5E9);
+  background: var(--h-primary, var(--harmony-primary));
   cursor: pointer;
   border: none;
 }
 
 .font-size-display {
-  font-size: 12px;
-  color: var(--text-secondary, var(--text-secondary));
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
   min-width: 40px;
   text-align: center;
 }
@@ -2255,13 +2232,13 @@ onMounted(async () => {
   height: 28px;
   border: 1px solid var(--background-quaternary);
   background-color: var(--background-senary);
-  color: var(--text-primary, #ffffff);
-  border-radius: 4px;
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   transition: all 0.15s ease;
 }
 
@@ -2275,8 +2252,8 @@ onMounted(async () => {
 }
 
 .zoom-display {
-  font-size: 14px;
-  color: var(--text-primary, #ffffff);
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
   min-width: 60px;
   text-align: center;
 }
@@ -2285,15 +2262,15 @@ onMounted(async () => {
   padding: 8px 12px;
   background-color: var(--background-senary);
   border: 1px solid var(--background-quaternary);
-  border-radius: 4px;
-  color: var(--text-primary, #ffffff);
-  font-size: 14px;
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
   cursor: pointer;
 }
 
 .select-input:focus {
   outline: none;
-  border-color: var(--h-primary, #0EA5E9);
+  border-color: var(--h-primary, var(--harmony-primary));
 }
 
 .settings-actions {
@@ -2305,10 +2282,10 @@ onMounted(async () => {
 
 .btn {
   padding: 8px 16px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   border: none;
-  font-weight: 500;
-  font-size: 14px;
+  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-sm);
   cursor: pointer;
   transition: all 0.15s ease;
   display: flex;
@@ -2323,7 +2300,7 @@ onMounted(async () => {
 
 .btn-primary {
   background-color: var(--harmony-primary);
-  color: var(--text-on-primary, #ffffff);
+  color: var(--text-on-primary);
 }
 
 .btn-primary:hover:not(:disabled) {
@@ -2345,7 +2322,7 @@ onMounted(async () => {
   width: 16px;
   height: 16px;
   border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top: 2px solid #ffffff;
+  border-top: 2px solid var(--text-on-primary);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -2400,22 +2377,21 @@ onMounted(async () => {
   padding: 12px;
   background: var(--background-secondary);
   border: 1px solid var(--background-quaternary);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: border-color var(--transition-fast);
   text-align: left;
   color: inherit;
 }
 
 .preset-card:hover {
   border-color: var(--harmony-primary);
-  transform: translateY(-1px);
 }
 
 .preset-swatch {
   width: 36px;
   height: 36px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   flex-shrink: 0;
 }
 
@@ -2428,7 +2404,7 @@ onMounted(async () => {
 
 .preset-name {
   font-size: 13px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
 }
 
@@ -2481,8 +2457,8 @@ onMounted(async () => {
   border: 1px solid var(--background-quaternary);
   background: var(--background-secondary);
   color: var(--text-primary);
-  border-radius: 6px;
-  font-size: 14px;
+  border-radius: var(--radius-base);
+  font-size: var(--font-size-sm);
 }
 
 .theme-name-input::placeholder {
@@ -2492,16 +2468,16 @@ onMounted(async () => {
 .save-theme-btn {
   padding: 10px 20px;
   background: var(--harmony-primary);
-  color: var(--text-primary);
+  color: var(--text-on-primary);
   border: none;
-  border-radius: 6px;
-  font-weight: 500;
+  border-radius: var(--radius-base);
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
   white-space: nowrap;
 }
 
 .save-theme-btn:hover:not(:disabled) {
-  filter: brightness(1.1);
+  background: var(--harmony-primary-hover);
 }
 
 .save-theme-btn:disabled {
@@ -2520,7 +2496,7 @@ onMounted(async () => {
 
 .var-category-label {
   font-size: 10px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--text-tertiary);
@@ -2540,11 +2516,11 @@ onMounted(async () => {
   min-width: 20px;
   height: 20px;
   padding: 0 6px;
-  border-radius: 10px;
+  border-radius: var(--radius-full);
   background: var(--harmony-primary);
-  color: #fff;
+  color: var(--text-on-primary);
   font-size: 11px;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   line-height: 1;
 }
 
@@ -2558,30 +2534,30 @@ onMounted(async () => {
   justify-content: space-between;
   padding: 8px 12px;
   margin-bottom: 16px;
-  background: var(--background-tertiary, #141618);
-  border-radius: 6px;
+  background: var(--background-tertiary);
+  border-radius: var(--radius-base);
   border: 1px solid var(--background-quaternary);
 }
 
 .override-summary {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--text-secondary);
 }
 
 .reset-all-btn {
   padding: 4px 12px;
-  border-radius: 4px;
-  border: 1px solid var(--error, #ed4245);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--error);
   background: transparent;
-  color: var(--error, #ed4245);
-  font-size: 12px;
+  color: var(--error);
+  font-size: var(--font-size-xs);
   cursor: pointer;
   transition: all 0.15s;
 }
 
 .reset-all-btn:hover {
-  background: var(--error, #ed4245);
-  color: #fff;
+  background: var(--error);
+  color: var(--text-on-primary);
 }
 
 .var-item {
@@ -2590,7 +2566,7 @@ onMounted(async () => {
   justify-content: space-between;
   gap: 12px;
   padding: 5px 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   border-left: 2px solid transparent;
   transition: border-color 0.15s;
 }
@@ -2601,11 +2577,11 @@ onMounted(async () => {
 
 .var-item.has-override {
   border-left-color: var(--harmony-primary);
-  background: rgba(14, 165, 233, 0.04);
+  background: color-mix(in srgb, var(--harmony-primary) 4%, transparent);
 }
 
 .var-name {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   font-family: monospace;
   color: var(--text-secondary);
   flex-shrink: 0;
@@ -2627,8 +2603,8 @@ onMounted(async () => {
 .var-swatch {
   width: 20px;
   height: 20px;
-  border-radius: 3px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-hover);
   flex-shrink: 0;
 }
 
@@ -2652,9 +2628,9 @@ onMounted(async () => {
 .var-text-input {
   width: 140px;
   padding: 4px 8px;
-  background: var(--background-tertiary, #141618);
+  background: var(--background-tertiary);
   border: 1px solid var(--background-quaternary);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   color: var(--text-primary);
   font-size: 11px;
   font-family: monospace;
@@ -2669,14 +2645,14 @@ onMounted(async () => {
   border: none;
   color: var(--text-muted);
   cursor: pointer;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   flex-shrink: 0;
 }
 
 .var-reset-btn:hover {
   color: var(--error);
-  background: rgba(237, 66, 69, 0.1);
+  background: color-mix(in srgb, var(--error) 10%, transparent);
 }
 </style>

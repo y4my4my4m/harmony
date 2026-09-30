@@ -6,12 +6,10 @@
           <div class="drawer-header">
             <div class="header-content">
               <div class="header-icon">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12,2L15.09,8.26L22,9.27L17,14.14L18.18,21.02L12,17.77L5.82,21.02L7,14.14L2,9.27L8.91,8.26L12,2Z"/>
-                </svg>
+                <Icon name="pin" :size="20" />
               </div>
               <div class="header-text">
-                <h3>Pinned Messages</h3>
+                <h3>Pinned messages</h3>
                 <p v-if="pinnedCount > 0">{{ pinnedCount }} message{{ pinnedCount !== 1 ? 's' : '' }}</p>
                 <p v-else>No pinned messages</p>
               </div>
@@ -31,7 +29,7 @@
             </div>
 
             <div v-else-if="pinnedMessages.length === 0" class="empty-state">
-              <div class="empty-icon">📌</div>
+              <Icon name="pin" :size="40" class="empty-icon" />
               <p>No pinned messages yet</p>
               <p class="empty-hint">Pin important messages to find them easily</p>
             </div>
@@ -65,9 +63,7 @@
                       @click.stop="unpinMessage(message.id)"
                       title="Unpin"
                     >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M12,2L15.09,8.26L22,9.27L17,14.14L18.18,21.02L12,17.77L5.82,21.02L7,14.14L2,9.27L8.91,8.26L12,2Z"/>
-                      </svg>
+                      <Icon name="pin-off" :size="16" />
                     </button>
                   </div>
                 </div>
@@ -79,6 +75,7 @@
                   />
                 </div>
                 <div v-if="message.metadata?.pinner" class="pinned-by">
+                  <Icon name="pin" :size="10" />
                   Pinned by {{ message.metadata.pinner.display_name || message.metadata.pinner.username }}
                 </div>
               </div>
@@ -98,6 +95,7 @@ import { useUserData } from '@/composables/useUserData'
 import { format } from 'date-fns'
 import Avatar from '@/components/common/Avatar.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
+import Icon from '@/components/common/Icon.vue'
 import DisplayName from '@/components/DisplayName.vue'
 import UnifiedMessageContent from '@/components/UnifiedMessageContent.vue'
 import type { Message } from '@/types'
@@ -220,10 +218,10 @@ onMounted(() => {
   max-height: 70vh;
   margin: 20px;
   background: var(--background-secondary);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   display: flex;
   flex-direction: column;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--shadow-large);
 }
 
 .drawer-header {
@@ -270,7 +268,7 @@ onMounted(() => {
 }
 
 .close-btn:hover {
-  background: var(--background-secondary);
+  background: var(--background-modifier-hover);
   color: var(--text-primary);
 }
 
@@ -291,8 +289,8 @@ onMounted(() => {
 }
 
 .empty-icon {
-  font-size: 48px;
   margin-bottom: 16px;
+  color: var(--text-muted);
 }
 
 .empty-state p {
@@ -321,8 +319,8 @@ onMounted(() => {
 }
 
 .pinned-message-item:hover {
-  background: var(--background-hover);
-  border-color: var(--harmony-primary);
+  background: var(--background-quaternary);
+  border-color: var(--border-hover);
 }
 
 .message-header {
@@ -391,11 +389,6 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 4px;
-}
-
-.pinned-by::before {
-  content: '📌';
-  font-size: 10px;
 }
 
 /* Modal transition */

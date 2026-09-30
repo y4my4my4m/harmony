@@ -41,14 +41,14 @@
 
     <!-- Send error feedback -->
     <div v-if="sendError" class="encryption-status-bar error" @click="sendError = null">
-      <span class="encryption-status-icon">⚠️</span>
+      <Icon name="alert-triangle" :size="12" class="encryption-status-icon" />
       <span class="encryption-status-text">{{ sendError }}</span>
     </div>
 
     <!-- Encryption status tag (inline, floated right of typing indicator) -->
     <div class="input-status-row">
       <div v-if="encryptionStatus" :class="['encryption-status-tag', encryptionStatus.level]">
-        <span class="encryption-status-icon">{{ encryptionStatus.icon }}</span>
+        <Icon :name="encryptionStatus.icon" :size="12" class="encryption-status-icon" />
         <span class="encryption-status-text">{{ encryptionStatus.text }}</span>
         <button
           v-if="encryptionStatus.showUnlock"
@@ -152,6 +152,7 @@
   import { ref, onMounted, computed, watch, onUnmounted, defineAsyncComponent } from 'vue';
   import MessageDisplay from './MessageDisplay.vue';
   import MessageInput from './MessageInput.vue';
+  import Icon from '@/components/common/Icon.vue';
   import KickBanModal from './moderation/KickBanModal.vue';
   const RecoveryKeySetupWizard = defineAsyncComponent(() => import('@/components/encryption/RecoveryKeySetupWizard.vue'));
   const KeyRecoveryModal = defineAsyncComponent(() => import('@/components/encryption/KeyRecoveryModal.vue'));
@@ -377,7 +378,7 @@
           if (svc.isInitialized() && svc.isUnlocked()) {
             const hasKey = await svc.hasRecoveryKey()
             if (hasKey) {
-              encryptionStatusData.value = { level: 'active', icon: '🔐', text: 'End-to-end encrypted' }
+              encryptionStatusData.value = { level: 'active', icon: 'lock', text: 'End-to-end encrypted' }
             } else {
               encryptionStatusData.value = null
             }
@@ -388,7 +389,7 @@
               // Setup mints a new identity and orphans encrypted history.
               encryptionStatusData.value = {
                 level: 'locked',
-                icon: '🔓',
+                icon: 'unlock',
                 text: mode === 'required'
                   ? 'Encryption required - unlock to read and send messages'
                   : 'Encryption available but locked - messages sent as plaintext',
@@ -397,14 +398,14 @@
             } else if (mode === 'required') {
               encryptionStatusData.value = {
                 level: 'error',
-                icon: '⚠️',
+                icon: 'alert-triangle',
                 text: 'Encryption required - set up in Settings > Encryption',
                 showSetup: true
               }
             } else if (forceSetup) {
               encryptionStatusData.value = {
                 level: 'setup-prompt',
-                icon: '🔑',
+                icon: 'key',
                 text: 'This server recommends encryption - set up your keys to enable E2EE',
                 showSetup: true
               }
@@ -446,11 +447,11 @@
           if (svc.isInitialized() && svc.isUnlocked()) {
             const hasKey = await svc.hasRecoveryKey()
             if (hasKey) {
-              encryptionStatusData.value = { level: 'active', icon: '🔐', text: 'End-to-end encrypted' }
+              encryptionStatusData.value = { level: 'active', icon: 'lock', text: 'End-to-end encrypted' }
             } else {
               encryptionStatusData.value = {
                 level: 'locked',
-                icon: '🔓',
+                icon: 'unlock',
                 text: 'Encryption enabled but keys not set up',
                 showSetup: true
               }
@@ -460,14 +461,14 @@
             if (hasKey) {
               encryptionStatusData.value = {
                 level: 'locked',
-                icon: '🔓',
+                icon: 'unlock',
                 text: 'Encryption enabled - unlock to read encrypted messages',
                 showUnlock: true
               }
             } else {
               encryptionStatusData.value = {
                 level: 'locked',
-                icon: '🔓',
+                icon: 'unlock',
                 text: 'Encryption enabled - set up your keys to participate',
                 showSetup: true
               }
@@ -1248,7 +1249,7 @@
   }
 
   .drag-drop-area .upload-status {
-    color: rgb(74, 222, 128);
+    color: var(--success);
   }
   .encryption-status-bar {
     display: flex;
@@ -1257,11 +1258,11 @@
     padding: 4px 12px;
     font-size: 0.75rem;
     line-height: 1;
-    border-top: 1px solid var(--border-color, rgba(255,255,255,0.06));
+    border-top: 1px solid var(--border-color);
   }
   .encryption-status-bar.error {
-    color: var(--color-error, #ed4245);
-    background: rgba(237, 66, 69, 0.08);
+    color: var(--error);
+    background: color-mix(in srgb, var(--error) 8%, transparent);
     cursor: pointer;
   }
 
@@ -1283,17 +1284,17 @@
     pointer-events: auto;
   }
   .encryption-status-tag.active {
-    color: var(--color-success, #43b581);
+    color: var(--success);
   }
   .encryption-status-tag.locked {
-    color: var(--color-warning, #faa61a);
+    color: var(--warning);
   }
   .encryption-status-tag.setup-prompt {
-    color: var(--harmony-primary, #0EA5E9);
+    color: var(--harmony-primary);
     opacity: 1;
   }
   .encryption-status-tag.error {
-    color: var(--color-error, #ed4245);
+    color: var(--error);
   }
   @media (max-width: 768px) {
     .encryption-status-tag {
@@ -1302,7 +1303,6 @@
   }
 
   .encryption-status-icon {
-    font-size: 0.7rem;
     flex-shrink: 0;
   }
   .encryption-status-text {
@@ -1314,16 +1314,16 @@
     margin-left: 4px;
     flex-shrink: 0;
     padding: 1px 6px;
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
     border: none;
-    background: var(--harmony-primary, #0EA5E9);
-    color: #fff;
+    background: var(--harmony-primary);
+    color: var(--text-on-primary);
     font-size: 0.6rem;
     font-weight: 600;
     cursor: pointer;
-    transition: filter 0.15s ease;
+    transition: background-color 0.15s ease;
   }
   .encryption-setup-btn:hover {
-    filter: brightness(1.15);
+    background: var(--harmony-primary-hover);
   }
 </style>

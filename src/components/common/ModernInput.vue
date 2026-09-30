@@ -145,11 +145,9 @@ defineExpose({
 }
 
 .input-label {
-  font-size: 12px;
-  font-weight: 700;
-  color: #b5bac1;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--text-secondary);
   margin: 0;
   display: flex;
   align-items: center;
@@ -157,7 +155,7 @@ defineExpose({
 }
 
 .required-indicator {
-  color: #f23f42;
+  color: var(--error);
   font-weight: 600;
 }
 
@@ -168,11 +166,11 @@ defineExpose({
 }
 
 .modern-input {
-  background-color: #1e1f22;
-  border: 2px solid #383a40;
-  border-radius: 4px;
+  background-color: var(--input-bg);
+  border: 2px solid var(--input-border);
+  border-radius: var(--radius-sm);
   color: var(--text-primary);
-  font-size: 16px;
+  font-size: var(--font-size-base);
   font-weight: 400;
   padding: 10px 12px;
   transition: all 0.15s ease;
@@ -182,38 +180,38 @@ defineExpose({
 }
 
 .modern-input:focus {
-  border-color: #0EA5E9;
-  box-shadow: 0 0 0 1px #0EA5E9;
+  border-color: var(--harmony-primary);
+  box-shadow: 0 0 0 1px var(--harmony-primary);
 }
 
 .modern-input:hover:not(:focus):not(:disabled) {
-  border-color: #4f545c;
+  border-color: var(--border-hover);
 }
 
 .modern-input:disabled {
   background-color:  var(--background-quinary);
-  border-color: #3c3f44;
-  color: #6d6f78;
+  border-color: var(--border-primary);
+  color: var(--text-muted);
   cursor: not-allowed;
 }
 
 .modern-input::placeholder {
-  color: #6d6f78;
+  color: var(--text-muted);
 }
 
 /* Error state */
 .input-group.has-error .modern-input {
-  border-color: #f23f42;
+  border-color: var(--error);
 }
 
 .input-group.has-error .modern-input:focus {
-  border-color: #f23f42;
-  box-shadow: 0 0 0 1px #f23f42;
+  border-color: var(--error);
+  box-shadow: 0 0 0 1px var(--error);
 }
 
 /* Success state */
 .input-group:not(.has-error) .modern-input:valid:not(:placeholder-shown) {
-  border-color: #23a55a;
+  border-color: var(--success);
 }
 
 .input-accent {
@@ -221,7 +219,7 @@ defineExpose({
   bottom: 0;
   left: 0;
   height: 2px;
-  background: linear-gradient(90deg, #0EA5E9, #38BDF8);
+  background: var(--harmony-primary);
   border-radius: 1px;
   width: 0;
   transition: width 0.3s ease;
@@ -232,13 +230,13 @@ defineExpose({
 }
 
 .input-group.has-error .input-accent {
-  background: linear-gradient(90deg, #f23f42, #da373c);
+  background: var(--error);
 }
 
 .char-count {
   align-self: flex-end;
-  font-size: 12px;
-  color: #6d6f78;
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
   margin-top: 4px;
   font-variant-numeric: tabular-nums;
 }
@@ -247,8 +245,8 @@ defineExpose({
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
-  color: #f23f42;
+  font-size: var(--font-size-xs);
+  color: var(--error);
   margin-top: -4px;
 }
 
@@ -262,8 +260,8 @@ defineExpose({
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
-  color: #23a55a;
+  font-size: var(--font-size-xs);
+  color: var(--success);
   margin-top: -4px;
 }
 
@@ -274,22 +272,23 @@ defineExpose({
 }
 
 .hint-text {
-  font-size: 12px;
-  color: #6d6f78;
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
   margin-top: -4px;
   line-height: 1.3;
 }
 
 /* Focus ring for accessibility */
 .modern-input:focus-visible {
-  outline: 2px solid #0EA5E9;
+  outline: 2px solid var(--harmony-primary);
   outline-offset: 2px;
 }
 
-/* Animation for error/success states */
-.error-message,
-.success-message {
-  animation: slideInUp 0.2s ease-out;
+@media (prefers-reduced-motion: no-preference) {
+  .error-message,
+  .success-message {
+    animation: slideInUp 0.2s ease-out;
+  }
 }
 
 @keyframes slideInUp {

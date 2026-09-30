@@ -19,7 +19,7 @@
       </a>
       <div class="fedi-post__meta">
         <span v-if="platformLabel" class="fedi-post__platform" :title="fediverse.platform">
-          {{ platformIcon }} {{ platformLabel }}
+          <Icon name="globe" :size="12" /> {{ platformLabel }}
         </span>
         <time
           v-if="fediverse.published"
@@ -98,6 +98,8 @@
 </template>
 
 <script setup lang="ts">
+import Icon from '@/components/common/Icon.vue';
+import { softwareDisplayName } from '@/utils/fediverseSoftware';
 import { computed, ref } from 'vue';
 import { formatDistanceToNow, format } from 'date-fns';
 import DOMPurify from 'dompurify';
@@ -160,26 +162,8 @@ function formatCount(n: number): string {
   return String(n);
 }
 
-const PLATFORM_MAP: Record<string, { icon: string; label: string }> = {
-  mastodon: { icon: '🐘', label: 'Mastodon' },
-  misskey: { icon: '🌎', label: 'Misskey' },
-  pleroma: { icon: '🔵', label: 'Pleroma' },
-  gotosocial: { icon: '🐿️', label: 'GoToSocial' },
-  pixelfed: { icon: '📷', label: 'Pixelfed' },
-  harmony: { icon: '🎵', label: 'Harmony' },
-  lemmy: { icon: '🐭', label: 'Lemmy' },
-  fediverse: { icon: '🌐', label: 'Fediverse' },
-};
 
-const platformLabel = computed(() => {
-  const p = props.fediverse.platform || 'fediverse';
-  return PLATFORM_MAP[p]?.label || 'Fediverse';
-});
-
-const platformIcon = computed(() => {
-  const p = props.fediverse.platform || 'fediverse';
-  return PLATFORM_MAP[p]?.icon || '🌐';
-});
+const platformLabel = computed(() => softwareDisplayName(props.fediverse.platform) || 'Fediverse');
 </script>
 
 <style scoped>

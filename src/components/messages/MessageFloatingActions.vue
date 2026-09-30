@@ -12,7 +12,7 @@
       <template v-else>
         <div class="action-btn" data-testid="msg-action-react" @click="emit('react', message, $event)"><ReactionIcon/></div>
         <div class="action-btn" data-testid="msg-action-reply" @click="emit('reply', message)"><ReplyIcon/></div>
-        <div class="action-btn thread-btn" data-testid="msg-action-thread" v-if="!hideThreadActions" @click="emit('thread', message)" title="Create Thread"><ThreadIcon/></div>
+        <div class="action-btn thread-btn" data-testid="msg-action-thread" v-if="!hideThreadActions" @click="emit('thread', message)" title="Create thread"><ThreadIcon/></div>
         <div class="action-btn" data-testid="msg-action-edit" v-if="canEdit" @click="emit('edit', message)"><EditIcon/></div>
         <div class="action-btn" data-testid="msg-action-delete" :class="{ 'delete-danger': isShiftHeld }" v-if="canDelete" @click="emit('delete', message.id, $event)"><DeleteIcon/></div>
         <div class="action-btn" data-testid="msg-action-more" @click="emit('context-menu', message, $event)"><MoreIcon/></div>
@@ -61,9 +61,9 @@ const emit = defineEmits<{
   right: 0;
   display: flex;
   border: 1px solid var(--border-color);
-  border-radius: 8px;
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
-  backdrop-filter: blur(8px);
+  border-radius: var(--radius-md);
+  background: var(--background-floating);
+  box-shadow: var(--shadow-medium);
   z-index: 1;
 }
 

@@ -27,7 +27,7 @@
       <!-- Encryption Mode Selection -->
       <div class="setting-group">
         <label class="setting-label">
-          Encryption Mode
+          Encryption mode
           <span class="setting-hint">Choose how encryption is enforced</span>
         </label>
 
@@ -64,7 +64,7 @@
 
       <!-- Server-wide Settings -->
       <div class="setting-group">
-        <label class="setting-label">Additional Options</label>
+        <label class="setting-label">Additional options</label>
 
         <div class="checkbox-option">
           <input
@@ -97,7 +97,7 @@
       <!-- Voice / Video E2EE -->
       <div class="setting-group">
         <label class="setting-label">
-          Voice &amp; Video Encryption
+          Voice &amp; video encryption
           <span class="setting-hint">End-to-end encrypt call media so the media server can't access it</span>
         </label>
 
@@ -123,16 +123,16 @@
 
       <!-- Server Encryption Status -->
       <div class="setting-group">
-        <label class="setting-label">Server Statistics</label>
+        <label class="setting-label">Server statistics</label>
         
         <div class="stats-grid">
           <div class="stat-card">
             <div class="stat-value">{{ memberStats.total }}</div>
-            <div class="stat-label">Total Members</div>
+            <div class="stat-label">Total members</div>
           </div>
           <div class="stat-card">
             <div class="stat-value">{{ memberStats.withKeys }}</div>
-            <div class="stat-label">With Encryption</div>
+            <div class="stat-label">With encryption</div>
           </div>
           <div class="stat-card">
             <div class="stat-value">{{ memberStats.percentage }}%</div>
@@ -277,9 +277,9 @@ const statusIcon = computed(() => {
 
 const statusTitle = computed(() => {
   switch (currentMode.value) {
-    case 'disabled': return 'Encryption Disabled'
-    case 'optional': return 'Optional Encryption'
-    case 'required': return 'Encryption Required'
+    case 'disabled': return 'Encryption disabled'
+    case 'optional': return 'Optional encryption'
+    case 'required': return 'Encryption required'
     default: return 'Unknown'
   }
 })
@@ -428,7 +428,7 @@ async function saveSettings() {
     originalEncryptAttachments.value = encryptAttachments.value
     originalVoiceEncryptionMode.value = voiceEncryptionMode.value
 
-    successMessage.value = 'Encryption settings saved successfully!'
+    successMessage.value = 'Encryption settings saved'
     
     setTimeout(() => {
       successMessage.value = null
@@ -475,21 +475,21 @@ onMounted(() => {
 }
 
 .section-title {
-  font-size: 20px;
-  font-weight: 600;
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
   margin: 0 0 8px 0;
 }
 
 .section-description {
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   color: var(--text-secondary);
   margin: 0;
 }
 
 .settings-card {
   background-color: var(--background-secondary);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   border: 1px solid var(--background-quaternary);
   padding: 20px;
   margin-bottom: 16px;
@@ -505,24 +505,24 @@ onMounted(() => {
   align-items: center;
   gap: 16px;
   padding: 20px;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   margin-bottom: 24px;
   border: 2px solid;
 }
 
 .status-card.status-disabled {
-  background: rgba(var(--color-danger-rgb), 0.1);
-  border-color: var(--color-danger);
+  background: color-mix(in srgb, var(--error) 10%, transparent);
+  border-color: var(--error);
 }
 
 .status-card.status-optional {
-  background: rgba(var(--color-warning-rgb), 0.1);
-  border-color: var(--color-warning);
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
+  border-color: var(--warning);
 }
 
 .status-card.status-required {
-  background: rgba(var(--color-success-rgb), 0.1);
-  border-color: var(--color-success);
+  background: color-mix(in srgb, var(--success) 10%, transparent);
+  border-color: var(--success);
 }
 
 .status-icon {
@@ -531,14 +531,14 @@ onMounted(() => {
 
 .status-info h4 {
   margin: 0 0 4px 0;
-  font-size: 18px;
-  font-weight: 600;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
 }
 
 .status-info p {
   margin: 0;
-  color: var(--color-text-secondary);
-  font-size: 14px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
 }
 
 .setting-group {
@@ -549,15 +549,15 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   margin-bottom: 16px;
-  color: var(--color-text-primary);
+  color: var(--text-primary);
 }
 
 .setting-hint {
-  font-size: 14px;
-  font-weight: 400;
-  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-normal);
+  color: var(--text-secondary);
 }
 
 .mode-options {
@@ -568,20 +568,20 @@ onMounted(() => {
 
 .mode-option {
   padding: 16px;
-  border: 2px solid var(--color-border);
-  border-radius: 8px;
+  border: 2px solid var(--border-primary);
+  border-radius: var(--radius-md);
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .mode-option:hover {
-  border-color: var(--color-primary);
-  background: rgba(var(--color-primary-rgb), 0.05);
+  border-color: var(--harmony-primary);
+  background: color-mix(in srgb, var(--harmony-primary) 5%, transparent);
 }
 
 .mode-option.selected {
-  border-color: var(--color-primary);
-  background: rgba(var(--color-primary-rgb), 0.1);
+  border-color: var(--harmony-primary);
+  background: color-mix(in srgb, var(--harmony-primary) 10%, transparent);
 }
 
 .mode-header {
@@ -600,18 +600,18 @@ onMounted(() => {
 }
 
 .mode-icon {
-  font-size: 20px;
+  font-size: var(--font-size-xl);
 }
 
 .mode-name {
-  font-weight: 600;
-  color: var(--color-text-primary);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
 }
 
 .mode-description {
   margin: 0 0 0 32px;
-  font-size: 14px;
-  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
 }
 
 .mode-warning {
@@ -620,14 +620,14 @@ onMounted(() => {
   gap: 8px;
   margin: 12px 0 0 32px;
   padding: 8px 12px;
-  background: rgba(var(--color-warning-rgb), 0.1);
-  border-radius: 6px;
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
+  border-radius: var(--radius-base);
   font-size: 13px;
-  color: var(--color-warning);
+  color: var(--warning);
 }
 
 .warning-icon {
-  font-size: 16px;
+  font-size: var(--font-size-base);
 }
 
 .checkbox-option {
@@ -635,12 +635,12 @@ onMounted(() => {
   align-items: flex-start;
   gap: 12px;
   padding: 12px;
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   margin-bottom: 8px;
 }
 
 .checkbox-option:hover {
-  background: rgba(var(--color-primary-rgb), 0.05);
+  background: color-mix(in srgb, var(--harmony-primary) 5%, transparent);
 }
 
 .checkbox-option label {
@@ -652,13 +652,13 @@ onMounted(() => {
 }
 
 .option-name {
-  font-weight: 500;
-  color: var(--color-text-primary);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
 }
 
 .option-hint {
   font-size: 13px;
-  color: var(--color-text-secondary);
+  color: var(--text-secondary);
 }
 
 
@@ -673,21 +673,21 @@ onMounted(() => {
 
 .stat-card {
   padding: 16px;
-  background: var(--color-background-secondary);
-  border-radius: 8px;
+  background: var(--surface-inset);
+  border-radius: var(--radius-md);
   text-align: center;
 }
 
 .stat-value {
-  font-size: 24px;
-  font-weight: 700;
-  color: var(--color-primary);
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--harmony-primary);
   margin-bottom: 4px;
 }
 
 .stat-label {
   font-size: 13px;
-  color: var(--color-text-secondary);
+  color: var(--text-secondary);
 }
 
 .warning-banner {
@@ -695,11 +695,11 @@ onMounted(() => {
   align-items: center;
   gap: 12px;
   padding: 12px 16px;
-  background: rgba(var(--color-warning-rgb), 0.1);
-  border-left: 4px solid var(--color-warning);
-  border-radius: 6px;
-  color: var(--color-warning);
-  font-size: 14px;
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
+  border-left: 4px solid var(--warning);
+  border-radius: var(--radius-base);
+  color: var(--warning);
+  font-size: var(--font-size-sm);
 }
 
 .actions {
@@ -711,20 +711,20 @@ onMounted(() => {
 .btn-primary,
 .btn-secondary {
   padding: 12px 24px;
-  border-radius: 6px;
-  font-weight: 600;
+  border-radius: var(--radius-base);
+  font-weight: var(--font-weight-semibold);
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .btn-primary {
   background: var(--harmony-primary);
-  color: var(--text-on-primary, #ffffff);
+  color: var(--text-on-primary);
   border: none;
 }
 
 .btn-primary:hover:not(:disabled) {
-  opacity: 0.9;
+  background: var(--harmony-primary-hover);
 }
 
 .btn-primary:disabled {
@@ -734,12 +734,12 @@ onMounted(() => {
 
 .btn-secondary {
   background: transparent;
-  color: var(--color-text-primary);
-  border: 1px solid var(--color-border);
+  color: var(--text-primary);
+  border: 1px solid var(--border-primary);
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background: var(--color-background-secondary);
+  background: var(--background-modifier-hover);
 }
 
 .btn-secondary:disabled {
@@ -750,13 +750,13 @@ onMounted(() => {
 .help-section {
   margin-top: 32px;
   padding: 20px;
-  background: var(--color-background-secondary);
-  border-radius: 8px;
+  background: var(--surface-inset);
+  border-radius: var(--radius-md);
 }
 
 .help-section h4 {
   margin: 0 0 12px 0;
-  color: var(--color-text-primary);
+  color: var(--text-primary);
 }
 
 .help-section ul {
@@ -766,16 +766,16 @@ onMounted(() => {
 
 .help-section li {
   margin-bottom: 8px;
-  color: var(--color-text-secondary);
+  color: var(--text-secondary);
 }
 
 .help-note {
   margin: 0;
   padding: 12px;
-  background: rgba(var(--color-primary-rgb), 0.1);
-  border-left: 4px solid var(--color-primary);
-  border-radius: 4px;
-  font-size: 14px;
+  background: color-mix(in srgb, var(--harmony-primary) 10%, transparent);
+  border-left: 4px solid var(--harmony-primary);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
 }
 
 .error-banner,
@@ -787,27 +787,33 @@ onMounted(() => {
   align-items: center;
   gap: 12px;
   padding: 12px 16px;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  animation: slideIn 0.3s;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-medium);
   z-index: 1000;
 }
 
+@media (prefers-reduced-motion: no-preference) {
+  .error-banner,
+  .success-banner {
+    animation: slideIn 0.3s;
+  }
+}
+
 .error-banner {
-  background: var(--color-danger);
-  color: var(--text-on-primary, #ffffff);
+  background: var(--error);
+  color: var(--text-on-primary);
 }
 
 .success-banner {
-  background: var(--color-success);
-  color: var(--text-on-primary, #ffffff);
+  background: var(--success);
+  color: var(--text-on-primary);
 }
 
 .close-btn {
   background: none;
   border: none;
   color: inherit;
-  font-size: 24px;
+  font-size: var(--font-size-2xl);
   cursor: pointer;
   padding: 0;
   width: 24px;

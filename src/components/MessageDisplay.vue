@@ -54,7 +54,7 @@
       <!-- Blocked Group Placeholder -->
       <div v-if="item.type === 'blocked-group'" class="blocked-message-group">
         <div class="blocked-group-content">
-          <span class="blocked-icon">🚫</span>
+          <Icon name="ban" :size="16" class="blocked-icon" />
           <span class="blocked-text">{{ item.count }} blocked message{{ item.count > 1 ? 's' : '' }}</span>
           <span class="blocked-separator">-</span>
           <button class="reveal-btn" @click="revealBlockedGroup(item.groupId)">
@@ -66,7 +66,7 @@
       <!-- Reported Message Placeholder -->
       <div v-else-if="item.type === 'reported'" class="reported-message-group">
         <div class="reported-group-content">
-          <span class="reported-icon">&#9873;</span>
+          <Icon name="flag" :size="14" class="reported-icon" />
           <span class="reported-text">You reported this message</span>
           <span class="blocked-separator">-</span>
           <button class="reveal-btn" @click="revealedReportedIds.add(item.message.id)">Show</button>
@@ -127,7 +127,7 @@
         >
           <!-- Hide button for revealed blocked messages -->
           <div v-if="item.isRevealed && item.isFirstInRevealedGroup" class="revealed-blocked-banner">
-            <span class="blocked-warning">⚠️ {{ item.revealedCount ?? 1 }} message{{ (item.revealedCount ?? 1) > 1 ? 's' : '' }} from blocked user</span>
+            <span class="blocked-warning">{{ item.revealedCount ?? 1 }} message{{ (item.revealedCount ?? 1) > 1 ? 's' : '' }} from blocked user</span>
             <button class="hide-btn" @click="item.groupId && hideBlockedGroup(item.groupId)">Hide</button>
           </div>
           <!-- Banner for temporarily revealed reported message -->
@@ -195,7 +195,7 @@
                         class="call-join-btn"
                         @click="joinCallFromSystemMessage(item.message)"
                       >
-                        Join Call
+                        Join call
                       </button>
                     </template>
                   </div>
@@ -333,11 +333,11 @@
                 <span class="username-text"><DisplayName v-if="item.message.user_id && !item.message.bot_id && !hasDiscordUserMetadata(item.message)" :user-id="item.message.user_id" /><template v-else>{{ getAuthorDisplayName(item.message).value }}</template></span>
                 <BridgeSourceBadge v-if="hasDiscordUserMetadata(item.message)" source="discord" />
                 <span v-else-if="isMessageFromBot(item.message)" class="bot-badge">BOT</span>
-                <span v-if="getInstanceBadge(item.message).value === 'admin'" class="instance-badge admin" title="Instance Admin">
+                <span v-if="getInstanceBadge(item.message).value === 'admin'" class="instance-badge admin" title="Instance admin">
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
                   ADMIN
                 </span>
-                <span v-else-if="getInstanceBadge(item.message).value === 'mod'" class="instance-badge mod" title="Instance Moderator">
+                <span v-else-if="getInstanceBadge(item.message).value === 'mod'" class="instance-badge mod" title="Instance moderator">
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
                   MOD
                 </span>
@@ -362,7 +362,7 @@
                   class="encryption-indicator locked"
                   :class="{ unrecoverable: item.message.decryption_unrecoverable }"
                   :title="encryptionLockTooltip(item.message)"
-                >🔒</span>
+                ><Icon name="lock" :size="12" /></span>
               </span>
             </div>
             <UnifiedMessageContent 
@@ -449,7 +449,7 @@
         <div class="message-actions" v-if="!item.message.failed && hoveredMessageId === item.message.id && !(isMobile && mobileActionTapPosition)">
           <div ref="reactionBtn" class="action-btn" data-testid="msg-action-react" @click="openEmojiReactor(item.message, $event)"><ReactionIcon/></div>
           <div class="action-btn" data-testid="msg-action-reply" @click="replyTo(item.message)"><ReplyIcon/></div>
-          <div class="action-btn thread-btn" data-testid="msg-action-thread" v-if="!props.hideThreadActions" @click="createThread(item.message)" title="Create Thread"><ThreadIcon/></div>
+          <div class="action-btn thread-btn" data-testid="msg-action-thread" v-if="!props.hideThreadActions" @click="createThread(item.message)" title="Create thread"><ThreadIcon/></div>
           <div class="action-btn" data-testid="msg-action-edit" v-if="canEditMessage(item.message)" @click="startEdit(item.message)"><EditIcon/></div>
           <div class="action-btn" data-testid="msg-action-delete" :class="{ 'delete-danger': isShiftHeld }" v-if="canDeleteMessage(item.message)" @click="deleteMessage(item.message.id, $event)"><DeleteIcon/></div>
           <div class="action-btn" data-testid="msg-action-more" @click="openContextMenu(item.message, $event)"><MoreIcon/></div>
@@ -572,10 +572,10 @@
   <!-- Delete Message Confirmation Modal -->
   <ConfirmationModal
     :show="showDeleteConfirmModal"
-    title="Delete Message"
+    title="Delete message"
     :message="deleteConfirmConfig.hasThread ? `This message has a thread attached: '${deleteConfirmConfig.threadName}'` : 'Are you sure you want to delete this message? This action cannot be undone.'"
     :secondary-message="deleteConfirmConfig.hasThread ? 'Deleting this message will permanently delete the thread and all its replies.' : undefined"
-    :confirm-button-text="deleteConfirmConfig.hasThread ? 'Delete Message & Thread' : 'Delete'"
+    :confirm-button-text="deleteConfirmConfig.hasThread ? 'Delete message and thread' : 'Delete'"
     @close="cancelDeleteMessage"
     @confirm="confirmDeleteMessage"
   />
@@ -653,7 +653,8 @@ import { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData,
 import { buildChatParseOptions } from '@/utils/chatParseOptions';
 import { useReactionsStore } from '@/stores/useReactions';
 import { usePostReactionsStore } from '@/stores/postReactions';
-import { useVirtualizer } from '@tanstack/vue-virtual';
+import { useVirtualizer, defaultRangeExtractor, type Range } from '@tanstack/vue-virtual';
+import { useFloatingVideo } from '@/composables/useFloatingVideo';
 
 // --- PROPS & EMITS ---
 const props = defineProps({
@@ -819,15 +820,7 @@ const isMessageFromBlockedUser = (message: Message): boolean => {
   const authorId = message.user_id || message.bot_id;
   if (!authorId) return false;
   
-  const isBlocked = activityPubStore.isBlocked(authorId);
-  
-  // First few messages only. debug.log short-circuits when debug logging is
-  // disabled.
-  if (props.messages.indexOf(message) < 3) {
-    debug.log(`Block check: author=${authorId}, blocked=${isBlocked}, blockedUsers size=${activityPubStore.blockedUsers.size}`);
-  }
-  
-  return isBlocked;
+  return activityPubStore.isBlocked(authorId);
 };
 
 // Computed: Group consecutive blocked messages together (Discord-like)
@@ -1555,22 +1548,39 @@ const activeLightboxImages = ref<string[]>([]);
 const frozenInitialOffset = ref(0);
 let hasSetInitialOffset = false;
 
+// The row holding the floating video stays mounted while it is out of range;
+// unmounting it would close the player.
+const { floatingMessageId } = useFloatingVideo();
+const floatingRowIndex = computed(() => {
+  const id = floatingMessageId.value;
+  if (!id) return -1;
+  return displayItems.value.findIndex(item => item.type !== 'blocked-group' && item.message.id === id);
+});
+
 const rowVirtualizer = useVirtualizer<HTMLDivElement, Element>(
-  computed(() => ({
-    count: displayItems.value.length,
-    getScrollElement: () => messageDisplayContainer.value,
-    estimateSize: () => 60,
-    overscan: 15,
-    initialOffset: frozenInitialOffset.value,
-    // Stable per-item keys. Otherwise the measurement cache is keyed by
-    // INDEX: prepending a history page shifts every row's index, so each row
-    // inherits a stale height from the row previously at that index, and the
-    // cascade of corrective re-measurements bounces the viewport. With stable
-    // keys, existing measurements survive the prepend and only new rows
-    // measure in; the virtualizer's scroll adjustment compensates for those
-    // above the viewport.
-    getItemKey: (index: number) => displayItems.value[index]?.key ?? index,
-  })) as any
+  computed(() => {
+    const pinnedIndex = floatingRowIndex.value;
+    return {
+      count: displayItems.value.length,
+      getScrollElement: () => messageDisplayContainer.value,
+      estimateSize: () => 60,
+      overscan: 15,
+      initialOffset: frozenInitialOffset.value,
+      // Stable per-item keys. Otherwise the measurement cache is keyed by
+      // INDEX: prepending a history page shifts every row's index, so each row
+      // inherits a stale height from the row previously at that index, and the
+      // cascade of corrective re-measurements bounces the viewport. With stable
+      // keys, existing measurements survive the prepend and only new rows
+      // measure in; the virtualizer's scroll adjustment compensates for those
+      // above the viewport.
+      getItemKey: (index: number) => displayItems.value[index]?.key ?? index,
+      rangeExtractor: (range: Range) => {
+        const indexes = defaultRangeExtractor(range);
+        if (pinnedIndex < 0 || indexes.includes(pinnedIndex)) return indexes;
+        return [...indexes, pinnedIndex].sort((a, b) => a - b);
+      },
+    };
+  }) as any
 );
 
 const virtualRows = computed(() => rowVirtualizer.value.getVirtualItems());
@@ -3446,7 +3456,7 @@ defineExpose({ editLastOwnMessage });
 
 .message-item.is-failed {
   opacity: 0.8;
-  border-left: 3px solid var(--error, #f04747);
+  border-left: 3px solid var(--error);
 }
 
 .failed-message-bar {
@@ -3456,9 +3466,9 @@ defineExpose({ editLastOwnMessage });
   padding: 4px 8px;
   margin-top: 4px;
   font-size: 12px;
-  color: var(--error, #f04747);
-  border-radius: 4px;
-  background: rgba(240, 71, 71, 0.08);
+  color: var(--error);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--error) 8%, transparent);
 }
 
 .failed-message-bar svg {
@@ -3479,11 +3489,11 @@ defineExpose({ editLastOwnMessage });
 
 .failed-message-bar .retry-btn {
   color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--background-modifier-hover);
 }
 
 .failed-message-bar .retry-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--background-modifier-active);
 }
 
 .failed-message-bar .discard-btn {
@@ -3491,12 +3501,12 @@ defineExpose({ editLastOwnMessage });
 }
 
 .failed-message-bar .discard-btn:hover {
-  color: var(--error, #f04747);
-  background: rgba(240, 71, 71, 0.15);
+  color: var(--error);
+  background: color-mix(in srgb, var(--error) 15%, transparent);
 }
 
 .message-item:hover {
-  background-color: rgba(4, 4, 5, 0.07);
+  background-color: var(--background-modifier-hover);
 }
 
 /* Message group - contains header and/or content */
@@ -3558,7 +3568,7 @@ defineExpose({ editLastOwnMessage });
 .bot-badge {
   display: inline-block;
   background: var(--harmony-primary);
-  color: var(--text-primary);
+  color: var(--text-on-primary);
   font-size: 0.625rem;
   font-weight: 600;
   padding: 0.125rem 0.25rem;
@@ -3601,8 +3611,8 @@ defineExpose({ editLastOwnMessage });
 }
 
 .timestamp {
-  font-size: 0.75rem;
-  color: #a3a6aa;
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
   font-weight: 400;
 }
 
@@ -3677,9 +3687,9 @@ defineExpose({ editLastOwnMessage });
   right: 0;
   display: flex;
   border: 1px solid var(--border-color);
-  border-radius: 8px;
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
-  backdrop-filter: blur(8px);
+  border-radius: var(--radius-md);
+  background: var(--background-floating);
+  box-shadow: var(--shadow-medium);
   z-index: 1;
 }
 
@@ -3767,7 +3777,7 @@ defineExpose({ editLastOwnMessage });
   white-space: nowrap;
 }
 
-/* "New messages" divider - secondary-themed pill with a cool fading line */
+/* "New messages" divider */
 .new-messages-divider {
   display: flex;
   align-items: center;
@@ -3781,24 +3791,18 @@ defineExpose({ editLastOwnMessage });
   padding: 1px 10px;
   border-radius: 0 8px 8px 0;
   background-color: var(--harmony-secondary);
-  color: #fff;
+  color: var(--text-on-primary);
   font-size: 0.65rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   line-height: 1.6;
-  box-shadow: 0 0 10px color-mix(in srgb, var(--harmony-secondary) 45%, transparent);
 }
 
 .new-messages-line {
   flex: 1;
   height: 1px;
-  background: linear-gradient(
-    90deg,
-    var(--harmony-secondary) 0%,
-    color-mix(in srgb, var(--harmony-secondary) 35%, transparent) 60%,
-    transparent 100%
-  );
+  background: var(--harmony-secondary);
 }
 
 /* Beginning of conversation indicator */
@@ -3857,17 +3861,17 @@ defineExpose({ editLastOwnMessage });
 
 /* Highlighted message */
 .highlighted {
-  background-color: rgba(14, 165, 233, 0.15) !important;
-  border-left: 3px solid #0EA5E9;
+  background-color: color-mix(in srgb, var(--harmony-primary) 15%, transparent) !important;
+  border-left: 3px solid var(--harmony-primary);
   animation: highlight-fade 3s ease-out;
 }
 
 /* Search text highlight */
 .search-highlight {
-  background-color: #fbbf24;
-  color: #1f2937;
+  background-color: var(--warning);
+  color: var(--text-inverse);
   padding: 2px 4px;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   font-weight: 600;
 }
 
@@ -3940,7 +3944,7 @@ defineExpose({ editLastOwnMessage });
 .skeleton-username,
 .skeleton-timestamp,
 .skeleton-text-line {
-  background-color: var(--background-quaternary, #2b2d31);
+  background-color: var(--background-quaternary);
   background-image: linear-gradient(
     90deg,
     transparent 0%,
@@ -4031,11 +4035,6 @@ defineExpose({ editLastOwnMessage });
   }
 }
 
-/* Dark theme adjustments */
-:root[data-theme-type="dark"] .message-item:hover {
-  background-color: rgba(79, 84, 92, 0.16);
-}
-
 /* System Messages (Join/Leave Announcements) */
 .system-message {
   padding: 0 16px 0 0;
@@ -4104,7 +4103,7 @@ defineExpose({ editLastOwnMessage });
 
 .system-thread-link,
 .system-threads-link {
-  color: var(--text-link, #00aff4);
+  color: var(--harmony-primary);
   font-weight: 600;
   cursor: pointer;
 }
@@ -4126,7 +4125,7 @@ defineExpose({ editLastOwnMessage });
 }
 
 .call-system-icon.active {
-  color: #57f287;
+  color: var(--success);
 }
 
 .call-system-text {
@@ -4137,25 +4136,25 @@ defineExpose({ editLastOwnMessage });
 }
 
 .call-duration {
-  color: var(--text-muted, var(--text-muted));
+  color: var(--text-muted);
   font-size: 0.8rem;
 }
 
 .call-join-btn {
-  background: #57f287;
-  color: #000;
+  background: var(--success);
+  color: var(--text-on-primary);
   border: none;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   padding: 2px 12px;
   font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
   margin-left: 4px;
-  transition: opacity 0.15s;
+  transition: background-color 0.15s;
 }
 
 .call-join-btn:hover {
-  opacity: 0.85;
+  background: var(--success-hover);
 }
 
 .system-timestamp {
@@ -4249,26 +4248,22 @@ defineExpose({ editLastOwnMessage });
 }
 
 .encryption-dot.decrypted {
-  background-color: #3ba55d;
+  background-color: var(--success);
   opacity: 0.5;
-  box-shadow: 0 0 3px rgba(59, 165, 93, 0.4);
 }
 
 .encryption-dot.decrypted:hover {
   opacity: 1;
-  box-shadow: 0 0 6px rgba(59, 165, 93, 0.8);
-  transform: scale(1.2);
 }
 
 .encryption-indicator.locked {
   display: inline-block;
   font-size: 0.7em;
   margin-left: 4px;
-  opacity: 0.6;
-  animation: lockPulse 3s ease-in-out infinite;
-  filter: drop-shadow(0 0 3px rgba(237, 66, 69, 0.4));
+  color: var(--error);
+  opacity: 0.7;
   cursor: help;
-  transition: all 0.2s ease;
+  transition: opacity 0.2s ease;
   vertical-align: middle;
   position: relative;
   top: -1px;
@@ -4276,31 +4271,17 @@ defineExpose({ editLastOwnMessage });
 
 .encryption-indicator.locked:hover {
   opacity: 1;
-  filter: drop-shadow(0 0 6px rgba(237, 66, 69, 0.8));
-  transform: scale(1.1);
 }
 
-/* Permanently unrecoverable: key predates current identity. Muted and
-   static (no pulse) - there is nothing actionable, the tooltip explains. */
+/* Permanently unrecoverable: key predates current identity. Muted; the
+   tooltip explains. */
 .encryption-indicator.locked.unrecoverable {
-  animation: none;
-  opacity: 0.45;
-  filter: grayscale(1) drop-shadow(0 0 2px rgba(128, 128, 128, 0.4));
+  color: var(--text-muted);
+  opacity: 0.6;
 }
 
 .encryption-indicator.locked.unrecoverable:hover {
-  opacity: 0.8;
-  filter: grayscale(1) drop-shadow(0 0 4px rgba(128, 128, 128, 0.6));
-  transform: scale(1.1);
-}
-
-@keyframes lockPulse {
-  0%, 100% {
-    opacity: 0.6;
-  }
-  50% {
-    opacity: 0.9;
-  }
+  opacity: 0.9;
 }
 
 /* Reported message placeholder */
@@ -4319,8 +4300,7 @@ defineExpose({ editLastOwnMessage });
 }
 
 .reported-icon {
-  font-size: 14px;
-  color: #ed4245;
+  color: var(--error);
 }
 
 .reported-text {
@@ -4333,7 +4313,7 @@ defineExpose({ editLastOwnMessage });
 }
 
 .reported-banner {
-  border-left-color: #ed4245;
+  border-left-color: var(--error);
 }
 
 /* Blocked message styles */
@@ -4379,18 +4359,17 @@ defineExpose({ editLastOwnMessage });
   gap: 8px;
   padding: 6px 16px;
   margin-bottom: 4px;
-  background: rgba(237, 66, 69, 0.1);
-  border-radius: 4px;
-  border-left: 3px solid var(--status-danger, #ed4245);
+  background: color-mix(in srgb, var(--error) 10%, transparent);
+  border-radius: var(--radius-sm);
+  border-left: 3px solid var(--error);
 }
 
 .revealed-blocked {
-  border-left: 2px solid var(--status-danger, #ed4245);
-  background: rgba(237, 66, 69, 0.05);
+  border-left: 2px solid var(--error);
+  background: color-mix(in srgb, var(--error) 5%, transparent);
 }
 
 .blocked-icon {
-  font-size: 1rem;
   opacity: 0.6;
 }
 
@@ -4414,8 +4393,8 @@ defineExpose({ editLastOwnMessage });
 
 .reveal-btn:hover {
   background: var(--background-modifier-hover);
-  border-color: var(--text-normal);
-  color: var(--text-normal);
+  border-color: var(--text-primary);
+  color: var(--text-primary);
 }
 
 .revealed-blocked-header {
@@ -4428,7 +4407,7 @@ defineExpose({ editLastOwnMessage });
 
 .blocked-warning {
   font-size: 0.75rem;
-  color: var(--text-warning, #f0b232);
+  color: var(--warning);
   opacity: 0.8;
 }
 
@@ -4445,7 +4424,7 @@ defineExpose({ editLastOwnMessage });
 
 .hide-btn:hover {
   background: var(--background-modifier-hover);
-  color: var(--text-normal);
+  color: var(--text-primary);
 }
 
 /* Shake animation for blocked reaction attempts (like Discord) */
@@ -4456,12 +4435,14 @@ defineExpose({ editLastOwnMessage });
 }
 
 .shake-reject {
-  animation: shake-reject 0.5s ease-in-out;
-  background-color: rgba(237, 66, 69, 0.1) !important;
+  background-color: color-mix(in srgb, var(--error) 10%, transparent) !important;
 }
 
-.shake-reject .message-reactions,
-.shake-reject .reaction {
-  animation: shake-reject 0.5s ease-in-out;
+@media (prefers-reduced-motion: no-preference) {
+  .shake-reject,
+  .shake-reject .message-reactions,
+  .shake-reject .reaction {
+    animation: shake-reject 0.5s ease-in-out;
+  }
 }
 </style>

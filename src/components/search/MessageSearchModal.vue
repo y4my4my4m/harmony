@@ -249,7 +249,7 @@
             <div v-if="canLoadMore" class="load-more-container">
               <button @click="loadMore" class="load-more-btn" :disabled="isSearching">
                 <Icon v-if="isSearching" name="loader" class="spinning" />
-                <span>{{ isSearching ? 'Loading...' : 'Load More' }}</span>
+                <span>{{ isSearching ? 'Loading...' : 'Load more' }}</span>
               </button>
             </div>
           </div>
@@ -760,17 +760,19 @@ onMounted(() => {
 
 .filter-chip-label {
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--text-on-primary);
 }
 
 .filter-chip-value {
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--text-on-primary);
+  opacity: 0.9;
 }
 
 .filter-chip-remove {
   background: transparent;
   border: none;
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--text-on-primary);
+  opacity: 0.8;
   cursor: pointer;
   padding: 2px;
   border-radius: 2px;
@@ -778,8 +780,8 @@ onMounted(() => {
 }
 
 .filter-chip-remove:hover {
-  background: rgba(255, 255, 255, 0.2);
-  color: var(--text-primary);
+  background: color-mix(in srgb, var(--text-on-primary) 20%, transparent);
+  opacity: 1;
 }
 
 .toggle-filters-btn {
@@ -873,10 +875,10 @@ onMounted(() => {
   align-items: flex-start;
   gap: 8px;
   padding: 12px 16px;
-  background: rgba(250, 168, 26, 0.1);
-  border: 1px solid rgba(250, 168, 26, 0.3);
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warning) 30%, transparent);
   border-radius: 4px;
-  color: var(--status-away);
+  color: var(--warning);
   font-size: 12px;
   text-align: left;
   max-width: 400px;

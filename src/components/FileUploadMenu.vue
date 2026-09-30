@@ -88,14 +88,15 @@ export default defineComponent({
   position: absolute;
   bottom: 100%;
   left: 0;
-  backdrop-filter: blur(8px);
-  border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  background: var(--background-floating);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-large);
   padding: 8px;
   z-index: 1000;
   min-width: 160px;
   margin-bottom: 8px;
-  pointer-events: auto; /* Add pointer events to ensure it's clickable */
+  pointer-events: auto;
 }
 
 .menu-item {
@@ -103,17 +104,17 @@ export default defineComponent({
   align-items: center;
   gap: 12px;
   padding: 12px 16px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   transition: background-color 0.2s;
   color: var(--text-secondary);
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   font-weight: 500;
 }
 
 .menu-item:hover {
   background-color: var(--harmony-primary);
-  color: var(--text-primary);
+  color: var(--text-on-primary);
 }
 
 .menu-icon {

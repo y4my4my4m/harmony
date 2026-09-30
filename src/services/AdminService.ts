@@ -9,7 +9,6 @@ export interface SystemStats {
   active_servers: number;
   total_posts: number;
   federated_instances: number;
-  uptime?: number;
   newUsersToday?: number;
   postsToday?: number;
 }
@@ -96,10 +95,6 @@ export interface SystemHealth {
     used: number;
     total: string;
   };
-  memory: {
-    used: number;
-    total: string;
-  };
 }
 
 export interface BlockedInstance {
@@ -177,7 +172,6 @@ class AdminService {
         active_servers: serversResult.count || 0, // Activity is not tracked; mirrors the total.
         total_posts: postsResult.count || 0,
         federated_instances: federatedInstancesResult.count || 0,
-        uptime: Date.now() - (7 * 24 * 60 * 60 * 1000), // Fixed 7-day placeholder; uptime is not tracked.
         newUsersToday: newUsersResult.count || 0,
         postsToday: newPostsResult.count || 0
       };
@@ -189,7 +183,6 @@ class AdminService {
         active_servers: 0,
         total_posts: 0,
         federated_instances: 0,
-        uptime: 0,
         newUsersToday: 0,
         postsToday: 0
       };
@@ -371,7 +364,6 @@ class AdminService {
           status: federationStats.pending_deliveries > 100 ? 'warning' : 'healthy' 
         },
         storage: { used: 0, total: dbSize },
-        memory: { used: 0, total: '--' }
       };
     } catch (error) {
       debug.error('Failed to get system health:', error);

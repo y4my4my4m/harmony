@@ -3,7 +3,7 @@
 <div class="admin-module reports-module">
   <div class="module-header">
     <Icon name="flag" :size="20" />
-    <h2>Reports & Moderation</h2>
+    <h2>Reports & moderation</h2>
     <span v-if="pendingReportsCount > 0" class="reports-badge">{{ pendingReportsCount }} pending</span>
   </div>
 
@@ -123,7 +123,7 @@
               v-if="report.reported_post_id"
               class="report-action-btn warning"
               @click.stop="markPostSensitive(report)"
-            >{{ report.reported_post_is_sensitive ? 'Unmark Sensitive' : 'Mark Sensitive' }}</button>
+            >{{ report.reported_post_is_sensitive ? 'Unmark sensitive' : 'Mark sensitive' }}</button>
             <button
               v-if="report.reported_post_id"
               class="report-action-btn warning"
@@ -133,39 +133,39 @@
               v-if="report.reported_post_id"
               class="report-action-btn danger"
               @click.stop="deleteReportedPost(report)"
-            >Delete Post</button>
+            >Delete post</button>
             <button
               v-if="report.reported_message_id"
               class="report-action-btn danger"
               @click.stop="deleteReportedMessage(report)"
-            >Delete Message</button>
+            >Delete message</button>
             <button
               v-if="extractStorageUrls(report).length > 0"
               class="report-action-btn danger"
               @click.stop="deleteReportedMedia(report)"
-            >Delete Media ({{ extractStorageUrls(report).length }})</button>
+            >Delete media ({{ extractStorageUrls(report).length }})</button>
           </div>
           <div class="report-punitive-actions">
             <button
               v-if="report.reported_user_id"
               class="report-action-btn warning"
               @click.stop="forceSensitiveReportedUser(report)"
-            >Force Sensitive Account</button>
+            >Force sensitive account</button>
             <button
               v-if="report.reported_user_id"
               class="report-action-btn warning"
               @click.stop="silenceReportedUser(report)"
-            >Silence Account</button>
+            >Silence account</button>
             <button
               v-if="report.reported_user_id"
               class="report-action-btn danger"
               @click.stop="suspendReportedUser(report)"
-            >Suspend User</button>
+            >Suspend user</button>
           </div>
 
           <textarea
             v-model="reportResolutionNote"
-            placeholder="Add resolution notes..."
+            placeholder="Add resolution notes…"
             class="cyber-input resolution-textarea"
             rows="2"
             @click.stop
@@ -180,7 +180,7 @@
               v-if="report.status === 'pending'"
               class="report-action-btn investigating"
               @click.stop="updateReport(report.id, 'investigating')"
-            >Mark Investigating</button>
+            >Mark investigating</button>
             <button
               class="report-action-btn resolve"
               @click.stop="updateReport(report.id, 'resolved')"
@@ -522,7 +522,7 @@ onMounted(() => {
   height: 24px;
   background: var(--background-tertiary);
   border: 1px solid var(--border-color);
-  border-radius: 24px;
+  border-radius: var(--radius-full);
   transition: all 0.2s ease;
 }
 
@@ -547,8 +547,8 @@ onMounted(() => {
 
 
 .toggle-label input[type="checkbox"]:checked + .toggle-slider {
-  background: var(--accent-color);
-  border-color: var(--accent-color);
+  background: var(--harmony-primary);
+  border-color: var(--harmony-primary);
 }
 
 
@@ -557,7 +557,7 @@ onMounted(() => {
 
 .toggle-label input[type="checkbox"]:checked + .toggle-slider:before {
   left: 22px;
-  background: white;
+  background: var(--text-on-primary);
 }
 
 
@@ -568,7 +568,7 @@ onMounted(() => {
   padding: 8px 16px;
   background: var(--background-tertiary);
   border: 1px solid var(--border-color);
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   color: var(--text-secondary);
   font-size: 14px;
   font-weight: 500;
@@ -580,10 +580,15 @@ onMounted(() => {
 
 
 
-.filter-btn:hover, .filter-btn.active {
-  background: var(--accent-color);
-  border-color: var(--accent-color);
+.filter-btn:hover {
   color: var(--text-primary);
+  border-color: var(--border-hover);
+}
+
+.filter-btn.active {
+  background: var(--harmony-primary);
+  border-color: var(--harmony-primary);
+  color: var(--text-on-primary);
 }
 
 @media (max-width: 480px) {
@@ -606,12 +611,12 @@ onMounted(() => {
 
 /* Reports & Moderation */
 .reports-badge {
-  background: #ed4245;
-  color: #fff;
+  background: var(--error);
+  color: var(--text-on-primary);
   font-size: 11px;
   font-weight: 700;
   padding: 2px 8px;
-  border-radius: 10px;
+  border-radius: var(--radius-full);
   margin-left: auto;
 }
 
@@ -644,7 +649,7 @@ onMounted(() => {
 .report-item {
   background: var(--background-tertiary);
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   cursor: pointer;
   transition: border-color 0.15s;
 }
@@ -654,7 +659,7 @@ onMounted(() => {
 
 
 .report-item:hover {
-  border-color: var(--accent-color);
+  border-color: var(--harmony-primary);
 }
 
 
@@ -662,7 +667,7 @@ onMounted(() => {
 
 
 .report-item.expanded {
-  border-color: var(--accent-color);
+  border-color: var(--harmony-primary);
 }
 
 
@@ -686,7 +691,7 @@ onMounted(() => {
   font-weight: 700;
   text-transform: uppercase;
   padding: 3px 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   flex-shrink: 0;
 }
 
@@ -694,22 +699,22 @@ onMounted(() => {
 
 
 
-.report-type-badge.user { background: rgba(14, 165, 233, 0.2); color: #38BDF8; }
+.report-type-badge.user { background: var(--background-modifier-active); color: var(--text-secondary); }
 
 
 
 
-.report-type-badge.post { background: rgba(87, 242, 135, 0.2); color: #57f287; }
+.report-type-badge.post { background: var(--background-modifier-active); color: var(--text-secondary); }
 
 
 
 
-.report-type-badge.message { background: rgba(254, 231, 92, 0.2); color: #fee75c; }
+.report-type-badge.message { background: var(--background-modifier-active); color: var(--text-secondary); }
 
 
 
 
-.report-type-badge.server { background: rgba(235, 69, 158, 0.2); color: #eb459e; }
+.report-type-badge.server { background: var(--background-modifier-active); color: var(--text-secondary); }
 
 
 
@@ -777,9 +782,9 @@ onMounted(() => {
 
 
 .report-source {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--background-modifier-active);
   padding: 1px 6px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 
 
@@ -791,7 +796,7 @@ onMounted(() => {
   font-weight: 700;
   text-transform: uppercase;
   padding: 3px 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   flex-shrink: 0;
 }
 
@@ -799,22 +804,22 @@ onMounted(() => {
 
 
 
-.report-status-badge.pending { background: rgba(254, 231, 92, 0.2); color: #fee75c; }
+.report-status-badge.pending { background: color-mix(in srgb, var(--warning) 20%, transparent); color: var(--warning); }
 
 
 
 
-.report-status-badge.investigating { background: rgba(14, 165, 233, 0.2); color: #38BDF8; }
+.report-status-badge.investigating { background: color-mix(in srgb, var(--info) 20%, transparent); color: var(--info); }
 
 
 
 
-.report-status-badge.resolved { background: rgba(87, 242, 135, 0.2); color: #57f287; }
+.report-status-badge.resolved { background: color-mix(in srgb, var(--success) 20%, transparent); color: var(--success); }
 
 
 
 
-.report-status-badge.dismissed { background: rgba(255, 255, 255, 0.1); color: var(--text-secondary); }
+.report-status-badge.dismissed { background: var(--background-modifier-active); color: var(--text-secondary); }
 
 
 
@@ -859,9 +864,9 @@ onMounted(() => {
 .report-proof blockquote {
   margin: 0;
   padding: 8px 12px;
-  border-left: 3px solid var(--accent-color);
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 0 6px 6px 0;
+  border-left: 3px solid var(--harmony-primary);
+  background: var(--background-secondary);
+  border-radius: 0 var(--radius-base) var(--radius-base) 0;
   font-size: 14px;
   color: var(--text-primary);
   white-space: pre-wrap;
@@ -873,7 +878,7 @@ onMounted(() => {
 
 
 .report-proof :deep(.report-link) {
-  color: var(--accent-color);
+  color: var(--harmony-primary);
   text-decoration: underline;
   word-break: break-all;
 }
@@ -904,7 +909,7 @@ onMounted(() => {
   width: 100%;
   background: var(--background-secondary);
   border: 1px solid var(--border-color);
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   color: var(--text-primary);
   padding: 8px 10px;
   font-size: 13px;
@@ -929,8 +934,8 @@ onMounted(() => {
 
 
 .report-action-btn.danger {
-  background: rgba(237, 66, 69, 0.2);
-  color: #ed4245;
+  background: color-mix(in srgb, var(--error) 20%, transparent);
+  color: var(--error);
 }
 
 
@@ -938,7 +943,7 @@ onMounted(() => {
 
 
 .report-action-btn.danger:hover {
-  background: rgba(237, 66, 69, 0.4);
+  background: color-mix(in srgb, var(--error) 40%, transparent);
 }
 
 
@@ -957,7 +962,7 @@ onMounted(() => {
 .report-action-btn {
   padding: 6px 14px;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
@@ -977,8 +982,8 @@ onMounted(() => {
 
 
 .report-action-btn.investigating {
-  background: rgba(14, 165, 233, 0.3);
-  color: #38BDF8;
+  background: color-mix(in srgb, var(--info) 30%, transparent);
+  color: var(--info);
 }
 
 
@@ -986,8 +991,8 @@ onMounted(() => {
 
 
 .report-action-btn.resolve {
-  background: rgba(87, 242, 135, 0.3);
-  color: #57f287;
+  background: color-mix(in srgb, var(--success) 30%, transparent);
+  color: var(--success);
 }
 
 
@@ -995,7 +1000,7 @@ onMounted(() => {
 
 
 .report-action-btn.dismiss {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--background-modifier-active);
   color: var(--text-secondary);
 }
 
@@ -1004,8 +1009,8 @@ onMounted(() => {
 
 
 .report-action-btn.warning {
-  background: rgba(250, 166, 26, 0.2);
-  color: #faa61a;
+  background: color-mix(in srgb, var(--warning) 20%, transparent);
+  color: var(--warning);
 }
 
 
@@ -1013,7 +1018,7 @@ onMounted(() => {
 
 
 .report-action-btn.warning:hover {
-  background: rgba(250, 166, 26, 0.4);
+  background: color-mix(in srgb, var(--warning) 40%, transparent);
 }
 
 
@@ -1021,10 +1026,10 @@ onMounted(() => {
 
 
 .federation-badge {
-  background: rgba(88, 101, 242, 0.2);
-  color: #7c8af5;
+  background: color-mix(in srgb, var(--harmony-primary) 20%, transparent);
+  color: var(--harmony-primary);
   padding: 1px 6px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 11px;
   font-weight: 500;
   margin-left: 4px;
@@ -1047,7 +1052,7 @@ onMounted(() => {
 
 .report-user-link:hover {
   text-decoration: underline;
-  color: var(--accent-color);
+  color: var(--harmony-primary);
 }
 
 
@@ -1069,7 +1074,7 @@ onMounted(() => {
 
 .report-external-link:hover {
   opacity: 1;
-  color: var(--accent-color);
+  color: var(--harmony-primary);
 }
 
 
@@ -1110,9 +1115,9 @@ onMounted(() => {
   align-items: center;
   gap: 4px;
   padding: 4px 10px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 6px;
+  background: var(--background-modifier-hover);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-base);
   color: var(--text-secondary);
   font-size: 12px;
   cursor: pointer;
@@ -1125,7 +1130,7 @@ onMounted(() => {
 
 
 .report-link-btn:hover {
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--background-modifier-active);
   color: var(--text-primary);
 }
 

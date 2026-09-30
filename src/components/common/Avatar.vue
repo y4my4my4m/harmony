@@ -234,11 +234,6 @@ onUnmounted(() => {
   /* border: 2px solid var(--background-senary); */
 }
 
-/* .avatar-container.interactive .avatar-image:hover {
-  transform: scale(1.05);
-  border-color: #0EA5E9;
-} */
-
 /* Size classes mirror the voice overlay. */
 .avatar-mini {
   width: 16px;
@@ -389,18 +384,17 @@ onUnmounted(() => {
   border-radius: 50%;
   border: none;
   background-color: var(--harmony-primary);
-  color: var(--text-primary);
+  color: var(--text-on-primary);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.15s ease;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  transition: background-color 0.15s ease;
+  box-shadow: var(--shadow-small);
 }
 
 .avatar-edit-btn:hover:not(:disabled) {
-  background-color: #0284C7;
-  transform: scale(1.1);
+  background-color: var(--harmony-primary-hover);
 }
 
 .avatar-edit-btn:disabled {

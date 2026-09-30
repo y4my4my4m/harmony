@@ -1053,7 +1053,7 @@ const vClickOutside = {
 
 .composer-title {
   font-size: 1.25rem;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
   margin: 0;
 }
@@ -1110,7 +1110,7 @@ const vClickOutside = {
 }
 
 .author-name {
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
 }
 
@@ -1136,7 +1136,7 @@ const vClickOutside = {
   gap: 0.5rem;
   color: var(--text-secondary);
   font-size: 0.875rem;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   margin-bottom: 0.75rem;
 }
 
@@ -1145,7 +1145,7 @@ const vClickOutside = {
   gap: 0.75rem;
   padding: 0.75rem;
   background: var(--background-secondary);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   border: 1px solid var(--border-primary);
 }
 
@@ -1244,9 +1244,9 @@ const vClickOutside = {
   justify-content: center;
   gap: 0.5rem;
   background-color: rgba(0, 0, 0, 0.8);
-  border-radius: 0.5rem;
-  color: var(--text-primary);
-  font-weight: 500;
+  border-radius: var(--radius-md);
+  color: var(--text-light);
+  font-weight: var(--font-weight-medium);
   pointer-events: none;
   z-index: 10;
 }
@@ -1367,7 +1367,7 @@ const vClickOutside = {
   background: transparent;
   color: var(--harmony-primary);
   font-size: 0.8125rem;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   white-space: nowrap;
   cursor: pointer;
   flex-shrink: 0;
@@ -1437,7 +1437,7 @@ const vClickOutside = {
 }
 
 .option-label {
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 
 .option-description {
@@ -1470,7 +1470,7 @@ const vClickOutside = {
   border: none;
   border-radius: var(--radius-full);
   color: var(--text-on-primary);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   cursor: pointer;
   transition: background-color var(--transition-fast);
 }
@@ -1520,7 +1520,7 @@ const vClickOutside = {
 }
 
 .suggest-name {
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   color: var(--text-primary);
 }
 

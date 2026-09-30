@@ -28,6 +28,7 @@ export class EventDispatcher {
   private pollingInterval: NodeJS.Timeout | null = null
   private editPollingInterval: NodeJS.Timeout | null = null
   private reactionPollingInterval: NodeJS.Timeout | null = null
+  private pollsInFlight = new Set<string>()
   private lastProcessedTimestamp: Date = new Date()
   private lastReactionTimestamp: Date = new Date()
   private processedMessageIds: Set<string> = new Set()
@@ -107,21 +108,29 @@ export class EventDispatcher {
   private startPolling() {
     console.log('Starting polling mode for all message events...')
     
-    this.pollingInterval = setInterval(async () => {
-      await this.pollMessages()
-    }, 1000)
-    
+    this.pollingInterval = this.schedulePoll('messages', 1000, () => this.pollMessages())
+
     // Edits/deletes: compares cached content against the DB. Handle is stored
     // so shutdown can clear it.
-    this.editPollingInterval = setInterval(async () => {
-      await this.pollEditsAndDeletes()
-    }, 2000)
+    this.editPollingInterval = this.schedulePoll('edits', 2000, () => this.pollEditsAndDeletes())
 
     // Reaction polling feeds MESSAGE_REACTION_ADD / MESSAGE_REACTION_REMOVE to
     // bots and the Discord bridge.
-    this.reactionPollingInterval = setInterval(async () => {
-      await this.pollReactions()
-    }, 2000)
+    this.reactionPollingInterval = this.schedulePoll('reactions', 2000, () => this.pollReactions())
+  }
+
+  // A tick that finds its previous run unfinished is skipped. Overlapping runs
+  // read the same cursor window and dispatch the same event twice.
+  private schedulePoll(name: string, periodMs: number, poll: () => Promise<void>): NodeJS.Timeout {
+    return setInterval(async () => {
+      if (this.pollsInFlight.has(name)) return
+      this.pollsInFlight.add(name)
+      try {
+        await poll()
+      } finally {
+        this.pollsInFlight.delete(name)
+      }
+    }, periodMs)
   }
 
   // Reactions

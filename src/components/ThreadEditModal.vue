@@ -3,7 +3,7 @@
     <div v-if="show" class="modal-overlay" @click="closeModal">
       <div class="modal-container" @click.stop>
         <div class="modal-header">
-          <h2 class="modal-title">Edit Thread</h2>
+          <h2 class="modal-title">Edit thread</h2>
           <button class="modal-close" @click="closeModal">
             <svg width="24" height="24" viewBox="0 0 24 24">
               <path fill="currentColor" d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/>
@@ -13,7 +13,7 @@
         
         <div class="modal-body">
           <div class="form-group">
-            <label for="thread-name">Thread Name</label>
+            <label for="thread-name">Thread name</label>
             <input
               id="thread-name"
               v-model="editedName"
@@ -65,7 +65,7 @@
             :disabled="!isValidName || isLoading"
           >
             <span v-if="isLoading" class="loading-spinner"></span>
-            {{ isLoading ? 'Saving...' : 'Save Changes' }}
+            {{ isLoading ? 'Saving...' : 'Save changes' }}
           </button>
         </div>
       </div>
@@ -173,18 +173,26 @@ watch(() => props.show, (isVisible) => {
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  animation: fadeIn 0.15s ease-out;
 }
 
 .modal-container {
   background: var(--background-secondary);
   border-radius: 8px;
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
+  box-shadow: var(--shadow-large);
   width: 100%;
   max-width: 480px;
   max-height: 90vh;
   overflow: hidden;
-  animation: slideUp 0.15s ease-out;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .modal-overlay {
+    animation: fadeIn 0.15s ease-out;
+  }
+
+  .modal-container {
+    animation: slideUp 0.15s ease-out;
+  }
 }
 
 .modal-header {
@@ -192,7 +200,7 @@ watch(() => props.show, (isVisible) => {
   align-items: center;
   justify-content: space-between;
   padding: 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid var(--border-secondary);
 }
 
 .modal-title {
@@ -205,7 +213,7 @@ watch(() => props.show, (isVisible) => {
 .modal-close {
   background: none;
   border: none;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   cursor: pointer;
   padding: 4px;
   border-radius: 4px;
@@ -213,7 +221,7 @@ watch(() => props.show, (isVisible) => {
 }
 
 .modal-close:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--background-modifier-hover);
   color: var(--text-primary);
 }
 
@@ -230,7 +238,7 @@ watch(() => props.show, (isVisible) => {
   font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   margin-bottom: 8px;
 }
 
@@ -238,16 +246,16 @@ watch(() => props.show, (isVisible) => {
   width: 100%;
   padding: 10px;
   font-size: 16px;
-  color: #dcddde;
-  background: #202225;
-  border: 1px solid #040405;
-  border-radius: 3px;
+  color: var(--text-primary);
+  background: var(--background-tertiary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-sm);
   outline: none;
   transition: border-color 0.15s ease;
 }
 
 .form-input:focus {
-  border-color: #38BDF8;
+  border-color: var(--harmony-primary);
 }
 
 .character-count {
@@ -263,7 +271,7 @@ watch(() => props.show, (isVisible) => {
   gap: 8px;
   cursor: pointer;
   font-size: 14px;
-  color: #dcddde;
+  color: var(--text-primary);
   text-transform: none;
   font-weight: normal;
 }
@@ -272,14 +280,14 @@ watch(() => props.show, (isVisible) => {
   width: 18px;
   height: 18px;
   cursor: pointer;
-  accent-color: #38BDF8;
+  accent-color: var(--harmony-primary);
 }
 
 .archive-note {
   font-size: 13px;
   color: var(--text-muted);
   padding: 8px 12px;
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--background-modifier-hover);
   border-radius: 4px;
   margin-top: 8px;
 }
@@ -317,12 +325,12 @@ watch(() => props.show, (isVisible) => {
 }
 
 .btn-primary {
-  background: #38BDF8;
-  color: var(--text-primary);
+  background: var(--harmony-primary);
+  color: var(--text-on-primary);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #677bc4;
+  background: var(--harmony-primary-hover);
 }
 
 .loading-spinner {
@@ -330,7 +338,7 @@ watch(() => props.show, (isVisible) => {
   width: 14px;
   height: 14px;
   border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top-color: var(--text-primary);
+  border-top-color: var(--text-on-primary);
   border-radius: 50%;
   animation: spin 0.6s linear infinite;
   margin-right: 8px;

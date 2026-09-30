@@ -2,7 +2,7 @@
   <BaseModal
     :show="show"
     @close="$emit('close')"
-    title="Invite People"
+    title="Invite people"
     subtitle="Share this server with anyone you'd like to bring in"
     :icon="InviteIcon"
     :compact="false"
@@ -12,7 +12,7 @@
       <!-- Invite Link Section -->
       <div class="invite-section">
         <div class="section-header">
-          <h3 class="section-title">Server Invite Link</h3>
+          <h3 class="section-title">Server invite link</h3>
           <p class="section-description">
             Send this link to anyone you'd like to invite to your server
           </p>
@@ -67,7 +67,7 @@
                   <svg v-else viewBox="0 0 24 24" class="check-icon">
                     <path d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z" fill="currentColor"/>
                   </svg>
-                  {{ linkCopied ? 'Copied!' : 'Copy' }}
+                  {{ linkCopied ? 'Copied' : 'Copy' }}
                 </button>
               </div>
             </div>
@@ -127,7 +127,7 @@
               <svg viewBox="0 0 24 24" class="refresh-icon" :class="{ spinning: isGenerating }">
                 <path d="M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z" fill="currentColor"/>
               </svg>
-              {{ isGenerating ? 'Generating...' : 'Generate New Link' }}
+              {{ isGenerating ? 'Generating...' : 'Generate new link' }}
             </button>
           </div>
         </div>
@@ -136,7 +136,7 @@
       <!-- Invite History -->
       <div v-if="inviteHistory.length > 0" class="invite-history-section">
         <div class="section-header">
-          <h3 class="section-title">Recent Invites</h3>
+          <h3 class="section-title">Recent invites</h3>
           <p class="section-description">Your recently created invite links</p>
         </div>
 
@@ -184,7 +184,7 @@
       <!-- Quick Share Options -->
       <div class="quick-share-section">
         <div class="section-header">
-          <h3 class="section-title">Quick Share</h3>
+          <h3 class="section-title">Quick share</h3>
           <p class="section-description">Share directly to your favorite platforms</p>
         </div>
 
@@ -193,7 +193,7 @@
             <svg viewBox="0 0 24 24" class="share-icon">
               <path d="M18,16.08C17.24,16.08 16.56,16.38 16.04,16.85L8.91,12.7C8.96,12.47 9,12.24 9,12C9,11.76 8.96,11.53 8.91,11.3L15.96,7.19C16.5,7.69 17.21,8 18,8A3,3 0 0,0 21,5A3,3 0 0,0 18,2A3,3 0 0,0 15,5C15,5.24 15.04,5.47 15.09,5.7L8.04,9.81C7.5,9.31 6.79,9 6,9A3,3 0 0,0 3,12A3,3 0 0,0 6,15C6.79,15 7.5,14.69 8.04,14.19L15.16,18.34C15.11,18.55 15.08,18.77 15.08,19C15.08,20.61 16.39,21.91 18,21.91C19.61,21.91 20.92,20.6 20.92,19A2.84,2.84 0 0,0 18,16.08Z" fill="currentColor"/>
             </svg>
-            Copy Link
+            Copy link
           </button>
 
           <button @click="shareToEmail" class="share-button">
@@ -229,7 +229,7 @@
           <svg viewBox="0 0 24 24" class="footer-btn-icon">
             <path d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z" fill="currentColor"/>
           </svg>
-          Copy Invite Link
+          Copy invite link
         </button>
       </div>
     </template>
@@ -368,12 +368,12 @@ const generateInvite = async () => {
       inviteUrl.value = result.url
       await loadInviteHistory()
     } else {
-      permissionError.value = result.error || 'Failed to generate invite link'
-      toast.error(result.error || 'Failed to generate invite link')
+      permissionError.value = result.error || "Couldn't generate invite link"
+      toast.error(result.error || "Couldn't generate invite link")
     }
   } catch (error) {
     debug.error('Error generating invite:', error)
-    const errorMsg = 'Failed to generate invite link'
+    const errorMsg = "Couldn't generate invite link"
     permissionError.value = errorMsg
     toast.error(errorMsg)
   } finally {
@@ -383,7 +383,7 @@ const generateInvite = async () => {
 
 const generateNewLink = async () => {
   await generateInvite()
-  toast.success('New invite link generated!')
+  toast.success('New invite link generated')
 }
 
 const copyInviteLink = async () => {
@@ -392,14 +392,14 @@ const copyInviteLink = async () => {
   try {
     await navigator.clipboard.writeText(inviteUrl.value)
     linkCopied.value = true
-    toast.success('Invite link copied to clipboard!')
+    toast.success('Invite link copied')
     
     setTimeout(() => {
       linkCopied.value = false
     }, 3000)
   } catch (error) {
     debug.error('Failed to copy invite link:', error)
-    toast.error('Failed to copy invite link')
+    toast.error("Couldn't copy invite link")
   }
 }
 
@@ -440,9 +440,9 @@ const copyHistoryLink = async (invite: Invite) => {
   const url = formatInviteUrl(invite.code)
   try {
     await navigator.clipboard.writeText(url)
-    toast.success('Invite link copied!')
+    toast.success('Invite link copied')
   } catch (error) {
-    toast.error('Failed to copy link')
+    toast.error("Couldn't copy link")
   }
 }
 
@@ -455,11 +455,11 @@ const revokeInviteLink = async (invite: Invite) => {
       await loadInviteHistory()
       toast.success('Invite revoked')
     } else {
-      toast.error('Failed to revoke invite')
+      toast.error("Couldn't revoke invite")
     }
   } catch (error) {
     debug.error('Error revoking invite:', error)
-    toast.error('Failed to revoke invite')
+    toast.error("Couldn't revoke invite")
   }
 }
 
@@ -474,13 +474,13 @@ const shareToEmail = () => {
 }
 
 const shareToSocial = (platform: string) => {
-  const text = encodeURIComponent(`Join "${props.serverData?.name || 'our server'}" on Harmony!`)
+  const text = encodeURIComponent(`Join "${props.serverData?.name || 'our server'}" on Harmony`)
   const url = encodeURIComponent(inviteUrl.value)
   
   let shareUrl = ''
   
   switch (platform) {
-    case '𝕏':
+    case 'twitter':
       shareUrl = `https://x.com/intent/tweet?text=${text}&url=${url}`
       break
     case 'facebook':
@@ -585,15 +585,15 @@ watch(() => props.show, (visible) => {
 }
 
 .section-title {
-  font-size: 18px;
+  font-size: var(--font-size-lg);
   font-weight: 700;
   color: var(--text-primary);
   margin: 0 0 4px;
 }
 
 .section-description {
-  font-size: 14px;
-  color: #b5bac1;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
   margin: 0;
 }
 
@@ -604,24 +604,24 @@ watch(() => props.show, (visible) => {
 }
 
 .invite-link-wrapper {
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
+  background: var(--background-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
   padding: 20px;
   transition: all 0.3s ease;
 }
 
 .invite-link-wrapper.link-copied {
-  border-color: #00d166;
-  background: rgba(0, 209, 102, 0.05);
+  border-color: var(--success);
+  background: color-mix(in srgb, var(--success) 5%, var(--background-secondary));
 }
 
 .invite-preview {
   position: relative;
   margin-bottom: 16px;
   padding-bottom: 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 8px;
+  border-bottom: 1px solid var(--border-secondary);
+  border-radius: var(--radius-md);
   overflow: hidden;
 }
 
@@ -669,14 +669,14 @@ watch(() => props.show, (visible) => {
 
 .invite-preview.has-banner .server-name,
 .invite-preview.has-banner .member-count {
-  color: var(--text-primary);
+  color: var(--text-light);
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
 }
 
 .server-icon {
   width: 48px;
   height: 48px;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   overflow: hidden;
   flex-shrink: 0;
 }
@@ -690,13 +690,13 @@ watch(() => props.show, (visible) => {
 .default-server-icon {
   width: 100%;
   height: 100%;
-  background: linear-gradient(135deg, #0EA5E9, #38BDF8);
+  background: var(--harmony-primary);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 20px;
+  font-size: var(--font-size-xl);
   font-weight: 700;
-  color: var(--text-primary);
+  color: var(--text-on-primary);
 }
 
 .server-info {
@@ -705,15 +705,15 @@ watch(() => props.show, (visible) => {
 }
 
 .server-name {
-  font-size: 16px;
+  font-size: var(--font-size-base);
   font-weight: 600;
   color: var(--text-primary);
   margin: 0 0 4px;
 }
 
 .member-count {
-  font-size: 14px;
-  color: #b5bac1;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
   margin: 0;
 }
 
@@ -730,24 +730,23 @@ watch(() => props.show, (visible) => {
 
 .invite-url-input {
   flex: 1;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-md);
   padding: 12px 16px;
   color: var(--text-primary);
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   font-family: 'Fira Code', monospace;
   transition: all 0.2s ease;
 }
 
 .invite-url-input.url-copied {
-  border-color: #00d166;
-  background: rgba(0, 209, 102, 0.05);
+  border-color: var(--success);
 }
 
 .invite-url-input:focus {
   outline: none;
-  border-color: #0EA5E9;
+  border-color: var(--harmony-primary);
 }
 
 .copy-button {
@@ -757,18 +756,17 @@ watch(() => props.show, (visible) => {
   padding: 12px 16px;
   background: var(--harmony-primary);
   border: none;
-  border-radius: 8px;
-  color: var(--text-primary);
-  font-size: 14px;
+  border-radius: var(--radius-md);
+  color: var(--text-on-primary);
+  font-size: var(--font-size-sm);
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease;
   white-space: nowrap;
 }
 
 .copy-button:hover:not(:disabled) {
-  background: #0284C7;
-  transform: translateY(-1px);
+  background: var(--harmony-primary-hover);
 }
 
 .copy-button:disabled {
@@ -777,7 +775,7 @@ watch(() => props.show, (visible) => {
 }
 
 .copy-button.copied {
-  background: #00d166;
+  background: var(--success);
 }
 
 .copy-icon,
@@ -792,8 +790,8 @@ watch(() => props.show, (visible) => {
   flex-direction: column;
   gap: 16px;
   padding: 16px;
-  background: rgba(255, 255, 255, 0.02);
-  border-radius: 8px;
+  background: var(--background-secondary);
+  border-radius: var(--radius-md);
 }
 
 .setting-row {
@@ -811,14 +809,14 @@ watch(() => props.show, (visible) => {
 }
 
 .setting-label {
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--text-primary);
 }
 
 .setting-description {
-  font-size: 12px;
-  color: #b5bac1;
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
 }
 
 .setting-select {
@@ -836,19 +834,19 @@ watch(() => props.show, (visible) => {
 }
 
 .setting-select option {
-  background-color: var(--background-secondary, #1e1f22);
-  color: var(--text-primary, #f2f3f5);
+  background-color: var(--background-secondary);
+  color: var(--text-primary);
 }
 
 .setting-select:focus {
   outline: none;
-  border-color: #0EA5E9;
+  border-color: var(--harmony-primary);
 }
 
 .settings-hint {
   margin: 0;
-  font-size: 12px;
-  color: var(--text-muted, #80848e);
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
 }
 
 .generate-section {
@@ -860,18 +858,18 @@ watch(() => props.show, (visible) => {
   align-items: center;
   gap: 8px;
   padding: 10px 16px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
-  color: #b5bac1;
-  font-size: 14px;
+  background: transparent;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 .generate-button:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--background-modifier-hover);
   color: var(--text-primary);
 }
 
@@ -899,11 +897,11 @@ watch(() => props.show, (visible) => {
   align-items: center;
   gap: 8px;
   padding: 12px 16px;
-  background: rgba(237, 66, 69, 0.1);
-  border: 1px solid rgba(237, 66, 69, 0.2);
-  border-radius: 8px;
-  color: #ed4245;
-  font-size: 14px;
+  background: color-mix(in srgb, var(--error) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--error) 20%, transparent);
+  border-radius: var(--radius-md);
+  color: var(--error);
+  font-size: var(--font-size-sm);
   font-weight: 500;
 }
 
@@ -935,22 +933,22 @@ watch(() => props.show, (visible) => {
   justify-content: space-between;
   align-items: center;
   padding: 12px 16px;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.04);
-  border-radius: 8px;
+  background: var(--background-secondary);
+  border: 1px solid var(--border-secondary);
+  border-radius: var(--radius-md);
   transition: all 0.2s ease;
 }
 
 .history-item.expired {
   opacity: 0.5;
-  background: rgba(237, 66, 69, 0.05);
-  border-color: rgba(237, 66, 69, 0.2);
+  background: color-mix(in srgb, var(--error) 5%, transparent);
+  border-color: color-mix(in srgb, var(--error) 20%, transparent);
 }
 
 .history-item.used-up {
   opacity: 0.5;
-  background: rgba(255, 165, 0, 0.05);
-  border-color: rgba(255, 165, 0, 0.2);
+  background: color-mix(in srgb, var(--warning) 5%, transparent);
+  border-color: color-mix(in srgb, var(--warning) 20%, transparent);
 }
 
 .history-info {
@@ -959,7 +957,7 @@ watch(() => props.show, (visible) => {
 }
 
 .history-url {
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   color: var(--text-primary);
   font-family: 'Fira Code', monospace;
   margin-bottom: 4px;
@@ -970,8 +968,8 @@ watch(() => props.show, (visible) => {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
-  color: #b5bac1;
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
 }
 
 .history-stat {
@@ -992,10 +990,10 @@ watch(() => props.show, (visible) => {
 .history-revoke-btn {
   width: 32px;
   height: 32px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 6px;
-  color: #b5bac1;
+  background: transparent;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-base);
+  color: var(--text-secondary);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -1004,15 +1002,15 @@ watch(() => props.show, (visible) => {
 }
 
 .history-copy-btn:hover:not(:disabled) {
-  background: rgba(14, 165, 233, 0.2);
-  border-color: #0EA5E9;
-  color: #0EA5E9;
+  background: color-mix(in srgb, var(--harmony-primary) 20%, transparent);
+  border-color: var(--harmony-primary);
+  color: var(--harmony-primary);
 }
 
 .history-revoke-btn:hover:not(:disabled) {
-  background: rgba(237, 66, 69, 0.2);
-  border-color: #ed4245;
-  color: #ed4245;
+  background: color-mix(in srgb, var(--error) 20%, transparent);
+  border-color: var(--error);
+  color: var(--error);
 }
 
 .history-copy-btn:disabled,
@@ -1045,22 +1043,21 @@ watch(() => props.show, (visible) => {
   align-items: center;
   gap: 8px;
   padding: 16px 12px;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.04);
-  border-radius: 8px;
-  color: #b5bac1;
-  font-size: 12px;
+  background: var(--background-secondary);
+  border: 1px solid var(--border-secondary);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
   text-align: center;
 }
 
 .share-button:hover {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.12);
+  background: var(--background-tertiary);
+  border-color: var(--border-hover);
   color: var(--text-primary);
-  transform: translateY(-1px);
 }
 
 .share-icon {
@@ -1082,33 +1079,32 @@ watch(() => props.show, (visible) => {
   gap: 8px;
   padding: 12px 20px;
   border: none;
-  border-radius: 8px;
-  font-size: 14px;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease, color 0.2s ease;
   flex: 1;
 }
 
 .footer-button.secondary {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: #b5bac1;
+  background: transparent;
+  border: 1px solid var(--border-primary);
+  color: var(--text-secondary);
 }
 
 .footer-button.secondary:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--background-modifier-hover);
   color: var(--text-primary);
 }
 
 .footer-button.primary {
-  background: linear-gradient(135deg, #0EA5E9, #0284C7);
-  color: var(--text-primary);
+  background: var(--harmony-primary);
+  color: var(--text-on-primary);
 }
 
 .footer-button.primary:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3);
+  background: var(--harmony-primary-hover);
 }
 
 .footer-button:disabled {

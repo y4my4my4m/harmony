@@ -54,7 +54,7 @@
         role="menuitem"
         @click="emitAction('call')"
       >
-        <span class="menu-item-label">Start a Call</span>
+        <span class="menu-item-label">Start a call</span>
       </button>
 
       <!-- Add Note - opens the profile modal containing the note section -->
@@ -65,7 +65,7 @@
         role="menuitem"
         @click="emitAction('add-note')"
       >
-        <div class="menu-item-label">Add Note</div>
+        <div class="menu-item-label">Add note</div>
         <div class="menu-item-subtitle">Only visible to you</div>
       </button>
       -->
@@ -77,7 +77,7 @@
         role="menuitem"
         @click="emitAction('change-nickname')"
       >
-        <span class="menu-item-label">Change Nickname</span>
+        <span class="menu-item-label">Change nickname</span>
       </button>
 
       <div v-if="hasAnyMidSectionItem" class="menu-divider"></div>
@@ -89,7 +89,7 @@
         role="menuitem"
         @click="emitAction('invite')"
       >
-        <span class="menu-item-label">Invite to Server</span>
+        <span class="menu-item-label">Invite to server</span>
       </button>
 
       <!-- Mute / Unmute -->
@@ -99,7 +99,7 @@
         role="menuitem"
         @click="emitAction('toggle-mute')"
       >
-        <span class="menu-item-label">{{ isMuted ? 'Unmute User' : 'Mute User' }}</span>
+        <span class="menu-item-label">{{ isMuted ? 'Unmute user' : 'Mute user' }}</span>
       </button>
 
       <!-- Block / Unblock -->
@@ -143,7 +143,7 @@
         role="menuitem"
         @click="emitAction('copy-id')"
       >
-        <span class="menu-item-label">Copy User ID</span>
+        <span class="menu-item-label">Copy user ID</span>
         <span class="menu-item-trailing">
           <Icon name="copy" :size="14" />
         </span>
@@ -411,12 +411,16 @@ watch(
   min-width: 200px;
   max-width: 260px;
   padding: 6px 0;
-  background: var(--background-quinary, #1e1f22);
-  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
-  border-radius: 6px;
-  backdrop-filter: blur(8px);
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
-  animation: menu-appear 0.12s ease-out;
+  background: var(--background-quinary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-base);
+  box-shadow: var(--shadow-large);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .user-context-menu {
+    animation: menu-appear 0.12s ease-out;
+  }
 }
 
 @keyframes menu-appear {
@@ -443,7 +447,7 @@ watch(
 .menu-item:hover,
 .menu-item:focus-visible {
   background-color: var(--harmony-primary);
-  color: var(--text-primary);
+  color: var(--text-on-primary);
   outline: none;
 }
 
@@ -469,7 +473,7 @@ watch(
 
 .menu-item:hover .menu-item-subtitle,
 .menu-item:focus-visible .menu-item-subtitle {
-  color: rgba(255, 255, 255, 0.7);
+  color: color-mix(in srgb, var(--text-on-primary) 70%, transparent);
 }
 
 .menu-item.with-trailing {
@@ -490,18 +494,18 @@ watch(
 }
 
 .menu-item.destructive {
-  color: var(--error, #ed4245);
+  color: var(--error);
 }
 
 .menu-item.destructive:hover,
 .menu-item.destructive:focus-visible {
-  background-color: #ed4245;
-  color: #fff;
+  background-color: var(--error);
+  color: var(--text-on-primary);
 }
 
 .menu-divider {
   height: 1px;
-  background: var(--border-primary, rgba(255, 255, 255, 0.06));
+  background: var(--border-primary);
   margin: 4px 8px;
 }
 

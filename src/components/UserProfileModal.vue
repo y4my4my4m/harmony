@@ -33,30 +33,30 @@
       >
         <div class="action-item" @click="copyUserId">
           <Icon name="copy" class="action-item-icon" />
-          Copy User ID
+          Copy user ID
         </div>
         <div v-if="isInServerContext && canInvite" class="action-item" @click="openInviteModal">
           <Icon name="share" class="action-item-icon" />
-          Send Server Invite
+          Send server invite
         </div>
         <div class="action-divider"></div>
         <div class="action-item" @click="toggleMute">
           <Icon :name="isMuted ? 'volume-2' : 'volume-x'" class="action-item-icon" />
-          {{ isMuted ? 'Unmute User' : 'Mute User' }}
+          {{ isMuted ? 'Unmute user' : 'Mute user' }}
         </div>
         <div class="action-item" :class="{ danger: !isBlocked }" @click="toggleBlock">
           <Icon :name="isBlocked ? 'user-check' : 'ban'" class="action-item-icon" />
-          {{ isBlocked ? 'Unblock User' : 'Block User' }}
+          {{ isBlocked ? 'Unblock user' : 'Block user' }}
         </div>
         <template v-if="isInServerContext && !isCurrentUser && (canKick || canBan)">
           <div class="action-divider"></div>
           <div v-if="canKick" class="action-item danger" @click="openKickModal">
             <Icon name="door-open" class="action-item-icon" :size="16" />
-            Kick from Server
+            Kick from server
           </div>
           <div v-if="canBan" class="action-item danger" @click="openBanModal">
             <Icon name="user-x" class="action-item-icon" :size="16" />
-            Ban from Server
+            Ban from server
           </div>
         </template>
       </div>
@@ -92,8 +92,8 @@
               </p>
             </div>
             
-            <div v-if="isInstanceAdmin(user) && !isBridgedDiscord" class="role-badge instance-admin-badge">INSTANCE OWNER</div>
-            <div v-else-if="isInstanceModerator(user) && !isBridgedDiscord" class="role-badge instance-mod-badge">INSTANCE MOD</div>
+            <div v-if="isInstanceAdmin(user) && !isBridgedDiscord" class="role-badge instance-admin-badge">Instance owner</div>
+            <div v-else-if="isInstanceModerator(user) && !isBridgedDiscord" class="role-badge instance-mod-badge">Instance mod</div>
             <SupporterBadge v-if="user?.id && !isBridgedDiscord" :user-id="user.id" />
 
             <div class="user-badges">
@@ -119,11 +119,11 @@
           <template v-if="isBridgedDiscord">
             <div v-if="bridgedProfile?.discord_joined_at" class="stat-item">
               <span class="stat-value">{{ formatJoinDate(bridgedProfile.discord_joined_at) }}</span>
-              <span class="stat-label">Joined Server</span>
+              <span class="stat-label">Joined server</span>
             </div>
             <div v-if="bridgedProfile?.created_at" class="stat-item">
               <span class="stat-value">{{ formatJoinDate(bridgedProfile.created_at) }}</span>
-              <span class="stat-label">Discord Member Since</span>
+              <span class="stat-label">Discord member since</span>
             </div>
             <div class="stat-item">
               <span class="stat-value">{{ userStatusText }}</span>
@@ -137,7 +137,7 @@
           <template v-else>
           <div class="stat-item">
             <span class="stat-value">{{ formatJoinDate(user?.created_at) }}</span>
-            <span class="stat-label">Member Since</span>
+            <span class="stat-label">Member since</span>
           </div>
           <div class="stat-item">
             <span class="stat-value">{{ userStatusText }}</span>
@@ -175,7 +175,7 @@
         <!-- Federation Info (for remote users) -->
         <div v-if="isFederatedUser(user)" class="federation-section">
           <h3 class="section-title">
-            Federation Info
+            Federation info
           </h3>
           <div class="federation-info">
             <div class="federation-item">
@@ -214,7 +214,7 @@
 
         <!-- Custom Fields (for federated users) -->
         <div v-if="isFederatedUser(user) && user.fields?.length" class="fields-section">
-          <h3 class="section-title">Profile Fields</h3>
+          <h3 class="section-title">Profile fields</h3>
           <div class="profile-fields">
             <div v-for="field in user.fields" :key="field.name" class="profile-field">
               <div class="field-name">{{ field.name }}</div>
@@ -247,7 +247,7 @@
                   <Icon name="microphone" class="activity-icon-svg" />
                 </div>
                 <div class="activity-info">
-                  <span class="activity-title">Voice Time</span>
+                  <span class="activity-title">Voice time</span>
                   <span class="activity-value">{{ isLoadingActivity ? '-' : formatVoiceTime(getUserVoiceTime(user)) }}</span>
                 </div>
               </div>
@@ -310,7 +310,7 @@
               @click="copyDiscordId"
             >
               <Icon :name="discordIdCopied ? 'check' : 'copy'" :size="16" />
-              {{ discordIdCopied ? 'Copied!' : 'Copy Discord ID' }}
+              {{ discordIdCopied ? 'Copied' : 'Copy Discord ID' }}
             </button>
           </template>
 
@@ -321,7 +321,7 @@
               class="primary-action-btn single-action-btn"
             >
               <Icon name="pencil" :size="16" />
-              Edit Profile
+              Edit profile
             </button>
           </template>
 
@@ -334,7 +334,7 @@
               class="primary-action-btn"
             >
               <Icon name="message" :size="16" />
-              Send Message
+              Send message
             </button>
             
             <!-- All Users: Follow/Unfollow (both local and remote) -->
@@ -364,7 +364,7 @@
                 class="secondary-action-btn"
               >
                 <Icon name="share" :size="16" />
-                Invite to Server
+                Invite to server
               </button>
               <button 
                 v-else-if="availableServers.length > 0"
@@ -372,7 +372,7 @@
                 class="secondary-action-btn"
               >
                 <Icon name="share" :size="16" />
-                Invite to Server
+                Invite to server
               </button>
               <div v-if="showServerPicker && !isInServerContext" class="server-picker-dropdown" @click.stop>
                 <p class="picker-label">Choose a server:</p>
@@ -909,7 +909,7 @@ const bannerStyle = computed(() => {
     return { backgroundColor: bridgedProfile.value.accent_color }
   }
   return {
-    background: userColor.value || '#0EA5E9'
+    background: userColor.value || 'var(--harmony-primary)'
   }
 })
 
@@ -1477,7 +1477,7 @@ onMounted(() => {
 .profile-banner {
   position: relative;
   height: 120px;
-  background: linear-gradient(135deg, #0EA5E9, #38BDF8);
+  background: var(--harmony-primary);
   overflow: hidden;
 }
 
@@ -1507,9 +1507,8 @@ onMounted(() => {
   height: 32px;
   padding: 0;
   background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   color: var(--text-primary);
   cursor: pointer;
   display: flex;
@@ -1523,12 +1522,11 @@ onMounted(() => {
 .close-button:hover {
   background: rgba(0, 0, 0, 0.7);
   border-color: rgba(255, 255, 255, 0.2);
-  transform: scale(1.05);
 }
 
 .action-button.active {
-  background: rgba(14, 165, 233, 0.8);
-  border-color: #0EA5E9;
+  background: color-mix(in srgb, var(--harmony-primary) 80%, transparent);
+  border-color: var(--harmony-primary);
 }
 
 .action-icon,
@@ -1550,13 +1548,22 @@ onMounted(() => {
   top: 56px;
   right: 16px;
   background:  var(--background-quinary);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-large);
   padding: 8px;
   min-width: 180px;
   z-index: 20;
-  animation: fadeIn 0.2s ease-out;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .actions-dropdown {
+    animation: fadeIn 0.2s ease-out;
+  }
+
+  .server-picker-dropdown {
+    animation: fadeIn 0.15s ease-out;
+  }
 }
 
 @keyframes fadeIn {
@@ -1571,24 +1578,24 @@ onMounted(() => {
   padding: 10px 12px;
   border-radius: 8px;
   cursor: pointer;
-  color: #b5bac1;
+  color: var(--text-secondary);
   font-size: 14px;
   font-weight: 500;
-  transition: all 0.2s ease;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
 }
 
 .action-item:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--background-modifier-hover);
   color: var(--text-primary);
 }
 
 .action-item.danger {
-  color: #ed4245;
+  color: var(--error);
 }
 
 .action-item.danger:hover {
-  background: rgba(237, 66, 69, 0.1);
-  color: #ff6b6e;
+  background: color-mix(in srgb, var(--error) 10%, transparent);
+  color: var(--error);
 }
 
 .action-item-icon {
@@ -1599,7 +1606,7 @@ onMounted(() => {
 
 .action-divider {
   height: 1px;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--border-secondary);
   margin: 4px 0;
 }
 
@@ -1648,23 +1655,23 @@ onMounted(() => {
   height: 16px;
   border-radius: 50%;
   border: 3px solid  var(--background-quinary);
-  background: #23a55a; /* Default online status */
+  background: var(--status-online);
 }
 
 .status-indicator.online {
-  background: #23a55a;
+  background: var(--status-online);
 }
 
 .status-indicator.away {
-  background: #f0b232;
+  background: var(--status-away);
 }
 
 .status-indicator.busy {
-  background: #ed4245;
+  background: var(--status-busy);
 }
 
 .status-indicator.offline {
-  background: #80848e;
+  background: var(--status-offline);
 }
 
 .profile-info {
@@ -1686,7 +1693,6 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
   line-height: 1.2;
-  /* text-shadow: -1px -1px rgba(0, 0, 0, 0.5), 1px 1px rgba(0, 0, 0, 0.5); */
   position: relative;
   z-index: 10;
 }
@@ -1702,12 +1708,12 @@ onMounted(() => {
 .verified-icon {
   width: 16px;
   height: 16px;
-  color: #f0b232;
+  color: var(--success);
 }
 
 .username {
   font-size: 16px;
-  color: #b5bac1;
+  color: var(--text-secondary);
   margin: 0;
   font-weight: 500;
   display: inline-flex;
@@ -1730,26 +1736,25 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   padding: 0 2px;
-  background: rgba(14, 165, 233, 0.2);
-  border: 1px solid rgba(14, 165, 233, 0.3);
-  border-radius: 6px;
+  background: color-mix(in srgb, var(--harmony-primary) 20%, transparent);
+  border: 1px solid color-mix(in srgb, var(--harmony-primary) 30%, transparent);
+  border-radius: var(--radius-base);
   font-size: 11px;
   font-weight: 600;
   color: var(--text-primary);
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
 }
 
+/* Text stays --text-primary: --warning has no light-theme value. */
 .instance-admin-badge {
-  background: rgba(0, 212, 255, 0.2) !important;
-  border-color: rgba(0, 212, 255, 0.4) !important;
-  color: #00d4ff !important;
+  background: color-mix(in srgb, var(--warning) 20%, transparent) !important;
+  border-color: color-mix(in srgb, var(--warning) 45%, transparent) !important;
+  color: var(--text-primary) !important;
 }
 
 .instance-mod-badge {
-  background: rgba(46, 204, 113, 0.2) !important;
-  border-color: rgba(46, 204, 113, 0.4) !important;
-  color: #2ecc71 !important;
+  background: color-mix(in srgb, var(--harmony-primary) 20%, transparent) !important;
+  border-color: color-mix(in srgb, var(--harmony-primary) 45%, transparent) !important;
+  color: var(--text-primary) !important;
 }
 
 .user-stats {
@@ -1760,9 +1765,9 @@ onMounted(() => {
   gap: 8px;
   margin-bottom: 24px;
   padding: 16px;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.04);
-  border-radius: 12px;
+  background: var(--background-quaternary);
+  border: 1px solid var(--border-secondary);
+  border-radius: var(--radius-lg);
 }
 
 .custom-status-section {
@@ -1771,14 +1776,14 @@ onMounted(() => {
   gap: 4px;
   margin-bottom: 24px;
   padding: 12px 16px;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.04);
-  border-radius: 12px;
+  background: var(--background-quaternary);
+  border: 1px solid var(--border-secondary);
+  border-radius: var(--radius-lg);
 }
 
 .custom-status-label {
   font-size: 11px;
-  color: #b5bac1;
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.02em;
 }
@@ -1793,10 +1798,10 @@ onMounted(() => {
   background: var(--background-quaternary);
   padding: 12px;
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-secondary);
 }
 .about-text {
-  color: #b5bac1;
+  color: var(--text-secondary);
   margin: 0;
   line-height: 1.5;
   word-wrap: break-word;
@@ -1821,16 +1826,15 @@ onMounted(() => {
 
 .stat-item.clickable {
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color var(--transition-fast);
 }
 
 .stat-item.clickable:hover {
-  background: rgba(14, 165, 233, 0.15);
-  transform: scale(1.05);
+  background: color-mix(in srgb, var(--harmony-primary) 15%, transparent);
 }
 
 .stat-item.clickable:hover .stat-value {
-  color: #0EA5E9;
+  color: var(--harmony-primary);
 }
 
 .stat-value {
@@ -1842,9 +1846,7 @@ onMounted(() => {
 
 .stat-label {
   font-size: 12px;
-  color: #b5bac1;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
+  color: var(--text-secondary);
   font-weight: 600;
 }
 
@@ -1865,14 +1867,14 @@ onMounted(() => {
 }
 
 .bio-content {
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.04);
+  background: var(--background-quaternary);
+  border: 1px solid var(--border-secondary);
   border-radius: 8px;
   padding: 12px;
 }
 
 .bio-text {
-  color: #b5bac1;
+  color: var(--text-secondary);
   margin: 0;
   line-height: 1.5;
   word-wrap: break-word;
@@ -1893,15 +1895,15 @@ onMounted(() => {
   align-items: center;
   gap: 12px;
   padding: 12px;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.04);
+  background: var(--background-quaternary);
+  border: 1px solid var(--border-secondary);
   border-radius: 8px;
   transition: all 0.2s ease;
 }
 
 .profile-field:hover {
-  background: rgba(255, 255, 255, 0.04);
-  border-color: rgba(255, 255, 255, 0.08);
+  background: var(--background-modifier-hover);
+  border-color: var(--border-primary);
 }
 
 .field-name {
@@ -1913,7 +1915,7 @@ onMounted(() => {
 
 .field-value {
   font-size: 14px;
-  color: #b5bac1;
+  color: var(--text-secondary);
   flex: 1;
   word-break: break-all;
 }
@@ -1924,7 +1926,7 @@ onMounted(() => {
   justify-content: center;
   width: 16px;
   height: 16px;
-  color: #f0b232;
+  color: var(--success);
   flex-shrink: 0;
 }
 
@@ -1943,15 +1945,15 @@ onMounted(() => {
   align-items: center;
   gap: 12px;
   padding: 12px;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.04);
+  background: var(--background-quaternary);
+  border: 1px solid var(--border-secondary);
   border-radius: 8px;
   transition: all 0.2s ease;
 }
 
 .activity-card:hover {
-  background: rgba(255, 255, 255, 0.04);
-  border-color: rgba(255, 255, 255, 0.08);
+  background: var(--background-modifier-hover);
+  border-color: var(--border-primary);
 }
 
 .activity-card.clickable {
@@ -1959,13 +1961,12 @@ onMounted(() => {
 }
 
 .activity-card.clickable:hover {
-  background: rgba(14, 165, 233, 0.1);
-  border-color: rgba(14, 165, 233, 0.3);
-  transform: translateY(-1px);
+  background: color-mix(in srgb, var(--harmony-primary) 10%, transparent);
+  border-color: color-mix(in srgb, var(--harmony-primary) 30%, transparent);
 }
 
 .activity-card.clickable:hover .activity-icon {
-  background: rgba(14, 165, 233, 0.3);
+  background: color-mix(in srgb, var(--harmony-primary) 30%, transparent);
 }
 
 .activity-icon {
@@ -1974,9 +1975,9 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(14, 165, 233, 0.2);
+  background: color-mix(in srgb, var(--harmony-primary) 20%, transparent);
   border-radius: 8px;
-  color: #0EA5E9;
+  color: var(--harmony-primary);
   flex-shrink: 0;
 }
 
@@ -1993,7 +1994,7 @@ onMounted(() => {
 
 .activity-title {
   font-size: 12px;
-  color: #b5bac1;
+  color: var(--text-secondary);
   margin-bottom: 2px;
   font-weight: 500;
 }
@@ -2013,8 +2014,8 @@ onMounted(() => {
   flex-direction: column;
   gap: 8px;
   padding: 12px;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.04);
+  background: var(--background-quaternary);
+  border: 1px solid var(--border-secondary);
   border-radius: 8px;
 }
 
@@ -2023,7 +2024,7 @@ onMounted(() => {
   align-items: center;
   gap: 12px;
   font-size: 14px;
-  color: #b5bac1;
+  color: var(--text-secondary);
 }
 
 .federation-label {
@@ -2039,7 +2040,7 @@ onMounted(() => {
 }
 
 .federation-link {
-  color: #0EA5E9;
+  color: var(--harmony-primary);
   text-decoration: none;
   font-weight: 600;
 }
@@ -2052,38 +2053,36 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   padding: 2px 8px;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 6px;
+  background: var(--background-modifier-active);
+  border: 1px solid var(--border-hover);
+  border-radius: var(--radius-base);
   font-size: 11px;
   font-weight: 600;
   color: var(--text-primary);
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
 }
 
 .instance-badge.online {
-  background: rgba(4, 190, 77, 0.2);
-  border-color: rgba(4, 190, 77, 0.3);
-  color: #23a55a;
+  background: color-mix(in srgb, var(--success) 20%, transparent);
+  border-color: color-mix(in srgb, var(--success) 30%, transparent);
+  color: var(--success);
 }
 
 .instance-badge.idle {
-  background: rgba(240, 178, 51, 0.2);
-  border-color: rgba(240, 178, 51, 0.3);
-  color: #f0b232;
+  background: color-mix(in srgb, var(--warning) 20%, transparent);
+  border-color: color-mix(in srgb, var(--warning) 30%, transparent);
+  color: var(--text-primary);
 }
 
 .instance-badge.dnd {
-  background: rgba(237, 66, 69, 0.2);
-  border-color: rgba(237, 66, 69, 0.3);
-  color: #ed4245;
+  background: color-mix(in srgb, var(--error) 20%, transparent);
+  border-color: color-mix(in srgb, var(--error) 30%, transparent);
+  color: var(--error);
 }
 
 .instance-badge.offline {
-  background: rgba(128, 132, 142, 0.2);
-  border-color: rgba(128, 132, 142, 0.3);
-  color: #80848e;
+  background: color-mix(in srgb, var(--text-tertiary) 20%, transparent);
+  border-color: color-mix(in srgb, var(--text-tertiary) 30%, transparent);
+  color: var(--text-tertiary);
 }
 
 .note-section {
@@ -2096,8 +2095,8 @@ onMounted(() => {
 
 .note-input {
   width: 100%;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.04);
+  background: var(--background-quaternary);
+  border: 1px solid var(--border-secondary);
   border-radius: 8px;
   padding: 12px;
   color: var(--text-primary);
@@ -2110,8 +2109,8 @@ onMounted(() => {
 
 .note-input:focus {
   outline: none;
-  border-color: #0EA5E9;
-  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--harmony-primary);
+  background: var(--background-modifier-hover);
 }
 
 .note-input::placeholder {
@@ -2145,7 +2144,7 @@ onMounted(() => {
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
   border: none;
   flex: 1;
   min-width: 0;
@@ -2177,25 +2176,20 @@ onMounted(() => {
 }
 
 .primary-action-btn {
-  background: linear-gradient(135deg, #0EA5E9, #0284C7);
-  color: var(--text-primary);
-  box-shadow: 0 2px 8px rgba(14, 165, 233, 0.3);
+  background: var(--harmony-primary);
+  color: var(--text-on-primary);
 }
 
-
 .primary-action-btn.following {
-  background: linear-gradient(135deg, #43b581, #369970);
-  box-shadow: 0 2px 8px rgba(67, 181, 129, 0.3);
+  background: var(--success);
 }
 
 .primary-action-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.4);
+  background: var(--harmony-primary-hover);
 }
 
 .primary-action-btn.following:hover {
-  background: linear-gradient(135deg, #f04747, #d73c3c);
-  box-shadow: 0 4px 12px rgba(240, 71, 71, 0.4);
+  background: var(--error);
 }
 
 .profile-actions:has(.single-action-btn) {
@@ -2209,26 +2203,26 @@ onMounted(() => {
 }
 
 .secondary-action-btn {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: #b5bac1;
+  background: var(--background-modifier-hover);
+  border: 1px solid var(--border-primary);
+  color: var(--text-secondary);
 }
 
 .secondary-action-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.12);
+  background: var(--background-modifier-active);
+  border-color: var(--border-hover);
   color: var(--text-primary);
 }
 
 .secondary-action-btn:active:not(.copied) {
   transform: scale(0.98);
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--background-modifier-hover);
 }
 
 .secondary-action-btn.copied {
-  background: rgba(67, 181, 129, 0.12);
-  border-color: rgba(67, 181, 129, 0.35);
-  color: #43b581;
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+  border-color: color-mix(in srgb, var(--success) 35%, transparent);
+  color: var(--success);
 }
 
 /* Server invite picker */
@@ -2242,15 +2236,14 @@ onMounted(() => {
   bottom: calc(100% + 8px);
   left: 0;
   right: 0;
-  background: var(--background-quinary, #1e1f22);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 10px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  background: var(--background-quinary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-large);
   padding: 8px;
   max-height: 200px;
   overflow-y: auto;
   z-index: 30;
-  animation: fadeIn 0.15s ease-out;
 }
 
 .picker-label {
@@ -2279,7 +2272,7 @@ onMounted(() => {
 }
 
 .server-picker-item:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--background-modifier-hover);
 }
 
 .picker-server-icon {
@@ -2300,7 +2293,7 @@ onMounted(() => {
   justify-content: center;
   font-size: 13px;
   font-weight: 700;
-  color: #fff;
+  color: var(--text-on-primary);
   flex-shrink: 0;
 }
 

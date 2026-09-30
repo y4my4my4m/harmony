@@ -4,7 +4,7 @@
       <h1 class="lists-title">Lists</h1>
       <button class="create-list-btn" @click="showCreateModal = true">
         <span class="icon">+</span>
-        New List
+        New list
       </button>
     </div>
 
@@ -69,7 +69,7 @@
     <Teleport to="body">
       <div v-if="showCreateModal || editingList" class="modal-overlay" @click="closeModal">
         <div class="modal-content" @click.stop>
-          <h2>{{ editingList ? 'Edit List' : 'Create New List' }}</h2>
+          <h2>{{ editingList ? 'Edit list' : 'Create new list' }}</h2>
           <form @submit.prevent="handleSubmit">
             <div class="form-group">
               <label for="title">Title *</label>
@@ -119,7 +119,7 @@
                 Cancel
               </button>
               <button type="submit" class="btn-submit" :disabled="isSubmitting">
-                {{ editingList ? 'Save Changes' : 'Create List' }}
+                {{ editingList ? 'Save changes' : 'Create list' }}
               </button>
             </div>
           </form>
@@ -131,7 +131,7 @@
     <Teleport to="body">
       <div v-if="listToDelete" class="modal-overlay" @click="listToDelete = null">
         <div class="modal-content delete-modal" @click.stop>
-          <h2>Delete List</h2>
+          <h2>Delete list</h2>
           <p>Are you sure you want to delete "{{ listToDelete.title }}"?</p>
           <p class="warning">This action cannot be undone.</p>
           <div class="modal-actions">
@@ -139,7 +139,7 @@
               Cancel
             </button>
             <button class="btn-delete" :disabled="isDeleting" @click="handleDelete">
-              Delete List
+              Delete list
             </button>
           </div>
         </div>
@@ -286,7 +286,7 @@ onMounted(() => {
   flex-direction: column;
   overflow-y: auto;
   padding: 1.5rem;
-  background: var(--background-primary, #1a1a2e);
+  background: var(--background-primary);
 }
 
 .lists-header {
@@ -298,8 +298,8 @@ onMounted(() => {
 
 .lists-title {
   font-size: 1.5rem;
-  font-weight: 700;
-  color: var(--text-primary, #fff);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
   margin: 0;
 }
 
@@ -308,17 +308,17 @@ onMounted(() => {
   align-items: center;
   gap: 0.5rem;
   padding: 0.625rem 1rem;
-  background: var(--harmony-primary, #6366f1);
-  color: var(--text-primary);
+  background: var(--harmony-primary);
+  color: var(--text-on-primary);
   border: none;
   border-radius: 0.5rem;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   cursor: pointer;
   transition: background 0.2s;
 }
 
 .create-list-btn:hover {
-  background: var(--harmony-primary-hover, #4f46e5);
+  background: var(--harmony-primary-hover);
 }
 
 .create-list-btn .icon {
@@ -334,7 +334,7 @@ onMounted(() => {
   justify-content: center;
   gap: 1rem;
   padding: 3rem;
-  color: var(--text-secondary, #a0a0a0);
+  color: var(--text-secondary);
 }
 
 
@@ -354,29 +354,29 @@ onMounted(() => {
 }
 
 .lists-empty h2 {
-  color: var(--text-primary, #fff);
+  color: var(--text-primary);
   margin: 0 0 0.5rem 0;
 }
 
 .lists-empty p {
-  color: var(--text-secondary, #a0a0a0);
+  color: var(--text-secondary);
   max-width: 300px;
   margin: 0 0 1.5rem 0;
 }
 
 .create-first-btn {
   padding: 0.75rem 1.5rem;
-  background: var(--harmony-primary, #6366f1);
-  color: var(--text-primary);
+  background: var(--harmony-primary);
+  color: var(--text-on-primary);
   border: none;
   border-radius: 0.5rem;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   cursor: pointer;
   transition: background 0.2s;
 }
 
 .create-first-btn:hover {
-  background: var(--harmony-primary-hover, #4f46e5);
+  background: var(--harmony-primary-hover);
 }
 
 /* Lists Grid */
@@ -388,17 +388,16 @@ onMounted(() => {
 
 .list-card {
   position: relative;
-  background: var(--background-secondary, #16213e);
-  border: 1px solid var(--border-primary, #333);
+  background: var(--background-secondary);
+  border: 1px solid var(--border-primary);
   border-radius: 0.75rem;
   padding: 1rem;
   cursor: pointer;
-  transition: border-color 0.2s, transform 0.15s;
+  transition: border-color var(--transition-fast);
 }
 
 .list-card:hover {
-  border-color: var(--harmony-primary, #6366f1);
-  transform: translateY(-2px);
+  border-color: var(--harmony-primary);
 }
 
 .list-card-header {
@@ -410,8 +409,8 @@ onMounted(() => {
 
 .list-title {
   font-size: 1.125rem;
-  font-weight: 600;
-  color: var(--text-primary, #fff);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
   margin: 0;
 }
 
@@ -425,7 +424,7 @@ onMounted(() => {
 }
 
 .list-description {
-  color: var(--text-secondary, #a0a0a0);
+  color: var(--text-secondary);
   font-size: 0.875rem;
   margin: 0 0 0.75rem 0;
   display: -webkit-box;
@@ -438,7 +437,7 @@ onMounted(() => {
   display: flex;
   gap: 1rem;
   font-size: 0.75rem;
-  color: var(--text-tertiary, #666);
+  color: var(--text-tertiary);
 }
 
 .list-actions {
@@ -457,7 +456,7 @@ onMounted(() => {
 
 .action-btn {
   padding: 0.375rem;
-  background: var(--background-tertiary, #0f0f1a);
+  background: var(--background-tertiary);
   border: none;
   border-radius: 0.375rem;
   cursor: pointer;
@@ -465,11 +464,11 @@ onMounted(() => {
 }
 
 .action-btn:hover {
-  background: var(--background-hover, #252550);
+  background: var(--background-modifier-hover);
 }
 
 .action-btn.delete:hover {
-  background: var(--danger, #ef4444);
+  background: var(--error);
 }
 
 /* Modal */
@@ -488,18 +487,19 @@ onMounted(() => {
 }
 
 .modal-content {
-  background: var(--background-secondary, #16213e);
-  border: 1px solid var(--border-primary, #333);
-  border-radius: 1rem;
+  background: var(--background-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-xl);
   padding: 1.5rem;
   width: 90%;
   max-width: 420px;
+  box-shadow: var(--shadow-modal);
   max-height: 90vh;
   overflow-y: auto;
 }
 
 .modal-content h2 {
-  color: var(--text-primary, #fff);
+  color: var(--text-primary);
   margin: 0 0 1.5rem 0;
   font-size: 1.25rem;
 }
@@ -510,7 +510,7 @@ onMounted(() => {
 
 .form-group label {
   display: block;
-  color: var(--text-secondary, #a0a0a0);
+  color: var(--text-secondary);
   font-size: 0.875rem;
   margin-bottom: 0.375rem;
 }
@@ -520,10 +520,10 @@ onMounted(() => {
 .form-group select {
   width: 100%;
   padding: 0.625rem 0.875rem;
-  background: var(--background-primary, #1a1a2e);
-  border: 1px solid var(--border-primary, #333);
+  background: var(--background-primary);
+  border: 1px solid var(--border-primary);
   border-radius: 0.5rem;
-  color: var(--text-primary, #fff);
+  color: var(--text-primary);
   font-size: 0.9375rem;
 }
 
@@ -531,7 +531,7 @@ onMounted(() => {
 .form-group textarea:focus,
 .form-group select:focus {
   outline: none;
-  border-color: var(--harmony-primary, #6366f1);
+  border-color: var(--harmony-primary);
 }
 
 .form-group.checkbox label {
@@ -539,7 +539,7 @@ onMounted(() => {
   align-items: center;
   gap: 0.5rem;
   cursor: pointer;
-  color: var(--text-primary, #fff);
+  color: var(--text-primary);
 }
 
 .form-group.checkbox input[type="checkbox"] {
@@ -548,7 +548,7 @@ onMounted(() => {
 
 .help-text {
   font-size: 0.75rem;
-  color: var(--text-tertiary, #666);
+  color: var(--text-tertiary);
   margin: 0.25rem 0 0 1.5rem;
 }
 
@@ -564,29 +564,29 @@ onMounted(() => {
 .btn-delete {
   padding: 0.625rem 1.25rem;
   border-radius: 0.5rem;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   cursor: pointer;
   transition: background 0.2s;
 }
 
 .btn-cancel {
   background: transparent;
-  border: 1px solid var(--border-primary, #333);
-  color: var(--text-secondary, #a0a0a0);
+  border: 1px solid var(--border-primary);
+  color: var(--text-secondary);
 }
 
 .btn-cancel:hover {
-  background: var(--background-hover, #252550);
+  background: var(--background-modifier-hover);
 }
 
 .btn-submit {
-  background: var(--harmony-primary, #6366f1);
+  background: var(--harmony-primary);
   border: none;
-  color: var(--text-primary);
+  color: var(--text-on-primary);
 }
 
 .btn-submit:hover:not(:disabled) {
-  background: var(--harmony-primary-hover, #4f46e5);
+  background: var(--harmony-primary-hover);
 }
 
 .btn-submit:disabled {
@@ -595,18 +595,18 @@ onMounted(() => {
 }
 
 .delete-modal .warning {
-  color: var(--danger, #ef4444);
+  color: var(--error);
   font-size: 0.875rem;
 }
 
 .btn-delete {
-  background: var(--danger, #ef4444);
+  background: var(--error);
   border: none;
-  color: var(--text-primary);
+  color: var(--text-on-primary);
 }
 
 .btn-delete:hover:not(:disabled) {
-  background: var(--danger-hover, #dc2626);
+  background: var(--error-hover);
 }
 
 .btn-delete:disabled {

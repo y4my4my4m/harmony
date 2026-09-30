@@ -130,7 +130,7 @@
         <svg width="16" height="16" viewBox="0 0 24 24">
           <path fill="currentColor" d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/>
         </svg>
-        <span>Remove from Folder</span>
+        <span>Remove from folder</span>
       </div>
     </div>
   </Teleport>
@@ -437,7 +437,7 @@ const onIconError = (event: Event) => {
   flex-direction: column;
   align-items: center;
   margin: 4px 0;
-  --folder-color: #0EA5E9;
+  --folder-color: var(--harmony-primary);
   position: relative;
 }
 
@@ -456,16 +456,14 @@ const onIconError = (event: Event) => {
 }
 
 .folder-collapsed:hover {
-  transform: translateX(5px);
   border-radius: 12px;
 }
 
 .is-dragging-over .folder-collapsed {
   transform: scale(1.08);
   filter: brightness(1.3);
-  box-shadow: 
+  box-shadow:
     0 0 0 3px var(--folder-color),
-    0 0 20px var(--folder-color),
     inset 0 0 0 48px rgba(255, 255, 255, 0.1);
 }
 
@@ -480,12 +478,6 @@ const onIconError = (event: Event) => {
   height: 36px;
   border: 2px dashed rgba(255, 255, 255, 0.6);
   border-radius: 50%;
-  animation: pulse-outline 0.8s ease-in-out infinite;
-}
-
-@keyframes pulse-outline {
-  0%, 100% { opacity: 0.4; transform: translate(-50%, -50%) scale(0.9); }
-  50% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 }
 
 .folder-grid {
@@ -534,8 +526,8 @@ const onIconError = (event: Event) => {
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: #f04747;
-  border: 2px solid var(--background-tertiary, #1e1f22);
+  background: var(--error);
+  border: 2px solid var(--background-tertiary);
   z-index: 2;
   pointer-events: none;
 }
@@ -550,7 +542,6 @@ const onIconError = (event: Event) => {
   border-radius: 16px;
   padding: 0 0 4px 0;
   transition: all 0.2s ease;
-  /* outline: 2px solid  color-mix(in srgb, var(--folder-color) 30%, transparent); */
   outline: 2px solid transparent;
   outline-offset: -2px;
 }
@@ -565,7 +556,6 @@ const onIconError = (event: Event) => {
 
 .folder-cap {
   width: 56px;
-  /* background: var(--folder-color); */
   background: transparent;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -621,7 +611,6 @@ const onIconError = (event: Event) => {
   outline-offset: 2px;
 }
 
-/* Drop indicator - green bar */
 .folder-server-item.drop-target-before::before,
 .folder-server-item.drop-target-after::after {
   content: '';
@@ -629,10 +618,9 @@ const onIconError = (event: Event) => {
   left: 0;
   right: 0;
   height: 4px;
-  background: #3ba55d;
+  background: var(--success);
   border-radius: 2px;
   z-index: 10;
-  box-shadow: 0 0 8px rgba(59, 165, 93, 0.8), 0 0 16px rgba(59, 165, 93, 0.4);
 }
 
 .folder-server-item.drop-target-before::before {
@@ -646,12 +634,7 @@ const onIconError = (event: Event) => {
 /* Server item styles */
 .server-item {
   cursor: pointer;
-  transition: transform 0.2s ease-in-out;
   user-select: none;
-}
-
-.server-item:hover {
-  transform: translateX(5px);
 }
 
 .server-item.selected {
@@ -671,8 +654,8 @@ const onIconError = (event: Event) => {
   position: absolute;
   top: -4px;
   right: -4px;
-  background: #f04747;
-  color: var(--text-primary);
+  background: var(--error);
+  color: var(--text-on-primary);
   font-size: 10px;
   font-weight: bold;
   padding: 2px 5px;
@@ -692,7 +675,7 @@ const onIconError = (event: Event) => {
   transform: translateY(-50%);
   width: 4px;
   height: 0;
-  background: #ffffff;
+  background: var(--text-primary);
   border-radius: 0 4px 4px 0;
   opacity: 0;
   transition: all 0.15s ease;
@@ -788,8 +771,8 @@ const onIconError = (event: Event) => {
   position: fixed;
   left: 80px;
   transform: translateY(-50%);
-  background: var(--tooltip-bg, #18191c);
-  border-radius: 8px;
+  background: var(--tooltip-bg);
+  border-radius: var(--radius-md);
   padding: 10px 14px;
   box-shadow: var(--shadow-small);
   z-index: 1001;
@@ -812,7 +795,7 @@ const onIconError = (event: Event) => {
   height: 0;
   border-top: 6px solid transparent;
   border-bottom: 6px solid transparent;
-  border-right: 6px solid var(--tooltip-arrow, #18191c);
+  border-right: 6px solid var(--tooltip-arrow);
 }
 
 /* Tooltip animation */
@@ -845,12 +828,12 @@ const onIconError = (event: Event) => {
 <style>
 .server-folder-context-menu.context-menu {
   position: fixed;
-  background: #18191c;
+  background: var(--background-floating);
   border: 1px solid var(--background-quinary);
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   padding: 6px 0;
   min-width: 180px;
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
+  box-shadow: var(--shadow-large);
   z-index: 10001;
 }
 
@@ -859,23 +842,23 @@ const onIconError = (event: Event) => {
   align-items: center;
   gap: 10px;
   padding: 8px 12px;
-  color: var(--text-secondary, #b9bbbe);
+  color: var(--text-secondary);
   cursor: pointer;
   font-size: 14px;
   transition: background-color 0.1s ease;
 }
 
 .server-folder-context-menu .context-menu-item:hover {
-  background-color: var(--harmony-primary, #0EA5E9);
-  color: var(--text-primary);
+  background-color: var(--harmony-primary);
+  color: var(--text-on-primary);
 }
 
 .server-tooltip {
   position: fixed;
   left: 80px;
   transform: translateY(-50%);
-  background: var(--tooltip-bg, #18191c);
-  border-radius: 8px;
+  background: var(--tooltip-bg);
+  border-radius: var(--radius-md);
   padding: 10px 14px;
   box-shadow: var(--shadow-small);
   z-index: 10001;
@@ -898,6 +881,6 @@ const onIconError = (event: Event) => {
   height: 0;
   border-top: 6px solid transparent;
   border-bottom: 6px solid transparent;
-  border-right: 6px solid var(--tooltip-arrow, #18191c);
+  border-right: 6px solid var(--tooltip-arrow);
 }
 </style>

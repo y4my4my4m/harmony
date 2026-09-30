@@ -486,7 +486,7 @@ const updateServerRules = () => {
 .form-input:focus,
 .form-textarea:focus {
   outline: none;
-  border-color: #0EA5E9;
+  border-color: var(--harmony-primary);
 }
 
 .form-input:disabled,
@@ -650,7 +650,7 @@ const updateServerRules = () => {
 }
 
 .banner-preview:hover {
-  border-color: #0EA5E9;
+  border-color: var(--harmony-primary);
 }
 
 .banner-placeholder {

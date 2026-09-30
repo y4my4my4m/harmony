@@ -37,7 +37,7 @@
             <MonyPost :post="fediversePost" :embedded="true" @open-lightbox="$emit('open-lightbox', $event)" @refresh="handleEmbedLoad" />
             <div v-if="fediverseSourceUrl" class="fedi-source-link">
               <span class="fedi-source-badge" :title="fediversePlatformLabel">
-                <span class="fedi-badge-icon">{{ fediversePlatformIcon }}</span>
+                <Icon name="globe" :size="12" class="fedi-badge-icon" />
                 <span class="fedi-badge-label">{{ fediversePlatformLabel }}</span>
               </span>
               <a :href="fediverseSourceUrl" target="_blank" rel="noopener noreferrer" class="fedi-source-link__right">
@@ -129,6 +129,8 @@ const fediversePostCache = {
 </script>
 
 <script setup lang="ts">
+import Icon from '@/components/common/Icon.vue';
+import { softwareDisplayName } from '@/utils/fediverseSoftware';
 import { computed, onMounted, ref, nextTick, onUnmounted } from 'vue';
 import { debug } from '@/utils/debug'
 // `TimelinePost` is already imported in the module-scope <script lang="ts">
@@ -167,7 +169,7 @@ let lastKnownTime = 0;
 let iframeLoadCount = 0;
 let pendingRestore: { time: number; play: boolean } | null = null;
 
-const { registerVideo, returnToOriginalPosition, getFloatingVideoMessageId } = useFloatingVideo();
+const { registerVideo, notifyPlaybackStarted } = useFloatingVideo();
 
 // Detect server invite links (e.g., https://har.mony.lol/invite/ABC123)
 const isServerInvite = computed(() => {
@@ -288,15 +290,15 @@ function setupYouTubePlayer() {
 
   sendListeningEvent();
 
-  // Register the whole embed wrapper for floating so the header + video float together
-  if (props.messageId) {
-    const floatTarget = embedWrapper.value || youtubeContainer.value;
-    if (!floatTarget) return;
-    const originalParent = floatTarget.parentElement as HTMLElement;
-    if (originalParent) {
-      cleanupFloatingObserver?.();
-      cleanupFloatingObserver = registerVideo(floatTarget as unknown as HTMLElement, originalParent, props.messageId, 'youtube', props.payload.url);
-    }
+  const floatTarget = embedWrapper.value || youtubeContainer.value;
+  if (floatTarget) {
+    cleanupFloatingObserver?.();
+    cleanupFloatingObserver = registerVideo(floatTarget, {
+      type: 'youtube',
+      messageId: props.messageId,
+      sourceUrl: props.payload.url,
+      title: props.payload.title,
+    });
   }
 }
 
@@ -321,17 +323,11 @@ function sendPlayerCommand(func: string, args: unknown[] = []) {
 
 function updatePlayState(playing: boolean) {
   isPlaying.value = playing;
-  
-  if (playing && props.messageId) {
-    const floatingVideoId = getFloatingVideoMessageId();
-    if (floatingVideoId && floatingVideoId !== props.messageId) {
-      returnToOriginalPosition();
-    }
-  }
-  
+
   const floatTarget = embedWrapper.value || youtubeContainer.value;
   if (floatTarget) {
     floatTarget.dataset.isPlaying = String(playing);
+    if (playing) notifyPlaybackStarted(floatTarget);
   }
 }
 
@@ -426,26 +422,10 @@ async function loadHarmonyPost() {
   }
 }
 
-// Fediverse embed platform helpers
-const FEDI_PLATFORM_MAP: Record<string, { icon: string; label: string }> = {
-  mastodon: { icon: '🐘', label: 'Mastodon' },
-  misskey: { icon: '🌎', label: 'Misskey' },
-  pleroma: { icon: '🔵', label: 'Pleroma' },
-  gotosocial: { icon: '🐿️', label: 'GoToSocial' },
-  pixelfed: { icon: '📷', label: 'Pixelfed' },
-  harmony: { icon: '🐻‍❄️', label: 'Harmony' },
-  lemmy: { icon: '🐭', label: 'Lemmy' },
-};
 
-const fediversePlatformLabel = computed(() => {
-  const p = props.payload.fediverse?.platform || '';
-  return FEDI_PLATFORM_MAP[p]?.label || 'Fediverse';
-});
-
-const fediversePlatformIcon = computed(() => {
-  const p = props.payload.fediverse?.platform || '';
-  return FEDI_PLATFORM_MAP[p]?.icon || '🌐';
-});
+const fediversePlatformLabel = computed(
+  () => softwareDisplayName(props.payload.fediverse?.platform) || 'Fediverse',
+);
 
 const fediverseSourceUrl = computed(() => {
   return props.payload.fediverse?.postUrl || props.payload.url;

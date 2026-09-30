@@ -342,7 +342,7 @@ defineExpose({
   padding: 4px 8px;
   background-color: var(--background-quinary);
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   cursor: pointer;
   font-size: 0.875rem;
   transition: background-color 0.15s ease-out, border-color 0.15s ease-out, opacity 0.15s ease-out, transform 0.15s ease-out;
@@ -360,9 +360,9 @@ defineExpose({
 }
 
 .reaction.reacted {
-  /* background-color: rgba(14, 165, 233, 0.15); */
+  /* background-color: color-mix(in srgb, var(--harmony-primary) 15%, transparent); */
   background-color: var(--harmony-primary-alpha);
-  /* border-color: rgba(14, 165, 233, 0.5); */
+  /* border-color: color-mix(in srgb, var(--harmony-primary) 50%, transparent); */
   border-color: var(--harmony-primary);
 }
 
@@ -379,13 +379,13 @@ defineExpose({
 }
 
 .unicode-emoji {
-  font-size: 16px;
+  font-size: var(--font-size-base);
   line-height: 1;
 }
 
 .reaction-count {
   font-size: 0.8125rem;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   color: var(--text-secondary);
   min-width: 9px;
   text-align: center;
@@ -393,7 +393,7 @@ defineExpose({
 
 .reaction.reacted .reaction-count {
   color: var(--text-primary);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 
 .reaction-emoji-broken {
@@ -425,7 +425,7 @@ defineExpose({
   height: 24px;
   background-color: var(--background-quinary);
   border: 1px solid transparent;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   cursor: pointer;
   color: var(--text-tertiary);
   transition: all 0.15s ease-out;
@@ -443,8 +443,10 @@ defineExpose({
   padding: 6px;
 }
 
-.reaction-list-enter-active {
-  animation: reaction-pop-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+@media (prefers-reduced-motion: no-preference) {
+  .reaction-list-enter-active {
+    animation: reaction-pop-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
 }
 
 .reaction-list-leave-active {

@@ -383,7 +383,7 @@
                 @click="onTogglePin"
               >
                 <Icon :name="props.post.is_pinned ? 'pin-off' : 'pin'" />
-                <span>{{ props.post.is_pinned ? 'Unpin from Profile' : 'Pin to Profile' }}</span>
+                <span>{{ props.post.is_pinned ? 'Unpin from profile' : 'Pin to profile' }}</span>
               </button>
 
               <button
@@ -410,7 +410,7 @@
                 @click="onDeleteAndRedraft"
               >
                 <Icon name="edit" />
-                <span>Delete & Re-draft</span>
+                <span>Delete and redraft</span>
               </button>
               
               <div v-if="isRemotePost" class="dropdown-divider"></div>
@@ -499,7 +499,7 @@
                 @click="openReportModal"
               >
                 <Icon name="flag" />
-                <span>Report Post</span>
+                <span>Report post</span>
               </button>
             </div>
           </Teleport>
@@ -533,7 +533,7 @@
     <!-- Delete Confirmation Modal -->
     <ConfirmationModal
       :show="showDeleteConfirmation"
-      title="Confirm Delete"
+      title="Delete post?"
       message="Are you sure you want to delete this post? This action cannot be undone."
       @confirm="handleDeleteConfirm"
       @cancel="handleDeleteCancel"
@@ -1721,9 +1721,9 @@ const onDeleteAndRedraft = async () => {
   closeMenu();
   if (isDeleting.value) return;
   const confirmed = await confirm({
-    title: 'Delete & re-draft',
+    title: 'Delete and redraft',
     message: 'Delete this post and move its content back into the composer? Favorites and boosts on it are lost.',
-    confirmButtonText: 'Delete & Re-draft',
+    confirmButtonText: 'Delete and redraft',
     dangerAction: true,
   });
   if (!confirmed) return;
@@ -1828,7 +1828,7 @@ const handleDeleteConfirm = async () => {
     notificationStore.showToast(
       'server_update',
       'Post deleted',
-      'Your post has been successfully deleted',
+      'Your post was deleted',
       3000
     );
     
@@ -1883,7 +1883,7 @@ const copyLink = async () => {
   try {
     const url = props.post.url || `${window.location.origin}/posts/${props.post.id}`;
     await navigator.clipboard.writeText(url);
-    toast.success('Link copied to clipboard');
+    toast.success('Link copied');
   } catch (error) {
     debug.error('Failed to copy link:', error);
     toast.error('Failed to copy link');
@@ -2366,8 +2366,6 @@ const closeLightbox = () => {
   color: var(--text-primary);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
   cursor: pointer;
   transition: background-color var(--transition-fast);
 }

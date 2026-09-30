@@ -3,7 +3,7 @@
     <div v-if="show" class="modal-overlay" @click="closeModal">
       <div class="modal-container" @click.stop>
         <div class="modal-header">
-          <h2 class="modal-title">Edit Channel</h2>
+          <h2 class="modal-title">Edit channel</h2>
           <button class="modal-close" @click="closeModal">
             <svg width="24" height="24" viewBox="0 0 24 24">
               <path fill="currentColor" d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/>
@@ -28,7 +28,7 @@
           <!-- General tab -->
           <template v-if="activeTab === 'general'">
             <div class="form-group">
-              <label for="channel-name">Channel Name</label>
+              <label for="channel-name">Channel name</label>
               <input
                 id="channel-name"
                 v-model="editedName"
@@ -78,13 +78,13 @@
             </div>
 
             <div class="form-group">
-              <label>Channel Type</label>
+              <label>Channel type</label>
               <div class="channel-type-display">
                 <div class="channel-type-icon">
                   <HashTagIcon v-if="channel?.type === 0" />
                   <SpeakerIcon v-else />
                 </div>
-                <span>{{ channel?.type === 0 ? 'Text Channel' : 'Voice Channel' }}</span>
+                <span>{{ channel?.type === 0 ? 'Text channel' : 'Voice channel' }}</span>
               </div>
               <div class="form-hint">Channel type cannot be changed after creation</div>
             </div>
@@ -158,7 +158,7 @@
                           :title="state.label"
                           @click="setPermState(selectedRole.id, perm.key, state.value)"
                         >
-                          {{ state.icon }}
+                          <Icon :name="state.icon" :size="14" />
                         </button>
                       </div>
                     </div>
@@ -181,7 +181,7 @@
             :disabled="!isValidName || isLoading"
           >
             <span v-if="isLoading" class="loading-spinner"></span>
-            {{ isLoading ? 'Saving...' : 'Save Changes' }}
+            {{ isLoading ? 'Saving...' : 'Save changes' }}
           </button>
           <button
             v-else
@@ -190,7 +190,7 @@
             :disabled="!permissionsDirty || savingPermissions"
           >
             <span v-if="savingPermissions" class="loading-spinner"></span>
-            {{ savingPermissions ? 'Saving...' : 'Save Permissions' }}
+            {{ savingPermissions ? 'Saving...' : 'Save permissions' }}
           </button>
         </div>
       </div>
@@ -205,6 +205,7 @@ import { debug } from '@/utils/debug'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 import HashTagIcon from '@/components/icons/HashTag.vue'
 import SpeakerIcon from '@/components/icons/Speaker.vue'
+import Icon from '@/components/common/Icon.vue'
 import {
   roleService,
   Permission,
@@ -216,9 +217,9 @@ import type { Channel } from '@/types'
 type TriState = 'allow' | 'inherit' | 'deny'
 
 const TRISTATE_OPTIONS: Array<{ value: TriState; label: string; icon: string }> = [
-  { value: 'deny', label: 'Deny', icon: '✕' },
-  { value: 'inherit', label: 'Inherit from server', icon: '／' },
-  { value: 'allow', label: 'Allow', icon: '✓' },
+  { value: 'deny', label: 'Deny', icon: 'x' },
+  { value: 'inherit', label: 'Inherit from server', icon: 'minus' },
+  { value: 'allow', label: 'Allow', icon: 'check' },
 ]
 
 // Permissions are grouped Discord-style rather than as one flat toggle list.
@@ -342,7 +343,7 @@ const saveChanges = async () => {
   } catch (error: any) {
     debug.error('Failed to update channel:', error)
     const toast = useToast()
-    toast.error(error?.message || 'Failed to update channel. Please try again.')
+    toast.error(error?.message || "Couldn't update channel. Try again.")
   } finally {
     isLoading.value = false
   }
@@ -544,20 +545,28 @@ watch(() => props.show, (visible) => {
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  animation: fadeIn 0.15s ease-out;
 }
 
 .modal-container {
   background: var(--background-secondary);
-  border-radius: 10px;
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-large);
   width: 100%;
   max-width: 480px;
   max-height: 90vh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  animation: slideUp 0.15s ease-out;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .modal-overlay {
+    animation: fadeIn 0.15s ease-out;
+  }
+
+  .modal-container {
+    animation: slideUp 0.15s ease-out;
+  }
 }
 
 .modal-header {
@@ -629,7 +638,7 @@ watch(() => props.show, (visible) => {
 
 .form-input:focus {
   outline: none;
-  border-color: #0EA5E9;
+  border-color: var(--harmony-primary);
 }
 
 .form-textarea {
@@ -648,7 +657,7 @@ watch(() => props.show, (visible) => {
 
 .form-textarea:focus {
   outline: none;
-  border-color: #0EA5E9;
+  border-color: var(--harmony-primary);
 }
 
 .character-count {
@@ -689,7 +698,7 @@ watch(() => props.show, (visible) => {
 
 .slowmode-slider {
   flex: 1;
-  accent-color: var(--harmony-primary, #0EA5E9);
+  accent-color: var(--harmony-primary);
 }
 
 .slowmode-value {
@@ -697,7 +706,7 @@ watch(() => props.show, (visible) => {
   text-align: right;
   font-size: 0.85rem;
   font-weight: 600;
-  color: var(--harmony-primary, #0EA5E9);
+  color: var(--harmony-primary);
 }
 
 .slowmode-value.off {
@@ -746,11 +755,11 @@ watch(() => props.show, (visible) => {
 
 .btn-primary {
   background: var(--harmony-primary);
-  color: var(--text-primary);
+  color: var(--text-on-primary);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #0284C7;
+  background: var(--harmony-primary-hover);
 }
 
 .loading-spinner {
@@ -770,11 +779,11 @@ watch(() => props.show, (visible) => {
 @keyframes slideUp {
   from {
     opacity: 0;
-    transform: translateY(20px) scale(0.95);
+    transform: translateY(16px);
   }
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translateY(0);
   }
 }
 
@@ -836,8 +845,8 @@ watch(() => props.show, (visible) => {
 }
 
 .modal-tab.active {
-  color: var(--harmony-primary, #0EA5E9);
-  border-bottom-color: var(--harmony-primary, #0EA5E9);
+  color: var(--harmony-primary);
+  border-bottom-color: var(--harmony-primary);
 }
 
 /* Wider modal so the rail + editor layout breathes */
@@ -890,7 +899,7 @@ watch(() => props.show, (visible) => {
 }
 
 .perm-role-pill:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--background-modifier-hover);
   color: var(--text-primary);
 }
 
@@ -910,7 +919,7 @@ watch(() => props.show, (visible) => {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--harmony-primary, #0EA5E9);
+  background: var(--harmony-primary);
   flex-shrink: 0;
 }
 
@@ -962,7 +971,7 @@ watch(() => props.show, (visible) => {
   border: none;
   padding: 0;
   font-size: 12px;
-  color: var(--harmony-primary, #0EA5E9);
+  color: var(--harmony-primary);
   cursor: pointer;
   text-decoration: underline;
 }
@@ -1050,21 +1059,21 @@ watch(() => props.show, (visible) => {
 }
 
 .perm-tristate-btn:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--background-modifier-hover);
 }
 
 .perm-tristate-btn.active.state-allow {
-  background: rgba(59, 165, 92, 0.18);
-  color: #3ba55c;
+  background: color-mix(in srgb, var(--success) 18%, transparent);
+  color: var(--success);
 }
 
 .perm-tristate-btn.active.state-deny {
-  background: rgba(237, 66, 69, 0.18);
-  color: #ed4245;
+  background: color-mix(in srgb, var(--error) 18%, transparent);
+  color: var(--error);
 }
 
 .perm-tristate-btn.active.state-inherit {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--background-modifier-selected);
   color: var(--text-primary);
 }
 </style>

@@ -42,7 +42,7 @@
             />
           </div>
           <div class="user-info">
-            <h3 class="display-name" :style="{ color: profile?.color || '#ffffff' }">
+            <h3 class="display-name" :style="{ color: profile?.color || 'var(--text-primary)' }">
               <DisplayName
                 v-if="localProfile.display_name"
                 :parts="previewDisplayNameParts"
@@ -120,7 +120,7 @@
       </div>
 
       <div class="form-group">
-        <label class="form-label">Display Color</label>
+        <label class="form-label">Display color</label>
         <div class="color-picker-container">
           <div class="color-preview-row">
             <div class="color-hex-field">
@@ -820,14 +820,14 @@ onMounted(async () => {
 }
 
 .settings-title {
-  font-size: 24px;
-  font-weight: 600;
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
   margin: 0 0 8px 0;
 }
 
 .settings-description {
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   color: var(--text-secondary);
   margin: 0;
 }
@@ -836,20 +836,20 @@ onMounted(async () => {
   margin-bottom: 32px;
   padding: 24px;
   background-color: var(--background-secondary);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   border: 1px solid var(--background-quaternary);
 }
 
 .profile-preview {
   position: relative;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   overflow: hidden;
   background-color: var(--background-secondary);
 }
 
 .profile-banner {
   height: 120px;
-  background: linear-gradient(135deg, var(--color) 0%, var(--color) 100%);
+  background: var(--color);
   position: relative;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -871,8 +871,8 @@ onMounted(async () => {
   opacity: 0;
   transition: opacity 0.2s ease;
   color: #ffffff;
-  font-size: 12px;
-  font-weight: 500;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
 }
 
 .profile-banner:hover .banner-overlay {
@@ -889,8 +889,8 @@ onMounted(async () => {
   justify-content: center;
   gap: 8px;
   color: #ffffff;
-  font-size: 12px;
-  font-weight: 500;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
   z-index: 1;
 }
 
@@ -920,13 +920,13 @@ onMounted(async () => {
 }
 
 .display-name {
-  font-size: 20px;
-  font-weight: 600;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
   margin: 0 0 4px 0;
 }
 
 .username {
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   color: var(--text-secondary);
   margin: 0;
 }
@@ -941,12 +941,10 @@ onMounted(async () => {
 
 .form-label {
   display: block;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
   margin-bottom: 8px;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
 }
 
 .form-input,
@@ -955,16 +953,16 @@ onMounted(async () => {
   padding: 12px;
   background-color: var(--input-bg);
   border: 1px solid var(--input-border);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   color: var(--text-primary);
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   transition: border-color 0.15s ease;
 }
 
 .form-input:focus,
 .form-textarea:focus {
   outline: none;
-  border-color: #0EA5E9;
+  border-color: var(--harmony-primary);
 }
 
 .form-input:disabled,
@@ -980,7 +978,7 @@ onMounted(async () => {
 }
 
 .form-hint {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--text-muted);
   margin-top: 8px;
 }
@@ -1005,13 +1003,13 @@ onMounted(async () => {
   box-sizing: border-box;
   background-color: var(--input-bg);
   border: 1px solid var(--input-border);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   overflow: hidden;
   transition: border-color 0.15s ease;
 }
 
 .color-hex-field:focus-within {
-  border-color: var(--harmony-primary, #0EA5E9);
+  border-color: var(--harmony-primary);
 }
 
 .color-hex-swatch {
@@ -1062,16 +1060,16 @@ onMounted(async () => {
   left: 0;
   z-index: 1000;
   margin-top: 8px;
-  background-color: var(--background-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
+  background-color: var(--background-floating);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
   padding: 16px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--shadow-large);
 }
 
 .section-title {
-  font-size: 16px;
-  font-weight: 600;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
   margin: 0 0 16px 0;
 }
@@ -1089,13 +1087,13 @@ onMounted(async () => {
 }
 
 .info-label {
-  font-size: 14px;
-  font-weight: 500;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
   color: var(--text-secondary);
 }
 
 .info-value {
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   color: var(--text-primary);
 }
 
@@ -1106,8 +1104,8 @@ onMounted(async () => {
 .display-name-input-wrapper code {
   background: var(--background-secondary);
   padding: 1px 4px;
-  border-radius: 3px;
-  font-size: 12px;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
 }
 
 .settings-actions {
@@ -1119,10 +1117,10 @@ onMounted(async () => {
 
 .btn {
   padding: 8px 16px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   border: none;
-  font-weight: 500;
-  font-size: 14px;
+  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-sm);
   cursor: pointer;
   transition: all 0.15s ease;
   display: flex;
@@ -1137,17 +1135,17 @@ onMounted(async () => {
 
 .btn-primary {
   background-color: var(--harmony-primary);
-  color: var(--text-on-primary, #ffffff);
+  color: var(--text-on-primary);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background-color: #0284C7;
+  background-color: var(--harmony-primary-hover);
 }
 
 .btn-secondary {
   background-color: transparent;
   color: var(--text-secondary);
-  border: 1px solid #4f545c;
+  border: 1px solid var(--border-hover);
 }
 
 .btn-secondary:hover:not(:disabled) {
@@ -1159,7 +1157,7 @@ onMounted(async () => {
   width: 16px;
   height: 16px;
   border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top: 2px solid #ffffff;
+  border-top: 2px solid var(--text-on-primary);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -1198,7 +1196,7 @@ onMounted(async () => {
 
 /* Supporter section */
 .supporter-section {
-  border-top: 1px solid var(--border-color);
+  border-top: 1px solid var(--border-primary);
   padding-top: 24px;
 }
 
@@ -1227,10 +1225,8 @@ onMounted(async () => {
 }
 
 .profile-field-name {
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: var(--font-weight-medium);
 }
 
 .profile-field-value {
@@ -1244,27 +1240,27 @@ onMounted(async () => {
   justify-content: center;
   width: 36px;
   background: transparent;
-  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
-  border-radius: 6px;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-base);
   color: var(--text-secondary);
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 
 .profile-field-remove:hover {
-  background: rgba(237, 66, 69, 0.12);
-  color: #ed4245;
-  border-color: rgba(237, 66, 69, 0.35);
+  background: color-mix(in srgb, var(--error) 12%, transparent);
+  color: var(--error);
+  border-color: color-mix(in srgb, var(--error) 35%, transparent);
 }
 
 .profile-fields-empty {
   margin: 0 0 12px;
   padding: 12px;
   font-size: 13px;
-  color: var(--text-muted, #949ba4);
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px dashed var(--border-color, rgba(255, 255, 255, 0.08));
-  border-radius: 6px;
+  color: var(--text-muted);
+  background: var(--background-primary);
+  border: 1px dashed var(--border-color);
+  border-radius: var(--radius-base);
   text-align: center;
 }
 
@@ -1274,18 +1270,18 @@ onMounted(async () => {
   gap: 6px;
   padding: 8px 14px;
   background: transparent;
-  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
-  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-base);
   color: var(--text-primary);
   font-size: 13px;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease;
 }
 
 .profile-field-add:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.04);
-  border-color: var(--harmony-primary, #0EA5E9);
+  background: var(--background-modifier-hover);
+  border-color: var(--harmony-primary);
 }
 
 .profile-field-add:disabled {
@@ -1296,8 +1292,8 @@ onMounted(async () => {
 .profile-field-count {
   margin-left: 4px;
   font-size: 11px;
-  color: var(--text-muted, #949ba4);
-  font-weight: 400;
+  color: var(--text-muted);
+  font-weight: var(--font-weight-normal);
 }
 
 /* On narrow viewports stack label-on-top-of-value so the inputs aren't
@@ -1320,8 +1316,8 @@ onMounted(async () => {
 .donor-handle-callout {
   padding: 14px 16px;
   margin-bottom: 16px;
-  background: rgba(14, 165, 233, 0.06);
-  border: 1px solid rgba(14, 165, 233, 0.22);
+  background: color-mix(in srgb, var(--harmony-primary) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--harmony-primary) 22%, transparent);
   border-radius: 10px;
 }
 
@@ -1331,8 +1327,8 @@ onMounted(async () => {
   gap: 6px;
   margin: 0 0 10px;
   font-size: 13px;
-  font-weight: 700;
-  color: var(--harmony-primary, #0EA5E9);
+  font-weight: var(--font-weight-bold);
+  color: var(--harmony-primary);
   text-transform: none;
   letter-spacing: 0;
 }
@@ -1356,12 +1352,12 @@ onMounted(async () => {
   display: inline-block;
   padding: 6px 10px;
   background: var(--background-primary);
-  border: 1px dashed var(--harmony-primary, #0EA5E9);
-  border-radius: 6px;
+  border: 1px dashed var(--harmony-primary);
+  border-radius: var(--radius-base);
   font-family: 'Consolas', 'Monaco', monospace;
   font-size: 13px;
-  font-weight: 600;
-  color: var(--harmony-primary, #0EA5E9);
+  font-weight: var(--font-weight-semibold);
+  color: var(--harmony-primary);
   user-select: all;
   word-break: break-all;
 }
@@ -1374,22 +1370,22 @@ onMounted(async () => {
   padding: 4px 10px;
   background: transparent;
   border: 1px solid var(--border-color);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   color: var(--text-secondary);
   font-size: 11px;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
   transition: all 0.15s;
 }
 
 .donor-copy-btn:hover {
-  border-color: var(--harmony-primary, #0EA5E9);
-  color: var(--harmony-primary, #0EA5E9);
+  border-color: var(--harmony-primary);
+  color: var(--harmony-primary);
 }
 
 .donor-handle-hint {
   margin: 8px 0 0;
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--text-tertiary, var(--text-secondary));
   font-style: italic;
   line-height: 1.5;
@@ -1397,13 +1393,13 @@ onMounted(async () => {
 
 .donor-examples {
   margin: 6px 0 10px;
-  font-size: 12px;
+  font-size: var(--font-size-xs);
 }
 
 .donor-examples summary {
   cursor: pointer;
   color: var(--text-secondary);
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   padding: 4px 0;
   user-select: none;
   transition: color 0.15s;
@@ -1429,12 +1425,12 @@ onMounted(async () => {
   padding: 8px 10px;
   background: var(--background-primary);
   border: 1px solid var(--border-color);
-  border-radius: 6px;
+  border-radius: var(--radius-base);
 }
 
 .donor-examples-list code {
   font-family: 'Consolas', 'Monaco', monospace;
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--text-primary);
   word-break: break-all;
 }
@@ -1456,7 +1452,7 @@ onMounted(async () => {
   gap: 12px;
   padding: 12px 16px;
   background: var(--background-secondary);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   margin-bottom: 12px;
 }
 
@@ -1469,11 +1465,11 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   padding: 4px 6px;
-  border-radius: 4px;
-  font-size: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  border: 1px solid var(--border-hover);
   line-height: 1;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--background-modifier-hover);
 }
 
 .supporter-details {
@@ -1483,19 +1479,19 @@ onMounted(async () => {
 }
 
 .supporter-tier {
-  font-weight: 600;
-  font-size: 14px;
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-sm);
   color: var(--text-primary);
 }
 
 .supporter-active {
-  font-size: 12px;
-  color: #57f287;
-  font-weight: 600;
+  font-size: var(--font-size-xs);
+  color: var(--success);
+  font-weight: var(--font-weight-semibold);
 }
 
 .supporter-inactive-text {
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   color: var(--text-secondary);
 }
 
@@ -1512,12 +1508,12 @@ onMounted(async () => {
   gap: 12px;
   padding: 6px 12px;
   background: var(--background-secondary);
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   font-size: 13px;
 }
 
 .donation-amt {
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
 }
 
@@ -1539,15 +1535,15 @@ onMounted(async () => {
   background: var(--background-secondary);
   border: 1px solid var(--border-color);
   color: var(--text-primary);
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   text-decoration: none;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   transition: border-color 0.15s, background 0.15s;
 }
 
 .supporter-link:hover {
-  border-color: var(--harmony-primary, #0EA5E9);
+  border-color: var(--harmony-primary);
   background: var(--background-modifier-hover, var(--background-secondary));
 }
 </style>

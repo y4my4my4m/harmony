@@ -4,7 +4,7 @@
       <div class="announcement-popup">
         <div class="popup-header">
           <div class="header-title">
-            <span class="header-icon">📢</span>
+            <Icon name="megaphone" size="md" class="header-icon" />
             <h2>{{ $t('announcements.title', 'Announcements') }}</h2>
             <span class="unread-badge" v-if="announcements.length > 1">{{ announcements.length }}</span>
           </div>
@@ -23,7 +23,7 @@
             :class="{ pinned: announcement.is_pinned }"
           >
             <div class="card-header">
-              <span class="announcement-icon">{{ getIconEmoji(announcement.icon) }}</span>
+              <Icon :name="getIconName(announcement.icon)" size="sm" class="announcement-icon" />
               <h3 class="announcement-title">{{ announcement.title }}</h3>
               <span v-if="announcement.is_pinned" class="pin-badge">Pinned</span>
             </div>
@@ -81,6 +81,7 @@ import { renderAnnouncementHtml } from '@/utils/announcementContent'
 import { announcementService, type Announcement } from '@/services/AnnouncementService'
 import { userDataService } from '@/services/userDataService'
 import DisplayName from '@/components/DisplayName.vue'
+import Icon from '@/components/common/Icon.vue'
 
 const router = useRouter()
 
@@ -88,16 +89,16 @@ const announcements = ref<Announcement[]>([])
 
 const sanitizeContent = renderAnnouncementHtml
 
-const getIconEmoji = (icon: string): string => {
+const getIconName = (icon: string): string => {
   const icons: Record<string, string> = {
-    info: 'ℹ️',
-    warning: '⚠️',
-    celebration: '🎉',
-    maintenance: '🔧',
-    update: '🆕',
-    security: '🔒'
+    info: 'info',
+    warning: 'alert-triangle',
+    celebration: 'megaphone',
+    maintenance: 'wrench',
+    update: 'refresh-cw',
+    security: 'shield'
   }
-  return icons[icon] || 'ℹ️'
+  return icons[icon] || 'info'
 }
 
 const formatDate = (dateStr: string): string => {
@@ -158,15 +159,15 @@ onMounted(async () => {
 }
 
 .announcement-popup {
-  background: var(--background-primary, #1e1f22);
-  border: 1px solid var(--border-color, #2b2d31);
-  border-radius: 12px;
+  background: var(--background-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
   width: 90vw;
   max-width: 600px;
   max-height: 80vh;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--shadow-large);
 }
 
 .popup-header {
@@ -174,7 +175,7 @@ onMounted(async () => {
   align-items: center;
   justify-content: space-between;
   padding: 20px 24px;
-  border-bottom: 1px solid var(--border-color, #2b2d31);
+  border-bottom: 1px solid var(--border-primary);
 }
 
 .header-title {
@@ -184,37 +185,37 @@ onMounted(async () => {
 }
 
 .header-icon {
-  font-size: 24px;
+  color: var(--text-secondary);
 }
 
 .header-title h2 {
   margin: 0;
-  font-size: 20px;
+  font-size: var(--font-size-xl);
   font-weight: 700;
-  color: var(--text-primary, #f2f3f5);
+  color: var(--text-primary);
 }
 
 .unread-badge {
-  background: var(--harmony-primary, #0EA5E9);
-  color: var(--text-primary);
+  background: var(--harmony-primary);
+  color: var(--text-on-primary);
   padding: 2px 8px;
-  border-radius: 10px;
-  font-size: 12px;
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
   font-weight: 700;
 }
 
 .close-btn {
   background: none;
   border: none;
-  color: var(--text-secondary, #b5bac1);
+  color: var(--text-secondary);
   cursor: pointer;
   padding: 4px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 
 .close-btn:hover {
-  background: var(--background-hover, #35373c);
-  color: var(--text-primary, #f2f3f5);
+  background: var(--background-modifier-hover);
+  color: var(--text-primary);
 }
 
 .popup-body {
@@ -227,14 +228,14 @@ onMounted(async () => {
 }
 
 .announcement-card {
-  background: var(--background-secondary, #2b2d31);
-  border: 1px solid var(--border-color, #3f4147);
-  border-radius: 8px;
+  background: var(--background-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
   padding: 16px;
 }
 
 .announcement-card.pinned {
-  border-color: var(--harmony-primary, #0EA5E9);
+  border-color: var(--harmony-primary);
   border-width: 2px;
 }
 
@@ -246,37 +247,37 @@ onMounted(async () => {
 }
 
 .announcement-icon {
-  font-size: 18px;
+  flex-shrink: 0;
+  color: var(--text-secondary);
 }
 
 .announcement-title {
   margin: 0;
-  font-size: 16px;
+  font-size: var(--font-size-base);
   font-weight: 600;
-  color: var(--text-primary, #f2f3f5);
+  color: var(--text-primary);
   flex: 1;
 }
 
 .pin-badge {
-  background: var(--harmony-primary, #0EA5E9);
-  color: var(--text-primary);
+  background: var(--harmony-primary);
+  color: var(--text-on-primary);
   padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
 }
 
 .announcement-content {
-  font-size: 14px;
-  color: var(--text-secondary, #b5bac1);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
   line-height: 1.5;
   margin-bottom: 12px;
 }
 
 .announcement-image {
   width: 100%;
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   margin-bottom: 12px;
   max-height: 200px;
   object-fit: cover;
@@ -286,8 +287,8 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
-  color: var(--text-muted, #949ba4);
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
 }
 
 .announcement-date,
@@ -298,23 +299,23 @@ onMounted(async () => {
 .mark-read-btn {
   margin-left: auto;
   background: none;
-  border: 1px solid var(--border-color, #3f4147);
-  color: var(--text-secondary, #b5bac1);
+  border: 1px solid var(--border-primary);
+  color: var(--text-secondary);
   padding: 4px 12px;
-  border-radius: 4px;
-  font-size: 12px;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
   cursor: pointer;
 }
 
 .mark-read-btn:hover {
-  background: var(--harmony-primary, #0EA5E9);
+  background: var(--background-modifier-hover);
   color: var(--text-primary);
-  border-color: var(--harmony-primary, #0EA5E9);
+  border-color: var(--border-hover);
 }
 
 .popup-footer {
   padding: 16px 24px;
-  border-top: 1px solid var(--border-color, #2b2d31);
+  border-top: 1px solid var(--border-primary);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -323,36 +324,34 @@ onMounted(async () => {
 }
 
 .mark-all-btn {
-  background: var(--harmony-primary, #0EA5E9);
-  color: var(--text-primary);
+  background: var(--harmony-primary);
+  color: var(--text-on-primary);
   border: none;
   padding: 8px 20px;
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   font-weight: 600;
   cursor: pointer;
 }
 
 .mark-all-btn:hover {
-  opacity: 0.9;
+  background: var(--harmony-primary-hover);
 }
 
 .view-past-btn {
-  /* Margin-left:auto so this button always sits on the right edge of the
-     footer regardless of whether the mark-all button is visible (it's only
-     rendered when there are multiple unread announcements). */
+  /* Pinned right whether or not the mark-all button renders. */
   margin-left: auto;
   background: transparent;
-  color: var(--text-secondary, #b5bac1);
-  border: 1px solid var(--border-color, #3f4147);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-primary);
   padding: 8px 16px;
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   font-weight: 500;
   font-size: 13px;
   cursor: pointer;
 }
 
 .view-past-btn:hover {
-  background: var(--background-hover, #35373c);
-  color: var(--text-primary, #f2f3f5);
+  background: var(--background-modifier-hover);
+  color: var(--text-primary);
 }
 </style>

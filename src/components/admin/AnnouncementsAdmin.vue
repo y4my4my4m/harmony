@@ -11,7 +11,7 @@
   </div>
   <p class="module-hint">Instance-wide announcements shown to users. Create and manage them here.</p>
   <div v-if="showAnnouncementForm" class="announcement-form">
-    <h4>{{ editingAnnouncementId ? 'Edit' : 'New' }} Announcement</h4>
+    <h4>{{ editingAnnouncementId ? 'Edit' : 'New' }} announcement</h4>
     <div class="form-row">
       <label>Title</label>
       <input v-model="announcementForm.title" class="cyber-input" placeholder="Announcement title" />
@@ -76,7 +76,10 @@
   <div class="announcements-list">
     <div v-for="a in announcements" :key="a.id" class="announcement-item">
       <div class="announcement-meta">
-        <span class="announcement-icon">{{ getAnnouncementIcon(a.icon) }}</span>
+        <span class="announcement-icon">
+          <Icon v-if="announcementIconName(a.icon)" :name="announcementIconName(a.icon)!" :size="18" />
+          <template v-else>{{ a.icon }}</template>
+        </span>
         <span class="announcement-title">{{ a.title }}</span>
         <span v-if="a.is_pinned" class="badge">Pinned</span>
         <span v-if="!a.is_active" class="badge inactive">Inactive</span>
@@ -173,14 +176,17 @@ const loadAnnouncements = async () => {
 
 
 
-const getAnnouncementIcon = (icon: string | undefined) => {
-  if (!icon) return '📢'
-  const icons: Record<string, string> = {
-    info: 'ℹ️',
-    warning: '⚠️',
-    megaphone: '📢',
-  }
-  return icons[icon] || (icon.length <= 2 ? icon : '📢')
+const ANNOUNCEMENT_ICONS: Record<string, string> = {
+  info: 'info',
+  warning: 'alert-triangle',
+  megaphone: 'megaphone',
+}
+
+// Named icons map to Icon names; a short string is an emoji and renders as text (null).
+const announcementIconName = (icon: string | undefined): string | null => {
+  if (!icon) return 'megaphone'
+  if (ANNOUNCEMENT_ICONS[icon]) return ANNOUNCEMENT_ICONS[icon]
+  return icon.length <= 2 ? null : 'megaphone'
 }
 
 const saveAnnouncement = async () => {
@@ -374,7 +380,7 @@ onMounted(() => { void loadAnnouncements() })
   height: 24px;
   background: var(--background-tertiary);
   border: 1px solid var(--border-color);
-  border-radius: 24px;
+  border-radius: var(--radius-full);
   transition: all 0.2s ease;
 }
 
@@ -407,8 +413,8 @@ onMounted(() => { void loadAnnouncements() })
 
 
 .toggle-label input[type="checkbox"]:checked + .toggle-slider {
-  background: var(--accent-color);
-  border-color: var(--accent-color);
+  background: var(--harmony-primary);
+  border-color: var(--harmony-primary);
 }
 
 
@@ -421,7 +427,7 @@ onMounted(() => { void loadAnnouncements() })
 
 .toggle-label input[type="checkbox"]:checked + .toggle-slider:before {
   left: 22px;
-  background: white;
+  background: var(--text-on-primary);
 }
 
 
@@ -433,8 +439,8 @@ onMounted(() => { void loadAnnouncements() })
 
 
 .badge.inactive {
-  background: rgba(156, 163, 175, 0.2);
-  color: #9ca3af;
+  background: var(--background-modifier-active);
+  color: var(--text-muted);
 }
 
 
@@ -466,7 +472,7 @@ onMounted(() => { void loadAnnouncements() })
   margin: 0 24px 20px;
   padding: 20px;
   background: var(--background-tertiary);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   border: 1px solid var(--border-color);
 }
 
@@ -557,7 +563,7 @@ onMounted(() => { void loadAnnouncements() })
 .announcement-form .form-hint {
   margin: 4px 0 0 0;
   font-size: 11px;
-  color: var(--text-muted, #949ba4);
+  color: var(--text-muted);
   line-height: 1.35;
 }
 
@@ -592,7 +598,7 @@ onMounted(() => { void loadAnnouncements() })
   align-items: center;
   padding: 12px 16px;
   background: var(--background-tertiary);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   margin-bottom: 8px;
   border: 1px solid var(--border-color);
 }

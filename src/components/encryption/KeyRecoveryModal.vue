@@ -4,7 +4,7 @@
       <div class="modal-header">
         <h2 class="modal-title">
           <span class="title-icon"><Icon name="key" :size="20" /></span>
-          Restore Encryption
+          Restore encryption
         </h2>
         <button class="close-btn" @click="$emit('close')" :disabled="isRestoring" aria-label="Close">
           <Icon name="x" :size="18" />
@@ -20,7 +20,7 @@
             @click="activeTab = 'phrase'"
           >
             <Icon name="file" :size="16" class="tab-icon" />
-            Recovery Phrase
+            Recovery phrase
           </button>
           <button 
             class="tab-btn"
@@ -28,7 +28,7 @@
             @click="activeTab = 'qr'"
           >
             <Icon name="smartphone" :size="16" class="tab-icon" />
-            QR Code
+            QR code
           </button>
         </div>
 
@@ -86,14 +86,14 @@
 
             <div v-if="isScanning" class="qr-scanner-live">
               <video ref="scannerVideoRef" class="scanner-video" autoplay playsinline muted></video>
-              <button class="btn btn-secondary btn-sm" @click="stopQRScanner">Stop Scanner</button>
+              <button class="btn btn-secondary btn-sm" @click="stopQRScanner">Stop scanner</button>
             </div>
             <div v-else class="qr-scanner-placeholder">
               <div class="scanner-icon"><Icon name="camera" :size="32" /></div>
-              <p>QR Scanner</p>
+              <p>QR scanner</p>
               <p class="hint">{{ scannerSupported ? 'Point your camera at the QR code from your other device' : 'Camera scanning is not supported in this browser - paste the code below instead' }}</p>
               <button v-if="scannerSupported" class="btn btn-secondary" @click="startQRScanner">
-                Start Scanner
+                Start scanner
               </button>
             </div>
 
@@ -102,7 +102,7 @@
             </div>
 
             <div class="qr-input">
-              <label>Paste QR Code Data</label>
+              <label>Paste QR code data</label>
               <textarea 
                 v-model="qrData"
                 placeholder="Paste the QR code data here..."
@@ -113,7 +113,7 @@
                 @click="parseQRData"
                 :disabled="!qrData"
               >
-                Parse QR Data
+                Parse QR data
               </button>
             </div>
           </div>
@@ -121,11 +121,11 @@
 
         <!-- Verification Code (Optional) -->
         <div v-if="activeTab === 'phrase' && recoveryWords.every(w => w)" class="verification-section">
-          <label>Verification Code (Optional)</label>
+          <label>Verification code (optional)</label>
           <input 
             type="text"
             v-model="verificationCode"
-            placeholder="ENTER VERIFICATION CODE TO VERIFY"
+            placeholder="6-character code"
             maxlength="6"
           />
           <p class="hint">
@@ -152,7 +152,7 @@
             Restoring...
           </span>
           <span v-else>
-            Restore Encryption
+            Restore encryption
           </span>
         </button>
       </div>
@@ -317,7 +317,7 @@ async function parseQRData() {
       recoveryWords.value = words
       activeTab.value = 'phrase'
       await validateWords()
-      toast.success('QR code parsed successfully')
+      toast.success('QR code read')
     } else {
       toast.error('Invalid QR code data')
     }
@@ -382,14 +382,14 @@ async function restoreEncryption() {
 }
 
 .recovery-modal {
-  background: var(--background-primary, #1a1a1e);
-  border-radius: 16px;
+  background: var(--background-primary);
+  border-radius: var(--radius-xl);
   border: 1px solid var(--border-color);
   max-width: 560px;
   width: 100%;
   max-height: 90vh;
   overflow-y: auto;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
+  box-shadow: var(--shadow-modal);
 }
 
 .modal-header {
@@ -405,8 +405,8 @@ async function restoreEncryption() {
   align-items: center;
   gap: 10px;
   margin: 0;
-  font-size: 18px;
-  font-weight: 600;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
 }
 
@@ -423,7 +423,7 @@ async function restoreEncryption() {
   height: 32px;
   background: none;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   color: var(--text-secondary);
   cursor: pointer;
   padding: 0;
@@ -432,7 +432,7 @@ async function restoreEncryption() {
 
 .close-btn:hover:not(:disabled) {
   color: var(--text-primary);
-  background: var(--background-hover, rgba(255,255,255,0.06));
+  background: var(--background-modifier-hover);
 }
 
 .close-btn:disabled {
@@ -456,11 +456,11 @@ async function restoreEncryption() {
   padding: 12px 16px;
   background: var(--background-tertiary);
   border: 1px solid var(--border-color);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   color: var(--text-secondary);
   cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
   transition: all 0.2s ease;
 }
 
@@ -469,14 +469,14 @@ async function restoreEncryption() {
 }
 
 .tab-btn:hover {
-  border-color: var(--harmony-primary-alpha, rgba(14, 165, 233, 0.5));
+  border-color: var(--harmony-primary-alpha, color-mix(in srgb, var(--harmony-primary) 50%, transparent));
   color: var(--text-primary);
 }
 
 .tab-btn.active {
   background: var(--harmony-primary);
   border-color: var(--harmony-primary);
-  color: #fff;
+  color: var(--text-on-primary);
 }
 
 /* Tab Content */
@@ -484,8 +484,10 @@ async function restoreEncryption() {
   padding: 24px;
 }
 
-.tab-content {
-  animation: fadeIn 0.2s ease;
+@media (prefers-reduced-motion: no-preference) {
+  .tab-content {
+    animation: fadeIn 0.2s ease;
+  }
 }
 
 @keyframes fadeIn {
@@ -499,7 +501,7 @@ async function restoreEncryption() {
 
 .description {
   color: var(--text-secondary);
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   line-height: 1.55;
   margin: 20px 0;
 }
@@ -509,14 +511,13 @@ async function restoreEncryption() {
   padding: 18px;
   background: var(--background-secondary);
   border: 1px solid var(--border-color);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   margin-bottom: 16px;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 
 .phrase-input-wrap.valid {
-  border-color: rgba(39, 174, 96, 0.4);
-  box-shadow: 0 0 0 1px rgba(39, 174, 96, 0.15);
+  border-color: color-mix(in srgb, var(--success) 40%, transparent);
 }
 
 .phrase-input-grid {
@@ -534,16 +535,16 @@ async function restoreEncryption() {
 
 .word-input label {
   font-size: 11px;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   color: var(--text-secondary);
   padding-left: 2px;
 }
 
 .word-input input {
   padding: 8px 12px;
-  background: var(--background-senary-alpha, rgba(10, 11, 13, 0.8));
+  background: var(--background-senary-alpha);
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   color: var(--text-primary);
   font-family: 'JetBrains Mono', monospace;
   font-size: 13px;
@@ -552,13 +553,13 @@ async function restoreEncryption() {
 }
 
 .word-input input:hover {
-  border-color: var(--border-hover, rgba(255,255,255,0.12));
+  border-color: var(--border-hover);
 }
 
 .word-input input:focus {
   outline: none;
   border-color: var(--harmony-primary);
-  box-shadow: 0 0 0 2px var(--harmony-primary-light, rgba(14, 165, 233, 0.15));
+  box-shadow: 0 0 0 2px var(--harmony-primary-alpha-strong);
 }
 
 /* Quick Actions */
@@ -575,29 +576,29 @@ async function restoreEncryption() {
 }
 
 .quick-actions .btn-secondary.btn-sm:hover {
-  background: var(--background-hover, rgba(255,255,255,0.04));
-  border-color: var(--border-hover, rgba(255,255,255,0.12));
+  background: var(--background-modifier-hover);
+  border-color: var(--border-hover);
   color: var(--text-primary);
 }
 
 /* Validation Message */
 .validation-message {
   padding: 10px 14px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   font-size: 13px;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
 }
 
 .validation-message:not(.error) {
-  background: rgba(39, 174, 96, 0.08);
-  border: 1px solid rgba(39, 174, 96, 0.25);
-  color: #3dbe6b;
+  background: color-mix(in srgb, var(--success) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--success) 25%, transparent);
+  color: var(--success);
 }
 
 .validation-message.error {
-  background: rgba(231, 76, 60, 0.08);
-  border: 1px solid rgba(231, 76, 60, 0.25);
-  color: #e74c3c;
+  background: color-mix(in srgb, var(--error) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--error) 25%, transparent);
+  color: var(--error);
 }
 
 /* QR Section */
@@ -617,16 +618,16 @@ async function restoreEncryption() {
   max-width: 320px;
   aspect-ratio: 1;
   object-fit: cover;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   border: 1px solid var(--border-color);
   background: #000;
 }
 
 .qr-scanner-placeholder {
   padding: 40px;
-  background: var(--bg-secondary, #2a2a3e);
-  border-radius: 12px;
-  border: 2px dashed var(--border-color, #444);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-lg);
+  border: 2px dashed var(--border-color);
   margin-bottom: 24px;
 }
 
@@ -637,12 +638,12 @@ async function restoreEncryption() {
 
 .qr-scanner-placeholder p {
   margin: 0;
-  color: var(--text-primary, #fff);
+  color: var(--text-primary);
 }
 
 .hint {
-  font-size: 12px;
-  color: var(--text-secondary, #888);
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
   margin-top: 8px;
 }
 
@@ -661,13 +662,13 @@ async function restoreEncryption() {
   content: '';
   flex: 1;
   height: 1px;
-  background: var(--border-color, #444);
+  background: var(--border-color);
 }
 
 .divider span {
   padding: 0 16px;
-  color: var(--text-secondary, #888);
-  font-size: 12px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
 }
 
 .qr-input {
@@ -676,52 +677,52 @@ async function restoreEncryption() {
 
 .qr-input label {
   display: block;
-  font-size: 14px;
-  color: var(--text-primary, #fff);
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
   margin-bottom: 8px;
 }
 
 .qr-input textarea {
   width: 100%;
   padding: 12px;
-  background: var(--bg-secondary, #2a2a3e);
-  border: 1px solid var(--border-color, #444);
-  border-radius: 8px;
-  color: var(--text-primary, #fff);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
   font-family: 'JetBrains Mono', monospace;
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   resize: vertical;
   margin-bottom: 8px;
 }
 
 .qr-input textarea:focus {
   outline: none;
-  border-color: var(--primary, #0EA5E9);
+  border-color: var(--harmony-primary);
 }
 
 /* Verification Section */
 .verification-section {
   margin-top: 24px;
   padding-top: 24px;
-  border-top: 1px solid var(--border-color, #333);
+  border-top: 1px solid var(--border-color);
 }
 
 .verification-section label {
   display: block;
-  font-size: 14px;
-  color: var(--text-primary, #fff);
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
   margin-bottom: 8px;
 }
 
 .verification-section input {
   width: 100%;
   padding: 12px;
-  background: var(--bg-secondary, #2a2a3e);
-  border: 1px solid var(--border-color, #444);
-  border-radius: 8px;
-  color: var(--text-primary, #fff);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
   font-family: 'JetBrains Mono', monospace;
-  font-size: 16px;
+  font-size: var(--font-size-base);
   text-transform: uppercase;
   letter-spacing: 2px;
 }
@@ -736,15 +737,15 @@ async function restoreEncryption() {
   justify-content: flex-end;
   gap: 12px;
   padding: 16px 24px;
-  border-top: 1px solid var(--border-color, #333);
+  border-top: 1px solid var(--border-color);
 }
 
 /* Buttons */
 .btn {
   padding: 12px 24px;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 500;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
   transition: all 0.2s;
   border: none;
@@ -759,22 +760,22 @@ async function restoreEncryption() {
 }
 
 .btn-primary {
-  background: var(--primary, #0EA5E9);
-  color: var(--text-primary);
+  background: var(--harmony-primary);
+  color: var(--text-on-primary);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: var(--primary-hover, #0284C7);
+  background: var(--harmony-primary-hover);
 }
 
 .btn-secondary {
-  background: var(--bg-secondary, #2a2a3e);
-  color: var(--text-primary, #fff);
-  border: 1px solid var(--border-color, #444);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background: var(--bg-tertiary, #3a3a4e);
+  background: var(--bg-tertiary);
 }
 
 .btn-sm {
@@ -785,8 +786,8 @@ async function restoreEncryption() {
 .btn-spinner {
   width: 16px;
   height: 16px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top-color: var(--text-primary);
+  border: 2px solid color-mix(in srgb, currentColor 30%, transparent);
+  border-top-color: currentColor;
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }

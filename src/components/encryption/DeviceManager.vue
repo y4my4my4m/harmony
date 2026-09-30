@@ -367,8 +367,8 @@ onMounted(async () => {
 .dm-this {
   font-size: 11px;
   font-weight: 600;
-  color: var(--primary, #0EA5E9);
-  background: rgba(14, 165, 233, 0.12);
+  color: var(--primary, var(--harmony-primary));
+  background: color-mix(in srgb, var(--harmony-primary) 12%, transparent);
   padding: 2px 6px;
   border-radius: 4px;
 }
@@ -383,7 +383,7 @@ onMounted(async () => {
 }
 
 .dm-trust.trust-verified { color: #27ae60; background: rgba(39, 174, 96, 0.12); }
-.dm-trust.trust-recovery { color: #0EA5E9; background: rgba(14, 165, 233, 0.12); }
+.dm-trust.trust-recovery { color: var(--harmony-primary); background: color-mix(in srgb, var(--harmony-primary) 12%, transparent); }
 .dm-trust.trust-account { color: #f1c40f; background: rgba(241, 196, 15, 0.12); }
 .dm-trust.trust-revoked,
 .dm-trust.trust-untrusted { color: #e74c3c; background: rgba(231, 76, 60, 0.12); }
@@ -422,8 +422,8 @@ onMounted(async () => {
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn-sm { padding: 6px 12px; }
 
-.btn-primary { background: var(--primary, #0EA5E9); color: #fff; }
-.btn-primary:hover:not(:disabled) { background: var(--primary-hover, #0284C7); }
+.btn-primary { background: var(--primary, var(--harmony-primary)); color: #fff; }
+.btn-primary:hover:not(:disabled) { background: var(--primary-hover, var(--harmony-primary-hover)); }
 
 .btn-secondary {
   background: var(--bg-tertiary, #3a3a4e);

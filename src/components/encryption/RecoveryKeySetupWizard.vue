@@ -4,7 +4,7 @@
       <!-- Header -->
       <div class="wizard-header">
         <h2>Set up message encryption</h2>
-        <button class="close-btn" @click="$emit('close')" :disabled="isProcessing">×</button>
+        <button class="close-btn" @click="$emit('close')" :disabled="isProcessing" aria-label="Close"><Icon name="x" :size="20" /></button>
       </div>
 
       <!-- Progress Steps -->
@@ -32,7 +32,7 @@
         <div v-if="currentStep === 0" class="step-content">
           <div class="intro-card">
             <div class="intro-icon"><Icon name="shield" :size="40" /></div>
-            <h3>End-to-End Encryption</h3>
+            <h3>End-to-end encryption</h3>
             <p>
               Your messages will be encrypted so only you and your recipients can read them.
               Not even Harmony's servers can access your message content.
@@ -42,17 +42,17 @@
           <div class="feature-grid">
             <div class="feature-card">
               <span class="feature-icon"><Icon name="key" :size="18" /></span>
-              <h4>Recovery Key</h4>
+              <h4>Recovery key</h4>
               <p>A 12-word phrase that protects all your encryption keys</p>
             </div>
             <div class="feature-card">
               <span class="feature-icon"><Icon name="database" :size="18" /></span>
-              <h4>Encrypted Backup</h4>
+              <h4>Encrypted backup</h4>
               <p>Your keys are backed up to the server, encrypted with your recovery key</p>
             </div>
             <div class="feature-card">
               <span class="feature-icon"><Icon name="smartphone" :size="18" /></span>
-              <h4>Multi-Device</h4>
+              <h4>Multi-device</h4>
               <p>Use your recovery key to access messages on any device</p>
             </div>
             <div class="feature-card">
@@ -128,7 +128,7 @@
             </div>
 
             <div class="verification-code" v-if="verificationCode">
-              <p>Verification Code: <strong>{{ verificationCode }}</strong></p>
+              <p>Verification code: <strong>{{ verificationCode }}</strong></p>
               <p class="hint">Save this code to verify you have the correct phrase later</p>
             </div>
           </div>
@@ -160,7 +160,7 @@
                   class="verify-status"
                   :class="{ correct: verifyInputs[pos].toLowerCase() === recoveryWords[pos]?.toLowerCase() }"
                 >
-                  {{ verifyInputs[pos].toLowerCase() === recoveryWords[pos]?.toLowerCase() ? '✓' : '✗' }}
+                  <Icon :name="verifyInputs[pos].toLowerCase() === recoveryWords[pos]?.toLowerCase() ? 'check' : 'x'" :size="16" />
                 </span>
               </div>
             </div>
@@ -175,14 +175,14 @@
         <div v-if="currentStep === 3" class="step-content">
           <div class="complete-section">
             <div class="success-icon"><Icon name="check-circle" :size="40" /></div>
-            <h3>Encryption Setup Complete!</h3>
+            <h3>Encryption is set up</h3>
             <p>
               Your end-to-end encryption is now active. Your messages will be encrypted
               and backed up securely to the server.
             </p>
 
             <div class="summary-card">
-              <h4>What's Set Up:</h4>
+              <h4>What's set up</h4>
               <ul>
                 <li>Recovery key generated and verified</li>
                 <li>Encryption keys created</li>
@@ -224,7 +224,7 @@
             Processing...
           </span>
           <span v-else>
-            {{ currentStep === 2 ? 'Complete Setup' : 'Continue' }} →
+            {{ currentStep === 2 ? 'Complete setup' : 'Continue' }} →
           </span>
         </button>
         <button 
@@ -336,7 +336,7 @@ async function copyRecoveryKey() {
   try {
     const text = recoveryWords.value.join(' ')
     await navigator.clipboard.writeText(text)
-    toast.success('Recovery key copied to clipboard')
+    toast.success('Recovery key copied')
   } catch (error) {
     toast.error('Failed to copy to clipboard')
   }
@@ -353,7 +353,7 @@ ${recoveryWords.value.map((word, i) => `${i + 1}. ${word}`).join('\n')}
 
 Verification Code: ${verificationCode.value}
 
-⚠️ IMPORTANT: Keep this file safe and private!
+IMPORTANT: Keep this file safe and private.
 Anyone with these words can access your encrypted messages.
 `
   
@@ -437,7 +437,7 @@ async function completeSetup() {
     await megolmMessageEncryptionService.completeSetupWithWords(recoveryWords.value)
 
     currentStep.value = 3
-    toast.success('Encryption setup complete!')
+    toast.success('Encryption is set up')
   } catch (error: any) {
     debug.error('Failed to complete setup:', error)
     toast.error(error.message || 'Failed to complete setup')
@@ -464,14 +464,14 @@ onMounted(() => {
 }
 
 .wizard-modal {
-  background: var(--bg-primary, #1a1a2e);
-  border-radius: 16px;
-  border: 1px solid var(--border-color, #333);
+  background: var(--bg-primary);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border-color);
   max-width: 700px;
   width: 100%;
   max-height: 90vh;
   overflow-y: auto;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--shadow-modal);
 }
 
 .wizard-header {
@@ -479,27 +479,27 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 24px;
-  border-bottom: 1px solid var(--border-color, #333);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .wizard-header h2 {
   margin: 0;
-  font-size: 24px;
-  color: var(--text-primary, #fff);
+  font-size: var(--font-size-2xl);
+  color: var(--text-primary);
 }
 
 .close-btn {
+  display: inline-flex;
   background: none;
   border: none;
-  font-size: 28px;
-  color: var(--text-secondary, #888);
+  color: var(--text-secondary);
   cursor: pointer;
   padding: 0;
   line-height: 1;
 }
 
 .close-btn:hover {
-  color: var(--text-primary, #fff);
+  color: var(--text-primary);
 }
 
 /* Progress Steps */
@@ -507,7 +507,7 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   padding: 24px 32px;
-  border-bottom: 1px solid var(--border-color, #333);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .step {
@@ -528,35 +528,35 @@ onMounted(() => {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: var(--bg-secondary, #2a2a3e);
-  border: 2px solid var(--border-color, #444);
+  background: var(--bg-secondary);
+  border: 2px solid var(--border-color);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 600;
-  color: var(--text-secondary, #888);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-secondary);
 }
 
 .step.active .step-indicator {
-  background: var(--primary, #0EA5E9);
-  border-color: var(--primary, #0EA5E9);
-  color: var(--text-primary);
+  background: var(--harmony-primary);
+  border-color: var(--harmony-primary);
+  color: var(--text-on-primary);
 }
 
 .step.completed .step-indicator {
-  background: var(--success, #27ae60);
-  border-color: var(--success, #27ae60);
-  color: var(--text-primary);
+  background: var(--success);
+  border-color: var(--success);
+  color: var(--text-on-primary);
 }
 
 .step-label {
-  font-size: 12px;
-  color: var(--text-secondary, #888);
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
 }
 
 .step.active .step-label {
-  color: var(--text-primary, #fff);
-  font-weight: 500;
+  color: var(--text-primary);
+  font-weight: var(--font-weight-medium);
 }
 
 /* Wizard Content */
@@ -565,8 +565,10 @@ onMounted(() => {
   min-height: 400px;
 }
 
-.step-content {
-  animation: fadeIn 0.3s ease;
+@media (prefers-reduced-motion: no-preference) {
+  .step-content {
+    animation: fadeIn 0.3s ease;
+  }
 }
 
 @keyframes fadeIn {
@@ -584,24 +586,25 @@ onMounted(() => {
 .intro-card {
   text-align: center;
   padding: 32px;
-  background: linear-gradient(135deg, rgba(14, 165, 233, 0.1) 0%, rgba(14, 165, 233, 0.05) 100%);
-  border-radius: 12px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-lg);
   margin-bottom: 24px;
 }
 
 .intro-icon {
   font-size: 48px;
   margin-bottom: 16px;
+  color: var(--harmony-primary);
 }
 
 .intro-card h3 {
   margin: 0 0 12px 0;
-  color: var(--text-primary, #fff);
+  color: var(--text-primary);
 }
 
 .intro-card p {
   margin: 0;
-  color: var(--text-secondary, #888);
+  color: var(--text-secondary);
   line-height: 1.6;
 }
 
@@ -615,8 +618,8 @@ onMounted(() => {
 
 .feature-card {
   padding: 20px;
-  background: var(--bg-secondary, #2a2a3e);
-  border-radius: 12px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-lg);
   text-align: center;
 }
 
@@ -628,14 +631,14 @@ onMounted(() => {
 
 .feature-card h4 {
   margin: 0 0 8px 0;
-  font-size: 14px;
-  color: var(--text-primary, #fff);
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
 }
 
 .feature-card p {
   margin: 0;
-  font-size: 12px;
-  color: var(--text-secondary, #888);
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
   line-height: 1.5;
 }
 
@@ -644,20 +647,21 @@ onMounted(() => {
   display: flex;
   gap: 12px;
   padding: 16px;
-  background: rgba(241, 196, 15, 0.1);
-  border: 1px solid rgba(241, 196, 15, 0.3);
-  border-radius: 8px;
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warning) 30%, transparent);
+  border-radius: var(--radius-md);
 }
 
 .warning-icon {
-  font-size: 24px;
+  font-size: var(--font-size-2xl);
   flex-shrink: 0;
+  color: var(--warning);
 }
 
 .warning-box p {
   margin: 0;
-  font-size: 14px;
-  color: var(--text-primary, #fff);
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
   line-height: 1.5;
 }
 
@@ -668,11 +672,11 @@ onMounted(() => {
 
 .recovery-key-section h3 {
   margin: 0 0 8px 0;
-  color: var(--text-primary, #fff);
+  color: var(--text-primary);
 }
 
 .instruction {
-  color: var(--text-secondary, #888);
+  color: var(--text-secondary);
   margin-bottom: 24px;
 }
 
@@ -697,9 +701,9 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
   padding: 12px 16px;
-  background: var(--bg-secondary, #2a2a3e);
-  border-radius: 8px;
-  border: 1px solid var(--border-color, #444);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
   min-width: 0;
 }
 
@@ -714,29 +718,29 @@ onMounted(() => {
 .qr-code-image {
   width: 220px;
   height: 220px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: #fff;
   padding: 8px;
 }
 
 .qr-code-panel .hint {
-  font-size: 12px;
-  color: var(--text-secondary, #888);
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
   text-align: center;
   max-width: 320px;
 }
 
 .word-number {
-  font-size: 12px;
-  color: var(--text-secondary, #888);
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
   min-width: 20px;
 }
 
 .word {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 14px;
-  color: var(--text-primary, #fff);
-  font-weight: 500;
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+  font-weight: var(--font-weight-medium);
 }
 
 /* Action Buttons */
@@ -750,19 +754,19 @@ onMounted(() => {
 /* Verification Code */
 .verification-code {
   padding: 16px;
-  background: var(--bg-secondary, #2a2a3e);
-  border-radius: 8px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
 }
 
 .verification-code p {
   margin: 0;
-  font-size: 14px;
-  color: var(--text-primary, #fff);
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
 }
 
 .verification-code .hint {
-  font-size: 12px;
-  color: var(--text-secondary, #888);
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
   margin-top: 4px;
 }
 
@@ -786,41 +790,42 @@ onMounted(() => {
 }
 
 .verify-input label {
-  font-size: 14px;
-  color: var(--text-secondary, #888);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
 }
 
 .verify-input input {
   padding: 12px 16px;
-  background: var(--bg-secondary, #2a2a3e);
-  border: 1px solid var(--border-color, #444);
-  border-radius: 8px;
-  color: var(--text-primary, #fff);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
   font-family: 'JetBrains Mono', monospace;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   width: 150px;
 }
 
 .verify-input input:focus {
   outline: none;
-  border-color: var(--primary, #0EA5E9);
+  border-color: var(--harmony-primary);
 }
 
 .verify-status {
   position: absolute;
   right: 12px;
   top: 50%;
-  font-size: 18px;
-  color: var(--danger, #e74c3c);
+  display: inline-flex;
+  font-size: var(--font-size-lg);
+  color: var(--error);
 }
 
 .verify-status.correct {
-  color: var(--success, #27ae60);
+  color: var(--success);
 }
 
 .error-message {
-  color: var(--danger, #e74c3c);
-  font-size: 14px;
+  color: var(--error);
+  font-size: var(--font-size-sm);
   margin-top: 16px;
 }
 
@@ -832,31 +837,32 @@ onMounted(() => {
 .success-icon {
   font-size: 64px;
   margin-bottom: 16px;
+  color: var(--success);
 }
 
 .complete-section h3 {
   margin: 0 0 12px 0;
-  color: var(--text-primary, #fff);
-  font-size: 24px;
+  color: var(--text-primary);
+  font-size: var(--font-size-2xl);
 }
 
 .complete-section > p {
-  color: var(--text-secondary, #888);
+  color: var(--text-secondary);
   margin-bottom: 32px;
   line-height: 1.6;
 }
 
 .summary-card {
   padding: 24px;
-  background: var(--bg-secondary, #2a2a3e);
-  border-radius: 12px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-lg);
   text-align: left;
   margin-bottom: 24px;
 }
 
 .summary-card h4 {
   margin: 0 0 16px 0;
-  color: var(--text-primary, #fff);
+  color: var(--text-primary);
 }
 
 .summary-card ul {
@@ -867,29 +873,29 @@ onMounted(() => {
 
 .summary-card li {
   padding: 8px 0;
-  color: var(--success, #27ae60);
-  font-size: 14px;
+  color: var(--success);
+  font-size: var(--font-size-sm);
 }
 
 .reminder-box {
   display: flex;
   gap: 12px;
   padding: 16px;
-  background: rgba(14, 165, 233, 0.1);
-  border: 1px solid rgba(14, 165, 233, 0.3);
-  border-radius: 8px;
+  background: color-mix(in srgb, var(--harmony-primary) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--harmony-primary) 30%, transparent);
+  border-radius: var(--radius-md);
   text-align: left;
 }
 
 .reminder-icon {
-  font-size: 24px;
+  font-size: var(--font-size-2xl);
   flex-shrink: 0;
 }
 
 .reminder-box p {
   margin: 0;
-  font-size: 14px;
-  color: var(--text-primary, #fff);
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
   line-height: 1.5;
 }
 
@@ -898,7 +904,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   padding: 20px 24px;
-  border-top: 1px solid var(--border-color, #333);
+  border-top: 1px solid var(--border-color);
 }
 
 .spacer {
@@ -908,9 +914,9 @@ onMounted(() => {
 /* Buttons */
 .btn {
   padding: 12px 24px;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 500;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
   transition: all 0.2s;
   border: none;
@@ -925,29 +931,29 @@ onMounted(() => {
 }
 
 .btn-primary {
-  background: var(--primary, #0EA5E9);
-  color: var(--text-primary);
+  background: var(--harmony-primary);
+  color: var(--text-on-primary);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: var(--primary-hover, #0284C7);
+  background: var(--harmony-primary-hover);
 }
 
 .btn-secondary {
-  background: var(--bg-secondary, #2a2a3e);
-  color: var(--text-primary, #fff);
-  border: 1px solid var(--border-color, #444);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background: var(--bg-tertiary, #3a3a4e);
+  background: var(--bg-tertiary);
 }
 
 .btn-spinner {
   width: 16px;
   height: 16px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top-color: var(--text-primary);
+  border: 2px solid color-mix(in srgb, currentColor 30%, transparent);
+  border-top-color: currentColor;
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }

@@ -177,23 +177,23 @@ onMounted(async () => {
   width: 360px;
   max-width: calc(100vw - 40px);
   padding: 16px;
-  background: var(--bg-primary, #1a1a2e);
-  border: 1px solid var(--warning, #f1c40f);
-  border-radius: 12px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  background: var(--background-floating);
+  border: 1px solid var(--warning);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-large);
 }
 
 .device-approval-card-waiting {
-  border-color: var(--accent, #5865f2);
+  border-color: var(--harmony-primary);
 }
 
 .dap-icon {
   flex-shrink: 0;
-  color: var(--warning, #f1c40f);
+  color: var(--warning);
 }
 
 .device-approval-card-waiting .dap-icon {
-  color: var(--accent, #5865f2);
+  color: var(--harmony-primary);
 }
 
 .dap-body {
@@ -203,13 +203,13 @@ onMounted(async () => {
 
 .dap-title {
   display: block;
-  color: var(--text-primary, #fff);
+  color: var(--text-primary);
   font-size: 15px;
   margin-bottom: 4px;
 }
 
 .dap-text {
-  color: var(--text-secondary, #aaa);
+  color: var(--text-secondary);
   font-size: 13px;
   line-height: 1.45;
   margin: 0 0 12px 0;
@@ -223,9 +223,9 @@ onMounted(async () => {
 .dap-btn {
   flex: 1;
   padding: 8px 10px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   font-size: 13px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   cursor: pointer;
   border: none;
   transition: background 0.15s;
@@ -237,28 +237,28 @@ onMounted(async () => {
 }
 
 .dap-btn-approve {
-  background: var(--success, #27ae60);
-  color: #fff;
+  background: var(--success);
+  color: var(--text-on-primary);
 }
 
 .dap-btn-approve:hover:not(:disabled) {
-  background: #219150;
+  background: var(--success-hover);
 }
 
 .dap-btn-deny {
-  background: var(--bg-secondary, #2a2a3e);
-  color: var(--text-primary, #fff);
-  border: 1px solid var(--border-color, #444);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
 }
 
 .dap-btn-deny:hover:not(:disabled) {
-  background: var(--bg-tertiary, #3a3a4e);
+  background: var(--bg-tertiary);
 }
 
 .dap-more {
   margin: 10px 0 0 0;
-  font-size: 12px;
-  color: var(--text-secondary, #888);
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
 }
 
 .device-approval-fade-enter-active,

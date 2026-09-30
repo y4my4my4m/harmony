@@ -46,7 +46,7 @@
          hovering it - just always discoverable. -->
     <div class="context-menu-item" @click="openEmojiPicker">
       <ReactionIcon />
-      <span>Add Reaction</span>
+      <span>Add reaction</span>
     </div>
 
     <div v-if="canReply" class="context-menu-item" @click="reply">
@@ -56,19 +56,19 @@
 
     <div v-if="canEdit" class="context-menu-item" @click="edit">
       <EditIcon />
-      <span>Edit Message</span>
+      <span>Edit message</span>
     </div>
 
     <div v-if="canCreateThread" class="context-menu-item" @click="createThread">
       <ThreadIcon />
-      <span>Create Thread</span>
+      <span>Create thread</span>
     </div>
 
     <div class="context-menu-divider"></div>
 
     <div v-if="hasTextContent" class="context-menu-item" @click="copyText">
       <Icon name="copy" size="sm" />
-      <span>Copy Text</span>
+      <span>Copy text</span>
     </div>
 
     <!-- Image-specific actions. When the message has multiple image
@@ -79,26 +79,26 @@
     <template v-if="firstImageAttachment">
       <div class="context-menu-item" @click="copyImage">
         <Icon name="copy" size="sm" />
-        <span>Copy Image</span>
+        <span>Copy image</span>
       </div>
 
       <div class="context-menu-item" @click="saveImage">
         <Icon name="download" size="sm" />
-        <span>Save Image</span>
+        <span>Save image</span>
       </div>
     </template>
 
     <template v-if="firstVideoAttachment">
       <div class="context-menu-item" @click="saveVideo">
         <Icon name="download" size="sm" />
-        <span>Save Video</span>
+        <span>Save video</span>
       </div>
     </template>
 
     <template v-if="firstAudioAttachment">
       <div class="context-menu-item" @click="saveAudio">
         <Icon name="download" size="sm" />
-        <span>Save Audio</span>
+        <span>Save audio</span>
       </div>
     </template>
 
@@ -111,13 +111,13 @@
 
     <div class="context-menu-item" @click="copyMessageURL">
       <Icon name="link" size="sm" />
-      <span>Copy Message URL</span>
+      <span>Copy message link</span>
     </div>
 
     <template v-if="canPin">
       <div class="context-menu-item" @click="togglePin">
         <Icon :name="isPinned ? 'pin-off' : 'pin'" size="sm" />
-        <span>{{ isPinned ? 'Unpin Message' : 'Pin Message' }}</span>
+        <span>{{ isPinned ? 'Unpin message' : 'Pin message' }}</span>
       </div>
     </template>
 
@@ -128,12 +128,12 @@
 
       <div v-if="canDelete" class="context-menu-item destructive-item" @click="deleteMessage">
         <DeleteIcon />
-        <span>Delete Message</span>
+        <span>Delete message</span>
       </div>
 
       <div v-if="canReport" class="context-menu-item destructive-item" @click="reportMessage">
         <Icon name="flag" size="sm" />
-        <span>Report Message</span>
+        <span>Report message</span>
       </div>
     </template>
 
@@ -178,7 +178,7 @@ interface Props {
   threadId?: string;
   conversationId?: string;
   currentUserId?: string;
-  /** When true, hide the "Create Thread" item (e.g. inside a thread view). */
+  /** When true, hide the "Create thread" item (e.g. inside a thread view). */
   hideThreadActions?: boolean;
   /** Caller-supplied permission flags. The toolbar already has the same
       checks via canEditMessage / canDeleteMessage in MessageDisplay; passing
@@ -610,12 +610,12 @@ const copyRawData = async () => {
 <style scoped>
 .context-menu {
   position: fixed;
+  background: var(--background-floating);
   border: 1px solid var(--border-color);
-  backdrop-filter: blur(8px);
   border-radius: 6px;
   padding: 6px 0;
   min-width: 200px;
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
+  box-shadow: var(--shadow-large);
   /* Must out-stack the mobile floating message-actions toolbar
      (.message-actions-floating, z-index 1000) - both are portaled to
      body, so DOM order alone isn't enough to guarantee we paint on top. */
@@ -647,8 +647,7 @@ const copyRawData = async () => {
 }
 
 .quick-reaction-btn:hover {
-  background-color: rgba(255, 255, 255, 0.1);
-  transform: scale(1.15);
+  background-color: var(--background-modifier-hover);
 }
 
 .quick-reaction-custom-emoji {
@@ -689,7 +688,7 @@ const copyRawData = async () => {
 
 .context-menu-item:hover {
   background-color: var(--harmony-primary);
-  color: var(--text-primary);
+  color: var(--text-on-primary);
 }
 
 .context-menu-divider {
@@ -701,12 +700,12 @@ const copyRawData = async () => {
 /* Destructive items (Delete, Report) read in red and switch to a
    solid-red hover so the user gets a clear "this is dangerous" cue. */
 .context-menu-item.destructive-item {
-  color: var(--error, #ed4245);
+  color: var(--error);
 }
 
 .context-menu-item.destructive-item:hover {
-  background-color: #ed4245;
-  color: #fff;
+  background-color: var(--error);
+  color: var(--text-on-primary);
 }
 </style>
 

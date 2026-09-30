@@ -605,7 +605,7 @@ const closeModal = () => {
 }
 
 .download-btn {
-  color: var(--h-brand, #0EA5E9);
+  color: var(--h-brand, var(--harmony-primary));
   text-decoration: none;
   padding: 0.5rem;
   border-radius: 6px;
@@ -613,7 +613,7 @@ const closeModal = () => {
 }
 
 .download-btn:hover {
-  background: rgba(14, 165, 233, 0.1);
+  background: color-mix(in srgb, var(--harmony-primary) 10%, transparent);
 }
 
 .sensitive-overlay {

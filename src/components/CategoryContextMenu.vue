@@ -102,13 +102,12 @@ const deleteCategory = () => {
 <style scoped>
 .context-menu {
   position: fixed;
-  background: var(--background-primary-alpha);
+  background: var(--background-floating);
   border: 1px solid var(--border-color);
-  backdrop-filter: blur(8px);
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   padding: 6px 0;
   min-width: 160px;
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
+  box-shadow: var(--shadow-large);
   z-index: 1000;
 }
 
@@ -119,22 +118,22 @@ const deleteCategory = () => {
   padding: 8px 12px;
   color: var(--text-secondary);
   cursor: pointer;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   transition: background-color 0.1s ease;
 }
 
 .context-menu-item:hover {
   background-color: var(--harmony-primary);
-  color: var(--text-primary);
+  color: var(--text-on-primary);
 }
 
 .context-menu-item.danger {
-  color: #ed4245;
+  color: var(--error);
 }
 
 .context-menu-item.danger:hover {
-  background-color: #ed4245;
-  color: var(--text-primary);
+  background-color: var(--error);
+  color: var(--text-on-primary);
 }
 
 .context-menu-divider {

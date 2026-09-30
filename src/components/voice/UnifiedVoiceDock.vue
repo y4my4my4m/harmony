@@ -107,7 +107,7 @@
             active: spatialStore.isPanelVisible,
             'spatial-enabled': spatialStore.settings.enabled
           }]"
-          :title="spatialStore.settings.enabled ? 'Spatial Audio: ON' : 'Spatial Audio: OFF'"
+          :title="spatialStore.settings.enabled ? 'Spatial audio on' : 'Spatial audio off'"
         >
           <Icon name="audio-lines" />
         </button>
@@ -115,7 +115,7 @@
         <button
           @click="toggleSettings"
           :class="['control-btn', 'settings-btn', { active: showSettings }]"
-          title="Voice Settings"
+          title="Voice settings"
         >
           <Icon name="settings" />
         </button>
@@ -1210,20 +1210,15 @@ onUnmounted(() => {
    ============================================================================= */
 
 .dock-container {
-  /* background: linear-gradient(145deg, var(--background-tertiary), var(--background-secondary));  */
-  background: linear-gradient(145deg, color-mix(in srgb, var(--background-tertiary) 39%, transparent), color-mix(in srgb, var(--background-secondary) 35%, transparent));
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
+  background: var(--background-floating);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
   padding: 16px;
   display: flex;
   align-items: center;
   gap: 16px;
   min-width: 400px;
-  box-shadow: 
-    0 8px 32px rgba(0, 0, 0, 0.6),
-    0 4px 16px rgba(0, 0, 0, 0.4),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(20px);
+  box-shadow: var(--shadow-large);
   transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
   margin-bottom: 80px;
   cursor: grab;
@@ -1232,15 +1227,6 @@ onUnmounted(() => {
 
 .dock-container * {
   cursor: inherit;
-}
-
-.dock-container:hover:not(.is-dragging) {
-  background: linear-gradient(145deg, color-mix(in srgb, var(--background-secondary) 39%, transparent), color-mix(in srgb, var(--background-quinary) 35%, transparent));
-  transform: translateY(-2px);
-  box-shadow: 
-    0 12px 40px rgba(0, 0, 0, 0.7),
-    0 6px 20px rgba(0, 0, 0, 0.5),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
 .dock-container.is-dragging {
@@ -1277,8 +1263,7 @@ onUnmounted(() => {
 }
 
 .user-avatar.speaking {
-  border-color: #00d4aa;
-  box-shadow: 0 0 20px rgba(0, 212, 170, 0.4);
+  border-color: var(--success);
 }
 
 .voice-ring {
@@ -1299,13 +1284,13 @@ onUnmounted(() => {
 
 .voice-ring-bg {
   fill: none;
-  stroke: rgba(0, 212, 170, 0.3);
+  stroke: color-mix(in srgb, var(--success) 30%, transparent);
   stroke-width: 2;
 }
 
 .voice-ring-active {
   fill: none;
-  stroke: #00d4aa;
+  stroke: var(--success);
   stroke-width: 2.5;
   stroke-linecap: round;
   stroke-dasharray: 283; /* Circumference of a circle with r=45 */
@@ -1321,10 +1306,9 @@ onUnmounted(() => {
 }
 
 .user-name {
-  /* color: var(--text-primary); */
   color: var(--text-primary);
   font-weight: 600;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1346,19 +1330,19 @@ onUnmounted(() => {
   font-size: 9px;
   font-weight: 700;
   padding: 0 4px;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   line-height: 14px;
   flex-shrink: 0;
 }
 
 .dock-connection-badge.livekit {
-  background: rgba(87, 242, 135, 0.2);
-  color: #57f287;
+  background: color-mix(in srgb, var(--success) 20%, transparent);
+  color: var(--success);
 }
 
 .dock-connection-badge.p2p {
-  background: rgba(14, 165, 233, 0.2);
-  color: #0EA5E9;
+  background: color-mix(in srgb, var(--harmony-primary) 20%, transparent);
+  color: var(--harmony-primary);
 }
 
 
@@ -1371,9 +1355,8 @@ onUnmounted(() => {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(0, 0, 0, 0.3);
-  /* color: var(--text-secondary); */
+  border: 1px solid var(--border-primary);
+  background: var(--background-modifier-hover);
   color: var(--text-secondary);
   cursor: pointer !important; /* Overrides the dock's grab cursor */
   transition: all 0.2s ease;
@@ -1381,28 +1364,24 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   font-size: 14px;
-  backdrop-filter: blur(10px);
 }
 
 .control-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--background-modifier-active);
   color: var(--text-primary);
-  border-color: rgba(255, 255, 255, 0.3);
-  transform: scale(1.05);
+  border-color: var(--border-hover);
 }
 
 .control-btn.active {
-  background: linear-gradient(145deg, #00d4aa, #00b894);
-  color: var(--text-primary);
-  border-color: rgba(0, 212, 170, 0.6);
-  box-shadow: 0 4px 12px rgba(0, 212, 170, 0.3);
+  background: var(--success);
+  color: var(--text-on-primary);
+  border-color: var(--success);
 }
 
 .control-btn.muted {
-  background: linear-gradient(145deg, #ed4245, #c73e1d);
-  color: var(--text-primary);
-  border-color: rgba(237, 66, 69, 0.6);
-  box-shadow: 0 4px 12px rgba(237, 66, 69, 0.3);
+  background: var(--error);
+  color: var(--text-on-primary);
+  border-color: var(--error);
 }
 
 .control-btn.ptt-mode {
@@ -1410,20 +1389,9 @@ onUnmounted(() => {
 }
 
 .control-btn.ptt-active {
-  background: linear-gradient(145deg, #00d4aa, #00b894) !important;
-  color: var(--text-primary) !important;
-  border-color: rgba(0, 212, 170, 0.6) !important;
-  box-shadow: 0 4px 12px rgba(0, 212, 170, 0.4), 0 0 20px rgba(0, 212, 170, 0.3) !important;
-  animation: ptt-pulse 0.5s ease-in-out infinite;
-}
-
-@keyframes ptt-pulse {
-  0%, 100% {
-    box-shadow: 0 4px 12px rgba(0, 212, 170, 0.4), 0 0 20px rgba(0, 212, 170, 0.3);
-  }
-  50% {
-    box-shadow: 0 4px 16px rgba(0, 212, 170, 0.6), 0 0 30px rgba(0, 212, 170, 0.4);
-  }
+  background: var(--success) !important;
+  color: var(--text-on-primary) !important;
+  border-color: var(--success) !important;
 }
 
 .ptt-indicator {
@@ -1433,16 +1401,16 @@ onUnmounted(() => {
   font-size: 8px;
   font-weight: 700;
   padding: 2px 4px;
-  background: rgba(0, 0, 0, 0.6);
-  color: #888;
-  border-radius: 4px;
+  background: var(--background-tertiary);
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
 .ptt-indicator.active {
-  background: #00d4aa;
-  color: var(--text-primary);
+  background: var(--success);
+  color: var(--text-on-primary);
 }
 
 .dock-container:has(.dock-ptt-btn) {
@@ -1455,10 +1423,9 @@ onUnmounted(() => {
 }
 
 .control-btn.deafened {
-  background: linear-gradient(145deg, #faa61a, #e67e22);
-  color: var(--text-primary);
-  border-color: rgba(250, 166, 26, 0.6);
-  box-shadow: 0 4px 12px rgba(250, 166, 26, 0.3);
+  background: var(--warning);
+  color: var(--text-inverse);
+  border-color: var(--warning);
 }
 
 .control-btn.spatial-btn {
@@ -1466,21 +1433,20 @@ onUnmounted(() => {
 }
 
 .control-btn.spatial-enabled {
-  background: linear-gradient(145deg, #00d4aa, #00b894);
-  color: var(--text-primary);
-  border-color: rgba(0, 212, 170, 0.6);
-  box-shadow: 0 0 10px rgba(0, 212, 170, 0.4);
+  background: var(--success);
+  color: var(--text-on-primary);
+  border-color: var(--success);
 }
 
 .control-btn.spatial-enabled:hover {
-  background: linear-gradient(145deg, #00e5b8, #00c9a0);
+  background: var(--success-hover);
 }
 
 .dock-video-preview {
   position: relative;
   width: 64px;
   height: 48px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   overflow: hidden;
   background: #000;
   cursor: pointer !important;
@@ -1490,9 +1456,7 @@ onUnmounted(() => {
 }
 
 .dock-video-preview:hover {
-  transform: scale(1.05);
   border-color: color-mix(in srgb, var(--harmony-primary) 80%, transparent);
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--harmony-primary) 30%, transparent);
 }
 
 .dock-video {
@@ -1505,9 +1469,9 @@ onUnmounted(() => {
   position: absolute;
   bottom: 2px;
   right: 2px;
-  background: rgba(87, 242, 135, 0.9);
-  color: #000;
-  border-radius: 4px;
+  background: var(--success);
+  color: var(--text-on-primary);
+  border-radius: var(--radius-sm);
   padding: 2px 4px;
   font-size: 10px;
   display: flex;
@@ -1525,22 +1489,10 @@ onUnmounted(() => {
   gap: 6px;
 }
 
-.expand-btn:hover {
-  background: linear-gradient(145deg, #0EA5E9, #0284C7);
-  color: var(--text-primary);
-  border-color: rgba(14, 165, 233, 0.6);
-}
-
-.minimize-btn:hover {
-  background: linear-gradient(145deg, #faa61a, #e67e22);
-  color: var(--text-primary);
-  border-color: rgba(250, 166, 26, 0.6);
-}
-
 .leave-btn:hover {
-  background: linear-gradient(145deg, #ed4245, #c73e1d);
-  color: var(--text-primary);
-  border-color: rgba(237, 66, 69, 0.6);
+  background: var(--error);
+  color: var(--text-on-primary);
+  border-color: var(--error);
 }
 
 /* =============================================================================
@@ -1550,29 +1502,16 @@ onUnmounted(() => {
 .minimized-container {
   position: relative;
   z-index: 200;
-  /* background: linear-gradient(145deg, var(--background-tertiary), var(--background-secondary)); */
-  background: linear-gradient(145deg, color-mix(in srgb, var(--background-tertiary) 39%, transparent), color-mix(in srgb, var(--background-secondary) 35%, transparent));
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
+  background: var(--background-floating);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
   padding: 12px 16px;
   cursor: pointer;
   transition: all 0.3s ease;
   width: 343px; /* Channel sidebar width */
   box-sizing: border-box;
-  box-shadow: 
-    0 6px 20px rgba(0, 0, 0, 0.4),
-    0 2px 8px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-medium);
   margin-bottom: 0;
-}
-
-.minimized-container:hover:not(.is-dragging) {
-  /* background: linear-gradient(145deg, var(--background-secondary), var(--background-quinary)); */
-  background: linear-gradient(145deg, color-mix(in srgb, var(--background-secondary) 39%, transparent), color-mix(in srgb, var(--background-quinary) 35%, transparent));
-  transform: translateY(-1px);
-  box-shadow: 
-    0 8px 25px rgba(0, 0, 0, 0.5),
-    0 3px 10px rgba(0, 0, 0, 0.4);
 }
 
 .minimized-container.is-dragging {
@@ -1586,7 +1525,7 @@ onUnmounted(() => {
   position: relative;
   width: 100%;
   max-height: 200px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   overflow: hidden;
   margin-bottom: 10px;
   background: #000;
@@ -1624,7 +1563,7 @@ onUnmounted(() => {
 .mini-pip-btn {
   background: rgba(255, 255, 255, 0.2);
   border: none;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   padding: 4px 6px;
   color: var(--text-primary);
   cursor: pointer;
@@ -1634,7 +1573,6 @@ onUnmounted(() => {
 
 .mini-pip-btn:hover {
   background: rgba(255, 255, 255, 0.3);
-  transform: scale(1.05);
 }
 
 .minimized-content {
@@ -1671,9 +1609,9 @@ onUnmounted(() => {
 }
 
 .channel-icon {
-  background: rgba(14, 165, 233, 0.2);
-  border-radius: 10px;
-  color: #0EA5E9;
+  background: color-mix(in srgb, var(--harmony-primary) 20%, transparent);
+  border-radius: var(--radius-md);
+  color: var(--harmony-primary);
   width: 24px;
   height: 24px;
   padding: 4px;
@@ -1693,10 +1631,10 @@ onUnmounted(() => {
 }
 
 .participant-count {
-  background: rgba(14, 165, 233, 0.2);
-  color: #0EA5E9;
+  background: color-mix(in srgb, var(--harmony-primary) 20%, transparent);
+  color: var(--harmony-primary);
   padding: 2px 6px;
-  border-radius: 10px;
+  border-radius: var(--radius-full);
   font-size: 12px;
   font-weight: 600;
   min-width: 20px;
@@ -1717,8 +1655,8 @@ onUnmounted(() => {
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--border-primary);
+  background: var(--background-modifier-hover);
   color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s ease;
@@ -1729,33 +1667,38 @@ onUnmounted(() => {
 }
 
 .mini-control-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--background-modifier-active);
   color: var(--text-primary);
-  border-color: rgba(255, 255, 255, 0.3);
+  border-color: var(--border-hover);
 }
 
 .mini-control-btn.muted {
-  background: linear-gradient(145deg, #ed4245, #c73e1d);
-  color: var(--text-primary);
-  border-color: rgba(237, 66, 69, 0.6);
+  background: var(--error);
+  color: var(--text-on-primary);
+  border-color: var(--error);
 }
 
 .mini-control-btn.ptt-active {
-  background: linear-gradient(145deg, #00d4aa, #00b894);
-  color: var(--text-primary);
-  border-color: rgba(0, 212, 170, 0.6);
+  background: var(--success);
+  color: var(--text-on-primary);
+  border-color: var(--success);
 }
 
 .mini-control-btn.deafened {
-  background: linear-gradient(145deg, #faa61a, #e67e22);
-  color: var(--text-primary);
-  border-color: rgba(250, 166, 26, 0.6);
+  background: var(--warning);
+  color: var(--text-inverse);
+  border-color: var(--warning);
 }
 
 .mini-control-btn.leave {
-  background: linear-gradient(145deg, #ed4245, #c73e1d);
-  color: var(--text-primary);
-  border-color: rgba(237, 66, 69, 0.6);
+  background: var(--error);
+  color: var(--text-on-primary);
+  border-color: var(--error);
+}
+
+.mini-control-btn.leave:hover {
+  background: var(--error-hover);
+  border-color: var(--error-hover);
 }
 
 /* Participants dropdown: sits outside and below the container */
@@ -1767,11 +1710,10 @@ onUnmounted(() => {
 .participants-dropdown-btn {
   width: 40px;
   height: 20px;
-  border-radius: 0 0 10px 10px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  border: 1px solid var(--border-primary);
   border-top: none;
-  background: linear-gradient(145deg, color-mix(in srgb, var(--background-tertiary) 39%, transparent), color-mix(in srgb, var(--background-secondary) 35%, transparent));
-  backdrop-filter: blur(8px);
+  background: var(--background-floating);
   color: var(--text-secondary);
   cursor: pointer;
   display: flex;
@@ -1781,21 +1723,19 @@ onUnmounted(() => {
   padding: 0;
   font-size: 10px;
   pointer-events: auto;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-small);
 }
 
 .participants-dropdown-btn:hover:not(.active) {
-  background: linear-gradient(145deg, color-mix(in srgb, var(--background-secondary) 39%, transparent), color-mix(in srgb, var(--background-quinary) 35%, transparent));
+  background: color-mix(in srgb, var(--background-floating) 94%, var(--text-primary));
   color: var(--text-primary);
-  border-color: rgba(255, 255, 255, 0.3);
-  transform: translateY(2px);
+  border-color: var(--border-hover);
 }
 
 .participants-dropdown-btn.active {
-  background: linear-gradient(145deg, color-mix(in srgb, var(--background-secondary) 39%, transparent), color-mix(in srgb, var(--background-quinary) 35%, transparent));
+  background: color-mix(in srgb, var(--background-floating) 90%, var(--text-primary));
   color: var(--text-primary);
-  border-color: rgba(255, 255, 255, 0.4);
-  transform: translateY(2px);
+  border-color: var(--border-hover);
 }
 
 .participants-dropdown-btn .rotated {
@@ -1810,13 +1750,10 @@ onUnmounted(() => {
   width: 300px;
   max-height: 400px;
   overflow-y: auto;
-  background: linear-gradient(145deg, color-mix(in srgb, var(--background-tertiary) 39%, transparent), color-mix(in srgb, var(--background-secondary) 35%, transparent));
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
-  box-shadow: 
-    0 8px 32px rgba(0, 0, 0, 0.6),
-    0 4px 16px rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(20px);
+  background: var(--background-floating);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-large);
   z-index: 101;
   pointer-events: auto;
   margin-top: 4px;
@@ -1875,16 +1812,6 @@ onUnmounted(() => {
   transform: translateX(-50%) translateY(-20px);
   max-height: 0;
   margin-top: 0;
-}
-
-/* =============================================================================
-   ANIMATIONS
-   ============================================================================= */
-
-@keyframes pulse-ring {
-  0% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.1); opacity: 0.7; }
-  100% { transform: scale(1.2); opacity: 0; }
 }
 
 /* =============================================================================
@@ -1959,12 +1886,12 @@ onUnmounted(() => {
     gap: 6px;
     cursor: pointer;
     padding: 4px 8px;
-    border-radius: 8px;
+    border-radius: var(--radius-md);
     transition: background 0.2s ease;
   }
-  
+
   .user-section:active {
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--background-modifier-active);
   }
   
   .user-avatar-container {
@@ -1990,7 +1917,7 @@ onUnmounted(() => {
   .channel-name {
     font-size: 11px;
     text-align: center;
-    color: #00d4aa;
+    color: var(--success);
   }
   
   .voice-controls {
@@ -2028,18 +1955,9 @@ onUnmounted(() => {
 }
 
 /* Connecting state */
-.unified-voice-dock.is-connecting {
-  animation: connecting-pulse 1.5s ease-in-out infinite;
-}
-
 .unified-voice-dock.is-connecting .channel-name::after {
   content: '...';
   animation: connecting-dots 1.5s ease-in-out infinite;
-}
-
-@keyframes connecting-pulse {
-  /* 0%, 100% { opacity: 1;} */
-  /* 50% { opacity: 0.7; } */
 }
 
 @keyframes connecting-dots {
@@ -2053,7 +1971,7 @@ onUnmounted(() => {
   width: 10px;
   height: 10px;
   border: 2px solid rgba(255, 255, 255, 0.25);
-  border-top-color: var(--harmony-primary, #00d4aa);
+  border-top-color: var(--harmony-primary);
   border-radius: 50%;
   animation: dock-spin 0.8s linear infinite;
   vertical-align: middle;

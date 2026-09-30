@@ -110,7 +110,7 @@
       >
         <div class="status-dot" :class="status.class"></div>
         <span class="status-text">{{ status.label }}</span>
-        <span v-if="currentStatus === status.value" class="checkmark">✓</span>
+        <Icon v-if="currentStatus === status.value" name="check" :size="14" class="checkmark" />
       </div>
     </div>
     
@@ -394,12 +394,10 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   width: 345px;
   background: var(--background-quinary);
-
-  backdrop-filter: blur(10px);
   padding: 10px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-top: 1px solid var(--border-primary);
   height: 72px;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
 }
 
 .avatar-container {
@@ -423,25 +421,25 @@ onBeforeUnmount(() => {
 }
 
 .status-online {
-  background-color: var(--status-online, #43b581);
+  background-color: var(--status-online);
 }
 
 .status-away {
-  background-color: var(--status-away, #faa81a);
+  background-color: var(--status-away);
 }
 
 .status-busy {
-  background-color: var(--status-busy, #f04747);
+  background-color: var(--status-busy);
 }
 
 .status-offline {
-  background-color: var(--status-offline, #747f8d);
+  background-color: var(--status-offline);
 }
 
 .status-invisible {
-  background-color: var(--status-offline, #747f8d);
+  background-color: var(--status-offline);
   /* Hollow circle to indicate invisible (like Discord) */
-  border: 2px solid var(--status-offline, #747f8d);
+  border: 2px solid var(--status-offline);
   background: transparent !important;
 }
 
@@ -452,7 +450,6 @@ onBeforeUnmount(() => {
 
 .user-name {
   font-weight: bold;
-  /* color: var(--text-primary); */
   color: var(--text-primary);
   margin: 0 0 0 6px;
   font-size: 0.9em;
@@ -467,7 +464,7 @@ onBeforeUnmount(() => {
   align-items: center;
   cursor: pointer;
   font-size: 0.8em;
-  color: var(--text-muted, #b3b3b3);
+  color: var(--text-muted);
   padding: 4px 6px;
   border-radius: 3px;
   transition: background 0.2s;
@@ -475,7 +472,7 @@ onBeforeUnmount(() => {
 }
 
 .user-status-container:hover {
-  background: var(--background-modifier-hover, rgba(127, 127, 127, 0.15));
+  background: var(--background-modifier-hover);
 }
 
 .buttons {
@@ -495,8 +492,7 @@ onBeforeUnmount(() => {
 }
 
 .buttons :deep(.notification-bell:hover) {
-  background-color: var(--background-modifier-hover, rgba(79, 84, 92, 0.4));
-  transform: none; /* match other icon buttons - no lift effect */
+  background-color: var(--background-modifier-hover);
 }
 
 .icon-button {
@@ -514,31 +510,29 @@ onBeforeUnmount(() => {
 }
 
 .icon-button:hover {
-  background-color: var(--background-modifier-hover, rgba(79, 84, 92, 0.4));
+  background-color: var(--background-modifier-hover);
   color: var(--text-secondary);
 }
 
 .icon-button.muted {
-  background-color: #f04747;
-  color: var(--text-primary);
+  background-color: var(--error);
+  color: var(--text-on-primary);
 }
 
 .icon-button.muted:hover {
-  background-color: #d73c3c;
+  background-color: var(--error-hover);
 }
 
 .icon-button.voice-active {
-  border: 1px solid rgba(14, 165, 233, 0.3);
-  box-shadow: 0 0 4px rgba(14, 165, 233, 0.2);
+  border: 1px solid color-mix(in srgb, var(--harmony-primary) 30%, transparent);
 }
 
 .icon-button.voice-active:hover {
-  border-color: rgba(14, 165, 233, 0.5);
-  box-shadow: 0 0 6px rgba(14, 165, 233, 0.3);
+  border-color: color-mix(in srgb, var(--harmony-primary) 50%, transparent);
 }
 
 .icon-button.settings:hover {
-  background-color: var(--background-modifier-hover, rgba(79, 84, 92, 0.6));
+  background-color: var(--background-modifier-hover);
 }
 
 .status-dropdown {
@@ -549,13 +543,18 @@ onBeforeUnmount(() => {
   left: 0px;
   width: 220px;
   gap: 4px;
-  background: var(--background-floating, var(--background-senary, #18191c));
-  border-radius: 8px;
+  background: var(--background-floating);
+  border-radius: var(--radius-md);
   padding: 6px;
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
-  border: 1px solid var(--border-color, #202225);
+  box-shadow: var(--shadow-large);
+  border: 1px solid var(--border-color);
   z-index: 1000;
-  animation: slideUp 0.15s ease-out;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .status-dropdown {
+    animation: slideUp 0.15s ease-out;
+  }
 }
 
 /* Custom Status Preview - Discord Style */
@@ -566,13 +565,13 @@ onBeforeUnmount(() => {
   padding: 8px;
   margin: 4px;
   border-radius: 4px;
-  background: var(--background-modifier-hover, rgba(127, 127, 127, 0.08));
+  background: var(--background-modifier-hover);
   cursor: pointer;
   transition: background 0.15s;
 }
 
 .custom-status-preview:hover {
-  background: var(--background-modifier-active, rgba(127, 127, 127, 0.14));
+  background: var(--background-modifier-active);
 }
 
 .custom-status-preview .preview-left {
@@ -597,13 +596,13 @@ onBeforeUnmount(() => {
 }
 
 .custom-status-preview .emoji-placeholder {
-  color: var(--text-muted, var(--text-muted));
+  color: var(--text-muted);
   flex-shrink: 0;
 }
 
 .custom-status-preview .preview-text {
   font-size: 14px;
-  color: var(--text-secondary, #b9bbbe);
+  color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -612,7 +611,7 @@ onBeforeUnmount(() => {
 .clear-status-btn {
   background: none;
   border: none;
-  color: var(--text-muted, var(--text-muted));
+  color: var(--text-muted);
   cursor: pointer;
   padding: 4px;
   border-radius: 4px;
@@ -624,91 +623,8 @@ onBeforeUnmount(() => {
 }
 
 .clear-status-btn:hover {
-  background: rgba(237, 66, 69, 0.2);
-  color: #ed4245;
-}
-
-/* Custom Status Section - Legacy (can remove if not used) */
-.custom-status-section {
-  padding: 8px;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.custom-status-label {
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  font-weight: 600;
-  margin-bottom: 6px;
-  letter-spacing: 0.02em;
-}
-
-.custom-status-input-row {
-  display: flex;
-  gap: 4px;
-  align-items: center;
-}
-
-.custom-status-input {
-  flex: 1;
-  background: var(--background-tertiary);
-  border: none;
-  border-radius: 4px;
-  padding: 8px 10px;
-  font-size: 0.85rem;
-  width: 100%;
-  color: var(--text-secondary);
-  outline: none;
-}
-
-.custom-status-input::placeholder {
-  color: var(--text-muted);
-}
-
-.custom-status-input:focus {
-  box-shadow: 0 0 0 2px #0EA5E9;
-}
-
-.custom-status-btn {
-  width: 28px;
-  height: 28px;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.9rem;
-  transition: background 0.15s;
-}
-
-.custom-status-btn.save {
-  background: #43b581;
-  color: var(--text-primary);
-}
-
-.custom-status-btn.save:hover {
-  background: #3ca374;
-}
-
-.custom-status-btn.clear {
-  background: #f04747;
-  color: var(--text-primary);
-}
-
-.custom-status-btn.clear:hover {
-  background: #d84040;
-}
-
-.current-custom-status {
-  margin-top: 6px;
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  font-style: italic;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  background: color-mix(in srgb, var(--error) 20%, transparent);
+  color: var(--error);
 }
 
 .status-divider {
@@ -740,12 +656,12 @@ onBeforeUnmount(() => {
 }
 
 .status-option:hover {
-  background: var(--background-modifier-hover, #4f545c);
+  background: var(--background-modifier-hover);
 }
 
 .status-option.active {
   background: var(--harmony-primary);
-  color: var(--text-primary);
+  color: var(--text-on-primary);
 }
 
 .status-option .status-dot {
@@ -764,9 +680,8 @@ onBeforeUnmount(() => {
 
 .checkmark {
   margin-left: auto;
-  color: var(--text-primary);
-  font-weight: bold;
-  font-size: 0.9rem;
+  color: currentColor;
+  flex-shrink: 0;
 }
 
 .dropdown-arrow {
@@ -796,13 +711,13 @@ onBeforeUnmount(() => {
   height: 18px;
   padding: 0 5px;
   border-radius: 9px;
-  background: #f04747;
-  color: #fff;
+  background: var(--error);
+  color: var(--text-on-primary);
   font-size: 11px;
   font-weight: 700;
   line-height: 18px;
   text-align: center;
-  box-shadow: 0 0 0 2px var(--background-secondary, #2f3136);
+  box-shadow: 0 0 0 2px var(--background-secondary);
   pointer-events: none;
 }
 
@@ -883,7 +798,7 @@ onBeforeUnmount(() => {
     bottom: 100px;
     margin-top: 8px;
     box-shadow: none;
-    border: 1px solid #202225;
+    border: 1px solid var(--border-color);
     animation: none;
     left: 10px;
   }
@@ -899,9 +814,6 @@ onBeforeUnmount(() => {
   .mobile-profile-overlay .status-option .status-text {
     font-size: 0.875rem;
     flex-grow: 1;
-  }
-  .mobile-profile-overlay .status-option .checkmark {
-    font-size: 0.8rem;
   }
   .mobile-profile-overlay .status-text {
     font-size: 0.875rem;

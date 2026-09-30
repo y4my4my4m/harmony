@@ -11,9 +11,9 @@
     
     <!-- Error state -->
     <div v-else-if="error" class="server-invite-card__error">
-      <div class="error-icon">⚠️</div>
+      <Icon name="alert-triangle" :size="24" class="error-icon" />
       <div class="error-content">
-        <span class="error-title">Invalid Invite</span>
+        <span class="error-title">Invalid invite</span>
         <span class="error-message">{{ error }}</span>
       </div>
     </div>
@@ -37,11 +37,11 @@
         <div class="server-meta">
           <span v-if="serverData.online_count !== undefined" class="online-count">
             <span class="online-dot"></span>
-            {{ serverData.online_count }} Online
+            {{ serverData.online_count }} online
           </span>
           <span class="member-count">
-            <span class="member-icon">👥</span>
-            {{ serverData.member_count || '?' }} Members
+            <Icon name="users" :size="12" class="member-icon" />
+            {{ serverData.member_count || '?' }} members
           </span>
         </div>
         <div v-if="serverData.description" class="server-description">
@@ -56,14 +56,14 @@
           @click="handleJoin"
           :disabled="isJoining"
         >
-          Join Server
+          Join server
         </button>
         <button 
           v-else-if="isJoined"
           class="joined-button"
           @click="handleGoToServer"
         >
-          Go to Server
+          Go to server
         </button>
         <div v-else class="joining-spinner">
           <span class="spinner"></span>
@@ -108,6 +108,7 @@ import { useInviteJoin } from '@/composables/useInviteJoin';
 import { getServerIconUrl, getServerBannerUrl } from '@/utils/serverUtils';
 import ServerRulesModal from '@/components/invite/ServerRulesModal.vue';
 import InviteAcceptModal from '@/components/invite/InviteAcceptModal.vue';
+import Icon from '@/components/common/Icon.vue';
 
 const props = defineProps<{
   inviteCode: string;
@@ -193,7 +194,7 @@ const bannerUrl = computed(() =>
 // runs the shared pipeline (which may add the rules step)
 function handleJoin() {
   if (!authStore.session?.user?.id) {
-    toast.warning('Please log in to join servers');
+    toast.warning('Log in to join servers');
     return;
   }
   showAcceptModal.value = true;
@@ -223,18 +224,11 @@ watch(() => props.inviteCode, () => {
   align-items: center;
   gap: 12px;
   padding: 16px;
-  background: linear-gradient(135deg, #2a2d35 0%, #1e2024 100%);
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--background-secondary);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-primary);
   margin: 8px 0;
   max-width: 420px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.server-invite-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
 }
 
 /* Icon */
@@ -245,22 +239,21 @@ watch(() => props.inviteCode, () => {
 .server-image {
   width: 56px;
   height: 56px;
-  border-radius: 16px;
+  border-radius: var(--radius-xl);
   object-fit: cover;
 }
 
 .default-server-icon {
   width: 56px;
   height: 56px;
-  border-radius: 16px;
-  background: linear-gradient(135deg, #0EA5E9 0%, #38BDF8 100%);
+  border-radius: var(--radius-xl);
+  background: var(--harmony-primary);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 24px;
   font-weight: 700;
-  color: var(--text-primary);
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  color: var(--text-on-primary);
 }
 
 /* Content */
@@ -285,7 +278,7 @@ watch(() => props.inviteCode, () => {
   gap: 12px;
   margin-top: 4px;
   font-size: 13px;
-  color: #a0a0a0;
+  color: var(--text-secondary);
 }
 
 .online-count {
@@ -298,18 +291,13 @@ watch(() => props.inviteCode, () => {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #3ba55c;
-  box-shadow: 0 0 8px rgba(59, 165, 92, 0.5);
+  background: var(--success);
 }
 
 .member-count {
   display: flex;
   align-items: center;
   gap: 4px;
-}
-
-.member-icon {
-  font-size: 12px;
 }
 
 .server-description {
@@ -330,21 +318,18 @@ watch(() => props.inviteCode, () => {
 
 .join-button {
   padding: 10px 20px;
-  background: linear-gradient(135deg, #3ba55c 0%, #2d8049 100%);
-  color: var(--text-primary);
+  background: var(--success);
+  color: var(--text-on-primary);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
-  box-shadow: 0 2px 8px rgba(59, 165, 92, 0.3);
+  transition: background-color 0.2s ease;
 }
 
 .join-button:hover:not(:disabled) {
-  background: linear-gradient(135deg, #45c066 0%, #3ba55c 100%);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(59, 165, 92, 0.4);
+  background: var(--success-hover);
 }
 
 .join-button:disabled {
@@ -354,10 +339,10 @@ watch(() => props.inviteCode, () => {
 
 .joined-button {
   padding: 10px 20px;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--background-modifier-hover);
   color: var(--text-secondary);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
@@ -365,8 +350,8 @@ watch(() => props.inviteCode, () => {
 }
 
 .joined-button:hover {
-  background: rgba(255, 255, 255, 0.15);
-  border-color: rgba(255, 255, 255, 0.2);
+  background: var(--background-modifier-active);
+  border-color: var(--border-hover);
 }
 
 .joining-spinner {
@@ -374,7 +359,7 @@ watch(() => props.inviteCode, () => {
   align-items: center;
   gap: 8px;
   padding: 10px 20px;
-  color: #a0a0a0;
+  color: var(--text-secondary);
   font-size: 14px;
 }
 
@@ -382,7 +367,7 @@ watch(() => props.inviteCode, () => {
   width: 16px;
   height: 16px;
   border: 2px solid rgba(255, 255, 255, 0.2);
-  border-top-color: #3ba55c;
+  border-top-color: var(--success);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -406,7 +391,7 @@ watch(() => props.inviteCode, () => {
 .skeleton-icon {
   width: 56px;
   height: 56px;
-  border-radius: 16px;
+  border-radius: var(--radius-xl);
 }
 
 .skeleton-content {
@@ -429,7 +414,7 @@ watch(() => props.inviteCode, () => {
 .skeleton-icon,
 .skeleton-title,
 .skeleton-meta {
-  background-color: #3a3d45;
+  background-color: var(--background-quaternary);
   background-image: linear-gradient(
     90deg,
     transparent 0%,
@@ -447,8 +432,8 @@ watch(() => props.inviteCode, () => {
 
 /* Error state */
 .server-invite-card--error {
-  border-color: rgba(237, 66, 69, 0.3);
-  background: linear-gradient(135deg, #2d2024 0%, #1e1a1c 100%);
+  border-color: color-mix(in srgb, var(--error) 30%, transparent);
+  background: color-mix(in srgb, var(--error) 5%, var(--background-secondary));
 }
 
 .server-invite-card__error {
@@ -459,7 +444,8 @@ watch(() => props.inviteCode, () => {
 }
 
 .error-icon {
-  font-size: 24px;
+  flex-shrink: 0;
+  color: var(--error);
 }
 
 .error-content {
@@ -471,12 +457,12 @@ watch(() => props.inviteCode, () => {
 .error-title {
   font-size: 14px;
   font-weight: 600;
-  color: #ed4245;
+  color: var(--error);
 }
 
 .error-message {
   font-size: 13px;
-  color: #a0a0a0;
+  color: var(--text-secondary);
 }
 </style>
 

@@ -3,7 +3,7 @@
     <div class="funding-overlay" @click.self="$emit('close')">
       <div class="funding-modal">
         <div class="modal-header">
-          <h2>Instance Funding</h2>
+          <h2>Instance funding</h2>
           <button @click="$emit('close')" class="close-btn">
             <svg width="20" height="20" viewBox="0 0 24 24">
               <path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
@@ -107,7 +107,7 @@
 
             <!-- Supporter Tiers -->
             <div v-if="tiers.length > 0" class="tiers-section">
-              <h3>Supporter Tiers</h3>
+              <h3>Supporter tiers</h3>
               <div class="tier-cards">
                 <div v-for="tier in tiers" :key="tier.id" class="tier-card">
                   <div class="tier-badge-preview">
@@ -131,13 +131,13 @@
 
             <!-- Current user supporter status -->
             <div v-if="myBadge" class="my-supporter-status">
-              <h3>Your Support</h3>
+              <h3>Your support</h3>
               <div class="my-badge-row">
                 <span class="my-badge-icon" :style="badgeStyle">
                   <SupporterBadgeIcon :icon="myBadge.badge_icon" />
                 </span>
                 <div class="my-badge-info">
-                  <span class="my-badge-tier">{{ myBadge.tier_name }} Supporter</span>
+                  <span class="my-badge-tier">{{ myBadge.tier_name }} supporter</span>
                   <span class="my-badge-active">Active</span>
                 </div>
               </div>
@@ -145,7 +145,7 @@
 
             <!-- My donation history -->
             <div v-if="myDonations.length > 0" class="my-donations">
-              <h3>Your Donations</h3>
+              <h3>Your donations</h3>
               <div class="donations-list">
                 <div v-for="donation in myDonations" :key="donation.id" class="donation-row">
                   <span class="donation-amount">{{ donation.currency }} {{ donation.amount }}</span>
@@ -284,9 +284,9 @@ onMounted(async () => {
 }
 
 .funding-modal {
-  background: var(--background-primary, #1e1f22);
-  border: 1px solid var(--border-color, #2b2d31);
-  border-radius: 12px;
+  background: var(--background-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
   width: 90vw;
   max-width: 460px;
   max-height: 80vh;
@@ -305,7 +305,7 @@ onMounted(async () => {
 
 .modal-header h2 {
   margin: 0;
-  font-size: 18px;
+  font-size: var(--font-size-lg);
   font-weight: 700;
   color: var(--text-primary);
 }
@@ -316,11 +316,12 @@ onMounted(async () => {
   color: var(--text-secondary);
   cursor: pointer;
   padding: 4px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 
 .close-btn:hover {
-  background: var(--background-hover);
+  background: var(--background-modifier-hover);
+  color: var(--text-primary);
 }
 
 .modal-body {
@@ -349,12 +350,12 @@ onMounted(async () => {
 
 .progress-amount {
   font-size: 28px;
-  font-weight: 800;
+  font-weight: 700;
   color: var(--text-primary);
 }
 
 .progress-goal {
-  font-size: 16px;
+  font-size: var(--font-size-base);
   color: var(--text-secondary);
   margin-left: 4px;
 }
@@ -362,15 +363,15 @@ onMounted(async () => {
 .progress-bar-track {
   width: 100%;
   height: 10px;
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 5px;
+  background: var(--background-modifier-selected);
+  border-radius: var(--radius-full);
   overflow: hidden;
 }
 
 .progress-bar-fill {
   height: 100%;
-  background: var(--harmony-primary, #0EA5E9);
-  border-radius: 5px;
+  background: var(--harmony-primary);
+  border-radius: var(--radius-full);
   transition: width 0.4s ease;
 }
 
@@ -383,7 +384,7 @@ onMounted(async () => {
 /* Description */
 .funding-description {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   color: var(--text-secondary);
   line-height: 1.5;
 }
@@ -412,18 +413,17 @@ onMounted(async () => {
   align-items: center;
   gap: 12px;
   padding: 12px 14px;
-  background: var(--background-secondary, #2b2d31);
+  background: var(--background-secondary);
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   color: var(--text-primary);
   text-decoration: none;
-  transition: border-color 0.15s, transform 0.15s, background 0.15s;
+  transition: border-color 0.15s, background 0.15s;
 }
 
 .funding-link:hover {
-  border-color: var(--harmony-primary, #0EA5E9);
-  background: var(--background-modifier-hover, var(--background-secondary));
-  transform: translateY(-1px);
+  border-color: var(--border-hover);
+  background: var(--background-tertiary);
 }
 
 .link-icon {
@@ -441,12 +441,12 @@ onMounted(async () => {
 
 .link-platform {
   font-weight: 600;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   color: var(--text-primary);
 }
 
 .link-label {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--text-secondary);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -471,13 +471,13 @@ onMounted(async () => {
   align-items: flex-start;
   padding: 12px 14px;
   margin-bottom: 12px;
-  background: rgba(14, 165, 233, 0.08);
-  border: 1px solid rgba(14, 165, 233, 0.25);
-  border-radius: 8px;
+  background: color-mix(in srgb, var(--harmony-primary) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--harmony-primary) 25%, transparent);
+  border-radius: var(--radius-md);
 }
 
 .donor-instructions-icon {
-  color: var(--harmony-primary, #0EA5E9);
+  color: var(--harmony-primary);
   flex-shrink: 0;
   margin-top: 2px;
 }
@@ -512,20 +512,20 @@ onMounted(async () => {
 .donor-handle-example {
   display: inline-block;
   padding: 6px 10px;
-  background: var(--background-primary, #1e1f22);
-  border: 1px dashed var(--harmony-primary, #0EA5E9);
-  border-radius: 6px;
+  background: var(--background-primary);
+  border: 1px dashed var(--harmony-primary);
+  border-radius: var(--radius-base);
   font-family: 'Consolas', 'Monaco', monospace;
   font-size: 13px;
   font-weight: 600;
-  color: var(--harmony-primary, #0EA5E9);
+  color: var(--harmony-primary);
   user-select: all;
   word-break: break-all;
 }
 
 .donor-examples {
   margin: 4px 0 8px;
-  font-size: 12px;
+  font-size: var(--font-size-xs);
 }
 
 .donor-examples summary {
@@ -552,9 +552,9 @@ onMounted(async () => {
 
 .donor-examples-list li {
   padding: 6px 10px;
-  background: var(--background-primary, #1e1f22);
+  background: var(--background-primary);
   border: 1px solid var(--border-color);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 
 .donor-examples-list code {
@@ -572,7 +572,7 @@ onMounted(async () => {
   padding: 4px 10px;
   background: transparent;
   border: 1px solid var(--border-color);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   color: var(--text-secondary);
   font-size: 11px;
   font-weight: 500;
@@ -581,8 +581,8 @@ onMounted(async () => {
 }
 
 .donor-copy-btn:hover {
-  border-color: var(--harmony-primary, #0EA5E9);
-  color: var(--harmony-primary, #0EA5E9);
+  border-color: var(--harmony-primary);
+  color: var(--harmony-primary);
 }
 
 .donor-instructions-hint {
@@ -605,8 +605,8 @@ onMounted(async () => {
   align-items: center;
   gap: 10px;
   padding: 10px 14px;
-  background: var(--background-secondary, #2b2d31);
-  border-radius: 8px;
+  background: var(--background-secondary);
+  border-radius: var(--radius-md);
 }
 
 .tier-badge-preview {
@@ -622,11 +622,11 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   padding: 4px 6px;
-  border-radius: 4px;
-  font-size: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  border: 1px solid var(--border-hover);
   line-height: 1;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--background-modifier-hover);
   color: var(--text-secondary);
 }
 
@@ -639,12 +639,12 @@ onMounted(async () => {
 
 .tier-name {
   font-weight: 600;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   color: var(--text-primary);
 }
 
 .tier-min {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--text-secondary);
 }
 
@@ -663,7 +663,7 @@ onMounted(async () => {
   gap: 12px;
   padding: 12px 14px;
   background: var(--background-secondary);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
 }
 
 .my-badge-icon {
@@ -672,8 +672,8 @@ onMounted(async () => {
   justify-content: center;
   width: 120px;
   height: 36px;
-  border-radius: 8px;
-  font-size: 20px;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-xl);
   border: 1px solid;
 }
 
@@ -684,13 +684,13 @@ onMounted(async () => {
 
 .my-badge-tier {
   font-weight: 600;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   color: var(--text-primary);
 }
 
 .my-badge-active {
-  font-size: 12px;
-  color: #57f287;
+  font-size: var(--font-size-xs);
+  color: var(--success);
 }
 
 /* My donations */
@@ -706,7 +706,7 @@ onMounted(async () => {
   gap: 12px;
   padding: 8px 12px;
   background: var(--background-secondary);
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   font-size: 13px;
 }
 
@@ -733,11 +733,11 @@ onMounted(async () => {
 .thank-you-message {
   margin: 0;
   padding: 14px;
-  background: rgba(87, 242, 135, 0.08);
-  border: 1px solid rgba(87, 242, 135, 0.2);
-  border-radius: 8px;
-  color: #57f287;
-  font-size: 14px;
+  background: color-mix(in srgb, var(--success) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--success) 25%, transparent);
+  border-radius: var(--radius-md);
+  color: var(--success);
+  font-size: var(--font-size-sm);
   text-align: center;
   line-height: 1.5;
 }

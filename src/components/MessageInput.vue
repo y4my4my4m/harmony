@@ -1,5 +1,5 @@
 <template>
-  <div class="message-input" :class="{'replying': replyMessageId, 'has-files': attachedFiles.length > 0}" data-testid="message-input">
+  <div class="message-input" :class="{'replying': replyMessageId, 'has-files': attachedFiles.length > 0}" data-testid="message-input" data-floating-video-avoid>
     <TypingIndicator
       :typing-users="typingUsers"
       class="typing-indicator-wrapper"
@@ -1087,8 +1087,8 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
     align-items: center;
     padding: 2px 8px;
     border-radius: 4px;
-    background: var(--harmony-primary-alpha, rgba(14, 165, 233, 0.15));
-    color: var(--accent-color, #0EA5E9);
+    background: var(--harmony-primary-alpha, color-mix(in srgb, var(--harmony-primary) 15%, transparent));
+    color: var(--accent-color, var(--harmony-primary));
     font-size: 12px;
     font-weight: 600;
   }
@@ -1103,9 +1103,7 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
   .param-name {
     color: var(--text-primary);
     font-weight: 600;
-    text-transform: uppercase;
-    font-size: 11px;
-    letter-spacing: 0.02em;
+    font-size: 12px;
   }
 
   .param-description {
@@ -1147,7 +1145,7 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
   .message-char-count {
     font-size: 11px;
     font-variant-numeric: tabular-nums;
-    color: var(--text-muted, #72767d);
+    color: var(--text-muted);
     padding: 0 6px;
     user-select: none;
     pointer-events: auto;
@@ -1159,25 +1157,25 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
     gap: 4px;
     font-size: 11px;
     font-variant-numeric: tabular-nums;
-    color: var(--text-muted, #72767d);
+    color: var(--text-muted);
     padding: 2px 6px;
-    border-radius: 10px;
+    border-radius: var(--radius-full);
     user-select: none;
   }
 
   .slowmode-indicator.cooling {
-    color: var(--harmony-primary, #0EA5E9);
-    background: rgba(14, 165, 233, 0.12);
+    color: var(--harmony-primary);
+    background: color-mix(in srgb, var(--harmony-primary) 12%, transparent);
   }
 
   .message-char-count.over-limit {
-    color: var(--color-danger, #ed4245);
+    color: var(--error);
     font-weight: 600;
   }
 
   .plus-icon-container {
     position: relative;
-    background-color: #aaaaaa29;
+    background-color: var(--background-modifier-active);
     border-radius: 100%;
     width: 28px;
     height: 28px;
@@ -1205,7 +1203,7 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
   /* Red outline while the draft exceeds the character cap, before any send
    * attempt. */
   .message-container.has-over-limit {
-    outline: 1px solid var(--color-danger, #ed4245);
+    outline: 1px solid var(--error);
     outline-offset: 0;
   }
 
@@ -1244,7 +1242,7 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
   }
 
   .message-container:has(.rich-text-editor.is-focused) {
-    box-shadow: inset 0 0 5px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,.15)
+    box-shadow: 0 0 0 1px var(--border-hover);
   }
 
   @media (max-width: 768px) {
@@ -1253,9 +1251,8 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
       margin: 0;
       /* padding: 12px 16px; */
       padding: 0.5rem;
-      background: var(--background-secondary, #313338);
-      border-top: 1px solid rgba(255, 255, 255, 0.08);
-      box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
+      background: var(--background-secondary);
+      border-top: 1px solid var(--border-primary);
     }
 
     .message-container {
@@ -1321,22 +1318,22 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
   }
 
   .icon-button:hover {
-    background-color: rgba(255, 255, 255, 0.1);
+    background-color: var(--background-modifier-hover);
   }
 
   /* Send button; rendered on mobile only. */
   .send-button {
-    background-color: var(--harmony--primary, #0EA5E9) !important;
+    background-color: var(--harmony-primary) !important;
     border-radius: 50% !important;
     width: 36px !important;
     height: 36px !important;
     min-width: 36px !important;
-    color: var(--text-primary);
+    color: var(--text-on-primary);
     transition: transform 0.15s ease, background-color 0.2s ease;
   }
 
   .send-button:hover {
-    background-color: var(--harmony--primary-dark, #0284C7) !important;
+    background-color: var(--harmony-primary-hover) !important;
   }
 
   .send-button:active {

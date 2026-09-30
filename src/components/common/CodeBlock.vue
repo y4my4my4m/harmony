@@ -7,11 +7,11 @@
         class="copy-button"
         @click="copyCode"
         :class="{ 'copied': copied }"
-        :title="copied ? 'Copied!' : 'Copy code'"
+        :title="copied ? 'Copied' : 'Copy code'"
       >
         <CopyIcon v-if="!copied" />
         <CheckIcon v-else />
-        <span class="copy-text">{{ copied ? 'Copied!' : 'Copy' }}</span>
+        <span class="copy-text">{{ copied ? 'Copied' : 'Copy' }}</span>
       </button>
     </div>
     <pre class="code-block" :data-language="language">
@@ -349,7 +349,7 @@ export default defineComponent({
   position: relative;
   margin: 4px 0;
   background-color: var(--background-tertiary);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   border: 1px solid var(--background-quinary);
   overflow: hidden;
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', monospace;
@@ -369,8 +369,6 @@ export default defineComponent({
   font-size: 0.75rem;
   color: var(--text-secondary);
   font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
 }
 
 .copy-button {
@@ -380,28 +378,30 @@ export default defineComponent({
   padding: 4px 8px;
   margin-right: 180px;
   background-color: var(--background-quinary);
-  border: 1px solid #0EA5E9;
-  border-radius: 4px;
-  color: #0EA5E9;
+  border: 1px solid var(--harmony-primary);
+  border-radius: var(--radius-sm);
+  color: var(--harmony-primary);
   font-size: 0.75rem;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.15s ease;
-  opacity: 0;
-  transform: translateY(-2px);
-  animation: fadeInDown 0.2s ease forwards;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .copy-button {
+    animation: fadeInDown 0.2s ease both;
+  }
 }
 
 .copy-button:hover {
   background-color: var(--harmony-primary);
-  color: var(--text-primary);
-  transform: translateY(0);
+  color: var(--text-on-primary);
 }
 
 .copy-button.copied {
-  background-color: #3ba55c;
-  border-color: #3ba55c;
-  color: var(--text-primary);
+  background-color: var(--success);
+  border-color: var(--success);
+  color: var(--text-on-primary);
 }
 
 .copy-button :deep(svg) {

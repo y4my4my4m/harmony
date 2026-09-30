@@ -204,16 +204,15 @@ const getTypeIcon = (type: NotificationType) => {
   gap: 12px;
   background: var(--background-secondary);
   border: 1px solid var(--background-quaternary);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 16px;
   min-width: 300px;
   max-width: 400px;
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
+  box-shadow: var(--shadow-large);
   cursor: pointer;
   pointer-events: all;
   position: relative;
   overflow: hidden;
-  backdrop-filter: blur(8px);
   margin-bottom: 10px;
 }
 
@@ -228,39 +227,39 @@ const getTypeIcon = (type: NotificationType) => {
 }
 
 .toast-mention {
-  --toast-color: #f04747;
+  --toast-color: var(--error);
 }
 
 .toast-dm {
-  --toast-color: #38BDF8;
+  --toast-color: var(--harmony-secondary);
 }
 
 .toast-reaction {
-  --toast-color: #faa61a;
+  --toast-color: var(--warning);
 }
 
 .toast-reply {
-  --toast-color: #43b581;
+  --toast-color: var(--success);
 }
 
 .toast-server_invite {
-  --toast-color: #9c84ef;
+  --toast-color: var(--harmony-primary);
 }
 
 .toast-friend_request {
-  --toast-color: #43b581;
+  --toast-color: var(--success);
 }
 
 .toast-voice_channel_activity {
-  --toast-color: #38BDF8;
+  --toast-color: var(--harmony-secondary);
 }
 
 .toast-server_update {
-  --toast-color: #99aab5;
+  --toast-color: var(--text-tertiary);
 }
 
 .toast-emoji_added {
-  --toast-color: #faa61a;
+  --toast-color: var(--warning);
 }
 
 .toast-icon {
@@ -281,8 +280,8 @@ const getTypeIcon = (type: NotificationType) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--toast-color, var(--h-brand));
-  color: var(--text-primary);
+  background: color-mix(in srgb, var(--toast-color, var(--h-brand)) 15%, transparent);
+  color: var(--toast-color, var(--h-brand));
 }
 
 .toast-content {
@@ -342,16 +341,16 @@ const getTypeIcon = (type: NotificationType) => {
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
 }
 
 .toast-action-btn.primary {
   background: var(--h-brand);
-  color: var(--text-primary);
+  color: var(--text-on-primary);
 }
 
 .toast-action-btn.primary:hover {
-  background: #677bc4;
+  background: var(--harmony-primary-hover);
 }
 
 .toast-action-btn.secondary {
@@ -361,17 +360,17 @@ const getTypeIcon = (type: NotificationType) => {
 }
 
 .toast-action-btn.secondary:hover {
-  background: rgba(79, 84, 92, 0.16);
-  color: var(--text-secondary);
-}
-
-.toast-action-btn.danger {
-  background: #f04747;
+  background: var(--background-modifier-hover);
   color: var(--text-primary);
 }
 
+.toast-action-btn.danger {
+  background: var(--error);
+  color: var(--text-on-primary);
+}
+
 .toast-action-btn.danger:hover {
-  background: #d63939;
+  background: var(--error-hover);
 }
 
 .toast-close {
@@ -393,7 +392,7 @@ const getTypeIcon = (type: NotificationType) => {
 }
 
 .toast-close:hover {
-  background: rgba(79, 84, 92, 0.16);
+  background: var(--background-modifier-hover);
   color: var(--text-secondary);
 }
 

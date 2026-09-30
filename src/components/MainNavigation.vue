@@ -158,7 +158,7 @@ const getServerAcronym = (serverName: string): string => {
 .main-navigation {
   width: 72px;
   min-width: 72px;
-  background: var(--h-server-sidebar, #202225);
+  background: var(--h-server-sidebar, var(--background-tertiary));
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -209,22 +209,22 @@ const getServerAcronym = (serverName: string): string => {
 
 .nav-item:hover {
   border-radius: 16px;
-  background: var(--h-brand, #0EA5E9);
+  background: var(--h-brand, var(--harmony-primary));
 }
 
 .nav-item.active {
   border-radius: 16px;
-  background: var(--h-brand, #0EA5E9);
+  background: var(--h-brand, var(--harmony-primary));
 }
 
 .dm-button {
-  background: var(--background-secondary, var(--background-secondary));
+  background: var(--background-secondary);
   color: var(--text-primary);
 }
 
 .dm-button:hover,
 .dm-button.active {
-  background: var(--h-brand, #0EA5E9);
+  background: var(--h-brand, var(--harmony-primary));
 }
 
 .nav-icon {
@@ -252,7 +252,7 @@ const getServerAcronym = (serverName: string): string => {
   position: absolute;
   top: -4px;
   right: -4px;
-  background: #f04747;
+  background: var(--error);
   color: var(--text-primary);
   font-size: 10px;
   font-weight: 600;
@@ -263,7 +263,7 @@ const getServerAcronym = (serverName: string): string => {
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 2px solid var(--h-server-sidebar, #202225);
+  border: 2px solid var(--h-server-sidebar, var(--background-tertiary));
   line-height: 1;
 }
 
@@ -280,16 +280,16 @@ const getServerAcronym = (serverName: string): string => {
 }
 
 .server-item {
-  background: var(--background-secondary, var(--background-secondary));
+  background: var(--background-secondary);
   position: relative;
 }
 
 .server-item:hover {
-  background: var(--h-brand, #0EA5E9);
+  background: var(--h-brand, var(--harmony-primary));
 }
 
 .server-item.active {
-  background: var(--h-brand, #0EA5E9);
+  background: var(--h-brand, var(--harmony-primary));
 }
 
 .server-icon {
@@ -309,8 +309,8 @@ const getServerAcronym = (serverName: string): string => {
   right: -2px;
   width: 18px;
   height: 18px;
-  background: var(--h-surface-secondary, #2b2d31);
-  border: 2px solid var(--h-surface-primary, #1e1f22);
+  background: var(--h-surface-secondary, var(--background-quaternary));
+  border: 2px solid var(--h-surface-primary, var(--background-tertiary));
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -321,7 +321,7 @@ const getServerAcronym = (serverName: string): string => {
 .federation-icon {
   width: 10px;
   height: 10px;
-  color: var(--h-brand, #0EA5E9);
+  color: var(--h-brand, var(--harmony-primary));
 }
 
 .server-image {
@@ -346,7 +346,7 @@ const getServerAcronym = (serverName: string): string => {
   transform: translateY(-50%);
   width: 4px;
   height: 8px;
-  background: #ffffff;
+  background: var(--text-primary);
   border-radius: 0 4px 4px 0;
   opacity: 0;
   transition: all 0.15s ease;
@@ -365,20 +365,20 @@ const getServerAcronym = (serverName: string): string => {
 .add-server-btn,
 .explore-btn,
 .settings-btn {
-  background: var(--background-secondary, var(--background-secondary));
-  color: #3ba55c;
+  background: var(--background-secondary);
+  color: var(--success);
 }
 
 .add-server-btn:hover,
 .explore-btn:hover,
 .settings-btn:hover {
-  background: #3ba55c;
+  background: var(--success);
   color: var(--text-primary);
 }
 
 .add-server-btn .nav-icon,
 .explore-btn .nav-icon {
-  color: #3ba55c;
+  color: var(--success);
 }
 
 .add-server-btn:hover .nav-icon,

@@ -1395,7 +1395,7 @@ onBeforeUnmount(() => {
 
 .type-option.selected {
   border-color: var(--harmony-primary);
-  background: var(--harmony-primary-light, rgba(14, 165, 233, 0.1));
+  background: var(--harmony-primary-light, color-mix(in srgb, var(--harmony-primary) 10%, transparent));
 }
 
 .type-option input {
