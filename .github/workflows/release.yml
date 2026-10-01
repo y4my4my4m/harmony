@@ -208,3 +208,168 @@ jobs:
           tag_name: ${{ github.event.inputs.tag || github.ref_name }}
           draft: true
           files: src-tauri/gen/android/app/build/outputs/apk/universal/*/*.apk
+
+  # Linux runs the CEF runtime. The deb comes from the tauri CLI; the AppImage
+  # from src-tauri/linux/package.sh, which pins the AppImage tooling that
+  # tauri-bundler would otherwise download from moving branches. Built
+  # alongside the other legs and published by linux-publish once they are done,
+  # so a Linux failure never blocks the desktop installers or the APK.
+  linux:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: npm
+      # Absent from tags cut before 2026-07-07; those trees carry their version
+      # inline, so skipping the stamp is correct rather than fatal.
+      - name: Stamp version from tag
+        run: |
+          if [ -f scripts/set-version.mjs ]; then
+            node scripts/set-version.mjs "${{ github.event.inputs.tag || github.ref_name }}"
+          else
+            echo "::notice::scripts/set-version.mjs absent at this tag; using the version committed in the tree."
+          fi
+        shell: bash
+      # cmake/ninja: cef-dll-sys builds the CEF C++ wrapper. patchelf, file,
+      # strace, xvfb, xauth: quick-sharun. The runtime libraries are Chromium's,
+      # for quick-sharun's trace run and the smoke test.
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config cmake ninja-build file patchelf strace \
+            libgtk-4-dev libssl-dev libxdo-dev libx11-dev libxtst-dev libxi-dev libxrandr-dev libdbus-1-dev \
+            libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libxcomposite1 libxdamage1 libxkbcommon0 \
+            libgbm1 libasound2t64 libpango-1.0-0 libcairo2 \
+            xvfb xauth dbus
+      - name: Locate CEF and AppImage tool caches
+        run: |
+          echo "CEF_PATH=$RUNNER_TEMP/cef" >> "$GITHUB_ENV"
+          echo "CEF_TOOLS_DIR=$RUNNER_TEMP/linux-tools" >> "$GITHUB_ENV"
+      # cef-dll-sys downloads the CEF distribution into CEF_PATH when missing.
+      # The key follows tauri-runtime-cef's pinned cef crate. Tag runs restore
+      # caches saved on the default branch, which tauri.yml's linux job fills.
+      - uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/cef
+          key: cef-152.3.0+152.0.6-linux-x86_64
+      - uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/linux-tools
+          key: linux-tools-${{ hashFiles('src-tauri/linux/package.sh') }}
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: npm ci
+      # Same guard as the desktop legs. `sign` gates package.sh, which re-signs
+      # the deb after rewriting its control file and signs the AppImage.
+      - name: Resolve updater signing
+        id: updater
+        shell: bash
+        env:
+          HAS_UPDATER_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+        run: |
+          if [ "$HAS_UPDATER_KEY" != "true" ]; then
+            echo "::warning::TAURI_SIGNING_PRIVATE_KEY is not set; building Linux packages without updater signatures."
+          elif grep -q 'HARMONY_UPDATER_PUBKEY' src-tauri/tauri.conf.json; then
+            echo "::warning::plugins.updater.pubkey in src-tauri/tauri.conf.json is still the placeholder; building Linux packages without updater signatures."
+          else
+            echo "args=--config src-tauri/tauri.updater.conf.json" >> "$GITHUB_OUTPUT"
+            echo "sign=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Build deb
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: npx tauri build --bundles deb ${{ steps.updater.outputs.args }}
+      # The build links against the extracted tree; the archive only inflates the
+      # cache.
+      - name: Drop the CEF archive
+        run: rm -f "$CEF_PATH"/*/cef_binary_*.tar.bz2
+      - name: Build AppImage
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ steps.updater.outputs.sign == 'true' && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ steps.updater.outputs.sign == 'true' && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
+        run: sh src-tauri/linux/package.sh src-tauri/target/release/bundle/deb/Harmony_*_amd64.deb
+      # A clean ubuntu:24.04 installs the deb with only its declared Depends;
+      # every library the payload links must then resolve.
+      - name: Check deb dependencies
+        run: |
+          docker run --rm -v "$PWD/src-tauri/target/release/bundle/deb:/deb:ro" ubuntu:24.04 sh -c '
+            apt-get update -qq && apt-get install -y -qq --no-install-recommends /deb/Harmony_*_amd64.deb >/dev/null
+            missing=$(ldd /usr/share/Harmony/harmony /usr/share/Harmony/*.so | grep "not found" || true)
+            [ -z "$missing" ] || { echo "$missing"; exit 1; }'
+      # The runner restricts unprivileged user namespaces through AppArmor, as
+      # Ubuntu 23.10+ desktops do, so the AppImage runs Chromium unsandboxed; the
+      # installed deb keeps the sandbox through its setuid chrome-sandbox.
+      - name: Smoke test
+        run: |
+          sh src-tauri/linux/smoke-test.sh src-tauri/target/release/bundle/appimage/Harmony_*_amd64.AppImage
+          sudo apt-get install -y --no-install-recommends ./src-tauri/target/release/bundle/deb/Harmony_*_amd64.deb
+          SMOKE_SANDBOX=on sh src-tauri/linux/smoke-test.sh /usr/bin/harmony
+      # One flat directory: upload-artifact roots a multi-path artifact at the
+      # paths' common ancestor, which would nest the files under deb/ and appimage/.
+      - name: Collect release files
+        run: |
+          mkdir -p linux-release
+          cp src-tauri/target/release/bundle/deb/Harmony_*_amd64.deb* \
+            src-tauri/target/release/bundle/appimage/Harmony_*_amd64.AppImage* linux-release/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: harmony-linux
+          path: linux-release/
+          if-no-files-found: error
+
+  # Runs after every other writer of the draft release is done: tauri-action
+  # (desktop) and softprops (android) each read-modify-write the release, and
+  # tauri-action rewrites latest.json. Gated on the Linux build only, so a failed
+  # desktop or Android leg does not hold back the Linux assets.
+  linux-publish:
+    needs: [desktop, android, linux]
+    if: ${{ !cancelled() && needs.linux.result == 'success' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+          sparse-checkout: src-tauri/linux
+      - uses: actions/download-artifact@v4
+        with:
+          name: harmony-linux
+          path: linux-assets
+      # The draft exists unless every desktop leg failed before tauri-action
+      # created it.
+      - name: Upload to the draft release
+        run: |
+          gh release view "$TAG" >/dev/null 2>&1 ||
+            gh release create "$TAG" --draft --title "Harmony ${TAG#v}" \
+              --notes "Download the installer for your platform below."
+          gh release upload "$TAG" linux-assets/* --clobber
+      # Only a signed AppImage can be offered to installed apps. Asset URLs use
+      # the tag, like tauri-action's; a draft's own asset URLs are untagged-*
+      # until it is published.
+      - name: Add Linux to latest.json
+        run: |
+          set -- linux-assets/Harmony_*_amd64.AppImage.sig
+          if [ ! -f "$1" ]; then
+            echo "::warning::The AppImage is unsigned; latest.json keeps its other platforms only."
+            exit 0
+          fi
+          appimage=$(basename "$1" .sig)
+          mkdir -p updater
+          gh release download "$TAG" --pattern latest.json --dir updater || true
+          node src-tauri/linux/latest-json.mjs updater/latest.json "${TAG#v}" \
+            "https://github.com/$GH_REPO/releases/download/$TAG/$appimage" "$1"
+          gh release upload "$TAG" updater/latest.json --clobber

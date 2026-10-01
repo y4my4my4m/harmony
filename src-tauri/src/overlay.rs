@@ -8,22 +8,28 @@ pub fn overlay_open(app: AppHandle) -> Result<(), String> {
     let _ = w.show();
     return Ok(());
   }
-  let win = WebviewWindowBuilder::new(
-    &app,
-    OVERLAY_LABEL,
-    WebviewUrl::App("index.html?overlay=1".into()),
-  )
-  .title("Harmony Overlay")
-  .transparent(true)
-  .decorations(false)
-  .always_on_top(true)
-  .skip_taskbar(true)
-  .shadow(false)
-  .resizable(true)
-  .inner_size(280.0, 360.0)
-  .position(40.0, 80.0)
-  .build()
-  .map_err(|e| e.to_string())?;
+  // A windowed CEF browser cannot paint transparent (the runtime only supports it
+  // for off-screen rendering), so Linux gets an opaque panel that the overlay page
+  // sizes to its roster; `panel=1` selects that layout.
+  #[cfg(target_os = "linux")]
+  let (url, transparent, size) = ("index.html?overlay=1&panel=1", false, (200.0, 48.0));
+  #[cfg(not(target_os = "linux"))]
+  let (url, transparent, size) = ("index.html?overlay=1", true, (280.0, 360.0));
+
+  let builder = WebviewWindowBuilder::new(&app, OVERLAY_LABEL, WebviewUrl::App(url.into()))
+    .title("Harmony Overlay")
+    .transparent(transparent)
+    .decorations(false)
+    .always_on_top(true)
+    .skip_taskbar(true)
+    .shadow(false)
+    .resizable(true)
+    .inner_size(size.0, size.1)
+    .position(40.0, 80.0);
+  // Matches the panel background in OverlayApp.vue.
+  #[cfg(target_os = "linux")]
+  let builder = builder.background_color(tauri::window::Color(17, 18, 20, 255));
+  let win = builder.build().map_err(|e| e.to_string())?;
   // click-through by default so the game underneath stays interactive
   win.set_ignore_cursor_events(true).map_err(|e| e.to_string())?;
   Ok(())
