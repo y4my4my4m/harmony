@@ -8,28 +8,17 @@ export interface TrendingHashtag {
   tag: string;
   daily_uses: number;
   weekly_uses: number;
+  /** Distinct authors using the tag in the window; 0 where the source does not count them. */
+  unique_users: number;
   trending_score: number;
   trending_rank: number;
   change_percent: number;
   trend: 'up' | 'down' | 'stable';
 }
 
-export interface TrendingPost {
-  post: TimelinePost;
-  trending_score: number;
-  engagement_score: number;
-  trending_rank: number;
-  engagement_velocity: number;
-}
-
 export interface TrendingUser {
   user: FederatedUser;
-  trending_score: number;
-  followers_growth: number;
-  engagement_rate: number;
   trending_rank: number;
-  new_followers: number;
-  posts_count: number;
 }
 
 export interface HashtagStats {
@@ -45,70 +34,78 @@ export interface HashtagStats {
 
 export interface TrendingOptions {
   limit?: number;
+  offset?: number;
   days?: number;
   /** Time window in hours. Takes precedence over `days` for hashtag queries. */
   hours?: number;
-  timeframe?: 'hourly' | 'daily' | 'weekly';
   includeLocal?: boolean;
   includeFederated?: boolean;
-  minEngagement?: number;
   instance?: string;
-  timeRange?: ExploreFilters['timeRange'];
-  /**
-   * Filter posts by real uploaded media (`posts.media_attachments`):
-   *  - `'media'`: only posts that contain at least one media attachment (uploads),
-   *  - `'text'`: only posts with no media attachment,
-   *  - `'all'`: no media constraint.
-   * Link-preview / oEmbed cards (stored in `metadata.embeds`) are not media.
-   */
-  mediaFilter?: 'all' | 'media' | 'text';
-  /** @deprecated use `mediaFilter: 'media'` */
-  mediaOnly?: boolean;
 }
 
-export interface ExploreFilters {
-  contentType?: 'all' | 'posts' | 'media' | 'users';
-  timeRange?: '1h' | '6h' | '24h' | '7d' | '30d';
-  instance?: string;
-  language?: string;
-  minScore?: number;
+export type TrendingTimeRange = '1h' | '6h' | '24h' | '7d' | '30d';
+
+export const TRENDING_TIME_RANGE_HOURS: Record<TrendingTimeRange, number> = {
+  '1h': 1,
+  '6h': 6,
+  '24h': 24,
+  '7d': 24 * 7,
+  '30d': 24 * 30,
+};
+
+export interface TrendingPostsQuery {
+  timeRange?: TrendingTimeRange;
+  /** Images or video in media_attachments or as content file parts (post_has_profile_media). */
+  mediaOnly?: boolean;
+  /** Posts made on this instance. */
+  localOnly?: boolean;
+  /** Authors on this domain. */
+  domain?: string | null;
   limit?: number;
-  includeLocal?: boolean;
-  includeFederated?: boolean;
-  /** `'engagement'` ranks by interactions within the window; `'recent'` by recency. */
-  orderBy?: 'recent' | 'engagement';
+  offset?: number;
+  /** Ranking instant returned by the first page; later pages pass it back. */
+  asOf?: string | null;
 }
+
+export interface TrendingPostsPage {
+  posts: TimelinePost[];
+  asOf: string | null;
+  hasMore: boolean;
+}
+
+/** get_trending_posts clamps p_offset to this. */
+const TRENDING_POSTS_MAX_OFFSET = 400;
 
 class TrendingService {
   
   // HASHTAG TRENDING METHODS
 
+  /** Throws on a failed request. */
   async getTrendingHashtags(options: TrendingOptions = {}): Promise<TrendingHashtag[]> {
-    try {
-      const { limit = 20 } = options;
-      // Prefer an explicit hours window; fall back to days (legacy callers) → hours.
-      const hours = options.hours ?? (options.days ? options.days * 24 : 168);
+    const { limit = 20 } = options;
+    // Prefer an explicit hours window; fall back to days (legacy callers) → hours.
+    const hours = options.hours ?? (options.days ? options.days * 24 : 168);
 
-      const { data, error } = await supabase.rpc('get_trending_hashtags', {
-        p_hours: hours,
-        p_limit: limit
-      });
+    const { data, error } = await supabase.rpc('get_trending_hashtags', {
+      p_hours: hours,
+      p_limit: limit
+    });
 
-      if (error) throw error;
-
-      return (data || []).map((row: any, index: number) => ({
-        tag: row.tag,
-        daily_uses: Number(row.uses_count) || 0,
-        weekly_uses: Number(row.uses_count) || 0,
-        trending_score: Number(row.uses_count) || 0,
-        trending_rank: index + 1,
-        change_percent: Number(row.change_percent) || 0,
-        trend: (row.trend === 'rising' ? 'up' : row.trend === 'falling' ? 'down' : 'stable') as 'up' | 'down' | 'stable'
-      }));
-    } catch (error) {
+    if (error) {
       debug.error('Failed to get trending hashtags:', error);
-      return [];
+      throw error;
     }
+
+    return (data || []).map((row: any, index: number) => ({
+      tag: row.tag,
+      daily_uses: Number(row.uses_count) || 0,
+      weekly_uses: Number(row.uses_count) || 0,
+      unique_users: Number(row.unique_users) || 0,
+      trending_score: Number(row.uses_count) || 0,
+      trending_rank: index + 1,
+      change_percent: Number(row.change_percent) || 0,
+      trend: (row.trend === 'rising' ? 'up' : row.trend === 'falling' ? 'down' : 'stable') as 'up' | 'down' | 'stable'
+    }));
   }
 
   async getHashtagStats(tag: string): Promise<HashtagStats | null> {
@@ -154,6 +151,7 @@ class TrendingService {
         tag: row.tag,
         daily_uses: row.daily_uses || 0,
         weekly_uses: row.weekly_uses || 0,
+        unique_users: 0,
         trending_score: parseFloat(row.trending_score) || 0,
         trending_rank: row.trending_rank || 999,
         change_percent: 0, // not computed by this query
@@ -167,61 +165,35 @@ class TrendingService {
 
   // TRENDING POSTS METHODS
 
-  async getTrendingPosts(options: TrendingOptions = {}): Promise<TrendingPost[]> {
-    try {
-      const {
-        limit = 20,
-        includeLocal = true,
-        includeFederated = true,
-        instance,
-        timeRange = '24h',
-        mediaFilter,
-        mediaOnly = false,
-      } = options;
+  /**
+   * One page of get_trending_posts. The first page passes no asOf; the returned asOf pins the
+   * window and scores for the pages after it. Throws on a failed request.
+   */
+  async getTrendingPosts(query: TrendingPostsQuery = {}): Promise<TrendingPostsPage> {
+    const limit = query.limit ?? 20;
+    const offset = query.offset ?? 0;
 
-      // Map the media filter onto an explore content type. The precomputed
-      // `trending_posts` table cannot honor media/instance/time filters at the
-      // row level (nested embeds, sparse buckets), so explore-tab trending is
-      // sourced from a live engagement-ranked `posts` query, where time window,
-      // instance and media/text filters all apply.
-      const contentType: ExploreFilters['contentType'] =
-        mediaFilter === 'media' || mediaOnly
-          ? 'media'
-          : mediaFilter === 'text'
-            ? 'posts'
-            : 'all';
+    const { data, error } = await supabase.rpc('get_trending_posts', {
+      p_hours: TRENDING_TIME_RANGE_HOURS[query.timeRange ?? '24h'],
+      p_media_only: query.mediaOnly ?? false,
+      p_local_only: query.localOnly ?? false,
+      p_domain: query.domain || null,
+      p_limit: limit,
+      p_offset: offset,
+      p_as_of: query.asOf ?? null,
+    });
 
-      const posts = await this.getExplorePosts({
-        contentType,
-        timeRange,
-        instance,
-        includeLocal,
-        includeFederated,
-        limit,
-        orderBy: 'engagement',
-      });
-
-      return posts.map((post, index) => {
-        const score = this.engagementScore(post);
-        return {
-          post,
-          trending_score: score,
-          engagement_score: score,
-          trending_rank: index + 1,
-          engagement_velocity: 0,
-        };
-      });
-    } catch (error) {
+    if (error) {
       debug.error('Failed to get trending posts:', error);
-      return [];
+      throw error;
     }
-  }
 
-  /** Weighted engagement score: reblogs count double, replies/favorites once. */
-  private engagementScore(post: { favorites_count?: number; reblogs_count?: number; replies_count?: number }): number {
-    return (post.favorites_count || 0)
-      + (post.reblogs_count || 0) * 2
-      + (post.replies_count || 0);
+    const rows: any[] = data || [];
+    return {
+      posts: rows.map(row => this.transformDatabasePostToTimelinePost(row)),
+      asOf: rows[0]?.as_of ?? query.asOf ?? null,
+      hasMore: rows.length === limit && offset + limit <= TRENDING_POSTS_MAX_OFFSET,
+    };
   }
 
   async getPostsByHashtag(
@@ -328,109 +300,89 @@ class TrendingService {
 
   // TRENDING USERS METHODS
 
-  /** Trending users, used as suggested follows. Auth lookup goes through AuthContextService's cache. */
+  /**
+   * Discoverable, unsilenced accounts by follower count, the caller excluded. Auth lookup
+   * goes through AuthContextService's cache. Throws on a failed request.
+   */
   async getTrendingUsers(options: TrendingOptions = {}): Promise<TrendingUser[]> {
-    try {
-      const { limit = 10, instance, includeLocal = true, includeFederated = true } = options;
+    const { limit = 10, offset = 0, instance, includeLocal = true, includeFederated = true } = options;
 
-      // Exclusion key is profiles.id, not the auth UUID; the two differ, and
-      // comparing the auth UUID leaves the current user in their own
-      // suggested follows.
-      const { authContextService } = await import('@/services/AuthContextService');
-      const context = await authContextService.getCurrentContext();
-      const currentUserId = context.profileId;
+    // Exclusion key is profiles.id, not the auth UUID; the two differ, and
+    // comparing the auth UUID leaves the current user in their own
+    // suggested follows.
+    const { authContextService } = await import('@/services/AuthContextService');
+    const context = await authContextService.getCurrentContext();
+    const currentUserId = context.profileId;
 
-      let query = supabase
-        .from('profiles')
-        .select(`
-          id,
-          username,
-          display_name,
-          avatar_url,
-          bio,
-          domain,
-          is_local,
-          created_at,
-          updated_at,
-          followers_count,
-          following_count,
-          posts_count
-        `)
-        .eq('is_suspended', false);
+    let query = supabase
+      .from('profiles')
+      .select(`
+        id,
+        username,
+        display_name,
+        avatar_url,
+        bio,
+        domain,
+        is_local,
+        created_at,
+        updated_at,
+        followers_count,
+        following_count,
+        posts_count
+      `)
+      .eq('is_suspended', false)
+      .not('is_silenced', 'is', true)
+      // AP `discoverable: false` opts an account out of discovery surfaces.
+      .not('federation_discoverable', 'is', false);
 
-      // "All Instances" includes federated users; narrow to one domain only
-      // when a domain is explicitly selected.
-      if (instance && instance !== 'all') {
-        query = query.eq('domain', instance);
-      } else if (includeLocal && !includeFederated) {
-        // "This instance" only. Filters on is_local so local users with a NULL
-        // domain are included; they do not match domain = VITE_DOMAIN.
-        query = query.eq('is_local', true);
-      } else if (!includeLocal && includeFederated) {
-        query = query.eq('is_local', false);
-      }
-
-      query = query.order('followers_count', { ascending: false });
-
-      if (currentUserId) {
-        query = query.neq('id', currentUserId);
-      }
-
-      query = query.limit(limit);
-
-      const { data, error } = await query;
-      if (error) throw error;
-
-      const now = Date.now();
-      const results = (data || []).map((row: any) => {
-        const user: FederatedUser = {
-          id: row.id,
-          username: row.username,
-          domain: row.domain || import.meta.env.VITE_DOMAIN as string,
-          handle: `@${row.username}${row.domain && row.domain !== import.meta.env.VITE_DOMAIN as string ? '@' + row.domain : ''}`,
-          display_name: row.display_name || row.username,
-          avatar_url: row.avatar_url || '/default_avatar.webp',
-          bio: row.bio || '',
-          is_local: row.domain === import.meta.env.VITE_DOMAIN as string || !row.domain,
-          verified: false,
-          followers_count: row.followers_count || 0,
-          following_count: row.following_count || 0,
-          posts_count: row.posts_count || 0,
-          created_at: row.created_at,
-          updated_at: row.updated_at || row.created_at
-        };
-
-        const followers = user.followers_count ?? 0;
-        const posts = user.posts_count ?? 0;
-        const createdAt = new Date(row.created_at).getTime();
-        const daysSinceCreated = Math.max(1, (now - createdAt) / (1000 * 60 * 60 * 24));
-        const updatedAt = new Date(row.updated_at || row.created_at).getTime();
-        const daysSinceActive = Math.max(0.1, (now - updatedAt) / (1000 * 60 * 60 * 24));
-        const recencyBoost = 1 / (1 + daysSinceActive / 7);
-
-        const trendingScore = ((followers * 0.3) + (posts * 2.0)) * recencyBoost;
-        const followersGrowth = (followers / daysSinceCreated) * 7;
-        const engagementRate = posts > 0 ? Math.min(100, (followers / posts) * 10) : 0;
-
-        return {
-          user,
-          trending_score: Math.round(trendingScore * 100) / 100,
-          followers_growth: Math.round(followersGrowth * 100) / 100,
-          engagement_rate: Math.round(engagementRate * 100) / 100,
-          trending_rank: 0,
-          new_followers: Math.round(followersGrowth),
-          posts_count: posts
-        };
-      });
-
-      results.sort((a, b) => b.trending_score - a.trending_score);
-      results.forEach((r, i) => { r.trending_rank = i + 1; });
-
-      return results;
-    } catch (error) {
-      debug.error('Failed to get trending users:', error);
-      return [];
+    // "All Instances" includes federated users; narrow to one domain only
+    // when a domain is explicitly selected.
+    if (instance && instance !== 'all') {
+      query = query.eq('domain', instance);
+    } else if (includeLocal && !includeFederated) {
+      // "This instance" only. Filters on is_local so local users with a NULL
+      // domain are included; they do not match domain = VITE_DOMAIN.
+      query = query.eq('is_local', true);
+    } else if (!includeLocal && includeFederated) {
+      query = query.eq('is_local', false);
     }
+
+    if (currentUserId) {
+      query = query.neq('id', currentUserId);
+    }
+
+    // id breaks follower-count ties so offset pages neither overlap nor skip.
+    query = query
+      .order('followers_count', { ascending: false, nullsFirst: false })
+      .order('id', { ascending: true })
+      .range(offset, offset + limit - 1);
+
+    const { data, error } = await query;
+    if (error) {
+      debug.error('Failed to get trending users:', error);
+      throw error;
+    }
+
+    const localDomain = import.meta.env.VITE_DOMAIN as string;
+    return (data || []).map((row: any, index: number) => ({
+      user: {
+        id: row.id,
+        username: row.username,
+        domain: row.domain || localDomain,
+        handle: `@${row.username}${row.domain && row.domain !== localDomain ? '@' + row.domain : ''}`,
+        display_name: row.display_name || row.username,
+        avatar_url: row.avatar_url || '/default_avatar.webp',
+        bio: row.bio || '',
+        is_local: row.domain === localDomain || !row.domain,
+        verified: false,
+        followers_count: row.followers_count || 0,
+        following_count: row.following_count || 0,
+        posts_count: row.posts_count || 0,
+        created_at: row.created_at,
+        updated_at: row.updated_at || row.created_at
+      },
+      trending_rank: offset + index + 1,
+    }));
   }
 
   // INSTANCE DISCOVERY METHODS
@@ -604,107 +556,6 @@ class TrendingService {
     }
   }
 
-  // EXPLORE CONTENT METHODS
-
-  async getExploreContent(filters: ExploreFilters = {}): Promise<{
-    posts: TimelinePost[];
-    hashtags: TrendingHashtag[];
-    users: TrendingUser[];
-    instances: any[];
-  }> {
-    try {
-      const timeRange = filters.timeRange ?? '24h';
-      const [posts, hashtags, users, instances] = await Promise.all([
-        this.getExplorePosts(filters),
-        this.getTrendingHashtags({
-          limit: 10,
-          days: this.getDaysForTimeRange(timeRange),
-        }),
-        this.getTrendingUsers({
-          limit: 6,
-          instance: filters.instance,
-        }),
-        this.getFederatedInstances({ limit: 8, filter: 'active' })
-      ]);
-
-      return { posts, hashtags, users, instances };
-    } catch (error) {
-      debug.error('Failed to get explore content:', error);
-      return { posts: [], hashtags: [], users: [], instances: [] };
-    }
-  }
-
-  async getExplorePosts(filters: ExploreFilters = {}): Promise<TimelinePost[]> {
-    try {
-      const {
-        contentType = 'all',
-        timeRange = '24h',
-        instance,
-        limit = 20,
-        includeLocal = true,
-        includeFederated = true,
-        orderBy = 'recent',
-      } = filters;
-
-      const timeThreshold = this.getTimeThreshold(timeRange);
-
-      // Engagement ranking over-fetches recent candidates within the window and
-      // ranks client-side; PostgREST cannot ORDER BY a weighted expression.
-      // Capped at 100 so a hot window cannot pull an unbounded result set.
-      const candidateLimit = orderBy === 'engagement'
-        ? Math.min(Math.max(limit * 5, limit), 100)
-        : limit;
-
-      let query = supabase
-        .from('posts')
-        .select(`
-          *,
-          author:profiles!inner(*)
-        `)
-        .eq('visibility', 'public')
-        .eq('is_deleted', false)
-        .eq('author.is_suspended', false) // Exclude posts from suspended users
-        .gte('created_at', timeThreshold)
-        .order('created_at', { ascending: false })
-        .limit(candidateLimit);
-
-      // Content type keys off uploaded media (`media_attachments`), not oEmbed
-      // link previews, which live in `metadata.embeds`.
-      if (contentType === 'media') {
-        query = query.not('media_attachments', 'eq', '[]');
-      } else if (contentType === 'posts') {
-        // "Posts only" means no uploaded media attachment.
-        query = query.eq('media_attachments', '[]');
-      }
-
-      if (instance && instance !== 'all') {
-        query = query.eq('author.domain', instance);
-      }
-
-      // Local/federated scoping applies only when exactly one is requested.
-      if (includeLocal && !includeFederated) {
-        query = query.eq('is_local', true);
-      } else if (!includeLocal && includeFederated) {
-        query = query.eq('is_local', false);
-      }
-
-      const { data, error } = await query;
-      if (error) throw error;
-
-      let rows = data || [];
-      if (orderBy === 'engagement') {
-        rows = [...rows]
-          .sort((a, b) => this.engagementScore(b) - this.engagementScore(a))
-          .slice(0, limit);
-      }
-
-      return rows.map(row => this.transformDatabasePostToTimelinePost(row));
-    } catch (error) {
-      debug.error('Failed to get explore posts:', error);
-      return [];
-    }
-  }
-
   // MAINTENANCE METHODS
 
   /** Caller schedules this; nothing here runs it periodically. */
@@ -778,40 +629,6 @@ class TrendingService {
       return count || 0;
     } catch {
       return 0;
-    }
-  }
-
-  private getTimeThreshold(timeRange: string): string {
-    const now = new Date();
-    switch (timeRange) {
-      case '1h':
-        return new Date(now.getTime() - 60 * 60 * 1000).toISOString();
-      case '6h':
-        return new Date(now.getTime() - 6 * 60 * 60 * 1000).toISOString();
-      case '24h':
-        return new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
-      case '7d':
-        return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
-      case '30d':
-        return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
-      default:
-        return new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
-    }
-  }
-
-  private getDaysForTimeRange(timeRange: ExploreFilters['timeRange'] = '24h'): number {
-    switch (timeRange) {
-      case '1h':
-      case '6h':
-        return 1;
-      case '24h':
-        return 1;
-      case '7d':
-        return 7;
-      case '30d':
-        return 30;
-      default:
-        return 1;
     }
   }
 

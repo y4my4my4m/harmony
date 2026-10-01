@@ -47,7 +47,7 @@ Views in `src/views/` correspond to routes:
 | `ChatView` | `/chat/:serverId/:channelId` | Server channel messaging |
 | `DMView` | `/dm/:conversationId` | Direct messages |
 | `TimelineView` | `/social/timeline` | ActivityPub home/public feed |
-| `ExploreView` | `/social/explore` | Discover users and instances |
+| `ExploreView` | `/social/trending`, `/social/instances` | Trending posts, hashtags and people; instance directory |
 | `UserProfileView` | `/social/profile/:handle` | User profile with posts |
 | `AdminPanel` | `/admin` | Instance administration |
 | `UserSettings` | `/settings` | User preferences |
@@ -67,7 +67,8 @@ Views in `src/views/` correspond to routes:
 - `MonyPost` - Single post display with reactions and interactions
 - `MonyFeed` - Post list/timeline feed
 - `Composer` - Post/reply/quote composer (modal and inline modes)
-- `ExploreContent` - Trending, tags, suggested users, instances
+- `TrendingContent` - Trending posts, hashtags and people
+- `InstancesContent` - Instance directory
 - `MonyMediaGallery` / `MonyMediaUpload` - Media handling
 
 **Voice & Video**:

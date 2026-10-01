@@ -19,14 +19,8 @@
     <!-- ActivityPub Mode Content -->
     <div v-else-if="mode === ViewMode.ACTIVITYPUB" class="content-section social-content">
 
-      <!-- Explore View -->
-      <ExploreContent
-        v-if="viewType === ViewType.EXPLORE"
-        :current-view="(currentView || 'trending') as any"
-      />
-      
       <!-- Special Views (Bookmarks, Lists, etc.) -->
-      <div v-else-if="viewType !== ViewType.TIMELINE" class="special-view">
+      <div v-if="viewType !== ViewType.TIMELINE" class="special-view">
         <ViewHeader
           :view-type="viewType"
           :data-count="specialViewData?.length || 0"
@@ -123,7 +117,6 @@ import { useRouter } from 'vue-router'
 import ChatComponent from '@/components/ChatComponent.vue'
 import Icon from '@/components/common/Icon.vue'
 import Composer from '@/components/activitypub/Composer.vue'
-import ExploreContent from '@/components/activitypub/ExploreContent.vue'
 import PostsContainer from './PostsContainer.vue'
 import ViewHeader from './ViewHeader.vue'
 import type { Message, TimelinePost, FederatedUser } from '@/types'

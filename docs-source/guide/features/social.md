@@ -72,12 +72,19 @@ All interactions are federated automatically through database triggers.
 
 ## Explore
 
-`ExploreView` and `ExploreContent` provide discovery features:
+`ExploreView` hosts two tabs of the social header:
 
-- **Trending posts** from the public timeline
-- **Trending hashtags** via `TrendingService`
-- **Suggested users** for follow recommendations
-- **Instance directory** with user/post counts and instance details (`InstanceDetailModal`)
+- **Trending** (`TrendingContent`), with three sections:
+  - **Posts**: public top-level posts with at least one reply, boost or favorite, ranked by
+    `get_trending_posts` with a time decay whose half-life is half the chosen window. Filters:
+    time range (last hour to last month), source (all instances, this instance, or one domain)
+    and **With media**, which keeps posts carrying an image or video either as an upload or as a
+    file part of a federated note.
+  - **Hashtags**: `get_trending_hashtags`, ranked by distinct authors in the window.
+  - **People**: discoverable accounts by follower count, filtered by source.
+  Tab and filters live in the URL (`?tab=hashtags&range=7d&media=1&source=local`).
+- **Instances** (`InstancesContent`): instance directory with user/post counts and instance
+  details (`InstanceDetailModal`)
 
 ## Hashtags
 
@@ -114,7 +121,8 @@ Mastodon-compatible lists (`ListsView`):
 | `MonyFeed` | Scrollable post list |
 | `Composer` | Post/reply/quote creation |
 | `MonyContent` | Rich content renderer |
-| `ExploreContent` | Discovery UI |
+| `TrendingContent` | Trending posts, hashtags and people |
+| `InstancesContent` | Instance directory |
 | `UserCard` | User info card in lists |
 | `UserSearchModal` | Federated user search |
 

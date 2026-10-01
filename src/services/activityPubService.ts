@@ -452,15 +452,6 @@ export class ActivityPubService {
     return await trendingService.getTrendingHashtags({ limit });
   }
 
-  async getTrendingPosts(options: {
-    limit?: number;
-    timeframe?: 'hourly' | 'daily' | 'weekly';
-    includeLocal?: boolean;
-    includeFederated?: boolean;
-  } = {}): Promise<any[]> {
-    return await trendingService.getTrendingPosts(options);
-  }
-
   // Backed by trending users; no follow-graph component.
   async getSuggestedUsers(limit: number = 10): Promise<any[]> {
     return await trendingService.getTrendingUsers({ limit });
@@ -483,20 +474,6 @@ export class ActivityPubService {
     options: { limit?: number; cursor?: string } = {}
   ): Promise<{ posts: TimelinePost[]; hasMore: boolean; cursor: string | null }> {
     return await trendingService.getPostsByHashtag(hashtag, options);
-  }
-
-  async getExploreContent(filters: {
-    contentType?: 'all' | 'posts' | 'media' | 'users';
-    timeRange?: '1h' | '6h' | '24h' | '7d' | '30d';
-    instance?: string;
-    language?: string;
-  } = {}): Promise<{
-    posts: TimelinePost[];
-    hashtags: any[];
-    users: any[];
-    instances: any[];
-  }> {
-    return await trendingService.getExploreContent(filters);
   }
 
   async searchContent(
