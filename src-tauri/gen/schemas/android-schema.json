@@ -5883,6 +5883,144 @@
           "markdownDescription": "This enables all file write related commands without any pre-configured accessible paths."
         },
         {
+          "description": "Everything the Harmony web app calls on the Android push plugin.\n#### This default permission set includes:\n\n- `allow-status`\n- `allow-request-permission`\n- `allow-open-settings`\n- `allow-get-fcm-token`\n- `allow-show`\n- `allow-cancel`\n- `allow-take-launch-target`\n- `allow-unified-push-register`\n- `allow-unified-push-unregister`\n- `allow-register-listener`\n- `allow-remove-listener`",
+          "type": "string",
+          "const": "harmony-push:default",
+          "markdownDescription": "Everything the Harmony web app calls on the Android push plugin.\n#### This default permission set includes:\n\n- `allow-status`\n- `allow-request-permission`\n- `allow-open-settings`\n- `allow-get-fcm-token`\n- `allow-show`\n- `allow-cancel`\n- `allow-take-launch-target`\n- `allow-unified-push-register`\n- `allow-unified-push-unregister`\n- `allow-register-listener`\n- `allow-remove-listener`"
+        },
+        {
+          "description": "Enables the cancel command without any pre-configured scope.",
+          "type": "string",
+          "const": "harmony-push:allow-cancel",
+          "markdownDescription": "Enables the cancel command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_fcm_token command without any pre-configured scope.",
+          "type": "string",
+          "const": "harmony-push:allow-get-fcm-token",
+          "markdownDescription": "Enables the get_fcm_token command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the open_settings command without any pre-configured scope.",
+          "type": "string",
+          "const": "harmony-push:allow-open-settings",
+          "markdownDescription": "Enables the open_settings command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the register_listener command without any pre-configured scope.",
+          "type": "string",
+          "const": "harmony-push:allow-register-listener",
+          "markdownDescription": "Enables the register_listener command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the remove_listener command without any pre-configured scope.",
+          "type": "string",
+          "const": "harmony-push:allow-remove-listener",
+          "markdownDescription": "Enables the remove_listener command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the request_permission command without any pre-configured scope.",
+          "type": "string",
+          "const": "harmony-push:allow-request-permission",
+          "markdownDescription": "Enables the request_permission command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the show command without any pre-configured scope.",
+          "type": "string",
+          "const": "harmony-push:allow-show",
+          "markdownDescription": "Enables the show command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the status command without any pre-configured scope.",
+          "type": "string",
+          "const": "harmony-push:allow-status",
+          "markdownDescription": "Enables the status command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the take_launch_target command without any pre-configured scope.",
+          "type": "string",
+          "const": "harmony-push:allow-take-launch-target",
+          "markdownDescription": "Enables the take_launch_target command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the unified_push_register command without any pre-configured scope.",
+          "type": "string",
+          "const": "harmony-push:allow-unified-push-register",
+          "markdownDescription": "Enables the unified_push_register command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the unified_push_unregister command without any pre-configured scope.",
+          "type": "string",
+          "const": "harmony-push:allow-unified-push-unregister",
+          "markdownDescription": "Enables the unified_push_unregister command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the cancel command without any pre-configured scope.",
+          "type": "string",
+          "const": "harmony-push:deny-cancel",
+          "markdownDescription": "Denies the cancel command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_fcm_token command without any pre-configured scope.",
+          "type": "string",
+          "const": "harmony-push:deny-get-fcm-token",
+          "markdownDescription": "Denies the get_fcm_token command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the open_settings command without any pre-configured scope.",
+          "type": "string",
+          "const": "harmony-push:deny-open-settings",
+          "markdownDescription": "Denies the open_settings command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the register_listener command without any pre-configured scope.",
+          "type": "string",
+          "const": "harmony-push:deny-register-listener",
+          "markdownDescription": "Denies the register_listener command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the remove_listener command without any pre-configured scope.",
+          "type": "string",
+          "const": "harmony-push:deny-remove-listener",
+          "markdownDescription": "Denies the remove_listener command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the request_permission command without any pre-configured scope.",
+          "type": "string",
+          "const": "harmony-push:deny-request-permission",
+          "markdownDescription": "Denies the request_permission command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the show command without any pre-configured scope.",
+          "type": "string",
+          "const": "harmony-push:deny-show",
+          "markdownDescription": "Denies the show command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the status command without any pre-configured scope.",
+          "type": "string",
+          "const": "harmony-push:deny-status",
+          "markdownDescription": "Denies the status command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the take_launch_target command without any pre-configured scope.",
+          "type": "string",
+          "const": "harmony-push:deny-take-launch-target",
+          "markdownDescription": "Denies the take_launch_target command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the unified_push_register command without any pre-configured scope.",
+          "type": "string",
+          "const": "harmony-push:deny-unified-push-register",
+          "markdownDescription": "Denies the unified_push_register command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the unified_push_unregister command without any pre-configured scope.",
+          "type": "string",
+          "const": "harmony-push:deny-unified-push-unregister",
+          "markdownDescription": "Denies the unified_push_unregister command without any pre-configured scope."
+        },
+        {
           "description": "This permission set configures which\nnotification features are by default exposed.\n\n#### Granted Permissions\n\nIt allows all notification related features.\n\n\n#### This default permission set includes:\n\n- `allow-is-permission-granted`\n- `allow-request-permission`\n- `allow-notify`\n- `allow-register-action-types`\n- `allow-register-listener`\n- `allow-cancel`\n- `allow-get-pending`\n- `allow-remove-active`\n- `allow-get-active`\n- `allow-check-permissions`\n- `allow-show`\n- `allow-batch`\n- `allow-list-channels`\n- `allow-delete-channel`\n- `allow-create-channel`\n- `allow-permission-state`",
           "type": "string",
           "const": "notification:default",

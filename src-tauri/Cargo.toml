@@ -56,6 +56,7 @@ optional = true
 [target.'cfg(target_os = "android")'.dependencies]
 jni = "0.21"
 ndk-context = "0.1"
+tauri-plugin-harmony-push = { path = "crates/tauri-plugin-harmony-push" }
 
 # native media engine is desktop-linux only; webview WebRTC covers other platforms
 [target.'cfg(all(target_os = "linux", not(target_os = "android")))'.dependencies]

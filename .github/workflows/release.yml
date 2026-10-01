@@ -102,6 +102,7 @@ jobs:
     env:
       NDK_VERSION: 28.2.13676358
       HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+      HAS_GOOGLE_SERVICES: ${{ secrets.ANDROID_GOOGLE_SERVICES_JSON_BASE64 != '' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -165,6 +166,28 @@ jobs:
           keyAlias=$KEY_ALIAS
           keyPassword=$KEY_PASSWORD
           EOF
+
+      # FCM is optional. Without the secret the APK still gets push through UnifiedPush and
+      # shows notifications while running; app/build.gradle.kts applies the Google Services
+      # plugin only when the file exists.
+      - name: Configure Firebase Cloud Messaging
+        if: env.HAS_GOOGLE_SERVICES == 'true'
+        env:
+          GOOGLE_SERVICES_B64: ${{ secrets.ANDROID_GOOGLE_SERVICES_JSON_BASE64 }}
+        run: |
+          cd src-tauri/gen/android/app
+          if ! printf '%s' "$GOOGLE_SERVICES_B64" | tr -d '[:space:]' | base64 -d > google-services.json 2>/dev/null; then
+            echo "::error::ANDROID_GOOGLE_SERVICES_JSON_BASE64 is not valid base64. Regenerate it with: base64 -w 0 google-services.json"
+            exit 1
+          fi
+          if ! node -e 'const j = require("./google-services.json"); process.exit((j.client || []).some(c => c.client_info?.android_client_info?.package_name === "online.knowmad.harmony") ? 0 : 1)' 2>/dev/null; then
+            echo "::error::ANDROID_GOOGLE_SERVICES_JSON_BASE64 decoded, but is not a google-services.json with an Android app for online.knowmad.harmony."
+            exit 1
+          fi
+
+      - name: Note FCM absence
+        if: env.HAS_GOOGLE_SERVICES != 'true'
+        run: echo "::notice::No ANDROID_GOOGLE_SERVICES_JSON_BASE64 secret - this APK has no FCM; push works through UnifiedPush only."
 
       - name: Build signed release APK
         if: env.HAS_KEYSTORE == 'true'

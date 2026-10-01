@@ -13,8 +13,9 @@ import { logger } from '../utils/logger.js';
  * Start listening for notifications and send push notifications
  */
 export async function startPushNotificationListener(): Promise<void> {
-  if (!PushNotificationService.initialize()) {
-    logger.warn('Push notification listener not started (VAPID not configured)');
+  const webPush = PushNotificationService.initialize();
+  if (!webPush && !PushNotificationService.isFcmConfigured()) {
+    logger.warn('Push notification listener not started (neither VAPID nor FCM configured)');
     return;
   }
 

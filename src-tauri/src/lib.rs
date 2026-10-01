@@ -112,6 +112,9 @@ pub fn run() {
     }
   };
 
+  #[cfg(target_os = "android")]
+  let builder = builder.plugin(tauri_plugin_harmony_push::init());
+
   let builder = builder
     .plugin(tauri_plugin_fs::init())
     .plugin(tauri_plugin_shell::init())
@@ -152,7 +155,6 @@ pub fn run() {
     commands::media::call_window_open,
     commands::media::call_window_close,
     commands::media::set_system_bar_colors,
-    commands::media::show_android_notification,
     commands::presence::presence_start,
     commands::presence::presence_stop,
     commands::presence::presence_current,
@@ -167,7 +169,6 @@ pub fn run() {
   let builder = builder.invoke_handler(tauri::generate_handler![
     commands::media::native_media_supported,
     commands::media::set_system_bar_colors,
-    commands::media::show_android_notification,
     commands::presence::presence_start,
     commands::presence::presence_stop,
     commands::presence::presence_current,
@@ -182,7 +183,6 @@ pub fn run() {
   let builder = builder.invoke_handler(tauri::generate_handler![
     commands::media::native_media_supported,
     commands::media::set_system_bar_colors,
-    commands::media::show_android_notification,
     commands::media::android_call_service,
     commands::media::android_open_url,
     commands::media::android_video_thumbnail

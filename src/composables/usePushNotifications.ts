@@ -1,11 +1,14 @@
 /**
- * Web Push subscription management.
+ * Push registration for this device.
  *
- * The browser owns the PushSubscription; the server keeps one row per (account,
+ * Browsers: the browser owns the PushSubscription; the server keeps one row per (account,
  * endpoint). This device's last registered endpoint and VAPID key are kept in
  * localStorage so a rotated, expired or re-keyed subscription is replaced
  * silently on the next reconcile instead of asking the user to set push up again.
  * Only a revoked permission needs the user.
+ *
+ * Android app: FCM or UnifiedPush through the harmony-push plugin (src/services/androidPush.ts).
+ * The same reconcile registers the chosen transport's token or endpoint after sign-in.
  *
  * iOS delivers Web Push only to an installed PWA (16.4+).
  */
@@ -15,6 +18,28 @@ import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
 import { isPWA } from '@/utils/pwaUtils'
 import { apiUrl } from '@/services/instanceConfig'
+import {
+  type AndroidPushRecord,
+  type NativePushStatus,
+  type ServerPushSupport,
+  type ServerRow,
+  type TransportChoice,
+  type TransportPreference,
+  chooseTransport,
+  decideAndroidRegistration,
+  getFcmToken,
+  initAndroidPush,
+  isAndroidApp,
+  nativePushStatus,
+  openNativeNotificationSettings,
+  readAndroidRecord,
+  readTransportPreference,
+  registerUnifiedPush,
+  requestNativePermission,
+  unregisterUnifiedPush,
+  writeAndroidRecord,
+  writeTransportPreference,
+} from '@/services/androidPush'
 
 const PUSH_BASE = '/api/federation/push'
 const DEVICE_KEY = 'harmony.push.device'
@@ -30,13 +55,21 @@ const subscriptions = ref<PushSubscriptionInfo[]>([])
 const currentEndpoint = ref<string | null>(null)
 const error = ref<string | null>(null)
 
+const androidStatus = ref<NativePushStatus | null>(null)
+const androidChoice = ref<TransportChoice | null>(null)
+const androidPreference = ref<TransportPreference>('auto')
+const serverSupport = ref<ServerPushSupport | null>(null)
+
 let initPromise: Promise<void> | null = null
 let reconcilePromise: Promise<void> | null = null
 let permissionWatchAttached = false
+let unifiedPushRegisteredThisSession = false
 
 export interface PushSubscriptionInfo {
   id: string
+  /** fcm:<id> for FCM rows; the server does not return tokens. */
   endpoint: string
+  transport?: 'webpush' | 'unifiedpush' | 'fcm'
   device_name?: string
   user_agent?: string
   created_at: string
@@ -296,6 +329,12 @@ async function initialize(): Promise<void> {
  */
 async function reconcile(): Promise<void> {
   if (reconcilePromise) return reconcilePromise
+  if (isAndroidApp()) {
+    reconcilePromise = reconcileAndroid().finally(() => {
+      reconcilePromise = null
+    })
+    return reconcilePromise
+  }
   reconcilePromise = (async () => {
     await initialize()
     if (!isSupported.value || !vapidPublicKey.value) return
@@ -419,6 +458,16 @@ async function unsubscribe(): Promise<{ success: boolean; error?: string }> {
  * Bounded so a slow server cannot hold up sign-out.
  */
 async function detachForLogout(timeoutMs = 3000): Promise<void> {
+  if (isAndroidApp()) {
+    const work = (async () => {
+      const record = readAndroidRecord()
+      const token = await getAuthToken()
+      if (!record || !token) return
+      await detachAndroidServerRow(record, token)
+    })().catch((err) => debug.warn('Android push detach on logout failed:', err))
+    await Promise.race([work, new Promise(resolve => setTimeout(resolve, timeoutMs))])
+    return
+  }
   if (!checkSupport()) return
   const work = (async () => {
     const sub = await getCurrentSubscription()
@@ -431,6 +480,10 @@ async function detachForLogout(timeoutMs = 3000): Promise<void> {
 
 /** Removes a device from the account; this browser routes through unsubscribe(). */
 async function removeSubscription(subscription: { id: string; endpoint: string }): Promise<{ success: boolean; error?: string }> {
+  if (isAndroidApp() && subscription.endpoint === currentEndpoint.value) {
+    await setAndroidTransport('off')
+    return error.value ? { success: false, error: error.value } : { success: true }
+  }
   const current = await getCurrentSubscription().catch(() => null)
   if (current && current.endpoint === subscription.endpoint) return unsubscribe()
   return deleteSubscription(subscription.id)
@@ -476,6 +529,7 @@ function resetState(): void {
   subscriptions.value = []
   error.value = null
   initPromise = null
+  androidChoice.value = null
 }
 
 /**
@@ -488,12 +542,16 @@ async function sendTestNotification(): Promise<{ success: boolean; error?: strin
   try {
     const token = await getAuthToken()
     if (!token) return { success: false, error: 'Not authenticated' }
-    const endpoint = (await getCurrentSubscription())?.endpoint
+    const androidRecord = isAndroidApp() ? readAndroidRecord() : null
+    const endpoint = androidRecord ? undefined : (await getCurrentSubscription())?.endpoint
+    const target = androidRecord
+      ? (androidRecord.transport === 'fcm' ? { fcmToken: androidRecord.endpoint } : { endpoint: androidRecord.endpoint })
+      : endpoint ? { endpoint } : {}
 
     const sendTest = async () => {
       const response = await pushFetch('/test', {
         method: 'POST',
-        body: JSON.stringify(endpoint ? { endpoint } : {}),
+        body: JSON.stringify(target),
       }, token)
       const data = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(data.error || 'Failed to send test notification')
@@ -501,7 +559,7 @@ async function sendTestNotification(): Promise<{ success: boolean; error?: strin
     }
 
     let data = await sendTest()
-    if (data.sent === 0 && endpoint) {
+    if (data.sent === 0 && endpoint && !androidRecord) {
       const resub = await subscribe()
       if (resub.success) data = await sendTest()
     }
@@ -516,6 +574,209 @@ async function sendTestNotification(): Promise<{ success: boolean; error?: strin
   } finally {
     isLoading.value = false
   }
+}
+
+// ---------------------------------------------------------------------------
+// Android app
+// ---------------------------------------------------------------------------
+
+async function fetchServerSupport(): Promise<ServerPushSupport> {
+  try {
+    const response = await pushFetch('/status')
+    if (!response.ok) return { fcm: false, unifiedpush: false }
+    const data = await response.json()
+    return { fcm: data.fcm === true, unifiedpush: data.unifiedpush === true }
+  } catch {
+    return { fcm: false, unifiedpush: false }
+  }
+}
+
+function serverRows(): ServerRow[] {
+  return subscriptions.value.map(s => ({ id: s.id, endpoint: s.endpoint, transport: s.transport, failure_count: s.failure_count }))
+}
+
+function androidDeviceName(): string {
+  const model = /Android[^;)]*;\s*([^;)]+?)(?:\s+Build\/[^;)]*)?\)/.exec(navigator.userAgent)?.[1]?.trim()
+  return (model ? `Harmony on ${model}` : 'Harmony for Android').slice(0, 120)
+}
+
+/** Removes this device's server row; the device keeps its token or distributor registration. */
+async function detachAndroidServerRow(record: AndroidPushRecord, token: string): Promise<void> {
+  if (record.transport === 'fcm') {
+    await pushFetch('/fcm/unregister', { method: 'POST', body: JSON.stringify({ token: record.endpoint }) }, token)
+  } else {
+    await pushFetch('/unsubscribe', { method: 'POST', body: JSON.stringify({ endpoint: record.endpoint }) }, token)
+  }
+}
+
+async function dropAndroidRecord(record: AndroidPushRecord, token: string | null): Promise<void> {
+  if (token) await detachAndroidServerRow(record, token).catch(err => debug.warn('Push detach failed:', err))
+  if (record.transport === 'unifiedpush') {
+    await unregisterUnifiedPush().catch(err => debug.warn('UnifiedPush unregister failed:', err))
+    unifiedPushRegisteredThisSession = false
+  }
+  writeAndroidRecord(null)
+}
+
+function refreshAndroidFlags(): void {
+  const record = readAndroidRecord()
+  if (!record || androidChoice.value?.kind !== record.transport) {
+    currentEndpoint.value = null
+    isSubscribed.value = false
+    return
+  }
+  currentEndpoint.value = record.transport === 'fcm' ? (record.id ? `fcm:${record.id}` : null) : record.endpoint
+  isSubscribed.value = !!currentEndpoint.value && subscriptions.value.some(s => s.endpoint === currentEndpoint.value)
+}
+
+async function waitForUnifiedPushEndpoint(previousUrl: string | null, timeoutMs = 10_000): Promise<NativePushStatus | null> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    await new Promise(resolve => setTimeout(resolve, 500))
+    const status = await nativePushStatus()
+    const endpoint = status?.unifiedPush.endpoint
+    if (status?.unifiedPush.failure && !endpoint) return status
+    if (endpoint && endpoint.url !== previousUrl) return status
+  }
+  return nativePushStatus()
+}
+
+/**
+ * Brings this installation's server registration in line with the chosen transport. Never
+ * prompts: without the notification permission nothing is registered.
+ */
+async function reconcileAndroid(): Promise<void> {
+  const token = await getAuthToken()
+  if (!token) return
+  const status = await nativePushStatus()
+  if (!status) return
+  androidStatus.value = status
+  androidPreference.value = readTransportPreference()
+  isSupported.value = true
+  permission.value = status.permission === 'prompt' ? 'default' : status.permission
+
+  const server = await fetchServerSupport()
+  serverSupport.value = server
+  const choice = chooseTransport(androidPreference.value, status, server)
+  androidChoice.value = choice
+  const listed = await fetchSubscriptions()
+  const record = readAndroidRecord()
+  error.value = null
+
+  try {
+    // An unavailable transport may be a server hiccup; only a switch or "Off" drops the record.
+    const switched = choice.kind === 'off' ? choice.reason === 'user' : record?.transport !== choice.kind
+    if (record && switched) {
+      await dropAndroidRecord(record, token)
+      await fetchSubscriptions()
+    }
+    if (choice.kind === 'off' || status.permission !== 'granted') return
+
+    if (choice.kind === 'fcm') {
+      const fcmToken = await getFcmToken()
+      const current = readAndroidRecord()
+      const decision = decideAndroidRegistration({
+        transport: 'fcm', current: fcmToken, record: current, rows: listed ? serverRows() : null, now: Date.now(),
+      })
+      if (decision.kind === 'register') {
+        const response = await pushFetch('/fcm/register', {
+          method: 'POST',
+          body: JSON.stringify({ token: fcmToken, previousToken: decision.previous, deviceName: androidDeviceName() }),
+        }, token)
+        const data = await response.json().catch(() => ({}))
+        if (!response.ok) throw new Error(data.error || `Server error ${response.status}`)
+        writeAndroidRecord({ transport: 'fcm', endpoint: fcmToken, id: data.id, registeredAt: Date.now() })
+        await fetchSubscriptions()
+        debug.log('FCM token registered for this account')
+      }
+      return
+    }
+
+    let upStatus = status
+    const stored = status.unifiedPush.endpoint
+    if (status.unifiedPush.distributor !== choice.distributor || !stored) {
+      await registerUnifiedPush(choice.distributor, vapidPublicKey.value ?? await fetchVapidKey().then(r => r.publicKey))
+      unifiedPushRegisteredThisSession = true
+      upStatus = (await waitForUnifiedPushEndpoint(stored?.url ?? null)) ?? status
+    } else if (!unifiedPushRegisteredThisSession) {
+      // Distributors expect a periodic REGISTER; a changed endpoint comes back as an event.
+      unifiedPushRegisteredThisSession = true
+      void registerUnifiedPush(choice.distributor, vapidPublicKey.value ?? await fetchVapidKey().then(r => r.publicKey))
+        .catch(err => debug.warn('UnifiedPush re-register failed:', err))
+    }
+    androidStatus.value = upStatus
+    const endpoint = upStatus.unifiedPush.endpoint
+    if (!endpoint) throw new Error(upStatus.unifiedPush.failure
+      ? `The push service refused registration (${upStatus.unifiedPush.failure})`
+      : 'The push service did not answer')
+
+    const current = readAndroidRecord()
+    const decision = decideAndroidRegistration({
+      transport: 'unifiedpush', current: endpoint.url, record: current, rows: listed ? serverRows() : null, now: Date.now(),
+    })
+    if (decision.kind === 'register') {
+      const response = await pushFetch('/subscribe', {
+        method: 'POST',
+        body: JSON.stringify({
+          subscription: { endpoint: endpoint.url, keys: { p256dh: endpoint.p256dh, auth: endpoint.auth } },
+          previousEndpoint: decision.previous,
+          deviceName: androidDeviceName(),
+          transport: 'unifiedpush',
+        }),
+      }, token)
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(data.error || `Server error ${response.status}`)
+      writeAndroidRecord({ transport: 'unifiedpush', endpoint: endpoint.url, distributor: choice.distributor, registeredAt: Date.now() })
+      await fetchSubscriptions()
+      debug.log('UnifiedPush endpoint registered for this account')
+    }
+  } catch (err: any) {
+    error.value = err?.message || 'Push registration failed'
+    debug.warn('Android push reconcile failed:', err)
+  } finally {
+    refreshAndroidFlags()
+  }
+}
+
+/** Switches this device's transport; the previous one is detached by the reconcile. */
+async function setAndroidTransport(preference: TransportPreference): Promise<void> {
+  writeTransportPreference(preference)
+  androidPreference.value = preference
+  error.value = null
+  await reconcile()
+}
+
+/** Asks for POST_NOTIFICATIONS, then registers when granted. */
+async function enableAndroidNotifications(): Promise<boolean> {
+  const status = androidStatus.value ?? await nativePushStatus()
+  if (status?.permission === 'denied') {
+    await openNativeNotificationSettings().catch(() => {})
+    return false
+  }
+  const result = await requestNativePermission().catch(() => 'denied' as const)
+  permission.value = result === 'prompt' ? 'default' : result
+  if (result === 'granted') await reconcile()
+  return result === 'granted'
+}
+
+/**
+ * Plugin events: FCM rotated the token or the distributor changed the endpoint. A distributor
+ * that dropped the registration clears the row until the next start or a new choice.
+ */
+function onAndroidRegistrationChange(event: Record<string, unknown>): void {
+  if (event.event === 'unregistered') {
+    const record = readAndroidRecord()
+    if (record?.transport === 'unifiedpush') {
+      void getAuthToken().then(token => dropAndroidRecord(record, token)).finally(refreshAndroidFlags)
+    }
+    return
+  }
+  void reconcile()
+}
+
+/** Tap routing and registration events. Idempotent; runs after sign-in. */
+async function startAndroidPush(): Promise<void> {
+  await initAndroidPush(onAndroidRegistrationChange)
 }
 
 export function usePushNotifications() {
@@ -552,8 +813,16 @@ export function usePushNotifications() {
     statusText,
     requiresPWA,
 
+    androidStatus,
+    androidChoice,
+    androidPreference,
+    serverSupport,
+
     initialize,
     reconcile,
+    setAndroidTransport,
+    enableAndroidNotifications,
+    startAndroidPush,
     subscribe,
     unsubscribe,
     detachForLogout,

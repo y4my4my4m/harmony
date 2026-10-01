@@ -127,3 +127,98 @@ export function clip(text: string, max: number): string {
   const chars = Array.from(text || '');
   return chars.length > max ? `${chars.slice(0, max - 1).join('')}…` : chars.join('');
 }
+
+export type PushTransport = 'webpush' | 'unifiedpush' | 'fcm';
+
+/** Targets rendered by the Android app rather than a service worker. */
+export const APP_TRANSPORTS: readonly PushTransport[] = ['unifiedpush', 'fcm'];
+
+// FCM caps a data message at 4096 bytes; ntfy caps a UnifiedPush body at 4096 bytes after
+// RFC 8291 encryption adds 103. The budget leaves room for both.
+export const APP_PAYLOAD_MAX_BYTES = 3000;
+
+// 80 uuids with separators are 2959 bytes.
+const DISMISS_IDS_PER_MESSAGE = 80;
+
+const FCM_TOKEN_RE = /^[A-Za-z0-9_:.-]{20,4096}$/;
+
+export function isValidFcmToken(token: unknown): token is string {
+  return typeof token === 'string' && FCM_TOKEN_RE.test(token);
+}
+
+export interface AppPushInput {
+  notificationId: string;
+  type: string;
+  data?: Record<string, any>;
+  title: string;
+  body: string;
+  sender?: string | null;
+  avatarUrl?: string | null;
+  iconUrl?: string | null;
+}
+
+const byteLength = (value: Record<string, string>): number => Buffer.byteLength(JSON.stringify(value));
+
+/**
+ * Conversation title the Android app shows above a message: "Server #channel" for server
+ * channels, the group name for group DMs, empty for one-to-one DMs. Mirrors
+ * showDesktopNotification in src/stores/useNotification.ts.
+ */
+export function conversationTitle(data: Record<string, any> = {}): string {
+  const serverName = data.location?.server_name || data.server_name || '';
+  const channelName = data.location?.channel_name || data.channel_name || '';
+  if (serverName) return channelName ? `${serverName} #${channelName}` : serverName;
+  if (channelName) return `#${channelName}`;
+  return typeof data.conversation?.name === 'string' ? data.conversation.name : '';
+}
+
+/**
+ * Flat string map the Android app renders: an FCM data message, or the JSON body of a
+ * UnifiedPush message. Field names match the app's PushPayload. Optional fields are dropped
+ * in order (icon, avatar, conversation title) and the body clipped until the map fits
+ * APP_PAYLOAD_MAX_BYTES.
+ */
+export function appPushData(input: AppPushInput): Record<string, string> {
+  const data = input.data || {};
+  const routing = compactPushData(input.notificationId, input.type, data);
+  const out: Record<string, string> = {
+    kind: 'notification',
+    id: input.notificationId,
+    type: input.type,
+    title: clip(input.title, 120),
+    body: clip(input.body, 240),
+    url: routing.url,
+  };
+  for (const key of ['conversation_id', 'server_id', 'channel_id', 'thread_id', 'message_id', 'post_id']) {
+    if (routing[key]) out[key] = routing[key];
+  }
+  const sender = clip(input.sender || '', 64);
+  if (sender) out.sender = sender;
+  const conv = clip(conversationTitle(data), 80);
+  if (conv) out.conv = conv;
+  if (input.avatarUrl && input.avatarUrl.length <= 512) out.avatar = input.avatarUrl;
+  if (input.iconUrl && input.iconUrl.length <= 512) out.icon = input.iconUrl;
+
+  for (const key of ['icon', 'avatar', 'conv']) {
+    if (byteLength(out) <= APP_PAYLOAD_MAX_BYTES) break;
+    delete out[key];
+  }
+  while (byteLength(out) > APP_PAYLOAD_MAX_BYTES && Array.from(out.body).length > 1) {
+    out.body = clip(out.body, Math.floor(Array.from(out.body).length / 2));
+  }
+  return out;
+}
+
+/**
+ * "Read" messages that make the Android app cancel notifications. ids null cancels every
+ * notification of the account on that device.
+ */
+export function dismissalMessages(ids: string[] | null): Record<string, string>[] {
+  if (ids === null) return [{ kind: 'read', all: '1' }];
+  const unique = [...new Set(ids.filter((id) => typeof id === 'string' && id))];
+  const messages: Record<string, string>[] = [];
+  for (let i = 0; i < unique.length; i += DISMISS_IDS_PER_MESSAGE) {
+    messages.push({ kind: 'read', ids: unique.slice(i, i + DISMISS_IDS_PER_MESSAGE).join(',') });
+  }
+  return messages;
+}

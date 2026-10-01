@@ -154,7 +154,8 @@ export async function startServer(): Promise<void> {
     if (PushNotificationService.initialize()) {
       logger.info('Push notification service initialized (server)');
     } else {
-      logger.warn('Push notifications not available (VAPID not configured)');
+      logger.warn('Web Push and UnifiedPush not available (VAPID not configured)');
     }
+    PushNotificationService.getFcmSender();
   });
 }

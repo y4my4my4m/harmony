@@ -236,7 +236,7 @@
       <div class="section-header">
         <h3 class="section-title">
           <Icon name="smartphone" class="section-icon" />
-          {{ isNativeClient ? 'Push to other devices' : 'Push notifications' }}
+          {{ isNativeClient && !isAndroidClient ? 'Push to other devices' : 'Push notifications' }}
         </h3>
         <div class="push-status-badge" :class="isNativeClient ? 'available' : pushStatusClass">
           <Icon :name="isNativeClient ? 'info' : pushStatusIcon" />
@@ -247,12 +247,14 @@
         {{ pushSectionDescription }}
       </p>
 
-      <!-- Native mobile app: background push requires FCM, which is not integrated -->
-      <div v-if="isNativeMobile" class="push-warning">
+      <AndroidPushSettings v-if="isAndroidClient" />
+
+      <!-- Native mobile app other than Android: no background push transport -->
+      <div v-else-if="isNativeMobile" class="push-warning">
         <Icon name="info" />
         <div>
           <strong>Background push coming to the app</strong>
-          <p>This device shows notifications while Harmony is open (including backgrounded). Push while the app is fully closed needs native push (FCM), which isn't wired up yet.</p>
+          <p>This device shows notifications while Harmony is open (including backgrounded). Push while the app is fully closed is available on Android only.</p>
         </div>
       </div>
 
@@ -284,7 +286,7 @@
       </div>
 
       <!-- Push error (e.g. 429) with Retry -->
-      <div v-else-if="pushNotifications.error.value" class="push-warning error push-error-with-retry">
+      <div v-else-if="pushNotifications.error.value && !isAndroidClient" class="push-warning error push-error-with-retry">
         <Icon name="alert-triangle" />
         <div>
           <strong>Push notification error</strong>
@@ -396,7 +398,7 @@
 
       <!-- Native client with nothing to manage -->
       <p
-        v-if="isNativeClient && !pushNotifications.isSubscribed.value && pushNotifications.subscriptions.value.length === 0"
+        v-if="isNativeClient && !isAndroidClient && !pushNotifications.isSubscribed.value && pushNotifications.subscriptions.value.length === 0"
         class="push-empty-note"
       >
         No devices are subscribed to push yet. Enable push notifications on your phone or in a browser, then manage those devices here.
@@ -422,7 +424,7 @@
                   <span v-if="sub.endpoint === pushNotifications.currentEndpoint.value" class="device-current">This device</span>
                 </span>
                 <span class="device-date">
-                  Added {{ formatDate(sub.created_at) }}<template v-if="sub.failure_count >= 5"> · Not reachable</template>
+                  Added {{ formatDate(sub.created_at) }}<template v-if="sub.transport === 'fcm'"> · Google (FCM)</template><template v-else-if="sub.transport === 'unifiedpush'"> · UnifiedPush</template><template v-if="sub.failure_count >= 5"> · Not reachable</template>
                 </span>
               </div>
             </div>
@@ -603,6 +605,8 @@ import { useUserData } from '@/composables/useUserData'
 import { usePushNotifications } from '@/composables/usePushNotifications'
 import { isTauri, isTauriMobile, isMobileDevice, supportsHaptics } from '@/utils/platform'
 import { useHapticSettings } from '@/composables/useHapticSettings'
+import { isAndroidApp } from '@/services/androidPush'
+import AndroidPushSettings from '@/components/settings/user/AndroidPushSettings.vue'
 
 // Stores
 const notificationStore = useNotificationStore()
@@ -612,6 +616,7 @@ const pushNotifications = usePushNotifications()
 const hapticSettings = useHapticSettings()
 const isNativeClient = isTauri()
 const isNativeMobile = isTauriMobile()
+const isAndroidClient = isAndroidApp()
 const isMobileClient = isMobileDevice()
 const hapticsAvailable = supportsHaptics()
 const systemNotificationsAvailable = isNativeClient || typeof Notification !== 'undefined'
@@ -1094,6 +1099,12 @@ const pushStatusIcon = computed(() => {
 })
 
 const pushStatusBadgeText = computed(() => {
+  if (isAndroidClient) {
+    const choice = pushNotifications.androidChoice.value
+    if (choice?.kind === 'fcm') return 'This device: Google (FCM)'
+    if (choice?.kind === 'unifiedpush') return 'This device: UnifiedPush'
+    return 'This device: while open'
+  }
   if (isNativeClient) {
     return isNativeMobile ? 'This device: foreground' : 'This device: native notifications'
   }
@@ -1104,6 +1115,9 @@ const pushStatusBadgeText = computed(() => {
 })
 
 const pushSectionDescription = computed(() => {
+  if (isAndroidClient) {
+    return 'Push reaches this device when Harmony is closed, through Google (FCM) or a UnifiedPush app of your choice. Your other subscribed devices are listed below.'
+  }
   if (isNativeClient) {
     return isNativeMobile
       ? 'This device gets notifications while the app is open. Manage push to your other subscribed devices below.'
@@ -1215,7 +1229,7 @@ onMounted(async () => {
   }
   loadPreferences()
   if (!isNativeClient) void pushNotifications.reconcile()
-  else void pushNotifications.initialize()
+  else if (!isAndroidClient) void pushNotifications.initialize()
 })
 
 // Watch for changes in the store

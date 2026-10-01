@@ -1,6 +1,7 @@
 /**
- * Web Push subscription routes. Every route except vapid-key, status and resubscribe
- * acts for the local profile behind the bearer token.
+ * Push target routes: Web Push subscriptions (browsers, and the Android app through
+ * UnifiedPush) and FCM tokens (the Android app through Firebase). Every route except
+ * vapid-key, status and resubscribe acts for the local profile behind the bearer token.
  */
 
 import { Router, Request, Response } from 'express';
@@ -8,6 +9,7 @@ import { PushNotificationService } from '../services/PushNotificationService.js'
 import { getSupabaseClient } from '../config/supabase.js';
 import { localProfileIdFromBearer } from '../middleware/auth.js';
 import { logger } from '../utils/logger.js';
+import { isValidFcmToken } from '../services/pushPolicy.js';
 
 const supabaseAdmin = getSupabaseClient();
 
@@ -40,16 +42,20 @@ router.get('/vapid-key', (_req: Request, res: Response): void => {
 });
 
 router.get('/status', (_req: Request, res: Response): void => {
+  const webPush = !!PushNotificationService.getPublicKey();
   res.json({
     available: PushNotificationService.isAvailable(),
-    configured: !!PushNotificationService.getPublicKey()
+    configured: webPush,
+    fcm: PushNotificationService.isFcmConfigured(),
+    unifiedpush: webPush,
   });
 });
 
 /**
  * POST /push/subscribe
- * Body: { subscription, deviceName?, previousEndpoint? }
+ * Body: { subscription, deviceName?, previousEndpoint?, transport? }
  * previousEndpoint is the endpoint this browser registered before, replaced by this one.
+ * transport is 'unifiedpush' for the Android app's UnifiedPush endpoint, else 'webpush'.
  */
 router.post('/subscribe', async (req: Request, res: Response): Promise<void> => {
   try {
@@ -59,6 +65,7 @@ router.post('/subscribe', async (req: Request, res: Response): Promise<void> => 
     const { subscription } = req.body || {};
     const deviceName = optionalString(req.body?.deviceName, 120);
     const previousEndpoint = optionalString(req.body?.previousEndpoint, 2048);
+    const transport = req.body?.transport === 'unifiedpush' ? 'unifiedpush' : 'webpush';
 
     if (!subscription?.endpoint || !subscription?.keys) {
       res.status(400).json({ error: 'Invalid subscription data' });
@@ -70,11 +77,12 @@ router.post('/subscribe', async (req: Request, res: Response): Promise<void> => 
       subscription,
       req.headers['user-agent'],
       deviceName,
-      previousEndpoint
+      previousEndpoint,
+      transport
     );
 
     if (!result.success) {
-      const status = result.error === 'Invalid subscription data' ? 400 : 500;
+      const status = result.error === 'Invalid subscription data' || result.error === 'Endpoint not allowed' ? 400 : 500;
       res.status(status).json({ error: result.error });
       return;
     }
@@ -105,7 +113,7 @@ router.post('/resubscribe', async (req: Request, res: Response): Promise<void> =
     const result = await PushNotificationService.rotateSubscription(oldEndpoint, oldAuth, subscription);
     if (!result.success) {
       const status = result.error === 'Unknown subscription' ? 404
-        : result.error === 'Invalid subscription data' ? 400 : 500;
+        : result.error === 'Invalid subscription data' || result.error === 'Endpoint not allowed' ? 400 : 500;
       res.status(status).json({ error: result.error });
       return;
     }
@@ -147,6 +155,75 @@ router.post('/unsubscribe', async (req: Request, res: Response): Promise<void> =
   }
 });
 
+/**
+ * POST /push/fcm/register
+ * Body: { token, previousToken?, deviceName? }
+ * Moves the token to this account; previousToken is the one it replaces after a refresh.
+ */
+router.post('/fcm/register', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = await requireProfile(req, res);
+    if (!userId) return;
+
+    const token = req.body?.token;
+    const previousToken = req.body?.previousToken;
+    if (!isValidFcmToken(token) || (previousToken != null && !isValidFcmToken(previousToken))) {
+      res.status(400).json({ error: 'Invalid token' });
+      return;
+    }
+    if (!PushNotificationService.isFcmConfigured()) {
+      res.status(503).json({ error: 'FCM is not configured on this server' });
+      return;
+    }
+
+    const result = await PushNotificationService.saveFcmToken(userId, token, {
+      previousToken,
+      userAgent: optionalString(req.headers['user-agent'], 512),
+      deviceName: optionalString(req.body?.deviceName, 120),
+    });
+    if (!result.success) {
+      res.status(result.error === 'Invalid token' ? 400 : 500).json({ error: result.error });
+      return;
+    }
+    res.json({ success: true, id: result.id });
+  } catch (error) {
+    logger.error('Error in FCM register:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /push/fcm/unregister
+ * Body: { token }
+ * Removes this account's row for the token; other accounts are untouched.
+ */
+router.post('/fcm/unregister', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = await requireProfile(req, res);
+    if (!userId) return;
+
+    const token = req.body?.token;
+    if (!isValidFcmToken(token)) {
+      res.status(400).json({ error: 'Invalid token' });
+      return;
+    }
+    const result = await PushNotificationService.removeFcmToken(userId, token);
+    if (!result.success) {
+      res.status(500).json({ error: result.error });
+      return;
+    }
+    res.json({ success: true });
+  } catch (error) {
+    logger.error('Error in FCM unregister:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /push/subscriptions
+ * Every push target of the account. FCM tokens are not returned: an FCM row's endpoint
+ * reads fcm:<id>.
+ */
 router.get('/subscriptions', async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = await requireProfile(req, res);
@@ -154,7 +231,7 @@ router.get('/subscriptions', async (req: Request, res: Response): Promise<void> 
 
     const { data: subscriptions, error } = await supabaseAdmin
       .from('push_subscriptions')
-      .select('id, endpoint, device_name, user_agent, created_at, last_successful_push, failure_count')
+      .select('id, endpoint, transport, device_name, user_agent, created_at, last_successful_push, failure_count')
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
 
@@ -164,7 +241,13 @@ router.get('/subscriptions', async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    res.json({ subscriptions: subscriptions || [] });
+    res.json({
+      subscriptions: (subscriptions || []).map((sub: any) => ({
+        ...sub,
+        transport: sub.transport ?? 'webpush',
+        endpoint: sub.transport === 'fcm' ? `fcm:${sub.id}` : sub.endpoint,
+      })),
+    });
   } catch (error) {
     logger.error('Error in get subscriptions:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -197,15 +280,16 @@ router.delete('/subscriptions/:id', async (req: Request, res: Response): Promise
 
 /**
  * POST /push/test
- * Body: { endpoint? }
- * Sends to that endpoint when it belongs to the caller, else to every device.
+ * Body: { endpoint? } or { fcmToken? }
+ * Sends to that target when it belongs to the caller, else to every device.
  */
 router.post('/test', async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = await requireProfile(req, res);
     if (!userId) return;
 
-    const endpoint = optionalString(req.body?.endpoint, 2048);
+    const fcmToken = isValidFcmToken(req.body?.fcmToken) ? req.body.fcmToken as string : undefined;
+    const endpoint = fcmToken ?? optionalString(req.body?.endpoint, 2048);
 
     const testPayload = {
       title: 'Test notification',
@@ -226,7 +310,8 @@ router.post('/test', async (req: Request, res: Response): Promise<void> => {
       const { data: allSubs, error: subError } = await supabaseAdmin
         .rpc('get_user_push_subscriptions', { p_user_id: userId });
 
-      const sub = (allSubs || []).find((s: any) => s.endpoint === endpoint);
+      const sub = (allSubs || []).find((s: any) =>
+        s.endpoint === endpoint && (fcmToken ? s.transport === 'fcm' : s.transport !== 'fcm'));
 
       if (subError || !sub) {
         res.json({ success: false, sent: 0, failed: 0, message: 'Subscription not found for this device' });
@@ -241,6 +326,7 @@ router.post('/test', async (req: Request, res: Response): Promise<void> => {
           auth: sub.auth,
           push_enabled: sub.push_enabled,
           push_offline_only: sub.push_offline_only,
+          transport: sub.transport,
         },
         testPayload
       );

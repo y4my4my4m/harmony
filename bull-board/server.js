@@ -36,6 +36,7 @@ const QUEUE_NAMES = [
   'federate-voice-leave',
   'federate-group-invite',
   'send-push-notification',
+  'dismiss-push-notifications',
   'maintenance',
 ];
 

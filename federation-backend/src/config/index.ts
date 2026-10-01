@@ -54,6 +54,19 @@ const envSchema = z.object({
   VAPID_PUBLIC_KEY: z.string().optional(),
   VAPID_PRIVATE_KEY: z.string().optional(),
   VAPID_SUBJECT: z.string().email().optional(), // mailto: email for VAPID
+
+  // Firebase Cloud Messaging for the Android app. The service account JSON from the Firebase
+  // console, raw or base64 (FCM_SERVICE_ACCOUNT_JSON), or a path to it
+  // (FCM_SERVICE_ACCOUNT_FILE). Without either, FCM delivery is off; Web Push and
+  // UnifiedPush need only the VAPID keys above.
+  FCM_SERVICE_ACCOUNT_JSON: z.preprocess(
+    (v) => (typeof v === 'string' && v.trim() ? v.trim() : undefined),
+    z.string().optional(),
+  ),
+  FCM_SERVICE_ACCOUNT_FILE: z.preprocess(
+    (v) => (typeof v === 'string' && v.trim() ? v.trim() : undefined),
+    z.string().optional(),
+  ),
   
   // LiveKit WebRTC Server
   // Generate keys with: openssl rand -hex 32
@@ -68,6 +81,10 @@ const envSchema = z.object({
   // Allow federated voice/video calls
   ALLOW_FEDERATED_VOICE: z.string().transform(v => v === 'true').default('true'),
   
+  // Push endpoints on private, loopback or link-local addresses are refused. A self-hosted
+  // UnifiedPush distributor reachable only on the LAN needs this set to 'true'.
+  PUSH_ALLOW_PRIVATE_ENDPOINTS: z.string().default('false').transform(v => v === 'true'),
+
   // Enable BullMQ job queue processing (recommended for production)
   // When true, BullMQ handles federation jobs via LISTEN/NOTIFY bridge; when false, legacy DatabaseListener CDC is used
   USE_BULLMQ_QUEUE: z.preprocess(

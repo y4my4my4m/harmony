@@ -172,9 +172,15 @@ type DismissCriteria = {
   keepIds?: string[]
 }
 
-// Web only: Tauri has no service worker, and its native notifications are not tracked.
+// Web: the service worker's notifications. Android app: the push plugin's. Desktop Tauri
+// notifications are not tracked.
 async function dismissSystemNotifications(criteria: DismissCriteria): Promise<void> {
-  if (isTauriRuntime() || typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return
+  if (isTauriRuntime()) {
+    const { isAndroidApp, cancelNativeNotifications } = await import('@/services/androidPush')
+    if (isAndroidApp()) await cancelNativeNotifications(criteria)
+    return
+  }
+  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return
   try {
     const { serviceWorkerManager } = await import('@/services/ServiceWorkerManager')
     await serviceWorkerManager.dismissNotifications(criteria)
@@ -1095,8 +1101,6 @@ export const useNotificationStore = defineStore('notification', {
           const conversationTitle = serverName
             ? channelName ? `${serverName} #${channelName}` : serverName
             : channelName ? `#${channelName}` : ''
-          const groupKey =
-            data.server_id || data.conversation_id || data.channel_id || notification.type || ''
 
           // MessagingStyle renders sender+message with no title line. When
           // the body is the recipient's own content being acted on, a bare
@@ -1135,6 +1139,7 @@ export const useNotificationStore = defineStore('notification', {
               /* fall back to sender avatar */
             }
           }
+          const pickId = (v: unknown) => (typeof v === 'string' && v ? v : undefined)
           await nativeNotify({
             title: formatted.title,
             sender,
@@ -1142,7 +1147,17 @@ export const useNotificationStore = defineStore('notification', {
             message,
             avatarUrl: senderAvatar,
             largeIconUrl,
-            groupKey,
+            target: {
+              id: notification.id,
+              type: notification.type,
+              url: this.getNotificationUrl(notification),
+              conversation_id: pickId(data.conversation_id || data.conversation?.id),
+              server_id: pickId(serverId),
+              channel_id: pickId(data.channel_id || data.location?.channel_id),
+              thread_id: pickId(data.thread_id || data.thread?.id),
+              message_id: pickId(data.message_id || data.message?.id),
+              post_id: pickId(data.post_id || data.post?.id),
+            },
           })
           return
         }
