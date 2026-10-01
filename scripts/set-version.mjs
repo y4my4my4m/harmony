@@ -38,6 +38,17 @@ editJson('src-tauri/tauri.conf.json', (j) => { j.version = version; });
   console.log(`${path}`);
 }
 
+// Cargo.lock — the root package's entry. Cargo rewrites a stale entry on the next
+// build, leaving a dirty tree after every release.
+{
+  const path = 'src-tauri/Cargo.lock';
+  const re = /(\[\[package\]\]\nname = "app"\nversion = ")[^"]*(")/;
+  const src = readFileSync(path, 'utf8');
+  if (!re.test(src)) { console.error(`${path}: app package entry not found`); process.exit(1); }
+  writeFileSync(path, src.replace(re, `$1${version}$2`));
+  console.log(`${path}`);
+}
+
 // VERSION — read by the federation backend and the install script.
 {
   const path = 'VERSION';
