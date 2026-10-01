@@ -136,7 +136,7 @@ SELECT is(pg_temp.args('get_user_push_subscriptions'), 'p_user_id uuid',
           'get_user_push_subscriptions takes p_user_id');
 SELECT is(pg_temp.res('get_user_push_subscriptions'),
           'TABLE(subscription_id uuid, endpoint text, p256dh text, auth text,'
-          || ' push_enabled boolean, push_offline_only boolean)',
+          || ' push_enabled boolean, push_offline_only boolean, transport text)',
           'get_user_push_subscriptions returns the columns web-push is fed from');
 SELECT is(pg_temp.sig('record_push_success'), 'p_subscription_id uuid -> void',
           'record_push_success takes p_subscription_id');

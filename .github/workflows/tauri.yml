@@ -151,6 +151,13 @@ jobs:
           export NDK_HOME="$ANDROID_HOME/ndk/$NDK_VERSION"
           npx tauri android build --debug --target aarch64
 
+      # Robolectric: notification display and cancellation, and UnifiedPush through the
+      # connector with a mock distributor. The build above generated the Gradle settings
+      # that include the plugin module.
+      - name: Android push plugin tests
+        working-directory: src-tauri/gen/android
+        run: ./gradlew :tauri-plugin-harmony-push:testDebugUnitTest --console=plain
+
       - uses: actions/upload-artifact@v4
         with:
           name: harmony-android

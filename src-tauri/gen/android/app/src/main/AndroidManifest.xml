@@ -26,6 +26,9 @@
         android:label="@string/app_name"
         android:theme="@style/Theme.app"
         android:usesCleartextTraffic="${usesCleartextTraffic}">
+        <meta-data
+            android:name="online.knowmad.harmony.push.icon"
+            android:resource="@drawable/ic_stat_harmony" />
         <activity
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode"
             android:launchMode="singleTask"

@@ -87,3 +87,9 @@ dependencies {
 }
 
 apply(from = "tauri.build.gradle.kts")
+
+// FCM is optional. Without google-services.json the plugin is not applied, FirebaseApp never
+// initializes, and push falls back to UnifiedPush or the running app.
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+}

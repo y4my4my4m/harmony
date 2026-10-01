@@ -685,6 +685,44 @@ Linux has no release build, so there is no AppImage to update; the updater
 reports itself unsupported outside an AppImage. Android is outside the
 plugin's scope and shows a notice linking the latest release's APK instead.
 
+### Android push
+
+The Android app receives push while closed through one of two transports, chosen
+per device in Settings > Notifications:
+
+- **UnifiedPush**: the user's distributor app (ntfy, NextPush, ...) delivers Web
+  Push. The server needs only the VAPID keys it already uses for browsers; the
+  endpoint is stored in `push_subscriptions` with `transport = 'unifiedpush'` and
+  sent by the same web-push sender.
+- **FCM**: needs Google Play Services on the device, `google-services.json` in the
+  APK and a Firebase service account on the federation backend.
+
+With neither, the app shows notifications only while running. Taps open the
+notification's target, and notifications read on another device are cancelled on
+the phone by a `dismiss-push-notifications` job (migration
+`20261004100001_push_transports.sql`). The Android side lives in
+`src-tauri/crates/tauri-plugin-harmony-push`.
+
+FCM setup, once per Firebase project:
+
+1. In the Firebase console, create a project and add an Android app with package
+   name `online.knowmad.harmony`. Download `google-services.json`.
+2. Under Project settings > Service accounts, generate a private key (JSON). Check
+   that "Firebase Cloud Messaging API (V1)" is enabled under Cloud Messaging.
+3. Store `google-services.json` base64-encoded as the `ANDROID_GOOGLE_SERVICES_JSON_BASE64`
+   repository secret (`base64 -w 0 google-services.json | gh secret set
+   ANDROID_GOOGLE_SERVICES_JSON_BASE64`). `release.yml` writes it into the build;
+   `tauri.yml` builds without it.
+4. Give the federation server and worker the service account, either as
+   `FCM_SERVICE_ACCOUNT_FILE` (path to the JSON, mounted read-only) or as
+   `FCM_SERVICE_ACCOUNT_JSON` (the JSON, raw or base64). The log then reads
+   `FCM enabled for project <id>` and `GET /api/federation/push/status` reports
+   `"fcm": true`.
+
+For a local build with FCM, place `google-services.json` in
+`src-tauri/gen/android/app/` (gitignored); the Google Services Gradle plugin is
+applied only when that file exists.
+
 For self-hosters, the production deployment path lives in
 [self-hosting guide](./self-hosting.md) and the supplied
 `docker-compose.prod.yml` / `docker-compose.full.yml`. There is no Vercel

@@ -37,6 +37,7 @@ import { usePushNotifications } from '@/composables/usePushNotifications'
 import { isPWA, isMobileUserAgent } from '@/utils/pwaUtils'
 import { supportsWebPush } from '@/utils/platform'
 import { useAuthStore } from '@/stores/auth'
+import { isAndroidApp } from '@/services/androidPush'
 
 const authStore = useAuthStore()
 const showBanner = ref(false)
@@ -46,9 +47,13 @@ const {
   isSupported,
   isSubscribed,
   permission,
+  androidChoice,
   subscribe,
-  reconcile
+  reconcile,
+  enableAndroidNotifications
 } = usePushNotifications()
+
+const androidClient = isAndroidApp()
 
 const wasRecentlyDismissed = (): boolean => {
   const dismissedTime = localStorage.getItem('harmony-push-prompt-dismissed')
@@ -85,7 +90,21 @@ const hasUserDecided = (): boolean => {
   return false
 }
 
+/**
+ * Android app: asks for the notification permission once a push transport is usable, after
+ * sign-in rather than at first launch. Android 12 and older grant it at install.
+ */
+const shouldShowAndroidPrompt = (): boolean => {
+  if (!authStore.isLoggedIn) return false
+  const choice = androidChoice.value
+  if (!choice || choice.kind === 'off') return false
+  if (permission.value !== 'default') return false
+  if (localStorage.getItem('harmony-push-disabled') === 'true') return false
+  return !wasRecentlyDismissed()
+}
+
 const shouldShowPrompt = (): boolean => {
+  if (androidClient) return shouldShowAndroidPrompt()
   if (!authStore.isLoggedIn) return false
   // Web push only exists in browsers - never in the native client
   if (!supportsWebPush() || !isSupported.value) {
@@ -119,6 +138,13 @@ const enablePush = async () => {
   enabling.value = true
   
   try {
+    if (androidClient) {
+      const granted = await enableAndroidNotifications()
+      if (granted) showBanner.value = false
+      else closeBanner()
+      return
+    }
+
     const result = await subscribe()
     
     if (result.success) {
@@ -155,7 +181,7 @@ const closeBanner = () => {
 onMounted(() => {
   // Only installed apps are prompted. The decision waits for reconcile, which may
   // restore an existing subscription silently.
-  if (!isPWA()) return
+  if (!isPWA() && !androidClient) return
   setTimeout(async () => {
     await reconcile()
     if (shouldShowPrompt()) {

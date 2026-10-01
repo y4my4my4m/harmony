@@ -24,6 +24,7 @@ import { handleReportJob } from './handlers/reportHandler.js';
 import { handleProfileJob } from './handlers/profileHandler.js';
 import { handleThreadJob } from './handlers/threadHandler.js';
 import { handlePushNotificationJob } from './handlers/pushNotificationHandler.js';
+import { handlePushDismissalJob } from './handlers/pushDismissalHandler.js';
 import { handleVoiceJoinJob, handleVoiceLeaveJob } from './handlers/voiceHandler.js';
 import { handleMaintenanceJob } from './handlers/maintenanceHandler.js';
 import { handleGroupInviteJob } from './handlers/groupInviteHandler.js';
@@ -53,6 +54,7 @@ export type JobType =
   | 'federate-group-update'
   | 'federate-group-participant-change'
   | 'send-push-notification'
+  | 'dismiss-push-notifications'
   | 'sweep-pending'
   | 'maintenance';
 
@@ -87,6 +89,7 @@ const JOB_TYPES: JobType[] = [
   'federate-group-update',
   'federate-group-participant-change',
   'send-push-notification',
+  'dismiss-push-notifications',
   'maintenance',
 ];
 
@@ -199,6 +202,7 @@ class BullMQManagerService {
     this.handlerMap.set('federate-group-update', handleGroupUpdateJob as unknown as HandlerFn);
     this.handlerMap.set('federate-group-participant-change', handleGroupParticipantChangeJob as unknown as HandlerFn);
     this.handlerMap.set('send-push-notification', handlePushNotificationJob as unknown as HandlerFn);
+    this.handlerMap.set('dismiss-push-notifications', handlePushDismissalJob as unknown as HandlerFn);
     this.handlerMap.set('maintenance', handleMaintenanceJob as unknown as HandlerFn);
   }
 

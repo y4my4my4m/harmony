@@ -1,0 +1,27 @@
+{
+  "note": "Web Push (RFC 8291) messages as ntfy delivered them for a UnifiedPush endpoint, encrypted by the federation-backend web-push sender to the throwaway device key below.",
+  "endpoint": "https://localhost:18443/upaf0c1300a72d?up=1",
+  "privateKey": "DsuqsdfvCruKPGruEEOvMGHq4uhqTsJfH9HiFJ6thJY",
+  "publicKey": "BGde_HGyxgQ5v_vfSJySwOrDqGdmkFEZ6uX4nRU6hbbXw18RQZRJQWUxpla8rr4eHIyqejrLB7y6axTm9C2qq6k",
+  "auth": "geCeOUN0pkZk9G2ogy1Rjw",
+  "vapidPublicKey": "BKhkdoPK7MZnAy8hSDDke9x_hSmo2lcbOfEUSoFeaCJQo5qBm4ND2YVLzyVe6ib6vhK1GWy9G1qsg8Eq7qPg7SA",
+  "notification": "2ezr7lBa+2CkxZuxP4bqNwAAEABBBOrVxziSbFWeS3ENc5iKIM1dpi83arLHN6MbFLE4xSX4Tb/Glhj5LRCazkCOMUaRGDMZkM+XAQwIaHmPCybCjYQNLnaFwVTr2O19mIUrAgJ3BiexsK9QWfUJDioWmsMCrQM9IOawvZS/aIkczklpMOQs5IHxGiOl71wHH1qz7LXpiJN4lqRDkRFqzf6103f77UGISF/REpt9yUaJ55Ldi9YMUF9NJkIBkpQ72TOizbzYEmXkEJFcVusE0CGR+ZGtbPiC3PPVanUn6bYtrEjstSuFFEIwvXKijCU8zzWVs2EhzPXVIyK3qCKH+H79Ef0VzvYgUXSkHQULA6Oke38lMXXSf8Ke/yykJmdfinfaNoDcFaFQcD9DyMSLQr6dIcCxlRajziMjNbO+T8GkYMUunt6b2ZZegqaNRG1jaznGujaq13KomiuqJAIq4ugg46EJBnSEj6PHEjnGEh4vXDKnGq+UprFsbQ==",
+  "dismissal": "/uvSA/cDtBzR3SU3VwY2ngAAEABBBA2bCKMyFnbXGTnucULOrtgCrlUDYQtX/Kwdf7URbMjrja83XJeexcbQ2R7RumYqa5Q+rrCGLHGSuUoaVHvzXBGvnx2zA6uUo7A957nmnGL15Ug963c+eMbHc6UCpMXqlAoAawKngdz7MpVZ5ZzNJsE5o9lxIFXRp0dgy8S6WHkwlEXrCfcln5LchRX2MQ==",
+  "expectedNotification": {
+    "kind": "notification",
+    "id": "9b2f6c1e-2d4a-4c7e-9f11-0a1b2c3d4e5f",
+    "type": "mention",
+    "title": "Alice mentioned you",
+    "body": "are you there? \ud83d\udc4b",
+    "url": "/chat/s-1/c-1?messageId=m-1",
+    "server_id": "s-1",
+    "channel_id": "c-1",
+    "message_id": "m-1",
+    "sender": "Alice",
+    "conv": "Guild #general"
+  },
+  "expectedDismissal": {
+    "kind": "read",
+    "ids": "9b2f6c1e-2d4a-4c7e-9f11-0a1b2c3d4e5f"
+  }
+}

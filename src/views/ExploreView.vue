@@ -1,208 +1,73 @@
 <template>
   <div class="explore-view">
-    <!-- Mony Header -->
     <div class="mony-header-container">
       <MonyHeader
         :current-view="currentView"
         :is-mobile="isMobile"
+        :right-sidebar-open="rightSidebarOpen"
         @switch-feed="handleSwitchFeed"
         @refresh-timeline="handleRefresh"
         @open-composer="handleOpenComposer"
-        @open-search="handleOpenSearch"
+        @open-search="$emit('openSearch')"
         @toggle-left-sidebar="$emit('toggleLeftSidebar')"
         @toggle-right-sidebar="$emit('toggleRightSidebar')"
       />
     </div>
 
-    <!-- Explore Content -->
     <div class="explore-content">
-      <ExploreContent
-        ref="exploreContentRef"
-        :current-view="currentView"
-        :trending-posts="trendingPosts"
-        :trending-tags="trendingTags"
-        :suggested-users="suggestedUsers"
-        :instances="instances"
-        :is-loading="isLoading"
-        @load-more="handleLoadMore"
-        @refresh="handleRefresh"
-        @follow-user="handleFollow"
-        @unfollow-user="handleUnfollow"
-        @favorite-post="handleFavoritePost"
-        @reblog-post="handleReblogPost"
-        @bookmark-post="handleBookmarkPost"
-        @show-user-profile="handleShowUserProfile"
-      />
+      <TrendingContent v-if="currentView === 'trending'" ref="trendingRef" />
+      <InstancesContent v-else ref="instancesRef" />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
-import { debug } from '@/utils/debug'
+import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import ExploreContent from '@/components/activitypub/ExploreContent.vue'
+import TrendingContent from '@/components/activitypub/TrendingContent.vue'
+import InstancesContent from '@/components/activitypub/InstancesContent.vue'
 import MonyHeader from '@/components/activitypub/MonyHeader.vue'
 import { useLayoutState } from '@/composables/useLayoutState'
 import { useActivityPubStore } from '@/stores/useActivityPub'
-import { usePostInteractions } from '@/composables/usePostInteractions'
-import type { TimelinePost, FederatedUser } from '@/types'
 
-// Layout state
-const { isMobile } = useLayoutState()
-
-// Props
 interface Props {
   currentView: 'trending' | 'instances'
+  rightSidebarOpen?: boolean
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  rightSidebarOpen: false
+})
 
-// Emits
-const emit = defineEmits<{
-  followUser: [userId: string]
-  unfollowUser: [userId: string]
-  favoritePost: [postId: string]
-  reblogPost: [postId: string]
-  bookmarkPost: [postId: string]
-  showUserProfile: [user: FederatedUser]
+defineEmits<{
   toggleLeftSidebar: []
   toggleRightSidebar: []
   openSearch: []
 }>()
 
+const { isMobile } = useLayoutState()
 const activityPubStore = useActivityPubStore()
-const { followUser, unfollowUser, toggleFavorite, toggleReblog, toggleBookmark } = usePostInteractions()
 const router = useRouter()
 
-// Refs
-const exploreContentRef = ref<InstanceType<typeof ExploreContent> | null>(null)
-
-// State
-const isLoading = ref(false)
-const trendingPosts = ref<TimelinePost[]>([])
-const trendingTags = ref<Array<{ tag: string; count: number }>>([])
-const suggestedUsers = ref<FederatedUser[]>([])
-const instances = ref<Array<{ domain: string; users: number; posts: number }>>([])
-
-const loadExploreData = async () => {
-  isLoading.value = true
-  try {
-    switch (props.currentView) {
-      case 'trending':
-        await loadTrending()
-        break
-      case 'instances':
-        await loadInstances()
-        break
-      default:
-        await loadTrending()
-        break
-    }
-  } catch (error) {
-    debug.error('Failed to load explore data:', error)
-  } finally {
-    isLoading.value = false
-  }
-}
-
-const loadTrending = async () => {
-  try {
-    debug.log('Loading trending data from TrendingService')
-  } catch (error) {
-    debug.error('Failed to load trending data:', error)
-  }
-}
-
-const loadInstances = async () => {
-  try {
-    debug.log('Instances loaded via ExploreContent component')
-  } catch (error) {
-    debug.error('Failed to load instances:', error)
-  }
-}
-
-// Event handlers
-const handleLoadMore = async () => {
-  try {
-    if (props.currentView === 'trending') {
-      const lastPost = trendingPosts.value[trendingPosts.value.length - 1]
-      await activityPubStore.loadPublicFeed(lastPost?.id)
-      
-      const newPosts = activityPubStore.publicFeed.posts.filter(
-        p => !trendingPosts.value.some(tp => tp.id === p.id)
-      )
-      trendingPosts.value.push(...newPosts.slice(0, 10))
-    }
-    // Instances are not paginated.
-  } catch (error) {
-    debug.error('Failed to load more explore data:', error)
-  }
-}
+const trendingRef = ref<InstanceType<typeof TrendingContent> | null>(null)
+const instancesRef = ref<InstanceType<typeof InstancesContent> | null>(null)
 
 const handleRefresh = () => {
-  exploreContentRef.value?.refreshContent()
+  if (props.currentView === 'trending') trendingRef.value?.refresh()
+  else void instancesRef.value?.refreshContent()
 }
 
-// Composable-based handlers
-const handleFollow = async (userId: string) => {
-  const result = await followUser(userId)
-  if (result.success) {
-    emit('followUser', userId)
-  }
-}
-
-const handleUnfollow = async (userId: string) => {
-  const result = await unfollowUser(userId)
-  if (result.success) {
-    emit('unfollowUser', userId)
-  }
-}
-
-const handleFavoritePost = async (postId: string) => {
-  const result = await toggleFavorite(postId)
-  if (!result.error) {
-    emit('favoritePost', postId)
-  }
-}
-
-const handleReblogPost = async (postId: string) => {
-  const result = await toggleReblog(postId)
-  if (!result.error) {
-    emit('reblogPost', postId)
-  }
-}
-
-const handleBookmarkPost = async (postId: string) => {
-  const result = await toggleBookmark(postId)
-  if (!result.error) {
-    emit('bookmarkPost', postId)
-  }
-}
-
-const handleShowUserProfile = (user: FederatedUser) => {
-  emit('showUserProfile', user)
-}
-
-// MonyHeader event handlers
 const handleSwitchFeed = (feed: string) => {
+  if (feed === props.currentView) {
+    handleRefresh()
+    return
+  }
   router.push({ name: 'Social', params: { timeline: feed } })
 }
 
 const handleOpenComposer = () => {
   activityPubStore.openComposer()
 }
-
-const handleOpenSearch = () => {
-  emit('openSearch')
-}
-
-// Watch for route changes
-watch(() => props.currentView, loadExploreData)
-
-onMounted(() => {
-  loadExploreData()
-})
 </script>
 
 <style scoped>
@@ -219,6 +84,7 @@ onMounted(() => {
 
 .explore-content {
   flex: 1;
+  min-height: 0;
   overflow: hidden;
 }
 </style>

@@ -3,11 +3,15 @@
 # GoTrue creates auth.mfa_factors during its own migrations; the test image ships a
 # minimal auth schema without it.
 #
-# broadcast_notification_delete reads its trigger's transition table, which
-# plpgsql_check_function_tb resolves only when passed oldtable; the gate passes relid alone.
+# broadcast_notification_delete, queue_push_dismissal_on_read and
+# queue_push_dismissal_on_delete read their triggers' transition tables, which
+# plpgsql_check_function_tb resolves only when passed oldtable/newtable; the gate passes
+# relid alone.
 #
 # Format: <function signature>\t<sqlstate>\t<message>
 #
 delete_my_account()	42P01	relation "auth.mfa_factors" does not exist
 redeem_recovery_code_and_disable_mfa(text)	42P01	relation "auth.mfa_factors" does not exist
 broadcast_notification_delete()	42P01	relation "deleted_notifications" does not exist
+queue_push_dismissal_on_delete()	42P01	relation "push_deleted" does not exist
+queue_push_dismissal_on_read()	42P01	relation "push_read_new" does not exist

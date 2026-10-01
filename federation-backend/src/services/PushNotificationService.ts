@@ -1,19 +1,30 @@
 /**
- * Push Notification Service
- * Handles Web Push notifications for PWA (iOS 16.4+, Android, Desktop)
- * 
- * Uses VAPID (Voluntary Application Server Identification) for authentication
+ * Push delivery to every transport in push_subscriptions.
+ *
+ *   webpush      browsers and PWAs; VAPID Web Push, service worker payload.
+ *   unifiedpush  the Android app through a UnifiedPush distributor; VAPID Web Push, app payload.
+ *   fcm          the Android app through Firebase Cloud Messaging; FCM HTTP v1, app payload.
+ *
+ * Web Push transports need the VAPID keys, fcm needs the service account. A transport
+ * without its credentials is skipped.
  */
 
 import webPush, { PushSubscription } from 'web-push';
 import { getSupabaseClient } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
-import { getFullAvatarUrl } from '../utils/urlUtils.js';
+import { getFullAvatarUrl, getFullServerIconUrl } from '../utils/urlUtils.js';
 import config from '../config/index.js';
+import { FcmSender, loadServiceAccount } from './FcmSender.js';
+import { validateExternalUrl, validateResolvedAddress } from '../utils/ssrfProtection.js';
 import {
+  APP_TRANSPORTS,
   PROFILE_STATUS_BUSY,
+  type PushTransport,
+  appPushData,
   clip,
   compactPushData,
+  dismissalMessages,
+  isValidFcmToken,
   isWithinQuietHours,
   pushAllowedForType,
 } from './pushPolicy.js';
@@ -49,13 +60,18 @@ export interface PushPayload {
 export interface PushSubscriptionData {
   subscription_id: string;
   endpoint: string;
-  p256dh: string;
-  auth: string;
+  p256dh: string | null;
+  auth: string | null;
   push_enabled: boolean;
   push_offline_only: boolean;
+  /** Absent before migration 20261004100001, which means webpush. */
+  transport?: PushTransport | null;
 }
 
+type AppDataBuilder = () => Promise<Record<string, string>> | Record<string, string>;
+
 const MAX_ENDPOINT_LENGTH = 2048;
+const PUSH_TTL_S = 86400;
 
 function isValidSubscription(subscription: any): subscription is PushSubscription {
   return (
@@ -67,8 +83,57 @@ function isValidSubscription(subscription: any): subscription is PushSubscriptio
   );
 }
 
+// Endpoint hosts that passed the address check, with expiry (ms since epoch).
+const allowedEndpointHosts = new Map<string, number>();
+const ENDPOINT_HOST_TTL_MS = 5 * 60_000;
+
+/**
+ * Web Push and UnifiedPush endpoints are client-supplied URLs the server POSTs to.
+ * Refuses loopback, private and link-local targets by literal and by DNS, at
+ * registration and again before each send (the name can be re-pointed later).
+ */
+export async function assertPushEndpointAllowed(endpoint: string): Promise<void> {
+  if (config.PUSH_ALLOW_PRIVATE_ENDPOINTS) return;
+  const url = validateExternalUrl(endpoint);
+  if (url.protocol !== 'https:') throw new Error(`Blocked protocol: ${url.protocol}`);
+  const host = url.hostname.toLowerCase();
+  const until = allowedEndpointHosts.get(host);
+  if (until && until > Date.now()) return;
+  await validateResolvedAddress(host.replace(/^\[|\]$/g, ''));
+  allowedEndpointHosts.set(host, Date.now() + ENDPOINT_HOST_TTL_MS);
+}
+
+const transportOf = (sub: Pick<PushSubscriptionData, 'transport'>): PushTransport => sub.transport ?? 'webpush';
+const isAppTransport = (sub: Pick<PushSubscriptionData, 'transport'>): boolean =>
+  APP_TRANSPORTS.includes(transportOf(sub));
+
 class PushNotificationServiceClass {
   private isInitialized = false;
+  private fcm: FcmSender | null = null;
+
+  /** FCM client from FCM_SERVICE_ACCOUNT_JSON or FCM_SERVICE_ACCOUNT_FILE; unconfigured without either. */
+  getFcmSender(): FcmSender {
+    if (!this.fcm) {
+      this.fcm = new FcmSender({
+        account: loadServiceAccount({ json: config.FCM_SERVICE_ACCOUNT_JSON, file: config.FCM_SERVICE_ACCOUNT_FILE }),
+      });
+      if (this.fcm.isConfigured()) logger.info(`FCM enabled for project ${this.fcm.projectId()}`);
+      else logger.info('FCM disabled: no service account configured');
+    }
+    return this.fcm;
+  }
+
+  setFcmSender(sender: FcmSender | null): void {
+    this.fcm = sender;
+  }
+
+  isFcmConfigured(): boolean {
+    return this.getFcmSender().isConfigured();
+  }
+
+  private canDeliver(sub: Pick<PushSubscriptionData, 'transport'>): boolean {
+    return transportOf(sub) === 'fcm' ? this.isFcmConfigured() : this.isInitialized;
+  }
 
   /**
    * Initialize VAPID keys for web push
@@ -108,7 +173,7 @@ class PushNotificationServiceClass {
    * Check if push notifications are available
    */
   isAvailable(): boolean {
-    return this.isInitialized;
+    return this.isInitialized || this.isFcmConfigured();
   }
 
   /**
@@ -134,13 +199,20 @@ class PushNotificationServiceClass {
     subscription: PushSubscription,
     userAgent?: string,
     deviceName?: string,
-    previousEndpoint?: string | null
+    previousEndpoint?: string | null,
+    transport: 'webpush' | 'unifiedpush' = 'webpush'
   ): Promise<{ success: boolean; error?: string }> {
     try {
       if (!isValidSubscription(subscription)) {
         return { success: false, error: 'Invalid subscription data' };
       }
       const { endpoint, keys } = subscription;
+      try {
+        await assertPushEndpointAllowed(endpoint);
+      } catch (error) {
+        logger.warn(`Push endpoint refused: ${error instanceof Error ? error.message : error}`);
+        return { success: false, error: 'Endpoint not allowed' };
+      }
 
       const { error: claimError } = await supabaseAdmin
         .from('push_subscriptions')
@@ -170,6 +242,7 @@ class PushNotificationServiceClass {
           endpoint,
           p256dh: keys.p256dh,
           auth: keys.auth,
+          transport,
           user_agent: userAgent,
           device_name: deviceName,
           failure_count: 0,
@@ -184,10 +257,95 @@ class PushNotificationServiceClass {
         return { success: false, error: error.message };
       }
 
-      logger.info(`Push subscription saved for user ${userId}`);
+      logger.info(`Push subscription (${transport}) saved for user ${userId}`);
       return { success: true };
     } catch (error) {
       logger.error('Error saving push subscription:', error);
+      return { success: false, error: 'Internal server error' };
+    }
+  }
+
+  /**
+   * Registers this installation's FCM token for userId. A token names one installation, so
+   * rows holding it for other accounts are removed first: the device now belongs to whoever
+   * signed in last. previousToken is the token the same installation registered before a
+   * refresh; only that row is replaced.
+   */
+  async saveFcmToken(
+    userId: string,
+    token: string,
+    opts: { previousToken?: string | null; userAgent?: string; deviceName?: string } = {}
+  ): Promise<{ success: boolean; id?: string; error?: string }> {
+    if (!isValidFcmToken(token)) return { success: false, error: 'Invalid token' };
+    try {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const { error: claimError } = await supabaseAdmin
+          .from('push_subscriptions')
+          .delete()
+          .eq('transport', 'fcm')
+          .eq('endpoint', token)
+          .neq('user_id', userId);
+        if (claimError) logger.warn('Failed to release FCM token from other accounts:', claimError);
+
+        if (opts.previousToken && opts.previousToken !== token) {
+          const { error: replaceError } = await supabaseAdmin
+            .from('push_subscriptions')
+            .delete()
+            .eq('user_id', userId)
+            .eq('transport', 'fcm')
+            .eq('endpoint', opts.previousToken);
+          if (replaceError) logger.warn('Failed to remove replaced FCM token:', replaceError);
+        }
+
+        const { data, error } = await supabaseAdmin
+          .from('push_subscriptions')
+          .upsert({
+            user_id: userId,
+            endpoint: token,
+            p256dh: null,
+            auth: null,
+            transport: 'fcm',
+            user_agent: opts.userAgent,
+            device_name: opts.deviceName,
+            failure_count: 0,
+            last_failure_at: null,
+            last_failure_reason: null,
+          }, { onConflict: 'user_id,endpoint' })
+          .select('id')
+          .maybeSingle();
+
+        // 23505: another account registered the same token between the claim and the upsert.
+        if (error?.code === '23505' && attempt === 0) continue;
+        if (error) {
+          logger.error('Failed to save FCM token:', error);
+          return { success: false, error: error.message };
+        }
+        logger.info(`FCM token saved for user ${userId}`);
+        return { success: true, id: data?.id };
+      }
+      return { success: false, error: 'Token is being registered concurrently' };
+    } catch (error) {
+      logger.error('Error saving FCM token:', error);
+      return { success: false, error: 'Internal server error' };
+    }
+  }
+
+  /** Removes this account's row for the token; other accounts are untouched. */
+  async removeFcmToken(userId: string, token: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const { error } = await supabaseAdmin
+        .from('push_subscriptions')
+        .delete()
+        .eq('user_id', userId)
+        .eq('transport', 'fcm')
+        .eq('endpoint', token);
+      if (error) {
+        logger.error('Failed to remove FCM token:', error);
+        return { success: false, error: error.message };
+      }
+      return { success: true };
+    } catch (error) {
+      logger.error('Error removing FCM token:', error);
       return { success: false, error: 'Internal server error' };
     }
   }
@@ -300,41 +458,81 @@ class PushNotificationServiceClass {
   }
 
   /**
-   * Send push notification to a specific subscription
+   * Sends to one target. payload is what a service worker renders; app is the Android
+   * payload, derived from payload when omitted.
    */
   async sendToSubscription(
     subscriptionData: PushSubscriptionData,
-    payload: PushPayload
+    payload: PushPayload,
+    app?: Record<string, string>
   ): Promise<{ success: boolean; error?: string }> {
-    if (!this.isInitialized) {
-      logger.warn('sendToSubscription called but push service not initialized (VAPID keys missing?)');
+    const transport = transportOf(subscriptionData);
+    if (!this.canDeliver(subscriptionData)) {
+      logger.warn(`sendToSubscription: ${transport} is not configured`);
       return { success: false, error: 'Push service not initialized' };
+    }
+    const body = transport === 'webpush'
+      ? JSON.stringify(payload)
+      : JSON.stringify(app ?? this.appDataFromPayload(payload));
+    return this.deliver(subscriptionData, body, { urgent: true, recordSuccess: true });
+  }
+
+  /**
+   * One message to one target. body is the Web Push plaintext; FCM receives the same
+   * object as its data map.
+   */
+  private async deliver(
+    sub: PushSubscriptionData,
+    body: string,
+    opts: { urgent: boolean; recordSuccess: boolean; collapseKey?: string }
+  ): Promise<{ success: boolean; error?: string }> {
+    const transport = transportOf(sub);
+    if (transport === 'fcm') {
+      const result = await this.getFcmSender().send(sub.endpoint, JSON.parse(body), {
+        priority: opts.urgent ? 'high' : 'normal',
+        ttlSeconds: PUSH_TTL_S,
+        collapseKey: opts.collapseKey,
+      });
+      if (result.ok) {
+        if (opts.recordSuccess) {
+          await supabaseAdmin.rpc('record_push_success', { p_subscription_id: sub.subscription_id });
+        }
+        return { success: true };
+      }
+      if (result.prune) {
+        logger.info(`FCM token rejected (${result.reason}), removing`);
+        await supabaseAdmin.from('push_subscriptions').delete().eq('id', sub.subscription_id);
+        return { success: false, error: 'Subscription expired' };
+      }
+      await supabaseAdmin.rpc('record_push_failure', {
+        p_subscription_id: sub.subscription_id,
+        p_reason: result.reason,
+      });
+      logger.error(`FCM send failed: ${result.reason}`);
+      return { success: false, error: result.reason };
     }
 
     const subscription: PushSubscription = {
-      endpoint: subscriptionData.endpoint,
-      keys: {
-        p256dh: subscriptionData.p256dh,
-        auth: subscriptionData.auth
-      }
+      endpoint: sub.endpoint,
+      keys: { p256dh: sub.p256dh ?? '', auth: sub.auth ?? '' },
     };
-
     try {
-      await webPush.sendNotification(
-        subscription,
-        JSON.stringify(payload),
-        {
-          TTL: 86400, // 24 hours
-          urgency: 'high' as const,
-        }
-      );
-
-      // Record success
-      await supabaseAdmin.rpc('record_push_success', {
-        p_subscription_id: subscriptionData.subscription_id
+      await assertPushEndpointAllowed(sub.endpoint);
+    } catch (error) {
+      const reason = `Endpoint not allowed: ${error instanceof Error ? error.message : error}`;
+      logger.warn(reason);
+      await supabaseAdmin.rpc('record_push_failure', { p_subscription_id: sub.subscription_id, p_reason: reason });
+      return { success: false, error: 'Endpoint not allowed' };
+    }
+    try {
+      await webPush.sendNotification(subscription, body, {
+        TTL: PUSH_TTL_S,
+        urgency: opts.urgent ? 'high' : 'normal',
       });
-
-      logger.debug(`Push sent successfully to ${subscriptionData.endpoint.substring(0, 50)}...`);
+      if (opts.recordSuccess) {
+        await supabaseAdmin.rpc('record_push_success', { p_subscription_id: sub.subscription_id });
+      }
+      logger.debug(`Push sent (${transport}) to ${sub.endpoint.substring(0, 50)}...`);
       return { success: true };
     } catch (error: unknown) {
       const statusCode = (error as any)?.statusCode;
@@ -342,12 +540,12 @@ class PushNotificationServiceClass {
 
       if (statusCode === 410 || statusCode === 404) {
         logger.info('Push subscription expired, removing...');
-        await this.removeSubscriptionByEndpoint(subscriptionData.endpoint);
+        await this.removeSubscriptionByEndpoint(sub.endpoint);
         return { success: false, error: 'Subscription expired' };
       }
 
       await supabaseAdmin.rpc('record_push_failure', {
-        p_subscription_id: subscriptionData.subscription_id,
+        p_subscription_id: sub.subscription_id,
         p_reason: message
       });
 
@@ -356,8 +554,22 @@ class PushNotificationServiceClass {
     }
   }
 
+  /** Android payload derived from a service worker payload, for sends that have nothing richer. */
+  private appDataFromPayload(payload: PushPayload): Record<string, string> {
+    const data = payload.data || {};
+    return appPushData({
+      notificationId: String(data.notification_id || payload.tag || `local-${Date.now()}`),
+      type: payload.type,
+      data,
+      title: payload.title,
+      body: payload.body || payload.message || '',
+      avatarUrl: typeof data.avatar_url === 'string' ? data.avatar_url : null,
+    });
+  }
+
   /**
-   * Send push notification to all of a user's devices
+   * Sends to every eligible target of the user. app builds the Android payload; it runs
+   * once, and only when an app target is eligible.
    */
   async sendToUser(
     userId: string,
@@ -365,10 +577,11 @@ class PushNotificationServiceClass {
     options?: {
       respectOfflineOnly?: boolean;
       isUserOnline?: boolean;
-    }
+    },
+    app?: AppDataBuilder
   ): Promise<{ sent: number; failed: number }> {
-    if (!this.isInitialized) {
-      logger.warn('sendToUser called but push service not initialized (VAPID keys missing?)');
+    if (!this.isInitialized && !this.isFcmConfigured()) {
+      logger.warn('sendToUser called but no push transport is configured');
       return { sent: 0, failed: 0 };
     }
 
@@ -382,15 +595,20 @@ class PushNotificationServiceClass {
     const eligible = subscriptions.filter(sub => {
       if (!sub.push_enabled) return false;
       if (options?.respectOfflineOnly && sub.push_offline_only && options?.isUserOnline) return false;
-      return true;
+      return this.canDeliver(sub);
     });
 
     if (eligible.length === 0) {
       return { sent: 0, failed: 0 };
     }
 
+    let appData: Record<string, string> | undefined;
+    if (eligible.some(isAppTransport)) {
+      appData = app ? await app() : this.appDataFromPayload(payload);
+    }
+
     const results = await Promise.allSettled(
-      eligible.map(sub => this.sendToSubscription(sub, payload))
+      eligible.map(sub => this.sendToSubscription(sub, payload, appData))
     );
 
     let sent = 0;
@@ -401,6 +619,36 @@ class PushNotificationServiceClass {
     }
 
     logger.info(`Push notifications: ${sent} sent, ${failed} failed for user ${userId}`);
+    return { sent, failed };
+  }
+
+  /**
+   * Tells the user's Android installations to cancel notifications read or deleted
+   * elsewhere. ids null cancels all of them. Browsers are skipped: Web Push requires every
+   * push to show a notification.
+   */
+  async sendDismissal(userId: string, ids: string[] | null): Promise<{ sent: number; failed: number }> {
+    const targets = (await this.getUserSubscriptions(userId))
+      .filter(sub => isAppTransport(sub) && this.canDeliver(sub));
+    if (targets.length === 0) return { sent: 0, failed: 0 };
+
+    const messages = dismissalMessages(ids);
+    const collapseKey = ids === null ? 'harmony-read-all' : undefined;
+    const results = await Promise.allSettled(targets.flatMap(sub =>
+      messages.map(message => this.deliver(sub, JSON.stringify(message), {
+        urgent: false,
+        recordSuccess: false,
+        collapseKey,
+      }))
+    ));
+
+    let sent = 0;
+    let failed = 0;
+    for (const r of results) {
+      if (r.status === 'fulfilled' && r.value.success) sent++;
+      else failed++;
+    }
+    logger.debug(`Push dismissals: ${sent} sent, ${failed} failed for user ${userId}`);
     return { sent, failed };
   }
 
@@ -472,7 +720,7 @@ class PushNotificationServiceClass {
     data: Record<string, any>;
     title?: string;
   }): Promise<void> {
-    if (!this.isInitialized) {
+    if (!this.isInitialized && !this.isFcmConfigured()) {
       return;
     }
 
@@ -617,12 +865,58 @@ class PushNotificationServiceClass {
       await this.sendToUser(notification.user_id, payload, {
         respectOfflineOnly: false, // Already checked above
         isUserOnline: hasActiveSession
-      });
+      }, () => this.buildAppData(notification, payload));
 
       logger.info(`Push sent for ${notification.type} to user ${notification.user_id}`);
     } catch (error) {
       logger.error('Error sending push for notification:', error);
     }
+  }
+
+  /**
+   * Android payload for a notification. The large icon is the server icon for server
+   * notifications, as the running app shows it.
+   */
+  private async buildAppData(
+    notification: { id: string; type: string; data: Record<string, any> },
+    payload: PushPayload
+  ): Promise<Record<string, string>> {
+    const data = notification.data || {};
+    const sender = data.sender || {};
+    const senderName = stripEmojiShortcodes(sender.display_name || sender.username || data.sender_display_name || '');
+    const avatarUrl = typeof payload.data?.avatar_url === 'string' ? payload.data.avatar_url : null;
+
+    let iconUrl: string | null = null;
+    const serverId = data.location?.server_id || data.server_id;
+    if (serverId) {
+      const { data: server } = await supabaseAdmin
+        .from('servers')
+        .select('icon')
+        .eq('id', serverId)
+        .maybeSingle();
+      iconUrl = getFullServerIconUrl(server?.icon);
+    }
+
+    return appPushData({
+      notificationId: notification.id,
+      type: notification.type,
+      data: {
+        ...data,
+        location: data.location && {
+          ...data.location,
+          server_name: stripEmojiShortcodes(data.location.server_name),
+          channel_name: stripEmojiShortcodes(data.location.channel_name),
+        },
+        server_name: stripEmojiShortcodes(data.server_name),
+        channel_name: stripEmojiShortcodes(data.channel_name),
+        conversation: data.conversation && { ...data.conversation, name: stripEmojiShortcodes(data.conversation.name) },
+      },
+      title: payload.title,
+      body: payload.body || payload.message || '',
+      sender: senderName,
+      avatarUrl,
+      iconUrl,
+    });
   }
 
   /**

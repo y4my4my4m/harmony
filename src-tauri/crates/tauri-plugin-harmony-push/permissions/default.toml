@@ -1,0 +1,17 @@
+"$schema" = "schemas/schema.json"
+
+[default]
+description = "Everything the Harmony web app calls on the Android push plugin."
+permissions = [
+  "allow-status",
+  "allow-request-permission",
+  "allow-open-settings",
+  "allow-get-fcm-token",
+  "allow-show",
+  "allow-cancel",
+  "allow-take-launch-target",
+  "allow-unified-push-register",
+  "allow-unified-push-unregister",
+  "allow-register-listener",
+  "allow-remove-listener",
+]

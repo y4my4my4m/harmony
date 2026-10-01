@@ -50,7 +50,7 @@ function stripCustomEmojis(text: string): string {
 }
 
 const isAndroid = /Android/i.test(navigator.userAgent);
-let notifId = 1;
+let localId = 1;
 
 // local-user mentions don't need the @domain suffix; remote ones keep it
 function localizeMentions(text: string): string {
@@ -66,6 +66,20 @@ function localizeMentions(text: string): string {
   return text.replace(new RegExp(`(@[a-z0-9_.-]+)@${esc}`, 'gi'), '$1');
 }
 
+/** Routing fields of a notification row, as the Android plugin and push payloads carry them. */
+export interface NativeNotifyTarget {
+  id: string;
+  type: string;
+  /** App path the notification opens. */
+  url?: string;
+  conversation_id?: string;
+  server_id?: string;
+  channel_id?: string;
+  thread_id?: string;
+  message_id?: string;
+  post_id?: string;
+}
+
 export async function nativeNotify(opts: {
   title: string;
   sender: string;
@@ -73,7 +87,8 @@ export async function nativeNotify(opts: {
   message: string;
   avatarUrl?: string | null;
   largeIconUrl?: string | null;
-  groupKey?: string;
+  /** The notification row. Without it the Android notification opens the app's start page. */
+  target?: NativeNotifyTarget;
 }): Promise<boolean> {
   if (!isTauriRuntime()) return false;
   if (!(await ensurePermission())) return false;
@@ -83,17 +98,19 @@ export async function nativeNotify(opts: {
   const message = localizeMentions(stripCustomEmojis(opts.message));
 
   try {
-    // Android: MessagingStyle notification (circular avatar, sender, grouped)
+    // Android: the push plugin renders it exactly as a pushed one, keyed by the row id, so a
+    // push for the same row alerts once, a tap opens the target and a read elsewhere cancels it.
     if (isAndroid) {
-      const { invoke } = await import('@tauri-apps/api/core');
-      await invoke('show_android_notification', {
-        id: notifId++,
+      const { showNativeNotification } = await import('@/services/androidPush');
+      const target = opts.target ?? { id: `local-${localId++}`, type: 'test' };
+      await showNativeNotification({
+        ...target,
+        title: stripCustomEmojis(opts.title),
+        body: message,
         sender,
-        conversationTitle,
-        message,
-        avatarUrl: opts.avatarUrl ?? '',
-        largeIconUrl: opts.largeIconUrl ?? opts.avatarUrl ?? '',
-        groupKey: opts.groupKey ?? '',
+        conv: conversationTitle,
+        avatar: opts.avatarUrl ?? '',
+        icon: opts.largeIconUrl ?? opts.avatarUrl ?? '',
       });
       return true;
     }

@@ -1,0 +1,15 @@
+[package]
+name = "tauri-plugin-harmony-push"
+version = "0.1.0"
+edition = "2021"
+license = "AGPL-3.0"
+publish = false
+description = "Android push for Harmony: FCM and UnifiedPush delivery, notification display, tap routing"
+# tauri-plugin's build step requires links to equal the package name.
+links = "tauri-plugin-harmony-push"
+
+[dependencies]
+tauri = { version = "=2.9.3" }
+
+[build-dependencies]
+tauri-plugin = { version = "2.5.1", features = ["build"] }

@@ -6,62 +6,6 @@ pub fn native_media_supported() -> bool {
   cfg!(all(feature = "native-media", target_os = "linux"))
 }
 
-// native Android notification with a downloaded avatar (large icon); the
-// notification plugin can only use bundled drawables, so it can't show avatars
-#[tauri::command]
-#[allow(clippy::too_many_arguments)]
-pub fn show_android_notification(
-  id: i32,
-  sender: String,
-  conversation_title: String,
-  message: String,
-  avatar_url: String,
-  large_icon_url: String,
-  group_key: String,
-) -> Result<(), String> {
-  #[cfg(target_os = "android")]
-  {
-    use jni::objects::{JObject, JValue};
-    let ctx = ndk_context::android_context();
-    let vm = unsafe { jni::JavaVM::from_raw(ctx.vm().cast()) }.map_err(|e| e.to_string())?;
-    let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
-    let activity = unsafe { JObject::from_raw(ctx.context().cast()) };
-    let jsender = env.new_string(&sender).map_err(|e| e.to_string())?;
-    let jtitle = env.new_string(&conversation_title).map_err(|e| e.to_string())?;
-    let jmsg = env.new_string(&message).map_err(|e| e.to_string())?;
-    let javatar = env.new_string(&avatar_url).map_err(|e| e.to_string())?;
-    let jlarge = env.new_string(&large_icon_url).map_err(|e| e.to_string())?;
-    let jgroup = env.new_string(&group_key).map_err(|e| e.to_string())?;
-    env
-      .call_method(
-        activity,
-        "showNotification",
-        "(ILjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V",
-        &[
-          JValue::Int(id),
-          JValue::Object(&jsender),
-          JValue::Object(&jtitle),
-          JValue::Object(&jmsg),
-          JValue::Object(&javatar),
-          JValue::Object(&jlarge),
-          JValue::Object(&jgroup),
-        ],
-      )
-      .map_err(|e| e.to_string())?;
-  }
-  #[cfg(not(target_os = "android"))]
-  let _ = (
-    id,
-    sender,
-    conversation_title,
-    message,
-    avatar_url,
-    large_icon_url,
-    group_key,
-  );
-  Ok(())
-}
-
 // Native video thumbnail (MediaMetadataRetriever) — Android WebView can't decode a
 // detached <video> for a canvas poster, and works for remote URLs without CORS.
 #[tauri::command]

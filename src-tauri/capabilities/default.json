@@ -28,6 +28,7 @@
     "fs:allow-exists",
     "fs:allow-write-file",
     "fs:allow-mkdir",
+    { "identifier": "fs:scope", "allow": [{ "path": "$APPCACHE/notif" }, { "path": "$APPCACHE/notif/**" }] },
     "shell:allow-open",
     "notification:default",
     "notification:allow-notify",

@@ -783,12 +783,17 @@ const initializeBackgroundData = async (userId: string, _strategy: any) => {
     const notificationStore = useNotificationStore()
     await notificationStore.initializeUnreadCountOnly(userId)
 
-    // Re-registers this browser's push subscription for the signed-in account
-    // without prompting. Tauri has no Web Push.
+    // Re-registers this device's push target for the signed-in account without
+    // prompting: the browser's Web Push subscription, or the Android app's FCM token or
+    // UnifiedPush endpoint. Desktop Tauri has no push. The Android app also routes
+    // notification taps from here on, including the one that cold-started it.
     const { isTauriRuntime } = await import('@/services/instanceConfig')
-    if (!isTauriRuntime()) {
+    const { isAndroidApp } = await import('@/services/androidPush')
+    if (!isTauriRuntime() || isAndroidApp()) {
       const { usePushNotifications } = await import('@/composables/usePushNotifications')
-      void usePushNotifications().reconcile()
+      const push = usePushNotifications()
+      if (isAndroidApp()) void push.startAndroidPush()
+      void push.reconcile()
     }
 
     const { useUserData } = await import('@/composables/useUserData')

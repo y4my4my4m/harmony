@@ -74,8 +74,9 @@ export async function startWorker(): Promise<void> {
       if (PushNotificationService.initialize()) {
         logger.info('Push notification service initialized');
       } else {
-        logger.warn('Push notifications not available (VAPID not configured)');
+        logger.warn('Web Push and UnifiedPush not available (VAPID not configured)');
       }
+      PushNotificationService.getFcmSender();
     } catch (error) {
       logger.error('Failed to initialize push notification service:', error);
     }
