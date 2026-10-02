@@ -694,6 +694,7 @@ import { useLayoutState } from '@/composables/useLayoutState';
 import { useUnreadCounts } from '@/composables/useUnreadCounts';
 import { useReadDivider } from '@/composables/useReadDivider';
 import { markChannelRead, markConversationRead } from '@/services/readState';
+import { createReadMarkerQueue, type QueuedRead } from '@/utils/readMarkerQueue';
 import { format, isToday, isYesterday, isSameDay, isValid } from 'date-fns';
 import UserProfileModal from '@/components/UserProfileModal.vue';
 import InviteModal from '@/components/InviteModal.vue';
@@ -2295,9 +2296,6 @@ watch(() => props.messages.map(msg => msg.reactions?.length), () => {
 // Debounced to prevent 45+ API calls per page load
 let intersectionObserver: IntersectionObserver | null = null;
 const observedMessages = new Set<string>();
-let pendingUnreadUpdate: { messageId: string; timestamp: Date } | null = null;
-let unreadUpdateTimeout: ReturnType<typeof setTimeout> | null = null;
-let hasUnreadUpdatePending = false;
 
 const setupUnreadObserver = () => {
   if (!props.channelId && !props.conversationId) return;
@@ -2315,7 +2313,6 @@ const setupUnreadObserver = () => {
           return;
         }
         observedMessages.add(messageId);
-        // Queue the message for unread update instead of calling API immediately
         queueUnreadUpdate(messageId);
       });
     },
@@ -2340,64 +2337,29 @@ const setupUnreadObserver = () => {
   });
 };
 
-// Queue unread updates and debounce - only track the most recent message
 const queueUnreadUpdate = (messageId: string) => {
   const message = props.messages.find(m => m.id === messageId);
   if (!message) return;
-  
-  const messageTimestamp = message.created_at;
-  
-  // Only update if this message is newer than the pending one
-  if (!pendingUnreadUpdate || messageTimestamp > pendingUnreadUpdate.timestamp) {
-    pendingUnreadUpdate = { messageId, timestamp: messageTimestamp };
-  }
-  
-  // Debounce the actual API call
-  if (unreadUpdateTimeout) {
-    clearTimeout(unreadUpdateTimeout);
-  }
-  
-  if (!hasUnreadUpdatePending) {
-    hasUnreadUpdatePending = true;
-  }
-  
-  unreadUpdateTimeout = setTimeout(async () => {
-    if (pendingUnreadUpdate) {
-      await flushUnreadUpdate();
-    }
-  }, 500); // 500ms debounce
+  const channelId = props.channelId || message.channel_id || null;
+  const conversationId = channelId ? null : (props.conversationId || message.conversation_id || null);
+  if (!channelId && !conversationId) return;
+  readMarkers.queue({
+    messageId,
+    createdAt: new Date(message.created_at).getTime(),
+    channelId,
+    conversationId,
+  });
 };
 
-// Flush the pending unread update to the server
-const flushUnreadUpdate = async () => {
-  if (!pendingUnreadUpdate || !hasUnreadUpdatePending) return;
-  
-  const { messageId } = pendingUnreadUpdate;
-  hasUnreadUpdatePending = false;
-  pendingUnreadUpdate = null;
-  
-  await clearUnreadCount(messageId);
-};
-
-const clearUnreadCount = async (messageId: string) => {
-  if (!props.channelId && !props.conversationId) return;
-
+const clearUnreadCount = async ({ messageId, channelId, conversationId }: QueuedRead) => {
   try {
     const { authContextService } = await import('@/services/AuthContextService');
     const ctx = await authContextService.getCurrentContext();
     if (!ctx.isAuthenticated) return;
 
-    const message = props.messages.find(m => m.id === messageId);
-    if (!message) return;
-    
-    const channelId = props.channelId || message.channel_id;
-    const conversationId = props.conversationId || message.conversation_id;
-    
-    if (!channelId && !conversationId) return;
-    
     try {
       if (channelId) await markChannelRead(channelId, messageId);
-      else await markConversationRead(conversationId!, messageId);
+      else if (conversationId) await markConversationRead(conversationId, messageId);
       debug.log('Cleared unread count for', channelId ? 'channel' : 'conversation', channelId || conversationId);
     } catch (error) {
       debug.error('Failed to clear unread count:', error);
@@ -2417,6 +2379,13 @@ const clearUnreadCount = async (messageId: string) => {
     debug.error('Error clearing unread count:', error);
   }
 };
+
+const readMarkers = createReadMarkerQueue((read) => clearUnreadCount(read));
+
+// A read queued in the channel or conversation being left goes out now.
+watch(() => [props.channelId, props.conversationId], () => {
+  void readMarkers.flush();
+});
 
 // Watch for messages changes to setup observer
 watch(() => props.messages.length, () => {
@@ -2455,20 +2424,9 @@ onUnmounted(() => {
     virtualRowObserverTimeout = null;
   }
 
-  // Clear the debounce timeout first to prevent it from firing after unmount
-  if (unreadUpdateTimeout) {
-    clearTimeout(unreadUpdateTimeout);
-    unreadUpdateTimeout = null;
-  }
-  
-  // onUnmounted cannot await. flushUnreadUpdate captures pendingUnreadUpdate
-  // at its start, so it completes even after the local state is cleared.
-  if (pendingUnreadUpdate && hasUnreadUpdatePending) {
-    // Fire and forget; the data is already captured.
-    flushUnreadUpdate().catch((err) => {
-      console.warn('Failed to flush unread update on unmount:', err);
-    });
-  }
+  readMarkers.flush().catch((err) => {
+    console.warn('Failed to flush unread update on unmount:', err);
+  });
   
   if (intersectionObserver) {
     intersectionObserver.disconnect();
