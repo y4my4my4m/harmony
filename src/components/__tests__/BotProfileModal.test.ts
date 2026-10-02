@@ -22,7 +22,9 @@ const { api, perms, push, confirmMock, toast, servers } = vi.hoisted(() => ({
   servers: [] as Array<{ id: string }>,
 }))
 
-vi.mock('vue-i18n', () => ({
+// Partial: the import graph reaches @/i18n (uploadValidation), which calls createI18n.
+vi.mock('vue-i18n', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('vue-i18n')>()),
   useI18n: () => ({
     t: (key: string, params?: Record<string, unknown>) => (params ? `${key} ${JSON.stringify(params)}` : key),
   }),
