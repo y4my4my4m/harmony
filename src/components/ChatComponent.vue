@@ -681,11 +681,10 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
         selectedThread.value = thread;
         draftParentMessage.value = null;
         
-        // System message announcing the thread. Content is minimal; rendering
-        // reads the metadata.
+        // The database posts the thread notice; rendering reads its metadata.
         if (props.channelId) {
-          const threadName = thread.name || 'Thread';
-          await sendSystemThreadMessage(props.channelId, threadName, thread.id);
+          const { error } = await coreMessageService.postThreadCreatedNotice(thread.id);
+          if (error) debug.error('Failed to post thread notice:', error);
         }
       };
 
@@ -696,15 +695,6 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
         draftParentMessage.value = null;
       };
       
-      const sendSystemThreadMessage = async (channelId: string, threadName: string, threadId: string) => {
-        const { error } = await coreMessageService.sendSystemMessage(
-          channelId,
-          [{ type: 'text' as const, text: 'started a thread' }],
-          { type: 'thread_created', thread_id: threadId, thread_name: threadName }
-        );
-        if (error) debug.error('Failed to send thread system message:', error);
-      };
-
       const handleThreadUpdated = (thread: any) => {
         selectedThread.value = thread;
       };
@@ -979,6 +969,12 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
           } else if (code.startsWith('ENCRYPTION_') || msg.includes('ENCRYPTION_')) {
             sendError.value = msg
             setTimeout(() => { sendError.value = null }, 6000)
+          } else if (code === 'RECIPIENT_DELETED' || msg.includes('RECIPIENT_DELETED')) {
+            toast.error(t('dm.recipientDeleted'))
+            messageInputRef.value?.flashRejection?.()
+            if (content && !messageContent.value.trim()) {
+              messageContent.value = content
+            }
           } else if (msg.includes('Slowmode')) {
             // The chat store already dispatched harmony:slowmode-hit to sync the
             // input countdown. This surfaces the human-readable reason.

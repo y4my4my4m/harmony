@@ -5,6 +5,7 @@ import type { Message, MessagePart } from '@/types'
 import { userDataService } from '@/services/userDataService'
 import { authContextService } from '@/services/AuthContextService'
 import { debug } from '@/utils/debug'
+import { i18n } from '@/i18n'
 import { discordCustomEmojiUrlFromIdentifier } from '@/utils/emojiUtils'
 import {
   DEFAULT_MAX_MESSAGE_TEXT_LENGTH,
@@ -220,33 +221,30 @@ export class CoreMessageService {
   }
 
   /**
-   * @param options.isSystem - stores as a system message: no encryption, not federated.
    * @param options.allowPlaintextFallback - sends plaintext when the
    *   conversation is marked encrypted but the sender cannot encrypt
    *   (locked, failed, or no keys). Requires explicit user confirmation.
    *   Default is fail closed: rejected with an ENCRYPTION_* error so the UI
    *   can prompt for consent.
+   *
+   * A conversation whose other participants have all deleted their accounts
+   * rejects the send with RECIPIENT_DELETED (enforced by the database).
    */
   async sendDMMessage(
     conversationId: string,
     content: MessagePart[],
     replyTo?: string,
-    options?: { isSystem?: boolean; allowPlaintextFallback?: boolean },
+    options?: { allowPlaintextFallback?: boolean },
     extraMetadata?: Record<string, any>
   ): Promise<Message> {
     try {
-      const isSystem = options?.isSystem ?? false
       const allowFallback = options?.allowPlaintextFallback === true
-      if (!isSystem) {
-        // Limits apply to user-authored DMs only. System messages
-        // (group_created etc.) are generated and bounded by this client.
-        await this.assertContentWithinLimit(content)
+      await this.assertContentWithinLimit(content)
 
-        const fileParts = content.filter((p: any) => p?.type === 'file')
-        const maxMedia = await this.getMaxMediaAttachments()
-        if (fileParts.length > maxMedia) {
-          throw this.createError('TOO_MANY_ATTACHMENTS', `Maximum ${maxMedia} media attachments per message`)
-        }
+      const fileParts = content.filter((p: any) => p?.type === 'file')
+      const maxMedia = await this.getMaxMediaAttachments()
+      if (fileParts.length > maxMedia) {
+        throw this.createError('TOO_MANY_ATTACHMENTS', `Maximum ${maxMedia} media attachments per message`)
       }
 
       const currentUser = userDataService.getCurrentUser()
@@ -254,33 +252,9 @@ export class CoreMessageService {
         throw this.createError('AUTH_REQUIRED', 'User not authenticated')
       }
 
-      // System messages: no encryption
       let finalContent = content
       let encrypted = false
       let encryptionMetadata = null
-
-      if (isSystem) {
-        const messageData = {
-          user_id: currentUser.id,
-          conversation_id: conversationId,
-          content,
-          reply_to: null,
-          is_system: true,
-          metadata: { created_via: 'harmony_client', type: 'group_created' }
-        }
-        const { data: message, error } = await supabase
-          .from('messages')
-          .insert(messageData)
-          .select('*')
-          .single()
-        if (error) {
-          const rejection = moderationRejectionFromError(error)
-          if (rejection) throw this.createError(rejection.code, rejection.message, rejection.details)
-          throw this.createError('INSERT_FAILED', error.message, error)
-        }
-        debug.log('System message sent successfully')
-        return message
-      }
 
       const { data: convSettings } = await supabase
         .from('conversation_encryption_settings')
@@ -377,6 +351,9 @@ export class CoreMessageService {
       if (error) {
         const rejection = moderationRejectionFromError(error)
         if (rejection) throw this.createError(rejection.code, rejection.message, rejection.details)
+        if ((error.message || '').includes('RECIPIENT_DELETED')) {
+          throw this.createError('RECIPIENT_DELETED', i18n.global.t('dm.recipientDeleted'), error)
+        }
         throw this.createError('INSERT_FAILED', error.message, error)
       }
 
@@ -1334,35 +1311,36 @@ export class CoreMessageService {
   }
 
   /**
-   * Channel system message, e.g. thread creation announcements. Bypasses
-   * encryption; rendered by MessageDisplay's system-message path.
+   * Posts the 'started a thread' notice for a thread the caller created.
+   * The database builds the notice and posts it once per thread.
    */
-  async sendSystemMessage(
-    channelId: string,
-    content: MessagePart[],
-    metadata: Record<string, any>
-  ): Promise<{ error: string | null }> {
-    try {
-      const userId = await this.getCurrentUserProfileId()
-      
-      const { error } = await supabase.from('messages').insert({
-        channel_id: channelId,
-        user_id: userId,
-        content,
-        is_system: true,
-        metadata,
-      })
-
-      if (error) {
-        debug.error('Failed to send system message:', error)
-        return { error: error.message }
-      }
-      return { error: null }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      debug.error('Failed to send system message:', msg)
-      return { error: msg }
+  async postThreadCreatedNotice(threadId: string): Promise<{ error: string | null }> {
+    const { error } = await supabase.rpc('post_thread_created_notice', { p_thread_id: threadId })
+    if (error) {
+      debug.error('Failed to post thread notice:', error)
+      return { error: error.message }
     }
+    return { error: null }
+  }
+
+  /**
+   * Posts a group conversation notice. Without `addedUserIds` it announces the
+   * conversation (creator only, once); with them it names the listed users who
+   * joined within the last ten minutes. The database builds the text.
+   */
+  async postGroupConversationNotice(
+    conversationId: string,
+    addedUserIds?: string[]
+  ): Promise<{ error: string | null }> {
+    const { error } = await supabase.rpc('post_group_conversation_notice', {
+      p_conversation_id: conversationId,
+      p_added_user_ids: addedUserIds && addedUserIds.length > 0 ? addedUserIds : null,
+    })
+    if (error) {
+      debug.error('Failed to post group conversation notice:', error)
+      return { error: error.message }
+    }
+    return { error: null }
   }
 
   private createError(code: string, message: string, details?: any): CoreMessageServiceError {

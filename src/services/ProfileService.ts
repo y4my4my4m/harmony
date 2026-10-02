@@ -91,24 +91,10 @@ export class ProfileService {
         throw this.createError('INVALID_INPUT', 'Custom emojis in display names are disabled on this instance. Please remove emoji shortcodes from your display name.')
       }
 
-      // Pre-resolve display_name emojis for federation (only when allowed)
+      // federation_metadata.display_name_emojis is derived by the database from the
+      // display name (derive_display_name_emojis); a client value is discarded.
       const finalUpdates: any = { ...updates }
-      if (updates.display_name) {
-        const { data: existing } = await supabase
-          .from('profiles')
-          .select('federation_metadata')
-          .eq('id', context.profileId)
-          .single()
-        const rawMeta = existing?.federation_metadata
-        const meta = (typeof rawMeta === 'string' ? JSON.parse(rawMeta) : rawMeta) || {}
-
-        if (allowEmojisInDisplayNames) {
-          const displayNameEmojis = await this.resolveDisplayNameEmojis(updates.display_name)
-          finalUpdates.federation_metadata = { ...meta, display_name_emojis: displayNameEmojis }
-        } else {
-          finalUpdates.federation_metadata = { ...meta, display_name_emojis: [] }
-        }
-      }
+      delete finalUpdates.federation_metadata
 
       const { data: profile, error } = await supabase
         .from('profiles')
@@ -153,16 +139,9 @@ export class ProfileService {
         }
       }
 
-      // Pre-resolve display_name emojis for federation metadata
+      // display_name_emojis are derived by the database (derive_display_name_emojis).
       const finalData: any = { ...profileData }
-      if (profileData.display_name && allowEmojisInDisplayNames) {
-        const displayNameEmojis = await this.resolveDisplayNameEmojis(profileData.display_name)
-        if (displayNameEmojis.length > 0) {
-          const rawMeta = finalData.federation_metadata
-          const existingMeta = (typeof rawMeta === 'string' ? JSON.parse(rawMeta) : rawMeta) || {}
-          finalData.federation_metadata = { ...existingMeta, display_name_emojis: displayNameEmojis }
-        }
-      }
+      delete finalData.federation_metadata
 
       const { data: profile, error } = await supabase
         .from('profiles')
@@ -325,27 +304,6 @@ export class ProfileService {
    * Resolve :shortcode: patterns in a display name to emoji data for federation.
    * Returns an array of { name, url, id } for each resolved custom emoji.
    */
-  private async resolveDisplayNameEmojis(displayName: string): Promise<Array<{ name: string; url: string; id: string }>> {
-    const regex = /:([a-zA-Z0-9_+-]+):/g
-    const shortcodes: string[] = []
-    let match: RegExpExecArray | null
-    while ((match = regex.exec(displayName)) !== null) {
-      shortcodes.push(match[1])
-    }
-    if (shortcodes.length === 0) return []
-
-    // Only return custom emojis (with image URLs). Unicode emoji entries
-    // in the emojis table have url = null and must be excluded so they
-    // don't shadow the unified pack or a custom emoji with the same name.
-    const { data: emojis } = await supabase
-      .from('emojis')
-      .select('id, name, url')
-      .in('name', shortcodes)
-      .not('url', 'is', null)
-
-    return (emojis || []).map((e: any) => ({ name: e.name, url: e.url, id: e.id }))
-  }
-
   private createError(code: string, message: string, details?: any): Error {
     const error = new Error(message) as any
     error.code = code

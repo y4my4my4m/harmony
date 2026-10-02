@@ -584,6 +584,7 @@
   },
   "dm": {
     "title": "Direct messages",
+    "recipientDeleted": "This account has been deleted. Messages to it are not delivered.",
     "directMessages": "Direct messages",
     "newMessage": "New message",
     "startConversation": "Start a conversation",

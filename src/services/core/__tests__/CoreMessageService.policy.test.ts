@@ -375,5 +375,41 @@ describe('CoreMessageService - encryption policy (fail-closed by default)', () =
       expect(insertedRows[0].encrypted).toBe(false)
       expect(insertedRows[0].metadata?.plaintext_override?.reason).toBe('dm_encryption_locked')
     })
+
+    it('reports a conversation whose recipient deleted their account', async () => {
+      setupSupabase({
+        insertError: { message: 'RECIPIENT_DELETED: the other participant deleted their account' },
+      })
+
+      await expect(
+        service.sendDMMessage(CONVERSATION_ID, [{ type: 'text', text: 'hello?' }] as any),
+      ).rejects.toMatchObject({ code: 'RECIPIENT_DELETED' })
+    })
+  })
+
+  // System notices are written by the database; the client names the event only.
+  describe('notices', () => {
+    it('asks the database for the thread notice', async () => {
+      ;(supabase.rpc as any).mockResolvedValue({ data: 'notice-id', error: null })
+
+      expect(await service.postThreadCreatedNotice('thread-1')).toEqual({ error: null })
+      expect(supabase.rpc).toHaveBeenCalledWith('post_thread_created_notice', { p_thread_id: 'thread-1' })
+      expect(supabase.from).not.toHaveBeenCalled()
+    })
+
+    it('asks the database for group notices', async () => {
+      ;(supabase.rpc as any).mockResolvedValue({ data: 'notice-id', error: null })
+
+      await service.postGroupConversationNotice(CONVERSATION_ID)
+      await service.postGroupConversationNotice(CONVERSATION_ID, ['u1', 'u2'])
+
+      expect(supabase.rpc).toHaveBeenNthCalledWith(1, 'post_group_conversation_notice', {
+        p_conversation_id: CONVERSATION_ID, p_added_user_ids: null,
+      })
+      expect(supabase.rpc).toHaveBeenNthCalledWith(2, 'post_group_conversation_notice', {
+        p_conversation_id: CONVERSATION_ID, p_added_user_ids: ['u1', 'u2'],
+      })
+      expect(supabase.from).not.toHaveBeenCalled()
+    })
   })
 })

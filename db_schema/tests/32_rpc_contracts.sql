@@ -114,11 +114,11 @@ SELECT is(pg_temp.sig('get_current_profile_id'), ' -> uuid',
 SELECT is(pg_temp.sig('is_current_user_admin'), ' -> boolean',
           'is_current_user_admin takes no arguments and returns boolean');
 
--- Invite accept -----------------------------------------------------------------
--- inviteService.ts and BotRestAPI.ts both do `Array.isArray(rows) ? rows[0] : null`,
--- which needs a SETOF, and then read used / expires_at / uses / max_uses /
--- server_id / server_name / server_icon off it. The column names are the
--- contract; the two server_* columns come from the join, not the invites table.
+-- Invite lookup -----------------------------------------------------------------
+-- BotRestAPI.ts does `Array.isArray(rows) ? rows[0] : null`, which needs a SETOF, and
+-- then reads used / expires_at / uses / max_uses / server_id / server_name /
+-- server_icon off it. The column names are the contract; the two server_* columns
+-- come from the join, not the invites table.
 SELECT is(pg_temp.args('lookup_invite_by_code'), 'p_code text',
           'lookup_invite_by_code takes p_code');
 SELECT is(pg_temp.res('lookup_invite_by_code'),
@@ -126,7 +126,7 @@ SELECT is(pg_temp.res('lookup_invite_by_code'),
           || ' max_uses integer, used boolean, temporary boolean,'
           || ' expires_at timestamp with time zone, created_at timestamp with time zone,'
           || ' server_name text, server_icon text)',
-          'lookup_invite_by_code returns the row shape the accept flow destructures');
+          'lookup_invite_by_code returns the row shape the bot invite preview destructures');
 
 -- Push delivery -------------------------------------------------------------------
 -- PushNotificationService.ts reads subscription_id / endpoint / p256dh / auth off
@@ -222,16 +222,20 @@ SELECT is_empty($q$
         ('get_message_page',       'authenticated'),
         ('get_user_conversations', 'authenticated'),
         ('get_user_permissions',   'authenticated'),
-        ('lookup_invite_by_code',  'authenticated'),
+        ('get_invite_preview',     'authenticated'),
         ('get_current_profile_id', 'authenticated'),
         ('is_current_user_admin',  'authenticated')
     ) AS f(fname, frole)
     WHERE NOT pg_temp.granted_execute(f.fname, f.frole)
 $q$, 'every browser-called RPC grants EXECUTE to authenticated by name');
 
--- getInviteDetails is documented as the anonymous shared-link preview path.
-SELECT ok(pg_temp.granted_execute('lookup_invite_by_code', 'anon'),
-          'lookup_invite_by_code grants EXECUTE to anon, which the link preview needs');
+-- get_invite_preview is the anonymous shared-link preview path; lookup_invite_by_code
+-- returns invite internals and serves the bot gateway only.
+SELECT ok(pg_temp.granted_execute('get_invite_preview', 'anon')
+          AND NOT pg_temp.granted_execute('lookup_invite_by_code', 'anon')
+          AND NOT pg_temp.granted_execute('lookup_invite_by_code', 'authenticated')
+          AND pg_temp.granted_execute('lookup_invite_by_code', 'service_role'),
+          'get_invite_preview grants EXECUTE to anon; lookup_invite_by_code to service_role only');
 
 SELECT is_empty($q$
     SELECT f.fname
@@ -434,7 +438,7 @@ SELECT results_eq(
                0, 5, false, 'Test Server'::text)$q$,
     'lookup_invite_by_code returns the invite joined to its server name');
 
--- The accept flow treats zero rows as "invalid code". An exception instead
+-- The bot preview treats zero rows as "invalid code". An exception instead
 -- would surface as a failed request rather than a rejected invite.
 SELECT is_empty($q$SELECT id FROM public.lookup_invite_by_code('NO-SUCH-CODE')$q$,
                 'an unknown code yields no rows rather than an error');
@@ -445,8 +449,8 @@ SELECT is_empty($q$SELECT id FROM public.lookup_invite_by_code('NO-SUCH-CODE')$q
 SELECT tests.authenticate_as_anon();
 SELECT is((SELECT count(*)::int FROM public.invites WHERE code = 'RPCCONTRACT'), 0,
           'anon reads no invite rows directly');
-SELECT is((SELECT count(*)::int FROM public.lookup_invite_by_code('RPCCONTRACT')), 1,
-          'anon reads that same invite through the RPC, which is why it is DEFINER');
+SELECT is(public.get_invite_preview('RPCCONTRACT') ->> 'name', 'Test Server',
+          'anon reads that invite''s server card through the preview RPC, which is why it is DEFINER');
 
 -- get_user_push_subscriptions ------------------------------------------------
 -- notification_preferences is auto-created per profile, so the row is dropped

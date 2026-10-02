@@ -2902,6 +2902,12 @@ const canDeleteMessage = (message: Message) => {
     return isOwnMessage;
   }
 
+  // System rows are removed by MANAGE_MESSAGES holders only; in a conversation the
+  // database admits group admins, a role this view does not carry.
+  if (message.is_system) {
+    return !message.conversation_id && (isCurrentUserServerOwner.value || canManageMessages.value);
+  }
+
   if (isOwnMessage) return true;
   if (isCurrentUserServerOwner.value) return true;
   if (profileStore.profile?.is_admin || profileStore.profile?.is_moderator) return true;

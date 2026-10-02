@@ -1083,6 +1083,8 @@ export class ActivityPubService {
 
     const ap_id = `${this.instanceUrl}/activities/${crypto.randomUUID()}`;
 
+    // The database copies content, visibility, the reblog snapshot, the author and
+    // the conversation fields from the original (guard_post_client_write).
     const reblogPost = {
       author_id: profileId,
       content: originalPost.content,
@@ -1090,29 +1092,7 @@ export class ActivityPubService {
       is_local: true,
       is_federated: true,
       ap_id: ap_id,
-      conversation_id: originalPost.conversation_id,
-      conversation_root_id: originalPost.conversation_root_id || actualOriginalId,
-      reblog: {
-        id: actualOriginalId,
-        content: originalPost.content,
-        created_at: originalPost.created_at,
-        author: originalPost.author,
-        visibility: originalPost.visibility,
-        favorites_count: originalPost.favorites_count || 0,
-        reblogs_count: originalPost.reblogs_count || 0,
-        replies_count: originalPost.replies_count || 0,
-        media_attachments: originalPost.media_attachments,
-        reply_context: originalPost.reply_context,
-        content_warning: originalPost.content_warning,
-        is_sensitive: originalPost.is_sensitive,
-        url: originalPost.url
-      },
-      reblog_author: originalPost.author,
-      ap_type: 'Announce',
-      metadata: { 
-        reblog_of: actualOriginalId,
-        original_author: originalPost.author?.id 
-      }
+      metadata: { reblog_of: actualOriginalId }
     };
 
     const { data, error } = await supabase
@@ -1157,63 +1137,25 @@ export class ActivityPubService {
     if (postError) throw postError;
 
     // A non-null reblog.id means targetPost is itself a reblog.
-    let originalPost = targetPost;
-    let actualOriginalId = postId;
-
-    if (targetPost.reblog && targetPost.reblog.id) {
-      actualOriginalId = targetPost.reblog.id;
-      const { data: rootPost, error: rootError } = await supabase
-        .from('timeline_posts')
-        .select('*')
-        .eq('id', actualOriginalId)
-        .single();
-      
-      if (!rootError && rootPost) {
-        originalPost = rootPost;
-      } else {
-        originalPost = {
-          ...targetPost.reblog,
-          author: targetPost.reblog_author || targetPost.reblog.author
-        };
-      }
-    }
+    const actualOriginalId: string = targetPost.reblog?.id || postId;
 
     const parsedContent = await this.formatPostContent(userContent);
 
     const ap_id = `${this.instanceUrl}/activities/${crypto.randomUUID()}`;
     
+    // The quote text is the post's content; the database adds the original's
+    // snapshot, author and conversation fields (guard_post_client_write).
     const quotePost = {
       author_id: profileId,
-      content: parsedContent, // The quote text; the original is under `reblog`.
+      content: parsedContent,
       visibility: visibility,
       is_local: true,
       is_federated: true,
       ap_id: ap_id,
-      conversation_id: originalPost.conversation_id,
-      conversation_root_id: originalPost.conversation_root_id || actualOriginalId,
       content_warning: contentWarning,
       is_sensitive: isSensitive,
-      reblog: {
-        id: actualOriginalId,
-        content: originalPost.content,
-        created_at: originalPost.created_at,
-        author: originalPost.author,
-        visibility: originalPost.visibility,
-        favorites_count: originalPost.favorites_count || 0,
-        reblogs_count: originalPost.reblogs_count || 0,
-        replies_count: originalPost.replies_count || 0,
-        media_attachments: originalPost.media_attachments,
-        reply_context: originalPost.reply_context,
-        content_warning: originalPost.content_warning,
-        is_sensitive: originalPost.is_sensitive,
-        url: originalPost.url,
-        in_reply_to: originalPost.in_reply_to
-      },
-      reblog_author: originalPost.author,
-      ap_type: 'Announce', // Announce with a content body; no Quote type exists.
       metadata: { 
         reblog_of: actualOriginalId,
-        original_author: originalPost.author?.id,
         is_quote: true
       }
     };

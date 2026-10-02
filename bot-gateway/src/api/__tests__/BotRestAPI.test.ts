@@ -31,7 +31,7 @@ vi.mock('../../auth/BotAuthMiddleware.js', () => ({
   },
 }))
 
-import { BotRestAPI } from '../BotRestAPI.js'
+import { BotRestAPI, botSuppliedMetadata } from '../BotRestAPI.js'
 
 type Result = { data: unknown; error: unknown }
 
@@ -230,6 +230,51 @@ describe('PATCH /messages/:id/metadata', () => {
       .send({ metadata: { discord_message_id: '1' } })
 
     expect(res.status).toBe(403)
+  })
+
+  // Federation identity and notice types are server statements: a bot naming them
+  // would squat a remote message's ap_id or restyle its message as a notice.
+  it('keeps server-only keys out of a metadata merge', async () => {
+    const updates: any[] = []
+    mocks.from.mockImplementation((table: string) => {
+      const result =
+        table === 'messages'
+          ? { data: { channel_id: 'ch', metadata: { bot: true, created_via: 'bot_api' }, bot_id: BOT_ID }, error: null }
+          : { data: { server_id: 'srv' }, error: null }
+      const builder: any = new Proxy(
+        {
+          single: async () => result,
+          maybeSingle: async () => result,
+          then: (resolve: any) => resolve({ data: null, error: null }),
+          update: (patch: any) => { updates.push(patch); return builder },
+        },
+        { get: (target, prop) => (prop in target ? (target as any)[prop] : () => builder) },
+      )
+      return builder
+    })
+    routeRpc({ check_bot_permission: () => ({ data: true, error: null }) })
+
+    const res = await supertest(makeApp())
+      .patch(`/api/v1/messages/${MESSAGE_ID}/metadata`)
+      .send({ metadata: { discord_message_id: '42', ap_id: 'https://peer.test/m/1', federated: true, type: 'member_ban', bot: false } })
+
+    expect(res.status).toBe(200)
+    expect(updates).toEqual([
+      { metadata: { bot: true, created_via: 'bot_api', discord_message_id: '42' } },
+    ])
+  })
+})
+
+describe('botSuppliedMetadata', () => {
+  it('drops server-only keys and keeps bridge keys', () => {
+    expect(botSuppliedMetadata({ discord_user: { id: '1' }, embeds: {}, federated: true, created_via: 'x' }))
+      .toEqual({ discord_user: { id: '1' }, embeds: {} })
+  })
+
+  it('reads anything but a plain object as empty', () => {
+    expect(botSuppliedMetadata(null)).toEqual({})
+    expect(botSuppliedMetadata(['ap_id'])).toEqual({})
+    expect(botSuppliedMetadata('x')).toEqual({})
   })
 })
 

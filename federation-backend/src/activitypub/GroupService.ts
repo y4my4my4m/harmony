@@ -19,7 +19,7 @@ import { asyncHandler } from '../middleware/errorHandler.js';
 import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
 import { SignatureService } from './SignatureService.js';
-import { inboxLimiter, instanceInboxLimiter } from '../middleware/rateLimit.js';
+import { inboxLimiter, instanceInboxLimit, signerInstanceKey } from '../middleware/rateLimit.js';
 import { getFullServerBannerUrl, getFullServerIconUrl } from '../utils/urlUtils.js';
 import {
   canReadServer,
@@ -679,11 +679,11 @@ router.get(
 router.post(
   '/servers/:serverId/inbox',
   inboxLimiter,
-  instanceInboxLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     const { serverId } = req.params;
     const activity = req.body;
     const actorUrl = typeof activity.actor === 'string' ? activity.actor : activity.actor?.id;
+    let verifiedSigner: string | null = null;
 
     const signature = req.headers.signature as string;
     if (!signature) {
@@ -721,7 +721,13 @@ router.post(
           res.status(403).json({ error: 'Actor mismatch' });
           return;
         }
+        verifiedSigner = verification.actorUrl;
       }
+    }
+
+    // Per-instance budget, keyed on the verified signer, never on the body.
+    if (!(await instanceInboxLimit(res, signerInstanceKey(verifiedSigner, req.ip)))) {
+      return;
     }
 
     // Store + claim for idempotency, same machinery as the user inbox: a

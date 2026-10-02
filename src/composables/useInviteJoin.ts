@@ -51,11 +51,10 @@ export function useInviteJoin(
 
     isJoining.value = true
     try {
-      // Pattern A: acceptInvite writes user_servers.user_id → profiles(id)
       const { authContextService } = await import('@/services/AuthContextService')
       const profileId = await authContextService.getCurrentProfileId()
 
-      const result = await acceptInvite(invite.code, profileId)
+      const result = await acceptInvite(invite.code)
       if (!result.success || !result.serverId) {
         toast.error(result.error || 'Failed to join server')
         return

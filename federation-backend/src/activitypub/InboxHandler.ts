@@ -6,7 +6,7 @@ import { ActivityProcessor } from './ActivityProcessor.js';
 import { FederatedInstanceService } from '../services/FederatedInstanceService.js';
 import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
-import { inboxLimiter, instanceInboxLimiter } from '../middleware/rateLimit.js';
+import { inboxLimiter, instanceInboxLimit, signerInstanceKey } from '../middleware/rateLimit.js';
 import { pgrstEscape } from '../utils/postgrestFilter.js';
 import { isInstanceActorUsername } from './InstanceActor.js';
 import { syntheticFlagId } from './flag.js';
@@ -42,7 +42,6 @@ async function resolveBearerProfileId(req: Request): Promise<string | null> {
 router.post(
   '/inbox',
   inboxLimiter,
-  instanceInboxLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     logger.info(`POST to /inbox (shared inbox) from ${req.ip}`);
     logger.info(`Headers:`, {
@@ -58,7 +57,6 @@ router.post(
 router.post(
   '/users/:username/inbox',
   inboxLimiter,
-  instanceInboxLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     logger.info(`POST to /users/${req.params.username}/inbox from ${req.ip}`);
     logger.info(`Headers:`, {
@@ -356,6 +354,7 @@ async function handleInbox(
   // refused unsigned or unverified whatever REQUIRE_VALID_SIGNATURES says.
   const isFlag = activity.type === 'Flag';
   let signatureVerified = false;
+  let verifiedSigner: string | null = null;
 
   if (!signature) {
     if (isFlag) {
@@ -406,6 +405,7 @@ async function handleInbox(
       }
       signatureVerified = !!verification.actorUrl
         && SignatureService.verifyActorMatch(actorUrl as string, verification.actorUrl);
+      verifiedSigner = verification.actorUrl ?? null;
       logger.info(`Signature verified for ${actorUrl}`);
     }
   }
@@ -421,6 +421,11 @@ async function handleInbox(
   if (isFlag && (typeof activity.id !== 'string' || !activity.id)) {
     const rawBody = (req as any).rawBody as Buffer | undefined;
     activity.id = syntheticFlagId(actorUrl as string, rawBody ?? JSON.stringify(activity));
+  }
+
+  // Per-instance budget, keyed on the verified signer, never on the body.
+  if (!(await instanceInboxLimit(res, signerInstanceKey(verifiedSigner, req.ip)))) {
+    return;
   }
 
   if (actorUrl) {

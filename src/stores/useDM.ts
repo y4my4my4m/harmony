@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { supabase } from '@/supabase'
 import { services } from '@/services'
+import { coreMessageService } from '@/services/core/CoreMessageService'
 import type { Message, MessagePart } from '@/types'
 import { useServerUsersStore } from './useServerUsers'
 import { useReactionsStore } from './useReactions'
@@ -1843,9 +1844,11 @@ export const useDMStore = defineStore('dm', () => {
         throw error
       }
 
-      // Length-limit and structural validation errors are not transient. Drop
-      // the optimistic message and surface the error instead of retrying.
+      // Deleted recipients, length limits and structural validation errors are
+      // not transient. Drop the optimistic message and surface the error
+      // instead of retrying.
       const isPermanentValidationError =
+        code.includes('RECIPIENT_DELETED') ||
         code.includes('MESSAGE_TOO_LONG') ||
         code.includes('TOO_MANY_ATTACHMENTS') ||
         code.includes('messages_text_length_check') ||
@@ -2812,20 +2815,8 @@ export const useDMStore = defineStore('dm', () => {
       debug.log('Created conversation:', conversationId)
 
       ;(async () => {
-        try {
-          const systemMessageContent = [{
-            type: 'text' as const,
-            text: `Group conversation created with ${options.participantIds.length} participants`
-          }]
-          await services.messages.sendDMMessage(
-            conversationId,
-            systemMessageContent,
-            undefined,
-            { isSystem: true }
-          )
-        } catch (systemMessageError) {
-          debug.warn('Failed to send system message:', systemMessageError)
-        }
+        const { error: noticeError } = await coreMessageService.postGroupConversationNotice(conversationId)
+        if (noticeError) debug.warn('Failed to post group creation notice:', noticeError)
         await fetchUserConversations(currentUserData.id)
       })()
 
@@ -2916,37 +2907,8 @@ export const useDMStore = defineStore('dm', () => {
           }
         }
 
-        try {
-          const userProfiles = await Promise.all(
-            userIds.map(async (userId) => {
-              const { data } = await supabase
-                .from('profiles')
-                .select('username, display_name')
-                .eq('id', userId)
-                .single()
-              return data
-            })
-          )
-
-          const userNames = userProfiles
-            .filter(Boolean)
-            .map(profile => profile?.display_name || profile?.username)
-            .join(', ')
-
-          const systemMessageContent = [{
-            type: 'text' as const,
-            text: `${userNames} ${userIds.length === 1 ? 'was' : 'were'} added to the conversation`
-          }]
-
-          await services.messages.sendDMMessage(
-            conversationId,
-            systemMessageContent,
-            undefined,
-            { isSystem: true }
-          )
-        } catch (systemMessageError) {
-          debug.warn('Failed to send system message:', systemMessageError)
-        }
+        const { error: noticeError } = await coreMessageService.postGroupConversationNotice(conversationId, userIds)
+        if (noticeError) debug.warn('Failed to post members-added notice:', noticeError)
 
         await fetchUserConversations(currentUserId)
 

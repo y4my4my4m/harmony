@@ -13,6 +13,14 @@ import { SignatureService } from './SignatureService.js';
 import { noteToContent } from './converters/fromActivityPub.js';
 import config from '../config/index.js';
 import { harmonyVoiceMessageFromObject } from '../utils/voiceMessageFederation.js';
+import { getChannelRecipientGroups } from '../utils/federationUtils.js';
+import {
+  authorizeChannelWrite,
+  resolveThreadInChannel,
+  resolveMessageInChannel,
+  notAfterNow,
+  logDenied,
+} from './channelWriteAuthz.js';
 
 // Permission bit positions in server_roles.permissions (mirror src/services/RoleService.ts)
 const PERM_ADMINISTRATOR = 0n;
@@ -107,29 +115,6 @@ export async function actorOwnsMessage(
     .maybeSingle();
   const ownerUrl = (data as any)?.profiles?.federated_id as string | null | undefined;
   return !!ownerUrl && SignatureService.verifyActorMatch(actorUrl, ownerUrl);
-}
-
-// Resolution order: ap_id match, then UUID extracted from the URL.
-async function resolveThreadIdFromAp(supabase: any, threadApIdValue: string): Promise<string | null> {
-  const { data: threadByApId } = await supabase
-    .from('threads')
-    .select('id')
-    .eq('ap_id', threadApIdValue)
-    .maybeSingle();
-
-  if (threadByApId) return threadByApId.id;
-
-  const threadIdMatch = threadApIdValue.match(/\/threads\/([a-f0-9-]{36})/);
-  if (threadIdMatch) {
-    const { data: threadById } = await supabase
-      .from('threads')
-      .select('id')
-      .eq('id', threadIdMatch[1])
-      .maybeSingle();
-    if (threadById) return threadById.id;
-  }
-
-  return null;
 }
 
 /**
@@ -285,6 +270,13 @@ export async function processServerInboxActivity(
 
 // JOIN / LEAVE HANDLERS
 
+const INVITE_REFUSALS: Record<string, string> = {
+  not_found: 'Invalid invite code',
+  expired: 'Invite code has expired',
+  exhausted: 'Invite code has reached maximum uses',
+  revoked: 'Invite code has been revoked',
+};
+
 async function processJoinServer(
   serverId: string,
   server: any,
@@ -338,56 +330,40 @@ async function processJoinServer(
     return;
   }
 
-  if (!server.public) {
-    const inviteCode = activity['harmony:inviteCode'];
-    
-    if (!inviteCode) {
-      logger.warn(`Rejecting join to private server without invite code: ${actorUrl}`);
-      await sendRejectActivity(serverId, server, activity, user.inbox_url, 'Private server requires invite code');
-      return;
-    }
-
-    const { data: invite, error: inviteError } = await supabase
-      .from('invites')
-      .select('id, expires_at, uses, max_uses, used')
-      .eq('server_id', serverId)
-      .eq('code', inviteCode)
-      .single();
-
-    if (inviteError || !invite) {
-      logger.warn(`Invalid invite code for private server: ${inviteCode}`);
-      await sendRejectActivity(serverId, server, activity, user.inbox_url, 'Invalid invite code');
-      return;
-    }
-
-    if (invite.expires_at && new Date(invite.expires_at) < new Date()) {
-      logger.warn(`Expired invite code: ${inviteCode}`);
-      await sendRejectActivity(serverId, server, activity, user.inbox_url, 'Invite code has expired');
-      return;
-    }
-
-    if (invite.max_uses !== null && (invite.uses || 0) >= invite.max_uses) {
-      logger.warn(`Invite code at max uses: ${inviteCode}`);
-      await sendRejectActivity(serverId, server, activity, user.inbox_url, 'Invite code has reached maximum uses');
-      return;
-    }
-
-    await supabase
-      .from('invites')
-      .update({ uses: (invite.uses || 0) + 1 })
-      .eq('id', invite.id);
-
-    logger.info(`Valid invite code used: ${inviteCode}`);
-  }
-
-  const memberDomain = new URL(actorUrl).hostname;
-
   const { data: existing } = await supabase
     .from('user_servers')
     .select('id, status')
     .eq('server_id', serverId)
     .eq('user_id', user.id)
     .maybeSingle();
+
+  // An invite is spent only by a join that adds a member. consume_invite locks the
+  // row and checks it as redeem_invite does for local users.
+  if (!server.public && existing?.status !== 'accepted') {
+    const inviteCode = activity['harmony:inviteCode'];
+
+    if (typeof inviteCode !== 'string' || !inviteCode) {
+      logger.warn(`Rejecting join to private server without invite code: ${actorUrl}`);
+      await sendRejectActivity(serverId, server, activity, user.inbox_url, 'Private server requires invite code');
+      return;
+    }
+
+    const { data: refusal, error: inviteError } = await supabase.rpc('consume_invite', {
+      p_server_id: serverId,
+      p_code: inviteCode,
+    });
+
+    if (inviteError || refusal) {
+      const reason = inviteError ? 'Invalid invite code' : INVITE_REFUSALS[refusal as string] ?? 'Invalid invite code';
+      logger.warn(`Rejecting join with invite ${inviteCode}: ${inviteError?.message ?? refusal}`);
+      await sendRejectActivity(serverId, server, activity, user.inbox_url, reason);
+      return;
+    }
+
+    logger.info(`Valid invite code used: ${inviteCode}`);
+  }
+
+  const memberDomain = new URL(actorUrl).hostname;
 
   if (existing) {
     if (existing.status === 'accepted') {
@@ -459,23 +435,33 @@ async function processLeaveServer(
 // MESSAGE HANDLERS
 
 // Create carries either a ChatThread or a Note in a server channel.
-/** has_permission for VIEW_CHANNEL and SEND_MESSAGES; any error denies. */
-export async function canPostInChannel(
+/** The message with this ap_id, when it is in a channel of `serverId`. */
+async function findServerMessageByApId(
   supabase: ReturnType<typeof getSupabaseClient>,
-  userId: string,
   serverId: string,
-  channelId: string,
-): Promise<boolean> {
-  for (const permission of ['VIEW_CHANNEL', 'SEND_MESSAGES']) {
-    const { data, error } = await supabase.rpc('has_permission', {
-      p_user_id: userId,
-      p_server_id: serverId,
-      p_permission: permission,
-      p_channel_id: channelId,
-    });
-    if (error || data !== true) return false;
-  }
-  return true;
+  apId: string,
+): Promise<{ id: string; channel_id: string } | null> {
+  const { data: message } = await supabase
+    .from('messages')
+    .select('id, channel_id')
+    .eq('metadata->>ap_id', apId)
+    .maybeSingle();
+  return message ? await inServerChannel(supabase, serverId, message) : null;
+}
+
+async function inServerChannel<T extends { channel_id: string | null }>(
+  supabase: ReturnType<typeof getSupabaseClient>,
+  serverId: string,
+  message: T,
+): Promise<(T & { channel_id: string }) | null> {
+  if (!message.channel_id) return null;
+  const { data: channel } = await supabase
+    .from('channels')
+    .select('id')
+    .eq('id', message.channel_id)
+    .eq('server_id', serverId)
+    .maybeSingle();
+  return channel ? (message as T & { channel_id: string }) : null;
 }
 
 async function processCreateActivity(
@@ -487,15 +473,10 @@ async function processCreateActivity(
   const object = activity.object;
 
   if (object?.type === 'ChatThread') {
-    // AUTHZ: only accepted members may open threads in this server's channels.
-    const threadActor = typeof activity.actor === 'string' ? activity.actor : activity.actor?.id;
-    if (!(await actorIsAcceptedMember(supabase, serverId, threadActor)).ok) {
-      logger.warn(`Rejecting Create(ChatThread): ${threadActor} is not an accepted member of server ${serverId}`);
-      return;
-    }
+    // handleThreadActivity authorizes against this server's channels only.
     logger.info(`Routing server inbox Create ChatThread to handler: ${object.id}`);
     const { handleThreadActivity } = await import('./ThreadActivityHandler.js');
-    const result = await handleThreadActivity({ ...activity, object });
+    const result = await handleThreadActivity({ ...activity, object }, { serverId });
     if (!result.success) {
       logger.warn(`Thread Create via server inbox failed: ${result.error}`);
     }
@@ -538,36 +519,6 @@ async function processCreateActivity(
   }
 
   logger.debug(`Found author: id=${author.id}, username=${author.username}, federated_id=${author.federated_id}`);
-
-  const { data: membership, error: memberError } = await supabase
-    .from('user_servers')
-    .select('id, status, member_instance')
-    .eq('server_id', serverId)
-    .eq('user_id', author.id)
-    .maybeSingle();
-
-  if (memberError) {
-    logger.error(`Failed to query membership: ${memberError.message}`);
-    return;
-  }
-
-  logger.debug(`Membership query: server=${serverId}, user=${author.id}, result=${JSON.stringify(membership)}`);
-
-  if (!membership) {
-    logger.warn(`Author ${author.username} (id=${author.id}) is not a member of server ${serverId}`);
-    const { data: serverMembers } = await supabase
-      .from('user_servers')
-      .select('user_id, status, member_instance')
-      .eq('server_id', serverId)
-      .limit(10);
-    logger.debug(`Server ${serverId} has ${serverMembers?.length || 0} members: ${JSON.stringify(serverMembers)}`);
-    return;
-  }
-
-  if (membership.status !== 'accepted') {
-    logger.warn(`Author ${author.username} membership status is '${membership.status}', not 'accepted'`);
-    return;
-  }
 
   const context = object.context;
   if (!context || !context.includes('/channels/')) {
@@ -642,11 +593,35 @@ async function processCreateActivity(
     }
   }
 
-  // A local server enforces the author's channel permissions; a remote
-  // server's host already did.
-  if (server?.is_local_server !== false && !(await canPostInChannel(supabase, author.id, serverId, channel.id))) {
-    logger.warn(`Rejecting Create(Note): ${actorUrl} lacks VIEW_CHANNEL or SEND_MESSAGES in channel ${channel.id}`);
-    return;
+  // Thread first: a thread message needs SEND_MESSAGES_IN_THREADS, and a stub
+  // thread for an unknown one needs a thread-creation permission.
+  let resolvedThreadId: string | null = null;
+  const threadApIdValue: string | null =
+    typeof object['harmony:threadId'] === 'string' ? object['harmony:threadId'] : null;
+  if (threadApIdValue) {
+    const thread = await resolveThreadInChannel(supabase, threadApIdValue, channel.id);
+    if (thread.status === 'foreign') {
+      logDenied('Create(Note)', actorUrl, `thread ${threadApIdValue} is not in channel ${channel.id}`);
+      return;
+    }
+    if (thread.status === 'found') {
+      resolvedThreadId = thread.id;
+    } else {
+      logger.warn(`Thread not found for AP ID ${threadApIdValue}, will create stub thread after message insert.`);
+    }
+  }
+
+  const kinds = !threadApIdValue
+    ? (['message'] as const)
+    : resolvedThreadId
+      ? (['thread_message'] as const)
+      : (['thread_message', 'thread_create'] as const);
+  for (const kind of kinds) {
+    const authz = await authorizeChannelWrite(supabase, { actorUrl, serverId, channelId: channel.id, kind });
+    if (!authz.ok) {
+      logDenied('Create(Note)', actorUrl, authz.reason);
+      return;
+    }
   }
 
   let messageContent: any[];
@@ -677,45 +652,12 @@ async function processCreateActivity(
     return;
   }
 
-  // Parent lookup order: ap_id, then UUID from the inReplyTo URL.
-  let replyToId: string | null = null;
-  if (object.inReplyTo) {
-    const { data: parentByApId } = await supabase
-      .from('messages')
-      .select('id')
-      .eq('metadata->>ap_id', object.inReplyTo)
-      .eq('channel_id', channel.id)
-      .maybeSingle();
+  // Parent lookup order: ap_id, then UUID from the inReplyTo URL, in this channel.
+  const replyToId = typeof object.inReplyTo === 'string'
+    ? await resolveMessageInChannel(supabase, object.inReplyTo, channel.id)
+    : null;
 
-    if (parentByApId) {
-      replyToId = parentByApId.id;
-    } else {
-      const replyToMatch = object.inReplyTo.match(/\/messages\/([a-f0-9-]+)/);
-      if (replyToMatch) {
-        const { data: parentById } = await supabase
-          .from('messages')
-          .select('id')
-          .eq('id', replyToMatch[1])
-          .eq('channel_id', channel.id)
-          .maybeSingle();
-        if (parentById) {
-          replyToId = parentById.id;
-        }
-      }
-    }
-  }
-
-  // Resolve thread_id from harmony:threadId AP extension
-  let resolvedThreadId: string | null = null;
-  const threadApIdValue = object['harmony:threadId'];
-  if (threadApIdValue) {
-    resolvedThreadId = await resolveThreadIdFromAp(supabase, threadApIdValue);
-    if (!resolvedThreadId) {
-      logger.warn(`Thread not found for AP ID ${threadApIdValue}, will create stub thread after message insert.`);
-    }
-  }
-
-  const messageTimestamp = object.published || new Date().toISOString();
+  const messageTimestamp = notAfterNow(object.published);
   const isEncrypted = object['harmony:encrypted'] === true;
 
   const messageMetadata: Record<string, any> = {
@@ -742,7 +684,7 @@ async function processCreateActivity(
     metadata: messageMetadata,
     encrypted: isEncrypted,
     created_at: messageTimestamp,
-    updated_at: object.updated || messageTimestamp,
+    updated_at: object.updated ? notAfterNow(object.updated) : messageTimestamp,
     federation_status: 'completed',
   }).select('id, content, metadata');
 
@@ -773,28 +715,11 @@ async function processCreateActivity(
       const threadUuidMatch = threadApIdValue.match(/\/threads\/([a-f0-9-]{36})/);
       const stubThreadId = threadUuidMatch ? threadUuidMatch[1] : crypto.randomUUID();
 
-      // Parent comes from harmony:parentMessageId, not the inserted message.
+      // Parent comes from harmony:parentMessageId, in this channel, not the inserted message.
       let parentMessageId = insertedMessage.id;
       const parentMessageApId = object['harmony:parentMessageId'];
-      if (parentMessageApId) {
-        const { data: parentByApId } = await supabase
-          .from('messages')
-          .select('id')
-          .eq('metadata->>ap_id', parentMessageApId)
-          .maybeSingle();
-        if (parentByApId) {
-          parentMessageId = parentByApId.id;
-        } else {
-          const parentUuidMatch = parentMessageApId.match(/\/messages\/([a-f0-9-]{36})/);
-          if (parentUuidMatch) {
-            const { data: parentById } = await supabase
-              .from('messages')
-              .select('id')
-              .eq('id', parentUuidMatch[1])
-              .maybeSingle();
-            if (parentById) parentMessageId = parentById.id;
-          }
-        }
+      if (typeof parentMessageApId === 'string') {
+        parentMessageId = (await resolveMessageInChannel(supabase, parentMessageApId, channel.id)) ?? parentMessageId;
       }
 
       let threadName = 'Thread';
@@ -820,7 +745,8 @@ async function processCreateActivity(
         });
 
       if (stubError) {
-        if (stubError.code === '23505') {
+        if (stubError.code === '23505'
+            && (await resolveThreadInChannel(supabase, threadApIdValue, channel.id)).status === 'found') {
           resolvedThreadId = stubThreadId;
           logger.info(`Stub thread ${stubThreadId} already exists (race condition), assigning message`);
         } else {
@@ -858,66 +784,9 @@ async function processCreateActivity(
     }
   }
 
-  // The host instance relays the message to every other member instance.
-  
+  // The host instance relays the message to the other member instances that may read it.
   if (server.is_local_server) {
-    const senderDomain = new URL(actorUrl).hostname;
-    
-    const { data: remoteMemberGroups } = await supabase
-      .from('user_servers')
-      .select(`
-        member_instance,
-        profiles!inner(id, federated_id, domain)
-      `)
-      .eq('server_id', serverId)
-      .eq('status', 'accepted')
-      .not('member_instance', 'is', null)
-      .neq('member_instance', senderDomain)
-      .neq('member_instance', config.INSTANCE_DOMAIN)
-      // PostgREST returns a many-to-one embed as an object. The client is built
-      // without a generated schema, so it cannot see cardinality and widens
-      // every embed to an array.
-      .overrideTypes<
-        {
-          member_instance: string;
-          profiles: { id: string; federated_id: string | null; domain: string };
-        }[],
-        { merge: false }
-      >();
-
-    if (remoteMemberGroups && remoteMemberGroups.length > 0) {
-      // Group by instance for shared inbox delivery
-      const instanceMap = new Map<string, string[]>();
-      for (const member of remoteMemberGroups) {
-        const instance = member.member_instance;
-        if (!instanceMap.has(instance)) {
-          instanceMap.set(instance, []);
-        }
-        if (member.profiles?.federated_id) {
-          instanceMap.get(instance)!.push(member.profiles.federated_id);
-        }
-      }
-
-      // Sender and local instance are excluded by the query above.
-      for (const [instance, memberApIds] of instanceMap) {
-        const inbox = `https://${instance}/inbox`;
-        
-        // Re-address to that instance's members.
-        const forwardedActivity = {
-          ...activity,
-          to: memberApIds,
-        };
-
-        try {
-          await DeliveryQueue.enqueue(forwardedActivity, inbox, server.owner);
-          logger.info(`Re-broadcast message to ${instance} (${memberApIds.length} members)`);
-        } catch (deliveryError) {
-          logger.error(`Failed to re-broadcast to ${instance}:`, deliveryError);
-        }
-      }
-      
-      logger.info(`Re-broadcast complete: relayed to ${instanceMap.size} other instances`);
-    }
+    await relayToChannelReaders(activity, channel.id, actorUrl, server.owner, 'message', true);
   }
 }
 
@@ -935,15 +804,10 @@ async function processUpdateActivity(
   }
 
   if (object.type === 'ChatThread') {
-    // AUTHZ: thread updates (incl. membership add/remove) are member-gated.
-    const threadActor = typeof activity.actor === 'string' ? activity.actor : activity.actor?.id;
-    if (!(await actorIsAcceptedMember(supabase, serverId, threadActor)).ok) {
-      logger.warn(`Rejecting Update(ChatThread): ${threadActor} is not an accepted member of server ${serverId}`);
-      return;
-    }
+    // handleThreadActivity requires the thread's creator and this server's channel.
     logger.info(`Routing server inbox Update ChatThread to handler: ${object.id}`);
     const { handleThreadActivity } = await import('./ThreadActivityHandler.js');
-    const result = await handleThreadActivity({ ...activity, object });
+    const result = await handleThreadActivity({ ...activity, object }, { serverId });
     if (!result.success) {
       logger.warn(`Thread Update via server inbox failed: ${result.error}`);
     }
@@ -972,6 +836,7 @@ async function processUpdateActivity(
       .from('channel_categories')
       .select('id')
       .eq('id', catUuid)
+      .eq('server_id', serverId)
       .maybeSingle();
 
     if (existingCat) {
@@ -1004,6 +869,7 @@ async function processUpdateActivity(
       .from('channels')
       .select('id')
       .eq('ap_id', object.id)
+      .eq('server_id', serverId)
       .maybeSingle();
 
     let categoryId = null;
@@ -1014,6 +880,7 @@ async function processUpdateActivity(
           .from('channel_categories')
           .select('id')
           .eq('id', catMatch[1])
+          .eq('server_id', serverId)
           .maybeSingle();
         categoryId = cat?.id || null;
       }
@@ -1119,21 +986,26 @@ async function processUpdateActivity(
     return;
   }
 
-  const { data: message } = await supabase
-    .from('messages')
-    .select('id, channel_id')
-    .eq('metadata->>ap_id', object.id)
-    .maybeSingle();
+  const message = typeof object.id === 'string'
+    ? await findServerMessageByApId(supabase, serverId, object.id)
+    : null;
 
   if (!message) {
-    logger.warn(`Message not found for Update: ${object.id}`);
+    logger.warn(`Message not found in server ${serverId} for Update: ${object.id}`);
     return;
   }
 
-  // AUTHZ: message edits are author-only.
+  // AUTHZ: message edits are author-only, by a member still able to view the channel.
   const editorUrl = typeof activity.actor === 'string' ? activity.actor : activity.actor?.id;
   if (!(await actorOwnsMessage(supabase, message.id, editorUrl))) {
     logger.warn(`Rejecting Update: ${editorUrl} does not own message ${object.id}`);
+    return;
+  }
+  const editAuthz = await authorizeChannelWrite(supabase, {
+    actorUrl: editorUrl, serverId, channelId: message.channel_id, kind: 'edit',
+  });
+  if (!editAuthz.ok) {
+    logDenied('Update(Note)', editorUrl, editAuthz.reason);
     return;
   }
 
@@ -1178,30 +1050,7 @@ async function processUpdateActivity(
 
   // Re-broadcast edit to other remote instances
   if (server.is_local_server) {
-    const actorUrl = typeof activity.actor === 'string' ? activity.actor : activity.actor.id;
-    const senderDomain = new URL(actorUrl).hostname;
-    
-    const { data: remoteMemberGroups } = await supabase
-      .from('user_servers')
-      .select('member_instance')
-      .eq('server_id', serverId)
-      .eq('status', 'accepted')
-      .not('member_instance', 'is', null)
-      .neq('member_instance', senderDomain)
-      .neq('member_instance', config.INSTANCE_DOMAIN);
-
-    if (remoteMemberGroups && remoteMemberGroups.length > 0) {
-      const instances = [...new Set(remoteMemberGroups.map(m => m.member_instance))];
-      for (const instance of instances) {
-        const inbox = `https://${instance}/inbox`;
-        try {
-          await DeliveryQueue.enqueue(activity, inbox, server.owner);
-          logger.info(`Re-broadcast edit to ${instance}`);
-        } catch (e) {
-          logger.error(`Failed to re-broadcast edit to ${instance}:`, e);
-        }
-      }
-    }
+    await relayToChannelReaders(activity, message.channel_id, editorUrl, server.owner, 'edit', false);
   }
 }
 
@@ -1222,15 +1071,11 @@ async function processDeleteActivity(
 
   const actorUrlDel = typeof activity.actor === 'string' ? activity.actor : activity.actor?.id;
 
-  // Message is resolved first: authorization precedes mutation.
-  const { data: targetMsg } = await supabase
-    .from('messages')
-    .select('id')
-    .eq('metadata->>ap_id', objectUrl)
-    .maybeSingle();
+  // Message is resolved first, within this server: authorization precedes mutation.
+  const targetMsg = await findServerMessageByApId(supabase, serverId, objectUrl);
 
   if (!targetMsg) {
-    logger.warn(`Message not found for delete: ${objectUrl}`);
+    logger.warn(`Message not found in server ${serverId} for delete: ${objectUrl}`);
     return;
   }
 
@@ -1258,30 +1103,7 @@ async function processDeleteActivity(
 
   // Re-broadcast delete to other remote instances
   if (server.is_local_server) {
-    const actorUrl = typeof activity.actor === 'string' ? activity.actor : activity.actor.id;
-    const senderDomain = new URL(actorUrl).hostname;
-    
-    const { data: remoteMemberGroups } = await supabase
-      .from('user_servers')
-      .select('member_instance')
-      .eq('server_id', serverId)
-      .eq('status', 'accepted')
-      .not('member_instance', 'is', null)
-      .neq('member_instance', senderDomain)
-      .neq('member_instance', config.INSTANCE_DOMAIN);
-
-    if (remoteMemberGroups && remoteMemberGroups.length > 0) {
-      const instances = [...new Set(remoteMemberGroups.map(m => m.member_instance))];
-      for (const instance of instances) {
-        const inbox = `https://${instance}/inbox`;
-        try {
-          await DeliveryQueue.enqueue(activity, inbox, server.owner);
-          logger.info(`Re-broadcast delete to ${instance}`);
-        } catch (e) {
-          logger.error(`Failed to re-broadcast delete to ${instance}:`, e);
-        }
-      }
-    }
+    await relayToChannelReaders(activity, targetMsg.channel_id, actorUrlDel, server.owner, 'delete', false);
   }
 }
 
@@ -1311,37 +1133,34 @@ async function processReactionActivity(
     return;
   }
 
-  // AUTHZ: only accepted members may react in a server's channels.
-  const membership = await actorIsAcceptedMember(supabase, serverId, actorUrl);
-  if (!membership.ok) {
-    logger.warn(`Rejecting reaction: ${actorUrl} is not an accepted member of server ${serverId}`);
-    return;
-  }
-
-  const messageIdMatch = objectUrl.match(/\/messages\/([a-f0-9-]+)/);
-  let message = null;
+  const messageIdMatch = objectUrl.match(/\/messages\/([a-f0-9-]{36})/);
+  let message: { id: string; channel_id: string } | null = null;
 
   if (messageIdMatch) {
     const { data } = await supabase
       .from('messages')
-      .select('id')
+      .select('id, channel_id')
       .eq('id', messageIdMatch[1])
       .maybeSingle();
-    message = data;
+    message = data ? await inServerChannel(supabase, serverId, data) : null;
   }
 
   if (!message) {
     // Fall back to metadata->>ap_id.
-    const { data } = await supabase
-      .from('messages')
-      .select('id')
-      .eq('metadata->>ap_id', objectUrl)
-      .maybeSingle();
-    message = data;
+    message = await findServerMessageByApId(supabase, serverId, objectUrl);
   }
 
   if (!message) {
-    logger.warn(`Message not found for reaction: ${objectUrl}`);
+    logger.warn(`Message not found in server ${serverId} for reaction: ${objectUrl}`);
+    return;
+  }
+
+  // AUTHZ: accepted, unbanned member holding VIEW_CHANNEL and ADD_REACTIONS.
+  const reactionAuthz = await authorizeChannelWrite(supabase, {
+    actorUrl, serverId, channelId: message.channel_id, kind: 'reaction',
+  });
+  if (!reactionAuthz.ok) {
+    logDenied('reaction', actorUrl, reactionAuthz.reason);
     return;
   }
 
@@ -1436,29 +1255,7 @@ async function processReactionActivity(
 
   // Re-broadcast reaction to other remote instances
   if (server.is_local_server) {
-    const senderDomain = new URL(actorUrl).hostname;
-    
-    const { data: remoteMemberGroups } = await supabase
-      .from('user_servers')
-      .select('member_instance')
-      .eq('server_id', serverId)
-      .eq('status', 'accepted')
-      .not('member_instance', 'is', null)
-      .neq('member_instance', senderDomain)
-      .neq('member_instance', config.INSTANCE_DOMAIN);
-
-    if (remoteMemberGroups && remoteMemberGroups.length > 0) {
-      const instances = [...new Set(remoteMemberGroups.map(m => m.member_instance))];
-      for (const instance of instances) {
-        const inbox = `https://${instance}/inbox`;
-        try {
-          await DeliveryQueue.enqueue(activity, inbox, server.owner);
-          logger.info(`Re-broadcast reaction to ${instance}`);
-        } catch (e) {
-          logger.error(`Failed to re-broadcast reaction to ${instance}:`, e);
-        }
-      }
-    }
+    await relayToChannelReaders(activity, message.channel_id, actorUrl, server.owner, 'reaction', false);
   }
 }
 
@@ -1725,6 +1522,40 @@ async function processUndoActivity(
 }
 
 // HELPER FUNCTIONS
+
+/**
+ * Relays an activity accepted on this server's inbox to the instances whose
+ * members may view the channel (federation_channel_recipients: accepted,
+ * unbanned, VIEW_CHANNEL), excluding the sender's instance. `readdress` sets
+ * `to` to that instance's members.
+ */
+async function relayToChannelReaders(
+  activity: any,
+  channelId: string,
+  senderUrl: string,
+  signerId: string,
+  label: string,
+  readdress: boolean,
+): Promise<void> {
+  let senderDomain: string;
+  try {
+    senderDomain = new URL(senderUrl).hostname.toLowerCase();
+  } catch {
+    return;
+  }
+  const groups = (await getChannelRecipientGroups(channelId)).filter(g => g.instance !== senderDomain);
+  for (const group of groups) {
+    const inbox = group.shared_inbox || `https://${group.instance}/inbox`;
+    const outgoing = readdress ? { ...activity, to: group.member_ap_ids } : activity;
+    try {
+      await DeliveryQueue.enqueue(outgoing, inbox, signerId);
+      logger.info(`Re-broadcast ${label} to ${group.instance} (${group.member_count} members)`);
+    } catch (deliveryError) {
+      logger.error(`Failed to re-broadcast ${label} to ${group.instance}:`, deliveryError);
+    }
+  }
+}
+
 
 async function sendAcceptActivity(
   serverId: string,

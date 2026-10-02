@@ -1079,9 +1079,9 @@ export const useServerChannelStore = defineStore('serverChannel', {
     },
 
     /**
-     * Inserts the server, then the owner's membership. The insert is never
-     * retried; a second attempt after a committed insert duplicates the server.
-     * A failed membership insert deletes the new row and rethrows.
+     * Inserts the server. The database adds the owner's membership in the same
+     * statement (add_server_owner_membership). The insert is never retried; a
+     * second attempt after a committed insert duplicates the server.
      */
     async createServer(serverData: { name: string; description?: string; public?: boolean; owner: string }) {
       const { data, error } = await supabase
@@ -1100,83 +1100,13 @@ export const useServerChannelStore = defineStore('serverChannel', {
         throw new Error(`Server creation failed: ${error.message}`)
       }
 
-      // Add server to local state before addUserToServer so the realtime
+      // Added before the membership's realtime event arrives, so the realtime
       // handler (_handleUserServerJoin) sees it and skips the duplicate push.
       if (!this.servers.some(s => s.id === data.id)) {
         this.servers.push(data)
       }
 
-      try {
-        await this.addUserToServer(data.id, serverData.owner)
-      } catch (membershipError) {
-        this.servers = this.servers.filter(s => s.id !== data.id)
-        const { error: cleanupError } = await supabase.from('servers').delete().eq('id', data.id)
-        if (cleanupError) {
-          debug.error('Could not remove server after failed membership insert:', cleanupError)
-        }
-        throw membershipError
-      }
-
       return data
-    },
-
-    async addUserToServer(serverId: string, userId: string) {
-      try {
-        debug.log('Adding user to server via service-like helper:', { serverId, userId })
-        
-        await this._addUserToServerHelper(serverId, userId)
-        
-        debug.log('User added to server successfully via service-like helper')
-      } catch (error) {
-        debug.error('Failed to add user to server via service-like helper:', error)
-        
-        try {
-          debug.log('Falling back to direct user-server addition')
-          await this._addUserToServerFallback(serverId, userId)
-        } catch (fallbackError) {
-          debug.error('Fallback user-server addition also failed:', fallbackError)
-          throw fallbackError
-        }
-      }
-    },
-
-    /**
-     * Service-like helper: Add user to server with duplicate handling
-     */
-    async _addUserToServerHelper(serverId: string, userId: string): Promise<void> {
-      const { error } = await supabase
-        .from('user_servers')
-        .insert([{ server_id: serverId, user_id: userId }])
-
-      if (error) {
-        if (error.code === '23505') { // Unique constraint violation
-          debug.log("User is already a member of this server")
-          return // Consider it successful since the desired state is achieved
-        }
-        throw new Error(`Adding user to server failed: ${error.message}`)
-      }
-    },
-
-    /**
-     * Fallback method for adding user to server
-     */
-    async _addUserToServerFallback(serverId: string, userId: string): Promise<void> {
-      const toast = useToast()
-      
-      const { error } = await supabase
-        .from('user_servers')
-        .insert([{ server_id: serverId, user_id: userId }])
-
-      if (error) {
-        if (error.code === '23505') { // Unique constraint violation
-          debug.log("User is already a member of this server")
-          // Don't show a toast here since this is typically called internally
-          return // Consider it successful since the desired state is achieved
-        }
-        debug.error('Error adding user to server:', error)
-        toast.error("Failed to add user to server")
-        throw error
-      }
     },
 
     async updateServer(serverData: { id: string; icon?: string; name?: string; description?: string; public?: boolean }) {

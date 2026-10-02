@@ -27,6 +27,21 @@ export interface BotRequest extends Request {
   }
 }
 
+// Message metadata keys written by federation, definer functions and this API; the
+// client UI treats them as server statements. A bot's metadata never sets them.
+const SERVER_METADATA_KEYS = new Set([
+  'type', 'federated', 'ap_id', 'from_domain', 'original_url', 'published', 'conversation',
+  'in_reply_to_ap', 'pending_thread_ap_id', 'federated_at', 'federated_to', 'automod',
+  'bot', 'created_via',
+])
+
+export function botSuppliedMetadata(input: unknown): Record<string, unknown> {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return {}
+  return Object.fromEntries(
+    Object.entries(input as Record<string, unknown>).filter(([key]) => !SERVER_METADATA_KEYS.has(key)),
+  )
+}
+
 export class BotRestAPI {
   public router: Router
   
@@ -193,9 +208,9 @@ export class BotRestAPI {
       )
       
       const messageMetadata = {
+        ...botSuppliedMetadata(metadata),
         bot: true,
         created_via: 'bot_api',
-        ...metadata
       }
       
       // Array response, not .single(): the server's AutoMod drops a blocked row and
@@ -347,7 +362,7 @@ export class BotRestAPI {
 
       const mergedMetadata = {
         ...(message.metadata || {}),
-        ...metadata,
+        ...botSuppliedMetadata(metadata),
       }
 
       const { error: updateError } = await supabase

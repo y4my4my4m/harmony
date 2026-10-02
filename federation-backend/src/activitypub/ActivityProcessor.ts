@@ -21,6 +21,14 @@ import { fetchAuthoritativeDocument, sameOrigin } from '../utils/apOrigin.js';
 import { BlockedInstancesCache } from '../services/BlockedInstancesCache.js';
 import { flagComment, flagObjectUris, parseLocalObjectUri } from './flag.js';
 import { evaluateInboundCreate } from '../services/FederationSpamGuard.js';
+import {
+  authorizeChannelWrite,
+  resolveThreadInChannel,
+  resolveMessageInChannel,
+  notAfterNow,
+  actorInConversation,
+  logDenied,
+} from './channelWriteAuthz.js';
 
 /**
  * Extract message UUID from a URL like https://domain/messages/{uuid}
@@ -1420,7 +1428,7 @@ export class ActivityProcessor {
         const messageId = uuidMatch[1];
         const { data: messageById } = await supabase
           .from('messages')
-          .select('id, conversation_id')
+          .select('id, conversation_id, channel_id')
           .eq('id', messageId)
           .maybeSingle();
         message = messageById;
@@ -1436,7 +1444,7 @@ export class ActivityProcessor {
     if (!message) {
       const { data: messageByApId } = await supabase
         .from('messages')
-        .select('id, conversation_id')
+        .select('id, conversation_id, channel_id')
         .eq('metadata->>ap_id', objectUrl)
         .maybeSingle();
       
@@ -1473,6 +1481,28 @@ export class ActivityProcessor {
     }
 
     if (message) {
+      // A channel reaction carries the channel's write rules; a DM reaction
+      // comes from a participant.
+      if (message.channel_id) {
+        const { data: channel } = await supabase
+          .from('channels')
+          .select('server_id')
+          .eq('id', message.channel_id)
+          .maybeSingle();
+        const authz = channel
+          ? await authorizeChannelWrite(supabase, {
+              actorUrl, serverId: channel.server_id, channelId: message.channel_id, kind: 'reaction',
+            })
+          : { ok: false as const, reason: 'channel not found' };
+        if (!authz.ok) {
+          logDenied('reaction', actorUrl, authz.reason);
+          return;
+        }
+      } else if (!message.conversation_id || !(await actorInConversation(supabase, message.conversation_id, user.id))) {
+        logDenied('reaction', actorUrl, 'not a participant of the conversation');
+        return;
+      }
+
       const isCustomEmoji = !!(emojiUrl && emojiName);
       const reactionData: any = {
         message_id: message.id,
@@ -2238,21 +2268,23 @@ export class ActivityProcessor {
   }
 
   /**
-   * Extract the server UUID from a Harmony server URL and find the local
-   * remote-copy server row.
+   * The local copy of the remote server whose Group actor is `serverUrl`. The
+   * UUID in the URL selects the row; the row's ap_id must equal the URL, so an
+   * actor on another host naming the same UUID resolves to nothing.
    */
   private static async resolveRemoteServer(serverUrl: string): Promise<any | null> {
     const supabase = getSupabaseClient();
-    const serverIdMatch = serverUrl.match(/\/servers\/([a-f0-9-]{36})$/i);
+    const serverIdMatch = serverUrl?.match(/\/servers\/([a-f0-9-]{36})$/i);
     if (!serverIdMatch) return null;
 
     const { data: server } = await supabase
       .from('servers')
-      .select('id, federation_enabled')
+      .select('id, federation_enabled, ap_id')
       .eq('id', serverIdMatch[1])
       .eq('is_local_server', false)
       .maybeSingle();
 
+    if (!server?.ap_id || !SignatureService.verifyActorMatch(serverUrl, server.ap_id)) return null;
     return server;
   }
 
@@ -2362,6 +2394,13 @@ export class ActivityProcessor {
     const entityUuidMatch = object.id?.match(/\/channels\/([a-f0-9-]{36})$/i);
     const entityUuid = entityUuidMatch ? entityUuidMatch[1] : undefined;
 
+    // Only the Group actor of a remote server updates that server's copy.
+    const server = await this.resolveRemoteServer(actorUrl);
+    if (!server) {
+      logger.warn(`Rejecting channel Update: ${actorUrl} is not a known remote server actor`);
+      return;
+    }
+
     if (object.type === 'harmony:Category') {
       if (!entityUuid) {
         logger.warn(`Cannot extract UUID from category ap_id: ${object.id}`);
@@ -2372,6 +2411,7 @@ export class ActivityProcessor {
         .from('channel_categories')
         .select('id')
         .eq('id', entityUuid)
+        .eq('server_id', server.id)
         .maybeSingle();
 
       if (existing) {
@@ -2384,11 +2424,6 @@ export class ActivityProcessor {
           .eq('id', entityUuid);
         logger.info(`Updated remote category: ${object.name}`);
       } else {
-        const server = await this.resolveRemoteServer(actorUrl);
-        if (!server) {
-          logger.warn(`Remote server not found, cannot auto-create category: ${object.id}`);
-          return;
-        }
         const { error } = await supabase.from('channel_categories').insert({
           id: entityUuid,
           server_id: server.id,
@@ -2406,6 +2441,7 @@ export class ActivityProcessor {
         .from('channels')
         .select('id, server_id')
         .eq('ap_id', object.id)
+        .eq('server_id', server.id)
         .maybeSingle();
 
       let categoryId = null;
@@ -2416,6 +2452,7 @@ export class ActivityProcessor {
             .from('channel_categories')
             .select('id')
             .eq('id', catMatch[1])
+            .eq('server_id', server.id)
             .maybeSingle();
           categoryId = cat?.id || null;
         }
@@ -2433,11 +2470,6 @@ export class ActivityProcessor {
           .eq('id', channel.id);
         logger.info(`Updated remote channel: ${object.name}`);
       } else {
-        const server = await this.resolveRemoteServer(actorUrl);
-        if (!server) {
-          logger.warn(`Remote server not found, cannot auto-create channel: ${object.id}`);
-          return;
-        }
         const channelType = object.type === 'harmony:VoiceChannel' ? 1 : 0;
         const insertData: any = {
           server_id: server.id,
@@ -2531,12 +2563,18 @@ export class ActivityProcessor {
 
     const { data: post, error } = await supabase
       .from('posts')
-      .select('id, author_id')
+      .select('id, author_id, profiles:author_id(federated_id)')
       .eq('ap_id', objectUrl)
       .maybeSingle();
 
     if (error || !post) {
       logger.warn(`Post not found for pinning: ${objectUrl}`);
+      return;
+    }
+
+    const authorUrl = (post as any).profiles?.federated_id as string | null | undefined;
+    if (!authorUrl || !SignatureService.verifyActorMatch(normalizeActor(activity.actor), authorUrl)) {
+      logger.warn(`Rejecting featured Add: ${normalizeActor(activity.actor)} does not own ${objectUrl}`);
       return;
     }
 
@@ -2576,10 +2614,21 @@ export class ActivityProcessor {
 
     logger.info(`Processing Remove from featured: ${objectUrl}`);
 
+    const { data: post } = await supabase
+      .from('posts')
+      .select('id, profiles:author_id(federated_id)')
+      .eq('ap_id', objectUrl)
+      .maybeSingle();
+    const authorUrl = (post as any)?.profiles?.federated_id as string | null | undefined;
+    if (!post || !authorUrl || !SignatureService.verifyActorMatch(normalizeActor(activity.actor), authorUrl)) {
+      logger.warn(`Rejecting featured Remove: ${normalizeActor(activity.actor)} does not own ${objectUrl}`);
+      return;
+    }
+
     const { error } = await supabase
       .from('posts')
       .update({ is_pinned: false })
-      .eq('ap_id', objectUrl);
+      .eq('id', (post as any).id);
 
     if (!error) {
       logger.info(`Unpinned post: ${objectUrl}`);
@@ -2991,14 +3040,8 @@ export class ActivityProcessor {
       return;
     }
 
-    const { data: server } = await supabase
-      .from('servers')
-      .select('id, name, is_local_server')
-      .eq('id', serverId)
-      .maybeSingle();
-
-    if (!server) {
-      logger.warn(`Server ${serverId} not found locally, cannot process channel message`);
+    if (typeof serverId !== 'string') {
+      logger.warn(`Channel message without a server id: ${object.id}`);
       return;
     }
 
@@ -3008,16 +3051,40 @@ export class ActivityProcessor {
       return;
     }
 
-    const { data: membership } = await supabase
-      .from('user_servers')
-      .select('id')
-      .eq('server_id', serverId)
-      .eq('user_id', author.id)
-      .maybeSingle();
+    // The thread is resolved before authorization: a thread message needs
+    // SEND_MESSAGES_IN_THREADS rather than SEND_MESSAGES.
+    let resolvedThreadId: string | null = null;
+    const threadApIdValue = typeof object['harmony:threadId'] === 'string' ? object['harmony:threadId'] : null;
+    if (threadApIdValue) {
+      const thread = await resolveThreadInChannel(supabase, threadApIdValue, channelId);
+      if (thread.status === 'foreign') {
+        logDenied('channel message', actorUrl, `thread ${threadApIdValue} is not in channel ${channelId}`);
+        return;
+      }
+      if (thread.status === 'found') {
+        resolvedThreadId = thread.id;
+      } else {
+        logger.warn(`Thread not found for AP ID ${threadApIdValue}, will create stub thread after message insert.`);
+      }
+    }
 
-    if (!membership) {
-      logger.warn(`Author ${author.username} is not a member of server ${serverId}`);
+    const authz = await authorizeChannelWrite(supabase, {
+      actorUrl,
+      serverId,
+      channelId,
+      kind: threadApIdValue ? 'thread_message' : 'message',
+    });
+    if (!authz.ok) {
+      logDenied('channel message', actorUrl, authz.reason);
       return;
+    }
+    // A stub thread stands in for an unknown one; creating it is creating a thread.
+    if (threadApIdValue && !resolvedThreadId) {
+      const stubAuthz = await authorizeChannelWrite(supabase, { actorUrl, serverId, channelId, kind: 'thread_create' });
+      if (!stubAuthz.ok) {
+        logDenied('channel message opening a thread', actorUrl, stubAuthz.reason);
+        return;
+      }
     }
 
     let messageId: string | null = null;
@@ -3081,42 +3148,11 @@ export class ActivityProcessor {
       return;
     }
 
-    // inReplyTo holds a remote AP id or UUID that may not exist locally.
-    // Resolved by metadata ap_id first, then by extracted UUID.
-    let resolvedReplyTo: string | null = null;
-    if (object.inReplyTo) {
-      const { data: parentByApId } = await supabase
-        .from('messages')
-        .select('id')
-        .eq('metadata->>ap_id', object.inReplyTo)
-        .maybeSingle();
-
-      if (parentByApId) {
-        resolvedReplyTo = parentByApId.id;
-      } else {
-        const extractedId = extractMessageId(object.inReplyTo);
-        if (extractedId) {
-          const { data: parentById } = await supabase
-            .from('messages')
-            .select('id')
-            .eq('id', extractedId)
-            .maybeSingle();
-          if (parentById) {
-            resolvedReplyTo = parentById.id;
-          }
-        }
-      }
-    }
-
-    // Resolve thread_id from harmony:threadId AP extension
-    let resolvedThreadId: string | null = null;
-    const threadApIdValue = object['harmony:threadId'];
-    if (threadApIdValue) {
-      resolvedThreadId = await this.resolveThreadId(supabase, threadApIdValue);
-      if (!resolvedThreadId) {
-        logger.warn(`Thread not found for AP ID ${threadApIdValue}, will create stub thread after message insert.`);
-      }
-    }
+    // inReplyTo holds a remote AP id or UUID that may not exist locally; only a
+    // message in the same channel is a valid parent.
+    const resolvedReplyTo = typeof object.inReplyTo === 'string'
+      ? await resolveMessageInChannel(supabase, object.inReplyTo, channelId)
+      : null;
 
     const messageMetadata: Record<string, any> = {
       federated: true,
@@ -3138,8 +3174,8 @@ export class ActivityProcessor {
         channel_id: channelId,
         user_id: author.id,
         content: content,
-        created_at: object.published || new Date().toISOString(),
-        updated_at: object.updated || null,
+        created_at: notAfterNow(object.published),
+        updated_at: object.updated ? notAfterNow(object.updated) : null,
         reply_to: resolvedReplyTo,
         thread_id: resolvedThreadId,
         is_deleted: false,
@@ -3169,28 +3205,11 @@ export class ActivityProcessor {
         const threadUuidMatch = threadApIdValue.match(/\/threads\/([a-f0-9-]{36})/);
         const stubThreadId = threadUuidMatch ? threadUuidMatch[1] : randomUUID();
 
-        // Parent message named by the origin, if any.
+        // Parent message named by the origin, if any, in the same channel.
         let parentMessageId = insertedMsg.id; // fallback: this message
         const parentMessageApId = object['harmony:parentMessageId'];
-        if (parentMessageApId) {
-          const { data: parentByApId } = await supabase
-            .from('messages')
-            .select('id')
-            .eq('metadata->>ap_id', parentMessageApId)
-            .maybeSingle();
-          if (parentByApId) {
-            parentMessageId = parentByApId.id;
-          } else {
-            const parentUuidMatch = parentMessageApId.match(/\/messages\/([a-f0-9-]{36})/);
-            if (parentUuidMatch) {
-              const { data: parentById } = await supabase
-                .from('messages')
-                .select('id')
-                .eq('id', parentUuidMatch[1])
-                .maybeSingle();
-              if (parentById) parentMessageId = parentById.id;
-            }
-          }
+        if (typeof parentMessageApId === 'string') {
+          parentMessageId = (await resolveMessageInChannel(supabase, parentMessageApId, channelId)) ?? parentMessageId;
         }
 
         let threadName = 'Thread';
@@ -3218,8 +3237,9 @@ export class ActivityProcessor {
           });
 
         if (stubError) {
-          if (stubError.code === '23505') {
-            // 23505: the thread was created concurrently; adopt that row.
+          // 23505: the thread was created concurrently; adopt that row when it is in this channel.
+          if (stubError.code === '23505'
+              && (await resolveThreadInChannel(supabase, threadApIdValue, channelId)).status === 'found') {
             resolvedThreadId = stubThreadId;
             logger.info(`Stub thread ${stubThreadId} already exists (race condition), assigning message`);
           } else {
@@ -3264,31 +3284,6 @@ export class ActivityProcessor {
         logger.warn('Link preview enrichment failed for federated channel message:', err)
       );
     }
-  }
-
-  /**
-   * Resolve a thread ID from an AP URL: ap_id match first, then UUID extraction.
-   */
-  private static async resolveThreadId(supabase: any, threadApIdValue: string): Promise<string | null> {
-    const { data: threadByApId } = await supabase
-      .from('threads')
-      .select('id')
-      .eq('ap_id', threadApIdValue)
-      .maybeSingle();
-
-    if (threadByApId) return threadByApId.id;
-
-    const threadIdMatch = threadApIdValue.match(/\/threads\/([a-f0-9-]{36})/);
-    if (threadIdMatch) {
-      const { data: threadById } = await supabase
-        .from('threads')
-        .select('id')
-        .eq('id', threadIdMatch[1])
-        .maybeSingle();
-      if (threadById) return threadById.id;
-    }
-
-    return null;
   }
 
   /**

@@ -63,7 +63,6 @@ describe('useServerChannelStore.createServer', () => {
 
     expect(created.id).toBe('srv-1')
     expect(calls.serverInserts).toBe(1)
-    expect(calls.membershipInserts).toBe(1)
     expect(store.servers.map(s => s.id)).toEqual(['srv-1'])
   })
 
@@ -78,14 +77,16 @@ describe('useServerChannelStore.createServer', () => {
     expect(store.servers).toEqual([])
   })
 
-  it('removes the new server instead of creating another when membership fails', async () => {
+  // add_server_owner_membership writes the owner's row with the server; a client
+  // insert is refused by RLS for anyone but the owner and would only duplicate it.
+  it('leaves the owner membership to the database', async () => {
     const calls = mockTables({ membershipError: { code: '42501', message: 'rls' } })
     const store = useServerChannelStore()
 
-    await expect(store.createServer({ name: 'New', owner: 'user-1' })).rejects.toBeTruthy()
+    await store.createServer({ name: 'New', owner: 'user-1' })
 
-    expect(calls.serverInserts).toBe(1)
-    expect(calls.serverDeletes).toEqual(['srv-1'])
-    expect(store.servers).toEqual([])
+    expect(calls.membershipInserts).toBe(0)
+    expect(calls.serverDeletes).toEqual([])
+    expect(store.servers.map(s => s.id)).toEqual(['srv-1'])
   })
 })

@@ -156,7 +156,7 @@ const handleJoinServer = async (serverId: string) => {
   setServerLoading(serverId, true)
   try {
     // joinServer toasts its own failures.
-    const success = await serverStore.joinServer(serverId, userId)
+    const success = await serverStore.joinServer(serverId)
     if (!success) return
 
     triggerMessage('success')
