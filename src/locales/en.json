@@ -198,6 +198,7 @@
     "emoji": "Emoji",
     "bots": "Bots",
     "bans": "Bans",
+    "reports": "Reports",
     "encryption": "Encryption",
     "emojiManagement": "Emoji management",
     "customEmojis": "Custom emojis",
@@ -417,6 +418,7 @@
     "noMessagesHere": "No messages yet.",
     "newMessages": "New",
     "loadingOlder": "Loading older messages...",
+    "newMessagesBelow": "{count} new message | {count} new messages",
     "conversationBeginning": "This is the beginning of your conversation",
     "conversationBeginningSubtitle": "This is the start of your conversation.",
     "channelWelcome": "Welcome to #{name}",
@@ -582,6 +584,7 @@
   },
   "dm": {
     "title": "Direct messages",
+    "recipientDeleted": "This account has been deleted. Messages to it are not delivered.",
     "directMessages": "Direct messages",
     "newMessage": "New message",
     "startConversation": "Start a conversation",
@@ -618,6 +621,7 @@
     "viewPast": "View past announcements"
   },
   "user": {
+    "panelToggle": "Your account and voice controls",
     "profile": "Profile",
     "editProfile": "Edit profile",
     "viewProfile": "View profile",
@@ -719,7 +723,9 @@
       "screenReader": "Screen reader support",
       "screenReaderDesc": "Optimize for screen readers.",
       "saveChanges": "Save changes",
-      "resetSettings": "Reset"
+      "resetSettings": "Reset",
+      "unsavedChanges": "You have unsaved appearance changes",
+      "changesDiscarded": "Unsaved appearance changes discarded"
     },
     "audio": {
       "title": "Sounds",
@@ -1151,7 +1157,9 @@
     "clipUnmute": "Play with sound",
     "clipMute": "Mute",
     "loadFailed": "Couldn't load {kind}",
-    "tryDifferentSearch": "Try a different search term"
+    "tryDifferentSearch": "Try a different search term",
+    "noFavoritesOf": "No favorite {kind} yet",
+    "noneFound": "No {kind} found"
   },
   "emoji": {
     "search": "Search emoji...",
@@ -1364,7 +1372,48 @@
     "openServer": "Open server",
     "joining": "Joining…",
     "accept": "Accept invite",
-    "noThanks": "No thanks"
+    "noThanks": "No thanks",
+    "modal": {
+      "title": "Invite people",
+      "subtitle": "Anyone with the link can join this server.",
+      "thisServer": "This server",
+      "members": "{count} member | {count} members",
+      "linkLabel": "Invite link",
+      "loading": "Creating link…",
+      "copy": "Copy",
+      "copied": "Copied",
+      "copyFailed": "Couldn't copy the link",
+      "share": "Share",
+      "shareTitle": "Join {server} on Harmony",
+      "editLink": "Link settings",
+      "revoke": "Revoke",
+      "revokeCode": "Revoke invite {code}",
+      "revoked": "Invite revoked",
+      "revokeFailed": "Couldn't revoke the invite",
+      "noLink": "No active link.",
+      "noPermission": "You don't have permission to create invites for this server.",
+      "expires": "Expires {when}",
+      "neverExpires": "Never expires",
+      "usesOf": "{used} of {max} uses",
+      "usesCount": "No uses yet | {count} use | {count} uses",
+      "expireAfter": "Expire after",
+      "maxUses": "Max uses",
+      "never": "Never",
+      "unlimited": "No limit",
+      "usesOption": "{count} use | {count} uses",
+      "duration": {
+        "minute": "{count} minute | {count} minutes",
+        "hour": "{count} hour | {count} hours",
+        "day": "{count} day | {count} days"
+      },
+      "newLink": "Create new link",
+      "newLinkHint": "Creates a link with these settings. Existing links keep working until they expire or you revoke them.",
+      "creating": "Creating…",
+      "created": "New invite link created",
+      "createFailed": "Couldn't create an invite link",
+      "otherLinks": "Your other active links ({count})",
+      "showLink": "Show this link"
+    }
   },
   "languages": {
     "en": "English",
@@ -1869,5 +1918,380 @@
       "download": "Download",
       "dismiss": "Dismiss update notice"
     }
+  },
+  "automod": {
+    "title": "AutoMod",
+    "description": "AutoMod checks every message on the server before anyone sees it. It blocks spam, floods and words you choose, alerts your moderators, and can time members out. Members with Manage Server and Administrator are never affected.",
+    "enabled": "AutoMod",
+    "enabledOn": "On. The rules below are enforced on every message.",
+    "enabledOff": "Off. No rule is enforced; timeouts still apply.",
+    "alertChannel": "Alert channel",
+    "alertChannelHint": "Where AutoMod posts what it blocked or flagged. Every action is also kept in the log below.",
+    "noAlertChannel": "No alert channel",
+    "exemptBots": "Skip bots",
+    "exemptBotsHint": "Messages from installed bots and bridges are not checked.",
+    "rules": "Rules",
+    "rulesHint": "Each rule has a trigger, one or more actions and optional exemptions.",
+    "addRule": "Add rule",
+    "noRules": "No rules yet. Add one to start filtering.",
+    "saved": "AutoMod settings saved",
+    "ruleSaved": "Rule saved",
+    "ruleDeleted": "Rule deleted",
+    "setup": {
+      "title": "Protect this server with AutoMod",
+      "body": "The recommended setup turns on:",
+      "mention": "Mention spam: more than 20 people mentioned in one message, or 50 in a minute",
+      "flood": "Message floods: more than 10 messages in 10 seconds",
+      "duplicate": "Cross-channel spam: the same message posted in more than 2 channels within 5 minutes",
+      "raid": "Raid detection: an alert when 10 members join within a minute",
+      "note": "Word filters, invite and link filters and new-member restrictions are added switched off; turn them on when you want them.",
+      "enable": "Turn on recommended protections",
+      "enabled": "AutoMod is on"
+    },
+    "optin": {
+      "title": "AutoMod is available for this server",
+      "body": "Block spam, mention raids and floods automatically. Nothing changes until you turn it on.",
+      "enable": "Turn on",
+      "review": "Review rules",
+      "dismiss": "Not now"
+    },
+    "types": {
+      "keyword": {
+        "name": "Custom words",
+        "description": "Blocks messages containing words, phrases or patterns you list."
+      },
+      "keyword_preset": {
+        "name": "Word presets",
+        "description": "Ready-made lists of slurs, sexual content and profanity."
+      },
+      "mention_spam": {
+        "name": "Mention spam",
+        "description": "Messages that mention too many people or roles, and mention raids across several messages."
+      },
+      "message_flood": {
+        "name": "Message flood",
+        "description": "Members sending messages faster than the limit, across all channels."
+      },
+      "duplicate_spam": {
+        "name": "Cross-channel spam",
+        "description": "The same message posted in several channels in a short time."
+      },
+      "invites": {
+        "name": "Server invites",
+        "description": "Invites to other servers, on Harmony or Discord. This server's own invites are allowed."
+      },
+      "links": {
+        "name": "Links",
+        "description": "Only allow links to listed domains, or block listed domains."
+      },
+      "new_member": {
+        "name": "New members",
+        "description": "Holds back links, attachments or mentions from new accounts and members who just joined."
+      }
+    },
+    "presets": {
+      "slurs": {
+        "name": "Slurs",
+        "description": "Severe racial, homophobic, transphobic and ableist slurs."
+      },
+      "sexual": {
+        "name": "Sexual content",
+        "description": "Explicit sexual terms and solicitation."
+      },
+      "profanity": {
+        "name": "Profanity",
+        "description": "Common swear words."
+      }
+    },
+    "rule": {
+      "enabled": "Rule enabled",
+      "name": "Rule name",
+      "trigger": "Trigger",
+      "actions": "Actions",
+      "exemptions": "Exemptions",
+      "exemptionsHint": "Members with a selected role, and messages in selected channels or categories, skip this rule.",
+      "exemptRoles": "Roles",
+      "exemptChannels": "Channels and categories",
+      "category": "category",
+      "delete": "Delete rule",
+      "deleteConfirm": "Delete the rule \"{name}\"? Messages it would have blocked are allowed again.",
+      "revert": "Revert",
+      "save": "Save"
+    },
+    "keyword": {
+      "keywords": "Words and phrases",
+      "keywordsPlaceholder": "one per line or comma separated",
+      "keywordsHint": "Whole words by default. word* matches a prefix, *word a suffix, *word* anywhere. Matching ignores case, accents, look-alike letters, spacing tricks and repeated letters.",
+      "regex": "Regular expressions",
+      "regexPlaceholder": "one per line, e.g. free\\s*nitro",
+      "regexHint": "Up to 10, at most 260 characters each, case-insensitive. Back-references are not supported.",
+      "allowList": "Allowed words",
+      "allowListHint": "Words that never trigger this rule, e.g. a place name that contains a blocked word."
+    },
+    "mention": {
+      "maxMentions": "Mentions per message",
+      "windowMentions": "Mentions per window (0 = off)",
+      "everyone": "Block everyone pings from members without the Mention Everyone permission"
+    },
+    "flood": {
+      "maxMessages": "Messages allowed"
+    },
+    "duplicate": {
+      "maxChannels": "Channels allowed",
+      "minLength": "Minimum length"
+    },
+    "links": {
+      "mode": "Mode",
+      "allowList": "Allow only these domains",
+      "blockList": "Block these domains",
+      "domains": "Domains",
+      "domainsHint": "One per line. Subdomains are included."
+    },
+    "newMember": {
+      "accountAge": "Account younger than",
+      "membership": "Or joined less than",
+      "any": "Not checked",
+      "links": "Links",
+      "attachments": "Attachments",
+      "mentions": "Mentions"
+    },
+    "common": {
+      "windowSeconds": "Window (seconds)"
+    },
+    "actions": {
+      "block": "Block message",
+      "blockHint": "The message is not posted; the author sees why.",
+      "blockMessage": "Custom reason shown to the author",
+      "blockMessagePlaceholder": "Optional, up to 150 characters",
+      "alert": "Send alert",
+      "alertHint": "Post the event in the alert channel.",
+      "alertHintNoChannel": "Choose an alert channel above; until then events only appear in the log.",
+      "timeout": "Time out the member",
+      "noTimeout": "No timeout",
+      "blockShort": "block",
+      "alertShort": "alert"
+    },
+    "duration": {
+      "weeks": "{n} week | {n} weeks",
+      "days": "{n} day | {n} days",
+      "hours": "{n} hour | {n} hours",
+      "minutes": "{n} minute | {n} minutes",
+      "seconds": "{n} second | {n} seconds"
+    },
+    "summary": {
+      "keyword": "{n} words or patterns",
+      "noPresets": "No preset selected",
+      "mention": "More than {n} mentions",
+      "flood": "More than {n} messages in {s} s",
+      "duplicate": "Same message in more than {n} channels in {s} s",
+      "invites": "Invites to other servers",
+      "linksAllow": "Only {n} allowed domains",
+      "linksBlock": "{n} blocked domains",
+      "newMember": "New accounts and members"
+    },
+    "raid": {
+      "title": "Raid protection",
+      "hint": "Watches for a burst of joins. Alert only, or slow every text channel down automatically.",
+      "active": "Raid lockdown is on: slowmode {seconds} s on text channels since {since}.",
+      "lift": "Lift lockdown",
+      "threshold": "Joins",
+      "action": "When triggered",
+      "actionAlert": "Alert only",
+      "actionSlowmode": "Alert and slow down channels",
+      "slowmode": "Slowmode (seconds)",
+      "lockNow": "Lock down now",
+      "lockConfirm": "Set a {seconds} second slowmode on every text channel? Lifting the lockdown restores the previous values.",
+      "locked": "Lockdown on",
+      "lifted": "Lockdown lifted"
+    },
+    "timeouts": {
+      "title": "Timed-out members",
+      "until": "Timed out until {time}",
+      "remove": "Remove timeout",
+      "removed": "Timeout removed"
+    },
+    "log": {
+      "title": "AutoMod log",
+      "refresh": "Refresh",
+      "empty": "Nothing has been blocked or flagged yet.",
+      "raid": "Possible raid: {n} joins in {s} s",
+      "matched": "Matched: {text}",
+      "more": "Load more",
+      "action": {
+        "block": "blocked",
+        "alert": "alerted",
+        "timeout": "timed out",
+        "slowmode": "slowmode"
+      }
+    },
+    "errors": {
+      "generic": "AutoMod could not save that change.",
+      "load": "AutoMod settings could not be loaded."
+    },
+    "blocked": {
+      "keyword": "Your message was blocked: it contains a word this server does not allow.",
+      "keyword_preset": "Your message was blocked: it contains language this server does not allow.",
+      "mention_spam": "Your message was blocked: it mentions too many people.",
+      "message_flood": "You are sending messages too quickly. Wait a few seconds and try again.",
+      "duplicate_spam": "Your message was blocked: the same message was already posted in other channels.",
+      "invites": "Your message was blocked: invites to other servers are not allowed here.",
+      "links": "Your message was blocked: links to that site are not allowed here.",
+      "new_member": "New members cannot post links, files or mentions yet. Try again a little later.",
+      "generic": "Your message was blocked by this server's AutoMod.",
+      "timedOutUntil": "You are timed out until {time}."
+    },
+    "timedOut": "You are timed out in this server until {time} and cannot send messages.",
+    "antispam": {
+      "rateLimited": "New accounts can only send a few messages at a time. Try again in {seconds} s.",
+      "linksBlocked": "New accounts cannot post links yet.",
+      "strangerMentions": "New accounts can mention at most {count} people who do not follow them."
+    },
+    "alert": {
+      "raid": "Possible raid: {joins} members joined within {seconds} seconds.",
+      "blocked": "blocked a message from",
+      "blockedEdit": "blocked an edit from",
+      "flagged": "flagged a message from",
+      "aBot": "a bot",
+      "timedOut": "timed out"
+    }
+  },
+  "empty": {
+    "pins": {
+      "title": "No pinned messages yet",
+      "description": "Pin important messages to find them here."
+    },
+    "threads": {
+      "title": "No threads yet",
+      "description": "Start a thread from any message.",
+      "noMatchTitle": "No threads match your search",
+      "noMatchDescription": "Try a different name."
+    },
+    "threadMessages": {
+      "title": "No messages yet",
+      "description": "Be the first to reply in this thread."
+    },
+    "lists": {
+      "title": "No lists yet",
+      "description": "Lists group the accounts you follow into their own timelines.",
+      "action": "Create a list"
+    },
+    "listMembers": {
+      "title": "No members yet",
+      "description": "Search above to add accounts you follow."
+    },
+    "listTimeline": {
+      "title": "No posts yet",
+      "description": "Add members to this list to see their posts here."
+    },
+    "posts": {
+      "title": "No posts yet",
+      "description": "Posts appear here as they arrive."
+    },
+    "profilePosts": {
+      "self": "You haven't posted anything yet.",
+      "other": "{name} hasn't posted anything yet."
+    },
+    "profileFollowing": {
+      "other": "{name} isn't following anyone yet."
+    },
+    "profileFollowers": {
+      "title": "No followers yet",
+      "self": "You don't have any followers yet.",
+      "other": "{name} doesn't have any followers yet."
+    },
+    "followers": {
+      "title": "No followers yet",
+      "description": "When people follow you, they'll appear here."
+    },
+    "following": {
+      "title": "Not following anyone yet",
+      "description": "When you follow people, they'll appear here.",
+      "action": "Discover people"
+    },
+    "requests": {
+      "title": "No pending requests",
+      "description": "When people ask to follow you, they'll appear here."
+    },
+    "instancePosts": {
+      "title": "No recent posts from this instance"
+    },
+    "emojiSearch": {
+      "title": "No emoji found for \"{query}\""
+    },
+    "funding": {
+      "title": "Funding information is not available."
+    },
+    "roleMembers": {
+      "noMatch": "No matching members",
+      "noFilterMatch": "No members match that filter",
+      "none": "No members have this role yet"
+    },
+    "voiceParticipants": {
+      "title": "No one's here yet",
+      "description": "When you're ready to talk, hop in."
+    },
+    "bans": {
+      "title": "No banned users",
+      "description": "Nobody is banned from this server."
+    },
+    "blocked": {
+      "title": "You haven't blocked anyone"
+    },
+    "muted": {
+      "title": "You haven't muted anyone"
+    },
+    "devices": {
+      "title": "No devices registered yet",
+      "description": "Devices appear here once you unlock encryption on them."
+    },
+    "admin": {
+      "discoveredInstances": {
+        "title": "No instances discovered from user interactions yet",
+        "action": "Scan for interactions"
+      },
+      "featured": {
+        "title": "No public communities yet",
+        "description": "Make a server public to feature it here."
+      },
+      "userServers": {
+        "title": "This user isn't a member of any servers"
+      },
+      "announcements": {
+        "title": "No announcements",
+        "description": "Create one to notify users."
+      },
+      "slowQueries": {
+        "title": "No slow queries detected",
+        "description": "Queries slower than 100 ms appear here."
+      },
+      "federationHealth": {
+        "title": "No federation health data",
+        "description": "Metrics appear once inbound or outbound federation activity is recorded."
+      },
+      "remoteEmoji": {
+        "title": "No remote emoji found",
+        "description": "Emoji from remote instances appear here as you interact with federated content."
+      },
+      "tiers": {
+        "title": "No tiers configured"
+      },
+      "supporters": {
+        "title": "No active supporters"
+      },
+      "donations": {
+        "title": "No donations recorded"
+      },
+      "reports": {
+        "title": "No reports",
+        "filtered": "No reports with status \"{status}\""
+      }
+    }
+  },
+  "pwa": {
+    "installTitle": "Install Harmony",
+    "installDescription": "Faster loading and offline access",
+    "install": "Install",
+    "installing": "Installing…",
+    "dismiss": "Dismiss install prompt"
   }
 }

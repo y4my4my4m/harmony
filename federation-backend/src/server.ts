@@ -34,6 +34,7 @@ import nodeInfoRouter from './activitypub/NodeInfoService.js';
 import inboxRouter from './activitypub/InboxHandler.js';
 import outboxRouter from './activitypub/OutboxHandler.js';
 import groupRouter from './activitypub/GroupService.js';
+import instanceActorRouter from './activitypub/InstanceActor.js';
 
 import serverDiscoveryRouter from './services/ServerDiscoveryService.js';
 import instanceProbeRouter from './routes/instanceProbe.js';
@@ -118,6 +119,9 @@ export function createApp(): Application {
   // the limiter to count requests that don't match routerA but fall through to routerB.
   app.use('/', webFingerRouter);
   app.use('/', nodeInfoRouter);
+  // Before outboxRouter and actorRouter, whose /users/:username routes would
+  // look instance.actor up as an account.
+  app.use('/', instanceActorRouter);
   app.use('/', outboxRouter);
   // serverDiscoveryRouter before groupRouter: /servers/discover must not collide
   // with groupRouter's /servers/:serverId (which would match serverId='discover')

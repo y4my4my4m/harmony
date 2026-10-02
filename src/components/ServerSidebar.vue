@@ -128,6 +128,8 @@
             :servers="getFolderServers(item.id)"
             :selected-server-id="activeServerId"
             @select-server="selectServer"
+            @hover-server="scheduleServerPrefetch"
+            @leave-server="cancelServerPrefetch"
             @open-context-menu="openFolderContextMenu"
             @servers-reordered="handleFolderServersReorder(item.id, $event)"
             @server-dropped="handleServerDroppedOnFolder"
@@ -177,8 +179,10 @@
           @keydown.enter.prevent="selectServer(item.id)"
           @keydown.space.prevent="selectServer(item.id)"
           @contextmenu.prevent="openServerContextMenu($event, item)"
-          @mouseenter="showSidebarTooltip($event, item.name)"
-          @mouseleave="hideSidebarTooltip"
+          @mouseenter="showSidebarTooltip($event, item.name); scheduleServerPrefetch(item.id)"
+          @mouseleave="hideSidebarTooltip(); cancelServerPrefetch()"
+          @focus="scheduleServerPrefetch(item.id)"
+          @blur="cancelServerPrefetch"
         >
           <div class="server-pill" :class="{ 'visible': isSelected(item.id), 'has-unread': hasServerUnread(item.id) && !isSelected(item.id) }"></div>
           <ServerIcon
@@ -337,7 +341,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, onMounted } from 'vue';
+import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useActivityPubStore } from '@/stores/useActivityPub';
@@ -504,7 +508,40 @@ const togglePublicServers = () => {
   showPublicServers.value = !showPublicServers.value;
 };
 
+// A pointer resting this long on a server is treated as intent; shorter rests
+// are travel across the rail.
+const SERVER_PREFETCH_DELAY_MS = 100;
+let serverPrefetchTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** Warms the structure and the default channel's newest page for a hovered or focused server. */
+const prefetchServer = async (serverId: string) => {
+  if (serverId === serverChannelStore.currentServerId) return;
+  await serverChannelStore.prefetchServerStructure(serverId);
+  const channelId = serverChannelStore.defaultChannelFor(serverId);
+  if (!channelId) return;
+  const { useChatStore } = await import('@/stores/useChat');
+  void useChatStore().prefetchChannelMessages(channelId);
+};
+
+const scheduleServerPrefetch = (serverId: string) => {
+  cancelServerPrefetch();
+  serverPrefetchTimer = setTimeout(() => {
+    serverPrefetchTimer = null;
+    void prefetchServer(serverId);
+  }, SERVER_PREFETCH_DELAY_MS);
+};
+
+const cancelServerPrefetch = () => {
+  if (serverPrefetchTimer) {
+    clearTimeout(serverPrefetchTimer);
+    serverPrefetchTimer = null;
+  }
+};
+
+onBeforeUnmount(cancelServerPrefetch);
+
 const selectServer = async (serverId?: string) => {
+  cancelServerPrefetch();
   if (!serverId) return;
 
   emit('switch-to-chat');
@@ -525,7 +562,7 @@ const selectServer = async (serverId?: string) => {
     } else {
       router.push({ name: 'Chat' });
     }
-    void serverChannelStore.fetchCategoriesAndChannels(serverId, undefined, true);
+    void serverChannelStore.revalidateServerStructure(serverId);
     return;
   }
 
@@ -1034,20 +1071,10 @@ const handleMarkFolderAsRead = async (folder: ServerFolderType) => {
       .in('server_id', serverIds);
 
     const channelIds = (channels || []).map(c => c.id);
-    if (channelIds.length > 0) {
-      const { error: unreadError } = await supabase
-        .from('unread_counts')
-        .update({
-          unread_messages: 0,
-          unread_mentions: 0,
-          last_read_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-        .eq('user_id', profileId)
-        .in('channel_id', channelIds);
-      if (unreadError) {
-        debug.error('Failed to clear folder unread counts:', unreadError);
-      }
+    const { markServerRead } = await import('@/services/readState');
+    const cleared = await Promise.allSettled(serverIds.map(id => markServerRead(id)));
+    for (const result of cleared) {
+      if (result.status === 'rejected') debug.error('Failed to clear folder unread counts:', result.reason);
     }
 
     // Mark in-app notifications for these channels read so the bell badge and

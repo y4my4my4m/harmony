@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { deletedActorByProfile } from './deletedActors.js';
 import { getSupabaseClient } from '../config/supabase.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { logger } from '../utils/logger.js';
@@ -123,12 +124,22 @@ export class SignatureService {
 
     const { data: user, error: userError } = await supabase
       .from('profiles')
-      .select('username, domain')
+      .select('username, domain, deleted_at')
       .eq('id', userId)
       .single();
 
     if (userError || !user) {
       throw new AppError(500, 'User not found');
+    }
+
+    // A deleted account signs with the key and keyId it had, held in deleted_actors until
+    // key_purge_after. No key is generated for it.
+    if (user.deleted_at) {
+      const tombstone = await deletedActorByProfile(userId);
+      if (!tombstone?.private_key) {
+        throw new AppError(410, 'Actor deleted');
+      }
+      return this.signWithKey(targetUrl, method, body, `${tombstone.actor_uri}#main-key`, tombstone.private_key);
     }
 
     const initialKeyLookup = await supabase
@@ -176,13 +187,28 @@ export class SignatureService {
       }
     }
     
-    const privateKey = keyData.private_key;
+    const keyId = `https://${user.domain}/users/${user.username}#main-key`;
+    const signed = this.signWithKey(targetUrl, method, body, keyId, keyData.private_key);
+    logger.debug(`Signed request to ${targetUrl}`);
+    return signed;
+  }
 
+  /**
+   * draft-cavage signature over (request-target), host, date and, for a POST or
+   * PUT body, digest, with the given key. Misskey requires (request-target) in
+   * the signed list, and header insertion order is significant to it.
+   */
+  static signWithKey(
+    targetUrl: string,
+    method: string,
+    body: any | null,
+    keyId: string,
+    privateKey: string
+  ): { headers: Record<string, string>; digest?: string } {
     const url = new URL(targetUrl);
     const date = new Date().toUTCString();
     const requestTarget = `${method.toLowerCase()} ${url.pathname}${url.search}`;
-    
-    // Header insertion order is significant for Misskey.
+
     const headers: Record<string, string> = {
       'Host': url.host,
       'Date': date,
@@ -201,34 +227,23 @@ export class SignatureService {
     if (digest) {
       signedHeaders.push('digest');
     }
-    
+
     const signingParts = [`(request-target): ${requestTarget}`];
     signedHeaders.slice(1).forEach(header => {
-      if (headers[header.charAt(0).toUpperCase() + header.slice(1)]) {
-        signingParts.push(`${header}: ${headers[header.charAt(0).toUpperCase() + header.slice(1)]}`);
+      const value = headers[header.charAt(0).toUpperCase() + header.slice(1)];
+      if (value) {
+        signingParts.push(`${header}: ${value}`);
       }
     });
-    
-    const signingString = signingParts.join('\n');
 
-    const sign = crypto.createSign('SHA256');
-    sign.update(signingString);
-    sign.end();
+    const signature = crypto.createSign('SHA256').update(signingParts.join('\n')).sign(privateKey, 'base64');
 
-    const signature = sign.sign(privateKey, 'base64');
-
-    // Misskey requires (request-target) in the signed header list.
-    const keyId = `https://${user.domain}/users/${user.username}#main-key`;
-    const signatureHeader = [
+    headers['Signature'] = [
       `keyId="${keyId}"`,
       'algorithm="rsa-sha256"',
       `headers="${signedHeaders.join(' ')}"`,
       `signature="${signature}"`,
     ].join(',');
-
-    headers['Signature'] = signatureHeader;
-
-    logger.debug(`Signed request to ${targetUrl}`);
 
     return { headers, digest };
   }

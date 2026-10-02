@@ -1,5 +1,15 @@
 <template>
-  <div class="toggle-switch" :class="{ active: modelValue }" @click="toggle">
+  <div
+    class="toggle-switch"
+    :class="{ active: modelValue, disabled }"
+    role="switch"
+    :aria-checked="modelValue"
+    :aria-disabled="disabled || undefined"
+    :tabindex="disabled ? -1 : 0"
+    @click="toggle"
+    @keydown.enter.prevent="toggle"
+    @keydown.space.prevent="toggle"
+  >
     <div class="toggle-slider">
       <div class="toggle-knob"></div>
     </div>
@@ -67,6 +77,11 @@ const toggle = () => {
 .toggle-switch.disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.toggle-switch:focus-visible {
+  outline: 2px solid var(--harmony-primary);
+  outline-offset: 2px;
 }
 
 .toggle-slider {

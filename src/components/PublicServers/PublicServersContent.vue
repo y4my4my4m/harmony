@@ -10,43 +10,31 @@
       <ServerCardSkeleton :count="6" />
     </div>
 
-    <div v-else-if="error" class="empty-state" role="alert">
-      <div class="empty-icon empty-icon--error">
-        <Icon name="alert-triangle" :size="28" />
-      </div>
-      <h3 class="empty-title">{{ $t('server.failedToLoadCommunities') }}</h3>
-      <p class="empty-description">{{ error }}</p>
-      <button type="button" class="btn btn-secondary" @click="$emit('refresh')">
-        <Icon name="refresh" :size="16" />
-        {{ $t('server.tryAgain') }}
-      </button>
-    </div>
+    <EmptyState
+      v-else-if="error"
+      tone="error"
+      icon="alert-triangle"
+      :title="$t('server.failedToLoadCommunities')"
+      :description="error"
+      :action-label="$t('server.tryAgain')"
+      @action="$emit('refresh')"
+    />
 
-    <div v-else-if="isEmpty" class="empty-state">
-      <div class="empty-icon">
-        <Icon name="compass" :size="28" />
-      </div>
-      <h3 class="empty-title">{{ $t('server.noServersAvailable') }}</h3>
-      <p class="empty-description">
-        {{ $t('server.noServersDescription') }}
-      </p>
-      <button type="button" class="btn btn-secondary" @click="$emit('refresh')">
-        <Icon name="refresh" :size="16" />
-        {{ $t('common.retry') }}
-      </button>
-    </div>
+    <EmptyState
+      v-else-if="isEmpty"
+      icon="compass"
+      :title="$t('server.noServersAvailable')"
+      :description="$t('server.noServersDescription')"
+      :action-label="$t('common.retry')"
+      @action="$emit('refresh')"
+    />
 
-    <div v-else-if="isEmptyResults" class="empty-state">
-      <div class="empty-icon">
-        <Icon name="search" :size="28" />
-      </div>
-      <h3 class="empty-title">
-        {{ searchQuery ? $t('server.noResultsFor', { query: searchQuery }) : $t('server.noCommunitiesInCategory') }}
-      </h3>
-      <p class="empty-description">
-        {{ $t('server.tryAdjustingSearch') }}
-      </p>
-    </div>
+    <EmptyState
+      v-else-if="isEmptyResults"
+      icon="search"
+      :title="searchQuery ? $t('server.noResultsFor', { query: searchQuery }) : $t('server.noCommunitiesInCategory')"
+      :description="$t('server.tryAdjustingSearch')"
+    />
 
     <template v-else>
       <section v-if="featuredServers.length > 0" class="servers-section">
@@ -92,7 +80,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import Icon from '@/components/common/Icon.vue'
+import EmptyState from '@/components/common/EmptyState.vue'
 import ServerCard from '@/components/common/ServerCard.vue'
 import ServerCardSkeleton from '@/components/common/ServerCardSkeleton.vue'
 import type { PublicServerWithStats } from '@/stores/usePublicServers'
@@ -152,46 +140,6 @@ watch(() => props.servers, () => {
   display: flex;
   flex-direction: column;
   gap: var(--space-8);
-}
-
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 60px 20px;
-  text-align: center;
-}
-
-.empty-icon {
-  width: 56px;
-  height: 56px;
-  border-radius: var(--radius-xl);
-  background: var(--background-modifier-hover);
-  color: var(--text-secondary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: var(--space-5);
-}
-
-.empty-icon--error {
-  color: var(--error);
-}
-
-.empty-title {
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-semibold);
-  color: var(--text-primary);
-  margin: 0 0 var(--space-2);
-}
-
-.empty-description {
-  font-size: var(--font-size-sm);
-  color: var(--text-secondary);
-  margin: 0 0 var(--space-6);
-  max-width: 400px;
-  line-height: 1.5;
 }
 
 .servers-section {

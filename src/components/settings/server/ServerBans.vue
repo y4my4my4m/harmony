@@ -12,18 +12,21 @@
       <span>Loading bans...</span>
     </div>
 
-    <div v-else-if="error" class="error-state">
-      <p>{{ error }}</p>
-      <button class="btn-retry" @click="loadBans">Retry</button>
-    </div>
+    <EmptyState
+      v-else-if="error"
+      tone="error"
+      icon="alert-circle"
+      :title="error"
+      :action-label="$t('common.retry')"
+      @action="loadBans"
+    />
 
-    <div v-else-if="bans.length === 0" class="empty-state">
-      <svg width="48" height="48" viewBox="0 0 24 24" class="empty-icon">
-        <path fill="currentColor" d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4M12,6A6,6 0 0,1 18,12A6,6 0 0,1 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6M12,8A4,4 0 0,0 8,12A4,4 0 0,0 12,16A4,4 0 0,0 16,12A4,4 0 0,0 12,8Z"/>
-      </svg>
-      <h3>No banned users</h3>
-      <p>There are no banned users in this server.</p>
-    </div>
+    <EmptyState
+      v-else-if="bans.length === 0"
+      icon="gavel"
+      :title="$t('empty.bans.title')"
+      :description="$t('empty.bans.description')"
+    />
 
     <div v-else class="bans-list">
       <div v-for="ban in bans" :key="ban.id" class="ban-item">
@@ -52,6 +55,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
+import EmptyState from '@/components/common/EmptyState.vue'
 import { useToast } from 'vue-toastification'
 import { moderationService, type ServerBan } from '@/services/ModerationService'
 
@@ -119,9 +123,7 @@ onMounted(loadBans)
   margin: 0;
 }
 
-.loading-state,
-.empty-state,
-.error-state {
+.loading-state {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -130,34 +132,6 @@ onMounted(loadBans)
   color: var(--text-muted);
   text-align: center;
   gap: 8px;
-}
-
-.empty-icon {
-  opacity: 0.4;
-  margin-bottom: 8px;
-}
-
-.empty-state h3 {
-  margin: 0;
-  color: var(--text-primary);
-  font-size: 1.1rem;
-}
-
-.empty-state p,
-.error-state p {
-  margin: 0;
-  font-size: 0.9rem;
-}
-
-.btn-retry {
-  margin-top: 8px;
-  padding: 6px 16px;
-  background: var(--harmony-primary);
-  color: var(--text-on-primary);
-  border: none;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-size: 0.85rem;
 }
 
 .bans-list {

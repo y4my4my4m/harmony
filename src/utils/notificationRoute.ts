@@ -19,6 +19,7 @@ export function resolveNotificationRoute(notification: RoutableNotification): st
   const type = notification.type || ''
   const data = notification.data || {}
 
+  if (type === 'security') return '/settings/security'
   if (type === 'activitypub_follow_request') return '/social/follow-requests'
   if (type === 'activitypub_follow') {
     const handle = profileHandle(data.follower)

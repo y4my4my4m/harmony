@@ -42,7 +42,9 @@ sequenceDiagram
 | Delete post | `Delete` → `Note` |
 | Follow user | `Follow` |
 | Unfollow | `Undo` → `Follow` |
-| Favorite | `Like` |
+| Favorite, or a ❤ reaction | `Like` with no `_misskey_reaction` |
+| Emoji reaction | `Like` with the emoji in `content` and `_misskey_reaction`, plus an `Emoji` tag for a custom emoji |
+| Unfavorite, remove reaction | `Undo` embedding the same `Like` |
 | Reblog | `Announce` |
 | Block | `Block` |
 | Reply | `Create` → `Note` (with `inReplyTo`) |
@@ -75,11 +77,12 @@ sequenceDiagram
 |------------------|-----------------|
 | `Create` → `Note` | Insert into posts (federated) |
 | `Follow` | Insert follow request/relationship |
-| `Like` | Insert favorite |
+| `Like` or `EmojiReact` with no reaction, ❤ or ♥ | Insert favorite, one per actor |
+| `Like` or `EmojiReact` with any other emoji | Insert emoji reaction |
 | `Announce` | Insert reblog |
 | `Delete` | Soft-delete the referenced object |
 | `Undo` → `Follow` | Remove follow relationship |
-| `Undo` → `Like` | Remove favorite |
+| `Undo` → `Like` / `EmojiReact` | Remove the favorite, or the reaction it names |
 | `Block` | Record block, hide content |
 
 ## Discovery

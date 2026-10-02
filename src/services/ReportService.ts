@@ -1,148 +1,155 @@
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
+import {
+  REPORT_REASONS,
+  reportErrorMessage,
+  type ReportAction,
+  type ReportCategory,
+  type ReportReason,
+  type ReportSnapshot,
+} from '@/utils/reportModeration'
 
+export { REPORT_REASONS }
+export type { ReportAction, ReportCategory, ReportReason }
+
+export type ReportStatus = 'pending' | 'investigating' | 'resolved' | 'dismissed'
+export type ReportType = 'user' | 'post' | 'message' | 'server'
+
+/** A reporter's own report: the columns the reports column grant exposes (getMyReports). */
 export interface Report {
   id: string
-  reporter_id: string
-  reported_user_id?: string
-  reported_post_id?: string
-  reported_message_id?: string
-  reported_server_id?: string
-  reason: string
-  comment?: string
-  status: 'pending' | 'investigating' | 'resolved' | 'dismissed'
-  report_type: 'user' | 'post' | 'message' | 'server'
-  source: 'local' | 'federation'
-  source_instance?: string
   created_at: string
-  updated_at: string
-  reporter?: {
-    username: string
-    display_name: string
-    avatar_url: string
-  }
-  reported_user?: {
-    username: string
-    display_name: string
-    avatar_url: string
-  }
-}
-
-export interface ReportWithDetails {
-  id: string
+  updated_at: string | null
   reporter_id: string | null
   reported_user_id: string | null
-  reported_message_id: string | null
   reported_post_id: string | null
-  reporter_username: string
-  reporter_display_name: string
-  reporter_avatar_url: string
+  reported_message_id: string | null
+  reported_server_id: string | null
+  reason: string
+  category: ReportCategory
+  comment: string | null
+  report_type: ReportType
+  status: ReportStatus
+  resolved_at: string | null
+  forward: boolean
+  forwarded_at: string | null
+}
+
+/** One row of get_reports_with_details. Reporter fields are null for server moderators. */
+export interface ReportWithDetails {
+  id: string
+  created_at: string
+  updated_at: string | null
+  status: ReportStatus
+  report_type: ReportType
+  category: ReportCategory
+  reason: string
+  comment: string | null
+  source: 'local' | 'federation'
+  source_instance: string | null
+  source_actor: string | null
+  reporter_id: string | null
+  reporter_username: string | null
+  reporter_display_name: string | null
+  reporter_avatar_url: string | null
   reporter_domain: string | null
-  reporter_is_local: boolean
+  reporter_is_local: boolean | null
+  reported_user_id: string | null
   reported_user_username: string | null
   reported_user_display_name: string | null
   reported_user_avatar_url: string | null
   reported_user_domain: string | null
   reported_user_is_local: boolean
+  reported_user_is_suspended: boolean
+  reported_user_is_silenced: boolean
+  reported_domain_blocked: boolean
+  reported_domain_limited: boolean
+  reported_post_id: string | null
+  reported_message_id: string | null
+  reported_server_id: string | null
+  scope_server_id: string | null
   reported_post_preview: string | null
   reported_post_ap_id: string | null
   reported_post_url: string | null
   reported_post_is_sensitive: boolean | null
   reported_post_content_warning: string | null
+  reported_post_is_deleted: boolean | null
   reported_message_preview: string | null
-  reason: string
-  comment: string | null
-  report_type: string
-  source: string
-  source_instance: string | null
-  status: string
+  reported_message_is_deleted: boolean | null
+  content_snapshot: ReportSnapshot | null
+  forward: boolean
+  forwarded_at: string | null
+  federation_status: string | null
+  assigned_to: string | null
+  assigned_username: string | null
+  resolved_at: string | null
+  resolver_username: string | null
   resolution_note: string | null
-  created_at: string
+  open_reports_on_target: number
+  total_count: number
 }
 
 export interface CreateReportParams {
+  report_type: ReportType
   reported_user_id?: string
   reported_post_id?: string
   reported_message_id?: string
   reported_server_id?: string
-  report_type: 'user' | 'post' | 'message' | 'server'
-  reason: string
+  reason: ReportReason | string
+  category?: ReportCategory
   comment?: string
+  /** Forward to the reported account's instance; ignored for a local account. */
+  forward?: boolean
+  /** Plaintext the reporter saw; kept only for an encrypted message. */
+  evidence_text?: string
 }
 
-export type ReportReason =
-  | 'spam'
-  | 'harassment'
-  | 'illegal_content'
-  | 'impersonation'
-  | 'nsfw'
-  | 'other'
+export type CreateReportResult = { ok: true; id: string } | { ok: false; message: string }
 
-export const REPORT_REASONS: { value: ReportReason; label: string }[] = [
-  { value: 'spam', label: 'Spam or unwanted content' },
-  { value: 'harassment', label: 'Harassment or bullying' },
-  { value: 'illegal_content', label: 'Illegal content' },
-  { value: 'impersonation', label: 'Impersonation' },
-  { value: 'nsfw', label: 'Inappropriate/NSFW content' },
-  { value: 'other', label: 'Other' }
-]
+export interface ModerateReportOptions {
+  /** Sent to the reporter on resolve or dismiss. */
+  note?: string
+  /** Kept with an account, warning or domain action; not sent to the reporter. */
+  reason?: string
+  /** Name the moderator in the reporter's notification. */
+  showResolver?: boolean
+}
 
 class ReportService {
-  async createReport(params: CreateReportParams): Promise<Report | null> {
+  async createReport(params: CreateReportParams): Promise<CreateReportResult> {
+    const { data, error } = await supabase.rpc('create_report', {
+      p_report_type: params.report_type,
+      p_reported_user_id: params.reported_user_id ?? null,
+      p_reported_post_id: params.reported_post_id ?? null,
+      p_reported_message_id: params.reported_message_id ?? null,
+      p_reported_server_id: params.reported_server_id ?? null,
+      p_reason: params.reason,
+      p_category: params.category ?? null,
+      p_comment: params.comment?.trim() || null,
+      p_forward: params.forward === true,
+      p_evidence_text: params.evidence_text ?? null,
+    })
+    if (error || typeof data !== 'string') {
+      debug.error('Failed to create report:', error)
+      return { ok: false, message: reportErrorMessage(error) }
+    }
+    debug.log('Report created:', data)
+    return { ok: true, id: data }
+  }
+
+  async getMyReports(): Promise<Report[]> {
     try {
-      // BUGS.md Pattern A: `reports.reporter_id` references `profiles(id)`
-      // (see db_schema/init/06_tables_misc.sql) and RLS enforces
-      // `reporter_id = get_current_profile_id()`. Inserting `user.id`
-      // (auth UUID) either failed the FK / RLS check outright or wrote
-      // garbage data - never the right behavior. Resolve to profile id.
       const { authContextService } = await import('@/services/AuthContextService')
       const reporterProfileId = await authContextService.getCurrentProfileId()
 
       const { data, error } = await supabase
         .from('reports')
-        .insert({
-          reporter_id: reporterProfileId,
-          reported_user_id: params.reported_user_id || null,
-          reported_post_id: params.reported_post_id || null,
-          reported_message_id: params.reported_message_id || null,
-          reported_server_id: params.reported_server_id || null,
-          report_type: params.report_type,
-          reason: params.reason,
-          comment: params.comment || null,
-          status: 'pending',
-          source: 'local'
-        })
-        .select()
-        .single()
-
-      if (error) throw error
-      debug.log('Report created:', data.id)
-      return data
-    } catch (error) {
-      debug.error('Failed to create report:', error)
-      return null
-    }
-  }
-
-  async getMyReports(): Promise<Report[]> {
-    try {
-      // Same pattern A fix as createReport - filter by profile id.
-      let reporterProfileId: string
-      try {
-        const { authContextService } = await import('@/services/AuthContextService')
-        reporterProfileId = await authContextService.getCurrentProfileId()
-      } catch {
-        return []
-      }
-
-      const { data, error } = await supabase
-        .from('reports')
-        .select('*')
+        .select('id, created_at, updated_at, reporter_id, reported_user_id, reported_post_id, reported_message_id, reported_server_id, reason, category, comment, report_type, status, resolved_at, forward, forwarded_at')
         .eq('reporter_id', reporterProfileId)
         .order('created_at', { ascending: false })
 
       if (error) throw error
-      return data || []
+      return (data ?? []) as unknown as Report[]
     } catch (error) {
       debug.error('Failed to get my reports:', error)
       return []
@@ -160,30 +167,54 @@ class ReportService {
     }
   }
 
+  /** Instance queue, or one server's reports with serverId. */
   async getReports(options: {
     status?: string | null
     limit?: number
     offset?: number
+    serverId?: string | null
   } = {}): Promise<{ reports: ReportWithDetails[]; total: number }> {
     try {
-      const { status = null, limit = 25, offset = 0 } = options
+      const { status = null, limit = 50, offset = 0, serverId = null } = options
 
       const { data, error } = await supabase.rpc('get_reports_with_details', {
         p_status: status,
         p_limit: limit,
-        p_offset: offset
+        p_offset: offset,
+        p_server_id: serverId,
       })
 
       if (error) throw error
 
-      return {
-        reports: data || [],
-        total: data?.length || 0
-      }
+      const reports = (data ?? []) as ReportWithDetails[]
+      return { reports, total: Number(reports[0]?.total_count ?? 0) }
     } catch (error) {
       debug.error('Failed to get reports:', error)
       return { reports: [], total: 0 }
     }
+  }
+
+  /**
+   * Applies a moderator action. The database checks the caller's role, logs the
+   * action and notifies the reporter.
+   */
+  async moderateReport(
+    reportId: string,
+    action: ReportAction,
+    options: ModerateReportOptions = {}
+  ): Promise<{ ok: true; status: ReportStatus } | { ok: false; message: string }> {
+    const { data, error } = await supabase.rpc('moderate_report', {
+      p_report_id: reportId,
+      p_action: action,
+      p_note: options.note?.trim() || null,
+      p_reason: options.reason?.trim() || null,
+      p_show_resolver: options.showResolver === true,
+    })
+    if (error) {
+      debug.error(`moderate_report ${action} failed:`, error)
+      return { ok: false, message: error.message || 'The action failed' }
+    }
+    return { ok: true, status: (data as { status: ReportStatus }).status }
   }
 
   async updateReportStatus(
@@ -192,90 +223,13 @@ class ReportService {
     resolutionNote?: string,
     options?: { showResolver?: boolean }
   ): Promise<boolean> {
-    try {
-      const updateData: Record<string, unknown> = {
-        status,
-        updated_at: new Date().toISOString(),
-      }
-
-      if (resolutionNote !== undefined) {
-        updateData.resolution_note = resolutionNote
-      }
-
-      // BUGS.md Pattern A: `resolved_by` and the notification `from_user_id`
-      // both reference `profiles(id)`. Resolve once at the top so the same
-      // id flows into the update and the notification payload below.
-      let resolverProfileId: string | null = null
-      try {
-        const { authContextService } = await import('@/services/AuthContextService')
-        resolverProfileId = await authContextService.getCurrentProfileId()
-      } catch {
-        // No authenticated profile; resolve/dismiss requires attribution.
-        if (status === 'resolved' || status === 'dismissed') {
-          return false
-        }
-      }
-
-      if (status === 'resolved' || status === 'dismissed') {
-        updateData.resolved_at = new Date().toISOString()
-        updateData.resolved_by = resolverProfileId
-      }
-
-      const { error } = await supabase
-        .from('reports')
-        .update(updateData)
-        .eq('id', reportId)
-
-      if (error) throw error
-
-      // Notify the reporter about the status change (default: do not show who resolved, for harassment/backlash prevention)
-      try {
-        const { data: report } = await supabase
-          .from('reports')
-          .select('reporter_id, report_type')
-          .eq('id', reportId)
-          .single()
-
-        if (report?.reporter_id) {
-          const showResolver = options?.showResolver === true
-          const notificationData: Record<string, unknown> = {
-            report_id: reportId,
-            status,
-            report_type: report.report_type,
-            resolution_note: resolutionNote ?? null,
-            show_resolver: showResolver,
-          }
-          if (showResolver && resolverProfileId) {
-            // Look up the resolver by PROFILE id (Pattern A - the old
-            // `.eq('id', user.id)` was already broken: `user.id` was the
-            // auth UUID but `profiles.id` is the profile UUID).
-            const { data: resolverProfile } = await supabase
-              .from('profiles')
-              .select('username, display_name, avatar_url')
-              .eq('id', resolverProfileId)
-              .maybeSingle()
-            if (resolverProfile) {
-              notificationData.resolver_username = resolverProfile.username
-              notificationData.resolver_display_name = resolverProfile.display_name
-              notificationData.resolver_avatar_url = resolverProfile.avatar_url
-            }
-          }
-          // Recipient and sender are derived server-side from the report and the caller.
-          await supabase.rpc('notify_report_update', {
-            p_report_id: reportId,
-            p_data: notificationData,
-            p_show_resolver: showResolver,
-          })
-        }
-      } catch (notifError) {
-        debug.warn('Failed to send report status notification:', notifError)
-      }
-
-      return true
-    } catch (error) {
-      debug.error('Failed to update report status:', error)
-      return false
-    }
+    const action: ReportAction =
+      status === 'investigating' ? 'investigate' : status === 'resolved' ? 'resolve' : 'dismiss'
+    const result = await this.moderateReport(reportId, action, {
+      note: resolutionNote,
+      showResolver: options?.showResolver,
+    })
+    return result.ok
   }
 }
 

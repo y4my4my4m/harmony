@@ -298,7 +298,7 @@
                   <button 
                     type="submit" 
                     class="btn-primary" 
-                    :disabled="twoFactorLoading || (useRecoveryCode ? twoFactorCode.length < RECOVERY_CODE_MIN_LENGTH : twoFactorCode.length !== 6)"
+                    :disabled="twoFactorLoading || (useRecoveryCode ? recoveryCodeLength(twoFactorCode) < RECOVERY_CODE_MIN_LENGTH : twoFactorCode.length !== 6)"
                   >
                     <span v-if="!twoFactorLoading">{{ $t('auth.verify') }}</span>
                     <span v-else class="btn-loader"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span>
@@ -326,7 +326,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { debug } from '@/utils/debug'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import { useToast } from 'vue-toastification'
@@ -336,7 +336,8 @@ import { adminService } from '@/services/AdminService'
 import { getStoredInstance } from '@/services/instanceConfig'
 import { isTauriDesktop } from '@/utils/platform'
 import type { Provider } from '@supabase/supabase-js'
-import { RECOVERY_CODE_MIN_LENGTH, RECOVERY_CODE_MAX_LENGTH, RECOVERY_CODE_PLACEHOLDER } from '@/utils/mfaConstants'
+import { RECOVERY_CODE_MIN_LENGTH, RECOVERY_CODE_MAX_LENGTH, RECOVERY_CODE_PLACEHOLDER, recoveryCodeLength } from '@/utils/mfaConstants'
+import { securityErrorMessage } from '@/services/AccountSecurityService'
 import { authErrorMessage } from '@/utils/authErrorMessage'
 import { consumePostAuthRedirect } from '@/utils/postAuthRedirect'
 
@@ -351,6 +352,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 // Composables
 const router = useRouter()
+const route = useRoute()
 const { t } = useI18n()
 const authStore = useAuthStore()
 const instanceSettings = useInstanceSettingsStore()
@@ -575,15 +577,13 @@ const handleSubmit = async () => {
 
 // 2FA Verification
 const handle2FAVerification = async () => {
-  // Recovery codes are 10 hex chars since 2026-06; codes issued before that are
-  // 8. The redeem RPC accepts either, so the client only enforces the minimum.
   if (useRecoveryCode.value) {
-    if (twoFactorCode.value.length < RECOVERY_CODE_MIN_LENGTH) {
-      twoFactorError.value = `Please enter a recovery code of at least ${RECOVERY_CODE_MIN_LENGTH} characters`
+    if (recoveryCodeLength(twoFactorCode.value) < RECOVERY_CODE_MIN_LENGTH) {
+      twoFactorError.value = 'Enter one of your recovery codes, for example ABCDE-12345.'
       return
     }
-  } else if (twoFactorCode.value.length !== 6) {
-    twoFactorError.value = 'Please enter a 6-digit code'
+  } else if (!/^\d{6}$/.test(twoFactorCode.value)) {
+    twoFactorError.value = 'Enter the 6-digit code from your authenticator app.'
     return
   }
 
@@ -592,33 +592,12 @@ const handle2FAVerification = async () => {
 
   try {
     if (useRecoveryCode.value) {
-      const { data: sessionData } = await supabase.auth.getSession()
-      const userId = sessionData.session?.user?.id
-
-      if (!userId) {
-        throw new Error('User session not found')
-      }
-
-      // Atomic server-side redeem: verifies AND consumes the recovery code,
-      // then removes the MFA factors in the same transaction. Verifying and
-      // unenrolling client-side from an AAL1 session would put the security
-      // boundary in the client - see BUGS.md C11.
-      const { data: redeemed, error } = await supabase.rpc('redeem_recovery_code_and_disable_mfa', {
-        p_code: twoFactorCode.value
-      })
-
-      if (error) throw error
-      if (!redeemed) {
-        throw new Error('Invalid or already used recovery code')
-      }
-
-      await supabase.auth.refreshSession().catch(() => {})
-      const { data: refreshedSession } = await supabase.auth.getSession()
-      authStore.session = refreshedSession.session
-      
+      // The redeem RPC consumes the code and removes the factors server-side; the
+      // database leaves it reachable from this aal1 session and rate-limits it.
+      await authStore.completeRecoverySignIn(twoFactorCode.value)
       show2FAModal.value = false
-      toast.warning('Signed in with a recovery code. Re-enable two-factor authentication in settings.', { timeout: 8000 })
-      router.push('/settings/privacy')
+      toast.warning('Signed in with a recovery code. Two-factor authentication is now off; set it up again.', { timeout: 10000 })
+      router.push('/settings/security')
     } else {
       await authStore.verify2FA(pendingFactorId.value, pendingChallengeId.value, twoFactorCode.value)
       show2FAModal.value = false
@@ -626,7 +605,10 @@ const handle2FAVerification = async () => {
     }
   } catch (error: any) {
     debug.error('2FA verification error:', error)
-    twoFactorError.value = error.message || `Invalid ${useRecoveryCode.value ? 'recovery' : 'verification'} code`
+    twoFactorError.value = securityErrorMessage(error, useRecoveryCode.value
+      ? 'That recovery code is not valid or was already used.'
+      : 'Verification failed. Try again.')
+    if (!useRecoveryCode.value) twoFactorCode.value = ''
   } finally {
     twoFactorLoading.value = false
   }
@@ -642,6 +624,9 @@ const handleCodeInput = () => {
   twoFactorError.value = ''
   if (useRecoveryCode.value) {
     twoFactorCode.value = twoFactorCode.value.toUpperCase()
+  } else {
+    twoFactorCode.value = twoFactorCode.value.replace(/\D/g, '').slice(0, 6)
+    if (twoFactorCode.value.length === 6 && !twoFactorLoading.value) void handle2FAVerification()
   }
 }
 
@@ -827,7 +812,14 @@ const loadInstanceBranding = async () => {
 }
 
 // Lifecycle
+const SIGN_OUT_REASONS: Record<string, string> = {
+  session_revoked: 'You were signed out from another device.',
+  insufficient_aal: 'Sign in again and enter your authenticator code.',
+}
+
 onMounted(async () => {
+  const reason = SIGN_OUT_REASONS[String(route.query.reason ?? '')]
+  if (reason) toast.info(reason, { timeout: 8000 })
   randomBg.value = await getRandomLoginBackground()
   await Promise.all([
     loadInstanceBranding(),
@@ -851,6 +843,10 @@ onMounted(async () => {
   --text: #ffffff;
   --text-muted: rgba(255, 255, 255, 0.6);
   --text-dim: rgba(255, 255, 255, 0.4);
+  --scrim: rgba(0, 0, 0, 0.6);
+  --brand-card-bg: rgba(255, 255, 255, 0.03);
+  --brand-card-border: rgba(255, 255, 255, 0.06);
+  --autofill-bg: rgb(17, 17, 23);
   
   min-height: 100vh;
   width: 100%;
@@ -861,13 +857,29 @@ onMounted(async () => {
   overflow: hidden;
 }
 
+/* Light themes, including the signed-out system-light preset. On --surface:
+   --text 16.5:1, --text-muted 6.1:1. */
+:root[data-theme-type="light"] .auth-wrapper {
+  --surface: rgba(255, 255, 255, 0.94);
+  --surface-light: rgba(0, 0, 0, 0.03);
+  --surface-hover: rgba(0, 0, 0, 0.06);
+  --border: rgba(0, 0, 0, 0.12);
+  --text: #1e1f22;
+  --text-muted: rgba(30, 31, 34, 0.7);
+  --text-dim: rgba(30, 31, 34, 0.55);
+  --scrim: rgba(255, 255, 255, 0.55);
+  --brand-card-bg: rgba(255, 255, 255, 0.7);
+  --brand-card-border: rgba(0, 0, 0, 0.08);
+  --autofill-bg: #ffffff;
+}
+
 /* ========================================
    Background Effects
    ======================================== */
 .bg-gradient-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--scrim);
   backdrop-filter: blur(4px);
   pointer-events: none;
 }
@@ -897,8 +909,8 @@ onMounted(async () => {
 .brand-card {
   position: relative;
   z-index: 1;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--brand-card-bg);
+  border: 1px solid var(--brand-card-border);
   border-radius: 32px;
   padding: 48px 40px;
   max-width: 460px;
@@ -1127,7 +1139,7 @@ onMounted(async () => {
 .input-group input:-webkit-autofill:hover,
 .input-group input:-webkit-autofill:focus,
 .input-group input:-webkit-autofill:active {
-  -webkit-box-shadow: 0 0 0 30px rgba(17, 17, 23, 1) inset !important;
+  -webkit-box-shadow: 0 0 0 30px var(--autofill-bg) inset !important;
   -webkit-text-fill-color: var(--text) !important;
   transition: background-color 5000s ease-in-out 0s;
   font-size: 1rem;

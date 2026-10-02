@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { supabase } from '@/supabase'
 import { services } from '@/services'
+import { coreMessageService } from '@/services/core/CoreMessageService'
 import type { Message, MessagePart } from '@/types'
 import { useServerUsersStore } from './useServerUsers'
 import { useReactionsStore } from './useReactions'
@@ -13,9 +14,12 @@ import { processMessageDecryption } from '@/utils/messageDecryption'
 import { debug } from '@/utils/debug'
 import { realtimeConnectionManager, type ConnectionStatus } from '@/services/RealtimeConnectionManager'
 import { userEventChannel } from '@/services/UserEventChannel'
+import { fetchUnreadCounts, markConversationRead } from '@/services/readState'
 import { getRandomId, createTempMessageId, findOptimisticMatchIndex } from '@/stores/shared/optimisticMessages'
 import { routeMessageEvent } from '@/stores/shared/realtimeMessageEvent'
 import { insertMessageSorted, evictOldestCacheEntry, trimCachedMessages, waitForPendingReplyFetch } from '@/stores/shared/messageCacheUtils'
+import { isModerationRejectionCode } from '@/services/AutoModService'
+import { releaseFloatingVideo } from '@/composables/useFloatingVideo'
 
 export interface DMUser {
   id: string
@@ -355,6 +359,7 @@ export const useDMStore = defineStore('dm', () => {
   }
 
   const removeMessageFromCache = (messageId: string) => {
+    releaseFloatingVideo(messageId)
     currentDMMessages.value = currentDMMessages.value.filter(msg => msg.id !== messageId)
 
     messageCache.value.forEach((cache) => {
@@ -409,18 +414,22 @@ export const useDMStore = defineStore('dm', () => {
       return true
     }
 
+    const conversationId = currentConversationId.value
+    if (!conversationId) return false
+
     try {
       const { data: message, error } = await supabase
         .from('messages')
         .select('*')
         .eq('id', messageId)
-        .eq('conversation_id', currentConversationId.value)
+        .eq('conversation_id', conversationId)
         .single()
 
       if (error || !message) {
         debug.error('DM message not found for jump:', error)
         return false
       }
+      if (currentConversationId.value !== conversationId) return false
 
       const messageDate = new Date(message.created_at)
       const msgs = [...currentDMMessages.value]
@@ -432,7 +441,7 @@ export const useDMStore = defineStore('dm', () => {
         }
         insertIndex = i + 1
       }
-      currentDMMessages.value.splice(insertIndex, 0, message)
+      currentDMMessages.value.splice(insertIndex, 0, toConversationMessages(conversationId, [message])[0])
 
       setTimeout(() => {
         highlightedMessageId.value = messageId
@@ -749,21 +758,15 @@ export const useDMStore = defineStore('dm', () => {
       
       conversations.value = preserveCurrentConversation(mergedConversations)
 
-      const convIds = mergedConversations.map(c => c.id)
-      if (convIds.length > 0) {
-        const { data: unreadData } = await supabase
-          .from('unread_counts')
-          .select('conversation_id, unread_messages, unread_mentions')
-          .eq('user_id', userId)
-          .in('conversation_id', convIds)
-          .or('unread_messages.gt.0,unread_mentions.gt.0')
-
-        if (unreadData) {
-          for (const row of unreadData) {
-            const conv = mergedConversations.find(c => c.id === row.conversation_id)
-            if (conv) {
-              conv.unread_count = row.unread_messages || 0
-            }
+      if (mergedConversations.length > 0) {
+        const unreadData = await fetchUnreadCounts().catch((err) => {
+          debug.warn('Failed to fetch DM unread counts:', err)
+          return []
+        })
+        for (const row of unreadData) {
+          const conv = row.conversation_id ? mergedConversations.find(c => c.id === row.conversation_id) : undefined
+          if (conv) {
+            conv.unread_count = row.unread_messages || 0
           }
         }
       }
@@ -1447,6 +1450,76 @@ export const useDMStore = defineStore('dm', () => {
     return result
   }
 
+  /**
+   * Rows from loadConversationMessages in the store's Message shape.
+   * CoreMessageService returns decrypted messages; the flags carry over.
+   * `user_id` is `string | undefined` on the source rows, so the mapped array
+   * is cast to `Message[]` to bridge the optional/required mismatch.
+   */
+  const toConversationMessages = (conversationId: string, rows: any[]): Message[] => {
+    const formatted = (rows.map(msg => ({
+      ...msg,
+      created_at: new Date(msg.created_at),
+      updated_at: msg.updated_at ? new Date(msg.updated_at) : undefined,
+      channel_id: '', // DMs have no channel
+      conversation_id: conversationId,
+      reactions: msg.reactions || [],
+      metadata: msg.metadata || null,
+      encrypted: msg.encrypted || false,
+      decrypted: msg.decrypted || false
+    })) as unknown as Message[])
+
+    try {
+      ensureMessageEmbeds(formatted)
+    } catch (error) {
+      debug.warn('Failed to prepare DM embeds:', error)
+    }
+    return formatted
+  }
+
+  // Newest-page loads started by prefetchConversationMessages, by conversation id.
+  const pendingPrefetch = new Map<string, Promise<void>>()
+
+  /**
+   * Loads a conversation's newest page into messageCache without touching the
+   * open conversation, so opening it takes the cache path.
+   */
+  const prefetchConversationMessages = (conversationId: string): Promise<void> => {
+    if (!conversationId || conversationId === currentConversationId.value) return Promise.resolve()
+    if (isCacheValid(conversationId)) return Promise.resolve()
+    const inFlight = pendingPrefetch.get(conversationId)
+    if (inFlight) return inFlight
+
+    const work = (async () => {
+      try {
+        const { messages: rows, hasMore } = await services.messages.loadConversationMessages(conversationId, { limit: 20 })
+        // Empty pages stay with the cold path; a fresher entry is kept.
+        if (!rows || rows.length === 0 || isCacheValid(conversationId)) return
+        const formatted = toConversationMessages(conversationId, rows)
+
+        const userIds = [...new Set(formatted.map(m => m.user_id).filter(Boolean))] as string[]
+        if (userIds.length > 0) {
+          void useServerUsersStore().fetchMultipleUserProfiles(userIds).catch(() => {})
+        }
+
+        evictOldestCache()
+        messageCache.value.set(conversationId, {
+          messages: [...formatted],
+          lastFetchedAt: new Date(),
+          oldestMessageId: formatted[0]?.id || null,
+          allMessagesLoaded: !hasMore,
+          lastModified: new Date(),
+        })
+      } catch (error) {
+        debug.warn('Conversation prefetch failed (non-fatal):', error)
+      } finally {
+        pendingPrefetch.delete(conversationId)
+      }
+    })()
+    pendingPrefetch.set(conversationId, work)
+    return work
+  }
+
   const fetchConversationMessages = async (conversationId: string, beforeMessageId?: string, signal?: AbortSignal) => {
     if (loadingMessages.value && beforeMessageId !== undefined) return
 
@@ -1466,6 +1539,19 @@ export const useDMStore = defineStore('dm', () => {
         // conversation was not the active subscription. Mirrors the channel path.
         void revalidateRecentDMMessages(conversationId)
         return
+      }
+
+      // A prefetch already requested this page; reuse it instead of a second load.
+      const prefetch = pendingPrefetch.get(conversationId)
+      if (prefetch) {
+        await prefetch
+        if (signal?.aborted) throw new Error('AbortError')
+        if (currentConversationId.value !== conversationId) return
+        if (isCacheValid(conversationId)) {
+          loadCachedMessages(conversationId)
+          void revalidateRecentDMMessages(conversationId)
+          return
+        }
       }
     }
 
@@ -1525,29 +1611,8 @@ export const useDMStore = defineStore('dm', () => {
 
       // loadConversationMessages returns oldest-first. Both the initial load and
       // the prepend-on-pagination path consume that order unchanged.
-      const orderedMessages = messagesData
       const allLoaded = !hasMore
-
-      // CoreMessageService returns decrypted messages; the flags carry over.
-      // `user_id` is `string | undefined` on the source rows, so the mapped
-      // array is cast to `Message[]` to bridge the optional/required mismatch.
-      const formattedMessages: Message[] = (orderedMessages.map(msg => ({
-        ...msg,
-        created_at: new Date(msg.created_at),
-        updated_at: msg.updated_at ? new Date(msg.updated_at) : undefined,
-        channel_id: '', // DMs have no channel
-        conversation_id: conversationId,
-        reactions: msg.reactions || [],
-        metadata: msg.metadata || null,
-        encrypted: msg.encrypted || false,
-        decrypted: msg.decrypted || false
-      })) as unknown as Message[])
-
-      try {
-        ensureMessageEmbeds(formattedMessages)
-      } catch (error) {
-        debug.warn('Failed to prepare DM embeds:', error)
-      }
+      const formattedMessages = toConversationMessages(conversationId, messagesData)
 
       const decryptedCount = formattedMessages.filter(m => m.decrypted).length
       const encryptedCount = formattedMessages.filter(m => m.encrypted).length
@@ -1823,7 +1888,7 @@ export const useDMStore = defineStore('dm', () => {
       // removed so a cancelled fallback prompt leaves no phantom "failed" row.
       // Accepting re-calls with `allowPlaintextFallback: true`, which creates a
       // fresh optimistic message.
-      const code = (error?.code || error?.message || '').toString()
+      const code = [error?.code, error?.message].filter(Boolean).join(' ')
       const isEncryptionPolicyError =
         code.includes('ENCRYPTION_REQUIRED') ||
         code.includes('ENCRYPTION_LOCKED') ||
@@ -1834,9 +1899,17 @@ export const useDMStore = defineStore('dm', () => {
         throw error
       }
 
-      // Length-limit and structural validation errors are not transient. Drop
-      // the optimistic message and surface the error instead of retrying.
+      // Anti-spam limits for new accounts answer the same way on every retry.
+      if (isModerationRejectionCode(code)) {
+        removeMessageFromCache(tempId)
+        throw error
+      }
+
+      // Deleted recipients, length limits and structural validation errors are
+      // not transient. Drop the optimistic message and surface the error
+      // instead of retrying.
       const isPermanentValidationError =
+        code.includes('RECIPIENT_DELETED') ||
         code.includes('MESSAGE_TOO_LONG') ||
         code.includes('TOO_MANY_ATTACHMENTS') ||
         code.includes('messages_text_length_check') ||
@@ -1983,27 +2056,13 @@ export const useDMStore = defineStore('dm', () => {
         // Write to the DB only when there is something to clear.
         // setCurrentConversation runs several times per load (route setup,
         // switchToConversation, watchers); each unguarded call would fire a
-        // redundant unread_counts PATCH for an already-read conversation.
+        // redundant mark_conversation_as_read for an already-read conversation.
         const hadUnread = (conversation.unread_count || 0) > 0
         conversation.unread_count = 0
         debug.log('Marked conversation as read:', conversationId);
         if (!hadUnread) return
-        import('@/services/AuthContextService').then(({ authContextService: acs }) => acs.getCurrentContext()).then(ctx => {
-          if (!ctx.isAuthenticated) return
-          supabase
-            .from('unread_counts')
-            .update({
-              unread_messages: 0,
-              unread_mentions: 0,
-              last_read_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            })
-            .eq('user_id', ctx.profileId)
-            .eq('conversation_id', conversationId)
-            .then(({ error }) => {
-              if (error) debug.warn('Failed to reset DM unread count:', error)
-            })
-        })
+        markConversationRead(conversationId)
+          .catch((error) => debug.warn('Failed to reset DM unread count:', error))
       } else {
         debug.warn('Could not find conversation to mark as read:', conversationId);
       }
@@ -2476,9 +2535,9 @@ export const useDMStore = defineStore('dm', () => {
       const unread = typeof payload.unread_messages === 'number'
         ? payload.unread_messages
         : (conv.unread_count || 0)
-      // The trigger fires on every unread_counts write, including the
-      // read-marking PATCH. Only a rising count means a new message, so only
-      // then does the sidebar's sort key move.
+      // Events arrive for new messages and for reads on any of the user's
+      // devices. Only a rising count means a new message, so only then does
+      // the sidebar's sort key move.
       const isNewMessage = unread > (conv.unread_count || 0)
       conv.unread_count = unread
       if (isNewMessage) conv.last_activity = new Date().toISOString()
@@ -2803,20 +2862,8 @@ export const useDMStore = defineStore('dm', () => {
       debug.log('Created conversation:', conversationId)
 
       ;(async () => {
-        try {
-          const systemMessageContent = [{
-            type: 'text' as const,
-            text: `Group conversation created with ${options.participantIds.length} participants`
-          }]
-          await services.messages.sendDMMessage(
-            conversationId,
-            systemMessageContent,
-            undefined,
-            { isSystem: true }
-          )
-        } catch (systemMessageError) {
-          debug.warn('Failed to send system message:', systemMessageError)
-        }
+        const { error: noticeError } = await coreMessageService.postGroupConversationNotice(conversationId)
+        if (noticeError) debug.warn('Failed to post group creation notice:', noticeError)
         await fetchUserConversations(currentUserData.id)
       })()
 
@@ -2907,37 +2954,8 @@ export const useDMStore = defineStore('dm', () => {
           }
         }
 
-        try {
-          const userProfiles = await Promise.all(
-            userIds.map(async (userId) => {
-              const { data } = await supabase
-                .from('profiles')
-                .select('username, display_name')
-                .eq('id', userId)
-                .single()
-              return data
-            })
-          )
-
-          const userNames = userProfiles
-            .filter(Boolean)
-            .map(profile => profile?.display_name || profile?.username)
-            .join(', ')
-
-          const systemMessageContent = [{
-            type: 'text' as const,
-            text: `${userNames} ${userIds.length === 1 ? 'was' : 'were'} added to the conversation`
-          }]
-
-          await services.messages.sendDMMessage(
-            conversationId,
-            systemMessageContent,
-            undefined,
-            { isSystem: true }
-          )
-        } catch (systemMessageError) {
-          debug.warn('Failed to send system message:', systemMessageError)
-        }
+        const { error: noticeError } = await coreMessageService.postGroupConversationNotice(conversationId, userIds)
+        if (noticeError) debug.warn('Failed to post members-added notice:', noticeError)
 
         await fetchUserConversations(currentUserId)
 
@@ -3156,6 +3174,7 @@ export const useDMStore = defineStore('dm', () => {
     fetchUserConversationsMetadata,
     hideConversation,
     fetchConversationMessages,
+    prefetchConversationMessages,
     searchUsers,
     createOrGetConversation,
     sendDMMessage,

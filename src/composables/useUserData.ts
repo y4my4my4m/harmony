@@ -4,13 +4,18 @@
  * the service itself holds plain, non-reactive state.
  */
 
-import { computed, ref } from 'vue'
+import { computed, ref, type ComputedRef } from 'vue'
 import { userDataService } from '@/services/userDataService'
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import { useVisualTheme } from '@/composables/useVisualTheme'
+import type { VisualThemeSettings } from '@/composables/useVisualTheme.types'
 import { UserStatus, type DisplayNamePart } from '@/types'
 import { getAvatarUrl } from '@/utils/avatarUtils'
 import { debug } from '@/utils/debug'
+
+/** Name colour for users without a profile or role colour. A theme token,
+ *  not white: white names vanish on light themes. */
+export const DEFAULT_USER_COLOR = 'var(--text-primary)'
 
 // Module scope, not per call. userDataService is a singleton; one counter and
 // one listener set serve every caller.
@@ -32,6 +37,22 @@ const SERVICE_EVENTS = [
 
 // Bound once for the module's lifetime; the service outlives every consumer.
 const isInitialized = ref(false)
+
+// useVisualTheme() allocates ~50 closures and four computeds per call, and
+// currentSettings spreads the whole settings object. Display-name getters run
+// inside member-list sort comparators, so the settings ref is taken once. A
+// computed is not owned by an effect scope (Vue 3.5); the first caller's
+// unmount leaves it live.
+let visualThemeSettings: ComputedRef<VisualThemeSettings> | null = null
+
+function customEmojisAllowedByInstance(): boolean {
+  return !!useInstanceSettingsStore().settings.allowCustomEmojisInDisplayNames
+}
+
+function customEmojisShownByTheme(): boolean {
+  visualThemeSettings ??= useVisualTheme().settings
+  return visualThemeSettings?.value?.showCustomEmojisInDisplayNames !== false
+}
 
 const bindServiceListeners = () => {
   if (isInitialized.value) return
@@ -94,10 +115,7 @@ export function useUserData() {
     const trimmedDisplay = (user?.displayName || '').trim()
     const trimmedUsername = (user?.username || '').trim()
     let name = trimmedDisplay || trimmedUsername || 'Unknown User'
-    const instanceSettings = useInstanceSettingsStore()
-    const theme = useVisualTheme()
-    const hideEmojis = !instanceSettings.settings.allowCustomEmojisInDisplayNames ||
-      theme.currentSettings.value?.showCustomEmojisInDisplayNames === false
+    const hideEmojis = !customEmojisAllowedByInstance() || !customEmojisShownByTheme()
     if (hideEmojis && name) name = stripEmojiShortcodes(name)
     // A name consisting only of shortcodes strips to empty; fall back again
     // rather than render a blank pill.
@@ -114,12 +132,7 @@ export function useUserData() {
    */
   const getUserDisplayNameParts = (userId: string) => computed<DisplayNamePart[] | undefined>(() => {
     forceUpdate.value
-    const instanceSettings = useInstanceSettingsStore()
-    if (!instanceSettings.settings.allowCustomEmojisInDisplayNames) {
-      return undefined
-    }
-    const theme = useVisualTheme()
-    if (theme.currentSettings.value?.showCustomEmojisInDisplayNames === false) {
+    if (!customEmojisAllowedByInstance() || !customEmojisShownByTheme()) {
       return undefined
     }
     return userDataService.getUser(userId)?.displayNameParts
@@ -156,9 +169,9 @@ export function useUserData() {
   
   const getUserColor = (userId: string | null | undefined) => computed(() => {
     forceUpdate.value // Force reactivity
-    if (!userId) return '#ffffff'
+    if (!userId) return DEFAULT_USER_COLOR
     const user = userDataService.getUser(userId)
-    return user?.color || '#ffffff'
+    return user?.color || DEFAULT_USER_COLOR
   })
   
   const isUserOnline = (userId: string) => computed(() => {

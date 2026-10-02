@@ -253,7 +253,7 @@
           </template>
         </div>
       </div>
-      <div v-else class="empty-hint">No tiers configured</div>
+      <EmptyState v-else size="sm" icon="layers" :title="$t('empty.admin.tiers.title')" />
       <div class="add-tier-form">
         <input v-model="newTierName" class="cyber-input" placeholder="Tier name" />
         <input v-model.number="newTierMinAmount" type="number" class="cyber-input" placeholder="Min amount" min="0" style="width: 120px;" />
@@ -317,7 +317,7 @@
           </div>
         </div>
       </div>
-      <div v-else class="empty-hint">No active supporters</div>
+      <EmptyState v-else size="sm" icon="heart" :title="$t('empty.admin.supporters.title')" />
 
       <!-- Add Supporter -->
       <div class="add-supporter-form">
@@ -453,7 +453,7 @@
           </div>
         </div>
       </div>
-      <div v-else class="empty-hint">No donations recorded</div>
+      <EmptyState v-else size="sm" icon="dollar-sign" :title="$t('empty.admin.donations.title')" />
 
       <!-- Edit Donation (inline) -->
       <div v-if="editingDonation" class="edit-donation-panel">
@@ -492,6 +492,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useToast } from 'vue-toastification'
 import { debug } from '@/utils/debug'
 import Icon from '@/components/common/Icon.vue'
+import EmptyState from '@/components/common/EmptyState.vue'
 import Avatar from '@/components/common/Avatar.vue'
 import DisplayName from '@/components/DisplayName.vue'
 import EmojiPopup from '@/components/EmojiPopup.vue'
@@ -2391,22 +2392,6 @@ onMounted(() => {
   border-radius: var(--radius-sm);
   padding: 1px 5px;
   width: fit-content;
-}
-
-
-
-
-
-
-
-.empty-hint {
-  font-size: 13px;
-  color: var(--text-secondary);
-  padding: 12px;
-  text-align: center;
-  background: var(--background-tertiary);
-  border-radius: var(--radius-base);
-  margin-bottom: 12px;
 }
 </style>
 

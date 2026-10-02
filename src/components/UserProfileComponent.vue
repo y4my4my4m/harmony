@@ -1,6 +1,19 @@
 <template>
-  <div class="user-profile" ref="targetRef">
-    <div class="avatar-wrapper" @click.stop="handleAvatarClick">
+  <div
+    class="user-profile"
+    :class="{ 'is-docked': docked, 'is-collapsed': docked && !dockOpen }"
+    ref="targetRef"
+  >
+    <div
+      class="avatar-wrapper"
+      :role="docked ? 'button' : undefined"
+      :tabindex="docked ? 0 : undefined"
+      :aria-label="docked ? t('user.panelToggle') : undefined"
+      :aria-expanded="docked ? dockOpen : undefined"
+      @click.stop="handleAvatarClick"
+      @keydown.enter.prevent="docked && toggleDock()"
+      @keydown.space.prevent="docked && toggleDock()"
+    >
       <Avatar 
         :src="getUserAvatarUrlCurrent"
         size="md"
@@ -11,7 +24,7 @@
            when the profile is expanded into the overlay (where the bell is
            visible again) - see CSS below. -->
       <div
-        v-if="isMobile && mobileUnreadCount > 0"
+        v-if="(isMobile || docked) && mobileUnreadCount > 0"
         class="mobile-avatar-badge"
         :aria-label="`${mobileUnreadCount} unread notification${mobileUnreadCount === 1 ? '' : 's'}`"
       >
@@ -145,11 +158,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, computed, nextTick } from 'vue'
+import { ref, onMounted, onBeforeUnmount, computed, nextTick, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { debug } from '@/utils/debug'
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
 import { useNotificationStore } from '@/stores/useNotification'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { UserStatus, type UserData } from '@/types'
 import { useUserData } from '@/composables/useUserData'
 import { useLayoutState } from '@/composables/useLayoutState'
@@ -167,6 +181,8 @@ import { getEmojiUrl } from '@/utils/emojiUtils'
 const voiceChannelStore = useUnifiedVoiceChannelStore()
 const notificationStore = useNotificationStore()
 const router = useRouter()
+const route = useRoute()
+const { t } = useI18n()
 
 // Mirrors NotificationBell.unreadCount so the collapsed-mobile avatar badge
 // matches the bell when it becomes visible after expansion.
@@ -175,10 +191,22 @@ const showStatusDropdown = ref(false)
 const targetRef = ref<HTMLElement | null>(null)
 const { isMobile, closeMobileSidebars } = useLayoutState()
 
-// add the optional prop toggle-mobile-profile
 const props = defineProps<{
   toggleMobileProfile?: () => void
+  /** Desktop page without a host sidebar: avatar alone until expanded. */
+  docked?: boolean
 }>()
+
+const dockOpen = ref(false)
+const toggleDock = () => {
+  dockOpen.value = !dockOpen.value
+}
+const collapseDock = () => {
+  dockOpen.value = false
+  showStatusDropdown.value = false
+}
+watch(() => props.docked, collapseDock)
+watch(() => route.path, collapseDock)
 
 // Use new clean user data system - ONE source of truth with full reactivity
 const { 
@@ -367,15 +395,24 @@ const handleStatusUpdated = (status: any) => {
   showStatusPicker.value = false
 }
 
+// Popovers raised from the panel live outside it; a click inside one keeps
+// the docked panel open.
+const PANEL_POPOVERS = '.notification-panel, .notification-backdrop, [role="dialog"]'
+
 const onClickOutside = (event: any) => {
-  if (targetRef.value && !targetRef.value.contains(event.target)) {
-    showStatusDropdown.value = false
+  if (!targetRef.value || targetRef.value.contains(event.target)) return
+  showStatusDropdown.value = false
+  if (dockOpen.value && !(event.target as Element | null)?.closest?.(PANEL_POPOVERS)) {
+    dockOpen.value = false
   }
 }
 
 const onKeydown = (event: KeyboardEvent) => {
-  if (event.key === 'Escape' && showStatusDropdown.value) {
+  if (event.key !== 'Escape') return
+  if (showStatusDropdown.value) {
     showStatusDropdown.value = false
+  } else if (dockOpen.value) {
+    dockOpen.value = false
   }
 }
 
@@ -387,15 +424,10 @@ const goToSettings = () => {
 }
 
 const handleAvatarClick = () => {
-  debug.log('Avatar clicked!')
-  debug.log('isMobile:', isMobile.value)
-  debug.log('toggleMobileProfile prop:', props.toggleMobileProfile)
-  
   if (isMobile.value && props.toggleMobileProfile) {
-    debug.log('Calling toggleMobileProfile')
     props.toggleMobileProfile()
-  } else {
-    debug.log('Not calling toggleMobileProfile - conditions not met')
+  } else if (props.docked) {
+    toggleDock()
   }
 }
 
@@ -765,8 +797,37 @@ onBeforeUnmount(() => {
 
 /* In the expanded mobile overlay the inline NotificationBell is visible, so
    hide the redundant avatar badge to avoid double-counting. */
-.mobile-profile-overlay .mobile-avatar-badge {
+.mobile-profile-overlay .mobile-avatar-badge,
+.user-profile.is-docked:not(.is-collapsed) .mobile-avatar-badge {
   display: none;
+}
+
+/* Docked: the avatar alone in the server rail, as on mobile. Expanded, the
+   full panel opens in place over the page. */
+.user-profile.is-collapsed {
+  width: 64px;
+  height: 64px;
+  padding: 0;
+  justify-content: center;
+}
+
+.user-profile.is-collapsed .user-info,
+.user-profile.is-collapsed .buttons {
+  display: none;
+}
+
+.user-profile.is-docked:not(.is-collapsed) {
+  box-shadow: var(--shadow-large);
+}
+
+.user-profile.is-docked .avatar-wrapper {
+  cursor: pointer;
+  border-radius: var(--radius-full);
+}
+
+.user-profile.is-docked .avatar-wrapper:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
 }
 
 @media screen and (max-width: 768px) {
@@ -797,7 +858,7 @@ onBeforeUnmount(() => {
     justify-content: space-between;
     padding: 10px;
     left: 6px;
-    bottom: 10px;
+    bottom: calc(10px + env(safe-area-inset-bottom, 0px));
     top: auto;
     right: auto;
     margin: 0;

@@ -137,18 +137,12 @@
         </div>
       </div>
       
-      <div v-if="emojis.length === 0" class="empty-state">
-        <svg class="empty-icon" width="64" height="64" viewBox="0 0 24 24">
-          <path fill="currentColor" d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M7,9.5C7,8.7 7.7,8 8.5,8C9.3,8 10,8.7 10,9.5C10,10.3 9.3,11 8.5,11C7.7,11 7,10.3 7,9.5M14,17.5H10C10,16.1 11.1,15 12.5,15C13.9,15 15,16.1 15,17.5H14M14,9.5C14,8.7 14.7,8 15.5,8C16.3,8 17,8.7 17,9.5C17,10.3 16.3,11 15.5,11C14.7,11 14,10.3 14,9.5Z"/>
-        </svg>
-        <h4 class="empty-text">{{ $t('server.noEmojis') }}</h4>
-        <p class="empty-hint">
-          {{ permissions.canUpload 
-            ? $t('server.addFirstEmoji')
-            : $t('server.noEmojis')
-          }}
-        </p>
-      </div>
+      <EmptyState
+        v-if="emojis.length === 0"
+        icon="smile"
+        :title="$t('server.noEmojis')"
+        :description="permissions.canUpload ? $t('server.addFirstEmoji') : undefined"
+      />
       
       <div v-else class="emoji-grid">
         <div 
@@ -950,28 +944,6 @@ input:checked + .toggle-slider:before {
 
 .btn-danger:hover:not(:disabled) {
   background-color: var(--error-hover);
-}
-
-.empty-state {
-  text-align: center;
-  padding: 40px 20px;
-}
-
-.empty-icon {
-  color: var(--text-muted);
-  margin-bottom: 16px;
-}
-
-.empty-text {
-  font-size: var(--font-size-base);
-  color: var(--text-secondary);
-  margin: 0 0 4px 0;
-}
-
-.empty-hint {
-  font-size: var(--font-size-sm);
-  color: var(--text-muted);
-  margin: 0;
 }
 
 .emoji-grid {

@@ -113,6 +113,8 @@ export interface FederatedInstance {
   admin_contact?: string;
   is_blocked: boolean;
   is_trusted: boolean;
+  /** Set while the domain is limited (its accounts silenced). */
+  limited_at?: string | null;
   last_seen_at: string;
   user_count: number;
   status_count: number;
@@ -694,6 +696,23 @@ class AdminService {
     } catch (error) {
       debug.error('Failed to moderate instance:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Domain policy through set_domain_moderation (instance admins): 'limit'
+   * silences the domain's accounts, 'suspend' blocks it, 'none' lifts both.
+   * The change is audited server-side.
+   */
+  async setDomainModeration(domain: string, policy: 'none' | 'limit' | 'suspend', reason?: string): Promise<void> {
+    const { error } = await supabase.rpc('set_domain_moderation', {
+      p_domain: domain,
+      p_policy: policy,
+      p_reason: reason?.trim() || null,
+    });
+    if (error) {
+      debug.error('set_domain_moderation failed:', error);
+      throw new Error(error.message || 'Failed to change the domain policy');
     }
   }
 

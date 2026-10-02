@@ -49,7 +49,7 @@
         <!-- Composer (if home timeline) -->
         <div 
           v-if="currentView === 'home'" 
-          class="composer-section"
+          class="composer-section feed-column"
           :class="{ 'composer-hidden': composerHidden }"
         >
           <Composer 
@@ -424,9 +424,6 @@ const getSpecialViewEmptyMessage = (viewType: any) => {
 }
 
 .composer-section {
-  width: 100%;
-  max-width: 600px;
-  margin: 0 auto;
   padding: var(--space-4);
   border-bottom: 1px solid var(--border-color);
   position: relative;
@@ -457,13 +454,6 @@ const getSpecialViewEmptyMessage = (viewType: any) => {
   box-shadow: none;
   padding: 0;
   background: transparent;
-}
-
-@media (min-width: 769px) {
-  .composer-section {
-    border-left: 1px solid var(--border-color);
-    border-right: 1px solid var(--border-color);
-  }
 }
 
 @media (max-width: 768px) {

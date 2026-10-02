@@ -85,10 +85,12 @@ VALUES ('22222222-0000-0000-0000-000000000002', 'mention',
 UPDATE public.unread_counts SET last_read_at = now() - interval '4 hours'
  WHERE user_id = '22222222-0000-0000-0000-000000000002'
    AND channel_id = 'f4320000-0000-0000-0000-000000000001';
-INSERT INTO public.unread_counts (user_id, server_id, channel_id, unread_messages)
+-- Four unread in a channel bob cannot view.
+INSERT INTO public.unread_counts AS u (user_id, server_id, channel_id, read_seq)
 VALUES ('22222222-0000-0000-0000-000000000002', '55555555-0000-0000-0000-000000000005',
-        'f4320000-0000-0000-0000-000000000002', 4)
-ON CONFLICT DO NOTHING;
+        'f4320000-0000-0000-0000-000000000002', -4)
+ON CONFLICT (user_id, channel_id) WHERE channel_id IS NOT NULL
+DO UPDATE SET read_seq = u.read_seq - 4;
 
 -- Conversations.
 INSERT INTO public.conversations (id, type, name) VALUES
@@ -116,11 +118,6 @@ INSERT INTO public.messages (id, conversation_id, user_id, content, created_at, 
    '11111111-0000-0000-0000-000000000001', '[{"type":"text","text":"dismissed dm"}]', now() - interval '20 minutes', false),
   ('f4340000-0000-0000-0000-000000000015', 'f4330000-0000-0000-0000-000000000004',
    '11111111-0000-0000-0000-000000000001', '[{"type":"text","text":"group"}]', now() - interval '25 minutes', false);
-INSERT INTO public.unread_counts (user_id, conversation_id, unread_messages)
-SELECT '22222222-0000-0000-0000-000000000002', c.id, 1
-  FROM (VALUES ('f4330000-0000-0000-0000-000000000001'::uuid), ('f4330000-0000-0000-0000-000000000002'::uuid),
-               ('f4330000-0000-0000-0000-000000000003'::uuid), ('f4330000-0000-0000-0000-000000000004'::uuid)) c(id)
-ON CONFLICT DO NOTHING;
 INSERT INTO public.notification_channels (user_id, conversation_id, muted)
 VALUES ('22222222-0000-0000-0000-000000000002', 'f4330000-0000-0000-0000-000000000002', true);
 UPDATE public.conversation_participants SET hidden_at = now()

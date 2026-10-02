@@ -34,6 +34,22 @@ describe('NotificationFormatter', () => {
       expect(result.message).toContain('Hey @you!')
     })
 
+    it('formats a moderation warning with its text and no moderator', () => {
+      const notif = makeNotification('moderation_warning', { data: { text: 'Keep it civil.' } })
+      const result = NotificationFormatter.formatNotification(notif)
+      expect(result.title).toBe('Warning from the moderators')
+      expect(result.message).toBe('Keep it civil.')
+      expect(NotificationFormatter.getAvatarUrl(notif)).toBe('/default_avatar.webp')
+    })
+
+    it('names no moderator on a report update unless the moderator chose to', () => {
+      const hidden = makeNotification('report_update', {
+        data: { status: 'resolved', report_type: 'post', show_resolver: false, resolver_username: 'mod' },
+      })
+      expect(NotificationFormatter.formatNotification(hidden).title).toBe('Your report has been resolved')
+      expect(NotificationFormatter.getAvatarUrl(hidden)).toBe('/default_avatar.webp')
+    })
+
     it('previews an encrypted mention generically, never its stored content', () => {
       const notif = makeNotification('mention', {
         data: {

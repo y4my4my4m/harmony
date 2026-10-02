@@ -8,6 +8,7 @@
 import type { Notification } from '@/types'
 import { getAvatarUrl as utilGetAvatarUrl } from '@/utils/avatarUtils'
 import { debug } from '@/utils/debug'
+import { securityNoticeText } from '@/utils/securityNotice'
 
 export interface NotificationMessage {
   title: string
@@ -363,6 +364,12 @@ const MESSAGE_TEMPLATES = {
     }
   },
 
+  security: {
+    title: (data: any) => securityNoticeText(data).title,
+    message: (data: any) => securityNoticeText(data).message,
+    shortTitle: () => 'Account security'
+  },
+
   report_update: {
     title: (data: any) => {
       const status = data.status || 'updated'
@@ -382,6 +389,15 @@ const MESSAGE_TEMPLATES = {
       return msg
     },
     shortTitle: () => 'Report update'
+  },
+
+  moderation_warning: {
+    title: () => 'Warning from the moderators',
+    message: (data: any) => {
+      const text = typeof data.text === 'string' ? data.text.trim() : ''
+      return text || 'The moderators issued a warning about your account.'
+    },
+    shortTitle: () => 'Moderation warning'
   },
 
   /**
@@ -573,6 +589,10 @@ export class NotificationFormatter {
       return data.inviter.display_name || data.inviter.username || 'Unknown'
     }
 
+    if (notification.type === 'moderation_warning') {
+      return 'Moderators'
+    }
+
     // Report updates: default to generic label (harassment/backlash prevention); show resolver only if moderator opted in
     if (notification.type === 'report_update') {
       if (data.show_resolver && (data.resolver_display_name || data.resolver_username)) {
@@ -615,6 +635,9 @@ export class NotificationFormatter {
     }
 
     // Report updates: use resolver avatar only if show_resolver; otherwise generic default
+    if (notification.type === 'moderation_warning') {
+      return utilGetAvatarUrl(null) || '/default_avatar.webp'
+    }
     if (notification.type === 'report_update' && !data.show_resolver) {
       return utilGetAvatarUrl(null) || '/default_avatar.webp'
     }

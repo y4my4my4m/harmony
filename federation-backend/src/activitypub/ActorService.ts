@@ -3,8 +3,10 @@ import { getSupabaseClient, getSupabaseClientWithAuth } from '../config/supabase
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { profileToActor } from './converters/toActivityPub.js';
 import { actorToProfile, noteToContent } from './converters/fromActivityPub.js';
+import { misskeyDisplayNameEmojis } from '../utils/misskeyEmojis.js';
 import { resolveLocalProfileEmojis } from './emojiResolver.js';
 import { stripOwnEmojiDomain } from '../utils/emojiResolvers.js';
+import { isHeartReaction, storeFavourite } from '../utils/heartReaction.js';
 import { ActivityProcessor } from './ActivityProcessor.js';
 import { SignatureService } from './SignatureService.js';
 import { logger } from '../utils/logger.js';
@@ -12,6 +14,7 @@ import config from '../config/index.js';
 import { validateExternalHostname, validateExternalUrl, safeFetch } from '../utils/ssrfProtection.js';
 import { discoveryLimiter } from '../middleware/rateLimit.js';
 import { sameOrigin } from '../utils/apOrigin.js';
+import { actorTombstone, deletedActorByProfile, deletedActorByUsername } from './deletedActors.js';
 
 const router = Router();
 
@@ -711,22 +714,7 @@ router.post(
           }
 
           if (!remote_reactions && reactions.length > 0) {
-            const byEmoji = new Map<string, { count: number; url?: string; reactors: any[] }>();
-            for (const r of reactions as Array<{ emoji: string; emoji_url?: string; actor?: any }>) {
-              const key = r.emoji;
-              if (!byEmoji.has(key)) byEmoji.set(key, { count: 0, url: r.emoji_url, reactors: [] });
-              const e = byEmoji.get(key)!;
-              e.count++;
-              if (e.reactors.length < 10 && r.actor) {
-                e.reactors.push({
-                  username: r.actor.username,
-                  display_name: r.actor.display_name || r.actor.username,
-                  avatar_url: r.actor.avatar_url,
-                  domain: r.actor.domain,
-                });
-              }
-            }
-            remote_reactions = Object.fromEntries(byEmoji);
+            remote_reactions = aggregateRemoteReactions(reactions);
             if (entry.post_id) {
               await supabase
                 .from('posts')
@@ -849,24 +837,7 @@ router.post(
       // fetchRemotePostReactions returns raw reactions and never builds
       // remote_reactions; aggregation happens here.
       if (!remote_reactions && reactions.length > 0) {
-        const byEmoji = new Map<string, { count: number; url?: string; reactors: any[] }>();
-        for (const r of reactions as Array<{ emoji: string; emoji_url?: string; actor?: any }>) {
-          const key = r.emoji;
-          if (!byEmoji.has(key)) {
-            byEmoji.set(key, { count: 0, url: r.emoji_url, reactors: [] });
-          }
-          const entry = byEmoji.get(key)!;
-          entry.count++;
-          if (entry.reactors.length < 10 && r.actor) {
-            entry.reactors.push({
-              username: r.actor.username,
-              display_name: r.actor.display_name || r.actor.username,
-              avatar_url: r.actor.avatar_url,
-              domain: r.actor.domain,
-            });
-          }
-        }
-        remote_reactions = Object.fromEntries(byEmoji);
+        remote_reactions = aggregateRemoteReactions(reactions);
         if (post_id) {
           await supabase
             .from('posts')
@@ -901,6 +872,33 @@ router.post(
     }
   })
 );
+
+/**
+ * Reaction chips by emoji, at most 10 reactors each. Favourites (bare Likes and unicode
+ * hearts) are counted in favorites_count, not as a chip.
+ */
+function aggregateRemoteReactions(
+  reactions: Array<{ emoji: string; emoji_url?: string; actor?: any }>,
+): Record<string, { count: number; url?: string; reactors: any[] }> {
+  const byEmoji = new Map<string, { count: number; url?: string; reactors: any[] }>();
+  for (const r of reactions) {
+    if (!r.emoji_url && isHeartReaction(r.emoji)) continue;
+    const key = r.emoji;
+    if (!byEmoji.has(key)) byEmoji.set(key, { count: 0, url: r.emoji_url, reactors: [] });
+    const entry = byEmoji.get(key)!;
+    entry.count++;
+    if (entry.reactors.length < 10 && r.actor) {
+      entry.reactors.push({
+        username: r.actor.username,
+        display_name: r.actor.display_name || r.actor.username,
+        display_name_emojis: r.actor.display_name_emojis,
+        avatar_url: r.actor.avatar_url,
+        domain: r.actor.domain,
+      });
+    }
+  }
+  return Object.fromEntries(byEmoji);
+}
 
 /**
  * "https://misskey.io/notes/abc123" -> "abc123"
@@ -1118,16 +1116,7 @@ async function fetchMisskeyReactions(
         }
       }
       
-      let displayNameEmojis: Array<{name: string, url: string}> = [];
-      if (user?.emojis && typeof user.emojis === 'object') {
-        displayNameEmojis = Object.entries(user.emojis).map(([name, url]) => ({
-          name,
-          url: url as string,
-        }));
-        if (displayNameEmojis.length > 0) {
-          logger.debug(`Found ${displayNameEmojis.length} display name emojis for ${user?.username}`);
-        }
-      }
+      const displayNameEmojis = misskeyDisplayNameEmojis(user, domain);
       
       if (user?.host !== null && user?.host !== undefined) {
         logger.debug(`Reactor ${user?.username} has host: "${user.host}"`);
@@ -1198,7 +1187,13 @@ async function fetchMisskeyReactions(
         }>;
       }> = {};
       
+      // Misskey's like is its heart reaction; it is this post's favourite count.
+      let heartCount = 0;
       for (const [emoji, data] of reactionCounts) {
+        if (!data.is_custom && isHeartReaction(emoji)) {
+          heartCount += data.count;
+          continue;
+        }
         // Misskey keys are :name@.: or :name@domain:; the frontend expects :name:.
         let normalizedEmoji = emoji;
         if (emoji.startsWith(':') && emoji.endsWith(':')) {
@@ -1222,7 +1217,7 @@ async function fetchMisskeyReactions(
         .from('posts')
         .update({ 
           metadata: updatedMetadata,
-          favorites_count: Array.from(reactionCounts.values()).reduce((sum, r) => sum + r.count, 0),
+          favorites_count: heartCount,
         })
         .eq('id', postId);
       
@@ -1369,16 +1364,17 @@ async function _fetchRemotePostReactionsImpl(
               .select('*', { count: 'exact', head: true })
               .eq('post_id', postId)
               .eq('is_local', true)
-              .in('interaction_type', ['favorite', 'emoji_reaction'])
-              // PostgREST neq drops NULL rows; legacy rows may have NULL status
-              .or('federation_status.is.null,federation_status.neq.completed'),
+              .eq('interaction_type', 'favorite')
+              // PostgREST not.in drops NULL rows; legacy rows may have NULL status.
+              // A skipped row is never delivered.
+              .or('federation_status.is.null,federation_status.not.in.(completed,skipped)'),
             supabase
               .from('post_interactions')
               .select('*', { count: 'exact', head: true })
               .eq('post_id', postId)
               .eq('is_local', true)
               .eq('interaction_type', 'reblog')
-              .or('federation_status.is.null,federation_status.neq.completed'),
+              .or('federation_status.is.null,federation_status.not.in.(completed,skipped)'),
             supabase
               .from('posts')
               .select('*', { count: 'exact', head: true })
@@ -1429,10 +1425,13 @@ async function _fetchRemotePostReactionsImpl(
 
     // favorites_count from the collection's own totalItems. Applies to both
     // paths and is a single-column write, unlike the counts update above.
-    if (postId && typeof likesCollection?.totalItems === 'number') {
+    // A collection enumerated in full is recounted below without its reactions.
+    const totalLikes: number | null =
+      typeof likesCollection?.totalItems === 'number' ? likesCollection.totalItems : null;
+    if (postId && totalLikes !== null) {
       await supabase
         .from('posts')
-        .update({ favorites_count: likesCollection.totalItems })
+        .update({ favorites_count: totalLikes })
         .eq('id', postId);
     }
     
@@ -1464,12 +1463,14 @@ async function _fetchRemotePostReactionsImpl(
     logger.info(`Found ${items.length} reactions`);
 
     const reactions: any[] = [];
+    let favouriteItems = 0;
     
     for (const item of items.slice(0, 50)) {
       try {
         let actorUrl: string;
         let emoji: string = '❤️';
         let reactionContent: string | null = null;
+        let isCustomEmoji = false;
 
         if (typeof item === 'string') {
           // Bare actor URL denotes a plain Like.
@@ -1492,6 +1493,7 @@ async function _fetchRemotePostReactionsImpl(
             if (emojiTag) {
               emoji = emojiTag.name || emoji;
               reactionContent = emojiTag.name;
+              isCustomEmoji = true;
             }
           }
         } else {
@@ -1499,6 +1501,10 @@ async function _fetchRemotePostReactionsImpl(
         }
 
         if (!actorUrl) continue;
+
+        // A bare Like or a unicode heart is a favourite (utils/heartReaction.ts).
+        const isFavourite = !isCustomEmoji && (!reactionContent || isHeartReaction(reactionContent));
+        if (isFavourite) favouriteItems++;
 
         // Mastodon/Pleroma carry the custom emoji image at tag.icon.url. No
         // column holds it, so remote reactions keep only the shortcode.
@@ -1539,11 +1545,19 @@ async function _fetchRemotePostReactionsImpl(
           actor_url: actorUrl,
         });
 
-        // Persisted only when both the post and the reactor are known locally.
-        // Every unique index over emoji_reaction rows is partial and PostgREST
-        // emits no index predicate, so ON CONFLICT infers no arbiter. Mirrors
-        // ActivityProcessor.processLike.
-        if (postId && localProfile?.id) {
+        // Persisted only when both the post and the reactor are known locally, and the
+        // reactor is remote: a local actor listed here is our own Like coming back, and
+        // the local row is authoritative. Every unique index over emoji_reaction rows is
+        // partial and PostgREST emits no index predicate, so ON CONFLICT infers no
+        // arbiter. Mirrors ActivityProcessor.processLike.
+        if (postId && localProfile?.id && !localProfile.is_local && isFavourite) {
+          const outcome = await storeFavourite(supabase, postId, localProfile.id, {
+            ap_id: item.id || `${actorUrl}#like-${postId}`,
+          });
+          if (outcome === 'failed') {
+            logger.error(`Failed to persist remote favourite on post ${postId}`);
+          }
+        } else if (postId && localProfile?.id && !localProfile.is_local) {
           // A reaction this instance emitted returns qualified with our own domain, as
           // `:name@our.domain:` against the `:name:` already stored. The dedupe below
           // compares the shortcode literally, so the two spellings both persist and the
@@ -1579,6 +1593,13 @@ async function _fetchRemotePostReactionsImpl(
       } catch (err) {
         logger.debug(`Failed to process reaction:`, err);
       }
+    }
+
+    if (postId && totalLikes !== null && items.length >= totalLikes && items.length <= 50) {
+      await supabase
+        .from('posts')
+        .update({ favorites_count: favouriteItems })
+        .eq('id', postId);
     }
 
     logger.info(`Processed ${reactions.length} reactions for post`);
@@ -2196,6 +2217,23 @@ router.get(
       .eq('username', username)
       .eq('is_local', true)
       .single();
+
+    // A deleted account answers 410 under its old handle and under its tombstone name.
+    let deleted: { actor_uri: string; deleted_at: string | null } | null = null;
+    if (profile?.deleted_at) {
+      deleted = (await deletedActorByProfile(profile.id).catch(() => null)) ?? {
+        actor_uri: `https://${config.INSTANCE_DOMAIN}/users/${profile.username}`,
+        deleted_at: profile.deleted_at,
+      };
+    } else if (!profile) {
+      deleted = await deletedActorByUsername(username);
+    }
+    if (deleted) {
+      res.status(410);
+      res.setHeader('Content-Type', 'application/activity+json');
+      res.json(actorTombstone(deleted.actor_uri, deleted.deleted_at));
+      return;
+    }
 
     if (error || !profile) {
       res.status(404).json({

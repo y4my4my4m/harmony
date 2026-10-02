@@ -102,8 +102,8 @@ const loadMessages = async () => {
       
       isLoading.value = true
       dmStore.clearDMMessages()
-      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
-      if (signal.aborted) return
+      // The skeleton gets two frames to paint; the load runs alongside them.
+      const skeletonPainted = new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
       try {
         const userId = authStore.session?.user?.id
         if (userId) {
@@ -111,6 +111,7 @@ const loadMessages = async () => {
           if (signal.aborted) return
           await dmStore.fetchConversationMessages(conversationId, undefined, signal)
         }
+        await skeletonPainted
       } catch (e: any) {
         if (e?.message === 'Request aborted' || signal.aborted) return
         throw e
@@ -155,12 +156,13 @@ const loadMessages = async () => {
       
       isLoading.value = true
       chatStore.clearMessages()
-      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
-      if (signal.aborted) return
+      // The skeleton gets two frames to paint; the load runs alongside them.
+      const skeletonPainted = new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
       try {
         await chatStore.fetchMessages(channelId, '', signal)
         if (signal.aborted) return
         chatStore.subscribeToMessages(channelId)
+        await skeletonPainted
       } catch (e: any) {
         if (e?.message === 'Request aborted' || signal.aborted) return
         throw e
@@ -379,6 +381,10 @@ const highlightSearchText = (messageElement: HTMLElement, query: string) => {
 @media (max-width: 768px) {
   .mobile-menu-btn {
     display: flex;
+    min-width: 40px;
+    min-height: 40px;
+    align-items: center;
+    justify-content: center;
   }
 }
 </style>

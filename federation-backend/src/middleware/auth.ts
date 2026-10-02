@@ -1,18 +1,20 @@
 import { Request, Response, NextFunction } from 'express';
 import { getSupabaseClient, getSupabaseClientWithAuth } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
+import { bearerToken, meetsAssurance } from '../utils/sessionAssurance.js';
 
 /**
  * Local profile id behind a `Bearer <Supabase access token>` header; null when
- * the header is absent, the token is invalid, or the account has no local
- * profile.
+ * the header is absent, the token is invalid or below the account's assurance
+ * level, or the account has no local profile.
  */
 export async function localProfileIdFromBearer(authHeader: string | undefined): Promise<string | null> {
-  if (!authHeader?.startsWith('Bearer ')) return null;
+  const token = bearerToken(authHeader);
+  if (!token) return null;
   try {
     const supabase = getSupabaseClient();
-    const { data: { user }, error } = await supabase.auth.getUser(authHeader.substring(7));
-    if (error || !user) return null;
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+    if (error || !user || !meetsAssurance(user, token)) return null;
 
     const { data: profile } = await supabase
       .from('profiles')

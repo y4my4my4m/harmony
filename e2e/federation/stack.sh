@@ -10,7 +10,8 @@
 #   e2e/federation/stack.sh logs    compose logs
 #
 # Project name and port differ from e2e/stack.sh so both stacks can be up at
-# once. A failed `up` leaves its containers for inspection; `down` clears them
+# once; HMFED_PROJECT, HMFED_PORT and HMFED_SUBNET separate two runs of this
+# one. A failed `up` leaves its containers for inspection; `down` clears them
 # whatever state they reached, and `up` runs `down` first.
 #
 # The schema is built exactly as e2e/stack.sh builds it:
@@ -25,7 +26,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 FED="$ROOT/e2e/federation"
-PROJECT="hmfed"
+PROJECT="${HMFED_PROJECT:-hmfed}"
 COMPOSE_FILE="$FED/docker-compose.yml"
 ENV_FILE="$FED/stack.env"
 

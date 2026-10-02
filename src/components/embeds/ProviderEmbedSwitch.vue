@@ -160,14 +160,7 @@ const fediverseError = ref<string | null>(null);
 const embedWrapper = ref<HTMLElement | null>(null);
 const youtubeContainer = ref<HTMLElement | null>(null);
 const youtubeIframe = ref<HTMLIFrameElement | null>(null);
-const isPlaying = ref(false);
 const embedLoaded = ref(false);
-
-// Floating moves reload the iframe on browsers without moveBefore(); we track
-// playback position from infoDelivery so the reloaded player can resume in place.
-let lastKnownTime = 0;
-let iframeLoadCount = 0;
-let pendingRestore: { time: number; play: boolean } | null = null;
 
 const { registerVideo, notifyPlaybackStarted } = useFloatingVideo();
 
@@ -290,10 +283,10 @@ function setupYouTubePlayer() {
 
   sendListeningEvent();
 
-  const floatTarget = embedWrapper.value || youtubeContainer.value;
-  if (floatTarget) {
+  const target = floatTarget();
+  if (target) {
     cleanupFloatingObserver?.();
-    cleanupFloatingObserver = registerVideo(floatTarget, {
+    cleanupFloatingObserver = registerVideo(target, {
       type: 'youtube',
       messageId: props.messageId,
       sourceUrl: props.payload.url,
@@ -302,32 +295,35 @@ function setupYouTubePlayer() {
   }
 }
 
-function sendListeningEvent() {
-  if (youtubeIframe.value?.contentWindow) {
-    youtubeIframe.value.contentWindow.postMessage(
-      JSON.stringify({
-        event: 'listening',
-        id: youtubeIframe.value.id || 'ytplayer'
-      }),
-      '*'
-    );
-  }
+// The floating player can dock a playing iframe from an earlier mount of this
+// message into the container in place of this component's own; the iframe in
+// the container is the live one.
+function liveIframe(): HTMLIFrameElement | null {
+  return youtubeContainer.value?.querySelector('iframe') ?? youtubeIframe.value;
 }
 
-function sendPlayerCommand(func: string, args: unknown[] = []) {
-  youtubeIframe.value?.contentWindow?.postMessage(
-    JSON.stringify({ event: 'command', func, args }),
+function sendListeningEvent() {
+  const iframe = liveIframe();
+  iframe?.contentWindow?.postMessage(
+    JSON.stringify({
+      event: 'listening',
+      id: iframe.id || 'ytplayer'
+    }),
     '*'
   );
 }
 
-function updatePlayState(playing: boolean) {
-  isPlaying.value = playing;
+// The play flag lives on the float target, where useFloatingVideo reads it; an
+// iframe docked in from an earlier mount arrives with the flag already set.
+function floatTarget(): HTMLElement | null {
+  return embedWrapper.value || youtubeContainer.value;
+}
 
-  const floatTarget = embedWrapper.value || youtubeContainer.value;
-  if (floatTarget) {
-    floatTarget.dataset.isPlaying = String(playing);
-    if (playing) notifyPlaybackStarted(floatTarget);
+function updatePlayState(playing: boolean) {
+  const target = floatTarget();
+  if (target) {
+    target.dataset.isPlaying = String(playing);
+    if (playing) notifyPlaybackStarted(target);
   }
 }
 
@@ -341,7 +337,7 @@ function handleYouTubeMessage(event: MessageEvent) {
       data = JSON.parse(data);
     }
     
-    if (event.source !== youtubeIframe.value?.contentWindow) return;
+    if (!event.source || event.source !== liveIframe()?.contentWindow) return;
     
     // onStateChange: explicit play/pause/etc
     if (data.event === 'onStateChange') {
@@ -355,30 +351,16 @@ function handleYouTubeMessage(event: MessageEvent) {
       const playerState = data.info.playerState;
       if (playerState !== undefined) {
         const playing = playerState === 1;
-        if (playing !== isPlaying.value) {
+        if (playing !== (floatTarget()?.dataset.isPlaying === 'true')) {
           debug.log('[YouTube] infoDelivery state:', { playerState, isPlaying: playing });
           updatePlayState(playing);
         }
-      }
-      if (typeof data.info.currentTime === 'number') {
-        lastKnownTime = data.info.currentTime;
       }
     }
 
     if (data.event === 'onReady') {
       debug.log('[YouTube] Player ready');
       sendListeningEvent();
-      if (pendingRestore) {
-        const { time, play } = pendingRestore;
-        pendingRestore = null;
-        sendPlayerCommand('seekTo', [time, true]);
-        if (play) {
-          sendPlayerCommand('playVideo');
-        } else {
-          sendPlayerCommand('pauseVideo');
-        }
-        debug.log('[YouTube] Restored playback after iframe reload:', { time, play });
-      }
     }
     
     // YouTube may send initialDelivery before onReady - subscribe immediately
@@ -507,17 +489,8 @@ async function loadFediversePost() {
 function handleEmbedLoad() {
   embedLoaded.value = true;
   emit('embed-loaded');
+  // A reload after a floating move resumes through useFloatingVideo.
   if (props.payload.provider === 'youtube') {
-    iframeLoadCount++;
-    // reload #2+ means the iframe was moved by the floating player (no moveBefore
-    // support) — resume where it was once the fresh player reports ready
-    if (iframeLoadCount > 1 && lastKnownTime > 0) {
-      const floatTarget = embedWrapper.value || youtubeContainer.value;
-      pendingRestore = {
-        time: lastKnownTime,
-        play: floatTarget?.dataset.isPlaying === 'true',
-      };
-    }
     sendListeningEvent();
   }
 }

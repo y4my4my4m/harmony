@@ -10,6 +10,7 @@ import { EventDispatcher } from './gateway/EventDispatcher.js'
 import { BotRestAPI } from './api/BotRestAPI.js'
 import { TTLCache } from './utils/TTLCache.js'
 import { getBridgeAttachmentMode, hasDiscordCdnFilePart } from './utils/mirrorExternalMedia.js'
+import { meetsAssurance } from './utils/sessionAssurance.js'
 
 const app = express()
 
@@ -55,7 +56,8 @@ app.use('/api/v1', botAPI.router)
 
 /**
  * Validates the Supabase user JWT in `Authorization: Bearer <token>`.
- * Returns `profiles.id`, or `null` when unauthenticated.
+ * Returns `profiles.id`, or `null` when unauthenticated or below the account's
+ * assurance level.
  */
 async function getCallerProfileId(req: express.Request): Promise<string | null> {
   const auth = req.headers.authorization
@@ -64,7 +66,7 @@ async function getCallerProfileId(req: express.Request): Promise<string | null> 
   if (!token) return null
 
   const { data: userData, error: userError } = await supabase.auth.getUser(token)
-  if (userError || !userData?.user) return null
+  if (userError || !userData?.user || !meetsAssurance(userData.user, token)) return null
 
   const { data: profile, error: profileError } = await supabase
     .from('profiles')

@@ -164,6 +164,7 @@
   import { useThemeStore } from '@/stores/useTheme';
   import { useDraftsStore } from '@/stores/drafts';
   import type { Message, Gif, Emoji, MessagePart } from '@/types';
+  import { isModerationRejectionCode } from '@/services/AutoModService';
   import { recordEmojiUsage } from '@/services/emojiService';
   import { getEmojiShortcodeForInsert } from '@/services/emojiShortcodeResolver';
   import { readFile } from '@tauri-apps/plugin-fs';
@@ -181,7 +182,7 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
   import { coreMessageService } from '@/services/core/CoreMessageService';
   import { useEncryptionFallbackPrompt } from '@/composables/useEncryptionFallbackPrompt';
   import { ENCRYPTION_STATE_CHANGED_EVENT, reportChannelEncryptionError } from '@/composables/useEncryptionAction';
-  import { fetchEffectiveChannelEncryption } from '@/services/ChannelEncryptionService';
+  import { fetchEffectiveChannelEncryption, fetchServerForceKeySetup, invalidateServerForceKeySetup } from '@/services/ChannelEncryptionService';
   import { getEncryptionService } from '@/services/core/channelMessageEncryption';
   import { useChannelEncryptionStore } from '@/stores/useChannelEncryption';
   import { supabase } from '@/supabase';
@@ -369,18 +370,14 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
           return
         }
         try {
-          const [state, { data: settings }] = await Promise.all([
+          const [state, forceKeySetup] = await Promise.all([
             fetchEffectiveChannelEncryption(channelId),
-            supabase
-              .from('server_encryption_settings')
-              .select('force_key_setup')
-              .eq('server_id', serverId)
-              .maybeSingle(),
+            fetchServerForceKeySetup(serverId),
           ])
           if (state) channelEncryptionStore.applyEffective(state)
 
           const channelEncrypted = state?.messagesEncrypted === true
-          const recommendSetup = settings?.force_key_setup === true && state?.serverMode !== 'disabled'
+          const recommendSetup = forceKeySetup && state?.serverMode !== 'disabled'
           if (!channelEncrypted && !recommendSetup) {
             encryptionStatusData.value = null
             return
@@ -506,9 +503,11 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
       function handleServerSettingsChange(event: Event) {
         const detail = (event as CustomEvent).detail
         if (props.isDM) return
-        if (detail?.table === 'server_encryption_settings'
-            || (detail?.table === 'channel_encryption_settings'
-                && detail?.new?.channel_id === (props.channelId || serverChannelStore.currentChannelId))) {
+        if (detail?.table === 'server_encryption_settings') {
+          invalidateServerForceKeySetup(detail?.new?.server_id ?? serverChannelStore.currentServerId)
+          checkEncryptionStatus()
+        } else if (detail?.table === 'channel_encryption_settings'
+            && detail?.new?.channel_id === (props.channelId || serverChannelStore.currentChannelId)) {
           checkEncryptionStatus()
         }
       }
@@ -517,9 +516,11 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
         checkEncryptionStatus()
       }
 
+      // A string source; a fresh array compares unequal on every dependency
+      // trigger, which repeats the check several times per switch.
       watch(
-        () => [serverChannelStore.currentServerId, props.channelId || serverChannelStore.currentChannelId],
-        () => { if (!props.isDM) checkEncryptionStatus() },
+        () => props.isDM ? null : `${serverChannelStore.currentServerId}:${props.channelId || serverChannelStore.currentChannelId}`,
+        (key) => { if (key) checkEncryptionStatus() },
         { immediate: true }
       )
 
@@ -680,11 +681,10 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
         selectedThread.value = thread;
         draftParentMessage.value = null;
         
-        // System message announcing the thread. Content is minimal; rendering
-        // reads the metadata.
+        // The database posts the thread notice; rendering reads its metadata.
         if (props.channelId) {
-          const threadName = thread.name || 'Thread';
-          await sendSystemThreadMessage(props.channelId, threadName, thread.id);
+          const { error } = await coreMessageService.postThreadCreatedNotice(thread.id);
+          if (error) debug.error('Failed to post thread notice:', error);
         }
       };
 
@@ -695,15 +695,6 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
         draftParentMessage.value = null;
       };
       
-      const sendSystemThreadMessage = async (channelId: string, threadName: string, threadId: string) => {
-        const { error } = await coreMessageService.sendSystemMessage(
-          channelId,
-          [{ type: 'text' as const, text: 'started a thread' }],
-          { type: 'thread_created', thread_id: threadId, thread_name: threadName }
-        );
-        if (error) debug.error('Failed to send thread system message:', error);
-      };
-
       const handleThreadUpdated = (thread: any) => {
         selectedThread.value = thread;
       };
@@ -978,10 +969,24 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
           } else if (code.startsWith('ENCRYPTION_') || msg.includes('ENCRYPTION_')) {
             sendError.value = msg
             setTimeout(() => { sendError.value = null }, 6000)
+          } else if (code === 'RECIPIENT_DELETED' || msg.includes('RECIPIENT_DELETED')) {
+            toast.error(t('dm.recipientDeleted'))
+            messageInputRef.value?.flashRejection?.()
+            if (content && !messageContent.value.trim()) {
+              messageContent.value = content
+            }
           } else if (msg.includes('Slowmode')) {
             // The chat store already dispatched harmony:slowmode-hit to sync the
             // input countdown. This surfaces the human-readable reason.
             toast.info(msg)
+            if (content && !messageContent.value.trim()) {
+              messageContent.value = content
+            }
+          } else if (isModerationRejectionCode(code)) {
+            // AutoMod block, member timeout or new-account limit. The message
+            // carries the server's reason; the draft comes back for editing.
+            toast.error(msg)
+            messageInputRef.value?.flashRejection?.()
             if (content && !messageContent.value.trim()) {
               messageContent.value = content
             }

@@ -146,6 +146,36 @@ const sessionAwareStorage: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> =
   },
 };
 
+export type SessionRejection = 'session_revoked' | 'insufficient_aal';
+
+const sessionRejectionListeners = new Set<(reason: SessionRejection) => void>();
+
+/**
+ * Called when PostgREST refuses the access token: 401 session_revoked (its auth session
+ * was signed out elsewhere) or 403 insufficient_aal (the account requires aal2). Both come
+ * from the enforce_request_assurance pre-request hook (migration 20261005400001).
+ */
+export function onSessionRejected(listener: (reason: SessionRejection) => void): () => void {
+  sessionRejectionListeners.add(listener);
+  return () => sessionRejectionListeners.delete(listener);
+}
+
+const assuranceAwareFetch: typeof fetch = async (input, init) => {
+  const response = await globalThis.fetch(input, init);
+  if ((response.status === 401 || response.status === 403) && sessionRejectionListeners.size > 0) {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    if (url.includes('/rest/v1/')) {
+      response.clone().json().then((body: { message?: string } | null) => {
+        const reason = body?.message;
+        if (reason === 'session_revoked' || reason === 'insufficient_aal') {
+          sessionRejectionListeners.forEach((listener) => listener(reason));
+        }
+      }).catch(() => { /* not a PostgREST error body */ });
+    }
+  }
+  return response;
+};
+
 export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     autoRefreshToken: true,
@@ -153,8 +183,30 @@ export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKe
     detectSessionInUrl: true,
     storage: sessionAwareStorage,
   },
+  global: { fetch: assuranceAwareFetch },
   // Realtime reconnection is handled by the client; no custom health check.
 });
+
+/**
+ * Signs out and drops the stored session. auth-js maps GoTrue's `session_not_found` to
+ * AuthSessionMissingError and then keeps the token in storage, so a session revoked from
+ * another device would survive its own sign-out and be restored on the next load.
+ */
+export async function signOutAndForget(scope: 'global' | 'local' = 'global'): Promise<void> {
+  let failed = false;
+  try {
+    const { error } = await supabase.auth.signOut({ scope });
+    failed = !!error;
+  } catch {
+    failed = true;
+  }
+  if (!failed) return;
+  const key = (supabase.auth as unknown as { storageKey?: string }).storageKey;
+  if (!key) return;
+  for (const suffix of ['', '-code-verifier', '-user']) {
+    sessionAwareStorage.removeItem(key + suffix);
+  }
+}
 
 // Retained for backward compatibility. Connection management lives in the
 // Supabase client.

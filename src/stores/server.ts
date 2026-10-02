@@ -136,23 +136,28 @@ export const useServerStore = defineStore('server', {
       return data;
     },
 
-    async joinServer(serverId: string, userId: string): Promise<boolean> {
+    /** Joins a server from the public directory through join_public_server. */
+    async joinServer(serverId: string): Promise<boolean> {
       const toast = useToast();
       
       try {
-        const { error } = await supabase
-          .from('user_servers')
-          .insert([{ server_id: serverId, user_id: userId }]);
+        const { data, error } = await supabase.rpc('join_public_server', { p_server_id: serverId });
 
         if (error) {
-          if (error.code === '23505') { // unique constraint: already a member
-            debug.log("User is already a member of this server");
-            toast.info("You're already a member of this server!");
-            return true;
+          if ((error.message || '').includes('BANNED_FROM_SERVER')) {
+            toast.error("You're banned from this server.");
+            return false;
+          }
+          if ((error.message || '').includes('SERVER_NOT_PUBLIC')) {
+            toast.error('This server is joined through an invite.');
+            return false;
           }
           throw error;
         }
 
+        if ((data as { joined?: boolean } | null)?.joined === false) {
+          toast.info("You're already a member of this server!");
+        }
         invalidateServerMemberCache(serverId);
         return true;
       } catch (error) {

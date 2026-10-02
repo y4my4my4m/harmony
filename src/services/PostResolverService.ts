@@ -74,9 +74,9 @@ async function loadPostFromDb(postId: string): Promise<TimelinePost | null> {
         .select('interaction_type')
         .eq('post_id', postId)
         .eq('user_id', profileId)
-        .in('interaction_type', ['favorite', 'emoji_reaction', 'reblog', 'bookmark'])
+        .in('interaction_type', ['favorite', 'reblog', 'bookmark'])
       const types = new Set(interactions?.map((i) => i.interaction_type) || [])
-      post.is_favorited = types.has('favorite') || types.has('emoji_reaction')
+      post.is_favorited = types.has('favorite')
       post.is_reblogged = types.has('reblog')
       post.is_bookmarked = types.has('bookmark')
     }

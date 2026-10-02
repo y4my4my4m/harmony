@@ -35,6 +35,8 @@ export type NotificationType =
   | 'activitypub_follow_request'
   | 'activitypub_follow_accepted'
   | 'report_update'
+  | 'moderation_warning'
+  | 'security'
   | 'error'
   // Generic UI feedback toasts (also valid AudioActions for themed sounds)
   | 'ui_success'
@@ -160,8 +162,10 @@ export interface NotificationChannel {
   updated_at: string;
 }
 
+/** A row of get_unread_counts, or the `count` of an `unread:change` event. */
 export interface UnreadCount {
-  id: string;
+  /** unread_counts row id; null for a context the user has no row for. */
+  id: string | null;
   user_id: string;
   server_id?: string;
   channel_id?: string;
@@ -170,8 +174,7 @@ export interface UnreadCount {
   unread_mentions: number;
   last_read_message_id?: string;
   last_read_at: string;
-  created_at: string;
-  updated_at: string;
+  last_message_at?: string;
 }
 
 export interface NotificationSound {

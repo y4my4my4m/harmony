@@ -2,6 +2,8 @@ import { Router, Request, Response } from 'express';
 import { getSupabaseClient } from '../config/supabase.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import config from '../config/index.js';
+import { INSTANCE_ACTOR_USERNAME, instanceActorUrl, isInstanceActorUsername } from './InstanceActor.js';
+import { deletedActorByUsername } from './deletedActors.js';
 
 const router = Router();
 
@@ -36,6 +38,25 @@ router.get(
       });
     }
 
+    // Mastodon resolves a signer's preferredUsername through WebFinger and
+    // requires the self link to be the actor id.
+    if (isInstanceActorUsername(username)) {
+      const actorUrl = instanceActorUrl();
+      res.setHeader('Content-Type', 'application/jrd+json');
+      return res.json({
+        subject: `acct:${INSTANCE_ACTOR_USERNAME}@${config.INSTANCE_DOMAIN}`,
+        aliases: [actorUrl],
+        links: [
+          {
+            rel: 'self',
+            type: 'application/activity+json',
+            href: actorUrl,
+            properties: { 'https://www.w3.org/ns/activitystreams#type': 'Application' },
+          },
+        ],
+      });
+    }
+
     // Usernames are [a-zA-Z0-9_], slugs [a-z0-9_-]. Anything else cannot
     // match and must not reach ILIKE, where `%` and `*` are wildcards.
     if (!/^[a-zA-Z0-9_-]+$/.test(username)) {
@@ -60,6 +81,7 @@ router.get(
         .select('username')
         .ilike('username', pattern)
         .eq('is_local', true)
+        .is('deleted_at', null)
         .maybeSingle(),
       // Only public, federation-enabled local servers are discoverable by
       // handle. Private servers stay invite-only (reached by Group-actor URL
@@ -75,6 +97,9 @@ router.get(
     ]);
 
     if (!user && !server) {
+      if (await deletedActorByUsername(username)) {
+        return res.status(410).json({ error: 'Account deleted' });
+      }
       return res.status(404).json({ error: 'Account not found' });
     }
 

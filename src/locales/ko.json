@@ -387,6 +387,7 @@
     "copyID": "메시지 ID 복사",
     "noMessagesHere": "여기에는 메시지가 없습니다. 무언가 입력해보세요!",
     "loadingOlder": "이전 메시지 로딩 중...",
+    "newMessagesBelow": "새 메시지 {count}개",
     "conversationBeginning": "대화의 시작입니다",
     "conversationBeginningSubtitle": "채팅을 시작하고 기억에 남게 만드세요!",
     "jumpInConversation": "대화로 이동",

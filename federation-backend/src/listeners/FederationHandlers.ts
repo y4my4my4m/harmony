@@ -209,12 +209,28 @@ export function createUndoFollowActivity(follower: any, following: any, followRe
 }
 
 /**
- * Create an Undo Like activity (remove reaction)
+ * Create an Undo Like activity (remove reaction).
+ *
+ * `like` is the Like being undone, as createLikeActivity built it: same id, same
+ * `_misskey_reaction` and tag, so a receiver holding several reactions from one actor
+ * removes the one named. Without it the Undo carries a bare Like under a fresh id.
  */
-export function createUndoLikeActivity(user: any, objectUrl: string): any {
+export function createUndoLikeActivity(user: any, objectUrl: string, like?: any): any {
   const domain = config.INSTANCE_DOMAIN;
   const userUrl = `https://${domain}/users/${user.username}`;
-  
+
+  if (like) {
+    // The embedded Like keeps no @context of its own and no per-delivery audience.
+    const { '@context': context, to: _to, ...embedded } = like;
+    return {
+      '@context': context,
+      id: `${like.id}/undo`,
+      type: 'Undo',
+      actor: userUrl,
+      object: embedded,
+    };
+  }
+
   const likeActivity = {
     '@context': 'https://www.w3.org/ns/activitystreams',
     id: `${userUrl}/likes/${Date.now()}`,
@@ -313,39 +329,6 @@ export function createUndoBlockActivity(blocker: any, blocked: any): any {
     type: 'Undo',
     actor: blockerUrl,
     object: blockActivity,
-  };
-}
-
-/**
- * Create a Flag activity (report user/post to remote instance)
- */
-export function createFlagActivity(
-  reporter: any, 
-  reportedUser: any, 
-  reportedPost: any | null,
-  reason: string
-): any {
-  const domain = config.INSTANCE_DOMAIN;
-  const reporterUrl = `https://${domain}/users/${reporter.username}`;
-  
-  const objects: string[] = [];
-  
-  // Always include the user
-  const userUrl = reportedUser.federated_id || `https://${reportedUser.domain}/users/${reportedUser.username}`;
-  objects.push(userUrl);
-  
-  // Include the post if specified
-  if (reportedPost?.ap_id) {
-    objects.push(reportedPost.ap_id);
-  }
-  
-  return {
-    '@context': 'https://www.w3.org/ns/activitystreams',
-    id: `${reporterUrl}/flags/${Date.now()}`,
-    type: 'Flag',
-    actor: reporterUrl,
-    object: objects,
-    content: reason,
   };
 }
 

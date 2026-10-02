@@ -432,13 +432,13 @@ describe('toActivityPub converters', () => {
   })
 
   describe('createLikeActivity', () => {
-    it('creates basic Like with default heart', () => {
+    it('creates a bare Like for a favourite', () => {
       const user = { username: 'alice' }
       const activity = createLikeActivity(user, 'https://mastodon.social/posts/1')
       expect(activity.type).toBe('Like')
       expect(activity.object).toBe('https://mastodon.social/posts/1')
-      expect(activity.content).toBe('❤')
-      expect(activity._misskey_reaction).toBe('❤')
+      expect(activity).not.toHaveProperty('content')
+      expect(activity).not.toHaveProperty('_misskey_reaction')
     })
 
     it('includes Misskey-style emoji reaction', () => {

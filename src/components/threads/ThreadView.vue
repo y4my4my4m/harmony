@@ -255,6 +255,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { supabase } from '@/supabase'
+import { isModerationRejectionCode } from '@/services/AutoModService'
 import { threadService } from '@/services/ThreadService'
 import { useUserData } from '@/composables/useUserData'
 import { useEncryptionFallbackPrompt } from '@/composables/useEncryptionFallbackPrompt'
@@ -323,7 +324,13 @@ const toast = useToast()
 
 // Encryption failures are reported by the send wrapper (setup or unlock prompt).
 const notifySendFailure = (error: unknown) => {
-  if (!isChannelEncryptionError(error)) toast.error(t('chat.threadReplyFailed'))
+  if (isChannelEncryptionError(error)) return
+  const e = error as { code?: string; message?: string } | null
+  if (isModerationRejectionCode(e?.code) && e?.message) {
+    toast.error(e.message)
+    return
+  }
+  toast.error(t('chat.threadReplyFailed'))
 }
 const { t } = useI18n()
 const themeStore = useThemeStore()

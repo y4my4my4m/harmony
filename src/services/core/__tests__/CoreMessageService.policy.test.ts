@@ -65,7 +65,8 @@ vi.mock('@/services/encryption/MegolmMessageEncryptionService', () => ({
 import { CoreMessageService } from '@/services/core/CoreMessageService'
 
 // Tiny chainable mock for supabase.from(...).select(...).eq(...).maybeSingle()
-// and supabase.from('messages').insert(...).select('*').single().
+// and supabase.from('messages').insert(...).select('*'), awaited as an array
+// (channel sends) or through .single() (DMs).
 function setupSupabase({
   channelEncrypted,
   rpcError,
@@ -73,6 +74,8 @@ function setupSupabase({
   maxMediaConfig,
   insertedMessage,
   insertError,
+  insertDropped,
+  blockNotice,
 }: {
   channelEncrypted?: boolean
   rpcError?: boolean
@@ -80,10 +83,14 @@ function setupSupabase({
   maxMediaConfig?: number
   insertedMessage?: any
   insertError?: { message: string }
+  /** Channel insert returns no row, as when AutoMod drops it. */
+  insertDropped?: boolean
+  blockNotice?: any
 } = {}) {
   const insertedRows: any[] = []
 
   ;(supabase.rpc as any).mockImplementation((fn: string, args: any) => {
+    if (fn === 'get_automod_block_notice') return Promise.resolve({ data: blockNotice ?? null, error: null })
     if (fn !== 'effective_channel_encryption') throw new Error(`Unhandled rpc in test mock: ${fn}`)
     if (rpcError) return Promise.resolve({ data: null, error: { message: 'rpc down' } })
     return Promise.resolve({
@@ -147,11 +154,15 @@ function setupSupabase({
       return {
         insert: (row: any) => {
           insertedRows.push(row)
+          const one = insertedMessage ?? { id: 'msg-1', ...row }
           return {
             select: () => ({
               single: () => Promise.resolve(insertError
                 ? { data: null, error: insertError }
-                : { data: insertedMessage ?? { id: 'msg-1', ...row }, error: null }),
+                : { data: one, error: null }),
+              then: (resolve: any) => resolve(insertError
+                ? { data: null, error: insertError }
+                : { data: insertDropped ? [] : [one], error: null }),
             }),
           }
         },
@@ -288,6 +299,30 @@ describe('CoreMessageService - encryption policy (fail-closed by default)', () =
         service.sendChannelMessage(SERVER_ID, CHANNEL_ID, [{ type: 'text', text: 'hi' }] as any),
       ).rejects.toMatchObject({ code: 'ENCRYPTION_REQUIRED', reason: 'changed' })
     })
+
+    it('reports a row AutoMod dropped with the server\'s reason', async () => {
+      setupSupabase({
+        channelEncrypted: false,
+        insertDropped: true,
+        blockNotice: { rule_type: 'keyword', rule_name: 'Words', event_type: 'message', message: 'Keep it clean.', timeout_until: null },
+      })
+
+      await expect(
+        service.sendChannelMessage(SERVER_ID, CHANNEL_ID, [{ type: 'text', text: 'bad' }] as any),
+      ).rejects.toMatchObject({ code: 'AUTOMOD_BLOCKED', message: 'Keep it clean.' })
+      expect(supabase.rpc).toHaveBeenCalledWith('get_automod_block_notice', { p_channel_id: CHANNEL_ID })
+    })
+
+    it('reports a member timeout raised by the database', async () => {
+      setupSupabase({
+        channelEncrypted: false,
+        insertError: { message: 'MEMBER_TIMED_OUT:1790000000' },
+      })
+
+      await expect(
+        service.sendChannelMessage(SERVER_ID, CHANNEL_ID, [{ type: 'text', text: 'hi' }] as any),
+      ).rejects.toMatchObject({ code: 'MEMBER_TIMED_OUT' })
+    })
   })
 
   describe('sendDMMessage', () => {
@@ -339,6 +374,42 @@ describe('CoreMessageService - encryption policy (fail-closed by default)', () =
 
       expect(insertedRows[0].encrypted).toBe(false)
       expect(insertedRows[0].metadata?.plaintext_override?.reason).toBe('dm_encryption_locked')
+    })
+
+    it('reports a conversation whose recipient deleted their account', async () => {
+      setupSupabase({
+        insertError: { message: 'RECIPIENT_DELETED: the other participant deleted their account' },
+      })
+
+      await expect(
+        service.sendDMMessage(CONVERSATION_ID, [{ type: 'text', text: 'hello?' }] as any),
+      ).rejects.toMatchObject({ code: 'RECIPIENT_DELETED' })
+    })
+  })
+
+  // System notices are written by the database; the client names the event only.
+  describe('notices', () => {
+    it('asks the database for the thread notice', async () => {
+      ;(supabase.rpc as any).mockResolvedValue({ data: 'notice-id', error: null })
+
+      expect(await service.postThreadCreatedNotice('thread-1')).toEqual({ error: null })
+      expect(supabase.rpc).toHaveBeenCalledWith('post_thread_created_notice', { p_thread_id: 'thread-1' })
+      expect(supabase.from).not.toHaveBeenCalled()
+    })
+
+    it('asks the database for group notices', async () => {
+      ;(supabase.rpc as any).mockResolvedValue({ data: 'notice-id', error: null })
+
+      await service.postGroupConversationNotice(CONVERSATION_ID)
+      await service.postGroupConversationNotice(CONVERSATION_ID, ['u1', 'u2'])
+
+      expect(supabase.rpc).toHaveBeenNthCalledWith(1, 'post_group_conversation_notice', {
+        p_conversation_id: CONVERSATION_ID, p_added_user_ids: null,
+      })
+      expect(supabase.rpc).toHaveBeenNthCalledWith(2, 'post_group_conversation_notice', {
+        p_conversation_id: CONVERSATION_ID, p_added_user_ids: ['u1', 'u2'],
+      })
+      expect(supabase.from).not.toHaveBeenCalled()
     })
   })
 })

@@ -387,6 +387,7 @@
     "copyID": "メッセージIDをコピー",
     "noMessagesHere": "ここにはメッセージがありません。何か入力してください！",
     "loadingOlder": "古いメッセージを読み込み中...",
+    "newMessagesBelow": "{count} 件の新しいメッセージ",
     "conversationBeginning": "これは会話の始まりです",
     "conversationBeginningSubtitle": "チャットを始めて、思い出に残るものにしましょう！",
     "jumpInConversation": "会話にジャンプ",

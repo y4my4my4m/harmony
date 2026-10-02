@@ -106,7 +106,10 @@
   --z-modal: 1050;
   --z-popover: 1060;
   --z-tooltip: 1070;
-  --z-toast: 1080;
+  /* Full-screen tier. Component literals occupy 9997-10500 (call UI, voice
+     panels, overlay modals); both layers below sit above that band. */
+  --z-gate: 10900;   /* blocking first-run surfaces: the instance picker */
+  --z-toast: 11000;  /* toasts, readable over every surface including gates */
   
   /* Transitions */
   --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
@@ -602,6 +605,21 @@ strong {
 .min-h-0 { min-height: 0; }
 .flex-1 { flex: 1; }
 .flex-none { flex: none; }
+
+/* Social feed column: 600 px, centred, ruled on both sides above the mobile breakpoint. */
+.feed-column {
+  width: 100%;
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+@media (min-width: 769px) {
+  .feed-column {
+    border-left: 1px solid var(--border-color);
+    border-right: 1px solid var(--border-color);
+  }
+}
 
 /* === SPACING UTILITIES === */
 .p-0 { padding: var(--space-0); }
@@ -1208,6 +1226,7 @@ div.loading:has(> .harmony-spinner) {
    grey, so light themes keep them opaque. */
 :root[data-theme-type="light"]:not([data-disable-blur="true"]) :is(
   .modal-container,
+  .pinned-messages-drawer,
   .public-servers-modal,
   .create-server-modal,
   .threads-modal,
@@ -1219,6 +1238,11 @@ div.loading:has(> .harmony-spinner) {
   background: var(--background-floating);
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
+}
+
+/* The library ships the container at 9999, under the full-screen tier. */
+:root .Vue-Toastification__container {
+  z-index: var(--z-toast);
 }
 
 /* Toasts: the library's solid status fills and white text are replaced by the

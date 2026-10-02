@@ -300,13 +300,11 @@ SELECT throws_ok(
     $q$INSERT INTO public.messages (channel_id, user_id, content, is_system, metadata)
        VALUES ('e3930000-0000-0000-0000-000000000001', 'e3910000-0000-0000-0000-0000000000a3',
                '[{"type":"text","text":"not a real announcement"}]', true, '{"type":"member_join"}')$q$,
-    '23514', NULL, 'a client-inserted system message with arbitrary content is rejected');
+    '42501', NULL, 'a client-inserted system message is rejected');
 SELECT lives_ok(
-    $q$INSERT INTO public.messages (channel_id, user_id, content, is_system, metadata)
-       VALUES ('e3930000-0000-0000-0000-000000000001', 'e3910000-0000-0000-0000-0000000000a3',
-               '[{"type":"text","text":"started a thread"}]', true,
-               '{"type":"thread_created","thread_id":"t","thread_name":"n"}')$q$,
-    'the client thread announcement passes');
+    $q$SELECT public.post_thread_created_notice(
+           public.create_thread('e3950000-0000-0000-0000-000000000001', 'Encrypted thread'))$q$,
+    'the thread announcement posts through post_thread_created_notice');
 SELECT throws_ok(
     $q$UPDATE public.messages SET content = '[{"type":"text","text":"edited plaintext"}]'
         WHERE id = 'e3950000-0000-0000-0000-000000000001'$q$,

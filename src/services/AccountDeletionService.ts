@@ -1,19 +1,24 @@
 /**
  * Self-service account deletion.
  *
- * The server-side `delete_my_account` RPC is the security boundary: it
- * enforces the MFA step-up (aal2) itself and refuses while the caller still
- * owns servers with other members. This service handles the client side of
- * the step-up (TOTP challenge/verify to elevate the session to aal2) and
- * maps RPC outcomes to typed results for the settings UI.
+ * public.delete_my_account(p_password) is the security boundary (migration
+ * 20261005400001_account_security.sql): it checks the password (or a sign-in within ten
+ * minutes for accounts without one), requires a TOTP verify within ten minutes for 2FA
+ * accounts, refuses while the caller owns servers with other members, tombstones the
+ * profile and queues the ActivityPub Delete. This service runs the client side of the
+ * step-up and maps outcomes to typed results.
  */
 
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
+import { accountSecurityService, securityErrorMessage } from '@/services/AccountSecurityService'
 
 export type DeleteAccountResult =
   | { status: 'success' }
   | { status: 'mfa_required' }
+  | { status: 'password_required' }
+  | { status: 'invalid_password' }
+  | { status: 'reauthentication_required' }
   | { status: 'transfer_ownership_required'; servers: string[] }
   | { status: 'error'; message: string }
 
@@ -29,60 +34,44 @@ class AccountDeletionService {
     }
   }
 
-  /**
-   * Elevate the current session to aal2 with a TOTP code.
-   * Returns null on success, or an error message.
-   */
+  /** Verifies a TOTP code now; returns null on success or an error message. */
   async verifyMfaCode(code: string): Promise<string | null> {
     try {
-      const { data: factorData, error: listError } = await supabase.auth.mfa.listFactors()
-      if (listError) return listError.message
-
-      const factor = (factorData?.totp || []).find(f => f.status === 'verified')
-      if (!factor) return 'No verified authenticator found'
-
-      const { data: challenge, error: challengeError } = await supabase.auth.mfa.challenge({
-        factorId: factor.id,
-      })
-      if (challengeError || !challenge) return challengeError?.message || 'Failed to start verification'
-
-      const { error: verifyError } = await supabase.auth.mfa.verify({
-        factorId: factor.id,
-        challengeId: challenge.id,
-        code,
-      })
-      if (verifyError) return 'Invalid verification code'
-
+      await accountSecurityService.stepUpWithTotp(code)
       return null
-    } catch (err: any) {
-      return err?.message || 'Verification failed'
+    } catch (err) {
+      return securityErrorMessage(err, 'Verification failed')
     }
   }
 
   /**
-   * Delete the account. Call verifyMfaCode() first when isMfaEnabled().
-   * On success the auth user no longer exists - callers must sign out and
-   * clear all local state immediately.
+   * Deletes the account. Call verifyMfaCode() first when isMfaEnabled(). On success the
+   * auth user no longer exists; callers sign out and clear local state.
    */
-  async deleteAccount(): Promise<DeleteAccountResult> {
+  async deleteAccount(password?: string): Promise<DeleteAccountResult> {
     try {
-      const { data, error } = await supabase.rpc('delete_my_account')
-
+      const { data, error } = await supabase.rpc('delete_my_account', { p_password: password ?? null })
       if (error) {
         debug.error('delete_my_account failed:', error)
-        return { status: 'error', message: error.message }
+        return { status: 'error', message: securityErrorMessage(error, 'Deletion failed') }
       }
 
       const result = data as { success?: boolean; error?: string; servers?: string[] } | null
       if (result?.success) return { status: 'success' }
-      if (result?.error === 'mfa_required') return { status: 'mfa_required' }
-      if (result?.error === 'transfer_ownership_required') {
-        return { status: 'transfer_ownership_required', servers: result.servers || [] }
+      switch (result?.error) {
+        case 'mfa_required':
+        case 'password_required':
+        case 'invalid_password':
+        case 'reauthentication_required':
+          return { status: result.error }
+        case 'transfer_ownership_required':
+          return { status: 'transfer_ownership_required', servers: result.servers || [] }
+        default:
+          return { status: 'error', message: result?.error || 'Unknown error' }
       }
-      return { status: 'error', message: result?.error || 'Unknown error' }
-    } catch (err: any) {
+    } catch (err) {
       debug.error('delete_my_account threw:', err)
-      return { status: 'error', message: err?.message || 'Deletion failed' }
+      return { status: 'error', message: securityErrorMessage(err, 'Deletion failed') }
     }
   }
 }

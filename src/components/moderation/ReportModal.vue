@@ -71,6 +71,17 @@
             ></textarea>
             <span class="char-count">{{ comment.length }}/1000</span>
           </div>
+
+          <!-- Forward to the remote instance -->
+          <label v-if="remoteDomain" class="forward-option">
+            <input type="checkbox" v-model="forward" />
+            <span>
+              Also send an anonymous copy of this report to {{ remoteDomain }}
+              <span class="forward-hint">Their moderators see the content and your comment, not who you are.</span>
+            </span>
+          </label>
+
+          <p v-if="errorMessage" class="report-error" role="alert">{{ errorMessage }}</p>
         </div>
 
         <div class="modal-footer">
@@ -107,6 +118,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { reportService, REPORT_REASONS, type ReportReason } from '@/services/ReportService'
+import { remoteDomainOf } from '@/utils/reportModeration'
 import Avatar from '@/components/common/Avatar.vue'
 import Icon from '@/components/common/Icon.vue'
 import DisplayName from '@/components/DisplayName.vue'
@@ -123,6 +135,8 @@ interface Props {
     username: string
     display_name?: string
     avatar_url?: string
+    domain?: string | null
+    is_local?: boolean | null
   }
 }
 
@@ -135,9 +149,14 @@ const emit = defineEmits<{
 
 const selectedReason = ref<ReportReason | ''>('')
 const comment = ref('')
+const forward = ref(false)
 const isSubmitting = ref(false)
 const submitted = ref(false)
+const errorMessage = ref('')
 const reportReasons = REPORT_REASONS
+
+const remoteDomain = computed(() =>
+  remoteDomainOf(props.targetUser, import.meta.env.VITE_DOMAIN as string))
 
 const reportTypeLabel = computed(() => {
   switch (props.reportType) {
@@ -153,22 +172,26 @@ const submitReport = async () => {
   if (!selectedReason.value || isSubmitting.value) return
 
   isSubmitting.value = true
+  errorMessage.value = ''
   try {
-    const report = await reportService.createReport({
+    const result = await reportService.createReport({
       reported_user_id: props.targetUserId,
       reported_post_id: props.targetPostId,
       reported_message_id: props.targetMessageId,
       reported_server_id: props.targetServerId,
       report_type: props.reportType,
       reason: selectedReason.value,
-      comment: comment.value || undefined
+      comment: comment.value || undefined,
+      forward: !!remoteDomain.value && forward.value,
+      // The server stores this only when the message is encrypted.
+      evidence_text: props.reportType === 'message' ? props.targetMessagePreview : undefined,
     })
 
-    if (report) {
+    if (result.ok) {
       submitted.value = true
+    } else {
+      errorMessage.value = result.message
     }
-  } catch {
-    // error handled by service
   } finally {
     isSubmitting.value = false
   }
@@ -370,6 +393,34 @@ textarea {
 textarea:focus {
   outline: none;
   border-color: var(--harmony-primary);
+}
+
+.forward-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 14px;
+  color: var(--text-primary);
+  cursor: pointer;
+  margin-bottom: 12px;
+}
+
+.forward-option input[type="checkbox"] {
+  margin-top: 3px;
+  accent-color: var(--harmony-primary);
+}
+
+.forward-hint {
+  display: block;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.report-error {
+  color: var(--error);
+  font-size: 13px;
+  margin: 0;
 }
 
 .char-count {

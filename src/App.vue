@@ -56,10 +56,9 @@
   <!-- Persistent Voice Connection (only when authenticated) -->
   <PersistentVoiceConnection v-if="!isAuthRoute" />
 
-  <!-- Native (Linux X11) screenshare source picker -->
-  
-  <!-- PWA Components -->
-  <PWAInstallBanner />
+  <!-- PWA Components. The install prompt waits for sign-in; on auth routes it
+       covers the form on small screens. -->
+  <PWAInstallBanner v-if="!isAuthRoute" />
   <PWAUpdateNotification />
 
   <!-- Native app updates: in-app updater on desktop, release notice on Android -->

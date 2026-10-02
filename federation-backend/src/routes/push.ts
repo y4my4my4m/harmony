@@ -2,12 +2,14 @@
  * Push target routes: Web Push subscriptions (browsers, and the Android app through
  * UnifiedPush) and FCM tokens (the Android app through Firebase). Every route except
  * vapid-key, status and resubscribe acts for the local profile behind the bearer token.
+ * Registrations record the token's auth session; deleting that session removes them.
  */
 
 import { Router, Request, Response } from 'express';
 import { PushNotificationService } from '../services/PushNotificationService.js';
 import { getSupabaseClient } from '../config/supabase.js';
 import { localProfileIdFromBearer } from '../middleware/auth.js';
+import { bearerToken, sessionIdFromToken } from '../utils/sessionAssurance.js';
 import { logger } from '../utils/logger.js';
 import { isValidFcmToken } from '../services/pushPolicy.js';
 
@@ -78,7 +80,8 @@ router.post('/subscribe', async (req: Request, res: Response): Promise<void> => 
       req.headers['user-agent'],
       deviceName,
       previousEndpoint,
-      transport
+      transport,
+      sessionIdFromToken(bearerToken(req.headers.authorization))
     );
 
     if (!result.success) {
@@ -180,6 +183,7 @@ router.post('/fcm/register', async (req: Request, res: Response): Promise<void> 
       previousToken,
       userAgent: optionalString(req.headers['user-agent'], 512),
       deviceName: optionalString(req.body?.deviceName, 120),
+      sessionId: sessionIdFromToken(bearerToken(req.headers.authorization)),
     });
     if (!result.success) {
       res.status(result.error === 'Invalid token' ? 400 : 500).json({ error: result.error });
@@ -231,7 +235,7 @@ router.get('/subscriptions', async (req: Request, res: Response): Promise<void> 
 
     const { data: subscriptions, error } = await supabaseAdmin
       .from('push_subscriptions')
-      .select('id, endpoint, transport, device_name, user_agent, created_at, last_successful_push, failure_count')
+      .select('id, endpoint, transport, device_name, user_agent, created_at, last_successful_push, failure_count, session_id')
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
 

@@ -221,6 +221,11 @@
   color: var(--error);
 }
 
+.badge.limited {
+  background: color-mix(in srgb, var(--warning) 20%, transparent);
+  color: var(--warning);
+}
+
 
 
 .badge.inactive {
@@ -355,20 +360,6 @@
   border-color: color-mix(in srgb, var(--error) 50%, transparent);
   color: var(--error);
 }
-
-
-
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
-  padding: 40px;
-  text-align: center;
-  color: var(--text-secondary);
-}
-
 
 
 .search-bar .cyber-input {

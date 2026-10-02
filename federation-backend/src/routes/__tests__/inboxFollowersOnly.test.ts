@@ -16,7 +16,8 @@ vi.mock('../../middleware/errorHandler.js', () => ({
 }))
 vi.mock('../../middleware/rateLimit.js', () => ({
   inboxLimiter: (_req: any, _res: any, next: any) => next(),
-  instanceInboxLimiter: (_req: any, _res: any, next: any) => next(),
+  instanceInboxLimit: async () => true,
+  signerInstanceKey: () => 'test',
 }))
 vi.mock('../../services/BlockedInstancesCache.js', () => ({
   BlockedInstancesCache: { isBlocked: () => false },

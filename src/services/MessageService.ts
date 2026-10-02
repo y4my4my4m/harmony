@@ -62,7 +62,6 @@ export class MessageService {
   }
 
   /**
-   * @param options.isSystem - stores as a system message; not federated.
    * @param options.allowPlaintextFallback - user-confirmed opt-in to send
    *   plaintext into a conversation marked encrypted when encryption is
    *   unavailable. Default is fail-closed.
@@ -71,7 +70,7 @@ export class MessageService {
     conversationId: string,
     content: MessagePart[],
     replyTo?: string,
-    options?: { isSystem?: boolean; allowPlaintextFallback?: boolean },
+    options?: { allowPlaintextFallback?: boolean },
     extraMetadata?: Record<string, any>
   ): Promise<Message> {
     try {

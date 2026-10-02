@@ -88,3 +88,55 @@ EXCEPTION WHEN insufficient_privilege OR undefined_table OR undefined_object THE
   RAISE NOTICE 'realtime stub skipped: %', SQLERRM;
 END
 $compat$;
+
+-- auth.sessions and auth.mfa_factors are created by GoTrue's own migrations at service
+-- start; the image's auth schema stops at 20180125194653. Column sets and enum labels match
+-- GoTrue v2.182.1 as deployed. Skipped where GoTrue already ran.
+DO $compat$
+BEGIN
+  IF to_regtype('auth.aal_level') IS NULL THEN
+    CREATE TYPE auth.aal_level AS ENUM ('aal1', 'aal2', 'aal3');
+  END IF;
+  IF to_regtype('auth.factor_type') IS NULL THEN
+    CREATE TYPE auth.factor_type AS ENUM ('totp', 'webauthn', 'phone');
+  END IF;
+  IF to_regtype('auth.factor_status') IS NULL THEN
+    CREATE TYPE auth.factor_status AS ENUM ('unverified', 'verified');
+  END IF;
+
+  IF to_regclass('auth.sessions') IS NULL THEN
+    CREATE TABLE auth.sessions (
+        id uuid PRIMARY KEY,
+        user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+        created_at timestamptz,
+        updated_at timestamptz,
+        factor_id uuid,
+        aal auth.aal_level,
+        not_after timestamptz,
+        refreshed_at timestamp,
+        user_agent text,
+        ip inet,
+        tag text
+    );
+    CREATE INDEX sessions_user_id_idx ON auth.sessions (user_id);
+    ALTER TABLE auth.sessions OWNER TO supabase_auth_admin;
+  END IF;
+
+  IF to_regclass('auth.mfa_factors') IS NULL THEN
+    CREATE TABLE auth.mfa_factors (
+        id uuid PRIMARY KEY,
+        user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+        friendly_name text,
+        factor_type auth.factor_type NOT NULL,
+        status auth.factor_status NOT NULL,
+        created_at timestamptz NOT NULL,
+        updated_at timestamptz NOT NULL,
+        secret text,
+        phone text,
+        last_challenged_at timestamptz
+    );
+    CREATE INDEX mfa_factors_user_id_idx ON auth.mfa_factors (user_id);
+    ALTER TABLE auth.mfa_factors OWNER TO supabase_auth_admin;
+  END IF;
+END
+$compat$;

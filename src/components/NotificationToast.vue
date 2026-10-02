@@ -191,7 +191,7 @@ const getTypeIcon = (type: NotificationType) => {
   position: fixed;
   top: 20px;
   right: 20px;
-  z-index: 10000;
+  z-index: var(--z-toast);
   display: flex;
   flex-direction: column-reverse;
   gap: 12px;

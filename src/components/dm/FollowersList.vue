@@ -20,18 +20,18 @@
     </div>
 
     <!-- Empty State -->
-    <div v-else-if="followingUsers.length === 0" class="empty-state">
-      <div class="empty-illustration">
-        <svg viewBox="0 0 24 24" class="illustration-svg">
-          <path d="M15,14C12.33,14 7,15.33 7,18V20H23V18C23,15.33 17.67,14 15,14M6,10V7H4V10H1V12H4V15H6V12H9V10M15,12A4,4 0 0,0 19,8A4,4 0 0,0 15,4A4,4 0 0,0 11,8A4,4 0 0,0 15,12Z" fill="currentColor"/>
-        </svg>
-      </div>
-      <h4 class="empty-title">{{ $t('activitypub.noFollowingYet') }}</h4>
-      <p class="empty-description">{{ $t('dm.followingEmptyHint') }}</p>
-      <router-link to="/social/trending" class="explore-btn">
-        {{ $t('activitypub.discoverPeople') }}
-      </router-link>
-    </div>
+    <EmptyState
+      v-else-if="followingUsers.length === 0"
+      icon="user-plus"
+      :title="$t('activitypub.noFollowingYet')"
+      :description="$t('dm.followingEmptyHint')"
+    >
+      <template #actions>
+        <router-link to="/social/trending" class="list-empty__button">
+          {{ $t('activitypub.discoverPeople') }}
+        </router-link>
+      </template>
+    </EmptyState>
 
     <!-- Users List -->
     <div v-else class="users-list">
@@ -91,6 +91,7 @@ import { services } from '@/services'
 import type { Profile } from '@/types'
 import Avatar from '../common/Avatar.vue'
 import DisplayName from '../DisplayName.vue'
+import EmptyState from '../common/EmptyState.vue'
 
 // Emits
 const emit = defineEmits<{
@@ -269,61 +270,6 @@ onMounted(() => {
 
 .skeleton-name { width: 45%; }
 .skeleton-handle { width: 65%; }
-
-/* Empty State */
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 48px 24px;
-  text-align: center;
-  flex: 1;
-}
-
-.empty-illustration {
-  margin-bottom: 16px;
-  color: var(--text-secondary);
-  opacity: 0.35;
-}
-
-.illustration-svg {
-  width: 64px;
-  height: 64px;
-}
-
-.empty-title {
-  font-size: 17px;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin: 0 0 8px;
-}
-
-.empty-description {
-  font-size: 14px;
-  color: var(--text-secondary);
-  max-width: 320px;
-  margin: 0 0 24px;
-  line-height: 1.5;
-}
-
-.explore-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 20px;
-  background: var(--harmony-primary);
-  color: var(--text-on-primary);
-  border-radius: 20px;
-  text-decoration: none;
-  font-weight: 600;
-  font-size: 14px;
-  transition: background-color 0.15s ease;
-}
-
-.explore-btn:hover {
-  background: var(--harmony-primary-hover);
-}
 
 /* Users List */
 .users-list {

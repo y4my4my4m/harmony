@@ -198,15 +198,32 @@ DELETE FROM public.posts WHERE id = 'c3000000-0000-0000-0000-0000000000f3';
 SELECT is(pg_temp.rbc('c3000000-0000-0000-0000-0000000000f1'), '0/0',
           'hard-deleting a reblog gives the count back');
 
--- unread_counts ---------------------------------------------------------------
+-- unread counts ---------------------------------------------------------------
 -- Nothing has been marked read yet on the fixture channel and conversation, so
--- unread_messages equals every message the user did not write. The fixture
+-- the unread count equals every message the user did not write. The fixture
 -- messages count toward that: they were inserted before this transaction and
--- fired the same triggers.
+-- fired the same triggers. Counts are get_unread_counts() as the user.
+CREATE OR REPLACE FUNCTION pg_temp.unread_of(p_user uuid, p_channel uuid, p_conversation uuid)
+RETURNS bigint LANGUAGE plpgsql AS $fn$
+DECLARE
+  v_sub text := (SELECT auth_user_id::text FROM public.profiles WHERE id = p_user);
+  v_n bigint;
+BEGIN
+  PERFORM set_config('request.jwt.claim.sub', v_sub, true);
+  PERFORM set_config('request.jwt.claims', json_build_object('sub', v_sub)::text, true);
+  SELECT COALESCE(sum(g.unread_messages), 0) INTO v_n
+    FROM public.get_unread_counts() g
+   WHERE g.channel_id IS NOT DISTINCT FROM p_channel
+     AND g.conversation_id IS NOT DISTINCT FROM p_conversation;
+  PERFORM set_config('request.jwt.claim.sub', '', true);
+  PERFORM set_config('request.jwt.claims', '', true);
+  RETURN v_n;
+END;
+$fn$;
+
 CREATE OR REPLACE FUNCTION pg_temp.uc_channel(p_user uuid) RETURNS text LANGUAGE sql AS $fn$
   SELECT format('%s/%s',
-    (SELECT COALESCE(sum(unread_messages), 0) FROM public.unread_counts
-      WHERE user_id = p_user AND channel_id = '66666666-0000-0000-0000-000000000006'),
+    pg_temp.unread_of(p_user, '66666666-0000-0000-0000-000000000006', NULL),
     (SELECT count(*) FROM public.messages
       WHERE channel_id = '66666666-0000-0000-0000-000000000006'
         AND user_id IS DISTINCT FROM p_user
@@ -216,8 +233,7 @@ $fn$;
 
 CREATE OR REPLACE FUNCTION pg_temp.uc_dm(p_user uuid) RETURNS text LANGUAGE sql AS $fn$
   SELECT format('%s/%s',
-    (SELECT COALESCE(sum(unread_messages), 0) FROM public.unread_counts
-      WHERE user_id = p_user AND conversation_id = '77777777-0000-0000-0000-000000000007'),
+    pg_temp.unread_of(p_user, NULL, '77777777-0000-0000-0000-000000000007'),
     (SELECT count(*) FROM public.messages
       WHERE conversation_id = '77777777-0000-0000-0000-000000000007'
         AND user_id IS DISTINCT FROM p_user
@@ -239,8 +255,7 @@ VALUES ('77777777-0000-0000-0000-000000000007', '11111111-0000-0000-0000-0000000
 SELECT is(pg_temp.uc_dm('22222222-0000-0000-0000-000000000002'), '2/2',
           'a DM raises the unread count of the other participant');
 
--- mark_server_as_read is the only path in the schema that clears a counter, and
--- it resolves the caller from the JWT rather than an argument.
+-- mark_server_as_read resolves the caller from the JWT rather than an argument.
 SELECT tests.authenticate_as('bbbbbbbb-0000-0000-0000-000000000002');
 SELECT public.mark_server_as_read('55555555-0000-0000-0000-000000000005');
 SELECT tests.clear_authentication();

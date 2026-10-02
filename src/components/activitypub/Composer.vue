@@ -1618,9 +1618,10 @@ const vClickOutside = {
     display: none;
   }
 
+  /* 40px touch targets; the option group scrolls when they overflow. */
   .option-button {
-    width: 32px;
-    height: 32px;
+    width: 40px;
+    height: 40px;
     flex-shrink: 0;
   }
 
@@ -1636,13 +1637,19 @@ const vClickOutside = {
   }
 
   .post-button {
+    min-height: 40px;
     padding: 0.45rem 0.8rem;
     flex-shrink: 0;
   }
 
   .cancel-button {
+    min-height: 40px;
     padding: 0.45rem 0.6rem;
     flex-shrink: 0;
+  }
+
+  .visibility-chip {
+    height: 40px;
   }
 }
 </style>

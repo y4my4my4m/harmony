@@ -3,6 +3,13 @@ import { getSupabaseClient } from '../config/supabase.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
+import { SignatureService } from './SignatureService.js';
+import { sameOrigin } from '../utils/apOrigin.js';
+import {
+  authorizeChannelWrite,
+  resolveMessageInChannel,
+  type ChannelWriteKind,
+} from './channelWriteAuthz.js';
 
 const router = Router();
 
@@ -108,12 +115,64 @@ export function activityPubToThread(
 }
 
 /**
- * Handle incoming thread activities from federated servers
+ * Inbound ChatThread activities from the shared inbox and server inboxes.
+ *
+ * `activity.actor` is the verified signer. Create requires attributedTo (when
+ * present) to be the signer and the thread id to be on the signer's host; the
+ * thread's channel, parent message and any existing row are resolved within one
+ * channel, and the write passes authorizeChannelWrite. Update and Delete come
+ * from the thread's creator. Add and Remove (thread membership) name the signer
+ * as subject. `opts.serverId` confines a server inbox to its own channels.
  */
 export async function handleThreadActivity(
   activity: ThreadActivity,
+  opts: { serverId?: string } = {},
 ): Promise<{ success: boolean; error?: string }> {
   const supabase = getSupabaseClient();
+  const actorUrl: string | undefined =
+    typeof activity.actor === 'string' ? activity.actor : (activity.actor as any)?.id;
+  if (!actorUrl) return { success: false, error: 'Missing actor' };
+
+  // The thread's channel, confined to opts.serverId, authorized for `kind`.
+  const authorizeThreadChannel = async (
+    channelId: string,
+    kind: ChannelWriteKind,
+  ): Promise<{ ok: true; serverId: string; userId: string } | { ok: false; error: string }> => {
+    const { data: channel } = await supabase
+      .from('channels')
+      .select('id, server_id')
+      .eq('id', channelId)
+      .maybeSingle();
+    if (!channel) return { ok: false, error: 'Channel not found' };
+    if (opts.serverId && channel.server_id !== opts.serverId) {
+      return { ok: false, error: 'Channel is not in this server' };
+    }
+    const authz = await authorizeChannelWrite(supabase, {
+      actorUrl, serverId: channel.server_id, channelId: channel.id, kind,
+    });
+    if (!authz.ok) return { ok: false, error: authz.reason };
+    return { ok: true, serverId: channel.server_id, userId: authz.userId };
+  };
+
+  // Update and Delete: the thread named by ap_id, written by its creator.
+  const loadOwnedThread = async (
+    threadApId: string | undefined,
+  ): Promise<{ ok: true; id: string } | { ok: false; error: string }> => {
+    if (!threadApId) return { ok: false, error: 'Missing thread id' };
+    const { data: thread } = await supabase
+      .from('threads')
+      .select('id, channel_id, creator:profiles!threads_created_by_fkey(federated_id)')
+      .eq('ap_id', threadApId)
+      .maybeSingle();
+    if (!thread) return { ok: false, error: 'Thread not found' };
+    const creatorUrl = (thread as any).creator?.federated_id as string | null | undefined;
+    if (!creatorUrl || !SignatureService.verifyActorMatch(actorUrl, creatorUrl)) {
+      return { ok: false, error: 'Signer is not the thread creator' };
+    }
+    const authz = await authorizeThreadChannel(thread.channel_id, 'edit');
+    if (!authz.ok) return authz;
+    return { ok: true, id: thread.id };
+  };
 
   try {
     logger.info(`Processing ${activity.type} thread activity: ${activity.id}`);
@@ -125,226 +184,128 @@ export async function handleThreadActivity(
 
         logger.info(`Thread Create: name="${threadObject.name}", context=${threadObject.context}, inReplyTo=${threadObject.inReplyTo}, attributedTo=${threadObject.attributedTo}, harmony:serverId=${harmonyServerId}`);
 
+        if (threadObject.attributedTo && !SignatureService.verifyActorMatch(actorUrl, threadObject.attributedTo)) {
+          logger.warn(`Rejecting thread Create: attributedTo ${threadObject.attributedTo} is not the signer ${actorUrl}`);
+          return { success: false, error: 'attributedTo is not the signer' };
+        }
+        if (!threadObject.id || !sameOrigin(threadObject.id, actorUrl)) {
+          logger.warn(`Rejecting thread Create: ${threadObject.id} is not on the host of ${actorUrl}`);
+          return { success: false, error: 'Thread id is not on the signer host' };
+        }
+
         // --- Resolve channel ---
-        // Try multiple strategies: ap_id match, UUID from URL, server_id scoped lookup,
-        // channel name, and parent message fallback
-        let channel: { id: string; server_id: string } | null = null;
+        // Strategies: ap_id match, UUID from the context URL, harmony:channelId or
+        // channel name within harmony:serverId, the parent message's channel.
+        let channelId: string | null = null;
         const harmonyChannelName = (threadObject as any)['harmony:channelName'];
         const harmonyChannelId = (threadObject as any)['harmony:channelId'];
+        const scopeServerId: string | undefined = opts.serverId ?? harmonyServerId;
 
-        // Strategy 1: exact ap_id match
-        const { data: channelByApId } = await supabase
-          .from('channels')
-          .select('id, server_id')
-          .eq('ap_id', threadObject.context)
-          .maybeSingle();
+        if (typeof threadObject.context === 'string') {
+          let byApIdQuery = supabase.from('channels').select('id').eq('ap_id', threadObject.context);
+          if (opts.serverId) byApIdQuery = byApIdQuery.eq('server_id', opts.serverId);
+          const { data: channelByApId } = await byApIdQuery.maybeSingle();
+          channelId = channelByApId?.id ?? null;
 
-        if (channelByApId) {
-          channel = channelByApId;
-          logger.info(`Channel resolved via ap_id: ${channel.id}`);
-        }
-
-        // Strategy 2: extract UUID from context URL
-        if (!channel) {
-          const channelUuidMatch = threadObject.context?.match(/\/channels\/([a-f0-9-]{36})/i);
-          if (channelUuidMatch) {
-            const { data: channelById } = await supabase
-              .from('channels')
-              .select('id, server_id')
-              .eq('id', channelUuidMatch[1])
-              .maybeSingle();
-            if (channelById) {
-              channel = channelById;
-              logger.info(`Channel resolved via UUID: ${channel.id}`);
-            }
+          const channelUuid = threadObject.context.match(/\/channels\/([a-f0-9-]{36})/i)?.[1];
+          if (!channelId && channelUuid) {
+            let byIdQuery = supabase.from('channels').select('id').eq('id', channelUuid);
+            if (opts.serverId) byIdQuery = byIdQuery.eq('server_id', opts.serverId);
+            const { data: channelById } = await byIdQuery.maybeSingle();
+            channelId = channelById?.id ?? null;
           }
         }
 
-        // Strategy 3: if we have harmony:serverId, look up channel by server_id scope + UUID
-        if (!channel && harmonyServerId) {
-          const channelUuidMatch = threadObject.context?.match(/\/channels\/([a-f0-9-]{36})/i);
-          if (channelUuidMatch) {
-            const { data: channelByServerScope } = await supabase
-              .from('channels')
-              .select('id, server_id')
-              .eq('server_id', harmonyServerId)
-              .eq('id', channelUuidMatch[1])
-              .maybeSingle();
-            if (channelByServerScope) {
-              channel = channelByServerScope;
-              logger.info(`Channel resolved via server-scoped UUID: ${channel.id}`);
-            }
-          }
-        }
-
-        // Strategy 4: find channel by harmony:channelId within the server
-        if (!channel && harmonyChannelId && harmonyServerId) {
+        if (!channelId && scopeServerId && harmonyChannelId) {
           const { data: channelByHarmonyId } = await supabase
             .from('channels')
-            .select('id, server_id')
+            .select('id')
             .eq('id', harmonyChannelId)
-            .eq('server_id', harmonyServerId)
+            .eq('server_id', scopeServerId)
             .maybeSingle();
-          if (channelByHarmonyId) {
-            channel = channelByHarmonyId;
-            logger.info(`Channel resolved via harmony:channelId: ${channel.id}`);
-          }
+          channelId = channelByHarmonyId?.id ?? null;
         }
 
-        // Strategy 5: find channel by name within the server
-        if (!channel && harmonyChannelName && harmonyServerId) {
+        if (!channelId && scopeServerId && harmonyChannelName) {
           const { data: channelByName } = await supabase
             .from('channels')
-            .select('id, server_id')
+            .select('id')
             .eq('name', harmonyChannelName)
-            .eq('server_id', harmonyServerId)
+            .eq('server_id', scopeServerId)
             .maybeSingle();
-          if (channelByName) {
-            channel = channelByName;
-            logger.info(`Channel resolved via channel name "${harmonyChannelName}": ${channel.id}`);
-          }
+          channelId = channelByName?.id ?? null;
         }
 
-        // Strategy 6: find parent message first, use its channel_id
-        if (!channel && threadObject.inReplyTo) {
+        if (!channelId && typeof threadObject.inReplyTo === 'string') {
           const { data: parentByApId } = await supabase
             .from('messages')
-            .select('id, channel_id')
+            .select('channel_id')
             .eq('metadata->>ap_id', threadObject.inReplyTo)
+            .not('channel_id', 'is', null)
             .maybeSingle();
-          if (parentByApId) {
-            channel = { id: parentByApId.channel_id, server_id: harmonyServerId || '' };
-            logger.info(`Channel resolved via parent message: ${channel.id}`);
-          } else {
-            const msgUuidMatch = threadObject.inReplyTo.match(/\/messages\/([a-f0-9-]{36})/i);
-            if (msgUuidMatch) {
-              const { data: parentById } = await supabase
-                .from('messages')
-                .select('id, channel_id')
-                .eq('id', msgUuidMatch[1])
-                .maybeSingle();
-              if (parentById) {
-                channel = { id: parentById.channel_id, server_id: harmonyServerId || '' };
-                logger.info(`Channel resolved via parent message UUID: ${channel.id}`);
-              }
-            }
+          channelId = parentByApId?.channel_id ?? null;
+          const msgUuid = threadObject.inReplyTo.match(/\/messages\/([a-f0-9-]{36})/i)?.[1];
+          if (!channelId && msgUuid) {
+            const { data: parentById } = await supabase
+              .from('messages')
+              .select('channel_id')
+              .eq('id', msgUuid)
+              .not('channel_id', 'is', null)
+              .maybeSingle();
+            channelId = parentById?.channel_id ?? null;
           }
         }
 
-        if (!channel) {
+        if (!channelId) {
           logger.warn(`Channel not found for thread. context=${threadObject.context}, harmony:serverId=${harmonyServerId}, harmony:channelName=${harmonyChannelName}, inReplyTo=${threadObject.inReplyTo}`);
           return { success: false, error: 'Channel not found' };
         }
 
-        // --- Resolve parent message ---
-        let parentMessageId: string | null = null;
-
-        // Strategy 1: metadata.ap_id match
-        const { data: parentByApId } = await supabase
-          .from('messages')
-          .select('id')
-          .eq('metadata->>ap_id', threadObject.inReplyTo)
-          .maybeSingle();
-
-        if (parentByApId) {
-          parentMessageId = parentByApId.id;
-          logger.info(`Parent message resolved via ap_id: ${parentMessageId}`);
-        }
-
-        // Strategy 2: UUID from URL
+        // --- Resolve parent message, in the same channel ---
+        const parentMessageId = typeof threadObject.inReplyTo === 'string'
+          ? await resolveMessageInChannel(supabase, threadObject.inReplyTo, channelId)
+          : null;
         if (!parentMessageId) {
-          const msgUuidMatch = threadObject.inReplyTo?.match(/\/messages\/([a-f0-9-]{36})/i);
-          if (msgUuidMatch) {
-            const { data: parentById } = await supabase
-              .from('messages')
-              .select('id')
-              .eq('id', msgUuidMatch[1])
-              .maybeSingle();
-            if (parentById) {
-              parentMessageId = parentById.id;
-              logger.info(`Parent message resolved via UUID: ${parentMessageId}`);
-            }
-          }
-        }
-
-        // Strategy 3: look in the resolved channel for the message by UUID
-        if (!parentMessageId) {
-          const msgUuidMatch = threadObject.inReplyTo?.match(/\/messages\/([a-f0-9-]{36})/i);
-          if (msgUuidMatch) {
-            const { data: parentInChannel } = await supabase
-              .from('messages')
-              .select('id')
-              .eq('id', msgUuidMatch[1])
-              .eq('channel_id', channel.id)
-              .maybeSingle();
-            if (parentInChannel) {
-              parentMessageId = parentInChannel.id;
-              logger.info(`Parent message resolved via channel-scoped UUID: ${parentMessageId}`);
-            }
-          }
-        }
-
-        if (!parentMessageId) {
-          logger.warn(`Parent message not found. inReplyTo=${threadObject.inReplyTo}, channel=${channel.id}`);
+          logger.warn(`Parent message not found in channel ${channelId}. inReplyTo=${threadObject.inReplyTo}`);
           return { success: false, error: 'Parent message not found' };
         }
 
-        // --- Resolve creator ---
-        let creatorId: string | null = null;
-
-        const { data: creatorByFedId } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('federated_id', threadObject.attributedTo)
-          .maybeSingle();
-
-        if (creatorByFedId) {
-          creatorId = creatorByFedId.id;
-          logger.info(`Creator resolved via federated_id: ${creatorId}`);
-        } else {
-          const usernameMatch = threadObject.attributedTo?.match(/\/users\/([^/]+)$/i);
-          if (usernameMatch) {
-            const { data: creatorByUsername } = await supabase
-              .from('profiles')
-              .select('id')
-              .eq('username', usernameMatch[1])
-              .maybeSingle();
-            if (creatorByUsername) {
-              creatorId = creatorByUsername.id;
-              logger.info(`Creator resolved via username: ${creatorId}`);
-            }
-          }
-        }
-
-        if (!creatorId) {
-          logger.warn(`Creator not found. attributedTo=${threadObject.attributedTo}`);
-          return { success: false, error: 'Creator not found' };
-        }
-
-        // --- Check for existing thread (idempotent) ---
+        // --- Existing thread (idempotent). A row found by UUID must carry this ap_id:
+        // a local thread or another instance's thread is not the signer's to rewrite.
         const threadApId = threadObject.id;
-        let existingThread: { id: string } | null = null;
-
-        if (threadApId) {
-          const { data: byApId } = await supabase
-            .from('threads')
-            .select('id')
-            .eq('ap_id', threadApId)
-            .maybeSingle();
-          existingThread = byApId;
-        }
-
+        let existingThread: { id: string; channel_id: string } | null = null;
+        const { data: byApId } = await supabase
+          .from('threads')
+          .select('id, channel_id, ap_id')
+          .eq('ap_id', threadApId)
+          .maybeSingle();
+        existingThread = byApId;
         if (!existingThread) {
-          const threadUuidMatch = threadApId?.match(/\/threads\/([a-f0-9-]{36})/i);
-          if (threadUuidMatch) {
+          const threadUuid = threadApId.match(/\/threads\/([a-f0-9-]{36})/i)?.[1];
+          if (threadUuid) {
             const { data: byId } = await supabase
               .from('threads')
-              .select('id')
-              .eq('id', threadUuidMatch[1])
+              .select('id, channel_id, ap_id')
+              .eq('id', threadUuid)
               .maybeSingle();
+            if (byId && byId.ap_id !== threadApId) {
+              logger.warn(`Rejecting thread Create: thread ${threadUuid} exists under ap_id ${byId.ap_id}`);
+              return { success: false, error: 'Thread id belongs to another thread' };
+            }
             existingThread = byId;
           }
         }
+        if (existingThread && existingThread.channel_id !== channelId) {
+          logger.warn(`Rejecting thread Create: thread ${existingThread.id} is in channel ${existingThread.channel_id}, not ${channelId}`);
+          return { success: false, error: 'Thread is in another channel' };
+        }
+
+        const authz = await authorizeThreadChannel(channelId, existingThread ? 'edit' : 'thread_create');
+        if (!authz.ok) {
+          logger.warn(`Rejecting thread Create from ${actorUrl}: ${authz.error}`);
+          return { success: false, error: authz.error };
+        }
+        const creatorId = authz.userId;
 
         if (existingThread) {
           const updateData: Record<string, any> = {
@@ -357,14 +318,10 @@ export async function handleThreadActivity(
             last_message_at: threadObject.lastMessageAt,
             ap_id: threadApId,
             federation_status: 'synced',
+            // Stub threads carry a placeholder parent and the first message's author.
+            parent_message_id: parentMessageId,
+            created_by: creatorId,
           };
-          // Also fix parent_message_id if we have it (stub threads use a placeholder)
-          if (parentMessageId) {
-            updateData.parent_message_id = parentMessageId;
-          }
-          if (creatorId) {
-            updateData.created_by = creatorId;
-          }
 
           const { error: updateError } = await supabase
             .from('threads')
@@ -377,42 +334,15 @@ export async function handleThreadActivity(
           }
           logger.info(`Updated existing federated thread: ${threadObject.name} (id: ${existingThread.id})`);
 
-          // Assign orphaned messages for existing threads too (thread may have existed but
-          // messages arrived before ap_id was set)
-          if (threadApId) {
-            try {
-              const { data: orphans } = await supabase
-                .from('messages')
-                .select('id')
-                .eq('channel_id', channel.id)
-                .is('thread_id', null)
-                .eq('metadata->>pending_thread_ap_id', threadApId);
-              if (orphans && orphans.length > 0) {
-                const orphanIds = orphans.map((m: any) => m.id);
-                await supabase
-                  .from('messages')
-                  .update({ thread_id: existingThread.id })
-                  .in('id', orphanIds);
-                logger.info(`Retroactively assigned ${orphanIds.length} orphaned messages to existing thread ${existingThread.id}`);
-              }
-            } catch (err) {
-              logger.warn('Failed to retroactively assign orphaned messages (existing thread):', err);
-            }
-          }
-
+          await adoptOrphanMessages(supabase, channelId, threadApId, existingThread.id);
           return { success: true };
         }
 
         // --- Insert new thread ---
-        const threadData = activityPubToThread(
-          threadObject,
-          channel.id,
-          parentMessageId,
-          creatorId
-        );
+        const threadData = activityPubToThread(threadObject, channelId, parentMessageId, creatorId);
 
         // Preserve original UUID across instances
-        const threadIdMatch = threadApId?.match(/\/threads\/([a-f0-9-]{36})/i);
+        const threadIdMatch = threadApId.match(/\/threads\/([a-f0-9-]{36})/i);
         if (threadIdMatch) {
           threadData.id = threadIdMatch[1];
         }
@@ -424,82 +354,39 @@ export async function handleThreadActivity(
           .insert(threadData);
 
         if (error) {
-          // If duplicate key, try upsert
-          if (error.code === '23505') {
-            logger.info(`Thread ${threadData.id} already exists (race condition), updating instead`);
-            const { error: upsertError } = await supabase
+          // 23505: a concurrent insert of the same thread; only that thread is adopted.
+          if (error.code === '23505' && threadData.id) {
+            const { data: raced } = await supabase
               .from('threads')
-              .update({
-                name: threadObject.name,
-                ap_id: threadApId,
-                federation_status: 'synced',
-              })
-              .eq('id', threadData.id);
-            if (upsertError) {
-              logger.error('Failed to upsert federated thread:', upsertError);
-              return { success: false, error: upsertError.message };
+              .select('id, channel_id, ap_id')
+              .eq('id', threadData.id)
+              .maybeSingle();
+            if (!raced || raced.ap_id !== threadApId || raced.channel_id !== channelId) {
+              return { success: false, error: 'Thread id belongs to another thread' };
             }
-            logger.info(`Upserted federated thread: ${threadObject.name}`);
-
-            // Also assign orphaned messages for the upsert case
-            if (threadData.id && threadApId) {
-              try {
-                const { data: orphans } = await supabase
-                  .from('messages')
-                  .select('id')
-                  .eq('channel_id', channel.id)
-                  .is('thread_id', null)
-                  .eq('metadata->>pending_thread_ap_id', threadApId);
-                if (orphans && orphans.length > 0) {
-                  const orphanIds = orphans.map((m: any) => m.id);
-                  await supabase
-                    .from('messages')
-                    .update({ thread_id: threadData.id })
-                    .in('id', orphanIds);
-                  logger.info(`Retroactively assigned ${orphanIds.length} orphaned messages to thread ${threadData.id} (upsert)`);
-                }
-              } catch (err) {
-                logger.warn('Failed to retroactively assign orphaned messages (upsert):', err);
-              }
-            }
-
+            logger.info(`Thread ${threadData.id} inserted concurrently; adopting it`);
+            await adoptOrphanMessages(supabase, channelId, threadApId, threadData.id);
             return { success: true };
           }
           logger.error(`Failed to create federated thread: code=${error.code}, message=${error.message}, details=${error.details}`);
           return { success: false, error: error.message };
         }
 
-        logger.info(`Created federated thread: "${threadObject.name}" (id: ${threadData.id}, ap_id: ${threadApId}, channel: ${channel.id})`);
+        logger.info(`Created federated thread: "${threadObject.name}" (id: ${threadData.id}, ap_id: ${threadApId}, channel: ${channelId})`);
 
-        // Retroactively assign orphaned messages that arrived before this thread.
-        // These messages have pending_thread_ap_id in their metadata but thread_id = null.
-        const finalThreadId = threadData.id;
-        if (finalThreadId && threadApId) {
-          try {
-            const { data: orphans } = await supabase
-              .from('messages')
-              .select('id')
-              .eq('channel_id', channel.id)
-              .is('thread_id', null)
-              .eq('metadata->>pending_thread_ap_id', threadApId);
-            if (orphans && orphans.length > 0) {
-              const orphanIds = orphans.map((m: any) => m.id);
-              await supabase
-                .from('messages')
-                .update({ thread_id: finalThreadId })
-                .in('id', orphanIds);
-              logger.info(`Retroactively assigned ${orphanIds.length} orphaned messages to thread ${finalThreadId}`);
-            }
-          } catch (err) {
-            logger.warn('Failed to retroactively assign orphaned messages to thread:', err);
-          }
+        if (threadData.id) {
+          await adoptOrphanMessages(supabase, channelId, threadApId, threadData.id);
         }
-
         return { success: true };
       }
 
       case 'Update': {
         const threadObject = activity.object as ThreadObject;
+        const owned = await loadOwnedThread(threadObject.id);
+        if (!owned.ok) {
+          logger.warn(`Rejecting thread Update from ${actorUrl}: ${owned.error}`);
+          return { success: false, error: owned.error };
+        }
 
         const { error } = await supabase
           .from('threads')
@@ -512,7 +399,7 @@ export async function handleThreadActivity(
             member_count: threadObject.memberCount,
             last_message_at: threadObject.lastMessageAt,
           })
-          .eq('ap_id', threadObject.id);
+          .eq('id', owned.id);
 
         if (error) {
           logger.error('Failed to update federated thread:', error);
@@ -525,11 +412,16 @@ export async function handleThreadActivity(
 
       case 'Delete': {
         const threadObject = activity.object as ThreadObject;
+        const owned = await loadOwnedThread(threadObject.id);
+        if (!owned.ok) {
+          logger.warn(`Rejecting thread Delete from ${actorUrl}: ${owned.error}`);
+          return { success: false, error: owned.error };
+        }
 
         const { error } = await supabase
           .from('threads')
           .delete()
-          .eq('ap_id', threadObject.id);
+          .eq('id', owned.id);
 
         if (error) {
           logger.error('Failed to delete federated thread:', error);
@@ -540,72 +432,54 @@ export async function handleThreadActivity(
         return { success: true };
       }
 
-      case 'Add': {
-        // User joining a thread
-        const membership = activity.object as ThreadMembershipActivity;
-
-        const [{ data: thread }, { data: user }] = await Promise.all([
-          supabase
-            .from('threads')
-            .select('id')
-            .eq('ap_id', membership.object)
-            .single(),
-          supabase
-            .from('profiles')
-            .select('id')
-            .eq('federated_id', membership.subject)
-            .single(),
-        ]);
-
-        if (!thread || !user) {
-          logger.warn('Thread or user not found for membership');
-          return { success: false, error: 'Thread or user not found' };
-        }
-
-        const { error } = await supabase
-          .from('thread_members')
-          .upsert({
-            thread_id: thread.id,
-            user_id: user.id,
-          }, {
-            onConflict: 'thread_id,user_id',  // Column names, not constraint name
-          });
-
-        if (error) {
-          logger.error('Failed to add thread member:', error);
-          return { success: false, error: error.message };
-        }
-
-        logger.info(`Added member to thread ${thread.id}`);
-        return { success: true };
-      }
-
+      case 'Add':
       case 'Remove': {
-        // User leaving a thread
+        // Thread membership: the signer joins or leaves.
         const membership = activity.object as ThreadMembershipActivity;
+        if (!membership?.subject || !SignatureService.verifyActorMatch(actorUrl, membership.subject)) {
+          return { success: false, error: 'Signer is not the subject' };
+        }
 
-        const [{ data: thread }, { data: user }] = await Promise.all([
-          supabase
-            .from('threads')
-            .select('id')
-            .eq('ap_id', membership.object)
-            .single(),
-          supabase
-            .from('profiles')
-            .select('id')
-            .eq('federated_id', membership.subject)
-            .single(),
-        ]);
+        const { data: thread } = await supabase
+          .from('threads')
+          .select('id, channel_id')
+          .eq('ap_id', membership.object)
+          .maybeSingle();
 
-        if (!thread || !user) {
-          return { success: true }; // Already removed
+        if (!thread) {
+          logger.warn('Thread not found for membership');
+          return activity.type === 'Remove' ? { success: true } : { success: false, error: 'Thread not found' };
+        }
+
+        const authz = await authorizeThreadChannel(thread.channel_id, 'edit');
+        if (!authz.ok) {
+          logger.warn(`Rejecting thread membership ${activity.type} from ${actorUrl}: ${authz.error}`);
+          return { success: false, error: authz.error };
+        }
+
+        if (activity.type === 'Add') {
+          const { error } = await supabase
+            .from('thread_members')
+            .upsert({
+              thread_id: thread.id,
+              user_id: authz.userId,
+            }, {
+              onConflict: 'thread_id,user_id',  // Column names, not constraint name
+            });
+
+          if (error) {
+            logger.error('Failed to add thread member:', error);
+            return { success: false, error: error.message };
+          }
+          logger.info(`Added member to thread ${thread.id}`);
+          return { success: true };
         }
 
         const { error } = await supabase
           .from('thread_members')
           .delete()
           .eq('thread_id', thread.id)
-          .eq('user_id', user.id);
+          .eq('user_id', authz.userId);
 
         if (error) {
           logger.error('Failed to remove thread member:', error);
@@ -623,6 +497,33 @@ export async function handleThreadActivity(
   } catch (error: any) {
     logger.error('Error handling thread activity:', error);
     return { success: false, error: error.message };
+  }
+}
+
+/** Messages that arrived before their thread carry pending_thread_ap_id; they join it here. */
+async function adoptOrphanMessages(
+  supabase: ReturnType<typeof getSupabaseClient>,
+  channelId: string,
+  threadApId: string,
+  threadId: string,
+): Promise<void> {
+  try {
+    const { data: orphans } = await supabase
+      .from('messages')
+      .select('id')
+      .eq('channel_id', channelId)
+      .is('thread_id', null)
+      .eq('metadata->>pending_thread_ap_id', threadApId);
+    if (orphans && orphans.length > 0) {
+      const orphanIds = orphans.map((m: any) => m.id);
+      await supabase
+        .from('messages')
+        .update({ thread_id: threadId })
+        .in('id', orphanIds);
+      logger.info(`Assigned ${orphanIds.length} orphaned messages to thread ${threadId}`);
+    }
+  } catch (err) {
+    logger.warn('Failed to assign orphaned messages to thread:', err);
   }
 }
 
