@@ -28,12 +28,16 @@ function releaseBody(overrides: Record<string, unknown> = {}) {
     prerelease: false,
     assets: [
       {
-        name: 'Harmony_1.6.2_x64-setup.exe',
-        browser_download_url: 'https://github.com/y4my4my4m/harmony/releases/download/v1.6.2/Harmony_1.6.2_x64-setup.exe',
+        name: 'Harmony_Windows_V1.6.2.exe',
+        browser_download_url: 'https://github.com/y4my4my4m/harmony/releases/download/v1.6.2/Harmony_Windows_V1.6.2.exe',
       },
       {
-        name: 'app-universal-release.apk',
-        browser_download_url: 'https://github.com/y4my4my4m/harmony/releases/download/v1.6.2/app-universal-release.apk',
+        name: 'Harmony_Windows_V1.6.2.exe.sig',
+        browser_download_url: 'https://github.com/y4my4my4m/harmony/releases/download/v1.6.2/Harmony_Windows_V1.6.2.exe.sig',
+      },
+      {
+        name: 'Harmony_Android_V1.6.2.apk',
+        browser_download_url: 'https://github.com/y4my4my4m/harmony/releases/download/v1.6.2/Harmony_Android_V1.6.2.apk',
       },
       {
         name: 'latest.json',
@@ -63,8 +67,14 @@ describe('parseLatestRelease', () => {
   it('takes the version from the tag and the APK asset URL', () => {
     expect(parseLatestRelease(releaseBody())).toEqual({
       version: '1.6.2',
-      url: 'https://github.com/y4my4my4m/harmony/releases/download/v1.6.2/app-universal-release.apk',
+      url: 'https://github.com/y4my4my4m/harmony/releases/download/v1.6.2/Harmony_Android_V1.6.2.apk',
     })
+  })
+
+  it("finds an APK under tauri's default file name", () => {
+    const url = 'https://github.com/y4my4my4m/harmony/releases/download/v1.6.2/app-universal-release.apk'
+    const body = releaseBody({ assets: [{ name: 'app-universal-release.apk', browser_download_url: url }] })
+    expect(parseLatestRelease(body)?.url).toBe(url)
   })
 
   it('falls back to the release page when no APK is attached', () => {

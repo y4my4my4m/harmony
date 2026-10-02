@@ -685,6 +685,46 @@ Linux has no release build, so there is no AppImage to update; the updater
 reports itself unsupported outside an AppImage. Android is outside the
 plugin's scope and shows a notice linking the latest release's APK instead.
 
+### Native builds in CI
+
+`.github/workflows/tauri.yml` builds the Windows installer, the macOS dmg and
+the Android APK on every push to `master` that changes anything outside
+Markdown files, `docs/` and `federation-backend/`. Pull requests and other
+branches build only on request: Actions > Tauri > Run workflow, then pick the
+branch under "Use workflow from", the platforms and the profile. From the
+command line:
+
+```bash
+gh workflow run tauri.yml --ref my-branch \
+  -f windows=false -f macos=false -f android=true -f profile=debug
+```
+
+A dispatch runs the branch's own copy of `tauri.yml`, so the branch needs a
+version with these inputs. A new run on the same branch cancels the one in
+progress.
+
+Each build is uploaded as one unzipped artifact named after its file:
+
+| Build | Example |
+| --- | --- |
+| Release (`v*` tag) | `Harmony_Windows_V1.6.5.exe`, `Harmony_macOS_V1.6.5.dmg`, `Harmony_Android_V1.6.5.apk` |
+| `tauri.yml`, release profile | `Harmony_Windows_V1.6.5_dev-master-1a2b3c4.exe` |
+| `tauri.yml`, debug profile | `Harmony_Android_V1.6.5_debug-feat-push-1a2b3c4.apk` |
+
+The version is the one in `src-tauri/tauri.conf.json`, which `release.yml`
+stamps from the tag. The branch keeps `[A-Za-z0-9.-]` and every other run of
+characters becomes `-` (`scripts/name-artifact.sh`). An APK built without the
+signing secrets is a debug build and is named as one, in releases too
+(`Harmony_Android_V1.6.5_debug.apk`).
+
+Releases also carry the updater files under the same names:
+`Harmony_Windows_V<version>.exe.sig`, `Harmony_macOS_V<version>.app.tar.gz`
+and its `.sig`. `latest.json` keeps its name and points at those files. The
+updater verifies the signature over the downloaded bytes and detects the
+installer type from its content, so file names do not affect installed apps.
+The `file:` field in a `.sig`'s trusted comment still holds tauri's original
+file name; it is signed but not compared with anything.
+
 ### Android push
 
 The Android app receives push while closed through one of two transports, chosen
