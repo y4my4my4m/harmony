@@ -217,7 +217,7 @@
               <div class="instance-badges">
                 <span v-if="instance.is_trusted" class="badge trusted">Trusted</span>
                 <span v-if="instance.is_blocked" class="badge blocked">Blocked</span>
-                <span v-if="instance.limited_at" class="badge limited" title="Accounts from this domain are silenced">Limited</span>
+                <span v-if="instance.limited_at" class="badge limited" :title="$t('admin.federation.limitedTitle')">{{ $t('admin.federation.limited') }}</span>
                 <span v-if="isInstanceInactive(instance)" class="badge inactive">Inactive</span>
               </div>
             </div>
@@ -267,7 +267,7 @@
               v-if="!instance.is_blocked && !instance.limited_at"
               @click="toggleInstanceLimit(instance.domain, true)"
               class="action-btn-sm"
-              title="Limit: silence this domain's accounts"
+              :title="$t('admin.federation.limitAction')"
             >
               <Icon name="volume-x" :size="14" />
             </button>
@@ -275,7 +275,7 @@
               v-if="instance.limited_at"
               @click="toggleInstanceLimit(instance.domain, false)"
               class="action-btn-sm"
-              title="Lift the limit"
+              :title="$t('admin.federation.liftLimitAction')"
             >
               <Icon name="volume-2" :size="14" />
             </button>
@@ -452,10 +452,12 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { adminService, type FederatedInstance, type InstanceStats, type InstanceSearchResult, type FederationStats, type DeadEndpoint } from '@/services/AdminService'
 import { formatNumber, formatTimeAgo, formatRelativeTime } from './adminFormat'
 import { useToast } from 'vue-toastification'
+import { useI18n } from 'vue-i18n'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 
 const authStore = useAuthStore()
 const toast = useToast()
+const { t } = useI18n()
 const { confirm } = useConfirmDialog()
 
 // Federation management data
@@ -720,14 +722,14 @@ const toggleInstanceBlock = async (instanceId: string, blocked: boolean) => {
 
 const toggleInstanceLimit = async (domain: string, limit: boolean) => {
   try {
-    const reason = limit ? prompt(`Reason for limiting ${domain}:`) : null
+    const reason = limit ? prompt(t('admin.federation.limitReasonPrompt', { domain })) : null
     if (limit && reason === null) return
     await adminService.setDomainModeration(domain, limit ? 'limit' : 'none', reason ?? undefined)
-    toast.success(limit ? `${domain} limited` : `Limit on ${domain} lifted`)
+    toast.success(limit ? t('admin.federation.limitApplied', { domain }) : t('admin.federation.limitLifted', { domain }))
     await loadFederatedInstances()
   } catch (error) {
     debug.error('Failed to change domain limit:', error)
-    toast.error('Failed to change the domain limit')
+    toast.error(t('admin.federation.limitFailed'))
   }
 }
 

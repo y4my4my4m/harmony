@@ -108,8 +108,7 @@
       <div v-if="encryptionStatus.hasRecoveryKey" class="subsection">
         <h4 class="subsection-title">Your devices</h4>
         <p class="subsection-description">
-          Devices signed in to your account. To give a new device your encrypted messages,
-          link it: sign in there and scan the code it shows from a device that is already unlocked.
+          {{ $t('encryption.settings.devicesDescription') }}
         </p>
         <DeviceManager />
       </div>
@@ -154,20 +153,17 @@
           <div class="option-card">
             <Icon name="smartphone" class="option-icon" :size="22" />
             <div class="option-info">
-              <strong>Link a new device</strong>
-              <p>Scan the code a newly signed-in device shows; no need to type your recovery phrase there</p>
+              <strong>{{ $t('encryption.linkDevice.title') }}</strong>
+              <p>{{ $t('encryption.settings.linkDescription') }}</p>
             </div>
-            <button @click="showLinkModal = true" class="btn btn-secondary">Link</button>
+            <button @click="showLinkModal = true" class="btn btn-secondary">{{ $t('encryption.settings.link') }}</button>
           </div>
 
           <div v-if="hasPairingCopy" class="option-card" data-testid="pairing-copy">
             <Icon name="key" class="option-icon" :size="22" />
             <div class="option-info">
-              <strong>Keys kept for linking</strong>
-              <p>
-                This device keeps a readable copy of your encryption keys so it can link devices
-                without the recovery phrase. Remove it and linking from here asks for the phrase again.
-              </p>
+              <strong>{{ $t('encryption.settings.pairingCopyTitle') }}</strong>
+              <p>{{ $t('encryption.settings.pairingCopyDescription') }}</p>
             </div>
             <button
               class="btn btn-secondary"
@@ -175,7 +171,7 @@
               :disabled="isRemovingCopy"
               @click="removePairingCopy"
             >
-              Remove
+              {{ $t('common.remove') }}
             </button>
           </div>
         </div>
@@ -328,6 +324,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { debug } from '@/utils/debug'
 import { useToast } from 'vue-toastification'
+import { useI18n } from 'vue-i18n'
 import RecoveryKeySetupWizard from './RecoveryKeySetupWizard.vue'
 import KeyRecoveryModal from './KeyRecoveryModal.vue'
 import DeviceManager from './DeviceManager.vue'
@@ -336,6 +333,7 @@ import Icon from '@/components/common/Icon.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 
 const toast = useToast()
+const { t } = useI18n()
 
 const isInitialized = ref(false)
 const encryptionStatus = ref({
@@ -656,10 +654,10 @@ async function removePairingCopy() {
     const { megolmMessageEncryptionService } = await import('@/services/encryption/MegolmMessageEncryptionService')
     await megolmMessageEncryptionService.removePairingCopy()
     hasPairingCopy.value = false
-    toast.success('Removed the copy of your keys from this device')
+    toast.success(t('encryption.settings.pairingCopyRemoved'))
   } catch (error) {
     debug.error('Failed to remove the pairing copy:', error)
-    toast.error('Could not remove the copy of your keys')
+    toast.error(t('encryption.settings.pairingCopyRemoveFailed'))
   } finally {
     isRemovingCopy.value = false
   }

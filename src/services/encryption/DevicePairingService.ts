@@ -8,6 +8,7 @@
 
 import { userEventChannel } from '@/services/UserEventChannel'
 import { debug } from '@/utils/debug'
+import { i18n } from '@/i18n'
 import {
   deviceIdentityService,
   isRequestExpired,
@@ -84,7 +85,7 @@ class DevicePairingService {
 
   private async registerThisDevice(profileId: string): Promise<void> {
     const row = await deviceIdentityService.ensureRegistered(profileId, 'untrusted', { raiseApproval: false })
-    if (!row) throw new Error('Could not register this device')
+    if (!row) throw new Error(i18n.global.t('encryption.pairingErrors.registerFailed'))
   }
 
   /** Resolves with the keys once approved and opened; rejects on denial, expiry or abort. */

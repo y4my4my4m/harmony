@@ -95,6 +95,7 @@ import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import { debug } from '@/utils/debug'
 import { useRoute, useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
+import { useI18n } from 'vue-i18n'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import ServerSidebar from '@/components/ServerSidebar.vue'
 import UserProfileComponent from '@/components/UserProfileComponent.vue'
@@ -126,6 +127,7 @@ const router = useRouter()
 const instanceName = computed(() => instanceSettingsStore.settings.instanceName || 'Harmony')
 
 const { touchState, handleTouchStart, handleTouchMove, handleTouchEnd } = useMobileGestures()
+const { t } = useI18n()
 const { 
   leftSidebarOpen, 
     rightSidebarOpen, 
@@ -245,7 +247,7 @@ const handleGlobalCallAccept = async (acceptWithVideo: boolean) => {
       )
       if (!credentials) {
         voiceStore.isOverlayVisible = false
-        useToast().error('Could not join the call')
+        useToast().error(t('voice.joinCallFailed'))
         return
       }
 

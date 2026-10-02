@@ -2,6 +2,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import ReportModal from '../ReportModal.vue'
 
+vi.mock('vue-i18n', async (importOriginal) => {
+  const messages = (await import('@/locales/en.json')).default as Record<string, any>
+  const t = (key: string, params: Record<string, unknown> = {}) => {
+    const message = key.split('.').reduce<any>((node, part) => node?.[part], messages)
+    if (typeof message !== 'string') return key
+    return message.replace(/\{(\w+)\}/g, (_, name) => String(params[name] ?? `{${name}}`))
+  }
+  return { ...(await importOriginal<typeof import('vue-i18n')>()), useI18n: () => ({ t }) }
+})
+
 const { createReport } = vi.hoisted(() => ({ createReport: vi.fn() }))
 
 vi.mock('@/services/ReportService', async (importOriginal) => ({

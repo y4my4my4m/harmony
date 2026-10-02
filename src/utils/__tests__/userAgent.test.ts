@@ -1,7 +1,12 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeAll } from 'vitest'
 import { describeUserAgent } from '@/utils/userAgent'
 import { securityNoticeText } from '@/utils/securityNotice'
 import { recoveryCodeLength } from '@/utils/mfaConstants'
+import { waitForInitialLocale } from '@/i18n'
+
+beforeAll(async () => {
+  await waitForInitialLocale()
+})
 
 describe('describeUserAgent', () => {
   it('names browser and system', () => {

@@ -23,8 +23,8 @@
             @click="activeTab = 'device'"
           >
             <Icon name="smartphone" :size="16" class="tab-icon" />
-            Another device
-            <span class="tab-badge">Recommended</span>
+            {{ $t('encryption.recovery.anotherDevice') }}
+            <span class="tab-badge">{{ $t('encryption.recovery.recommended') }}</span>
           </button>
           <button
             class="tab-btn"
@@ -96,12 +96,12 @@
               @click="showRecoveryQrScanner = !showRecoveryQrScanner"
             >
               <Icon :name="showRecoveryQrScanner ? 'chevron-down' : 'chevron-right'" :size="14" />
-              Have your recovery key as a QR code?
+              {{ $t('encryption.recovery.qrToggle') }}
             </button>
             <div v-if="showRecoveryQrScanner" class="recovery-qr-body">
               <QrScanner
-                hint="Point the camera at the recovery-key QR code."
-                paste-label="Or paste the QR code data"
+                :hint="$t('encryption.recovery.qrHint')"
+                :paste-label="$t('encryption.recovery.qrPasteLabel')"
                 @decoded="onRecoveryQr"
               />
             </div>
@@ -152,6 +152,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { debug } from '@/utils/debug'
 import { useToast } from 'vue-toastification'
 import Icon from '@/components/common/Icon.vue'
@@ -161,6 +162,7 @@ import QrScanner from './QrScanner.vue'
 const props = withDefaults(defineProps<{ initialTab?: 'device' | 'phrase' }>(), { initialTab: 'device' })
 
 const toast = useToast()
+const { t } = useI18n()
 const emit = defineEmits(['close', 'restored'])
 
 // State
@@ -250,12 +252,12 @@ async function onRecoveryQr(text: string) {
       await validateWords()
       toast.success('QR code read')
     } else if (text.startsWith('HMP:')) {
-      toast.error('That is a device pairing code. Use the Another device tab.')
+      toast.error(t('encryption.recovery.pairingCodeScanned'))
     } else {
-      toast.error('That QR code is not a Harmony recovery key')
+      toast.error(t('encryption.recovery.notRecoveryKey'))
     }
   } catch {
-    toast.error('Failed to read the QR code')
+    toast.error(t('encryption.recovery.qrReadFailed'))
   }
 }
 

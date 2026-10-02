@@ -3,9 +3,9 @@
     <div class="dm-link-row">
       <button class="btn btn-sm btn-primary" data-testid="link-device-button" @click="linkMode = 'scan'">
         <Icon name="qr-code" :size="16" />
-        Link a device
+        {{ $t('encryption.devices.linkDevice') }}
       </button>
-      <span class="dm-link-hint">Sign in on the new device, then scan the code it shows.</span>
+      <span class="dm-link-hint">{{ $t('encryption.devices.linkHint') }}</span>
     </div>
 
     <!-- Pending approvals (also surfaced globally; shown here for completeness) -->
@@ -14,8 +14,8 @@
         <Icon name="alert-triangle" :size="18" class="dm-pending-icon" />
         <div class="dm-pending-info">
           <strong>New login{{ req.requesting_label ? ` on ${req.requesting_label}` : '' }}</strong>
-          <span v-if="isPairingRequest(req)">Waiting to be linked. Scan the code it shows.</span>
-          <span v-else>Signed in and unlocked your encrypted messages.</span>
+          <span v-if="isPairingRequest(req)">{{ $t('encryption.devices.pendingPairing') }}</span>
+          <span v-else>{{ $t('encryption.devices.pendingPlain') }}</span>
         </div>
         <div class="dm-pending-actions">
           <button
@@ -23,8 +23,8 @@
             class="btn btn-sm btn-primary"
             :disabled="busyId === req.id"
             @click="linkMode = 'scan'"
-          >Scan code</button>
-          <button v-else class="btn btn-sm btn-primary" :disabled="busyId === req.id" @click="onApprove(req)">That was me</button>
+          >{{ $t('encryption.devices.scanCode') }}</button>
+          <button v-else class="btn btn-sm btn-primary" :disabled="busyId === req.id" @click="onApprove(req)">{{ $t('encryption.approval.thatWasMe') }}</button>
           <button class="btn btn-sm btn-secondary" :disabled="busyId === req.id" @click="onDeny(req)">Deny</button>
         </div>
       </div>

@@ -3,7 +3,7 @@
 <div class="admin-module reports-module">
   <div class="module-header">
     <Icon name="flag" :size="20" />
-    <h2>{{ serverId ? 'Reports in this server' : 'Reports & moderation' }}</h2>
+    <h2>{{ serverId ? t('admin.reports.titleServer') : 'Reports & moderation' }}</h2>
     <span v-if="pendingCount > 0" class="reports-badge">{{ pendingCount }} pending</span>
   </div>
 
@@ -44,7 +44,7 @@
                 <template v-else>{{ report.reporter_display_name || report.reporter_username }}</template>
               </span>
             </template>
-            <span v-else class="report-anonymous">Anonymous reporter</span>
+            <span v-else class="report-anonymous">{{ t('admin.reports.anonymousReporter') }}</span>
           </div>
           <span class="report-arrow">&#8594;</span>
           <div class="report-reported" v-if="report.reported_user_id || report.reported_user_username">
@@ -56,17 +56,17 @@
                 @{{ report.reported_user_domain }}
               </span>
             </span>
-            <span v-if="report.reported_user_is_suspended" class="badge-mini danger">suspended</span>
-            <span v-else-if="report.reported_user_is_silenced" class="badge-mini warning">silenced</span>
-            <span v-if="report.open_reports_on_target > 1" class="badge-mini" :title="`${report.open_reports_on_target} open reports on this account`">
-              {{ report.open_reports_on_target }} open
+            <span v-if="report.reported_user_is_suspended" class="badge-mini danger">{{ t('admin.reports.suspended') }}</span>
+            <span v-else-if="report.reported_user_is_silenced" class="badge-mini warning">{{ t('admin.reports.silenced') }}</span>
+            <span v-if="report.open_reports_on_target > 1" class="badge-mini" :title="t('admin.reports.openOnTargetTitle', { count: report.open_reports_on_target })">
+              {{ t('admin.reports.openOnTarget', { count: report.open_reports_on_target }) }}
             </span>
           </div>
         </div>
         <div class="report-reason">{{ reasonLabel(report.reason) }}</div>
         <div class="report-meta">
           <span v-if="report.source === 'local'" class="report-source-local">local</span>
-          <span v-if="report.forwarded_at" class="report-source federation-badge" title="An anonymous copy was sent to the account's instance">forwarded</span>
+          <span v-if="report.forwarded_at" class="report-source federation-badge" :title="t('admin.reports.forwardedTitle')">{{ t('admin.reports.forwarded') }}</span>
           <span v-if="report.assigned_username" class="report-source">@{{ report.assigned_username }}</span>
           <time class="report-time">{{ formatDate(report.created_at) }}</time>
         </div>
@@ -75,7 +75,7 @@
 
       <div v-if="expandedReportId === report.id" class="report-detail" @click.stop>
         <div v-if="report.comment" class="report-comment">
-          <label>{{ report.source === 'federation' ? `Comment from ${report.source_instance}` : "Reporter's comment" }}</label>
+          <label>{{ report.source === 'federation' ? t('admin.reports.commentFrom', { instance: report.source_instance }) : "Reporter's comment" }}</label>
           <p>{{ report.comment }}</p>
         </div>
 
@@ -85,13 +85,13 @@
         </div>
 
         <div v-if="report.reported_message_id || report.report_type === 'message'" class="report-proof">
-          <label>Message now</label>
+          <label>{{ t('admin.reports.messageNow') }}</label>
           <p v-if="report.reported_message_is_deleted" class="evidence-gone">Deleted since the report</p>
           <blockquote v-else-if="report.reported_message_preview" v-html="linkifyReportPreview(report.reported_message_preview)"></blockquote>
         </div>
 
         <div v-if="report.reported_post_id || report.report_type === 'post'" class="report-proof">
-          <label>Post now</label>
+          <label>{{ t('admin.reports.postNow') }}</label>
           <p v-if="report.reported_post_is_deleted" class="evidence-gone">Deleted since the report</p>
           <template v-else>
             <blockquote v-if="report.reported_post_preview" v-html="linkifyReportPreview(report.reported_post_preview)"></blockquote>
@@ -122,11 +122,11 @@
         </div>
 
         <div v-if="report.resolution_note" class="report-resolution">
-          <label>Note sent to the reporter</label>
+          <label>{{ t('admin.reports.noteSentToReporter') }}</label>
           <p>{{ report.resolution_note }}</p>
         </div>
         <p v-if="report.resolver_username && !isOpenReport(report.status)" class="report-resolver">
-          {{ report.status }} by @{{ report.resolver_username }}
+          {{ t('admin.reports.statusBy', { status: report.status, username: report.resolver_username }) }}
         </p>
 
         <div class="report-actions-panel">
@@ -150,16 +150,16 @@
           <template v-if="isOpenReport(report.status)">
             <textarea
               v-model="reportNote"
-              placeholder="Note to the reporter (optional, sent on resolve or dismiss)"
+              :placeholder="t('admin.reports.notePlaceholder')"
               class="cyber-input resolution-textarea"
               rows="2"
               maxlength="1000"
               @click.stop
             ></textarea>
-            <label class="toggle-label report-show-resolver" title="Off by default, to protect moderators from retaliation">
+            <label class="toggle-label report-show-resolver" :title="t('admin.reports.showResolverTitle')">
               <input type="checkbox" v-model="reportShowResolver" @click.stop />
               <span class="toggle-slider"></span>
-              <span>Show my name to the reporter</span>
+              <span>{{ t('admin.reports.showResolver') }}</span>
             </label>
           </template>
 
@@ -178,7 +178,7 @@
     </div>
 
     <button v-if="reports.length < total" class="filter-btn load-more" :disabled="busy" @click="loadMore">
-      Load more ({{ total - reports.length }})
+      {{ t('admin.reports.loadMore', { count: total - reports.length }) }}
     </button>
   </div>
 
@@ -194,6 +194,7 @@
 import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
+import { useI18n } from 'vue-i18n'
 import { debug } from '@/utils/debug'
 import { escapeHtml, safeHref } from '@/utils/sanitize'
 import Icon from '@/components/common/Icon.vue'
@@ -210,14 +211,13 @@ import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import {
   ACTIONS_WITH_REASON,
   DESTRUCTIVE_ACTIONS,
-  REPORT_CATEGORY_LABELS,
   REPORT_REASONS,
   isOpenReport,
   reportActionsFor,
+  reportCategoryLabel,
   reportSourceLabel,
   snapshotEvidence,
   type ReportAction,
-  type ReportCategory,
 } from '@/utils/reportModeration'
 
 const props = defineProps<{
@@ -228,6 +228,7 @@ const props = defineProps<{
 const { confirm } = useConfirmDialog()
 const router = useRouter()
 const toast = useToast()
+const { t } = useI18n()
 
 const PAGE = 50
 
@@ -255,8 +256,7 @@ const STATUS_ACTIONS: ReadonlySet<ReportAction> = new Set<ReportAction>([
   'investigate', 'resolve', 'dismiss', 'reopen', 'assign', 'unassign', 'forward',
 ])
 
-const categoryLabel = (category: string) =>
-  REPORT_CATEGORY_LABELS[category as ReportCategory] ?? category
+const categoryLabel = (category: string) => reportCategoryLabel(category)
 
 const reasonLabel = (reason: string) =>
   REPORT_REASONS.find((r) => r.value === reason)?.label ?? reason
@@ -286,31 +286,31 @@ const statusActionClass = (action: ReportAction) => {
 
 const actionLabel = (report: ReportWithDetails, action: ReportAction): string => {
   switch (action) {
-    case 'investigate': return 'Mark investigating'
-    case 'resolve': return 'Resolve'
-    case 'dismiss': return 'Dismiss'
-    case 'reopen': return 'Reopen'
-    case 'assign': return 'Assign to me'
-    case 'unassign': return 'Unassign'
-    case 'forward': return `Forward to ${report.reported_user_domain}`
-    case 'delete_post': return 'Delete post'
-    case 'mark_sensitive': return 'Mark sensitive'
-    case 'delete_message': return 'Delete message'
-    case 'warn': return 'Warn account'
-    case 'silence_account': return 'Silence account'
-    case 'suspend_account': return 'Suspend account'
-    case 'force_sensitive_account': return 'Force sensitive media'
-    case 'limit_domain': return `Limit ${report.reported_user_domain}`
-    case 'suspend_domain': return `Suspend ${report.reported_user_domain}`
+    case 'investigate': return t('admin.reports.actions.investigate')
+    case 'resolve': return t('admin.reports.actions.resolve')
+    case 'dismiss': return t('admin.reports.actions.dismiss')
+    case 'reopen': return t('admin.reports.actions.reopen')
+    case 'assign': return t('admin.reports.actions.assign')
+    case 'unassign': return t('admin.reports.actions.unassign')
+    case 'forward': return t('admin.reports.actions.forward', { domain: report.reported_user_domain })
+    case 'delete_post': return t('admin.reports.actions.deletePost')
+    case 'mark_sensitive': return t('admin.reports.actions.markSensitive')
+    case 'delete_message': return t('admin.reports.actions.deleteMessage')
+    case 'warn': return t('admin.reports.actions.warn')
+    case 'silence_account': return t('admin.reports.actions.silenceAccount')
+    case 'suspend_account': return t('admin.reports.actions.suspendAccount')
+    case 'force_sensitive_account': return t('admin.reports.actions.forceSensitiveAccount')
+    case 'limit_domain': return t('admin.reports.actions.limitDomain', { domain: report.reported_user_domain })
+    case 'suspend_domain': return t('admin.reports.actions.suspendDomain', { domain: report.reported_user_domain })
   }
 }
 
 const reasonPrompt = (report: ReportWithDetails, action: ReportAction): string => {
   switch (action) {
-    case 'warn': return 'Warning text sent to the account:'
-    case 'limit_domain': return `Reason for limiting ${report.reported_user_domain}:`
-    case 'suspend_domain': return `Reason for suspending ${report.reported_user_domain}:`
-    default: return 'Reason (kept with the account):'
+    case 'warn': return t('admin.reports.prompts.warn')
+    case 'limit_domain': return t('admin.reports.prompts.limitDomain', { domain: report.reported_user_domain })
+    case 'suspend_domain': return t('admin.reports.prompts.suspendDomain', { domain: report.reported_user_domain })
+    default: return t('admin.reports.prompts.reason')
   }
 }
 
@@ -385,7 +385,7 @@ const runAction = async (report: ReportWithDetails, action: ReportAction) => {
   if (DESTRUCTIVE_ACTIONS.has(action)) {
     const ok = await confirm({
       title: actionLabel(report, action),
-      message: `${actionLabel(report, action)}? This resolves the report.`,
+      message: t('admin.reports.confirmAction', { action: actionLabel(report, action) }),
       confirmButtonText: actionLabel(report, action),
       dangerAction: true,
     })
@@ -403,7 +403,7 @@ const runAction = async (report: ReportWithDetails, action: ReportAction) => {
       toast.error(result.message)
       return
     }
-    toast.success(`${actionLabel(report, action)}: done`)
+    toast.success(t('admin.reports.actionDone', { action: actionLabel(report, action) }))
     if (!STATUS_ACTIONS.has(action) || action === 'resolve' || action === 'dismiss') {
       reportNote.value = ''
       expandedReportId.value = null

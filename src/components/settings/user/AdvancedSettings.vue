@@ -228,11 +228,7 @@
       <div class="setting-item">
         <div class="setting-info">
           <h4 class="setting-label danger">{{ $t('common.delete') }} account</h4>
-          <p class="setting-description">
-            Permanently delete your account. Messages you sent stay where they are,
-            shown as "Deleted User". Your profile, login, devices, encryption keys and
-            follows are removed, and other fediverse servers are told the account is gone.
-          </p>
+          <p class="setting-description">{{ $t('security.deleteAccount.description') }}</p>
         </div>
         <div class="setting-control">
           <button class="btn btn-danger" @click="openDeleteModal">
@@ -248,24 +244,22 @@
           <h3 id="delete-title" class="sec-modal-title danger">Delete your account?</h3>
 
           <ul class="sec-bullets">
-            <li>This cannot be undone. Your username becomes free for someone else.</li>
-            <li>Messages and posts you wrote stay visible as "Deleted User"; delete any you want gone first.</li>
-            <li>Your profile, avatar, banner, login, devices, push notifications, encryption keys, follows, blocks and bots stop working and are removed.</li>
-            <li>Servers on other instances that know your account are sent a deletion notice.</li>
+            <li>{{ $t('security.deleteAccount.bullets.permanent') }}</li>
+            <li>{{ $t('security.deleteAccount.bullets.messages') }}</li>
+            <li>{{ $t('security.deleteAccount.bullets.removed') }}</li>
+            <li>{{ $t('security.deleteAccount.bullets.federation') }}</li>
           </ul>
 
-          <button type="button" class="sec-link" @click="goToExport">Download your data first</button>
+          <button type="button" class="sec-link" @click="goToExport">{{ $t('security.deleteAccount.exportFirst') }}</button>
 
           <div v-if="blockingServers.length > 0" class="sec-callout sec-callout-danger">
-            <span>
-              You own {{ blockingServers.length === 1 ? 'a server' : 'servers' }} with other members:
-              <strong>{{ blockingServers.join(', ') }}</strong>. Transfer ownership or delete
-              {{ blockingServers.length === 1 ? 'it' : 'them' }} first.
-            </span>
+            <i18n-t keypath="security.deleteAccount.ownsServers" tag="span" :plural="blockingServers.length">
+              <template #servers><strong>{{ blockingServers.join(', ') }}</strong></template>
+            </i18n-t>
           </div>
 
           <div v-if="hasPassword" class="sec-field">
-            <label class="sec-label" for="delete-password">Password</label>
+            <label class="sec-label" for="delete-password">{{ $t('auth.password') }}</label>
             <input
               id="delete-password"
               v-model="deletePassword"
@@ -275,7 +269,7 @@
             />
           </div>
           <div v-else class="sec-callout">
-            <span>Your account has no password. Deletion needs a sign-in within the last ten minutes.</span>
+            <span>{{ $t('security.deleteAccount.noPassword') }}</span>
           </div>
 
           <div v-if="deletionMfaRequired" class="sec-field">
@@ -307,7 +301,7 @@
 
           <p v-if="deleteError" class="sec-error" role="alert">{{ deleteError }}</p>
           <button v-if="needsFreshSignIn" type="button" class="sec-btn sec-btn-secondary" @click="signInAgain">
-            Sign out and sign in again
+            {{ $t('security.deleteAccount.signInAgain') }}
           </button>
 
           <div class="sec-actions">
@@ -550,16 +544,16 @@ const confirmDeletion = async () => {
         break
       case 'mfa_required':
         deletionMfaRequired.value = true
-        deleteError.value = 'Enter a code from your authenticator app.'
+        deleteError.value = t('security.deleteAccount.errors.mfaRequired')
         break
       case 'password_required':
       case 'invalid_password':
-        deleteError.value = 'That password is not correct.'
+        deleteError.value = t('security.deleteAccount.errors.wrongPassword')
         deletePassword.value = ''
         break
       case 'reauthentication_required':
         needsFreshSignIn.value = true
-        deleteError.value = 'Sign in again, then delete your account within ten minutes.'
+        deleteError.value = t('security.deleteAccount.errors.reauthRequired')
         break
       case 'error':
         deleteError.value = result.message

@@ -580,11 +580,11 @@ const handleSubmit = async () => {
 const handle2FAVerification = async () => {
   if (useRecoveryCode.value) {
     if (recoveryCodeLength(twoFactorCode.value) < RECOVERY_CODE_MIN_LENGTH) {
-      twoFactorError.value = 'Enter one of your recovery codes, for example ABCDE-12345.'
+      twoFactorError.value = t('security.mfa.recoveryCodeExample')
       return
     }
   } else if (!/^\d{6}$/.test(twoFactorCode.value)) {
-    twoFactorError.value = 'Enter the 6-digit code from your authenticator app.'
+    twoFactorError.value = t('security.mfa.enterAuthenticatorCode')
     return
   }
 
@@ -597,7 +597,7 @@ const handle2FAVerification = async () => {
       // database leaves it reachable from this aal1 session and rate-limits it.
       await authStore.completeRecoverySignIn(twoFactorCode.value)
       show2FAModal.value = false
-      toast.warning('Signed in with a recovery code. Two-factor authentication is now off; set it up again.', { timeout: 10000 })
+      toast.warning(t('security.mfa.recoverySignedIn'), { timeout: 10000 })
       router.push('/settings/security')
     } else {
       await authStore.verify2FA(pendingFactorId.value, pendingChallengeId.value, twoFactorCode.value)
@@ -607,8 +607,8 @@ const handle2FAVerification = async () => {
   } catch (error: any) {
     debug.error('2FA verification error:', error)
     twoFactorError.value = securityErrorMessage(error, useRecoveryCode.value
-      ? 'That recovery code is not valid or was already used.'
-      : 'Verification failed. Try again.')
+      ? t('security.mfa.recoveryCodeInvalid')
+      : t('security.mfa.verificationFailed'))
     if (!useRecoveryCode.value) twoFactorCode.value = ''
   } finally {
     twoFactorLoading.value = false
@@ -814,13 +814,13 @@ const loadInstanceBranding = async () => {
 
 // Lifecycle
 const SIGN_OUT_REASONS: Record<string, string> = {
-  session_revoked: 'You were signed out from another device.',
-  insufficient_aal: 'Sign in again and enter your authenticator code.',
+  session_revoked: 'security.signOutReason.sessionRevoked',
+  insufficient_aal: 'security.signOutReason.insufficientAal',
 }
 
 onMounted(async () => {
   const reason = SIGN_OUT_REASONS[String(route.query.reason ?? '')]
-  if (reason) toast.info(reason, { timeout: 8000 })
+  if (reason) toast.info(t(reason), { timeout: 8000 })
   randomBg.value = await getRandomLoginBackground()
   await Promise.all([
     loadInstanceBranding(),

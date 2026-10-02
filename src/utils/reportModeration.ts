@@ -4,6 +4,7 @@
  * this decides what the UI shows.
  */
 
+import { i18n } from '@/i18n'
 import { isPrivateMediaPart, messageMediaReferenceUrl } from '@/services/privateMedia'
 
 export type ReportCategory = 'spam' | 'legal' | 'violation' | 'other'
@@ -16,21 +17,40 @@ export type ReportReason =
   | 'nsfw'
   | 'other'
 
+const t = (key: string, named?: Record<string, unknown>) =>
+  named ? i18n.global.t(key, named) : i18n.global.t(key)
+
 /** Mastodon's report categories. */
-export const REPORT_CATEGORY_LABELS: Record<ReportCategory, string> = {
-  spam: 'Spam',
-  legal: 'Illegal content',
-  violation: 'Rule violation',
-  other: 'Other',
+export const REPORT_CATEGORIES: readonly ReportCategory[] = ['spam', 'legal', 'violation', 'other']
+
+export function reportCategoryLabel(category: string): string {
+  return (REPORT_CATEGORIES as readonly string[]).includes(category)
+    ? t(`moderation.reportCategories.${category}`)
+    : category
 }
 
-export const REPORT_REASONS: { value: ReportReason; label: string; category: ReportCategory }[] = [
-  { value: 'spam', label: 'Spam or unwanted content', category: 'spam' },
-  { value: 'harassment', label: 'Harassment or bullying', category: 'violation' },
-  { value: 'illegal_content', label: 'Illegal content', category: 'legal' },
-  { value: 'impersonation', label: 'Impersonation', category: 'violation' },
-  { value: 'nsfw', label: 'Inappropriate/NSFW content', category: 'violation' },
-  { value: 'other', label: 'Other', category: 'other' },
+export interface ReportReasonOption {
+  value: ReportReason
+  readonly label: string
+  category: ReportCategory
+}
+
+/** label resolves at read time; locale messages load asynchronously. */
+function reasonOption(value: ReportReason, category: ReportCategory): ReportReasonOption {
+  return {
+    value,
+    category,
+    get label() { return t(`moderation.reportReasons.${value}`) },
+  }
+}
+
+export const REPORT_REASONS: ReportReasonOption[] = [
+  reasonOption('spam', 'spam'),
+  reasonOption('harassment', 'violation'),
+  reasonOption('illegal_content', 'legal'),
+  reasonOption('impersonation', 'violation'),
+  reasonOption('nsfw', 'violation'),
+  reasonOption('other', 'other'),
 ]
 
 /** Same mapping as create_report's default for p_category. */
@@ -177,9 +197,11 @@ export interface ReportSourceView {
 /** "from <domain>" for a federated report, "local" otherwise. */
 export function reportSourceLabel(report: ReportSourceView): string {
   if (report.source === 'federation') {
-    return report.source_instance ? `from ${report.source_instance}` : 'from a remote instance'
+    return report.source_instance
+      ? t('moderation.reportSource.fromInstance', { domain: report.source_instance })
+      : t('moderation.reportSource.fromRemote')
   }
-  return 'local'
+  return t('moderation.reportSource.local')
 }
 
 interface SnapshotPart {
@@ -241,12 +263,14 @@ export interface SnapshotEvidence {
 export function snapshotEvidence(snapshot: ReportSnapshot | null | undefined): SnapshotEvidence[] {
   if (!snapshot) return []
   const out: SnapshotEvidence[] = []
-  const note = snapshot.backfilled ? 'captured after the report was filed' : undefined
+  const note = snapshot.backfilled ? t('moderation.evidence.backfilledNote') : undefined
   for (const post of snapshot.posts ?? []) {
     const text = contentText(post.content)
     out.push({
-      label: 'Post as reported',
-      text: post.content_warning ? `CW: ${post.content_warning}\n${text}` : text,
+      label: t('moderation.evidence.post'),
+      text: post.content_warning
+        ? `${t('moderation.evidence.contentWarning', { warning: post.content_warning })}\n${text}`
+        : text,
       note,
     })
   }
@@ -254,16 +278,16 @@ export function snapshotEvidence(snapshot: ReportSnapshot | null | undefined): S
   if (message) {
     if (message.encrypted) {
       out.push({
-        label: 'Encrypted message',
-        text: message.evidence_text ?? '[ciphertext only]',
-        note: message.evidence_text ? 'text supplied by the reporter, not verifiable by the server' : undefined,
+        label: t('moderation.evidence.encryptedMessage'),
+        text: message.evidence_text ?? t('moderation.evidence.ciphertextOnly'),
+        note: message.evidence_text ? t('moderation.evidence.reporterSuppliedNote') : undefined,
       })
     } else {
-      out.push({ label: 'Message as reported', text: contentText(message.content), note })
+      out.push({ label: t('moderation.evidence.message'), text: contentText(message.content), note })
     }
   }
   if (snapshot.server) {
-    out.push({ label: 'Server as reported', text: [snapshot.server.name, snapshot.server.description].filter(Boolean).join('\n') })
+    out.push({ label: t('moderation.evidence.server'), text: [snapshot.server.name, snapshot.server.description].filter(Boolean).join('\n') })
   }
   return out
 }
@@ -271,11 +295,11 @@ export function snapshotEvidence(snapshot: ReportSnapshot | null | undefined): S
 /** User-facing text for a create_report failure. */
 export function reportErrorMessage(error: { code?: string; message?: string } | null | undefined): string {
   switch (error?.code) {
-    case 'PT429': return 'You have sent too many reports recently. Try again later.'
-    case 'P0002': return 'This content is no longer available to report.'
-    case '42501': return 'You cannot send reports from this account.'
+    case 'PT429': return t('moderation.reportErrors.rateLimited')
+    case 'P0002': return t('moderation.reportErrors.unavailable')
+    case '42501': return t('moderation.reportErrors.forbidden')
     default:
-      if (error?.message?.includes('Cannot report yourself')) return 'You cannot report yourself.'
-      return 'The report could not be sent. Try again later.'
+      if (error?.message?.includes('Cannot report yourself')) return t('moderation.reportErrors.self')
+      return t('moderation.reportErrors.failed')
   }
 }

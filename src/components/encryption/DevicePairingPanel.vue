@@ -1,63 +1,63 @@
 <template>
   <div class="pairing-panel" data-testid="pairing-panel">
     <template v-if="phase === 'preparing' || phase === 'showing'">
-      <p class="pp-lead">
-        On a device where you're already signed in, choose <strong>Scan code</strong> on the
-        new-login prompt, or <strong>Link a device</strong> under Privacy &rarr; Your devices,
-        and scan this code.
-      </p>
+      <i18n-t keypath="encryption.pairing.lead" tag="p" class="pp-lead">
+        <template #scanCode><strong>{{ $t('encryption.devices.scanCode') }}</strong></template>
+        <template #linkDevice><strong>{{ $t('encryption.devices.linkDevice') }}</strong></template>
+      </i18n-t>
       <div class="pp-qr">
-        <img v-if="qrUrl" :src="qrUrl" alt="Device pairing QR code" data-testid="pairing-qr" />
+        <img v-if="qrUrl" :src="qrUrl" :alt="$t('encryption.pairing.qrAlt')" data-testid="pairing-qr" />
         <LoadingSpinner v-else :size="36" />
       </div>
       <p v-if="phase === 'showing'" class="pp-meta">
-        <span v-if="secondsLeft > 0">Expires in {{ countdown }}</span>
-        <span v-else>This code expired.</span>
+        <span v-if="secondsLeft > 0">{{ $t('encryption.code.expiresIn', { time: countdown }) }}</span>
+        <span v-else>{{ $t('encryption.code.expired') }}</span>
         &middot; {{ deviceLabel }}
       </p>
       <div class="pp-actions">
         <button type="button" class="btn btn-secondary btn-sm" :disabled="phase !== 'showing'" @click="begin">
-          New code
+          {{ $t('encryption.code.newCode') }}
         </button>
         <button type="button" class="btn btn-secondary btn-sm" :disabled="phase !== 'showing'" @click="copyCode">
-          Copy code
+          {{ $t('encryption.code.copyCode') }}
         </button>
       </div>
       <button type="button" class="pp-link" @click="toScan">
-        Other device can't scan? Scan a code from it instead
+        {{ $t('encryption.pairing.scanInstead') }}
       </button>
     </template>
 
     <template v-else-if="phase === 'scan'">
       <QrScanner
-        hint="On your signed-in device choose Link a device, then Show a code, and point this camera at it."
+        :hint="$t('encryption.pairing.scanHint')"
         :auto-start="true"
-        paste-label="Or paste the code from your other device"
+        :paste-label="$t('encryption.pairing.scanPasteLabel')"
         @decoded="onApproverCode"
       />
-      <button type="button" class="pp-link" @click="begin">Show a code on this device instead</button>
+      <button type="button" class="pp-link" @click="begin">{{ $t('encryption.pairing.showInstead') }}</button>
     </template>
 
     <div v-else-if="phase === 'waiting' || phase === 'importing'" class="pp-status">
       <LoadingSpinner :size="32" />
-      <p v-if="phase === 'waiting'">Confirm on your other device to finish linking.</p>
-      <p v-else>Unlocking your encrypted messages&hellip;</p>
+      <p v-if="phase === 'waiting'">{{ $t('encryption.pairing.waiting') }}</p>
+      <p v-else>{{ $t('encryption.pairing.importing') }}</p>
     </div>
 
     <div v-else-if="phase === 'done'" class="pp-status pp-done">
       <Icon name="check-circle" :size="32" />
-      <p>This device is linked. Your encrypted messages are unlocking.</p>
+      <p>{{ $t('encryption.pairing.done') }}</p>
     </div>
 
     <div v-if="error" class="pp-error" role="alert" data-testid="pairing-error">
       <p>{{ error }}</p>
-      <button type="button" class="btn btn-secondary btn-sm" @click="begin">Start again</button>
+      <button type="button" class="btn btn-secondary btn-sm" @click="begin">{{ $t('encryption.pairing.startAgain') }}</button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import Icon from '@/components/common/Icon.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import QrScanner from './QrScanner.vue'
@@ -65,9 +65,15 @@ import { renderQrDataUrl } from '@/utils/qrCode'
 import { debug } from '@/utils/debug'
 import { deviceIdentityService } from '@/services/encryption/DeviceIdentityService'
 import { devicePairingService, type NewDevicePairing } from '@/services/encryption/DevicePairingService'
-import { PairingError, decodePairingCode, looksLikePairingCode } from '@/services/encryption/devicePairing'
+import {
+  PairingError,
+  decodePairingCode,
+  looksLikePairingCode,
+  type PairingErrorCode,
+} from '@/services/encryption/devicePairing'
 
 const emit = defineEmits<{ restored: [] }>()
+const { t } = useI18n()
 
 type Phase = 'preparing' | 'showing' | 'scan' | 'waiting' | 'importing' | 'done' | 'failed'
 
@@ -95,7 +101,7 @@ async function identities() {
   if (ids) return ids
   const { authContextService } = await import('@/services/AuthContextService')
   const ctx = await authContextService.getCurrentContext()
-  if (!ctx.isAuthenticated) throw new Error('Sign in again to link this device.')
+  if (!ctx.isAuthenticated) throw new Error(t('encryption.pairing.signInAgain'))
   ids = { profileId: ctx.profileId, authUserId: ctx.authUser.id }
   return ids
 }
@@ -109,20 +115,18 @@ function cancelPending() {
   pairing = null
 }
 
+const PAIRING_ERROR_KEYS: Partial<Record<PairingErrorCode, string>> = {
+  expired: 'encryption.pairing.errors.expired',
+  denied: 'encryption.pairing.errors.denied',
+  bundle_invalid: 'encryption.pairing.errors.bundleInvalid',
+  malformed: 'encryption.pairingErrors.malformed',
+  wrong_account: 'encryption.pairingErrors.wrongAccount',
+  already_used: 'encryption.pairingErrors.alreadyUsed',
+}
+
 function describe(err: unknown): string {
-  if (err instanceof PairingError) {
-    switch (err.code) {
-      case 'expired':
-        return 'The code expired. Start again for a new one.'
-      case 'denied':
-        return 'Your other device declined this sign-in.'
-      case 'bundle_invalid':
-        return 'The keys from the other device did not verify, so nothing was imported. Start again.'
-      default:
-        return err.message
-    }
-  }
-  return err instanceof Error && err.message ? err.message : 'Linking failed. Start again.'
+  if (err instanceof PairingError) return t(PAIRING_ERROR_KEYS[err.code] ?? 'encryption.pairing.errors.generic')
+  return err instanceof Error && err.message ? err.message : t('encryption.pairing.errors.generic')
 }
 
 async function waitAndComplete(p: NewDevicePairing) {
@@ -170,7 +174,7 @@ function toScan() {
 async function onApproverCode(text: string) {
   error.value = ''
   if (!looksLikePairingCode(text)) {
-    error.value = 'That is not a Harmony pairing code. On your signed-in device choose Link a device, then Show a code.'
+    error.value = t('encryption.pairing.notPairingCode')
     return
   }
   let code
@@ -181,7 +185,7 @@ async function onApproverCode(text: string) {
     return
   }
   if (code.mode !== 'approver') {
-    error.value = 'That code belongs to a new device. Scan the code your signed-in device shows.'
+    error.value = t('encryption.pairing.newDeviceCode')
     return
   }
   cancelPending()

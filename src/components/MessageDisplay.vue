@@ -311,7 +311,7 @@
                 <template v-else-if="item.message.metadata?.type === 'automod_alert' && !item.message.user_id && !item.message.bot_id">
                   <Icon name="shield" :size="16" class="system-icon automod-icon" />
                   <div class="system-text automod-alert-text">
-                    <span class="automod-badge">AutoMod</span>
+                    <span class="automod-badge">{{ $t('automod.title') }}</span>
                     <template v-if="item.message.metadata?.automod?.event_type === 'raid'">
                       {{ $t('automod.alert.raid', {
                         joins: item.message.metadata?.automod?.joins,

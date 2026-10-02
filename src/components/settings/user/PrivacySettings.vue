@@ -12,10 +12,11 @@
         <ShieldIcon class="section-icon" />
         Account security
       </h3>
-      <p class="setting-description">
-        Password, two-factor authentication and signed-in devices are under
-        <router-link :to="{ name: 'UserSettings', params: { section: 'security' } }">Security</router-link>.
-      </p>
+      <i18n-t keypath="security.privacyLink" tag="p" class="setting-description">
+        <template #link>
+          <router-link :to="{ name: 'UserSettings', params: { section: 'security' } }">{{ $t('settings.security') }}</router-link>
+        </template>
+      </i18n-t>
     </div>
 
     <!-- Encryption Settings -->

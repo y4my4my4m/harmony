@@ -8,6 +8,7 @@
 
 import { supabase } from '@/supabase'
 import { authErrorMessage } from '@/utils/authErrorMessage'
+import { i18n } from '@/i18n'
 
 export interface AccountSession {
   id: string
@@ -42,48 +43,52 @@ export function retryAfterSeconds(error: unknown): number | null {
   return match ? Number(match[1]) : null
 }
 
-function inMinutes(seconds: number | null): string {
-  if (!seconds) return 'in a few minutes'
+type WaitKey = 'tooManyAttempts' | 'exportRateLimited'
+
+/** Message keys security.errors.<base>{Soon,Minutes,Hours}. */
+function waitMessage(base: WaitKey, seconds: number | null): string {
+  const t = i18n.global.t
+  if (!seconds) return t(`security.errors.${base}Soon`)
   const minutes = Math.max(1, Math.ceil(seconds / 60))
-  if (minutes >= 90) return `in about ${Math.round(minutes / 60)} hours`
-  return `in ${minutes} minute${minutes === 1 ? '' : 's'}`
+  if (minutes >= 90) {
+    const hours = Math.round(minutes / 60)
+    return t(`security.errors.${base}Hours`, { count: hours })
+  }
+  return t(`security.errors.${base}Minutes`, { count: minutes }, minutes)
 }
 
 /** User-facing text for errors from the account-security RPCs and GoTrue's MFA endpoints. */
-export function securityErrorMessage(error: unknown, fallback = 'Something went wrong. Try again.'): string {
+export function securityErrorMessage(error: unknown, fallback?: string): string {
+  const t = i18n.global.t
   const err = (error ?? {}) as ErrorLike
   const code = err.error_code || err.code || ''
   const message = err.message || ''
 
-  if (message === 'too_many_attempts') {
-    return `Too many incorrect attempts. Try again ${inMinutes(retryAfterSeconds(error))}.`
-  }
-  if (message === 'export_rate_limited') {
-    return `You can request another export ${inMinutes(retryAfterSeconds(error))}.`
-  }
-  if (message === 'export_expired') return 'This export expired. Start a new one.'
-  if (message === 'step_up_required') return 'Enter a code from your authenticator app first.'
+  if (message === 'too_many_attempts') return waitMessage('tooManyAttempts', retryAfterSeconds(error))
+  if (message === 'export_rate_limited') return waitMessage('exportRateLimited', retryAfterSeconds(error))
+  if (message === 'export_expired') return t('security.errors.exportExpired')
+  if (message === 'step_up_required') return t('security.errors.stepUpRequired')
   if (message === 'insufficient_aal' || code === 'insufficient_aal') {
-    return 'This needs two-factor authentication. Sign in again with your authenticator app.'
+    return t('security.errors.insufficientAal')
   }
   if (message === 'session_revoked' || code === 'session_not_found') {
-    return 'This session was signed out. Sign in again.'
+    return t('security.errors.sessionRevoked')
   }
   if (code === 'mfa_verification_failed' || /invalid totp code/i.test(message)) {
-    return "That code didn't match. Use the newest code from your app and check that your device clock is set automatically."
+    return t('security.errors.codeMismatch')
   }
-  if (code === 'mfa_challenge_expired') return 'The verification expired. Enter a new code.'
+  if (code === 'mfa_challenge_expired') return t('security.errors.challengeExpired')
   if (code === 'over_request_rate_limit' || err.status === 429) {
-    return 'Too many attempts. Wait a moment and try again.'
+    return t('security.errors.rateLimited')
   }
-  return authErrorMessage(error, fallback)
+  return authErrorMessage(error, fallback ?? t('security.errors.generic'))
 }
 
 async function verifiedTotpFactorId(): Promise<string> {
   const { data, error } = await supabase.auth.mfa.listFactors()
   if (error) throw error
   const factor = (data?.totp ?? []).find((f) => f.status === 'verified')
-  if (!factor) throw new Error('Two-factor authentication is not enabled.')
+  if (!factor) throw new Error(i18n.global.t('security.errors.mfaNotEnabled'))
   return factor.id
 }
 

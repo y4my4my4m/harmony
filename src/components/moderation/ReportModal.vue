@@ -83,8 +83,8 @@
           <label v-if="remoteDomain" class="forward-option">
             <input type="checkbox" v-model="forward" />
             <span>
-              Also send an anonymous copy of this report to {{ remoteDomain }}
-              <span class="forward-hint">Their moderators see the content and your comment, not who you are.</span>
+              {{ t('moderation.reportForward.label', { domain: remoteDomain }) }}
+              <span class="forward-hint">{{ t('moderation.reportForward.hint') }}</span>
             </span>
           </label>
 
@@ -124,6 +124,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, onUnmounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { reportService, REPORT_REASONS, type ReportReason } from '@/services/ReportService'
 import { remoteDomainOf } from '@/utils/reportModeration'
 import Avatar from '@/components/common/Avatar.vue'
@@ -148,6 +149,7 @@ interface Props {
 }
 
 const props = defineProps<Props>()
+const { t } = useI18n()
 
 const emit = defineEmits<{
   close: []

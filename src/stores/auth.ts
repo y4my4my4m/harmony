@@ -3,6 +3,7 @@ import { onSessionRejected, signOutAndForget, supabase } from '@/supabase';
 import type { Session } from '@supabase/supabase-js';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { debug } from '@/utils/debug';
+import { i18n } from '@/i18n';
 import { userStorage } from '@/utils/userScopedStorage';
 import { realtimeApiService } from '@/services/RealtimeApiService';
 
@@ -705,11 +706,11 @@ export const useAuthStore = defineStore('auth', {
           p_code: code,
         });
         if (error) throw error;
-        if (!redeemed) throw new Error('That recovery code is not valid or was already used.');
+        if (!redeemed) throw new Error(i18n.global.t('security.mfa.recoveryCodeInvalid'));
 
         const { data: refreshed } = await supabase.auth.refreshSession();
         const session = refreshed.session ?? (await supabase.auth.getSession()).data.session;
-        if (!session) throw new Error('Signed in with a recovery code, but no session was returned. Sign in again.');
+        if (!session) throw new Error(i18n.global.t('security.mfa.recoveryNoSession'));
 
         await this.finalizeSignIn(session);
         return { session };

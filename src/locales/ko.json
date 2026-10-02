@@ -16,6 +16,7 @@
     "search": "검색",
     "send": "보내기",
     "copy": "복사",
+    "copied": "복사됨",
     "paste": "붙여넣기",
     "cut": "잘라내기",
     "undo": "실행 취소",
@@ -55,6 +56,7 @@
     "createAccount": "계정 만들기",
     "welcomeBackSubtitle": "이메일과 비밀번호로 로그인하세요.",
     "createAccountSubtitle": "다음 단계에서 사용자 이름과 프로필을 설정합니다.",
+    "confirmEmailSent": "{email}(으)로 확인 링크를 보냈습니다. 링크를 연 다음 로그인하세요.",
     "forgotPassword": "비밀번호를 잊으셨나요?",
     "dontHaveAccount": "계정이 없으신가요?",
     "alreadyHaveAccount": "이미 계정이 있으신가요?",
@@ -136,6 +138,8 @@
     "serverName": "서버 이름",
     "description": "설명",
     "privacySettings": "개인정보 설정",
+    "privacySettingsDesc": "이 서버를 찾고 참여할 수 있는 사람을 관리합니다.",
+    "privacySettingsViewDesc": "이 서버를 찾고 참여할 수 있는 사람입니다.",
     "public": "공개",
     "private": "비공개",
     "publicDesc": "누구나 이 서버에 참여할 수 있습니다",
@@ -156,6 +160,9 @@
     "moderation": "관리",
     "overview": "개요",
     "serverDescription": "서버에 대해 설명해 주세요...",
+    "rulesLabel": "서버 규칙",
+    "rulesPlaceholder": "한 줄에 규칙 하나씩, 예:\n서로 존중하기\n스팸 금지",
+    "rulesHint": "초대를 수락하기 전에 표시됩니다(최대 25개 규칙).",
     "myAwesomeServer": "멋진 서버",
     "noServers": "아직 서버가 없습니다",
     "noServersAvailable": "사용 가능한 서버가 없습니다",
@@ -244,36 +251,31 @@
     "copyEmojiName": "이모지 이름 복사",
     "renameEmoji": "이모지 이름 변경",
     "deleteEmojiTitle": "이모지 삭제",
-    "emojiViewOnlyAccess": "보기 전용 액세스",
-    "emojiViewOnlyMessage": "서버 이모지를 볼 수 있지만 업로드하거나 삭제할 수 없습니다. 서버 소유자와 이모지 관리 권한이 있는 사용자만 이모지를 수정할 수 있습니다.",
     "noPermissionUploadEmojis": "이모지를 업로드할 권한이 없습니다",
     "selectImageFile": "이미지 파일을 선택하세요",
     "fileSizeMustBeLessThan1MB": "파일 크기는 1MB 미만이어야 합니다",
-    "maxEmojisReached": "서버당 최대 50개의 이모지가 허용됩니다",
+    "maxEmojisReached": "이모지 최대 개수에 도달했습니다({max})",
     "emojiUploadedSuccess": "이모지 :{name}: 업로드 성공!",
     "failedToUploadEmoji": "이모지 업로드 실패",
     "noPermissionDeleteEmojis": "이모지를 삭제할 권한이 없습니다",
     "confirmDeleteEmoji": ":{name}: 이모지를 삭제하시겠습니까?",
     "emojiDeletedSuccess": "이모지 :{name}: 삭제 성공!",
     "failedToDeleteEmoji": "이모지 삭제 실패",
-    "fileNotImageSkipped": "{filename}은(는) 이미지 파일이 아니므로 건너뜁니다",
-    "fileTooLargeSkipped": "{filename}은(는) 너무 큽니다 (1MB 초과) - 건너뜁니다",
     "filesNotImageSkipped": "{count}개 파일 건너뜀: 이미지 파일이 아님",
     "filesTooLargeSkipped": "{count}개 파일 건너뜀: 25 MB 초과",
     "noValidImageFiles": "유효한 이미지 파일이 선택되지 않았습니다",
-    "cannotUploadEmojisLimit": "{count}개의 이모지를 업로드할 수 없습니다. 서버 제한은 50개입니다 (현재 {current}개)",
+    "cannotUploadEmojisLimit": "이모지 {count}개를 업로드할 수 없습니다: 한도 {max}개를 초과합니다(현재 {current}개)",
     "emojisUploadedSuccess": "{count}개의 이모지{plural} 업로드 성공!",
     "emojisFailedToUpload": "{count}개의 이모지{plural} 업로드 실패",
     "failedToUploadEmojis": "이모지 업로드 실패",
-    "confirmDeleteEmojis": "{count}개의 이모지{plural}를 삭제하시겠습니까?",
-    "emojisDeletedSuccess": "{count}개의 이모지{plural} 삭제 성공!",
-    "emojisFailedToDelete": "{count}개의 이모지{plural} 삭제 실패",
+    "confirmDeleteEmojis": "이모지 {count}개를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.",
+    "emojisDeletedSuccess": "이모지 {count}개 삭제됨",
+    "emojisFailedToDelete": "이모지 {count}개 삭제 실패",
     "failedToDeleteEmojis": "이모지 삭제 실패",
     "emojiRenamedSuccess": "이모지 이름이 :{name}:으로 변경되었습니다",
     "failedToRenameEmoji": "이모지 이름 변경 실패",
     "failedToLoadServerSettings": "서버 설정 로드 실패",
     "failedToLoadEmojis": "이모지 로드 실패",
-    "emojiUploadedSuccessToast": "이모지 업로드 성공",
     "noPermissionSaveChanges": "변경사항을 저장할 권한이 없습니다",
     "serverUpdatedSuccess": "서버 업데이트 성공",
     "failedToUpdateServer": "서버 업데이트 실패",
@@ -306,6 +308,11 @@
     "leaving": "나가는 중...",
     "join": "참가",
     "joining": "참가 중...",
+    "open": "열기",
+    "allCategories": "전체",
+    "noCommunitiesInCategory": "이 카테고리에 커뮤니티가 없습니다",
+    "creating": "만드는 중...",
+    "iconUploadHint": "정사각형 이미지가 가장 좋습니다. 최대 5 MB.",
     "member": "멤버",
     "categoryGaming": "게임",
     "categoryTechnology": "기술",
@@ -317,23 +324,36 @@
     "categoryScience": "과학",
     "categorySports": "스포츠",
     "categoryOther": "기타",
+    "discoveryCategory": "카테고리",
+    "discoveryCategoryHint": "둘러보기에 표시되어 사람들이 주제별로 서버를 찾을 수 있습니다.",
+    "discoveryCategoryNone": "설정 안 함",
+    "discoveryCategoryNoneHint": "둘러보기가 이름과 설명으로 카테고리를 정합니다.",
     "placeholders": {
       "serverName": "멋진 서버",
       "description": "서버에 대해 설명해 주세요..."
     },
     "errors": {
+      "nameRequired": "서버 이름은 필수입니다",
       "nameTooShort": "서버 이름은 최소 2자 이상이어야 합니다",
       "nameTooLong": "서버 이름은 50자 미만이어야 합니다",
-      "invalidName": "서버 이름에 잘못된 문자가 포함되어 있습니다"
+      "invalidName": "서버 이름에 잘못된 문자가 포함되어 있습니다",
+      "notSignedIn": "서버를 만들려면 로그인하세요.",
+      "createFailed": "서버를 만들지 못했습니다. 다시 시도해 주세요."
     },
+    "bannedFromServer": "이 서버에서 차단되었습니다.",
+    "joinRequiresInvite": "이 서버는 초대를 통해 참여할 수 있습니다.",
     "bots": "봇",
+    "bans": "차단",
+    "reports": "신고",
     "encryption": "암호화",
     "federationEnabled": "연합 활성화",
     "federationEnabledDesc": "다른 Harmony 인스턴스의 사용자가 이 서버에 참여하고 상호작용할 수 있도록 허용합니다. 인스턴스 간 통신에 필요합니다.",
     "federationActive": "연합 활성화됨",
     "federationBenefit1": "다른 인스턴스의 사용자가 초대 링크를 통해 참여할 수 있습니다",
     "federationBenefit2": "메시지는 연합 멤버와 실시간으로 공유됩니다",
-    "federationBenefit3": "서버가 연합 서버 검색에 표시됩니다"
+    "federationBenefit3": "서버가 연합 서버 검색에 표시됩니다",
+    "federationHandle": "서버 핸들",
+    "federationHandleDesc": "이 핸들을 공유하면 다른 인스턴스의 사람들이 이 서버를 찾아 참여할 수 있습니다."
   },
   "channel": {
     "create": "채널 만들기",
@@ -386,10 +406,16 @@
     "jumpTo": "메시지로 이동",
     "copyID": "메시지 ID 복사",
     "noMessagesHere": "여기에는 메시지가 없습니다. 무언가 입력해보세요!",
+    "newMessages": "새 메시지",
     "loadingOlder": "이전 메시지 로딩 중...",
     "newMessagesBelow": "새 메시지 {count}개",
+    "jumpToPresent": "최신으로 이동",
     "conversationBeginning": "대화의 시작입니다",
     "conversationBeginningSubtitle": "채팅을 시작하고 기억에 남게 만드세요!",
+    "channelWelcome": "#{name}에 오신 것을 환영합니다",
+    "channelWelcomeSubtitle": "#{name} 채널의 시작입니다.",
+    "dmBeginning": "{name}님과의 다이렉트 메시지의 시작입니다.",
+    "groupBeginning": "{name} 그룹의 시작입니다.",
     "jumpInConversation": "대화로 이동",
     "reactions": {
       "add": "반응 추가",
@@ -402,6 +428,71 @@
       "three": ", {name2}, {name3}님이 입력 중...",
       "many": "여러 사용자가 입력 중..."
     }
+  },
+  "messageSearch": {
+    "title": "메시지 검색",
+    "intro": "찾을 단어를 입력하거나 from:, mentions:, has:, in:, before:, during:, after:, pinned:로 검색 범위를 좁히세요.",
+    "placeholderServer": "이 서버 검색",
+    "placeholderDm": "이 대화 검색",
+    "close": "검색 닫기",
+    "clear": "검색 지우기",
+    "removeFilter": "{filter} 필터 제거",
+    "unresolved": "이 값과 일치하는 항목이 없어 검색에서 제외됩니다",
+    "options": "검색 옵션",
+    "members": "멤버",
+    "channels": "채널",
+    "date": "날짜",
+    "contains": "포함",
+    "pickDate": "날짜 선택",
+    "today": "오늘",
+    "yesterday": "어제",
+    "enterToSearch": "Enter 키를 눌러 검색",
+    "hint": {
+      "from": "보낸 사용자",
+      "mentions": "사용자를 멘션함",
+      "has": "링크, 임베드, 파일, 이미지, 동영상 또는 소리",
+      "in": "채널 안",
+      "before": "날짜 이전",
+      "during": "날짜 당일",
+      "after": "날짜 이후",
+      "pinned": "고정 여부"
+    },
+    "has": {
+      "link": "링크 포함",
+      "embed": "임베드 포함",
+      "file": "첨부 파일 포함",
+      "image": "이미지 포함",
+      "video": "동영상 포함",
+      "sound": "오디오 포함"
+    },
+    "pinnedHint": {
+      "true": "고정된 메시지",
+      "false": "고정되지 않은 메시지"
+    },
+    "recent": "최근 검색",
+    "clearRecent": "지우기",
+    "encryptedNote": "암호화된 메시지는 이 기기에서 이미 불러온 메시지 중에서만 검색됩니다.",
+    "onThisDevice": "암호화됨, 이 기기에서",
+    "searching": "검색 중…",
+    "results": "결과 없음 | 결과 {count}개 | 결과 {count}개",
+    "resultsCapped": "결과 {count}개 이상",
+    "sort": "결과 정렬",
+    "newest": "최신순",
+    "oldest": "오래된순",
+    "relevant": "관련성순",
+    "error": "검색에 실패했습니다",
+    "empty": "결과 없음",
+    "emptyHint": "다른 단어를 쓰거나 필터를 줄여 보세요.",
+    "unknownChannel": "알 수 없는 채널",
+    "threadIn": "{channel}의 스레드",
+    "pages": "결과 페이지",
+    "previous": "이전",
+    "next": "다음",
+    "jumpTo": "메시지로 이동",
+    "jump": "이동",
+    "bot": "봇",
+    "pinned": "고정됨",
+    "encrypted": "종단 간 암호화됨"
   },
   "voice": {
     "join": "음성 참여",
@@ -428,7 +519,66 @@
     "outputVolume": "출력 음량",
     "echoCancellation": "에코 제거",
     "noiseSuppression": "소음 억제",
-    "testMicrophone": "마이크 테스트"
+    "testMicrophone": "마이크 테스트",
+    "userVolume": "사용자 음량",
+    "streamVolume": "스트림 음량",
+    "muteUser": "음소거",
+    "muteStream": "스트림 음소거",
+    "localOnlyHint": "내가 듣는 소리만 바뀝니다",
+    "noStreamAudio": "이 스트림에는 오디오가 없습니다",
+    "watchStream": "스트림 보기",
+    "stopWatching": "보기 중지",
+    "fullScreen": "전체 화면",
+    "exitFullScreen": "전체 화면 종료",
+    "popOut": "팝아웃",
+    "closePopOut": "팝아웃 닫기",
+    "focus": "포커스",
+    "exitFocus": "포커스 종료",
+    "gridView": "그리드 보기",
+    "focusView": "포커스 보기",
+    "moreOptions": "추가 옵션",
+    "live": "라이브",
+    "mutedByYou": "내가 음소거함",
+    "streamMutedByYou": "내가 스트림을 음소거함",
+    "streamQuality": "스트림 품질",
+    "streamSettings": "스트림 설정",
+    "streamAudioQuality": "스트림 오디오",
+    "shareYourScreen": "화면 공유",
+    "goLive": "라이브 시작",
+    "stopStreaming": "스트리밍 중지",
+    "streamAudioHint": "소리를 포함하려면 브라우저 선택 창에서 오디오 공유를 켜세요.",
+    "qualityHint": "높은 설정일수록 업로드 대역폭이 더 필요합니다.",
+    "source": "소스",
+    "fps": "{n} fps",
+    "kbps": "{n} kbps",
+    "audioBlocked": "브라우저가 통화 오디오를 일시 중지했습니다.",
+    "enableAudio": "오디오 켜기",
+    "reconnecting": "다시 연결 중…",
+    "statusInVoice": "음성 참여 중",
+    "statusSpeaking": "말하는 중",
+    "statusStreaming": "스트리밍 중",
+    "statusCameraOn": "카메라 켜짐",
+    "statusMuted": "음소거됨",
+    "statusDeafened": "헤드셋 음소거됨",
+    "quality": {
+      "excellent": "연결 상태 매우 좋음",
+      "good": "연결 상태 좋음",
+      "poor": "연결 상태 나쁨",
+      "lost": "연결 끊김",
+      "unknown": "연결 상태 알 수 없음"
+    },
+    "autoWatchStreams": "스트림 자동으로 보기",
+    "autoWatchStreamsHint": "스트림 보기를 누르지 않아도 누군가 라이브를 시작하면 바로 스트림을 받습니다.",
+    "inputVolumeHint": "전송하기 전에 마이크 음량을 조절합니다. 100%에서는 그대로 전송됩니다.",
+    "inputVolumeAgcHint": " 자동 게인 제어가 켜져 있어 브라우저도 음량을 조정합니다.",
+    "switchCallTitle": "통화를 전환할까요?",
+    "switchCallMessage": "이미 {channel}에 있습니다. 나가고 이 통화에 참여할까요?",
+    "switchCallConfirm": "전환",
+    "callDuration": "통화 시간",
+    "inCallWith": "통화 중",
+    "incomingGroupCall": "{name}님이 그룹에 전화를 걸고 있습니다",
+    "ringing": "벨 울리는 중…",
+    "joinCallFailed": "통화에 참여하지 못했습니다"
   },
   "dm": {
     "directMessages": "다이렉트 메시지",
@@ -441,6 +591,9 @@
     "startBySearching": "주고받은 메시지가 여기에 표시됩니다.",
     "followingEmptyHint": "팔로우한 사람이 여기에 표시되어 바로 메시지를 보낼 수 있습니다.",
     "loadingConversations": "대화 로딩 중...",
+    "dismissConversation": "대화 숨기기",
+    "conversationDismissed": "대화를 숨겼습니다. 새 메시지가 오면 다시 표시됩니다.",
+    "failedToDismissConversation": "대화를 숨기지 못했습니다",
     "noUsersFound": "사용자를 찾을 수 없습니다",
     "call": "통화",
     "videoCall": "영상 통화",
@@ -454,11 +607,13 @@
     "unavailable": "사용자를 사용할 수 없습니다",
     "missedCall": "부재중 전화",
     "title": "다이렉트 메시지",
+    "recipientDeleted": "삭제된 계정입니다. 이 계정에 보낸 메시지는 전달되지 않습니다.",
     "sendMessage": "메시지 보내기",
     "callInProgress": "통화 중입니다",
     "joinCall": "통화 참여"
   },
   "user": {
+    "panelToggle": "계정 및 음성 컨트롤",
     "profile": "프로필",
     "editProfile": "프로필 편집",
     "viewProfile": "프로필 보기",
@@ -500,6 +655,8 @@
     "privacy": "개인정보 및 보안",
     "authorizedApps": "승인된 앱",
     "connections": "연결",
+    "administration": "관리",
+    "instanceAdmin": "인스턴스 관리자",
     "appearance": {
       "title": "모양",
       "description": "Harmony의 모양과 느낌을 사용자 지정하세요.",
@@ -530,6 +687,10 @@
       "use24HourDesc": "시간을 24시간 형식으로 표시합니다.",
       "compactMode": "컴팩트 모드",
       "compactModeDesc": "간격을 줄여 한 번에 더 많은 메시지를 표시합니다.",
+      "bridgeSourceBadge": "브리지 출처 표시",
+      "bridgeSourceBadgeDesc": "브리지된 메시지(예: Discord에서 온 메시지)의 출처를 작성자 이름 옆에 표시하는 방식입니다.",
+      "bridgeSourceBadgeIcon": "플랫폼 아이콘",
+      "bridgeSourceBadgeText": "텍스트 라벨(DISCORD)",
       "floatingVideo": "플로팅 비디오 플레이어",
       "floatingVideoDesc": "스크롤하면 재생 중인 비디오가 모서리로 이동합니다. YouTube 및 기본 비디오에서 작동합니다.",
       "highContrast": "고대비",
@@ -540,10 +701,19 @@
       "screenReaderDesc": "화면 읽기 프로그램에 최적화합니다.",
       "saveChanges": "변경사항 저장",
       "resetSettings": "재설정",
+      "unsavedChanges": "저장하지 않은 모양 변경사항이 있습니다",
+      "changesDiscarded": "저장하지 않은 모양 변경사항을 취소했습니다",
       "showCustomEmojisInDisplayNames": "표시 이름에 이모지 표시",
       "showCustomEmojisInDisplayNamesDesc": "활성화하면 다른 사용자의 표시 이름에 이모지 이미지가 표시됩니다. 비활성화하면 이모지와 단축 코드가 완전히 숨겨집니다.",
       "greentext": "Greentext",
-      "greentextDesc": "Render lines starting with > (no space) in green, imageboard-style. > text with a space is always a quote regardless of this setting."
+      "greentextDesc": "Render lines starting with > (no space) in green, imageboard-style. > text with a space is always a quote regardless of this setting.",
+      "inviteBannerBg": "초대 창의 서버 배너",
+      "inviteBannerBgDesc": "서버에 배너가 있으면 초대 창 뒤에 흐리고 어둡게 처리한 배너를 표시합니다.",
+      "quickReact": "빠른 반응",
+      "quickReactEnable": "두 번 탭하여 빠른 반응",
+      "quickReactEnableDesc": "메시지를 두 번 탭(모바일)하거나 더블클릭(데스크톱)하면 선택한 이모지로 바로 반응합니다.",
+      "quickReactEmoji": "빠른 반응 이모지",
+      "quickReactEmojiDesc": "메시지를 두 번 탭할 때 적용되는 이모지입니다."
     },
     "voice": {
       "title": "음성 및 비디오",
@@ -581,6 +751,30 @@
       "enableDMs": "다이렉트 메시지 알림",
       "muteAll": "모두 음소거",
       "muteDuration": "음소거 기간"
+    },
+    "announcements": {
+      "title": "공지",
+      "description": "이 인스턴스 관리자의 지난 공지와 현재 공지를 읽습니다.",
+      "loading": "공지 불러오는 중…",
+      "loadError": "공지를 불러오지 못했습니다. 다시 시도해 주세요.",
+      "endsAt": "{date} 종료",
+      "filters": {
+        "unread": "읽지 않음",
+        "all": "전체",
+        "pinned": "고정됨"
+      },
+      "empty": {
+        "unread": "모두 확인했습니다 — 읽지 않은 공지가 없습니다.",
+        "all": "아직 게시된 공지가 없습니다.",
+        "pinned": "현재 고정된 공지가 없습니다."
+      },
+      "badges": {
+        "unread": "새 공지",
+        "pinned": "고정됨",
+        "inactive": "비활성",
+        "expired": "만료됨",
+        "scheduled": "예약됨"
+      }
     },
     "language": {
       "title": "언어",
@@ -655,6 +849,23 @@
     "bookmarks": "북마크",
     "lists": "목록",
     "trending": "트렌드",
+    "trendingRising": "급상승",
+    "trendingSections": "트렌드 섹션",
+    "trendingHashtagsTab": "해시태그",
+    "trendingPeopleTab": "사람",
+    "trendingFilters": "필터",
+    "trendingTimeRange": "기간",
+    "trendingSource": "출처",
+    "clearFilters": "필터 지우기",
+    "trendingNoPosts": "아직 트렌드가 없습니다",
+    "trendingNoPostsHint": "답장, 부스트, 좋아요를 받은 게시물이 여기에 표시됩니다.",
+    "trendingNoMedia": "트렌드 미디어 없음",
+    "trendingNoMediaHint": "답장, 부스트, 좋아요를 받은 사진과 동영상이 여기에 표시됩니다.",
+    "trendingFilteredHint": "이 필터와 일치하는 항목이 없습니다. 기간을 늘리거나 필터를 지워 보세요.",
+    "trendingNoPeople": "아직 표시할 사람이 없습니다",
+    "trendingNoPeopleHint": "이 인스턴스와 연합한 인스턴스의 계정이 여기에 표시됩니다.",
+    "trendingLoadFailed": "트렌드를 불러오지 못했습니다",
+    "hashtagPeopleCount": "{count}명",
     "forYou": "맞춤",
     "latest": "최신",
     "whatsHappening": "무슨 일이 일어나고 있나요?",
@@ -705,6 +916,7 @@
     "mony": "게시물",
     "replying": "답장 중...",
     "posting": "게시 중...",
+    "failedToSendPost": "게시물을 보내지 못했습니다. 작성한 내용은 보존되었습니다 — 다시 시도하세요.",
     "home": "홈",
     "local": "로컬",
     "federated": "연합",
@@ -717,8 +929,113 @@
     "composeAction": "새 게시물 만들기",
     "refreshAction": "타임라인 새로고침",
     "toggleSidebarAction": "사이드바 전환",
+    "addAComment": "댓글 추가",
+    "addEmoji": "이모지 추가",
+    "addMedia": "이미지 또는 동영상 추가",
+    "addReaction": "반응 추가",
+    "adminBadge": "관리자",
+    "modBadge": "모더레이터",
+    "instanceAdmin": "서버 관리자",
+    "instanceModerator": "서버 모더레이터",
+    "altTextEdit": "설명 편집",
+    "altTextLabel": "볼 수 없는 사람을 위해 설명을 작성하세요",
+    "altTextMissing": "설명 없음",
+    "altTextPlaceholder": "사진이나 동영상에 무엇이 있나요?",
+    "altTextShow": "설명 보기",
+    "image": "이미지",
+    "video": "동영상",
+    "audio": "오디오",
+    "file": "파일",
+    "beFirstToUseHashtag": "#{tag}(으)로 처음 게시해 보세요",
+    "boost": "부스트",
+    "boosted": "님이 부스트함",
+    "undoBoost": "부스트 취소",
+    "boostedToast": "부스트했습니다",
+    "boostRemoved": "부스트를 취소했습니다",
+    "boostRemoveFailed": "부스트를 취소하지 못했습니다",
+    "boostDisabled": "이 게시물은 부스트할 수 없습니다",
+    "boostDisabledDirect": "다이렉트 게시물은 부스트할 수 없습니다",
+    "boostDisabledFollowers": "팔로워 전용 게시물은 부스트할 수 없습니다",
+    "boostedFromAnotherInstance": "다른 서버에서 부스트됨",
+    "boostsLabel": "부스트",
+    "repliesLabel": "답장",
+    "favoritesLabel": "좋아요",
+    "favorite": "좋아요",
+    "unfavorite": "좋아요 취소",
+    "unfavoriteWithReactions": "좋아요와 내 반응 취소 | 좋아요와 내 반응 {count}개 취소",
+    "reactionLimitReached": "한 게시물에 최대 {count}가지 이모지로 반응할 수 있습니다",
+    "removeBookmark": "북마크 제거",
+    "moreOptions": "추가 옵션",
+    "browseFederatedTimeline": "연합 타임라인 둘러보기",
+    "clearAllBookmarks": "모두 지우기",
+    "clearAllBookmarksTitle": "북마크를 모두 지울까요?",
+    "clearAllBookmarksMessage": "저장한 모든 게시물이 북마크에서 제거됩니다. 이 작업은 되돌릴 수 없습니다.",
+    "clearAllBookmarksFailed": "북마크를 지우지 못했습니다. 다시 시도하세요.",
+    "sensitiveContent": "민감한 콘텐츠",
+    "clickToShow": "클릭하여 보기",
+    "hideMedia": "미디어 숨기기",
+    "contentWarning": "콘텐츠 경고",
+    "contentWarningPlaceholder": "여기에 경고 문구를 작성하세요",
+    "markMediaSensitive": "미디어를 민감한 콘텐츠로 표시",
+    "draftSaved": "임시 저장됨",
+    "postVisibility": "게시물 공개 범위",
+    "visibilityLabel": "공개 범위: {visibility}",
+    "mentionedOnly": "멘션한 사람만",
+    "charactersRemaining": "{count}자 남음",
+    "whatsOnYourMind": "무슨 생각을 하고 있나요?",
+    "newPost": "새 게시물",
+    "newPostsCount": "새 게시물 {count}개",
+    "timelines": "타임라인",
+    "openNavigation": "탐색 열기",
+    "editProfile": "프로필 편집",
+    "followUser": "{'@'}{handle} 팔로우",
+    "unfollowUser": "{'@'}{handle} 언팔로우",
+    "mentionUser": "{'@'}{handle} 멘션",
+    "requested": "요청됨",
+    "cancelFollowRequest": "요청 취소",
+    "fromDomain": "{domain}에서",
+    "viewOnDomain": "{domain}에서 보기",
+    "postsCountLabel": "게시물 {count}개",
+    "participantsCount": "참여자 {count}명",
+    "todayCount": "오늘 {count}",
+    "loadFailedTitle": "게시물을 불러오지 못했습니다",
+    "loadFailedMessage": "연결 상태를 확인하고 다시 시도하세요.",
+    "loadMoreFailed": "게시물을 더 불러오지 못했습니다.",
+    "loadingMore": "게시물 더 불러오는 중",
+    "noBookmarksYet": "아직 북마크가 없습니다",
+    "noBookmarksHint": "게시물을 북마크하면 나중에 여기에서 찾을 수 있습니다.",
+    "noMentionsYet": "아직 멘션이 없습니다",
+    "noMentionsHint": "나를 멘션한 게시물이 여기에 표시됩니다. 팔로우하지 않는 사람의 게시물도 포함됩니다.",
+    "now": "지금",
+    "pinned": "고정됨",
+    "edited": "편집됨",
+    "editedTitle": "편집된 게시물입니다",
+    "replyToUser": "{name}님에게 답장",
+    "replyingTo": "답장 대상",
+    "viewThread": "스레드 보기",
+    "viewOriginalPost": "원본 게시물 보기",
+    "showMore": "더 보기",
+    "showLess": "간략히 보기",
+    "removeAttachment": "첨부 파일 제거",
+    "supportInstance": "이 인스턴스 후원하기",
+    "openMedia": "미디어 열기",
+    "gifLabel": "GIF",
+    "noMediaYet": "아직 미디어가 없습니다",
+    "noMediaOwn": "게시한 사진과 동영상이 여기에 표시됩니다.",
+    "noMediaOther": "{name}님은 아직 사진이나 동영상을 게시하지 않았습니다.",
+    "loadMediaFailed": "미디어를 불러오지 못했습니다",
+    "loadMoreMediaFailed": "미디어를 더 불러오지 못했습니다.",
+    "loadingMedia": "미디어 불러오는 중",
+    "mediaGridLabel": "{name}님의 미디어",
+    "mediaItemsCount": "{count}개 항목",
+    "revealMediaLabel": "{warning}. 미디어 보기",
+    "viewPost": "게시물 보기",
+    "fetchOlderFromDomain": "{domain}에서 이전 게시물 불러오기",
+    "fetchingOlderFromDomain": "{domain}에서 이전 게시물 확인 중",
+    "fetchOlderFailed": "{domain}에 연결할 수 없습니다.",
     "withMedia": "미디어 포함",
     "allInstances": "모든 인스턴스",
+    "thisInstance": "이 인스턴스",
     "lastHour": "지난 1시간",
     "last6Hours": "지난 6시간",
     "last24Hours": "지난 24시간",
@@ -753,6 +1070,7 @@
     "notShownInPublicTimelines": "공개 타임라인에 표시되지 않음",
     "onlyVisibleToFollowers": "팔로워만 볼 수 있음",
     "onlyMentionedUsers": "언급된 사용자만",
+    "directRequiresMention": "다이렉트 게시물은 한 명 이상을 {'@'}멘션해야 합니다.",
     "publicVisibleToEveryone": "공개 - 모두에게 공개",
     "unlistedNotShown": "비공개 목록 - 공개 타임라인에 표시되지 않음",
     "followersOnly": "팔로워만",
@@ -798,7 +1116,57 @@
     "spam": "스팸",
     "inappropriate": "부적절한 콘텐츠",
     "impersonation": "사칭",
-    "other": "기타"
+    "other": "기타",
+    "reportCategories": {
+      "spam": "스팸",
+      "legal": "불법 콘텐츠",
+      "violation": "규칙 위반",
+      "other": "기타"
+    },
+    "reportReasons": {
+      "spam": "스팸 또는 원치 않는 콘텐츠",
+      "harassment": "괴롭힘 또는 따돌림",
+      "illegal_content": "불법 콘텐츠",
+      "impersonation": "사칭",
+      "nsfw": "부적절한/NSFW 콘텐츠",
+      "other": "기타"
+    },
+    "reportSource": {
+      "fromInstance": "{domain}에서",
+      "fromRemote": "원격 인스턴스에서",
+      "local": "로컬"
+    },
+    "evidence": {
+      "backfilledNote": "신고 접수 후 수집됨",
+      "post": "신고 당시 게시물",
+      "contentWarning": "CW: {warning}",
+      "encryptedMessage": "암호화된 메시지",
+      "ciphertextOnly": "[암호문만 있음]",
+      "reporterSuppliedNote": "신고자가 제공한 텍스트로, 서버에서 확인할 수 없음",
+      "message": "신고 당시 메시지",
+      "server": "신고 당시 서버"
+    },
+    "reportErrors": {
+      "rateLimited": "최근에 신고를 너무 많이 보냈습니다. 나중에 다시 시도하세요.",
+      "unavailable": "이 콘텐츠는 더 이상 신고할 수 없습니다.",
+      "forbidden": "이 계정으로는 신고를 보낼 수 없습니다.",
+      "self": "자기 자신은 신고할 수 없습니다.",
+      "failed": "신고를 보내지 못했습니다. 나중에 다시 시도하세요.",
+      "actionFailed": "작업에 실패했습니다"
+    },
+    "reportForward": {
+      "label": "이 신고의 익명 사본을 {domain}에도 보내기",
+      "hint": "해당 인스턴스의 모더레이터는 콘텐츠와 내 코멘트를 볼 수 있지만, 내가 누구인지는 알 수 없습니다."
+    },
+    "warningNotification": {
+      "title": "모더레이터의 경고",
+      "defaultMessage": "모더레이터가 내 계정에 경고를 보냈습니다.",
+      "short": "모더레이션 경고",
+      "sender": "모더레이터"
+    },
+    "securityNotification": {
+      "short": "계정 보안"
+    }
   },
   "files": {
     "upload": "파일 업로드",
@@ -814,7 +1182,9 @@
     "uploadSuccess": "업로드 성공",
     "uploadError": "업로드 실패",
     "tooLarge": "파일이 너무 큽니다",
-    "invalidType": "잘못된 파일 유형"
+    "invalidType": "잘못된 파일 유형",
+    "viewFullSize": "원본 크기로 보기",
+    "imageTooLarge": "이 이미지는 {size}입니다. 최대 {max}까지 업로드할 수 있습니다."
   },
   "gif": {
     "search": "GIF 검색...",
@@ -827,11 +1197,27 @@
     "noFavorites": "즐겨찾는 GIF가 없습니다",
     "noFavoritesHint": "GIF의 별을 클릭하면 여기에 저장됩니다",
     "addToFavorites": "즐겨찾기 추가",
-    "removeFromFavorites": "즐겨찾기에서 제거"
+    "removeFromFavorites": "즐겨찾기에서 제거",
+    "clipUnmute": "소리와 함께 재생",
+    "clipMute": "음소거",
+    "loadFailed": "{kind}을(를) 불러오지 못했습니다",
+    "tryDifferentSearch": "다른 검색어를 입력해 보세요",
+    "noFavoritesOf": "아직 즐겨찾는 {kind}이(가) 없습니다",
+    "noneFound": "{kind}을(를) 찾을 수 없습니다"
   },
   "emoji": {
+    "messageReactionLimit": "이 메시지에는 이미 {count}가지 반응이 있습니다. 기존 반응 중 하나에 추가하세요.",
+    "postReactionLimit": "이 게시물에 반응을 {count}개 남겼습니다. 다른 반응을 추가하려면 하나를 제거하세요.",
     "search": "이모지 검색...",
     "searchEmojis": "이모지 검색...",
+    "aiGenerate": "생성",
+    "aiGenerating": "생성 중…",
+    "aiGeneratePlaceholder": "생성할 이모지를 설명하세요…",
+    "aiGenerateHint": "프롬프트를 입력해 나만의 이모지를 생성하세요. 일일 한도가 적용됩니다.",
+    "aiGenerateEmpty": "아직 생성한 이모지가 없습니다",
+    "aiGenerateEmptyHint": "위의 프롬프트로 첫 이모지를 만들어 보세요.",
+    "aiQuotaUser": "오늘 남은 생성 횟수 {remaining}/{total}",
+    "aiQuotaInstance": "오늘 남은 인스턴스 생성 횟수 {remaining}/{total}",
     "recent": "최근 사용",
     "smileys": "스마일 및 사람",
     "animals": "동물 및 자연",
@@ -843,6 +1229,76 @@
     "flags": "깃발",
     "custom": "사용자 지정",
     "noResults": "이모지를 찾을 수 없습니다"
+  },
+  "inbox": {
+    "title": "알림",
+    "bellLabel": "알림",
+    "bellLabelUnread": "알림, 읽지 않음 {count}개",
+    "newCount": "새 알림 {count}개",
+    "tabsLabel": "알림 필터",
+    "tabLabelUnread": "{tab}, 읽지 않음 {count}개",
+    "tabs": {
+      "all": "전체",
+      "mentions": "멘션",
+      "social": "소셜"
+    },
+    "unreadOnly": "읽지 않은 항목만",
+    "markAllRead": "모두 읽음으로 표시",
+    "clearAll": "모두 지우기",
+    "clearConfirm": "모든 알림을 지울까요? 이 작업은 되돌릴 수 없습니다.",
+    "settings": "알림 설정",
+    "close": "닫기",
+    "markRead": "읽음으로 표시",
+    "markUnread": "읽지 않음으로 표시",
+    "remove": "제거",
+    "unread": "읽지 않음",
+    "loadMore": "이전 알림 보기",
+    "loading": "알림 불러오는 중",
+    "error": "알림을 불러오지 못했습니다.",
+    "retry": "다시 시도",
+    "silenced": "방해 금지 모드가 켜져 있습니다. 알림이 소리 없이 도착합니다.",
+    "accept": "수락",
+    "reject": "거절",
+    "empty": {
+      "all": "모두 확인했습니다",
+      "allHint": "멘션, 답장, 메시지가 여기에 표시됩니다.",
+      "mentions": "멘션 없음",
+      "mentionsHint": "누군가 나를 멘션하거나 답장하면 여기에 표시됩니다.",
+      "social": "소셜 알림 없음",
+      "socialHint": "Fediverse의 팔로우, 좋아요, 부스트가 여기에 표시됩니다.",
+      "unread": "읽지 않은 알림 없음",
+      "unreadHint": "읽은 알림은 전체 탭에 남아 있습니다."
+    }
+  },
+  "newcomerAlerts": {
+    "notification": {
+      "action": "님이 새로 들어와 #{channel}에 글을 올렸습니다",
+      "actionNoChannel": "님이 새로 들어와 처음으로 글을 올렸습니다",
+      "short": "#{channel}의 새 멤버",
+      "shortNoChannel": "새 멤버가 글을 올렸습니다",
+      "noPreview": "인사를 건네 보세요",
+      "nativePrefix": "새 멤버"
+    },
+    "server": {
+      "title": "신규 멤버 알림",
+      "description": "최근 30일 이내에 참여한 사람이 처음으로 글을 올리면 소유자와 모더레이터에게 알림이 전송되어 누군가 환영 인사를 할 수 있습니다.",
+      "toggle": "소유자와 모더레이터에게 알림",
+      "followsDefault": "이 인스턴스의 기본값을 사용합니다.",
+      "useDefault": "인스턴스 기본값 사용",
+      "saveFailed": "신규 멤버 알림을 업데이트하지 못했습니다.",
+      "loadFailed": "신규 멤버 알림을 불러오지 못했습니다."
+    },
+    "preference": {
+      "label": "새 멤버",
+      "description": "내가 소유하거나 관리하는 서버에서 새 멤버가 처음으로 글을 올릴 때"
+    },
+    "admin": {
+      "title": "신규 멤버 알림",
+      "toggle": "새 멤버가 처음으로 글을 올리면 서버 운영진에게 알림",
+      "hint": "소유자가 따로 선택하지 않은 서버의 기본값입니다. 소유자와 서버 관리 권한이 있는 멤버는 서버 설정에서 변경할 수 있습니다.",
+      "saved": "신규 멤버 알림 기본값을 저장했습니다",
+      "saveFailed": "신규 멤버 알림 기본값을 저장하지 못했습니다"
+    }
   },
   "time": {
     "now": "지금",
@@ -958,7 +1414,8 @@
   "announcements": {
     "title": "공지사항",
     "markRead": "읽음으로 표시",
-    "markAllRead": "모두 읽음으로 표시"
+    "markAllRead": "모두 읽음으로 표시",
+    "viewPast": "지난 공지 보기"
   },
   "federation": {
     "joinRemoteServer": "원격 서버 참여",
@@ -971,6 +1428,9 @@
     "channels": "채널",
     "more": "더보기",
     "joinServer": "서버 참여",
+    "openServer": "서버 열기",
+    "alreadyJoined": "이미 이 서버의 멤버입니다.",
+    "joinPending": "참여 요청을 보냈습니다. 서버가 수락하면 이용할 수 있습니다.",
     "federatedNotice": "이것은 다른 Harmony 인스턴스에서 호스팅되는 연합 서버입니다. 메시지는 네트워크를 통해 전송됩니다.",
     "joinByUrl": "URL로 참여",
     "haveInviteLink": "초대 링크가 있나요? 여기에 붙여넣으세요",
@@ -988,14 +1448,72 @@
   "chat": {
     "uploading": "업로드 중...",
     "dropFilesHere": "여기에 파일을 놓으세요.",
-    "setupNow": "지금 설정"
+    "setupNow": "지금 설정",
+    "unlockNow": "잠금 해제",
+    "pinFailed": "메시지를 고정하지 못했습니다. 다시 시도하세요.",
+    "unpinFailed": "메시지 고정을 해제하지 못했습니다. 다시 시도하세요.",
+    "pinLimitReached": "고정 한도에 도달했습니다. 다른 메시지를 고정하려면 하나를 고정 해제하세요.",
+    "threadCreateFailed": "스레드를 시작하지 못했습니다. 다시 시도하세요.",
+    "threadReplyFailed": "답장을 보내지 못했습니다. 다시 시도하세요."
   },
   "invite": {
     "accepting": "초대 수락 중...",
     "accepted": "초대를 수락했습니다",
     "failed": "초대 수락에 실패했습니다",
     "noCode": "초대 코드를 찾을 수 없습니다",
-    "notLoggedIn": "초대를 수락하려면 로그인해야 합니다"
+    "notLoggedIn": "초대를 수락하려면 로그인해야 합니다",
+    "loading": "초대 불러오는 중…",
+    "invalidTitle": "유효하지 않은 초대",
+    "alreadyMember": "이미 멤버로 참여 중인 서버",
+    "invitedToJoin": "다음 서버에 초대받았습니다",
+    "member": "멤버",
+    "members": "멤버",
+    "openServer": "서버 열기",
+    "joining": "참여 중…",
+    "accept": "초대 수락",
+    "noThanks": "괜찮습니다",
+    "modal": {
+      "title": "사람 초대하기",
+      "subtitle": "링크가 있는 사람은 누구나 이 서버에 참여할 수 있습니다.",
+      "thisServer": "이 서버",
+      "members": "멤버 {count}명",
+      "linkLabel": "초대 링크",
+      "loading": "링크 만드는 중…",
+      "copy": "복사",
+      "copied": "복사됨",
+      "copyFailed": "링크를 복사하지 못했습니다",
+      "share": "공유",
+      "shareTitle": "Harmony에서 {server}에 참여하세요",
+      "editLink": "링크 설정",
+      "revoke": "취소",
+      "revokeCode": "초대 {code} 취소",
+      "revoked": "초대를 취소했습니다",
+      "revokeFailed": "초대를 취소하지 못했습니다",
+      "noLink": "활성 링크가 없습니다.",
+      "noPermission": "이 서버의 초대를 만들 권한이 없습니다.",
+      "expires": "{when} 만료",
+      "neverExpires": "만료 없음",
+      "usesOf": "{max}회 중 {used}회 사용",
+      "usesCount": "아직 사용 안 됨 | {count}회 사용 | {count}회 사용",
+      "expireAfter": "만료 기간",
+      "maxUses": "최대 사용 횟수",
+      "never": "만료 없음",
+      "unlimited": "제한 없음",
+      "usesOption": "{count}회",
+      "duration": {
+        "minute": "{count}분",
+        "hour": "{count}시간",
+        "day": "{count}일"
+      },
+      "newLink": "새 링크 만들기",
+      "newLinkHint": "이 설정으로 링크를 만듭니다. 기존 링크는 만료되거나 취소할 때까지 계속 작동합니다.",
+      "creating": "만드는 중…",
+      "created": "새 초대 링크를 만들었습니다",
+      "createFailed": "초대 링크를 만들지 못했습니다",
+      "otherLinks": "내 다른 활성 링크({count})",
+      "showLink": "이 링크 보기"
+    },
+    "bannedFromServer": "이 서버에서 차단되었습니다"
   },
   "nav": {
     "chat": "채팅",
@@ -1016,5 +1534,1521 @@
     "chatNotFound": "이 채팅 또는 대화가 존재하지 않거나 액세스 권한이 없습니다.",
     "settingsNotFound": "이 설정 페이지는 존재하지 않습니다.",
     "defaultNotFound": "찾으시는 페이지가 존재하지 않거나 이동되었습니다."
+  },
+  "onboarding": {
+    "title": "프로필 설정",
+    "subtitle": "{instance} 및 다른 서버의 사람들에게 이렇게 표시됩니다.",
+    "avatarLabel": "프로필 사진",
+    "avatarHint": "선택사항입니다. 나중에 변경할 수 있습니다.",
+    "addAvatar": "프로필 사진 추가",
+    "changeAvatar": "프로필 사진 변경",
+    "removeAvatar": "제거",
+    "avatarTooLarge": "이미지는 5 MB 이하여야 합니다.",
+    "avatarFailed": "프로필은 준비되었지만 사진이 업로드되지 않았습니다. 설정에서 추가할 수 있습니다.",
+    "displayName": "표시 이름",
+    "displayNameHint": "채팅에 표시되는 이름입니다. 언제든지 변경할 수 있습니다.",
+    "displayNameRequired": "표시 이름을 입력하세요.",
+    "displayNameTooLong": "표시 이름은 50자까지 입력할 수 있습니다.",
+    "username": "사용자 이름",
+    "usernameHint": "영문자, 숫자, 밑줄을 사용할 수 있습니다. 나중에 변경할 수 없습니다.",
+    "usernameChecking": "사용 가능 여부 확인 중…",
+    "usernameAvailable": "{handle}은(는) 사용할 수 있습니다",
+    "usernameTaken": "이미 사용 중인 사용자 이름입니다.",
+    "usernameTooShort": "{min}자 이상 입력하세요.",
+    "usernameCheckFailed": "사용 가능 여부를 확인하지 못했습니다. 다시 시도하세요.",
+    "bio": "자기소개",
+    "optional": "(선택사항)",
+    "submit": "계속",
+    "creating": "프로필 만드는 중…",
+    "createFailed": "프로필을 만들지 못했습니다. 연결 상태를 확인하고 다시 시도하세요.",
+    "instanceUnavailable": "서버 구성을 불러오지 못했습니다. 잠시 후 다시 시도하세요.",
+    "sessionExpired": "세션이 만료되었습니다. 다시 로그인하세요.",
+    "signedInAs": "{email}(으)로 로그인했습니다.",
+    "signOut": "로그아웃"
+  },
+  "emptyServers": {
+    "title": "아직 참여한 서버가 없습니다",
+    "subtitle": "서버는 {instance}에서 대화가 이루어지는 곳입니다. 초대로 참여하거나, 공개 서버를 둘러보거나, 직접 서버를 만드세요.",
+    "inviteLabel": "초대로 참여",
+    "invitePlaceholder": "초대 링크 또는 코드",
+    "inviteHint": "다른 Harmony 서버의 링크도 사용할 수 있습니다.",
+    "inviteInvalid": "초대 링크나 코드 형식이 아닙니다.",
+    "join": "참여",
+    "or": "또는",
+    "createTitle": "서버 만들기",
+    "createDesc": "친구나 커뮤니티를 위한 공간을 만드세요.",
+    "browseTitle": "공개 서버 둘러보기",
+    "browseDesc": "{instance}에서 참여할 수 있는 서버를 확인하세요.",
+    "findPeople": "사람 찾기",
+    "messages": "메시지"
+  },
+  "welcomeServer": {
+    "stepTitle": "{instance}에 오신 것을 환영합니다",
+    "stepSubtitle": "프로필이 준비되었습니다. 서버에 참여해 사람들과 대화를 시작하세요.",
+    "recommendedHeading": "추천 서버",
+    "recommendedSubheading": "대부분 여기에서 시작합니다. 언제든지 나갈 수 있습니다.",
+    "featuredHeading": "{instance}에서 인기 있는 서버",
+    "featuredSubheading": "이 인스턴스 운영자가 고른 커뮤니티입니다.",
+    "memberCount": "멤버 {count}명",
+    "join": "참여",
+    "joinNamed": "{server} 참여",
+    "joining": "참여 중…",
+    "skip": "건너뛰기",
+    "skipForNow": "나중에 하기",
+    "dismiss": "추천 숨기기",
+    "admin": {
+      "title": "환영 서버",
+      "hint": "가입을 마친 신규 사용자와 참여한 서버가 없는 사용자에게 추천됩니다. 한 번의 클릭으로 참여할 수 있으며, 자동으로 참여시키지는 않습니다.",
+      "label": "서버",
+      "none": "없음(추천 커뮤니티 제안)",
+      "option": "{name} · 멤버 {count}명",
+      "unavailableOption": "현재 설정(더 이상 공개되지 않음)",
+      "unavailable": "선택한 서버가 더 이상 공개되지 않거나 존재하지 않습니다. 설정되지 않은 것으로 처리되어 대신 추천 커뮤니티가 제안됩니다.",
+      "selectedNote": "신규 사용자에게 이 서버가 가장 먼저 제안됩니다. 이 서버의 멤버에게는 추천이 표시되지 않습니다.",
+      "noneNote": "환영 서버가 없으면 추천 커뮤니티를 최대 3개까지 제안합니다. 추천 커뮤니티도 없으면 아무것도 제안하지 않습니다.",
+      "save": "저장",
+      "saved": "환영 서버를 저장했습니다",
+      "saveFailed": "환영 서버를 저장하지 못했습니다"
+    }
+  },
+  "serverWelcome": {
+    "kicker": "환영합니다",
+    "rulesHeading": "서버 규칙",
+    "empty": "이 서버에는 아직 환영 메시지나 규칙이 없습니다.",
+    "close": "닫기",
+    "gotIt": "확인",
+    "acceptRules": "규칙 동의",
+    "accepting": "동의 중…",
+    "acceptNote": "여기에서 메시지를 보내려면 이 규칙에 동의하세요.",
+    "acceptedOn": "{date}에 이 규칙에 동의했습니다.",
+    "menuEntry": "서버 규칙 및 환영 메시지",
+    "promptText": "메시지를 보내려면 {server}의 규칙에 동의하세요.",
+    "thisServer": "이 서버",
+    "rulesRequired": "메시지를 보내기 전에 이 서버의 규칙에 동의하세요.",
+    "settings": {
+      "navLabel": "환영 및 규칙",
+      "title": "환영 화면 및 규칙",
+      "description": "새 멤버를 환영 메시지와 서버 규칙으로 맞이하세요. 멤버는 참여할 때 한 번 보게 되며, 서버 메뉴에서 다시 열 수 있습니다.",
+      "enabled": "새 멤버에게 환영 화면 표시",
+      "enabledHint": "이 설정을 켠 후 참여한 멤버에게 한 번 표시됩니다.",
+      "message": "환영 메시지",
+      "messagePlaceholder": "인사를 건네고, 서버의 목적을 설명하고, 알맞은 채널을 안내하세요.",
+      "messageHint": "**굵게**, *기울임*, `code`, 인용, 링크를 지원합니다.",
+      "rules": "규칙",
+      "rulesHint": "각 규칙의 짧은 제목과 선택적 세부 내용입니다. 규칙 제목은 초대를 여는 사람에게도 표시됩니다.",
+      "noRules": "아직 규칙이 없습니다.",
+      "ruleTitlePlaceholder": "서로 존중하기",
+      "ruleTitleLabel": "규칙 {n} 제목",
+      "ruleDescriptionPlaceholder": "세부 내용(선택사항)",
+      "ruleDescriptionLabel": "규칙 {n} 세부 내용",
+      "moveUp": "규칙 {n} 위로 이동",
+      "moveDown": "규칙 {n} 아래로 이동",
+      "removeRule": "규칙 {n} 제거",
+      "addRule": "규칙 추가",
+      "ruleNeedsTitle": "모든 규칙에는 제목이 필요합니다.",
+      "requireAcceptance": "멤버가 메시지를 보내기 전에 규칙에 동의해야 함",
+      "requireAcceptanceHint": "동의하기 전까지 새 멤버에게는 메시지 입력란 대신 규칙 동의 버튼이 표시됩니다. 소유자와 서버 관리 또는 관리자 권한이 있는 멤버는 제외됩니다.",
+      "requireAcceptanceNeedsRules": "동의를 요구하려면 규칙을 하나 이상 추가하세요.",
+      "grandfatherNote": "기존 멤버에게는 묻지 않습니다. 저장한 이후 참여한 사람만 동의해야 합니다.",
+      "preview": "미리보기",
+      "save": "저장",
+      "saving": "저장 중…",
+      "saved": "환영 화면을 저장했습니다",
+      "saveFailed": "환영 화면을 저장하지 못했습니다",
+      "loadFailed": "환영 화면을 불러오지 못했습니다",
+      "rulesMovedHint": "초대를 수락하기 전에 표시됩니다. 규칙은 환영 화면과 함께 편집합니다.",
+      "editRules": "규칙 편집"
+    }
+  },
+  "bots": {
+    "pageDescription": "봇은 Bot API를 통해 코드로 제어하는 계정입니다. 봇을 만들어 토큰을 받은 다음 게이트웨이에 연결하세요.",
+    "newBot": "새 봇",
+    "loading": "봇 불러오는 중…",
+    "loadFailed": "봇을 불러오지 못했습니다",
+    "listTitle": "봇({count})",
+    "noDescription": "설명 없음",
+    "serverCount": "참여한 서버 없음 | 서버 {count}개에 참여 | 서버 {count}개에 참여",
+    "lastConnected": "마지막 연결: {time}",
+    "neverConnected": "연결한 적 없음",
+    "back": "모든 봇",
+    "badge": {
+      "bot": "봇",
+      "bridge": "브리지",
+      "private": "비공개",
+      "verified": "인증됨"
+    },
+    "status": {
+      "online": "온라인",
+      "away": "자리 비움",
+      "busy": "방해 금지",
+      "offline": "오프라인"
+    },
+    "profile": {
+      "about": "소개",
+      "created": "생성일",
+      "status": "상태",
+      "commands": "명령어",
+      "commandsTitle": "명령어({count})",
+      "showAllCommands": "{count}개 모두 보기",
+      "showFewerCommands": "간략히 보기",
+      "website": "웹사이트",
+      "supportServer": "지원 서버",
+      "openServer": "열기",
+      "joinServer": "참여",
+      "settings": "봇 설정",
+      "remove": "서버에서 제거",
+      "addToServer": "서버에 추가",
+      "yourServers": "내가 소유한 서버",
+      "loadFailed": "이 봇의 세부 정보를 불러오지 못했습니다",
+      "close": "닫기"
+    },
+    "empty": {
+      "title": "아직 봇이 없습니다",
+      "body": "봇을 만들어 게이트웨이와 REST API용 토큰을 받으세요.",
+      "action": "봇 만들기"
+    },
+    "fields": {
+      "avatar": "아바타",
+      "changeAvatar": "아바타 변경",
+      "removeAvatar": "제거",
+      "uploading": "업로드 중…",
+      "avatarHint": "PNG, JPG, WebP 또는 GIF, 최대 4 MB.",
+      "username": "사용자 이름",
+      "usernamePlaceholder": "my-bot",
+      "usernameHint": "영문 소문자, 숫자, 하이픈, 밑줄; 3~32자.",
+      "usernameLocked": "사용자 이름은 생성 후 변경할 수 없습니다.",
+      "displayName": "표시 이름",
+      "displayNamePlaceholder": "My Bot",
+      "description": "설명",
+      "descriptionPlaceholder": "이 봇은 무엇을 하나요?",
+      "type": "유형",
+      "public": "공개 봇",
+      "publicHint": "서버 소유자라면 누구나 공개 봇을 찾아 추가할 수 있습니다. 비공개 봇은 나만 추가할 수 있습니다."
+    },
+    "type": {
+      "bot": "표준",
+      "botHint": "토큰으로 연결하여 게이트웨이와 REST API를 통해 동작합니다.",
+      "bridge": "브리지",
+      "bridgeHint": "Harmony와 다른 플랫폼 간에 메시지를 중계합니다. 봇 페이지에 브리지 설정 가이드가 추가됩니다."
+    },
+    "usernameErrors": {
+      "tooShort": "3자 이상 입력하세요.",
+      "tooLong": "32자 이하로 입력하세요.",
+      "invalidChars": "영문 소문자, 숫자, 하이픈, 밑줄만 사용하세요."
+    },
+    "general": {
+      "title": "일반 정보",
+      "description": "봇이 추가된 서버에서 표시되는 방식입니다.",
+      "save": "변경사항 저장",
+      "saving": "저장 중…",
+      "saved": "변경사항을 저장했습니다",
+      "saveFailed": "변경사항을 저장하지 못했습니다"
+    },
+    "token": {
+      "title": "토큰",
+      "description": "토큰은 게이트웨이와 REST API에서 봇을 인증합니다. Harmony는 해시만 저장하므로 전체 토큰은 생성할 때 한 번만 표시됩니다.",
+      "legacyHint": "토큰 힌트 기록 이전에 발급됨",
+      "created": "{time}에 생성됨",
+      "lastUsed": "마지막 사용: {time}",
+      "neverUsed": "사용한 적 없음",
+      "none": "활성 토큰이 없습니다. 봇을 연결하려면 토큰을 생성하세요.",
+      "reset": "토큰 재설정",
+      "generate": "토큰 생성",
+      "resetConfirmTitle": "토큰을 재설정할까요?",
+      "resetConfirmBody": "현재 토큰은 즉시 폐기됩니다. 이 토큰을 사용하는 REST 요청과 새 게이트웨이 연결은 거부됩니다. 이미 열려 있는 게이트웨이 세션은 닫힐 때까지 연결이 유지되므로 새 토큰으로 봇을 다시 시작하세요.",
+      "resetFailed": "토큰 재설정에 실패했습니다. 현재 토큰은 계속 작동합니다.",
+      "loadFailed": "토큰 세부 정보를 불러오지 못했습니다",
+      "revealTitle": "봇 토큰 복사",
+      "revealWarning": "토큰은 지금 한 번만 표시됩니다. 시크릿 관리자나 환경 변수에 저장하세요. 토큰을 가진 사람은 누구나 봇을 제어할 수 있습니다.",
+      "copyFailed": "복사하지 못했습니다. 토큰을 선택하여 직접 복사하세요.",
+      "done": "토큰을 저장했습니다"
+    },
+    "connection": {
+      "title": "연결",
+      "description": "봇 코드에서 사용할 식별자와 엔드포인트입니다.",
+      "botId": "봇 ID",
+      "gatewayUrl": "게이트웨이 URL",
+      "restUrl": "REST 기본 URL",
+      "authHeader": "Authorization 헤더",
+      "docs": "Bot API 문서",
+      "copy": "{label} 복사",
+      "copied": "{label} 복사됨",
+      "copyFailed": "{label}을(를) 복사하지 못했습니다"
+    },
+    "install": {
+      "title": "서버에 추가",
+      "description": "내가 소유한 서버입니다. 봇은 읽기, 보내기, 반응 권한으로 참여하며, 권한은 서버 설정에서 변경할 수 있습니다.",
+      "add": "추가",
+      "added": "추가됨",
+      "noServers": "소유한 서버가 없습니다.",
+      "success": "{bot}을(를) {server}에 추가했습니다",
+      "failed": "봇을 추가하지 못했습니다",
+      "loadFailed": "서버를 불러오지 못했습니다"
+    },
+    "delete": {
+      "title": "봇 삭제",
+      "description": "모든 서버에서 봇을 제거하고 토큰을 폐기합니다. 이 작업은 되돌릴 수 없습니다.",
+      "action": "봇 삭제",
+      "confirmTitle": "{name}을(를) 삭제할까요?",
+      "confirmBody": "{name}이(가) 모든 서버에서 제거되고 토큰이 폐기됩니다. 이 작업은 되돌릴 수 없습니다.",
+      "success": "{name}을(를) 삭제했습니다",
+      "failed": "봇을 삭제하지 못했습니다"
+    },
+    "create": {
+      "title": "봇 만들기",
+      "submit": "봇 만들기",
+      "creating": "만드는 중…",
+      "success": "{name}을(를) 만들었습니다",
+      "failed": "봇을 만들지 못했습니다"
+    },
+    "avatar": {
+      "tooLarge": "아바타는 4 MB 이하여야 합니다.",
+      "uploaded": "아바타를 업로드했습니다. 적용하려면 변경사항을 저장하세요.",
+      "failed": "아바타 업로드에 실패했습니다"
+    },
+    "server": {
+      "title": "서버 봇",
+      "description": "봇은 Bot API를 통해 이 서버에서 동작하며, 여기에서 부여한 권한으로 제한됩니다.",
+      "browseTitle": "봇 추가",
+      "searchPlaceholder": "봇 검색",
+      "emptyDirectory": "아직 사용할 수 있는 봇이 없습니다. 누구나 사용자 설정 → 내 봇에서 봇을 만들 수 있습니다.",
+      "noResults": "“{query}”와(과) 일치하는 봇이 없습니다.",
+      "loadMore": "더 보기",
+      "installedTitle": "설치됨({count})",
+      "add": "서버에 추가",
+      "added": "추가됨",
+      "addedOn": "{time}에 추가됨",
+      "permissions": "권한",
+      "channels": "채널",
+      "remove": "제거",
+      "addTitle": "서버에 봇 추가",
+      "addSubmit": "봇 추가",
+      "adding": "추가 중…",
+      "permissionsTitle": "봇 권한",
+      "permissionsHint": "봇 게이트웨이에서 적용됩니다. REST 요청에는 변경사항이 즉시 반영되고, 이벤트 전달에는 5분 이내에 반영됩니다. 읽기와 보내기는 필수입니다.",
+      "required": "필수",
+      "save": "변경사항 저장",
+      "saving": "저장 중…",
+      "addSuccess": "{name}을(를) 추가했습니다",
+      "addFailed": "봇을 추가하지 못했습니다",
+      "removeConfirmTitle": "{name}을(를) 제거할까요?",
+      "removeConfirmBody": "봇은 이 서버에 대한 REST 접근 권한을 즉시 잃고, 5분 이내에 이벤트 수신이 중단됩니다.",
+      "removeSuccess": "{name}을(를) 제거했습니다",
+      "removeFailed": "봇을 제거하지 못했습니다",
+      "permissionsSaved": "권한을 저장했습니다",
+      "permissionsFailed": "권한을 저장하지 못했습니다",
+      "loadFailed": "봇을 불러오지 못했습니다",
+      "hiddenBot": "비공개 봇",
+      "channelsTitle": "채널 접근",
+      "channelsHint": "서버 소유자와 서버 관리 권한이 있는 멤버가 변경할 수 있습니다. 볼 수 없는 채널은 추가할 수 없습니다.",
+      "channelsAll": "{'@'}everyone이 볼 수 있는 채널",
+      "channelsAllDescription": "봇은 {'@'}everyone이 볼 수 있는 모든 채널을 읽고, {'@'}everyone이 할 수 있는 곳에서 게시하고 반응합니다. {'@'}everyone에게 숨겨진 채널은 봇에게도 숨겨지며, 읽기 전용 채널은 읽기 전용으로 유지됩니다.",
+      "channelsSelected": "선택한 채널",
+      "channelsSelectedDescription": "봇은 선택한 채널에서만 동작하며, 각 채널에서 보유한 모든 권한을 사용합니다. {'@'}everyone에게 숨겨진 채널도 보고, {'@'}everyone이 읽기 전용인 곳에서도 게시하고 반응합니다.",
+      "channelsEmpty": "선택할 채널이 없습니다",
+      "channelHidden": "{'@'}everyone에게 숨겨짐",
+      "channelsSaved": "채널 접근을 저장했습니다",
+      "channelsFailed": "채널 접근을 저장하지 못했습니다",
+      "channelsLoadFailed": "채널 접근을 불러오지 못했습니다"
+    },
+    "permissions": {
+      "read_messages": {
+        "label": "메시지 읽기",
+        "description": "메시지 및 반응 이벤트를 받고 채널 기록을 읽습니다."
+      },
+      "send_messages": {
+        "label": "메시지 보내기",
+        "description": "메시지를 게시하고 자신의 메시지를 편집합니다."
+      },
+      "add_reactions": {
+        "label": "반응 추가",
+        "description": "자신의 반응을 추가하고 제거합니다."
+      },
+      "manage_messages": {
+        "label": "메시지 관리",
+        "description": "다른 사람이 보낸 메시지를 삭제합니다."
+      },
+      "manage_channels": {
+        "label": "채널 관리",
+        "description": "채널, 카테고리, 채널 권한 재정의를 만들고 편집합니다."
+      },
+      "manage_roles": {
+        "label": "역할 관리",
+        "description": "설치한 사람의 최상위 역할보다 낮은 역할을, 봇이 보유한 권한 범위 안에서 만들고 편집하고 삭제합니다."
+      }
+    }
+  },
+  "floatingVideo": {
+    "region": "비디오 플레이어",
+    "video": "동영상",
+    "openSource": "원본 열기",
+    "pictureInPicture": "PIP 모드",
+    "returnToMessage": "메시지로 돌아가기",
+    "close": "닫기",
+    "placeholder": "비디오 플레이어에서 재생 중",
+    "placeholderHint": "선택하면 여기로 다시 가져옵니다"
+  },
+  "channelEncryption": {
+    "encryptedMessage": "암호화된 메시지",
+    "lock": {
+      "messages": "종단 간 암호화됨",
+      "voice": "음성 및 영상이 종단 간 암호화됨"
+    },
+    "status": {
+      "active": "종단 간 암호화됨",
+      "locked": "이 채널은 종단 간 암호화되어 있습니다. 메시지를 읽고 보내려면 암호화 잠금을 해제하세요.",
+      "setup": "이 채널은 종단 간 암호화되어 있습니다. 메시지를 읽고 보내려면 암호화를 설정하세요.",
+      "recommended": "이 서버는 암호화 설정을 권장합니다."
+    },
+    "settings": {
+      "heading": "암호화",
+      "loading": "암호화 설정 불러오는 중...",
+      "unavailable": "암호화 설정을 불러오지 못했습니다.",
+      "messagesLabel": "메시지 종단 간 암호화",
+      "voiceLabel": "음성 및 영상 종단 간 암호화",
+      "messagesOnHint": "메시지가 멤버의 기기에서 암호화되므로 서버가 읽을 수 없습니다.",
+      "messagesOffHint": "메시지가 평문으로 저장됩니다. 암호화를 켜면 새 메시지부터 적용됩니다.",
+      "serverDisabled": "이 서버에서는 암호화가 비활성화되어 있습니다. 서버 소유자가 서버 설정 > 개인정보 설정에서 허용할 수 있습니다.",
+      "serverRequired": "이 서버는 모든 채널에 암호화를 요구합니다.",
+      "voiceHint": "통화는 미디어 서버에 도달하기 전에 암호화됩니다. 암호화를 설정하지 않은 멤버는 참여할 수 없습니다.",
+      "voiceRequired": "이 서버는 모든 음성 채널에서 음성 및 영상 암호화를 요구합니다.",
+      "turnedOn": "암호화를 켰습니다",
+      "turnedOff": "암호화를 껐습니다",
+      "voiceTurnedOn": "음성 암호화를 켰습니다",
+      "voiceTurnedOff": "음성 암호화를 껐습니다",
+      "saveFailed": "암호화를 변경하지 못했습니다. 다시 시도하세요."
+    },
+    "integrations": {
+      "bots": "이 서버의 봇 {count}개는 암호화된 메시지를 읽거나 이 채널에 게시할 수 없습니다.",
+      "bridges": "이 서버의 브리지 {count}개는 암호화된 메시지를 읽거나 중계할 수 없습니다.",
+      "both": "이 서버의 봇({bots})과 브리지({bridges})는 암호화된 메시지를 읽거나 이 채널에 게시할 수 없습니다."
+    },
+    "confirmOn": {
+      "title": "암호화를 켤까요?",
+      "confirm": "암호화 켜기"
+    },
+    "confirmOff": {
+      "title": "암호화를 끌까요?",
+      "message": "이 채널의 새 메시지는 서버가 읽을 수 있는 평문으로 저장됩니다. 이전 메시지는 암호화된 상태로 유지되며, 채널에 내가 암호화를 껐다는 사실이 표시됩니다.",
+      "confirm": "암호화 끄기"
+    },
+    "confirmVoiceOff": {
+      "title": "음성 암호화를 끌까요?",
+      "message": "이 채널의 통화는 더 이상 종단 간 암호화되지 않으며, 미디어 서버가 오디오와 영상에 접근할 수 있게 됩니다.",
+      "confirm": "음성 암호화 끄기"
+    },
+    "system": {
+      "enabled": "님이 이 채널의 종단 간 암호화를 켰습니다.",
+      "disabled": "님이 이 채널의 종단 간 암호화를 껐습니다.",
+      "voiceEnabled": "님이 음성 및 영상의 종단 간 암호화를 켰습니다.",
+      "voiceDisabled": "님이 음성 및 영상의 종단 간 암호화를 껐습니다."
+    },
+    "create": {
+      "label": "종단 간 암호화",
+      "hint": "서버가 읽을 수 없도록 이 채널의 메시지를 암호화합니다.",
+      "integrationWarning": "이 서버의 봇과 브리지는 암호화된 메시지를 읽거나 이 채널에 게시할 수 없습니다.",
+      "failed": "채널은 만들어졌지만 암호화를 켜지 못했습니다. 채널 설정에서 켜세요."
+    }
+  },
+  "today": {
+    "beta": "베타",
+    "back": "뒤로",
+    "refresh": "새로고침",
+    "refreshing": "새로고침 중",
+    "loading": "오늘의 소식 불러오는 중",
+    "loadFailed": "오늘의 소식을 불러오지 못했습니다",
+    "refreshFailed": "새로고침하지 못했습니다. 이전 결과를 표시합니다.",
+    "sinceVisit": "마지막 방문({time}) 이후",
+    "sinceVisitMoments": "조금 전 마지막 방문 이후",
+    "firstVisit": "확인할 소식이 기다리고 있습니다",
+    "allCaughtUp": "모두 확인했습니다",
+    "statsLabel": "요약",
+    "seeAll": "모두 보기",
+    "showAll": "모두 보기({count})",
+    "showLess": "간략히 보기",
+    "unread": "읽지 않음",
+    "unknownUser": "알 수 없는 사용자",
+    "noText": "텍스트 없음",
+    "attachments": "첨부 파일 {count}개",
+    "greeting": {
+      "night": "늦게까지 깨어 계시네요?",
+      "morning": "좋은 아침입니다",
+      "afternoon": "좋은 오후입니다",
+      "evening": "좋은 저녁입니다"
+    },
+    "stats": {
+      "mentions": "새 멘션 {count}개",
+      "conversations": "읽지 않은 대화 {count}개",
+      "channels": "읽지 않은 메시지 {count}개",
+      "threads": "답장이 달린 스레드 {count}개",
+      "voice": "음성 채널에 {count}명",
+      "followRequests": "팔로우 요청 {count}개"
+    },
+    "errors": {
+      "markRead": "읽음으로 표시하지 못했습니다. 다시 시도하세요.",
+      "followRequest": "팔로우 요청에 응답하지 못했습니다. 다시 시도하세요.",
+      "announcement": "공지를 닫지 못했습니다. 다시 시도하세요."
+    },
+    "announcements": {
+      "title": "공지",
+      "pinned": "고정됨",
+      "dismiss": "공지 닫기: {title}",
+      "dismissShort": "닫기",
+      "more": "설정에 {count}개 더 있음"
+    },
+    "mentions": {
+      "title": "멘션 및 답장",
+      "empty": "최근 2주 동안 멘션이나 답장이 없습니다.",
+      "error": "멘션을 불러오지 못했습니다.",
+      "mention": "멘션",
+      "reply": "답장",
+      "inThread": "{thread} · {server}",
+      "inChannel": "{channel} · {server}",
+      "inGroup": "{name}",
+      "inUnnamedGroup": "그룹 메시지",
+      "inDirect": "다이렉트 메시지",
+      "linkLabel": "{author}님의 {kind}, {location}, {time}"
+    },
+    "conversations": {
+      "title": "다이렉트 메시지",
+      "empty": "읽지 않은 다이렉트 메시지가 없습니다.",
+      "error": "다이렉트 메시지를 불러오지 못했습니다.",
+      "more": "다이렉트 메시지에 읽지 않은 대화 {count}개 더 있음",
+      "you": "나",
+      "group": "그룹",
+      "groupNamesMore": "{names} 외 {count}명",
+      "unreadCount": "읽지 않은 메시지 {count}개",
+      "linkLabel": "{name}, 읽지 않은 메시지 {count}개"
+    },
+    "catchUp": {
+      "title": "따라잡기",
+      "empty": "읽지 않은 채널이 없습니다.",
+      "error": "읽지 않은 채널을 불러오지 못했습니다.",
+      "markAllRead": "모두 읽음으로 표시",
+      "markRead": "읽음으로 표시",
+      "markServerRead": "{server}을(를) 읽음으로 표시",
+      "serverCounts": "읽지 않음 {count}개",
+      "serverMentions": "멘션 {count}개",
+      "moreChannels": "{count}개 더",
+      "channelLabel": "#{channel}, 읽지 않은 메시지 {count}개",
+      "channelLabelMentions": "#{channel}, 읽지 않음 {count}개, 나를 멘션한 메시지 {mentions}개"
+    },
+    "voice": {
+      "title": "지금 라이브",
+      "empty": "지금 음성 채널에 아무도 없습니다.",
+      "error": "음성 채널을 불러오지 못했습니다.",
+      "since": "{time} 동안",
+      "join": "참여",
+      "open": "열기",
+      "joinLabel": "{server}의 {channel} 참여",
+      "openLabel": "{channel} 열기, 연결됨",
+      "participantsMore": "{names} 외 {count}명",
+      "joinFailed": "음성 채널에 참여하지 못했습니다."
+    },
+    "threads": {
+      "title": "내 스레드",
+      "empty": "내 스레드에 새 답장이 없습니다.",
+      "error": "스레드를 불러오지 못했습니다.",
+      "newReplies": "새 답장 {count}개",
+      "linkLabel": "{name}, 새 답장 {count}개"
+    },
+    "social": {
+      "title": "소셜",
+      "empty": "새 팔로워나 내 게시물에 대한 활동이 없습니다.",
+      "error": "소셜 활동을 불러오지 못했습니다.",
+      "followRequests": "팔로우 요청 {count}개",
+      "accept": "수락",
+      "decline": "거절",
+      "acceptLabel": "{name}님의 팔로우 요청 수락",
+      "declineLabel": "{name}님의 팔로우 요청 거절",
+      "allRequests": "요청 {count}개 모두 보기",
+      "activityLabel": "내 게시물의 읽지 않은 활동",
+      "activity": {
+        "favorite": "좋아요 {count}개",
+        "reblog": "부스트 {count}개",
+        "reaction": "반응 {count}개",
+        "mention": "멘션 {count}개",
+        "reply": "답장 {count}개"
+      },
+      "followedOne": "{name}님이 나를 팔로우했습니다",
+      "followedTwo": "{a}님과 {b}님이 나를 팔로우했습니다",
+      "followedMany": "{name}님 외 {count}명이 나를 팔로우했습니다",
+      "mentioned": "나를 멘션함",
+      "replied": "답장함",
+      "mentionLabel": "나를 멘션한 {name}님의 게시물",
+      "replyLabel": "내 게시물에 대한 {name}님의 답장"
+    },
+    "posts": {
+      "title": "내가 팔로우하는 사람들의 게시물",
+      "empty": "팔로우하는 사람들의 새 게시물이 없습니다.",
+      "error": "게시물을 불러오지 못했습니다.",
+      "linkLabel": "{name}님의 게시물"
+    },
+    "highlights": {
+      "title": "요약",
+      "onDevice": "온디바이스 AI",
+      "onDeviceHint": "채널 요약은 기기에서 생성됩니다. 어떤 데이터도 기기 밖으로 나가지 않습니다."
+    }
+  },
+  "updater": {
+    "readyTitle": "업데이트 준비 완료",
+    "readyBody": "Harmony {version}을(를) 다운로드했습니다. 다시 시작하면 업데이트가 완료되며, 몇 초 정도 걸립니다.",
+    "readyToast": "Harmony {version}이(가) 준비되었습니다. 클릭하여 다시 시작하고 업데이트하세요.",
+    "restartToUpdate": "다시 시작하여 업데이트",
+    "later": "나중에",
+    "indicatorLabel": "업데이트 준비 완료: 다시 시작하여 Harmony {version} 설치",
+    "installFailed": "업데이트를 설치하지 못했습니다: {error}",
+    "settings": {
+      "title": "업데이트",
+      "versionLabel": "Harmony {version}",
+      "versionUnknown": "Harmony",
+      "idle": "Harmony는 자동으로 업데이트를 확인합니다.",
+      "upToDate": "최신 버전을 사용 중입니다.",
+      "lastChecked": "마지막 확인: {time}.",
+      "checking": "업데이트 확인 중…",
+      "available": "Harmony {version}을(를) 사용할 수 있습니다.",
+      "downloading": "Harmony {version} 다운로드 중…",
+      "downloadingPercent": "Harmony {version} 다운로드 중… {percent}%",
+      "ready": "Harmony {version}이(가) 준비되었습니다. 다시 시작하면 업데이트가 완료됩니다.",
+      "installing": "업데이트 설치 중…",
+      "failed": "업데이트하지 못했습니다: {error}",
+      "notConfigured": "이 빌드에는 자동 업데이트가 구성되어 있지 않습니다.",
+      "unsupported": "Linux에서 자동 업데이트를 사용하려면 AppImage 빌드가 필요합니다. 이 설치본은 설치한 방식대로 업데이트하세요.",
+      "check": "업데이트 확인",
+      "download": "다운로드",
+      "autoDownload": "업데이트 자동 다운로드",
+      "autoDownloadDescription": "꺼져 있어도 Harmony는 업데이트를 확인하고 다운로드 전에 묻습니다."
+    },
+    "android": {
+      "available": "Harmony {version}을(를) 사용할 수 있습니다.",
+      "download": "다운로드",
+      "dismiss": "업데이트 알림 닫기"
+    }
+  },
+  "automod": {
+    "title": "AutoMod",
+    "description": "AutoMod는 누군가 보기 전에 서버의 모든 메시지를 검사합니다. 스팸, 도배, 지정한 단어를 차단하고, 모더레이터에게 알리며, 멤버를 타임아웃할 수 있습니다. 서버 관리 및 관리자 권한이 있는 멤버에게는 적용되지 않습니다.",
+    "enabled": "AutoMod",
+    "enabledOn": "켜짐. 아래 규칙이 모든 메시지에 적용됩니다.",
+    "enabledOff": "꺼짐. 어떤 규칙도 적용되지 않으며, 타임아웃은 계속 유지됩니다.",
+    "alertChannel": "알림 채널",
+    "alertChannelHint": "AutoMod가 차단하거나 플래그를 지정한 내용을 게시하는 곳입니다. 모든 조치는 아래 로그에도 기록됩니다.",
+    "noAlertChannel": "알림 채널 없음",
+    "exemptBots": "봇 제외",
+    "exemptBotsHint": "설치된 봇과 브리지의 메시지는 검사하지 않습니다.",
+    "rules": "규칙",
+    "rulesHint": "각 규칙에는 트리거, 하나 이상의 조치, 선택적 예외가 있습니다.",
+    "addRule": "규칙 추가",
+    "noRules": "아직 규칙이 없습니다. 규칙을 추가해 필터링을 시작하세요.",
+    "saved": "AutoMod 설정을 저장했습니다",
+    "ruleSaved": "규칙을 저장했습니다",
+    "ruleDeleted": "규칙을 삭제했습니다",
+    "setup": {
+      "title": "AutoMod로 이 서버 보호하기",
+      "body": "권장 설정을 사용하면 다음이 켜집니다:",
+      "mention": "멘션 스팸: 한 메시지에서 20명 이상 멘션하거나 1분 안에 50명 이상 멘션",
+      "flood": "메시지 도배: 10초 안에 메시지 10개 초과",
+      "duplicate": "채널 간 스팸: 5분 안에 같은 메시지를 2개 이상의 채널에 게시",
+      "raid": "레이드 감지: 1분 안에 멤버 10명이 참여하면 알림",
+      "note": "단어 필터, 초대 및 링크 필터, 새 멤버 제한은 꺼진 상태로 추가됩니다. 필요할 때 켜세요.",
+      "enable": "권장 보호 기능 켜기",
+      "enabled": "AutoMod가 켜졌습니다"
+    },
+    "optin": {
+      "title": "이 서버에서 AutoMod를 사용할 수 있습니다",
+      "body": "스팸, 멘션 레이드, 도배를 자동으로 차단합니다. 켜기 전까지는 아무것도 바뀌지 않습니다.",
+      "enable": "켜기",
+      "review": "규칙 검토",
+      "dismiss": "나중에"
+    },
+    "types": {
+      "keyword": {
+        "name": "사용자 지정 단어",
+        "description": "지정한 단어, 구문 또는 패턴이 포함된 메시지를 차단합니다."
+      },
+      "keyword_preset": {
+        "name": "단어 프리셋",
+        "description": "비하 표현, 성적 콘텐츠, 욕설에 대한 미리 만들어진 목록입니다."
+      },
+      "mention_spam": {
+        "name": "멘션 스팸",
+        "description": "너무 많은 사람이나 역할을 멘션하는 메시지와 여러 메시지에 걸친 멘션 레이드입니다."
+      },
+      "message_flood": {
+        "name": "메시지 도배",
+        "description": "모든 채널에 걸쳐 한도보다 빠르게 메시지를 보내는 멤버입니다."
+      },
+      "duplicate_spam": {
+        "name": "채널 간 스팸",
+        "description": "짧은 시간 안에 여러 채널에 게시된 같은 메시지입니다."
+      },
+      "invites": {
+        "name": "서버 초대",
+        "description": "Harmony 또는 Discord의 다른 서버로의 초대입니다. 이 서버의 초대는 허용됩니다."
+      },
+      "links": {
+        "name": "링크",
+        "description": "목록에 있는 도메인의 링크만 허용하거나, 목록에 있는 도메인을 차단합니다."
+      },
+      "new_member": {
+        "name": "새 멤버",
+        "description": "새 계정과 방금 참여한 멤버의 링크, 첨부 파일 또는 멘션을 보류합니다."
+      }
+    },
+    "presets": {
+      "slurs": {
+        "name": "비하 표현",
+        "description": "심각한 인종, 동성애 혐오, 트랜스젠더 혐오, 장애인 비하 표현입니다."
+      },
+      "sexual": {
+        "name": "성적 콘텐츠",
+        "description": "노골적인 성적 용어와 성적 권유입니다."
+      },
+      "profanity": {
+        "name": "욕설",
+        "description": "흔한 욕설입니다."
+      }
+    },
+    "rule": {
+      "enabled": "규칙 활성화",
+      "name": "규칙 이름",
+      "trigger": "트리거",
+      "actions": "조치",
+      "exemptions": "예외",
+      "exemptionsHint": "선택한 역할이 있는 멤버와 선택한 채널 또는 카테고리의 메시지는 이 규칙을 건너뜁니다.",
+      "exemptRoles": "역할",
+      "exemptChannels": "채널 및 카테고리",
+      "category": "카테고리",
+      "delete": "규칙 삭제",
+      "deleteConfirm": "\"{name}\" 규칙을 삭제할까요? 이 규칙이 차단했을 메시지가 다시 허용됩니다.",
+      "revert": "되돌리기",
+      "save": "저장"
+    },
+    "keyword": {
+      "keywords": "단어 및 구문",
+      "keywordsPlaceholder": "한 줄에 하나씩 또는 쉼표로 구분",
+      "keywordsHint": "기본적으로 전체 단어로 일치합니다. word*는 접두사, *word는 접미사, *word*는 어디서든 일치합니다. 대소문자, 악센트, 비슷하게 생긴 문자, 띄어쓰기 꼼수, 반복된 문자는 무시하고 일치시킵니다.",
+      "regex": "정규 표현식",
+      "regexPlaceholder": "한 줄에 하나씩, 예: free\\s*nitro",
+      "regexHint": "최대 10개, 각 260자 이하, 대소문자 구분 없음. 역참조는 지원하지 않습니다.",
+      "allowList": "허용 단어",
+      "allowListHint": "이 규칙을 절대 발동시키지 않는 단어입니다. 예: 차단된 단어가 포함된 지명."
+    },
+    "mention": {
+      "maxMentions": "메시지당 멘션 수",
+      "windowMentions": "기간당 멘션 수(0 = 끔)",
+      "everyone": "Mention Everyone 권한이 없는 멤버의 everyone 핑 차단"
+    },
+    "flood": {
+      "maxMessages": "허용 메시지 수"
+    },
+    "duplicate": {
+      "maxChannels": "허용 채널 수",
+      "minLength": "최소 길이"
+    },
+    "links": {
+      "mode": "모드",
+      "allowList": "이 도메인만 허용",
+      "blockList": "이 도메인 차단",
+      "domains": "도메인",
+      "domainsHint": "한 줄에 하나씩. 하위 도메인도 포함됩니다."
+    },
+    "newMember": {
+      "accountAge": "계정 생성 기간 미만",
+      "membership": "또는 참여 기간 미만",
+      "any": "검사 안 함",
+      "links": "링크",
+      "attachments": "첨부 파일",
+      "mentions": "멘션"
+    },
+    "common": {
+      "windowSeconds": "기간(초)"
+    },
+    "actions": {
+      "block": "메시지 차단",
+      "blockHint": "메시지가 게시되지 않으며, 작성자에게 이유가 표시됩니다.",
+      "blockMessage": "작성자에게 표시할 사용자 지정 이유",
+      "blockMessagePlaceholder": "선택사항, 최대 150자",
+      "alert": "알림 보내기",
+      "alertHint": "알림 채널에 이벤트를 게시합니다.",
+      "alertHintNoChannel": "위에서 알림 채널을 선택하세요. 그 전까지 이벤트는 로그에만 표시됩니다.",
+      "timeout": "멤버 타임아웃",
+      "noTimeout": "타임아웃 없음",
+      "blockShort": "차단",
+      "alertShort": "알림"
+    },
+    "duration": {
+      "weeks": "{n}주",
+      "days": "{n}일",
+      "hours": "{n}시간",
+      "minutes": "{n}분",
+      "seconds": "{n}초"
+    },
+    "summary": {
+      "keyword": "단어 또는 패턴 {n}개",
+      "noPresets": "선택한 프리셋 없음",
+      "mention": "멘션 {n}개 초과",
+      "flood": "{s}초 안에 메시지 {n}개 초과",
+      "duplicate": "{s}초 안에 같은 메시지를 채널 {n}개 초과에 게시",
+      "invites": "다른 서버로의 초대",
+      "linksAllow": "허용 도메인 {n}개만",
+      "linksBlock": "차단 도메인 {n}개",
+      "newMember": "새 계정 및 멤버"
+    },
+    "raid": {
+      "title": "레이드 보호",
+      "hint": "갑작스러운 대량 참여를 감시합니다. 알림만 보내거나 모든 텍스트 채널을 자동으로 느리게 만듭니다.",
+      "active": "레이드 잠금이 켜져 있습니다: {since}부터 텍스트 채널에 슬로우 모드 {seconds}초 적용 중.",
+      "lift": "잠금 해제",
+      "threshold": "참여 수",
+      "action": "발동 시",
+      "actionAlert": "알림만",
+      "actionSlowmode": "알림 및 채널 속도 제한",
+      "slowmode": "슬로우 모드(초)",
+      "lockNow": "지금 잠그기",
+      "lockConfirm": "모든 텍스트 채널에 {seconds}초 슬로우 모드를 설정할까요? 잠금을 해제하면 이전 값이 복원됩니다.",
+      "locked": "잠금 켜짐",
+      "lifted": "잠금 해제됨"
+    },
+    "timeouts": {
+      "title": "타임아웃된 멤버",
+      "until": "{time}까지 타임아웃",
+      "remove": "타임아웃 해제",
+      "removed": "타임아웃을 해제했습니다"
+    },
+    "log": {
+      "title": "AutoMod 로그",
+      "refresh": "새로고침",
+      "empty": "아직 차단되거나 플래그가 지정된 항목이 없습니다.",
+      "raid": "레이드 가능성: {s}초 동안 {n}명 참여",
+      "matched": "일치: {text}",
+      "more": "더 보기",
+      "action": {
+        "block": "차단됨",
+        "alert": "알림 전송됨",
+        "timeout": "타임아웃됨",
+        "slowmode": "슬로우 모드"
+      }
+    },
+    "errors": {
+      "generic": "AutoMod가 변경사항을 저장하지 못했습니다.",
+      "load": "AutoMod 설정을 불러오지 못했습니다."
+    },
+    "blocked": {
+      "keyword": "메시지가 차단되었습니다: 이 서버에서 허용하지 않는 단어가 포함되어 있습니다.",
+      "keyword_preset": "메시지가 차단되었습니다: 이 서버에서 허용하지 않는 표현이 포함되어 있습니다.",
+      "mention_spam": "메시지가 차단되었습니다: 너무 많은 사람을 멘션했습니다.",
+      "message_flood": "메시지를 너무 빠르게 보내고 있습니다. 몇 초 기다린 후 다시 시도하세요.",
+      "duplicate_spam": "메시지가 차단되었습니다: 같은 메시지가 이미 다른 채널에 게시되었습니다.",
+      "invites": "메시지가 차단되었습니다: 여기에서는 다른 서버로의 초대가 허용되지 않습니다.",
+      "links": "메시지가 차단되었습니다: 여기에서는 해당 사이트의 링크가 허용되지 않습니다.",
+      "new_member": "새 멤버는 아직 링크, 파일 또는 멘션을 게시할 수 없습니다. 잠시 후 다시 시도하세요.",
+      "generic": "이 서버의 AutoMod가 메시지를 차단했습니다.",
+      "timedOutUntil": "{time}까지 타임아웃되었습니다."
+    },
+    "timedOut": "이 서버에서 {time}까지 타임아웃되어 메시지를 보낼 수 없습니다.",
+    "antispam": {
+      "rateLimited": "새 계정은 한 번에 몇 개의 메시지만 보낼 수 있습니다. {seconds}초 후에 다시 시도하세요.",
+      "linksBlocked": "새 계정은 아직 링크를 게시할 수 없습니다.",
+      "strangerMentions": "새 계정은 자신을 팔로우하지 않는 사람을 최대 {count}명까지 멘션할 수 있습니다."
+    },
+    "alert": {
+      "raid": "레이드 가능성: {seconds}초 안에 멤버 {joins}명이 참여했습니다.",
+      "blocked": "메시지 차단:",
+      "blockedEdit": "수정 내용 차단:",
+      "flagged": "메시지 플래그 지정:",
+      "aBot": "봇",
+      "timedOut": "타임아웃됨"
+    }
+  },
+  "empty": {
+    "pins": {
+      "title": "아직 고정된 메시지가 없습니다",
+      "description": "중요한 메시지를 고정하면 여기에서 찾을 수 있습니다."
+    },
+    "threads": {
+      "title": "아직 스레드가 없습니다",
+      "description": "아무 메시지에서나 스레드를 시작하세요.",
+      "noMatchTitle": "검색과 일치하는 스레드가 없습니다",
+      "noMatchDescription": "다른 이름을 입력해 보세요."
+    },
+    "threadMessages": {
+      "title": "아직 메시지가 없습니다",
+      "description": "이 스레드에 처음으로 답장해 보세요."
+    },
+    "lists": {
+      "title": "아직 목록이 없습니다",
+      "description": "목록은 팔로우하는 계정을 묶어 별도의 타임라인으로 보여 줍니다.",
+      "action": "목록 만들기"
+    },
+    "listMembers": {
+      "title": "아직 멤버가 없습니다",
+      "description": "위에서 검색하여 팔로우하는 계정을 추가하세요."
+    },
+    "listTimeline": {
+      "title": "아직 게시물이 없습니다",
+      "description": "이 목록에 멤버를 추가하면 여기에서 게시물을 볼 수 있습니다."
+    },
+    "posts": {
+      "title": "아직 게시물이 없습니다",
+      "description": "게시물이 도착하면 여기에 표시됩니다."
+    },
+    "profilePosts": {
+      "self": "아직 게시한 내용이 없습니다.",
+      "other": "{name}님은 아직 아무것도 게시하지 않았습니다."
+    },
+    "profileFollowing": {
+      "other": "{name}님은 아직 아무도 팔로우하지 않습니다."
+    },
+    "profileFollowers": {
+      "title": "아직 팔로워가 없습니다",
+      "self": "아직 팔로워가 없습니다.",
+      "other": "{name}님은 아직 팔로워가 없습니다."
+    },
+    "followers": {
+      "title": "아직 팔로워가 없습니다",
+      "description": "누군가 나를 팔로우하면 여기에 표시됩니다."
+    },
+    "following": {
+      "title": "아직 아무도 팔로우하지 않았습니다",
+      "description": "사람들을 팔로우하면 여기에 표시됩니다.",
+      "action": "사람 찾기"
+    },
+    "requests": {
+      "title": "대기 중인 요청 없음",
+      "description": "누군가 팔로우를 요청하면 여기에 표시됩니다."
+    },
+    "instancePosts": {
+      "title": "이 인스턴스의 최근 게시물이 없습니다"
+    },
+    "emojiSearch": {
+      "title": "\"{query}\"에 대한 이모지를 찾을 수 없습니다"
+    },
+    "funding": {
+      "title": "후원 정보를 사용할 수 없습니다."
+    },
+    "roleMembers": {
+      "noMatch": "일치하는 멤버 없음",
+      "noFilterMatch": "해당 필터와 일치하는 멤버가 없습니다",
+      "none": "아직 이 역할을 가진 멤버가 없습니다"
+    },
+    "voiceParticipants": {
+      "title": "아직 아무도 없습니다",
+      "description": "대화할 준비가 되면 들어오세요."
+    },
+    "bans": {
+      "title": "차단된 사용자 없음",
+      "description": "이 서버에서 차단된 사람이 없습니다."
+    },
+    "blocked": {
+      "title": "아무도 차단하지 않았습니다"
+    },
+    "muted": {
+      "title": "아무도 음소거하지 않았습니다"
+    },
+    "devices": {
+      "title": "아직 등록된 기기가 없습니다",
+      "description": "기기에서 암호화 잠금을 해제하면 여기에 표시됩니다."
+    },
+    "screenSources": {
+      "screens": "사용할 수 있는 화면이 없습니다",
+      "windows": "사용할 수 있는 창이 없습니다"
+    },
+    "admin": {
+      "discoveredInstances": {
+        "title": "아직 사용자 상호작용으로 발견된 인스턴스가 없습니다",
+        "action": "상호작용 검색"
+      },
+      "featured": {
+        "title": "아직 공개 커뮤니티가 없습니다",
+        "description": "서버를 공개로 설정하면 여기에 추천할 수 있습니다."
+      },
+      "userServers": {
+        "title": "이 사용자는 어떤 서버의 멤버도 아닙니다"
+      },
+      "announcements": {
+        "title": "공지 없음",
+        "description": "공지를 만들어 사용자에게 알리세요."
+      },
+      "slowQueries": {
+        "title": "감지된 느린 쿼리 없음",
+        "description": "100 ms보다 느린 쿼리가 여기에 표시됩니다."
+      },
+      "federationHealth": {
+        "title": "연합 상태 데이터 없음",
+        "description": "수신 또는 발신 연합 활동이 기록되면 지표가 표시됩니다."
+      },
+      "remoteEmoji": {
+        "title": "원격 이모지를 찾을 수 없습니다",
+        "description": "연합 콘텐츠와 상호작용하면 원격 인스턴스의 이모지가 여기에 표시됩니다."
+      },
+      "tiers": {
+        "title": "구성된 등급 없음"
+      },
+      "supporters": {
+        "title": "활성 후원자 없음"
+      },
+      "donations": {
+        "title": "기록된 후원 없음"
+      },
+      "reports": {
+        "title": "신고 없음",
+        "filtered": "상태가 \"{status}\"인 신고가 없습니다"
+      }
+    }
+  },
+  "adminRetention": {
+    "tab": "리텐션",
+    "title": "가입 리텐션",
+    "intro": "로컬 계정의 가입 코호트별로 가입 후 활동을 보여 줍니다. 수치만 표시하며 개별 계정은 나열하지 않습니다.",
+    "period": "코호트",
+    "month": "월",
+    "week": "주",
+    "range": "범위",
+    "rangeMonths": "최근 {n}개월",
+    "refresh": "새로고침",
+    "loading": "리텐션 불러오는 중",
+    "loadFailed": "리텐션을 불러오지 못했습니다",
+    "emptyTitle": "이 범위에 가입자가 없습니다",
+    "emptyDescription": "로컬 계정이 가입한 월 또는 주별로 묶여 여기에 표시됩니다.",
+    "tableLabel": "가입 코호트별 리텐션",
+    "weekOf": "{date} 주",
+    "total": "전체 코호트",
+    "cellTitle": "{d}명 중 {n}명({pct})",
+    "notReached": "이 코호트에서 아직 이 기간에 도달한 계정이 없습니다",
+    "smallCohort": "가입자 {n}명 미만",
+    "noteSmall": "작은 코호트는 변동이 큽니다. {n}명 코호트에서는 계정 하나가 비율을 {points}%p 움직입니다.",
+    "noteWindows": "비율은 기간이 끝난 계정만 집계합니다. 대시(-)는 아직 해당 계정이 없다는 뜻입니다. 서버, 푸시, 팔로우 수치는 현재 상태입니다.",
+    "legend": "열 설명",
+    "columns": {
+      "cohort": "코호트",
+      "signups": "가입",
+      "joinedServer": "서버 참여",
+      "joinedOther": "다른 사람의 서버 참여",
+      "wroteDay1": "1일차 작성",
+      "activeDays1to7": "활동 1–7일",
+      "activeDays8to30": "활동 8–30일",
+      "activeDays31to90": "활동 31–90일",
+      "answered1h": "1시간 내 응답",
+      "answered24h": "24시간 내 응답",
+      "push": "푸시 켜짐",
+      "follows": "팔로우 중"
+    },
+    "help": {
+      "signups": "기간 중 생성된 로컬 계정입니다.",
+      "joinedServer": "현재 하나 이상의 서버 멤버입니다.",
+      "joinedOther": "현재 자신이 소유하지 않은 서버의 멤버입니다.",
+      "wroteDay1": "가입 후 24시간 이내에 메시지나 게시물을 보냈습니다.",
+      "activeDays1to7": "처음 7일 안에 한 번 이상 작성했습니다.",
+      "activeDays8to30": "8일차부터 30일차 사이에 한 번 이상 작성했습니다.",
+      "activeDays31to90": "31일차부터 90일차 사이에 한 번 이상 작성했습니다.",
+      "answered1h": "첫 메시지 후 1시간 이내에 같은 채널, DM 또는 스레드에 다른 사람이 작성했습니다.",
+      "answered24h": "위와 같으며, 24시간 이내입니다.",
+      "push": "하나 이상의 기기에서 푸시 알림이 켜져 있습니다.",
+      "follows": "하나 이상의 계정을 팔로우합니다."
+    }
+  },
+  "pwa": {
+    "installTitle": "Harmony 설치",
+    "installDescription": "더 빠른 로딩과 오프라인 이용",
+    "install": "설치",
+    "installing": "설치 중…",
+    "dismiss": "설치 안내 닫기"
+  },
+  "security": {
+    "subtitle": "비밀번호, 2단계 인증, 내 계정에 로그인한 기기입니다.",
+    "privacyLink": "비밀번호, 2단계 인증, 로그인한 기기는 {link}에 있습니다.",
+    "password": {
+      "setTitle": "비밀번호 설정",
+      "changeDescription": "비밀번호를 변경하면 다른 모든 기기에서 로그아웃됩니다.",
+      "providerDescription": "내 계정은 {providers}을(를) 통해 로그인합니다. 비밀번호를 설정하면 이메일로도 로그인할 수 있습니다.",
+      "externalProvider": "외부 제공자",
+      "hint": "8자 이상. 서로 관련 없는 몇 개의 단어로 된 암호 문구가 좋습니다.",
+      "saving": "저장 중…",
+      "setPassword": "비밀번호 설정",
+      "changed": "비밀번호를 변경했습니다. 다른 기기에서 로그아웃되었습니다.",
+      "set": "비밀번호를 설정했습니다.",
+      "changeFailed": "비밀번호를 변경하지 못했습니다.",
+      "errors": {
+        "tooShort": "8자 이상 입력하세요.",
+        "mismatch": "비밀번호가 일치하지 않습니다.",
+        "sameAsCurrent": "현재 비밀번호와 다른 비밀번호를 선택하세요.",
+        "wrongCurrent": "현재 비밀번호가 아닙니다."
+      }
+    },
+    "twoFactor": {
+      "description": "모든 기기와 데스크톱 및 Android 앱에서 로그인할 때 인증 앱의 코드가 필요합니다.",
+      "on": "켜짐",
+      "off": "꺼짐",
+      "checking": "2단계 인증 상태 확인 중…",
+      "offDescription": "Aegis, 2FAS, Google Authenticator, 1Password 또는 TOTP를 지원하는 앱을 사용하세요. 켜면 다른 세션에서 로그아웃됩니다.",
+      "setUp": "2단계 인증 설정",
+      "steps": {
+        "label": "설정 단계",
+        "scan": "스캔",
+        "saveCodes": "코드 저장"
+      },
+      "scanQr": "인증 앱으로 이 QR 코드를 스캔하세요.",
+      "qrAlt": "인증 앱용 QR 코드",
+      "generating": "생성 중…",
+      "manualKey": "스캔할 수 없나요? 앱에 이 키를 입력하세요(시간 기반, 6자리):",
+      "setupKey": "설정 키",
+      "copySetupKey": "설정 키 복사",
+      "setupKeyCopied": "설정 키를 복사했습니다",
+      "enterEnrollCode": "앱에 표시된 6자리 코드를 입력하세요",
+      "verifying": "확인 중…",
+      "turnOn": "켜기",
+      "saveCodesWarning": "이 복구 코드를 비밀번호 관리자 등 안전한 곳에 저장하세요. 인증 앱을 잃어버렸을 때 각 코드로 한 번씩 로그인할 수 있습니다. 다시 표시되지 않습니다.",
+      "recoveryCodes": "복구 코드",
+      "recoveryCodesCopied": "복구 코드를 복사했습니다",
+      "downloadTxt": ".txt 다운로드",
+      "codesSavedCheck": "복구 코드를 저장했습니다",
+      "unavailable": "사용할 수 없음",
+      "noneLeft": "남은 코드가 없습니다. 지금 새 코드를 생성하세요.",
+      "remaining": "{total}개 중 {remaining}개 미사용",
+      "generateNew": "새 코드 생성",
+      "turnOffTitle": "2단계 인증 끄기",
+      "turnOffDescription": "로그인할 때 비밀번호만 필요합니다.",
+      "turnOff": "끄기",
+      "generate": "생성",
+      "working": "처리 중…",
+      "useAuthenticator": "대신 인증 앱 사용",
+      "useRecoveryCode": "인증 앱을 잃어버렸나요? 복구 코드 사용",
+      "disabledToast": "2단계 인증이 꺼졌습니다",
+      "disableModal": {
+        "title": "2단계 인증을 끌까요?",
+        "textTotp": "계정이 비밀번호로만 보호됩니다. 확인하려면 인증 앱의 6자리 코드를 입력하세요.",
+        "textRecovery": "계정이 비밀번호로만 보호됩니다. 확인하려면 복구 코드를 입력하세요."
+      },
+      "regenerateModal": {
+        "title": "새 복구 코드를 생성할까요?",
+        "text": "현재 복구 코드는 더 이상 작동하지 않습니다. 계속하려면 인증 앱의 6자리 코드를 입력하세요."
+      },
+      "errors": {
+        "statusFailed": "2단계 인증 상태를 확인하지 못했습니다.",
+        "setupFailed": "2단계 인증 설정을 시작하지 못했습니다.",
+        "copyFailed": "복사하지 못했습니다. 텍스트를 선택하여 직접 복사하세요.",
+        "actionFailed": "실패했습니다. 다시 시도하세요."
+      }
+    },
+    "sessions": {
+      "title": "기기",
+      "description": "내 계정이 로그인된 모든 곳입니다. 기기에서 로그아웃하면 해당 기기의 푸시 알림도 중단됩니다. 위치는 로그인한 IP 주소로 표시됩니다.",
+      "refresh": "새로고침",
+      "loading": "기기 불러오는 중…",
+      "thisDevice": "이 기기",
+      "push": "푸시",
+      "pushTitle": "푸시 알림: {transports}",
+      "webPush": "Web Push",
+      "active": "{time} 활동",
+      "ago": "{time} 전",
+      "unknown": "알 수 없음",
+      "signedIn": "{date} 로그인",
+      "mfaIncomplete": "2단계 인증 미완료",
+      "signOut": "로그아웃",
+      "signingOut": "로그아웃 중…",
+      "signOutOthers": "다른 모든 기기에서 로그아웃({count})",
+      "unknownDevice": "알 수 없는 기기",
+      "revoked": "기기에서 로그아웃했습니다",
+      "revokedOthers": "다른 모든 기기에서 로그아웃했습니다",
+      "pushRemoved": "해당 기기의 푸시 알림을 제거했습니다",
+      "revokeConfirm": {
+        "title": "이 기기에서 로그아웃할까요?",
+        "message": "{device}에서 다시 로그인해야 합니다. 푸시 알림도 중단됩니다."
+      },
+      "revokeOthersConfirm": {
+        "title": "다른 모든 기기에서 로그아웃할까요?",
+        "message": "이 기기를 제외한 모든 기기에서 다시 로그인해야 합니다.",
+        "confirm": "모두 로그아웃"
+      },
+      "otherPush": {
+        "title": "기타 푸시 알림 대상",
+        "description": "기기가 로그인과 연결되기 전에 등록되었거나, 더 이상 로그인되어 있지 않은 기기에서 등록되었습니다.",
+        "added": "{date} 추가됨",
+        "unreachable": "연결할 수 없음"
+      },
+      "errors": {
+        "loadFailed": "기기를 불러오지 못했습니다.",
+        "revokeFailed": "해당 기기에서 로그아웃하지 못했습니다.",
+        "revokeOthersFailed": "다른 기기에서 로그아웃하지 못했습니다.",
+        "removePushFailed": "해당 푸시 대상을 제거하지 못했습니다."
+      }
+    },
+    "export": {
+      "title": "내 데이터 다운로드",
+      "description": "계정의 ZIP 아카이브입니다: 프로필과 설정, 서버와 대화에서 보낸 메시지, 게시물, 팔로우, 차단, 업로드한 파일, 로그인한 기기. 다른 사람의 메시지는 포함되지 않습니다. 10분마다 한 번, 하루 최대 5번 요청할 수 있습니다.",
+      "preparing": "준비 중…",
+      "request": "내 데이터 요청",
+      "collecting": "계정 데이터 수집 중…",
+      "exportingMessages": "메시지 내보내는 중: {total}개 중 {done}개",
+      "packaging": "아카이브 패키징 중…",
+      "downloading": "데이터를 다운로드하고 있습니다",
+      "failed": "내보내기에 실패했습니다. 나중에 다시 시도하세요."
+    },
+    "deleteAccount": {
+      "description": "계정을 영구적으로 삭제합니다. 보낸 메시지는 그대로 남아 \"삭제된 사용자\"로 표시됩니다. 프로필, 로그인, 기기, 암호화 키, 팔로우는 제거되며, 다른 Fediverse 서버에도 계정이 삭제되었음을 알립니다.",
+      "bullets": {
+        "permanent": "이 작업은 되돌릴 수 없습니다. 내 사용자 이름은 다른 사람이 사용할 수 있게 됩니다.",
+        "messages": "작성한 메시지와 게시물은 \"삭제된 사용자\"로 계속 표시됩니다. 지우고 싶은 것은 먼저 삭제하세요.",
+        "removed": "프로필, 아바타, 배너, 로그인, 기기, 푸시 알림, 암호화 키, 팔로우, 차단, 봇이 작동을 멈추고 제거됩니다.",
+        "federation": "내 계정을 알고 있는 다른 인스턴스의 서버에 삭제 알림이 전송됩니다."
+      },
+      "exportFirst": "먼저 내 데이터 다운로드",
+      "ownsServers": "다른 멤버가 있는 서버를 소유하고 있습니다: {servers}. 먼저 소유권을 이전하거나 서버를 삭제하세요.",
+      "noPassword": "계정에 비밀번호가 없습니다. 삭제하려면 최근 10분 이내에 로그인해야 합니다.",
+      "signInAgain": "로그아웃 후 다시 로그인",
+      "errors": {
+        "mfaRequired": "인증 앱의 코드를 입력하세요.",
+        "wrongPassword": "비밀번호가 올바르지 않습니다.",
+        "reauthRequired": "다시 로그인한 후 10분 이내에 계정을 삭제하세요."
+      }
+    },
+    "mfa": {
+      "recoveryCodeExample": "복구 코드 중 하나를 입력하세요. 예: ABCDE-12345.",
+      "enterAuthenticatorCode": "인증 앱의 6자리 코드를 입력하세요.",
+      "enterRecoveryCode": "복구 코드 중 하나를 입력하세요",
+      "recoveryCodeInvalid": "유효하지 않거나 이미 사용한 복구 코드입니다.",
+      "verificationFailed": "인증에 실패했습니다. 다시 시도하세요.",
+      "invalidCode": "잘못된 코드입니다. 다시 시도하세요.",
+      "recoverySignedIn": "복구 코드로 로그인했습니다. 2단계 인증이 꺼졌으니 다시 설정하세요.",
+      "recoveryResetOff": "2단계 인증이 꺼져 있습니다. 로그인한 후 다시 설정하세요.",
+      "recoveryNoSession": "복구 코드로 로그인했지만 세션이 반환되지 않았습니다. 다시 로그인하세요."
+    },
+    "signOutReason": {
+      "sessionRevoked": "다른 기기에서 로그아웃되었습니다.",
+      "insufficientAal": "다시 로그인하고 인증 앱 코드를 입력하세요."
+    },
+    "notice": {
+      "newSignIn": {
+        "title": "내 계정에 새 로그인",
+        "message": "본인이 아닌가요? 비밀번호를 변경하고 해당 세션에서 로그아웃하세요.",
+        "messageWithDevice": "{where}. 본인이 아닌가요? 비밀번호를 변경하고 해당 세션에서 로그아웃하세요."
+      },
+      "mfaEnabled": {
+        "title": "2단계 인증이 켜졌습니다",
+        "message": "이제 로그인할 때 인증 앱이 필요합니다."
+      },
+      "mfaDisabled": {
+        "title": "2단계 인증이 꺼졌습니다",
+        "message": "이제 계정에서 인증 앱 코드를 요구하지 않습니다.",
+        "messageRecoveryCode": "복구 코드로 로그인했습니다. 2단계 인증을 다시 설정하세요."
+      },
+      "recoveryCodeUsed": {
+        "title": "복구 코드 사용됨",
+        "message": "복구 코드 중 하나가 사용되었습니다."
+      },
+      "recoveryCodesRegenerated": {
+        "title": "새 복구 코드",
+        "message": "이전 복구 코드는 더 이상 작동하지 않습니다."
+      },
+      "passwordChanged": {
+        "title": "비밀번호 변경됨",
+        "message": "비밀번호가 변경되었으며 다른 세션에서 로그아웃되었습니다."
+      },
+      "default": {
+        "title": "계정 보안",
+        "message": "계정 보안 설정이 변경되었습니다."
+      }
+    },
+    "errors": {
+      "generic": "문제가 발생했습니다. 다시 시도하세요.",
+      "tooManyAttemptsSoon": "잘못된 시도가 너무 많습니다. 몇 분 후에 다시 시도하세요.",
+      "tooManyAttemptsMinutes": "잘못된 시도가 너무 많습니다. {count}분 후에 다시 시도하세요.",
+      "tooManyAttemptsHours": "잘못된 시도가 너무 많습니다. 약 {count}시간 후에 다시 시도하세요.",
+      "exportRateLimitedSoon": "몇 분 후에 다시 내보내기를 요청할 수 있습니다.",
+      "exportRateLimitedMinutes": "{count}분 후에 다시 내보내기를 요청할 수 있습니다.",
+      "exportRateLimitedHours": "약 {count}시간 후에 다시 내보내기를 요청할 수 있습니다.",
+      "exportExpired": "이 내보내기는 만료되었습니다. 새로 시작하세요.",
+      "stepUpRequired": "먼저 인증 앱의 코드를 입력하세요.",
+      "insufficientAal": "2단계 인증이 필요합니다. 인증 앱으로 다시 로그인하세요.",
+      "sessionRevoked": "이 세션은 로그아웃되었습니다. 다시 로그인하세요.",
+      "codeMismatch": "코드가 일치하지 않습니다. 앱의 최신 코드를 사용하고 기기 시계가 자동으로 설정되어 있는지 확인하세요.",
+      "challengeExpired": "인증이 만료되었습니다. 새 코드를 입력하세요.",
+      "rateLimited": "시도가 너무 많습니다. 잠시 기다린 후 다시 시도하세요.",
+      "mfaNotEnabled": "2단계 인증이 활성화되어 있지 않습니다."
+    },
+    "device": {
+      "app": "Harmony 앱",
+      "browserOnOs": "{os}의 {browser}"
+    }
+  },
+  "encryption": {
+    "code": {
+      "expiresIn": "{time} 후 만료",
+      "expired": "이 코드는 만료되었습니다.",
+      "newCode": "새 코드",
+      "copyCode": "코드 복사"
+    },
+    "linkDevice": {
+      "title": "새 기기 연결",
+      "subtitle": "방금 로그인한 기기에 암호화된 메시지에 대한 접근 권한을 부여합니다.",
+      "enterPhrase": "복구 문구 입력",
+      "scanHint": "새 기기의 QR 코드에 카메라를 맞추세요.",
+      "scanPasteLabel": "또는 새 기기에서 복사한 코드를 붙여넣으세요",
+      "showInstead": "새 기기에 카메라가 있나요? 대신 스캔할 코드를 표시하세요",
+      "showLead": "새 기기에서 {another}를 선택한 다음 {scanInstead}을 선택하고 카메라를 여기에 맞추세요. 내 계정에 로그인한 누구든 이 코드를 스캔하면 키를 받을 수 있으므로 다른 사람에게 보여 주지 마세요.",
+      "showLeadAnother": "다른 기기",
+      "showLeadScanInstead": "대신 상대 기기의 코드 스캔",
+      "qrAlt": "기기 연결 QR 코드",
+      "scanInstead": "대신 새 기기의 코드 스캔",
+      "newDevice": "새 기기",
+      "signedIn": "{ago} 로그인함.",
+      "answeredCode": "이 기기에 표시된 코드에 응답했습니다.",
+      "keyMatches": "기기의 키가 스캔한 코드와 일치합니다.",
+      "warning": "이 기기는 내 모든 암호화된 메시지를 읽을 수 있게 됩니다. 내 기기이고 지금 눈앞에 있을 때만 계속하세요.",
+      "keepCopyTitle": "나중에 복구 문구 없이 여기에서 기기 연결",
+      "keepCopyNote": "이 기기에 암호화 키의 읽을 수 있는 사본이 보관됩니다. 이 기기의 Harmony에서 코드를 실행할 수 있는 사람은 누구나 키를 복사할 수 있습니다. 설정 › 암호화에서 언제든지 제거할 수 있습니다.",
+      "confirm": "이 기기 연결",
+      "sending": "키 보내는 중…",
+      "linked": "{device}이(가) 연결되었습니다.",
+      "tryAgain": "다시 시도",
+      "needUnlockLocked": "이 기기에서 암호화가 잠겨 있어 공유할 키가 없습니다. 먼저 복구 문구로 잠금을 해제하세요.",
+      "needUnlockPhrase": "키를 공유하려면 이 기기에 복구 문구가 필요합니다. 여기에 입력한 다음 새 기기를 스캔하세요.",
+      "signInAgain": "기기를 연결하려면 다시 로그인하세요.",
+      "notPairingCode": "Harmony 페어링 코드가 아닙니다. 새 기기의 코드를 스캔하세요.",
+      "approverCode": "이 코드는 로그인된 기기에 표시된 코드입니다. 새 기기의 코드를 스캔하세요.",
+      "errors": {
+        "securityCheck": "보안 검사 실패: 서버가 반환한 기기 키가 스캔한 코드와 일치하지 않습니다. 아무것도 전송되지 않았습니다. 이 기기를 연결하지 마세요.",
+        "notFound": "내 계정에 이 코드에 해당하는 로그인이 없습니다. 두 기기가 같은 계정을 사용하는지 확인하세요.",
+        "alreadyUsed": "이 코드에 둘 이상의 기기가 응답했습니다. 아무것도 전송되지 않았습니다. 새 코드를 표시하세요.",
+        "generic": "연결에 실패했습니다."
+      }
+    },
+    "pairing": {
+      "lead": "이미 로그인된 기기에서 새 로그인 알림의 {scanCode}를 선택하거나, 개인정보 및 보안 → 내 기기에서 {linkDevice}를 선택한 후 이 코드를 스캔하세요.",
+      "qrAlt": "기기 페어링 QR 코드",
+      "scanInstead": "다른 기기에서 스캔할 수 없나요? 대신 그 기기의 코드를 스캔하세요",
+      "scanHint": "로그인된 기기에서 기기 연결을 선택한 다음 코드 표시를 선택하고, 이 카메라를 그 코드에 맞추세요.",
+      "scanPasteLabel": "또는 다른 기기의 코드를 붙여넣으세요",
+      "showInstead": "대신 이 기기에 코드 표시",
+      "waiting": "연결을 완료하려면 다른 기기에서 확인하세요.",
+      "importing": "암호화된 메시지 잠금 해제 중…",
+      "done": "이 기기가 연결되었습니다. 암호화된 메시지의 잠금을 해제하고 있습니다.",
+      "startAgain": "다시 시작",
+      "signInAgain": "이 기기를 연결하려면 다시 로그인하세요.",
+      "notPairingCode": "Harmony 페어링 코드가 아닙니다. 로그인된 기기에서 기기 연결을 선택한 다음 코드 표시를 선택하세요.",
+      "newDeviceCode": "이 코드는 새 기기의 코드입니다. 로그인된 기기에 표시된 코드를 스캔하세요.",
+      "errors": {
+        "expired": "코드가 만료되었습니다. 다시 시작하여 새 코드를 받으세요.",
+        "denied": "다른 기기에서 이 로그인을 거부했습니다.",
+        "bundleInvalid": "다른 기기에서 받은 키를 검증하지 못해 아무것도 가져오지 않았습니다. 다시 시작하세요.",
+        "generic": "연결에 실패했습니다. 다시 시작하세요."
+      }
+    },
+    "pairingErrors": {
+      "malformed": "Harmony 페어링 코드가 아닙니다",
+      "wrongAccount": "다른 계정의 코드입니다.",
+      "notPending": "이 로그인에는 이미 응답했습니다.",
+      "notPairing": "이 요청은 키를 받지 않습니다",
+      "ownDevice": "이 기기에서 표시한 코드입니다",
+      "alreadyUsed": "이미 사용된 페어링 코드입니다",
+      "keysUnavailable": "먼저 이 기기에서 암호화 잠금을 해제하세요.",
+      "keysStale": "이 기기의 암호화 키가 오래되었습니다. 먼저 이 기기에 현재 복구 문구를 입력하세요.",
+      "registerFailed": "이 기기를 등록하지 못했습니다",
+      "alreadyUnlocked": "이 기기에서는 이미 암호화 잠금이 해제되어 있습니다."
+    },
+    "qrScanner": {
+      "stopCamera": "카메라 중지",
+      "startingCamera": "카메라 시작 중…",
+      "tryCameraAgain": "카메라 다시 시도",
+      "useCamera": "카메라 사용",
+      "readingImage": "이미지 읽는 중…",
+      "scanImage": "이미지에서 스캔",
+      "pastePlaceholder": "여기에 코드를 붙여넣으세요",
+      "usePasted": "붙여넣은 코드 사용",
+      "defaultHint": "QR 코드에 카메라를 맞추세요.",
+      "defaultPasteLabel": "또는 코드를 붙여넣으세요",
+      "noQrInImage": "이미지에서 QR 코드를 찾을 수 없습니다. 더 선명하고 가까이에서 찍은 사진을 사용해 보세요.",
+      "unreadableFile": "이 파일을 이미지로 읽을 수 없습니다.",
+      "problems": {
+        "unsupported": "이 앱은 여기에서 카메라에 접근할 수 없습니다. 대신 이미지에서 스캔하거나 코드를 붙여넣으세요.",
+        "insecure": "카메라를 사용하려면 보안(https) 연결이 필요합니다. 대신 이미지에서 스캔하거나 코드를 붙여넣으세요.",
+        "denied": "카메라 접근이 차단되었습니다. 브라우저나 시스템 설정에서 허용하거나 이미지에서 스캔하세요.",
+        "noCamera": "카메라를 찾을 수 없습니다. 대신 이미지에서 스캔하거나 코드를 붙여넣으세요.",
+        "inUse": "다른 앱이 카메라를 사용 중입니다. 해당 앱을 닫고 다시 시도하거나 이미지에서 스캔하세요.",
+        "failed": "카메라를 시작하지 못했습니다. 대신 이미지에서 스캔하거나 코드를 붙여넣으세요."
+      }
+    },
+    "devices": {
+      "linkDevice": "기기 연결",
+      "linkHint": "새 기기에서 로그인한 다음 표시되는 코드를 스캔하세요.",
+      "pendingPairing": "연결 대기 중입니다. 표시되는 코드를 스캔하세요.",
+      "pendingPlain": "로그인하여 암호화된 메시지의 잠금을 해제했습니다.",
+      "scanCode": "코드 스캔"
+    },
+    "approval": {
+      "pairingText": "해당 기기가 암호화된 메시지를 기다리고 있습니다. 내 기기이고 지금 눈앞에 있다면 표시된 코드를 스캔하세요. 키는 스캔한 코드의 기기로만 전송됩니다.",
+      "scanItsCode": "예, 코드 스캔",
+      "notMe": "본인 아님",
+      "showInstead": "스캔할 수 없나요? 대신 코드 표시",
+      "plainText": "새 기기가 내 계정에 로그인하여 직접 암호화된 메시지의 잠금을 해제했습니다. 여기에서는 아무것도 전송되지 않습니다. 본인이 아니라면 계정을 보호하세요.",
+      "thatWasMe": "본인입니다",
+      "staysSignedIn": "{device}은(는) 로그인 상태로 유지됩니다.",
+      "newDeviceFallback": "새 기기"
+    },
+    "settings": {
+      "devicesDescription": "내 계정에 로그인한 기기입니다. 새 기기에서 암호화된 메시지를 보려면 기기를 연결하세요: 새 기기에서 로그인한 후 이미 잠금 해제된 기기로 표시된 코드를 스캔하세요.",
+      "linkDescription": "새로 로그인한 기기에 표시된 코드를 스캔하세요. 그 기기에서 복구 문구를 입력할 필요가 없습니다",
+      "link": "연결",
+      "pairingCopyTitle": "연결용으로 보관된 키",
+      "pairingCopyDescription": "이 기기는 복구 문구 없이 기기를 연결할 수 있도록 암호화 키의 읽을 수 있는 사본을 보관합니다. 제거하면 여기에서 연결할 때 다시 복구 문구를 요구합니다.",
+      "pairingCopyRemoved": "이 기기에서 키 사본을 제거했습니다",
+      "pairingCopyRemoveFailed": "키 사본을 제거하지 못했습니다"
+    },
+    "recovery": {
+      "anotherDevice": "다른 기기",
+      "recommended": "권장",
+      "qrToggle": "복구 키를 QR 코드로 가지고 있나요?",
+      "qrHint": "복구 키 QR 코드에 카메라를 맞추세요.",
+      "qrPasteLabel": "또는 QR 코드 데이터를 붙여넣으세요",
+      "pairingCodeScanned": "기기 페어링 코드입니다. 다른 기기 탭을 사용하세요.",
+      "notRecoveryKey": "이 QR 코드는 Harmony 복구 키가 아닙니다",
+      "qrReadFailed": "QR 코드를 읽지 못했습니다"
+    },
+    "recoverySetup": {
+      "multiDevice": "이 기기에서 QR 코드를 스캔하여 새 기기를 연결하세요. 복구 키는 대체 수단입니다",
+      "hideQr": "복구 키 QR 코드 숨기기",
+      "showQr": "복구 키를 QR 코드로 표시",
+      "qrHint": "이 코드를 본 사람은 누구나 암호화된 메시지를 읽을 수 있으니 스크린샷을 찍지 마세요. 다른 기기를 설정하려면 대신 연결하세요: 그 기기에서 로그인한 후 표시된 코드를 이 기기로 스캔하세요.",
+      "newDeviceLabel": "새 기기인가요?",
+      "newDeviceReminder": "{label} 그 기기에서 로그인하고 {another}를 선택한 다음 이 기기로 코드를 스캔하세요. 복구 키를 입력하지 않아도 메시지 잠금이 해제됩니다.",
+      "rememberNeed": "로그인된 모든 기기에 접근할 수 없게 되거나 브라우저 데이터를 지우면 필요합니다."
+    }
+  },
+  "admin": {
+    "reports": {
+      "titleServer": "이 서버의 신고",
+      "anonymousReporter": "익명 신고자",
+      "suspended": "정지됨",
+      "silenced": "침묵됨",
+      "openOnTargetTitle": "이 계정에 대한 미처리 신고 {count}건",
+      "openOnTarget": "미처리 {count}건",
+      "forwarded": "전달됨",
+      "forwardedTitle": "계정의 인스턴스에 익명 사본을 보냈습니다",
+      "commentFrom": "{instance}의 코멘트",
+      "messageNow": "현재 메시지",
+      "postNow": "현재 게시물",
+      "noteSentToReporter": "신고자에게 보낸 메모",
+      "statusBy": "{'@'}{username}님이 {status}",
+      "notePlaceholder": "신고자에게 보낼 메모(선택사항, 해결 또는 기각 시 전송)",
+      "showResolverTitle": "모더레이터를 보복으로부터 보호하기 위해 기본적으로 꺼져 있습니다",
+      "showResolver": "신고자에게 내 이름 표시",
+      "loadMore": "더 보기({count})",
+      "actions": {
+        "investigate": "조사 중으로 표시",
+        "resolve": "해결",
+        "dismiss": "기각",
+        "reopen": "다시 열기",
+        "assign": "나에게 할당",
+        "unassign": "할당 해제",
+        "forward": "{domain}에 전달",
+        "deletePost": "게시물 삭제",
+        "markSensitive": "민감한 콘텐츠로 표시",
+        "deleteMessage": "메시지 삭제",
+        "warn": "계정 경고",
+        "silenceAccount": "계정 침묵",
+        "suspendAccount": "계정 정지",
+        "forceSensitiveAccount": "미디어를 항상 민감한 콘텐츠로 표시",
+        "limitDomain": "{domain} 제한",
+        "suspendDomain": "{domain} 정지"
+      },
+      "prompts": {
+        "warn": "계정에 보낼 경고 문구:",
+        "limitDomain": "{domain} 제한 사유:",
+        "suspendDomain": "{domain} 정지 사유:",
+        "reason": "사유(계정 기록에 보관됨):"
+      },
+      "confirmAction": "{action}을(를) 실행할까요? 신고가 해결 처리됩니다.",
+      "actionDone": "{action}: 완료"
+    },
+    "federation": {
+      "limited": "제한됨",
+      "limitedTitle": "이 도메인의 계정은 침묵 처리됩니다",
+      "limitAction": "제한: 이 도메인의 계정 침묵",
+      "liftLimitAction": "제한 해제",
+      "limitReasonPrompt": "{domain} 제한 사유:",
+      "limitApplied": "{domain}을(를) 제한했습니다",
+      "limitLifted": "{domain}의 제한을 해제했습니다",
+      "limitFailed": "도메인 제한을 변경하지 못했습니다"
+    },
+    "instance": {
+      "maxPostReactions": "게시물당 1인 최대 반응 수",
+      "maxPostReactionsHint": "한 사람이 게시물에 반응할 수 있는 서로 다른 이모지 수(1-100). 기본값: 10. 다른 서버에서 들어오는 한도 초과 반응은 버려집니다. 채팅 메시지는 최대 20가지 이모지까지 가능합니다."
+    },
+    "activityLog": {
+      "configKeys": {
+        "maxPostReactionsPerUser": "게시물당 1인 최대 반응 수"
+      }
+    },
+    "antiSpam": {
+      "title": "스팸 방지",
+      "hint": "인스턴스 전체 한도입니다. 서버 소유자는 서버 설정에서 자체 AutoMod를 구성하며, 이 한도는 그 위에 모든 서버, DM, 게시물에 적용됩니다. 여기의 모든 한도는 변경하기 전까지 꺼져 있거나 허용적입니다.",
+      "loadingSettings": "설정 불러오는 중...",
+      "saved": "스팸 방지 설정을 저장했습니다",
+      "newAccounts": {
+        "title": "새 로컬 계정",
+        "hours": "새 계정으로 간주되는 기간(시간)",
+        "messagesPerMinute": "분당 메시지 수(0 = 제한 없음)",
+        "messagesPerMinuteHint": "채널 메시지와 DM을 합산합니다.",
+        "postsPerHour": "시간당 게시물 수(0 = 제한 없음)",
+        "strangerMentions": "게시물당 낯선 사람 멘션 수(0 = 제한 없음)",
+        "strangerMentionsHint": "낯선 사람이란 로컬이든 원격이든 작성자를 팔로우하지 않는 모든 사람입니다.",
+        "blockLinks": "새 계정은 링크를 게시할 수 없음",
+        "staffExempt": "인스턴스 관리자와 모더레이터는 제한되지 않습니다."
+      },
+      "federation": {
+        "title": "연합 멘션 스팸",
+        "mode": "원격 게시물이나 DM이 스팸으로 보일 때",
+        "modes": {
+          "off": "아무것도 하지 않음",
+          "flag": "전달하고 검토 대기열에 추가",
+          "hold": "해제될 때까지 검토 대기열에 보류",
+          "reject": "거부하고 검토 대기열에 추가"
+        },
+        "maxMentions": "대량 멘션으로 간주되는 게시물당 멘션 수",
+        "newActorDays": "새 계정으로 간주되는 원격 계정 생성 기간(일)",
+        "heuristicHint": "스팸으로 보이는 경우: 대량 멘션 기준 이상의 사람을 멘션하거나, 로컬 사용자가 아무도 팔로우하지 않고 멘션된 사용자 누구와도 대화한 적 없는 새 원격 계정에서 온 경우입니다."
+      },
+      "queue": {
+        "title": "의심스러운 활동",
+        "filterByStatus": "상태별 필터",
+        "statuses": {
+          "open": "미처리",
+          "all": "전체",
+          "released": "해제됨",
+          "confirmed": "확인됨",
+          "dismissed": "기각됨"
+        },
+        "actions": {
+          "flagged": "플래그 지정됨",
+          "held": "보류됨",
+          "rejected": "거부됨"
+        },
+        "refresh": "새로고침",
+        "hint": "스팸 휴리스틱에 일치한 수신 연합 활동입니다. 보류된 항목은 해제할 때만 전달됩니다.",
+        "empty": "검토할 항목이 없습니다.",
+        "kindDm": "DM",
+        "kindMention": "멘션",
+        "targets": "대상: {users}",
+        "release": "해제",
+        "confirmSpam": "스팸 확인",
+        "dismiss": "기각",
+        "released": "전달을 위해 해제했습니다",
+        "reviewed": "검토 완료"
+      },
+      "reasons": {
+        "mass_mention": "대량 멘션",
+        "new_actor": "새 계정",
+        "no_followers": "로컬 팔로워 없음",
+        "no_relationship": "이전 접촉 없음",
+        "unknown_age": "계정 생성 시기 알 수 없음"
+      },
+      "errors": {
+        "loadSettings": "스팸 방지 설정을 불러오지 못했습니다",
+        "save": "저장하지 못했습니다",
+        "loadQueue": "검토 대기열을 불러오지 못했습니다",
+        "review": "검토에 실패했습니다"
+      }
+    }
   }
 }

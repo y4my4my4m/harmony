@@ -4,73 +4,67 @@
     <div class="admin-module">
       <div class="module-header">
         <Icon name="shield" :size="20" />
-        <h2>Anti-spam</h2>
+        <h2>{{ $t('admin.antiSpam.title') }}</h2>
         <div class="module-actions">
           <button class="primary-btn-sm" :disabled="saving || !dirty || !draft" @click="save">
             <Icon v-if="saving" name="loader" :size="14" class="spin" />
-            Save
+            {{ $t('common.save') }}
           </button>
         </div>
       </div>
       <div class="module-body">
-        <p class="module-hint">
-          Instance-wide limits. Server owners configure their own AutoMod in Server Settings; these apply on top of it,
-          to every server, DM and post. Every limit here is off or permissive until you change it.
-        </p>
+        <p class="module-hint">{{ $t('admin.antiSpam.hint') }}</p>
 
-        <div v-if="!draft" class="loading-state"><LoadingSpinner :size="20" /><span>Loading settings...</span></div>
+        <div v-if="!draft" class="loading-state"><LoadingSpinner :size="20" /><span>{{ $t('admin.antiSpam.loadingSettings') }}</span></div>
         <template v-else>
-          <h3 class="group-title">New local accounts</h3>
+          <h3 class="group-title">{{ $t('admin.antiSpam.newAccounts.title') }}</h3>
           <div class="settings-grid">
             <label class="setting">
-              <span class="setting-label">An account counts as new for (hours)</span>
+              <span class="setting-label">{{ $t('admin.antiSpam.newAccounts.hours') }}</span>
               <input v-model.number="draft.new_account_hours" type="number" min="1" max="8760" class="cyber-input" />
             </label>
             <label class="setting">
-              <span class="setting-label">Messages per minute (0 = no limit)</span>
+              <span class="setting-label">{{ $t('admin.antiSpam.newAccounts.messagesPerMinute') }}</span>
               <input v-model.number="draft.new_account_messages_per_minute" type="number" min="0" max="600" class="cyber-input" />
-              <span class="setting-hint">Channel messages and DMs together.</span>
+              <span class="setting-hint">{{ $t('admin.antiSpam.newAccounts.messagesPerMinuteHint') }}</span>
             </label>
             <label class="setting">
-              <span class="setting-label">Posts per hour (0 = no limit)</span>
+              <span class="setting-label">{{ $t('admin.antiSpam.newAccounts.postsPerHour') }}</span>
               <input v-model.number="draft.new_account_posts_per_hour" type="number" min="0" max="1000" class="cyber-input" />
             </label>
             <label class="setting">
-              <span class="setting-label">Mentions of strangers per post (0 = no limit)</span>
+              <span class="setting-label">{{ $t('admin.antiSpam.newAccounts.strangerMentions') }}</span>
               <input v-model.number="draft.new_account_max_stranger_mentions" type="number" min="0" max="100" class="cyber-input" />
-              <span class="setting-hint">A stranger is anyone who does not follow the author, local or remote.</span>
+              <span class="setting-hint">{{ $t('admin.antiSpam.newAccounts.strangerMentionsHint') }}</span>
             </label>
           </div>
           <label class="check-setting">
             <input v-model="draft.new_account_block_links" type="checkbox" />
-            <span>New accounts cannot post links</span>
+            <span>{{ $t('admin.antiSpam.newAccounts.blockLinks') }}</span>
           </label>
-          <p class="setting-hint">Instance admins and moderators are never limited.</p>
+          <p class="setting-hint">{{ $t('admin.antiSpam.newAccounts.staffExempt') }}</p>
 
-          <h3 class="group-title">Federation mention spam</h3>
+          <h3 class="group-title">{{ $t('admin.antiSpam.federation.title') }}</h3>
           <div class="settings-grid">
             <label class="setting">
-              <span class="setting-label">When a remote post or DM looks like spam</span>
+              <span class="setting-label">{{ $t('admin.antiSpam.federation.mode') }}</span>
               <select v-model="draft.federation_spam_mode" class="cyber-select">
-                <option value="off">Do nothing</option>
-                <option value="flag">Deliver it and add it to the review queue</option>
-                <option value="hold">Hold it in the review queue until released</option>
-                <option value="reject">Reject it and add it to the review queue</option>
+                <option value="off">{{ $t('admin.antiSpam.federation.modes.off') }}</option>
+                <option value="flag">{{ $t('admin.antiSpam.federation.modes.flag') }}</option>
+                <option value="hold">{{ $t('admin.antiSpam.federation.modes.hold') }}</option>
+                <option value="reject">{{ $t('admin.antiSpam.federation.modes.reject') }}</option>
               </select>
             </label>
             <label class="setting">
-              <span class="setting-label">Mentions in one post that count as a mass mention</span>
+              <span class="setting-label">{{ $t('admin.antiSpam.federation.maxMentions') }}</span>
               <input v-model.number="draft.federation_max_mentions" type="number" min="2" max="500" class="cyber-input" />
             </label>
             <label class="setting">
-              <span class="setting-label">Remote accounts younger than (days) count as new</span>
+              <span class="setting-label">{{ $t('admin.antiSpam.federation.newActorDays') }}</span>
               <input v-model.number="draft.federation_new_actor_days" type="number" min="0" max="365" class="cyber-input" />
             </label>
           </div>
-          <p class="setting-hint">
-            Looks like spam: it mentions at least the mass-mention count of people, or it comes from a new remote
-            account that no local user follows and that none of the mentioned users has talked to before.
-          </p>
+          <p class="setting-hint">{{ $t('admin.antiSpam.federation.heuristicHint') }}</p>
         </template>
       </div>
     </div>
@@ -79,39 +73,39 @@
     <div class="admin-module">
       <div class="module-header">
         <Icon name="flag" :size="20" />
-        <h2>Suspicious activity</h2>
+        <h2>{{ $t('admin.antiSpam.queue.title') }}</h2>
         <div class="module-actions">
-          <select v-model="statusFilter" class="cyber-select compact" aria-label="Filter by status">
-            <option value="open">Open</option>
-            <option value="all">All</option>
-            <option value="released">Released</option>
-            <option value="confirmed">Confirmed</option>
-            <option value="dismissed">Dismissed</option>
+          <select v-model="statusFilter" class="cyber-select compact" :aria-label="$t('admin.antiSpam.queue.filterByStatus')">
+            <option value="open">{{ $t('admin.antiSpam.queue.statuses.open') }}</option>
+            <option value="all">{{ $t('admin.antiSpam.queue.statuses.all') }}</option>
+            <option value="released">{{ $t('admin.antiSpam.queue.statuses.released') }}</option>
+            <option value="confirmed">{{ $t('admin.antiSpam.queue.statuses.confirmed') }}</option>
+            <option value="dismissed">{{ $t('admin.antiSpam.queue.statuses.dismissed') }}</option>
           </select>
           <button class="action-btn" :disabled="queueLoading" @click="loadQueue">
             <Icon :name="queueLoading ? 'loader' : 'refresh-cw'" :size="16" :class="{ spin: queueLoading }" />
-            Refresh
+            {{ $t('admin.antiSpam.queue.refresh') }}
           </button>
         </div>
       </div>
       <div class="module-body">
-        <p class="module-hint">Inbound federation activity the spam heuristics matched. Held items are delivered only when released.</p>
+        <p class="module-hint">{{ $t('admin.antiSpam.queue.hint') }}</p>
 
         <div v-if="queueLoading && items.length === 0" class="loading-state"><LoadingSpinner :size="20" /></div>
-        <div v-else-if="items.length === 0" class="empty-state">Nothing to review.</div>
+        <div v-else-if="items.length === 0" class="empty-state">{{ $t('admin.antiSpam.queue.empty') }}</div>
         <ul v-else class="queue-list">
           <li v-for="item in items" :key="item.id" class="queue-item">
             <div class="queue-head">
               <span class="queue-actor">{{ item.actor_display_name || item.actor_username || item.actor_uri }}</span>
               <span class="queue-domain">{{ item.actor_domain }}</span>
-              <span class="badge" :class="item.action">{{ item.action }}</span>
-              <span class="badge kind">{{ item.kind === 'federation_dm' ? 'DM' : 'mention' }}</span>
-              <span v-if="item.status !== 'open'" class="badge status">{{ item.status }}</span>
+              <span class="badge" :class="item.action">{{ actionLabel(item.action) }}</span>
+              <span class="badge kind">{{ item.kind === 'federation_dm' ? $t('admin.antiSpam.queue.kindDm') : $t('admin.antiSpam.queue.kindMention') }}</span>
+              <span v-if="item.status !== 'open'" class="badge status">{{ statusLabel(item.status) }}</span>
               <span class="queue-time">{{ formatTime(item.created_at) }}</span>
             </div>
             <div class="queue-reasons">
               <span v-for="r in item.reasons" :key="r" class="reason">{{ reasonLabel(r) }}</span>
-              <span v-if="item.targets.length" class="queue-targets">to {{ item.targets.map(t => '@' + t.username).join(', ') }}</span>
+              <span v-if="item.targets.length" class="queue-targets">{{ $t('admin.antiSpam.queue.targets', { users: item.targets.map(u => '@' + u.username).join(', ') }) }}</span>
             </div>
             <div v-if="item.summary" class="queue-summary">{{ item.summary }}</div>
             <div v-if="item.status === 'open'" class="queue-actions">
@@ -120,9 +114,9 @@
                 class="primary-btn-sm"
                 :disabled="reviewing.has(item.id)"
                 @click="review(item, 'release')"
-              >Release</button>
-              <button class="action-btn" :disabled="reviewing.has(item.id)" @click="review(item, 'confirm')">Confirm spam</button>
-              <button class="action-btn" :disabled="reviewing.has(item.id)" @click="review(item, 'dismiss')">Dismiss</button>
+              >{{ $t('admin.antiSpam.queue.release') }}</button>
+              <button class="action-btn" :disabled="reviewing.has(item.id)" @click="review(item, 'confirm')">{{ $t('admin.antiSpam.queue.confirmSpam') }}</button>
+              <button class="action-btn" :disabled="reviewing.has(item.id)" @click="review(item, 'dismiss')">{{ $t('admin.antiSpam.queue.dismiss') }}</button>
             </div>
           </li>
         </ul>
@@ -133,6 +127,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useToast } from 'vue-toastification'
 import Icon from '@/components/common/Icon.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
@@ -147,6 +142,7 @@ import {
   type SuspiciousActivity,
 } from '@/services/AutoModService'
 
+const { t } = useI18n()
 const toast = useToast()
 
 const saved = ref<InstanceAntiSpamSettings | null>(null)
@@ -159,15 +155,20 @@ const queueLoading = ref(false)
 const statusFilter = ref<'open' | 'all' | SuspiciousActivity['status']>('open')
 const reviewing = ref(new Set<string>())
 
-const REASONS: Record<string, string> = {
-  mass_mention: 'mass mention',
-  new_actor: 'new account',
-  no_followers: 'no local followers',
-  no_relationship: 'no prior contact',
-  unknown_age: 'account age unknown',
-}
+const REASONS = new Set(['mass_mention', 'new_actor', 'no_followers', 'no_relationship', 'unknown_age'])
+const ACTIONS = new Set(['flagged', 'held', 'rejected'])
+const STATUSES = new Set(['open', 'released', 'confirmed', 'dismissed'])
+
 function reasonLabel(r: string) {
-  return REASONS[r] ?? r
+  return REASONS.has(r) ? t(`admin.antiSpam.reasons.${r}`) : r
+}
+
+function actionLabel(a: string) {
+  return ACTIONS.has(a) ? t(`admin.antiSpam.queue.actions.${a}`) : a
+}
+
+function statusLabel(s: string) {
+  return STATUSES.has(s) ? t(`admin.antiSpam.queue.statuses.${s}`) : s
 }
 
 function formatTime(iso: string) {
@@ -181,7 +182,7 @@ async function loadSettings() {
     draft.value = { ...s }
   } catch (err: any) {
     debug.error('Failed to load anti-spam settings:', err)
-    toast.error(err?.message || 'Failed to load anti-spam settings')
+    toast.error(err?.message || t('admin.antiSpam.errors.loadSettings'))
   }
 }
 
@@ -192,9 +193,9 @@ async function save() {
     const s = await updateInstanceAntiSpamSettings(draft.value)
     saved.value = { ...s }
     draft.value = { ...s }
-    toast.success('Anti-spam settings saved')
+    toast.success(t('admin.antiSpam.saved'))
   } catch (err: any) {
-    toast.error(cleanDbMessage(err?.message || 'Failed to save'))
+    toast.error(cleanDbMessage(err?.message || t('admin.antiSpam.errors.save')))
   } finally {
     saving.value = false
   }
@@ -206,7 +207,7 @@ async function loadQueue() {
     items.value = await getSuspiciousActivity(statusFilter.value)
   } catch (err: any) {
     debug.error('Failed to load suspicious activity:', err)
-    toast.error(err?.message || 'Failed to load the review queue')
+    toast.error(err?.message || t('admin.antiSpam.errors.loadQueue'))
   } finally {
     queueLoading.value = false
   }
@@ -218,9 +219,9 @@ async function review(item: SuspiciousActivity, decision: 'dismiss' | 'confirm' 
     const result = await reviewSuspiciousActivity(item.id, decision)
     item.status = result.status as SuspiciousActivity['status']
     if (statusFilter.value === 'open') items.value = items.value.filter((x) => x.id !== item.id)
-    toast.success(decision === 'release' ? 'Released for delivery' : 'Reviewed')
+    toast.success(decision === 'release' ? t('admin.antiSpam.queue.released') : t('admin.antiSpam.queue.reviewed'))
   } catch (err: any) {
-    toast.error(err?.message || 'Review failed')
+    toast.error(err?.message || t('admin.antiSpam.errors.review'))
   } finally {
     reviewing.value.delete(item.id)
   }

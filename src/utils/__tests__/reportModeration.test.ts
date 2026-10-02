@@ -1,4 +1,5 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeAll } from 'vitest'
+import { waitForInitialLocale } from '@/i18n'
 import {
   categoryForReason,
   remoteDomainOf,
@@ -8,6 +9,10 @@ import {
   snapshotEvidence,
   type ActionableReport,
 } from '@/utils/reportModeration'
+
+beforeAll(async () => {
+  await waitForInitialLocale()
+})
 
 const admin = { isAdmin: true, isInstanceModerator: true }
 const moderator = { isAdmin: false, isInstanceModerator: true }

@@ -1,8 +1,8 @@
 <template>
   <BaseModal
     :show="true"
-    title="Link a new device"
-    subtitle="Give a device you just signed in on access to your encrypted messages."
+    :title="$t('encryption.linkDevice.title')"
+    :subtitle="$t('encryption.linkDevice.subtitle')"
     icon="smartphone"
     compact
     :close-on-overlay="phase !== 'sending'"
@@ -16,89 +16,82 @@
 
       <div v-else-if="phase === 'need-unlock'" class="dl-notice">
         <Icon name="key" :size="22" />
-        <p>{{ needUnlockText }}</p>
+        <p>{{ $t(needUnlockKey) }}</p>
         <button type="button" class="btn btn-primary btn-sm" @click="showPhraseEntry = true">
-          Enter recovery phrase
+          {{ $t('encryption.linkDevice.enterPhrase') }}
         </button>
       </div>
 
       <template v-else-if="phase === 'scan'">
         <QrScanner
-          hint="Point the camera at the QR code on the new device."
+          :hint="$t('encryption.linkDevice.scanHint')"
           :auto-start="true"
-          paste-label="Or paste the code copied from the new device"
+          :paste-label="$t('encryption.linkDevice.scanPasteLabel')"
           @decoded="onScanned"
         />
         <button type="button" class="dl-link" @click="toShow">
-          New device has a camera? Show a code for it to scan instead
+          {{ $t('encryption.linkDevice.showInstead') }}
         </button>
       </template>
 
       <template v-else-if="phase === 'show'">
-        <p class="dl-lead">
-          On the new device, choose <strong>Another device</strong>, then
-          <strong>Scan a code from it instead</strong>, and point its camera here.
-          Anyone signed in to your account who scans this code can receive your keys,
-          so keep it to yourself.
-        </p>
+        <i18n-t keypath="encryption.linkDevice.showLead" tag="p" class="dl-lead">
+          <template #another><strong>{{ $t('encryption.linkDevice.showLeadAnother') }}</strong></template>
+          <template #scanInstead><strong>{{ $t('encryption.linkDevice.showLeadScanInstead') }}</strong></template>
+        </i18n-t>
         <div class="dl-qr">
-          <img v-if="qrUrl" :src="qrUrl" alt="Device linking QR code" data-testid="link-qr" />
+          <img v-if="qrUrl" :src="qrUrl" :alt="$t('encryption.linkDevice.qrAlt')" data-testid="link-qr" />
           <LoadingSpinner v-else :size="36" />
         </div>
         <p class="dl-meta">
-          <span v-if="secondsLeft > 0">Expires in {{ countdown }}</span>
-          <span v-else>This code expired.</span>
+          <span v-if="secondsLeft > 0">{{ $t('encryption.code.expiresIn', { time: countdown }) }}</span>
+          <span v-else>{{ $t('encryption.code.expired') }}</span>
         </p>
         <div class="dl-actions">
-          <button type="button" class="btn btn-secondary btn-sm" @click="toShow">New code</button>
+          <button type="button" class="btn btn-secondary btn-sm" @click="toShow">{{ $t('encryption.code.newCode') }}</button>
         </div>
-        <button type="button" class="dl-link" @click="toScan">Scan the new device's code instead</button>
+        <button type="button" class="dl-link" @click="toScan">{{ $t('encryption.linkDevice.scanInstead') }}</button>
       </template>
 
       <div v-else-if="phase === 'confirm' && link" class="dl-confirm" data-testid="link-confirm">
         <Icon name="shield-check" :size="26" class="dl-ok" />
-        <p class="dl-device">{{ link.request.requesting_label || 'New device' }}</p>
+        <p class="dl-device">{{ link.request.requesting_label || $t('encryption.linkDevice.newDevice') }}</p>
         <p class="dl-meta">
-          Signed in {{ requestedAgo }}.
-          {{ link.request.pairing_proof ? 'It answered the code this device showed.' : 'Its key matches the code you scanned.' }}
+          {{ $t('encryption.linkDevice.signedIn', { ago: requestedAgo }) }}
+          {{ link.request.pairing_proof ? $t('encryption.linkDevice.answeredCode') : $t('encryption.linkDevice.keyMatches') }}
         </p>
         <p class="dl-warning">
-          This device will be able to read all your encrypted messages. Continue only if it is
-          yours and in front of you.
+          {{ $t('encryption.linkDevice.warning') }}
         </p>
         <label class="dl-keep" data-testid="link-keep-copy">
           <input v-model="keepCopy" type="checkbox" />
           <span>
-            <strong>Link devices from here later without the recovery phrase</strong>
-            <span class="dl-keep-note">
-              This device keeps a readable copy of your encryption keys. Anyone able to run
-              code in Harmony on this device could copy them. Remove it any time in
-              Settings &rsaquo; Encryption.
-            </span>
+            <strong>{{ $t('encryption.linkDevice.keepCopyTitle') }}</strong>
+            <span class="dl-keep-note">{{ $t('encryption.linkDevice.keepCopyNote') }}</span>
           </span>
         </label>
         <div class="dl-actions">
           <button type="button" class="btn btn-primary" data-testid="link-confirm-button" @click="send">
-            Link this device
+            {{ $t('encryption.linkDevice.confirm') }}
           </button>
-          <button type="button" class="btn btn-secondary" @click="close">Cancel</button>
+          <button type="button" class="btn btn-secondary" @click="close">{{ $t('common.cancel') }}</button>
         </div>
       </div>
 
       <div v-else-if="phase === 'sending'" class="dl-status">
         <LoadingSpinner :size="32" />
-        <p>Sending your keys&hellip;</p>
+        <p>{{ $t('encryption.linkDevice.sending') }}</p>
       </div>
 
       <div v-else-if="phase === 'done'" class="dl-status dl-done" data-testid="link-done">
         <Icon name="check-circle" :size="32" />
-        <p>{{ link?.request.requesting_label || 'The new device' }} is linked.</p>
-        <button type="button" class="btn btn-primary btn-sm" @click="close">Done</button>
+        <p>{{ $t('encryption.linkDevice.linked', { device: link?.request.requesting_label || $t('encryption.approval.newDeviceFallback') }) }}</p>
+        <button type="button" class="btn btn-primary btn-sm" @click="close">{{ $t('common.done') }}</button>
       </div>
 
       <div v-if="error" class="dl-error" role="alert" data-testid="link-error">
         <p>{{ error }}</p>
-        <button type="button" class="btn btn-secondary btn-sm" @click="retry">Try again</button>
+        <button type="button" class="btn btn-secondary btn-sm" @click="retry">{{ $t('encryption.linkDevice.tryAgain') }}</button>
       </div>
     </div>
 
@@ -115,6 +108,7 @@
 
 <script setup lang="ts">
 import { computed, defineAsyncComponent, onMounted, onUnmounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import BaseModal from '@/components/common/BaseModal.vue'
 import Icon from '@/components/common/Icon.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
@@ -126,6 +120,7 @@ import { useDeviceApprovals } from '@/composables/useDeviceApprovals'
 import { devicePairingService, type PendingLink } from '@/services/encryption/DevicePairingService'
 import {
   PairingError,
+  type PairingErrorCode,
   decodePairingCode,
   looksLikePairingCode,
   type ApproverCodeSession,
@@ -138,13 +133,14 @@ const emit = defineEmits<{ close: []; linked: [] }>()
 
 type Phase = 'checking' | 'need-unlock' | 'scan' | 'show' | 'confirm' | 'sending' | 'done' | 'failed'
 
+const { t } = useI18n()
 const { linkInProgress } = useDeviceApprovals()
 const phase = ref<Phase>('checking')
 const error = ref('')
 const link = ref<PendingLink | null>(null)
 const qrUrl = ref('')
 const now = ref(Date.now())
-const needUnlockText = ref('')
+const needUnlockKey = ref('')
 const showPhraseEntry = ref(false)
 const keepCopy = ref(true)
 
@@ -167,26 +163,28 @@ const countdown = computed(() => {
 const requestedAgo = computed(() => {
   if (!link.value) return ''
   const s = Math.max(0, Math.round((now.value - Date.parse(link.value.request.created_at)) / 1000))
-  if (s < 60) return 'just now'
+  if (s < 60) return t('time.justNow')
   const m = Math.round(s / 60)
-  return `${m} minute${m === 1 ? '' : 's'} ago`
+  return m === 1 ? t('time.minuteAgo') : t('time.minutesAgo', { count: m })
 })
 
+const PAIRING_ERROR_KEYS: Partial<Record<PairingErrorCode, string>> = {
+  fingerprint_mismatch: 'encryption.linkDevice.errors.securityCheck',
+  code_mismatch: 'encryption.linkDevice.errors.securityCheck',
+  not_found: 'encryption.linkDevice.errors.notFound',
+  already_used: 'encryption.linkDevice.errors.alreadyUsed',
+  malformed: 'encryption.pairingErrors.malformed',
+  expired: 'encryption.code.expired',
+  not_pending: 'encryption.pairingErrors.notPending',
+  not_pairing: 'encryption.pairingErrors.notPairing',
+  own_device: 'encryption.pairingErrors.ownDevice',
+  keys_unavailable: 'encryption.pairingErrors.keysUnavailable',
+  keys_stale: 'encryption.pairingErrors.keysStale',
+}
+
 function describe(err: unknown): string {
-  if (err instanceof PairingError) {
-    switch (err.code) {
-      case 'fingerprint_mismatch':
-      case 'code_mismatch':
-        return 'Security check failed: the device key the server returned does not match the code you scanned. Nothing was sent. Do not link this device.'
-      case 'not_found':
-        return 'No sign-in for this code on your account. Check that both devices use the same account.'
-      case 'already_used':
-        return 'This code was answered by more than one device. Nothing was sent. Show a new code.'
-      default:
-        return err.message
-    }
-  }
-  return err instanceof Error && err.message ? err.message : 'Linking failed.'
+  if (err instanceof PairingError) return t(PAIRING_ERROR_KEYS[err.code] ?? 'encryption.linkDevice.errors.generic')
+  return err instanceof Error && err.message ? err.message : t('encryption.linkDevice.errors.generic')
 }
 
 function fail(err: unknown) {
@@ -207,12 +205,12 @@ function stopSearching() {
 async function precheck(): Promise<boolean> {
   const { megolmMessageEncryptionService } = await import('@/services/encryption/MegolmMessageEncryptionService')
   if (!megolmMessageEncryptionService.isUnlocked()) {
-    needUnlockText.value = 'Encryption is locked on this device, so it has no keys to share. Unlock it with your recovery phrase first.'
+    needUnlockKey.value = 'encryption.linkDevice.needUnlockLocked'
     phase.value = 'need-unlock'
     return false
   }
   if (!megolmMessageEncryptionService.canExportPairingKeys()) {
-    needUnlockText.value = 'To share your keys, this device needs your recovery phrase. Enter it here, then scan the new device.'
+    needUnlockKey.value = 'encryption.linkDevice.needUnlockPhrase'
     phase.value = 'need-unlock'
     return false
   }
@@ -253,7 +251,7 @@ async function startShowing() {
   if (!profileId) {
     const { authContextService } = await import('@/services/AuthContextService')
     const ctx = await authContextService.getCurrentContext()
-    if (!ctx.isAuthenticated) throw new Error('Sign in again to link a device.')
+    if (!ctx.isAuthenticated) throw new Error(t('encryption.linkDevice.signInAgain'))
     profileId = ctx.profileId
   }
   qrUrl.value = ''
@@ -290,13 +288,13 @@ async function search() {
 async function onScanned(text: string) {
   error.value = ''
   if (!looksLikePairingCode(text)) {
-    error.value = 'That is not a Harmony pairing code. Scan the code on the new device.'
+    error.value = t('encryption.linkDevice.notPairingCode')
     return
   }
   try {
     const code = decodePairingCode(text)
     if (code.mode !== 'new-device') {
-      error.value = 'That code is shown by a signed-in device. Scan the code on the new device.'
+      error.value = t('encryption.linkDevice.approverCode')
       return
     }
     phase.value = 'checking'
