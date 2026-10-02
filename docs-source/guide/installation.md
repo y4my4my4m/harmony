@@ -94,17 +94,12 @@ CORS_ORIGIN=https://your-domain.com
 
 ### Additional prerequisites
 
-- **Rust** 1.70+ via [rustup](https://rustup.rs)
-- Platform dependencies (Linux: WebKit2GTK, Windows: WebView2)
+- **Rust** 1.95+ via [rustup](https://rustup.rs)
+- Platform dependencies (Linux: GTK 4, CMake and Ninja; the Chromium Embedded
+  Framework is downloaded during the first build. Windows: WebView2)
 
-### Linux environment variables
-
-Some Linux setups require:
-
-```bash
-export GDK_BACKEND=x11
-export WEBKIT_DISABLE_DMABUF_RENDERER=1
-```
+The full Linux package list, packaging steps and sandbox notes are in the
+development guide (`docs/DEVELOPMENT.md`, "Linux Build (CEF)").
 
 ### Build and run
 

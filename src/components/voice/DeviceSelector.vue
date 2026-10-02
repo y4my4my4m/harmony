@@ -170,15 +170,11 @@ const dropdownStyle = computed(() => ({
 // Methods
 const loadDevices = async () => {
   try {
-    // Request permission first if needed (browser backend only; the native
-    // engine enumerates through the ADM without a permission prompt)
-    const { isNativeMediaSupported } = await import('@/services/nativeLiveKit');
-    if (!(await isNativeMediaSupported())) {
-      try {
-        await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-      } catch {
-        // Continue even if permission denied - might already have it
-      }
+    // Labels are empty until a capture permission has been granted.
+    try {
+      await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+    } catch {
+      // Continue even if permission denied - might already have it
     }
 
     const devices = await enumerateMediaDevices();

@@ -21,6 +21,10 @@ on:
         description: Android APK
         type: boolean
         default: true
+      linux:
+        description: Linux AppImage and deb
+        type: boolean
+        default: true
       profile:
         description: Build profile. An Android release build without the signing secrets falls back to debug.
         type: choice
@@ -40,8 +44,8 @@ env:
   VITE_SUPABASE_ANON_KEY: ${{ secrets.TEST_SUPABASE_ANON_KEY != '' && secrets.TEST_SUPABASE_ANON_KEY || 'placeholder-key' }}
 
 jobs:
-  # Windows/macOS use webview WebRTC (WebView2 / WKWebView). native-media
-  # (LiveKit/wgpu) is Linux-target-gated, so it is never pulled here.
+  # Windows/macOS use the system webview (WebView2 / WKWebView); the CEF
+  # runtime is a Linux-only dependency, so it is never pulled here.
   windows:
     name: Windows build
     if: github.event_name == 'push' || inputs.windows
@@ -195,5 +199,88 @@ jobs:
       - uses: actions/upload-artifact@v7
         with:
           path: ${{ steps.artifact.outputs.path }}
+          archive: false
+          if-no-files-found: error
+
+  # Mirrors the release Linux leg without updater signing, then starts the
+  # AppImage under Xvfb (src-tauri/linux/smoke-test.sh). Tag runs restore caches
+  # saved on the default branch, so the master runs keep the CEF and AppImage
+  # tool caches warm for release.yml.
+  linux:
+    name: Linux build
+    if: github.event_name == 'push' || inputs.linux
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: npm
+      # Same list as release.yml's linux job.
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config cmake ninja-build file patchelf strace \
+            libgtk-4-dev libssl-dev libxdo-dev libx11-dev libxtst-dev libxi-dev libxrandr-dev libdbus-1-dev \
+            libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libxcomposite1 libxdamage1 libxkbcommon0 \
+            libgbm1 libasound2t64 libpango-1.0-0 libcairo2 \
+            xvfb xauth dbus
+      - name: Locate CEF and AppImage tool caches
+        run: |
+          echo "CEF_PATH=$RUNNER_TEMP/cef" >> "$GITHUB_ENV"
+          echo "CEF_TOOLS_DIR=$RUNNER_TEMP/linux-tools" >> "$GITHUB_ENV"
+      - uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/cef
+          key: cef-152.3.0+152.0.6-linux-x86_64
+      - uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/linux-tools
+          key: linux-tools-${{ hashFiles('src-tauri/linux/package.sh') }}
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: npm ci
+      - name: Build deb
+        run: npx tauri build ${{ env.BUILD_PROFILE == 'debug' && '--debug' || '' }} --bundles deb
+      # The build links against the extracted tree; the archive only inflates the
+      # cache.
+      - name: Drop the CEF archive
+        run: rm -f "$CEF_PATH"/*/cef_binary_*.tar.bz2
+      - name: Build AppImage
+        run: sh src-tauri/linux/package.sh src-tauri/target/"$BUILD_PROFILE"/bundle/deb/Harmony_*_amd64.deb
+      # A clean ubuntu:24.04 installs the deb with only its declared Depends;
+      # every library the payload links must then resolve.
+      - name: Check deb dependencies
+        run: |
+          docker run --rm -v "$PWD/src-tauri/target/$BUILD_PROFILE/bundle/deb:/deb:ro" ubuntu:24.04 sh -c '
+            apt-get update -qq && apt-get install -y -qq --no-install-recommends /deb/Harmony_*_amd64.deb >/dev/null
+            missing=$(ldd /usr/share/Harmony/harmony /usr/share/Harmony/*.so | grep "not found" || true)
+            [ -z "$missing" ] || { echo "$missing"; exit 1; }'
+      # The runner restricts unprivileged user namespaces through AppArmor, as
+      # Ubuntu 23.10+ desktops do, so the AppImage runs Chromium unsandboxed; the
+      # installed deb keeps the sandbox through its setuid chrome-sandbox.
+      - name: Smoke test
+        run: |
+          sh src-tauri/linux/smoke-test.sh src-tauri/target/"$BUILD_PROFILE"/bundle/appimage/Harmony_*_amd64.AppImage
+          sudo apt-get install -y --no-install-recommends ./src-tauri/target/"$BUILD_PROFILE"/bundle/deb/Harmony_*_amd64.deb
+          SMOKE_SANDBOX=on sh src-tauri/linux/smoke-test.sh /usr/bin/harmony
+      - name: Name AppImage
+        id: appimage
+        run: bash scripts/name-artifact.sh Linux "$BUILD_PROFILE" src-tauri/target/"$BUILD_PROFILE"/bundle/appimage/Harmony_*_amd64.AppImage
+      - name: Name deb
+        id: deb
+        run: bash scripts/name-artifact.sh Linux "$BUILD_PROFILE" src-tauri/target/"$BUILD_PROFILE"/bundle/deb/Harmony_*_amd64.deb
+      - uses: actions/upload-artifact@v7
+        with:
+          path: ${{ steps.appimage.outputs.path }}
+          archive: false
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v7
+        with:
+          path: ${{ steps.deb.outputs.path }}
           archive: false
           if-no-files-found: error

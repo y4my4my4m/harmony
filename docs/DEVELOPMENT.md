@@ -643,6 +643,83 @@ npm run tauri:build
 npm run tauri:build:windows
 ```
 
+### Linux Build (CEF)
+
+On Linux the app runs on the Chromium Embedded Framework through
+`tauri-runtime-cef` instead of WebKitGTK, which lacks working WebRTC. Windows
+and macOS keep the system webview (WebView2 / WKWebView); CEF is a Linux-only
+dependency.
+
+Build dependencies, by their Ubuntu 24.04 names (the apt step in
+`.github/workflows/release.yml` is the reference list):
+
+```bash
+sudo apt-get install build-essential pkg-config cmake ninja-build file patchelf strace \
+  libgtk-4-dev libssl-dev libxdo-dev libx11-dev libxtst-dev libxi-dev libxrandr-dev libdbus-1-dev \
+  libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libxcomposite1 libxdamage1 libxkbcommon0 \
+  libgbm1 libasound2t64 libpango-1.0-0 libcairo2 xvfb xauth dbus
+```
+
+cmake and ninja build CEF's C++ wrapper; file, patchelf, strace and xvfb are
+for the AppImage step and the smoke test.
+
+**CEF distribution.** `cef-dll-sys` downloads CEF 152.0.6 (a 300 MB archive,
+1.5 GB extracted) during the first build. Without `CEF_PATH` it lands in the
+cargo target directory and goes with `cargo clean`. With `CEF_PATH` pointing
+at a persistent directory, the build downloads into `$CEF_PATH/152.0.6/` once
+and reuses it. CI caches that directory under the key
+`cef-<cef crate version>-linux-x86_64`; a `tauri-runtime-cef` bump that moves
+the `cef` crate needs the key updated in both workflows.
+
+**Packages.**
+
+```bash
+npx tauri build --bundles deb
+sh src-tauri/linux/package.sh src-tauri/target/release/bundle/deb/Harmony_<version>_amd64.deb
+```
+
+`tauri build` writes the deb. `package.sh` then:
+
+1. drops `libgtk-3-0` from the deb's `Depends`, which tauri-cli adds for every
+   runtime (the CEF runtime links GTK 4; the real list is in
+   `src-tauri/tauri.linux.conf.json`);
+2. builds `bundle/appimage/Harmony_<version>_amd64.AppImage` from the deb's
+   payload with quick-sharun;
+3. writes `.sig` files for both when `TAURI_SIGNING_PRIVATE_KEY` is set.
+
+tauri-bundler's own `--bundles appimage` is not used: it downloads quick-sharun
+and its tools from moving branches on every build. `package.sh` pins each one
+by commit or release tag and SHA-256, and keeps them in `CEF_TOOLS_DIR`
+(default `src-tauri/target/linux-tools`). Updating a pin means a new URL and
+hash in `package.sh`, which also changes the CI cache key for the tools.
+
+**Smoke test.** `sh src-tauri/linux/smoke-test.sh <AppImage | /usr/bin/harmony>`
+starts the app on Xvfb with a private session bus and a throwaway profile, and
+fails when it exits during startup, Chromium logs `FATAL`, or the main thread
+uses more than `SMOKE_MAX_CPU` percent of a core (default 15) while idle.
+`SMOKE_SANDBOX=on|off` also asserts the sandbox state.
+
+**Sandbox.** Chromium sandboxes its child processes with unprivileged user
+namespaces, or else with the setuid `chrome-sandbox` helper, which the deb
+installs setuid root next to the binary in `/usr/share/Harmony/`. At startup
+the app probes both (`src-tauri/src/runtime.rs`). When only the helper works,
+Chromium is told to skip its own user-namespace attempt
+(`--disable-namespace-sandbox`). When neither works it runs Chromium without
+its sandbox and logs `[cef] running without Chromium's sandbox: ...`. That is
+the case for:
+
+- the AppImage on Ubuntu 23.10+ and other systems where AppArmor restricts
+  user namespaces (`kernel.apparmor_restrict_unprivileged_userns=1`); the
+  AppImage is mounted `nosuid`, so its copy of the helper does not count;
+- kernels with `kernel.unprivileged_userns_clone=0`;
+- containers, where seccomp blocks both.
+
+On AppArmor systems the AppImage's start-up hook offers to install an
+AppArmor profile for the AppImage's path, asking for administrator rights
+through a dialog. With the profile in place the sandbox is on. The profile
+names the path, so it has to be redone after the AppImage is moved or
+renamed. The deb keeps the sandbox through its setuid helper on those systems.
+
 ### Deployment Process
 
 There is no separate `develop` branch. Releases are cut from `master`:
@@ -658,27 +735,38 @@ git push origin master --tags
 ```
 
 A `v*` tag triggers `.github/workflows/release.yml`, which builds the Windows
-and macOS installers and the Android APK into a draft GitHub release:
+and macOS installers, the Android APK, and the Linux AppImage and deb into a
+draft GitHub release:
 
 | Job | Runs after | Does |
 | --- | --- | --- |
 | `release` | | Stamps the tag's version, names the assets, finds or drafts the release and deletes any `latest.json` on it |
 | `desktop` (Windows, macOS) | `release` | Builds and uploads the installer, plus the updater payload and `.sig` when signing is configured |
-| `latest-json` | `release`, `desktop` | Writes `latest.json` from the release's uploaded payloads and `.sig` files, once |
+| `linux` | `release` | Builds the deb and AppImage (CEF runtime), runs the dependency check and smoke test, and uploads both, plus the AppImage's `.sig` when signing is configured |
+| `latest-json` | `release`, `desktop`, `linux` | Writes `latest.json` from the release's uploaded payloads and `.sig` files, once |
 | `android` | `desktop` | Builds and attaches the APK |
 
-`latest-json` runs only when every desktop build succeeded and signing is
-configured, and fails without uploading when a payload or signature is
-missing, so a release carries either a manifest for both platforms or none.
+`latest-json` runs only when every desktop and Linux build succeeded and
+signing is configured, and fails without uploading when a payload or signature
+is missing, so a release carries either a manifest for every platform or none.
 Re-running the workflow for a tag reuses its release and replaces each asset.
 A manual run (Actions > Release > Run workflow, with an existing tag) builds
 the tag's tree but runs `scripts/name-artifact.sh` and
 `scripts/github-release.mjs` from the workflow's own commit, so tags that
-predate them build too.
+predate them build too. A tag without `src-tauri/linux/package.sh` gets no
+Linux build and a manifest without Linux entries.
+
+The Linux steps also run in `.github/workflows/tauri.yml` (see
+[Native builds in CI](#native-builds-in-ci)), unsigned. The deb is installed
+into a clean `ubuntu:24.04` container to check that its `Depends` cover every
+library its payload links, and the smoke test runs against the AppImage and
+the installed deb. Tag runs restore caches saved on the default branch, so the
+`master` runs keep the CEF and tool caches warm for releases.
 
 ### Desktop auto-updates
 
-The Windows and macOS apps update in place through `tauri-plugin-updater`.
+The Windows and macOS apps and the Linux AppImage update in place through
+`tauri-plugin-updater`.
 They poll `releases/latest/download/latest.json`, which GitHub resolves to
 the newest published, non-prerelease release, so publishing the draft is the
 rollout. Payloads are verified against the minisign public key in
@@ -697,14 +785,14 @@ Losing the private key or its password strands installed apps: they accept
 only payloads signed by that key. Rotating it means shipping one release with
 the new public key, signed by the old key.
 
-Linux has no release build, so there is no AppImage to update; the updater
-reports itself unsupported outside an AppImage. Android is outside the
-plugin's scope and shows a notice linking the latest release's APK instead.
+On Linux the updater runs only inside the AppImage. Deb installs report the
+updater unsupported and update through a new deb. Android is outside the plugin's scope and shows a notice linking
+the latest release's APK instead.
 
 ### Native builds in CI
 
-`.github/workflows/tauri.yml` builds the Windows installer, the macOS dmg and
-the Android APK on every push to `master` that changes anything outside
+`.github/workflows/tauri.yml` builds the Windows installer, the macOS dmg, the
+Android APK and the Linux AppImage and deb on every push to `master` that changes anything outside
 Markdown files, `docs/` and `federation-backend/`. Pull requests and other
 branches build only on request: Actions > Tauri > Run workflow, then pick the
 branch under "Use workflow from", the platforms and the profile. From the
@@ -712,7 +800,7 @@ command line:
 
 ```bash
 gh workflow run tauri.yml --ref my-branch \
-  -f windows=false -f macos=false -f android=true -f profile=debug
+  -f windows=false -f macos=false -f android=true -f linux=false -f profile=debug
 ```
 
 A dispatch runs the branch's own copy of `tauri.yml`, so the branch needs a
@@ -723,8 +811,8 @@ Each build is uploaded as one unzipped artifact named after its file:
 
 | Build | Example |
 | --- | --- |
-| Release (`v*` tag) | `Harmony_Windows_V1.6.5.exe`, `Harmony_macOS_V1.6.5.dmg`, `Harmony_Android_V1.6.5.apk` |
-| `tauri.yml`, release profile | `Harmony_Windows_V1.6.5_dev-master-1a2b3c4.exe` |
+| Release (`v*` tag) | `Harmony_Windows_V1.6.5.exe`, `Harmony_macOS_V1.6.5.dmg`, `Harmony_Android_V1.6.5.apk`, `Harmony_Linux_V1.6.5.AppImage`, `Harmony_Linux_V1.6.5.deb` |
+| `tauri.yml`, release profile | `Harmony_Windows_V1.6.5_dev-master-1a2b3c4.exe`, `Harmony_Linux_V1.6.5_dev-master-1a2b3c4.AppImage` |
 | `tauri.yml`, debug profile | `Harmony_Android_V1.6.5_debug-feat-push-1a2b3c4.apk` |
 
 Both workflows take every name from `scripts/name-artifact.sh`: tagged
@@ -740,11 +828,12 @@ bash scripts/name-artifact.sh --release macOS release   # Harmony_macOS_V1.6.5
 
 Releases also carry the updater files under the same names:
 `Harmony_Windows_V<version>.exe.sig`, `Harmony_macOS_V<version>.app.tar.gz`
-and its `.sig`. `latest.json` keeps its name and points at those files under
+and its `.sig`, `Harmony_Linux_V<version>.AppImage.sig`. `latest.json` keeps its name and points at those files under
 `releases/download/<tag>/`, with the platform keys tauri-action v0.6.2 writes:
 `windows-x86_64` and `windows-x86_64-nsis` for the NSIS installer, and
 `darwin-aarch64`, `darwin-x86_64`, `darwin-aarch64-app` and
-`darwin-x86_64-app` for the universal app. Installed apps read
+`darwin-x86_64-app` for the universal app, and `linux-x86_64` and
+`linux-x86_64-appimage` for the AppImage. Installed apps read
 `<os>-<arch>`. The updater verifies the signature over the downloaded bytes
 and detects the installer type from its content, so file names do not affect
 installed apps. The `file:` field in a `.sig`'s trusted comment still holds

@@ -32,6 +32,8 @@ android {
 
 dependencies {
     implementation("androidx.core:core-ktx:1.16.0")
+    // Plugin's lifecycle hooks take an AppCompatActivity (tauri-android 3).
+    implementation("androidx.appcompat:appcompat:1.7.1")
     // Data messages only. Without google-services.json FirebaseApp never initializes and
     // FCM reports itself unavailable.
     implementation("com.google.firebase:firebase-messaging:25.1.3")

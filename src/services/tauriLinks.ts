@@ -5,9 +5,8 @@ const isAndroid = /Android/i.test(navigator.userAgent);
 let installed = false;
 
 // Shared by the global handler below and any component that already intercepts
-// its own anchor clicks (e.g. UnifiedContentRenderer). Android: tauri-plugin-shell's
-// open() execs the URL as a local program (broken), so use a native ACTION_VIEW
-// intent. Desktop: the shell plugin's open works.
+// its own anchor clicks (e.g. UnifiedContentRenderer). Android: a native
+// ACTION_VIEW intent. Desktop: tauri-plugin-opener.
 export async function openExternalUrl(url: string): Promise<void> {
   if (!/^https?:\/\//i.test(url)) return;
   try {
@@ -15,8 +14,8 @@ export async function openExternalUrl(url: string): Promise<void> {
       const { invoke } = await import('@tauri-apps/api/core');
       await invoke('android_open_url', { url });
     } else {
-      const { open } = await import('@tauri-apps/plugin-shell');
-      await open(url);
+      const { openUrl } = await import('@tauri-apps/plugin-opener');
+      await openUrl(url);
     }
   } catch (err) {
     debug.warn('[tauriLinks] failed to open external URL:', err);

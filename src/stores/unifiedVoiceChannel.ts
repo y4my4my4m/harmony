@@ -2,7 +2,6 @@ import { defineStore } from 'pinia';
 import { apiUrl } from '@/services/instanceConfig';
 import { nextTick, watch, type WatchStopHandle } from 'vue';
 import { webrtcManager } from '@/services/webrtcManager';
-import { nativeLiveKit, type NativeScreenSource } from '@/services/nativeLiveKit';
 import type { UserMediaState } from '@/services/unifiedWebRTC';
 import type { VideoSource, VoiceConnectionQuality } from '@/services/livekitWebRTC';
 import { clampVolume, remoteAudioMixer, type RemoteAudioKind } from '@/services/voice/remoteAudioMixer';
@@ -94,8 +93,6 @@ interface VoiceChannelState {
   recentSpeakers: RecentSpeaker[];
   
   isOverlayVisible: boolean;
-  // native (Linux X11) screenshare source picker
-  screenSourcePicker: { visible: boolean; sources: NativeScreenSource[] };
   layoutMode: 'grid' | 'speaker' | 'gallery';
   viewMode: 'normal' | 'maximized' | 'fullscreen';
   fullscreenUserId: string | null;
@@ -115,7 +112,7 @@ interface VoiceChannelState {
   streamUpdateCounter: number;
   
   // Active WebRTC transport ('livekit' for SFU, 'p2p' for peer-to-peer, null when disconnected)
-  connectionMode: 'livekit' | 'p2p' | 'native' | null;
+  connectionMode: 'livekit' | 'p2p' | null;
 
   // End-to-end encryption of call media. Supported on LiveKit only.
   isEncrypted: boolean;
@@ -173,7 +170,6 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     recentSpeakers: [],
     
     isOverlayVisible: false,
-    screenSourcePicker: { visible: false, sources: [] },
     layoutMode: 'grid',
     viewMode: 'normal',
     fullscreenUserId: null,
@@ -283,7 +279,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       return (kind === 'mic' ? state.userMicMutes : state.userStreamMutes).has(userId);
     },
 
-    /** Own stream, P2P and native streams are always received. */
+    /** Own stream and P2P streams are always received. */
     isWatchingStream: (state) => (userId: string): boolean => {
       if (userId === state.localState.userId) return true;
       if (state.connectionMode !== 'livekit') return true;
@@ -1040,26 +1036,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     },
 
     async toggleScreenShare(): Promise<boolean> {
-      // Native Linux X11 has no OS screenshare picker, so an in-app one runs
-      // first. Wayland returns no sources because its portal picks. Stopping
-      // never needs a picker.
-      if (webrtcManager.isNativeBackend() && !this.localState.isScreenSharing) {
-        const sources = await nativeLiveKit.listScreenSources();
-        if (sources.length > 1) {
-          this.screenSourcePicker = { visible: true, sources };
-          return false;
-        }
-      }
-      return this.startScreenShare();
-    },
-
-    /** Starts or stops screenshare. `source` picks the display on native X11. */
-    async startScreenShare(source?: NativeScreenSource): Promise<boolean> {
-      this.screenSourcePicker = { visible: false, sources: [] };
-
-      const enabled = webrtcManager.isNativeBackend()
-        ? await nativeLiveKit.toggleScreenShare(source)
-        : await webrtcManager.toggleScreenShare();
+      const enabled = await webrtcManager.toggleScreenShare();
 
       this.localState = webrtcManager.getLocalState();
       this.localStream = webrtcManager.getLocalStream();
@@ -1074,10 +1051,6 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       this.refreshStreamState();
 
       return enabled;
-    },
-
-    cancelScreenSharePicker(): void {
-      this.screenSourcePicker = { visible: false, sources: [] };
     },
 
     /**
@@ -2023,7 +1996,6 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       this.connectionQuality = {};
       this.watchedStreamUserIds = [];
       this.audioPlaybackBlocked = false;
-      this.screenSourcePicker = { visible: false, sources: [] };
     },
 
     getUserProfile(userId: string) {

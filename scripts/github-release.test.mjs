@@ -20,6 +20,7 @@ const TAG = 'v1.6.7';
 const VERSION = '1.6.7';
 const WINDOWS = `Harmony_Windows_V${VERSION}.exe`;
 const MACOS = `Harmony_macOS_V${VERSION}.app.tar.gz`;
+const LINUX = `Harmony_Linux_V${VERSION}.AppImage`;
 const BODY = 'Download the installer for your platform below.';
 
 function fakeSig(file, nonce = 'a') {
@@ -154,6 +155,11 @@ async function macosJob(f, id, nonce = 'm') {
   await f.upload(id, MACOS, 'gzip app bundle');
   await f.upload(id, `${MACOS}.sig`, fakeSig('Harmony.app.tar.gz', nonce));
 }
+async function linuxJob(f, id, nonce = 'l') {
+  await f.upload(id, `Harmony_Linux_V${VERSION}.deb`, 'deb bytes');
+  await f.upload(id, LINUX, 'AppImage bytes');
+  await f.upload(id, `${LINUX}.sig`, fakeSig('Harmony_1.6.7_amd64.AppImage', nonce));
+}
 const latestArgs = (id) => [
   'latest-json', '--release-id', String(id), '--tag', TAG, '--version', VERSION,
   '--windows', WINDOWS, '--macos', MACOS,
@@ -184,6 +190,52 @@ test('Windows and macOS present: one latest.json with tauri-action keys', async 
   for (const k of PLATFORM_KEYS.macos) assert.deepEqual(manifest.platforms[k], mac);
 
   assert.deepEqual(f.blobAuth, [null, null], 'token is not sent to the asset redirect target');
+});
+
+test('Linux AppImage given: linux-x86_64 keys point at it', async (t) => {
+  const f = await fakeGitHub();
+  t.after(f.close);
+  const id = await main(['ensure', '--tag', TAG, '--name', `Harmony ${VERSION}`, '--body', BODY], { gh: f.gh, log: quiet });
+  await windowsJob(f, id);
+  await macosJob(f, id);
+  await linuxJob(f, id);
+
+  const manifest = await main([...latestArgs(id), '--linux', LINUX], { gh: f.gh, log: quiet });
+  assert.deepEqual(
+    Object.keys(manifest.platforms).sort(),
+    [...PLATFORM_KEYS.windows, ...PLATFORM_KEYS.macos, 'linux-x86_64', 'linux-x86_64-appimage'].sort(),
+  );
+  const linux = { signature: f.asset(id, `${LINUX}.sig`).data.toString(), url: `${f.base}/${OWNER_REPO}/releases/download/${TAG}/${LINUX}` };
+  for (const k of PLATFORM_KEYS.linux) assert.deepEqual(manifest.platforms[k], linux);
+  assert.deepEqual(JSON.parse(f.asset(id, 'latest.json').data), manifest);
+});
+
+test('Linux AppImage given without its signature: fails and uploads nothing', async (t) => {
+  const f = await fakeGitHub();
+  t.after(f.close);
+  const id = await main(['ensure', '--tag', TAG, '--name', `Harmony ${VERSION}`, '--body', BODY], { gh: f.gh, log: quiet });
+  await windowsJob(f, id);
+  await macosJob(f, id);
+  await f.upload(id, LINUX, 'AppImage bytes');
+  await assert.rejects(main([...latestArgs(id), '--linux', LINUX], { gh: f.gh, log: quiet }), /lacks updater assets: Harmony_Linux_V1\.6\.7\.AppImage\.sig$/m);
+  assert.equal(f.asset(id, 'latest.json'), undefined);
+});
+
+test('upload: adds files by basename and replaces a same-named asset', async (t) => {
+  const f = await fakeGitHub();
+  t.after(f.close);
+  const dir = mkdtempSync(join(tmpdir(), 'gh-upload-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const id = await main(['ensure', '--tag', TAG, '--name', `Harmony ${VERSION}`, '--body', BODY], { gh: f.gh, log: quiet });
+  await f.upload(id, LINUX, 'stale');
+  writeFileSync(join(dir, LINUX), 'AppImage bytes');
+  writeFileSync(join(dir, `${LINUX}.sig`), fakeSig('x'));
+
+  await main(['upload', '--release-id', String(id), join(dir, LINUX), join(dir, `${LINUX}.sig`)], { gh: f.gh, log: quiet });
+  assert.deepEqual(f.names(id), [LINUX, `${LINUX}.sig`]);
+  assert.equal(f.asset(id, LINUX).data.toString(), 'AppImage bytes');
+  assert.equal(f.asset(id, LINUX).contentType, 'application/octet-stream');
+  await assert.rejects(main(['upload', '--release-id', String(id)], { gh: f.gh, log: quiet }), /at least one file/);
 });
 
 for (const [label, drop] of [
@@ -327,7 +379,9 @@ test('name-artifact.sh: release and dev names', async (t) => {
   assert.equal(await nameArtifact(dir, ['Windows', 'release'], dev), `Harmony_Windows_V${VERSION}_dev-feat-push-v2-1a2b3c4`);
   assert.equal(await nameArtifact(dir, ['Android', 'debug'], dev), `Harmony_Android_V${VERSION}_debug-feat-push-v2-1a2b3c4`);
   await assert.rejects(nameArtifact(dir, ['Windows', 'release']), /GITHUB_REF_NAME and GITHUB_SHA must be set/);
-  await assert.rejects(nameArtifact(dir, ['Linux', 'release']), /usage/);
+  assert.equal(await nameArtifact(dir, ['--release', 'Linux', 'release']), `Harmony_Linux_V${VERSION}`);
+  assert.equal(await nameArtifact(dir, ['Linux', 'release'], dev), `Harmony_Linux_V${VERSION}_dev-feat-push-v2-1a2b3c4`);
+  await assert.rejects(nameArtifact(dir, ['iOS', 'release']), /usage/);
 
   mkdirSync(join(dir, 'apk'));
   writeFileSync(join(dir, 'apk/app-universal-release.apk'), 'apk');

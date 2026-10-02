@@ -9,7 +9,7 @@ description = "Android push for Harmony: FCM and UnifiedPush delivery, notificat
 links = "tauri-plugin-harmony-push"
 
 [dependencies]
-tauri = { version = "=2.9.3" }
+tauri = { version = "=3.0.0-alpha.3" }
 
 [build-dependencies]
-tauri-plugin = { version = "2.5.1", features = ["build"] }
+tauri-plugin = { version = "=3.0.0-alpha.2", features = ["build"] }

@@ -2450,10 +2450,6 @@
       "title": "No devices registered yet",
       "description": "Devices appear here once you unlock encryption on them."
     },
-    "screenSources": {
-      "screens": "No screens available",
-      "windows": "No windows available"
-    },
     "admin": {
       "discoveredInstances": {
         "title": "No instances discovered from user interactions yet",
