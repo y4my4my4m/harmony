@@ -205,6 +205,7 @@ import { useI18n } from 'vue-i18n'
 import type { Server } from '@/types'
 import { useNotificationStore } from '@/stores/useNotification'
 import { getServerBannerUrl, getRawServerBannerUrl } from '@/utils/serverUtils'
+import { imageSourceError } from '@/utils/uploadValidation'
 import ServerIcon from '@/components/common/ServerIcon.vue'
 
 const { t } = useI18n()
@@ -295,8 +296,9 @@ const handleBannerFileChange = (event: Event) => {
   const file = input.files?.[0] || null
 
   if (file) {
-    if (file.size > 10 * 1024 * 1024) {
-      notificationStore.showToast('error', t('common.error'), 'Banner file is too large (max 10MB)', 3000)
+    const sourceError = imageSourceError(file)
+    if (sourceError) {
+      notificationStore.showToast('error', t('common.error'), sourceError, 3000)
       return
     }
     if (!file.type.startsWith('image/')) {
@@ -328,8 +330,9 @@ const handleFileInputChange = (event: Event) => {
   const file = input.files?.[0] || null
   
   if (file) {
-    if (file.size > 8 * 1024 * 1024) {
-      notificationStore.showToast('error', t('common.error'), t('server.fileSizeTooLarge'), 3000)
+    const sourceError = imageSourceError(file)
+    if (sourceError) {
+      notificationStore.showToast('error', t('common.error'), sourceError, 3000)
       return
     }
     

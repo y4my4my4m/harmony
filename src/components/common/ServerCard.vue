@@ -3,10 +3,18 @@
     class="server-card"
     :class="{
       'server-card--featured': server.is_featured,
-      'server-card--has-banner': !!serverBannerUrl,
+      'server-card--has-banner': hasBanner,
     }"
   >
-    <div v-if="serverBannerUrl" class="server-card__banner" :style="bannerStyle">
+    <div v-if="hasBanner" class="server-card__banner">
+      <BannerImage
+        :src="bannerSrc"
+        :fallback-src="bannerFullSize"
+        :width="BANNER_BOX.width"
+        :height="BANNER_BOX.height"
+        expandable
+        @failed="bannerFailed = true"
+      />
       <div class="server-card__banner-overlay"></div>
     </div>
 
@@ -17,6 +25,7 @@
           :alt="`${server.name} icon`"
           size="lg"
           shape="big-rounded"
+          expandable
           @error="handleImageError"
         />
         <span
@@ -95,6 +104,7 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useUserData } from '@/composables/useUserData'
 import Avatar from '@/components/common/Avatar.vue'
+import BannerImage from '@/components/common/BannerImage.vue'
 import Icon from '@/components/common/Icon.vue'
 import DisplayName from '@/components/DisplayName.vue'
 import type { PublicServerWithStats } from '@/stores/usePublicServers'
@@ -124,31 +134,15 @@ const emit = defineEmits<Emits>()
 
 const { getUserAvatarUrl, getUserDisplayName } = useUserData()
 
+// Banner box in CSS px: one grid column is 260–420 wide, the banner 100 tall.
+const BANNER_BOX = { width: 420, height: 100 } as const
+
 const bannerFailed = ref(false)
+const bannerSrc = computed(() => getServerBannerUrl(props.server.banner, BANNER_BOX))
+const bannerFullSize = computed(() => getRawServerBannerUrl(props.server.banner))
+const hasBanner = computed(() => !!bannerSrc.value && !bannerFailed.value)
 
-const serverBannerUrl = computed(() => {
-  const transformed = getServerBannerUrl(props.server.banner, { width: 640, height: 200, quality: 80 })
-  if (!transformed) return null
-  if (bannerFailed.value) {
-    return getRawServerBannerUrl(props.server.banner)
-  }
-  return transformed
-})
-
-const bannerStyle = computed(() => {
-  const url = serverBannerUrl.value
-  if (!url) return {}
-  return { backgroundImage: `url(${url})` }
-})
-
-watch(() => props.server.banner, (bannerPath) => {
-  bannerFailed.value = false
-  const transformed = getServerBannerUrl(bannerPath, { width: 640, height: 200, quality: 80 })
-  if (!transformed) return
-  const img = new Image()
-  img.onerror = () => { bannerFailed.value = true }
-  img.src = transformed
-}, { immediate: true })
+watch(() => props.server.banner, () => { bannerFailed.value = false })
 
 const ownerAvatar = computed(() => {
   const avatarUrl = getUserAvatarUrl(props.server.owner).value
@@ -214,14 +208,24 @@ const handleImageError = (event: Event) => {
   left: 0;
   right: 0;
   height: 100px;
-  background-size: cover;
-  background-position: center;
+  overflow: hidden;
+  background: var(--background-tertiary);
   z-index: 0;
+}
+
+/* Clicks between and around the icon reach the banner below. */
+.server-card--has-banner .server-card__header {
+  pointer-events: none;
+}
+
+.server-card--has-banner .server-card__icon {
+  pointer-events: auto;
 }
 
 .server-card__banner-overlay {
   position: absolute;
   inset: 0;
+  pointer-events: none;
   background: linear-gradient(
     to bottom,
     transparent 30%,

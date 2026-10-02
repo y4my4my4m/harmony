@@ -490,7 +490,6 @@ const { confirm } = useConfirmDialog()
 
 const BOT_COLUMNS = 'id, username, display_name, bio, avatar_url, bot_type, is_public, is_verified, created_at, last_online_at'
 const PRESENCE_REFRESH_MS = 30_000
-const AVATAR_MAX_BYTES = 4 * 1024 * 1024
 
 const typeOptions = computed(() => [
   { value: 'bot' as BotType, label: t('bots.type.bot'), hint: t('bots.type.botHint') },
@@ -702,22 +701,20 @@ async function handleBotAvatarUpload(event: Event) {
   const bot = detailBot.value
   if (!file || !bot) return
 
-  if (file.size > AVATAR_MAX_BYTES) {
-    toast.error(t('bots.avatar.tooLarge'))
+  const { imageSourceError } = await import('@/utils/uploadValidation')
+  const sourceError = imageSourceError(file)
+  if (sourceError) {
+    toast.error(sourceError)
     return
   }
 
   uploadingAvatar.value = true
   try {
-    const ext = file.name.split('.').pop()?.toLowerCase() || 'png'
-    const path = `bots/${bot.id}/avatar-${Date.now()}.${ext}`
-    const { error } = await supabase.storage
-      .from('avatars')
-      .upload(path, file, { upsert: true, cacheControl: '3600', contentType: file.type })
-    if (error) throw error
+    const { uploadImageObject } = await import('@/utils/fileUpload')
+    const uploaded = await uploadImageObject(file, 'avatar', 'avatars', `bots/${bot.id}`, 'avatar')
+    if (!uploaded.success || !uploaded.url) throw new Error(uploaded.error)
 
-    const { data } = supabase.storage.from('avatars').getPublicUrl(path)
-    editForm.avatar_url = data.publicUrl
+    editForm.avatar_url = uploaded.url
     toast.info(t('bots.avatar.uploaded'))
   } catch (error) {
     debug.error('Failed to upload bot avatar:', error)

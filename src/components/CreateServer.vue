@@ -178,6 +178,7 @@ import Icon from '@/components/common/Icon.vue';
 import ServerCategoryPicker from '@/components/common/ServerCategoryPicker.vue';
 import { usePublicServersStore } from '@/stores/usePublicServers';
 import type { ServerCategory } from '@/utils/serverDiscovery';
+import { imageSourceError } from '@/utils/uploadValidation';
 import type { Server } from '@/types';
 
 const emit = defineEmits<{
@@ -188,7 +189,6 @@ const emit = defineEmits<{
 const NAME_MIN = 2;
 const NAME_MAX = 28;
 const DESCRIPTION_MAX = 500;
-const ICON_MAX_BYTES = 5 * 1024 * 1024;
 
 const { t } = useI18n();
 const toast = useToast();
@@ -228,8 +228,9 @@ const handleIconUpload = (event: Event) => {
   const file = target.files?.[0];
   if (!file) return;
 
-  if (file.size > ICON_MAX_BYTES) {
-    toast.error('Icon file size must be less than 5MB');
+  const sourceError = imageSourceError(file);
+  if (sourceError) {
+    toast.error(sourceError);
     target.value = '';
     return;
   }

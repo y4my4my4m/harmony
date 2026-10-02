@@ -106,6 +106,7 @@ import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
 import { getInviteInfo, type InviteInfo } from '@/services/inviteService';
 import { useInviteJoin } from '@/composables/useInviteJoin';
 import { getServerIconUrl, getServerBannerUrl } from '@/utils/serverUtils';
+import { devicePixels } from '@/utils/imageTransformUtils';
 import ServerRulesModal from '@/components/invite/ServerRulesModal.vue';
 import InviteAcceptModal from '@/components/invite/InviteAcceptModal.vue';
 import Icon from '@/components/common/Icon.vue';
@@ -151,7 +152,8 @@ const serverData = computed(() => {
   if (!info.value) return null;
   return {
     name: info.value.serverName,
-    icon_url: info.value.icon ? getServerIconUrl(info.value.icon) : undefined,
+    // 56px on the card, 72px in InviteAcceptModal.
+    icon_url: info.value.icon ? getServerIconUrl(info.value.icon, devicePixels(72)) : undefined,
     description: info.value.description ?? undefined,
     member_count: info.value.memberCount,
     online_count: undefined as number | undefined,
@@ -186,8 +188,9 @@ async function loadInviteData() {
   debug.log('Invite info loaded:', resolved);
 }
 
+// BaseModal draws the banner under a 24px blur.
 const bannerUrl = computed(() =>
-  info.value?.banner ? getServerBannerUrl(info.value.banner, { width: 960, height: 540 }) : null
+  info.value?.banner ? getServerBannerUrl(info.value.banner, { width: 480, height: 270 }) : null
 );
 
 // Join is a two-step consent: card button opens the invite panel, Accept there

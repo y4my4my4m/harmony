@@ -177,20 +177,24 @@ function next() {
   if (index.value < items.value.length - 1) index.value++;
 }
 
+// Window capture phase runs ahead of the document and window listeners of the
+// dialog underneath, which would otherwise close on the same Escape.
 function handleKeydown(e: KeyboardEvent) {
   if (!props.visible) return;
   if (e.key === 'Escape') onHide();
   else if (e.key === 'ArrowLeft') prev();
   else if (e.key === 'ArrowRight') next();
+  else return;
+  e.stopImmediatePropagation();
 }
 
 onMounted(() => {
-  document.addEventListener('keydown', handleKeydown);
+  window.addEventListener('keydown', handleKeydown, true);
   if (props.visible) document.body.style.overflow = 'hidden';
 });
 
 onUnmounted(() => {
-  document.removeEventListener('keydown', handleKeydown);
+  window.removeEventListener('keydown', handleKeydown, true);
   document.body.style.overflow = '';
 });
 

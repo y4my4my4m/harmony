@@ -325,7 +325,7 @@
     "emojiDeletedSuccess": "Emoji \"{name}\" deleted",
     "failedToDeleteEmoji": "Failed to delete emoji",
     "filesNotImageSkipped": "{count} file(s) skipped: not an image",
-    "filesTooLargeSkipped": "{count} file(s) skipped: larger than 1 MB",
+    "filesTooLargeSkipped": "{count} file(s) skipped: larger than 25 MB",
     "noValidImageFiles": "No valid image files selected",
     "cannotUploadEmojisLimit": "Cannot upload {count} emoji(s): would exceed the limit of {max} (currently {current})",
     "emojisUploadedSuccess": "{count} emoji{plural} uploaded",
@@ -1145,7 +1145,9 @@
     "uploadSuccess": "Upload successful",
     "uploadError": "Upload failed",
     "tooLarge": "File is too large",
-    "invalidType": "Invalid file type"
+    "invalidType": "Invalid file type",
+    "viewFullSize": "View full size",
+    "imageTooLarge": "That image is {size}. Images up to {max} can be uploaded."
   },
   "gif": {
     "search": "Search GIF...",

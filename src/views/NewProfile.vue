@@ -158,6 +158,7 @@ import { useRouter } from 'vue-router';
 import { useToast } from 'vue-toastification';
 import { apiUrl } from '@/services/instanceConfig';
 import { debug } from '@/utils/debug';
+import { imageSourceError } from '@/utils/uploadValidation';
 import { useProfileStore } from '@/stores/useProfile';
 import { useAuthStore } from '@/stores/auth';
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
@@ -170,7 +171,6 @@ import OnboardingServerSuggestions from '@/components/welcome/OnboardingServerSu
 import { useOnboardingServers } from '@/composables/useOnboardingServers';
 
 const DEFAULT_PROFILE_COLOR = '#0EA5E9';
-const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
 
 const { t } = useI18n();
 const router = useRouter();
@@ -288,8 +288,9 @@ function triggerAvatarUpload() {
 function handleAvatarUpload(event: Event) {
   const file = (event.target as HTMLInputElement).files?.[0];
   if (!file) return;
-  if (file.size > AVATAR_MAX_BYTES) {
-    toast.error(t('onboarding.avatarTooLarge'));
+  const sourceError = imageSourceError(file);
+  if (sourceError) {
+    toast.error(sourceError);
     return;
   }
   avatarFile.value = file;

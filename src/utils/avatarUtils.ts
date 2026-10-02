@@ -1,5 +1,6 @@
 import { supabase } from '@/supabase'
 import { canonicalSquareSize } from '@/utils/imageTransformUtils'
+import { rawStorageUrl } from '@/utils/storageImageUtils'
 
 /**
  * Normalizes an avatar URL. Accepts full URLs and path-only forms; Supabase
@@ -84,6 +85,11 @@ export function getAvatarUrl(avatarUrl: string | null | undefined, size: number 
 
   // If it's just a filename or doesn't match expected patterns, return default
   return '/default_avatar.webp'
+}
+
+/** Stored avatar, untransformed; null for the bundled default. */
+export function getFullSizeAvatarUrl(avatarUrl: string | null | undefined): string | null {
+  return rawStorageUrl('avatars', avatarUrl)
 }
 
 /**

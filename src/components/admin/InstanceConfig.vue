@@ -613,7 +613,8 @@ import NewcomerAlertsDefault from '@/components/admin/NewcomerAlertsDefault.vue'
 import { adminService } from '@/services/AdminService'
 import { trendingService } from '@/services/TrendingService'
 import { supabase } from '@/supabase'
-import { validateImageUpload, humanizeUploadError } from '@/utils/uploadValidation'
+import { humanizeUploadError, imageSourceError } from '@/utils/uploadValidation'
+import { uploadImageObject } from '@/utils/fileUpload'
 
 const authStore = useAuthStore()
 const toast = useToast()
@@ -896,8 +897,9 @@ onUnmounted(() => {
 const handleInstanceIconChange = (event: Event) => {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
-  if (file && file.size > 5 * 1024 * 1024) {
-    toast.error('Icon file too large (max 5MB)')
+  const iconSourceError = file && imageSourceError(file)
+  if (iconSourceError) {
+    toast.error(iconSourceError)
     return
   }
   if (file) {
@@ -910,8 +912,9 @@ const handleInstanceIconChange = (event: Event) => {
 const handleInstanceBannerChange = (event: Event) => {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
-  if (file && file.size > 10 * 1024 * 1024) {
-    toast.error('Banner file too large (max 10MB)')
+  const bannerSourceError = file && imageSourceError(file)
+  if (bannerSourceError) {
+    toast.error(bannerSourceError)
     return
   }
   if (file) {
@@ -931,47 +934,25 @@ const saveInstanceBranding = async () => {
   try {
     // Upload icon if a new file was selected
     if (instanceIconFile.value) {
-      const iconValidationError = await validateImageUpload(instanceIconFile.value, 'server_icons')
-      if (iconValidationError) {
-        toast.error(iconValidationError)
+      const icon = await uploadImageObject(instanceIconFile.value, 'server_icon', 'server_icons', 'instance', 'icon')
+      if (!icon.success || !icon.url) {
+        toast.error(icon.error || humanizeUploadError(null, 'server_icons'))
         savingBranding.value = false
         return
       }
-      const ext = instanceIconFile.value.name.split('.').pop()
-      const filePath = `instance/instance_icon.${ext}`
-      const { error: uploadErr } = await supabase.storage
-        .from('server_icons')
-        .upload(filePath, instanceIconFile.value, { upsert: true })
-      if (uploadErr) {
-        toast.error(humanizeUploadError(uploadErr, 'server_icons'))
-        savingBranding.value = false
-        return
-      }
-      const { data: urlData } = supabase.storage.from('server_icons').getPublicUrl(filePath)
-      instanceConfig.value.iconUrl = urlData.publicUrl
+      instanceConfig.value.iconUrl = icon.url
       instanceIconFile.value = null
     }
 
     // Upload banner if a new file was selected
     if (instanceBannerFile.value) {
-      const bannerValidationError = await validateImageUpload(instanceBannerFile.value, 'server_banners')
-      if (bannerValidationError) {
-        toast.error(bannerValidationError)
+      const banner = await uploadImageObject(instanceBannerFile.value, 'server_banner', 'server_banners', 'instance', 'banner')
+      if (!banner.success || !banner.url) {
+        toast.error(banner.error || humanizeUploadError(null, 'server_banners'))
         savingBranding.value = false
         return
       }
-      const ext = instanceBannerFile.value.name.split('.').pop()
-      const filePath = `instance/instance_banner.${ext}`
-      const { error: uploadErr } = await supabase.storage
-        .from('server_banners')
-        .upload(filePath, instanceBannerFile.value, { upsert: true })
-      if (uploadErr) {
-        toast.error(humanizeUploadError(uploadErr, 'server_banners'))
-        savingBranding.value = false
-        return
-      }
-      const { data: urlData } = supabase.storage.from('server_banners').getPublicUrl(filePath)
-      instanceConfig.value.bannerUrl = urlData.publicUrl
+      instanceConfig.value.bannerUrl = banner.url
       instanceBannerFile.value = null
     }
 
