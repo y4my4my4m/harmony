@@ -152,6 +152,20 @@
         </div>
       </div>
 
+      <div class="form-group category-group">
+        <span id="server-category-label" class="form-label">{{ $t('server.discoveryCategory') }}</span>
+        <ServerCategoryPicker
+          :model-value="category"
+          name="server-category"
+          labelledby="server-category-label"
+          :disabled="loading || !permissions.canChangePrivacySettings"
+          @update:model-value="setCategory"
+        />
+        <div class="form-hint category-hint">
+          {{ category ? $t('server.discoveryCategoryHint') : $t('server.discoveryCategoryNoneHint') }}
+        </div>
+      </div>
+
       <div v-if="isPublic" class="public-server-info">
         <div class="info-card">
           <div class="info-header">
@@ -205,6 +219,8 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
+import ServerCategoryPicker from '@/components/common/ServerCategoryPicker.vue'
+import type { ServerCategory } from '@/utils/serverDiscovery'
 import { supabase } from '@/supabase'
 import { useI18n } from 'vue-i18n'
 
@@ -219,6 +235,7 @@ interface ServerPermissions {
 interface Props {
   serverId: string
   isPublic: boolean
+  category?: string | null
   federationEnabled: boolean
   loading: boolean
   permissions: ServerPermissions
@@ -227,9 +244,11 @@ interface Props {
 interface Emits {
   (e: 'update:isPublic', value: boolean): void
   (e: 'update:federationEnabled', value: boolean): void
+  (e: 'update:category', value: ServerCategory | null): void
 }
 
 const props = withDefaults(defineProps<Props>(), {
+  category: null,
   federationEnabled: false
 })
 const emit = defineEmits<Emits>()
@@ -311,6 +330,11 @@ function confirmDisableFederation() {
 
 function cancelDisableFederation() {
   showDisableWarning.value = false
+}
+
+const setCategory = (value: ServerCategory | null) => {
+  if (!props.permissions.canChangePrivacySettings) return
+  emit('update:category', value)
 }
 
 const setDiscoveryMode = (mode: 'invite-only' | 'public-directory') => {
@@ -404,6 +428,10 @@ const setDiscoveryMode = (mode: 'invite-only' | 'public-directory') => {
   font-size: var(--font-size-xs);
   color: var(--text-muted);
   margin-top: 4px;
+}
+
+.category-hint {
+  margin-top: 8px;
 }
 
 .setting-row {

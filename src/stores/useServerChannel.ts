@@ -11,6 +11,7 @@ import { userEventChannel } from '@/services/UserEventChannel';
 import { authContextService } from '@/services/AuthContextService';
 import { SERVER_BOT_CHANGE_EVENT } from '@/services/serverBotsService';
 import { debug } from '@/utils/debug';
+import { pickServerSettings } from '@/utils/serverSettings';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import router from '@/router';
 
@@ -1135,13 +1136,14 @@ export const useServerChannelStore = defineStore('serverChannel', {
      * statement (add_server_owner_membership). The insert is never retried; a
      * second attempt after a committed insert duplicates the server.
      */
-    async createServer(serverData: { name: string; description?: string; public?: boolean; owner: string }) {
+    async createServer(serverData: { name: string; description?: string; public?: boolean; category?: string | null; owner: string }) {
       const { data, error } = await supabase
         .from('servers')
         .insert([{
           name: serverData.name,
           description: serverData.description || null,
           public: serverData.public || false,
+          ...(serverData.category ? { category: serverData.category } : {}),
           owner: serverData.owner
         }])
         .select()
@@ -1161,80 +1163,15 @@ export const useServerChannelStore = defineStore('serverChannel', {
       return data
     },
 
-    async updateServer(serverData: { id: string; icon?: string; name?: string; description?: string; public?: boolean }) {
-      try {
-        debug.log('Updating server via service-like helper:', serverData.id);
-        
-        const updatedServer = await this._updateServerHelper(serverData);
-        
-        if (updatedServer) {
-          const serverIndex = this.servers.findIndex(server => server.id === serverData.id);
-          if (serverIndex !== -1) {
-            this.servers[serverIndex] = { ...this.servers[serverIndex], ...updatedServer };
-          }
-          
-          debug.log('Server updated successfully via service-like helper:', updatedServer.id);
-          return updatedServer;
-        }
-        
-        throw new Error('Server update returned no data');
-      } catch (error) {
-        debug.error('Failed to update server via service-like helper:', error);
-        
-        try {
-          debug.log('Falling back to direct server update');
-          return await this._updateServerFallback(serverData);
-        } catch (fallbackError) {
-          debug.error('Fallback server update also failed:', fallbackError);
-          throw fallbackError;
-        }
-      }
-    },
-
-    /**
-     * Service-like helper: Update server with enhanced error handling
-     */
-    async _updateServerHelper(serverData: { id: string; icon?: string; name?: string; description?: string; public?: boolean }) {
-      const updateData: Record<string, any> = {};
-      
-      if (serverData.icon) updateData.icon = serverData.icon;
-      if (serverData.name) updateData.name = serverData.name;
-      if (serverData.description !== undefined) updateData.description = serverData.description;
-      if (serverData.public !== undefined) updateData.public = serverData.public;
-
-      const { data, error } = await supabase
-        .from('servers')
-        .update(updateData)
-        .eq('id', serverData.id)
-        .select()
-        .single();
+    /** Writes settings columns through update_server and merges the result into the list. */
+    async updateServer(serverData: { id: string } & Partial<Server>) {
+      const { data, error } = await supabase.rpc('update_server', {
+        p_server_id: serverData.id,
+        p_changes: pickServerSettings(serverData),
+      });
 
       if (error) {
         throw new Error(`Server update failed: ${error.message}`);
-      }
-
-      return data;
-    },
-
-    /**
-     * Fallback method for updating server
-     */
-    async _updateServerFallback(serverData: { id: string; icon?: string; name?: string; description?: string; public?: boolean }) {
-      const { data, error } = await supabase
-        .from('servers')
-        .update({
-          ...(serverData.icon && { icon: serverData.icon }),
-          ...(serverData.name && { name: serverData.name }),
-          ...(serverData.description !== undefined && { description: serverData.description }),
-          ...(serverData.public !== undefined && { public: serverData.public })
-        })
-        .eq('id', serverData.id)
-        .select()
-        .single();
-
-      if (error) {
-        debug.error('Error updating server in fallback:', error);
-        throw error;
       }
 
       const serverIndex = this.servers.findIndex(server => server.id === serverData.id);

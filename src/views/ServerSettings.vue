@@ -173,6 +173,8 @@
             <ServerPrivacySettings
               :serverId="serverId"
               v-model:isPublic="server.public"
+              :category="server.category ?? null"
+              @update:category="server.category = $event"
               :federationEnabled="server.federation_enabled ?? false"
               @update:federationEnabled="server.federation_enabled = $event"
               :loading="loading"
@@ -221,6 +223,7 @@ import { useServerPermissions } from '@/composables/useServerPermissions'
 import { getProfileWithAvatarUrl } from '@/services/ProfileService'
 import { useLayoutState } from '@/composables/useLayoutState'
 import type { Server, Emoji } from '@/types'
+import { diffServerSettings } from '@/utils/serverSettings'
 
 // Components
 import ServerBasicInfo from '@/components/settings/ServerBasicInfo.vue'
@@ -351,6 +354,7 @@ const generalHasChanges = computed(() => {
     server.value.icon !== originalServer.value.icon ||
     server.value.allow_cross_server_emojis !== originalServer.value.allow_cross_server_emojis ||
     server.value.public !== originalServer.value.public ||
+    (server.value.category ?? null) !== (originalServer.value.category ?? null) ||
     server.value.federation_enabled !== originalServer.value.federation_enabled ||
     selectedFile.value !== null ||
     selectedBannerFile.value !== null ||
@@ -467,7 +471,8 @@ const handleSave = async () => {
     loading.value = true
 
     if (generalHasChanges.value) {
-      const success = await serverStore.updateServer(server.value, selectedFile.value || undefined, selectedBannerFile.value || undefined)
+      const changes = { id: props.serverId, ...diffServerSettings(originalServer.value ?? {}, server.value) }
+      const success = await serverStore.updateServer(changes, selectedFile.value || undefined, selectedBannerFile.value || undefined)
       if (success) {
         // Re-fetch so uploaded file paths (banner, icon) are reflected in UI
         const freshData = await serverStore.getServer(props.serverId)

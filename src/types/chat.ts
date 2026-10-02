@@ -13,6 +13,8 @@ export interface Server {
   rules?: string[];
   allow_cross_server_emojis: boolean;
   public: boolean;
+  /** Discovery category id from SERVER_CATEGORIES; null when the owner has not chosen one. */
+  category?: string | null;
   federation_enabled?: boolean;
   is_local_server?: boolean;
   /**

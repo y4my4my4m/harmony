@@ -43,7 +43,7 @@
           </span>
 
           <span v-if="categoryLabel" class="stat-item">
-            <Icon name="tag" :size="13" class="stat-icon" />
+            <Icon :name="categoryIconName" :size="13" class="stat-icon" />
             {{ categoryLabel }}
           </span>
         </div>
@@ -100,7 +100,7 @@ import DisplayName from '@/components/DisplayName.vue'
 import type { PublicServerWithStats } from '@/stores/usePublicServers'
 import ServerIcon from './ServerIcon.vue'
 import { getServerBannerUrl, getRawServerBannerUrl } from '@/utils/serverUtils'
-import { categoryLabelKey } from '@/utils/serverDiscovery'
+import { categoryIcon, categoryLabelKey } from '@/utils/serverDiscovery'
 
 const { t } = useI18n()
 
@@ -157,13 +157,15 @@ const ownerAvatar = computed(() => {
 
 const ownerName = computed(() => getUserDisplayName(props.server.owner).value || '')
 
-// "Other" is the keyword inference's no-match bucket; not shown on cards.
+// "other" carries no information on a card, whether chosen or inferred.
 const categoryLabel = computed(() => {
-  const category = props.server.category
-  if (!category || category === 'Other') return null
+  const category = props.server.discovery_category
+  if (!category || category === 'other') return null
   const key = categoryLabelKey(category)
-  return key ? t(key) : category
+  return key ? t(key) : null
 })
+
+const categoryIconName = computed(() => categoryIcon(props.server.discovery_category ?? '') ?? 'tag')
 
 const formatMemberCount = (count?: number): string => {
   if (!count) return `0 ${t('server.members')}`

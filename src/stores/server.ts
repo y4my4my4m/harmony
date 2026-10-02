@@ -5,6 +5,8 @@ import type { Server, Emoji } from '@/types';
 import { debug } from '@/utils/debug'
 import { invalidateServerMemberCache } from '@/services/usersService'
 import { validateImageUpload, humanizeUploadError } from '@/utils/uploadValidation'
+import { usePublicServersStore } from '@/stores/usePublicServers'
+import { pickServerSettings } from '@/utils/serverSettings'
 
 export const useServerStore = defineStore('server', {
   actions: {
@@ -93,20 +95,20 @@ export const useServerStore = defineStore('server', {
           delete dataToUpdate.banner;
         }
 
-        const { id: serverId, ...patch } = dataToUpdate;
+        const serverId = dataToUpdate.id;
         if (!serverId) {
           throw new Error('Server ID is required to update');
         }
 
-        // Use PATCH update - not upsert. Chaining .eq() after .upsert() does not
-        // reliably apply row filters on POST/merge in PostgREST, so privacy flags
-        // (e.g. public) and other fields could fail to persist.
-        const { error } = await supabase
-          .from('servers')
-          .update(patch)
-          .eq('id', serverId);
+        // update_server raises for a caller it refuses; the servers UPDATE policy would
+        // match no row for a non-owner and report success.
+        const { error } = await supabase.rpc('update_server', {
+          p_server_id: serverId,
+          p_changes: pickServerSettings(dataToUpdate),
+        });
 
         if (error) throw error;
+        usePublicServersStore().markStale();
 
         // best-effort: remove the replaced files (only in-bucket relative paths)
         const isBucketPath = (p?: string | null): p is string =>
@@ -201,13 +203,15 @@ export const useServerStore = defineStore('server', {
           if (error.code === '42883') { // delete_server_with_cleanup RPC not deployed
             debug.warn('Server cleanup function not found, using fallback deletion');
             
-            const { error: deleteError } = await supabase
+            const { data: deleted, error: deleteError } = await supabase
               .from('servers')
               .delete()
               .eq('id', serverId)
-              .eq('owner', userId);
+              .eq('owner', userId)
+              .select('id');
 
             if (deleteError) throw deleteError;
+            if (!deleted?.length) throw new Error('Server delete matched no row');
           } else {
             throw error;
           }
