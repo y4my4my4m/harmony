@@ -2,6 +2,7 @@ import { supabase } from '@/supabase'
 import { i18n } from '@/i18n'
 import { debug } from '@/utils/debug'
 import { MAX_IMAGE_SOURCE_BYTES } from '@/utils/imageResize'
+import { mimeAllowed } from './mimeMatch'
 
 /**
  * Client-side validation and error humanization for storage uploads.
@@ -114,7 +115,7 @@ export class UploadRejectedError extends Error {}
 export async function validateImageUpload(file: File, bucket: string): Promise<string | null> {
   const limits = await getBucketLimits(bucket)
 
-  if (limits.allowedMime && file.type && !limits.allowedMime.includes(file.type)) {
+  if (limits.allowedMime && file.type && !mimeAllowed(limits.allowedMime, file.type)) {
     const typeName = FRIENDLY_MIME[file.type] || file.type || 'this file type'
     return `That ${limits.label} is a ${typeName} file, which isn't allowed. Supported types: ${describeMimeList(limits.allowedMime)}.`
   }

@@ -7,6 +7,7 @@
  * until it fits. Animated and undecodable files are never redrawn.
  */
 
+import { mimeAllowed } from './mimeMatch'
 export type ImageUploadKind =
   | 'avatar'
   | 'profile_banner'
@@ -453,7 +454,7 @@ async function encodeCompact(raster: Raster, source: ImageFormat): Promise<Encod
 }
 
 function accepts(budget: UploadBudget, type: string): boolean {
-  return !budget.allowedMime || budget.allowedMime.includes(type)
+  return mimeAllowed(budget.allowedMime, type)
 }
 
 function fits(budget: UploadBudget, type: string, size: number): boolean {
