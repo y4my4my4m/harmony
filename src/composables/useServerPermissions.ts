@@ -1,4 +1,4 @@
-import { computed, ref, watch, reactive, onScopeDispose } from 'vue'
+import { computed, ref, watch, reactive, onScopeDispose, toValue, type MaybeRefOrGetter } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useUserData } from '@/composables/useUserData'
@@ -48,7 +48,11 @@ export function clearAllPermissionCaches() {
   cacheVersion.value++
 }
 
-export function useServerPermissions() {
+/**
+ * `serverId` scopes the current-user checks to that server; without it they follow
+ * the store's current server.
+ */
+export function useServerPermissions(serverId?: MaybeRefOrGetter<string | null | undefined>) {
   const authStore = useAuthStore()
   const serverChannelStore = useServerChannelStore()
   const { getCurrentUser } = useUserData()
@@ -107,7 +111,11 @@ export function useServerPermissions() {
     // Prefer getCurrentUser (most up-to-date), fallback to fetchedProfileId
     return getCurrentUser.value?.id || fetchedProfileId.value
   })
-  const currentServer = computed(() => serverChannelStore.currentServer)
+  const currentServer = computed(() => {
+    const id = serverId === undefined ? undefined : toValue(serverId)
+    if (!id) return serverChannelStore.currentServer
+    return serverChannelStore.servers.find(s => s.id === id) ?? null
+  })
 
   const getCacheKey = (userId: string, serverId: string) => `${userId}-${serverId}`
 
@@ -351,6 +359,8 @@ export function useServerPermissions() {
     hasCurrentUserPermission(Permission.TIMEOUT_MEMBERS)
   )
 
+  const canBanMembers = computed(() => hasCurrentUserPermission(Permission.BAN_MEMBERS))
+
   const serverSettingsPermissions = computed(() => ({
     canEditBasicInfo: canManageServer.value,
     canChangeServerName: canManageServer.value,
@@ -366,7 +376,8 @@ export function useServerPermissions() {
     canSaveChanges: canManageServer.value,
     canDeleteServer: isCurrentUserServerOwner.value,
     canManageRoles: canManageRoles.value,
-    canModerateReports: canManageMessages.value
+    canModerateReports: canManageMessages.value,
+    canManageBans: canBanMembers.value
   }))
 
   const channelPermissions = computed(() => ({

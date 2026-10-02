@@ -241,7 +241,7 @@ const router = useRouter()
 const serverStore = useServerStore()
 const emojiCacheStore = useEmojiCacheStore()
 const toast = useToast()
-const { serverSettingsPermissions } = useServerPermissions()
+const { serverSettingsPermissions } = useServerPermissions(() => props.serverId)
 
 // Reactive state
 const loading = ref(false)
@@ -300,20 +300,19 @@ const emojiPermissions = computed(() => ({
 
 // Available sections based on permissions
 const availableSections = computed(() => {
-  const sections = [
+  const p = permissions.value
+  return [
     { id: 'overview', label: t('server.overview') },
     { id: 'roles', label: t('server.roles', 'Roles') },
-    { id: 'bans', label: t('server.bans') },
+    // get_server_bans requires BAN_MEMBERS.
+    ...(p.canManageBans ? [{ id: 'bans', label: t('server.bans') }] : []),
+    ...(p.canModerateReports ? [{ id: 'reports', label: t('server.reports', 'Reports') }] : []),
     // MANAGE_SERVER on a local server; the RPCs refuse anyone else.
-    ...(permissions.value.canEditBasicInfo ? [{ id: 'automod', label: t('automod.title') }] : []),
+    ...(p.canEditBasicInfo ? [{ id: 'automod', label: t('automod.title') }] : []),
     { id: 'emoji', label: t('server.emoji') },
     { id: 'privacy', label: t('server.privacySettings') },
     { id: 'advanced', label: t('server.advancedSettings') }
   ]
-  if (permissions.value.canModerateReports) {
-    sections.splice(3, 0, { id: 'reports', label: t('server.reports', 'Reports') })
-  }
-  return sections
 })
 
 const generalHasChanges = computed(() => {
