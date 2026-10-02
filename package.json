@@ -85,6 +85,7 @@
     "lucide-vue-next": "^0.577.0",
     "mediasoup-client": "^3.7.2",
     "pinia": "^2.1.7",
+    "qr": "^0.7.2",
     "qrcode": "^1.5.4",
     "simple-icons": "^14.0.0",
     "simple-peer": "^9.11.1",

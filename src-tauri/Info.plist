@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
   <key>NSCameraUsageDescription</key>
-  <string>Harmony uses your camera for video calls.</string>
+  <string>Harmony uses your camera for video calls and to scan QR codes when linking a device.</string>
   <key>NSMicrophoneUsageDescription</key>
   <string>Harmony uses your microphone for voice and video calls.</string>
 </dict>
