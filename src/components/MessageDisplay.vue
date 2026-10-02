@@ -1131,6 +1131,9 @@ const hoveredMessageItem = computed(() => {
   );
 });
 
+// Read context kept above a divider or a tall jump target, px.
+const CONTEXT_NUDGE_PX = 72;
+
 const THUMB_REACH_PX = 48;
 const floatingActionsStyle = computed((): Record<string, string> => {
   const pos = mobileActionTapPosition.value;
@@ -2120,7 +2123,6 @@ watch(() => props.messages, (newMessages) => {
           // context above it (Discord behaviour). Retries while the virtualizer
           // measures real row heights so it settles on the right spot.
           let dividerScrollAttempts = 0;
-          const CONTEXT_NUDGE_PX = 72;
           const scrollToDivider = () => {
             dividerScrollAttempts++;
             const idx = displayItems.value.findIndex(
@@ -2494,6 +2496,43 @@ const jumpToPresent = () => {
   stickToBottom();
 };
 
+// Centres a message row and highlights it. The virtualizer's smooth scroll targets
+// estimated offsets and does not follow rows that measure while it runs, so the
+// position is re-seated from the row's DOM box while rows above it settle. A row
+// taller than the view is aligned by its top instead.
+const jumpToMessageRow = (messageId: string): boolean => {
+  const indexOf = () => displayItems.value.findIndex(
+    item => item.type === 'message' && item.message?.id === messageId
+  );
+  if (indexOf() < 0) return false;
+  setPinned(false);
+  let attempts = 0;
+  const seat = () => {
+    attempts++;
+    const idx = indexOf();
+    if (idx < 0) return;
+    rowVirtualizer.value.scrollToIndex(idx, { align: 'center' });
+    requestAnimationFrame(() => {
+      const c = messageDisplayContainer.value;
+      const el = document.getElementById(`message-${messageId}`);
+      if (c && el) {
+        const box = el.getBoundingClientRect();
+        const view = c.getBoundingClientRect();
+        c.scrollTop += box.height > view.height - CONTEXT_NUDGE_PX
+          ? box.top - view.top - CONTEXT_NUDGE_PX
+          : box.top + box.height / 2 - (view.top + view.height / 2);
+        if (attempts === 1) {
+          el.classList.add('highlighted');
+          setTimeout(() => el.classList.remove('highlighted'), 3000);
+        }
+      }
+      if (attempts < 6) setTimeout(seat, attempts < 3 ? 50 : 150);
+    });
+  };
+  seat();
+  return true;
+};
+
 // --- LIFECYCLE HOOKS ---
 onMounted(() => {
   // Snapshot the read boundary for the initially-opened context (the reset
@@ -2507,43 +2546,13 @@ onMounted(() => {
   setupResizeObserver();
   window.addEventListener('keydown', onShiftDown);
   window.addEventListener('keyup', onShiftUp);
-  chatStore.highlightMessage = (messageId: string) => {
-    const idx = displayItems.value.findIndex(
-      item => item.type === 'message' && item.message?.id === messageId
-    );
-    if (idx < 0) return;
-    setPinned(false);
-    rowVirtualizer.value.scrollToIndex(idx, { align: 'center', behavior: 'smooth' });
-    setTimeout(() => {
-      nextTick(() => {
-        const messageElement = document.getElementById(`message-${messageId}`);
-        if (messageElement) {
-          messageElement.classList.add('highlighted');
-          setTimeout(() => messageElement.classList.remove('highlighted'), 3000);
-        }
-      });
-    }, 100);
-  };
+  chatStore.highlightMessage = (messageId: string) => { jumpToMessageRow(messageId); };
 });
 
 // Watch for DM highlight requests (reply jump in DMs)
 watch(() => dmStore.highlightedMessageId, (messageId) => {
   if (!messageId) return;
-  const idx = displayItems.value.findIndex(
-    item => item.type === 'message' && item.message?.id === messageId
-  );
-  if (idx < 0) return;
-  setPinned(false);
-  rowVirtualizer.value.scrollToIndex(idx, { align: 'center', behavior: 'smooth' });
-  setTimeout(() => {
-    nextTick(() => {
-      const messageElement = document.getElementById(`message-${messageId}`);
-      if (messageElement) {
-        messageElement.classList.add('highlighted');
-        setTimeout(() => messageElement.classList.remove('highlighted'), 3000);
-      }
-    });
-  }, 100);
+  jumpToMessageRow(messageId);
   dmStore.highlightedMessageId = null;
 });
 

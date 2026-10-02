@@ -414,18 +414,22 @@ export const useDMStore = defineStore('dm', () => {
       return true
     }
 
+    const conversationId = currentConversationId.value
+    if (!conversationId) return false
+
     try {
       const { data: message, error } = await supabase
         .from('messages')
         .select('*')
         .eq('id', messageId)
-        .eq('conversation_id', currentConversationId.value)
+        .eq('conversation_id', conversationId)
         .single()
 
       if (error || !message) {
         debug.error('DM message not found for jump:', error)
         return false
       }
+      if (currentConversationId.value !== conversationId) return false
 
       const messageDate = new Date(message.created_at)
       const msgs = [...currentDMMessages.value]
@@ -437,7 +441,7 @@ export const useDMStore = defineStore('dm', () => {
         }
         insertIndex = i + 1
       }
-      currentDMMessages.value.splice(insertIndex, 0, message)
+      currentDMMessages.value.splice(insertIndex, 0, toConversationMessages(conversationId, [message])[0])
 
       setTimeout(() => {
         highlightedMessageId.value = messageId
