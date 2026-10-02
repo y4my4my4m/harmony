@@ -7,6 +7,9 @@ import { useProfileStore } from '@/stores/useProfile'
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService'
 import { discordCustomEmojiUrlFromIdentifier } from '@/utils/emojiUtils'
 import { createReactionEngine } from '@/stores/shared/reactionEngine'
+import { isReactionLimitError, MESSAGE_REACTION_KINDS } from '@/utils/reactionLimits'
+import { i18n } from '@/i18n'
+import { useToast } from 'vue-toastification'
 
 interface MessageReactionInput {
   emojiId: string
@@ -32,6 +35,9 @@ function matchesEmoji(group: ReactionGroup, emojiId: string): boolean {
     ? group.emoji_id === emojiId
     : !group.emoji_id && group.emoji?.name === emojiId
 }
+
+/** The chip a picked emoji id toggles. */
+export const matchesMessageReactionGroup = matchesEmoji
 
 function makeReactionEntry(actor: ActorInput, reactionId?: string): ReactionActor {
   return {
@@ -212,8 +218,14 @@ export const useReactionsStore = defineStore('reactions', () => {
     fetchMessageReactions: (messageId: string, force = false) => engine.fetch(messageId, force),
     fetchMultipleMessageReactions: (messageIds: string[], force = false) => engine.fetchMultiple(messageIds, force),
 
-    toggleReaction: (messageId: string, emojiId: string, _userId?: string, emojiData?: Emoji) =>
-      engine.toggle(messageId, { emojiId, emojiData }),
+    toggleReaction: async (messageId: string, emojiId: string, _userId?: string, emojiData?: Emoji) => {
+      const result = await engine.toggle(messageId, { emojiId, emojiData })
+      // check_message_emoji_reaction_limit refused a 21st emoji.
+      if (!result.success && isReactionLimitError(result.reason)) {
+        useToast().info(i18n.global.t('emoji.messageReactionLimit', { count: MESSAGE_REACTION_KINDS }))
+      }
+      return result
+    },
 
     handleRealtimeUpdate: engine.handleRealtimeUpdate,
     clearOptimisticState: engine.clearOptimisticState,

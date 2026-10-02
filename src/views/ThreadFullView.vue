@@ -195,6 +195,7 @@
       :reply-user-id="replyingToUserId"
       :giphy-open="giphyOpen"
       :emoji-list-open="emojiListOpen"
+      :media-room="threadMediaRoom"
       @send-message="handleSendMessage"
       @send-voice-message="handleSendVoiceMessage"
       @update:reply-message-id="handleCancelReply"
@@ -209,6 +210,8 @@
       @click.stop
       @sendEmoji="handleSendEmoji"
       :closeEmojiList="closeReactionEmoji"
+      :isEmojiBlocked="isReactionEmojiBlocked"
+      :limitNotice="reactionLimitNotice"
       :emojiIconClicked="emojiIconClicked"
       :position="'left'"
       :triggerElement="(reactionTriggerElement as unknown as HTMLElement | null) || undefined"
@@ -246,6 +249,7 @@ import UnifiedMessageContent from '@/components/UnifiedMessageContent.vue'
 import MessageInput from '@/components/MessageInput.vue'
 import MessageDisplay from '@/components/MessageDisplay.vue'
 import EmojiPopup from '@/components/EmojiPopup.vue'
+import { useMessageReactionLimit } from '@/composables/useReactionLimits'
 import MediaPickerPopup from '@/components/MediaPickerPopup.vue'
 import { useChatStore } from '@/stores/useChat'
 import { useReactionsStore } from '@/stores/useReactions'
@@ -260,6 +264,7 @@ import { usePinsStore } from '@/stores/usePins'
 import type { Message, MessagePart, Emoji, Gif } from '@/types'
 import type { ThreadWithDetails } from '@/services/ThreadService'
 import type { FilePreviewData } from '@/components/FilePreview.vue'
+import { attachmentParts, mediaRoom } from '@/services/privateMedia'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 
 // Props
@@ -304,6 +309,8 @@ const threadMessageDisplayRef = ref<InstanceType<typeof MessageDisplay> | null>(
 const reactionEmojiOpen = ref(false)
 const reactionTriggerElement = ref<HTMLElement | null>(null)
 const selectedMessageId = ref<string>('')
+const { isEmojiBlocked: isReactionEmojiBlocked, limitNotice: reactionLimitNotice } =
+  useMessageReactionLimit(selectedMessageId)
 const isPopupForReaction = ref(false)
 const emojiIconClicked = ref(false)
 
@@ -321,6 +328,8 @@ const mediaPickerTriggerElement = computed(() => {
 
 // State
 const thread = ref<ThreadWithDetails | null>(null)
+// Thread replies name the thread's channel; so do their attachments.
+const threadMediaRoom = computed(() => mediaRoom({ channelId: thread.value?.channel_id }))
 const messages = ref<Message[]>([])
 const loading = ref(true)
 const loadingMore = ref(false)
@@ -629,26 +638,7 @@ const handleSendMessage = async (content: string, files: FilePreviewData[] = [],
       messageParts.push(...parsedMessage)
     }
     
-    for (const fileData of files) {
-      if (fileData.uploadStatus === 'completed' && fileData.uploadedUrl) {
-        let fileType: 'image' | 'video' | 'audio' | 'file' = 'file'
-        
-        if (fileData.type.startsWith('image/')) {
-          fileType = 'image'
-        } else if (fileData.type.startsWith('video/')) {
-          fileType = 'video'
-        } else if (fileData.type.startsWith('audio/')) {
-          fileType = 'audio'
-        }
-        
-        messageParts.push({
-          type: 'file',
-          url: fileData.uploadedUrl,
-          fileType,
-          fileName: fileData.name
-        })
-      }
-    }
+    messageParts.push(...await attachmentParts(files, threadMediaRoom.value))
     
     // Only send if we have message parts
     if (messageParts.length > 0) {
@@ -765,7 +755,7 @@ watch(mediaPickerOpen, () => {
   }
 })
 
-const handleSendVoiceMessage = async (data: { url: string, duration: number, waveform: number[], mimeType: string }) => {
+const handleSendVoiceMessage = async (data: { url: string, path: string, duration: number, waveform: number[], mimeType: string }) => {
   if (!thread.value) return
 
   sending.value = true
@@ -773,6 +763,7 @@ const handleSendVoiceMessage = async (data: { url: string, duration: number, wav
     const messageParts: MessagePart[] = [{
       type: 'file',
       url: data.url,
+      path: data.path,
       fileType: 'audio',
       fileName: 'Voice message',
     }]

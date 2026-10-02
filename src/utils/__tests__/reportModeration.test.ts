@@ -131,6 +131,16 @@ describe('snapshotEvidence', () => {
   it('is empty without a snapshot', () => {
     expect(snapshotEvidence(null)).toEqual([])
   })
+
+  it('links a private attachment by reference, never by the URL it carried', () => {
+    const path = 'd/77777777-0000-4000-8000-000000000007/u/notes.pdf'
+    const [item] = snapshotEvidence({ message: { content: [
+      { type: 'file', fileType: 'file', path, url: 'https://db.test/storage/v1/object/sign/message_media/x?token=t' },
+      { type: 'file', fileType: 'image', url: 'https://cdn.test/legacy.png' },
+    ] } })
+    expect(item.text).toBe(
+      `[file: http://localhost:54321/storage/v1/object/authenticated/message_media/${path}] [image: https://cdn.test/legacy.png]`)
+  })
 })
 
 describe('reportErrorMessage', () => {

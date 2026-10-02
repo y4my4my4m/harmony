@@ -1,6 +1,7 @@
 import { WebSocketServer, WebSocket } from 'ws'
 import { supabase, config } from '../config/supabase.js'
 import * as crypto from 'crypto'
+import { type InstallRow, botCanSeeChannel, loadEveryoneLayers } from '../auth/botPermissions.js'
 
 function logPresenceError(op: string, error: unknown) {
   if (!error) return
@@ -413,9 +414,10 @@ export class WebSocketGateway {
    * Handles bridge data registration from the Discord bridge.
    *
    * BUGS.md H40: `harmonyChannelId`s from the bot are untrusted. For each one,
-   * `channels.server_id` is resolved and the bot must have an active
-   * `bot_server_permissions` row for that server; channels failing the check
-   * are dropped from the registration.
+   * `channels.server_id` is resolved, the bot must have an active
+   * `bot_server_permissions` row for that server, and must see the channel
+   * (botCanSeeChannel); channels failing the check are dropped from the
+   * registration.
    *
    * Without that check a stolen bot token can cache fabricated Discord member
    * lists under any channel ID, including servers the bot is not installed on.
@@ -471,29 +473,42 @@ export class WebSocketGateway {
       if (row.server_id) channelServerMap.set(row.id, row.server_id)
     }
 
-    // Servers this bot is allowed to act on.
+    // Installations of this bot, every column: see loadInstall().
     const candidateServerIds = Array.from(new Set(channelServerMap.values()))
-    let authorizedServerIds = new Set<string>()
+    const installByServer = new Map<string, InstallRow>()
     if (candidateServerIds.length > 0) {
       const { data: permRows } = await supabase
         .from('bot_server_permissions')
-        .select('server_id')
+        .select('*')
         .eq('bot_id', botConnection.botId)
         .eq('is_active', true)
         .in('server_id', candidateServerIds)
-      authorizedServerIds = new Set(
-        ((permRows || []) as Array<{ server_id: string }>).map(r => r.server_id),
-      )
+      for (const row of (permRows || []) as InstallRow[]) {
+        installByServer.set(row.server_id as string, row)
+      }
     }
+
+    const layers = await loadEveryoneLayers(
+      Array.from(channelServerMap.entries())
+        .filter(([, serverId]) => installByServer.has(serverId))
+        .map(([id, server_id]) => ({ id, server_id })),
+    )
 
     let acceptedCount = 0
     let rejectedCount = 0
     for (const { harmonyChannelId, members } of candidates) {
       const serverId = channelServerMap.get(harmonyChannelId)
-      if (!serverId || !authorizedServerIds.has(serverId)) {
+      const install = serverId ? installByServer.get(serverId) : undefined
+      if (!serverId || !install) {
         console.warn(
           `║   🚫 ${harmonyChannelId}: bot ${botConnection.botId} not authorized for server ${serverId ?? 'unknown'} - dropping`,
         )
+        rejectedCount++
+        continue
+      }
+      const layer = layers.get(harmonyChannelId)
+      if (!layer || !botCanSeeChannel(install, layer, harmonyChannelId)) {
+        console.warn(`║   🚫 ${harmonyChannelId}: not visible to bot ${botConnection.botId} - dropping`)
         rejectedCount++
         continue
       }

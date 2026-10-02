@@ -80,7 +80,6 @@
   <!-- Global Modals (only when authenticated) -->
   <PublicServers
     v-if="showPublicServers && !isAuthRoute"
-    :force-refresh="shouldForceRefreshPublicServers"
     @close="handleClosePublicServers"
   />
 
@@ -174,17 +173,14 @@ const isAuthRoute = computed(() => {
 
 // Global modal state
 const showPublicServers = ref(false)
-const shouldForceRefreshPublicServers = ref(false)
 
 // Event handlers
 const handleShowPublicServers = () => {
   showPublicServers.value = true
-  shouldForceRefreshPublicServers.value = true
 }
 
 const handleClosePublicServers = () => {
   showPublicServers.value = false
-  shouldForceRefreshPublicServers.value = false
 }
 
 const handleSwitchToActivityPub = () => {

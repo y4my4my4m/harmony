@@ -249,8 +249,9 @@ class TypingIndicatorService {
     return new Promise((resolve, reject) => {
       let resolved = false
 
+      // Private: participants of the DM, viewers of the channel or thread's channel.
       const ch = supabase
-        .channel(channelName)
+        .channel(channelName, { config: { private: true } })
         .on('presence', { event: 'sync' }, () => {
           this.handlePresenceSync(context)
         })

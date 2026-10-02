@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
 import { setBaseFavicon } from '@/utils/faviconBadge'
+import { DEFAULT_POST_REACTIONS_PER_USER } from '@/utils/reactionLimits'
 
 interface InstanceSettings {
   // Instance identity
@@ -40,6 +41,8 @@ interface InstanceSettings {
   maxServerSize: number
   maxCustomEmojisPerServer: number
   maxMediaAttachmentsPerPost: number
+  /** Different emoji one person can react with on a post (check_emoji_reaction_limit). */
+  maxPostReactionsPerUser: number
   /** imgproxy JPEG/WebP quality (1-100) for custom emoji storage transforms */
   customEmojiTransformQuality: number
 
@@ -89,6 +92,7 @@ const DEFAULT_SETTINGS: InstanceSettings = {
   maxServerSize: 1000,
   maxCustomEmojisPerServer: 50,
   maxMediaAttachmentsPerPost: 20,
+  maxPostReactionsPerUser: DEFAULT_POST_REACTIONS_PER_USER,
   allowCustomEmojisInDisplayNames: true,
   gifAdsEnabled: true,
   gifKlipyWatermarkEnabled: true,
@@ -264,6 +268,12 @@ export const useInstanceSettingsStore = defineStore('instanceSettings', {
           case 'max_media_attachments_per_post': {
             const num = typeof value === 'number' ? value : parseInt(String(value), 10)
             if (!isNaN(num) && num >= 1) this.settings.maxMediaAttachmentsPerPost = num
+            break
+          }
+          case 'max_post_reactions_per_user': {
+            // Clamped as check_emoji_reaction_limit clamps it.
+            const num = typeof value === 'number' ? value : parseInt(String(value), 10)
+            if (!isNaN(num)) this.settings.maxPostReactionsPerUser = Math.min(100, Math.max(1, num))
             break
           }
           case 'custom_emoji_transform_quality': {

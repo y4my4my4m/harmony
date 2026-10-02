@@ -17,7 +17,7 @@ import compression from 'compression';
 import config from './config/index.js';
 import { logger } from './utils/logger.js';
 import { errorHandler, notFound } from './middleware/errorHandler.js';
-import { linkPreviewLimiter, pushLimiter, gifLimiter } from './middleware/rateLimit.js';
+import { linkPreviewLimiter, pushLimiter, gifLimiter, mediaLimiter } from './middleware/rateLimit.js';
 
 import healthRouter from './routes/health.js';
 import linkPreviewRouter from './routes/linkPreview.js';
@@ -27,6 +27,7 @@ import livekitRouter from './routes/livekit.js';
 import voiceRouter from './routes/voice.js';
 import realtimeRouter from './routes/realtime.js';
 import kofiWebhookRouter from './routes/webhooks/kofi.js';
+import mediaRouter from './routes/media.js';
 
 import webFingerRouter from './activitypub/WebFingerService.js';
 import actorRouter from './activitypub/ActorService.js';
@@ -109,6 +110,8 @@ export function createApp(): Application {
   app.use('/api/federation/instance-info', instanceInfoRouter);
   app.use('/realtime', realtimeRouter);
   app.use('/api/federation/realtime', realtimeRouter);
+  app.use('/media', mediaLimiter, mediaRouter);
+  app.use('/api/federation/media', mediaLimiter, mediaRouter);
 
   // Donation webhooks - each provider handles its own body parser internally.
   // Ko-fi posts application/x-www-form-urlencoded which the global json

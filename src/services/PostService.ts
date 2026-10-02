@@ -56,6 +56,14 @@ export class PostService {
     return result
   }
 
+  async getFavouriteState(postId: string): Promise<{ favorited: boolean; implied: boolean; count: number }> {
+    return corePostService.getFavouriteState(postId)
+  }
+
+  async keepFavourite(postId: string): Promise<void> {
+    return corePostService.keepFavourite(postId)
+  }
+
   /**
    * Toggle share/reblog on a post - delegates to ActivityPub service for proper implementation
    * @deprecated Use services.activityPub.toggleReblog() directly for new code

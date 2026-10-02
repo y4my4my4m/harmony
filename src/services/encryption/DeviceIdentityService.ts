@@ -32,6 +32,9 @@ import { debug } from '@/utils/debug'
 import { isTauriRuntime } from '@/services/instanceConfig'
 
 const DEVICE_ID_STORAGE_KEY = 'harmony_device_id'
+// Device id whose row this install has seen on the server. A row missing for it means the
+// device was removed from another device.
+const DEVICE_REGISTERED_STORAGE_KEY = 'harmony_device_registered'
 
 export type DeviceTrustState = 'untrusted' | 'account' | 'recovery' | 'verified' | 'revoked'
 
@@ -59,6 +62,20 @@ export interface DeviceApprovalRequest {
   approved_by_device_id: string | null
   encrypted_sync_bundle: string | null
   created_at: string
+  expires_at?: string | null
+  pairing_token_hash?: string | null
+  pairing_proof?: string | null
+  /** Set on device:approval_request broadcasts, which omit pairing_token_hash. */
+  pairing?: boolean
+}
+
+/** A QR pairing request: approved only by scanning, with sealed keys. */
+export function isPairingRequest(req: Pick<DeviceApprovalRequest, 'pairing' | 'pairing_token_hash'>): boolean {
+  return req.pairing === true || !!req.pairing_token_hash
+}
+
+export function isRequestExpired(req: Pick<DeviceApprovalRequest, 'expires_at'>, now = Date.now()): boolean {
+  return !!req.expires_at && Date.parse(req.expires_at) <= now
 }
 
 class DeviceIdentityService {
@@ -127,20 +144,28 @@ class DeviceIdentityService {
    * orphan older v3 messages signed under the previous key.
    *
    * @param trustState initial trust for a genuinely new device row only.
+   * @param opts.raiseApproval a new row raises a plain approval request when other devices
+   *   exist (default). Device pairing raises its own request instead.
    */
-  async ensureRegistered(userId: string, trustState: DeviceTrustState = 'account'): Promise<UserDevice | null> {
+  async ensureRegistered(
+    userId: string,
+    trustState: DeviceTrustState = 'account',
+    opts: { raiseApproval?: boolean } = {},
+  ): Promise<UserDevice | null> {
+    const raiseApproval = opts.raiseApproval ?? true
     if (typeof navigator !== 'undefined' && navigator.locks?.request) {
       return navigator.locks.request(
         'harmony-device-registration',
-        () => this.ensureRegisteredInner(userId, trustState),
+        () => this.ensureRegisteredInner(userId, trustState, raiseApproval),
       )
     }
-    return this.ensureRegisteredInner(userId, trustState)
+    return this.ensureRegisteredInner(userId, trustState, raiseApproval)
   }
 
   private async ensureRegisteredInner(
     userId: string,
     trustState: DeviceTrustState = 'account',
+    raiseApproval = true,
   ): Promise<UserDevice | null> {
     this.userId = userId
     let deviceId = this.getDeviceId()
@@ -222,6 +247,7 @@ class DeviceIdentityService {
 
     if (existing && !existing.revoked_at && existing.trust_state !== 'revoked') {
       const row = await this.touchExistingDeviceRow(existing, signingPrivate, signingPublicSpki)
+      this.markRegistered(deviceId)
       // Recovery-phrase unlock is root trust, stronger than another device
       // tapping approve. A device registered earlier in the boot as
       // 'account'/'untrusted' that then completes recovery is upgraded here;
@@ -232,10 +258,7 @@ class DeviceIdentityService {
         row &&
         (row.trust_state === 'account' || row.trust_state === 'untrusted')
       ) {
-        await this.setTrustState(deviceId, 'recovery').catch(err =>
-          debug.warn('Failed to elevate device trust after recovery unlock:', err),
-        )
-        row.trust_state = 'recovery'
+        if (await this.claimRecoveryTrust(deviceId)) row.trust_state = 'recovery'
       }
       return row
     }
@@ -243,7 +266,7 @@ class DeviceIdentityService {
     // Rotated identities start untrusted (L0): they can sign v3 messages once
     // published, but must not inherit verified/recovery capabilities.
     const initialTrust = isNewIdentity ? 'untrusted' : trustState
-    return this.insertNewDeviceRow(userId, deviceId, signingPublicSpki, initialTrust)
+    return this.insertNewDeviceRow(userId, deviceId, signingPublicSpki, initialTrust, raiseApproval)
   }
 
   private async fetchDeviceRow(
@@ -261,6 +284,43 @@ class DeviceIdentityService {
       return { row: null, error: true }
     }
     return { row: (data || null) as UserDevice | null, error: false }
+  }
+
+  private markRegistered(deviceId: string): void {
+    try {
+      localStorage.setItem(DEVICE_REGISTERED_STORAGE_KEY, deviceId)
+    } catch { /* ephemeral session */ }
+  }
+
+  /**
+   * Whether this install's device row is still live. 'revoked': signed out from another
+   * device or denied. 'removed': the row this install registered is gone. 'unknown' on a
+   * failed lookup.
+   */
+  async getThisDeviceState(userId: string): Promise<'active' | 'unregistered' | 'revoked' | 'removed' | 'unknown'> {
+    const deviceId = this.getDeviceId()
+    let lookup: { row: UserDevice | null; error: boolean }
+    try {
+      lookup = await this.fetchDeviceRow(userId, deviceId)
+    } catch {
+      return 'unknown'
+    }
+    const { row, error } = lookup
+    if (error) return 'unknown'
+    if (row) return row.revoked_at || row.trust_state === 'revoked' ? 'revoked' : 'active'
+    let registered: string | null = null
+    try {
+      registered = localStorage.getItem(DEVICE_REGISTERED_STORAGE_KEY)
+    } catch { /* ephemeral session */ }
+    return registered === deviceId ? 'removed' : 'unregistered'
+  }
+
+  /** Drops this install's device identity; the next registration is a new device. */
+  forgetThisDevice(): void {
+    try {
+      localStorage.removeItem(DEVICE_REGISTERED_STORAGE_KEY)
+    } catch { /* ephemeral session */ }
+    this.rotateDeviceId()
   }
 
   /** Mint a new local device id. The previous id's row and messages stay valid. */
@@ -325,12 +385,15 @@ class DeviceIdentityService {
     deviceId: string,
     signingPublicSpki: string,
     trustState: DeviceTrustState,
+    raiseApproval: boolean,
   ): Promise<UserDevice | null> {
+    // A client registers a device as 'untrusted' or 'account' (guard_user_device_client_write);
+    // 'recovery' is claimed after the insert, 'verified' only comes from an approval.
     const row: Record<string, unknown> = {
       user_id: userId,
       device_id: deviceId,
       device_signing_public_key: signingPublicSpki,
-      trust_state: trustState,
+      trust_state: trustState === 'untrusted' ? 'untrusted' : 'account',
       platform: this.getPlatform(),
       label: this.buildLabel(),
       last_seen_at: new Date().toISOString(),
@@ -346,6 +409,11 @@ class DeviceIdentityService {
       return null
     }
     debug.log(`Registered device ${deviceId.substring(0, 8)} (${row.label})`)
+    this.markRegistered(deviceId)
+    if (trustState === 'recovery' && inserted && (await this.claimRecoveryTrust(deviceId))) {
+      (inserted as UserDevice).trust_state = 'recovery'
+    }
+    if (!raiseApproval) return inserted as UserDevice
 
     try {
       const others = (await this.listActiveDevices(userId)).filter(d => d.device_id !== deviceId)
@@ -483,17 +551,9 @@ class DeviceIdentityService {
     return null
   }
 
+  /** Signs a device of this account out of encryption; its pending requests expire. */
   async revokeDevice(deviceId: string): Promise<void> {
-    const userId = await this.resolveUserId()
-    if (!userId) {
-      debug.warn('revokeDevice: no profile id available')
-      return
-    }
-    const { error } = await supabase
-      .from('user_devices')
-      .update({ trust_state: 'revoked', revoked_at: new Date().toISOString() })
-      .eq('user_id', userId)
-      .eq('device_id', deviceId)
+    const { error } = await supabase.rpc('revoke_device', { p_device_id: deviceId })
     if (error) {
       debug.error('Failed to revoke device:', error)
       throw new Error(error.message || 'Failed to sign out device')
@@ -517,22 +577,26 @@ class DeviceIdentityService {
     }
   }
 
-  async setTrustState(deviceId: string, trustState: DeviceTrustState): Promise<void> {
-    const userId = await this.resolveUserId()
-    if (!userId) return
-    await supabase
-      .from('user_devices')
-      .update({ trust_state: trustState })
-      .eq('user_id', userId)
-      .eq('device_id', deviceId)
+  /**
+   * 'untrusted' or 'account' to 'recovery' after a recovery-phrase unlock. The server
+   * cannot observe the unlock; the claim grants no keys.
+   */
+  async claimRecoveryTrust(deviceId: string): Promise<boolean> {
+    const { data, error } = await supabase.rpc('claim_device_recovery_trust', { p_device_id: deviceId })
+    if (error) {
+      debug.warn('Failed to record recovery trust for this device:', error)
+      return false
+    }
+    return data === true
   }
 
-  /** Permanently remove a device row (used to clear the list of dead entries). */
+  /** Permanently remove a device row; it is signed out first. */
   async deleteDevice(deviceId: string): Promise<void> {
     const userId = await this.resolveUserId()
     if (!userId) return
     // Never delete the current device.
     if (deviceId === this.getDeviceId()) return
+    await this.revokeDevice(deviceId)
     const { error } = await supabase
       .from('user_devices')
       .delete()
@@ -590,14 +654,13 @@ class DeviceIdentityService {
   // Device approval ("new login - was this you?")
 
   /** Ask existing trusted devices to approve this one. */
-  async requestApproval(userId: string, ecdhPublicKey?: string): Promise<string | null> {
+  async requestApproval(userId: string): Promise<string | null> {
     const { data, error } = await supabase
       .from('device_approval_requests')
       .insert({
         user_id: userId,
         requesting_device_id: this.getDeviceId(),
         requesting_label: this.buildLabel(),
-        requesting_ecdh_public_key: ecdhPublicKey || null,
         status: 'pending',
       })
       .select('id')
@@ -609,6 +672,75 @@ class DeviceIdentityService {
     return (data as any)?.id ?? null
   }
 
+  /**
+   * Open a QR pairing request for this device; earlier pending requests of this device
+   * expire. The device row must exist.
+   */
+  async createPairingRequest(args: {
+    ecdhPublicKey: string
+    tokenHash: string
+    proof?: string
+  }): Promise<{ id: string; expiresAt: number }> {
+    const { data, error } = await supabase.rpc('create_device_pairing_request', {
+      p_device_id: this.getDeviceId(),
+      p_label: this.buildLabel(),
+      p_ecdh_public_key: args.ecdhPublicKey,
+      p_token_hash: args.tokenHash,
+      p_proof: args.proof ?? null,
+    })
+    const row = (Array.isArray(data) ? data[0] : data) as
+      | { request_id: string; request_expires_at: string }
+      | null
+    if (error || !row?.request_id) {
+      throw new Error(error?.message || 'Could not start device pairing')
+    }
+    return { id: row.request_id, expiresAt: Date.parse(row.request_expires_at) }
+  }
+
+  /** One request of the caller's account, or null. */
+  async getApprovalRequest(id: string): Promise<DeviceApprovalRequest | null> {
+    const { data, error } = await supabase
+      .from('device_approval_requests')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle()
+    if (error) throw new Error(error.message || 'Could not read the request')
+    return (data || null) as DeviceApprovalRequest | null
+  }
+
+  /** Pending pairing requests of other devices on the account. */
+  async listPendingPairingRequests(userId: string): Promise<DeviceApprovalRequest[]> {
+    const { data, error } = await supabase
+      .from('device_approval_requests')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('status', 'pending')
+      .not('pairing_token_hash', 'is', null)
+      .neq('requesting_device_id', this.getDeviceId())
+      .gt('expires_at', new Date().toISOString())
+      .order('created_at', { ascending: false })
+    if (error) return []
+    return (data || []) as DeviceApprovalRequest[]
+  }
+
+  /** Withdraws this device's pending pairing request. */
+  async cancelPairingRequest(requestId: string): Promise<void> {
+    const { error } = await supabase.rpc('cancel_device_pairing_request', {
+      p_request_id: requestId,
+      p_device_id: this.getDeviceId(),
+    })
+    if (error) debug.warn('Failed to withdraw a pairing request:', error)
+  }
+
+  /** Clears this device's sealed keys from its request once imported. */
+  async consumeSyncBundle(requestId: string): Promise<void> {
+    const { error } = await supabase.rpc('consume_device_sync_bundle', {
+      p_request_id: requestId,
+      p_device_id: this.getDeviceId(),
+    })
+    if (error) debug.warn('Failed to clear the sealed keys of a pairing request:', error)
+  }
+
   /** Pending approval requests for the current user's account (other devices). */
   async listPendingApprovals(userId: string): Promise<DeviceApprovalRequest[]> {
     const { data, error } = await supabase
@@ -617,6 +749,7 @@ class DeviceIdentityService {
       .eq('user_id', userId)
       .eq('status', 'pending')
       .neq('requesting_device_id', this.getDeviceId())
+      .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
       .order('created_at', { ascending: false })
     if (error) return []
     const rows = (data || []) as DeviceApprovalRequest[]
@@ -627,7 +760,10 @@ class DeviceIdentityService {
     return filtered
   }
 
-  /** Pending approval raised BY this device (the new login waiting for approval). */
+  /**
+   * Plain pending approval raised BY this device (the new login waiting for approval).
+   * Pairing requests belong to the pairing screen.
+   */
   async getOwnPendingApproval(userId: string): Promise<DeviceApprovalRequest | null> {
     const { data, error } = await supabase
       .from('device_approval_requests')
@@ -635,6 +771,7 @@ class DeviceIdentityService {
       .eq('user_id', userId)
       .eq('requesting_device_id', this.getDeviceId())
       .eq('status', 'pending')
+      .is('pairing_token_hash', null)
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
@@ -680,14 +817,7 @@ class DeviceIdentityService {
 
   /** Sign out this device's row ("this wasn't me" on a fresh login). */
   async revokeCurrentDevice(): Promise<void> {
-    const userId = await this.resolveUserId()
-    if (!userId) return
-    const deviceId = this.getDeviceId()
-    const { error } = await supabase
-      .from('user_devices')
-      .update({ trust_state: 'revoked', revoked_at: new Date().toISOString() })
-      .eq('user_id', userId)
-      .eq('device_id', deviceId)
+    const { error } = await supabase.rpc('revoke_device', { p_device_id: this.getDeviceId() })
     if (error) {
       debug.error('Failed to revoke current device:', error)
       throw new Error(error.message || 'Failed to secure account')
@@ -697,18 +827,22 @@ class DeviceIdentityService {
   /**
    * Approve another device via the server-enforced RPC. The RPC verifies this
    * device is an established approver (predates the request or already
-   * trusted), so a freshly-logged-in attacker device cannot approve itself, and
-   * elevates the requesting device to 'verified'. `encryptedSyncBundle` is the
-   * optional key-sync payload the requesting device picks up to unlock history
-   * (L3).
+   * trusted) and elevates the requesting device to 'verified'. A pairing
+   * request needs `pairing` (sealed keys and token); a plain request takes
+   * neither. False when the request was no longer pending or had expired.
    */
-  async approveDevice(requestId: string, encryptedSyncBundle?: string): Promise<void> {
-    const { error } = await supabase.rpc('approve_device_request', {
+  async approveDevice(
+    requestId: string,
+    pairing?: { encryptedSyncBundle: string; token: string },
+  ): Promise<boolean> {
+    const { data, error } = await supabase.rpc('approve_device_request', {
       p_request_id: requestId,
       p_approver_device_id: this.getDeviceId(),
-      p_encrypted_sync_bundle: encryptedSyncBundle || null,
+      p_encrypted_sync_bundle: pairing?.encryptedSyncBundle ?? null,
+      ...(pairing ? { p_pairing_token: pairing.token } : {}),
     })
     if (error) throw new Error(error.message || 'Failed to approve device')
+    return data === true
   }
 
   /** Deny/secure a pending login. The RPC also revokes the requesting device. */

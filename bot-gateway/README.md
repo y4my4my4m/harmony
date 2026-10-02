@@ -49,7 +49,7 @@ The service loads `.env` from its working directory. `.env.example` is the templ
 | `FEDERATION_BACKEND_URL` | `http://localhost:3001` | Federation backend. Receives a link-preview request after each bot message. Must be `https://` or a localhost address; otherwise no request is sent. |
 | `INTERNAL_API_SECRET` | `SUPABASE_SERVICE_ROLE_KEY` | Bearer token for the link-preview request. |
 
-The instance setting **Bridge attachments** (admin instance configuration, stored as `bridge_attachment_mode`) controls Discord CDN attachments posted by bots: `link` stores the URL, `mirror` copies the file into the `user_media` bucket, `refresh` enables `POST /attachments/refresh`.
+The instance setting **Bridge attachments** (admin instance configuration, stored as `bridge_attachment_mode`) controls Discord CDN attachments posted by bots: `link` stores the URL, `mirror` copies the file into the channel's folder of the private `message_media` bucket, `refresh` enables `POST /attachments/refresh`.
 
 ## Running
 
@@ -103,7 +103,7 @@ Server owners add bots from the bot's page (**Add to server**) or under **Server
 | `MESSAGE_REACTION_REMOVE` | Deleted row in `reactions`, polled every 2 s |
 | `REFRESH_ATTACHMENTS` | `POST /attachments/refresh`; sent only to the bridge bot that authored the message |
 
-Message and reaction events go to every bot with an active installation holding `read_messages` that can view the channel: the channel is in the installation's `allowed_channel_ids` when that column is set, and @everyone keeps `VIEW_CHANNEL` there after the channel's @everyone override. The @everyone layer is cached per channel for 10 seconds. Encrypted messages produce no `MESSAGE_CREATE` or `MESSAGE_UPDATE`. Direct messages produce no events. The installation lookup is cached per server for 5 minutes, so permission changes and removals reach event delivery within that time; REST checks read the database on every request.
+Message and reaction events go to every bot with an active installation holding `read_messages` that sees the channel (`botCanSeeChannel`): the installation's `allowed_channel_ids` names it, whatever @everyone's override denies, or, when that column is NULL, @everyone keeps `VIEW_CHANNEL` there after the channel's @everyone override. REST writes addressed by channel or message, typing and bridge registration (op 6) need the same visibility; REST writes also need the write's bit (`SEND_MESSAGES`, `ADD_REACTIONS`, `MANAGE_MESSAGES`) after @everyone's override, unless `allowed_channel_ids` names the channel (`botCanWriteChannel`). The @everyone layer is cached per channel for 10 seconds. Encrypted messages produce no `MESSAGE_CREATE` or `MESSAGE_UPDATE`. Direct messages produce no events. The installation lookup is cached per server for 5 minutes, so permission changes and removals reach event delivery within that time; REST checks read the database on every request.
 
 ## Operational notes
 

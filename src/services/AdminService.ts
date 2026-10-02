@@ -840,6 +840,7 @@ class AdminService {
       let maxCustomEmojisPerServer = 0
       let customEmojiTransformQuality = 80
       let allowCustomEmojisInDisplayNames = true
+      let maxPostReactionsPerUser = 10
       const enableOutbound = true
       const enableInbound = true
 
@@ -847,7 +848,7 @@ class AdminService {
         const { data: configData } = await supabase
           .from('instance_config')
           .select('config_key, config_value')
-          .in('config_key', ['instance_name', 'instance_description', 'instance_rules', 'domain', 'open_registration', 'approval_required', 'oauth_providers', 'terms_url', 'privacy_url', 'max_server_size', 'max_message_length', 'max_media_attachments_per_post', 'allow_file_uploads', 'enable_voice_channels', 'bridge_attachment_mode', 'gif_ads_enabled', 'gif_klipy_watermark_enabled', 'gif_clips_enabled', 'gif_memes_enabled', 'gif_ai_emojis_enabled', 'gif_ai_emoji_generation_enabled', 'max_post_length', 'federation_retry_attempts', 'max_custom_emojis_per_server', 'custom_emoji_transform_quality', 'allow_custom_emojis_in_display_names', 'instance_icon', 'instance_banner', 'theme_color', 'maintainer_name', 'maintainer_email'])
+          .in('config_key', ['instance_name', 'instance_description', 'instance_rules', 'domain', 'open_registration', 'approval_required', 'oauth_providers', 'terms_url', 'privacy_url', 'max_server_size', 'max_message_length', 'max_media_attachments_per_post', 'allow_file_uploads', 'enable_voice_channels', 'bridge_attachment_mode', 'gif_ads_enabled', 'gif_klipy_watermark_enabled', 'gif_clips_enabled', 'gif_memes_enabled', 'gif_ai_emojis_enabled', 'gif_ai_emoji_generation_enabled', 'max_post_length', 'federation_retry_attempts', 'max_custom_emojis_per_server', 'custom_emoji_transform_quality', 'allow_custom_emojis_in_display_names', 'max_post_reactions_per_user', 'instance_icon', 'instance_banner', 'theme_color', 'maintainer_name', 'maintainer_email'])
 
         if (configData) {
           configData.forEach((config) => {
@@ -959,6 +960,13 @@ class AdminService {
                 case 'allow_custom_emojis_in_display_names':
                   allowCustomEmojisInDisplayNames = value === true || value === 'true'
                   break
+                case 'max_post_reactions_per_user': {
+                  const n = typeof value === 'number' ? value : parseInt(String(value), 10)
+                  if (!Number.isNaN(n)) {
+                    maxPostReactionsPerUser = Math.min(100, Math.max(1, n))
+                  }
+                  break
+                }
                 case 'instance_icon':
                   instanceIconUrl = (typeof value === 'string' ? value : String(value)) || ''
                   break
@@ -1005,6 +1013,7 @@ class AdminService {
           maxCustomEmojisPerServer,
           customEmojiTransformQuality,
           allowCustomEmojisInDisplayNames,
+          maxPostReactionsPerUser,
           enableOutbound,
           enableInbound
         },
@@ -1893,6 +1902,9 @@ class AdminService {
             last_seen_at: new Date().toISOString(),
             metadata: {
               ...instance.metadata,
+              // A software value the admin's refresh read is theirs: record_instance_software
+              // treats a value without software_source as admin-set.
+              ...(updatedInfo.software && { software_source: undefined }),
               last_refresh: new Date().toISOString(),
               api_available: updatedInfo.api_available,
               federation_enabled: updatedInfo.federation_enabled ?? instance.metadata?.federation_enabled,

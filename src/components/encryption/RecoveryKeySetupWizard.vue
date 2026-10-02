@@ -53,7 +53,7 @@
             <div class="feature-card">
               <span class="feature-icon"><Icon name="smartphone" :size="18" /></span>
               <h4>Multi-device</h4>
-              <p>Use your recovery key to access messages on any device</p>
+              <p>Link a new device by scanning a QR code from this one; your recovery key is the fallback</p>
             </div>
             <div class="feature-card">
               <span class="feature-icon"><Icon name="refresh-cw" :size="18" /></span>
@@ -110,20 +110,25 @@
               >
                 Download
               </button>
-              <button
-                class="btn btn-secondary"
-                @click="toggleQRCode"
-                :disabled="recoveryWords.length === 0"
-              >
-                {{ showQRCode ? 'Hide QR code' : 'Show QR code' }}
-              </button>
             </div>
+
+            <button
+              type="button"
+              class="qr-toggle"
+              :aria-expanded="showQRCode"
+              :disabled="recoveryWords.length === 0"
+              @click="toggleQRCode"
+            >
+              <Icon :name="showQRCode ? 'chevron-down' : 'chevron-right'" :size="14" />
+              {{ showQRCode ? 'Hide the recovery key QR code' : 'Show the recovery key as a QR code' }}
+            </button>
 
             <div v-if="showQRCode && qrCodeDataUrl" class="qr-code-panel">
               <img :src="qrCodeDataUrl" alt="Recovery key QR code" class="qr-code-image" />
               <p class="hint">
-                Scan this from another device's recovery screen. Anyone who sees
-                this code can read your encrypted messages - don't screenshot it.
+                Anyone who sees this code can read your encrypted messages; don't screenshot it.
+                To set up another device, link it instead: sign in there and scan the code it
+                shows from this device.
               </p>
             </div>
 
@@ -192,10 +197,19 @@
             </div>
 
             <div class="reminder-box">
+              <span class="reminder-icon"><Icon name="smartphone" :size="16" /></span>
+              <p>
+                <strong>New device?</strong> Sign in there and choose <em>Another device</em>,
+                then scan its code from this device. Your messages unlock without typing the
+                recovery key.
+              </p>
+            </div>
+
+            <div class="reminder-box">
               <span class="reminder-icon"><Icon name="pin" :size="16" /></span>
               <p>
                 <strong>Remember:</strong> Keep your 12-word recovery key safe.
-                You'll need it to restore access on new devices or after clearing your browser data.
+                You'll need it if you lose access to all your signed-in devices or clear your browser data.
               </p>
             </div>
           </div>
@@ -707,6 +721,28 @@ onMounted(() => {
   min-width: 0;
 }
 
+.qr-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  padding: 4px 0;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+}
+
+.qr-toggle:hover:not(:disabled) {
+  color: var(--text-primary);
+}
+
+.qr-toggle:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .qr-code-panel {
   display: flex;
   flex-direction: column;
@@ -890,6 +926,10 @@ onMounted(() => {
 .reminder-icon {
   font-size: var(--font-size-2xl);
   flex-shrink: 0;
+}
+
+.reminder-box + .reminder-box {
+  margin-top: 12px;
 }
 
 .reminder-box p {

@@ -154,6 +154,20 @@ export const usePostReactionsStore = defineStore('postReactions', () => {
     (postId: string, emojiId: string | null, customContent: string | null): boolean =>
       engine.hasUserReacted.value(postId, { id: emojiId || undefined, native: customContent || undefined }))
 
+  /**
+   * Unfavouriting deletes the person's reactions with the favourite
+   * (trg_favourite_follows_reactions). Their chips go at once; the next fetch confirms.
+   */
+  function dropOwnReactions(postId: string): void {
+    const groups = (engine.getReactions.value(postId) ?? [])
+      .map((g) => g.current_user_reacted
+        ? { ...g, reaction_count: Math.max(0, g.reaction_count - 1), current_user_reacted: false }
+        : g)
+      .filter((g) => g.reaction_count > 0)
+    engine.clearOptimisticState(postId)
+    engine.setReactions(postId, groups)
+  }
+
   return {
     reactionsByPost: engine.reactionsByEntity,
     getPostReactions: engine.getReactions,
@@ -169,8 +183,12 @@ export const usePostReactionsStore = defineStore('postReactions', () => {
     handleRealtimeUpdate: engine.handleRealtimeUpdate,
     clearOptimisticState: engine.clearOptimisticState,
     bulkSetReactions: engine.bulkSet,
+    dropOwnReactions,
     $dispose: engine.dispose,
   }
 })
+
+/** The chip a picked emoji toggles. */
+export const matchesPostReactionGroup = matchesEmoji
 
 export const __test = { matchesEmoji, matchesEmojiBy }

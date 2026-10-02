@@ -104,6 +104,13 @@ describe('ThreadService.sendThreadMessage encryption', () => {
     ])
   })
 
+  it('lists the attachments of an encrypted reply under the parent channel room', async () => {
+    const inserted = setup(true)
+    const path = `c/${CHANNEL_ID}/${PROFILE_ID}/a.png`
+    await threadService.sendThreadMessage(THREAD_ID, [{ type: 'file', fileType: 'image', url: '', path } as any])
+    expect(inserted[0].media_paths).toEqual([path])
+  })
+
   it('refuses a sender without keys instead of sending plaintext', async () => {
     const inserted = setup(true)
     enc.hasRecoveryKey = false

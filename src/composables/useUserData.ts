@@ -461,7 +461,7 @@ export function useUserData() {
       onlineUsers: stats.onlineUsers,
       activeContexts: stats.contexts,
       initialized: stats.initialized,
-      globalChannelConnected: stats.globalChannelConnected
+      presenceActive: stats.presenceActive
     }
   })
 

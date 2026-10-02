@@ -4,6 +4,7 @@ import { BlockedInstancesCache } from '../services/BlockedInstancesCache.js';
 import { performanceMonitor } from '../services/PerformanceMonitor.js';
 import { logger } from '../utils/logger.js';
 import { validateExternalUrl, safeFetch } from '../utils/ssrfProtection.js';
+import { isDeferredEngagement } from './deferredEngagement.js';
 
 type RequestSigner = (
   targetUrl: string,
@@ -74,6 +75,17 @@ interface QueueItem {
   attempts: number;
   max_attempts: number;
   next_attempt_at: string;  // Database column name (not next_retry_at)
+}
+
+/**
+ * The activity an attempt sends: a deferred engagement is built now (postEngagement.ts),
+ * anything else is sent as queued. Null: nothing is left to send.
+ */
+async function resolvePayload(activityData: any): Promise<any | null> {
+  if (!isDeferredEngagement(activityData)) return activityData;
+  // Loaded on use: postEngagement imports this module.
+  const { resolveDeferredEngagement } = await import('./postEngagement.js');
+  return resolveDeferredEngagement(activityData);
 }
 
 export class DeliveryQueue {
@@ -348,6 +360,20 @@ export class DeliveryQueue {
       SignatureService.signRequest(url, method, body, senderId));
   }
 
+  /** One delivery signed by a local profile. Nothing is queued; a retry is the caller's. */
+  static async deliverOnce(
+    activityData: any,
+    targetInbox: string,
+    senderId: string
+  ): Promise<DirectDeliveryResult> {
+    try {
+      return await this.deliverActivityDirect(activityData, targetInbox, senderId);
+    } catch (error) {
+      logger.warn(`Delivery to ${targetInbox} failed:`, error);
+      return { delivered: false, retry: false };
+    }
+  }
+
   /**
    * One delivery signed by the instance actor. Nothing is queued, since
    * federation_delivery_queue.sender_id names a profile; when `retry` is set the
@@ -393,10 +419,22 @@ export class DeliveryQueue {
       return { delivered: false, retry: false };
     }
 
+    let payload: any;
+    try {
+      payload = await resolvePayload(activityData);
+    } catch (error) {
+      logger.warn(`Could not build the activity for ${targetInbox}:`, error);
+      return { delivered: false, retry: true };
+    }
+    if (payload === null) {
+      logger.info(`Nothing left to send to ${targetInbox}`);
+      return { delivered: true, retry: false };
+    }
+
     const startedAt = process.hrtime.bigint();
 
     try {
-      const { headers } = await sign(targetInbox, 'POST', activityData);
+      const { headers } = await sign(targetInbox, 'POST', payload);
 
       headers['Content-Type'] = 'application/activity+json';
 
@@ -407,13 +445,13 @@ export class DeliveryQueue {
       const response = await safeFetch(targetInbox, {
         method: 'POST',
         headers,
-        body: JSON.stringify(activityData),
+        body: JSON.stringify(payload),
       });
 
       if (response.ok || response.status === 202) {
         const durationMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
         await this.updateEndpointHealth(targetInbox, targetDomain, true, response.status);
-        this.recordDeliveryOutcome(targetDomain, true, durationMs, activityData);
+        this.recordDeliveryOutcome(targetDomain, true, durationMs, payload);
         logger.info(`Delivered to ${targetInbox} (${response.status})`);
         return { delivered: true, retry: false };
       } else {
@@ -429,7 +467,7 @@ export class DeliveryQueue {
           targetDomain,
           false,
           durationMs,
-          activityData,
+          payload,
           `HTTP ${response.status}`
         );
         logger.warn(`Failed to deliver to ${targetInbox}: ${response.status}`);
@@ -439,7 +477,7 @@ export class DeliveryQueue {
       const durationMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       await this.updateEndpointHealth(targetInbox, targetDomain, false, undefined, errorMessage);
-      this.recordDeliveryOutcome(targetDomain, false, durationMs, activityData, errorMessage);
+      this.recordDeliveryOutcome(targetDomain, false, durationMs, payload, errorMessage);
       logger.error(`Delivery error to ${targetInbox}:`, error);
       return { delivered: false, retry: true };
     }
@@ -530,12 +568,32 @@ export class DeliveryQueue {
         return false;
       }
 
+      let payload: any;
+      try {
+        payload = await resolvePayload(item.activity_data);
+      } catch (resolveErr: any) {
+        await this.handleDeliveryFailure(item, `Could not build the activity: ${resolveErr?.message ?? resolveErr}`);
+        return false;
+      }
+      if (payload === null) {
+        await supabase
+          .from('federation_delivery_queue')
+          .update({
+            status: 'cancelled',
+            last_attempt_at: new Date().toISOString(),
+            error_message: 'Superseded: nothing left to send',
+          })
+          .eq('id', item.id);
+        logger.info(`Nothing left to send to ${item.target_inbox_url}`);
+        return true;
+      }
+
       // Sign the request
       const startedAt = process.hrtime.bigint();
       const { headers } = await SignatureService.signRequest(
         item.target_inbox_url,
         'POST',
-        item.activity_data,
+        payload,
         senderId
       );
 
@@ -546,7 +604,7 @@ export class DeliveryQueue {
       const response = await safeFetch(item.target_inbox_url, {
         method: 'POST',
         headers,
-        body: JSON.stringify(item.activity_data),
+        body: JSON.stringify(payload),
       });
 
       if (response.ok || response.status === 202) {
@@ -657,16 +715,12 @@ export class DeliveryQueue {
   }
 
   /**
-   * Broadcast activity to all followers of a user
-   * Uses shared inbox when available to optimize delivery (one request per server)
+   * Preferred inbox (shared over personal) of each remote follower of a user, one per
+   * inbox, dead endpoints left out.
    */
-  static async broadcastToFollowers(
-    userId: string,
-    activityData: any
-  ): Promise<void> {
+  static async followerInboxes(userId: string): Promise<string[]> {
     const supabase = getSupabaseClient();
 
-    // Get all followers' inbox URLs (both individual and shared)
     // Use inner join syntax instead of foreign key hint to avoid ambiguity
     const { data: follows, error: followsError } = await supabase
       .from('follows')
@@ -684,85 +738,74 @@ export class DeliveryQueue {
 
     if (followsError) {
       logger.error('Error fetching followers:', followsError);
-      return;
+      return [];
     }
 
-    if (!follows || follows.length === 0) {
-      logger.info('No followers to broadcast to');
-      return;
-    }
-
-    // Group followers by their preferred inbox (shared inbox preferred)
-    const inboxMap = new Map<string, { inbox: string; type: 'shared' | 'individual' }>();
-    
-    for (const follow of follows) {
+    const inboxes = new Set<string>();
+    for (const follow of follows ?? []) {
       const follower = (follow as any).follower;
-      
+
       if (!follower) {
         logger.warn(`Follower profile is null for follower_id: ${(follow as any).follower_id}`);
         continue;
       }
-      
+
       if (follower.is_local) {
-        continue; // Skip local followers
+        continue;
       }
-      
-      // Prefer shared inbox, fall back to individual inbox
+
       const preferredInbox = follower.shared_inbox_url || follower.inbox_url;
-      
       if (preferredInbox) {
-        const inboxType = follower.shared_inbox_url ? 'shared' : 'individual';
-        
-        if (!inboxMap.has(preferredInbox)) {
-          inboxMap.set(preferredInbox, {
-            inbox: preferredInbox,
-            type: inboxType,
-          });
-        }
+        inboxes.add(preferredInbox);
       } else {
         logger.warn(`Follower from ${follower.domain} has no inbox URL configured`);
       }
     }
 
-    const allInboxUrls = [...inboxMap.keys()];
-    const deadEndpoints = await this.getDeadEndpoints(allInboxUrls);
+    const all = [...inboxes];
+    const dead = await this.getDeadEndpoints(all);
+    if (dead.size > 0) {
+      logger.info(`${dead.size} dead follower endpoint(s) skipped`);
+    }
+    return all.filter((inbox) => !dead.has(inbox));
+  }
 
-    const liveInboxes: { inbox: string; type: 'shared' | 'individual' }[] = [];
-    let skipped = 0;
+  /**
+   * Broadcast activity to all followers of a user, signed by that user.
+   * Uses shared inbox when available to optimize delivery (one request per server)
+   */
+  static async broadcastToFollowers(
+    userId: string,
+    activityData: any
+  ): Promise<void> {
+    const inboxes = await this.followerInboxes(userId);
 
-    for (const [inbox, entry] of inboxMap) {
-      if (deadEndpoints.has(inbox)) {
-        skipped++;
-        continue;
-      }
-      liveInboxes.push(entry);
+    if (inboxes.length === 0) {
+      logger.info('No followers to broadcast to');
+      return;
     }
 
-    let enqueued = 0;
-    let sharedInboxCount = 0;
-    let individualInboxCount = 0;
+    await this.deliverEach(inboxes.map((inbox) => ({ inbox, activity: activityData })), userId);
+  }
 
-    const deliveryTasks = liveInboxes.map((entry) => async () => {
-      await this.enqueue(activityData, entry.inbox, userId);
-      return entry.type;
-    });
+  /**
+   * Delivers each activity to its inbox, signed by `senderId`, up to
+   * MAX_CONCURRENT_DOMAINS at once. A failed attempt is queued for retry by enqueue.
+   */
+  static async deliverEach(
+    items: Array<{ inbox: string; activity: any; priority?: number }>,
+    senderId: string,
+  ): Promise<void> {
+    if (items.length === 0) return;
 
-    const results = await runWithConcurrencyLimit(deliveryTasks, MAX_CONCURRENT_DOMAINS);
-
-    for (const r of results) {
-      if (r.status === 'fulfilled') {
-        enqueued++;
-        if (r.value === 'shared') sharedInboxCount++;
-        else individualInboxCount++;
-      }
-    }
-
-    logger.info(
-      `Broadcast to ${enqueued} inboxes ` +
-      `(${sharedInboxCount} shared, ${individualInboxCount} individual) ` +
-      `for ${follows.length} remote followers` +
-      (skipped > 0 ? ` (${skipped} dead endpoints skipped)` : '')
+    const results = await runWithConcurrencyLimit(
+      items.map((item) => () => this.enqueue(item.activity, item.inbox, senderId, item.priority ?? 5)),
+      MAX_CONCURRENT_DOMAINS,
     );
+
+    const failed = results.filter((r) => r.status === 'rejected').length;
+    logger.info(`Delivered to ${items.length - failed} of ${items.length} inbox(es)`
+      + (failed > 0 ? ` (${failed} not queued)` : ''));
   }
 
   /**

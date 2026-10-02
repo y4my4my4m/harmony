@@ -114,7 +114,7 @@ SELECT results_eq(
     $q$VALUES ('emoji_reaction'::text, '🎉'::text), ('favorite'::text, NULL::text)$q$,
     'any other emoji is a reaction beside the favourite');
 SELECT is((SELECT favorites_count FROM public.posts WHERE id = 'f5620000-0000-0000-0000-000000000001'), 1,
-          'a reaction does not count as a favourite');
+          'a reaction beside the actor''s favourite adds no second count');
 
 TRUNCATE captured_jobs;
 DELETE FROM public.post_interactions
@@ -164,19 +164,20 @@ SELECT public.add_post_emoji_reaction('f5610000-0000-0000-0000-0000000000a1',
 SELECT is(public.remove_post_emoji_reaction('f5610000-0000-0000-0000-0000000000a1',
             'f5620000-0000-0000-0000-000000000001', NULL, '❤'), true,
           'removing the ❤ reaction removes the favourite');
-SELECT results_eq(
-    $q$SELECT interaction_type, custom_emoji_content FROM rows56 WHERE post = '01' AND who = 'a1'$q$,
-    $q$VALUES ('emoji_reaction'::text, '🎉'::text)$q$,
-    'the viewer''s other reaction stays');
+-- Unfavouriting takes the person's reactions (20261007200001).
+SELECT is((SELECT count(*)::int FROM rows56 WHERE post = '01' AND who = 'a1'), 0,
+          'and the viewer''s other reaction with it');
+SELECT public.add_post_emoji_reaction('f5610000-0000-0000-0000-0000000000a1',
+         'f5620000-0000-0000-0000-000000000001', NULL, '🎉');
 SELECT is(public.get_post_with_context('f5620000-0000-0000-0000-000000000001',
-            'f5610000-0000-0000-0000-0000000000a1')->'mainPost'->>'is_favorited', 'false',
-          'a reaction alone does not fill the heart');
+            'f5610000-0000-0000-0000-0000000000a1')->'mainPost'->>'is_favorited', 'true',
+          'a reaction fills the heart through its implied favourite');
 
 SELECT public.add_post_emoji_reaction('f5610000-0000-0000-0000-0000000000a1',
          'f5620000-0000-0000-0000-000000000002', NULL, '🎉');
 SELECT is((SELECT is_favorited FROM public.get_federated_timeline('f5610000-0000-0000-0000-0000000000a1', 200)
-            WHERE id = 'f5620000-0000-0000-0000-000000000002'), false,
-          'the federated timeline reads is_favorited from the favourite alone');
+            WHERE id = 'f5620000-0000-0000-0000-000000000002'), true,
+          'the federated timeline reads is_favorited from the favourite row, an implied one included');
 SELECT public.add_post_emoji_reaction('f5610000-0000-0000-0000-0000000000a1',
          'f5620000-0000-0000-0000-000000000002', NULL, '♥️');
 SELECT is((SELECT is_favorited FROM public.get_federated_timeline('f5610000-0000-0000-0000-0000000000a1', 200)
@@ -186,8 +187,8 @@ SELECT is((SELECT is_favorited FROM public.get_federated_timeline('f5610000-0000
 SELECT tests.clear_authentication();
 
 -- Legacy rows, folded by the migration's own block. ---------------------------------------
--- The pre-migration state: update_post_reaction_counts counting every emoji reaction, and
--- no fold on insert.
+-- The pre-migration state: update_post_reaction_counts counting every emoji reaction, no
+-- fold on insert and no implied favourite.
 -- 03 (local): misskey ❤️; mastodon favourite and ❤; akkoma ❤ then ❤️ and 🎉. Counted 6.
 -- 04 (remote, origin count 7): misskey ❤ then ❤️; mastodon 👍. Counted 10.
 CREATE OR REPLACE FUNCTION public.update_post_reaction_counts()
@@ -208,6 +209,7 @@ BEGIN
 END;
 $$;
 ALTER TABLE public.post_interactions DISABLE TRIGGER trg_fold_heart_reaction;
+ALTER TABLE public.post_interactions DISABLE TRIGGER trg_reaction_implies_favourite;
 INSERT INTO public.post_interactions (id, user_id, post_id, interaction_type, custom_emoji_content, is_local, created_at)
 VALUES
   ('f5630000-0000-0000-0000-000000000001', 'f5610000-0000-0000-0000-0000000000a3', 'f5620000-0000-0000-0000-000000000003', 'emoji_reaction', '❤️', false, '2026-09-01 10:00+00'),
@@ -220,6 +222,7 @@ VALUES
   ('f5630000-0000-0000-0000-000000000008', 'f5610000-0000-0000-0000-0000000000a3', 'f5620000-0000-0000-0000-000000000004', 'emoji_reaction', '❤️', false, '2026-09-01 10:01+00'),
   ('f5630000-0000-0000-0000-000000000009', 'f5610000-0000-0000-0000-0000000000a4', 'f5620000-0000-0000-0000-000000000004', 'emoji_reaction', '👍', false, '2026-09-01 10:00+00');
 ALTER TABLE public.post_interactions ENABLE TRIGGER trg_fold_heart_reaction;
+ALTER TABLE public.post_interactions ENABLE TRIGGER trg_reaction_implies_favourite;
 SELECT results_eq(
     $q$SELECT favorites_count FROM public.posts
         WHERE id IN ('f5620000-0000-0000-0000-000000000003', 'f5620000-0000-0000-0000-000000000004')

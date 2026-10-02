@@ -8,11 +8,13 @@
         role="button"
         tabindex="0"
         aria-label="Harmony Portal"
-        @click="togglePublicServers"
-        @keydown.enter.prevent="togglePublicServers"
-        @keydown.space.prevent="togglePublicServers"
-        @mouseenter="showSidebarTooltip($event, 'Harmony Portal')"
-        @mouseleave="hideSidebarTooltip"
+        @click="openPublicServers"
+        @keydown.enter.prevent="openPublicServers"
+        @keydown.space.prevent="openPublicServers"
+        @mouseenter="showSidebarTooltip($event, 'Harmony Portal'); schedulePortalPrefetch()"
+        @mouseleave="hideSidebarTooltip(); cancelServerPrefetch()"
+        @focus="schedulePortalPrefetch"
+        @blur="cancelServerPrefetch"
       >
       <span class="portal-icon" aria-hidden="true"></span>
       </div>
@@ -43,7 +45,7 @@
       </div>
       <!-- <div
         class="portal"
-        @click="togglePublicServers"
+        @click="openPublicServers"
         @mouseenter="showSidebarTooltip($event, 'Harmony Portal')"
         @mouseleave="hideSidebarTooltip"
       >
@@ -344,6 +346,7 @@
 import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useServerChannelStore } from '@/stores/useServerChannel';
+import { usePublicServersStore } from '@/stores/usePublicServers';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { useNotificationStore } from '@/stores/useNotification';
 import { useUnreadCounts } from '@/composables/useUnreadCounts';
@@ -368,21 +371,16 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (e: 'show-public-servers', value: boolean): void;
+  (e: 'show-public-servers'): void;
   (e: 'switch-to-activitypub'): void;
   (e: 'switch-to-chat'): void;
 }>();
 
-const showPublicServers = ref(false);
 const showFundingModal = ref(false);
 
-// On desktop the context bar's goal pill opens the same modal. The heart stays
-// on mobile, where the pill is hidden, and wherever no context bar is mounted.
 const fundingStore = useFundingStore();
 const { isMobileViewport } = useViewport();
-const showFundingButton = computed(() =>
-  !!fundingStore.config?.enabled && (isMobileViewport.value || !fundingStore.goalPillMounted)
-);
+const showFundingButton = computed(() => !!fundingStore.config?.enabled && isMobileViewport.value);
 
 const { t } = useI18n();
 const { state: updaterState, isReady: updateReady, openUpdatePrompt } = useDesktopUpdater();
@@ -431,6 +429,7 @@ const showFolderModal = ref(false);
 const editingFolder = ref<ServerFolderType | null>(null);
 
 const serverChannelStore = useServerChannelStore();
+const publicServersStore = usePublicServersStore();
 const activityPubStore = useActivityPubStore();
 const { todayDashboardEnabled } = useTodayDashboard();
 const notificationStore = useNotificationStore();
@@ -504,14 +503,9 @@ onMounted(() => {
   void fundingStore.load()
 })
 
-watch(showPublicServers, (value) => {
-  if (value) {
-    emit('show-public-servers', value);
-  }
-});
-
-const togglePublicServers = () => {
-  showPublicServers.value = !showPublicServers.value;
+const openPublicServers = () => {
+  cancelServerPrefetch();
+  emit('show-public-servers');
 };
 
 // A pointer resting this long on a server is treated as intent; shorter rests
@@ -534,6 +528,15 @@ const scheduleServerPrefetch = (serverId: string) => {
   serverPrefetchTimer = setTimeout(() => {
     serverPrefetchTimer = null;
     void prefetchServer(serverId);
+  }, SERVER_PREFETCH_DELAY_MS);
+};
+
+/** Warms the Discover list so the portal opens on cached data. */
+const schedulePortalPrefetch = () => {
+  cancelServerPrefetch();
+  serverPrefetchTimer = setTimeout(() => {
+    serverPrefetchTimer = null;
+    void publicServersStore.fetchPublicServers();
   }, SERVER_PREFETCH_DELAY_MS);
 };
 

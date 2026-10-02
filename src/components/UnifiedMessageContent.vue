@@ -26,13 +26,13 @@
           <img
             v-if="isEditFileImage(file)"
             class="edit-attachment-thumb"
-            :src="displayMediaUrl(file.url)"
+            :src="displayMediaUrl(file)"
             :alt="file.fileName || 'attachment'"
           />
           <video
             v-else-if="isEditFileVideo(file)"
             class="edit-attachment-thumb"
-            :src="displayMediaUrl(file.url)"
+            :src="mediaSrc(file)"
             muted
           />
           <div v-else class="edit-attachment-file">
@@ -355,9 +355,9 @@
             />
             <div v-if="!imageLoadedState[part.url]" class="media-skeleton image-skeleton"></div>
             <img
-              :src="displayMediaUrl(part.url)"
+              :src="displayMediaUrl(part)"
               @load="handleImageLoad(part.url)"
-              @error="onAttachmentMediaError(part.url)"
+              @error="onAttachmentMediaError(part.url, part, 'thumbnail')"
               @click="!isStickerMedia(part.url) && $emit('open-lightbox', part.url)"
               v-show="imageLoadedState[part.url]"
               draggable="false"
@@ -367,7 +367,7 @@
             <!-- GIF/sticker Favorite Button (AI emoji are treated as plain emoji: no favorite) -->
             <button
               type="button"
-              v-if="(isAnimatedImage(part.url) || isStickerMedia(part.url)) && !isAiEmojiMedia(part.url)"
+              v-if="(isAnimatedImage(part.url) || isStickerMedia(part.url)) && !isAiEmojiMedia(part.url) && !isPrivateMediaPart(part)"
               class="gif-favorite-button"
               :class="{ 'favorited': isGifFavorited(part.url), 'visible': hoveredImageUrl === part.url || isGifFavorited(part.url) }"
               @click.stop="toggleGifFavorite(part.url)"
@@ -414,14 +414,14 @@
               @click="requestRemoveAttachment(part.url)"
             />
             <video
-              :src="part.url"
+              :src="mediaSrc(part)"
               controls
               class="content-video"
               preload="metadata"
               :data-video-index="partIndex"
               @play="handleVideoPlay"
               @pause="handleVideoPause"
-              @error="onAttachmentMediaError(part.url)"
+              @error="onAttachmentMediaError(part.url, part)"
             ></video>
             <!-- Clip favorite button (Klipy clips only) -->
             <button
@@ -469,7 +469,7 @@
           />
           <VoiceMessagePlayer
             v-if="metadata?.voice_message"
-            :src="part.url"
+            :src="mediaSrc(part)"
             :duration="metadata.voice_message.duration || 0"
             :waveform="metadata.voice_message.waveform || []"
           />
@@ -478,7 +478,7 @@
               {{ part.fileName }}
             </div>
             <audio
-              :src="part.url"
+              :src="mediaSrc(part)"
               controls
               preload="metadata"
               class="content-audio"
@@ -497,16 +497,16 @@
           />
           <Icon name="file" :size="20" class="file-icon" />
           <a
-            v-if="sanitizeUrl(part.url)"
-            :href="sanitizeUrl(part.url)"
+            v-if="sanitizeUrl(mediaSrc(part) || '')"
+            :href="sanitizeUrl(mediaSrc(part) || '')"
             target="_blank"
             rel="noopener noreferrer"
             class="file-name"
           >
-            {{ getFileName(part.url) }}
+            {{ mediaPartFileName(part) }}
           </a>
           <span v-else class="file-name file-name--unsafe">
-            {{ getFileName(part.url) }}
+            {{ mediaPartFileName(part) }}
           </span>
         </div>
         
@@ -581,6 +581,7 @@ import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import { groupMediaGalleryParts } from '@/utils/mediaGalleryUtils';
 import { undecryptedDisplayParts } from '@/utils/channelEncryption';
 import { getAttachmentThumbnailUrl } from '@/utils/storageImageUtils';
+import { isPrivateMediaPart, mediaPartFileName, mediaPartSource, reportMediaPartError } from '@/services/privateMedia';
 import {
   isDiscordCdnUrl,
   hasExpiredBridgedAttachment,
@@ -709,11 +710,14 @@ export default defineComponent({
       () => instanceSettings.settings.gifKlipyWatermarkEnabled,
     );
 
-    // Inline attachments render downscaled (local user_media jpg/png only);
-    // animated/remote/sticker URLs pass through untouched. Lightbox opens the
-    // raw part.url at full size.
-    const displayMediaUrl = (url: string) =>
-      getAttachmentThumbnailUrl(stripKlipyAttributionFragment(url));
+    // Inline attachments render downscaled (local jpg/png only); animated,
+    // remote and sticker URLs pass through untouched. The lightbox opens the
+    // original. Parts with a `path` resolve through privateMedia.
+    const displayMediaUrl = (part: string | { url?: string; path?: string }) =>
+      typeof part === 'string'
+        ? getAttachmentThumbnailUrl(stripKlipyAttributionFragment(part))
+        : mediaPartSource(part, 'thumbnail');
+    const mediaSrc = (part: { url?: string; path?: string }) => mediaPartSource(part);
     const klipyWatermarkHref = (url: string) =>
       sanitizeUrl(parseKlipyItemPageUrl(url)) || defaultKlipyHomeUrl();
     const klipyWatermarkLogoUrl = KLIPY_WATERMARK_LOGO_URL;
@@ -736,8 +740,13 @@ export default defineComponent({
         requestAttachmentRefresh(props.messageId);
       }
     };
-    const onAttachmentMediaError = (url: string) => {
+    const onAttachmentMediaError = (
+      url: string,
+      part?: { url?: string; path?: string },
+      variant: 'original' | 'thumbnail' = 'original',
+    ) => {
       if (isDiscordCdnUrl(url)) requestAttachmentRefresh(props.messageId);
+      reportMediaPartError(part, variant);
     };
     onMounted(maybeRefreshExpiredAttachments);
     watch(() => props.content, maybeRefreshExpiredAttachments);
@@ -949,13 +958,6 @@ export default defineComponent({
     const isAudioUrl = (url: string): boolean => {
       if (!url) return false;
       return /\.(mp3|wav|ogg|flac|aac|m4a|opus|webm)(?:[?#].*)?$/i.test(url);
-    };
-
-    const getFileName = (url: string): string => {
-      if (!url) return 'Unknown file';
-      const urlParts = url.split('/');
-      const filename = urlParts[urlParts.length - 1];
-      return decodeURIComponent(filename) || 'Unknown file';
     };
 
     const formatFileSize = (bytes: number): string => {
@@ -1354,7 +1356,6 @@ export default defineComponent({
       formatMentionDisplay,
       renderTextContent,
       renderTextSegments,
-      getFileName,
       handleHashtagClick,
       handleChannelMentionClick,
       handleMentionClick,
@@ -1370,6 +1371,9 @@ export default defineComponent({
       isKlipyMedia,
       showKlipyWatermark,
       displayMediaUrl,
+      mediaSrc,
+      mediaPartFileName,
+      isPrivateMediaPart,
       klipyWatermarkHref,
       klipyWatermarkLogoUrl,
       isStickerMedia,

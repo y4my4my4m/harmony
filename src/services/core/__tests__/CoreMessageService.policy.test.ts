@@ -221,6 +221,19 @@ describe('CoreMessageService - encryption policy (fail-closed by default)', () =
       expect(insertedRows[0].metadata?.plaintext_override).toBeUndefined()
     })
 
+    it('lists the attachments of an encrypted channel message in media_paths', async () => {
+      const { insertedRows } = setupSupabase({ channelEncrypted: true })
+      const path = `c/${CHANNEL_ID}/${CURRENT_USER_ID}/a.png`
+
+      await service.sendChannelMessage(SERVER_ID, CHANNEL_ID, [
+        { type: 'file', fileType: 'image', url: '', path },
+      ] as any)
+      await service.sendChannelMessage(SERVER_ID, CHANNEL_ID, [{ type: 'text', text: 'no files' }] as any)
+
+      expect(insertedRows[0].media_paths).toEqual([path])
+      expect(insertedRows[1].media_paths).toEqual([])
+    })
+
     it('encrypts in an encrypted channel and stores mention parts beside the ciphertext', async () => {
       const { insertedRows } = setupSupabase({ channelEncrypted: true })
 
@@ -341,6 +354,18 @@ describe('CoreMessageService - encryption policy (fail-closed by default)', () =
       await service.sendDMMessage(CONVERSATION_ID, [{ type: 'text', text: 'hello' }] as any)
 
       expect(insertedRows[0].encrypted).toBe(true)
+    })
+
+    it('lists the attachments of an encrypted DM in media_paths; a plaintext DM carries none', async () => {
+      const path = `d/${CONVERSATION_ID}/${CURRENT_USER_ID}/a.png`
+      const parts = [{ type: 'file', fileType: 'image', url: '', path }, { type: 'text', text: 'hi' }] as any
+      const { insertedRows } = setupSupabase({ conversationEnabled: true })
+      await service.sendDMMessage(CONVERSATION_ID, parts)
+      expect(insertedRows[0].media_paths).toEqual([path])
+
+      const plain = setupSupabase({ conversationEnabled: false })
+      await service.sendDMMessage(CONVERSATION_ID, parts)
+      expect(plain.insertedRows[0]).not.toHaveProperty('media_paths')
     })
 
     it('fails closed when conversation enabled and keys locked', async () => {

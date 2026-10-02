@@ -10,6 +10,7 @@ import type { MessagePart } from '@/types'
 import { debug } from '@/utils/debug'
 import { withPlaintextMentions } from '@/utils/channelEncryption'
 import { fetchEffectiveChannelEncryption } from '@/services/ChannelEncryptionService'
+import { mediaRoom, messageMediaPathsIn } from '@/services/privateMedia'
 
 /**
  *   setup        the sender has no encryption keys
@@ -83,6 +84,8 @@ export async function channelRequiresEncryption(channelId: string): Promise<bool
 export interface EncryptedChannelPayload {
   content: MessagePart[]
   encryption_metadata: any
+  /** messages.media_paths: the message_media objects the plaintext names. */
+  media_paths: string[]
 }
 
 /**
@@ -121,6 +124,7 @@ export async function encryptChannelContent(params: {
     return {
       content: withPlaintextMentions(encrypted.content, params.content),
       encryption_metadata: encrypted.encryption_metadata,
+      media_paths: messageMediaPathsIn(params.content, mediaRoom({ channelId: params.channelId })),
     }
   } catch (error) {
     debug.error('Channel encryption failed:', error)

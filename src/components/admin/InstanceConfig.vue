@@ -66,7 +66,7 @@
           <option value="mirror">Mirror to storage (permanent; uses disk — grows with traffic)</option>
         </select>
         <span class="setting-hint" v-if="config.chat.bridgeAttachmentMode === 'mirror'">
-          Warning: every bridged attachment is copied into <code>user_media</code>. Busy bridged channels can consume significant storage.
+          Warning: every bridged attachment is copied into <code>message_media</code>. Busy bridged channels can consume significant storage.
         </span>
         <span class="setting-hint" v-else-if="config.chat.bridgeAttachmentMode === 'refresh'">
           Requires a connected bridge + bot-gateway. Expired attachment URLs are re-signed on demand when a user views them (no disk use, no “edited” badge).
@@ -205,6 +205,20 @@
       <div class="setting-group">
         <label>Delivery retry attempts</label>
         <input v-model.number="config.federation.retryAttempts" type="number" class="cyber-input" />
+      </div>
+      <div class="setting-group">
+        <label>Max reactions per person on a post</label>
+        <input
+          v-model.number="config.federation.maxPostReactionsPerUser"
+          type="number"
+          class="cyber-input"
+          min="1"
+          max="100"
+          data-testid="max-post-reactions-input"
+        />
+        <span class="setting-hint">
+          Different emoji one person can react with on a post (1-100). Default: 10. Reactions arriving from other servers past the limit are dropped. Chat messages hold at most 20 different emoji.
+        </span>
       </div>
       <div class="setting-group">
         <label>Max custom emojis per server</label>
@@ -689,6 +703,7 @@ const config = ref({
     maxCustomEmojisPerServer: 0,
     customEmojiTransformQuality: 80,
     allowCustomEmojisInDisplayNames: true,
+    maxPostReactionsPerUser: 10,
     enableOutbound: true,
     enableInbound: true
   },
@@ -813,6 +828,10 @@ const saveConfig = async () => {
         Math.max(1, Math.round(Number(config.value.federation.customEmojiTransformQuality) || 100))
       ),
       allow_custom_emojis_in_display_names: config.value.federation.allowCustomEmojisInDisplayNames,
+      max_post_reactions_per_user: Math.min(
+        100,
+        Math.max(1, Math.round(Number(config.value.federation.maxPostReactionsPerUser) || 10))
+      ),
     }, userId)
 
     await adminService.updateWebRTCSettings({

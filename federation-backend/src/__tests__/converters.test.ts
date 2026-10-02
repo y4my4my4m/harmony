@@ -36,6 +36,8 @@ import {
   createFollowActivity,
   createAcceptActivity,
   createLikeActivity,
+  createEmojiReactActivity,
+  createUndoActivity,
   createAnnounceActivity,
   createDeleteActivity,
 } from '../activitypub/converters/toActivityPub.js'
@@ -451,6 +453,60 @@ describe('toActivityPub converters', () => {
       expect(activity._misskey_reaction).toBe(':blobcat:')
       expect(activity.tag).toHaveLength(1)
       expect(activity.tag[0].type).toBe('Emoji')
+    })
+  })
+
+  describe('createEmojiReactActivity', () => {
+    const user = { username: 'alice' }
+
+    it('carries a unicode reaction in content alone', () => {
+      const activity = createEmojiReactActivity(user, 'https://pleroma.test/objects/1', '🎉', undefined,
+        ['https://pleroma.test/users/bob'], 'https://harmony.test/users/alice/likes/r1')
+      expect(activity).toMatchObject({
+        type: 'EmojiReact',
+        id: 'https://harmony.test/users/alice/likes/r1',
+        actor: 'https://harmony.test/users/alice',
+        object: 'https://pleroma.test/objects/1',
+        content: '🎉',
+        to: ['https://pleroma.test/users/bob'],
+      })
+      expect(activity).not.toHaveProperty('_misskey_reaction')
+      expect(activity).not.toHaveProperty('tag')
+    })
+
+    it('names a custom emoji without its domain in content and tag alike', () => {
+      const activity = createEmojiReactActivity(user, 'https://akkoma.test/objects/1', ':blobcat@harmony.test:',
+        { name: 'blobcat', url: 'https://harmony.test/emoji/blobcat.webp' }, undefined, 'https://harmony.test/users/alice/likes/r2')
+      expect(activity.content).toBe(':blobcat:')
+      expect(activity.tag).toEqual([{
+        type: 'Emoji',
+        id: 'https://harmony.test/emoji/blobcat.webp',
+        name: ':blobcat:',
+        icon: { type: 'Image', mediaType: 'image/webp', url: 'https://harmony.test/emoji/blobcat.webp' },
+      }])
+      expect(activity).not.toHaveProperty('to')
+    })
+  })
+
+  describe('createUndoActivity', () => {
+    it('embeds the activity without @context or audience, under its id', () => {
+      const user = { username: 'alice' }
+      const react = createEmojiReactActivity(user, 'https://pleroma.test/objects/1', '🎉', undefined,
+        ['https://pleroma.test/users/bob'], 'https://harmony.test/users/alice/likes/r1')
+      const undo = createUndoActivity(user, react)
+      expect(undo).toEqual({
+        '@context': react['@context'],
+        id: 'https://harmony.test/users/alice/likes/r1/undo',
+        type: 'Undo',
+        actor: 'https://harmony.test/users/alice',
+        object: {
+          id: 'https://harmony.test/users/alice/likes/r1',
+          type: 'EmojiReact',
+          actor: 'https://harmony.test/users/alice',
+          object: 'https://pleroma.test/objects/1',
+          content: '🎉',
+        },
+      })
     })
   })
 

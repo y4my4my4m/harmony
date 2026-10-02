@@ -14,6 +14,7 @@ import config from '../config/index.js';
 import { validateExternalHostname, validateExternalUrl, safeFetch } from '../utils/ssrfProtection.js';
 import { discoveryLimiter } from '../middleware/rateLimit.js';
 import { actorOwnsKeys, fetchAuthoritativeDocument, readApDocument, sameOrigin } from '../utils/apOrigin.js';
+import { noteDocumentSoftware } from './instanceSoftware.js';
 import { actorTombstone, deletedActorByProfile, deletedActorByUsername } from './deletedActors.js';
 
 const router = Router();
@@ -292,6 +293,7 @@ router.post(
           error: 'Failed to fetch user profile from remote instance'
         });
       }
+      noteDocumentSoftware(actor.id, actor);
       if (!actorOwnsKeys(actor)) {
         logger.warn(`Actor ${actor.id} publishes a key it does not own`);
         return res.status(502).json({ error: 'Remote actor key owner does not match the actor' });

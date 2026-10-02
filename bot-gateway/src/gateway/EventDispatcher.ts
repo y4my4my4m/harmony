@@ -1,6 +1,7 @@
 import { supabase } from '../config/supabase.js'
 import type { WebSocketGateway } from './WebSocketGateway.js'
 import { TTLCache } from '../utils/TTLCache.js'
+import { withSignedMessageMedia } from '../utils/messageMedia.js'
 import {
   type EveryoneLayer,
   type InstallRow,
@@ -716,7 +717,8 @@ export class EventDispatcher {
       channel_id: message.channel_id,
       author,
       content: this.contentToText(message.content),
-      content_raw: message.content, // Also include raw content for debugging
+      // Attachments of the message's room carry a signed url (utils/messageMedia.ts).
+      content_raw: await withSignedMessageMedia(message.content, message),
       is_system: message.is_system === true,
       reply_to: message.reply_to ?? null,
       timestamp: message.created_at,

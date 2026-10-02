@@ -48,7 +48,6 @@ import {
   type VoiceKeyEnvelope,
 } from './encryption/VoiceE2EEService';
 import {
-  getFederatedLiveKitToken,
   getLiveKitConfig,
   getLiveKitToken,
 } from './livekitTokens';
@@ -456,16 +455,6 @@ export class LiveKitWebRTCService {
   
   private async getToken(roomName: string, roomType: 'voice_channel' | 'dm_call' | 'stage'): Promise<TokenResponse> {
     return getLiveKitToken(roomName, roomType);
-  }
-  
-  /** Token issued by a remote instance. */
-  async getFederatedToken(
-    instanceUrl: string,
-    actorId: string,
-    roomName: string,
-    roomType: 'voice_channel' | 'dm_call' | 'stage'
-  ): Promise<TokenResponse> {
-    return getFederatedLiveKitToken(instanceUrl, actorId, roomName, roomType);
   }
   
   // CHANNEL MANAGEMENT

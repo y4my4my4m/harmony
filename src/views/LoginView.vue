@@ -7,8 +7,6 @@ import { defineComponent, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import AuthComponent from '@/components/AuthComponent.vue';
 import { useAuthStore } from '@/stores/auth';
-import { UserStatus } from '@/types';
-import { updateUserStatus } from '@/services/ProfileService';
 import { debug } from '@/utils/debug';
 import { consumePostAuthRedirect } from '@/utils/postAuthRedirect';
 
@@ -27,7 +25,6 @@ export default defineComponent({
         try {
           const userId = authStore.session?.user?.id || '';
           debug.log('LoginView: Navigating to chat, userId:', userId);
-          updateUserStatus(userId, UserStatus.Online);
           router.push(consumePostAuthRedirect('/chat')).then(() => {
             debug.log('LoginView: Navigation to /chat successful');
           }).catch((err) => {

@@ -6,6 +6,7 @@
  */
 
 import { supabase } from '@/supabase'
+import { COMPAT_URL_TTL_SECONDS, MESSAGE_MEDIA_BUCKET, isPrivateMediaPart } from '@/services/privateMedia'
 
 export type ExportProgress =
   | { phase: 'account' }
@@ -27,6 +28,34 @@ interface MessagePage {
 }
 
 const PAGE_SIZE = 2000
+const SIGN_BATCH = 100
+
+/** message_media objects the exported messages name. */
+function messageMediaPaths(messages: unknown[]): string[] {
+  const paths = new Set<string>()
+  for (const message of messages) {
+    const content = (message as { content?: unknown })?.content
+    if (!Array.isArray(content)) continue
+    for (const part of content) {
+      if (isPrivateMediaPart(part)) paths.add(part.path)
+    }
+  }
+  return [...paths]
+}
+
+/** Download URLs for the export's private attachments, valid as long as a part's compat URL. */
+async function signedMessageMedia(paths: string[]): Promise<Array<{ bucket: string; name: string; url: string | null }>> {
+  const out: Array<{ bucket: string; name: string; url: string | null }> = []
+  for (let i = 0; i < paths.length; i += SIGN_BATCH) {
+    const batch = paths.slice(i, i + SIGN_BATCH)
+    const { data, error } = await supabase.storage
+      .from(MESSAGE_MEDIA_BUCKET)
+      .createSignedUrls(batch, COMPAT_URL_TTL_SECONDS)
+    const byPath = new Map((error ? [] : data || []).map((row) => [row.path, row.signedUrl]))
+    for (const name of batch) out.push({ bucket: MESSAGE_MEDIA_BUCKET, name, url: byPath.get(name) || null })
+  }
+  return out
+}
 
 const FILES: Array<{ name: string; sections: string[] }> = [
   { name: 'account.json', sections: ['account', 'two_factor', 'sessions'] },
@@ -56,7 +85,8 @@ function readme(doc: ExportDocument, messageCount: number): string {
     'social.json         who you follow, who follows you, blocks and mutes',
     'reports.json        reports you filed',
     'bots.json           bots you own (tokens are not exported)',
-    'media.json          files you uploaded, with download links',
+    'media.json          files you uploaded, with download links (chat attachment links expire',
+    '                    after seven days)',
     '',
     'Messages in end-to-end encrypted channels are exported as stored: ciphertext.',
     'Other people\'s messages, key material, push endpoints and recovery code hashes',
@@ -99,10 +129,13 @@ export async function exportAccountData(
     zip.file(file.name, JSON.stringify(content, null, 2))
   }
   zip.file('messages.json', JSON.stringify(messages, null, 2))
-  zip.file('media.json', JSON.stringify((doc.media ?? []).map((object) => ({
-    ...object,
-    url: supabase.storage.from(object.bucket).getPublicUrl(object.name).data.publicUrl,
-  })), null, 2))
+  zip.file('media.json', JSON.stringify([
+    ...(doc.media ?? []).map((object) => ({
+      ...object,
+      url: supabase.storage.from(object.bucket).getPublicUrl(object.name).data.publicUrl,
+    })),
+    ...await signedMessageMedia(messageMediaPaths(messages)),
+  ], null, 2))
 
   const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' })
   const who = (doc.profile?.username || 'account').replace(/[^A-Za-z0-9_-]/g, '')

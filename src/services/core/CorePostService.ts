@@ -251,8 +251,9 @@ export class CorePostService {
 
       debug.log(`Core: Toggling like: post=${postId}, user=${profileId}`)
 
-      // The heart is the favourite row alone. A ❤ reaction is stored as that row
-      // (trg_fold_heart_reaction); every other emoji is a chip the heart leaves alone.
+      // The heart is the favourite row. A ❤ reaction is stored as that row
+      // (trg_fold_heart_reaction); any other emoji adds it implied. Deleting it deletes
+      // the caller's reactions on the post (trg_favourite_follows_reactions).
       const { data: existingLike, error: probeError } = await supabase
         .from('post_interactions')
         .select('id')
@@ -285,7 +286,8 @@ export class CorePostService {
             is_local: true
           })
 
-        if (error) throw this.createError('ADD_LIKE_FAILED', error.message, error)
+        // 23505: the favourite exists, written since the probe (a reaction implies one).
+        if (error && error.code !== '23505') throw this.createError('ADD_LIKE_FAILED', error.message, error)
         liked = true
       }
 
@@ -304,6 +306,55 @@ export class CorePostService {
       debug.error('Core: Failed to toggle like:', error)
       throw error
     }
+  }
+
+  /**
+   * Whether the caller holds a favourite on a post, whether their reactions implied it, and
+   * posts.favorites_count. A reaction adds an implied favourite and the last reaction's
+   * removal takes it away (trg_reaction_implies_favourite), so the heart is read back after
+   * a reaction.
+   */
+  async getFavouriteState(postId: string): Promise<{ favorited: boolean; implied: boolean; count: number }> {
+    const profileId = await this.getCurrentUserProfileId()
+
+    const [favourite, post] = await Promise.all([
+      supabase
+        .from('post_interactions')
+        .select('id, implied_by_reaction')
+        .eq('post_id', postId)
+        .eq('user_id', profileId)
+        .eq('interaction_type', 'favorite')
+        .maybeSingle(),
+      supabase
+        .from('posts')
+        .select('favorites_count')
+        .eq('id', postId)
+        .maybeSingle(),
+    ])
+
+    if (favourite.error) throw this.createError('CHECK_LIKE_FAILED', favourite.error.message, favourite.error)
+    if (post.error) throw this.createError('CHECK_LIKE_FAILED', post.error.message, post.error)
+
+    return {
+      favorited: !!favourite.data,
+      implied: favourite.data?.implied_by_reaction === true,
+      count: post.data?.favorites_count ?? 0,
+    }
+  }
+
+  /**
+   * Makes the caller's favourite explicit, adding it when absent: a ❤ reaction through
+   * add_post_emoji_reaction. An explicit favourite outlives the caller's last reaction.
+   */
+  async keepFavourite(postId: string): Promise<void> {
+    const profileId = await this.getCurrentUserProfileId()
+    const { error } = await supabase.rpc('add_post_emoji_reaction', {
+      p_user_id: profileId,
+      p_post_id: postId,
+      p_emoji_id: null,
+      p_custom_emoji_content: '\u2764',
+    })
+    if (error) throw this.createError('ADD_LIKE_FAILED', error.message, error)
   }
 
   /**

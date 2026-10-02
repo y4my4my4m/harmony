@@ -1036,6 +1036,8 @@
     "favoritesLabel": "favorite | favorites",
     "favorite": "Favorite",
     "unfavorite": "Remove favorite",
+    "unfavoriteWithReactions": "Remove favorite and your reaction | Remove favorite and your {count} reactions",
+    "reactionLimitReached": "You can react to a post with at most {count} different emoji",
     "removeBookmark": "Remove bookmark",
     "moreOptions": "More options",
     "browseFederatedTimeline": "Browse the federated timeline",
@@ -1169,6 +1171,8 @@
     "noneFound": "No {kind} found"
   },
   "emoji": {
+    "messageReactionLimit": "This message has {count} different reactions. Add to one of them.",
+    "postReactionLimit": "You have {count} reactions on this post. Remove one to add another.",
     "search": "Search emoji...",
     "searchEmojis": "Search emojis...",
     "aiGenerate": "Generate",
@@ -1765,6 +1769,7 @@
       "added": "Added",
       "addedOn": "Added {time}",
       "permissions": "Permissions",
+      "channels": "Channels",
       "remove": "Remove",
       "addTitle": "Add bot to server",
       "addSubmit": "Add bot",
@@ -1783,7 +1788,18 @@
       "permissionsSaved": "Permissions saved",
       "permissionsFailed": "Could not save permissions",
       "loadFailed": "Could not load bots",
-      "hiddenBot": "Private bot"
+      "hiddenBot": "Private bot",
+      "channelsTitle": "Channel access",
+      "channelsHint": "Changed by the server owner and members with Manage Server. A channel you cannot view cannot be added.",
+      "channelsAll": "Channels {'@'}everyone can view",
+      "channelsAllDescription": "The bot reads every channel {'@'}everyone can view, and posts and reacts where {'@'}everyone can. Channels hidden from {'@'}everyone stay hidden from it, and read-only channels stay read-only.",
+      "channelsSelected": "Selected channels",
+      "channelsSelectedDescription": "The bot works only in the checked channels, and in each of them uses every permission it holds: it sees a channel hidden from {'@'}everyone, and posts and reacts where {'@'}everyone is read-only.",
+      "channelsEmpty": "No channels to choose from",
+      "channelHidden": "Hidden from {'@'}everyone",
+      "channelsSaved": "Channel access saved",
+      "channelsFailed": "Could not save channel access",
+      "channelsLoadFailed": "Could not load channel access"
     },
     "permissions": {
       "read_messages": {

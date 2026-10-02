@@ -1,15 +1,30 @@
 <template>
   <div class="device-manager">
+    <div class="dm-link-row">
+      <button class="btn btn-sm btn-primary" data-testid="link-device-button" @click="linkMode = 'scan'">
+        <Icon name="qr-code" :size="16" />
+        Link a device
+      </button>
+      <span class="dm-link-hint">Sign in on the new device, then scan the code it shows.</span>
+    </div>
+
     <!-- Pending approvals (also surfaced globally; shown here for completeness) -->
     <div v-if="pendingApprovals.length" class="dm-pending">
       <div v-for="req in pendingApprovals" :key="req.id" class="dm-pending-row">
         <Icon name="alert-triangle" :size="18" class="dm-pending-icon" />
         <div class="dm-pending-info">
           <strong>New login{{ req.requesting_label ? ` on ${req.requesting_label}` : '' }}</strong>
-          <span>Approve to let this device unlock your encrypted history.</span>
+          <span v-if="isPairingRequest(req)">Waiting to be linked. Scan the code it shows.</span>
+          <span v-else>Signed in and unlocked your encrypted messages.</span>
         </div>
         <div class="dm-pending-actions">
-          <button class="btn btn-sm btn-primary" :disabled="busyId === req.id" @click="onApprove(req)">Approve</button>
+          <button
+            v-if="isPairingRequest(req)"
+            class="btn btn-sm btn-primary"
+            :disabled="busyId === req.id"
+            @click="linkMode = 'scan'"
+          >Scan code</button>
+          <button v-else class="btn btn-sm btn-primary" :disabled="busyId === req.id" @click="onApprove(req)">That was me</button>
           <button class="btn btn-sm btn-secondary" :disabled="busyId === req.id" @click="onDeny(req)">Deny</button>
         </div>
       </div>
@@ -90,16 +105,25 @@
         </li>
       </ul>
     </div>
+
+    <DeviceLinkModal v-if="linkMode" :mode="linkMode" @close="onLinkClosed" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, defineAsyncComponent, onMounted } from 'vue'
 import Icon from '@/components/common/Icon.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import { useDeviceApprovals } from '@/composables/useDeviceApprovals'
-import { deviceIdentityService, type UserDevice, type DeviceApprovalRequest } from '@/services/encryption/DeviceIdentityService'
+import {
+  deviceIdentityService,
+  isPairingRequest,
+  type UserDevice,
+  type DeviceApprovalRequest,
+} from '@/services/encryption/DeviceIdentityService'
 import { debug } from '@/utils/debug'
+
+const DeviceLinkModal = defineAsyncComponent(() => import('./DeviceLinkModal.vue'))
 
 const { pendingApprovals, start, approve, deny } = useDeviceApprovals()
 
@@ -110,7 +134,13 @@ const editingId = ref<string | null>(null)
 const editLabel = ref('')
 const busyId = ref<string | null>(null)
 const showInactive = ref(false)
+const linkMode = ref<'scan' | 'show' | null>(null)
 let userId: string | null = null
+
+function onLinkClosed() {
+  linkMode.value = null
+  void loadDevices()
+}
 
 const INACTIVE_IDLE_MS = 30 * 86400_000
 
@@ -254,6 +284,18 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.dm-link-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.dm-link-hint {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
 }
 
 .dm-pending {

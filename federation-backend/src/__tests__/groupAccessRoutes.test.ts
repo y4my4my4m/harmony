@@ -89,7 +89,10 @@ const db: Record<string, any[]> = {
     id: `00000000-0000-4000-8000-00000000e00${i}`,
     channel_id: channelId,
     is_deleted: false,
-    content: [{ type: 'text', text: `in ${channelId}` }],
+    content: [
+      { type: 'text', text: `in ${channelId}` },
+      { type: 'file', fileType: 'image', url: 'compat', path: `c/${channelId}/uploader/a.png` },
+    ],
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',
     author: { id: 'author', username: 'author', federated_id: 'https://harmony.test/users/author' },
@@ -325,6 +328,14 @@ describe('server collections', () => {
     expect(res.headers['cache-control']).toBe(
       serverId === PUB && !extra ? 'public, max-age=15' : 'private, no-store',
     )
+
+    // Attachment URLs name a member's instance; anyone else gets the public audience.
+    const audience = caller === 'nop' || caller === 'vip' ? 'remote.test' : '*'
+    for (const item of res.body.orderedItems) {
+      const file = item.object['harmony:rawContent'][1]
+      expect(file.path).toBeUndefined()
+      expect(new URL(file.url).searchParams.get('to')).toBe(audience)
+    }
   })
 
   it('answers an unknown server exactly as a private one the caller may not read', async () => {

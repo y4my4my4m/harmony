@@ -38,6 +38,7 @@ function fakeSupabase() {
     from(table: string) {
       const filters: Array<(row: Row) => boolean> = [];
       let isDelete = false;
+      let patch: Row | null = null;
 
       const run = () => {
         const rows = tables[table] ?? [];
@@ -45,12 +46,14 @@ function fakeSupabase() {
         if (isDelete) {
           tables[table] = rows.filter((row) => !matched.includes(row));
         }
+        if (patch) matched.forEach((row) => Object.assign(row, patch));
         return matched;
       };
 
       const builder: any = {
         select() { return builder; },
         delete() { isDelete = true; return builder; },
+        update(row: Row) { patch = row; return builder; },
         eq(col: string, val: any) { filters.push((row) => row[col] === val); return builder; },
         is(col: string, val: any) { filters.push((row) => (row[col] ?? null) === val); return builder; },
         in(col: string, vals: any[]) { filters.push((row) => vals.includes(row[col])); return builder; },
@@ -121,14 +124,15 @@ describe('Undo of one emoji reaction', () => {
     expect(tables.post_interactions.map((r) => r.id)).toEqual(['r2', 'r3', 'r4']);
   });
 
-  it('removes the heart and the favourite for a plain Like carrying no emoji', async () => {
+  it('removes the heart for a plain Like carrying no emoji, and leaves the favourite implied by the reactions held', async () => {
     tables.post_interactions.push({
       id: 'r5', user_id: 'alice-id', post_id: 'post-1', interaction_type: 'favorite', emoji_id: null, custom_emoji_content: null,
     });
 
     await undoReaction({ type: 'Like', actor: ALICE, object: POST_AP_ID });
 
-    expect(tables.post_interactions.map((r) => r.id)).toEqual(['r1', 'r2', 'r4']);
+    expect(tables.post_interactions.map((r) => r.id)).toEqual(['r1', 'r2', 'r4', 'r5']);
+    expect(tables.post_interactions[3].implied_by_reaction).toBe(true);
   });
 
   it('leaves the favourite alone when the Undo names an emoji', async () => {

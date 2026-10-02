@@ -10,9 +10,10 @@
 
 import { supabase } from '@/supabase'
 import { megolmService, type MegolmEncryptedMessage } from './MegolmService'
-import { recoveryKeyService } from './RecoveryKeyService'
+import { recoveryKeyService, type DerivedKeys } from './RecoveryKeyService'
+import { PairingError, type PairingKeyMaterial } from './devicePairing'
 import { megolmKeyBackupService } from './MegolmKeyBackupService'
-import { secureSessionKeyStore, identityKeyStore, signingKeyStore, pinnedKeyStore } from './SecureSessionKeyStore'
+import { secureSessionKeyStore, identityKeyStore, signingKeyStore, pinnedKeyStore, type PairingKeyCopy } from './SecureSessionKeyStore'
 import {
   hashCiphertextB64,
   generateSigningKeyPair,
@@ -108,6 +109,9 @@ export class MegolmMessageEncryptionService {
   // getIdentityCreatedAt(). Cleared on reset/cleanup.
   private identityCreatedAtMs: number | null = null
 
+  // Extractable keys this device keeps for QR pairing (SecureSessionKeyStore pairingCopy).
+  private pairingCopy: PairingKeyCopy | null = null
+
   private constructor() {}
 
   static getInstance(): MegolmMessageEncryptionService {
@@ -160,9 +164,20 @@ export class MegolmMessageEncryptionService {
       // Try IndexedDB first (non-extractable CryptoKeys - preferred)
       const storedKeys = await secureSessionKeyStore.load(this.currentUserId)
       if (storedKeys) {
+        // A device signed out or removed from another device drops its keys; it can be
+        // linked again or unlocked with the recovery phrase as a new device.
+        const deviceState = await deviceIdentityService.getThisDeviceState(this.currentUserId)
+        if (deviceState === 'revoked' || deviceState === 'removed') {
+          debug.warn(`This device was ${deviceState} from another device - clearing its keys`)
+          await this.lockEncryption()
+          deviceIdentityService.forgetThisDevice()
+          return false
+        }
+
         debug.log('Found stored CryptoKeys in IndexedDB - auto-unlocking...')
 
         recoveryKeyService.setDerivedKeys(storedKeys)
+        this.pairingCopy = await secureSessionKeyStore.loadPairingCopy(this.currentUserId).catch(() => null)
 
         await megolmService.initialize(this.currentUserId, storedKeys.encryptionKey)
         await this.ensureIdentityKeyPair()
@@ -227,11 +242,12 @@ export class MegolmMessageEncryptionService {
 
   /**
    * Store derived keys securely in IndexedDB as non-extractable CryptoKey objects.
-   * The raw mnemonic is never persisted.
+   * The raw mnemonic is never persisted. A pairing copy, when kept, now copies these keys.
    */
   private async storeSessionKeys(keys: { encryptionKey: CryptoKey; backupKey: CryptoKey; signingKey: CryptoKey }): Promise<void> {
     if (!this.currentUserId) return
     await secureSessionKeyStore.store(this.currentUserId, keys)
+    this.pairingCopy = await secureSessionKeyStore.loadPairingCopy(this.currentUserId).catch(() => null)
   }
 
   /** Remove legacy mnemonic from localStorage/sessionStorage */
@@ -241,16 +257,21 @@ export class MegolmMessageEncryptionService {
     sessionStorage.removeItem(`megolm_session_${this.currentUserId}`)
   }
 
-  /** Clears the stored session keys. */
+  /** Clears the stored session keys; every account's when no user is known. */
   async lockEncryption(): Promise<void> {
     if (this.currentUserId) {
       await secureSessionKeyStore.clear(this.currentUserId).catch(() => {})
       await identityKeyStore.clear(this.currentUserId).catch(() => {})
       await signingKeyStore.clear(this.currentUserId).catch(() => {})
       this.clearLegacyStorage()
+    } else {
+      await secureSessionKeyStore.clearAll().catch(() => {})
+      await identityKeyStore.clearAll().catch(() => {})
+      await signingKeyStore.clearAll().catch(() => {})
     }
     megolmService.close()
     recoveryKeyService.clear()
+    this.pairingCopy = null
     this.signingKeyCache.clear()
     debug.log('Encryption locked')
   }
@@ -262,6 +283,113 @@ export class MegolmMessageEncryptionService {
     }
 
     const derivedKeys = await recoveryKeyService.deriveKeysFromMnemonic(words)
+    await this.unlockWithDerivedKeys(derivedKeys)
+    debug.log('Encryption initialized with recovery key')
+  }
+
+  /**
+   * Unlock with the encryption and backup keys another device sealed to this one (device
+   * pairing). Same path as a recovery-phrase unlock. On failure encryption is locked again.
+   */
+  async initializeWithPairedKeys(material: PairingKeyMaterial): Promise<void> {
+    if (!this.currentUserId) {
+      throw new Error('Not initialized')
+    }
+    if (this.isUnlocked()) {
+      throw new Error('Encryption is already unlocked on this device.')
+    }
+    const importAes = (raw: Uint8Array) =>
+      crypto.subtle.importKey('raw', raw.slice().buffer as ArrayBuffer, { name: 'AES-GCM' }, true, ['encrypt', 'decrypt'])
+    const derivedKeys: DerivedKeys = {
+      encryptionKey: await importAes(material.encryptionKey),
+      backupKey: await importAes(material.backupKey),
+      // DerivedKeys.signingKey has no reader. A paired device holds a random one until a
+      // recovery-phrase unlock replaces it.
+      signingKey: await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']),
+    }
+    recoveryKeyService.setDerivedKeys(derivedKeys)
+    try {
+      await this.unlockWithDerivedKeys(derivedKeys)
+    } catch (err) {
+      await this.lockEncryption().catch(() => {})
+      throw err
+    }
+    debug.log('Encryption initialized with keys from a paired device')
+  }
+
+  /** The in-memory keys when extractable, else the pairing copy, else null. */
+  private exportableKeys(): PairingKeyCopy | null {
+    const encryptionKey = recoveryKeyService.getEncryptionKey()
+    const backupKey = recoveryKeyService.getBackupKey()
+    if (encryptionKey?.extractable && backupKey?.extractable) return { encryptionKey, backupKey }
+    return this.pairingCopy
+  }
+
+  /**
+   * The raw encryption and backup keys, for sealing to a device being paired.
+   *
+   * Exportable while they sit in memory as derived (after a recovery-phrase unlock, a setup
+   * or a pairing in this page session) or when this device keeps a pairing copy. Otherwise
+   * the user enters the recovery phrase on this device to pair from it.
+   * Throws `keys_stale` when the published identity no longer pairs with this device's key
+   * (encryption was reset elsewhere).
+   */
+  async exportPairingKeys(): Promise<PairingKeyMaterial> {
+    if (!this.currentUserId || !this.isUnlocked()) {
+      throw new PairingError('keys_unavailable', 'Unlock encryption on this device first.')
+    }
+    const keys = this.exportableKeys()
+    if (!keys) {
+      throw new PairingError(
+        'keys_unavailable',
+        'Enter your recovery phrase on this device to link a new device from it.',
+      )
+    }
+    const { encryptionKey, backupKey } = keys
+    const { data, error } = await supabase.rpc('get_my_key_pair')
+    const published = (Array.isArray(data) ? data[0] : null) as { identity_public_key?: string } | null
+    const local = await identityKeyStore.loadPublicKey(this.currentUserId)
+    if (error || !published?.identity_public_key || published.identity_public_key !== local) {
+      throw new PairingError(
+        'keys_stale',
+        'This device holds out-of-date encryption keys. Enter your current recovery phrase on it first.',
+      )
+    }
+    return {
+      encryptionKey: new Uint8Array(await crypto.subtle.exportKey('raw', encryptionKey)),
+      backupKey: new Uint8Array(await crypto.subtle.exportKey('raw', backupKey)),
+    }
+  }
+
+  /** Whether exportPairingKeys can succeed without asking for the recovery phrase. */
+  canExportPairingKeys(): boolean {
+    return this.isUnlocked() && this.exportableKeys() !== null
+  }
+
+  /** Whether this device keeps a pairing copy of the keys. */
+  hasPairingCopy(): boolean {
+    return this.pairingCopy !== null
+  }
+
+  /** Keeps the current keys as this device's pairing copy. Needs them extractable in memory. */
+  async keepPairingCopy(): Promise<void> {
+    if (!this.currentUserId) throw new Error('Not initialized')
+    const keys = this.exportableKeys()
+    if (!keys) throw new PairingError('keys_unavailable', 'Enter your recovery phrase on this device first.')
+    await secureSessionKeyStore.storePairingCopy(this.currentUserId, keys)
+    this.pairingCopy = keys
+  }
+
+  /** Removes this device's pairing copy. Keys held in memory this session are untouched. */
+  async removePairingCopy(): Promise<void> {
+    if (this.currentUserId) await secureSessionKeyStore.clearPairingCopy(this.currentUserId)
+    this.pairingCopy = null
+  }
+
+  private async unlockWithDerivedKeys(derivedKeys: DerivedKeys): Promise<void> {
+    if (!this.currentUserId) {
+      throw new Error('Not initialized')
+    }
 
     await megolmService.initialize(this.currentUserId, derivedKeys.encryptionKey)
 
@@ -311,8 +439,6 @@ export class MegolmMessageEncryptionService {
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('megolm-key-received', { detail: { roomId: '*', sessionId: '*' } }))
     }
-
-    debug.log('Encryption initialized with recovery key')
   }
 
   /** Returns the generated 12-word recovery mnemonic. */
@@ -2245,6 +2371,7 @@ export class MegolmMessageEncryptionService {
     this.signingKeyCache.clear()
     this.backedUpSessionIds.clear()
     this.identityCreatedAtMs = null
+    this.pairingCopy = null
     this.clearLegacyStorage()
 
     await megolmKeyBackupService.deleteBackup().catch(() => {})
@@ -2286,6 +2413,7 @@ export class MegolmMessageEncryptionService {
     this.signingKeyCache.clear()
     this.backedUpSessionIds.clear()
     this.identityCreatedAtMs = null
+    this.pairingCopy = null
     this.currentUserId = null
     this.initialized = false
   }

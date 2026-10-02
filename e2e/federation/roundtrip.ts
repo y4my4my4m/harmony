@@ -21,6 +21,10 @@
 //   - the DM delivery path's choice of inbox URL, asserted from the request
 //     the peer actually received.
 //
+// Posts and DM messages by visibility: unsigned, signed by the peer (a follower and a DM
+// participant, its user key and its instance actor, as Mastodon and Misskey fetch on
+// receipt) and signed by a second instance with no follower and no participant.
+//
 // Private servers are exercised from both sides, one real instance each way:
 //   - hosting: the local instance serves a private server; the peer reads it
 //     with GETs signed by a member, a non-member, its instance actor, or
@@ -31,10 +35,22 @@
 // The proxy authenticates its caller with a Supabase JWT; roundtrip.ts signs
 // those itself and gateway.conf answers /auth/v1/user (auth-user-shim.sql).
 //
+// Voice crosses in both directions too, against the stack's LiveKit, which
+// stands in for both instances' SFUs:
+//   - a DM call the local instance hosts: the peer's user is rung, fetches its
+//     token from /api/livekit/federated-token signed with its own key, and
+//     accepts; a DM call the peer hosts: fx_bob accepts and the local instance
+//     fetches fx_bob's token from the peer, signed with fx_bob's key;
+//   - a voice channel of the peer's Group joined by fx_bob, and one of the
+//     hosted private server joined by the peer's user.
+// Each ends with both sides' tokens joined to the same LiveKit room over its
+// signalling WebSocket.
+//
 // Not covered: the BullMQ worker, Redis (the rate limiters fall back to their
-// in-memory store) and realtime broadcast (the gateway answers 501 and the
-// voice handler ignores the result). The signed-GET and reading cases fetch
-// the local actor's key back over HTTP to verify signatures.
+// in-memory store), Realtime delivery (user events stay in realtime.messages
+// and are read back through realtime-shim.sql; the voice presence broadcast is
+// answered 501) and media. The signed-GET and reading cases fetch the local
+// actor's key back over HTTP to verify signatures.
 //
 // Run: e2e/federation/stack.sh verify
 //
@@ -46,6 +62,7 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import http from 'node:http'
 import path from 'node:path'
+import { createRequire } from 'node:module'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 
@@ -87,6 +104,24 @@ const REMOTE_CHANNEL_NEW = 'fed00000-0000-0000-0000-000000000042'
 
 // A local post the peer reports.
 const ALICE_POST = 'fed00000-0000-0000-0000-000000000050'
+
+// Voice channels: one in the peer's Group, two in the hosted private server,
+// the second hidden from @everyone.
+const REMOTE_VOICE = 'fed00000-0000-0000-0000-000000000043'
+const PRIV_VOICE = 'fed00000-0000-0000-0000-000000000023'
+const PRIV_VOICE_HIDDEN = 'fed00000-0000-0000-0000-000000000024'
+
+// Posts by fx_alice in each visibility; the peer's user follows fx_alice and is the
+// direct post's recipient. DM_MESSAGE is a federated message of CONVERSATION.
+const POST_PUBLIC = 'fed00000-0000-0000-0000-000000000060'
+const POST_UNLISTED = 'fed00000-0000-0000-0000-000000000061'
+const POST_FOLLOWERS = 'fed00000-0000-0000-0000-000000000062'
+const POST_DIRECT = 'fed00000-0000-0000-0000-000000000063'
+const DM_MESSAGE = 'fed00000-0000-0000-0000-000000000064'
+
+// A local post the peer reacts to, and a peer note fx_bob reacts to.
+const REACTED_POST = 'fed00000-0000-0000-0000-000000000070'
+const PEER_NOTE_POST = 'fed00000-0000-0000-0000-000000000071'
 
 // REPORTING
 
@@ -152,6 +187,11 @@ class Peer {
   readonly secureGetRequests: Captured[] = []
   // GETs to the peer-hosted private Group and its channel, in arrival order.
   readonly groupGetRequests: Captured[] = []
+  // POSTs to the peer's /api/livekit/federated-token, and the rooms it hosts:
+  // room name -> the local actor it rang there.
+  readonly tokenRequests: Captured[] = []
+  readonly hostedRooms = new Map<string, string>()
+  livekit: LiveKit | null = null
   actorFetches = 0
   private server?: http.Server
   base = ''
@@ -231,6 +271,16 @@ class Peer {
             raw,
           })
           void this.handleGroupGet(req, res)
+          return
+        }
+        if (req.method === 'POST' && req.url === '/api/livekit/federated-token') {
+          this.tokenRequests.push({
+            method: req.method,
+            url: req.url ?? '',
+            headers: req.headers as Record<string, string>,
+            raw,
+          })
+          void this.handleTokenRequest(req, raw, res)
           return
         }
         // Authorized-fetch object: 401 unless the request carries a valid
@@ -328,6 +378,63 @@ class Peer {
     } catch {
       return null
     }
+  }
+
+  /**
+   * Actor URL of the local user whose key signed this POST, digest included,
+   * fetched back from the local instance; null for anything else.
+   */
+  private async localPostSigner(req: http.IncomingMessage, raw: Buffer): Promise<string | null> {
+    try {
+      const params = parseSignatureHeader(String(req.headers.signature ?? ''))
+      if (params.headers !== '(request-target) host date digest' || !params.keyId || !params.signature) return null
+      const digest = `SHA-256=${crypto.createHash('sha256').update(raw).digest('base64')}`
+      if (req.headers.digest !== digest || !req.headers.host || !req.headers.date) return null
+
+      const actorUrl = params.keyId.split('#')[0]
+      if (!actorUrl.startsWith(`https://${INSTANCE_DOMAIN}/users/`)) return null
+      const actor = await getJson(actorUrl.replace(`https://${INSTANCE_DOMAIN}`, this.localUrl))
+      const pem = actor?.publicKey?.publicKeyPem
+      if (!pem) return null
+
+      const signingString = [
+        `(request-target): post ${req.url}`,
+        `host: ${req.headers.host}`,
+        `date: ${req.headers.date}`,
+        `digest: ${digest}`,
+      ].join('\n')
+      return crypto.createVerify('SHA256').update(signingString).verify(pem, params.signature, 'base64')
+        ? actorUrl
+        : null
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * The peer's /api/livekit/federated-token, with the rules a Harmony caller
+   * instance applies: a signed request whose actorId is the signer, for a room
+   * this peer rang that actor in.
+   */
+  private async handleTokenRequest(req: http.IncomingMessage, raw: Buffer, res: http.ServerResponse): Promise<void> {
+    const reply = (status: number, body: unknown) => {
+      res.writeHead(status, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify(body))
+    }
+    const signer = await this.localPostSigner(req, raw)
+    let body: any = null
+    try {
+      body = JSON.parse(raw.toString('utf-8'))
+    } catch {
+      body = null
+    }
+    if (!signer) return reply(401, { error: 'signature required' })
+    if (body?.actorId !== signer) return reply(403, { error: 'actorId does not match the signing key owner' })
+    if (!this.livekit || body?.roomType !== 'dm_call' || this.hostedRooms.get(body?.roomName) !== signer) {
+      return reply(403, { error: 'Not authorized for this room' })
+    }
+    const token = await this.livekit.mint(`federated:${signer}`, body.roomName)
+    reply(200, { token, wsUrl: this.livekit.url, roomName: body.roomName, identity: `federated:${signer}` })
   }
 
   private sendActor(res: http.ServerResponse, id: string, type: string, name: string, publicKeyPem: string) {
@@ -564,6 +671,126 @@ function getJson(url: string): Promise<any> {
   })
 }
 
+// LIVEKIT
+//
+// One LiveKit server stands in for both instances' SFUs: the local backend
+// issues tokens with the stack's key, and the peer mints its own with the same
+// key. A token is accepted when LiveKit answers its signalling WebSocket with a
+// join naming the token's room and identity.
+
+interface LiveKitJoin {
+  room: string
+  identity: string
+  close: () => void
+}
+
+class LiveKit {
+  private readonly sdk: any
+  private readonly protocol: any
+
+  constructor(
+    readonly url: string,
+    private readonly key: string,
+    private readonly secret: string,
+  ) {
+    // Resolved from the backend's dependencies, as the backend itself loads them.
+    const load = createRequire(path.join(BACKEND_ROOT, 'package.json'))
+    this.sdk = load('livekit-server-sdk')
+    this.protocol = load('@livekit/protocol')
+  }
+
+  mint(identity: string, room: string): Promise<string> {
+    const at = new this.sdk.AccessToken(this.key, this.secret, { identity, ttl: '10m' })
+    at.addGrant({ roomJoin: true, room, canPublish: true, canSubscribe: true })
+    return at.toJwt()
+  }
+
+  /** Claims of a token signed with the stack's key; null for any other signature. */
+  claims(token: unknown): any {
+    if (typeof token !== 'string') return null
+    const [header, payload, sig] = token.split('.')
+    const expected = crypto.createHmac('sha256', this.secret).update(`${header}.${payload}`).digest('base64url')
+    if (!sig || sig !== expected) return null
+    return JSON.parse(Buffer.from(payload, 'base64url').toString('utf-8'))
+  }
+
+  join(token: string): Promise<LiveKitJoin> {
+    return new Promise((resolve, reject) => {
+      const ws = new WebSocket(`${this.url}/rtc?access_token=${encodeURIComponent(token)}&auto_subscribe=1&sdk=js&protocol=15`)
+      ws.binaryType = 'arraybuffer'
+      const timer = setTimeout(() => {
+        ws.close()
+        reject(new Error('no join response within 10 s'))
+      }, 10_000)
+      ws.onmessage = (event) => {
+        try {
+          const msg = this.protocol.SignalResponse.fromBinary(new Uint8Array(event.data as ArrayBuffer))
+          if (msg.message?.case !== 'join') return
+          clearTimeout(timer)
+          const join = msg.message.value
+          resolve({ room: join.room?.name ?? '', identity: join.participant?.identity ?? '', close: () => ws.close() })
+        } catch (e) {
+          clearTimeout(timer)
+          ws.close()
+          reject(e)
+        }
+      }
+      ws.onerror = () => {
+        clearTimeout(timer)
+        reject(new Error('LiveKit refused the signalling connection'))
+      }
+    })
+  }
+
+  async participants(room: string): Promise<string[]> {
+    const rooms = new this.sdk.RoomServiceClient(this.url.replace(/^ws/, 'http'), this.key, this.secret)
+    return (await rooms.listParticipants(room)).map((p: any) => p.identity).sort()
+  }
+}
+
+interface RoomToken {
+  who: string
+  token: unknown
+  identity: string
+}
+
+/**
+ * Both tokens carry the stack's signature and name `room`, and LiveKit seats
+ * both identities in it at once.
+ */
+async function bothInRoom(lk: LiveKit, room: string, a: RoomToken, b: RoomToken, label: string) {
+  for (const side of [a, b]) {
+    const claims = lk.claims(side.token)
+    assert(
+      claims?.sub === side.identity && claims?.video?.room === room && claims?.video?.roomJoin === true,
+      `${side.who}'s token is for ${label} as ${side.identity}`,
+      JSON.stringify(claims),
+    )
+  }
+  const joined: LiveKitJoin[] = []
+  try {
+    for (const side of [a, b]) {
+      const join = await lk.join(side.token as string)
+      joined.push(join)
+      assert(
+        join.room === room && join.identity === side.identity,
+        `LiveKit admits ${side.who} to ${label}`,
+        `${join.identity} in ${join.room}`,
+      )
+    }
+    const seated = await lk.participants(room)
+    assert(
+      seated.includes(a.identity) && seated.includes(b.identity),
+      `LiveKit holds both sides in ${label} at once`,
+      JSON.stringify(seated),
+    )
+  } catch (e) {
+    fail(`LiveKit admits both sides to ${label}`, (e as Error)?.message ?? e)
+  } finally {
+    joined.forEach((j) => j.close())
+  }
+}
+
 // FIXTURE
 
 async function seed(db: SupabaseClient, peer: Peer) {
@@ -646,9 +873,11 @@ async function must(what: string, p: PromiseLike<{ data: any; error: { message: 
 async function seedServers(db: SupabaseClient, peer: Peer) {
   const peerHost = new URL(peer.base).host
 
+  // A bulk insert sends every key of every row: a key absent from a row is
+  // NULL there, not the column default.
   await must('seed servers', db.from('servers').insert([
-    { id: PRIV_SERVER, name: 'Hosted private', owner: ALICE, public: false },
-    { id: PUB_SERVER, name: 'Hosted public', owner: ALICE, public: true },
+    { id: PRIV_SERVER, name: 'Hosted private', owner: ALICE, public: false, is_local_server: true },
+    { id: PUB_SERVER, name: 'Hosted public', owner: ALICE, public: true, is_local_server: true },
     {
       id: REMOTE_REF,
       name: 'Peer private',
@@ -1164,6 +1393,467 @@ async function caseSyncSignsAsMember(db: SupabaseClient, peer: Peer, localUrl: s
   )
 }
 
+// VOICE
+
+const VOICE_CONTEXT = ['https://www.w3.org/ns/activitystreams', 'https://harmony.social/ns/voice']
+const LOCAL_ALICE = `https://${INSTANCE_DOMAIN}/users/fx_alice`
+const LOCAL_BOB = `https://${INSTANCE_DOMAIN}/users/fx_bob`
+
+async function seedVoice(db: SupabaseClient, peer: Peer) {
+  await must('seed voice channels', db.from('channels').insert([
+    { id: PRIV_VOICE, server_id: PRIV_SERVER, name: 'voice', type: 1 },
+    { id: PRIV_VOICE_HIDDEN, server_id: PRIV_SERVER, name: 'staff-voice', type: 1 },
+    { id: REMOTE_VOICE, server_id: REMOTE_REF, name: 'peer-voice', type: 1, is_remote: true, ap_id: peer.channelUrl(REMOTE_VOICE) },
+  ]))
+  const everyone = await must('everyone role', db
+    .from('server_roles').select('id').eq('server_id', PRIV_SERVER).eq('is_default', true).single())
+  await must('hide staff-voice', db.from('channel_permission_overrides').insert({
+    channel_id: PRIV_VOICE_HIDDEN,
+    target_type: 'role',
+    role_id: everyone.id,
+    allow_permissions: 0,
+    deny_permissions: 2,
+  }))
+  // authorizeVoiceChannel admits a remote actor only on a federated server.
+  await must('federate the hosted server', db.from('servers').update({ federation_enabled: true }).eq('id', PRIV_SERVER))
+}
+
+/** A voice activity signed by a peer actor and posted to a local inbox. */
+function peerSends(
+  peer: Peer,
+  target: string,
+  activity: Record<string, unknown>,
+  signer: { key: string; actor: string } = { key: peer.key.privateKey, actor: peer.actorUrl },
+) {
+  const body = JSON.stringify({ '@context': VOICE_CONTEXT, published: new Date().toISOString(), ...activity })
+  return post(target, signedHeaders(target, body, signer.key, `${signer.actor}#main-key`), body)
+}
+
+async function postJson(url: string, headers: Record<string, string>, payload: unknown) {
+  const res = await post(url, { 'Content-Type': 'application/json', ...headers }, JSON.stringify(payload))
+  let json: any = null
+  try {
+    json = JSON.parse(res.body)
+  } catch {
+    json = null
+  }
+  return { ...res, json }
+}
+
+/** Events of one type Realtime would deliver on a profile's private user channel. */
+async function userEvents(db: SupabaseClient, profileId: string, type: string): Promise<any[]> {
+  const { data, error } = await db.rpc('hmfed_broadcasts', { p_topic: `user:${profileId}` })
+  if (error) throw new Error(`hmfed_broadcasts: ${error.message}`)
+  return ((data ?? []) as any[]).filter((p) => p?.type === type)
+}
+
+/** Requests the peer received at `url` since `before`, with parsed bodies. */
+function deliveries(peer: Peer, before: number, url: string) {
+  return peer.captured
+    .slice(before)
+    .filter((c) => c.url === url)
+    .map((c) => ({ req: c, body: JSON.parse(c.raw.toString('utf-8')) }))
+}
+
+async function callRow(db: SupabaseClient, apId: unknown) {
+  const { data } = await db
+    .from('federated_voice_calls')
+    .select('direction, status, caller_id, recipient_id, conversation_id, room_name')
+    .eq('ap_id', apId as string)
+    .maybeSingle()
+  return data
+}
+
+async function caseHostedDmCall(db: SupabaseClient, peer: Peer, localUrl: string, jwtSecret: string, lk: LiveKit, backend: Backend) {
+  console.log('\nDM call hosted here -> the peer\'s user takes its token from this instance and joins alice\'s room')
+
+  const room = `federated-dm-${CONVERSATION}-${Date.now()}`
+  const asAlice = { Authorization: `Bearer ${userToken(ALICE_AUTH, jwtSecret)}` }
+  const before = peer.captured.length
+
+  const invite = await postJson(`${localUrl}/api/livekit/federated-call/invite`, asAlice, {
+    calleeFederatedId: peer.actorUrl,
+    callType: 'voice',
+    conversationId: CONVERSATION,
+    roomName: room,
+  })
+  eq(invite.status, 200, 'alice rings the peer\'s user')
+  const inviteId = invite.json?.activityId
+
+  const sent = deliveries(peer, before, '/users/fx_remote/inbox')
+  eq(sent.length, 1, 'the invite reaches the callee\'s inbox')
+  eq(sent[0]?.body?.type, 'harmony:VoiceCallInvite', 'it is a harmony:VoiceCallInvite')
+  eq(sent[0]?.body?.object?.roomName, room, 'it names alice\'s room')
+  eq(sent[0]?.body?.object?.livekitUrl, lk.url, 'on this instance\'s LiveKit')
+  if (sent[0]) {
+    const v = await backend.verifySignature(sent[0].req.headers.signature, sent[0].req.headers, 'POST', sent[0].req.url, sent[0].req.raw)
+    eq(v.actorUrl, LOCAL_ALICE, 'the invite is signed with alice\'s key')
+  }
+
+  const row = await callRow(db, inviteId)
+  assert(
+    row?.direction === 'outbound' && row?.status === 'pending' && row?.caller_id === ALICE
+      && row?.recipient_id === REMOTE && row?.room_name === room && row?.conversation_id === CONVERSATION,
+    'the invite is stored as an outbound call to the peer\'s user for alice\'s room',
+    JSON.stringify(row),
+  )
+
+  const tokenUrl = `${localUrl}/api/livekit/federated-token`
+  const ask = (key: string, actor: string, actorId: string, roomName = room) => {
+    const body = JSON.stringify({ actorId, roomName, roomType: 'dm_call' })
+    return post(tokenUrl, signedHeaders(tokenUrl, body, key, `${actor}#main-key`), body)
+  }
+  eq((await ask(peer.strangerKey.privateKey, peer.strangerUrl, peer.strangerUrl)).status, 403,
+    'a signed stranger gets no token for the room')
+  eq((await ask(peer.strangerKey.privateKey, peer.strangerUrl, peer.actorUrl)).status, 403,
+    'a token for the callee signed with another key is refused')
+  eq((await ask(peer.key.privateKey, peer.actorUrl, peer.actorUrl, `federated-dm-${CONVERSATION}-1`)).status, 403,
+    'the callee gets no token for a room it was not rung to')
+  const granted = await ask(peer.key.privateKey, peer.actorUrl, peer.actorUrl)
+  eq(granted.status, 200, 'the callee, signing as itself, gets a token for the room while it rings')
+  const callee = granted.status === 200 ? JSON.parse(granted.body) : {}
+  eq(callee.roomName, room, 'the token answer names the room')
+  eq(callee.wsUrl, lk.url, 'and this instance\'s LiveKit')
+
+  const acceptRes = await peerSends(peer, `${localUrl}/users/fx_alice/inbox`, {
+    type: 'harmony:VoiceCallAccept',
+    id: `${peer.actorUrl}/activities/${crypto.randomUUID()}`,
+    actor: peer.actorUrl,
+    to: [LOCAL_ALICE],
+    object: inviteId,
+  })
+  eq(acceptRes.status, 202, 'the callee\'s signed accept is acknowledged (202)')
+  eq((await callRow(db, inviteId))?.status, 'accepted', 'the outbound call is accepted')
+  const accepted = await userEvents(db, ALICE, 'federated_call:accepted')
+  assert(
+    accepted.some((e) => e.callId === inviteId && e.conversationId === CONVERSATION && e.roomName === room && e.partyId === REMOTE),
+    'alice hears of the accept on her private user channel',
+    JSON.stringify(accepted),
+  )
+
+  const own = await postJson(`${localUrl}/api/livekit/token`, asAlice, { roomName: room, roomType: 'dm_call' })
+  eq(own.status, 200, 'alice gets her own token for her room')
+
+  await bothInRoom(
+    lk,
+    room,
+    { who: 'alice', token: own.json?.token, identity: `federated:${LOCAL_ALICE}` },
+    { who: 'the peer\'s user', token: callee.token, identity: `federated:${peer.actorUrl}` },
+    'the DM call hosted here',
+  )
+
+  const endRes = await peerSends(peer, `${localUrl}/users/fx_alice/inbox`, {
+    type: 'harmony:VoiceCallEnd',
+    id: `${peer.actorUrl}/activities/${crypto.randomUUID()}`,
+    actor: peer.actorUrl,
+    to: [LOCAL_ALICE],
+    object: inviteId,
+  })
+  eq(endRes.status, 202, 'the callee\'s signed end is acknowledged (202)')
+  eq((await callRow(db, inviteId))?.status, 'ended', 'the outbound call is ended')
+  const ended = await userEvents(db, ALICE, 'federated_call:ended')
+  assert(ended.some((e) => e.callId === inviteId), 'alice hears of the end', JSON.stringify(ended))
+  eq((await ask(peer.key.privateKey, peer.actorUrl, peer.actorUrl)).status, 403, 'an ended call grants no further token')
+}
+
+async function casePeerHostedDmCall(db: SupabaseClient, peer: Peer, localUrl: string, jwtSecret: string, lk: LiveKit, backend: Backend) {
+  console.log('\nDM call hosted by the peer -> fx_bob accepts and this instance fetches his token from the peer')
+
+  const asBob = { Authorization: `Bearer ${userToken(BOB_AUTH, jwtSecret)}` }
+  const ring = async (room: string) => {
+    const apId = `${peer.actorUrl}/activities/${crypto.randomUUID()}`
+    const activity = voiceInvite(peer, apId, new Date().toISOString())
+    activity.object.roomName = room
+    activity.object.livekitUrl = lk.url
+    const body = JSON.stringify(activity)
+    const target = `${localUrl}/users/fx_bob/inbox`
+    const res = await post(target, signedHeaders(target, body, peer.key.privateKey, `${peer.actorUrl}#main-key`), body)
+    return { apId, status: res.status }
+  }
+  const accept = () => postJson(`${localUrl}/api/livekit/federated-call/accept`, asBob, {
+    conversationId: CALL_CONVERSATION,
+    callerFederatedId: peer.actorUrl,
+  })
+
+  const room = `federated-dm-${PEER_CONVERSATION}-${Date.now()}`
+  peer.hostedRooms.set(room, LOCAL_BOB)
+  const call = await ring(room)
+  eq(call.status, 202, 'the peer rings fx_bob')
+  const incoming = await userEvents(db, BOB, 'federated_call:incoming')
+  assert(
+    incoming.some((e) => e.callId === call.apId && e.conversationId === CALL_CONVERSATION && e.roomName === room),
+    'fx_bob is rung on his private user channel with his own conversation',
+    JSON.stringify(incoming),
+  )
+
+  const tokensBefore = peer.tokenRequests.length
+  const before = peer.captured.length
+  const res = await accept()
+  eq(res.status, 200, 'fx_bob accepts')
+  eq(res.json?.roomName, room, 'the answer names the peer\'s room')
+  eq(res.json?.livekitUrl, lk.url, 'on the peer\'s LiveKit')
+
+  const asked = peer.tokenRequests.slice(tokensBefore)
+  eq(asked.length, 1, 'the peer saw one token request')
+  eq(
+    asked[0]?.headers.signature ? parseSignatureHeader(asked[0].headers.signature).keyId : undefined,
+    `${LOCAL_BOB}#main-key`,
+    'signed with fx_bob\'s own key',
+  )
+  eq((await callRow(db, call.apId))?.status, 'accepted', 'the inbound call is accepted')
+
+  const acks = deliveries(peer, before, '/users/fx_remote/inbox')
+  eq(acks.length, 1, 'the accept reaches the caller\'s inbox')
+  eq(acks[0]?.body?.type, 'harmony:VoiceCallAccept', 'it is a harmony:VoiceCallAccept')
+  eq(acks[0]?.body?.object, call.apId, 'naming the invite')
+  if (acks[0]) {
+    const v = await backend.verifySignature(acks[0].req.headers.signature, acks[0].req.headers, 'POST', acks[0].req.url, acks[0].req.raw)
+    eq(v.actorUrl, LOCAL_BOB, 'signed with fx_bob\'s key')
+  }
+
+  await bothInRoom(
+    lk,
+    room,
+    { who: 'fx_bob', token: res.json?.token, identity: `federated:${LOCAL_BOB}` },
+    { who: 'the peer\'s caller', token: await lk.mint(`federated:${peer.actorUrl}`, room), identity: `federated:${peer.actorUrl}` },
+    'the peer\'s DM call',
+  )
+
+  eq((await accept()).status, 404, 'a second accept finds no ringing call')
+
+  const endBefore = peer.captured.length
+  eq((await postJson(`${localUrl}/api/livekit/federated-call/end`, asBob, { conversationId: CALL_CONVERSATION })).status, 200,
+    'fx_bob hangs up')
+  eq((await callRow(db, call.apId))?.status, 'ended', 'the inbound call is ended')
+  const ends = deliveries(peer, endBefore, '/users/fx_remote/inbox')
+  assert(
+    ends.length === 1 && ends[0].body.type === 'harmony:VoiceCallEnd' && ends[0].body.object === call.apId,
+    'the end reaches the caller\'s inbox, naming the invite',
+    JSON.stringify(ends.map((e) => e.body)),
+  )
+
+  const unknownRoom = `federated-dm-${PEER_CONVERSATION}-${Date.now() + 1}`
+  const refused = await ring(unknownRoom)
+  eq(refused.status, 202, 'the peer rings fx_bob for a room it will not issue')
+  eq((await accept()).status, 502, 'with no token from the caller\'s instance the accept fails')
+  eq((await callRow(db, refused.apId))?.status, 'pending', 'and the call still rings')
+}
+
+async function caseRemoteVoiceJoin(db: SupabaseClient, peer: Peer, localUrl: string, jwtSecret: string, lk: LiveKit, backend: Backend) {
+  console.log('\nvoice channel of the peer\'s Group -> fx_bob joins; the peer\'s token reaches his private user channel')
+
+  const asBob = { Authorization: `Bearer ${userToken(BOB_AUTH, jwtSecret)}` }
+  const before = peer.captured.length
+  const join = await postJson(`${localUrl}/api/federation/voice/join`, asBob, { channelId: REMOTE_VOICE, serverId: REMOTE_REF })
+  eq(join.status, 200, 'fx_bob asks to join the peer\'s voice channel')
+  const joinId = join.json?.joinId
+  eq(join.json?.serverHost, new URL(peer.base).host, 'the join is bound to the peer\'s host')
+
+  const sent = deliveries(peer, before, `/servers/${REMOTE_REF}/inbox`)
+  eq(sent.length, 1, 'the join reaches the Group\'s inbox')
+  eq(sent[0]?.body?.type, 'harmony:VoiceChannelJoin', 'it is a harmony:VoiceChannelJoin')
+  eq(sent[0]?.body?.id, joinId, 'under the join id fx_bob was given')
+  eq(sent[0]?.body?.object?.id, peer.channelUrl(REMOTE_VOICE), 'naming the channel by its remote id')
+  if (sent[0]) {
+    const v = await backend.verifySignature(sent[0].req.headers.signature, sent[0].req.headers, 'POST', sent[0].req.url, sent[0].req.raw)
+    eq(v.actorUrl, LOCAL_BOB, 'signed with fx_bob\'s key')
+  }
+
+  const room = `channel-${REMOTE_VOICE}`
+  const bobToken = await lk.mint(`federated:${LOCAL_BOB}`, room)
+  const answer = (object: unknown) => peerSends(peer, `${localUrl}/inbox`, {
+    type: 'harmony:VoiceChannelJoinAccept',
+    id: `${peer.actorUrl}/activities/${crypto.randomUUID()}`,
+    actor: peer.actorUrl,
+    to: [LOCAL_BOB],
+    object,
+    result: { type: 'harmony:VoiceToken', livekitUrl: lk.url, token: bobToken, roomName: room, expiresAt: new Date(Date.now() + 3_600_000).toISOString() },
+  })
+
+  const forged = `${LOCAL_BOB}/activities/voice-join/${crypto.randomBytes(9).toString('base64url')}.9999999999999.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA`
+  eq((await answer(forged)).status, 202, 'an answer to a join fx_bob never sent is acknowledged (202)')
+  const answering = async (id: unknown) =>
+    (await userEvents(db, BOB, 'federated_voice:token')).filter((t) => t.originalJoinId === id)
+  eq((await answering(forged)).length, 0, 'and delivers nothing')
+
+  eq((await answer(joinId)).status, 202, 'the peer\'s signed answer is acknowledged (202)')
+  const tokens = await answering(joinId)
+  assert(
+    tokens.length === 1 && tokens[0].serverHost === join.json?.serverHost
+      && tokens[0].token === bobToken && tokens[0].roomName === room,
+    'the token reaches fx_bob on his private user channel, naming his join and the host',
+    JSON.stringify(tokens.map((t) => ({ ...t, token: t.token === bobToken ? '<minted>' : '<other>' }))),
+  )
+
+  await bothInRoom(
+    lk,
+    room,
+    { who: 'fx_bob', token: tokens[0]?.token, identity: `federated:${LOCAL_BOB}` },
+    { who: 'the peer\'s member', token: await lk.mint(`federated:${peer.actorUrl}`, room), identity: `federated:${peer.actorUrl}` },
+    'the peer\'s voice channel',
+  )
+}
+
+async function caseHostedVoiceJoin(db: SupabaseClient, peer: Peer, localUrl: string, jwtSecret: string, lk: LiveKit, backend: Backend) {
+  console.log('\nvoice channel of the hosted private server -> the peer\'s user joins; the token reaches its instance')
+
+  const target = `${localUrl}/servers/${PRIV_SERVER}/inbox`
+  const join = (channel: string, signer = { key: peer.key.privateKey, actor: peer.actorUrl }) => {
+    const id = `${signer.actor}/activities/voice-join/${crypto.randomUUID()}`
+    return peerSends(peer, target, {
+      type: 'harmony:VoiceChannelJoin',
+      id,
+      actor: signer.actor,
+      object: { type: 'harmony:VoiceChannel', id: `https://${INSTANCE_DOMAIN}/servers/${PRIV_SERVER}/channels/${channel}`, name: 'voice' },
+      target: `https://${INSTANCE_DOMAIN}/servers/${PRIV_SERVER}`,
+    }, signer).then((res) => ({ id, status: res.status }))
+  }
+  const answers = (before: number) =>
+    deliveries(peer, before, '/inbox').filter((d) => d.body?.type === 'harmony:VoiceChannelJoinAccept')
+
+  let before = peer.captured.length
+  eq((await join(PRIV_VOICE_HIDDEN)).status, 202, 'a join to a voice channel the member cannot view is acknowledged (202)')
+  eq(answers(before).length, 0, 'and answered with no token')
+
+  before = peer.captured.length
+  eq((await join(PRIV_VOICE, { key: peer.strangerKey.privateKey, actor: peer.strangerUrl })).status, 202,
+    'a non-member\'s join is acknowledged (202)')
+  eq(answers(before).length, 0, 'and answered with no token')
+
+  before = peer.captured.length
+  const member = await join(PRIV_VOICE)
+  eq(member.status, 202, 'the member\'s join is acknowledged (202)')
+  const got = answers(before)
+  eq(got.length, 1, 'the member\'s join is answered once, at its instance\'s shared inbox')
+  const accept = got[0]
+  eq(accept?.body?.actor, LOCAL_ALICE, 'the answer is the server owner\'s')
+  eq(accept?.body?.object, member.id, 'naming the join')
+  if (accept) {
+    const v = await backend.verifySignature(accept.req.headers.signature, accept.req.headers, 'POST', accept.req.url, accept.req.raw)
+    assert(v.verified && v.actorUrl === LOCAL_ALICE, 'signed with the owner\'s key', JSON.stringify(v))
+  }
+  const room = `channel-${PRIV_VOICE}`
+  eq(accept?.body?.result?.roomName, room, 'the token is for the channel\'s room')
+  eq(accept?.body?.result?.livekitUrl, lk.url, 'on this instance\'s LiveKit')
+
+  const { data: present } = await db
+    .from('voice_channel_participants')
+    .select('user_id, is_federated')
+    .eq('channel_id', PRIV_VOICE)
+  assert(
+    (present ?? []).some((p) => p.user_id === REMOTE && p.is_federated === true),
+    'the peer\'s user is recorded in the channel',
+    JSON.stringify(present),
+  )
+
+  const own = await postJson(`${localUrl}/api/livekit/token`, { Authorization: `Bearer ${userToken(ALICE_AUTH, jwtSecret)}` }, {
+    roomName: room,
+    roomType: 'voice_channel',
+  })
+  eq(own.status, 200, 'alice gets her token for the channel')
+
+  await bothInRoom(
+    lk,
+    room,
+    { who: 'the peer\'s user', token: accept?.body?.result?.token, identity: `federated:${peer.actorUrl}` },
+    { who: 'alice', token: own.json?.token, identity: `federated:${LOCAL_ALICE}` },
+    'the hosted voice channel',
+  )
+}
+
+// POST VISIBILITY
+
+async function casePostVisibility(db: SupabaseClient, peer: Peer, localUrl: string) {
+  console.log('\nposts and DM messages by visibility -> only signers that may read them')
+
+  const peerHost = new URL(peer.base).host
+  const other = new Peer()
+  await other.start(new URL(peer.base).hostname)
+  try {
+    await db.from('posts').delete().in('id', [POST_PUBLIC, POST_UNLISTED, POST_FOLLOWERS, POST_DIRECT])
+    await db.from('follows').delete().eq('follower_id', REMOTE).eq('following_id', ALICE)
+    await must('seed visibility posts', db.from('posts').insert([
+      { id: POST_PUBLIC, author_id: ALICE, visibility: 'public', is_local: true, content: [{ type: 'text', text: 'public post' }] },
+      { id: POST_UNLISTED, author_id: ALICE, visibility: 'unlisted', is_local: true, content: [{ type: 'text', text: 'unlisted post' }] },
+      { id: POST_FOLLOWERS, author_id: ALICE, visibility: 'followers', is_local: true, content: [{ type: 'text', text: 'followers post' }] },
+      {
+        id: POST_DIRECT, author_id: ALICE, visibility: 'direct', is_local: true,
+        content: [
+          { type: 'mention', userId: REMOTE, username: 'fx_remote', domain: peerHost, isLocal: false },
+          { type: 'text', text: ' direct post' },
+        ],
+      },
+    ]))
+    await must('seed follow', db.from('follows').insert({ follower_id: REMOTE, following_id: ALICE, status: 'accepted' }))
+    await db.from('messages').delete().eq('id', DM_MESSAGE)
+    await must('seed DM message', db.from('messages').insert({
+      id: DM_MESSAGE, conversation_id: CONVERSATION, user_id: ALICE,
+      content: [{ type: 'text', text: 'federated dm' }],
+    }))
+    // The insert trigger queues the DM; the worker that completes it is not running.
+    await must('mark DM federated', db.from('messages').update({ federation_status: 'completed' }).eq('id', DM_MESSAGE))
+
+    const ap = { Accept: 'application/activity+json' }
+    const signedBy = (privateKey: string, actor: string) => (url: string) =>
+      get(url, signedGetHeaders(url, privateKey, `${actor}#main-key`))
+    const asFollower = signedBy(peer.key.privateKey, peer.actorUrl)
+    const asPeerInstance = signedBy(peer.instanceKey.privateKey, peer.instanceActorUrl)
+    const asOtherInstance = signedBy(other.instanceKey.privateKey, other.instanceActorUrl)
+    const post = (id: string) => `${localUrl}/posts/${id}`
+
+    for (const [id, label] of [[POST_PUBLIC, 'public'], [POST_UNLISTED, 'unlisted']]) {
+      const res = await get(post(id), ap)
+      assert(res.status === 200 && res.json?.id === `https://${INSTANCE_DOMAIN}/posts/${id}`,
+        `a ${label} post is served unsigned`, `${res.status} ${res.body.slice(0, 120)}`)
+      eq(res.headers['cache-control'], 'public, max-age=300', `the ${label} post stays cacheable`)
+      eq((await asOtherInstance(post(id))).status, 200, `a ${label} post is served to any signer`)
+    }
+
+    const unknown = await get(post('fed00000-0000-0000-0000-0000000000ff'), ap)
+    for (const [id, label] of [[POST_FOLLOWERS, 'followers-only'], [POST_DIRECT, 'direct']]) {
+      const unsigned = await get(post(id), ap)
+      assert(unsigned.status === 404 && unsigned.body === unknown.body,
+        `an unsigned read of a ${label} post answers as an unknown id`, `${unsigned.status} ${unsigned.body}`)
+      eq((await asOtherInstance(post(id))).status, 404, `a ${label} post is 404 to an instance without a reader`)
+      const html = await get(post(id), { Accept: 'text/html' })
+      eq(html.status, 404, `a ${label} post has no HTML page`)
+    }
+
+    const followersByUser = await asFollower(post(POST_FOLLOWERS))
+    assert(followersByUser.status === 200 && followersByUser.json?.content?.includes('followers post'),
+      'the follower fetches the followers-only post with its user key', `${followersByUser.status}`)
+    eq(followersByUser.headers['cache-control'], 'private, no-store', 'the followers-only post is not cacheable')
+    eq((await asPeerInstance(post(POST_FOLLOWERS))).status, 200,
+      'the follower\'s instance actor fetches it, as Mastodon and Misskey fetch on receipt')
+    eq((await asPeerInstance(post(POST_DIRECT))).status, 200, 'the recipient\'s instance fetches the direct post')
+
+    eq((await get(`${post(POST_FOLLOWERS)}/replies`, ap)).status, 404, 'an unsigned read of its replies is 404')
+    eq((await get(`${post(POST_FOLLOWERS)}/likes`, ap)).status, 404, 'an unsigned read of its likes is 404')
+    eq((await asPeerInstance(`${post(POST_FOLLOWERS)}/likes`)).status, 200, 'the follower\'s instance reads its likes')
+
+    const outbox = await get(`${localUrl}/users/fx_alice/outbox?cursor=start&limit=50`, ap)
+    const listed = JSON.stringify(outbox.json?.orderedItems ?? [])
+    assert(outbox.status === 200 && listed.includes('public post') && listed.includes('unlisted post')
+        && !listed.includes('followers post') && !listed.includes('direct post'),
+      'the outbox lists public and unlisted posts only', outbox.body.slice(0, 200))
+    const signedOutbox = JSON.stringify((await asPeerInstance(`${localUrl}/users/fx_alice/outbox?cursor=start&limit=50`)).json?.orderedItems ?? [])
+    assert(!signedOutbox.includes('followers post') && !signedOutbox.includes('direct post'),
+      'a signed outbox read lists them neither')
+
+    const dm = `${localUrl}/messages/${DM_MESSAGE}`
+    eq((await get(dm, ap)).status, 404, 'an unsigned read of a DM message is 404')
+    eq((await asOtherInstance(dm)).status, 404, 'a DM message is 404 to an instance without a participant')
+    const dmRead = await asPeerInstance(dm)
+    eq(dmRead.status, 200, 'the participant\'s instance reads the DM message')
+    eq(dmRead.headers['cache-control'], 'private, no-store', 'the DM message is not cacheable')
+
+    await db.from('follows').delete().eq('follower_id', REMOTE).eq('following_id', ALICE)
+    eq((await asPeerInstance(post(POST_FOLLOWERS))).status, 404, 'after the unfollow the followers-only post is 404')
+  } finally {
+    await other.stop()
+  }
+}
+
 // REPORTS
 
 async function seedReports(db: SupabaseClient) {
@@ -1351,11 +2041,198 @@ async function caseOutboundFlag(db: SupabaseClient, peer: Peer, localUrl: string
   eq(peer.captured.length - before, 1, 'a forwarded report is not sent twice')
 }
 
+// REACTIONS
+//
+// Inbound: the peer's EmojiReact is a reaction implying its actor's favourite; Undo of
+// one reaction keeps that favourite while another remains; reactions past the
+// per-person limit are dropped while the inbox answers 202.
+//
+// Outbound: fx_bob reacts to a peer note. The job handler encodes for the software
+// federated_instances names for the peer's host (no NodeInfo: the peer serves none).
+
+function emojiReact(peer: Peer, objectUrl: string, content: string) {
+  return {
+    '@context': 'https://www.w3.org/ns/activitystreams',
+    id: `${peer.actorUrl}#react-${crypto.randomUUID()}`,
+    type: 'EmojiReact',
+    actor: peer.actorUrl,
+    object: objectUrl,
+    content,
+  }
+}
+
+async function deliverAsPeer(peer: Peer, localUrl: string, activity: unknown): Promise<number> {
+  const body = JSON.stringify(activity)
+  const target = `${localUrl}/inbox`
+  const res = await post(target, signedHeaders(target, body, peer.key.privateKey, `${peer.actorUrl}#main-key`), body)
+  return res.status
+}
+
+async function engagementRows(db: SupabaseClient, postId: string, userId: string) {
+  const { data } = await db
+    .from('post_interactions')
+    .select('id, interaction_type, custom_emoji_content, implied_by_reaction, emoji_id')
+    .eq('post_id', postId)
+    .eq('user_id', userId)
+    .in('interaction_type', ['favorite', 'emoji_reaction'])
+    .order('created_at')
+  return (data ?? []) as Array<{ id: string; interaction_type: string; custom_emoji_content: string | null; implied_by_reaction: boolean; emoji_id: string | null }>
+}
+
+async function favouritesCount(db: SupabaseClient, postId: string): Promise<number> {
+  const { data } = await db.from('posts').select('favorites_count').eq('id', postId).single()
+  return data?.favorites_count ?? -1
+}
+
+async function caseInboundReactions(db: SupabaseClient, peer: Peer, localUrl: string) {
+  console.log('\ninbound EmojiReact -> reaction implying the favourite; limit')
+
+  const objectUrl = `https://${INSTANCE_DOMAIN}/posts/${REACTED_POST}`
+  await must('seed reacted post', db.from('posts').insert({
+    id: REACTED_POST,
+    author_id: ALICE,
+    content: [{ type: 'text', text: 'post the peer reacts to' }],
+    visibility: 'public',
+    is_local: true,
+  }))
+
+  const party = emojiReact(peer, objectUrl, '🎉')
+  const eyes = emojiReact(peer, objectUrl, '👀')
+  eq(await deliverAsPeer(peer, localUrl, party), 202, 'the EmojiReact is accepted (202)')
+  eq(await deliverAsPeer(peer, localUrl, eyes), 202, 'a second EmojiReact is accepted (202)')
+
+  let rows = await engagementRows(db, REACTED_POST, REMOTE)
+  eq(rows.map((r) => `${r.interaction_type}:${r.custom_emoji_content ?? '-'}:${r.implied_by_reaction}`).sort().join(' '),
+    'emoji_reaction:🎉:false emoji_reaction:👀:false favorite:-:true',
+    'two reactions and one implied favourite')
+  eq(await favouritesCount(db, REACTED_POST), 1, 'the remote reactor counts as one favourite')
+
+  eq(await deliverAsPeer(peer, localUrl, { type: 'Undo', id: `${party.id}/undo`, actor: peer.actorUrl, object: party }), 202,
+    'the Undo of one reaction is accepted (202)')
+  rows = await engagementRows(db, REACTED_POST, REMOTE)
+  eq(rows.map((r) => `${r.interaction_type}:${r.custom_emoji_content ?? '-'}`).sort().join(' '),
+    'emoji_reaction:👀 favorite:-', 'undoing one reaction keeps the favourite the other implies')
+
+  await deliverAsPeer(peer, localUrl, { type: 'Undo', id: `${eyes.id}/undo`, actor: peer.actorUrl, object: eyes })
+  eq((await engagementRows(db, REACTED_POST, REMOTE)).length, 0, 'the last reaction\'s Undo takes the implied favourite')
+  eq(await favouritesCount(db, REACTED_POST), 0, 'and the count')
+
+  await must('lower the limit', db.from('instance_config')
+    .upsert({ config_key: 'max_post_reactions_per_user', config_value: 2 }, { onConflict: 'config_key' }))
+  try {
+    const statuses: number[] = []
+    for (const emoji of ['🎉', '👀', '🔥']) {
+      statuses.push(await deliverAsPeer(peer, localUrl, emojiReact(peer, objectUrl, emoji)))
+    }
+    eq(statuses.join(','), '202,202,202', 'reactions past the limit are still answered 202')
+    rows = await engagementRows(db, REACTED_POST, REMOTE)
+    eq(rows.filter((r) => r.interaction_type === 'emoji_reaction').map((r) => r.custom_emoji_content).join(' '),
+      '🎉 👀', 'the reaction past the limit is dropped')
+  } finally {
+    await must('restore the limit', db.from('instance_config')
+      .upsert({ config_key: 'max_post_reactions_per_user', config_value: 10 }, { onConflict: 'config_key' }))
+  }
+}
+
+async function caseOutboundReactions(db: SupabaseClient, peer: Peer, backend: Backend) {
+  console.log('\noutbound reactions -> encoded per receiving software')
+
+  const peerHost = new URL(peer.base).host
+  const noteUrl = `${peer.base}/notes/reacted`
+  await must('seed peer note', db.from('posts').insert({
+    id: PEER_NOTE_POST,
+    author_id: REMOTE,
+    content: [{ type: 'text', text: 'peer note' }],
+    visibility: 'public',
+    is_local: false,
+    ap_id: noteUrl,
+  }))
+
+  const setSoftware = async (software: string) => {
+    await must('federated_instances', db.from('federated_instances')
+      .upsert({ domain: peerHost, software }, { onConflict: 'domain' }))
+    backend.forgetInstanceSoftware(peerHost)
+  }
+
+  // A reaction row's job, then its implied favourite's when it was created or removed with it.
+  const react = async (emoji: string) => {
+    const before = (await engagementRows(db, PEER_NOTE_POST, BOB)).some((r) => r.interaction_type === 'favorite')
+    const row = await must('react', db.from('post_interactions').insert({
+      post_id: PEER_NOTE_POST, user_id: BOB, interaction_type: 'emoji_reaction', custom_emoji_content: emoji, is_local: true,
+    }).select('id').single())
+    await backend.handleReactionJob({ type: 'create', interaction_id: row.id, interaction_type: 'emoji_reaction',
+      post_id: PEER_NOTE_POST, user_id: BOB, custom_emoji_content: emoji, implied: false })
+    const favourite = (await engagementRows(db, PEER_NOTE_POST, BOB)).find((r) => r.interaction_type === 'favorite')
+    if (!before && favourite) {
+      await backend.handleReactionJob({ type: 'create', interaction_id: favourite.id, interaction_type: 'favorite',
+        post_id: PEER_NOTE_POST, user_id: BOB, implied: favourite.implied_by_reaction })
+    }
+    return row.id as string
+  }
+  const unreact = async (id: string, emoji: string) => {
+    const favourite = (await engagementRows(db, PEER_NOTE_POST, BOB)).find((r) => r.interaction_type === 'favorite')
+    await must('unreact', db.from('post_interactions').delete().eq('id', id))
+    await backend.handleReactionJob({ type: 'delete', interaction_id: id, interaction_type: 'emoji_reaction',
+      post_id: PEER_NOTE_POST, user_id: BOB, custom_emoji_content: emoji, implied: false })
+    const still = (await engagementRows(db, PEER_NOTE_POST, BOB)).some((r) => r.interaction_type === 'favorite')
+    if (favourite && !still) {
+      await backend.handleReactionJob({ type: 'delete', interaction_id: favourite.id, interaction_type: 'favorite',
+        post_id: PEER_NOTE_POST, user_id: BOB, implied: favourite.implied_by_reaction })
+    }
+  }
+  const sent = (from: number) => peer.captured.slice(from).map((c) => JSON.parse(c.raw.toString('utf-8')))
+
+  // Misskey: one reaction per actor, any Undo deletes it.
+  await setSoftware('misskey')
+  let mark = peer.captured.length
+  const party = await react('🎉')
+  const fire = await react('🔥')
+  await unreact(fire, '🔥')
+  let got = sent(mark)
+  eq(got.map((a) => `${a.type}:${a._misskey_reaction ?? '-'}`).join(' '), 'Like:🎉 Like:🔥 Like:🎉',
+    'misskey: each change sends the newest reaction; removing one of two sends the other, not an Undo')
+  eq(peer.captured.slice(mark).every((c) => c.url === '/users/fx_remote/inbox'), true, 'misskey: delivered to the author\'s inbox')
+  const verification = await backend.verifySignature(
+    peer.captured[mark].headers.signature, peer.captured[mark].headers, 'POST', peer.captured[mark].url, peer.captured[mark].raw)
+  eq(verification.actorUrl, `https://${INSTANCE_DOMAIN}/users/fx_bob`, 'the reaction is signed by the reactor')
+  mark = peer.captured.length
+  await unreact(party, '🎉')
+  got = sent(mark)
+  eq(got.map((a) => `${a.type}:${a.object?.type ?? '-'}`).join(' '), 'Undo:Like', 'misskey: the last reaction\'s removal is the Undo')
+
+  // Mastodon: the favourite alone.
+  await setSoftware('mastodon')
+  mark = peer.captured.length
+  const eyes = await react('👀')
+  const star = await react('⭐')
+  await unreact(star, '⭐')
+  got = sent(mark)
+  eq(got.map((a) => `${a.type}:${a.content ?? '-'}`).join(' '), 'Like:-',
+    'mastodon: one bare Like for the implied favourite; reactions and their removal send nothing')
+  mark = peer.captured.length
+  await unreact(eyes, '👀')
+  got = sent(mark)
+  eq(got.map((a) => `${a.type}:${a.object?.type}:${a.object?.id === got[0]?.object?.id}`).join(' '), 'Undo:Like:true',
+    'mastodon: the favourite\'s Undo when the last reaction goes')
+
+  // Akkoma: EmojiReact per reaction, each undone by id.
+  await setSoftware('akkoma')
+  mark = peer.captured.length
+  const tada = await react('🎉')
+  await unreact(tada, '🎉')
+  got = sent(mark)
+  eq(got.map((a) => `${a.type}:${a.content ?? a.object?.type ?? '-'}`).join(' '), 'EmojiReact:🎉 Like:- Undo:EmojiReact Undo:Like',
+    'akkoma: EmojiReact and the favourite\'s Like, each undone by its own id')
+  eq(got[2]?.object?.id, got[0]?.id, 'the Undo names the EmojiReact it reverses')
+}
+
 // WIRING
 
 interface Backend {
   handleNewDM: (message: unknown) => Promise<void>
   handleReportJob: (data: { type: 'create'; report_id: string }) => Promise<void>
+  handleReactionJob: (data: Record<string, unknown> & { type: 'create' | 'delete' }) => Promise<void>
+  forgetInstanceSoftware: (host?: string) => void
   verifySignature: (
     signature: string,
     headers: Record<string, string>,
@@ -1369,16 +2246,20 @@ interface Backend {
 
 async function loadBackend(): Promise<Backend> {
   const mod = (p: string) => import(pathToFileURL(path.join(BACKEND_ROOT, 'src', p)).href)
-  const [server, listener, signature, reports] = await Promise.all([
+  const [server, listener, signature, reports, reactions, software] = await Promise.all([
     mod('server.ts'),
     mod('listeners/DatabaseListener.ts'),
     mod('activitypub/SignatureService.ts'),
     mod('queue/handlers/reportHandler.ts'),
+    mod('queue/handlers/reactionHandler.ts'),
+    mod('activitypub/instanceSoftware.ts'),
   ])
   return {
     createApp: server.createApp,
     handleNewDM: listener.handleNewDM,
     handleReportJob: reports.handleReportJob,
+    handleReactionJob: reactions.handleReactionJob,
+    forgetInstanceSoftware: software.forgetInstanceSoftware,
     verifySignature: signature.SignatureService.verifySignature.bind(signature.SignatureService),
     createDigest: signature.SignatureService.createDigest.bind(signature.SignatureService),
   }
@@ -1396,8 +2277,17 @@ async function main() {
   process.env.INSTANCE_DOMAIN = INSTANCE_DOMAIN
   process.env.REQUIRE_VALID_SIGNATURES = 'true'
   process.env.LOG_LEVEL = process.env.HMFED_LOG_LEVEL ?? 'error'
+  if (!env.HMFED_LIVEKIT_URL || !env.HMFED_LIVEKIT_KEY || !env.HMFED_LIVEKIT_SECRET) {
+    throw new Error('stack.env names no LiveKit - run: e2e/federation/stack.sh up')
+  }
+  process.env.LIVEKIT_URL = env.HMFED_LIVEKIT_URL
+  process.env.LIVEKIT_API_KEY = env.HMFED_LIVEKIT_KEY
+  process.env.LIVEKIT_API_SECRET = env.HMFED_LIVEKIT_SECRET
+  process.env.ALLOW_FEDERATED_VOICE = 'true'
+  const lk = new LiveKit(env.HMFED_LIVEKIT_URL, env.HMFED_LIVEKIT_KEY, env.HMFED_LIVEKIT_SECRET)
 
   const peer = new Peer()
+  peer.livekit = lk
   await peer.start(env.HMFED_PEER_HOST)
   console.log(`peer instance on ${peer.base}`)
 
@@ -1424,13 +2314,21 @@ async function main() {
     await caseInboundDM(db, peer, localUrl)
     await caseOutboundDM(db, peer, backend)
     await caseSignedGetRetry(peer, localUrl, db)
+    await casePostVisibility(db, peer, localUrl)
     await seedReports(db)
     await caseInboundFlag(db, peer, localUrl)
     await caseOutboundFlag(db, peer, localUrl, env, backend)
+    await caseInboundReactions(db, peer, localUrl)
+    await caseOutboundReactions(db, peer, backend)
     await seedServers(db, peer)
     await caseHostedPrivateServer(peer, localUrl)
     await caseProxyReadsAsMember(peer, localUrl, env.HMFED_JWT_SECRET)
     await caseSyncSignsAsMember(db, peer, localUrl, env.HMFED_JWT_SECRET)
+    await seedVoice(db, peer)
+    await caseHostedDmCall(db, peer, localUrl, env.HMFED_JWT_SECRET, lk, backend)
+    await casePeerHostedDmCall(db, peer, localUrl, env.HMFED_JWT_SECRET, lk, backend)
+    await caseRemoteVoiceJoin(db, peer, localUrl, env.HMFED_JWT_SECRET, lk, backend)
+    await caseHostedVoiceJoin(db, peer, localUrl, env.HMFED_JWT_SECRET, lk, backend)
   } finally {
     await new Promise<void>((resolve) => local.close(() => resolve()))
     await peer.stop()

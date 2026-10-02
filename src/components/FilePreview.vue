@@ -80,6 +80,8 @@ export interface FilePreviewData {
   uploadStatus?: 'pending' | 'uploading' | 'completed' | 'error';
   uploadProgress?: number;
   uploadedUrl?: string;
+  /** message_media object name of a completed upload. */
+  uploadedPath?: string;
   uploadError?: string;
 }
 

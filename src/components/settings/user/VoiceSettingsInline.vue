@@ -649,7 +649,11 @@ onUnmounted(() => {
   margin-bottom: 16px;
 }
 
+/* Containing block for the hidden input. Without it the input resolves
+   against .user-settings-container, outside the .settings-content scroller,
+   and focusing it scrolls that overflow:hidden container. */
 .checkbox-label {
+  position: relative;
   display: flex;
   align-items: flex-start;
   gap: 12px;

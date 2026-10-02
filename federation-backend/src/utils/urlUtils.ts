@@ -15,7 +15,7 @@ interface StorageTransform {
 /**
  * Replace internal Supabase URL with public URL
  */
-function makeUrlPublic(url: string): string {
+export function makeUrlPublic(url: string): string {
   const internalUrl = config.SUPABASE_URL;
   const publicUrl = config.PUBLIC_SUPABASE_URL;
   

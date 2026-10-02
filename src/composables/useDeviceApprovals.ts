@@ -12,6 +12,12 @@
  *       another device; claim pending key shares and reprocess messages.
  *   - device:denied            -> the request was denied; show a security
  *       toast.
+ *   - device:approval_expired  -> a pending request lapsed or was superseded.
+ *
+ * QR pairing requests (isPairingRequest) are approved only by scanning, in
+ * DeviceLinkModal; the prompt offers that instead of a one-tap approval. A
+ * device's own pairing request belongs to its pairing screen, not the waiting
+ * card.
  *
  * DeviceApprovalPrompt.vue renders `pendingApprovals` on established devices
  * and `ownPendingRequest` on the fresh login. Data and actions live here so
@@ -20,18 +26,36 @@
 
 import { ref, onMounted, onUnmounted } from 'vue'
 import { userEventChannel } from '@/services/UserEventChannel'
-import { deviceIdentityService, type DeviceApprovalRequest } from '@/services/encryption/DeviceIdentityService'
+import {
+  deviceIdentityService,
+  isPairingRequest,
+  isRequestExpired,
+  type DeviceApprovalRequest,
+} from '@/services/encryption/DeviceIdentityService'
 import { debug } from '@/utils/debug'
 
 const pendingApprovals = ref<DeviceApprovalRequest[]>([])
 const ownPendingRequest = ref<DeviceApprovalRequest | null>(null)
 const ownPendingDismissed = ref(false)
+/** True while DeviceLinkModal is open; it handles pairing requests itself. */
+const linkInProgress = ref(false)
+const expiryTimers = new Map<string, ReturnType<typeof setTimeout>>()
 let initialized = false
 let currentUserId: string | null = null
 
+function scheduleExpiry(req: DeviceApprovalRequest) {
+  if (!req.expires_at || expiryTimers.has(req.id)) return
+  const ms = Date.parse(req.expires_at) - Date.now()
+  if (!Number.isFinite(ms)) return
+  expiryTimers.set(req.id, setTimeout(() => removeApproval(req.id), Math.max(0, ms)))
+}
+
 async function upsertApproval(req: DeviceApprovalRequest) {
+  if (isRequestExpired(req)) return
+  const ownDevice = req.requesting_device_id === deviceIdentityService.getDeviceId()
+  if (ownDevice && isPairingRequest(req)) return
   // This device raised the request → waiting UI, not approver UI.
-  if (req.requesting_device_id === deviceIdentityService.getDeviceId()) {
+  if (ownDevice) {
     ownPendingRequest.value = req
     ownPendingDismissed.value = false
     // Already unlocked (recovery completed before this event landed): the
@@ -45,11 +69,15 @@ async function upsertApproval(req: DeviceApprovalRequest) {
   const idx = pendingApprovals.value.findIndex(r => r.id === req.id)
   if (idx >= 0) pendingApprovals.value[idx] = req
   else pendingApprovals.value.unshift(req)
+  scheduleExpiry(req)
 }
 
 function removeApproval(id: string) {
   pendingApprovals.value = pendingApprovals.value.filter(r => r.id !== id)
   if (ownPendingRequest.value?.id === id) ownPendingRequest.value = null
+  const t = expiryTimers.get(id)
+  if (t) clearTimeout(t)
+  expiryTimers.delete(id)
 }
 
 async function refreshOwnPending(userId: string) {
@@ -141,6 +169,7 @@ export function useDeviceApprovals() {
     try {
       const existing = await deviceIdentityService.listPendingApprovals(userId)
       pendingApprovals.value = existing
+      existing.forEach(scheduleExpiry)
       await refreshOwnPending(userId)
     } catch { /* non-fatal */ }
 
@@ -150,6 +179,7 @@ export function useDeviceApprovals() {
       }),
       userEventChannel.on('device:approved', (p) => { onApprovedForThisDevice(p) }),
       userEventChannel.on('device:denied', (p) => { onDeniedForThisDevice(p) }),
+      userEventChannel.on('device:approval_expired', (p) => { removeApproval(String(p.id)) }),
     )
 
     // Encryption unlock (auto-unlock or recovery phrase) fires this event.
@@ -160,18 +190,21 @@ export function useDeviceApprovals() {
     offFns.push(() => window.removeEventListener('megolm-key-received', onUnlockSignal))
   }
 
+  /**
+   * Acknowledges a plain request: that device unlocked encryption itself and needs no keys;
+   * trust is unchanged. A pairing request is approved only through DeviceLinkModal,
+   * after the QR check.
+   */
   async function approve(req: DeviceApprovalRequest) {
+    if (isPairingRequest(req)) throw new Error('Scan the code shown on that device to approve it')
     try {
-      // Server-enforced: the RPC verifies this device may approve, resolves
-      // the request, and elevates the requesting device to 'verified'. No
-      // encrypted_sync_bundle is attached.
       await deviceIdentityService.approveDevice(req.id)
       try {
         const { useNotificationStore } = await import('@/stores/useNotification')
         useNotificationStore().showToast(
           'server_update',
           'Login approved',
-          `${req.requesting_label || 'The new device'} can now unlock your encrypted history.`,
+          `${req.requesting_label || 'The new device'} stays signed in.`,
           5000,
         )
       } catch { /* non-fatal */ }
@@ -247,6 +280,7 @@ export function useDeviceApprovals() {
     pendingApprovals,
     ownPendingRequest,
     ownPendingDismissed,
+    linkInProgress,
     start,
     approve,
     deny,

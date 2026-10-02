@@ -108,8 +108,8 @@
       <div v-if="encryptionStatus.hasRecoveryKey" class="subsection">
         <h4 class="subsection-title">Your devices</h4>
         <p class="subsection-description">
-          Devices signed in to your account. New logins can read new messages right away;
-          approving a device lets it unlock your encrypted message history.
+          Devices signed in to your account. To give a new device your encrypted messages,
+          link it: sign in there and scan the code it shows from a device that is already unlocked.
         </p>
         <DeviceManager />
       </div>
@@ -154,10 +154,29 @@
           <div class="option-card">
             <Icon name="smartphone" class="option-icon" :size="22" />
             <div class="option-info">
-              <strong>Restore on new device</strong>
-              <p>Use your recovery key to restore encryption on another device</p>
+              <strong>Link a new device</strong>
+              <p>Scan the code a newly signed-in device shows; no need to type your recovery phrase there</p>
             </div>
-            <button @click="showRecoveryModal = true" class="btn btn-secondary">Restore</button>
+            <button @click="showLinkModal = true" class="btn btn-secondary">Link</button>
+          </div>
+
+          <div v-if="hasPairingCopy" class="option-card" data-testid="pairing-copy">
+            <Icon name="key" class="option-icon" :size="22" />
+            <div class="option-info">
+              <strong>Keys kept for linking</strong>
+              <p>
+                This device keeps a readable copy of your encryption keys so it can link devices
+                without the recovery phrase. Remove it and linking from here asks for the phrase again.
+              </p>
+            </div>
+            <button
+              class="btn btn-secondary"
+              data-testid="pairing-copy-remove"
+              :disabled="isRemovingCopy"
+              @click="removePairingCopy"
+            >
+              Remove
+            </button>
           </div>
         </div>
       </div>
@@ -213,10 +232,13 @@
     <Teleport to="body">
       <KeyRecoveryModal
         v-if="showRecoveryModal"
+        :initial-tab="encryptionStatus.hasRecoveryKey ? 'device' : 'phrase'"
         @close="showRecoveryModal = false"
         @restored="handleRecoveryComplete"
       />
     </Teleport>
+
+    <DeviceLinkModal v-if="showLinkModal" mode="scan" @close="onLinkModalClosed" />
     
     <Teleport to="body">
       <div v-if="showViewRecoveryInfo" class="modal-overlay" @click.self="showViewRecoveryInfo = false">
@@ -309,6 +331,7 @@ import { useToast } from 'vue-toastification'
 import RecoveryKeySetupWizard from './RecoveryKeySetupWizard.vue'
 import KeyRecoveryModal from './KeyRecoveryModal.vue'
 import DeviceManager from './DeviceManager.vue'
+import DeviceLinkModal from './DeviceLinkModal.vue'
 import Icon from '@/components/common/Icon.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 
@@ -328,6 +351,9 @@ const recoveryMetadata = ref<any>(null)
 
 const showSetupWizard = ref(false)
 const showRecoveryModal = ref(false)
+const showLinkModal = ref(false)
+const hasPairingCopy = ref(false)
+const isRemovingCopy = ref(false)
 const showViewRecoveryInfo = ref(false)
 const showImportModal = ref(false)
 const confirmReset = ref(false)
@@ -385,6 +411,7 @@ async function loadEncryptionStatus() {
 
     const status = await megolmMessageEncryptionService.getEncryptionStatus()
     encryptionStatus.value = status
+    hasPairingCopy.value = megolmMessageEncryptionService.hasPairingCopy()
 
     // maybeSingle: the metadata row may not exist.
     if (status.hasRecoveryKey) {
@@ -614,6 +641,27 @@ async function autoSyncAfterEnable() {
     window.dispatchEvent(new CustomEvent('megolm-key-received', { detail: { roomId: '*', sessionId: '*' } }))
   } catch (error) {
     // Non-critical - encryption is already enabled
+  }
+}
+
+async function onLinkModalClosed() {
+  showLinkModal.value = false
+  const { megolmMessageEncryptionService } = await import('@/services/encryption/MegolmMessageEncryptionService')
+  hasPairingCopy.value = megolmMessageEncryptionService.hasPairingCopy()
+}
+
+async function removePairingCopy() {
+  isRemovingCopy.value = true
+  try {
+    const { megolmMessageEncryptionService } = await import('@/services/encryption/MegolmMessageEncryptionService')
+    await megolmMessageEncryptionService.removePairingCopy()
+    hasPairingCopy.value = false
+    toast.success('Removed the copy of your keys from this device')
+  } catch (error) {
+    debug.error('Failed to remove the pairing copy:', error)
+    toast.error('Could not remove the copy of your keys')
+  } finally {
+    isRemovingCopy.value = false
   }
 }
 

@@ -1136,8 +1136,9 @@ export class UnifiedWebRTCService {
       throw new Error('Channel ID or User ID not set');
     }
     
+    // Private: voice room access only (can_subscribe_to_topic, can_send_to_topic).
     this.signalChannel = supabase.channel(`harmony-voice-${this.channelId}`, {
-      config: { broadcast: { self: false } }
+      config: { private: true, broadcast: { self: false } }
     });
     
     this.signalChannel.on('broadcast', { event: 'signal' }, (payload) => {

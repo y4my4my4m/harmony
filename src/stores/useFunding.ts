@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia'
 import {
   fundingService,
-  showsFundingGoal,
   type FundingConfigWithProgress,
 } from '@/services/FundingService'
 import { debug } from '@/utils/debug'
@@ -15,16 +14,10 @@ export const useFundingStore = defineStore('funding', {
     lastLoadedAt: 0,
     inflight: null as Promise<FundingConfigWithProgress | null> | null,
     refreshTimer: null as ReturnType<typeof setInterval> | null,
-    /** Mounted UnifiedContextBar instances. */
-    contextBars: 0,
   }),
   getters: {
     isStale(state): boolean {
       return Date.now() - state.lastLoadedAt > STALE_MS
-    },
-    /** A mounted context bar renders the goal pill; CSS hides it at max-width 768px. */
-    goalPillMounted(state): boolean {
-      return state.contextBars > 0 && showsFundingGoal(state.config)
     },
   },
   actions: {

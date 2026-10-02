@@ -80,7 +80,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { debug } from '@/utils/debug'
 import { useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
@@ -102,7 +102,7 @@ const emit = defineEmits<{
 // Stores & Composables
 const dmStore = useDMStore()
 const authStore = useAuthStore()
-const { getCurrentUser, isUserOnline } = useUserData()
+const { getCurrentUser, isUserOnline, updateFriendsPresence } = useUserData()
 const router = useRouter()
 const toast = useToast()
 
@@ -137,6 +137,11 @@ const loadFollowingUsers = async (offset = 0, showLoading = true) => {
 
     hasMore.value = response.hasMore
     currentOffset.value = offset + limit
+
+    // Presence of followed profiles is read for this list only (get_presence).
+    void updateFriendsPresence(followingUsers.value.map(u => u.id)).catch(err => {
+      debug.warn('Failed to load presence for following users:', err)
+    })
 
   } catch (error) {
     debug.error('Failed to load following users:', error)
@@ -193,6 +198,10 @@ const getUserOnlineStatus = (userId: string): boolean => {
 
 onMounted(() => {
   loadFollowingUsers()
+})
+
+onUnmounted(() => {
+  void updateFriendsPresence([]).catch(() => {})
 })
 </script>
 

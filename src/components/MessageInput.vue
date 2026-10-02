@@ -191,8 +191,8 @@ import {
   MESSAGE_TEXT_HARD_CEILING,
 } from '@/utils/messageContentUtils';
 import { backgroundUploadManager } from '@/services/fileService';
+import { mediaRoom as roomOf, uploadMessageMedia } from '@/services/privateMedia';
 import type { VoiceRecordingResult } from '@/services/voiceRecordingService';
-import { supabase } from '@/supabase';
 import { useAuthStore } from '@/stores/auth';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
@@ -210,6 +210,9 @@ interface Props {
   channelId?: string;
   threadId?: string;
   conversationId?: string;
+  /** Room of uploaded attachments ('c/<channel id>' or 'd/<conversation id>'); derived from
+      channelId or conversationId when absent. */
+  mediaRoom?: string | null;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -229,6 +232,7 @@ const placeholderTarget = computed(() => {
 
 interface VoiceMessageData {
   url: string
+  path: string
   duration: number
   waveform: number[]
   mimeType: string
@@ -253,6 +257,9 @@ const emit = defineEmits<{
 
 const authStore = useAuthStore();
 const toast = useToast();
+
+const uploadRoom = computed(() =>
+  props.mediaRoom ?? roomOf({ channelId: props.channelId, conversationId: props.conversationId }));
 const { triggerMessage } = useHapticSettings();
 const { recordEmojiUsage } = useFrequentEmojis();
 const showUploadMenu = ref(false);
@@ -433,28 +440,22 @@ const handleVoiceRecordingComplete = async (result: VoiceRecordingResult) => {
   voiceUploading.value = true
   try {
     const ext = result.mimeType.includes('webm') ? 'webm' : result.mimeType.includes('ogg') ? 'ogg' : 'mp4'
-    const filePath = `${userId}/voice/${crypto.randomUUID()}.${ext}`
+    const room = uploadRoom.value
+    if (!room) throw new Error('Voice messages need a channel or conversation')
 
-    const { data: uploadData, error } = await supabase.storage
-      .from('user_media')
-      .upload(filePath, result.blob, { contentType: result.mimeType })
+    const uploaded = await uploadMessageMedia(room, userId, result.blob, {
+      fileName: `voice.${ext}`,
+      contentType: result.mimeType,
+    })
+    debug.log('Voice upload success:', { path: uploaded.path })
 
-    if (error) throw error
-    debug.log('Voice upload success:', { path: uploadData?.path || filePath })
-
-    const { data } = supabase.storage.from('user_media').getPublicUrl(filePath)
-    debug.log('Voice public URL:', data.publicUrl)
-
-    if (data.publicUrl) {
-      emit('sendVoiceMessage', {
-        url: data.publicUrl,
-        duration: result.duration,
-        waveform: result.waveform,
-        mimeType: result.mimeType,
-      })
-    } else {
-      debug.error('No public URL returned for voice message')
-    }
+    emit('sendVoiceMessage', {
+      url: uploaded.url,
+      path: uploaded.path,
+      duration: result.duration,
+      waveform: result.waveform,
+      mimeType: result.mimeType,
+    })
   } catch (err) {
     debug.error('Failed to upload voice message:', err)
   } finally {
@@ -801,10 +802,11 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
       fileData.uploadProgress = 0;
 
       try {
-        const uploadedUrl = await backgroundUploadManager.startUpload(
+        const uploaded = await backgroundUploadManager.startUpload(
           uploadId,
           authStore.session.user.id,
           fileData.file,
+          uploadRoom.value,
           (progress) => {
             fileData.uploadProgress = progress;
             attachedFiles.value = [...attachedFiles.value];
@@ -812,9 +814,10 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
           }
         );
 
-        if (uploadedUrl) {
+        if (uploaded) {
           fileData.uploadStatus = 'completed';
-          fileData.uploadedUrl = uploadedUrl;
+          fileData.uploadedUrl = uploaded.url;
+          fileData.uploadedPath = uploaded.path;
           fileData.uploadProgress = 100;
         } else {
           throw new Error('Upload failed');

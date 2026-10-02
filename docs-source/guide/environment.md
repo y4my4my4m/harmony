@@ -99,6 +99,8 @@ Copy from `federation-backend/env.template`.
 | `RATE_LIMIT_MAX_REQUESTS` | Max requests per window |
 | `TRUST_PROXY` | Peers trusted to name the client in `X-Real-IP` (default `loopback, uniquelocal`). Rate limits key on that address; nginx must set `X-Real-IP` on every location proxied to the backend |
 | `REQUIRE_VALID_SIGNATURES` | Enforce HTTP signature validation |
+| `MEDIA_URL_SECRET` | HMAC key (32+ characters) of the chat attachment URLs sent to other instances. Unset: derived from the service-role key. Rotating it invalidates URLs already delivered |
+| `MEDIA_PUBLIC_BASE_URL` | Public prefix of this backend for those URLs (default `https://<INSTANCE_DOMAIN>/api/federation`) |
 
 ### Voice/Video (LiveKit)
 

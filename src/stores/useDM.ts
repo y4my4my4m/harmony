@@ -307,9 +307,10 @@ export const useDMStore = defineStore('dm', () => {
     })
   }
 
+  // roomId '*' (unlock, pairing) re-decrypts every loaded conversation.
   const reprocessEncryptedDMMessages = async (roomId?: string) => {
     try {
-      if (roomId) {
+      if (roomId && roomId !== '*') {
         if (currentConversationId.value === roomId && currentDMMessages.value.length > 0) {
           const hasEncrypted = currentDMMessages.value.some((m: Message) => m.encrypted && !m.decrypted)
           if (hasEncrypted) {
