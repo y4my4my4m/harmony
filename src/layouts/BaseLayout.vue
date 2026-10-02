@@ -20,7 +20,7 @@
     
     <div v-if="isMobile && isAppReady" class="edge-indicators">
       <div class="edge-indicator left" :class="{ active: touchState.isEdgeSwipe && touchState.startX <= 30 }"></div>
-      <div class="edge-indicator right" :class="{ active: touchState.isEdgeSwipe && touchState.startX >= windowWidth - 30 }"></div>
+      <div v-if="hasRightSidebar" class="edge-indicator right" :class="{ active: touchState.isEdgeSwipe && touchState.startX >= windowWidth - 30 }"></div>
     </div>
     
     <!-- Server rail: fixed column on desktop, drawer on mobile -->
@@ -128,6 +128,7 @@ const {
   leftSidebarOpen, 
     rightSidebarOpen, 
     hasRightSidebar,
+    leftDrawerWidth,
     isMobile, 
   voicePanelOpen,
   mobileProfileOpen,
@@ -195,10 +196,9 @@ const windowWidth = computed(() => typeof window !== 'undefined' ? window.innerW
 const overlayStyle = computed(() => {
   if (!isDragging.value) return {}
   
-  const offset = dragDirection.value === 'left' 
-    ? leftSidebarDragOffset.value 
-    : rightSidebarDragOffset.value
-  const progress = offset / SIDEBAR_WIDTH
+  const progress = dragDirection.value === 'left'
+    ? leftSidebarDragOffset.value / leftDrawerWidth.value
+    : rightSidebarDragOffset.value / SIDEBAR_WIDTH
   
   return {
     opacity: progress * 0.6,

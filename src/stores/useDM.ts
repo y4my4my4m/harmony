@@ -17,6 +17,7 @@ import { getRandomId, createTempMessageId, findOptimisticMatchIndex } from '@/st
 import { routeMessageEvent } from '@/stores/shared/realtimeMessageEvent'
 import { insertMessageSorted, evictOldestCacheEntry, trimCachedMessages, waitForPendingReplyFetch } from '@/stores/shared/messageCacheUtils'
 import { isModerationRejectionCode } from '@/services/AutoModService'
+import { releaseFloatingVideo } from '@/composables/useFloatingVideo'
 
 export interface DMUser {
   id: string
@@ -356,6 +357,7 @@ export const useDMStore = defineStore('dm', () => {
   }
 
   const removeMessageFromCache = (messageId: string) => {
+    releaseFloatingVideo(messageId)
     currentDMMessages.value = currentDMMessages.value.filter(msg => msg.id !== messageId)
 
     messageCache.value.forEach((cache) => {

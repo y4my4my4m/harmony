@@ -603,6 +603,21 @@ strong {
 .flex-1 { flex: 1; }
 .flex-none { flex: none; }
 
+/* Social feed column: 600 px, centred, ruled on both sides above the mobile breakpoint. */
+.feed-column {
+  width: 100%;
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+@media (min-width: 769px) {
+  .feed-column {
+    border-left: 1px solid var(--border-color);
+    border-right: 1px solid var(--border-color);
+  }
+}
+
 /* === SPACING UTILITIES === */
 .p-0 { padding: var(--space-0); }
 .p-1 { padding: var(--space-1); }

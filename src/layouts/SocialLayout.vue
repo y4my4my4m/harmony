@@ -203,7 +203,7 @@ import { storeToRefs } from 'pinia'
 import { trendingService } from '@/services/TrendingService'
 import Icon from '@/components/common/Icon.vue'
 import { useViewContextTracking } from '@/composables/useViewContext'
-import { useLayoutState } from '@/composables/useLayoutState'
+import { useLayoutState, useSidebarPanel } from '@/composables/useLayoutState'
 import { getOriginalPost } from '@/utils/postReblog'
 import FundingModal from '@/components/FundingModal.vue'
 import type { FederatedUser, TimelinePost } from '@/types'
@@ -273,6 +273,8 @@ const route = useRoute()
 
 // Layout state
 const { SIDEBAR_WIDTH } = useLayoutState()
+useSidebarPanel('left')
+useSidebarPanel('right')
 
 // Drag-follow transforms for the mobile sidebars.
 const leftSidebarStyle = computed(() => {

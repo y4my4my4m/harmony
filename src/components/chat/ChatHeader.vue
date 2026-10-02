@@ -620,10 +620,15 @@ onUnmounted(() => {
   transition: all 0.2s;
 }
 
-.action-btn:hover,
-.action-btn.active {
+.action-btn:hover {
   color: var(--text-primary);
   background: var(--background-secondary);
+}
+
+/* Open panel or menu. */
+.action-btn.active {
+  color: var(--icon-active);
+  background: var(--background-modifier-selected);
 }
 
 .pinned-btn {

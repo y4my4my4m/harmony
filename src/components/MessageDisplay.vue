@@ -720,7 +720,7 @@ import { isPointOverText, isQuickReactDoubleClick, type PointerDown } from '@/ut
 import { useReactionsStore } from '@/stores/useReactions';
 import { usePostReactionsStore } from '@/stores/postReactions';
 import { useVirtualizer, defaultRangeExtractor, type Range } from '@tanstack/vue-virtual';
-import { useFloatingVideo } from '@/composables/useFloatingVideo';
+import { floatingReturnTarget, useFloatingVideo } from '@/composables/useFloatingVideo';
 
 // --- PROPS & EMITS ---
 const props = defineProps({
@@ -1607,7 +1607,7 @@ const frozenInitialOffset = ref(0);
 let hasSetInitialOffset = false;
 
 // The row holding the floating video stays mounted while it is out of range;
-// unmounting it would close the player.
+// its placeholder is where the video docks when scrolled back into view.
 const { floatingMessageId } = useFloatingVideo();
 const floatingRowIndex = computed(() => {
   const id = floatingMessageId.value;
@@ -1888,23 +1888,32 @@ watch(() => props.messages, (newMessages) => {
             : -1;
           const hasDivider = dividerIndex >= 0;
 
+          // The floating player's return button navigated here: land on the
+          // video's message, where its placeholder docks it.
+          const returnMsgId = floatingReturnTarget();
+          const returnIndex = returnMsgId
+            ? displayItems.value.findIndex(it => it.type === 'message' && it.message.id === returnMsgId)
+            : -1;
+          const anchorIndex = returnIndex >= 0 ? returnIndex : dividerIndex;
+          const hasAnchor = anchorIndex >= 0;
+
           // Freezes the initial offset for this channel. With a divider the
           // offset is seeded near it rather than at the bottom, so the
           // virtualizer starts close to its final resting place.
           if (!hasSetInitialOffset) {
             hasSetInitialOffset = true;
-            frozenInitialOffset.value = (hasDivider ? dividerIndex : displayItems.value.length) * 60;
+            frozenInitialOffset.value = (hasAnchor ? anchorIndex : displayItems.value.length) * 60;
           }
           debug.log(hasDivider ? 'Initial load - scrolling to NEW divider' : 'Initial load - scrolling to bottom');
 
           // Landing on a divider is not the bottom; the image-load handler
           // must not pull the view down.
-          shouldBeAtBottom.value = !hasDivider;
+          shouldBeAtBottom.value = !hasAnchor;
 
           // No divider means the target is the bottom. Messages arriving in
           // the next couple of seconds (revalidate catch-up / realtime) are
           // followed so the view settles on the real end of the channel.
-          openFollowBottomUntil = hasDivider ? 0 : Date.now() + 2500;
+          openFollowBottomUntil = hasAnchor ? 0 : Date.now() + 2500;
           
           const imageUrlsInMessages = new Set<string>();
           const embedCountsByMessage = new Map<string, number>();
@@ -2017,7 +2026,33 @@ watch(() => props.messages, (newMessages) => {
             });
           };
 
-          const scrollToTarget = () => (hasDivider ? scrollToDivider() : scrollToBottom());
+          // Centres the floating video's placeholder; retries while rows measure.
+          let returnScrollAttempts = 0;
+          const scrollToReturn = () => {
+            returnScrollAttempts++;
+            const idx = displayItems.value.findIndex(
+              it => it.type === 'message' && it.message.id === returnMsgId
+            );
+            if (idx < 0) {
+              scrollToBottom();
+              return;
+            }
+            rowVirtualizer.value.scrollToIndex(idx, { align: 'center' });
+            requestAnimationFrame(() => {
+              const c = messageDisplayContainer.value;
+              const placeholder = c?.querySelector('.floating-video-placeholder') as HTMLElement | null;
+              if (c && placeholder) {
+                const box = placeholder.getBoundingClientRect();
+                const view = c.getBoundingClientRect();
+                c.scrollTop += box.top + box.height / 2 - (view.top + view.height / 2);
+              }
+              if (returnScrollAttempts < 6) setTimeout(scrollToReturn, returnScrollAttempts < 3 ? 50 : 150);
+            });
+          };
+
+          const scrollToTarget = () => (
+            returnIndex >= 0 ? scrollToReturn() : hasDivider ? scrollToDivider() : scrollToBottom()
+          );
 
           if (pendingImages.length === 0 && totalEmbeds === 0) {
             // Scroll immediately, then retry after virtualizer renders

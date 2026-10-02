@@ -3,7 +3,7 @@
     <!-- Loading State -->
     <div
       v-if="isLoading && posts.length === 0"
-      class="skeleton-list"
+      class="skeleton-list feed-column"
       role="status"
       aria-busy="true"
       :aria-label="loadingMessage"
@@ -19,7 +19,7 @@
     </div>
 
     <!-- Error State -->
-    <div v-else-if="error && posts.length === 0" class="empty-state error-state" role="alert">
+    <div v-else-if="error && posts.length === 0" class="empty-state error-state feed-column" role="alert">
       <Icon name="alert-circle" :size="40" />
       <h3>{{ errorTitle || t('activitypub.loadFailedTitle') }}</h3>
       <p>{{ t('activitypub.loadFailedMessage') }}</p>
@@ -29,7 +29,7 @@
     </div>
 
     <!-- Empty State -->
-    <div v-else-if="!isLoading && posts.length === 0" class="empty-state">
+    <div v-else-if="!isLoading && posts.length === 0" class="empty-state feed-column">
       <Icon :name="emptyIcon" :size="40" />
       <h3>{{ emptyTitle }}</h3>
       <p>{{ emptyMessage }}</p>
@@ -44,7 +44,7 @@
     </div>
 
     <!-- Virtualized Posts -->
-    <div v-else class="posts-list" :style="{ height: `${totalSize}px`, position: 'relative' }">
+    <div v-else class="posts-list feed-column" :style="{ height: `${totalSize}px`, position: 'relative' }">
       <div
         v-for="virtualRow in virtualRows"
         :key="virtualRow.index < posts.length ? posts[virtualRow.index].id : '__loader__'"
@@ -323,22 +323,19 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/* The gutter is reserved with or without overflow, so the feed column sits on the same
+   axis as a column header outside the scroller that reserves the same gutter. */
 .posts-container {
   display: flex;
   flex-direction: column;
   align-items: center;
   width: 100%;
   overflow-y: auto;
+  scrollbar-gutter: stable;
   padding: 0;
   flex: 1;
   min-height: 0;
   height: 100%;
-}
-
-.posts-list,
-.skeleton-list {
-  width: 100%;
-  max-width: 600px;
 }
 
 .virtual-post-row {
@@ -405,7 +402,6 @@ onUnmounted(() => {
   text-align: center;
   color: var(--text-secondary);
   min-height: 320px;
-  max-width: 600px;
 }
 
 .empty-state h3 {
@@ -481,12 +477,16 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
+/* The column rules run to the bottom whether the feed is loading, listed or empty. */
 @media (min-width: 769px) {
   .posts-list,
-  .skeleton-list {
-    border-left: 1px solid var(--border-color);
-    border-right: 1px solid var(--border-color);
+  .skeleton-list,
+  .empty-state {
     min-height: 100%;
+  }
+
+  .empty-state {
+    justify-content: flex-start;
   }
 }
 </style>

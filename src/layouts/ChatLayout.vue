@@ -55,6 +55,7 @@
             :channel="currentChannel"
             :server="currentServer"
             :is-mobile="isMobile"
+            :right-sidebar-open="rightSidebarOpen"
             @toggle-left-sidebar="$emit('toggleLeftSidebar')"
             @toggle-right-sidebar="$emit('toggleRightSidebar')"
             @toggle-search="handleToggleSearch"
@@ -179,7 +180,7 @@ import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useChatStore } from '@/stores/useChat'
 import { useDMStore } from '@/stores/useDM'
 import { useUserData } from '@/composables/useUserData'
-import { useLayoutState } from '@/composables/useLayoutState'
+import { useLayoutState, useSidebarPanel } from '@/composables/useLayoutState'
 import { storeToRefs } from 'pinia'
 import { useFundingStore } from '@/stores/useFunding'
 import FundingModal from '@/components/FundingModal.vue'
@@ -264,6 +265,10 @@ const shouldShowNoServersSplash = computed(() => {
     && serverChannelStore.hasInitialized
     && servers.value.length === 0
 })
+
+// The splash replaces both panels; DMs have no member list.
+useSidebarPanel('left', () => !shouldShowNoServersSplash.value)
+useSidebarPanel('right', () => !props.isDM && !shouldShowNoServersSplash.value)
 
 const leftSidebarStyle = computed(() => {
   if (!props.isMobile) return {}

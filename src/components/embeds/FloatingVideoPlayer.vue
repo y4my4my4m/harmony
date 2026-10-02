@@ -29,7 +29,7 @@
           <Icon name="external-link" :size="16" />
         </button>
         <button
-          v-if="video?.canPictureInPicture"
+          v-if="video?.canPictureInPicture && canDock"
           type="button"
           class="mini-player__btn"
           :title="t('floatingVideo.pictureInPicture')"
@@ -43,7 +43,7 @@
           class="mini-player__btn"
           :title="t('floatingVideo.returnToMessage')"
           :aria-label="t('floatingVideo.returnToMessage')"
-          @click="dock({ scroll: true })"
+          @click="returnToSource"
         >
           <Icon name="corner-down-left" :size="16" />
         </button>
@@ -75,11 +75,13 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import Icon from '@/components/common/Icon.vue'
 import { FLOATING_VIDEO_BAR_HEIGHT, useFloatingVideoPlayer } from '@/composables/useFloatingVideo'
 import { oppositeCorner, resizedFrameWidth } from '@/utils/floatingVideoGeometry'
 
 const { t } = useI18n()
+const router = useRouter()
 const player = useFloatingVideoPlayer()
 const {
   current: video,
@@ -88,7 +90,7 @@ const {
   position,
   chrome,
   interaction,
-  dock,
+  canDock,
   close,
   enterPictureInPicture,
 } = player
@@ -113,6 +115,12 @@ const frameStyle = computed(() => ({
   transform: `translate3d(${Math.round(position.value.x)}px, ${Math.round(position.value.y)}px, 0)`,
   '--floating-video-bar': `${FLOATING_VIDEO_BAR_HEIGHT}px`,
 }))
+
+// With the source unmounted, the button navigates to where the video floated from.
+function returnToSource(): void {
+  const path = player.returnToSource()
+  if (path && path !== router.currentRoute.value.fullPath) void router.push(path)
+}
 
 function openSource(): void {
   const url = video.value?.registration.sourceUrl

@@ -1483,6 +1483,20 @@ export const useActivityPubStore = defineStore('activitypub', {
      * along in the post.author payload from the timeline query; no badge
      * prefetch here.
      */
+    /**
+     * Loads what MonyPost renders from stores rather than from the post row: emoji
+     * reactions, reblog originals' interaction state, author profiles and remote
+     * reactions. Nothing is awaited.
+     */
+    enrichFeedPosts(posts: TimelinePost[]) {
+      if (posts.length === 0) return;
+      const postReactionsStore = usePostReactionsStore();
+      void postReactionsStore.fetchMultiplePostReactions(posts.map((p) => p.id), true);
+      void this.batchFetchReblogInteractions(posts);
+      void this.ensureAuthorProfilesCached(posts);
+      void this.batchFetchRemoteReactions(posts);
+    },
+
     async ensureAuthorProfilesCached(posts: TimelinePost[]) {
       const authorIds = new Set<string>();
       for (const post of posts) {
@@ -1683,13 +1697,7 @@ export const useActivityPubStore = defineStore('activitypub', {
           this.saveTimelineToCache();
         }
 
-        if (posts.length > 0) {
-          const postReactionsStore = usePostReactionsStore();
-          void postReactionsStore.fetchMultiplePostReactions(posts.map((p) => p.id), true);
-        }
-        void this.batchFetchReblogInteractions(posts);
-        void this.ensureAuthorProfilesCached(posts);
-        void this.batchFetchRemoteReactions(posts);
+        this.enrichFeedPosts(posts);
 
         this.homeFeed.has_more = fullPage;
         this.homeFeed.cursor = posts[posts.length - 1]?.created_at;
@@ -1771,13 +1779,7 @@ export const useActivityPubStore = defineStore('activitypub', {
           this.pendingPosts.public = [];
         }
 
-        if (posts.length > 0) {
-          const postReactionsStore = usePostReactionsStore();
-          void postReactionsStore.fetchMultiplePostReactions(posts.map((p) => p.id), true);
-        }
-        void this.batchFetchReblogInteractions(posts);
-        void this.ensureAuthorProfilesCached(posts);
-        void this.batchFetchRemoteReactions(posts);
+        this.enrichFeedPosts(posts);
 
         this.publicFeed.has_more = fullPage;
         this.publicFeed.cursor = posts[posts.length - 1]?.created_at;
@@ -1815,13 +1817,7 @@ export const useActivityPubStore = defineStore('activitypub', {
           this.pendingPosts.local = [];
         }
 
-        if (posts.length > 0) {
-          const postReactionsStore = usePostReactionsStore();
-          void postReactionsStore.fetchMultiplePostReactions(posts.map((p) => p.id), true);
-        }
-        void this.batchFetchReblogInteractions(posts);
-        void this.ensureAuthorProfilesCached(posts);
-        void this.batchFetchRemoteReactions(posts);
+        this.enrichFeedPosts(posts);
 
         this.localFeed.has_more = fullPage;
         this.localFeed.cursor = posts[posts.length - 1]?.created_at;

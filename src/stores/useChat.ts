@@ -15,6 +15,7 @@ import { realtimeConnectionManager, type ConnectionStatus } from '@/services/Rea
 import { getRandomId, createTempMessageId, findOptimisticMatchIndex } from '@/stores/shared/optimisticMessages';
 import { insertMessageSorted, evictOldestCacheEntry, trimCachedMessages, waitForPendingReplyFetch } from '@/stores/shared/messageCacheUtils';
 import { isModerationRejectionCode } from '@/services/AutoModService';
+import { releaseFloatingVideo } from '@/composables/useFloatingVideo';
 
 export const useChatStore = defineStore('chat', {
   state: () => ({
@@ -596,6 +597,7 @@ export const useChatStore = defineStore('chat', {
     },
 
     removeMessageFromCache(messageId: string) {
+      releaseFloatingVideo(messageId);
       this.messages = this.messages.filter(msg => msg.id !== messageId);
 
       this.messageCache.forEach((cache) => {
