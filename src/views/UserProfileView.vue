@@ -1259,10 +1259,13 @@ onUnmounted(() => {
 
 /* ===== MAIN CONTENT ===== */
 
+/* Stable gutter, like the feed scroller: the profile column sits on the timeline's axis
+   whether or not the active tab overflows. */
 .user-profile-view {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
+  scrollbar-gutter: stable;
   scroll-behavior: smooth;
 }
 
@@ -1311,6 +1314,7 @@ onUnmounted(() => {
   min-height: 100%;
 }
 
+/* The profile column draws the only pair of side rules; columns nested in it draw none. */
 @media (min-width: 769px) {
   .profile-content {
     border-left: 1px solid var(--border-color);
@@ -1709,18 +1713,16 @@ onUnmounted(() => {
   flex-direction: column;
 }
 
-/* Same column and edges as PostsContainer's list, so pinned posts line up
-   with the posts under them. */
-.pinned-posts-section {
-  max-width: 600px;
-  margin: 0 auto;
-  width: 100%;
+/* .user-profile-view scrolls the feed; PostsContainer's own scroller never overflows
+   here, so its reserved gutter would only narrow the list inside the profile column. */
+.posts-tab :deep(.posts-container) {
+  scrollbar-gutter: auto;
 }
 
 @media (min-width: 769px) {
-  .pinned-posts-section {
-    border-left: 1px solid var(--border-color);
-    border-right: 1px solid var(--border-color);
+  .posts-tab :deep(.feed-column) {
+    border-left: none;
+    border-right: none;
   }
 }
 

@@ -868,9 +868,12 @@ a.dropdown-item {
   background: color-mix(in srgb, var(--error) 10%, transparent);
 }
 
+/* Stable gutter, like the feed scroller: the post column sits on the timeline's axis
+   whether or not the thread overflows. */
 .post-content {
   flex: 1;
   overflow-y: auto;
+  scrollbar-gutter: stable;
   padding: 0 0 40px;
 }
 
