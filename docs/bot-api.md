@@ -26,7 +26,7 @@ The protocol is modeled on Discord's gateway: dispatch, heartbeat, identify and 
    - from the bot's page, under **Add to server**, which lists the servers you own. The bot joins with `read_messages`, `send_messages` and `add_reactions`; or
    - from the server, under **Server Settings → Advanced → Server Bots**, which lists public bots.
 
-   Permissions are edited under **Server Settings → Advanced → Server Bots**.
+   Permissions and channel access are edited under **Server Settings → Advanced → Server Bots**.
 4. **Connect.** Open the gateway, send IDENTIFY, heartbeat at the interval given in READY, and call the REST API. See [Examples](#examples).
 
 To check a token:
@@ -257,7 +257,7 @@ Each route requires one of these access levels:
 |---|---|
 | Token | Any valid bot token. |
 | Installed | The bot has an active installation in the server. |
-| *permission* | The installation grants that permission. For routes addressed by channel or message, the server is the channel's server. |
+| *permission* | The installation grants that permission. For routes addressed by channel or message, the server is the channel's server, and the channel must allow it; see [Channel access](#channel-access). |
 
 The API has no route that lists the servers a bot is installed in or resolves a channel to its server.
 
@@ -269,10 +269,10 @@ The API has no route that lists the servers a bot is installed in or resolves a 
 | `GET` | [`/channels/{channel.id}/messages`](#get-channel-messages) | `read_messages` |
 | `GET` | [`/messages/{message.id}`](#get-message) | `read_messages` |
 | `PATCH` | [`/messages/{message.id}`](#edit-message) | `send_messages`, own messages |
-| `DELETE` | [`/messages/{message.id}`](#delete-message) | Token for own messages; `manage_messages` otherwise |
+| `DELETE` | [`/messages/{message.id}`](#delete-message) | Visible channel for own messages; `manage_messages` otherwise |
 | `PUT` | [`/messages/{message.id}/reactions/{emoji}`](#add-reaction) | `add_reactions` |
 | `DELETE` | [`/messages/{message.id}/reactions/{emoji}`](#remove-reaction) | `add_reactions` |
-| `POST` | [`/channels/{channel.id}/typing`](#trigger-typing) | Token |
+| `POST` | [`/channels/{channel.id}/typing`](#trigger-typing) | `send_messages` |
 | `GET` | [`/servers/{server.id}`](#get-server) | Installed |
 | `GET` | [`/servers/{server.id}/members`](#list-members) | Installed |
 | `GET` | [`/servers/{server.id}/channels`](#list-channels) | Installed |
@@ -377,13 +377,13 @@ Only messages the bot wrote. `embeds` is ignored. Returns the message object. Ed
 
 `DELETE /messages/{message.id}`
 
-Deletes the row. The bot's own messages need no permission; other messages need `manage_messages`. Returns `204`.
+Deletes the row. The bot's own messages need only a channel the bot sees; other messages need `manage_messages` too. Returns `204`.
 
 #### Trigger typing
 
 `POST /channels/{channel.id}/typing`
 
-Has no effect. Returns `204`.
+Has no effect. Answers as a message to the channel would: `204` where the bot may send, `403` otherwise.
 
 ### Reactions
 
@@ -685,7 +685,7 @@ Registers the members of the remote platform for Harmony's mention autocomplete:
 }
 ```
 
-`members` at the top level applies to every listed channel; a channel entry with its own non-empty `members` array uses that instead. Channels in servers where the bot has no active installation are dropped. There is no reply. The data lives in gateway memory until the bot disconnects.
+`members` at the top level applies to every listed channel; a channel entry with its own non-empty `members` array uses that instead. Channels in servers where the bot has no active installation, and channels the bot cannot see, are dropped. There is no reply. The data lives in gateway memory until the bot disconnects.
 
 ### REFRESH_ATTACHMENTS
 
@@ -712,15 +712,41 @@ Server owners grant permissions per bot under **Server Settings → Advanced →
 | Permission | Grants |
 |---|---|
 | `read_messages` | Message and reaction events; `GET` channel messages, `GET` message, bridged message lookup. |
-| `send_messages` | Create messages; edit, silently patch and merge metadata on messages. Edits and silent patches are limited to the bot's own messages. |
+| `send_messages` | Create messages; edit, silently patch and merge metadata on messages; trigger typing. Edits and silent patches are limited to the bot's own messages. |
 | `manage_messages` | Delete messages written by others. |
 | `add_reactions` | Add and remove the bot's own reactions. |
 | `manage_channels` | Create channels and categories; edit channel order and category; edit categories; set and delete channel permission overrides. |
 | `manage_roles` | Create, edit and delete roles below the bot's position limit; see [Roles](#roles). |
 
-Reading follows channel visibility. A bot reads a channel, through REST and events, when it holds `read_messages`, the channel is in the installation's channel list when the server set one, and @everyone keeps `VIEW_CHANNEL` there after the channel's @everyone override (or @everyone holds administrator). Bots hold no roles and no override names a bot, so a channel hidden from @everyone is hidden from every bot. Other permissions apply to the whole server.
-
 Read routes for server structure (server, members, channels, categories, roles, overrides) need an active installation and no permission.
+
+### Channel access
+
+Every read and write addressed by a channel or a message needs a channel the bot sees. A write also needs its permission's bit in the channel:
+
+| Action | Permission | Channel bit |
+|---|---|---|
+| Message and reaction events; `GET` channel messages, `GET` message, bridged message lookup | `read_messages` | |
+| Create, edit, silently patch or merge metadata on a message; trigger typing | `send_messages` | `SEND_MESSAGES` |
+| Delete another author's message | `manage_messages` | `MANAGE_MESSAGES` |
+| Delete the bot's own message | none | |
+| Add or remove a reaction | `add_reactions` | `ADD_REACTIONS` |
+
+Bots hold no roles and no override names a bot, so in a channel the installation's channel list does not name, the bot holds what @everyone holds there plus its permissions:
+
+- it sees the channel when @everyone keeps `VIEW_CHANNEL` after the channel's @everyone override, or @everyone holds administrator;
+- it writes when, in addition, the write's bit survives that override. A channel where @everyone cannot send, such as an announcements channel, is read-only for bots too.
+
+The installation's channel list changes this:
+
+- without a list, every channel follows the rule above;
+- with a list, channels it does not name are closed to the bot, and a listed channel is open to it whatever @everyone's override denies: the bot sees it and uses every permission its installation holds there.
+
+A refused route answers `403` with `Channel not visible to this bot` when the bot cannot see the channel, and `Missing permission in this channel: <permission>` when it sees the channel but the channel's @everyone override denies the bit.
+
+The channel list is set under **Server Settings → Advanced → Server Bots → Channels**, by the server owner or a member with Manage Server. **Channels @everyone can view** clears the list; **Selected channels** sets it. A list is the only way to give a bot a channel hidden from @everyone, such as a private channel a bridge mirrors, or to let it post where @everyone is read-only. A member may add only channels they can view; listed channels they cannot view stay listed when they save.
+
+A listed channel counts toward what the bot may do there, not toward what it may grant: a channel permission override write is still bounded by the bot's permissions after @everyone's override, so a bot cannot open a hidden or read-only channel to others.
 
 REST checks read the installation on every request. Event delivery uses a cache that refreshes within 5 minutes.
 
@@ -748,6 +774,8 @@ Content-Type: application/json
 | `401` | `Invalid Authorization header format. Expected: Bot TOKEN` | Header is not `Bot <token>`. |
 | `401` | `Invalid or expired token` | Token unknown, revoked or expired, or the bot is inactive. |
 | `403` | `Missing permission: <permission>` | The installation lacks the permission, the bot is not installed in the server, or the channel does not exist. |
+| `403` | `Channel not visible to this bot` | The bot holds the permission but cannot see the channel; see [Channel access](#channel-access). Also sent when the visibility lookup fails. |
+| `403` | `Missing permission in this channel: <permission>` | The bot sees the channel, and the channel's @everyone override denies the permission's bit; see [Channel access](#channel-access). |
 | `403` | `Bot not in server` | No active installation; server read routes. The members route returns `Bot not in guild`. |
 | `403` | varies | Editing or silently patching another author's message, modifying the default or an admin role, creating a server emoji. |
 | `404` | varies | Message, channel, role, user or invite not found. Unknown routes return `Not found`. |

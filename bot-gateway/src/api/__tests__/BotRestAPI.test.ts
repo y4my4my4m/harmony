@@ -72,6 +72,17 @@ function makeApp() {
   return app
 }
 
+// An active installation with send_messages, and @everyone's default mask with no override:
+// every channel visible. Channel visibility is covered in BotRestAPI.permissions.test.ts.
+const OPEN_CHANNEL_FIXTURES: Record<string, Result> = {
+  bot_server_permissions: {
+    data: { bot_id: BOT_ID, server_id: '00000000-0000-0000-0000-0000000000s1', is_active: true, read_messages: true, send_messages: true },
+    error: null,
+  },
+  server_roles: { data: { id: '00000000-0000-0000-0000-0000000000e0', permissions: 122646786 }, error: null },
+  channel_permission_overrides: { data: [], error: null },
+}
+
 const EMOJI_ROW = {
   id: EMOJI_ID,
   created_at: '2026-01-01T00:00:00Z',
@@ -241,19 +252,21 @@ describe('PATCH /messages/:id/metadata', () => {
       const result =
         table === 'messages'
           ? { data: { channel_id: 'ch', metadata: { bot: true, created_via: 'bot_api' }, bot_id: BOT_ID }, error: null }
-          : { data: { server_id: 'srv' }, error: null }
+          : OPEN_CHANNEL_FIXTURES[table] ?? { data: { server_id: 'srv' }, error: null }
       const builder: any = new Proxy(
         {
           single: async () => result,
           maybeSingle: async () => result,
-          then: (resolve: any) => resolve({ data: null, error: null }),
+          then: (resolve: any) => resolve(
+            table === 'channel_permission_overrides' ? result : { data: null, error: null },
+          ),
           update: (patch: any) => { updates.push(patch); return builder },
         },
         { get: (target, prop) => (prop in target ? (target as any)[prop] : () => builder) },
       )
       return builder
     })
-    routeRpc({ check_bot_permission: () => ({ data: true, error: null }) })
+    routeRpc({})
 
     const res = await supertest(makeApp())
       .patch(`/api/v1/messages/${MESSAGE_ID}/metadata`)
@@ -284,12 +297,13 @@ describe('AutoMod rejections', () => {
 
   function sendFixtures(messages: Result) {
     routeTables({
+      ...OPEN_CHANNEL_FIXTURES,
       channels: { data: { server_id: '00000000-0000-0000-0000-0000000000s1' }, error: null },
       instance_config: { data: null, error: null },
       bot_audit_log: { data: null, error: null },
       messages,
     })
-    routeRpc({ check_bot_permission: () => ({ data: true, error: null }) })
+    routeRpc({})
   }
 
   it('answers 403 AUTOMOD_BLOCKED when the insert returns no row', async () => {

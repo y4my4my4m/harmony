@@ -199,8 +199,8 @@ export interface PostAuthor {
   updated_at?: string;
   handle?: string;
   displayNameParts?: DisplayNamePart[];
-  // PostgREST embed `supporter_membership:instance_supporters(...)`; shape is
-  // normalized by FundingService.badgeFromMembership.
+  // `supporter_membership:instance_supporters(...)`: one object or null from the PostgREST embed
+  // (user_id is unique), an array from get_home_timeline_page. badgeFromMembership reads both.
   supporter_membership?: any;
 }
 

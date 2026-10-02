@@ -4,9 +4,12 @@ import { botAuthMiddleware, botRateLimit } from '../auth/BotAuthMiddleware.js'
 import {
   ADMINISTRATOR,
   ALL_BITS,
+  type ChannelWriteFlag,
   type InstallRow,
   type RoleRow,
   botCanReadChannel,
+  botCanSeeChannel,
+  botCanWriteChannel,
   botChannelMask,
   grantableRoleBits,
   isAdminRole,
@@ -34,6 +37,8 @@ function moderationErrorResponse(error: { message?: string; details?: string; hi
   }
   return null
 }
+
+type ChannelAccess = { ok: true } | { ok: false; error: string }
 
 export interface BotRequest extends Request {
   bot?: {
@@ -183,9 +188,9 @@ export class BotRestAPI {
         return res.status(403).json({ error: 'Cannot update messages from other bots or users' })
       }
 
-      const canSend = await this.checkChannelPermission(botId, message.channel_id, 'send_messages')
-      if (!canSend) {
-        return res.status(403).json({ error: 'Missing permission: send_messages' })
+      const access = await this.channelWriteAccess(botId, message.channel_id, 'send_messages')
+      if (!access.ok) {
+        return res.status(403).json({ error: access.error })
       }
 
       const { data: updated, error } = await supabase.rpc('update_message_content_silent', {
@@ -217,12 +222,10 @@ export class BotRestAPI {
       console.log(`Bot ${req.bot!.username} (${botId}) attempting to send message to channel ${channelId}`)
       console.log(`Received metadata:`, JSON.stringify(metadata, null, 2))
       
-      const canSend = await this.checkChannelPermission(botId, channelId, 'send_messages')
-      console.log(`Permission check result: ${canSend}`)
-      
-      if (!canSend) {
-        console.log(`Permission denied for bot ${botId} in channel ${channelId}`)
-        return res.status(403).json({ error: 'Missing permission: send_messages' })
+      const access = await this.channelWriteAccess(botId, channelId, 'send_messages')
+      if (!access.ok) {
+        console.log(`Permission denied for bot ${botId} in channel ${channelId}: ${access.error}`)
+        return res.status(403).json({ error: access.error })
       }
       
       // Instance attachment policy (e.g. mirroring Discord CDN URLs into
@@ -380,9 +383,9 @@ export class BotRestAPI {
         return res.status(403).json({ error: 'Bots can only update metadata on their own messages' })
       }
 
-      const canSend = await this.checkChannelPermission(botId, message.channel_id, 'send_messages')
-      if (!canSend) {
-        return res.status(403).json({ error: 'Missing permission: send_messages' })
+      const access = await this.channelWriteAccess(botId, message.channel_id, 'send_messages')
+      if (!access.ok) {
+        return res.status(403).json({ error: access.error })
       }
 
       const mergedMetadata = {
@@ -506,9 +509,9 @@ export class BotRestAPI {
       // breaks Discord edit-sync. The ownership check above guarantees the bot
       // is the author. `deleteMessage` mirrors this: `manage_messages` is
       // required only for other bots' messages.
-      const canSend = await this.checkChannelPermission(botId, message.channel_id, 'send_messages')
-      if (!canSend) {
-        return res.status(403).json({ error: 'Missing permission: send_messages' })
+      const access = await this.channelWriteAccess(botId, message.channel_id, 'send_messages')
+      if (!access.ok) {
+        return res.status(403).json({ error: access.error })
       }
       
       const messageContent = await applyBridgeAttachmentPolicy(
@@ -564,11 +567,14 @@ export class BotRestAPI {
         return res.status(404).json({ error: 'Message not found' })
       }
       
-      if (message.bot_id !== botId) {
-        const canManage = await this.checkChannelPermission(botId, message.channel_id, 'manage_messages')
-        if (!canManage) {
-          return res.status(403).json({ error: 'Missing permission: manage_messages' })
-        }
+      // The bot's own message needs the channel visible; another author's, manage_messages too.
+      const access = await this.channelWriteAccess(
+        botId,
+        message.channel_id,
+        message.bot_id === botId ? null : 'manage_messages',
+      )
+      if (!access.ok) {
+        return res.status(403).json({ error: access.error })
       }
       
       const { error } = await supabase
@@ -604,9 +610,9 @@ export class BotRestAPI {
         return res.status(404).json({ error: 'Message not found' })
       }
       
-      const canReact = await this.checkChannelPermission(botId, message.channel_id, 'add_reactions')
-      if (!canReact) {
-        return res.status(403).json({ error: 'Missing permission: add_reactions' })
+      const access = await this.channelWriteAccess(botId, message.channel_id, 'add_reactions')
+      if (!access.ok) {
+        return res.status(403).json({ error: access.error })
       }
       
       const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(emoji)
@@ -658,9 +664,9 @@ export class BotRestAPI {
         return res.status(404).json({ error: 'Message not found' })
       }
       
-      const canReact = await this.checkChannelPermission(botId, message.channel_id, 'add_reactions')
-      if (!canReact) {
-        return res.status(403).json({ error: 'Missing permission: add_reactions' })
+      const access = await this.channelWriteAccess(botId, message.channel_id, 'add_reactions')
+      if (!access.ok) {
+        return res.status(403).json({ error: access.error })
       }
       
       const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(emoji)
@@ -699,7 +705,11 @@ export class BotRestAPI {
   
   private async triggerTyping(req: BotRequest, res: Response) {
     try {
-      // No database effect; returns success for API compatibility.
+      // No database effect; answers as a send to the channel would.
+      const access = await this.channelWriteAccess(req.bot!.id, req.params.channelId, 'send_messages')
+      if (!access.ok) {
+        return res.status(403).json({ error: access.error })
+      }
       res.status(204).send()
     } catch (error: any) {
       res.status(500).json({ error: error.message })
@@ -1528,42 +1538,47 @@ export class BotRestAPI {
   
   // PERMISSION HELPERS
   
-  private async checkChannelPermission(botId: string, channelId: string, permission: string): Promise<boolean> {
-    const { data: channel, error: channelError } = await supabase
+  private async channelServerId(channelId: string): Promise<string | null> {
+    const { data: channel } = await supabase
       .from('channels')
       .select('server_id')
       .eq('id', channelId)
-      .single()
-    
-    console.log(`Channel lookup: channelId=${channelId}, serverId=${channel?.server_id}, error=${channelError?.message}`)
-    
-    if (!channel) return false
-    
-    const { data, error } = await supabase.rpc('check_bot_permission', {
-      p_bot_id: botId,
-      p_server_id: channel.server_id,
-      p_permission: permission
-    })
-    
-    console.log(`Permission RPC result: permission=${permission}, result=${data}, error=${error?.message}`)
-    
-    return data === true
+      .maybeSingle()
+    return channel?.server_id ?? null
   }
-  
+
   /**
-   * read_messages, the install's allowed_channel_ids, and VIEW_CHANNEL in the channel as a holder
-   * of @everyone (see botChannelMask). False on any failed lookup.
+   * A write in a channel (botCanWriteChannel). A missing flag, installation or channel answers
+   * `Missing permission: <flag>`; a channel the bot cannot see, or whose visibility lookup
+   * fails, `Channel not visible to this bot`; a flag whose bit @everyone's override denies
+   * there, `Missing permission in this channel: <flag>`.
+   */
+  private async channelWriteAccess(
+    botId: string,
+    channelId: string | null | undefined,
+    flag: ChannelWriteFlag | null,
+  ): Promise<ChannelAccess> {
+    const hidden: ChannelAccess = { ok: false, error: 'Channel not visible to this bot' }
+    const denied: ChannelAccess = flag ? { ok: false, error: `Missing permission: ${flag}` } : hidden
+    if (!channelId) return denied
+    const serverId = await this.channelServerId(channelId)
+    if (!serverId) return denied
+    const install = await loadInstall(botId, serverId)
+    if (!install || (flag !== null && install[flag] !== true)) return denied
+    const layer = await loadEveryoneLayer(serverId, channelId)
+    if (!layer || !botCanSeeChannel(install, layer, channelId)) return hidden
+    if (!botCanWriteChannel(install, layer, channelId, flag)) {
+      return { ok: false, error: `Missing permission in this channel: ${flag}` }
+    }
+    return { ok: true }
+  }
+
+  /**
+   * read_messages and botCanSeeChannel: allowed_channel_ids, which also grants a channel
+   * @everyone cannot view, else VIEW_CHANNEL as a holder of @everyone. False on any failed lookup.
    */
   private async canReadChannel(botId: string, channelId: string, serverId?: string): Promise<boolean> {
-    let channelServerId = serverId
-    if (!channelServerId) {
-      const { data: channel } = await supabase
-        .from('channels')
-        .select('server_id')
-        .eq('id', channelId)
-        .maybeSingle()
-      channelServerId = channel?.server_id ?? undefined
-    }
+    const channelServerId = serverId ?? (await this.channelServerId(channelId))
     if (!channelServerId) return false
 
     const install = await loadInstall(botId, channelServerId)

@@ -34,6 +34,9 @@
             <button type="button" class="btn btn-secondary btn-sm" @click="openPermissionsModal(installation)">
               {{ t('bots.server.permissions') }}
             </button>
+            <button type="button" class="btn btn-secondary btn-sm" @click="openChannelsModal(installation)">
+              {{ t('bots.server.channels') }}
+            </button>
             <button type="button" class="btn btn-danger btn-sm" @click="removeBot(installation)">
               {{ t('bots.server.remove') }}
             </button>
@@ -204,6 +207,73 @@
         </div>
       </template>
     </BaseModal>
+
+    <BaseModal
+      :show="channelsInstallation !== null"
+      :title="t('bots.server.channelsTitle')"
+      :subtitle="channelsInstallation ? botName(channelsInstallation.bot) : undefined"
+      :close-on-overlay="!savingChannels"
+      :show-close-button="!savingChannels"
+      @close="closeChannelsModal"
+    >
+      <div v-if="channelsLoading" class="loading-state">
+        <LoadingSpinner :size="32" />
+      </div>
+
+      <template v-else>
+        <p class="permissions-hint">{{ t('bots.server.channelsHint') }}</p>
+        <div class="permissions-list" role="radiogroup" :aria-label="t('bots.server.channelsTitle')">
+          <label class="permission-row">
+            <input v-model="channelMode" type="radio" value="all" />
+            <span class="permission-text">
+              <span class="permission-label">{{ t('bots.server.channelsAll') }}</span>
+              <span class="permission-description">{{ t('bots.server.channelsAllDescription') }}</span>
+            </span>
+          </label>
+          <label class="permission-row">
+            <input v-model="channelMode" type="radio" value="selected" />
+            <span class="permission-text">
+              <span class="permission-label">{{ t('bots.server.channelsSelected') }}</span>
+              <span class="permission-description">{{ t('bots.server.channelsSelectedDescription') }}</span>
+            </span>
+          </label>
+        </div>
+
+        <div v-if="channelMode === 'selected'" class="channel-picker">
+          <EmptyState
+            v-if="accessChannels.length === 0"
+            size="sm"
+            icon="hash"
+            :title="t('bots.server.channelsEmpty')"
+          />
+          <label v-for="channel in accessChannels" :key="channel.id" class="permission-row channel-row">
+            <input v-model="selectedChannelIds" type="checkbox" :value="channel.id" />
+            <Icon :name="Number(channel.type) === 1 ? 'volume' : 'hash'" :size="14" class="channel-icon" />
+            <span class="channel-name">{{ channel.name }}</span>
+            <span v-if="!channel.everyone_can_view" class="permission-required-badge hidden-badge">
+              <Icon name="lock" :size="10" />
+              {{ t('bots.server.channelHidden') }}
+            </span>
+          </label>
+        </div>
+      </template>
+
+      <template #footer>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" :disabled="savingChannels" @click="closeChannelsModal">
+            {{ t('common.cancel') }}
+          </button>
+          <button
+            type="button"
+            class="btn btn-primary"
+            :disabled="savingChannels || channelsLoading"
+            @click="saveChannels"
+          >
+            {{ savingChannels ? t('bots.server.saving') : t('bots.server.save') }}
+          </button>
+        </div>
+      </template>
+    </BaseModal>
   </div>
 </template>
 
@@ -245,6 +315,20 @@ interface BotSummary {
   avatar_url: string | null
   bot_type: string | null
   is_public: boolean | null
+}
+
+/** get_bot_channel_access(): channels the caller can view; everyone_can_view after @everyone's override. */
+interface BotChannel {
+  id: string
+  name: string
+  type: number | string | null
+  category_id: string | null
+  everyone_can_view: boolean
+}
+
+interface BotChannelAccess {
+  allowed_channel_ids: string[] | null
+  channels: BotChannel[]
 }
 
 interface Installation extends Partial<Record<EnforcedBotPermission, boolean>> {
@@ -485,6 +569,73 @@ async function updatePermissions() {
     toast.error(t('bots.server.permissionsFailed'))
   } finally {
     updatingPerms.value = false
+  }
+}
+
+// Channels ---------------------------------------------------------------------
+
+const channelsInstallation = ref<Installation | null>(null)
+const channelsLoading = ref(false)
+const savingChannels = ref(false)
+const accessChannels = ref<BotChannel[]>([])
+const channelMode = ref<'all' | 'selected'>('all')
+const selectedChannelIds = ref<string[]>([])
+let channelsRequest = 0
+
+async function openChannelsModal(installation: Installation) {
+  const request = ++channelsRequest
+  channelsInstallation.value = installation
+  channelsLoading.value = true
+  accessChannels.value = []
+  selectedChannelIds.value = []
+  try {
+    const { data, error } = await supabase.rpc('get_bot_channel_access', {
+      p_server_id: props.serverId,
+      p_bot_id: installation.bot_id,
+    })
+    if (error) throw error
+    if (request !== channelsRequest) return
+    const access = data as BotChannelAccess
+    accessChannels.value = access.channels ?? []
+    channelMode.value = access.allowed_channel_ids === null ? 'all' : 'selected'
+    selectedChannelIds.value = access.allowed_channel_ids ?? []
+  } catch (error) {
+    if (request !== channelsRequest) return
+    debug.error('Failed to load bot channel access:', error)
+    toast.error(t('bots.server.channelsLoadFailed'))
+    channelsInstallation.value = null
+  } finally {
+    if (request === channelsRequest) channelsLoading.value = false
+  }
+}
+
+function closeChannelsModal() {
+  if (savingChannels.value) return
+  channelsRequest++
+  channelsInstallation.value = null
+  channelsLoading.value = false
+}
+
+// set_bot_allowed_channels keeps listed channels the caller cannot view.
+async function saveChannels() {
+  const installation = channelsInstallation.value
+  if (!installation || savingChannels.value) return
+
+  savingChannels.value = true
+  try {
+    const { error } = await supabase.rpc('set_bot_allowed_channels', {
+      p_server_id: props.serverId,
+      p_bot_id: installation.bot_id,
+      p_channel_ids: channelMode.value === 'all' ? null : selectedChannelIds.value,
+    })
+    if (error) throw error
+    toast.success(t('bots.server.channelsSaved'))
+    channelsInstallation.value = null
+  } catch (error) {
+    debug.error('Failed to save bot channels:', error)
+    toast.error(t('bots.server.channelsFailed'))
+  } finally {
+    savingChannels.value = false
   }
 }
 
@@ -839,6 +990,47 @@ onBeforeUnmount(() => {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.channel-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--background-quaternary);
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.channel-row {
+  align-items: center;
+}
+
+.channel-row input[type="checkbox"] {
+  margin-top: 0;
+}
+
+.channel-icon {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+}
+
+.channel-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.hidden-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
 }
 
 @media (max-width: 640px) {
