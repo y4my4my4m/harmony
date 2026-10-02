@@ -29,12 +29,14 @@ editJson('src-tauri/tauri.conf.json', (j) => { j.version = version; });
 // Cargo.toml — only the [package] version line
 {
   const path = 'src-tauri/Cargo.toml';
-  const lines = readFileSync(path, 'utf8').split('\n');
+  const src = readFileSync(path, 'utf8');
+  const eol = src.includes('\r\n') ? '\r\n' : '\n';
+  const lines = src.split(eol);
   const pkgIdx = lines.findIndex((l) => l.trim() === '[package]');
   const verIdx = lines.findIndex((l, i) => i > pkgIdx && /^version\s*=/.test(l));
   if (pkgIdx === -1 || verIdx === -1) { console.error('Cargo.toml [package] version not found'); process.exit(1); }
   lines[verIdx] = `version = "${version}"`;
-  writeFileSync(path, lines.join('\n'));
+  writeFileSync(path, lines.join(eol));
   console.log(`${path}`);
 }
 
@@ -42,7 +44,8 @@ editJson('src-tauri/tauri.conf.json', (j) => { j.version = version; });
 // build, leaving a dirty tree after every release.
 {
   const path = 'src-tauri/Cargo.lock';
-  const re = /(\[\[package\]\]\nname = "app"\nversion = ")[^"]*(")/;
+  // Windows runners check out with CRLF.
+  const re = /(\[\[package\]\]\r?\nname = "app"\r?\nversion = ")[^"]*(")/;
   const src = readFileSync(path, 'utf8');
   if (!re.test(src)) { console.error(`${path}: app package entry not found`); process.exit(1); }
   writeFileSync(path, src.replace(re, `$1${version}$2`));
