@@ -6,6 +6,18 @@
         <p class="panel-subtitle">{{ $t('emptyServers.subtitle', { instance: instanceName }) }}</p>
       </header>
 
+      <OnboardingServerSuggestions
+        v-if="suggestedServers.length > 0"
+        class="suggestions"
+        :servers="suggestedServers"
+        :source="suggestions.source === 'welcome' ? 'welcome' : 'featured'"
+        :instance-name="instanceName"
+        :joining-id="joiningId"
+        :skip-label="$t('welcomeServer.dismiss')"
+        @join="joinSuggested"
+        @skip="dismissSuggested"
+      />
+
       <form class="invite-form" @submit.prevent="joinWithInvite">
         <label class="field-label" for="invite-input">{{ $t('emptyServers.inviteLabel') }}</label>
         <div class="invite-row">
@@ -72,7 +84,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import CreateServerForm from './CreateServer.vue';
@@ -80,6 +92,8 @@ import JoinFederatedServer from './JoinFederatedServer.vue';
 import Icon from '@/components/common/Icon.vue';
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
 import { parseInviteInput } from '@/utils/inviteInput';
+import OnboardingServerSuggestions from '@/components/welcome/OnboardingServerSuggestions.vue';
+import { useOnboardingServers } from '@/composables/useOnboardingServers';
 
 const emit = defineEmits<{
   showPublicServers: []
@@ -97,6 +111,16 @@ const inviteError = ref('');
 const instanceName = computed(() => instanceSettings.settings.instanceName || 'Harmony');
 
 watch(inviteValue, () => { inviteError.value = ''; });
+
+const {
+  servers: suggestedServers,
+  suggestions,
+  joiningId,
+  load: loadSuggestions,
+  join: joinSuggested,
+  dismiss: dismissSuggested,
+} = useOnboardingServers({ respectDismissed: true });
+onMounted(() => { void loadSuggestions(); });
 
 function joinWithInvite() {
   const parsed = parseInviteInput(inviteValue.value, window.location.origin);
@@ -144,6 +168,10 @@ function joinWithInvite() {
   font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
   color: var(--text-secondary);
+}
+
+.suggestions {
+  padding-bottom: var(--space-2);
 }
 
 .invite-form {

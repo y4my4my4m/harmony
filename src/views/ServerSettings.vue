@@ -114,6 +114,14 @@
             :permissions="permissions"
             @file-change="handleFileChange"
             @banner-change="handleBannerChange"
+            @edit-rules="setActiveSection('welcome')"
+          />
+
+          <!-- Welcome screen and rules -->
+          <ServerWelcomeSettings
+            v-if="activeSection === 'welcome' && permissions.canEditBasicInfo"
+            :server-id="serverId"
+            @rules-saved="syncSavedRules"
           />
 
           <ServerNewcomerAlerts
@@ -227,6 +235,7 @@ import ServerBans from '@/components/settings/server/ServerBans.vue'
 import ServerNewcomerAlerts from '@/components/settings/server/ServerNewcomerAlerts.vue'
 import ServerAutoMod from '@/components/settings/server/ServerAutoMod.vue'
 import AutoModOptInBanner from '@/components/settings/server/AutoModOptInBanner.vue'
+import ServerWelcomeSettings from '@/components/settings/server/ServerWelcomeSettings.vue'
 import { getServerAutoMod, type AutoModState } from '@/services/AutoModService'
 const ReportsModeration = defineAsyncComponent(() => import('@/components/admin/ReportsModeration.vue'))
 
@@ -316,6 +325,10 @@ const availableSections = computed(() => {
     ...(p.canModerateReports ? [{ id: 'reports', label: t('server.reports', 'Reports') }] : []),
     // MANAGE_SERVER on a local server; the RPCs refuse anyone else.
     ...(p.canEditBasicInfo ? [{ id: 'automod', label: t('automod.title') }] : []),
+    // Served by the server's home instance; set_server_welcome refuses remote servers.
+    ...(p.canEditBasicInfo && server.value.is_local_server !== false
+      ? [{ id: 'welcome', label: t('serverWelcome.settings.navLabel') }]
+      : []),
     { id: 'emoji', label: t('server.emoji') },
     { id: 'privacy', label: t('server.privacySettings') },
     { id: 'advanced', label: t('server.advancedSettings') }
@@ -408,6 +421,11 @@ const fetchEmojis = async () => {
     debug.error('Error fetching emojis:', error)
     toast.error(t('server.failedToLoadEmojis'))
   }
+}
+
+const syncSavedRules = (titles: string[]) => {
+  server.value = { ...server.value, rules: titles }
+  if (originalServer.value) originalServer.value = { ...originalServer.value, rules: titles }
 }
 
 const handleFileChange = (file: File | null) => {

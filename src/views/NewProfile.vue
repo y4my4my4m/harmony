@@ -1,6 +1,24 @@
 <template>
   <main class="new-profile-page">
+    <div v-if="step === 'suggest'" class="profile-card" data-testid="new-profile-suggestions">
+      <header class="np-header">
+        <img :src="instanceIcon" alt="" class="instance-icon" width="40" height="40" />
+        <h1 class="np-title">{{ $t('welcomeServer.stepTitle', { instance: instanceName }) }}</h1>
+        <p class="np-subtitle">{{ $t('welcomeServer.stepSubtitle') }}</p>
+      </header>
+      <OnboardingServerSuggestions
+        :servers="suggestedServers"
+        :source="suggestions.source === 'welcome' ? 'welcome' : 'featured'"
+        :instance-name="instanceName"
+        :joining-id="joiningId"
+        :skip-label="$t('welcomeServer.skipForNow')"
+        @join="joinSuggested"
+        @skip="finishOnboarding"
+      />
+    </div>
+
     <form
+      v-else
       class="profile-card"
       data-testid="new-profile-card"
       novalidate
@@ -144,10 +162,12 @@ import { useProfileStore } from '@/stores/useProfile';
 import { useAuthStore } from '@/stores/auth';
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
 import { uploadAvatar, downloadAndUploadImage } from '@/utils/fileUpload';
-import { consumePostAuthRedirect } from '@/utils/postAuthRedirect';
+import { consumePostAuthRedirect, peekPostAuthRedirect } from '@/utils/postAuthRedirect';
 import { normalizeUsernameInput, USERNAME_MIN_LENGTH } from '@/utils/usernameRules';
 import { supabase } from '@/supabase';
 import Icon from '@/components/common/Icon.vue';
+import OnboardingServerSuggestions from '@/components/welcome/OnboardingServerSuggestions.vue';
+import { useOnboardingServers } from '@/composables/useOnboardingServers';
 
 const DEFAULT_PROFILE_COLOR = '#0EA5E9';
 const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
@@ -173,6 +193,15 @@ const checkingUsername = ref(false);
 const isCreatingProfile = ref(false);
 const formError = ref('');
 const instanceDomain = ref<string | null>(null);
+/** form: profile fields. suggest: the instance's suggested servers, after the profile exists. */
+const step = ref<'form' | 'suggest'>('form');
+const {
+  servers: suggestedServers,
+  suggestions,
+  joiningId,
+  load: loadSuggestions,
+  join: joinServerSuggestion,
+} = useOnboardingServers();
 
 let usernameCheckTimeout: ReturnType<typeof setTimeout> | null = null;
 let usernameCheckSeq = 0;
@@ -379,6 +408,7 @@ async function createProfile() {
     const created = await profileStore.createProfile(profileData);
 
     await finishSetup(user.id, created);
+    if (await offerSuggestedServers()) return;
     await router.replace(consumePostAuthRedirect('/chat'));
   } catch (error: any) {
     debug.error('Profile creation failed:', error);
@@ -401,6 +431,27 @@ async function createProfile() {
   } finally {
     isCreatingProfile.value = false;
   }
+}
+
+/**
+ * Shows the suggestion step when the instance suggests servers and signup was not headed
+ * somewhere specific, such as an invite link. True when the step is showing.
+ */
+async function offerSuggestedServers(): Promise<boolean> {
+  const destination = peekPostAuthRedirect();
+  if (destination && !/^\/chat(?:[/?#]|$)/.test(destination)) return false;
+  const { servers } = await loadSuggestions();
+  if (servers.length === 0) return false;
+  step.value = 'suggest';
+  return true;
+}
+
+async function joinSuggested(serverId: string) {
+  if (await joinServerSuggestion(serverId)) consumePostAuthRedirect();
+}
+
+async function finishOnboarding() {
+  await router.replace(consumePostAuthRedirect('/chat'));
 }
 
 /** Post-insert steps. None of them block entry to the app. */

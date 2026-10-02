@@ -159,6 +159,8 @@
     @close="showChannelEditModal = false"
     @updated="showChannelEditModal = false"
   />
+
+  <ServerWelcomeHost :is-dm="isDM" />
 </template>
 
 <script setup lang="ts">
@@ -176,6 +178,7 @@ import PinnedMessagesPopup from '@/components/PinnedMessagesPopup.vue'
 import AllThreadsModal from '@/components/threads/AllThreadsModal.vue'
 import ThreadView from '@/components/threads/ThreadView.vue'
 import ChannelEditModal from '@/components/ChannelEditModal.vue'
+import ServerWelcomeHost from '@/components/welcome/ServerWelcomeHost.vue'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useChatStore } from '@/stores/useChat'
 import { useDMStore } from '@/stores/useDM'

@@ -59,22 +59,25 @@
         </div>
       </div>
 
+      <!-- Rules are edited with the welcome screen, which copies their titles to servers.rules. -->
       <div class="form-group">
-        <label class="form-label" for="server-rules">{{ $t('server.rulesLabel', 'Server rules') }}</label>
-        <textarea
-          id="server-rules"
-          v-model="rulesText"
-          class="form-textarea"
-          :class="{ 'read-only': !permissions.canChangeServerDescription }"
-          :placeholder="$t('server.rulesPlaceholder', 'One rule per line, e.g.\nBe respectful\nNo spam')"
-          :disabled="loading || !permissions.canChangeServerDescription"
-          :readonly="!permissions.canChangeServerDescription"
-          rows="5"
-          @input="updateServerRules"
-        />
+        <span class="form-label">{{ $t('server.rulesLabel', 'Server rules') }}</span>
+        <ol v-if="(server.rules ?? []).length > 0" class="rules-summary">
+          <li v-for="(rule, index) in server.rules" :key="index">{{ rule }}</li>
+        </ol>
+        <p v-else class="rules-summary-empty">{{ $t('serverWelcome.settings.noRules') }}</p>
         <div class="form-hint">
-          {{ $t('server.rulesHint', 'Shown to people before they accept an invite (max 25 rules).') }}
+          {{ $t('serverWelcome.settings.rulesMovedHint') }}
         </div>
+        <button
+          v-if="permissions.canEditBasicInfo"
+          type="button"
+          class="btn btn-secondary rules-edit"
+          data-testid="edit-rules-link"
+          @click="emit('edit-rules')"
+        >
+          {{ $t('serverWelcome.settings.editRules') }}
+        </button>
       </div>
 
       <div class="form-group">
@@ -229,6 +232,7 @@ interface Emits {
   (e: 'update:selectedFile', value: File | null): void
   (e: 'file-change', file: File | null): void
   (e: 'banner-change', file: File | null): void
+  (e: 'edit-rules'): void
 }
 
 const props = defineProps<Props>()
@@ -365,26 +369,6 @@ const updateServerDescription = (event: Event) => {
   emit('update:server', updatedServer)
 }
 
-// Local text buffer so filtering empty lines doesn't fight the textarea cursor;
-// the parsed array (one rule per line, max 25) is what gets emitted/saved.
-const rulesText = ref((props.server.rules ?? []).join('\n'))
-
-watch(
-  () => props.server.id,
-  () => {
-    rulesText.value = (props.server.rules ?? []).join('\n')
-  },
-)
-
-const updateServerRules = () => {
-  if (!props.permissions.canChangeServerDescription) return
-  const rules = rulesText.value
-    .split('\n')
-    .map((line) => line.trim().slice(0, 300))
-    .filter((line) => line.length > 0)
-    .slice(0, 25)
-  emit('update:server', { ...props.server, rules })
-}
 </script>
 
 <style scoped>
@@ -409,6 +393,24 @@ const updateServerRules = () => {
   font-size: 14px;
   color: var(--text-secondary);
   margin: 0;
+}
+
+.rules-summary {
+  margin: 8px 0 0;
+  padding-left: 20px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-primary);
+}
+
+.rules-summary-empty {
+  margin: 8px 0 0;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.rules-edit {
+  margin-top: 12px;
 }
 
 .settings-card {

@@ -151,6 +151,7 @@
 
     <div v-else-if="activeAdminTab === 'content'" class="admin-grid">
       <AnnouncementsAdmin />
+      <WelcomeServerAdmin />
       <FeaturedCommunities />
     </div>
 
@@ -208,6 +209,7 @@ const ReportsModeration = defineAsyncComponent(() => import('@/components/admin/
 const AntiSpamAdmin = defineAsyncComponent(() => import('@/components/admin/AntiSpamAdmin.vue'))
 const AnnouncementsAdmin = defineAsyncComponent(() => import('@/components/admin/AnnouncementsAdmin.vue'))
 const FeaturedCommunities = defineAsyncComponent(() => import('@/components/admin/FeaturedCommunities.vue'))
+const WelcomeServerAdmin = defineAsyncComponent(() => import('@/components/admin/WelcomeServerAdmin.vue'))
 const InstanceConfig = defineAsyncComponent(() => import('@/components/admin/InstanceConfig.vue'))
 const FundingSupporters = defineAsyncComponent(() => import('@/components/admin/FundingSupporters.vue'))
 import { adminService } from '@/services/AdminService'

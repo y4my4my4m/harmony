@@ -9,7 +9,7 @@ export interface Server {
   owner: string;
   icon: string;
   banner?: string;
-  /** Owner-set rules (max 25) agreed to in the invite accept flow. */
+  /** Rule titles shown in the invite accept flow; a copy of the welcome screen's rules when one exists. */
   rules?: string[];
   allow_cross_server_emojis: boolean;
   public: boolean;
