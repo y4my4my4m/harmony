@@ -1511,7 +1511,28 @@
     },
     "status": {
       "online": "Online",
+      "away": "Idle",
+      "busy": "Do not disturb",
       "offline": "Offline"
+    },
+    "profile": {
+      "about": "About",
+      "created": "Created",
+      "status": "Status",
+      "commands": "Commands",
+      "commandsTitle": "Commands ({count})",
+      "showAllCommands": "Show all {count}",
+      "showFewerCommands": "Show fewer",
+      "website": "Website",
+      "supportServer": "Support server",
+      "openServer": "Open",
+      "joinServer": "Join",
+      "settings": "Bot settings",
+      "remove": "Remove from server",
+      "addToServer": "Add to server",
+      "yourServers": "Servers you own",
+      "loadFailed": "Could not load this bot's details",
+      "close": "Close"
     },
     "empty": {
       "title": "No bots yet",

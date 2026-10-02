@@ -2,6 +2,7 @@ import { computed, ref, toValue, watch, type MaybeRefOrGetter, type Ref } from '
 import { useUserData, DEFAULT_USER_COLOR } from '@/composables/useUserData'
 import { useServerRolesStore } from '@/stores/useServerRoles'
 import { supabase } from '@/supabase'
+import { BOT_NAME_COLOR } from '@/utils/botUtils'
 import type { Message } from '@/types'
 import {
   findBridgedUserInCache,
@@ -93,7 +94,7 @@ export function useMessageAuthorPresentation(
       }
       return '#5865F2'
     }
-    if (msg.bot_id) return '#0EA5E9'
+    if (msg.bot_id) return BOT_NAME_COLOR
     if (msg.user_id) {
       const serverId = toValue(options?.serverId)
       const roleColor = serverId ? serverRolesStore.getUserRoleColor(serverId, msg.user_id) : null

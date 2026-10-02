@@ -1,5 +1,5 @@
 <template>
-  <div class="server-bots-settings">
+  <div id="server-bots" ref="rootEl" class="server-bots-settings">
     <div class="settings-section">
       <h2 class="section-title">{{ t('bots.server.title') }}</h2>
       <p class="section-description">{{ t('bots.server.description') }}</p>
@@ -210,6 +210,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import { useToast } from 'vue-toastification'
 import { formatDistanceToNow } from 'date-fns'
 import { supabase } from '@/supabase'
@@ -504,7 +505,11 @@ async function removeBot(installation: Installation) {
   }
 }
 
+const route = useRoute()
+const rootEl = ref<HTMLElement | null>(null)
+
 onMounted(() => {
+  if (route.hash === '#server-bots') rootEl.value?.scrollIntoView({ block: 'start' })
   loadInstalled()
   loadDirectoryPage(true)
 })

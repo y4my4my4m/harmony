@@ -199,7 +199,7 @@
 <script setup lang="ts">
 import { onMounted, ref, computed, watch, onUnmounted, defineAsyncComponent } from 'vue'
 import { debug } from '@/utils/debug'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
 import { useI18n } from 'vue-i18n'
 import { useServerStore } from '@/stores/server'
@@ -238,6 +238,7 @@ const { isMobile } = useLayoutState()
 
 // Composables
 const router = useRouter()
+const route = useRoute()
 const serverStore = useServerStore()
 const emojiCacheStore = useEmojiCacheStore()
 const toast = useToast()
@@ -314,6 +315,13 @@ const availableSections = computed(() => {
     { id: 'advanced', label: t('server.advancedSettings') }
   ]
 })
+
+// ?section= opens that section when it is available on load; otherwise the overview stays.
+const requestedSection = route.query.section
+if (typeof requestedSection === 'string' && availableSections.value.some(s => s.id === requestedSection)) {
+  activeSection.value = requestedSection
+  showSidebar.value = false
+}
 
 const generalHasChanges = computed(() => {
   if (!originalServer.value) return false

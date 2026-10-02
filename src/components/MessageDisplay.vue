@@ -588,6 +588,15 @@
     @mention="(username: string) => { emit('mentionUser', username); closeProfile(); }"
   />
 
+  <BotProfileModal
+    v-if="selectedBot"
+    :show="true"
+    :bot-id="selectedBot.id"
+    :server-id="conversationId ? null : serverChannelStore.currentServerId"
+    :preview="selectedBot"
+    @close="selectedBot = null"
+  />
+
   <!-- Invite Modal -->
   <InviteModal 
     :show="showInviteModal" 
@@ -707,6 +716,9 @@ import { markChannelRead, markConversationRead } from '@/services/readState';
 import { createReadMarkerQueue, type QueuedRead } from '@/utils/readMarkerQueue';
 import { format, isToday, isYesterday, isSameDay, isValid } from 'date-fns';
 import UserProfileModal from '@/components/UserProfileModal.vue';
+import BotProfileModal from '@/components/BotProfileModal.vue';
+import type { ServerBot } from '@/services/serverBotsService';
+import { BOT_NAME_COLOR } from '@/utils/botUtils';
 import InviteModal from '@/components/InviteModal.vue';
 import UnifiedMessageContent from '@/components/UnifiedMessageContent.vue';
 import ReactionIcon from '@/components/icons/Reaction.vue';
@@ -1351,7 +1363,7 @@ const getBotAvatarUrl = (botId: string): ComputedRef<string> => {
 
 // eslint-disable-next-line unused-imports/no-unused-vars
 const getBotColor = (_botId: string): ComputedRef<string> => {
-  return computed(() => '#0EA5E9'); // Discord bot color
+  return computed(() => BOT_NAME_COLOR);
 };
 
 // Unified helper functions that work for users, bots, and Discord users
@@ -1417,9 +1429,8 @@ const getAuthorColor = (message: Message): ComputedRef<string> => {
       return color || 'var(--text-primary)';
     }
     
-    // Regular bot
     if (message.bot_id) {
-      return '#0EA5E9';
+      return BOT_NAME_COLOR;
     }
     
     // Regular user - prefer highest-position role color in the active server.
@@ -1605,6 +1616,7 @@ const isAtTop = ref(false);
 const hasScrollbar = ref(false);
 const selectedUser = ref<User | null>(null);
 const showProfileModal = ref(false);
+const selectedBot = ref<(Partial<ServerBot> & { id: string }) | null>(null);
 const showInviteModal = ref(false);
 
 const showDeleteConfirmModal = ref(false);
@@ -2695,7 +2707,7 @@ const showTooltip = async (event: MouseEvent, reaction: Reaction) => {
         id: discordUser.id,
         displayName: discordUser.display_name || discordUser.username || 'Discord User',
         avatarUrl: discordUser.avatar_url || '',
-        userColor: '#0EA5E9', // Discord brand color
+        userColor: BOT_NAME_COLOR,
         isBridged: true,
         bridgeSource: 'discord'
       };
@@ -3571,6 +3583,16 @@ const handleAuthorClick = (message: Message, event?: MouseEvent) => {
       cached ?? discordMetadataToBridgedUser(meta),
     ) as User;
     showProfileModal.value = true;
+    return;
+  }
+  if (message.bot_id) {
+    const bot = botDataCache.value.get(message.bot_id);
+    selectedBot.value = {
+      id: message.bot_id,
+      username: bot?.username,
+      displayName: bot?.display_name || bot?.username,
+      avatarUrl: bot?.avatar_url || undefined,
+    };
     return;
   }
   const authorId = getMessageAuthorId(message);

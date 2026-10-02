@@ -427,6 +427,7 @@ import { formatDistanceToNow } from 'date-fns'
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
 import { authContextService } from '@/services/AuthContextService'
+import { addBotToServer, fetchBotInstallTargets } from '@/services/botProfileService'
 import { getStoredInstance } from '@/services/instanceConfig'
 import { resolveHarmonyBaseUrl } from '@/utils/discordBridgeSetup'
 import {
@@ -434,7 +435,6 @@ import {
   BOT_USERNAME_MAX,
   botUsernameError,
   buildBotEndpoints,
-  defaultBotPermissions,
   formatTokenHint,
   isBotOnline,
   type BotPresenceRow,
@@ -883,34 +883,13 @@ const installedServerIds = ref<Set<string>>(new Set())
 const serversLoading = ref(false)
 const addingServerId = ref<string | null>(null)
 
-// add_bot_to_server admits the server owner (and instance admins); the list is owned servers.
 async function loadInstallTargets(botId: string) {
   serversLoading.value = true
   try {
-    const profileId = await authContextService.getCurrentProfileId()
-    const { data: servers, error } = await supabase
-      .from('servers')
-      .select('id, name, icon')
-      .eq('owner', profileId)
-      .order('name')
-    if (error) throw error
-    const list = (servers ?? []) as OwnedServer[]
-
-    let installed = new Set<string>()
-    if (list.length > 0) {
-      const { data: rows, error: permError } = await supabase
-        .from('bot_server_permissions')
-        .select('server_id')
-        .eq('bot_id', botId)
-        .eq('is_active', true)
-        .in('server_id', list.map(s => s.id))
-      if (permError) throw permError
-      installed = new Set(((rows ?? []) as Array<{ server_id: string }>).map(r => r.server_id))
-    }
-
+    const targets = await fetchBotInstallTargets(botId)
     if (detailBotId.value !== botId) return
-    ownedServers.value = list
-    installedServerIds.value = installed
+    ownedServers.value = targets.servers
+    installedServerIds.value = targets.installed
   } catch (error) {
     debug.error('Failed to load install targets:', error)
     toast.error(t('bots.install.loadFailed'))
@@ -924,14 +903,7 @@ async function addToServer(server: OwnedServer) {
   if (!bot || addingServerId.value) return
   addingServerId.value = server.id
   try {
-    const profileId = await authContextService.getCurrentProfileId()
-    const { error } = await supabase.rpc('add_bot_to_server', {
-      p_bot_id: bot.id,
-      p_server_id: server.id,
-      p_installed_by: profileId,
-      p_permissions: defaultBotPermissions(bot.bot_type),
-    })
-    if (error) throw error
+    await addBotToServer(bot.id, bot.bot_type, server.id)
 
     installedServerIds.value = new Set([...installedServerIds.value, server.id])
     toast.success(t('bots.install.success', { bot: botName(bot), server: server.name }))

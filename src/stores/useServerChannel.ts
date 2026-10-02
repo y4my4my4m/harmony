@@ -9,6 +9,7 @@ import { useThreadsStore } from '@/stores/useThreads';
 import { statePersistence } from '@/services/StatePersistence';
 import { userEventChannel } from '@/services/UserEventChannel';
 import { authContextService } from '@/services/AuthContextService';
+import { SERVER_BOT_CHANGE_EVENT } from '@/services/serverBotsService';
 import { debug } from '@/utils/debug';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import router from '@/router';
@@ -1803,6 +1804,12 @@ export const useServerChannelStore = defineStore('serverChannel', {
             case 'permission_override:delete':
               window.dispatchEvent(new CustomEvent('server-structure:permission-change', { detail: data }));
               this._scheduleVisibleChannelRefresh(serverId);
+              break;
+            case 'bot:insert':
+            case 'bot:update':
+            case 'bot:delete':
+            case 'bot:presence':
+              window.dispatchEvent(new CustomEvent(SERVER_BOT_CHANGE_EVENT, { detail: data }));
               break;
           }
         })
