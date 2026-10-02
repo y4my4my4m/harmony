@@ -49,7 +49,7 @@ The service loads `.env` from its working directory. `.env.example` is the templ
 | `FEDERATION_BACKEND_URL` | `http://localhost:3001` | Federation backend. Receives a link-preview request after each bot message. Must be `https://` or a localhost address; otherwise no request is sent. |
 | `INTERNAL_API_SECRET` | `SUPABASE_SERVICE_ROLE_KEY` | Bearer token for the link-preview request. |
 
-The instance setting **Bridge attachments** (admin instance configuration, stored as `bridge_attachment_mode`) controls Discord CDN attachments posted by bots: `link` stores the URL, `mirror` copies the file into the `user_media` bucket, `refresh` enables `POST /attachments/refresh`.
+The instance setting **Bridge attachments** (admin instance configuration, stored as `bridge_attachment_mode`) controls Discord CDN attachments posted by bots: `link` stores the URL, `mirror` copies the file into the channel's folder of the private `message_media` bucket, `refresh` enables `POST /attachments/refresh`.
 
 ## Running
 

@@ -33,7 +33,8 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 
 interface Props {
-  src: string
+  /** Absent while a private attachment is being signed. */
+  src?: string
   duration?: number
   waveform?: number[]
 }
@@ -83,7 +84,7 @@ function formatTime(seconds: number): string {
 }
 
 const togglePlay = () => {
-  if (!audio.value) return
+  if (!audio.value || !props.src) return
   if (isPlaying.value) {
     audio.value.pause()
   } else {
@@ -107,7 +108,7 @@ const seek = (e: MouseEvent) => {
 }
 
 onMounted(() => {
-  const el = new Audio(props.src)
+  const el = props.src ? new Audio(props.src) : new Audio()
   el.preload = 'metadata'
   audio.value = el
 
@@ -134,7 +135,7 @@ onUnmounted(() => {
 })
 
 watch(() => props.src, (newSrc) => {
-  if (audio.value) {
+  if (audio.value && newSrc) {
     audio.value.pause()
     audio.value.src = newSrc
     audio.value.load()

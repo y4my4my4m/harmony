@@ -204,6 +204,7 @@ import { adminService } from '@/services/AdminService'
 import { reportService, type ReportWithDetails } from '@/services/ReportService'
 import { userDataService } from '@/services/userDataService'
 import { supabase } from '@/supabase'
+import { MESSAGE_MEDIA_BUCKET, mediaPartSource, storageObjectFromUrl } from '@/services/privateMedia'
 import { formatDate } from './adminFormat'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import {
@@ -416,27 +417,42 @@ const runAction = async (report: ReportWithDetails, action: ReportAction) => {
   }
 }
 
+// A message_media URL in a preview links to a freshly signed URL; the one a part
+// carries expires. Moderators of the report sign it through message_media_reported().
+const reportLinkHref = (escapedUrl: string): string => {
+  const url = escapedUrl.replace(/&amp;/g, '&')
+  const object = storageObjectFromUrl(url)
+  if (object?.bucket !== MESSAGE_MEDIA_BUCKET) return escapedUrl
+  return escapeHtml(mediaPartSource({ url, path: object.path }) ?? url)
+}
+
 const linkifyReportPreview = (text: string): string => {
   const escaped = escapeHtml(text)
   return escaped.replace(
     /(https?:\/\/[^\s\]]+)/g,
-    '<a href="$1" target="_blank" rel="noopener noreferrer" class="report-link" onclick="event.stopPropagation()">$1</a>'
+    (url) => `<a href="${reportLinkHref(url)}" target="_blank" rel="noopener noreferrer" class="report-link" onclick="event.stopPropagation()">${url}</a>`
   )
 }
 
+// Storage URLs of the content now and of the snapshot taken at report time; a
+// migrated attachment has its user_media original in the first and its
+// message_media copy in the second.
 const extractStorageUrls = (report: ReportWithDetails): string[] => {
-  const preview = report.reported_message_preview || report.reported_post_preview || ''
+  const preview = [
+    report.reported_message_preview || report.reported_post_preview || '',
+    ...snapshotEvidence(report.content_snapshot).map((item) => item.text),
+  ].join(' ')
   const supabaseHost = import.meta.env.VITE_SUPABASE_URL || ''
-  const urls: string[] = []
+  const urls = new Set<string>()
   const urlRegex = /https?:\/\/[^\s\]]+/g
   let match
   while ((match = urlRegex.exec(preview)) !== null) {
     const url = match[0]
     if (url.includes('/storage/') || (supabaseHost && url.startsWith(supabaseHost))) {
-      urls.push(url)
+      urls.add(url)
     }
   }
-  return urls
+  return [...urls]
 }
 
 const deleteReportedMedia = async (report: ReportWithDetails) => {
@@ -447,12 +463,9 @@ const deleteReportedMedia = async (report: ReportWithDetails) => {
   let deleted = 0
   for (const url of urls) {
     try {
-      const pathMatch = url.match(/\/storage\/v1\/object\/public\/([^?]+)/)
-      if (pathMatch) {
-        const fullPath = pathMatch[1]
-        const slashIdx = fullPath.indexOf('/')
-        const bucket = fullPath.substring(0, slashIdx)
-        const filePath = fullPath.substring(slashIdx + 1)
+      const object = storageObjectFromUrl(url)
+      if (object) {
+        const { bucket, path: filePath } = object
         const { error } = await supabase.storage.from(bucket).remove([filePath])
         if (!error) deleted++
         else debug.error(`Failed to delete ${filePath}:`, error)

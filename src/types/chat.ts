@@ -369,7 +369,11 @@ export interface ChannelMentionContent {
 
 export interface FileContent {
   type: 'file';
+  /** Legacy parts: the public or remote URL. Parts with `path`: a signed URL that
+      clients before 1.6.6 render, valid seven days from upload. */
   url: string;
+  /** message_media object name; see services/privateMedia.ts. */
+  path?: string;
   fileType: string; // e.g., 'image', 'video'
   fileName?: string; // Optional file name
   fileSize?: number; // Optional file size in bytes

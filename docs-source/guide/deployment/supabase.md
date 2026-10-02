@@ -124,8 +124,13 @@ Permissions use `bigint` bitmasks, not JSONB. See `permissionsService.ts` for bi
 
 - User avatars and banners
 - Server icons
-- Message attachments
+- Message attachments (`message_media`, private)
+- Post media (`user_media`, public)
 - Custom emoji
+
+`message_media` is private: members of a channel or conversation read its attachments
+through signed URLs, and other instances through the federation backend's `/media`
+route (`/api/federation/media/` behind nginx).
 
 ## Authentication
 

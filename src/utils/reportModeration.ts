@@ -4,6 +4,8 @@
  * this decides what the UI shows.
  */
 
+import { isPrivateMediaPart, messageMediaReferenceUrl } from '@/services/privateMedia'
+
 export type ReportCategory = 'spam' | 'legal' | 'violation' | 'other'
 
 export type ReportReason =
@@ -189,6 +191,7 @@ interface SnapshotPart {
   name?: string
   filename?: string
   fileType?: string
+  path?: string
   emoji?: { name?: string }
 }
 
@@ -199,7 +202,9 @@ function partText(part: SnapshotPart): string {
     case 'mention': return part.mention ?? `@${part.username ?? 'user'}`
     case 'hashtag': return `#${part.name ?? 'tag'}`
     case 'emoji': return `:${part.emoji?.name ?? 'emoji'}:`
-    case 'file': return `[${part.fileType ?? 'file'}: ${part.filename ?? part.url ?? 'attachment'}]`
+    // A private attachment links by reference; ReportsModeration signs it on display.
+    case 'file': return `[${part.fileType ?? 'file'}: ${
+      isPrivateMediaPart(part) ? messageMediaReferenceUrl(part.path) : (part.filename ?? part.url ?? 'attachment')}]`
     default: return part?.type ? `[${part.type}]` : ''
   }
 }

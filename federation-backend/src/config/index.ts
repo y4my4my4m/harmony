@@ -132,6 +132,18 @@ const envSchema = z.object({
     (v) => (typeof v === 'string' && v.trim() ? v.trim() : undefined),
     z.string().optional(),
   ),
+  // HMAC key of federated attachment URLs (utils/privateMedia.ts). Derived from the
+  // service-role key when unset; rotating either key invalidates URLs already delivered.
+  MEDIA_URL_SECRET: z.preprocess(
+    (v) => (typeof v === 'string' && v.trim() ? v.trim() : undefined),
+    z.string().min(32).optional(),
+  ),
+  // Public base of the media route, the prefix nginx forwards to this backend.
+  // Default: https://<INSTANCE_DOMAIN>/api/federation
+  MEDIA_PUBLIC_BASE_URL: z.preprocess(
+    (v) => (typeof v === 'string' && v.trim() ? v.trim() : undefined),
+    z.string().url().optional(),
+  ),
 });
 
 const parseEnv = () => {

@@ -5,11 +5,13 @@ import { postToNote } from './converters/toActivityPub.js';
 import { renderPostPage, renderOEmbed } from './postPageRenderer.js';
 import config from '../config/index.js';
 import { isPublicView, loadGroupAccess, readableChannelIds, verifiedSigner } from './groupAccess.js';
+import { PRIVATE_CACHE, PUBLIC_VISIBILITIES, canReadConversation, canReadPost } from './postAccess.js';
 
 const router = Router();
 
 /**
- * User outbox endpoint with cursor-based pagination
+ * User outbox endpoint with cursor-based pagination. Public and unlisted posts only;
+ * followers-only and direct posts reach their audience by delivery and signed fetch.
  * GET /users/:username/outbox
  * Query params:
  *   - cursor: ID of last post (for cursor-based pagination)
@@ -52,7 +54,8 @@ router.get(
         .select('*', { count: 'exact', head: true })
         .eq('author_id', user.id)
         .eq('is_local', true)
-        .eq('is_deleted', false);
+        .eq('is_deleted', false)
+        .in('visibility', [...PUBLIC_VISIBILITIES]);
 
       if (activityType === 'Announce') {
         countQuery = countQuery.not('metadata->reblog_of', 'is', null);
@@ -81,6 +84,7 @@ router.get(
       .eq('author_id', user.id)
       .eq('is_local', true)
       .eq('is_deleted', false)
+      .in('visibility', [...PUBLIC_VISIBILITIES])
       .order('created_at', { ascending: false })
       .limit(limit + 1);
 
@@ -130,20 +134,25 @@ router.get(
           type: 'Announce',
           actor: `${baseUrl}/users/${username}`,
           published: post.created_at,
-          to: ['https://www.w3.org/ns/activitystreams#Public'],
-          cc: [`${baseUrl}/users/${username}/followers`],
+          to: post.visibility === 'unlisted'
+            ? [`${baseUrl}/users/${username}/followers`]
+            : ['https://www.w3.org/ns/activitystreams#Public'],
+          cc: post.visibility === 'unlisted'
+            ? ['https://www.w3.org/ns/activitystreams#Public']
+            : [`${baseUrl}/users/${username}/followers`],
           object: post.metadata?.reblog_of_ap_url || `${baseUrl}/posts/${post.metadata?.reblog_of}`,
         };
       } else {
+        const note = postToNote(post, user);
         return {
           '@context': 'https://www.w3.org/ns/activitystreams',
           id: `${baseUrl}/activities/${post.id}`,
           type: 'Create',
           actor: `${baseUrl}/users/${username}`,
           published: post.created_at,
-          to: ['https://www.w3.org/ns/activitystreams#Public'],
-          cc: [`${baseUrl}/users/${username}/followers`],
-          object: postToNote(post, user),
+          to: note.to,
+          cc: note.cc,
+          object: note,
         };
       }
     });
@@ -181,7 +190,9 @@ router.get(
  *  - Accept: application/activity+json → ActivityPub Note (JSON)
  *  - Anything else (browsers, crawlers) → HTML page with OG meta tags
  *
- * Only public and unlisted posts are served to anonymous viewers.
+ * Public and unlisted posts are served to anyone. A followers-only or direct post is served
+ * as ActivityPub to a signer that may read it (postAccess.ts), never as HTML; anyone else
+ * gets the 404 an unknown id gets.
  */
 router.get(
   '/posts/:postId',
@@ -218,6 +229,10 @@ router.get(
       return res.status(404).send(render404Page());
     }
 
+    if (wantsActivityPub && !(await canReadPost(req, post))) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
     if (wantsActivityPub) {
       const note = postToNote(post, post.author);
 
@@ -233,7 +248,9 @@ router.get(
       }
 
       res.setHeader('Content-Type', 'application/activity+json');
-      res.setHeader('Cache-Control', 'public, max-age=300');
+      res.setHeader('Cache-Control', post.visibility === 'public' || post.visibility === 'unlisted'
+        ? 'public, max-age=300'
+        : PRIVATE_CACHE);
       return res.json(note);
     }
 
@@ -341,13 +358,16 @@ router.get(
 
     const { data: post } = await supabase
       .from('posts')
-      .select('id, ap_id')
+      .select('id, ap_id, visibility')
       .eq('id', postId)
       .eq('is_deleted', false)
       .maybeSingle();
 
-    if (!post) {
+    if (!post || !(await canReadPost(req, post))) {
       return res.status(404).json({ error: 'Post not found' });
+    }
+    if (post.visibility !== 'public' && post.visibility !== 'unlisted') {
+      res.setHeader('Cache-Control', PRIVATE_CACHE);
     }
 
     const { count } = await supabase
@@ -438,20 +458,25 @@ router.get(
 
     const { data: post } = await supabase
       .from('posts')
-      .select('id, ap_id')
+      .select('id, ap_id, visibility')
       .eq('id', postId)
       .eq('is_deleted', false)
       .maybeSingle();
 
-    if (!post) {
+    if (!post || !(await canReadPost(req, post))) {
       return res.status(404).json({ error: 'Post not found' });
     }
+    if (post.visibility !== 'public' && post.visibility !== 'unlisted') {
+      res.setHeader('Cache-Control', PRIVATE_CACHE);
+    }
 
+    // Public and unlisted replies only, as Mastodon lists them.
     const { count } = await supabase
       .from('posts')
       .select('id', { count: 'exact', head: true })
       .eq('in_reply_to', postId)
-      .eq('is_deleted', false);
+      .eq('is_deleted', false)
+      .in('visibility', [...PUBLIC_VISIBILITIES]);
 
     const page = req.query.page as string | undefined;
     const collectionUrl = `${postUrl}/replies`;
@@ -479,6 +504,7 @@ router.get(
       `)
       .eq('in_reply_to', postId)
       .eq('is_deleted', false)
+      .in('visibility', [...PUBLIC_VISIBILITIES])
       .order('created_at', { ascending: true })
       .range(offset, offset + limit - 1);
 
@@ -554,7 +580,8 @@ router.post(
  * Serve a DM message as an ActivityPub Note object so remote instances
  * can dereference inReplyTo references pointing to our messages.
  * Only returns messages that have been federated (federation_status = 'completed').
- * Requires HTTP Signature or Accept: application/activity+json.
+ * A channel message follows its channel's read rules (groupAccess.ts); a conversation
+ * message is served to a signer whose instance has a participant (postAccess.ts).
  */
 router.get(
   '/messages/:id',
@@ -597,6 +624,14 @@ router.get(
     // A channel message is served under its channel's read rules
     // (groupAccess.ts); anything else reads as absent.
     let cacheControl = 'max-age=300';
+    const conversationId = (message.conversation as any)?.id as string | undefined;
+    if (!message.channel_id) {
+      if (!conversationId || !(await canReadConversation(req, conversationId))) {
+        res.status(404).json({ error: 'Not found' });
+        return;
+      }
+      cacheControl = PRIVATE_CACHE;
+    }
     if (message.channel_id) {
       const serverId = (message.channel as any)?.server_id;
       const access = serverId ? await loadGroupAccess(serverId, await verifiedSigner(req)) : null;

@@ -156,7 +156,7 @@ There is no RESUME. After any close, open a new connection and IDENTIFY again; R
 | `author.bot` | boolean | `true` when a bot wrote the message. |
 | `author.discord_user` | boolean | Present and `true` when a bridge bot relayed the message from Discord. See [Bridge support](#bridge-support). |
 | `content` | string | The `text` parts of the message joined with single spaces, trimmed. Mention, emoji, URL and file parts are not included. |
-| `content_raw` | array | The stored message parts. |
+| `content_raw` | array | The stored message parts. A `file` part with a `path` names a private attachment; its `url` is signed for this event and expires after seven days. |
 | `is_system` | boolean | `true` for system messages. |
 | `reply_to` | UUID or `null` | ID of the message this one replies to. |
 | `timestamp` | ISO 8601 | Creation time. |

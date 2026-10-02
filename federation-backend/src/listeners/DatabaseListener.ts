@@ -13,6 +13,7 @@ import { buildPostInteractionLike, isLikeInteraction } from '../activitypub/post
 import { resolveOutboundEmoji } from '../utils/emojiResolvers.js';
 import { logger } from '../utils/logger.js';
 import { convertContentToHTML, extractActivityPubTags, extractAttachments } from '../utils/contentUtils.js';
+import { fileAttachmentsToAp } from '../utils/privateMedia.js';
 import { linkPreviewService } from '../services/LinkPreviewService.js';
 import { ActivityProcessor } from '../activitypub/ActivityProcessor.js';
 import { getFullServerBannerUrl, getFullServerIconUrl } from '../utils/urlUtils.js';
@@ -1365,7 +1366,15 @@ export async function handleNewDM(message: any): Promise<void> {
       const inboxUrl = profile.inbox_url
         || profile.shared_inbox_url
         || `https://${profile.domain}/inbox`;
-      await DeliveryQueue.enqueue(activity, inboxUrl, sender.id);
+      // Attachment URLs name the recipient's instance.
+      const recipientActivity = {
+        ...activity,
+        object: {
+          ...note,
+          attachment: [...attachments, ...fileAttachmentsToAp(message.content, String(profile.domain).toLowerCase())],
+        },
+      };
+      await DeliveryQueue.enqueue(recipientActivity, inboxUrl, sender.id);
       logger.info(`DM federated to ${profile.username}@${profile.domain}`);
     }
   } catch (error) {

@@ -21,6 +21,7 @@ import {
   u64,
 } from '../auth/botPermissions.js'
 import { applyBridgeAttachmentPolicy } from '../utils/mirrorExternalMedia.js'
+import { stripBotSuppliedPaths } from '../utils/messageMedia.js'
 
 const AUTOMOD_BLOCKED_BODY = {
   error: "Blocked by the server's AutoMod",
@@ -233,6 +234,7 @@ export class BotRestAPI {
       const messageContent = await applyBridgeAttachmentPolicy(
         this.formatContent(content, embeds),
         botId,
+        channelId,
       )
       
       const messageMetadata = {
@@ -517,6 +519,7 @@ export class BotRestAPI {
       const messageContent = await applyBridgeAttachmentPolicy(
         this.formatContent(content),
         botId,
+        message.channel_id,
       )
       
       const { data: updatedRows, error } = await supabase
@@ -1648,7 +1651,7 @@ export class BotRestAPI {
     const parts: any[] = []
     
     if (Array.isArray(content)) {
-      parts.push(...content)
+      parts.push(...stripBotSuppliedPaths(content))
     } else if (content) {
       parts.push({ type: 'text', text: content })
     }

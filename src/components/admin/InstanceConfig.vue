@@ -66,7 +66,7 @@
           <option value="mirror">Mirror to storage (permanent; uses disk — grows with traffic)</option>
         </select>
         <span class="setting-hint" v-if="config.chat.bridgeAttachmentMode === 'mirror'">
-          Warning: every bridged attachment is copied into <code>user_media</code>. Busy bridged channels can consume significant storage.
+          Warning: every bridged attachment is copied into <code>message_media</code>. Busy bridged channels can consume significant storage.
         </span>
         <span class="setting-hint" v-else-if="config.chat.bridgeAttachmentMode === 'refresh'">
           Requires a connected bridge + bot-gateway. Expired attachment URLs are re-signed on demand when a user views them (no disk use, no “edited” badge).

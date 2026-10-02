@@ -21,6 +21,10 @@
 //   - the DM delivery path's choice of inbox URL, asserted from the request
 //     the peer actually received.
 //
+// Posts and DM messages by visibility: unsigned, signed by the peer (a follower and a DM
+// participant, its user key and its instance actor, as Mastodon and Misskey fetch on
+// receipt) and signed by a second instance with no follower and no participant.
+//
 // Private servers are exercised from both sides, one real instance each way:
 //   - hosting: the local instance serves a private server; the peer reads it
 //     with GETs signed by a member, a non-member, its instance actor, or
@@ -106,6 +110,14 @@ const ALICE_POST = 'fed00000-0000-0000-0000-000000000050'
 const REMOTE_VOICE = 'fed00000-0000-0000-0000-000000000043'
 const PRIV_VOICE = 'fed00000-0000-0000-0000-000000000023'
 const PRIV_VOICE_HIDDEN = 'fed00000-0000-0000-0000-000000000024'
+
+// Posts by fx_alice in each visibility; the peer's user follows fx_alice and is the
+// direct post's recipient. DM_MESSAGE is a federated message of CONVERSATION.
+const POST_PUBLIC = 'fed00000-0000-0000-0000-000000000060'
+const POST_UNLISTED = 'fed00000-0000-0000-0000-000000000061'
+const POST_FOLLOWERS = 'fed00000-0000-0000-0000-000000000062'
+const POST_DIRECT = 'fed00000-0000-0000-0000-000000000063'
+const DM_MESSAGE = 'fed00000-0000-0000-0000-000000000064'
 
 // REPORTING
 
@@ -1745,6 +1757,99 @@ async function caseHostedVoiceJoin(db: SupabaseClient, peer: Peer, localUrl: str
   )
 }
 
+// POST VISIBILITY
+
+async function casePostVisibility(db: SupabaseClient, peer: Peer, localUrl: string) {
+  console.log('\nposts and DM messages by visibility -> only signers that may read them')
+
+  const peerHost = new URL(peer.base).host
+  const other = new Peer()
+  await other.start(new URL(peer.base).hostname)
+  try {
+    await db.from('posts').delete().in('id', [POST_PUBLIC, POST_UNLISTED, POST_FOLLOWERS, POST_DIRECT])
+    await db.from('follows').delete().eq('follower_id', REMOTE).eq('following_id', ALICE)
+    await must('seed visibility posts', db.from('posts').insert([
+      { id: POST_PUBLIC, author_id: ALICE, visibility: 'public', is_local: true, content: [{ type: 'text', text: 'public post' }] },
+      { id: POST_UNLISTED, author_id: ALICE, visibility: 'unlisted', is_local: true, content: [{ type: 'text', text: 'unlisted post' }] },
+      { id: POST_FOLLOWERS, author_id: ALICE, visibility: 'followers', is_local: true, content: [{ type: 'text', text: 'followers post' }] },
+      {
+        id: POST_DIRECT, author_id: ALICE, visibility: 'direct', is_local: true,
+        content: [
+          { type: 'mention', userId: REMOTE, username: 'fx_remote', domain: peerHost, isLocal: false },
+          { type: 'text', text: ' direct post' },
+        ],
+      },
+    ]))
+    await must('seed follow', db.from('follows').insert({ follower_id: REMOTE, following_id: ALICE, status: 'accepted' }))
+    await db.from('messages').delete().eq('id', DM_MESSAGE)
+    await must('seed DM message', db.from('messages').insert({
+      id: DM_MESSAGE, conversation_id: CONVERSATION, user_id: ALICE,
+      content: [{ type: 'text', text: 'federated dm' }],
+    }))
+    // The insert trigger queues the DM; the worker that completes it is not running.
+    await must('mark DM federated', db.from('messages').update({ federation_status: 'completed' }).eq('id', DM_MESSAGE))
+
+    const ap = { Accept: 'application/activity+json' }
+    const signedBy = (privateKey: string, actor: string) => (url: string) =>
+      get(url, signedGetHeaders(url, privateKey, `${actor}#main-key`))
+    const asFollower = signedBy(peer.key.privateKey, peer.actorUrl)
+    const asPeerInstance = signedBy(peer.instanceKey.privateKey, peer.instanceActorUrl)
+    const asOtherInstance = signedBy(other.instanceKey.privateKey, other.instanceActorUrl)
+    const post = (id: string) => `${localUrl}/posts/${id}`
+
+    for (const [id, label] of [[POST_PUBLIC, 'public'], [POST_UNLISTED, 'unlisted']]) {
+      const res = await get(post(id), ap)
+      assert(res.status === 200 && res.json?.id === `https://${INSTANCE_DOMAIN}/posts/${id}`,
+        `a ${label} post is served unsigned`, `${res.status} ${res.body.slice(0, 120)}`)
+      eq(res.headers['cache-control'], 'public, max-age=300', `the ${label} post stays cacheable`)
+      eq((await asOtherInstance(post(id))).status, 200, `a ${label} post is served to any signer`)
+    }
+
+    const unknown = await get(post('fed00000-0000-0000-0000-0000000000ff'), ap)
+    for (const [id, label] of [[POST_FOLLOWERS, 'followers-only'], [POST_DIRECT, 'direct']]) {
+      const unsigned = await get(post(id), ap)
+      assert(unsigned.status === 404 && unsigned.body === unknown.body,
+        `an unsigned read of a ${label} post answers as an unknown id`, `${unsigned.status} ${unsigned.body}`)
+      eq((await asOtherInstance(post(id))).status, 404, `a ${label} post is 404 to an instance without a reader`)
+      const html = await get(post(id), { Accept: 'text/html' })
+      eq(html.status, 404, `a ${label} post has no HTML page`)
+    }
+
+    const followersByUser = await asFollower(post(POST_FOLLOWERS))
+    assert(followersByUser.status === 200 && followersByUser.json?.content?.includes('followers post'),
+      'the follower fetches the followers-only post with its user key', `${followersByUser.status}`)
+    eq(followersByUser.headers['cache-control'], 'private, no-store', 'the followers-only post is not cacheable')
+    eq((await asPeerInstance(post(POST_FOLLOWERS))).status, 200,
+      'the follower\'s instance actor fetches it, as Mastodon and Misskey fetch on receipt')
+    eq((await asPeerInstance(post(POST_DIRECT))).status, 200, 'the recipient\'s instance fetches the direct post')
+
+    eq((await get(`${post(POST_FOLLOWERS)}/replies`, ap)).status, 404, 'an unsigned read of its replies is 404')
+    eq((await get(`${post(POST_FOLLOWERS)}/likes`, ap)).status, 404, 'an unsigned read of its likes is 404')
+    eq((await asPeerInstance(`${post(POST_FOLLOWERS)}/likes`)).status, 200, 'the follower\'s instance reads its likes')
+
+    const outbox = await get(`${localUrl}/users/fx_alice/outbox?cursor=start&limit=50`, ap)
+    const listed = JSON.stringify(outbox.json?.orderedItems ?? [])
+    assert(outbox.status === 200 && listed.includes('public post') && listed.includes('unlisted post')
+        && !listed.includes('followers post') && !listed.includes('direct post'),
+      'the outbox lists public and unlisted posts only', outbox.body.slice(0, 200))
+    const signedOutbox = JSON.stringify((await asPeerInstance(`${localUrl}/users/fx_alice/outbox?cursor=start&limit=50`)).json?.orderedItems ?? [])
+    assert(!signedOutbox.includes('followers post') && !signedOutbox.includes('direct post'),
+      'a signed outbox read lists them neither')
+
+    const dm = `${localUrl}/messages/${DM_MESSAGE}`
+    eq((await get(dm, ap)).status, 404, 'an unsigned read of a DM message is 404')
+    eq((await asOtherInstance(dm)).status, 404, 'a DM message is 404 to an instance without a participant')
+    const dmRead = await asPeerInstance(dm)
+    eq(dmRead.status, 200, 'the participant\'s instance reads the DM message')
+    eq(dmRead.headers['cache-control'], 'private, no-store', 'the DM message is not cacheable')
+
+    await db.from('follows').delete().eq('follower_id', REMOTE).eq('following_id', ALICE)
+    eq((await asPeerInstance(post(POST_FOLLOWERS))).status, 404, 'after the unfollow the followers-only post is 404')
+  } finally {
+    await other.stop()
+  }
+}
+
 // REPORTS
 
 async function seedReports(db: SupabaseClient) {
@@ -2014,6 +2119,7 @@ async function main() {
     await caseInboundDM(db, peer, localUrl)
     await caseOutboundDM(db, peer, backend)
     await caseSignedGetRetry(peer, localUrl, db)
+    await casePostVisibility(db, peer, localUrl)
     await seedReports(db)
     await caseInboundFlag(db, peer, localUrl)
     await caseOutboundFlag(db, peer, localUrl, env, backend)

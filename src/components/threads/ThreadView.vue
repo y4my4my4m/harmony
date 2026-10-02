@@ -214,6 +214,7 @@
             :giphy-open="giphyOpen"
             :emoji-list-open="emojiListOpen"
             :thread-id="effectiveThreadIdForTyping"
+            :media-room="threadMediaRoom"
             @send-message="handleSendMessage"
             @send-voice-message="handleSendVoiceMessage"
             @update:reply-message-id="handleCancelReply"
@@ -292,6 +293,7 @@ import { isChannelEncryptionError } from '@/services/core/channelMessageEncrypti
 import type { Message, MessagePart, Emoji, Gif } from '@/types'
 import type { ThreadWithDetails } from '@/services/ThreadService'
 import type { FilePreviewData } from '@/components/FilePreview.vue'
+import { attachmentParts, mediaRoom } from '@/services/privateMedia'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 
 interface Props {
@@ -439,6 +441,11 @@ const displayThreadName = computed(() => {
   return 'Thread'
 })
 
+
+// Thread replies name the thread's channel; so do their attachments.
+const threadMediaRoom = computed(() => mediaRoom({
+  channelId: thread.value?.channel_id || props.draftParentMessage?.channel_id || props.channelId,
+}))
 
 // Drafts have no thread row; the channel list names the parent's channel.
 const displayChannelName = computed(() => {
@@ -858,26 +865,7 @@ const handleSendMessage = async (content: string, files: FilePreviewData[] = [],
       messageParts.push(...parsedMessage)
     }
     
-    for (const fileData of files) {
-      if (fileData.uploadStatus === 'completed' && fileData.uploadedUrl) {
-        let fileType: 'image' | 'video' | 'audio' | 'file' = 'file'
-        
-        if (fileData.type.startsWith('image/')) {
-          fileType = 'image'
-        } else if (fileData.type.startsWith('video/')) {
-          fileType = 'video'
-        } else if (fileData.type.startsWith('audio/')) {
-          fileType = 'audio'
-        }
-        
-        messageParts.push({
-          type: 'file',
-          url: fileData.uploadedUrl,
-          fileType,
-          fileName: fileData.name
-        })
-      }
-    }
+    messageParts.push(...await attachmentParts(files, threadMediaRoom.value))
     
     if (messageParts.length === 0) {
       if (draft) await draft.created
@@ -1066,7 +1054,7 @@ watch(mediaPickerOpen, () => {
   }
 })
 
-const handleSendVoiceMessage = async (data: { url: string, duration: number, waveform: number[], mimeType: string }) => {
+const handleSendVoiceMessage = async (data: { url: string, path: string, duration: number, waveform: number[], mimeType: string }) => {
   if (!thread.value && !isDraftMode.value) return
 
   sending.value = true
@@ -1087,6 +1075,7 @@ const handleSendVoiceMessage = async (data: { url: string, duration: number, wav
     const messageParts: MessagePart[] = [{
       type: 'file',
       url: data.url,
+      path: data.path,
       fileType: 'audio',
       fileName: 'Voice message',
     }]

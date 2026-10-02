@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import { getSupabaseClient } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
+import { stripIncomingMediaPaths } from '../utils/privateMedia.js';
 import {
   actorToProfile,
   noteToContent,
@@ -3116,7 +3117,7 @@ export class ActivityProcessor {
 
     let content: any;
     if (object['harmony:rawContent'] && Array.isArray(object['harmony:rawContent'])) {
-      content = object['harmony:rawContent'].map((part: any) => {
+      content = stripIncomingMediaPaths(object['harmony:rawContent']).map((part: any) => {
         if (part.type === 'mention' && part.domain) {
           return { ...part, isLocal: part.domain === config.INSTANCE_DOMAIN };
         }
