@@ -8,10 +8,19 @@ import { sameOrigin } from '../utils/apOrigin.js';
 import {
   authorizeChannelWrite,
   resolveMessageInChannel,
+  THREAD_STUB_STATUS,
   type ChannelWriteKind,
 } from './channelWriteAuthz.js';
 
 const router = Router();
+
+type ExistingThread = {
+  id: string;
+  channel_id: string;
+  ap_id: string | null;
+  federation_status: string | null;
+  creator: { federated_id: string | null } | null;
+};
 
 /**
  * Thread ActivityPub Types
@@ -273,26 +282,27 @@ export async function handleThreadActivity(
         // --- Existing thread (idempotent). A row found by UUID must carry this ap_id:
         // a local thread or another instance's thread is not the signer's to rewrite.
         const threadApId = threadObject.id;
-        let existingThread: { id: string; channel_id: string } | null = null;
+        const existingColumns = 'id, channel_id, ap_id, federation_status, creator:profiles!threads_created_by_fkey(federated_id)';
+        let existingThread: ExistingThread | null = null;
         const { data: byApId } = await supabase
           .from('threads')
-          .select('id, channel_id, ap_id')
+          .select(existingColumns)
           .eq('ap_id', threadApId)
           .maybeSingle();
-        existingThread = byApId;
+        existingThread = byApId as unknown as ExistingThread | null;
         if (!existingThread) {
           const threadUuid = threadApId.match(/\/threads\/([a-f0-9-]{36})/i)?.[1];
           if (threadUuid) {
             const { data: byId } = await supabase
               .from('threads')
-              .select('id, channel_id, ap_id')
+              .select(existingColumns)
               .eq('id', threadUuid)
               .maybeSingle();
             if (byId && byId.ap_id !== threadApId) {
               logger.warn(`Rejecting thread Create: thread ${threadUuid} exists under ap_id ${byId.ap_id}`);
               return { success: false, error: 'Thread id belongs to another thread' };
             }
-            existingThread = byId;
+            existingThread = byId as unknown as ExistingThread | null;
           }
         }
         if (existingThread && existingThread.channel_id !== channelId) {
@@ -300,14 +310,22 @@ export async function handleThreadActivity(
           return { success: false, error: 'Thread is in another channel' };
         }
 
-        const authz = await authorizeThreadChannel(channelId, existingThread ? 'edit' : 'thread_create');
-        if (!authz.ok) {
-          logger.warn(`Rejecting thread Create from ${actorUrl}: ${authz.error}`);
-          return { success: false, error: authz.error };
-        }
-        const creatorId = authz.userId;
+        // An existing thread changes owner only while it is a stub; otherwise
+        // only its creator re-sends the Create.
+        const writeExisting = async (existing: ExistingThread): Promise<{ success: boolean; error?: string }> => {
+          const isStub = existing.federation_status === THREAD_STUB_STATUS;
+          const creatorUrl = existing.creator?.federated_id;
+          if (!isStub && (!creatorUrl || !SignatureService.verifyActorMatch(actorUrl, creatorUrl))) {
+            logger.warn(`Rejecting thread Create from ${actorUrl}: thread ${existing.id} belongs to ${creatorUrl ?? 'nobody'}`);
+            return { success: false, error: 'Signer is not the thread creator' };
+          }
 
-        if (existingThread) {
+          const authz = await authorizeThreadChannel(channelId, isStub ? 'thread_create' : 'edit');
+          if (!authz.ok) {
+            logger.warn(`Rejecting thread Create from ${actorUrl}: ${authz.error}`);
+            return { success: false, error: authz.error };
+          }
+
           const updateData: Record<string, any> = {
             name: threadObject.name,
             archived: threadObject.archived || false,
@@ -316,27 +334,38 @@ export async function handleThreadActivity(
             message_count: threadObject.messageCount || 0,
             member_count: threadObject.memberCount || 0,
             last_message_at: threadObject.lastMessageAt,
-            ap_id: threadApId,
-            federation_status: 'synced',
-            // Stub threads carry a placeholder parent and the first message's author.
-            parent_message_id: parentMessageId,
-            created_by: creatorId,
           };
+          if (isStub) {
+            // A stub carries a placeholder parent and the first message's author.
+            updateData.parent_message_id = parentMessageId;
+            updateData.created_by = authz.userId;
+            updateData.federation_status = 'synced';
+          }
 
-          const { error: updateError } = await supabase
-            .from('threads')
-            .update(updateData)
-            .eq('id', existingThread.id);
+          let update = supabase.from('threads').update(updateData).eq('id', existing.id);
+          if (isStub) update = update.eq('federation_status', THREAD_STUB_STATUS);
+          const { error: updateError } = await update;
 
           if (updateError) {
             logger.error('Failed to update existing federated thread:', updateError);
             return { success: false, error: updateError.message };
           }
-          logger.info(`Updated existing federated thread: ${threadObject.name} (id: ${existingThread.id})`);
+          logger.info(`${isStub ? 'Claimed stub' : 'Updated'} federated thread: ${threadObject.name} (id: ${existing.id})`);
 
-          await adoptOrphanMessages(supabase, channelId, threadApId, existingThread.id);
+          await adoptOrphanMessages(supabase, channelId, threadApId, existing.id);
           return { success: true };
+        };
+
+        if (existingThread) {
+          return writeExisting(existingThread);
         }
+
+        const authz = await authorizeThreadChannel(channelId, 'thread_create');
+        if (!authz.ok) {
+          logger.warn(`Rejecting thread Create from ${actorUrl}: ${authz.error}`);
+          return { success: false, error: authz.error };
+        }
+        const creatorId = authz.userId;
 
         // --- Insert new thread ---
         const threadData = activityPubToThread(threadObject, channelId, parentMessageId, creatorId);
@@ -358,15 +387,14 @@ export async function handleThreadActivity(
           if (error.code === '23505' && threadData.id) {
             const { data: raced } = await supabase
               .from('threads')
-              .select('id, channel_id, ap_id')
+              .select(existingColumns)
               .eq('id', threadData.id)
               .maybeSingle();
             if (!raced || raced.ap_id !== threadApId || raced.channel_id !== channelId) {
               return { success: false, error: 'Thread id belongs to another thread' };
             }
-            logger.info(`Thread ${threadData.id} inserted concurrently; adopting it`);
-            await adoptOrphanMessages(supabase, channelId, threadApId, threadData.id);
-            return { success: true };
+            logger.info(`Thread ${threadData.id} inserted concurrently`);
+            return writeExisting(raced as unknown as ExistingThread);
           }
           logger.error(`Failed to create federated thread: code=${error.code}, message=${error.message}, details=${error.details}`);
           return { success: false, error: error.message };

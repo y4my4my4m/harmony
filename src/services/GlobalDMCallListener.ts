@@ -1,7 +1,8 @@
 /**
  * Global DM Call Listener
  *
- * One channel per user, dm-calls:{profileId}, plus federated-calls:{profileId}.
+ * One channel per user, dm-calls:{profileId}, plus the federated_call:* events of
+ * the private user channel (UserEventChannel).
  * Receives incoming calls without knowing conversation ids in advance.
  */
 
@@ -9,6 +10,7 @@ import { ref } from 'vue'
 import { supabase } from '@/supabase'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { dmCallPermissions } from './DMCallPermissions'
+import { userEventChannel } from './UserEventChannel'
 import { dmCallSignaling, type CallSignal } from './DMCallSignaling'
 import { authContextService } from './AuthContextService'
 import { useToast } from 'vue-toastification'
@@ -31,7 +33,7 @@ export interface IncomingCallData {
 
 class GlobalDMCallListenerService {
   private userChannel: RealtimeChannel | null = null
-  private federatedChannel: RealtimeChannel | null = null
+  private federatedOff: (() => void) | null = null
   private currentUserId: string | null = null
   // Auto-dismiss for rings whose caller died before sending cancel or timeout.
   private ringDismissTimer: ReturnType<typeof setTimeout> | null = null
@@ -88,10 +90,8 @@ class GlobalDMCallListenerService {
       this.userChannel = null
     }
 
-    if (this.federatedChannel) {
-      this.federatedChannel.unsubscribe()
-      this.federatedChannel = null
-    }
+    this.federatedOff?.()
+    this.federatedOff = null
 
     this.currentUserId = profileId
     const channelName = `dm-calls:${profileId}`
@@ -126,43 +126,35 @@ class GlobalDMCallListenerService {
         }
       })
 
-    // Federation backend broadcasts remote-instance calls on this channel.
-    const federatedChannelName = `federated-calls:${profileId}`
-    debug.log(`Subscribing to federated call channel: ${federatedChannelName}`)
-    
-    this.federatedChannel = supabase.channel(federatedChannelName)
-    
-    this.federatedChannel
-      .on('broadcast', { event: 'incoming-call' }, (payload) => {
+    // Federation backend sends remote-instance call events on the private user
+    // channel; only this user subscribes or sends there.
+    userEventChannel.connect(profileId)
+    const offs = [
+      userEventChannel.on('federated_call:incoming', (payload) => {
         debug.log('======== FEDERATED CALL RECEIVED ========')
-        debug.log('Payload:', JSON.stringify(payload.payload))
+        debug.log('Payload:', JSON.stringify(payload))
         debug.log('=========================================')
-        this.handleFederatedCallSignal(payload.payload)
-      })
-      .on('broadcast', { event: 'call-accepted' }, (payload) => {
-        debug.log('[Federated] Call accepted:', payload.payload)
-        const { callId } = payload.payload
-        const call = dmCallSignaling.getActiveCall(callId)
+        this.handleFederatedCallSignal(payload as any)
+      }),
+      userEventChannel.on('federated_call:accepted', (payload) => {
+        debug.log('[Federated] Call accepted:', payload)
+        const call = dmCallSignaling.getActiveCall(payload.callId)
         if (call?.timeoutTimer) {
           clearTimeout(call.timeoutTimer)
           call.timeoutTimer = undefined
         }
-      })
-      .on('broadcast', { event: 'call-rejected' }, (payload) => {
-        debug.log('[Federated] Call rejected:', payload.payload)
+      }),
+      userEventChannel.on('federated_call:rejected', (payload) => {
+        debug.log('[Federated] Call rejected:', payload)
         const toast = useToast()
         toast.info('Call declined')
-      })
-      .on('broadcast', { event: 'call-ended' }, (payload) => {
-        debug.log('[Federated] Call ended:', payload.payload)
+      }),
+      userEventChannel.on('federated_call:ended', (payload) => {
+        debug.log('[Federated] Call ended:', payload)
         this.dismissIncomingCall()
-      })
-      .subscribe((status) => {
-        debug.log(`Federated call channel status: ${status}`)
-        if (status === 'SUBSCRIBED') {
-          debug.log('Federated call listener ready')
-        }
-      })
+      }),
+    ]
+    this.federatedOff = () => offs.forEach((off) => off())
   }
 
   private async handleCallSignal(signal: CallSignal): Promise<void> {
@@ -394,10 +386,8 @@ class GlobalDMCallListenerService {
       this.userChannel.unsubscribe()
       this.userChannel = null
     }
-    if (this.federatedChannel) {
-      this.federatedChannel.unsubscribe()
-      this.federatedChannel = null
-    }
+    this.federatedOff?.()
+    this.federatedOff = null
     this.currentUserId = null
     this.incomingCall.value = null
     this.showIncomingCallModal.value = false

@@ -74,6 +74,7 @@ export const ENFORCED_BOT_PERMISSIONS = [
   'add_reactions',
   'manage_messages',
   'manage_channels',
+  'manage_roles',
 ] as const
 
 export type EnforcedBotPermission = (typeof ENFORCED_BOT_PERMISSIONS)[number]
@@ -91,6 +92,7 @@ export function defaultBotPermissions(botType?: string | null): Record<EnforcedB
     add_reactions: true,
     manage_messages: false,
     manage_channels: botType === 'bridge',
+    manage_roles: false,
   }
 }
 

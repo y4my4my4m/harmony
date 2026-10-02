@@ -1804,7 +1804,11 @@
       },
       "manage_channels": {
         "label": "Manage channels",
-        "description": "Create and edit channels, categories, roles and channel permission overrides."
+        "description": "Create and edit channels, categories and channel permission overrides."
+      },
+      "manage_roles": {
+        "label": "Manage roles",
+        "description": "Create, edit and delete roles below its installer's highest role, with permissions it holds."
       }
     }
   },

@@ -425,6 +425,16 @@ async function addBot() {
     })
     if (error) throw error
 
+    // add_bot_to_server writes no manage_roles; the install row keeps its default (false).
+    if (selectedPermissions.value.manage_roles) {
+      const { error: rolesError } = await supabase
+        .from('bot_server_permissions')
+        .update({ manage_roles: true })
+        .eq('bot_id', bot.id)
+        .eq('server_id', props.serverId)
+      if (rolesError) throw rolesError
+    }
+
     toast.success(t('bots.server.addSuccess', { name: botName(bot) }))
     selectedBot.value = null
     await loadInstalled()

@@ -7,7 +7,9 @@ vi.mock('../config/index.js', () => ({
 }));
 vi.mock('../services/RedisService.js', () => ({ redis: { ready: false } }));
 
-import { signerInstanceKey, instanceInboxLimit } from '../middleware/rateLimit.js';
+import express from 'express';
+import supertest from 'supertest';
+import { clientIp, discoveryLimiter, signerInstanceKey, instanceInboxLimit } from '../middleware/rateLimit.js';
 
 type FakeRes = Response & { statusCode: number; body: any; headers: Record<string, any> };
 
@@ -50,3 +52,38 @@ describe('instanceInboxLimit', () => {
     expect(await instanceInboxLimit(fakeRes(), 'quiet.example')).toBe(true);
   });
 });
+
+describe('client address behind nginx', () => {
+  const app = (trust: string[]) => {
+    const a = express()
+    a.set('trust proxy', trust)
+    a.get('/ip', (req, res) => { res.json({ ip: clientIp(req) }) })
+    a.get('/limited', discoveryLimiter, (_req, res) => { res.json({ ok: true }) })
+    return a
+  }
+
+  it('takes X-Real-IP from a trusted proxy and never X-Forwarded-For', async () => {
+    const res = await supertest(app(['loopback', 'uniquelocal']))
+      .get('/ip').set('X-Real-IP', '198.51.100.7').set('X-Forwarded-For', '203.0.113.9')
+    expect(res.body.ip).toBe('198.51.100.7')
+
+    const xffOnly = await supertest(app(['loopback', 'uniquelocal'])).get('/ip').set('X-Forwarded-For', '203.0.113.9')
+    expect(xffOnly.body.ip).not.toBe('203.0.113.9')
+  })
+
+  it('ignores X-Real-IP from a peer that is not a trusted proxy', async () => {
+    const res = await supertest(app(['192.0.2.1'])).get('/ip').set('X-Real-IP', '198.51.100.7')
+    expect(res.body.ip).not.toBe('198.51.100.7')
+    expect(res.body.ip).toMatch(/127\.0\.0\.1|::1/)
+  })
+
+  it('a client varying X-Forwarded-For stays in one bucket', async () => {
+    const a = app(['loopback'])
+    for (let i = 0; i < 30; i++) {
+      const res = await supertest(a).get('/limited').set('X-Real-IP', '198.51.100.20').set('X-Forwarded-For', `203.0.113.${i}`)
+      expect(res.status).toBe(200)
+    }
+    const res = await supertest(a).get('/limited').set('X-Real-IP', '198.51.100.20').set('X-Forwarded-For', '203.0.113.250')
+    expect(res.status).toBe(429)
+  })
+})

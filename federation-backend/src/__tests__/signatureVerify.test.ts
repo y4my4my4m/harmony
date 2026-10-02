@@ -144,3 +144,67 @@ describe('verifySignature', () => {
     expect(result.actorUrl).toBeUndefined()
   })
 })
+
+describe('actor document used for the key', () => {
+  const BOB = 'https://remote.test/users/bob'
+  const UPLOAD = 'https://remote.test/uploads/evil.json'
+
+  it('is refused when the document at the key owner names another actor', async () => {
+    vi.mocked(safeFetch).mockImplementation(async (url: any) => {
+      if (url === UPLOAD) {
+        return json({ id: BOB, type: 'Person', publicKey: { id: `${BOB}#main-key`, owner: BOB, publicKeyPem: keys.publicKey } })
+      }
+      return new Response('', { status: 404 })
+    })
+    const result = await verify(request(`${UPLOAD}#main-key`, ['(request-target)', 'host', 'date', 'digest']))
+    expect(result.verified).toBe(false)
+  })
+
+  it('is refused when it is not served as ActivityPub', async () => {
+    vi.mocked(safeFetch).mockImplementation(async (url: any) => {
+      if (url === UPLOAD) {
+        return new Response(JSON.stringify({
+          id: UPLOAD, type: 'Person', publicKey: { id: `${UPLOAD}#main-key`, owner: UPLOAD, publicKeyPem: keys.publicKey },
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      }
+      return new Response('', { status: 404 })
+    })
+    const result = await verify(request(`${UPLOAD}#main-key`, ['(request-target)', 'host', 'date', 'digest']))
+    expect(result.verified).toBe(false)
+  })
+
+  it('is refused when its key names another owner', async () => {
+    vi.mocked(safeFetch).mockImplementation(async (url: any) => {
+      if (url === BOB) {
+        return json({ id: BOB, type: 'Person', publicKey: { id: `${BOB}#main-key`, owner: 'https://remote.test/users/alice', publicKeyPem: keys.publicKey } })
+      }
+      return new Response('', { status: 404 })
+    })
+    const result = await verify(request(`${BOB}#main-key`, ['(request-target)', 'host', 'date', 'digest']))
+    expect(result.verified).toBe(false)
+  })
+
+  it('is refused when the fetch was redirected away from the actor id', async () => {
+    vi.mocked(safeFetch).mockImplementation(async (url: any) => {
+      if (url === BOB) {
+        const res = json({ id: BOB, type: 'Person', publicKey: { id: `${BOB}#main-key`, owner: BOB, publicKeyPem: keys.publicKey } })
+        Object.defineProperty(res, 'url', { value: UPLOAD })
+        return res
+      }
+      return new Response('', { status: 404 })
+    })
+    const result = await verify(request(`${BOB}#main-key`, ['(request-target)', 'host', 'date', 'digest']))
+    expect(result.verified).toBe(false)
+  })
+
+  it('is used when served from its own id with a key it owns', async () => {
+    vi.mocked(safeFetch).mockImplementation(async (url: any) => {
+      if (url === BOB) {
+        return json({ id: BOB, type: 'Person', publicKey: { id: `${BOB}#main-key`, owner: BOB, publicKeyPem: keys.publicKey } })
+      }
+      return new Response('', { status: 404 })
+    })
+    const result = await verify(request(`${BOB}#main-key`, ['(request-target)', 'host', 'date', 'digest']))
+    expect(result).toMatchObject({ verified: true, actorUrl: BOB })
+  })
+})

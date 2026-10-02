@@ -26,6 +26,7 @@ vi.mock('../middleware/rateLimit.js', () => ({
   inboxLimiter: (_req: any, _res: any, next: any) => next(),
   instanceInboxLimit: async () => true,
   signerInstanceKey: () => 'test',
+  clientIp: () => '203.0.113.1',
 }))
 vi.mock('../services/BlockedInstancesCache.js', () => ({
   BlockedInstancesCache: { isBlocked: (host: string) => host === 'blocked.test' },

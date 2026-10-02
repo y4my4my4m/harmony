@@ -97,6 +97,7 @@ Copy from `federation-backend/env.template`.
 | `LOG_LEVEL` | `error`, `warn`, `info`, or `debug` |
 | `RATE_LIMIT_WINDOW_MS` | Rate limit window |
 | `RATE_LIMIT_MAX_REQUESTS` | Max requests per window |
+| `TRUST_PROXY` | Peers trusted to name the client in `X-Real-IP` (default `loopback, uniquelocal`). Rate limits key on that address; nginx must set `X-Real-IP` on every location proxied to the backend |
 | `REQUIRE_VALID_SIGNATURES` | Enforce HTTP signature validation |
 
 ### Voice/Video (LiveKit)

@@ -20,7 +20,7 @@ vi.mock('../../config/supabase.js', () => ({
   config: mocks.config,
 }))
 
-import { botAuthMiddleware, type BotRequest } from '../BotAuthMiddleware.js'
+import { botAuthMiddleware, botRateLimit, type BotRequest } from '../BotAuthMiddleware.js'
 
 const TOKEN = 'hrm_bot_9f2c1d4e8a7b'
 const TOKEN_SHA256 = createHash('sha256').update(TOKEN).digest('hex')
@@ -54,9 +54,14 @@ function routeRpc(handlers: Record<string, (args: any) => RpcResult>) {
 /** Single guarded route; the handler echoes what the middleware attached. */
 function makeApp() {
   const app = express()
-  app.get('/api/v1/probe', botAuthMiddleware as express.RequestHandler, (req, res) => {
-    res.json({ bot: (req as BotRequest).bot })
-  })
+  app.get(
+    '/api/v1/probe',
+    botAuthMiddleware as express.RequestHandler,
+    botRateLimit as express.RequestHandler,
+    (req, res) => {
+      res.json({ bot: (req as BotRequest).bot })
+    },
+  )
   return app
 }
 
@@ -193,7 +198,7 @@ describe('botAuthMiddleware', () => {
     expect(res.body.retry_after).toBe(60)
   })
 
-  it('keys the rate limit on the request path and passes the configured window in seconds', async () => {
+  it('keys the rate limit on the matched route and passes the configured window in seconds', async () => {
     routeRpc({
       verify_bot_token: () => ({ data: VALID_VERIFICATION, error: null }),
       check_and_increment_bot_rate_limit: allow,

@@ -354,7 +354,7 @@ export async function safeFetch(urlString: string, options: SafeFetchOptions = {
       // Malformed redirect (3xx without Location): treat as terminal response,
       // but still enforce the body-size cap so a hostile peer can't stream
       // unbounded bytes through a 301/302 without Location.
-      if (!location) return enforceBodySize(response, maxBodyBytes);
+      if (!location) return withUrl(enforceBodySize(response, maxBodyBytes), currentUrl);
       // Drain the redirect response body so node doesn't leak the socket.
       try { await response.body?.cancel(); } catch { /* noop */ }
       const nextUrl = new URL(location, currentUrl).href;
@@ -371,10 +371,20 @@ export async function safeFetch(urlString: string, options: SafeFetchOptions = {
       continue;
     }
 
-    return enforceBodySize(response, maxBodyBytes);
+    return withUrl(enforceBodySize(response, maxBodyBytes), currentUrl);
   }
 
   throw new Error(`safeFetch: too many redirects (max=${maxRedirects})`);
+}
+
+/**
+ * `response.url` is the URL the body was served from after redirects. A
+ * Response built by enforceBodySize has an empty url.
+ */
+function withUrl(response: Response, finalUrl: string): Response {
+  if (response.url) return response;
+  Object.defineProperty(response, 'url', { value: new URL(finalUrl).href, enumerable: true });
+  return response;
 }
 
 /**

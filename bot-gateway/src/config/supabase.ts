@@ -38,7 +38,12 @@ export const config = {
   instanceDomain: process.env.INSTANCE_DOMAIN || 'localhost:3000',
   websocket: {
     heartbeatInterval: parseInt(process.env.WS_HEARTBEAT_INTERVAL || '30000'),
-    maxConnectionsPerBot: parseInt(process.env.WS_MAX_CONNECTIONS_PER_BOT || '5')
+    maxConnectionsPerBot: parseInt(process.env.WS_MAX_CONNECTIONS_PER_BOT || '5'),
+    // ms between token/bot rechecks of open sessions, clamped to 1-60 s.
+    revalidateIntervalMs: Math.min(
+      60_000,
+      Math.max(1_000, parseInt(process.env.WS_REVALIDATE_INTERVAL_MS || '30000') || 30_000),
+    ),
   },
   rateLimit: {
     windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '60000'),

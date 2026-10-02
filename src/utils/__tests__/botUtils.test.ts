@@ -101,7 +101,7 @@ describe('botUtils', () => {
   describe('permissions', () => {
     it('offers only the flags the gateway checks', () => {
       expect([...ENFORCED_BOT_PERMISSIONS].sort()).toEqual(
-        ['add_reactions', 'manage_channels', 'manage_messages', 'read_messages', 'send_messages'],
+        ['add_reactions', 'manage_channels', 'manage_messages', 'manage_roles', 'read_messages', 'send_messages'],
       )
     })
 
@@ -112,8 +112,10 @@ describe('botUtils', () => {
         add_reactions: true,
         manage_messages: false,
         manage_channels: false,
+        manage_roles: false,
       })
       expect(defaultBotPermissions('bridge').manage_channels).toBe(true)
+      expect(defaultBotPermissions('bridge').manage_roles).toBe(false)
       expect(defaultBotPermissions(null).manage_channels).toBe(false)
     })
 
@@ -124,6 +126,7 @@ describe('botUtils', () => {
         add_reactions: true,
         manage_messages: true,
         manage_channels: false,
+        manage_roles: true,
         kick_members: true,
       }
       expect(enforcedPermissionsFrom(row)).toEqual({
@@ -132,6 +135,7 @@ describe('botUtils', () => {
         add_reactions: true,
         manage_messages: true,
         manage_channels: false,
+        manage_roles: true,
       })
     })
   })

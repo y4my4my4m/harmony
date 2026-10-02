@@ -368,7 +368,8 @@ describe('Create origin', () => {
   })
 })
 
-const json = (doc: unknown) => new Response(JSON.stringify(doc), { status: 200 })
+const json = (doc: unknown) =>
+  new Response(JSON.stringify(doc), { status: 200, headers: { 'content-type': 'application/activity+json' } })
 
 describe('fetched documents', () => {
   it('does not store a fetched Note that claims an id and author on another host', async () => {
@@ -431,6 +432,29 @@ describe('fetched documents', () => {
 
     await P.ensureRemoteUser(newcomer)
 
+    const bob = tables.profiles.find((p) => p.federated_id === BOB)
+    expect(bob?.public_key).toBe('BOB-KEY')
+    expect(bob?.inbox_url).toBeUndefined()
+  })
+
+  it('does not overwrite an actor from another URL on its own host', async () => {
+    const upload = 'https://mastodon.test/system/media/evil.json'
+    const forged = {
+      id: BOB,
+      type: 'Person',
+      preferredUsername: 'bob',
+      inbox: 'https://mastodon.test/evil-inbox',
+      publicKey: { id: `${BOB}#main-key`, owner: BOB, publicKeyPem: 'EVIL-KEY' },
+    }
+    vi.mocked(safeFetch).mockImplementation(async (url: any) => {
+      if (url === upload) return json(forged)
+      if (url === BOB) return json({ ...forged, inbox: `${BOB}/inbox`, publicKey: { ...forged.publicKey, publicKeyPem: 'BOB-KEY' } })
+      return new Response('', { status: 404 })
+    })
+
+    const returned = await P.ensureRemoteUser(upload)
+
+    expect(returned).toBeNull()
     const bob = tables.profiles.find((p) => p.federated_id === BOB)
     expect(bob?.public_key).toBe('BOB-KEY')
     expect(bob?.inbox_url).toBeUndefined()

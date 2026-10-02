@@ -120,6 +120,7 @@ describe('installation writes', () => {
         add_reactions: true,
         manage_messages: false,
         manage_channels: true,
+        manage_roles: false,
       },
     })
   })
