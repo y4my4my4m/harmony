@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { supabase } from '@/supabase';
+import { onSessionRejected, signOutAndForget, supabase } from '@/supabase';
 import type { Session } from '@supabase/supabase-js';
 import { updateUserStatus } from '@/services/ProfileService';
 import { useActivityPubStore } from '@/stores/useActivityPub';
@@ -7,6 +7,8 @@ import { UserStatus } from '@/types';
 import { debug } from '@/utils/debug';
 import { userStorage } from '@/utils/userScopedStorage';
 import { realtimeApiService } from '@/services/RealtimeApiService';
+
+let sessionRejectionSubscribed = false;
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
@@ -297,6 +299,11 @@ export const useAuthStore = defineStore('auth', {
         // LAZY: encryption is not initialized on load. It initializes when
         // the user opens encryption settings, views/creates encrypted
         // messages, or the server requires encryption.
+      }
+
+      if (!sessionRejectionSubscribed) {
+        sessionRejectionSubscribed = true;
+        onSessionRejected((reason) => { void this.handleSessionRejected(reason); });
       }
 
       supabase.auth.onAuthStateChange(async (event, session) => {
@@ -654,20 +661,22 @@ export const useAuthStore = defineStore('auth', {
 
     async verify2FA(factorId: string, challengeId: string, code: string) {
       try {
-        // 30s timeout race; without it mobile clients spin forever
-        const verifyPromise = supabase.auth.mfa.verify({
-          factorId,
-          challengeId,
-          code,
-        });
-        const timeoutPromise = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('MFA verification timed out. Please try logging in again.')), 30000),
-        );
+        // GoTrue expires a challenge after five minutes; a code typed after that is
+        // checked against a fresh challenge instead of failing the sign-in.
+        const verifyOnce = (id: string) => {
+          // 30s timeout race; without it mobile clients spin forever
+          const timeoutPromise = new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('MFA verification timed out. Please try logging in again.')), 30000),
+          );
+          return Promise.race([supabase.auth.mfa.verify({ factorId, challengeId: id, code }), timeoutPromise]);
+        };
 
-        const { data: verifyData, error: verifyError } = await Promise.race([
-          verifyPromise,
-          timeoutPromise,
-        ]);
+        let { data: verifyData, error: verifyError } = await verifyOnce(challengeId);
+        if ((verifyError as { code?: string } | null)?.code === 'mfa_challenge_expired') {
+          const { data: challenge, error: challengeError } = await supabase.auth.mfa.challenge({ factorId });
+          if (challengeError) throw challengeError;
+          ({ data: verifyData, error: verifyError } = await verifyOnce(challenge.id));
+        }
 
         if (verifyError) {
           debug.error('MFA verify error:', verifyError);
@@ -687,32 +696,91 @@ export const useAuthStore = defineStore('auth', {
           throw new Error('MFA verification succeeded but no session was returned. Please try logging in again.');
         }
 
-        this.session = verifiedSession;
-
-        // The `MFA_CHALLENGE_VERIFIED` event handler only runs
-        // `setupOfflineHandlers` - it skips `userStorage.setCurrentUser`,
-        // `initializeUserSettings`, and `activityPubStore.loadBlockingData`,
-        // all of which the SIGNED_IN handler runs. Mirrored here so 2FA
-        // users reach the same initialized state; without it the chat view
-        // loads with the default theme, no user-scoped storage, and stale
-        // block lists.
-        this.isPasswordResetMode = false;
-        if (verifiedSession.user?.id) {
-          userStorage.setCurrentUser(verifiedSession.user.id);
-          this.setupOfflineHandlers(verifiedSession.user.id);
-          this.initializeUserSettings(verifiedSession.user.id);
-          const activityPubStore = useActivityPubStore();
-          void activityPubStore.initialize().catch((err) =>
-            debug.error('ActivityPub initialize after 2FA failed:', err)
-          );
-        }
-
+        await this.finalizeSignIn(verifiedSession);
         debug.log('2FA verified - session upgraded to AAL2');
-
         return { session: verifiedSession };
       } finally {
         this._pendingMFAVerification = false;
       }
+    },
+
+    /**
+     * Sign-in with a recovery code from the pending aal1 session. The redeem RPC consumes
+     * the code and removes the factors in one transaction (the database leaves this one
+     * path open below aal2); with no factor left, the aal1 session is a full session.
+     */
+    async completeRecoverySignIn(code: string) {
+      try {
+        const { data: redeemed, error } = await supabase.rpc('redeem_recovery_code_and_disable_mfa', {
+          p_code: code,
+        });
+        if (error) throw error;
+        if (!redeemed) throw new Error('That recovery code is not valid or was already used.');
+
+        const { data: refreshed } = await supabase.auth.refreshSession();
+        const session = refreshed.session ?? (await supabase.auth.getSession()).data.session;
+        if (!session) throw new Error('Signed in with a recovery code, but no session was returned. Sign in again.');
+
+        await this.finalizeSignIn(session);
+        return { session };
+      } finally {
+        this._pendingMFAVerification = false;
+      }
+    },
+
+    /**
+     * Adopts a session that completed every sign-in step. Mirrors the SIGNED_IN handler:
+     * the MFA and recovery paths skip it while _pendingMFAVerification is set.
+     */
+    async finalizeSignIn(session: Session) {
+      if (session.user?.id) {
+        // Read at aal2 only: for a 2FA account the profile is unreadable mid-challenge.
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('is_suspended, suspension_reason')
+          .eq('auth_user_id', session.user.id)
+          .maybeSingle();
+        if (profile?.is_suspended) {
+          try { await supabase.auth.signOut(); } catch { /* ignore */ }
+          this.session = null;
+          throw new Error(
+            profile.suspension_reason
+              ? `Your account has been suspended: ${profile.suspension_reason}`
+              : 'Your account has been suspended. Please contact an administrator.'
+          );
+        }
+      }
+
+      this.session = session;
+      this._mfaValidatedForSession = session.access_token;
+      this.isPasswordResetMode = false;
+      if (session.user?.id) {
+        userStorage.setCurrentUser(session.user.id);
+        this.setupOfflineHandlers(session.user.id);
+        this.initializeUserSettings(session.user.id);
+        const activityPubStore = useActivityPubStore();
+        void activityPubStore.initialize().catch((err) =>
+          debug.error('ActivityPub initialize after sign-in failed:', err)
+        );
+      }
+    },
+
+    /**
+     * PostgREST refused the token: its session was signed out elsewhere (session_revoked)
+     * or the account needs aal2 (insufficient_aal). The local session is dropped and the
+     * app returns to sign-in. Ignored while a sign-in challenge is in progress, where aal1
+     * refusals are expected.
+     */
+    async handleSessionRejected(reason: 'session_revoked' | 'insufficient_aal') {
+      if (!this.session || this._pendingMFAVerification || this.isPasswordResetMode) return;
+      debug.warn(`PostgREST rejected the session: ${reason}`);
+      await signOutAndForget('local');
+      this.session = null;
+      this.cleanupOfflineHandlers();
+      userStorage.clearCurrentUser();
+      this.cleanupNotificationSystem();
+      const { default: router } = await import('@/router');
+      await router.push({ path: '/login', query: { reason } });
     },
 
     async register(email: string, password: string) {
@@ -754,7 +822,7 @@ export const useAuthStore = defineStore('auth', {
       // preventing reactive components from firing queries with stale/undefined data
       // (e.g. user_roles with server_id=undefined, get_supporter_badge after auth gone)
       this.session = null;
-      await supabase.auth.signOut();
+      await signOutAndForget();
 
       // Redirect to login BEFORE clearing stores so that components unmount
       // before store resets trigger reactive watchers

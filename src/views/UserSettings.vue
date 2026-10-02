@@ -114,9 +114,11 @@
             @upload-banner="handleBannerUpload"
           />
 
-          <!-- Privacy & Safety Section (includes security/encryption) -->
+          <SecuritySettings v-if="activeSection === 'security'" />
+
+          <!-- Privacy & Safety Section (includes encryption) -->
           <PrivacySettings 
-            v-if="activeSection === 'privacy'"
+            v-else-if="activeSection === 'privacy'"
             :profile="profile"
             :loading="loading"
             @update-privacy="handlePrivacyUpdate"
@@ -217,6 +219,7 @@ import { useToast } from 'vue-toastification'
 // Components
 import UserAccountSettings from '@/components/settings/user/UserAccountSettings.vue'
 import PrivacySettings from '@/components/settings/user/PrivacySettings.vue'
+import SecuritySettings from '@/components/settings/user/SecuritySettings.vue'
 import AppearanceSettings from '@/components/settings/user/AppearanceSettings.vue'
 import AudioThemeSettings from '@/components/settings/user/AudioThemeSettings.vue'
 import NotificationSettings from '@/components/settings/user/NotificationSettings.vue'
@@ -231,6 +234,7 @@ import { useAnnouncementUnreadCount } from '@/composables/useAnnouncementUnreadC
 // Icons
 import UserIcon from '@/components/icons/User.vue'
 import ShieldIcon from '@/components/icons/Shield.vue'
+import LockIcon from '@/components/icons/Lock.vue'
 import PaletteIcon from '@/components/icons/Palette.vue'
 import VoiceIcon from '@/components/icons/VoiceIcon.vue'
 import BellIcon from '@/components/icons/Bell.vue'
@@ -292,6 +296,7 @@ const currentSectionLabel = computed(() => {
 // Navigation sections
 const userSections = computed(() => [
   { id: 'account', label: 'settings.account', icon: UserIcon },
+  { id: 'security', label: 'settings.security', icon: LockIcon },
   { id: 'privacy', label: 'settings.privacy', icon: ShieldIcon },
   { id: 'bots', label: 'settings.myBots', icon: RobotIcon }
 ])

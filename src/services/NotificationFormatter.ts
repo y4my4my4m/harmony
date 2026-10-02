@@ -8,6 +8,7 @@
 import type { Notification } from '@/types'
 import { getAvatarUrl as utilGetAvatarUrl } from '@/utils/avatarUtils'
 import { debug } from '@/utils/debug'
+import { securityNoticeText } from '@/utils/securityNotice'
 
 export interface NotificationMessage {
   title: string
@@ -361,6 +362,12 @@ const MESSAGE_TEMPLATES = {
       const channelName = data.location?.channel_name || data.channel_name || 'thread'
       return `Thread reply in #${channelName}`
     }
+  },
+
+  security: {
+    title: (data: any) => securityNoticeText(data).title,
+    message: (data: any) => securityNoticeText(data).message,
+    shortTitle: () => 'Account security'
   },
 
   report_update: {

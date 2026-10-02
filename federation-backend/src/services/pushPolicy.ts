@@ -64,6 +64,7 @@ const profileHandle = (user: any): string | null => {
  * src/utils/notificationRoute.ts; the service worker opens it when no window exists.
  */
 export function notificationUrl(type: string, data: Record<string, any> = {}): string {
+  if (type === 'security') return '/settings/security';
   if (type === 'activitypub_follow_request') return '/social/follow-requests';
   if (type === 'activitypub_follow') {
     const handle = profileHandle(data.follower);
@@ -221,4 +222,63 @@ export function dismissalMessages(ids: string[] | null): Record<string, string>[
     messages.push({ kind: 'read', ids: unique.slice(i, i + DISMISS_IDS_PER_MESSAGE).join(',') });
   }
   return messages;
+}
+
+/**
+ * Browser and OS named by a User-Agent, e.g. "Firefox on Linux"; null when neither is known.
+ * Mirrors describeUserAgent in src/utils/userAgent.ts.
+ */
+export function describeUserAgent(userAgent: string | null | undefined): string | null {
+  if (!userAgent) return null;
+  const ua = userAgent;
+  const os = /Android/.test(ua) ? 'Android'
+    : /iPad/.test(ua) ? 'iPadOS'
+    : /iPhone|iPod/.test(ua) ? 'iOS'
+    : /Windows/.test(ua) ? 'Windows'
+    : /Mac OS X|Macintosh/.test(ua) ? 'macOS'
+    : /CrOS/.test(ua) ? 'ChromeOS'
+    : /Linux|X11/.test(ua) ? 'Linux'
+    : null;
+  const linuxWebKit = os === 'Linux' && /AppleWebKit/.test(ua) && !/Chrome\/|Chromium\//.test(ua);
+  const browser = /; wv\)/.test(ua) || linuxWebKit ? 'Harmony app'
+    : /Edg\//.test(ua) ? 'Edge'
+    : /OPR\//.test(ua) ? 'Opera'
+    : /Firefox\//.test(ua) ? 'Firefox'
+    : /Chrome\/|Chromium\//.test(ua) ? 'Chrome'
+    : /Safari\//.test(ua) ? 'Safari'
+    : null;
+  if (browser && os) return `${browser} on ${os}`;
+  return browser ?? os;
+}
+
+/**
+ * Push text for a 'security' notification. data.event is written by
+ * public.record_security_notice (migration 20261005400001).
+ */
+export function securityNoticeText(data: Record<string, any> = {}): { title: string; body: string } {
+  const device = describeUserAgent(data.user_agent);
+  switch (data.event) {
+    case 'new_sign_in':
+      return {
+        title: 'New sign-in to your account',
+        body: `${device ? `${device}. ` : ''}Not you? Sign out that session in Settings > Security.`,
+      };
+    case 'mfa_enabled':
+      return { title: 'Two-factor authentication turned on', body: 'Sign-ins now need your authenticator.' };
+    case 'mfa_disabled':
+      return {
+        title: 'Two-factor authentication turned off',
+        body: data.reason === 'recovery_code'
+          ? 'A recovery code was used to sign in. Set up two-factor authentication again.'
+          : 'Your account no longer asks for an authenticator code.',
+      };
+    case 'recovery_code_used':
+      return { title: 'Recovery code used', body: 'One of your recovery codes was used.' };
+    case 'recovery_codes_regenerated':
+      return { title: 'New recovery codes', body: 'Your previous recovery codes no longer work.' };
+    case 'password_changed':
+      return { title: 'Password changed', body: 'Your password was changed. Other sessions were signed out.' };
+    default:
+      return { title: 'Account security', body: 'There was a change to your account security.' };
+  }
 }

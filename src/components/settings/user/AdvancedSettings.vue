@@ -229,10 +229,9 @@
         <div class="setting-info">
           <h4 class="setting-label danger">{{ $t('common.delete') }} account</h4>
           <p class="setting-description">
-            Permanently delete your account. Your messages and posts remain
-            visible but are attributed to an anonymous "Deleted User"; your
-            profile, encryption keys, devices and login are removed and cannot
-            be recovered.
+            Permanently delete your account. Messages you sent stay where they are,
+            shown as "Deleted User". Your profile, login, devices, encryption keys and
+            follows are removed, and other fediverse servers are told the account is gone.
           </p>
         </div>
         <div class="setting-control">
@@ -244,27 +243,61 @@
     </div>
 
     <Teleport to="body">
-      <div v-if="showDeleteModal" class="delete-modal-overlay" @click.self="closeDeleteModal">
-        <div class="delete-modal">
-          <h3 class="delete-modal-title">Delete your account?</h3>
+      <div v-if="showDeleteModal" class="sec-modal-overlay" @click.self="closeDeleteModal">
+        <form class="sec-modal" role="dialog" aria-modal="true" aria-labelledby="delete-title" @submit.prevent="confirmDeletion">
+          <h3 id="delete-title" class="sec-modal-title danger">Delete your account?</h3>
 
-          <p class="delete-modal-text">
-            This is permanent. Your login, profile, encryption keys and devices
-            are deleted. Messages and posts you wrote stay visible, attributed
-            to "Deleted User".
-          </p>
+          <ul class="sec-bullets">
+            <li>This cannot be undone. Your username becomes free for someone else.</li>
+            <li>Messages and posts you wrote stay visible as "Deleted User"; delete any you want gone first.</li>
+            <li>Your profile, avatar, banner, login, devices, push notifications, encryption keys, follows, blocks and bots stop working and are removed.</li>
+            <li>Servers on other instances that know your account are sent a deletion notice.</li>
+          </ul>
 
-          <div v-if="blockingServers.length > 0" class="delete-modal-error">
-            You still own {{ blockingServers.length === 1 ? 'a server' : 'servers' }} with other
-            members: <strong>{{ blockingServers.join(', ') }}</strong>.
-            Transfer ownership or delete {{ blockingServers.length === 1 ? 'it' : 'them' }} first.
+          <button type="button" class="sec-link" @click="goToExport">Download your data first</button>
+
+          <div v-if="blockingServers.length > 0" class="sec-callout sec-callout-danger">
+            <span>
+              You own {{ blockingServers.length === 1 ? 'a server' : 'servers' }} with other members:
+              <strong>{{ blockingServers.join(', ') }}</strong>. Transfer ownership or delete
+              {{ blockingServers.length === 1 ? 'it' : 'them' }} first.
+            </span>
           </div>
 
-          <div class="delete-modal-field">
-            <label for="delete-confirm-input">Type <strong>DELETE</strong> to confirm</label>
+          <div v-if="hasPassword" class="sec-field">
+            <label class="sec-label" for="delete-password">Password</label>
+            <input
+              id="delete-password"
+              v-model="deletePassword"
+              class="sec-input"
+              type="password"
+              autocomplete="current-password"
+            />
+          </div>
+          <div v-else class="sec-callout">
+            <span>Your account has no password. Deletion needs a sign-in within the last ten minutes.</span>
+          </div>
+
+          <div v-if="deletionMfaRequired" class="sec-field">
+            <label class="sec-label" for="delete-mfa-input">Authenticator code</label>
+            <input
+              id="delete-mfa-input"
+              v-model="deleteMfaCode"
+              class="sec-input sec-code-input"
+              inputmode="numeric"
+              maxlength="6"
+              autocomplete="one-time-code"
+              placeholder="000000"
+              @input="deleteMfaCode = deleteMfaCode.replace(/\D/g, '')"
+            />
+          </div>
+
+          <div class="sec-field">
+            <label class="sec-label" for="delete-confirm-input">Type <strong>DELETE</strong> to confirm</label>
             <input
               id="delete-confirm-input"
               v-model="deleteConfirmText"
+              class="sec-input"
               type="text"
               autocomplete="off"
               spellcheck="false"
@@ -272,34 +305,20 @@
             />
           </div>
 
-          <div v-if="deletionMfaRequired" class="delete-modal-field">
-            <label for="delete-mfa-input">Authenticator code</label>
-            <input
-              id="delete-mfa-input"
-              v-model="deleteMfaCode"
-              type="text"
-              inputmode="numeric"
-              maxlength="6"
-              autocomplete="one-time-code"
-              placeholder="6-digit code"
-            />
-          </div>
+          <p v-if="deleteError" class="sec-error" role="alert">{{ deleteError }}</p>
+          <button v-if="needsFreshSignIn" type="button" class="sec-btn sec-btn-secondary" @click="signInAgain">
+            Sign out and sign in again
+          </button>
 
-          <p v-if="deleteError" class="delete-modal-error">{{ deleteError }}</p>
-
-          <div class="delete-modal-actions">
-            <button class="btn btn-secondary" @click="closeDeleteModal" :disabled="isDeleting">
+          <div class="sec-actions">
+            <button type="button" class="sec-btn sec-btn-secondary" :disabled="isDeleting" @click="closeDeleteModal">
               {{ $t('common.cancel') }}
             </button>
-            <button
-              class="btn btn-danger"
-              :disabled="!canConfirmDeletion || isDeleting"
-              @click="confirmDeletion"
-            >
+            <button type="submit" class="sec-btn sec-btn-danger" :disabled="!canConfirmDeletion || isDeleting">
               {{ isDeleting ? 'Deleting…' : 'Delete account forever' }}
             </button>
           </div>
-        </div>
+        </form>
       </div>
     </Teleport>
   </div>
@@ -321,6 +340,9 @@ import { useI18n } from 'vue-i18n'
 import { useTodayDashboard } from '@/composables/useTodayDashboard'
 import { todayDigestService } from '@/services/TodayDigestService'
 import { accountDeletionService } from '@/services/AccountDeletionService'
+import { useAuthStore } from '@/stores/auth'
+import { useRouter } from 'vue-router'
+import './securitySettings.css'
 import {
   getChromiumBrowserLabel,
   getRunOnLoginUrl,
@@ -445,23 +467,35 @@ const onRunOnLoginEnabled = () => {
 }
 
 // --- Account deletion ---
+const authStore = useAuthStore()
+const router = useRouter()
 const showDeleteModal = ref(false)
 const deleteConfirmText = ref('')
+const deletePassword = ref('')
 const deleteMfaCode = ref('')
 const deletionMfaRequired = ref(false)
 const blockingServers = ref<string[]>([])
 const deleteError = ref('')
+const needsFreshSignIn = ref(false)
 const isDeleting = ref(false)
+
+const hasPassword = computed(() => {
+  const providers = authStore.session?.user?.app_metadata?.providers
+  return !Array.isArray(providers) || providers.length === 0 || providers.includes('email')
+})
 
 const canConfirmDeletion = computed(() =>
   deleteConfirmText.value === 'DELETE' &&
-  (!deletionMfaRequired.value || deleteMfaCode.value.length === 6)
+  (!hasPassword.value || deletePassword.value.length > 0) &&
+  (!deletionMfaRequired.value || /^\d{6}$/.test(deleteMfaCode.value))
 )
 
 const openDeleteModal = async () => {
   deleteConfirmText.value = ''
+  deletePassword.value = ''
   deleteMfaCode.value = ''
   deleteError.value = ''
+  needsFreshSignIn.value = false
   blockingServers.value = []
   deletionMfaRequired.value = await accountDeletionService.isMfaEnabled()
   showDeleteModal.value = true
@@ -472,30 +506,41 @@ const closeDeleteModal = () => {
   showDeleteModal.value = false
 }
 
+const goToExport = () => {
+  showDeleteModal.value = false
+  router.push({ name: 'UserSettings', params: { section: 'privacy' } })
+}
+
+const signInAgain = async () => {
+  showDeleteModal.value = false
+  await authStore.logout().catch(() => {})
+}
+
 const confirmDeletion = async () => {
   if (!canConfirmDeletion.value || isDeleting.value) return
   isDeleting.value = true
   deleteError.value = ''
+  needsFreshSignIn.value = false
   blockingServers.value = []
 
   try {
-    // Step-up first: the RPC rejects aal1 sessions for MFA-enrolled accounts.
+    // The RPC needs a TOTP verify within the last ten minutes for 2FA accounts.
     if (deletionMfaRequired.value) {
       const mfaError = await accountDeletionService.verifyMfaCode(deleteMfaCode.value)
       if (mfaError) {
         deleteError.value = mfaError
+        deleteMfaCode.value = ''
         return
       }
     }
 
-    const result = await accountDeletionService.deleteAccount()
+    const result = await accountDeletionService.deleteAccount(hasPassword.value ? deletePassword.value : undefined)
 
     switch (result.status) {
       case 'success': {
         toast.success('Your account has been deleted.')
         // The auth user is gone; drop all local state and leave.
-        const { useAuthStore } = await import('@/stores/auth')
-        await useAuthStore().logout().catch(() => {})
+        await authStore.logout().catch(() => {})
         window.location.href = '/login'
         break
       }
@@ -504,7 +549,16 @@ const confirmDeletion = async () => {
         break
       case 'mfa_required':
         deletionMfaRequired.value = true
-        deleteError.value = 'Enter your authenticator code to continue.'
+        deleteError.value = 'Enter a code from your authenticator app.'
+        break
+      case 'password_required':
+      case 'invalid_password':
+        deleteError.value = 'That password is not correct.'
+        deletePassword.value = ''
+        break
+      case 'reauthentication_required':
+        needsFreshSignIn.value = true
+        deleteError.value = 'Sign in again, then delete your account within ten minutes.'
         break
       case 'error':
         deleteError.value = result.message
@@ -780,85 +834,6 @@ const clearCache = async () => {
 }
 
 .modal-actions {
-  display: flex;
-  gap: 12px;
-  justify-content: flex-end;
-}
-</style>
-<style scoped>
-.delete-modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.75);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1100;
-  padding: 16px;
-}
-
-.delete-modal {
-  background: var(--background-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
-  padding: 24px;
-  max-width: 440px;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.delete-modal-title {
-  margin: 0;
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-bold);
-  color: var(--error);
-}
-
-.delete-modal-text {
-  margin: 0;
-  font-size: var(--font-size-sm);
-  line-height: 1.5;
-  color: var(--text-secondary);
-}
-
-.delete-modal-field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.delete-modal-field label {
-  font-size: 13px;
-  color: var(--text-secondary);
-}
-
-.delete-modal-field input {
-  padding: 10px 12px;
-  border-radius: var(--radius-base);
-  border: 1px solid var(--input-border);
-  background: var(--input-bg);
-  color: var(--text-primary);
-  font-size: var(--font-size-sm);
-}
-
-.delete-modal-field input:focus {
-  outline: none;
-  border-color: var(--error);
-}
-
-.delete-modal-error {
-  margin: 0;
-  font-size: 13px;
-  color: var(--error);
-  background: color-mix(in srgb, var(--error) 8%, transparent);
-  border: 1px solid color-mix(in srgb, var(--error) 30%, transparent);
-  border-radius: var(--radius-base);
-  padding: 10px 12px;
-}
-
-.delete-modal-actions {
   display: flex;
   gap: 12px;
   justify-content: flex-end;

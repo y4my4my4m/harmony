@@ -91,6 +91,7 @@ const NOTIFICATION_SOUND_MAPPING: Record<NotificationType, AudioAction> = {
   activitypub_follow_accepted: 'friend_request',
   report_update: 'server_update',
   moderation_warning: 'server_update',
+  security: 'server_update',
   error: 'server_update',
   ui_success: 'ui_success',
   ui_error: 'ui_error',

@@ -27,6 +27,7 @@ import { handlePushNotificationJob } from './handlers/pushNotificationHandler.js
 import { handlePushDismissalJob } from './handlers/pushDismissalHandler.js';
 import { handleVoiceJoinJob, handleVoiceLeaveJob } from './handlers/voiceHandler.js';
 import { handleMaintenanceJob } from './handlers/maintenanceHandler.js';
+import { handleAccountDeletedJob } from './handlers/accountDeletedHandler.js';
 import { handleGroupInviteJob } from './handlers/groupInviteHandler.js';
 import { handleGroupUpdateJob } from './handlers/groupUpdateHandler.js';
 import { handleGroupParticipantChangeJob } from './handlers/groupParticipantHandler.js';
@@ -57,6 +58,7 @@ export type JobType =
   | 'send-push-notification'
   | 'dismiss-push-notifications'
   | 'release-held-activity'
+  | 'account-deleted'
   | 'sweep-pending'
   | 'maintenance';
 
@@ -93,6 +95,7 @@ const JOB_TYPES: JobType[] = [
   'send-push-notification',
   'dismiss-push-notifications',
   'release-held-activity',
+  'account-deleted',
   'maintenance',
 ];
 
@@ -207,6 +210,7 @@ class BullMQManagerService {
     this.handlerMap.set('send-push-notification', handlePushNotificationJob as unknown as HandlerFn);
     this.handlerMap.set('dismiss-push-notifications', handlePushDismissalJob as unknown as HandlerFn);
     this.handlerMap.set('release-held-activity', handleReleaseHeldActivityJob as unknown as HandlerFn);
+    this.handlerMap.set('account-deleted', handleAccountDeletedJob as unknown as HandlerFn);
     this.handlerMap.set('maintenance', handleMaintenanceJob as unknown as HandlerFn);
   }
 
@@ -334,6 +338,18 @@ class BullMQManagerService {
     const { getSupabaseClient } = await import('../config/supabase.js');
     const supabase = getSupabaseClient();
     const twoSecondsAgo = new Date(Date.now() - 2000).toISOString();
+
+    // Account deletions whose notify was lost. Five minutes covers a job still in its
+    // first attempt; a second Delete to the same inbox is harmless.
+    const { data: undelivered } = await supabase
+      .from('deleted_actors')
+      .select('profile_id')
+      .is('delivered_at', null)
+      .lt('deleted_at', new Date(Date.now() - 5 * 60_000).toISOString())
+      .limit(20);
+    for (const row of undelivered ?? []) {
+      await this.addJob('account-deleted', { type: 'delete', profile_id: row.profile_id });
+    }
 
     // Sweep posts
     const { data: pendingPosts } = await supabase

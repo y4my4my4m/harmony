@@ -27,6 +27,7 @@ import {
   isValidFcmToken,
   isWithinQuietHours,
   pushAllowedForType,
+  securityNoticeText,
 } from './pushPolicy.js';
 
 /**
@@ -200,7 +201,8 @@ class PushNotificationServiceClass {
     userAgent?: string,
     deviceName?: string,
     previousEndpoint?: string | null,
-    transport: 'webpush' | 'unifiedpush' = 'webpush'
+    transport: 'webpush' | 'unifiedpush' = 'webpush',
+    sessionId: string | null = null
   ): Promise<{ success: boolean; error?: string }> {
     try {
       if (!isValidSubscription(subscription)) {
@@ -245,6 +247,7 @@ class PushNotificationServiceClass {
           transport,
           user_agent: userAgent,
           device_name: deviceName,
+          session_id: sessionId,
           failure_count: 0,
           last_failure_at: null,
           last_failure_reason: null,
@@ -274,7 +277,7 @@ class PushNotificationServiceClass {
   async saveFcmToken(
     userId: string,
     token: string,
-    opts: { previousToken?: string | null; userAgent?: string; deviceName?: string } = {}
+    opts: { previousToken?: string | null; userAgent?: string; deviceName?: string; sessionId?: string | null } = {}
   ): Promise<{ success: boolean; id?: string; error?: string }> {
     if (!isValidFcmToken(token)) return { success: false, error: 'Invalid token' };
     try {
@@ -307,6 +310,7 @@ class PushNotificationServiceClass {
             transport: 'fcm',
             user_agent: opts.userAgent,
             device_name: opts.deviceName,
+            session_id: opts.sessionId ?? null,
             failure_count: 0,
             last_failure_at: null,
             last_failure_reason: null,
@@ -367,7 +371,7 @@ class PushNotificationServiceClass {
 
       const { data: rows, error: lookupError } = await supabaseAdmin
         .from('push_subscriptions')
-        .select('id, user_id, user_agent, device_name')
+        .select('id, user_id, user_agent, device_name, session_id')
         .eq('endpoint', oldEndpoint)
         .eq('auth', oldAuth)
         .order('updated_at', { ascending: false })
@@ -386,7 +390,9 @@ class PushNotificationServiceClass {
         subscription,
         row.user_agent ?? undefined,
         row.device_name ?? undefined,
-        oldEndpoint
+        oldEndpoint,
+        'webpush',
+        row.session_id ?? null
       );
       if (result.success) logger.info('Push subscription rotated by the service worker');
       return result;
@@ -774,8 +780,9 @@ class PushNotificationServiceClass {
 
       const hasActiveSession = await this.hasActiveSession(notification.user_id);
       
-      // push_offline_only defaults to true, as in notification_preferences.
-      if ((prefs?.push_offline_only ?? true) && hasActiveSession) {
+      // push_offline_only defaults to true, as in notification_preferences. Security
+      // notices push regardless: the active session may be the one they report.
+      if (notification.type !== 'security' && (prefs?.push_offline_only ?? true) && hasActiveSession) {
         logger.debug(`Skipping push - user has active session and offline-only is enabled`);
         return;
       }
@@ -1083,6 +1090,13 @@ class PushNotificationServiceClass {
         message = data.reaction?.emoji_name || data.reaction?.custom_emoji_content || '👍';
         break;
       
+      case 'security': {
+        const notice = securityNoticeText(data);
+        title = notice.title;
+        message = notice.body;
+        break;
+      }
+
       default:
         // For unknown types, try to extract meaningful content
         title = notification.title || 'New notification';

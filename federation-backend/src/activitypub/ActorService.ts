@@ -12,6 +12,7 @@ import config from '../config/index.js';
 import { validateExternalHostname, validateExternalUrl, safeFetch } from '../utils/ssrfProtection.js';
 import { discoveryLimiter } from '../middleware/rateLimit.js';
 import { sameOrigin } from '../utils/apOrigin.js';
+import { actorTombstone, deletedActorByProfile, deletedActorByUsername } from './deletedActors.js';
 
 const router = Router();
 
@@ -2196,6 +2197,23 @@ router.get(
       .eq('username', username)
       .eq('is_local', true)
       .single();
+
+    // A deleted account answers 410 under its old handle and under its tombstone name.
+    let deleted: { actor_uri: string; deleted_at: string | null } | null = null;
+    if (profile?.deleted_at) {
+      deleted = (await deletedActorByProfile(profile.id).catch(() => null)) ?? {
+        actor_uri: `https://${config.INSTANCE_DOMAIN}/users/${profile.username}`,
+        deleted_at: profile.deleted_at,
+      };
+    } else if (!profile) {
+      deleted = await deletedActorByUsername(username);
+    }
+    if (deleted) {
+      res.status(410);
+      res.setHeader('Content-Type', 'application/activity+json');
+      res.json(actorTombstone(deleted.actor_uri, deleted.deleted_at));
+      return;
+    }
 
     if (error || !profile) {
       res.status(404).json({

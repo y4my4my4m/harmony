@@ -36,6 +36,7 @@ export type NotificationType =
   | 'activitypub_follow_accepted'
   | 'report_update'
   | 'moderation_warning'
+  | 'security'
   | 'error'
   // Generic UI feedback toasts (also valid AudioActions for themed sounds)
   | 'ui_success'

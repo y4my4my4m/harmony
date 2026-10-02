@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { deletedActorByProfile } from './deletedActors.js';
 import { getSupabaseClient } from '../config/supabase.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { logger } from '../utils/logger.js';
@@ -123,12 +124,22 @@ export class SignatureService {
 
     const { data: user, error: userError } = await supabase
       .from('profiles')
-      .select('username, domain')
+      .select('username, domain, deleted_at')
       .eq('id', userId)
       .single();
 
     if (userError || !user) {
       throw new AppError(500, 'User not found');
+    }
+
+    // A deleted account signs with the key and keyId it had, held in deleted_actors until
+    // key_purge_after. No key is generated for it.
+    if (user.deleted_at) {
+      const tombstone = await deletedActorByProfile(userId);
+      if (!tombstone?.private_key) {
+        throw new AppError(410, 'Actor deleted');
+      }
+      return this.signWithKey(targetUrl, method, body, `${tombstone.actor_uri}#main-key`, tombstone.private_key);
     }
 
     const initialKeyLookup = await supabase

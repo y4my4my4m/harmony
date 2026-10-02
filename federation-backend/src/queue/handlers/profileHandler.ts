@@ -27,8 +27,8 @@ export async function handleProfileJob(data: FederationJobData): Promise<void> {
       .eq('id', profile_id)
       .single();
 
-    if (!profile || !profile.is_local) {
-      logger.debug('Profile not found or not local, skipping');
+    if (!profile || !profile.is_local || profile.deleted_at) {
+      logger.debug('Profile not found, not local or deleted, skipping');
       return;
     }
 

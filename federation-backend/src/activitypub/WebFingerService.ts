@@ -3,6 +3,7 @@ import { getSupabaseClient } from '../config/supabase.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import config from '../config/index.js';
 import { INSTANCE_ACTOR_USERNAME, instanceActorUrl, isInstanceActorUsername } from './InstanceActor.js';
+import { deletedActorByUsername } from './deletedActors.js';
 
 const router = Router();
 
@@ -80,6 +81,7 @@ router.get(
         .select('username')
         .ilike('username', pattern)
         .eq('is_local', true)
+        .is('deleted_at', null)
         .maybeSingle(),
       // Only public, federation-enabled local servers are discoverable by
       // handle. Private servers stay invite-only (reached by Group-actor URL
@@ -95,6 +97,9 @@ router.get(
     ]);
 
     if (!user && !server) {
+      if (await deletedActorByUsername(username)) {
+        return res.status(410).json({ error: 'Account deleted' });
+      }
       return res.status(404).json({ error: 'Account not found' });
     }
 

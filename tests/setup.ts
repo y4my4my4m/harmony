@@ -20,6 +20,8 @@ vi.stubGlobal('import.meta', {
 vi.mock('@/supabase', () => ({
   SUPABASE_URL: 'http://localhost:54321',
   SUPABASE_ANON_KEY: 'test-anon-key',
+  onSessionRejected: vi.fn(() => () => {}),
+  signOutAndForget: vi.fn(async () => {}),
   supabase: {
     from: vi.fn(),
     rpc: vi.fn(),

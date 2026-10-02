@@ -39,7 +39,7 @@
           <button
             type="submit"
             class="btn-primary"
-            :disabled="mfaLoading || (useRecoveryCode ? mfaCode.length < RECOVERY_CODE_MIN_LENGTH : mfaCode.length !== 6)"
+            :disabled="mfaLoading || (useRecoveryCode ? recoveryCodeLength(mfaCode) < RECOVERY_CODE_MIN_LENGTH : mfaCode.length !== 6)"
           >
             <span v-if="!mfaLoading">{{ $t('auth.verify') || 'Verify' }}</span>
             <span v-else>...</span>
@@ -98,16 +98,19 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
+import { useToast } from 'vue-toastification'
 import { useAuthStore } from '@/stores/auth'
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
 import { isTauriRuntime } from '@/services/instanceConfig'
 import type { Session } from '@supabase/supabase-js'
 import { consumePostAuthRedirect } from '@/utils/postAuthRedirect'
-import { RECOVERY_CODE_MIN_LENGTH, RECOVERY_CODE_MAX_LENGTH, RECOVERY_CODE_PLACEHOLDER } from '@/utils/mfaConstants'
+import { RECOVERY_CODE_MIN_LENGTH, RECOVERY_CODE_MAX_LENGTH, RECOVERY_CODE_PLACEHOLDER, recoveryCodeLength } from '@/utils/mfaConstants'
+import { securityErrorMessage } from '@/services/AccountSecurityService'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const toast = useToast()
 
 // An MFA-enrolled OAuth user lands at AAL1 after the provider redirect.
 // The 'mfa' state challenges them inline instead of signing them out.
@@ -186,15 +189,13 @@ const finalizeLoginAndRedirect = async (session: Session) => {
 }
 
 const handleMFAVerification = async () => {
-  // Recovery codes are 10 hex chars since 2026-06; codes issued before that are
-  // 8. The verify RPC accepts either, so the client only enforces the minimum.
   if (useRecoveryCode.value) {
-    if (mfaCode.value.length < RECOVERY_CODE_MIN_LENGTH) {
-      mfaError.value = `Please enter a recovery code of at least ${RECOVERY_CODE_MIN_LENGTH} characters`
+    if (recoveryCodeLength(mfaCode.value) < RECOVERY_CODE_MIN_LENGTH) {
+      mfaError.value = 'Enter one of your recovery codes, for example ABCDE-12345.'
       return
     }
-  } else if (mfaCode.value.length !== 6) {
-    mfaError.value = 'Please enter a 6-digit code'
+  } else if (!/^\d{6}$/.test(mfaCode.value)) {
+    mfaError.value = 'Enter the 6-digit code from your authenticator app.'
     return
   }
 
@@ -202,56 +203,21 @@ const handleMFAVerification = async () => {
   mfaError.value = ''
 
   try {
+    // Both paths finish through the auth store: the recovery code is redeemed
+    // server-side (code consumed and factors removed in one transaction), TOTP is
+    // verified by GoTrue; each then runs the post-sign-in setup.
+    const { session } = useRecoveryCode.value
+      ? await authStore.completeRecoverySignIn(mfaCode.value)
+      : await authStore.verify2FA(pendingFactorId.value, pendingChallengeId.value, mfaCode.value)
     if (useRecoveryCode.value) {
-      // Recovery-code path: verify the code, then unenroll the factor. The
-      // authenticator is presumed lost, so MFA is disabled and re-enabled
-      // later from settings.
-      //
-      // BUGS.md H8 / C11: this verifies and unenrolls client-side from an AAL1
-      // session, so the security boundary is in the client. AuthComponent's
-      // password-login path uses the atomic `redeem_recovery_code_and_disable_mfa`
-      // RPC instead; this path has not been migrated to it.
-      const { data: sessionData } = await supabase.auth.getSession()
-      const userId = sessionData.session?.user?.id
-      if (!userId) throw new Error('User session not found')
-
-      const { data: isValid, error } = await supabase.rpc('verify_recovery_code', {
-        p_user_id: userId,
-        p_code: mfaCode.value,
-      })
-      if (error) throw error
-      if (!isValid) {
-        mfaError.value = 'Invalid or already-used recovery code'
-        return
-      }
-
-      await supabase.auth.mfa.unenroll({ factorId: pendingFactorId.value })
-
-      const { data: refreshed } = await supabase.auth.getSession()
-      // Adopt the session; no factor remains, so AAL1 suffices.
-      authStore.session = refreshed.session
-      authStore._pendingMFAVerification = false
-
-      if (!refreshed.session) {
-        throw new Error('Session lost after recovery-code unenroll')
-      }
-      await finalizeLoginAndRedirect(refreshed.session)
-    } else {
-      // TOTP path: `verify2FA` runs `mfa.verify`, awaits the AAL2 session, and
-      // runs the post-login setup the SIGNED_IN handler would have run.
-      const { session: verifiedSession } = await authStore.verify2FA(
-        pendingFactorId.value,
-        pendingChallengeId.value,
-        mfaCode.value,
-      )
-      if (!verifiedSession) {
-        throw new Error('No session after MFA verification')
-      }
-      await finalizeLoginAndRedirect(verifiedSession)
+      toast.warning('Signed in with a recovery code. Two-factor authentication is now off; set it up again.', { timeout: 10000 })
     }
+    await finalizeLoginAndRedirect(session)
   } catch (error: any) {
     debug.error('OAuth callback MFA verification error:', error)
-    mfaError.value = error?.message || 'Verification failed'
+    mfaError.value = securityErrorMessage(error, useRecoveryCode.value
+      ? 'That recovery code is not valid or was already used.'
+      : 'Verification failed. Try again.')
   } finally {
     mfaLoading.value = false
   }

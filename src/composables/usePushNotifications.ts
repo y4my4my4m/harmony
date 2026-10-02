@@ -75,6 +75,8 @@ export interface PushSubscriptionInfo {
   created_at: string
   last_successful_push?: string
   failure_count: number
+  /** auth.sessions id that registered it; null for rows from earlier releases. */
+  session_id?: string | null
 }
 
 export interface DeviceRecord {

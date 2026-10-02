@@ -98,7 +98,8 @@ SELECT is_empty(
 
 SELECT policies_are('public', 'messages', ARRAY[
     'messages_delete_authorized', 'messages_insert_member',
-    'messages_select_channel_member', 'messages_update_authorized'],
+    'messages_select_channel_member', 'messages_update_authorized',
+    'messages_session_aal'],
     'messages carries exactly the canonical policies');
 
 -- MEMBERSHIP STATUS ----------------------------------------------------------------------

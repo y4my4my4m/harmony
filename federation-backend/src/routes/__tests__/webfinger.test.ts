@@ -30,8 +30,9 @@ vi.mock('../../middleware/errorHandler.js', () => ({
 import { default as supertest } from 'supertest'
 
 // WebFingerService now queries BOTH tables (Lemmy-style handle disambiguation):
-//   .from('profiles').select(...).ilike('username', X).eq('is_local', true).maybeSingle()
+//   .from('profiles').select(...).ilike('username', X).eq('is_local', true).is('deleted_at', null).maybeSingle()
 //   .from('servers').select(...).ilike('slug', X).eq(...).eq(...).eq(...).maybeSingle()
+// and, when neither matches, deleted_actors for the 410 of a deleted account.
 // The `.eq()` must be self-chaining (the servers query chains three of them) and
 // each terminal `.maybeSingle()` resolves to that table's row. Dispatch by the
 // `from()` table name so a user and/or a server can be returned independently.
@@ -41,6 +42,9 @@ function setupMocks(opts: { user?: string | null; server?: { id: string; slug: s
       select: vi.fn(() => chain),
       ilike: vi.fn(() => chain),
       eq: vi.fn(() => chain),
+      is: vi.fn(() => chain),
+      order: vi.fn(() => chain),
+      limit: vi.fn(() => chain),
       maybeSingle: vi.fn(() => Promise.resolve(result)),
     }
     return chain

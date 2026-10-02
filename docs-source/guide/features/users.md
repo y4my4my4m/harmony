@@ -52,8 +52,9 @@ The settings panel (`UserSettings` view) provides:
 
 | Section | Component | Features |
 |---------|-----------|----------|
-| Account | `UserAccountSettings` | Email, password, 2FA, account deletion |
-| Privacy | `PrivacySettings` | Profile visibility, DM permissions, activity tracking |
+| Account | `UserAccountSettings` | Profile, avatar, banner, profile fields |
+| Security | `SecuritySettings` | Password, two-factor authentication and recovery codes, signed-in devices |
+| Privacy | `PrivacySettings` | Encryption, tracking-parameter stripping, data export, blocked and muted users |
 | Appearance | `AppearanceSettings` | Theme, colors, layout preferences |
 | Notifications | `NotificationSettings` | Desktop, sound, DND schedule |
 | Voice & Video | `VoiceVideoSettings` | Device selection, quality settings |
@@ -61,7 +62,7 @@ The settings panel (`UserSettings` view) provides:
 | Keybinds | `KeybindSettings` | Keyboard shortcuts |
 | Audio Themes | `AudioThemeSettings` | Sound theme selection |
 | Bots | `UserBotsManagement` | Personal bot management |
-| Advanced | `AdvancedSettings` | Debug options, data export |
+| Advanced | `AdvancedSettings` | Desktop app, developer mode, cache, account deletion |
 
 ## Muting and Blocking
 

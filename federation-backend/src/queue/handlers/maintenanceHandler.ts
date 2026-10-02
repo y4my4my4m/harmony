@@ -28,6 +28,7 @@ export async function handleMaintenanceJob(data: MaintenanceJobData): Promise<vo
       break;
     case 'cleanup-orphans':
       await cleanupOrphanedKeys();
+      await purgeDeletedActorKeys();
       break;
     case 'verify-federation':
       await verifyFederationHealth();
@@ -35,6 +36,24 @@ export async function handleMaintenanceJob(data: MaintenanceJobData): Promise<vo
     default:
       logger.warn(`Unknown maintenance task: ${data.task}`);
   }
+}
+
+/**
+ * Drops the signing keys of deleted accounts once their Delete has had key_purge_after to
+ * reach remote inboxes, retries included.
+ */
+async function purgeDeletedActorKeys(): Promise<void> {
+  const { data, error } = await getSupabaseClient()
+    .from('deleted_actors')
+    .update({ private_key: null })
+    .lt('key_purge_after', new Date().toISOString())
+    .not('private_key', 'is', null)
+    .select('profile_id');
+  if (error) {
+    logger.error('Failed to purge deleted-actor keys:', error);
+    return;
+  }
+  if (data?.length) logger.info(`Purged signing keys of ${data.length} deleted account(s)`);
 }
 
 /**
@@ -53,6 +72,8 @@ async function sweepMissingKeys(): Promise<void> {
     .select('id, username, domain')
     .eq('is_local', true)
     .is('public_key', null)
+    .is('deleted_at', null)
+    .not('auth_user_id', 'is', null)
     .limit(50); // Process in batches
 
   if (queryError) {
