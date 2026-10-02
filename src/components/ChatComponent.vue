@@ -67,7 +67,13 @@
       </div>
     </div>
 
+    <RulesAcceptPrompt
+      v-if="rulesPromptServerId"
+      :server-name="serverChannelStore.currentServer?.name"
+      @review="welcomeStore.open(rulesPromptServerId)"
+    />
     <MessageInput 
+      v-else
       ref="messageInputRef"
       v-model="messageContent"
       :giphyOpen="giphyOpen"
@@ -154,6 +160,8 @@
   import MessageInput from './MessageInput.vue';
   import Icon from '@/components/common/Icon.vue';
   import KickBanModal from './moderation/KickBanModal.vue';
+  import RulesAcceptPrompt from '@/components/welcome/RulesAcceptPrompt.vue';
+  import { useServerWelcomeStore } from '@/stores/useServerWelcome';
   const RecoveryKeySetupWizard = defineAsyncComponent(() => import('@/components/encryption/RecoveryKeySetupWizard.vue'));
   const KeyRecoveryModal = defineAsyncComponent(() => import('@/components/encryption/KeyRecoveryModal.vue'));
   import { useAuthStore } from '@/stores/auth'; 
@@ -236,6 +244,12 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
   } = useFileDragOverlay();
   const uploading = ref(false);
   const sendError = ref<string | null>(null);
+
+  const welcomeStore = useServerWelcomeStore();
+  const rulesPromptServerId = computed(() => {
+    const serverId = serverChannelStore.currentServerId;
+    return !props.isDM && serverId && welcomeStore.mustAccept(serverId) ? serverId : null;
+  });
 
   // Slash command moderation modal
   const showKickBanModal = ref(false);
@@ -979,6 +993,12 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
             // The chat store already dispatched harmony:slowmode-hit to sync the
             // input countdown. This surfaces the human-readable reason.
             toast.info(msg)
+            if (content && !messageContent.value.trim()) {
+              messageContent.value = content
+            }
+          } else if (code === 'RULES_NOT_ACCEPTED' || msg.includes('RULES_NOT_ACCEPTED')) {
+            // The composer turns into the accept-rules prompt; the draft is kept.
+            void welcomeStore.handleRulesRejection(error?.details?.serverId ?? serverChannelStore.currentServerId)
             if (content && !messageContent.value.trim()) {
               messageContent.value = content
             }

@@ -190,7 +190,7 @@
           </div>
         </dl>
 
-        <a class="doc-link" :href="BOT_API_DOCS_URL" target="_blank" rel="noopener noreferrer">
+        <a class="doc-link" :href="safeHref(BOT_API_DOCS_URL)" target="_blank" rel="noopener noreferrer">
           <Icon name="file" :size="16" />
           <span>{{ t('bots.connection.docs') }}</span>
           <Icon name="external-link" :size="14" />
@@ -420,6 +420,7 @@
 </template>
 
 <script setup lang="ts">
+import { safeHref } from '@/utils/sanitize';
 import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useToast } from 'vue-toastification'
@@ -427,6 +428,7 @@ import { formatDistanceToNow } from 'date-fns'
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
 import { authContextService } from '@/services/AuthContextService'
+import { addBotToServer, fetchBotInstallTargets } from '@/services/botProfileService'
 import { getStoredInstance } from '@/services/instanceConfig'
 import { resolveHarmonyBaseUrl } from '@/utils/discordBridgeSetup'
 import {
@@ -434,7 +436,6 @@ import {
   BOT_USERNAME_MAX,
   botUsernameError,
   buildBotEndpoints,
-  defaultBotPermissions,
   formatTokenHint,
   isBotOnline,
   type BotPresenceRow,
@@ -490,7 +491,6 @@ const { confirm } = useConfirmDialog()
 
 const BOT_COLUMNS = 'id, username, display_name, bio, avatar_url, bot_type, is_public, is_verified, created_at, last_online_at'
 const PRESENCE_REFRESH_MS = 30_000
-const AVATAR_MAX_BYTES = 4 * 1024 * 1024
 
 const typeOptions = computed(() => [
   { value: 'bot' as BotType, label: t('bots.type.bot'), hint: t('bots.type.botHint') },
@@ -702,22 +702,20 @@ async function handleBotAvatarUpload(event: Event) {
   const bot = detailBot.value
   if (!file || !bot) return
 
-  if (file.size > AVATAR_MAX_BYTES) {
-    toast.error(t('bots.avatar.tooLarge'))
+  const { imageSourceError } = await import('@/utils/uploadValidation')
+  const sourceError = imageSourceError(file)
+  if (sourceError) {
+    toast.error(sourceError)
     return
   }
 
   uploadingAvatar.value = true
   try {
-    const ext = file.name.split('.').pop()?.toLowerCase() || 'png'
-    const path = `bots/${bot.id}/avatar-${Date.now()}.${ext}`
-    const { error } = await supabase.storage
-      .from('avatars')
-      .upload(path, file, { upsert: true, cacheControl: '3600', contentType: file.type })
-    if (error) throw error
+    const { uploadImageObject } = await import('@/utils/fileUpload')
+    const uploaded = await uploadImageObject(file, 'avatar', 'avatars', `bots/${bot.id}`, 'avatar')
+    if (!uploaded.success || !uploaded.url) throw new Error(uploaded.error)
 
-    const { data } = supabase.storage.from('avatars').getPublicUrl(path)
-    editForm.avatar_url = data.publicUrl
+    editForm.avatar_url = uploaded.url
     toast.info(t('bots.avatar.uploaded'))
   } catch (error) {
     debug.error('Failed to upload bot avatar:', error)
@@ -883,34 +881,13 @@ const installedServerIds = ref<Set<string>>(new Set())
 const serversLoading = ref(false)
 const addingServerId = ref<string | null>(null)
 
-// add_bot_to_server admits the server owner (and instance admins); the list is owned servers.
 async function loadInstallTargets(botId: string) {
   serversLoading.value = true
   try {
-    const profileId = await authContextService.getCurrentProfileId()
-    const { data: servers, error } = await supabase
-      .from('servers')
-      .select('id, name, icon')
-      .eq('owner', profileId)
-      .order('name')
-    if (error) throw error
-    const list = (servers ?? []) as OwnedServer[]
-
-    let installed = new Set<string>()
-    if (list.length > 0) {
-      const { data: rows, error: permError } = await supabase
-        .from('bot_server_permissions')
-        .select('server_id')
-        .eq('bot_id', botId)
-        .eq('is_active', true)
-        .in('server_id', list.map(s => s.id))
-      if (permError) throw permError
-      installed = new Set(((rows ?? []) as Array<{ server_id: string }>).map(r => r.server_id))
-    }
-
+    const targets = await fetchBotInstallTargets(botId)
     if (detailBotId.value !== botId) return
-    ownedServers.value = list
-    installedServerIds.value = installed
+    ownedServers.value = targets.servers
+    installedServerIds.value = targets.installed
   } catch (error) {
     debug.error('Failed to load install targets:', error)
     toast.error(t('bots.install.loadFailed'))
@@ -924,14 +901,7 @@ async function addToServer(server: OwnedServer) {
   if (!bot || addingServerId.value) return
   addingServerId.value = server.id
   try {
-    const profileId = await authContextService.getCurrentProfileId()
-    const { error } = await supabase.rpc('add_bot_to_server', {
-      p_bot_id: bot.id,
-      p_server_id: server.id,
-      p_installed_by: profileId,
-      p_permissions: defaultBotPermissions(bot.bot_type),
-    })
-    if (error) throw error
+    await addBotToServer(bot.id, bot.bot_type, server.id)
 
     installedServerIds.value = new Set([...installedServerIds.value, server.id])
     toast.success(t('bots.install.success', { bot: botName(bot), server: server.name }))

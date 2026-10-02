@@ -312,7 +312,7 @@
     "emojiDeletedSuccess": "Emoji \"{name}\" eliminado correctamente",
     "failedToDeleteEmoji": "No se pudo eliminar el emoji",
     "filesNotImageSkipped": "{count} archivo(s) omitido(s): no son imágenes",
-    "filesTooLargeSkipped": "{count} archivo(s) omitido(s): superan 1 MB",
+    "filesTooLargeSkipped": "{count} archivo(s) omitido(s): superan 25 MB",
     "noValidImageFiles": "No se seleccionaron archivos de imagen válidos",
     "cannotUploadEmojisLimit": "No se pueden subir {count} emoji(s): superaría el límite de {max} (actualmente {current})",
     "emojisUploadedSuccess": "{count} emoji{plural} subido(s) correctamente",

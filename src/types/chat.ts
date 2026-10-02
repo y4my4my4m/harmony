@@ -9,10 +9,12 @@ export interface Server {
   owner: string;
   icon: string;
   banner?: string;
-  /** Owner-set rules (max 25) agreed to in the invite accept flow. */
+  /** Rule titles shown in the invite accept flow; a copy of the welcome screen's rules when one exists. */
   rules?: string[];
   allow_cross_server_emojis: boolean;
   public: boolean;
+  /** Discovery category id from SERVER_CATEGORIES; null when the owner has not chosen one. */
+  category?: string | null;
   federation_enabled?: boolean;
   is_local_server?: boolean;
   /**

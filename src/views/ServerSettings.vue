@@ -114,6 +114,19 @@
             :permissions="permissions"
             @file-change="handleFileChange"
             @banner-change="handleBannerChange"
+            @edit-rules="setActiveSection('welcome')"
+          />
+
+          <!-- Welcome screen and rules -->
+          <ServerWelcomeSettings
+            v-if="activeSection === 'welcome' && permissions.canEditBasicInfo"
+            :server-id="serverId"
+            @rules-saved="syncSavedRules"
+          />
+
+          <ServerNewcomerAlerts
+            v-if="activeSection === 'overview' && permissions.canEditBasicInfo"
+            :server-id="serverId"
           />
 
           <!-- Roles Section -->
@@ -160,6 +173,8 @@
             <ServerPrivacySettings
               :serverId="serverId"
               v-model:isPublic="server.public"
+              :category="server.category ?? null"
+              @update:category="server.category = $event"
               :federationEnabled="server.federation_enabled ?? false"
               @update:federationEnabled="server.federation_enabled = $event"
               :loading="loading"
@@ -199,7 +214,7 @@
 <script setup lang="ts">
 import { onMounted, ref, computed, watch, onUnmounted, defineAsyncComponent } from 'vue'
 import { debug } from '@/utils/debug'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
 import { useI18n } from 'vue-i18n'
 import { useServerStore } from '@/stores/server'
@@ -208,6 +223,7 @@ import { useServerPermissions } from '@/composables/useServerPermissions'
 import { getProfileWithAvatarUrl } from '@/services/ProfileService'
 import { useLayoutState } from '@/composables/useLayoutState'
 import type { Server, Emoji } from '@/types'
+import { diffServerSettings } from '@/utils/serverSettings'
 
 // Components
 import ServerBasicInfo from '@/components/settings/ServerBasicInfo.vue'
@@ -219,8 +235,10 @@ import ServerBotsSettings from '@/components/settings/ServerBotsSettings.vue'
 import DiscordBridgeSetup from '@/components/settings/DiscordBridgeSetup.vue'
 import RoleManagement from '@/components/settings/RoleManagement.vue'
 import ServerBans from '@/components/settings/server/ServerBans.vue'
+import ServerNewcomerAlerts from '@/components/settings/server/ServerNewcomerAlerts.vue'
 import ServerAutoMod from '@/components/settings/server/ServerAutoMod.vue'
 import AutoModOptInBanner from '@/components/settings/server/AutoModOptInBanner.vue'
+import ServerWelcomeSettings from '@/components/settings/server/ServerWelcomeSettings.vue'
 import { getServerAutoMod, type AutoModState } from '@/services/AutoModService'
 const ReportsModeration = defineAsyncComponent(() => import('@/components/admin/ReportsModeration.vue'))
 
@@ -238,6 +256,7 @@ const { isMobile } = useLayoutState()
 
 // Composables
 const router = useRouter()
+const route = useRoute()
 const serverStore = useServerStore()
 const emojiCacheStore = useEmojiCacheStore()
 const toast = useToast()
@@ -309,11 +328,22 @@ const availableSections = computed(() => {
     ...(p.canModerateReports ? [{ id: 'reports', label: t('server.reports', 'Reports') }] : []),
     // MANAGE_SERVER on a local server; the RPCs refuse anyone else.
     ...(p.canEditBasicInfo ? [{ id: 'automod', label: t('automod.title') }] : []),
+    // Served by the server's home instance; set_server_welcome refuses remote servers.
+    ...(p.canEditBasicInfo && server.value.is_local_server !== false
+      ? [{ id: 'welcome', label: t('serverWelcome.settings.navLabel') }]
+      : []),
     { id: 'emoji', label: t('server.emoji') },
     { id: 'privacy', label: t('server.privacySettings') },
     { id: 'advanced', label: t('server.advancedSettings') }
   ]
 })
+
+// ?section= opens that section when it is available on load; otherwise the overview stays.
+const requestedSection = route.query.section
+if (typeof requestedSection === 'string' && availableSections.value.some(s => s.id === requestedSection)) {
+  activeSection.value = requestedSection
+  showSidebar.value = false
+}
 
 const generalHasChanges = computed(() => {
   if (!originalServer.value) return false
@@ -324,6 +354,7 @@ const generalHasChanges = computed(() => {
     server.value.icon !== originalServer.value.icon ||
     server.value.allow_cross_server_emojis !== originalServer.value.allow_cross_server_emojis ||
     server.value.public !== originalServer.value.public ||
+    (server.value.category ?? null) !== (originalServer.value.category ?? null) ||
     server.value.federation_enabled !== originalServer.value.federation_enabled ||
     selectedFile.value !== null ||
     selectedBannerFile.value !== null ||
@@ -396,6 +427,11 @@ const fetchEmojis = async () => {
   }
 }
 
+const syncSavedRules = (titles: string[]) => {
+  server.value = { ...server.value, rules: titles }
+  if (originalServer.value) originalServer.value = { ...originalServer.value, rules: titles }
+}
+
 const handleFileChange = (file: File | null) => {
   if (!permissions.value.canChangeServerIcon) return
   selectedFile.value = file
@@ -435,7 +471,8 @@ const handleSave = async () => {
     loading.value = true
 
     if (generalHasChanges.value) {
-      const success = await serverStore.updateServer(server.value, selectedFile.value || undefined, selectedBannerFile.value || undefined)
+      const changes = { id: props.serverId, ...diffServerSettings(originalServer.value ?? {}, server.value) }
+      const success = await serverStore.updateServer(changes, selectedFile.value || undefined, selectedBannerFile.value || undefined)
       if (success) {
         // Re-fetch so uploaded file paths (banner, icon) are reflected in UI
         const freshData = await serverStore.getServer(props.serverId)

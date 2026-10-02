@@ -22,6 +22,18 @@ Admins can manage users through `AdminService`:
 | Unsuspend user | Restore a suspended account |
 | Export logs | Download admin activity logs |
 
+## Retention
+
+The Retention tab (`RetentionCohorts`) groups local accounts by the UTC month or ISO week they
+signed up and shows, per cohort, what share joined a server, joined someone else's server, wrote on
+day 1, wrote in days 1–7, 8–30 and 31–90, had their first message answered within 1 h and 24 h,
+has push on, and follows anyone. Hovering a cell shows the counts behind the rate.
+
+The data comes from `get_signup_cohorts(p_months, p_period)`, which returns counts per cohort and
+no per-account rows. Instance admins and the service role may call it. A window rate counts only
+accounts whose window has ended, so the current cohort shows a dash rather than an early low
+figure. Server, push and follow figures are current state.
+
 ## Federation Management
 
 Federation controls are a major part of the admin panel:
@@ -63,6 +75,7 @@ Individual servers have their own settings managed by server owners:
 | Section | Component | Features |
 |---------|-----------|----------|
 | Basic Info | `ServerBasicInfo` | Name, description, icon |
+| Newcomer alerts | `ServerNewcomerAlerts` | Alert the owner and moderators on a new member's first message; Manage Server |
 | Roles | `RoleManagement` | Role hierarchy with bigint permission bitmasks |
 | Privacy | `ServerPrivacySettings` | Visibility, join requirements |
 | Encryption | `ServerEncryptionSettings` | Encryption mode (disabled/optional/required) |

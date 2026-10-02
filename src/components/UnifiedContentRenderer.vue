@@ -115,7 +115,7 @@
           <!-- Regular URL links -->
           <a 
             v-else
-            :href="part.url" 
+            :href="safeHref(part.url)" 
             target="_blank" 
             rel="noopener noreferrer"
             class="url-link"
@@ -174,7 +174,7 @@
           <!-- Other file types or preview mode -->
           <a 
             v-else
-            :href="part.url" 
+            :href="safeHref(part.url)" 
             target="_blank" 
             rel="noopener noreferrer"
             class="file-link"
@@ -184,13 +184,6 @@
             <span v-if="part.fileSize" class="file-size">({{ formatFileSize(part.fileSize) }})</span>
           </a>
         </template>
-        
-        <!-- System messages -->
-        <span 
-          v-else-if="part && part.type === 'system'" 
-          class="system-message"
-        >[{{ part.event_type }}]</span>
-        
       </template>
     </template>
   </div>
@@ -202,7 +195,7 @@ import type { MessagePart } from '@/types';
 import { useContentRenderer, type ContentRenderOptions } from '@/composables/useContentRenderer';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
-import { escapeHtml, sanitizeMessageHtml } from '@/utils/sanitize';
+import { escapeHtml, sanitizeMessageHtml, safeHref } from '@/utils/sanitize';
 import { isTauriRuntime } from '@/services/instanceConfig';
 import { openExternalUrl } from '@/services/tauriLinks';
 import DisplayName from '@/components/DisplayName.vue';
@@ -947,13 +940,6 @@ const formatFileSize = (bytes: number): string => {
 .file-size {
   opacity: 0.7;
   font-size: 0.9em;
-}
-
-/* System messages */
-.system-message {
-  color: var(--text-muted);
-  font-style: italic;
-  opacity: 0.8;
 }
 
 /* Encrypted messages */

@@ -1,6 +1,25 @@
 import { Request, Response, NextFunction } from 'express';
+import { isIP } from 'net';
 import config from '../config/index.js';
 import { redis } from '../services/RedisService.js';
+
+/**
+ * Client address for rate limiting. Behind a trusted proxy (Express `trust
+ * proxy`, see server.ts) it is X-Real-IP, which nginx sets to $remote_addr on
+ * every location proxied here; X-Forwarded-For is never read, since a client
+ * prepends to it and nginx locations that do not set it pass it through. From
+ * any other peer it is the socket address.
+ */
+export function clientIp(req: Request): string {
+  const peer = req.socket?.remoteAddress ?? '';
+  const trust = req.app?.get('trust proxy fn') as ((addr: string, i: number) => boolean) | undefined;
+  if (peer && trust?.(peer, 0)) {
+    const real = req.headers['x-real-ip'];
+    const value = typeof real === 'string' ? real.trim() : '';
+    if (value && isIP(value)) return value;
+  }
+  return peer || 'unknown';
+}
 
 interface RateLimitEntry {
   count: number;
@@ -75,7 +94,7 @@ function createRateLimiter(options: {
     windowMs,
     maxRequests,
     message = 'Too many requests, please try again later.',
-    keyGenerator = (req: Request) => req.ip || 'unknown',
+    keyGenerator = clientIp,
   } = options;
 
   return async (req: Request, res: Response, next: NextFunction) => {
@@ -118,7 +137,7 @@ export const pushLimiter = createRateLimiter({
     if (auth && auth.startsWith('Bearer ')) {
       return auth.slice(0, 100);
     }
-    return `ip:${req.ip || 'unknown'}`;
+    return `ip:${clientIp(req)}`;
   },
 });
 
@@ -176,7 +195,7 @@ export const gifLimiter = createRateLimiter({
     if (auth && auth.startsWith('Bearer ')) {
       return auth.slice(0, 100);
     }
-    return `ip:${req.ip || 'unknown'}`;
+    return `ip:${clientIp(req)}`;
   },
 });
 

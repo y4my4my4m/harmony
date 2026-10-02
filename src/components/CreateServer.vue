@@ -126,6 +126,21 @@
             </label>
           </div>
         </fieldset>
+
+        <div class="section">
+          <span id="create-server-category-label" class="section-label">
+            {{ $t('server.discoveryCategory') }} <span class="optional">({{ $t('common.optional') }})</span>
+          </span>
+          <ServerCategoryPicker
+            v-model="category"
+            name="create-server-category"
+            labelledby="create-server-category-label"
+            :disabled="isCreating"
+          />
+          <p class="hint category-hint">
+            {{ category ? $t('server.discoveryCategoryHint') : $t('server.discoveryCategoryNoneHint') }}
+          </p>
+        </div>
       </div>
 
       <div v-if="errorMessage" class="error-banner" role="alert">
@@ -160,6 +175,10 @@ import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useAuthStore } from '@/stores/auth';
 import { useOpenServer } from '@/composables/useOpenServer';
 import Icon from '@/components/common/Icon.vue';
+import ServerCategoryPicker from '@/components/common/ServerCategoryPicker.vue';
+import { usePublicServersStore } from '@/stores/usePublicServers';
+import type { ServerCategory } from '@/utils/serverDiscovery';
+import { imageSourceError } from '@/utils/uploadValidation';
 import type { Server } from '@/types';
 
 const emit = defineEmits<{
@@ -170,7 +189,6 @@ const emit = defineEmits<{
 const NAME_MIN = 2;
 const NAME_MAX = 28;
 const DESCRIPTION_MAX = 500;
-const ICON_MAX_BYTES = 5 * 1024 * 1024;
 
 const { t } = useI18n();
 const toast = useToast();
@@ -181,6 +199,7 @@ const openServer = useOpenServer();
 const serverName = ref('');
 const description = ref('');
 const isPublic = ref(false);
+const category = ref<ServerCategory | null>(null);
 const iconFile = ref<File | null>(null);
 const iconPreview = ref<string | null>(null);
 const errorMessage = ref('');
@@ -209,8 +228,9 @@ const handleIconUpload = (event: Event) => {
   const file = target.files?.[0];
   if (!file) return;
 
-  if (file.size > ICON_MAX_BYTES) {
-    toast.error('Icon file size must be less than 5MB');
+  const sourceError = imageSourceError(file);
+  if (sourceError) {
+    toast.error(sourceError);
     target.value = '';
     return;
   }
@@ -290,8 +310,10 @@ const createServer = async () => {
       name: serverName.value.trim(),
       description: description.value.trim() || undefined,
       public: isPublic.value,
+      category: category.value,
       owner: userId
     });
+    usePublicServersStore().markStale();
   } catch (error) {
     debug.error('Server creation error:', error);
     errorMessage.value = t('server.errors.createFailed');
@@ -516,6 +538,10 @@ const createServer = async () => {
 .hint {
   font-size: var(--font-size-xs);
   color: var(--text-muted);
+}
+
+.category-hint {
+  margin: var(--space-2) 0 0;
 }
 
 .icon-actions {

@@ -286,6 +286,10 @@
     "categoryScience": "Science",
     "categorySports": "Sports",
     "categoryOther": "Other",
+    "discoveryCategory": "Category",
+    "discoveryCategoryHint": "Shown in Discover so people can find the server by topic.",
+    "discoveryCategoryNone": "Not set",
+    "discoveryCategoryNoneHint": "Discover picks a category from the name and description.",
     "deleting": "Deleting...",
     "deleteServerConfirmTitle": "This action is irreversible",
     "deleteServerConfirmText": "You are about to permanently delete the server {serverName}. This action cannot be undone.",
@@ -321,7 +325,7 @@
     "emojiDeletedSuccess": "Emoji \"{name}\" deleted",
     "failedToDeleteEmoji": "Failed to delete emoji",
     "filesNotImageSkipped": "{count} file(s) skipped: not an image",
-    "filesTooLargeSkipped": "{count} file(s) skipped: larger than 1 MB",
+    "filesTooLargeSkipped": "{count} file(s) skipped: larger than 25 MB",
     "noValidImageFiles": "No valid image files selected",
     "cannotUploadEmojisLimit": "Cannot upload {count} emoji(s): would exceed the limit of {max} (currently {current})",
     "emojisUploadedSuccess": "{count} emoji{plural} uploaded",
@@ -419,6 +423,7 @@
     "newMessages": "New",
     "loadingOlder": "Loading older messages...",
     "newMessagesBelow": "{count} new message | {count} new messages",
+    "jumpToPresent": "Jump to present",
     "conversationBeginning": "This is the beginning of your conversation",
     "conversationBeginningSubtitle": "This is the start of your conversation.",
     "channelWelcome": "Welcome to #{name}",
@@ -1140,7 +1145,9 @@
     "uploadSuccess": "Upload successful",
     "uploadError": "Upload failed",
     "tooLarge": "File is too large",
-    "invalidType": "Invalid file type"
+    "invalidType": "Invalid file type",
+    "viewFullSize": "View full size",
+    "imageTooLarge": "That image is {size}. Images up to {max} can be uploaded."
   },
   "gif": {
     "search": "Search GIF...",
@@ -1222,6 +1229,36 @@
       "socialHint": "Follows, likes and boosts from the fediverse show up here.",
       "unread": "Nothing unread",
       "unreadHint": "Read notifications stay under All."
+    }
+  },
+  "newcomerAlerts": {
+    "notification": {
+      "action": " is new here and posted in #{channel}",
+      "actionNoChannel": " is new here and posted for the first time",
+      "short": "New member in #{channel}",
+      "shortNoChannel": "New member posted",
+      "noPreview": "Say hello",
+      "nativePrefix": "New member"
+    },
+    "server": {
+      "title": "Newcomer alerts",
+      "description": "When someone who joined in the last 30 days posts for the first time, the owner and moderators get a notification so someone can greet them.",
+      "toggle": "Alert the owner and moderators",
+      "followsDefault": "Uses this instance's default.",
+      "useDefault": "Use instance default",
+      "saveFailed": "Couldn't update newcomer alerts.",
+      "loadFailed": "Couldn't load newcomer alerts."
+    },
+    "preference": {
+      "label": "New members",
+      "description": "When a new member posts for the first time in a server you own or moderate"
+    },
+    "admin": {
+      "title": "Newcomer alerts",
+      "toggle": "Alert server staff when a new member posts for the first time",
+      "hint": "Default for servers whose owners have not chosen. Owners and members with Manage Server change it in Server Settings.",
+      "saved": "Newcomer alert default saved",
+      "saveFailed": "Couldn't save the newcomer alert default"
     }
   },
   "time": {
@@ -1491,6 +1528,84 @@
     "findPeople": "Find people",
     "messages": "Messages"
   },
+  "welcomeServer": {
+    "stepTitle": "Welcome to {instance}",
+    "stepSubtitle": "Your profile is ready. Join a server to start talking with people.",
+    "recommendedHeading": "Recommended server",
+    "recommendedSubheading": "Most people start here. You can leave any time.",
+    "featuredHeading": "Popular on {instance}",
+    "featuredSubheading": "Communities picked by the people who run this instance.",
+    "memberCount": "{count} member | {count} members",
+    "join": "Join",
+    "joinNamed": "Join {server}",
+    "joining": "Joining…",
+    "skip": "Skip",
+    "skipForNow": "Skip for now",
+    "dismiss": "Hide suggestion",
+    "admin": {
+      "title": "Welcome server",
+      "hint": "Suggested to new users when they finish signing up and while they are in no servers. Joining takes one click; nobody is joined automatically.",
+      "label": "Server",
+      "none": "None (suggest featured communities)",
+      "option": "{name} · {count} member | {name} · {count} members",
+      "unavailableOption": "Current setting (no longer public)",
+      "unavailable": "The selected server is no longer public or no longer exists. It is treated as unset, so featured communities are suggested instead.",
+      "selectedNote": "New users are offered this server first. Its members are not shown the suggestion.",
+      "noneNote": "With no welcome server, up to three featured communities are suggested. With no featured communities either, nothing is suggested.",
+      "save": "Save",
+      "saved": "Welcome server saved",
+      "saveFailed": "Could not save the welcome server"
+    }
+  },
+  "serverWelcome": {
+    "kicker": "Welcome to",
+    "rulesHeading": "Server rules",
+    "empty": "This server has no welcome message or rules yet.",
+    "close": "Close",
+    "gotIt": "Got it",
+    "acceptRules": "Accept rules",
+    "accepting": "Accepting…",
+    "acceptNote": "Accept these rules to start sending messages here.",
+    "acceptedOn": "You accepted these rules on {date}.",
+    "menuEntry": "Server rules & welcome",
+    "promptText": "Accept the rules of {server} to send messages.",
+    "thisServer": "this server",
+    "rulesRequired": "Accept this server's rules before sending messages.",
+    "settings": {
+      "navLabel": "Welcome & rules",
+      "title": "Welcome screen & rules",
+      "description": "Greet new members with a message and your server's rules. Members see it once when they join and can reopen it from the server menu.",
+      "enabled": "Show a welcome screen to new members",
+      "enabledHint": "Shown once to members who join after you turn it on.",
+      "message": "Welcome message",
+      "messagePlaceholder": "Say hello, explain what the server is for, and point people to the right channels.",
+      "messageHint": "Supports **bold**, *italic*, `code`, quotes and links.",
+      "rules": "Rules",
+      "rulesHint": "A short title for each rule, with optional details. Rule titles are also shown to people opening an invite.",
+      "noRules": "No rules yet.",
+      "ruleTitlePlaceholder": "Be respectful",
+      "ruleTitleLabel": "Rule {n} title",
+      "ruleDescriptionPlaceholder": "Optional details",
+      "ruleDescriptionLabel": "Rule {n} details",
+      "moveUp": "Move rule {n} up",
+      "moveDown": "Move rule {n} down",
+      "removeRule": "Remove rule {n}",
+      "addRule": "Add rule",
+      "ruleNeedsTitle": "Every rule needs a title.",
+      "requireAcceptance": "Members must accept the rules before sending messages",
+      "requireAcceptanceHint": "Until they accept, new members see an Accept rules button instead of the message box. The owner and members with Manage Server or Administrator are exempt.",
+      "requireAcceptanceNeedsRules": "Add at least one rule to require acceptance.",
+      "grandfatherNote": "Current members are not asked. Only people who join after you save this must accept.",
+      "preview": "Preview",
+      "save": "Save",
+      "saving": "Saving…",
+      "saved": "Welcome screen saved",
+      "saveFailed": "Could not save the welcome screen",
+      "loadFailed": "Could not load the welcome screen",
+      "rulesMovedHint": "Shown to people before they accept an invite. Rules are edited together with the welcome screen.",
+      "editRules": "Edit rules"
+    }
+  },
   "bots": {
     "pageDescription": "Bots are accounts your code controls through the Bot API. Create one to get a token, then connect it to the gateway.",
     "newBot": "New bot",
@@ -1510,7 +1625,28 @@
     },
     "status": {
       "online": "Online",
+      "away": "Idle",
+      "busy": "Do not disturb",
       "offline": "Offline"
+    },
+    "profile": {
+      "about": "About",
+      "created": "Created",
+      "status": "Status",
+      "commands": "Commands",
+      "commandsTitle": "Commands ({count})",
+      "showAllCommands": "Show all {count}",
+      "showFewerCommands": "Show fewer",
+      "website": "Website",
+      "supportServer": "Support server",
+      "openServer": "Open",
+      "joinServer": "Join",
+      "settings": "Bot settings",
+      "remove": "Remove from server",
+      "addToServer": "Add to server",
+      "yourServers": "Servers you own",
+      "loadFailed": "Could not load this bot's details",
+      "close": "Close"
     },
     "empty": {
       "title": "No bots yet",
@@ -1668,7 +1804,11 @@
       },
       "manage_channels": {
         "label": "Manage channels",
-        "description": "Create and edit channels, categories, roles and channel permission overrides."
+        "description": "Create and edit channels, categories and channel permission overrides."
+      },
+      "manage_roles": {
+        "label": "Manage roles",
+        "description": "Create, edit and delete roles below its installer's highest role, with permissions it holds."
       }
     }
   },
@@ -2285,6 +2425,57 @@
         "title": "No reports",
         "filtered": "No reports with status \"{status}\""
       }
+    }
+  },
+  "adminRetention": {
+    "tab": "Retention",
+    "title": "Signup retention",
+    "intro": "What each signup cohort of local accounts did after joining. Counts only; no account is listed.",
+    "period": "Cohort",
+    "month": "Month",
+    "week": "Week",
+    "range": "Range",
+    "rangeMonths": "Last {n} months",
+    "refresh": "Refresh",
+    "loading": "Loading retention",
+    "loadFailed": "Couldn't load retention",
+    "emptyTitle": "No signups in this range",
+    "emptyDescription": "Local accounts appear here grouped by the month or week they signed up.",
+    "tableLabel": "Retention by signup cohort",
+    "weekOf": "Week of {date}",
+    "total": "All cohorts",
+    "cellTitle": "{n} of {d} ({pct})",
+    "notReached": "No account in this cohort has reached this window yet",
+    "smallCohort": "Fewer than {n} signups",
+    "noteSmall": "Small cohorts are noisy: in a cohort of {n}, one account moves a rate by {points} points.",
+    "noteWindows": "A rate counts only accounts whose window has ended; a dash means none has yet. Server, push and follow figures are current state.",
+    "legend": "What the columns mean",
+    "columns": {
+      "cohort": "Cohort",
+      "signups": "Signups",
+      "joinedServer": "Joined a server",
+      "joinedOther": "Joined another's server",
+      "wroteDay1": "Wrote on day 1",
+      "activeDays1to7": "Active days 1–7",
+      "activeDays8to30": "Active days 8–30",
+      "activeDays31to90": "Active days 31–90",
+      "answered1h": "Answered within 1 h",
+      "answered24h": "Answered within 24 h",
+      "push": "Push on",
+      "follows": "Follows someone"
+    },
+    "help": {
+      "signups": "Local accounts created in the period.",
+      "joinedServer": "Is a member of at least one server now.",
+      "joinedOther": "Is a member of a server they do not own now.",
+      "wroteDay1": "Sent a message or a post within 24 hours of signing up.",
+      "activeDays1to7": "Wrote at least once in their first 7 days.",
+      "activeDays8to30": "Wrote at least once between day 8 and day 30.",
+      "activeDays31to90": "Wrote at least once between day 31 and day 90.",
+      "answered1h": "Someone else wrote in the same channel, DM or thread within an hour of their first message.",
+      "answered24h": "The same, within 24 hours.",
+      "push": "Has push notifications on at least one device.",
+      "follows": "Follows at least one account."
     }
   },
   "pwa": {

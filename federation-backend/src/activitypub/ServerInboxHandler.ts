@@ -20,6 +20,7 @@ import {
   resolveMessageInChannel,
   notAfterNow,
   logDenied,
+  THREAD_STUB_STATUS,
 } from './channelWriteAuthz.js';
 
 // Permission bit positions in server_roles.permissions (mirror src/services/RoleService.ts)
@@ -102,6 +103,31 @@ export async function actorIsServerModerator(
   });
 }
 
+/**
+ * Highest role position of a member, as get_user_highest_role_position: the
+ * maximum server_roles.position over the member's roles, 0 without roles.
+ * Null when the lookup fails.
+ */
+export async function highestRolePosition(
+  supabase: any,
+  serverId: string,
+  profileId: string | null,
+): Promise<number | null> {
+  if (!profileId) return null;
+  const { data, error } = await supabase
+    .from('user_roles')
+    .select('server_roles!inner(position)')
+    .eq('user_id', profileId)
+    .eq('server_id', serverId);
+  if (error) return null;
+  let max = 0;
+  for (const row of data ?? []) {
+    const position = Number((row as any).server_roles?.position ?? 0);
+    if (Number.isFinite(position) && position > max) max = position;
+  }
+  return max;
+}
+
 // Authorship compared by profiles.federated_id.
 export async function actorOwnsMessage(
   supabase: any,
@@ -168,6 +194,22 @@ export async function processServerInboxActivity(
     }
   } catch (error) {
     logger.debug(`Could not check instance block status: ${error}`);
+  }
+
+  // A suspended profile only leaves, as on the shared and user inboxes.
+  if (activity.type !== 'Leave') {
+    const actorUrl = typeof activity.actor === 'string' ? activity.actor : activity.actor?.id;
+    if (typeof actorUrl === 'string' && actorUrl) {
+      const { data: actorProfile } = await supabase
+        .from('profiles')
+        .select('is_suspended')
+        .eq('federated_id', actorUrl)
+        .maybeSingle();
+      if (actorProfile?.is_suspended === true) {
+        logger.info(`Ignoring ${activity.type} from suspended user ${actorUrl} on server ${serverId}`);
+        return;
+      }
+    }
   }
 
   // Leave is always allowed so members can leave gracefully. Every other
@@ -739,7 +781,7 @@ async function processCreateActivity(
           name: threadName,
           created_by: author.id,
           ap_id: threadApIdValue,
-          federation_status: 'synced',
+          federation_status: THREAD_STUB_STATUS,
           message_count: 1,
           member_count: 1,
         });
@@ -1433,22 +1475,41 @@ async function processRemoveActivity(
     return;
   }
 
-  // Otherwise it's a kick: allow self-removal, else require KICK_MEMBERS / host.
+  // Otherwise it's a kick, under the rules of kick_server_member: the owner is
+  // never removed; a member leaves on their own; anyone else needs host
+  // authority, ownership, or KICK_MEMBERS with a strictly higher top role.
   const { data: user } = await supabase
     .from('profiles')
     .select('id, username')
     .eq('federated_id', objectUrl)
-    .single();
+    .maybeSingle();
 
   if (!user) {
     return;
   }
 
-  const isSelfRemoval = !!removeActor && SignatureService.verifyActorMatch(removeActor, objectUrl);
-  if (!isSelfRemoval &&
-      !(await actorIsServerModerator(supabase, serverId, server, removeActor, PERM_KICK_MEMBERS))) {
-    logger.warn(`Rejecting Remove(member): ${removeActor} may not kick ${objectUrl} from server ${serverId}`);
+  if (server.owner && user.id === server.owner) {
+    logger.warn(`Rejecting Remove(member): ${removeActor} may not remove the owner of server ${serverId}`);
     return;
+  }
+
+  const isSelfRemoval = !!removeActor && SignatureService.verifyActorMatch(removeActor, objectUrl);
+  if (!isSelfRemoval) {
+    if (!(await actorIsServerModerator(supabase, serverId, server, removeActor, PERM_KICK_MEMBERS))) {
+      logger.warn(`Rejecting Remove(member): ${removeActor} may not kick ${objectUrl} from server ${serverId}`);
+      return;
+    }
+    const isHostActor = !!server.ap_id && SignatureService.verifyActorMatch(removeActor, server.ap_id);
+    const actorProfileId = isHostActor ? null : await resolveActorProfileId(supabase, removeActor);
+    const actorIsOwner = !!actorProfileId && actorProfileId === server.owner;
+    if (!isHostActor && !actorIsOwner) {
+      const actorPosition = await highestRolePosition(supabase, serverId, actorProfileId);
+      const targetPosition = await highestRolePosition(supabase, serverId, user.id);
+      if (actorPosition === null || targetPosition === null || actorPosition <= targetPosition) {
+        logger.warn(`Rejecting Remove(member): ${removeActor} does not outrank ${objectUrl} on server ${serverId}`);
+        return;
+      }
+    }
   }
 
   await supabase

@@ -1,4 +1,5 @@
 import { supabase } from '@/supabase'
+import { debug } from '@/utils/debug'
 
 /**
  * Shared helpers for Supabase-storage-backed images.
@@ -42,6 +43,68 @@ export function isLocalStorageUrl(url: string): boolean {
   } catch {
     return false
   }
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+// Stored paths arrive percent-encoded (getPublicUrl encodes again -> 400) or
+// with a trailing slash (-> 400).
+function cleanObjectPath(path: string): string {
+  const trimmed = path.replace(/\/+$/, '')
+  if (!/%[0-9A-Fa-f]{2}/.test(trimmed)) return trimmed
+  try {
+    return decodeURIComponent(trimmed)
+  } catch {
+    return trimmed
+  }
+}
+
+/**
+ * Object path inside `bucket` for a stored image reference: a bare path, or a
+ * public/render URL on this instance's storage host. Null for anything else
+ * (remote URLs, bundled assets, blob/data URLs, other buckets).
+ */
+export function storageObjectPath(bucket: string, value: string | null | undefined): string | null {
+  if (!value || typeof value !== 'string') return null
+  const trimmed = value.trim()
+  if (!trimmed || /^(blob|data):/.test(trimmed)) return null
+  if (/^https?:\/\//.test(trimmed)) {
+    if (!isLocalStorageUrl(trimmed)) return null
+    const pattern = new RegExp(`/storage/v1/(?:object|render/image)/public/${escapeRegExp(bucket)}/(.+)$`)
+    const match = new URL(trimmed).pathname.match(pattern)
+    return match ? cleanObjectPath(match[1]) || null : null
+  }
+  if (trimmed.startsWith('/') || trimmed.includes('://') || !trimmed.includes('/')) return null
+  return cleanObjectPath(trimmed)
+}
+
+/** Untransformed public URL of a stored image; remote URLs pass through. */
+export function rawStorageUrl(bucket: string, value: string | null | undefined): string | null {
+  const path = storageObjectPath(bucket, value)
+  if (path) return supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl || null
+  if (!value || !/^https?:\/\//.test(value)) return null
+  // Another instance's render URL 400s where transforms are off; its object URL does not.
+  return value.includes('/storage/v1/render/image/public/')
+    ? value.replace('/storage/v1/render/image/public/', '/storage/v1/object/public/').split('?')[0]
+    : value
+}
+
+/**
+ * Best-effort removal of the object a new upload replaced. Only objects under
+ * `folder/` other than `current` are removed.
+ */
+export async function removeReplacedObject(
+  bucket: string,
+  previous: string | null | undefined,
+  current: string,
+  folder: string,
+): Promise<void> {
+  const path = storageObjectPath(bucket, previous)
+  if (!path || !path.startsWith(`${folder}/`) || path === storageObjectPath(bucket, current)) return
+  const { error } = await supabase.storage.from(bucket).remove([path])
+  if (error) debug.warn(`Could not remove replaced ${bucket} object`, path, error)
 }
 
 /**

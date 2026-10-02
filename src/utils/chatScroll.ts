@@ -70,6 +70,28 @@ export function nextPinState(state: PinState, m: ScrollMetrics, opts: PinOptions
   return { pinned, lastScrollTop: m.scrollTop }
 }
 
+export interface JumpToPresentState {
+  /** distanceFromBottom of the view. */
+  distance: number
+  /** clientHeight of the scroll container. */
+  viewport: number
+  pinned: boolean
+  /** Messages from others appended while not pinned. */
+  unseen: number
+  /** The list holds rows loaded by a jump to an older message. */
+  jumped: boolean
+}
+
+/**
+ * Whether the jump-to-present control shows. Never on a pinned view. Otherwise
+ * with unseen messages below, after a jump to an older message, or with more
+ * than one viewport height between the view and the end.
+ */
+export function showJumpToPresent(s: JumpToPresentState): boolean {
+  if (s.pinned) return false
+  return s.unseen > 0 || s.jumped || s.distance > s.viewport
+}
+
 /**
  * scrollTop after the row starting at `itemStart` (list coordinates) changed
  * height by `delta`. A row starting above the viewport top moves everything in

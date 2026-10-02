@@ -4,6 +4,7 @@ import { getSupabaseClient } from '../config/supabase.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { logger } from '../utils/logger.js';
 import { safeFetch, type SafeFetchOptions } from '../utils/ssrfProtection.js';
+import { actorOwnsKeys, readApDocument, sameUrl } from '../utils/apOrigin.js';
 
 // In-memory LRU of PEM public keys, keyed by actorUrl.
 //
@@ -60,6 +61,14 @@ function setKeyOwner(keyId: string, owner: string): void {
     if (oldest !== undefined) keyOwnerCache.delete(oldest);
   }
   keyOwnerCache.set(keyId, owner);
+}
+
+/** PEM of the first publicKey object owned by the actor. */
+function ownedPublicKeyPem(actor: any): string | null {
+  const keys = Array.isArray(actor?.publicKey) ? actor.publicKey : [actor?.publicKey];
+  const key = keys.find((k: any) => k && typeof k === 'object' && k.owner === actor.id
+    && typeof k.publicKeyPem === 'string' && k.publicKeyPem);
+  return key?.publicKeyPem ?? null;
 }
 
 function hostOf(url: string): string | null {
@@ -509,11 +518,12 @@ export class SignatureService {
           'Accept': 'application/activity+json, application/ld+json',
         },
       });
-      if (!response.ok) {
-        logger.warn(`Key document fetch failed: ${response.status} for ${keyId}`);
+      const fetched = await readApDocument(response, keyId);
+      if (!fetched || !sameUrl(fetched.finalUrl, keyId)) {
+        logger.warn(`Key document fetch failed: ${response.status} ${response.headers.get('content-type') ?? ''} for ${keyId}`);
         return null;
       }
-      const doc = await response.json();
+      const doc = fetched.doc;
 
       let owner: string | null = null;
       if (doc?.id === keyId) {
@@ -607,10 +617,18 @@ export class SignatureService {
         return null;
       }
 
-      const actor = await response.json();
+      // The key comes only from the document served at actorUrl whose id is
+      // actorUrl and whose key names it as owner.
+      const fetched = await readApDocument(response, actorUrl);
+      const actor = fetched && sameUrl(fetched.doc?.id, actorUrl) && sameUrl(fetched.finalUrl, actorUrl)
+        && actorOwnsKeys(fetched.doc) ? fetched.doc : null;
+      if (!actor) {
+        logger.warn(`Actor document for ${actorUrl} is not served at its own id with an owned key`);
+        return null;
+      }
 
-      if (actor.publicKey && actor.publicKey.publicKeyPem) {
-        const publicKeyPem = actor.publicKey.publicKeyPem;
+      const publicKeyPem = ownedPublicKeyPem(actor);
+      if (publicKeyPem) {
         setCachedPublicKey(actorUrl, publicKeyPem);
         
         try {

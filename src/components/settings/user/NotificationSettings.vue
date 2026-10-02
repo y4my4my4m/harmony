@@ -130,6 +130,26 @@
                   </button>
                 </div>
               </div>
+              <div class="notification-type" data-testid="newcomer-alerts-preference">
+                <div class="type-header">
+                  <Icon name="user-plus" class="type-icon" />
+                  <div class="type-info">
+                    <span class="type-label">{{ $t('newcomerAlerts.preference.label') }}</span>
+                    <span class="type-description">{{ $t('newcomerAlerts.preference.description') }}</span>
+                  </div>
+                </div>
+                <div class="type-controls">
+                  <div class="control-group">
+                    <Icon name="bell" class="control-icon" />
+                    <ToggleSwitch
+                      v-model="preferences.newcomer_alerts"
+                      :aria-label="$t('newcomerAlerts.preference.label')"
+                      @change="updatePreferences"
+                      size="small"
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -646,6 +666,7 @@ const DEFAULT_PREFERENCES: Omit<NotificationPreferences, 'id' | 'user_id' | 'cre
   push_mentions: true,
   push_dms: true,
   push_offline_only: true,
+  newcomer_alerts: true,
   email_notifications: false,
   email_digest: false,
   email_digest_frequency: 'weekly',

@@ -19,7 +19,6 @@ interface SwipeConfig {
   directionThreshold: number
   edgeZone: number
   velocityThreshold: number
-  sidebarWidth: number
   completionThreshold: number
 }
 
@@ -51,7 +50,6 @@ export function useMobileGestures() {
     directionThreshold: 12,      // Slightly reduced for faster response
     edgeZone: 80,               // Expanded from 30px for easier sidebar activation
     velocityThreshold: 0.25,    // px/ms for quick flick (lowered for easier trigger)
-    sidebarWidth: 280,
     completionThreshold: 0.35   // 35% to auto-complete (easier to complete)
   }
 
@@ -70,7 +68,13 @@ export function useMobileGestures() {
     return posDelta / timeDelta
   }
 
-  const handleTouchStart = (event: TouchEvent, isMobile: boolean) => {
+  /**
+   * `openSide` is the drawer open at touch start. A drag then operates that
+   * drawer from anywhere, the opposite edge included: the chat peeking beside
+   * an open drawer lies inside the other edge's zone, and a swipe there closes
+   * the drawer instead of opening the other one.
+   */
+  const handleTouchStart = (event: TouchEvent, isMobile: boolean, openSide: 'left' | 'right' | null = null) => {
     if (!isMobile || typeof window === 'undefined') return
 
     const touch = event.touches[0]
@@ -87,7 +91,7 @@ export function useMobileGestures() {
       initialDirection: null,
       isEdgeSwipe: isLeftEdge || isRightEdge,
       startTime: Date.now(),
-      dragDirection: isLeftEdge ? 'left' : isRightEdge ? 'right' : null,
+      dragDirection: openSide ?? (isLeftEdge ? 'left' : isRightEdge ? 'right' : null),
       lastMoveTime: Date.now(),
       lastMoveX: touch.clientX
     }

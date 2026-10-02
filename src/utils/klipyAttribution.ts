@@ -77,9 +77,19 @@ export function stripKlipyAttributionFragment(url: string): string {
   return url
 }
 
-/** Read the Klipy item page URL embedded in a message media URL, if any. */
+/**
+ * Read the Klipy item page URL embedded in a message media URL, if any. The
+ * fragment is sender-controlled; only an http(s) URL is returned.
+ */
 export function parseKlipyItemPageUrl(mediaUrl: string): string | null {
-  return readFragment(mediaUrl)?.get('item') || null
+  const item = readFragment(mediaUrl)?.get('item')
+  if (!item) return null
+  try {
+    const u = new URL(item)
+    return u.protocol === 'https:' || u.protocol === 'http:' ? u.toString() : null
+  } catch {
+    return null
+  }
 }
 
 /** The Klipy kind tagged on a message media URL ('gif' when untagged). */

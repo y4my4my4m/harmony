@@ -146,8 +146,9 @@ import {
   UserCheck, Pencil, TrendingUp, TrendingDown, Compass, Hash,
   UserMinus, MoreVertical, Zap, Star, LogIn, LogOut, DoorOpen, ShieldCheck,
   Wifi, WifiOff, CircleHelp, Clock, Repeat2, Pin, PinOff,
-  DollarSign, Layers, AudioLines, Megaphone, Wrench, Tag, Menu, SmilePlus, ArrowUp, PanelRight,
+  DollarSign, Layers, AudioLines, Megaphone, Wrench, Tag, Menu, SmilePlus, ArrowUp, ArrowDown, PanelRight,
   PictureInPicture2,
+  Gamepad2, Cpu, Palette, GraduationCap, Clapperboard, FlaskConical, Trophy, Shapes,
 } from 'lucide-vue-next'
 
 const ICON_MAP: Record<string, Component> = {
@@ -304,9 +305,18 @@ const ICON_MAP: Record<string, Component> = {
   'menu': Menu,
   'smile-plus': SmilePlus,
   'arrow-up': ArrowUp,
+  'arrow-down': ArrowDown,
   'panel-right': PanelRight,
   'picture-in-picture': PictureInPicture2,
   'tag': Tag,
+  'gamepad': Gamepad2,
+  'cpu': Cpu,
+  'palette': Palette,
+  'graduation-cap': GraduationCap,
+  'clapperboard': Clapperboard,
+  'flask': FlaskConical,
+  'trophy': Trophy,
+  'shapes': Shapes,
 }
 
 const FILLED_ICONS = new Set(['heart-filled', 'bookmark-filled'])

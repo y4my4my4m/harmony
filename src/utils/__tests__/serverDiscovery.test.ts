@@ -1,32 +1,116 @@
 import { describe, it, expect } from 'vitest'
+import { mount } from '@vue/test-utils'
+import en from '@/locales/en.json'
+import Icon from '@/components/common/Icon.vue'
 import {
+  SERVER_CATEGORIES,
   buildServerSearchFilter,
+  categoryIcon,
+  categoryLabelKey,
   escapeLikePattern,
   inferServerCategory,
+  isServerCategory,
   normalizeSearchTerm,
+  resolveServerCategory,
   MAX_SEARCH_TERM_LENGTH,
 } from '../serverDiscovery'
 
 describe('inferServerCategory', () => {
   it('matches whole words only', () => {
-    expect(inferServerCategory('Main Hall', 'A place to paint')).toBe('Other')
-    expect(inferServerCategory('Artemis', null)).toBe('Other')
-    expect(inferServerCategory('Showcase', 'Fun times')).toBe('Other')
+    expect(inferServerCategory('Main Hall', 'A place to paint')).toBe('other')
+    expect(inferServerCategory('Artemis', null)).toBe('other')
+    expect(inferServerCategory('Showcase', 'Fun times')).toBe('other')
   })
 
   it('matches keywords regardless of case and punctuation', () => {
-    expect(inferServerCategory('AI Lab')).toBe('Technology')
-    expect(inferServerCategory('The Pixel Den', 'Indie games, speedruns & chill')).toBe('Gaming')
-    expect(inferServerCategory('Studio', 'digital-art / illustration')).toBe('Art & Design')
+    expect(inferServerCategory('AI Lab')).toBe('technology')
+    expect(inferServerCategory('The Pixel Den', 'Indie games, speedruns & chill')).toBe('gaming')
+    expect(inferServerCategory('Studio', 'digital-art / illustration')).toBe('art_design')
   })
 
   it('uses category order to break ties', () => {
-    expect(inferServerCategory('Gaming community')).toBe('Gaming')
-    expect(inferServerCategory('Friends of Physics')).toBe('Community')
+    expect(inferServerCategory('Gaming community')).toBe('gaming')
+    expect(inferServerCategory('Friends of Physics')).toBe('community')
   })
 
   it('reads the description when the name has no keyword', () => {
-    expect(inferServerCategory('Harmony HQ', 'Weekly football talk')).toBe('Sports')
+    expect(inferServerCategory('Harmony HQ', 'Weekly football talk')).toBe('sports')
+  })
+
+  it('only returns ids from SERVER_CATEGORIES', () => {
+    for (const name of ['Main Hall', 'AI Lab', 'Jazz Night', 'Physics Club', 'Gym rats']) {
+      expect(SERVER_CATEGORIES).toContain(inferServerCategory(name))
+    }
+  })
+})
+
+describe('resolveServerCategory', () => {
+  it('uses the chosen category over the inferred one', () => {
+    expect(resolveServerCategory({ name: 'Minecraft Club', description: null, category: 'music' }))
+      .toBe('music')
+  })
+
+  it('keeps a chosen "other" instead of inferring', () => {
+    expect(resolveServerCategory({ name: 'Minecraft Club', category: 'other' })).toBe('other')
+  })
+
+  it('infers when no category is chosen', () => {
+    expect(resolveServerCategory({ name: 'Minecraft Club', category: null })).toBe('gaming')
+    expect(resolveServerCategory({ name: 'Minecraft Club' })).toBe('gaming')
+    expect(resolveServerCategory({ name: 'Harmony HQ', description: 'Weekly football talk' }))
+      .toBe('sports')
+  })
+
+  it('infers when the stored value is not a category id', () => {
+    expect(resolveServerCategory({ name: 'Minecraft Club', category: 'Music' })).toBe('gaming')
+    expect(resolveServerCategory({ name: 'Minecraft Club', category: '' })).toBe('gaming')
+    expect(resolveServerCategory({ name: 'Minecraft Club', category: 'toString' })).toBe('gaming')
+  })
+
+  it('ignores the category of a remote server', () => {
+    expect(resolveServerCategory({ name: 'Minecraft Club', category: 'music', is_local_server: false }))
+      .toBe('gaming')
+    expect(resolveServerCategory({ name: 'Minecraft Club', category: 'music', is_local_server: true }))
+      .toBe('music')
+    expect(resolveServerCategory({ name: 'Minecraft Club', category: 'music', is_local_server: null }))
+      .toBe('music')
+  })
+})
+
+describe('category ids', () => {
+  // Mirrors servers_category_check in db_schema/migrations/20261006400001_server_category.sql.
+  it('match the database CHECK', () => {
+    expect([...SERVER_CATEGORIES]).toEqual([
+      'gaming', 'technology', 'art_design', 'music', 'education',
+      'entertainment', 'community', 'science', 'sports', 'other',
+    ])
+  })
+
+  it('are recognised by isServerCategory and nothing else is', () => {
+    for (const id of SERVER_CATEGORIES) expect(isServerCategory(id)).toBe(true)
+    for (const value of ['Gaming', 'Art & Design', '', 'constructor', null, undefined, 3]) {
+      expect(isServerCategory(value)).toBe(false)
+    }
+  })
+
+  it.each([...SERVER_CATEGORIES])('%s has an English label', (id) => {
+    const key = categoryLabelKey(id)
+    expect(key).toMatch(/^server\./)
+    const label = (en.server as Record<string, unknown>)[key!.slice('server.'.length)]
+    expect(typeof label).toBe('string')
+    expect((label as string).length).toBeGreaterThan(0)
+  })
+
+  it.each([...SERVER_CATEGORIES])('%s has an icon the Icon component draws', (id) => {
+    const name = categoryIcon(id)
+    expect(name).toBeTruthy()
+    const wrapper = mount(Icon, { props: { name: name! } })
+    expect(wrapper.find('svg.lucide').exists()).toBe(true)
+  })
+
+  it('has no label or icon for unknown ids', () => {
+    expect(categoryLabelKey('Gaming')).toBeNull()
+    expect(categoryIcon('Gaming')).toBeNull()
   })
 })
 

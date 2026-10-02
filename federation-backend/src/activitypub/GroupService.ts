@@ -19,7 +19,7 @@ import { asyncHandler } from '../middleware/errorHandler.js';
 import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
 import { SignatureService } from './SignatureService.js';
-import { inboxLimiter, instanceInboxLimit, signerInstanceKey } from '../middleware/rateLimit.js';
+import { clientIp, inboxLimiter, instanceInboxLimit, signerInstanceKey } from '../middleware/rateLimit.js';
 import { getFullServerBannerUrl, getFullServerIconUrl } from '../utils/urlUtils.js';
 import {
   canReadServer,
@@ -726,7 +726,7 @@ router.post(
     }
 
     // Per-instance budget, keyed on the verified signer, never on the body.
-    if (!(await instanceInboxLimit(res, signerInstanceKey(verifiedSigner, req.ip)))) {
+    if (!(await instanceInboxLimit(res, signerInstanceKey(verifiedSigner, clientIp(req))))) {
       return;
     }
 

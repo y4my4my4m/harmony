@@ -40,7 +40,7 @@ curl -H "Authorization: Bot $HARMONY_BOT_TOKEN" \
 
 A token is `harmony_bot_` followed by 64 hex characters. Harmony stores its SHA-256 hash, not the token, so a lost token cannot be recovered. The bot's page shows the token's last four characters, when it was created and when it was last used.
 
-**Reset token** on the bot's page revokes the current token and shows the replacement once. REST requests with the old token fail with `401` from that moment, and an IDENTIFY with it closes with `4004`. A gateway connection already authenticated with the old token stays open until it closes.
+**Reset token** on the bot's page revokes the current token and shows the replacement once. REST requests with the old token fail with `401` from that moment, and an IDENTIFY with it closes with `4004`. A gateway connection already authenticated with the old token closes with `4004` at the gateway's next recheck of open connections, every 30 seconds by default.
 
 ## Gateway
 
@@ -108,6 +108,7 @@ Send `{ "op": 1 }` every `heartbeat_interval` milliseconds. The gateway answers 
 |---|---|---|
 | `4001` | Missing token | IDENTIFY without `d.token`. |
 | `4004` | Authentication failed | Token unknown, revoked or expired, or the bot is inactive. Also sent when the token lookup fails on the server. |
+| `4004` | Token revoked, Token expired, Bot inactive | An open connection's token was revoked, rotated or deleted, or expired, or its bot was deactivated or deleted. Checked every 30 seconds by default. |
 | `1008` | Invalid payload | Frame is not valid JSON. |
 | `1000` | Heartbeat timeout | No heartbeat for more than `2 × heartbeat_interval`. |
 | `1000` | Server shutting down | The gateway process is stopping. |
@@ -118,7 +119,7 @@ There is no RESUME. After any close, open a new connection and IDENTIFY again; R
 
 ### Event delivery
 
-- Message and reaction events go to every bot with an active installation holding `read_messages` in the channel's server.
+- Message and reaction events go to every bot with an active installation holding `read_messages` that can view the channel; see [Permissions](#permissions).
 - Every open connection of the bot receives each event. A bot connected twice receives everything twice.
 - A bot receives events for its own messages and reactions. Compare `author.id` or `bot_id` with `bot.id` from READY.
 - Encrypted messages produce no `MESSAGE_CREATE` or `MESSAGE_UPDATE`.
@@ -504,6 +505,8 @@ Body: `name`, `order`, as in create. A body with neither returns `400`. Returns 
 
 Role and override permissions are Harmony role-permission bitmasks. Requests accept them as a decimal string or a number; send strings for values above 2^53. Bit 0 (administrator) is cleared on every write.
 
+Creating, editing and deleting roles needs `manage_roles`. A role may carry only bits the bot holds: its installation's permissions and @everyone's. A role's position must be below the highest role of the user who installed the bot (unlimited when that user owns the server) and below every administrator role; roles at or above that position, administrator roles and the default role cannot be edited, moved or deleted. A refused mask returns `403` with `missing_permissions`, the refused bits as a decimal string; a refused position returns `403`, with `max_position` when one exists.
+
 #### List roles
 
 `GET /servers/{server.id}/roles`
@@ -523,23 +526,23 @@ Returns roles ordered by `position`, highest first: `id`, `name`, `color`, `posi
 | `mentionable` | boolean | Default `true`. |
 | `hoist` | boolean | Default `false`. |
 
-Returns `201` with `id`, `name`, `color`, `position`, `permissions`, `mentionable`, `hoist`.
+Returns `201` with `id`, `name`, `color`, `position`, `permissions`, `mentionable`, `hoist`. Bits the bot does not hold return `403`.
 
 #### Edit role
 
 `PATCH /servers/{server.id}/roles/{role.id}`
 
-Same fields as create, all optional. Returns the role in the same shape. The default role and admin roles return `403`.
+Same fields as create, all optional. Returns the role in the same shape. Bits the role already has may stay; added bits must be ones the bot holds. The default role, admin roles and roles at or above the bot's position limit return `403`.
 
 #### Delete role
 
 `DELETE /servers/{server.id}/roles/{role.id}`
 
-Returns `204`. The default role and admin roles return `403`.
+Returns `204`. The default role, admin roles and roles at or above the bot's position limit return `403`.
 
 ### Channel permission overrides
 
-Overrides apply to Harmony users and roles. They do not restrict bots; see [Permissions](#permissions).
+Overrides apply to Harmony users and roles. The @everyone override of a channel also decides whether bots read it; see [Permissions](#permissions). Writing overrides needs `manage_channels`. A write may make effective only bits the bot holds in the channel: bits it adds to `allow_permissions`, and bits it removes from `deny_permissions` (deleting an override removes all of them). Others return `403` with `missing_permissions`.
 
 #### List permission overrides
 
@@ -704,7 +707,7 @@ When the instance's bridge attachment mode is `mirror`, `file` and `url` parts p
 
 ## Permissions
 
-Server owners grant permissions per bot under **Server Settings → Advanced → Server Bots**. The gateway enforces five:
+Server owners grant permissions per bot under **Server Settings → Advanced → Server Bots**. The gateway enforces six:
 
 | Permission | Grants |
 |---|---|
@@ -712,9 +715,10 @@ Server owners grant permissions per bot under **Server Settings → Advanced →
 | `send_messages` | Create messages; edit, silently patch and merge metadata on messages. Edits and silent patches are limited to the bot's own messages. |
 | `manage_messages` | Delete messages written by others. |
 | `add_reactions` | Add and remove the bot's own reactions. |
-| `manage_channels` | Create channels and categories; edit channel order and category; edit categories; create, edit and delete roles; set and delete channel permission overrides. |
+| `manage_channels` | Create channels and categories; edit channel order and category; edit categories; set and delete channel permission overrides. |
+| `manage_roles` | Create, edit and delete roles below the bot's position limit; see [Roles](#roles). |
 
-Permissions apply to the whole server. Channel permission overrides do not restrict bots.
+Reading follows channel visibility. A bot reads a channel, through REST and events, when it holds `read_messages`, the channel is in the installation's channel list when the server set one, and @everyone keeps `VIEW_CHANNEL` there after the channel's @everyone override (or @everyone holds administrator). Bots hold no roles and no override names a bot, so a channel hidden from @everyone is hidden from every bot. Other permissions apply to the whole server.
 
 Read routes for server structure (server, members, channels, categories, roles, overrides) need an active installation and no permission.
 
@@ -722,7 +726,7 @@ REST checks read the installation on every request. Event delivery uses a cache 
 
 ## Rate limits
 
-REST requests are counted per bot and per request path: the path below `/api/v1`, including resource IDs, excluding the query string, for all methods together. The defaults are 100 requests per 60-second window; both are set per instance. The window starts at the first request in a bucket and resets when it expires.
+REST requests are counted per bot, per route and per channel or server the route names: `GET /channels/{channel.id}/messages` on two channels counts in two buckets, while every message ID, emoji or invite code on one route counts in one. Spelling does not matter: case, a trailing slash and the query string are ignored. All methods on a route count together. Requests that match no route share one bucket. The defaults are 100 requests per 60-second window; both are set per instance. The window starts at the first request in a bucket and resets when it expires.
 
 A request over the limit returns:
 

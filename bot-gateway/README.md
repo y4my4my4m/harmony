@@ -43,8 +43,9 @@ The service loads `.env` from its working directory. `.env.example` is the templ
 | `NODE_ENV` | `development` | In `development`, 500 responses from the error handler include the error message. |
 | `INSTANCE_DOMAIN` | `localhost:3000` | Harmony app origin, as a hostname or URL; `https://` is assumed without a scheme. `/bridge-setup` builds its endpoint URLs from it. |
 | `WS_HEARTBEAT_INTERVAL` | `30000` | Heartbeat interval in ms, sent to bots in READY. Connections without a heartbeat for twice this interval are closed. |
+| `WS_REVALIDATE_INTERVAL_MS` | `30000` | Interval in ms, clamped to 1000-60000, at which open connections are rechecked against `bot_tokens` and `bots`. |
 | `RATE_LIMIT_WINDOW_MS` | `60000` | REST rate-limit window in ms. |
-| `RATE_LIMIT_MAX_REQUESTS` | `100` | REST requests allowed per bot, per request path, per window. |
+| `RATE_LIMIT_MAX_REQUESTS` | `100` | REST requests allowed per bot, per route and channel or server it names, per window. |
 | `FEDERATION_BACKEND_URL` | `http://localhost:3001` | Federation backend. Receives a link-preview request after each bot message. Must be `https://` or a localhost address; otherwise no request is sent. |
 | `INTERNAL_API_SECRET` | `SUPABASE_SERVICE_ROLE_KEY` | Bearer token for the link-preview request. |
 
@@ -86,9 +87,9 @@ Compose files start the service under the `bots` profile:
 
 ## Bots and tokens
 
-Users create bots in the web client under **User Settings → My Bots → New bot**. The token is shown once, in a dialog after creation; Harmony stores its SHA-256 hash. Tokens have the form `harmony_bot_` followed by 64 hex characters. **Reset token** on the bot's page revokes the old token immediately and shows the new one once. The gateway verifies tokens at IDENTIFY only; a connection opened with the old token stays open until it closes.
+Users create bots in the web client under **User Settings → My Bots → New bot**. The token is shown once, in a dialog after creation; Harmony stores its SHA-256 hash. Tokens have the form `harmony_bot_` followed by 64 hex characters. **Reset token** on the bot's page revokes the old token immediately and shows the new one once. The gateway verifies tokens at IDENTIFY and rechecks every open connection each `WS_REVALIDATE_INTERVAL_MS`: a connection whose token was revoked, rotated or expired, or whose bot was deactivated or deleted, closes with `4004`.
 
-Server owners add bots from the bot's page (**Add to server**) or under **Server Settings → Advanced → Server Bots**, where they also set the bot's permissions. The gateway enforces `read_messages`, `send_messages`, `manage_messages`, `add_reactions` and `manage_channels`; see [docs/bot-api.md](../docs/bot-api.md#permissions).
+Server owners add bots from the bot's page (**Add to server**) or under **Server Settings → Advanced → Server Bots**, where they also set the bot's permissions. The gateway enforces `read_messages`, `send_messages`, `manage_messages`, `add_reactions`, `manage_channels` and `manage_roles`; see [docs/bot-api.md](../docs/bot-api.md#permissions).
 
 ## Events
 
@@ -102,7 +103,7 @@ Server owners add bots from the bot's page (**Add to server**) or under **Server
 | `MESSAGE_REACTION_REMOVE` | Deleted row in `reactions`, polled every 2 s |
 | `REFRESH_ATTACHMENTS` | `POST /attachments/refresh`; sent only to the bridge bot that authored the message |
 
-Message and reaction events go to every bot with an active installation holding `read_messages` in the channel's server. Encrypted messages produce no `MESSAGE_CREATE` or `MESSAGE_UPDATE`. Direct messages produce no events. The installation lookup is cached per server for 5 minutes, so permission changes and removals reach event delivery within that time; REST checks read the database on every request.
+Message and reaction events go to every bot with an active installation holding `read_messages` that can view the channel: the channel is in the installation's `allowed_channel_ids` when that column is set, and @everyone keeps `VIEW_CHANNEL` there after the channel's @everyone override. The @everyone layer is cached per channel for 10 seconds. Encrypted messages produce no `MESSAGE_CREATE` or `MESSAGE_UPDATE`. Direct messages produce no events. The installation lookup is cached per server for 5 minutes, so permission changes and removals reach event delivery within that time; REST checks read the database on every request.
 
 ## Operational notes
 
@@ -126,7 +127,8 @@ bot-gateway/
 ├── src/
 │   ├── index.ts                  # HTTP server, /gateway mount, /api/v1 mount, web-client routes
 │   ├── config/supabase.ts        # Service-role client, environment
-│   ├── auth/BotAuthMiddleware.ts # Bot token verification, rate limiting
+│   ├── auth/BotAuthMiddleware.ts # Bot token verification, per-route rate limiting
+│   ├── auth/botPermissions.ts    # Bot permission bits, channel visibility, role caps
 │   ├── api/BotRestAPI.ts         # /api/v1 routes
 │   ├── gateway/
 │   │   ├── WebSocketGateway.ts   # Connections, IDENTIFY, heartbeats, bridge member lists

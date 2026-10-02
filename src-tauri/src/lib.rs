@@ -156,7 +156,7 @@ pub fn run() {
       {
         use tauri::Manager;
         if runtime::destroy_chromium_work_source() == 0 {
-          eprintln!("[cef] Chromium GLib work source not found; the event loop may spin");
+          eprintln!("[cef] no Chromium GLib work source to destroy");
         }
         if let Some(main) = app.get_webview_window("main") {
           runtime::allow_local_network(&main);

@@ -138,7 +138,7 @@ Without BullMQ (`USE_BULLMQ_QUEUE=false`), federation events are processed synch
 | `REQUIRE_VALID_SIGNATURES` | Enforce HTTP signature verification on incoming activities |
 | Instance blocking | Admin panel can block specific instances |
 | Instance trust | Admin-only flag (`federated_instances.is_trusted`). Currently a UI badge + filter for trending/instance lists; delivery-priority gating in the federation backend is on the roadmap, not yet shipped. |
-| Rate limiting | `RATE_LIMIT_WINDOW_MS` and `RATE_LIMIT_MAX_REQUESTS` |
+| Rate limiting | `RATE_LIMIT_WINDOW_MS` and `RATE_LIMIT_MAX_REQUESTS`, keyed on the `X-Real-IP` a `TRUST_PROXY` peer sets |
 
 ---
 

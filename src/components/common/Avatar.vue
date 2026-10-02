@@ -4,11 +4,18 @@
       :src="avatarUrl"
       :alt="alt"
       class="avatar-image"
+      :class="{ 'avatar-image--expandable': fullSize }"
       loading="lazy"
+      decoding="async"
+      :role="fullSize ? 'button' : undefined"
+      :tabindex="fullSize ? 0 : undefined"
       @click="handleClick"
+      @keydown.enter.prevent="handleClick"
       @error="handleImageError"
       @load="handleImageLoad"
     />
+
+    <MediaLightbox v-if="lightboxOpen && fullSize" :visible="true" :imgs="[fullSize]" @hide="lightboxOpen = false" />
 
     <div v-if="loading" class="avatar-loading">
       <LoadingSpinner :size="20" />
@@ -55,9 +62,10 @@
 import { ref, computed, watch, onUnmounted } from 'vue'
 import { useToast } from 'vue-toastification'
 import { debug } from '@/utils/debug'
-import { getAvatarUrl } from '@/utils/avatarUtils'
-import { validateImageUpload } from '@/utils/uploadValidation'
+import { getAvatarUrl, getFullSizeAvatarUrl } from '@/utils/avatarUtils'
+import { imageSourceError } from '@/utils/uploadValidation'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
+import MediaLightbox from '@/components/common/MediaLightbox.vue'
 import CameraIcon from '@/components/icons/Camera.vue'
 
 const toast = useToast()
@@ -78,6 +86,8 @@ interface Props {
   // (reaction tooltip) can request the pixel size already fetched elsewhere
   // (message list uses "sm"=48px) to hit the cache instead of a new variant.
   fetchSize?: number
+  /** Click opens the stored avatar in MediaLightbox; ignored for the default avatar. */
+  expandable?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -86,7 +96,8 @@ const props = withDefaults(defineProps<Props>(), {
   isMobile: false,
   editable: false,
   interactive: false,
-  loading: false
+  loading: false,
+  expandable: false
 })
 
 const emit = defineEmits<{
@@ -117,7 +128,11 @@ const avatarUrl = computed(() => {
 
 const sizeClass = computed(() => `avatar-${props.size}`)
 
+const lightboxOpen = ref(false)
+const fullSize = computed(() => (props.expandable && !props.editable ? getFullSizeAvatarUrl(props.src) : null))
+
 const handleClick = () => {
+  if (fullSize.value) lightboxOpen.value = true
   if (props.interactive) {
     emit('click')
   }
@@ -135,9 +150,8 @@ const handleFileSelect = async (event: Event) => {
   const file = target.files?.[0]
   
   if (file) {
-    // Validates against the avatars bucket size/type limits; errors go to the
-    // toast system, not a native alert.
-    const validationError = await validateImageUpload(file, 'avatars')
+    // Bucket limits apply at upload, to the original or its shrunk copy.
+    const validationError = imageSourceError(file)
     if (validationError) {
       toast.error(validationError)
       target.value = ''
@@ -222,6 +236,10 @@ onUnmounted(() => {
 
 .avatar-container.interactive {
   cursor: pointer;
+}
+
+.avatar-image--expandable {
+  cursor: zoom-in;
 }
 
 .avatar-image {

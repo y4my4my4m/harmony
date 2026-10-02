@@ -128,7 +128,10 @@ pub fn allow_local_network(window: &tauri::WebviewWindow) {
 // Recognised by: prepare in libcef, G_PRIORITY_DEFAULT_IDLE (kPriorityWork), one
 // pipe fd (Chromium's X11 source polls a socket; the runtime's pump is not in
 // libcef). Main thread, after cef::initialize. tauri-runtime-cef 3.0.0-alpha.4
-// does not destroy it (tauri-apps/tauri#16189).
+// leaves it attached (tauri-apps/tauri#16189). Under a runtime with the upstream
+// fix ("fix(cef): destroy Chromium's GLib work source on Linux",
+// CefExternalPump::on_cef_initialized) the source is gone before setup and this
+// returns 0.
 pub fn destroy_chromium_work_source() -> usize {
   fn module_base(address: *const libc::c_void) -> Option<*mut libc::c_void> {
     let mut info: libc::Dl_info = unsafe { std::mem::zeroed() };

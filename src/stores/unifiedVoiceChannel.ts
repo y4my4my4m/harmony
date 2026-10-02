@@ -23,9 +23,9 @@ import { useKeybinds } from '@/composables/useKeybinds';
 import { voiceE2EEService } from '@/services/encryption/VoiceE2EEService';
 import { fetchEffectiveChannelEncryption } from '@/services/ChannelEncryptionService';
 import { supabase } from '@/supabase';
+import { userEventChannel } from '@/services/UserEventChannel';
 import { debug } from '@/utils/debug';
 import { userStorage } from '@/utils/userScopedStorage';
-import type { RealtimeChannel } from '@supabase/supabase-js';
 
 let voiceSessionHeartbeat: ReturnType<typeof setInterval> | null = null;
 
@@ -33,6 +33,9 @@ let keybindListenersSetup = false;
 let inputModeWatchStop: WatchStopHandle | null = null;
 
 let webrtcListenersRegistered = false;
+
+// Handlers for the remote server's answer to a pending federated voice join.
+let federatedAnswerUnsubscribe: (() => void) | null = null;
 
 
 interface RecentSpeaker {
@@ -50,11 +53,14 @@ interface VoiceChannelState {
   callStartTime: Date | null;
   
   isFederatedChannel: boolean;
-  federatedTokenSubscription: RealtimeChannel | null;
   pendingFederatedJoin: {
     channelId: string;
     serverId: string;
     timeout: ReturnType<typeof setTimeout> | null;
+    // Join activity id and host returned by /api/federation/voice/join; only
+    // the answer naming both is accepted.
+    joinId: string | null;
+    serverHost: string | null;
   } | null;
   
   isConnecting: boolean;
@@ -134,7 +140,6 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     optimisticChannelName: null,
     
     isFederatedChannel: false,
-    federatedTokenSubscription: null,
     pendingFederatedJoin: null,
     
     allUsers: [],
@@ -623,104 +628,137 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           abortSignal.addEventListener('abort', abortHandler);
         }
         
-        const channelName = `federated-voice:${userId}`;
-        
-        debug.log('Subscribing to federated voice token channel:', channelName);
-        
-        this.federatedTokenSubscription = supabase
-          .channel(channelName)
-          .on('broadcast', { event: 'voice-token-received' }, async (payload) => {
+        // The answer arrives on the private user channel (federation-backend
+        // broadcast_user_event). It counts only when it names the pending join id
+        // and the host the join went to. Answers arriving before the join id is
+        // known wait in `early`.
+        const answersPendingJoin = (p: any): boolean => {
+          const pending = this.pendingFederatedJoin;
+          return !!pending?.joinId && !!pending.serverHost
+            && p?.originalJoinId === pending.joinId && p?.serverHost === pending.serverHost;
+        };
+        const early: Array<{ event: 'token' | 'rejected'; payload: any }> = [];
+        const holdEarly = (event: 'token' | 'rejected', p: any): boolean => {
+          if (this.pendingFederatedJoin && !this.pendingFederatedJoin.joinId) {
+            if (early.length < 8) early.push({ event, payload: p });
+            return true;
+          }
+          return false;
+        };
+
+        const acceptToken = async (tokenPayload: any) => {
+          if (abortSignal?.aborted) {
+            abortHandler();
+            return;
+          }
+
+          const { livekitUrl, token } = tokenPayload ?? {};
+          if (typeof livekitUrl !== 'string' || !/^wss?:\/\//i.test(livekitUrl) || typeof token !== 'string' || !token) {
+            debug.warn('Ignoring malformed federated voice token');
+            return;
+          }
+          
+          // The payload carries a LiveKit access token; log only its shape.
+          debug.log('Received federated voice token for room:', tokenPayload?.roomName ?? '(unknown)');
+          
+          if (this.pendingFederatedJoin?.timeout) {
+            clearTimeout(this.pendingFederatedJoin.timeout);
+          }
+          this.pendingFederatedJoin = null;
+          
+          if (abortSignal) {
+            abortSignal.removeEventListener('abort', abortHandler);
+          }
+          
+          try {
+            this.setupWebRTCListeners();
+            
+            // Gate must be current before the mic publishes.
+            this.syncTransmitGate();
+            const success = await webrtcManager.joinWithToken(livekitUrl, token, channelId, userId);
+            
             if (abortSignal?.aborted) {
+              if (success) {
+                await webrtcManager.leaveChannel();
+              }
               abortHandler();
               return;
             }
             
-            // The payload carries a LiveKit access token; log only its shape.
-            debug.log('Received federated voice token for channel:', payload?.channelId ?? '(unknown)');
-            
-            if (this.pendingFederatedJoin?.timeout) {
-              clearTimeout(this.pendingFederatedJoin.timeout);
-            }
-            this.pendingFederatedJoin = null;
-            
-            if (abortSignal) {
-              abortSignal.removeEventListener('abort', abortHandler);
+            if (!success) {
+              throw new Error('Failed to connect to remote LiveKit server');
             }
             
-            const { livekitUrl, token } = payload.payload;
+            this.connectionMode = webrtcManager.getActiveService() ?? 'livekit';
+            this.connectionState = 'connected';
+            this.isEncrypted = webrtcManager.isE2EEEnabled();
+            this.applyAudioPrefs();
+            debug.log('[VoiceChannel] Connected to federated voice channel via LiveKit');
             
-            try {
-              this.setupWebRTCListeners();
-              
-              // Gate must be current before the mic publishes.
-              this.syncTransmitGate();
-              const success = await webrtcManager.joinWithToken(livekitUrl, token, channelId, userId);
-              
-              if (abortSignal?.aborted) {
-                if (success) {
-                  await webrtcManager.leaveChannel();
-                }
-                abortHandler();
-                return;
-              }
-              
-              if (!success) {
-                throw new Error('Failed to connect to remote LiveKit server');
-              }
-              
-              this.connectionMode = webrtcManager.getActiveService() ?? 'livekit';
-              this.connectionState = 'connected';
-              this.isEncrypted = webrtcManager.isE2EEEnabled();
-              this.applyAudioPrefs();
-              debug.log('[VoiceChannel] Connected to federated voice channel via LiveKit');
-              
-              this.currentChannelId = channelId;
-              this.currentServerId = serverId;
-              const channel = serverChannelStore.channels.find((c: any) => c.id === channelId);
-              this.currentChannelName = channel ? channel.name : 'Voice Channel';
-              this.isConnected = true;
-              this.isConnecting = false;
-              this.connectionAbortController = null;
-              setCallServiceActive(true);
-              syncOverlayForCall(true);
-              this.sessionStartTime = new Date();
-              this.callStartTime = new Date();
-              
-              this.optimisticChannelId = null;
-              this.optimisticServerId = null;
-              this.optimisticChannelName = null;
-              
-              this.saveVoiceChannelState();
-              this.startVoiceSessionHeartbeat();
-              
-              this.localState = webrtcManager.getLocalState();
-              this.localStream = webrtcManager.getLocalStream();
-              
-              this.setupPushToTalk();
-              
-              // Join sound is played by ChannelSidebar for optimistic UX.
+            this.currentChannelId = channelId;
+            this.currentServerId = serverId;
+            const channel = serverChannelStore.channels.find((c: any) => c.id === channelId);
+            this.currentChannelName = channel ? channel.name : 'Voice Channel';
+            this.isConnected = true;
+            this.isConnecting = false;
+            this.connectionAbortController = null;
+            setCallServiceActive(true);
+            syncOverlayForCall(true);
+            this.sessionStartTime = new Date();
+            this.callStartTime = new Date();
+            
+            this.optimisticChannelId = null;
+            this.optimisticServerId = null;
+            this.optimisticChannelName = null;
+            
+            this.saveVoiceChannelState();
+            this.startVoiceSessionHeartbeat();
+            
+            this.localState = webrtcManager.getLocalState();
+            this.localStream = webrtcManager.getLocalStream();
+            
+            this.setupPushToTalk();
+            
+            // Join sound is played by ChannelSidebar for optimistic UX.
 
-              resolve(true);
-            } catch (error) {
-              debug.error('Failed to connect with federated token:', error);
-              this.cleanupFederatedSubscription();
-              reject(error);
-            }
-          })
-          .on('broadcast', { event: 'voice-join-rejected' }, (payload) => {
-            debug.error('Voice join rejected:', payload.payload);
-            
-            if (this.pendingFederatedJoin?.timeout) {
-              clearTimeout(this.pendingFederatedJoin.timeout);
-            }
-            this.pendingFederatedJoin = null;
+            resolve(true);
+          } catch (error) {
+            debug.error('Failed to connect with federated token:', error);
             this.cleanupFederatedSubscription();
-            
-            reject(new Error(payload.payload.reason || 'Voice join rejected by remote server'));
-          })
-          .subscribe((status) => {
-            debug.log(`Federated voice subscription status: ${status}`);
-          });
+            reject(error);
+          }
+        };
+
+        const acceptRejection = (rejectPayload: any) => {
+          debug.error('Voice join rejected:', rejectPayload);
+          
+          if (this.pendingFederatedJoin?.timeout) {
+            clearTimeout(this.pendingFederatedJoin.timeout);
+          }
+          this.pendingFederatedJoin = null;
+          this.cleanupFederatedSubscription();
+          
+          reject(new Error(rejectPayload?.reason || 'Voice join rejected by remote server'));
+        };
+
+        this.cleanupFederatedSubscription();
+        const offToken = userEventChannel.on('federated_voice:token', async (payload) => {
+          if (holdEarly('token', payload)) return;
+          if (!answersPendingJoin(payload)) {
+            debug.warn('Ignoring federated voice token that does not answer the pending join');
+            return;
+          }
+          await acceptToken(payload);
+        });
+        const offRejected = userEventChannel.on('federated_voice:rejected', (payload) => {
+          if (holdEarly('rejected', payload)) return;
+          if (!answersPendingJoin(payload)) return;
+          acceptRejection(payload);
+        });
+        federatedAnswerUnsubscribe = () => {
+          offToken();
+          offRejected();
+        };
         
         // The federation backend sends the VoiceChannelJoin activity. Remote
         // servers own their own membership rows; nothing is written locally.
@@ -746,10 +784,24 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
               const error = await response.json().catch(() => ({ error: 'Unknown error' }));
               throw new Error(error.error || 'Failed to send voice join request');
             }
+
+            const sent = await response.json().catch(() => ({}));
+            if (typeof sent?.joinId !== 'string' || typeof sent?.serverHost !== 'string') {
+              throw new Error('Voice join request returned no join id');
+            }
             
             debug.log('Voice join request sent to federation backend');
             
             serverUsersStore.joinVoiceChannel(serverId, channelId, userId, false);
+
+            if (this.pendingFederatedJoin) {
+              this.pendingFederatedJoin.joinId = sent.joinId;
+              this.pendingFederatedJoin.serverHost = sent.serverHost;
+              const answer = early.find((e) => answersPendingJoin(e.payload));
+              early.length = 0;
+              if (answer?.event === 'token') await acceptToken(answer.payload);
+              else if (answer?.event === 'rejected') acceptRejection(answer.payload);
+            }
           } catch (error) {
             this.isConnecting = false;
             this.optimisticChannelId = null;
@@ -780,14 +832,14 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           reject(new Error('Timeout waiting for voice connection to remote server'));
         }, 20000);
         
-        this.pendingFederatedJoin = { channelId, serverId, timeout };
+        this.pendingFederatedJoin = { channelId, serverId, timeout, joinId: null, serverHost: null };
       });
     },
     
     cleanupFederatedSubscription() {
-      if (this.federatedTokenSubscription) {
-        this.federatedTokenSubscription.unsubscribe();
-        this.federatedTokenSubscription = null;
+      if (federatedAnswerUnsubscribe) {
+        federatedAnswerUnsubscribe();
+        federatedAnswerUnsubscribe = null;
       }
     },
 

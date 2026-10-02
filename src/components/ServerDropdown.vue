@@ -21,6 +21,11 @@
           {{ $t('server.inviteLink') }}
         </button>
       </li>
+      <li v-if="showWelcomeEntry" role="none">
+        <button type="button" role="menuitem" class="dropdown-item" data-testid="server-welcome-entry" @click="openWelcome">
+          {{ $t('serverWelcome.menuEntry') }}
+        </button>
+      </li>
       <li v-if="!isOwner" role="none" class="leave-server">
         <button type="button" role="menuitem" class="dropdown-item" @click="confirmLeaveServer">
           {{ $t('server.leaveServer') }}
@@ -44,6 +49,7 @@ import { supabase } from '@/supabase';
 import { useToast } from 'vue-toastification';
 import { federationServerService } from '@/services/federation/FederationServerService';
 import { useUserData } from '@/composables/useUserData';
+import { useServerWelcomeStore } from '@/stores/useServerWelcome';
 
 interface Props {
   serverId?: string
@@ -104,6 +110,14 @@ const goToServerSettings = () => {
 
 const generateInviteLink = () => {
   emit('openInviteModal');
+  closeDropdown();
+};
+
+const welcomeStore = useServerWelcomeStore();
+const showWelcomeEntry = computed(() => welcomeStore.hasScreen(props.serverId));
+
+const openWelcome = () => {
+  if (props.serverId) void welcomeStore.open(props.serverId);
   closeDropdown();
 };
 

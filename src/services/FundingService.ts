@@ -14,11 +14,18 @@ export interface FundingConfig {
   show_in_context_bar: boolean
   context_bar_style: string
   thank_you_message: string | null
-  /** Verification token from Ko-fi (Gold-tier required). Empty/null = disabled. */
-  kofi_webhook_token: string | null
   /** When true, auto-assign supporter tier on webhook based on amount. */
   kofi_auto_assign_tier: boolean
 }
+
+/**
+ * Client-readable funding columns. The Ko-fi webhook token is not among them: clients
+ * hold no privilege on it, and admins use get/setKofiWebhookToken.
+ */
+const FUNDING_CONFIG_COLUMNS =
+  'id, enabled, goal_amount, goal_currency, current_amount, funding_period, goal_description, ' +
+  'funding_links, show_progress_bar, show_in_context_bar, context_bar_style, thank_you_message, ' +
+  'kofi_auto_assign_tier'
 
 /** Canonical platform keys rendered with branded icons in the UI. */
 export const FUNDING_PLATFORMS = [
@@ -36,6 +43,13 @@ export type FundingPlatformKey = typeof FUNDING_PLATFORMS[number]
 /** Config with current_amount computed from donation history (for progress display) */
 export interface FundingConfigWithProgress extends FundingConfig {
   displayed_amount: number
+}
+
+/** Condition of the goal progress pill (context bar) and card (social sidebar). */
+export function showsFundingGoal<T extends Pick<FundingConfig, 'enabled' | 'show_in_context_bar' | 'goal_amount'>>(
+  config: T | null | undefined,
+): config is T & { goal_amount: number } {
+  return !!(config?.enabled && config.show_in_context_bar && config.goal_amount)
 }
 
 export interface FundingLink {
@@ -213,15 +227,39 @@ class FundingService {
     try {
       const { data, error } = await supabase
         .from('instance_funding')
-        .select('*')
+        .select(FUNDING_CONFIG_COLUMNS)
         .limit(1)
         .maybeSingle()
 
       if (error) throw error
-      return data
+      return data as FundingConfig | null
     } catch (error) {
       debug.error('Failed to get funding config:', error)
       return null
+    }
+  }
+
+  /** Ko-fi verification token; instance admins only. Empty string when unset. */
+  async getKofiWebhookToken(): Promise<string> {
+    try {
+      const { data, error } = await supabase.rpc('get_kofi_webhook_token')
+      if (error) throw error
+      return typeof data === 'string' ? data : ''
+    } catch (error) {
+      debug.error('Failed to get Ko-fi webhook token:', error)
+      return ''
+    }
+  }
+
+  /** Sets the Ko-fi verification token; empty disables the webhook. Instance admins only. */
+  async setKofiWebhookToken(token: string): Promise<boolean> {
+    try {
+      const { error } = await supabase.rpc('set_kofi_webhook_token', { p_token: token })
+      if (error) throw error
+      return true
+    } catch (error) {
+      debug.error('Failed to set Ko-fi webhook token:', error)
+      return false
     }
   }
 

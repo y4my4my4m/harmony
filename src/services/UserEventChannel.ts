@@ -36,6 +36,10 @@ type UserEventType =
   | 'mute:insert' | 'mute:delete'
   | 'block:insert' | 'block:delete'
   | 'ai_emoji:generated' | 'ai_emoji:failed'
+  // Answer of a remote server to a federated voice channel join (VoiceActivityHandler).
+  | 'federated_voice:token' | 'federated_voice:rejected'
+  // Federated DM call signalling (VoiceActivityHandler).
+  | 'federated_call:incoming' | 'federated_call:accepted' | 'federated_call:rejected' | 'federated_call:ended'
   | '_reconnected'
 type EventHandler = (payload: Record<string, any>) => void | Promise<void>
 

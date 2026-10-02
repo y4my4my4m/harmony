@@ -34,6 +34,7 @@ const TYPE_GATES: Record<string, string[]> = {
   chat_message: ['push_dms', 'desktop_chat_messages'],
   reply: ['desktop_replies'],
   thread_reply: ['desktop_replies'],
+  newcomer_message: ['newcomer_alerts'],
   reaction: ['desktop_reactions'],
   voice_channel_activity: ['sound_voice_activity'],
   activitypub_mention: ['push_mentions', 'activitypub_desktop_mentions'],

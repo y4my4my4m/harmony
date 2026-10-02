@@ -1,6 +1,22 @@
 import { Router, Request, Response } from 'express'
 import { supabase } from '../config/supabase.js'
-import { botAuthMiddleware } from '../auth/BotAuthMiddleware.js'
+import { botAuthMiddleware, botRateLimit } from '../auth/BotAuthMiddleware.js'
+import {
+  ADMINISTRATOR,
+  ALL_BITS,
+  type InstallRow,
+  type RoleRow,
+  botCanReadChannel,
+  botChannelMask,
+  grantableRoleBits,
+  isAdminRole,
+  loadEveryoneLayer,
+  loadInstall,
+  overrideGrants,
+  parseMask,
+  rolePositionCap,
+  u64,
+} from '../auth/botPermissions.js'
 import { applyBridgeAttachmentPolicy } from '../utils/mirrorExternalMedia.js'
 
 const AUTOMOD_BLOCKED_BODY = {
@@ -57,84 +73,93 @@ export class BotRestAPI {
   
   private setupRoutes() {
     // CHANNEL ENDPOINTS
-    
-    this.router.post('/channels/:channelId/messages', this.sendMessage.bind(this))
-    
-    this.router.get('/channels/:channelId/messages', this.getMessages.bind(this))
+
+    this.route('post', '/channels/:channelId/messages', this.sendMessage)
+
+    this.route('get', '/channels/:channelId/messages', this.getMessages)
 
     // Lookup by bridged Discord message ID, stored in metadata.discord_message_id.
-    this.router.get('/channels/:channelId/messages/lookup', this.lookupMessageByDiscordId.bind(this))
-    
-    this.router.get('/messages/:messageId', this.getMessage.bind(this))
+    this.route('get', '/channels/:channelId/messages/lookup', this.lookupMessageByDiscordId)
+
+    this.route('get', '/messages/:messageId', this.getMessage)
 
     // Public invite preview; feeds Discord bridge embed cards.
-    this.router.get('/invites/:code/preview', this.getInvitePreview.bind(this))
-    
-    this.router.patch('/messages/:messageId', this.editMessage.bind(this))
-    
-    this.router.delete('/messages/:messageId', this.deleteMessage.bind(this))
-    
-    this.router.put('/messages/:messageId/reactions/:emoji', this.addReaction.bind(this))
-    
-    this.router.delete('/messages/:messageId/reactions/:emoji', this.removeReaction.bind(this))
-    
-    this.router.post('/channels/:channelId/typing', this.triggerTyping.bind(this))
-    
+    this.route('get', '/invites/:code/preview', this.getInvitePreview)
+
+    this.route('patch', '/messages/:messageId', this.editMessage)
+
+    this.route('delete', '/messages/:messageId', this.deleteMessage)
+
+    this.route('put', '/messages/:messageId/reactions/:emoji', this.addReaction)
+
+    this.route('delete', '/messages/:messageId/reactions/:emoji', this.removeReaction)
+
+    this.route('post', '/channels/:channelId/typing', this.triggerTyping)
+
     // SERVER ENDPOINTS (Harmony terminology)
-    
-    this.router.get('/servers/:serverId', this.getGuild.bind(this))
-    
-    this.router.get('/servers/:serverId/members', this.getGuildMembers.bind(this))
-    
-    this.router.get('/servers/:serverId/channels', this.getGuildChannels.bind(this))
+
+    this.route('get', '/servers/:serverId', this.getGuild)
+
+    this.route('get', '/servers/:serverId/members', this.getGuildMembers)
+
+    this.route('get', '/servers/:serverId/channels', this.getGuildChannels)
 
     // Requires manage_channels.
-    this.router.post('/servers/:serverId/channels', this.createChannel.bind(this))
-    this.router.post('/servers/:serverId/categories', this.createCategory.bind(this))
-    this.router.patch('/servers/:serverId/categories/:categoryId', this.updateCategory.bind(this))
+    this.route('post', '/servers/:serverId/channels', this.createChannel)
+    this.route('post', '/servers/:serverId/categories', this.createCategory)
+    this.route('patch', '/servers/:serverId/categories/:categoryId', this.updateCategory)
 
     // Category list; consumed by clone/diff.
-    this.router.get('/servers/:serverId/categories', this.getCategories.bind(this))
+    this.route('get', '/servers/:serverId/categories', this.getCategories)
 
-    this.router.patch('/channels/:channelId', this.updateChannel.bind(this))
+    this.route('patch', '/channels/:channelId', this.updateChannel)
 
-    // Role routes gate on manage_channels: role creation belongs to the same
-    // admin clone flow as channel creation, and no manage_roles bot permission
-    // exists.
-    this.router.get('/servers/:serverId/roles', this.getRoles.bind(this))
-    this.router.post('/servers/:serverId/roles', this.createRole.bind(this))
-    this.router.patch('/servers/:serverId/roles/:roleId', this.updateRole.bind(this))
-    this.router.delete('/servers/:serverId/roles/:roleId', this.deleteRole.bind(this))
+    // Writes require manage_roles and stay inside the bot's own permissions and position range.
+    this.route('get', '/servers/:serverId/roles', this.getRoles)
+    this.route('post', '/servers/:serverId/roles', this.createRole)
+    this.route('patch', '/servers/:serverId/roles/:roleId', this.updateRole)
+    this.route('delete', '/servers/:serverId/roles/:roleId', this.deleteRole)
 
     // Channel permission overrides; used by Discord bridge permission sync.
-    this.router.get('/channels/:channelId/permission-overrides', this.getChannelPermissionOverrides.bind(this))
-    this.router.put('/channels/:channelId/permission-overrides', this.upsertChannelPermissionOverride.bind(this))
-    this.router.delete('/channels/:channelId/permission-overrides/role/:roleId', this.deleteChannelPermissionOverrideForRole.bind(this))
+    this.route('get', '/channels/:channelId/permission-overrides', this.getChannelPermissionOverrides)
+    this.route('put', '/channels/:channelId/permission-overrides', this.upsertChannelPermissionOverride)
+    this.route('delete', '/channels/:channelId/permission-overrides/role/:roleId', this.deleteChannelPermissionOverrideForRole)
 
     // Deprecated aliases using Discord terminology.
-    this.router.get('/guilds/:guildId', this.getGuild.bind(this))
-    this.router.get('/guilds/:guildId/members', this.getGuildMembers.bind(this))
-    this.router.get('/guilds/:guildId/channels', this.getGuildChannels.bind(this))
-    
+    this.route('get', '/guilds/:guildId', this.getGuild)
+    this.route('get', '/guilds/:guildId/members', this.getGuildMembers)
+    this.route('get', '/guilds/:guildId/channels', this.getGuildChannels)
+
     // EMOJI ENDPOINTS
-    
-    this.router.get('/emojis', this.getEmojis.bind(this))
-    
-    this.router.post('/emojis', this.createEmoji.bind(this))
+
+    this.route('get', '/emojis', this.getEmojis)
+
+    this.route('post', '/emojis', this.createEmoji)
 
     // Content patch that leaves updated_at alone; no "(edited)" marker.
-    this.router.patch('/messages/:messageId/content-silent', this.silentUpdateMessageContent.bind(this))
+    this.route('patch', '/messages/:messageId/content-silent', this.silentUpdateMessageContent)
 
     // Merges bridge metadata (e.g. discord_message_id) without bumping updated_at.
-    this.router.patch('/messages/:messageId/metadata', this.mergeMessageMetadata.bind(this))
-    
+    this.route('patch', '/messages/:messageId/metadata', this.mergeMessageMetadata)
+
     // USER ENDPOINTS
-    
+
     // Express matches in registration order; /users/:userId would otherwise
     // capture "@me" and hand it to a uuid column.
-    this.router.get('/users/@me', this.getCurrentBot.bind(this))
+    this.route('get', '/users/@me', this.getCurrentBot)
 
-    this.router.get('/users/:userId', this.getUser.bind(this))
+    this.route('get', '/users/:userId', this.getUser)
+
+    // Requests no route matched are counted in a shared bucket, then fall through to the 404.
+    this.router.use(botRateLimit)
+  }
+
+  private route(
+    method: 'get' | 'post' | 'patch' | 'put' | 'delete',
+    path: string,
+    handler: (req: BotRequest, res: Response) => unknown,
+  ) {
+    this.router[method](path, botRateLimit, handler.bind(this))
   }
   
   // MEDIA
@@ -296,7 +321,7 @@ export class BotRestAPI {
         return res.status(400).json({ error: 'discord_message_id query parameter is required' })
       }
 
-      const canRead = await this.checkChannelPermission(botId, channelId, 'read_messages')
+      const canRead = await this.canReadChannel(botId, channelId)
       if (!canRead) {
         return res.status(403).json({ error: 'Missing permission: read_messages' })
       }
@@ -386,7 +411,7 @@ export class BotRestAPI {
       const { limit = 50, before, after } = req.query
       const botId = req.bot!.id
       
-      const canRead = await this.checkChannelPermission(botId, channelId, 'read_messages')
+      const canRead = await this.canReadChannel(botId, channelId)
       if (!canRead) {
         return res.status(403).json({ error: 'Missing permission: read_messages' })
       }
@@ -449,7 +474,7 @@ export class BotRestAPI {
         return res.status(404).json({ error: 'Channel not found' })
       }
       
-      const canRead = await this.checkChannelPermission(botId, message.channel_id, 'read_messages')
+      const canRead = await this.canReadChannel(botId, message.channel_id, channel.server_id)
       if (!canRead) {
         return res.status(403).json({ error: 'Missing permission: read_messages' })
       }
@@ -994,6 +1019,76 @@ export class BotRestAPI {
     }
   }
 
+  /**
+   * Role-write authority: manage_roles, the bits the bot may set (grantableRoleBits) and the
+   * exclusive position cap (rolePositionCap).
+   */
+  private async loadRoleAuthority(botId: string, serverId: string): Promise<
+    | { ok: true; grantable: bigint; positionCap: number }
+    | { ok: false; status: number; error: string }
+  > {
+    const install = await loadInstall(botId, serverId)
+    if (!install || install.manage_roles !== true) {
+      return { ok: false, status: 403, error: 'Missing permission: manage_roles' }
+    }
+
+    const [rolesResult, serverResult] = await Promise.all([
+      supabase
+        .from('server_roles')
+        .select('id, position, permissions, is_default, is_admin')
+        .eq('server_id', serverId),
+      supabase.from('servers').select('owner').eq('id', serverId).maybeSingle(),
+    ])
+    const roles = rolesResult.data as RoleRow[] | null
+    const server = serverResult.data as { owner: string | null } | null
+    if (rolesResult.error || serverResult.error || !Array.isArray(roles) || !server) {
+      console.error('Role authority lookup failed:', rolesResult.error?.message ?? serverResult.error?.message)
+      return { ok: false, status: 500, error: 'Role lookup failed' }
+    }
+
+    const installerIsOwner = server.owner != null && server.owner === install.installed_by
+    let installerRoleIds = new Set<string>()
+    if (!installerIsOwner) {
+      const { data: held, error } = await supabase
+        .from('user_roles')
+        .select('role_id')
+        .eq('user_id', install.installed_by as string)
+        .eq('server_id', serverId)
+      if (error || !Array.isArray(held)) {
+        console.error('Installer role lookup failed:', error?.message)
+        return { ok: false, status: 500, error: 'Role lookup failed' }
+      }
+      installerRoleIds = new Set(held.map((row: { role_id: string }) => row.role_id))
+    }
+
+    const everyone = roles.find((role) => role.is_default === true)
+    const everyonePermissions = everyone ? parseMask(everyone.permissions ?? 0) ?? 0n : 0n
+
+    return {
+      ok: true,
+      grantable: grantableRoleBits(install, u64(everyonePermissions)),
+      positionCap: rolePositionCap(roles, installerIsOwner, installerRoleIds),
+    }
+  }
+
+  private positionCapError(positionCap: number) {
+    return Number.isFinite(positionCap)
+      ? { error: 'Role position must be below the bot\'s highest manageable position', max_position: positionCap - 1 }
+      : { error: 'Role position out of range' }
+  }
+
+  // Request masks: unparseable reads as 0, ADMINISTRATOR is cleared.
+  private requestedRoleMask(permissions: unknown): bigint {
+    return (parseMask(permissions ?? 0) ?? 0n) & ~ADMINISTRATOR
+  }
+
+  private missingBitsError(missing: bigint, scope: string) {
+    return {
+      error: `Cannot grant permissions the bot does not hold ${scope}`,
+      missing_permissions: missing.toString(),
+    }
+  }
+
   private async createRole(req: BotRequest, res: Response) {
     try {
       const serverId = req.params.serverId
@@ -1012,21 +1107,25 @@ export class BotRestAPI {
         return res.status(400).json({ error: 'name is required' })
       }
 
-      const allowed = await this.checkServerPermission(botId, serverId, 'manage_channels')
-      if (!allowed) {
-        return res.status(403).json({ error: 'Missing permission: manage_channels' })
+      const authority = await this.loadRoleAuthority(botId, serverId)
+      if (!authority.ok) {
+        return res.status(authority.status).json({ error: authority.error })
       }
 
-      // Permissions arrive as a bigint bitmask in string form; JS numbers
-      // cannot carry 53+ bit ints. Stored as-is. ADMINISTRATOR (bit 0) is
-      // stripped: it is granted only through the Harmony UI.
-      let permMask = 0n
-      try {
-        permMask = BigInt(permissions ?? 0)
-      } catch {
-        permMask = 0n
+      const rolePosition = typeof position === 'number' ? position : 0
+      if (!Number.isInteger(rolePosition)) {
+        return res.status(400).json({ error: 'position must be an integer' })
       }
-      permMask &= ~(1n << 0n) // strip ADMINISTRATOR
+      if (!(rolePosition < authority.positionCap)) {
+        return res.status(403).json(this.positionCapError(authority.positionCap))
+      }
+
+      // Bigint bitmask in string form; JS numbers cannot carry 53+ bit ints.
+      const permMask = this.requestedRoleMask(permissions)
+      const missing = u64(permMask) & ~authority.grantable
+      if (missing !== 0n) {
+        return res.status(403).json(this.missingBitsError(missing, 'in this server'))
+      }
 
       const { data, error } = await supabase
         .from('server_roles')
@@ -1034,7 +1133,7 @@ export class BotRestAPI {
           server_id: serverId,
           name: name.trim().slice(0, 100),
           color: color || null,
-          position: typeof position === 'number' ? position : 0,
+          position: rolePosition,
           permissions: permMask.toString(),
           mentionable: mentionable ?? true,
           hoist: hoist ?? false,
@@ -1053,6 +1152,34 @@ export class BotRestAPI {
     }
   }
 
+  /**
+   * The existing role a bot may edit or delete: not @everyone, not an administrator role, and
+   * strictly below the position cap.
+   */
+  private async loadManageableRole(
+    serverId: string,
+    roleId: string,
+    positionCap: number,
+  ): Promise<{ ok: true; role: RoleRow } | { ok: false; status: number; error: string }> {
+    const { data: role, error } = await supabase
+      .from('server_roles')
+      .select('id, position, permissions, is_default, is_admin')
+      .eq('id', roleId)
+      .eq('server_id', serverId)
+      .maybeSingle()
+
+    if (error || !role) {
+      return { ok: false, status: 404, error: 'Role not found' }
+    }
+    if (role.is_default || isAdminRole(role)) {
+      return { ok: false, status: 403, error: 'Cannot modify default or admin roles via bot API' }
+    }
+    if (!((role.position ?? 0) < positionCap)) {
+      return { ok: false, status: 403, error: 'Role is at or above the bot\'s highest manageable position' }
+    }
+    return { ok: true, role }
+  }
+
   private async updateRole(req: BotRequest, res: Response) {
     try {
       const { serverId, roleId } = req.params
@@ -1067,39 +1194,38 @@ export class BotRestAPI {
           hoist?: boolean
         }
 
-      const allowed = await this.checkServerPermission(botId, serverId, 'manage_channels')
-      if (!allowed) {
-        return res.status(403).json({ error: 'Missing permission: manage_channels' })
+      const authority = await this.loadRoleAuthority(botId, serverId)
+      if (!authority.ok) {
+        return res.status(authority.status).json({ error: authority.error })
       }
 
-      const { data: existing, error: fetchErr } = await supabase
-        .from('server_roles')
-        .select('id, is_default, is_admin')
-        .eq('id', roleId)
-        .eq('server_id', serverId)
-        .single()
-
-      if (fetchErr || !existing) {
-        return res.status(404).json({ error: 'Role not found' })
-      }
-      if (existing.is_default || existing.is_admin) {
-        return res.status(403).json({ error: 'Cannot modify default or admin roles via bot API' })
+      const existing = await this.loadManageableRole(serverId, roleId, authority.positionCap)
+      if (!existing.ok) {
+        return res.status(existing.status).json({ error: existing.error })
       }
 
       const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }
       if (typeof name === 'string' && name.trim()) patch.name = name.trim().slice(0, 100)
       if (color !== undefined) patch.color = color || null
-      if (typeof position === 'number') patch.position = position
+      if (typeof position === 'number') {
+        if (!Number.isInteger(position)) {
+          return res.status(400).json({ error: 'position must be an integer' })
+        }
+        if (!(position < authority.positionCap)) {
+          return res.status(403).json(this.positionCapError(authority.positionCap))
+        }
+        patch.position = position
+      }
       if (mentionable !== undefined) patch.mentionable = mentionable
       if (hoist !== undefined) patch.hoist = hoist
       if (permissions !== undefined) {
-        let permMask = 0n
-        try {
-          permMask = BigInt(permissions ?? 0)
-        } catch {
-          permMask = 0n
+        const permMask = this.requestedRoleMask(permissions)
+        // Bits the role already carries may stay; only added bits must be the bot's.
+        const current = u64(parseMask(existing.role.permissions ?? 0) ?? 0n)
+        const missing = u64(permMask) & ~current & ~authority.grantable
+        if (missing !== 0n) {
+          return res.status(403).json(this.missingBitsError(missing, 'in this server'))
         }
-        permMask &= ~(1n << 0n)
         patch.permissions = permMask.toString()
       }
 
@@ -1107,10 +1233,12 @@ export class BotRestAPI {
         .from('server_roles')
         .update(patch)
         .eq('id', roleId)
+        .eq('server_id', serverId)
         .select('id, name, color, position, permissions, mentionable, hoist')
-        .single()
+        .maybeSingle()
 
       if (error) return res.status(500).json({ error: error.message })
+      if (!data) return res.status(404).json({ error: 'Role not found' })
 
       await this.logBotAction(botId, 'role_updated', { server_id: serverId, role_id: roleId })
       res.json(data)
@@ -1124,29 +1252,21 @@ export class BotRestAPI {
       const { serverId, roleId } = req.params
       const botId = req.bot!.id
 
-      const allowed = await this.checkServerPermission(botId, serverId, 'manage_channels')
-      if (!allowed) {
-        return res.status(403).json({ error: 'Missing permission: manage_channels' })
+      const authority = await this.loadRoleAuthority(botId, serverId)
+      if (!authority.ok) {
+        return res.status(authority.status).json({ error: authority.error })
       }
 
-      const { data: existing, error: fetchErr } = await supabase
-        .from('server_roles')
-        .select('id, is_default, is_admin')
-        .eq('id', roleId)
-        .eq('server_id', serverId)
-        .single()
-
-      if (fetchErr || !existing) {
-        return res.status(404).json({ error: 'Role not found' })
-      }
-      if (existing.is_default || existing.is_admin) {
-        return res.status(403).json({ error: 'Cannot delete default or admin roles via bot API' })
+      const existing = await this.loadManageableRole(serverId, roleId, authority.positionCap)
+      if (!existing.ok) {
+        return res.status(existing.status).json({ error: existing.error })
       }
 
       const { error } = await supabase
         .from('server_roles')
         .delete()
         .eq('id', roleId)
+        .eq('server_id', serverId)
 
       if (error) return res.status(500).json({ error: error.message })
 
@@ -1188,6 +1308,36 @@ export class BotRestAPI {
     }
   }
 
+  /**
+   * manage_channels in the channel's server, and the bot's permissions in the channel
+   * (botChannelMask), which bound what an override write may grant.
+   */
+  private async loadOverrideAuthority(botId: string, serverId: string, channelId: string): Promise<
+    | { ok: true; channelMask: bigint }
+    | { ok: false; status: number; error: string }
+  > {
+    const install: InstallRow | null = await loadInstall(botId, serverId)
+    if (!install || install.manage_channels !== true) {
+      return { ok: false, status: 403, error: 'Missing permission: manage_channels' }
+    }
+    const layer = await loadEveryoneLayer(serverId, channelId)
+    if (!layer) {
+      return { ok: false, status: 500, error: 'Permission lookup failed' }
+    }
+    return { ok: true, channelMask: botChannelMask(install, layer, channelId) }
+  }
+
+  // Stored override masks, unsigned. An unreadable allow counts as empty and an unreadable deny
+  // as total, so neither hides a grant.
+  private storedOverride(row: { allow_permissions?: unknown; deny_permissions?: unknown }) {
+    const allow = parseMask(row.allow_permissions ?? 0)
+    const deny = parseMask(row.deny_permissions ?? 0)
+    return {
+      allow: allow === null ? 0n : u64(allow),
+      deny: deny === null ? ALL_BITS : u64(deny),
+    }
+  }
+
   private async upsertChannelPermissionOverride(req: BotRequest, res: Response) {
     try {
       const { channelId } = req.params
@@ -1204,9 +1354,9 @@ export class BotRestAPI {
       const serverId = await this.resolveChannelServer(channelId)
       if (!serverId) return res.status(404).json({ error: 'Channel not found' })
 
-      const allowed = await this.checkServerPermission(botId, serverId, 'manage_channels')
-      if (!allowed) {
-        return res.status(403).json({ error: 'Missing permission: manage_channels' })
+      const authority = await this.loadOverrideAuthority(botId, serverId, channelId)
+      if (!authority.ok) {
+        return res.status(authority.status).json({ error: authority.error })
       }
 
       if (target_type !== 'role' && target_type !== 'user') {
@@ -1219,20 +1369,17 @@ export class BotRestAPI {
         return res.status(400).json({ error: 'user_id is required for user overrides' })
       }
 
-      let allowMask = 0n
-      let denyMask = 0n
-      try {
-        allowMask = BigInt(allow_permissions ?? 0)
-        denyMask = BigInt(deny_permissions ?? 0)
-      } catch {
+      const parsedAllow = parseMask(allow_permissions ?? 0)
+      const parsedDeny = parseMask(deny_permissions ?? 0)
+      if (parsedAllow === null || parsedDeny === null) {
         return res.status(400).json({ error: 'Invalid permission bitmask' })
       }
-      allowMask &= ~(1n << 0n)
-      denyMask &= ~(1n << 0n)
+      const allowMask = parsedAllow & ~ADMINISTRATOR
+      const denyMask = parsedDeny & ~ADMINISTRATOR
 
       const baseQuery = supabase
         .from('channel_permission_overrides')
-        .select('id')
+        .select('id, allow_permissions, deny_permissions')
         .eq('channel_id', channelId)
 
       const { data: existing, error: lookupErr } =
@@ -1241,6 +1388,16 @@ export class BotRestAPI {
           : await baseQuery.eq('user_id', user_id!).is('role_id', null).maybeSingle()
 
       if (lookupErr) return res.status(500).json({ error: lookupErr.message })
+
+      // Lifting a deny grants as surely as adding an allow.
+      const grants = overrideGrants(
+        existing ? this.storedOverride(existing) : null,
+        { allow: u64(allowMask), deny: u64(denyMask) },
+      )
+      const missing = grants & ~authority.channelMask
+      if (missing !== 0n) {
+        return res.status(403).json(this.missingBitsError(missing, 'in this channel'))
+      }
 
       if (allowMask === 0n && denyMask === 0n) {
         if (existing?.id) {
@@ -1292,9 +1449,27 @@ export class BotRestAPI {
       const serverId = await this.resolveChannelServer(channelId)
       if (!serverId) return res.status(404).json({ error: 'Channel not found' })
 
-      const allowed = await this.checkServerPermission(botId, serverId, 'manage_channels')
-      if (!allowed) {
-        return res.status(403).json({ error: 'Missing permission: manage_channels' })
+      const authority = await this.loadOverrideAuthority(botId, serverId, channelId)
+      if (!authority.ok) {
+        return res.status(authority.status).json({ error: authority.error })
+      }
+
+      const { data: existing, error: lookupErr } = await supabase
+        .from('channel_permission_overrides')
+        .select('id, allow_permissions, deny_permissions')
+        .eq('channel_id', channelId)
+        .eq('role_id', roleId)
+        .is('user_id', null)
+
+      if (lookupErr || !Array.isArray(existing)) {
+        return res.status(500).json({ error: lookupErr?.message ?? 'Override lookup failed' })
+      }
+
+      // Deleting lifts every deny the override carries.
+      const lifted = existing.reduce((mask, row) => mask | this.storedOverride(row).deny, 0n)
+      const missing = lifted & ~authority.channelMask
+      if (missing !== 0n) {
+        return res.status(403).json(this.missingBitsError(missing, 'in this channel'))
       }
 
       const { error } = await supabase
@@ -1375,6 +1550,31 @@ export class BotRestAPI {
     return data === true
   }
   
+  /**
+   * read_messages, the install's allowed_channel_ids, and VIEW_CHANNEL in the channel as a holder
+   * of @everyone (see botChannelMask). False on any failed lookup.
+   */
+  private async canReadChannel(botId: string, channelId: string, serverId?: string): Promise<boolean> {
+    let channelServerId = serverId
+    if (!channelServerId) {
+      const { data: channel } = await supabase
+        .from('channels')
+        .select('server_id')
+        .eq('id', channelId)
+        .maybeSingle()
+      channelServerId = channel?.server_id ?? undefined
+    }
+    if (!channelServerId) return false
+
+    const install = await loadInstall(botId, channelServerId)
+    if (!install || install.read_messages !== true) return false
+
+    const layer = await loadEveryoneLayer(channelServerId, channelId)
+    if (!layer) return false
+
+    return botCanReadChannel(install, layer, channelId)
+  }
+
   /**
    * Server-scoped permission check for server-wide actions such as
    * channel/category creation.

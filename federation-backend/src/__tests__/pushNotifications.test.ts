@@ -114,6 +114,11 @@ describe('per-type push gates', () => {
     expect(pushAllowedForType('mention', { push_mentions: true, desktop_mentions: false })).toBe(false);
   });
 
+  it('gates newcomer alerts on their own toggle', () => {
+    expect(pushAllowedForType('newcomer_message', { newcomer_alerts: false })).toBe(false);
+    expect(pushAllowedForType('newcomer_message', { newcomer_alerts: true, desktop_chat_messages: false })).toBe(true);
+  });
+
   it('gates social types on the social alert toggles', () => {
     expect(pushAllowedForType('activitypub_favorite', { activitypub_desktop_favorites: false })).toBe(false);
     expect(pushAllowedForType('activitypub_follow', { activitypub_desktop_notifications: false })).toBe(false);
@@ -193,6 +198,28 @@ describe('push payload', () => {
       data: { sender: { username: 'bob' }, location: { channel_name: 'general' }, preview: 'yo' },
     });
     expect(thread.title).toBe('bob replied in a thread in #general');
+  });
+
+  it('titles a newcomer alert with the member and channel and opens their message', () => {
+    const alert = (PushNotificationService as any).buildPayloadFromNotification({
+      id: 'n4', user_id: 'u1', type: 'newcomer_message',
+      data: {
+        sender: { username: 'amy', display_name: 'Amy' },
+        location: { server_id: 's1', channel_id: 'ch1', channel_name: 'general' },
+        message: { id: 'm9', content_preview: 'hello everyone' },
+        message_id: 'm9',
+        preview: 'hello everyone',
+      },
+    });
+    expect(alert.title).toBe('Amy is new here and posted in #general');
+    expect(alert.body).toBe('hello everyone');
+    expect(alert.data.url).toBe('/chat/s1/ch1?messageId=m9');
+    const bare = (PushNotificationService as any).buildPayloadFromNotification({
+      id: 'n5', user_id: 'u1', type: 'newcomer_message',
+      data: { sender: { username: 'amy' }, location: { server_id: 's1', channel_id: 'ch1', channel_name: 'general' },
+              message: { id: 'm10' }, message_id: 'm10' },
+    });
+    expect(bare.body).toBe('Say hello');
   });
 
   it('clips by code point', () => {

@@ -1,7 +1,8 @@
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
-import { validateImageUpload, humanizeUploadError } from '@/utils/uploadValidation'
-import { canonicalBannerSize, canonicalSquareSize } from '@/utils/imageTransformUtils'
+import { uploadImageObject } from '@/utils/fileUpload'
+import { bannerRenderSize, canonicalSquareSize } from '@/utils/imageTransformUtils'
+import { rawStorageUrl } from '@/utils/storageImageUtils'
 
 // Constants
 const DEFAULT_SERVER_ICON = '/default_server.webp'
@@ -118,8 +119,17 @@ export function getServerIconUrl(serverUrl: string | null | undefined, size: num
   return DEFAULT_SERVER_ICON
 }
 
+/** Stored server icon, untransformed; null for the bundled default. */
+export function getRawServerIconUrl(serverUrl: string | null | undefined): string | null {
+  if (!serverUrl || serverUrl.trim() === DEFAULT_SERVER_ICON) return null
+  return rawStorageUrl(SERVER_ICONS_BUCKET, serverUrl)
+}
+
 /**
- * Get the public URL for a server banner stored in Supabase storage.
+ * Display URL for a server banner shown in a CSS width×height box. Banners
+ * in this instance's storage come back as render URLs sized to the box at the
+ * current devicePixelRatio, snapped to shared variants; remote URLs pass
+ * through. getRawServerBannerUrl is the fallback where transforms are off.
  */
 export function getServerBannerUrl(
   bannerPath: string | null | undefined,
@@ -153,10 +163,7 @@ function transformServerBannerPath(
   path: string,
   options?: { width?: number; height?: number; quality?: number }
 ): string {
-  const { width, height } = canonicalBannerSize(
-    options?.width || 1280,
-    options?.height || 400,
-  )
+  const { width, height } = bannerRenderSize(options?.width || 640, options?.height || 200)
   const { data } = supabase.storage
     .from(SERVER_BANNERS_BUCKET)
     .getPublicUrl(path, {
@@ -209,37 +216,19 @@ export function getRawServerBannerUrl(
 }
 
 /**
- * Upload a server banner to Supabase storage.
+ * Uploads a server banner under a new `<serverId>/banner-<ms>.<ext>` name.
+ * `url` is the object path.
  */
 export async function uploadServerBanner(
   file: File,
   serverId: string
 ): Promise<{ success: boolean; url?: string; error?: string }> {
-  try {
-    const ext = file.name.split('.').pop()
-    if (!ext) return { success: false, error: 'File must have an extension' }
-
-    const validationError = await validateImageUpload(file, SERVER_BANNERS_BUCKET)
-    if (validationError) {
-      return { success: false, error: validationError }
-    }
-
-    const filePath = `${serverId}/${serverId}_banner.${ext}`
-
-    const { error } = await supabase.storage
-      .from(SERVER_BANNERS_BUCKET)
-      .upload(filePath, file, { upsert: true })
-
-    if (error) {
-      debug.error('Failed to upload server banner:', error)
-      return { success: false, error: humanizeUploadError(error, SERVER_BANNERS_BUCKET) }
-    }
-
-    return { success: true, url: filePath }
-  } catch (error) {
-    debug.error('Error uploading server banner:', error)
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+  const result = await uploadImageObject(file, 'server_banner', SERVER_BANNERS_BUCKET, serverId, 'banner')
+  if (!result.success || !result.path) {
+    debug.error('Failed to upload server banner:', result.error)
+    return { success: false, error: result.error }
   }
+  return { success: true, url: result.path }
 }
 
 /**

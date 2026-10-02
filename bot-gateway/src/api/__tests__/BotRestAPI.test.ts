@@ -23,12 +23,13 @@ vi.mock('../../config/supabase.js', () => ({
   config: mocks.config,
 }))
 
-// Auth is covered in src/auth/__tests__; here every request is already a bot.
+// Auth and rate limiting are covered in src/auth/__tests__; here every request is already a bot.
 vi.mock('../../auth/BotAuthMiddleware.js', () => ({
   botAuthMiddleware: (req: any, _res: any, next: any) => {
     req.bot = { id: BOT_ID, username: 'testbot', scopes: ['bot'] }
     next()
   },
+  botRateLimit: (_req: any, _res: any, next: any) => next(),
 }))
 
 import { BotRestAPI, botSuppliedMetadata } from '../BotRestAPI.js'

@@ -59,7 +59,7 @@
           {{ error }}
           <a
             v-if="props.initialUrl"
-            :href="props.initialUrl"
+            :href="safeHref(props.initialUrl)"
             target="_blank"
             rel="noopener noreferrer"
             class="error-fallback-link"
@@ -186,6 +186,7 @@
 </template>
 
 <script setup lang="ts">
+import { safeHref } from '@/utils/sanitize';
 import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useToast } from 'vue-toastification'

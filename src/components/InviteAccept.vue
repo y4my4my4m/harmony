@@ -89,6 +89,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
 import { useInviteJoin } from '@/composables/useInviteJoin';
 import { getServerIconUrl, getServerBannerUrl } from '@/utils/serverUtils';
+import { devicePixels } from '@/utils/imageTransformUtils';
 import { debug } from '@/utils/debug';
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 import Icon from '@/components/common/Icon.vue';
@@ -118,10 +119,11 @@ const {
 
 const instanceName = computed(() => instanceSettings.settings.instanceName);
 const serverInitial = computed(() => info.value?.serverName?.charAt(0).toUpperCase() || 'S');
-const iconUrl = computed(() => (info.value?.icon ? getServerIconUrl(info.value.icon, 160) : null));
+const iconUrl = computed(() => (info.value?.icon ? getServerIconUrl(info.value.icon, devicePixels(80)) : null));
 
+// Backdrop under an 8px blur.
 const backdropStyle = computed(() => {
-  const banner = info.value?.banner ? getServerBannerUrl(info.value.banner, { width: 1280, height: 720 }) : null;
+  const banner = info.value?.banner ? getServerBannerUrl(info.value.banner, { width: 640, height: 360 }) : null;
   return banner ? { backgroundImage: `url(${banner})` } : undefined;
 });
 

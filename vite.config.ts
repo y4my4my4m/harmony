@@ -107,6 +107,10 @@ export default defineConfig({
     global: 'globalThis',
     'process.env': {},
     'process.nextTick': 'setTimeout',
+    // vue-i18n compiles messages to an AST it interprets. Without the flag it
+    // compiles them with new Function, which a CSP without 'unsafe-eval' refuses.
+    __INTLIFY_JIT_COMPILATION__: true,
+    __INTLIFY_DROP_MESSAGE_COMPILER__: false,
   },
   optimizeDeps: {
     include: [

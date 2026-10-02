@@ -715,7 +715,7 @@ export default defineComponent({
     const displayMediaUrl = (url: string) =>
       getAttachmentThumbnailUrl(stripKlipyAttributionFragment(url));
     const klipyWatermarkHref = (url: string) =>
-      parseKlipyItemPageUrl(url) || defaultKlipyHomeUrl();
+      sanitizeUrl(parseKlipyItemPageUrl(url)) || defaultKlipyHomeUrl();
     const klipyWatermarkLogoUrl = KLIPY_WATERMARK_LOGO_URL;
     // Stickers render small and inline, with no lightbox or zoom.
     const isStickerMedia = (url: string) => isStickerMessageUrl(url);

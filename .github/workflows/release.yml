@@ -12,21 +12,117 @@ on:
         description: "Existing tag to build a release for (e.g. v1.4.0)"
         required: true
 
+# One run per tag: a dispatch for a tag whose push run is still going waits.
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
 env:
+  RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
   VITE_SUPABASE_URL: ${{ secrets.TEST_SUPABASE_URL != '' && secrets.TEST_SUPABASE_URL || 'https://placeholder.supabase.co' }}
   VITE_SUPABASE_ANON_KEY: ${{ secrets.TEST_SUPABASE_ANON_KEY != '' && secrets.TEST_SUPABASE_ANON_KEY || 'placeholder-key' }}
 
+# Jobs build the tag's tree and run helper scripts from .ci, a checkout of the
+# workflow's own commit: a dispatch can rebuild a tag that predates them, and
+# names cannot drift from tauri.yml, which runs the same scripts.
+#
+# release -> desktop (Windows, macOS) -> latest-json
+#         -> linux                     ->
+#         -> android (after desktop)
+# The draft release exists before any build uploads, so concurrent jobs cannot
+# each create one. latest.json has a single writer that runs after every
+# desktop build has uploaded.
 jobs:
+  release:
+    name: Draft release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      id: ${{ steps.release.outputs.id }}
+      version: ${{ steps.names.outputs.version }}
+      windows-stem: ${{ steps.names.outputs.windows }}
+      macos-stem: ${{ steps.names.outputs.macos }}
+      linux-stem: ${{ steps.names.outputs.linux }}
+      updater-args: ${{ steps.updater.outputs.args }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .ci
+          sparse-checkout: scripts
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .ci/.nvmrc
+      # Absent from tags cut before 2026-07-07; those trees carry their version
+      # inline, so skipping the stamp is correct rather than fatal.
+      - name: Stamp version from tag
+        run: |
+          if [ -f scripts/set-version.mjs ]; then
+            node scripts/set-version.mjs "$RELEASE_TAG"
+          else
+            echo "::notice::scripts/set-version.mjs absent at this tag; using the version committed in the tree."
+          fi
+      # Updater artifacts (minisign-signed installers and latest.json) need the
+      # private key in secrets and the matching public key committed in
+      # tauri.conf.json; tauri build fails when they are enabled without the
+      # private key. Without both, installers still ship and installed apps are
+      # not offered the release.
+      - name: Resolve updater signing
+        id: updater
+        env:
+          HAS_UPDATER_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+        run: |
+          if [ "$HAS_UPDATER_KEY" != "true" ]; then
+            echo "::warning::TAURI_SIGNING_PRIVATE_KEY is not set; building installers without updater artifacts. Installed apps will not be offered this release."
+          elif grep -q 'HARMONY_UPDATER_PUBKEY' src-tauri/tauri.conf.json; then
+            echo "::warning::plugins.updater.pubkey in src-tauri/tauri.conf.json is still the placeholder; building installers without updater artifacts."
+          else
+            echo "args=--config src-tauri/tauri.updater.conf.json" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Name release assets
+        id: names
+        # Assignments, not inline substitutions, so a failing helper fails the step.
+        run: |
+          version=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          windows=$(bash .ci/scripts/name-artifact.sh --release Windows release)
+          macos=$(bash .ci/scripts/name-artifact.sh --release macOS release)
+          linux=$(bash .ci/scripts/name-artifact.sh --release Linux release)
+          {
+            echo "version=$version"
+            echo "windows=$windows"
+            echo "macos=$macos"
+            echo "linux=$linux"
+          } >> "$GITHUB_OUTPUT"
+      # Also deletes a latest.json left by an earlier run of this tag, so the
+      # release carries one only when this run's builds all uploaded.
+      - name: Find or draft the release
+        id: release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.names.outputs.version }}
+        run: |
+          node .ci/scripts/github-release.mjs ensure --tag "$RELEASE_TAG" \
+            --name "Harmony $VERSION" --body "Download the installer for your platform below."
+
   # Proper signing/notarization needs paid certs as secrets — follow-up.
   desktop:
+    needs: release
     strategy:
       fail-fast: false
       matrix:
         include:
-          - platform: windows-latest
+          - name: Windows
+            stem: windows-stem
+            platform: windows-latest
             args: --target x86_64-pc-windows-msvc --bundles nsis
             rust-targets: x86_64-pc-windows-msvc
-          - platform: macos-latest
+          - name: macOS
+            stem: macos-stem
+            platform: macos-latest
             args: --target universal-apple-darwin
             rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
     runs-on: ${{ matrix.platform }}
@@ -40,16 +136,19 @@ jobs:
         with:
           node-version-file: ".nvmrc"
           cache: npm
-      # Absent from tags cut before 2026-07-07; those trees carry their version
-      # inline, so skipping the stamp is correct rather than fatal.
       - name: Stamp version from tag
+        shell: bash
+        env:
+          EXPECTED: ${{ needs.release.outputs.version }}
         run: |
           if [ -f scripts/set-version.mjs ]; then
-            node scripts/set-version.mjs "${{ github.event.inputs.tag || github.ref_name }}"
-          else
-            echo "::notice::scripts/set-version.mjs absent at this tag; using the version committed in the tree."
+            node scripts/set-version.mjs "$RELEASE_TAG"
           fi
-        shell: bash
+          version=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          if [ "$version" != "$EXPECTED" ]; then
+            echo "::error::Tree version $version differs from the release job's $EXPECTED."
+            exit 1
+          fi
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.rust-targets }}
@@ -57,42 +156,56 @@ jobs:
         with:
           workspaces: src-tauri
       - run: npm ci
-      # Updater artifacts (minisign-signed installers and latest.json) need the
-      # private key in secrets and the matching public key committed in
-      # tauri.conf.json; tauri build fails when they are enabled without the
-      # private key. Without both, installers still ship and installed apps are
-      # not offered the release.
-      - name: Resolve updater signing
-        id: updater
-        shell: bash
-        env:
-          HAS_UPDATER_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
-        run: |
-          if [ "$HAS_UPDATER_KEY" != "true" ]; then
-            echo "::warning::TAURI_SIGNING_PRIVATE_KEY is not set; building installers without updater artifacts. Installed apps will not be offered this release."
-          elif grep -q 'HARMONY_UPDATER_PUBKEY' src-tauri/tauri.conf.json; then
-            echo "::warning::plugins.updater.pubkey in src-tauri/tauri.conf.json is still the placeholder; building installers without updater artifacts."
-          else
-            echo "args=--config src-tauri/tauri.updater.conf.json" >> "$GITHUB_OUTPUT"
-          fi
-      # latest.json lands on this draft release. The updater endpoint
-      # (releases/latest/download/latest.json) resolves only to the newest
-      # published non-prerelease release, so publishing the draft is the
-      # rollout.
-      - uses: tauri-apps/tauri-action@v0
+      # Uploads the installer and, with updater signing, its .sig (macOS: also
+      # .app.tar.gz and .sig). latest.json is the latest-json job's.
+      # assetNamePattern names every uploaded file: [ext] is the full suffix
+      # (.exe, .exe.sig, .dmg, .app.tar.gz, .app.tar.gz.sig), so each .sig is
+      # its payload's name plus .sig. With releaseId set the action neither
+      # looks up nor creates a release. Pinned to v0.6.2: v1 renames the input
+      # to releaseAssetNamePattern.
+      - uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0.6.2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          tagName: ${{ github.event.inputs.tag || github.ref_name }}
-          releaseName: Harmony __VERSION__
-          releaseBody: Download the installer for your platform below.
-          releaseDraft: true
-          prerelease: false
-          includeUpdaterJson: true
-          updaterJsonPreferNsis: true
-          args: ${{ matrix.args }} ${{ steps.updater.outputs.args }}
+          releaseId: ${{ needs.release.outputs.id }}
+          includeUpdaterJson: false
+          assetNamePattern: ${{ needs.release.outputs[matrix.stem] }}[ext]
+          args: ${{ matrix.args }} ${{ needs.release.outputs.updater-args }}
+
+  # The updater endpoint (releases/latest/download/latest.json) resolves only
+  # to the newest published non-prerelease release, so publishing the draft is
+  # the rollout. Skipped when a desktop or Linux build failed: the draft then
+  # has no latest.json, and publishing it offers installed apps nothing.
+  latest-json:
+    name: Updater manifest
+    needs: [release, desktop, linux]
+    if: needs.release.outputs.updater-args != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.workflow_sha }}
+          sparse-checkout: scripts
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - name: Write latest.json from the release's assets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_ID: ${{ needs.release.outputs.id }}
+          VERSION: ${{ needs.release.outputs.version }}
+          WINDOWS: ${{ needs.release.outputs.windows-stem }}.exe
+          MACOS: ${{ needs.release.outputs.macos-stem }}.app.tar.gz
+          # Empty for a tag that predates the Linux build.
+          LINUX: ${{ needs.linux.outputs.built == 'true' && format('{0}.AppImage', needs.release.outputs.linux-stem) || '' }}
+        run: |
+          node scripts/github-release.mjs latest-json --release-id "$RELEASE_ID" \
+            --tag "$RELEASE_TAG" --version "$VERSION" --windows "$WINDOWS" --macos "$MACOS" \
+            ${LINUX:+--linux "$LINUX"}
 
   android:
     needs: desktop
@@ -107,20 +220,20 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.inputs.tag || github.ref }}
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .ci
+          sparse-checkout: scripts
       - uses: actions/setup-node@v4
         with:
           node-version-file: ".nvmrc"
           cache: npm
-      # Absent from tags cut before 2026-07-07; those trees carry their version
-      # inline, so skipping the stamp is correct rather than fatal.
       - name: Stamp version from tag
         run: |
           if [ -f scripts/set-version.mjs ]; then
-            node scripts/set-version.mjs "${{ github.event.inputs.tag || github.ref_name }}"
-          else
-            echo "::notice::scripts/set-version.mjs absent at this tag; using the version committed in the tree."
+            node scripts/set-version.mjs "$RELEASE_TAG"
           fi
-        shell: bash
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -202,43 +315,76 @@ jobs:
           export NDK_HOME="$ANDROID_HOME/ndk/$NDK_VERSION"
           npx tauri android build --debug --target aarch64
 
+      # Renamed in place, so the attach step's glob matches it.
+      - name: Name APK
+        run: |
+          profile=$([ "$HAS_KEYSTORE" = true ] && echo release || echo debug)
+          set -- src-tauri/gen/android/app/build/outputs/apk/universal/*/*.apk
+          if [ $# -ne 1 ] || [ ! -f "$1" ]; then
+            echo "::error::Expected one APK, found: $*"
+            exit 1
+          fi
+          bash .ci/scripts/name-artifact.sh --release Android "$profile" "$1"
+
       - name: Attach APK to release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          tag_name: ${{ env.RELEASE_TAG }}
           draft: true
           files: src-tauri/gen/android/app/build/outputs/apk/universal/*/*.apk
 
   # Linux runs the CEF runtime. The deb comes from the tauri CLI; the AppImage
   # from src-tauri/linux/package.sh, which pins the AppImage tooling that
-  # tauri-bundler would otherwise download from moving branches. Built
-  # alongside the other legs and published by linux-publish once they are done,
-  # so a Linux failure never blocks the desktop installers or the APK.
+  # tauri-bundler would otherwise download from moving branches, and signs both
+  # when updater signing is configured. Uploads the AppImage, its .sig and the
+  # deb; only the AppImage updates in place.
   linux:
+    needs: release
     runs-on: ubuntu-24.04
     timeout-minutes: 120
+    permissions:
+      contents: write
+    outputs:
+      built: ${{ steps.tree.outputs.built }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.inputs.tag || github.ref }}
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .ci
+          sparse-checkout: scripts
+      # Tags cut before the CEF runtime have no Linux packaging.
+      - name: Check for Linux packaging
+        id: tree
+        run: |
+          if [ -f src-tauri/linux/package.sh ]; then
+            echo "built=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::src-tauri/linux/package.sh absent at this tag; no Linux build."
+          fi
       - uses: actions/setup-node@v4
+        if: steps.tree.outputs.built == 'true'
         with:
           node-version-file: ".nvmrc"
           cache: npm
-      # Absent from tags cut before 2026-07-07; those trees carry their version
-      # inline, so skipping the stamp is correct rather than fatal.
       - name: Stamp version from tag
+        if: steps.tree.outputs.built == 'true'
+        env:
+          EXPECTED: ${{ needs.release.outputs.version }}
         run: |
-          if [ -f scripts/set-version.mjs ]; then
-            node scripts/set-version.mjs "${{ github.event.inputs.tag || github.ref_name }}"
-          else
-            echo "::notice::scripts/set-version.mjs absent at this tag; using the version committed in the tree."
+          node scripts/set-version.mjs "$RELEASE_TAG"
+          version=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          if [ "$version" != "$EXPECTED" ]; then
+            echo "::error::Tree version $version differs from the release job's $EXPECTED."
+            exit 1
           fi
-        shell: bash
       # cmake/ninja: cef-dll-sys builds the CEF C++ wrapper. patchelf, file,
       # strace, xvfb, xauth: quick-sharun. The runtime libraries are Chromium's,
       # for quick-sharun's trace run and the smoke test.
       - name: Install build dependencies
+        if: steps.tree.outputs.built == 'true'
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
@@ -248,6 +394,7 @@ jobs:
             libgbm1 libasound2t64 libpango-1.0-0 libcairo2 \
             xvfb xauth dbus
       - name: Locate CEF and AppImage tool caches
+        if: steps.tree.outputs.built == 'true'
         run: |
           echo "CEF_PATH=$RUNNER_TEMP/cef" >> "$GITHUB_ENV"
           echo "CEF_TOOLS_DIR=$RUNNER_TEMP/linux-tools" >> "$GITHUB_ENV"
@@ -255,51 +402,46 @@ jobs:
       # The key follows tauri-runtime-cef's pinned cef crate. Tag runs restore
       # caches saved on the default branch, which tauri.yml's linux job fills.
       - uses: actions/cache@v4
+        if: steps.tree.outputs.built == 'true'
         with:
           path: ${{ runner.temp }}/cef
           key: cef-152.3.0+152.0.6-linux-x86_64
       - uses: actions/cache@v4
+        if: steps.tree.outputs.built == 'true'
         with:
           path: ${{ runner.temp }}/linux-tools
           key: linux-tools-${{ hashFiles('src-tauri/linux/package.sh') }}
       - uses: dtolnay/rust-toolchain@stable
+        if: steps.tree.outputs.built == 'true'
       - uses: Swatinem/rust-cache@v2
+        if: steps.tree.outputs.built == 'true'
         with:
           workspaces: src-tauri
       - run: npm ci
-      # Same guard as the desktop legs. `sign` gates package.sh, which re-signs
-      # the deb after rewriting its control file and signs the AppImage.
-      - name: Resolve updater signing
-        id: updater
-        shell: bash
-        env:
-          HAS_UPDATER_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
-        run: |
-          if [ "$HAS_UPDATER_KEY" != "true" ]; then
-            echo "::warning::TAURI_SIGNING_PRIVATE_KEY is not set; building Linux packages without updater signatures."
-          elif grep -q 'HARMONY_UPDATER_PUBKEY' src-tauri/tauri.conf.json; then
-            echo "::warning::plugins.updater.pubkey in src-tauri/tauri.conf.json is still the placeholder; building Linux packages without updater signatures."
-          else
-            echo "args=--config src-tauri/tauri.updater.conf.json" >> "$GITHUB_OUTPUT"
-            echo "sign=true" >> "$GITHUB_OUTPUT"
-          fi
+        if: steps.tree.outputs.built == 'true'
       - name: Build deb
+        if: steps.tree.outputs.built == 'true'
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: npx tauri build --bundles deb ${{ steps.updater.outputs.args }}
+        run: npx tauri build --bundles deb ${{ needs.release.outputs.updater-args }}
       # The build links against the extracted tree; the archive only inflates the
       # cache.
       - name: Drop the CEF archive
+        if: steps.tree.outputs.built == 'true'
         run: rm -f "$CEF_PATH"/*/cef_binary_*.tar.bz2
+      # package.sh signs when TAURI_SIGNING_PRIVATE_KEY is non-empty, so the key
+      # is passed only when the release job resolved updater signing.
       - name: Build AppImage
+        if: steps.tree.outputs.built == 'true'
         env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ steps.updater.outputs.sign == 'true' && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ steps.updater.outputs.sign == 'true' && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ needs.release.outputs.updater-args != '' && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ needs.release.outputs.updater-args != '' && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
         run: sh src-tauri/linux/package.sh src-tauri/target/release/bundle/deb/Harmony_*_amd64.deb
       # A clean ubuntu:24.04 installs the deb with only its declared Depends;
       # every library the payload links must then resolve.
       - name: Check deb dependencies
+        if: steps.tree.outputs.built == 'true'
         run: |
           docker run --rm -v "$PWD/src-tauri/target/release/bundle/deb:/deb:ro" ubuntu:24.04 sh -c '
             apt-get update -qq && apt-get install -y -qq --no-install-recommends /deb/Harmony_*_amd64.deb >/dev/null
@@ -309,67 +451,27 @@ jobs:
       # Ubuntu 23.10+ desktops do, so the AppImage runs Chromium unsandboxed; the
       # installed deb keeps the sandbox through its setuid chrome-sandbox.
       - name: Smoke test
+        if: steps.tree.outputs.built == 'true'
         run: |
           sh src-tauri/linux/smoke-test.sh src-tauri/target/release/bundle/appimage/Harmony_*_amd64.AppImage
           sudo apt-get install -y --no-install-recommends ./src-tauri/target/release/bundle/deb/Harmony_*_amd64.deb
           SMOKE_SANDBOX=on sh src-tauri/linux/smoke-test.sh /usr/bin/harmony
-      # One flat directory: upload-artifact roots a multi-path artifact at the
-      # paths' common ancestor, which would nest the files under deb/ and appimage/.
-      - name: Collect release files
+      # Release names: the stem plus the full suffix, as the desktop legs'
+      # assetNamePattern gives them. A .sig covers the bytes, not the file name.
+      # The deb's .sig is not uploaded: deb installs do not self-update.
+      - name: Name and upload
+        if: steps.tree.outputs.built == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_ID: ${{ needs.release.outputs.id }}
+          STEM: ${{ needs.release.outputs.linux-stem }}
         run: |
           mkdir -p linux-release
-          cp src-tauri/target/release/bundle/deb/Harmony_*_amd64.deb* \
-            src-tauri/target/release/bundle/appimage/Harmony_*_amd64.AppImage* linux-release/
-      - uses: actions/upload-artifact@v4
-        with:
-          name: harmony-linux
-          path: linux-release/
-          if-no-files-found: error
-
-  # Runs after every other writer of the draft release is done: tauri-action
-  # (desktop) and softprops (android) each read-modify-write the release, and
-  # tauri-action rewrites latest.json. Gated on the Linux build only, so a failed
-  # desktop or Android leg does not hold back the Linux assets.
-  linux-publish:
-    needs: [desktop, android, linux]
-    if: ${{ !cancelled() && needs.linux.result == 'success' }}
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: write
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      GH_REPO: ${{ github.repository }}
-      TAG: ${{ github.event.inputs.tag || github.ref_name }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.inputs.tag || github.ref }}
-          sparse-checkout: src-tauri/linux
-      - uses: actions/download-artifact@v4
-        with:
-          name: harmony-linux
-          path: linux-assets
-      # The draft exists unless every desktop leg failed before tauri-action
-      # created it.
-      - name: Upload to the draft release
-        run: |
-          gh release view "$TAG" >/dev/null 2>&1 ||
-            gh release create "$TAG" --draft --title "Harmony ${TAG#v}" \
-              --notes "Download the installer for your platform below."
-          gh release upload "$TAG" linux-assets/* --clobber
-      # Only a signed AppImage can be offered to installed apps. Asset URLs use
-      # the tag, like tauri-action's; a draft's own asset URLs are untagged-*
-      # until it is published.
-      - name: Add Linux to latest.json
-        run: |
-          set -- linux-assets/Harmony_*_amd64.AppImage.sig
-          if [ ! -f "$1" ]; then
-            echo "::warning::The AppImage is unsigned; latest.json keeps its other platforms only."
-            exit 0
-          fi
-          appimage=$(basename "$1" .sig)
-          mkdir -p updater
-          gh release download "$TAG" --pattern latest.json --dir updater || true
-          node src-tauri/linux/latest-json.mjs updater/latest.json "${TAG#v}" \
-            "https://github.com/$GH_REPO/releases/download/$TAG/$appimage" "$1"
-          gh release upload "$TAG" updater/latest.json --clobber
+          set -- src-tauri/target/release/bundle/appimage/Harmony_*_amd64.AppImage
+          [ $# -eq 1 ] && [ -f "$1" ] || { echo "::error::Expected one AppImage, found: $*"; exit 1; }
+          cp "$1" "linux-release/$STEM.AppImage"
+          [ ! -f "$1.sig" ] || cp "$1.sig" "linux-release/$STEM.AppImage.sig"
+          set -- src-tauri/target/release/bundle/deb/Harmony_*_amd64.deb
+          [ $# -eq 1 ] && [ -f "$1" ] || { echo "::error::Expected one deb, found: $*"; exit 1; }
+          cp "$1" "linux-release/$STEM.deb"
+          node .ci/scripts/github-release.mjs upload --release-id "$RELEASE_ID" linux-release/*

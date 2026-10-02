@@ -144,6 +144,11 @@ function parseYouTubeTime(url: URL): number | null {
   return total > 0 ? total : null;
 }
 
+/** Exact origin of a YouTube player frame, for postMessage checks. */
+export function isYouTubeOrigin(origin: string): boolean {
+  return /^https:\/\/(www\.)?youtube(-nocookie)?\.com$/.test(origin);
+}
+
 export function buildYouTubeEmbedUrl(url: URL): string | null {
   const videoId = extractYouTubeId(url);
   if (!videoId) return null;

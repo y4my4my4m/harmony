@@ -735,22 +735,32 @@ git push origin master --tags
 ```
 
 A `v*` tag triggers `.github/workflows/release.yml`, which builds the Windows
-and macOS installers, the Android APK, and the Linux deb and AppImage into a
-draft GitHub release.
+and macOS installers, the Android APK, and the Linux AppImage and deb into a
+draft GitHub release:
 
-The Linux leg (`linux`) runs alongside the others and uploads nothing itself.
-`linux-publish` waits for every leg, runs when `linux` succeeded whatever the
-others did, uploads the Linux files to the draft (creating it when no desktop
-leg got that far), and adds the Linux entries to the draft's `latest.json`,
-keeping the Windows and macOS entries tauri-action wrote. A Linux failure
-therefore never holds back the Windows, macOS or Android files, and a failure
-there never holds back Linux.
+| Job | Runs after | Does |
+| --- | --- | --- |
+| `release` | | Stamps the tag's version, names the assets, finds or drafts the release and deletes any `latest.json` on it |
+| `desktop` (Windows, macOS) | `release` | Builds and uploads the installer, plus the updater payload and `.sig` when signing is configured |
+| `linux` | `release` | Builds the deb and AppImage (CEF runtime), runs the dependency check and smoke test, and uploads both, plus the AppImage's `.sig` when signing is configured |
+| `latest-json` | `release`, `desktop`, `linux` | Writes `latest.json` from the release's uploaded payloads and `.sig` files, once |
+| `android` | `desktop` | Builds and attaches the APK |
 
-The Linux steps also run on pull requests and `master` in
-`.github/workflows/tauri.yml`, unsigned, followed by a check that the deb's
-`Depends` cover every library its payload links (installed into a clean
-`ubuntu:24.04` container) and the smoke test against the AppImage and the
-installed deb. Tag runs restore caches saved on the default branch, so the
+`latest-json` runs only when every desktop and Linux build succeeded and
+signing is configured, and fails without uploading when a payload or signature
+is missing, so a release carries either a manifest for every platform or none.
+Re-running the workflow for a tag reuses its release and replaces each asset.
+A manual run (Actions > Release > Run workflow, with an existing tag) builds
+the tag's tree but runs `scripts/name-artifact.sh` and
+`scripts/github-release.mjs` from the workflow's own commit, so tags that
+predate them build too. A tag without `src-tauri/linux/package.sh` gets no
+Linux build and a manifest without Linux entries.
+
+The Linux steps also run in `.github/workflows/tauri.yml` (see
+[Native builds in CI](#native-builds-in-ci)), unsigned. The deb is installed
+into a clean `ubuntu:24.04` container to check that its `Depends` cover every
+library its payload links, and the smoke test runs against the AppImage and
+the installed deb. Tag runs restore caches saved on the default branch, so the
 `master` runs keep the CEF and tool caches warm for releases.
 
 ### Desktop auto-updates
@@ -775,12 +785,62 @@ Losing the private key or its password strands installed apps: they accept
 only payloads signed by that key. Rotating it means shipping one release with
 the new public key, signed by the old key.
 
-On Linux the updater runs only inside the AppImage. `latest.json` lists it
-under both `linux-x86_64-appimage` and `linux-x86_64`, so AppImages find it
-whichever key they look up first. Deb installs report the updater unsupported
-and update through a new deb. An unsigned AppImage is uploaded but left out of
-`latest.json`. Android is outside the plugin's scope and shows a notice linking
+On Linux the updater runs only inside the AppImage. Deb installs report the
+updater unsupported and update through a new deb. Android is outside the plugin's scope and shows a notice linking
 the latest release's APK instead.
+
+### Native builds in CI
+
+`.github/workflows/tauri.yml` builds the Windows installer, the macOS dmg, the
+Android APK and the Linux AppImage and deb on every push to `master` that changes anything outside
+Markdown files, `docs/` and `federation-backend/`. Pull requests and other
+branches build only on request: Actions > Tauri > Run workflow, then pick the
+branch under "Use workflow from", the platforms and the profile. From the
+command line:
+
+```bash
+gh workflow run tauri.yml --ref my-branch \
+  -f windows=false -f macos=false -f android=true -f linux=false -f profile=debug
+```
+
+A dispatch runs the branch's own copy of `tauri.yml`, so the branch needs a
+version with these inputs. A new run on the same branch cancels the one in
+progress.
+
+Each build is uploaded as one unzipped artifact named after its file:
+
+| Build | Example |
+| --- | --- |
+| Release (`v*` tag) | `Harmony_Windows_V1.6.5.exe`, `Harmony_macOS_V1.6.5.dmg`, `Harmony_Android_V1.6.5.apk`, `Harmony_Linux_V1.6.5.AppImage`, `Harmony_Linux_V1.6.5.deb` |
+| `tauri.yml`, release profile | `Harmony_Windows_V1.6.5_dev-master-1a2b3c4.exe`, `Harmony_Linux_V1.6.5_dev-master-1a2b3c4.AppImage` |
+| `tauri.yml`, debug profile | `Harmony_Android_V1.6.5_debug-feat-push-1a2b3c4.apk` |
+
+Both workflows take every name from `scripts/name-artifact.sh`: tagged
+releases with `--release`, `tauri.yml` without. The version is the one in
+`src-tauri/tauri.conf.json`, which `release.yml` stamps from the tag. The
+branch keeps `[A-Za-z0-9.-]` and every other run of characters becomes `-`.
+An APK built without the signing secrets is a debug build and is named as one,
+in releases too (`Harmony_Android_V1.6.5_debug.apk`).
+
+```bash
+bash scripts/name-artifact.sh --release macOS release   # Harmony_macOS_V1.6.5
+```
+
+Releases also carry the updater files under the same names:
+`Harmony_Windows_V<version>.exe.sig`, `Harmony_macOS_V<version>.app.tar.gz`
+and its `.sig`, `Harmony_Linux_V<version>.AppImage.sig`. `latest.json` keeps its name and points at those files under
+`releases/download/<tag>/`, with the platform keys tauri-action v0.6.2 writes:
+`windows-x86_64` and `windows-x86_64-nsis` for the NSIS installer, and
+`darwin-aarch64`, `darwin-x86_64`, `darwin-aarch64-app` and
+`darwin-x86_64-app` for the universal app, and `linux-x86_64` and
+`linux-x86_64-appimage` for the AppImage. Installed apps read
+`<os>-<arch>`. The updater verifies the signature over the downloaded bytes
+and detects the installer type from its content, so file names do not affect
+installed apps. The `file:` field in a `.sig`'s trusted comment still holds
+tauri's original file name; it is signed but not compared with anything.
+
+`node --test scripts/github-release.test.mjs` runs the release scripts against
+a stand-in for the GitHub releases API; CI runs it with the unit tests.
 
 ### Android push
 

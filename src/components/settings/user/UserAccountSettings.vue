@@ -14,6 +14,13 @@
           :style="bannerStyle"
           @click="triggerBannerUpload"
         >
+          <BannerImage
+            v-if="bannerSrc"
+            :src="bannerSrc"
+            :fallback-src="bannerFullSize"
+            :width="BANNER_BOX.width"
+            :height="BANNER_BOX.height"
+          />
           <div v-if="bannerUploading" class="banner-loading-overlay">
             <span class="banner-spinner"></span>
             <span>Uploading...</span>
@@ -330,7 +337,7 @@
           <a
             v-for="(link, i) in fundingLinks"
             :key="i"
-            :href="link.url"
+            :href="safeHref(link.url)"
             target="_blank"
             rel="noopener noreferrer"
             class="supporter-link"
@@ -364,12 +371,14 @@
 </template>
 
 <script setup lang="ts">
+import { safeHref } from '@/utils/sanitize';
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { debug } from '@/utils/debug'
 import { useAuthStore } from '@/stores/auth'
 import type { User } from '@/types'
 import { format } from 'date-fns'
-import { getBannerUrl } from '@/utils/bannerUtils'
+import { getBannerUrl, getRawBannerUrl } from '@/utils/bannerUtils'
+import BannerImage from '@/components/common/BannerImage.vue'
 
 // Components
 import ColorPicker from '@/components/common/ColorPicker.vue'
@@ -560,21 +569,19 @@ const previewDisplayNameParts = computed(() => {
   )
 })
 
-const bannerStyle = computed(() => {
+// Banner box in CSS px: the settings column is about 640 wide, the banner 120 tall.
+const BANNER_BOX = { width: 640, height: 120 } as const
+
+const bannerSrc = computed(() => {
   // Include bannerKey to force reactivity when banner changes
   bannerKey.value
-  const bannerUrl = getBannerUrl(props.profile?.banner_url, { width: 1280, height: 720, quality: 80 })
-  if (bannerUrl) {
-    return {
-      backgroundImage: `url(${bannerUrl})`,
-      backgroundSize: 'cover',
-      backgroundPosition: 'center'
-    }
-  }
-  return {
-    backgroundColor: props.profile?.color || '#0EA5E9'
-  }
+  return getBannerUrl(props.profile?.banner_url, BANNER_BOX)
 })
+const bannerFullSize = computed(() => getRawBannerUrl(props.profile?.banner_url))
+
+const bannerStyle = computed(() => ({
+  backgroundColor: props.profile?.color || '#0EA5E9'
+}))
 
 // Methods
 const syncLocalProfile = () => {
@@ -851,6 +858,7 @@ onMounted(async () => {
   height: 120px;
   background: var(--color);
   position: relative;
+  overflow: hidden;
   cursor: pointer;
   transition: all 0.2s ease;
 }

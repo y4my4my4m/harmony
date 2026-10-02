@@ -40,6 +40,11 @@ const envSchema = z.object({
   
   // Security
   JWT_SECRET: z.string().optional(),
+  // Express `trust proxy`: peers whose X-Real-IP names the client. nginx on the
+  // host reaches a container with a published port through the Docker bridge
+  // gateway (172.16.0.0/12), not loopback, hence uniquelocal. Set it to the
+  // proxy's exact address where other private peers can reach port 3001.
+  TRUST_PROXY: z.string().default('loopback, uniquelocal'),
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
   
   // Rate Limiting

@@ -1,10 +1,14 @@
 import { defineStore } from 'pinia';
 import { supabase } from '@/supabase';
 import { useToast } from 'vue-toastification';
+import { immutableObjectPath, immutableUploadOptions, prepareImageUpload } from '@/utils/imageResize'
+import { removeReplacedObject } from '@/utils/storageImageUtils'
 import type { Server, Emoji } from '@/types';
 import { debug } from '@/utils/debug'
 import { invalidateServerMemberCache } from '@/services/usersService'
-import { validateImageUpload, humanizeUploadError } from '@/utils/uploadValidation'
+import { getBucketLimits, imageSourceError, validateImageUpload, humanizeUploadError } from '@/utils/uploadValidation'
+import { usePublicServersStore } from '@/stores/usePublicServers'
+import { pickServerSettings } from '@/utils/serverSettings'
 
 export const useServerStore = defineStore('server', {
   actions: {
@@ -37,22 +41,26 @@ export const useServerStore = defineStore('server', {
           oldBanner = existing?.banner ?? null
         }
 
-        if (file && serverData.id) {
-          const ext = file.name.split('.').pop();
-          if (!ext) throw new Error('File must have an extension');
+        const sourceError = (file && imageSourceError(file)) || (bannerFile && imageSourceError(bannerFile));
+        if (sourceError) {
+          toast.error(sourceError);
+          return false;
+        }
 
-          const iconValidationError = await validateImageUpload(file, 'server_icons');
+        if (file && serverData.id) {
+          const icon = await prepareImageUpload(file, 'server_icon', await getBucketLimits('server_icons'));
+          const iconValidationError = await validateImageUpload(icon.file, 'server_icons');
           if (iconValidationError) {
             toast.error(iconValidationError);
             return false;
           }
 
-          const filePath = `${serverData.id}/icon-${Date.now()}.${ext}`;
+          const filePath = immutableObjectPath(serverData.id, 'icon', icon.extension);
 
           debug.log('Uploading server icon to:', filePath);
           const { error: uploadError } = await supabase.storage
             .from('server_icons')
-            .upload(filePath, file);
+            .upload(filePath, icon.file, immutableUploadOptions(icon));
 
           if (uploadError) {
             toast.error(humanizeUploadError(uploadError, 'server_icons'));
@@ -67,21 +75,19 @@ export const useServerStore = defineStore('server', {
         }
 
         if (bannerFile && serverData.id) {
-          const ext = bannerFile.name.split('.').pop();
-          if (!ext) throw new Error('Banner file must have an extension');
-
-          const bannerValidationError = await validateImageUpload(bannerFile, 'server_banners');
+          const banner = await prepareImageUpload(bannerFile, 'server_banner', await getBucketLimits('server_banners'));
+          const bannerValidationError = await validateImageUpload(banner.file, 'server_banners');
           if (bannerValidationError) {
             toast.error(bannerValidationError);
             return false;
           }
 
-          const filePath = `${serverData.id}/banner-${Date.now()}.${ext}`;
+          const filePath = immutableObjectPath(serverData.id, 'banner', banner.extension);
 
           debug.log('Uploading server banner to:', filePath);
           const { error: uploadError } = await supabase.storage
             .from('server_banners')
-            .upload(filePath, bannerFile);
+            .upload(filePath, banner.file, immutableUploadOptions(banner));
 
           if (uploadError) {
             toast.error(humanizeUploadError(uploadError, 'server_banners'));
@@ -93,29 +99,26 @@ export const useServerStore = defineStore('server', {
           delete dataToUpdate.banner;
         }
 
-        const { id: serverId, ...patch } = dataToUpdate;
+        const serverId = dataToUpdate.id;
         if (!serverId) {
           throw new Error('Server ID is required to update');
         }
 
-        // Use PATCH update - not upsert. Chaining .eq() after .upsert() does not
-        // reliably apply row filters on POST/merge in PostgREST, so privacy flags
-        // (e.g. public) and other fields could fail to persist.
-        const { error } = await supabase
-          .from('servers')
-          .update(patch)
-          .eq('id', serverId);
+        // update_server raises for a caller it refuses; the servers UPDATE policy would
+        // match no row for a non-owner and report success.
+        const { error } = await supabase.rpc('update_server', {
+          p_server_id: serverId,
+          p_changes: pickServerSettings(dataToUpdate),
+        });
 
         if (error) throw error;
+        usePublicServersStore().markStale();
 
-        // best-effort: remove the replaced files (only in-bucket relative paths)
-        const isBucketPath = (p?: string | null): p is string =>
-          !!p && !/^(https?:|blob:|\/)/.test(p) && p.includes('/')
-        if (file && isBucketPath(oldIcon) && oldIcon !== dataToUpdate.icon) {
-          await supabase.storage.from('server_icons').remove([oldIcon])
+        if (file && dataToUpdate.icon) {
+          await removeReplacedObject('server_icons', oldIcon, dataToUpdate.icon, serverId)
         }
-        if (bannerFile && isBucketPath(oldBanner) && oldBanner !== dataToUpdate.banner) {
-          await supabase.storage.from('server_banners').remove([oldBanner])
+        if (bannerFile && dataToUpdate.banner) {
+          await removeReplacedObject('server_banners', oldBanner, dataToUpdate.banner, serverId)
         }
 
         debug.log("Server updated successfully");
@@ -201,13 +204,15 @@ export const useServerStore = defineStore('server', {
           if (error.code === '42883') { // delete_server_with_cleanup RPC not deployed
             debug.warn('Server cleanup function not found, using fallback deletion');
             
-            const { error: deleteError } = await supabase
+            const { data: deleted, error: deleteError } = await supabase
               .from('servers')
               .delete()
               .eq('id', serverId)
-              .eq('owner', userId);
+              .eq('owner', userId)
+              .select('id');
 
             if (deleteError) throw deleteError;
+            if (!deleted?.length) throw new Error('Server delete matched no row');
           } else {
             throw error;
           }

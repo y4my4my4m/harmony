@@ -6,7 +6,7 @@
       <template #actions>
         <a
           v-if="isViewingRemotePost && originalInstanceUrl"
-          :href="originalInstanceUrl"
+          :href="safeHref(originalInstanceUrl)"
           target="_blank"
           rel="noopener noreferrer"
           class="action-btn"
@@ -43,7 +43,7 @@
             </button>
             <a
               v-if="isViewingRemotePost && originalInstanceUrl"
-              :href="originalInstanceUrl"
+              :href="safeHref(originalInstanceUrl)"
               target="_blank"
               rel="noopener noreferrer"
               class="dropdown-item"
@@ -89,7 +89,7 @@
         <p>{{ error }}</p>
         <a
           v-if="remoteOriginalUrl"
-          :href="remoteOriginalUrl"
+          :href="safeHref(remoteOriginalUrl)"
           target="_blank"
           rel="noopener noreferrer"
           class="back-home-btn"
@@ -157,6 +157,7 @@
 </template>
 
 <script setup lang="ts">
+import { safeHref } from '@/utils/sanitize';
 import { ref, computed, onMounted, nextTick, watch } from 'vue';
 import { debug } from '@/utils/debug'
 import { useRouter, useRoute } from 'vue-router';

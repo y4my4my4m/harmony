@@ -31,7 +31,7 @@ import { z } from 'zod';
 import { getSupabaseClient } from '../../config/supabase.js';
 import { logger } from '../../utils/logger.js';
 import { sendError, sendSuccess } from '../../utils/response.js';
-import { webhookLimiter } from '../../middleware/rateLimit.js';
+import { clientIp, webhookLimiter } from '../../middleware/rateLimit.js';
 
 const router = Router();
 
@@ -335,7 +335,7 @@ router.post('/kofi', webhookLimiter, async (req: Request, res: Response) => {
   // Not constant-time: crypto.timingSafeEqual requires equal-length buffers.
   // The shared-secret model has no HMAC, so plain equality is the bound here.
   if (payload.verification_token !== cfg.kofi_webhook_token) {
-    logger.warn(`kofi: verification_token mismatch from ${req.ip}`);
+    logger.warn(`kofi: verification_token mismatch from ${clientIp(req)}`);
     return sendError(res, 'Invalid verification token', 401);
   }
 

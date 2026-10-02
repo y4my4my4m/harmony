@@ -97,7 +97,14 @@ class MainActivity : TauriActivity() {
 
   fun openUrl(url: String) {
     try {
-      val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+      val uri = Uri.parse(url)
+      val scheme = uri.scheme?.lowercase()
+      if ((scheme != "https" && scheme != "http") || uri.host.isNullOrEmpty()) {
+        android.util.Log.w("Harmony", "openUrl refused a non-web URL")
+        return
+      }
+      val intent = Intent(Intent.ACTION_VIEW, uri).apply {
+        addCategory(Intent.CATEGORY_BROWSABLE)
         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
       }
       startActivity(intent)

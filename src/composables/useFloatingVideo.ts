@@ -20,6 +20,7 @@
 
 import { computed, ref, shallowRef } from 'vue'
 import { i18n } from '@/i18n'
+import { isYouTubeOrigin } from '@/utils/embedDetection'
 import {
   bottomCorner,
   clampAspect,
@@ -166,10 +167,6 @@ interface YouTubePlayback {
 const youtubeState = new WeakMap<object, YouTubePlayback>()
 const youtubeRestores = new Map<HTMLIFrameElement, YouTubePlayback>()
 let youtubeListening = false
-
-function isYouTubeOrigin(origin: string): boolean {
-  return /^https:\/\/(www\.)?youtube(-nocookie)?\.com$/.test(origin)
-}
 
 function postYouTube(iframe: HTMLIFrameElement, message: Record<string, unknown>): void {
   iframe.contentWindow?.postMessage(JSON.stringify(message), '*')

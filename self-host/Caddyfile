@@ -14,6 +14,8 @@
 # =============================================================================
 
 # Reusable federation routing, imported into the main site block.
+# X-Real-IP is the client address the federation backend keys its rate limits on
+# (TRUST_PROXY); Caddy's own address would put every client in one bucket.
 (federation) {
 	# ActivityPub discovery + machine endpoints -> federation backend
 	@fed {
@@ -27,7 +29,9 @@
 		path /users/*/inbox /users/*/outbox /users/*/followers /users/*/following /users/*/featured
 		path /posts/*/likes /posts/*/replies
 	}
-	reverse_proxy @fed federation-server:3001
+	reverse_proxy @fed federation-server:3001 {
+		header_up X-Real-IP {remote_host}
+	}
 
 	# Actor profile + post permalinks: the federation backend performs content
 	# negotiation (ActivityPub JSON for fediverse clients, HTML w/ OpenGraph
@@ -36,14 +40,18 @@
 		path_regexp ^/users/[^/]+$
 		header_regexp Accept (application/(activity\+json|ld\+json|json))
 	}
-	reverse_proxy @apActor federation-server:3001
+	reverse_proxy @apActor federation-server:3001 {
+		header_up X-Real-IP {remote_host}
+	}
 
 	# Browser hitting /users/:name directly -> send them to the in-app profile.
 	@humanActor path_regexp humanActor ^/users/([^/]+)$
 	redir @humanActor /social/profile/{re.humanActor.1} 302
 
 	@post path_regexp ^/posts/[0-9a-f-]+$
-	reverse_proxy @post federation-server:3001
+	reverse_proxy @post federation-server:3001 {
+		header_up X-Real-IP {remote_host}
+	}
 }
 
 # --- Main app + federation ---------------------------------------------------

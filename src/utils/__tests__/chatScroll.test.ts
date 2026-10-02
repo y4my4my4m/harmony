@@ -7,6 +7,8 @@ import {
   nextPinState,
   scrollTopAfterPrepend,
   scrollTopAfterResize,
+  showJumpToPresent,
+  type JumpToPresentState,
   type PinState,
 } from '../chatScroll'
 
@@ -108,5 +110,32 @@ describe('scrollTopAfterPrepend', () => {
 
   it('never moves up when the content did not grow', () => {
     expect(scrollTopAfterPrepend(250, 4000, 3956)).toBe(250)
+  })
+})
+
+describe('showJumpToPresent', () => {
+  // 600 px viewport, released, nothing new, no jump.
+  const at = (o: Partial<JumpToPresentState>): JumpToPresentState =>
+    ({ distance: 0, viewport: 600, pinned: false, unseen: 0, jumped: false, ...o })
+
+  it('shows more than one viewport above the end', () => {
+    expect(showJumpToPresent(at({ distance: 601 }))).toBe(true)
+  })
+
+  it('hides within one viewport of the end with nothing new', () => {
+    expect(showJumpToPresent(at({ distance: 600 }))).toBe(false)
+    expect(showJumpToPresent(at({ distance: 120 }))).toBe(false)
+  })
+
+  it('shows with unseen messages at any distance', () => {
+    expect(showJumpToPresent(at({ distance: 40, unseen: 3 }))).toBe(true)
+  })
+
+  it('shows after a jump at any distance', () => {
+    expect(showJumpToPresent(at({ distance: 40, jumped: true }))).toBe(true)
+  })
+
+  it('never shows on a pinned view', () => {
+    expect(showJumpToPresent(at({ pinned: true, distance: 5000, unseen: 2, jumped: true }))).toBe(false)
   })
 })

@@ -1088,55 +1088,6 @@ class DMCallSignalingService {
     }
   }
 
-  /**
-   * Listen on federated-calls:{userId}. The federation backend broadcasts
-   * remote-instance call events here over Supabase Realtime.
-   */
-  subscribeToFederatedCalls(userId: string, onIncomingCall: (callInfo: {
-    callId: string
-    callerId: string
-    callerName: string
-    callerAvatar: string
-    callerFederatedId: string
-    callType: 'voice' | 'video'
-    livekitUrl: string
-    roomName: string
-    conversationId: string
-  }) => void): () => void {
-    const channelName = `federated-calls:${userId}`
-    debug.log('[Federated] Subscribing to:', channelName)
-    
-    const channel = supabase.channel(channelName)
-    
-    channel
-      .on('broadcast', { event: 'incoming-call' }, (payload) => {
-        debug.log('[Federated] Incoming call:', payload.payload)
-        onIncomingCall(payload.payload)
-      })
-      .on('broadcast', { event: 'call-accepted' }, (payload) => {
-        debug.log('[Federated] Call accepted:', payload.payload)
-        const { callId } = payload.payload
-        const call = this.activeCalls.get(callId)
-        if (call && call.timeoutTimer) {
-          clearTimeout(call.timeoutTimer)
-          call.timeoutTimer = undefined
-        }
-      })
-      .on('broadcast', { event: 'call-rejected' }, (payload) => {
-        debug.log('[Federated] Call rejected:', payload.payload)
-        this.deleteActiveCall(payload.payload.callId)
-      })
-      .on('broadcast', { event: 'call-ended' }, (payload) => {
-        debug.log('[Federated] Call ended:', payload.payload)
-        this.deleteActiveCall(payload.payload.callId)
-      })
-      .subscribe()
-    
-    return () => {
-      channel.unsubscribe()
-    }
-  }
-
   isFederatedCall(conversationId: string): boolean {
     return this.activeCalls.get(conversationId)?.isFederated ?? false
   }

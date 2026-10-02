@@ -1496,9 +1496,39 @@ export class MegolmMessageEncryptionService {
 
   // SESSION SHARING
 
+  private roomMemberCache = new Map<string, { ids: Set<string>; fetchedAt: number }>()
+  private static readonly ROOM_MEMBER_CACHE_TTL_MS = 30_000
+
   /**
-   * Share the outbound session with every recipient. Public keys are fetched
-   * in one query and the wraps run in parallel.
+   * Profiles the server admits to a room (get_room_member_ids, the rule of the
+   * megolm_session_shares insert policy). Null when the RPC is unavailable.
+   * Cached for ROOM_MEMBER_CACHE_TTL_MS.
+   */
+  private async getRoomMemberIds(roomId: string): Promise<Set<string> | null> {
+    const cached = this.roomMemberCache.get(roomId)
+    if (cached && Date.now() - cached.fetchedAt < MegolmMessageEncryptionService.ROOM_MEMBER_CACHE_TTL_MS) {
+      return cached.ids
+    }
+    try {
+      const { data, error } = await supabase.rpc('get_room_member_ids', { p_room_id: roomId })
+      if (error || !Array.isArray(data)) {
+        debug.warn('get_room_member_ids unavailable, sharing with every recipient:', error)
+        return null
+      }
+      const ids = new Set<string>(data.map((row: unknown) => String(row)))
+      this.roomMemberCache.set(roomId, { ids, fetchedAt: Date.now() })
+      return ids
+    } catch (err) {
+      debug.warn('get_room_member_ids failed, sharing with every recipient:', err)
+      return null
+    }
+  }
+
+  /**
+   * Share the outbound session with every recipient the room admits. Public
+   * keys are fetched in one query and the wraps run in parallel. Recipients
+   * outside the room (banned, pending, or without VIEW_CHANNEL) get no wrap;
+   * the server would skip their rows.
    */
   private async ensureSessionShared(
     roomId: string,
@@ -1507,10 +1537,16 @@ export class MegolmMessageEncryptionService {
   ): Promise<void> {
     if (!this.currentUserId) return
 
-    const usersNeedingSession = megolmService.getUsersNeedingSession(roomId, recipientIds, sessionId)
+    let usersNeedingSession = megolmService.getUsersNeedingSession(roomId, recipientIds, sessionId)
 
     if (usersNeedingSession.length === 0) {
       return // All users already have the session
+    }
+
+    const roomMembers = await this.getRoomMemberIds(roomId)
+    if (roomMembers) {
+      usersNeedingSession = usersNeedingSession.filter(id => roomMembers.has(id))
+      if (usersNeedingSession.length === 0) return
     }
 
     const sessionData = megolmService.getSessionKeyForSharing(roomId, sessionId)

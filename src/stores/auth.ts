@@ -965,6 +965,13 @@ export const useAuthStore = defineStore('auth', {
       }
 
       try {
+        const { useServerWelcomeStore } = await import('@/stores/useServerWelcome')
+        useServerWelcomeStore().reset()
+      } catch (error) {
+        debug.error('Error clearing server welcome store:', error)
+      }
+
+      try {
         const { usePushNotifications } = await import('@/composables/usePushNotifications')
         const pushNotifications = usePushNotifications()
         pushNotifications.resetState()

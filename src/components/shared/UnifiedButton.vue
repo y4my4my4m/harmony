@@ -2,7 +2,7 @@
   <component
     :is="tag"
     :type="tag === 'button' ? type : undefined"
-    :href="tag === 'a' ? href : undefined"
+    :href="tag === 'a' ? safeHref(href) : undefined"
     :to="tag === 'router-link' ? to : undefined"
     :disabled="disabled || loading"
     :aria-label="ariaLabel"
@@ -41,6 +41,7 @@
 </template>
 
 <script setup lang="ts">
+import { safeHref } from '@/utils/sanitize';
 import { computed } from 'vue'
 
 interface Props {
