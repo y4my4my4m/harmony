@@ -658,7 +658,23 @@ git push origin master --tags
 ```
 
 A `v*` tag triggers `.github/workflows/release.yml`, which builds the Windows
-and macOS installers and the Android APK into a draft GitHub release.
+and macOS installers and the Android APK into a draft GitHub release:
+
+| Job | Runs after | Does |
+| --- | --- | --- |
+| `release` | | Stamps the tag's version, names the assets, finds or drafts the release and deletes any `latest.json` on it |
+| `desktop` (Windows, macOS) | `release` | Builds and uploads the installer, plus the updater payload and `.sig` when signing is configured |
+| `latest-json` | `release`, `desktop` | Writes `latest.json` from the release's uploaded payloads and `.sig` files, once |
+| `android` | `desktop` | Builds and attaches the APK |
+
+`latest-json` runs only when every desktop build succeeded and signing is
+configured, and fails without uploading when a payload or signature is
+missing, so a release carries either a manifest for both platforms or none.
+Re-running the workflow for a tag reuses its release and replaces each asset.
+A manual run (Actions > Release > Run workflow, with an existing tag) builds
+the tag's tree but runs `scripts/name-artifact.sh` and
+`scripts/github-release.mjs` from the workflow's own commit, so tags that
+predate them build too.
 
 ### Desktop auto-updates
 
@@ -711,19 +727,31 @@ Each build is uploaded as one unzipped artifact named after its file:
 | `tauri.yml`, release profile | `Harmony_Windows_V1.6.5_dev-master-1a2b3c4.exe` |
 | `tauri.yml`, debug profile | `Harmony_Android_V1.6.5_debug-feat-push-1a2b3c4.apk` |
 
-The version is the one in `src-tauri/tauri.conf.json`, which `release.yml`
-stamps from the tag. The branch keeps `[A-Za-z0-9.-]` and every other run of
-characters becomes `-` (`scripts/name-artifact.sh`). An APK built without the
-signing secrets is a debug build and is named as one, in releases too
-(`Harmony_Android_V1.6.5_debug.apk`).
+Both workflows take every name from `scripts/name-artifact.sh`: tagged
+releases with `--release`, `tauri.yml` without. The version is the one in
+`src-tauri/tauri.conf.json`, which `release.yml` stamps from the tag. The
+branch keeps `[A-Za-z0-9.-]` and every other run of characters becomes `-`.
+An APK built without the signing secrets is a debug build and is named as one,
+in releases too (`Harmony_Android_V1.6.5_debug.apk`).
+
+```bash
+bash scripts/name-artifact.sh --release macOS release   # Harmony_macOS_V1.6.5
+```
 
 Releases also carry the updater files under the same names:
 `Harmony_Windows_V<version>.exe.sig`, `Harmony_macOS_V<version>.app.tar.gz`
-and its `.sig`. `latest.json` keeps its name and points at those files. The
-updater verifies the signature over the downloaded bytes and detects the
-installer type from its content, so file names do not affect installed apps.
-The `file:` field in a `.sig`'s trusted comment still holds tauri's original
-file name; it is signed but not compared with anything.
+and its `.sig`. `latest.json` keeps its name and points at those files under
+`releases/download/<tag>/`, with the platform keys tauri-action v0.6.2 writes:
+`windows-x86_64` and `windows-x86_64-nsis` for the NSIS installer, and
+`darwin-aarch64`, `darwin-x86_64`, `darwin-aarch64-app` and
+`darwin-x86_64-app` for the universal app. Installed apps read
+`<os>-<arch>`. The updater verifies the signature over the downloaded bytes
+and detects the installer type from its content, so file names do not affect
+installed apps. The `file:` field in a `.sig`'s trusted comment still holds
+tauri's original file name; it is signed but not compared with anything.
+
+`node --test scripts/github-release.test.mjs` runs the release scripts against
+a stand-in for the GitHub releases API; CI runs it with the unit tests.
 
 ### Android push
 

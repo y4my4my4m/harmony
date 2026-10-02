@@ -29,6 +29,9 @@ jobs:
         env:
           CI: true
 
+      - name: Release script tests
+        run: node --test scripts/github-release.test.mjs
+
   federation-tests:
     name: Federation Tests
     runs-on: ubuntu-latest
