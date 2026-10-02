@@ -387,6 +387,7 @@
     "copyID": "Nachrichten-ID kopieren",
     "noMessagesHere": "Hier gibt es noch keine Nachrichten, schreibe etwas!",
     "loadingOlder": "Lade ältere Nachrichten...",
+    "newMessagesBelow": "{count} neue Nachricht | {count} neue Nachrichten",
     "conversationBeginning": "Dies ist der Beginn deiner Unterhaltung",
     "conversationBeginningSubtitle": "Beginne zu chatten und mache es unvergesslich!",
     "jumpInConversation": "Sprung in der Unterhaltung",

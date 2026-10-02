@@ -418,6 +418,7 @@
     "noMessagesHere": "No messages yet.",
     "newMessages": "New",
     "loadingOlder": "Loading older messages...",
+    "newMessagesBelow": "{count} new message | {count} new messages",
     "conversationBeginning": "This is the beginning of your conversation",
     "conversationBeginningSubtitle": "This is the start of your conversation.",
     "channelWelcome": "Welcome to #{name}",
