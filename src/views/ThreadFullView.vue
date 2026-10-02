@@ -161,11 +161,12 @@
         Load older messages
       </button>
 
-      <div v-if="!loading && messages.length === 0" class="empty-state">
-        <Icon name="message-circle" :size="40" class="empty-icon" />
-        <h3>No messages yet</h3>
-        <p>Be the first to reply in this thread.</p>
-      </div>
+      <EmptyState
+        v-if="!loading && messages.length === 0"
+        icon="message-circle"
+        :title="$t('empty.threadMessages.title')"
+        :description="$t('empty.threadMessages.description')"
+      />
 
       <!-- Use the same MessageDisplay component as the main chat -->
       <MessageDisplay
@@ -240,7 +241,7 @@ import { format } from 'date-fns'
 import Avatar from '@/components/common/Avatar.vue'
 import DisplayName from '@/components/DisplayName.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
-import Icon from '@/components/common/Icon.vue'
+import EmptyState from '@/components/common/EmptyState.vue'
 import UnifiedMessageContent from '@/components/UnifiedMessageContent.vue'
 import MessageInput from '@/components/MessageInput.vue'
 import MessageDisplay from '@/components/MessageDisplay.vue'
@@ -1313,30 +1314,6 @@ onUnmounted(() => {
 }
 
 .loading-state,
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 48px;
-  color: var(--text-secondary);
-}
-
-.empty-icon {
-  margin-bottom: 16px;
-  color: var(--text-muted);
-}
-
-.empty-state h3 {
-  margin: 0 0 8px;
-  color: var(--text-primary);
-}
-
-.empty-state p {
-  margin: 0;
-  color: var(--text-muted);
-}
-
 .load-more-btn {
   display: block;
   margin: 0 auto 16px;

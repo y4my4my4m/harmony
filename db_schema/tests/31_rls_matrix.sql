@@ -344,6 +344,7 @@ SELECT is((SELECT description FROM public.servers WHERE id = '55555555-0000-0000
 
 SELECT tests.authenticate_as('cccccccc-0000-0000-0000-000000000003');
 DELETE FROM public.servers WHERE id = '55555555-0000-0000-0000-000000000005';
+SELECT tests.authenticate_as('bbbbbbbb-0000-0000-0000-000000000002');
 SELECT isnt_empty(
     $q$SELECT id FROM public.servers WHERE id = '55555555-0000-0000-0000-000000000005'$q$,
     'a non-member cannot delete a server');

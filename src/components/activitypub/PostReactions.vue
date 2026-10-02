@@ -61,6 +61,7 @@ import { useHapticSettings } from '@/composables/useHapticSettings';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import { useFrequentEmojis } from '@/composables/useFrequentEmojis';
 import { postReactionsRealtime } from '@/services/PostReactionsRealtime';
+import { isHeartEmoji } from '@/utils/heartReaction';
 import Icon from '@/components/common/Icon.vue';
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 import type { TimelinePost } from '@/types';
@@ -122,31 +123,35 @@ const normalizeEmojiKey = (name: string | null | undefined): string => {
 const reactions = computed(() => {
   if (!props.post?.id) return [];
   
+  // The heart is the favourite action and its count, never a chip.
   const storeReactions = postReactionsStore.getPostReactions(props.post.id);
-  const localReactions = Array.isArray(storeReactions) ? storeReactions : [];
+  const localReactions = (Array.isArray(storeReactions) ? storeReactions : [])
+    .filter((r) => !isHeartEmoji({ native: r.custom_emoji_content, url: r.emoji_url }));
   
   const remoteReactions = props.post?.metadata?.remote_reactions;
   if (!remoteReactions || typeof remoteReactions !== 'object') {
     return localReactions;
   }
   
-  const remoteReactionGroups: PostEmojiReaction[] = Object.entries(remoteReactions).map(([emoji, value]) => {
-    const count = typeof value === 'number' ? value : (value as any)?.count || 0;
-    const url = typeof value === 'object' ? (value as any)?.url : null;
-    const reactors = typeof value === 'object' ? (value as any)?.reactors : [];
-    const isCustomEmoji = emoji.startsWith(':') && emoji.endsWith(':');
+  const remoteReactionGroups: PostEmojiReaction[] = Object.entries(remoteReactions)
+    .filter(([emoji, value]) => !isHeartEmoji({ native: emoji, url: (value as any)?.url }))
+    .map(([emoji, value]) => {
+      const count = typeof value === 'number' ? value : (value as any)?.count || 0;
+      const url = typeof value === 'object' ? (value as any)?.url : null;
+      const reactors = typeof value === 'object' ? (value as any)?.reactors : [];
+      const isCustomEmoji = emoji.startsWith(':') && emoji.endsWith(':');
     
-    return {
-      emoji_id: null,
-      emoji_name: emoji,
-      emoji_url: url || null,
-      custom_emoji_content: isCustomEmoji ? (url ? null : emoji) : emoji,
-      reaction_count: count,
-      user_reactions: [],
-      current_user_reacted: false,
-      reactors: reactors || [],
-    };
-  });
+      return {
+        emoji_id: null,
+        emoji_name: emoji,
+        emoji_url: url || null,
+        custom_emoji_content: isCustomEmoji ? (url ? null : emoji) : emoji,
+        reaction_count: count,
+        user_reactions: [],
+        current_user_reacted: false,
+        reactors: reactors || [],
+      };
+    });
   
   // Merge: local reactions take priority, add remote ones that don't exist locally.
   // Normalize emoji keys so ":name@domain:" matches ":name:" and plain names
@@ -325,7 +330,7 @@ defineExpose({
 
 <style scoped>
 .post-reactions {
-  margin-bottom: 8px;
+  margin-bottom: var(--space-2);
 }
 
 .reactions-container {

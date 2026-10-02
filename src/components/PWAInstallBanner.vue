@@ -1,35 +1,24 @@
 <template>
   <Transition name="install-banner">
-    <div v-if="showBanner" class="pwa-install-banner">
-      <div class="banner-content">
-        <div class="banner-icon">
-          <img src="/img/app_icon_square.webp" alt="Harmony" />
-        </div>
-        <div class="banner-text">
-          <h3>Install Harmony</h3>
-          <p>Faster loading and offline access</p>
-        </div>
-        <div class="banner-actions">
-          <button @click="dismissBanner" class="banner-btn secondary">
-            Maybe later
-          </button>
-          <button @click="installApp" class="banner-btn primary" :disabled="installing">
-            <span v-if="installing">Installing...</span>
-            <span v-else>Install</span>
-          </button>
-        </div>
-        <button @click="closeBanner" class="close-btn" aria-label="Close">
-          <svg viewBox="0 0 24 24" width="18" height="18">
-            <path fill="currentColor" d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/>
-          </svg>
-        </button>
+    <aside v-if="showBanner" class="pwa-install-banner" :aria-label="t('pwa.installTitle')">
+      <img class="banner-icon" src="/img/app_icon_square.webp" alt="" width="36" height="36" />
+      <div class="banner-text">
+        <p class="banner-title">{{ t('pwa.installTitle') }}</p>
+        <p class="banner-description">{{ t('pwa.installDescription') }}</p>
       </div>
-    </div>
+      <button type="button" class="banner-install" :disabled="installing" @click="installApp">
+        {{ installing ? t('pwa.installing') : t('pwa.install') }}
+      </button>
+      <button type="button" class="banner-close" :aria-label="t('pwa.dismiss')" @click="dismissBanner">
+        <Icon name="x" :size="16" />
+      </button>
+    </aside>
   </Transition>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { debug } from '@/utils/debug'
 import { pwaManager } from '@/services/PWAManager'
 import { canInstallPWA } from '@/utils/platform'
@@ -37,13 +26,29 @@ import {
   showInstallFailedToast,
   showInstallUnavailableToast,
 } from '@/utils/pwaInstallToast'
+import Icon from '@/components/common/Icon.vue'
 
+const DISMISSED_KEY = 'harmony-install-banner-closed'
+const LEGACY_DISMISSED_KEY = 'harmony-install-banner-dismissed'
+const DISMISS_MS = 30 * 24 * 60 * 60 * 1000
+const LEGACY_DISMISS_MS = 7 * 24 * 60 * 60 * 1000
+// Delay after mount; the first paint after sign-in belongs to the app.
+const SHOW_DELAY_MS = 2000
+
+const { t } = useI18n()
 const showBanner = ref(false)
 const installing = ref(false)
+let showTimer: ReturnType<typeof setTimeout> | null = null
 
-const checkInstallAvailability = () => {
+const wasRecentlyDismissed = (): boolean => {
+  const now = Date.now()
+  const closed = Number(localStorage.getItem(DISMISSED_KEY) || 0)
+  const legacy = Number(localStorage.getItem(LEGACY_DISMISSED_KEY) || 0)
+  return now - closed < DISMISS_MS || now - legacy < LEGACY_DISMISS_MS
+}
+
+const maybeShow = () => {
   const capabilities = pwaManager.getCapabilities()
-  
   if (capabilities.canInstall && !capabilities.isInstalled && !wasRecentlyDismissed()) {
     showBanner.value = true
   }
@@ -51,15 +56,12 @@ const checkInstallAvailability = () => {
 
 const installApp = async () => {
   installing.value = true
-
   try {
     if (!pwaManager.hasDeferredInstallPrompt()) {
       showInstallUnavailableToast()
       return
     }
-
-    const success = await pwaManager.showInstallPrompt()
-    if (success) {
+    if (await pwaManager.showInstallPrompt()) {
       showBanner.value = false
       localStorage.setItem('harmony-pwa-installed', 'true')
     } else {
@@ -75,39 +77,7 @@ const installApp = async () => {
 
 const dismissBanner = () => {
   showBanner.value = false
-  // Remember dismissal for 7 days
-  const dismissTime = Date.now()
-  localStorage.setItem('harmony-install-banner-dismissed', dismissTime.toString())
-}
-
-const closeBanner = () => {
-  showBanner.value = false
-  // Remember dismissal for 30 days
-  const dismissTime = Date.now()
-  localStorage.setItem('harmony-install-banner-closed', dismissTime.toString())
-}
-
-const wasRecentlyDismissed = (): boolean => {
-  const dismissedTime = localStorage.getItem('harmony-install-banner-dismissed')
-  const closedTime = localStorage.getItem('harmony-install-banner-closed')
-  
-  if (closedTime) {
-    const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000)
-    return parseInt(closedTime) > thirtyDaysAgo
-  }
-  
-  if (dismissedTime) {
-    const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000)
-    return parseInt(dismissedTime) > sevenDaysAgo
-  }
-  
-  return false
-}
-
-const handleInstallAvailable = () => {
-  if (!wasRecentlyDismissed()) {
-    showBanner.value = true
-  }
+  localStorage.setItem(DISMISSED_KEY, String(Date.now()))
 }
 
 const handleAppInstalled = () => {
@@ -115,62 +85,46 @@ const handleAppInstalled = () => {
 }
 
 onMounted(() => {
-  // Installing a PWA only makes sense in a browser tab
   if (!canInstallPWA()) return
-
-  setTimeout(checkInstallAvailability, 2000) // Delay to avoid interfering with app load
-
-  window.addEventListener('pwa-install-available', handleInstallAvailable)
+  showTimer = setTimeout(maybeShow, SHOW_DELAY_MS)
+  window.addEventListener('pwa-install-available', maybeShow)
   window.addEventListener('pwa-app-installed', handleAppInstalled)
 })
 
 onUnmounted(() => {
-  window.removeEventListener('pwa-install-available', handleInstallAvailable)
+  if (showTimer) clearTimeout(showTimer)
+  window.removeEventListener('pwa-install-available', maybeShow)
   window.removeEventListener('pwa-app-installed', handleAppInstalled)
 })
 </script>
 
 <style scoped>
+/* One row above the composer's band: the chat composer occupies the bottom
+   80px on desktop and 64px on mobile, and its send controls sit at the right
+   edge. */
 .pwa-install-banner {
   position: fixed;
-  bottom: 20px;
-  left: 20px;
-  right: 20px;
+  right: var(--space-5);
+  bottom: 88px;
+  z-index: var(--z-fixed);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: min(360px, calc(100vw - 2 * var(--space-3)));
+  box-sizing: border-box;
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
   background: var(--background-floating);
   border: 1px solid var(--border-primary);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-large);
-  z-index: 1000;
-  max-width: 500px;
-  margin: 0 auto;
-}
-
-@media (min-width: 768px) {
-  .pwa-install-banner {
-    left: auto;
-    right: 20px;
-    max-width: 400px;
-  }
-}
-
-.banner-content {
-  position: relative;
-  padding: 20px;
-  display: flex;
-  align-items: center;
-  gap: 16px;
   color: var(--text-primary);
-  flex-direction: column;
 }
 
 .banner-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
   flex-shrink: 0;
-}
-
-.banner-icon img {
-  width: 48px;
-  height: 48px;
-  border-radius: var(--radius-lg);
 }
 
 .banner-text {
@@ -178,127 +132,84 @@ onUnmounted(() => {
   min-width: 0;
 }
 
-.banner-text h3 {
-  margin: 0 0 4px;
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--text-primary);
-}
-
-.banner-text p {
+.banner-title {
   margin: 0;
-  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.banner-description {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-tight);
   color: var(--text-secondary);
-  line-height: 1.4;
 }
 
-.banner-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+.banner-install {
   flex-shrink: 0;
-}
-
-@media (min-width: 480px) {
-  .banner-actions {
-    flex-direction: row;
-    gap: 12px;
-  }
-}
-
-.banner-btn {
-  padding: 10px 16px;
+  min-height: 36px;
+  padding: 0 var(--space-4);
   border: none;
   border-radius: var(--radius-md);
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color var(--transition-fast), color var(--transition-fast);
-  min-width: 100px;
-  white-space: nowrap;
-}
-
-.banner-btn.primary {
   background: var(--harmony-primary);
   color: var(--text-on-primary);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
 }
 
-.banner-btn.primary:hover:not(:disabled) {
+.banner-install:hover:not(:disabled) {
   background: var(--harmony-primary-hover);
 }
 
-.banner-btn.primary:disabled {
+.banner-install:disabled {
   opacity: 0.7;
-  cursor: not-allowed;
+  cursor: progress;
 }
 
-.banner-btn.secondary {
-  background: var(--background-modifier-hover);
-  color: var(--text-primary);
-  border: 1px solid var(--border-primary);
-}
-
-.banner-btn.secondary:hover {
-  background: var(--background-modifier-active);
-}
-
-.close-btn {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  background: transparent;
+.banner-close {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
   border: none;
-  border-radius: var(--radius-base);
-  padding: 6px;
+  border-radius: var(--radius-md);
+  background: transparent;
   color: var(--text-muted);
   cursor: pointer;
   transition: background-color var(--transition-fast), color var(--transition-fast);
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
-.close-btn:hover {
+.banner-close:hover {
   background: var(--background-modifier-hover);
   color: var(--text-primary);
 }
 
 .install-banner-enter-active,
 .install-banner-leave-active {
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: opacity var(--transition-slow), transform var(--transition-slow);
 }
 
-.install-banner-enter-from {
-  opacity: 0;
-  transform: translateY(100%) scale(0.9);
-}
-
+.install-banner-enter-from,
 .install-banner-leave-to {
   opacity: 0;
-  transform: translateY(100%) scale(0.9);
+  transform: translateY(16px);
 }
 
-/* Mobile optimizations */
-@media (max-width: 480px) {
+@media (max-width: 768px) {
   .pwa-install-banner {
-    bottom: 10px;
-    left: 10px;
-    right: 10px;
-  }
-  
-  .banner-content {
-    padding: 16px;
-    flex-direction: column;
-    text-align: center;
-    gap: 12px;
-  }
-  
-  .banner-actions {
-    width: 100%;
-  }
-  
-  .banner-btn {
-    flex: 1;
+    right: var(--space-3);
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 72px);
+    left: var(--space-3);
+    width: auto;
   }
 }
 </style>

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import type { Request } from 'express';
+import type { Response } from 'express';
 
 vi.mock('../config/index.js', () => ({
   default: { RATE_LIMIT_WINDOW_MS: 60_000, RATE_LIMIT_MAX_REQUESTS: 100 },
@@ -7,34 +7,46 @@ vi.mock('../config/index.js', () => ({
 }));
 vi.mock('../services/RedisService.js', () => ({ redis: { ready: false } }));
 
-import { instanceKeyFromRequest } from '../middleware/rateLimit.js';
+import { signerInstanceKey, instanceInboxLimit } from '../middleware/rateLimit.js';
 
-function fakeReq(body: unknown, ip = '203.0.113.7'): Request {
-  return { body, ip } as unknown as Request;
+type FakeRes = Response & { statusCode: number; body: any; headers: Record<string, any> };
+
+function fakeRes(): FakeRes {
+  const res: any = { statusCode: 200, headers: {} as Record<string, unknown>, body: undefined };
+  res.setHeader = (k: string, v: unknown) => { res.headers[k] = v; };
+  res.status = (code: number) => { res.statusCode = code; return res; };
+  res.json = (body: unknown) => { res.body = body; return res; };
+  return res as FakeRes;
 }
 
-describe('instanceKeyFromRequest', () => {
-  it('keys by the actor domain for string actors', () => {
-    const req = fakeReq({ actor: 'https://Mastodon.Example/users/alice' });
-    expect(instanceKeyFromRequest(req)).toBe('mastodon.example');
+describe('signerInstanceKey', () => {
+  it('keys by the verified signer host', () => {
+    expect(signerInstanceKey('https://Mastodon.Example/users/alice', '203.0.113.7')).toBe('mastodon.example');
   });
 
-  it('keys by the actor domain for object actors', () => {
-    const req = fakeReq({ actor: { id: 'https://misskey.example/users/9abc' } });
-    expect(instanceKeyFromRequest(req)).toBe('misskey.example');
+  it('falls back to the source IP without a verified signer', () => {
+    expect(signerInstanceKey(null, '203.0.113.7')).toBe('ip:203.0.113.7');
+    expect(signerInstanceKey(undefined, undefined)).toBe('ip:unknown');
   });
 
-  it('falls back to IP when the actor is missing', () => {
-    expect(instanceKeyFromRequest(fakeReq({}))).toBe('ip:203.0.113.7');
+  it('falls back to the source IP for an unparseable signer', () => {
+    expect(signerInstanceKey('not a url', '203.0.113.7')).toBe('ip:203.0.113.7');
+  });
+});
+
+describe('instanceInboxLimit', () => {
+  it('refuses the 61st activity from one signer host within the window', async () => {
+    for (let i = 0; i < 60; i++) {
+      expect(await instanceInboxLimit(fakeRes(), 'busy.example')).toBe(true);
+    }
+    const res = fakeRes();
+    expect(await instanceInboxLimit(res, 'busy.example')).toBe(false);
+    expect(res.statusCode).toBe(429);
+    expect(res.headers['Retry-After']).toBeGreaterThan(0);
   });
 
-  it('falls back to IP when the actor URL is unparseable', () => {
-    expect(instanceKeyFromRequest(fakeReq({ actor: 'not a url' }))).toBe('ip:203.0.113.7');
-  });
-
-  it('two instances behind one IP get distinct keys', () => {
-    const a = instanceKeyFromRequest(fakeReq({ actor: 'https://a.example/u/x' }, '198.51.100.1'));
-    const b = instanceKeyFromRequest(fakeReq({ actor: 'https://b.example/u/y' }, '198.51.100.1'));
-    expect(a).not.toBe(b);
+  it('keeps budgets of distinct signer hosts apart', async () => {
+    for (let i = 0; i < 61; i++) await instanceInboxLimit(fakeRes(), 'noisy.example');
+    expect(await instanceInboxLimit(fakeRes(), 'quiet.example')).toBe(true);
   });
 });

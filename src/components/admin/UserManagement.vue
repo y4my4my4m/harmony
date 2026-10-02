@@ -154,10 +154,12 @@
           <LoadingSpinner :size="20" />
           <span>Loading servers…</span>
         </div>
-        <div v-else-if="userServers.length === 0" class="empty-state">
-          <Icon name="server" :size="32" />
-          <p>This user is not a member of any servers.</p>
-        </div>
+        <EmptyState
+          v-else-if="userServers.length === 0"
+          size="sm"
+          icon="server"
+          :title="$t('empty.admin.userServers.title')"
+        />
         <div v-else class="servers-list">
           <div 
             v-for="server in userServers" 
@@ -214,6 +216,7 @@ import { useToast } from 'vue-toastification'
 import { debug } from '@/utils/debug'
 import { useAuthStore } from '@/stores/auth'
 import Icon from '@/components/common/Icon.vue'
+import EmptyState from '@/components/common/EmptyState.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import Avatar from '@/components/common/Avatar.vue'
 import DisplayName from '@/components/DisplayName.vue'

@@ -93,9 +93,12 @@
         </button>
       </div>
     </div>
-    <div v-if="announcements.length === 0 && !loadingStates.announcements" class="empty-state">
-      No announcements. Create one to notify users.
-    </div>
+    <EmptyState
+      v-if="announcements.length === 0 && !loadingStates.announcements"
+      icon="megaphone"
+      :title="$t('empty.admin.announcements.title')"
+      :description="$t('empty.admin.announcements.description')"
+    />
   </div>
 </div>
 
@@ -106,6 +109,7 @@ import { ref, onMounted } from 'vue'
 import { debug } from '@/utils/debug'
 import { useToast } from 'vue-toastification'
 import Icon from '@/components/common/Icon.vue'
+import EmptyState from '@/components/common/EmptyState.vue'
 import { announcementService, type Announcement } from '@/services/AnnouncementService'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 

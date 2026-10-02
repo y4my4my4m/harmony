@@ -134,13 +134,12 @@
         <span class="badge" v-if="slowQueries.length">{{ slowQueries.length }}</span>
       </div>
       
-      <div v-if="slowQueries.length === 0" class="empty-state">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor" class="empty-icon">
-          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-        </svg>
-        <p>No slow queries detected</p>
-        <span>Queries taking longer than 100ms will appear here</span>
-      </div>
+      <EmptyState
+        v-if="slowQueries.length === 0"
+        icon="check-circle"
+        :title="$t('empty.admin.slowQueries.title')"
+        :description="$t('empty.admin.slowQueries.description')"
+      />
 
       <div v-else class="queries-list">
         <div v-for="query in slowQueries" :key="query.id" class="query-item">
@@ -165,13 +164,12 @@
         <h3>Federation Health</h3>
       </div>
       
-      <div v-if="federationServers.length === 0" class="empty-state">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor" class="empty-icon">
-          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
-        </svg>
-        <p>No federation health data</p>
-        <span>Federation metrics appear when the federation_health_metrics table is populated by outbound/inbound activity</span>
-      </div>
+      <EmptyState
+        v-if="federationServers.length === 0"
+        icon="globe"
+        :title="$t('empty.admin.federationHealth.title')"
+        :description="$t('empty.admin.federationHealth.description')"
+      />
       
       <div v-else class="federation-grid">
         <div v-for="server in federationServers" :key="server.domain" class="federation-card">
@@ -203,6 +201,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { supabase } from '@/supabase'
 import { formatDistanceToNow } from 'date-fns'
+import EmptyState from '@/components/common/EmptyState.vue'
 
 // State
 const loading = ref(false)
@@ -821,30 +820,6 @@ onUnmounted(() => {
   font-weight: 600;
   padding: 2px 8px;
   border-radius: 10px;
-}
-
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 32px;
-  text-align: center;
-  color: var(--text-secondary);
-}
-
-.empty-icon {
-  opacity: 0.3;
-  margin-bottom: 16px;
-}
-
-.empty-state p {
-  margin: 0 0 4px 0;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.empty-state span {
-  font-size: 13px;
 }
 
 .queries-list {

@@ -3,9 +3,12 @@
     <div v-if="isLoading && items.length === 0" class="inline-gif-loading">
       <LoadingSpinner :size="20" />
     </div>
-    <div v-else-if="items.length === 0 && query" class="inline-gif-empty">
-      No {{ mediaNoun }} found
-    </div>
+    <EmptyState
+      v-else-if="items.length === 0 && query"
+      size="sm"
+      icon="search"
+      :title="$t('gif.noneFound', { kind: mediaNoun })"
+    />
     <div v-else class="inline-gif-grid">
       <template v-for="item in items" :key="item.id">
         <GifAdSlot
@@ -69,6 +72,7 @@
 import { ref, watch, onMounted, onUnmounted, computed } from 'vue';
 import { useLayoutState } from '@/composables/useLayoutState';
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
+import EmptyState from '@/components/common/EmptyState.vue';
 import GifAdSlot from '@/components/GifAdSlot.vue';
 import { gifProvider, type GifMediaType } from '@/services/gifProviderService';
 import { debug } from '@/utils/debug';
@@ -371,13 +375,6 @@ onUnmounted(() => {
   padding: 24px;
 }
 
-
-.inline-gif-empty {
-  padding: 20px;
-  text-align: center;
-  color: var(--text-muted);
-  font-size: 13px;
-}
 
 .inline-gif-picker::-webkit-scrollbar {
   width: 6px;

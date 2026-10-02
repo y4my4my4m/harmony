@@ -137,17 +137,23 @@
               </li>
             </ul>
 
-            <div v-else-if="showError" class="inbox-state" role="alert">
-              <Icon name="alert-circle" :size="28" class="state-icon" />
-              <p class="state-title">{{ t('inbox.error') }}</p>
-              <button type="button" class="state-btn" @click="retry">{{ t('inbox.retry') }}</button>
-            </div>
+            <EmptyState
+              v-else-if="showError"
+              size="sm"
+              tone="error"
+              icon="alert-circle"
+              :title="t('inbox.error')"
+              :action-label="t('inbox.retry')"
+              @action="retry"
+            />
 
-            <div v-else-if="groups.length === 0" class="inbox-state">
-              <Icon :name="emptyIcon" :size="28" class="state-icon" />
-              <p class="state-title">{{ emptyTitle }}</p>
-              <p class="state-hint">{{ emptyHint }}</p>
-            </div>
+            <EmptyState
+              v-else-if="groups.length === 0"
+              size="sm"
+              :icon="emptyIcon"
+              :title="emptyTitle"
+              :description="emptyHint"
+            />
 
             <template v-else>
               <section v-for="group in groups" :key="group.key" class="day-group" :aria-label="group.label">
@@ -188,6 +194,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useLayoutState } from '@/composables/useLayoutState'
 import { INBOX_TABS, badgeText, groupByDay, inTab, unreadByTab, type InboxTab } from '@/utils/notificationInbox'
 import Icon from '@/components/common/Icon.vue'
+import EmptyState from '@/components/common/EmptyState.vue'
 import NotificationItem from './NotificationItem.vue'
 import type { Notification } from '@/types'
 
@@ -815,33 +822,6 @@ onBeforeUnmount(() => {
 
 @keyframes sk-pulse {
   50% { opacity: 0.5; }
-}
-
-.inbox-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-10) var(--space-6);
-  text-align: center;
-}
-
-.state-icon {
-  color: var(--text-muted);
-}
-
-.state-title {
-  margin: 0;
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-semibold);
-  color: var(--text-primary);
-}
-
-.state-hint {
-  margin: 0;
-  max-width: 280px;
-  font-size: var(--font-size-sm);
-  color: var(--text-muted);
 }
 
 .state-btn {

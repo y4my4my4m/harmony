@@ -53,7 +53,7 @@ test('accept an invite and land in the server', async ({ browser }) => {
       .filter({ hasText: 'Get Invite Link' })
       .click()
 
-    const linkField = ownerPage.locator('input.invite-url-input')
+    const linkField = ownerPage.getByLabel('Invite link')
     await expect(linkField).toHaveValue(/\/invite\/[A-Z0-9]{8}$/, { timeout: 30000 })
     code = (await linkField.inputValue()).split('/invite/')[1]
   })

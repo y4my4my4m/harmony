@@ -234,8 +234,13 @@ router.get(
       return res.status(410).json({ error: 'Invite has expired' });
     }
 
-    if (invite.uses !== null && invite.max_uses !== null && invite.uses >= invite.max_uses) {
+    if (invite.max_uses > 0 && (invite.uses ?? 0) >= invite.max_uses) {
       return res.status(410).json({ error: 'Invite has reached maximum uses' });
+    }
+
+    // used marks a revoked invite, or one spent at its limit (checked above).
+    if (invite.used) {
+      return res.status(410).json({ error: 'Invite has been revoked' });
     }
 
     const server = invite.server;

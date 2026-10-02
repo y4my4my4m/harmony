@@ -16,8 +16,19 @@ import config from '../config/index.js';
 import { harmonyVoiceMessageFromObject } from '../utils/voiceMessageFederation.js';
 import { pgrstOrValue } from '../utils/postgrestFilter.js';
 import { stripOwnEmojiDomain } from '../utils/emojiResolvers.js';
+import { isFavouriteLike, isHeartReaction, storeFavourite } from '../utils/heartReaction.js';
 import { fetchAuthoritativeDocument, sameOrigin } from '../utils/apOrigin.js';
 import { BlockedInstancesCache } from '../services/BlockedInstancesCache.js';
+import { flagComment, flagObjectUris, parseLocalObjectUri } from './flag.js';
+import { evaluateInboundCreate } from '../services/FederationSpamGuard.js';
+import {
+  authorizeChannelWrite,
+  resolveThreadInChannel,
+  resolveMessageInChannel,
+  notAfterNow,
+  actorInConversation,
+  logDenied,
+} from './channelWriteAuthz.js';
 
 /**
  * Extract message UUID from a URL like https://domain/messages/{uuid}
@@ -168,7 +179,11 @@ export class ActivityProcessor {
     }
   }
 
-  static async processIncomingActivity(activity: any): Promise<void> {
+  /**
+   * @param options.skipSpamGuard - set when an admin released a held activity
+   *   (job 'release-held-activity'); the mention/DM spam heuristics are not run.
+   */
+  static async processIncomingActivity(activity: any, options: { skipSpamGuard?: boolean } = {}): Promise<void> {
     const actorUrl = normalizeActor(activity.actor);
     if (actorUrl && await this.isActorSuspended(actorUrl)) {
       logger.info(`Ignoring activity from suspended user: ${actorUrl}`);
@@ -186,7 +201,7 @@ export class ActivityProcessor {
         await this.processReject(activity);
         break;
       case 'Create':
-        await this.processCreate(activity);
+        await this.processCreate(activity, options);
         break;
       case 'Update':
         await this.processUpdate(activity);
@@ -492,7 +507,7 @@ export class ActivityProcessor {
   /**
    * Create activity: post, DM, channel message, or poll.
    */
-  private static async processCreate(activity: any): Promise<void> {
+  private static async processCreate(activity: any, options: { skipSpamGuard?: boolean } = {}): Promise<void> {
     const object = activity.object;
     const supabase = getSupabaseClient();
 
@@ -582,8 +597,26 @@ export class ActivityProcessor {
 
       // Direct messages go to `messages`; everything else to `posts`.
       if (visibility === 'direct' || visibility === 'private') {
-        await this.handleDirectMessage(object, author.id, content);
+        await this.handleDirectMessage(object, author.id, content, activity, options);
       } else {
+        if (!options.skipSpamGuard) {
+          const mentionedLocalIds = await this.localMentionTargets(content, author.id);
+          if (mentionedLocalIds.length > 0) {
+            const verdict = await evaluateInboundCreate({
+              activity,
+              object,
+              authorId: author.id,
+              authorUri: normalizeActor(activity.actor),
+              kind: 'federation_mention',
+              targetIds: mentionedLocalIds,
+            });
+            if (verdict.action === 'hold' || verdict.action === 'reject') {
+              logger.info(`Post ${object.id} ${verdict.action === 'hold' ? 'held' : 'rejected'} as suspected spam`);
+              return;
+            }
+          }
+        }
+
         // Reply threading: fetch missing parents and locate the conversation root.
         let parentPostId: string | null = null;
         let conversationRootId: string | null = null;
@@ -1395,7 +1428,7 @@ export class ActivityProcessor {
         const messageId = uuidMatch[1];
         const { data: messageById } = await supabase
           .from('messages')
-          .select('id, conversation_id')
+          .select('id, conversation_id, channel_id')
           .eq('id', messageId)
           .maybeSingle();
         message = messageById;
@@ -1411,7 +1444,7 @@ export class ActivityProcessor {
     if (!message) {
       const { data: messageByApId } = await supabase
         .from('messages')
-        .select('id, conversation_id')
+        .select('id, conversation_id, channel_id')
         .eq('metadata->>ap_id', objectUrl)
         .maybeSingle();
       
@@ -1448,6 +1481,28 @@ export class ActivityProcessor {
     }
 
     if (message) {
+      // A channel reaction carries the channel's write rules; a DM reaction
+      // comes from a participant.
+      if (message.channel_id) {
+        const { data: channel } = await supabase
+          .from('channels')
+          .select('server_id')
+          .eq('id', message.channel_id)
+          .maybeSingle();
+        const authz = channel
+          ? await authorizeChannelWrite(supabase, {
+              actorUrl, serverId: channel.server_id, channelId: message.channel_id, kind: 'reaction',
+            })
+          : { ok: false as const, reason: 'channel not found' };
+        if (!authz.ok) {
+          logDenied('reaction', actorUrl, authz.reason);
+          return;
+        }
+      } else if (!message.conversation_id || !(await actorInConversation(supabase, message.conversation_id, user.id))) {
+        logDenied('reaction', actorUrl, 'not a participant of the conversation');
+        return;
+      }
+
       const isCustomEmoji = !!(emojiUrl && emojiName);
       const reactionData: any = {
         message_id: message.id,
@@ -1513,6 +1568,17 @@ export class ActivityProcessor {
     }
 
     if (post) {
+      // Mastodon Like, Misskey default like, heart EmojiReact: one favourite per actor.
+      if (isFavouriteLike({ emoji, emojiUrl, emojiName })) {
+        const outcome = await storeFavourite(supabase, post.id, user.id);
+        if (outcome === 'failed') {
+          logger.error(`Failed to insert favourite on post ${post.id} from ${actorUrl}`);
+        } else {
+          logger.info(`Favourite on post ${post.id} from ${actorUrl}: ${outcome}`);
+        }
+        return;
+      }
+
       // Only image-backed custom emoji resolve to an emoji_id; unicode reactions
       // are grouped purely by custom_emoji_content (matches local behavior and
       // avoids creating url-less rows in the emojis table).
@@ -1520,15 +1586,12 @@ export class ActivityProcessor {
       const emojiId = isCustomEmoji
         ? await this.resolveInboundEmojiId(supabase, emojiName, emojiUrl, user.id)
         : null;
-      
-      // Normalize heart variants so Mastodon plain Likes group together.
-      let normalizedEmoji = emoji || '❤️';
-      if (!emoji || normalizedEmoji === '❤' || normalizedEmoji === '❤️') {
-        normalizedEmoji = '❤️';
-      }
+
+      // Not a favourite, so either a unicode emoji or an Emoji tag is present.
+      const reactionContent = emoji ?? `:${emojiName!.replace(/:/g, '')}:`;
       // A reaction emitted here returns qualified with our own domain, which the duplicate
       // check below compares literally against the `:name:` already stored.
-      normalizedEmoji = stripOwnEmojiDomain(normalizedEmoji) ?? normalizedEmoji;
+      const normalizedEmoji = stripOwnEmojiDomain(reactionContent) ?? reactionContent;
       
       logger.info(`Inserting reaction: emoji_id=${emojiId}, custom_content=${normalizedEmoji}`);
       
@@ -1939,8 +2002,9 @@ export class ActivityProcessor {
 
   /**
    * Predicate selecting the rows an Undo of Like/EmojiReaction removes: the
-   * actor's rows carrying the emoji the Undo names. A Like naming no emoji is
-   * the plain favourite, which processLike stores as a heart.
+   * actor's rows carrying the emoji the Undo names. A Like naming no emoji or a
+   * unicode heart is the favourite (isFavouriteLike); on a message, which has no
+   * favourite, it is the heart reaction.
    *
    * One custom emoji has two stored representations, (emoji_id, ':name:') from
    * a local reaction and (NULL, ':name:') from an inbound one; either column
@@ -1954,7 +2018,7 @@ export class ActivityProcessor {
     emojiName: string | undefined,
   ): Promise<(row: any) => boolean> {
     const isCustomEmoji = !!(emojiUrl && emojiName);
-    const isPlainLike = !isCustomEmoji && !emoji;
+    const undoesFavourite = isFavouriteLike({ emoji, emojiUrl, emojiName });
 
     // Lookup only: an Undo naming an unknown emoji matches nothing rather than
     // creating a row.
@@ -1968,21 +2032,20 @@ export class ActivityProcessor {
       emojiId = emojiRow?.id ?? null;
     }
 
-    // Content strings processLike writes for this emoji. Both heart variants
-    // count as one reaction, matching the insert-side normalization.
+    // Content strings processLike writes for this emoji.
     const contents = new Set<string>();
-    if (isPlainLike || emoji === '❤️' || emoji === '❤') {
-      contents.add('❤️');
-      contents.add('❤');
-    } else if (emoji) {
+    if (emoji && !undoesFavourite) {
       contents.add(emoji);
+      const unqualified = stripOwnEmojiDomain(emoji);
+      if (unqualified) contents.add(unqualified);
     }
     if (isCustomEmoji) {
       contents.add(`:${emojiName!.replace(/:/g, '')}:`);
     }
 
     return (row: any) => {
-      if (row.interaction_type === 'favorite') return isPlainLike;
+      if (row.interaction_type === 'favorite') return undoesFavourite;
+      if (undoesFavourite) return isHeartReaction(row.custom_emoji_content);
       if (emojiId !== null && row.emoji_id === emojiId) return true;
       return typeof row.custom_emoji_content === 'string' && contents.has(row.custom_emoji_content);
     };
@@ -2205,21 +2268,23 @@ export class ActivityProcessor {
   }
 
   /**
-   * Extract the server UUID from a Harmony server URL and find the local
-   * remote-copy server row.
+   * The local copy of the remote server whose Group actor is `serverUrl`. The
+   * UUID in the URL selects the row; the row's ap_id must equal the URL, so an
+   * actor on another host naming the same UUID resolves to nothing.
    */
   private static async resolveRemoteServer(serverUrl: string): Promise<any | null> {
     const supabase = getSupabaseClient();
-    const serverIdMatch = serverUrl.match(/\/servers\/([a-f0-9-]{36})$/i);
+    const serverIdMatch = serverUrl?.match(/\/servers\/([a-f0-9-]{36})$/i);
     if (!serverIdMatch) return null;
 
     const { data: server } = await supabase
       .from('servers')
-      .select('id, federation_enabled')
+      .select('id, federation_enabled, ap_id')
       .eq('id', serverIdMatch[1])
       .eq('is_local_server', false)
       .maybeSingle();
 
+    if (!server?.ap_id || !SignatureService.verifyActorMatch(serverUrl, server.ap_id)) return null;
     return server;
   }
 
@@ -2329,6 +2394,13 @@ export class ActivityProcessor {
     const entityUuidMatch = object.id?.match(/\/channels\/([a-f0-9-]{36})$/i);
     const entityUuid = entityUuidMatch ? entityUuidMatch[1] : undefined;
 
+    // Only the Group actor of a remote server updates that server's copy.
+    const server = await this.resolveRemoteServer(actorUrl);
+    if (!server) {
+      logger.warn(`Rejecting channel Update: ${actorUrl} is not a known remote server actor`);
+      return;
+    }
+
     if (object.type === 'harmony:Category') {
       if (!entityUuid) {
         logger.warn(`Cannot extract UUID from category ap_id: ${object.id}`);
@@ -2339,6 +2411,7 @@ export class ActivityProcessor {
         .from('channel_categories')
         .select('id')
         .eq('id', entityUuid)
+        .eq('server_id', server.id)
         .maybeSingle();
 
       if (existing) {
@@ -2351,11 +2424,6 @@ export class ActivityProcessor {
           .eq('id', entityUuid);
         logger.info(`Updated remote category: ${object.name}`);
       } else {
-        const server = await this.resolveRemoteServer(actorUrl);
-        if (!server) {
-          logger.warn(`Remote server not found, cannot auto-create category: ${object.id}`);
-          return;
-        }
         const { error } = await supabase.from('channel_categories').insert({
           id: entityUuid,
           server_id: server.id,
@@ -2373,6 +2441,7 @@ export class ActivityProcessor {
         .from('channels')
         .select('id, server_id')
         .eq('ap_id', object.id)
+        .eq('server_id', server.id)
         .maybeSingle();
 
       let categoryId = null;
@@ -2383,6 +2452,7 @@ export class ActivityProcessor {
             .from('channel_categories')
             .select('id')
             .eq('id', catMatch[1])
+            .eq('server_id', server.id)
             .maybeSingle();
           categoryId = cat?.id || null;
         }
@@ -2400,11 +2470,6 @@ export class ActivityProcessor {
           .eq('id', channel.id);
         logger.info(`Updated remote channel: ${object.name}`);
       } else {
-        const server = await this.resolveRemoteServer(actorUrl);
-        if (!server) {
-          logger.warn(`Remote server not found, cannot auto-create channel: ${object.id}`);
-          return;
-        }
         const channelType = object.type === 'harmony:VoiceChannel' ? 1 : 0;
         const insertData: any = {
           server_id: server.id,
@@ -2498,12 +2563,18 @@ export class ActivityProcessor {
 
     const { data: post, error } = await supabase
       .from('posts')
-      .select('id, author_id')
+      .select('id, author_id, profiles:author_id(federated_id)')
       .eq('ap_id', objectUrl)
       .maybeSingle();
 
     if (error || !post) {
       logger.warn(`Post not found for pinning: ${objectUrl}`);
+      return;
+    }
+
+    const authorUrl = (post as any).profiles?.federated_id as string | null | undefined;
+    if (!authorUrl || !SignatureService.verifyActorMatch(normalizeActor(activity.actor), authorUrl)) {
+      logger.warn(`Rejecting featured Add: ${normalizeActor(activity.actor)} does not own ${objectUrl}`);
       return;
     }
 
@@ -2543,10 +2614,21 @@ export class ActivityProcessor {
 
     logger.info(`Processing Remove from featured: ${objectUrl}`);
 
+    const { data: post } = await supabase
+      .from('posts')
+      .select('id, profiles:author_id(federated_id)')
+      .eq('ap_id', objectUrl)
+      .maybeSingle();
+    const authorUrl = (post as any)?.profiles?.federated_id as string | null | undefined;
+    if (!post || !authorUrl || !SignatureService.verifyActorMatch(normalizeActor(activity.actor), authorUrl)) {
+      logger.warn(`Rejecting featured Remove: ${normalizeActor(activity.actor)} does not own ${objectUrl}`);
+      return;
+    }
+
     const { error } = await supabase
       .from('posts')
       .update({ is_pinned: false })
-      .eq('ap_id', objectUrl);
+      .eq('id', (post as any).id);
 
     if (!error) {
       logger.info(`Unpinned post: ${objectUrl}`);
@@ -2554,77 +2636,103 @@ export class ActivityProcessor {
   }
 
   /**
-   * Flag activity: a report from another instance.
+   * Flag: a report from another instance about local accounts or posts.
+   *
+   * Mirrors Mastodon ActivityPub::Activity::Flag: one report per local account
+   * named, each carrying the named local posts that account wrote; posts by
+   * anyone else and every non-local object are ignored. The report belongs to
+   * the sending domain, not to a profile (create_federated_report). Redelivery
+   * of the same Flag id is a no-op, and a domain is held to 30 reports an hour.
    */
-  private static async processFlag(activity: any): Promise<void> {
+  static async processFlag(activity: any): Promise<void> {
     const supabase = getSupabaseClient();
     const actorUrl = normalizeActor(activity.actor);
-    const objects = Array.isArray(activity.object) ? activity.object : [activity.object];
-    const content = activity.content || 'No reason provided';
-
-    logger.info(`Processing Flag from ${actorUrl}: ${objects.length} objects`);
-
-    await this.ensureRemoteUser(actorUrl);
-
-    const { data: reporter } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('federated_id', actorUrl)
-      .single();
-
-    if (!reporter) {
-      logger.warn(`Could not find reporter for Flag activity`);
+    let sourceDomain: string;
+    try {
+      sourceDomain = new URL(actorUrl).hostname.toLowerCase();
+    } catch {
+      logger.warn('Flag with an unparseable actor ignored');
+      return;
+    }
+    if (typeof activity.id !== 'string' || !activity.id) {
+      logger.warn(`Flag from ${actorUrl} without an id ignored`);
       return;
     }
 
-    for (const obj of objects) {
-      const objectUrl = typeof obj === 'string' ? obj : obj?.id;
-      if (!objectUrl) continue;
+    const uris = flagObjectUris(activity.object);
+    const accountIds = new Set<string>();
+    const postAuthors = new Map<string, string>();
 
-      const isUserReport = objectUrl.includes('/users/');
-      
-      if (isUserReport) {
-        const { data: reportedUser } = await supabase
+    for (const uri of uris) {
+      const ref = parseLocalObjectUri(uri, config.INSTANCE_DOMAIN);
+      if (ref?.kind === 'account') {
+        const { data } = await supabase
           .from('profiles')
           .select('id')
-          .eq('federated_id', objectUrl)
+          .ilike('username', ref.username.replace(/_/g, '\\_'))
+          .eq('is_local', true)
           .maybeSingle();
-
-        if (reportedUser) {
-          await supabase.from('reports').insert({
-            reporter_id: reporter.id,
-            reported_user_id: reportedUser.id,
-            reason: content,
-            report_type: 'user',
-            source: 'federation',
-            source_instance: new URL(actorUrl).hostname,
-            status: 'pending',
-            ap_id: activity.id,
-          });
-          logger.info(`Created user report for ${objectUrl}`);
-        }
-      } else {
-        const { data: reportedPost } = await supabase
+        if (data) accountIds.add(data.id);
+        continue;
+      }
+      if (ref?.kind === 'post') {
+        const { data } = await supabase
           .from('posts')
           .select('id, author_id')
-          .eq('ap_id', objectUrl)
+          .eq('id', ref.id)
+          .eq('is_local', true)
           .maybeSingle();
-
-        if (reportedPost) {
-          await supabase.from('reports').insert({
-            reporter_id: reporter.id,
-            reported_user_id: reportedPost.author_id,
-            reported_post_id: reportedPost.id,
-            reason: content,
-            report_type: 'post',
-            source: 'federation',
-            source_instance: new URL(actorUrl).hostname,
-            status: 'pending',
-            ap_id: activity.id,
-          });
-          logger.info(`Created post report for ${objectUrl}`);
-        }
+        if (data) postAuthors.set(data.id, data.author_id);
+        continue;
       }
+      if (!sameOrigin(uri, `https://${config.INSTANCE_DOMAIN}/`)) continue;
+
+      // Local URIs in another form: stored actor or post ids.
+      const { data: account } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('federated_id', uri)
+        .eq('is_local', true)
+        .maybeSingle();
+      if (account) {
+        accountIds.add(account.id);
+        continue;
+      }
+      const { data: post } = await supabase
+        .from('posts')
+        .select('id, author_id')
+        .eq('ap_id', uri)
+        .eq('is_local', true)
+        .maybeSingle();
+      if (post) postAuthors.set(post.id, post.author_id);
+    }
+
+    if (accountIds.size === 0) {
+      for (const author of postAuthors.values()) accountIds.add(author);
+    }
+    if (accountIds.size === 0) {
+      logger.info(`Flag ${activity.id} from ${sourceDomain} names nothing local; ignored`);
+      return;
+    }
+
+    const comment = flagComment(activity.content);
+    for (const accountId of accountIds) {
+      const postIds = [...postAuthors.entries()]
+        .filter(([, author]) => author === accountId)
+        .map(([postId]) => postId);
+      const { data, error } = await supabase.rpc('create_federated_report', {
+        p_ap_id: activity.id,
+        p_actor: actorUrl,
+        p_source_domain: sourceDomain,
+        p_reported_user_id: accountId,
+        p_post_ids: postIds,
+        p_comment: comment,
+        p_object_uris: uris,
+      });
+      if (error) {
+        throw new Error(`Flag ${activity.id}: report not stored: ${error.message}`);
+      }
+      logger.info(`Flag ${activity.id} from ${sourceDomain} on ${accountId}: ${data?.status ?? 'unknown'}`);
     }
   }
 
@@ -2850,8 +2958,12 @@ export class ActivityProcessor {
         profileRecord.shared_inbox_url = actor.endpoints.sharedInbox;
       }
 
-      // Persist custom emoji metadata so the frontend can render shortcodes
-      if (profileData.display_name_emojis?.length || profileData.bio_emojis?.length) {
+      // Persist custom emoji metadata so the frontend can render shortcodes, and
+      // the actor's creation date, which the spam heuristics read as account age.
+      const apPublished = typeof actor.published === 'string' && Number.isFinite(Date.parse(actor.published))
+        ? new Date(actor.published).toISOString()
+        : null;
+      if (profileData.display_name_emojis?.length || profileData.bio_emojis?.length || apPublished) {
         const existingMeta = (existing as any)?.federation_metadata || {};
         const meta = typeof existingMeta === 'string' ? JSON.parse(existingMeta) : { ...existingMeta };
         if (profileData.display_name_emojis?.length) {
@@ -2859,6 +2971,9 @@ export class ActivityProcessor {
         }
         if (profileData.bio_emojis?.length) {
           meta.bio_emojis = profileData.bio_emojis;
+        }
+        if (apPublished) {
+          meta.ap_published = apPublished;
         }
         profileRecord.federation_metadata = meta;
       }
@@ -2925,14 +3040,8 @@ export class ActivityProcessor {
       return;
     }
 
-    const { data: server } = await supabase
-      .from('servers')
-      .select('id, name, is_local_server')
-      .eq('id', serverId)
-      .maybeSingle();
-
-    if (!server) {
-      logger.warn(`Server ${serverId} not found locally, cannot process channel message`);
+    if (typeof serverId !== 'string') {
+      logger.warn(`Channel message without a server id: ${object.id}`);
       return;
     }
 
@@ -2942,16 +3051,40 @@ export class ActivityProcessor {
       return;
     }
 
-    const { data: membership } = await supabase
-      .from('user_servers')
-      .select('id')
-      .eq('server_id', serverId)
-      .eq('user_id', author.id)
-      .maybeSingle();
+    // The thread is resolved before authorization: a thread message needs
+    // SEND_MESSAGES_IN_THREADS rather than SEND_MESSAGES.
+    let resolvedThreadId: string | null = null;
+    const threadApIdValue = typeof object['harmony:threadId'] === 'string' ? object['harmony:threadId'] : null;
+    if (threadApIdValue) {
+      const thread = await resolveThreadInChannel(supabase, threadApIdValue, channelId);
+      if (thread.status === 'foreign') {
+        logDenied('channel message', actorUrl, `thread ${threadApIdValue} is not in channel ${channelId}`);
+        return;
+      }
+      if (thread.status === 'found') {
+        resolvedThreadId = thread.id;
+      } else {
+        logger.warn(`Thread not found for AP ID ${threadApIdValue}, will create stub thread after message insert.`);
+      }
+    }
 
-    if (!membership) {
-      logger.warn(`Author ${author.username} is not a member of server ${serverId}`);
+    const authz = await authorizeChannelWrite(supabase, {
+      actorUrl,
+      serverId,
+      channelId,
+      kind: threadApIdValue ? 'thread_message' : 'message',
+    });
+    if (!authz.ok) {
+      logDenied('channel message', actorUrl, authz.reason);
       return;
+    }
+    // A stub thread stands in for an unknown one; creating it is creating a thread.
+    if (threadApIdValue && !resolvedThreadId) {
+      const stubAuthz = await authorizeChannelWrite(supabase, { actorUrl, serverId, channelId, kind: 'thread_create' });
+      if (!stubAuthz.ok) {
+        logDenied('channel message opening a thread', actorUrl, stubAuthz.reason);
+        return;
+      }
     }
 
     let messageId: string | null = null;
@@ -3015,42 +3148,11 @@ export class ActivityProcessor {
       return;
     }
 
-    // inReplyTo holds a remote AP id or UUID that may not exist locally.
-    // Resolved by metadata ap_id first, then by extracted UUID.
-    let resolvedReplyTo: string | null = null;
-    if (object.inReplyTo) {
-      const { data: parentByApId } = await supabase
-        .from('messages')
-        .select('id')
-        .eq('metadata->>ap_id', object.inReplyTo)
-        .maybeSingle();
-
-      if (parentByApId) {
-        resolvedReplyTo = parentByApId.id;
-      } else {
-        const extractedId = extractMessageId(object.inReplyTo);
-        if (extractedId) {
-          const { data: parentById } = await supabase
-            .from('messages')
-            .select('id')
-            .eq('id', extractedId)
-            .maybeSingle();
-          if (parentById) {
-            resolvedReplyTo = parentById.id;
-          }
-        }
-      }
-    }
-
-    // Resolve thread_id from harmony:threadId AP extension
-    let resolvedThreadId: string | null = null;
-    const threadApIdValue = object['harmony:threadId'];
-    if (threadApIdValue) {
-      resolvedThreadId = await this.resolveThreadId(supabase, threadApIdValue);
-      if (!resolvedThreadId) {
-        logger.warn(`Thread not found for AP ID ${threadApIdValue}, will create stub thread after message insert.`);
-      }
-    }
+    // inReplyTo holds a remote AP id or UUID that may not exist locally; only a
+    // message in the same channel is a valid parent.
+    const resolvedReplyTo = typeof object.inReplyTo === 'string'
+      ? await resolveMessageInChannel(supabase, object.inReplyTo, channelId)
+      : null;
 
     const messageMetadata: Record<string, any> = {
       federated: true,
@@ -3065,15 +3167,15 @@ export class ActivityProcessor {
       Object.assign(messageMetadata, voiceFromAp);
     }
 
-    const { data: insertedMsg, error: insertError } = await supabase
+    const { data: insertedRows, error: insertError } = await supabase
       .from('messages')
       .insert({
         id: messageId,
         channel_id: channelId,
         user_id: author.id,
         content: content,
-        created_at: object.published || new Date().toISOString(),
-        updated_at: object.updated || null,
+        created_at: notAfterNow(object.published),
+        updated_at: object.updated ? notAfterNow(object.updated) : null,
         reply_to: resolvedReplyTo,
         thread_id: resolvedThreadId,
         is_deleted: false,
@@ -3081,11 +3183,17 @@ export class ActivityProcessor {
         encrypted: object['harmony:encrypted'] === true,
         metadata: messageMetadata,
       })
-      .select('id, content, metadata')
-      .single();
+      // Array response: the server's AutoMod drops a blocked row (zero rows), and
+      // PostgREST rolls a zero-row .single() request back with the AutoMod event in it.
+      .select('id, content, metadata');
 
     if (insertError) {
       logger.error(`Failed to create channel message:`, insertError);
+      return;
+    }
+    const insertedMsg = insertedRows?.[0];
+    if (!insertedMsg) {
+      logger.info(`Channel message ${object.id} from ${author.username} dropped by the server's AutoMod`);
       return;
     }
 
@@ -3097,28 +3205,11 @@ export class ActivityProcessor {
         const threadUuidMatch = threadApIdValue.match(/\/threads\/([a-f0-9-]{36})/);
         const stubThreadId = threadUuidMatch ? threadUuidMatch[1] : randomUUID();
 
-        // Parent message named by the origin, if any.
+        // Parent message named by the origin, if any, in the same channel.
         let parentMessageId = insertedMsg.id; // fallback: this message
         const parentMessageApId = object['harmony:parentMessageId'];
-        if (parentMessageApId) {
-          const { data: parentByApId } = await supabase
-            .from('messages')
-            .select('id')
-            .eq('metadata->>ap_id', parentMessageApId)
-            .maybeSingle();
-          if (parentByApId) {
-            parentMessageId = parentByApId.id;
-          } else {
-            const parentUuidMatch = parentMessageApId.match(/\/messages\/([a-f0-9-]{36})/);
-            if (parentUuidMatch) {
-              const { data: parentById } = await supabase
-                .from('messages')
-                .select('id')
-                .eq('id', parentUuidMatch[1])
-                .maybeSingle();
-              if (parentById) parentMessageId = parentById.id;
-            }
-          }
+        if (typeof parentMessageApId === 'string') {
+          parentMessageId = (await resolveMessageInChannel(supabase, parentMessageApId, channelId)) ?? parentMessageId;
         }
 
         let threadName = 'Thread';
@@ -3146,8 +3237,9 @@ export class ActivityProcessor {
           });
 
         if (stubError) {
-          if (stubError.code === '23505') {
-            // 23505: the thread was created concurrently; adopt that row.
+          // 23505: the thread was created concurrently; adopt that row when it is in this channel.
+          if (stubError.code === '23505'
+              && (await resolveThreadInChannel(supabase, threadApIdValue, channelId)).status === 'found') {
             resolvedThreadId = stubThreadId;
             logger.info(`Stub thread ${stubThreadId} already exists (race condition), assigning message`);
           } else {
@@ -3195,37 +3287,30 @@ export class ActivityProcessor {
   }
 
   /**
-   * Resolve a thread ID from an AP URL: ap_id match first, then UUID extraction.
-   */
-  private static async resolveThreadId(supabase: any, threadApIdValue: string): Promise<string | null> {
-    const { data: threadByApId } = await supabase
-      .from('threads')
-      .select('id')
-      .eq('ap_id', threadApIdValue)
-      .maybeSingle();
-
-    if (threadByApId) return threadByApId.id;
-
-    const threadIdMatch = threadApIdValue.match(/\/threads\/([a-f0-9-]{36})/);
-    if (threadIdMatch) {
-      const { data: threadById } = await supabase
-        .from('threads')
-        .select('id')
-        .eq('id', threadIdMatch[1])
-        .maybeSingle();
-      if (threadById) return threadById.id;
-    }
-
-    return null;
-  }
-
-  /**
    * Direct message. Stored in `messages`, not `posts`.
    */
+  /** Local profile ids named by the mention parts of converted content. */
+  private static async localMentionTargets(content: any[], authorId: string): Promise<string[]> {
+    const usernames = [...new Set(
+      (Array.isArray(content) ? content : [])
+        .filter((p: any) => p?.type === 'mention' && p.isLocal && typeof p.username === 'string')
+        .map((p: any) => p.username.toLowerCase()),
+    )].slice(0, 100);
+    if (usernames.length === 0) return [];
+    const { data } = await getSupabaseClient()
+      .from('profiles')
+      .select('id, username')
+      .eq('is_local', true)
+      .in('username', usernames);
+    return (data ?? []).map((p: any) => p.id).filter((id: string) => id !== authorId);
+  }
+
   private static async handleDirectMessage(
     object: any,
     authorId: string,
-    content: any[]
+    content: any[],
+    activity: any = null,
+    options: { skipSpamGuard?: boolean } = {},
   ): Promise<void> {
     const supabase = getSupabaseClient();
     
@@ -3245,6 +3330,27 @@ export class ActivityProcessor {
     if (recipientIds.length === 0) {
       logger.warn(`Direct message ${object.id} has no local recipients`);
       return;
+    }
+
+    // Checked before the conversation exists: a held or rejected DM leaves nothing behind.
+    if (!options.skipSpamGuard) {
+      const { data: localRecipients } = await supabase
+        .from('profiles')
+        .select('id')
+        .in('id', recipientIds)
+        .eq('is_local', true);
+      const verdict = await evaluateInboundCreate({
+        activity: activity ?? { id: object.id, type: 'Create', actor: object.attributedTo, object },
+        object,
+        authorId,
+        authorUri: typeof object.attributedTo === 'string' ? object.attributedTo : normalizeActor(activity?.actor),
+        kind: 'federation_dm',
+        targetIds: (localRecipients ?? []).map((r: any) => r.id).filter((id: string) => id !== authorId),
+      });
+      if (verdict.action === 'hold' || verdict.action === 'reject') {
+        logger.info(`DM ${object.id} ${verdict.action === 'hold' ? 'held' : 'rejected'} as suspected spam`);
+        return;
+      }
     }
 
     // Group vs 1:1 is decided by sender metadata or recipient count.

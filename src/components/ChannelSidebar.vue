@@ -64,6 +64,10 @@
               :aria-current="element.id === currentChannelId && !selectedThreadId ? 'page' : undefined"
               @click="isVoiceType(element.type) ? handleVoiceChannelClick(element.id) : selectChannel(element.id)"
               @keydown.enter.self.prevent="isVoiceType(element.type) ? handleVoiceChannelClick(element.id) : selectChannel(element.id)"
+              @mouseenter="scheduleChannelPrefetch(element)"
+              @mouseleave="cancelChannelPrefetch"
+              @focus="scheduleChannelPrefetch(element)"
+              @blur="cancelChannelPrefetch"
               @contextmenu="openChannelContextMenu($event, element)"
               :style="{ cursor: getDragCursor('channel', dragState.isDragging && dragState.draggedItem?.id === element.id) }"
             >
@@ -206,6 +210,10 @@
                     :aria-current="currentChannelId === channel.id && !selectedThreadId ? 'page' : undefined"
                     @click="isVoiceType(channel.type) ? handleVoiceChannelClick(channel.id) : selectChannel(channel.id)"
                     @keydown.enter.self.prevent="isVoiceType(channel.type) ? handleVoiceChannelClick(channel.id) : selectChannel(channel.id)"
+                    @mouseenter="scheduleChannelPrefetch(channel)"
+                    @mouseleave="cancelChannelPrefetch"
+                    @focus="scheduleChannelPrefetch(channel)"
+                    @blur="cancelChannelPrefetch"
                     @contextmenu="openChannelContextMenu($event, channel)"
                     :style="{ cursor: getDragCursor('channel', dragState.isDragging && dragState.draggedItem?.id === channel.id) }"
                   >
@@ -371,7 +379,7 @@
 
 <script setup lang="ts">
 // Channel and category lists are not virtualized.
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted, type WritableComputedRef } from 'vue';
 import { debug } from '@/utils/debug'
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useServerChannelStore } from '@/stores/useServerChannel';
@@ -383,6 +391,7 @@ import { useNotificationStore } from '@/stores/useNotification';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { useThemeStore } from '@/stores/useTheme';
 import { useChannelEncryptionStore } from '@/stores/useChannelEncryption';
+import { useChatStore } from '@/stores/useChat';
 import { statePersistence } from '@/services/StatePersistence';
 
 import type { PropType } from 'vue';
@@ -450,10 +459,14 @@ const emit = defineEmits<{
 }>();
 
 const channelEncryptionStore = useChannelEncryptionStore();
+const chatStore = useChatStore();
 
+// A string source; a fresh tuple compares unequal on every trigger, so the
+// background structure refresh after a switch would reload an unchanged set.
 watch(
-  () => [props.currentServer?.id, props.channels.map(c => c.id).join(',')] as const,
-  ([serverId]) => {
+  () => `${props.currentServer?.id ?? ''}|${props.channels.map(c => c.id).join(',')}`,
+  () => {
+    const serverId = props.currentServer?.id;
     if (serverId) void channelEncryptionStore.loadServer(serverId, props.channels.map(c => c.id));
   },
   { immediate: true }
@@ -475,9 +488,9 @@ const isCategoryCreatorOpen = ref(false);
 const threadsStore = useThreadsStore();
 const selectedThreadId = ref<string | null>(null);
 const loadingThreads = ref(false);
-// Cache key: which server's threads are loaded, and when.
-const loadedThreadsServerId = ref<string | null>(null);
-const threadsLastFetchedAt = ref<Date | null>(null);
+// Last thread fetch per server. Thread broadcasts keep the visible server's
+// entries current between fetches.
+const threadsFetchedAt = new Map<string, number>();
 const THREAD_CACHE_VALIDITY_MS = 60 * 1000; // 1 minute cache validity
 
 // Context menu state
@@ -592,7 +605,10 @@ const orphanChannels = computed({
   }
 });
 
-const categoryChannelsCache = ref<Map<string, any>>(new Map());
+// Plain Map: render fills it on a miss, and a write to a reactive Map during
+// render re-queues that render. Each entry is a computed over reactive props,
+// so no invalidation is needed for correctness.
+const categoryChannelsCache = new Map<string, WritableComputedRef<Channel[]>>();
 
 const getCategoryChannelsComputed = (categoryId: string) => {
   return computed({
@@ -622,11 +638,13 @@ const getCategoryChannelsComputed = (categoryId: string) => {
   });
 };
 
-const getCachedCategoryChannels = (categoryId: string) => {
-  if (!categoryChannelsCache.value.has(categoryId)) {
-    categoryChannelsCache.value.set(categoryId, getCategoryChannelsComputed(categoryId));
+const getCachedCategoryChannels = (categoryId: string): WritableComputedRef<Channel[]> => {
+  let cached = categoryChannelsCache.get(categoryId);
+  if (!cached) {
+    cached = getCategoryChannelsComputed(categoryId);
+    categoryChannelsCache.set(categoryId, cached);
   }
-  return categoryChannelsCache.value.get(categoryId);
+  return cached;
 };
 
 const storeCategories = computed(() => serverChannelStore.categories);
@@ -787,7 +805,30 @@ const toggleCategory = async (categoryId: string) => {
 };
 
 const toggleDropdown = () => isDropdownOpen.value = !isDropdownOpen.value;
+
+// Same intent threshold as the server rail.
+const CHANNEL_PREFETCH_DELAY_MS = 100;
+let channelPrefetchTimer: ReturnType<typeof setTimeout> | null = null;
+
+const cancelChannelPrefetch = () => {
+  if (channelPrefetchTimer) {
+    clearTimeout(channelPrefetchTimer);
+    channelPrefetchTimer = null;
+  }
+};
+
+/** Loads a hovered or focused text channel's newest page into the message cache. */
+const scheduleChannelPrefetch = (channel: Channel) => {
+  cancelChannelPrefetch();
+  if (isVoiceType(channel.type) || channel.id === props.currentChannelId) return;
+  channelPrefetchTimer = setTimeout(() => {
+    channelPrefetchTimer = null;
+    void chatStore.prefetchChannelMessages(channel.id);
+  }, CHANNEL_PREFETCH_DELAY_MS);
+};
+
 const selectChannel = (channelId: string) => {
+  cancelChannelPrefetch();
   const serverId = props.currentServer.id;
   if (!serverId) {
     debug.warn('Cannot navigate to channel: No server ID available');
@@ -879,10 +920,9 @@ const loadActiveThreads = async (forceRefresh = false) => {
   const serverId = props.currentServer.id;
   
   // Zero threads is a valid cached result.
-  if (!forceRefresh && 
-      loadedThreadsServerId.value === serverId && 
-      threadsLastFetchedAt.value) {
-    const cacheAge = Date.now() - threadsLastFetchedAt.value.getTime();
+  const fetchedAt = threadsFetchedAt.get(serverId);
+  if (!forceRefresh && fetchedAt !== undefined) {
+    const cacheAge = Date.now() - fetchedAt;
     if (cacheAge < THREAD_CACHE_VALIDITY_MS) {
       debug.log(`Threads cache still valid (${Math.round(cacheAge / 1000)}s old), skipping fetch`);
       return;
@@ -901,9 +941,8 @@ const loadActiveThreads = async (forceRefresh = false) => {
     // The read is capped per server, so it adds and updates entries only.
     // Expired threads are filtered by activeChannelThreads.
     for (const thread of threads) threadsStore.upsert(thread);
-    loadedThreadsServerId.value = serverId;
-    threadsLastFetchedAt.value = new Date();
-    debug.log(`Loaded ${threads.length} threads for server, cached at ${threadsLastFetchedAt.value.toISOString()}`);
+    threadsFetchedAt.set(serverId, Date.now());
+    debug.log(`Loaded ${threads.length} threads for server ${serverId}`);
   } catch (error) {
     debug.error('Failed to load threads:', error);
   } finally {
@@ -1224,8 +1263,8 @@ watch(() => props.currentServer?.id, async (newServerId, oldServerId) => {
 // NOTE: the watch above runs with { immediate: true }; repeating the setup in
 // onMounted initializes the broadcast twice.
 
-watch(() => serverChannelStore.categories, () => categoryChannelsCache.value.clear(), { deep: true });
-watch(() => serverChannelStore.categoryChannels, () => categoryChannelsCache.value.clear(), { deep: true });
+// Bounds the cache to the visible server's categories.
+watch(() => props.currentServer?.id, () => categoryChannelsCache.clear());
 
 watch(() => props.currentServer?.id, (newServerId) => {
   if (newServerId) {
@@ -1271,6 +1310,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  cancelChannelPrefetch();
   document.removeEventListener('click', closeContextMenus);
   document.removeEventListener('contextmenu', closeContextMenus, true);
   document.removeEventListener('keydown', closeContextMenusOnEscape);

@@ -23,20 +23,26 @@
       </div>
     </div>
     
-    <div class="no-messages" v-else-if="!isLoading && messages.length === 0">
-      {{ $t('message.noMessagesHere') }}
-    </div>
+    <EmptyState
+      v-else-if="!isLoading && messages.length === 0"
+      class="no-messages"
+      icon="message-circle"
+      :title="$t('message.noMessagesHere')"
+    />
     <!-- Sentinel for auto-loading older messages when the top is visible -->
     <div ref="topSentinelRef" class="top-sentinel"></div>
 
-    <!-- Loading older messages indicator (v-show to avoid layout shifts) -->
-    <div v-show="isLoadingOlderMessages && messages.length > 0" class="loading-older-messages">
-      <LoadingSpinner :size="16" />
-      <span>{{ $t('message.loadingOlder') }}</span>
+    <!-- Loading older messages indicator. The zero-height sticky wrapper floats it
+         over the top of the viewport; showing or hiding it moves nothing below. -->
+    <div v-show="isLoadingOlderMessages && messages.length > 0" class="loading-older-anchor">
+      <div class="loading-older-messages">
+        <LoadingSpinner :size="16" />
+        <span>{{ $t('message.loadingOlder') }}</span>
+      </div>
     </div>
     
     <!-- Virtual scrolled message list -->
-    <div v-if="displayItems.length > 0" :style="{ height: `${totalSize}px`, width: '100%', position: 'relative' }">
+    <div v-if="displayItems.length > 0" ref="virtualListRef" :style="{ height: `${totalSize}px`, width: '100%', position: 'relative' }">
       <div
         v-for="virtualRow in virtualRows"
         :key="displayItems[virtualRow.index].key"
@@ -300,6 +306,39 @@
                     {{ $t(channelEncryptionEventKey(item.message.metadata?.type)!) }}
                   </div>
                 </template>
+                <!-- AutoMod alert. Only the database writes authorless rows; a
+                     client row always carries its author, so it cannot pose as one. -->
+                <template v-else-if="item.message.metadata?.type === 'automod_alert' && !item.message.user_id && !item.message.bot_id">
+                  <Icon name="shield" :size="16" class="system-icon automod-icon" />
+                  <div class="system-text automod-alert-text">
+                    <span class="automod-badge">AutoMod</span>
+                    <template v-if="item.message.metadata?.automod?.event_type === 'raid'">
+                      {{ $t('automod.alert.raid', {
+                        joins: item.message.metadata?.automod?.joins,
+                        seconds: item.message.metadata?.automod?.window_seconds,
+                      }) }}
+                    </template>
+                    <template v-else>
+                      {{ $t(item.message.metadata?.automod?.actions?.includes('block')
+                        ? (item.message.metadata?.automod?.event_type === 'edit' ? 'automod.alert.blockedEdit' : 'automod.alert.blocked')
+                        : 'automod.alert.flagged') }}
+                      <span
+                        v-if="item.message.metadata?.automod?.user_id"
+                        class="system-user-mention"
+                        @click="showUserProfile(item.message.metadata.automod.user_id)"
+                        :style="{ color: resolveChatUserColor(item.message.metadata.automod.user_id) }"
+                      ><DisplayName :userId="item.message.metadata.automod.user_id" /></span>
+                      <span v-else class="system-user-mention">{{ $t('automod.alert.aBot') }}</span>
+                      <span class="automod-rule">{{ item.message.metadata?.automod?.rule_name }}</span>
+                      <span v-if="item.message.metadata?.automod?.actions?.includes('timeout')" class="automod-timeout">
+                        {{ $t('automod.alert.timedOut') }}
+                      </span>
+                      <div v-if="item.message.metadata?.automod?.excerpt" class="automod-alert-excerpt">
+                        {{ item.message.metadata.automod.excerpt }}
+                      </div>
+                    </template>
+                  </div>
+                </template>
                 <!-- Default system message -->
                 <template v-else>
                   <Icon name="info" :size="16" class="system-icon" />
@@ -508,6 +547,14 @@
       </template>
     </div>
   </div>
+
+    <!-- Messages that arrived while scrolled up. The view stays put until asked. -->
+    <div v-if="unseenCount > 0 && !isPinned" class="jump-present-anchor">
+      <button type="button" class="jump-present-pill" data-testid="jump-to-present" @click="jumpToPresent">
+        <span>{{ $t('message.newMessagesBelow', { count: unseenCount }, unseenCount) }}</span>
+        <Icon name="chevron-down" :size="14" />
+      </button>
+    </div>
   </div>
   
   <vue-easy-lightbox
@@ -615,6 +662,7 @@
 defineOptions({ inheritAttrs: false })
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 import Icon from '@/components/common/Icon.vue';
+import EmptyState from '@/components/common/EmptyState.vue';
 import { computed, ref, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import { debug } from '@/utils/debug'
 import { getAvatarUrl } from '@/utils/avatarUtils';
@@ -632,17 +680,21 @@ import { useServerRolesStore } from '@/stores/useServerRoles';
 import { useProfileStore } from '@/stores/useProfile';
 import { useNotificationStore } from '@/stores/useNotification';
 import { useActivityPubStore } from '@/stores/useActivityPub';
+import { isModerationRejectionCode } from '@/services/AutoModService';
+import { useToast } from 'vue-toastification';
 import { dmCallSignaling } from '@/services/DMCallSignaling';
 import { supabase } from '@/supabase'; 
 import { throttle } from '@/utils/throttle';
 import { getReactionTooltipAnchor } from '@/utils/reactionTooltipPosition';
 import { useServerPermissions } from '@/composables/useServerPermissions';
-import { useUserData } from '@/composables/useUserData';
+import { useUserData, DEFAULT_USER_COLOR } from '@/composables/useUserData';
 import { useHapticSettings } from '@/composables/useHapticSettings';
 import { useQuickReactSettings } from '@/composables/useQuickReactSettings';
 import { useLayoutState } from '@/composables/useLayoutState';
 import { useUnreadCounts } from '@/composables/useUnreadCounts';
 import { useReadDivider } from '@/composables/useReadDivider';
+import { markChannelRead, markConversationRead } from '@/services/readState';
+import { createReadMarkerQueue, type QueuedRead } from '@/utils/readMarkerQueue';
 import { format, isToday, isYesterday, isSameDay, isValid } from 'date-fns';
 import UserProfileModal from '@/components/UserProfileModal.vue';
 import InviteModal from '@/components/InviteModal.vue';
@@ -684,8 +736,17 @@ import { buildChatParseOptions } from '@/utils/chatParseOptions';
 import { isPointOverText, isQuickReactDoubleClick, type PointerDown } from '@/utils/quickReactGesture';
 import { useReactionsStore } from '@/stores/useReactions';
 import { usePostReactionsStore } from '@/stores/postReactions';
-import { useVirtualizer, defaultRangeExtractor, type Range } from '@tanstack/vue-virtual';
-import { useFloatingVideo } from '@/composables/useFloatingVideo';
+import { useVirtualizer, defaultRangeExtractor, type Range, type VirtualItem, type Virtualizer } from '@tanstack/vue-virtual';
+import { floatingReturnTarget, useFloatingVideo } from '@/composables/useFloatingVideo';
+import {
+  PIN_THRESHOLD_PX,
+  bottomScrollTop,
+  distanceFromBottom,
+  nextPinState,
+  scrollTopAfterPrepend,
+  scrollTopAfterResize,
+  type PinState,
+} from '@/utils/chatScroll';
 
 // --- PROPS & EMITS ---
 const props = defineProps({
@@ -761,7 +822,7 @@ const effectiveColoringServerId = computed(() =>
  * to the user's profile color (and ultimately the default in `getUserColor`).
  */
 const resolveChatUserColor = (userId: string | null | undefined): string => {
-  if (!userId) return '#ffffff';
+  if (!userId) return DEFAULT_USER_COLOR;
   const serverId = effectiveColoringServerId.value;
   const roleColor = serverId ? serverRolesStore.getUserRoleColor(serverId, userId) : null;
   return roleColor || getUserColor(userId).value;
@@ -808,6 +869,7 @@ const captureReadBoundary = () => {
 };
 const chatStore = useChatStore();
 const dmStore = useDMStore();
+const toast = useToast();
 const authStore = useAuthStore();
 const profileStore = useProfileStore();
 const activityPubStore = useActivityPubStore();
@@ -1068,6 +1130,9 @@ const hoveredMessageItem = computed(() => {
     ) ?? null
   );
 });
+
+// Read context kept above a divider or a tall jump target, px.
+const CONTEXT_NUDGE_PX = 72;
 
 const THUMB_REACH_PX = 48;
 const floatingActionsStyle = computed((): Record<string, string> => {
@@ -1404,6 +1469,7 @@ const beginningInfo = computed(() => {
 // --- REFS ---
 const messageDisplayContainer = ref<HTMLDivElement | null>(null);
 const topSentinelRef = ref<HTMLDivElement | null>(null);
+const virtualListRef = ref<HTMLDivElement | null>(null);
 const imageLoaded: Ref<Record<string, boolean>> = ref({});
 const embedLoaded: Ref<Record<string, number>> = ref({}); // Track embed load count per message
 const tooltip = ref({
@@ -1559,11 +1625,69 @@ const showReportModal = ref(false);
 const reportTargetUserId = ref<string | undefined>();
 const reportTargetMessageId = ref<string | undefined>();
 const reportTargetMessagePreview = ref<string | undefined>();
-const reportTargetUser = ref<{ username: string; display_name?: string; avatar_url?: string } | undefined>();
+const reportTargetUser = ref<{ username: string; display_name?: string; avatar_url?: string; domain?: string | null; is_local?: boolean | null } | undefined>();
 
 const isLightboxOpen = ref(false);
 const indexRef = ref(0);
 const activeLightboxImages = ref<string[]>([]);
+
+// --- STICK TO BOTTOM ---
+// Whether the view follows the end of the list; rules in utils/chatScroll.
+const pinState: PinState = { pinned: true, lastScrollTop: 0 };
+const isPinned = ref(true);
+// Messages from others appended while not pinned.
+const unseenCount = ref(0);
+
+const setPinned = (pinned: boolean) => {
+  pinState.pinned = pinned;
+  isPinned.value = pinned;
+  if (pinned) unseenCount.value = 0;
+};
+
+// Seats a pinned view at the end. Synchronous, so a call before paint leaves no
+// frame with the end uncovered.
+const stickToBottom = () => {
+  const el = messageDisplayContainer.value;
+  if (!el || !pinState.pinned) return;
+  const target = bottomScrollTop(el);
+  if (target - el.scrollTop > 0.5) el.scrollTop = target;
+};
+
+let stickQueued = false;
+const queueStickToBottom = () => {
+  if (stickQueued) return;
+  stickQueued = true;
+  nextTick(() => {
+    stickQueued = false;
+    stickToBottom();
+  });
+};
+
+// virtual-core notifies after every row measurement. The list element's height
+// follows totalSize only after the re-render that notification schedules, so
+// the re-seat waits for that flush.
+let lastTotalSize = 0;
+const handleVirtualizerChange = (instance: Virtualizer<HTMLDivElement, Element>) => {
+  const total = instance.getTotalSize();
+  if (total === lastTotalSize) return;
+  lastTotalSize = total;
+  if (pinState.pinned) queueStickToBottom();
+};
+
+// Replaces virtual-core's built-in correction for a row resized above the
+// viewport, which scrolls to its cached offset (the position at the last scroll
+// event) plus the accumulated deltas and so undoes whatever the user scrolled
+// since that event. Applied relative to the live scrollTop instead. A pinned
+// view is left to the end re-seat.
+const adjustForItemResize = (item: VirtualItem, delta: number): boolean => {
+  const el = messageDisplayContainer.value;
+  const list = virtualListRef.value;
+  if (!el || !list || pinState.pinned) return false;
+  const listOffset = list.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop;
+  const next = scrollTopAfterResize(el.scrollTop, listOffset, item.start, delta);
+  if (next !== el.scrollTop) el.scrollTop = next;
+  return false;
+};
 
 // --- VIRTUAL SCROLLING ---
 // Track the initial offset separately so it doesn't change on prepend
@@ -1571,7 +1695,7 @@ const frozenInitialOffset = ref(0);
 let hasSetInitialOffset = false;
 
 // The row holding the floating video stays mounted while it is out of range;
-// unmounting it would close the player.
+// its placeholder is where the video docks when scrolled back into view.
 const { floatingMessageId } = useFloatingVideo();
 const floatingRowIndex = computed(() => {
   const id = floatingMessageId.value;
@@ -1596,6 +1720,7 @@ const rowVirtualizer = useVirtualizer<HTMLDivElement, Element>(
       // measure in; the virtualizer's scroll adjustment compensates for those
       // above the viewport.
       getItemKey: (index: number) => displayItems.value[index]?.key ?? index,
+      onChange: handleVirtualizerChange,
       rangeExtractor: (range: Range) => {
         const indexes = defaultRangeExtractor(range);
         if (pinnedIndex < 0 || indexes.includes(pinnedIndex)) return indexes;
@@ -1605,11 +1730,30 @@ const rowVirtualizer = useVirtualizer<HTMLDivElement, Element>(
   }) as any
 );
 
+rowVirtualizer.value.shouldAdjustScrollPositionOnItemSizeChange = adjustForItemResize;
+
 const virtualRows = computed(() => rowVirtualizer.value.getVirtualItems());
 const totalSize = computed(() => rowVirtualizer.value.getTotalSize());
 
+// Vue invokes a function ref on every patch of the row. The first measurement
+// of a connected row registers it with the virtualizer's ResizeObserver, which
+// reports every later size change; measuring again reads offsetHeight, which
+// forces a synchronous layout per row on each list re-render.
+// A row mounted inside a not yet inserted container is disconnected at its
+// first call; the virtualizer skips it then, so it is measured again after
+// the patch. A smooth scroll defers measurement of rows outside its target
+// window, so rows patched while scrolling stay eligible for the next call.
+const measuredRows = new WeakSet<HTMLElement>();
 const measureElement = (el: any) => {
   if (!el || !(el instanceof HTMLElement)) return;
+  if (measuredRows.has(el)) return;
+  if (!el.isConnected) {
+    nextTick(() => {
+      if (el.isConnected && !measuredRows.has(el)) measureElement(el);
+    });
+    return;
+  }
+  if (!rowVirtualizer.value.isScrolling) measuredRows.add(el);
   rowVirtualizer.value.measureElement(el);
 };
 
@@ -1677,15 +1821,11 @@ const getReplyUserId = (replyMessageId: string) => {
   return message.user_id;
 };
 
-const shouldBeAtBottom = ref(false);
-
-// Track if user was at bottom before last messages update (for scroll-on-new-message)
-const userWasAtBottom = ref(true);
-
 // Independent tracking of message count and first ID, because deep watchers on reactive
 // arrays receive the same reference for old/new values (in-place .push() mutations).
 const lastKnownMessageCount = ref(0);
 const lastKnownFirstMessageId = ref<string | null>(null);
+const lastKnownLastMessageId = ref<string | null>(null);
 const lastKnownDisplayItemCount = ref(0);
 
 // --- WATCHERS ---
@@ -1698,12 +1838,26 @@ let hasInitiallyScrolled = false;
 // the view rests at the divider instead.
 let openFollowBottomUntil = 0;
 
-watch([() => props.channelId, () => props.conversationId], () => {
+// A channel switch served from the message cache swaps `messages` and
+// `channelId` in one props update, and the messages watcher runs before the
+// context watcher. A reset after it zeroes the counters that watcher just
+// recorded; the catch-up append that follows then matches no branch and the
+// view stays above it. Idempotent per context: the first watcher to see the
+// change resets.
+const contextKey = () => (props.conversationId ? `dm:${props.conversationId}` : `ch:${props.channelId ?? ''}:${props.threadId ?? ''}`);
+let activeContextKey = contextKey();
+
+const resetForContextChange = () => {
+  const key = contextKey();
+  if (key === activeContextKey) return;
+  activeContextKey = key;
   hasInitiallyScrolled = false;
   hasSetInitialOffset = false;
-  userWasAtBottom.value = true;
+  setPinned(true);
+  pinState.lastScrollTop = messageDisplayContainer.value?.scrollTop ?? 0;
   lastKnownMessageCount.value = 0;
   lastKnownFirstMessageId.value = null;
+  lastKnownLastMessageId.value = null;
   lastKnownDisplayItemCount.value = 0;
   enrichmentRequestedUserIds.clear();
   enrichmentFetchedReactionIds.clear();
@@ -1711,7 +1865,9 @@ watch([() => props.channelId, () => props.conversationId], () => {
   // Snapshot the read boundary for the newly-opened context now, before the
   // scroll observer / open-handlers mark it read. Resolved once messages load.
   captureReadBoundary();
-});
+};
+
+watch([() => props.channelId, () => props.conversationId, () => props.threadId], resetForContextChange);
 
 // The messages watcher below is `deep` (needed to catch prepends/appends
 // wrapped in the same array ref, decrypt flips, etc.), so it re-fires on
@@ -1727,28 +1883,44 @@ watch(() => props.messages, (newMessages) => {
     return;
   }
 
+  resetForContextChange();
+
   const prevCount = lastKnownMessageCount.value;
   const prevFirstId = lastKnownFirstMessageId.value;
+  const prevLastId = lastKnownLastMessageId.value;
   const prevDisplayItemCount = lastKnownDisplayItemCount.value;
   lastKnownMessageCount.value = newMessages.length;
   lastKnownFirstMessageId.value = newMessages[0]?.id ?? null;
+  lastKnownLastMessageId.value = newMessages[newMessages.length - 1]?.id ?? null;
 
-  // Retires the "New messages" divider as soon as the current user sends a
-  // message in this context: an append (front unchanged) whose tail contains
-  // an own message. Sending implies everything above has been seen, so the
-  // divider must not linger.
+  // Appended tail, split by author: front unchanged and the previous last
+  // message still at its index (a jump-to-message insert lands mid-list).
+  // Optimistic own rows (temp- id or sending) are messages sent from this client.
+  let appendedOwn = 0;
+  let appendedOwnPending = 0;
+  let appendedOthers = 0;
   if (
-    dividerBeforeMessageId.value &&
     newMessages.length > prevCount &&
     prevFirstId !== null &&
-    newMessages[0]?.id === prevFirstId
+    newMessages[0]?.id === prevFirstId &&
+    newMessages[prevCount - 1]?.id === prevLastId
   ) {
     for (let i = prevCount; i < newMessages.length; i++) {
-      if (newMessages[i]?.user_id === props.currentUserId) {
-        clearReadDivider();
-        break;
+      const m = newMessages[i];
+      if (m?.user_id === props.currentUserId) {
+        appendedOwn++;
+        if (m.id?.startsWith('temp-') || m.sending) appendedOwnPending++;
+      } else {
+        appendedOthers++;
       }
     }
+  }
+
+  // Retires the "New messages" divider as soon as the current user sends a
+  // message in this context. Sending implies everything above has been seen,
+  // so the divider must not linger.
+  if (dividerBeforeMessageId.value && appendedOwn > 0) {
+    clearReadDivider();
   }
 
   const oldScrollHeight = messageDisplayContainer.value?.scrollHeight ?? 0;
@@ -1852,23 +2024,33 @@ watch(() => props.messages, (newMessages) => {
             : -1;
           const hasDivider = dividerIndex >= 0;
 
+          // The floating player's return button navigated here: land on the
+          // video's message, where its placeholder docks it.
+          const returnMsgId = floatingReturnTarget();
+          const returnIndex = returnMsgId
+            ? displayItems.value.findIndex(it => it.type === 'message' && it.message.id === returnMsgId)
+            : -1;
+          const anchorIndex = returnIndex >= 0 ? returnIndex : dividerIndex;
+          const hasAnchor = anchorIndex >= 0;
+
           // Freezes the initial offset for this channel. With a divider the
           // offset is seeded near it rather than at the bottom, so the
           // virtualizer starts close to its final resting place.
           if (!hasSetInitialOffset) {
             hasSetInitialOffset = true;
-            frozenInitialOffset.value = (hasDivider ? dividerIndex : displayItems.value.length) * 60;
+            frozenInitialOffset.value = (hasAnchor ? anchorIndex : displayItems.value.length) * 60;
           }
           debug.log(hasDivider ? 'Initial load - scrolling to NEW divider' : 'Initial load - scrolling to bottom');
 
-          // Landing on a divider is not the bottom; the image-load handler
-          // must not pull the view down.
-          shouldBeAtBottom.value = !hasDivider;
+          // Landing on a divider or a floating video's message is not the bottom;
+          // size changes must not pull the view down. Scroll events re-pin it if
+          // the landing reaches the end.
+          setPinned(!hasAnchor);
 
           // No divider means the target is the bottom. Messages arriving in
           // the next couple of seconds (revalidate catch-up / realtime) are
           // followed so the view settles on the real end of the channel.
-          openFollowBottomUntil = hasDivider ? 0 : Date.now() + 2500;
+          openFollowBottomUntil = hasAnchor ? 0 : Date.now() + 2500;
           
           const imageUrlsInMessages = new Set<string>();
           const embedCountsByMessage = new Map<string, number>();
@@ -1930,14 +2112,9 @@ watch(() => props.messages, (newMessages) => {
                 if (!isAtBottom && scrollAttempts < 8) {
                   setTimeout(() => scrollToBottom(), scrollAttempts < 3 ? 50 : 150);
                 }
-                // else: settled, or retries exhausted. `shouldBeAtBottom`
-                // stays true: late content grows the list after this initial
-                // scroll (stale-while-revalidate catch-up append, image and
-                // embed loads) and the ResizeObserver re-pins to the bottom
-                // only while the flag is true. Releasing it here leaves the
-                // user scrolled up when messages arrive during a channel
-                // switch. The scroll handler clears it when the user scrolls
-                // up.
+                // else: settled, or retries exhausted. The pin stays: late
+                // content (catch-up append, media, embeds) keeps re-seating the
+                // view until the user scrolls up.
               }
             });
           };
@@ -1946,7 +2123,6 @@ watch(() => props.messages, (newMessages) => {
           // context above it (Discord behaviour). Retries while the virtualizer
           // measures real row heights so it settles on the right spot.
           let dividerScrollAttempts = 0;
-          const CONTEXT_NUDGE_PX = 72;
           const scrollToDivider = () => {
             dividerScrollAttempts++;
             const idx = displayItems.value.findIndex(
@@ -1975,13 +2151,37 @@ watch(() => props.messages, (newMessages) => {
               }
               if (dividerScrollAttempts < 6) {
                 setTimeout(scrollToDivider, dividerScrollAttempts < 3 ? 50 : 150);
-              } else {
-                setTimeout(() => { shouldBeAtBottom.value = false; }, 500);
               }
             });
           };
 
-          const scrollToTarget = () => (hasDivider ? scrollToDivider() : scrollToBottom());
+          // Centres the floating video's placeholder; retries while rows measure.
+          let returnScrollAttempts = 0;
+          const scrollToReturn = () => {
+            returnScrollAttempts++;
+            const idx = displayItems.value.findIndex(
+              it => it.type === 'message' && it.message.id === returnMsgId
+            );
+            if (idx < 0) {
+              scrollToBottom();
+              return;
+            }
+            rowVirtualizer.value.scrollToIndex(idx, { align: 'center' });
+            requestAnimationFrame(() => {
+              const c = messageDisplayContainer.value;
+              const placeholder = c?.querySelector('.floating-video-placeholder') as HTMLElement | null;
+              if (c && placeholder) {
+                const box = placeholder.getBoundingClientRect();
+                const view = c.getBoundingClientRect();
+                c.scrollTop += box.top + box.height / 2 - (view.top + view.height / 2);
+              }
+              if (returnScrollAttempts < 6) setTimeout(scrollToReturn, returnScrollAttempts < 3 ? 50 : 150);
+            });
+          };
+
+          const scrollToTarget = () => (
+            returnIndex >= 0 ? scrollToReturn() : hasDivider ? scrollToDivider() : scrollToBottom()
+          );
 
           if (pendingImages.length === 0 && totalEmbeds === 0) {
             // Scroll immediately, then retry after virtualizer renders
@@ -2018,67 +2218,38 @@ watch(() => props.messages, (newMessages) => {
             setTimeout(checkAndScroll, 100);
           }
         }
-        // New messages appended at bottom (sent or received) - scroll if user was at bottom
+        // New messages appended at bottom (sent or received)
         else if (prevCount > 0 && newMessages.length > prevCount && oldScrollHeight > 0) {
           const isAppend = prevFirstId != null && newMessages[0]?.id === prevFirstId;
-          // The bottom is followed when the user was already there, or while
-          // the post-open grace window is active (catch-up messages from
+          // The bottom is followed when the view is pinned there, when one of
+          // the new messages was just sent from this client, or while the
+          // post-open grace window is active (catch-up messages from
           // revalidate / realtime) and no divider anchors the view.
-          const followBottom = userWasAtBottom.value ||
+          const followBottom = pinState.pinned || appendedOwnPending > 0 ||
             (Date.now() < openFollowBottomUntil && !dividerBeforeMessageId.value);
           if (isAppend && followBottom) {
-            debug.log('New messages - scrolling to bottom (at bottom / open grace)');
-            shouldBeAtBottom.value = true;
-            const scrollNewToBottom = (attempt = 0) => {
-              const count = displayItems.value.length;
-              if (count > 0) {
-                rowVirtualizer.value.scrollToIndex(count - 1, { align: 'end' });
-              }
-              if (messageDisplayContainer.value) {
-                messageDisplayContainer.value.scrollTop = messageDisplayContainer.value.scrollHeight;
-              }
-              if (attempt < 3) {
-                requestAnimationFrame(() => scrollNewToBottom(attempt + 1));
-              }
-            };
-            requestAnimationFrame(() => scrollNewToBottom());
-          } else if (isAppend && !userWasAtBottom.value) {
-            shouldBeAtBottom.value = false;
+            debug.log('New messages - scrolling to bottom (pinned / own / open grace)');
+            setPinned(true);
+            // The appended rows are in this flush. Later row measurements and
+            // resizes re-seat the view again.
+            stickToBottom();
+            requestAnimationFrame(stickToBottom);
+          } else if (isAppend) {
+            unseenCount.value += appendedOthers;
           }
-          // Load older messages (prepend): the viewport is pinned by
-          // scroll-height delta. `scrollHeight` + `scrollTop` are snapshotted
-          // BEFORE the prepend, then after it
-          // `scrollTop = newScrollHeight - oldScrollHeight + oldScrollTop`.
-          // The virtualizer's `totalSize` reflects newly added items, so the
-          // delta is exactly the push-down needed to keep the same content
-          // under the user's eye. `scrollToIndex` is not used here: it issues
-          // a new scroll command rather than adjusting `scrollTop`, and
-          // re-fires on each retry as the virtualizer re-measures, which
-          // jumps.
+          // Load older messages (prepend): everything added sits above the
+          // previous first row, so the scroll-height growth since the snapshot
+          // taken before the DOM patch is exactly how far the content in view
+          // was pushed down. Rows measured after this write are corrected one
+          // by one in adjustForItemResize, relative to the live scrollTop; a
+          // second absolute write on the next frame would undo any scrolling
+          // done in between. `scrollToIndex` is not used: it issues a new
+          // scroll command and re-fires as rows re-measure.
           else if (!isAppend) {
-            shouldBeAtBottom.value = false;
-            // The outer `if (messageDisplayContainer.value)` at the top of
-            // the nextTick suffices at runtime; binding `container` here keeps
-            // the accesses below from depending on TS narrowing across nested
-            // branches.
             const container = messageDisplayContainer.value;
             if (container) {
-              const newHeight = container.scrollHeight;
-              const heightDelta = newHeight - oldScrollHeight;
-              if (heightDelta > 0) {
-                // Apply once synchronously to suppress the flash, then again on
-                // the next frame in case the virtualizer measured during the
-                // same tick and grew `scrollHeight` after the initial write.
-                container.scrollTop = oldScrollTopForPrepend + heightDelta;
-                requestAnimationFrame(() => {
-                  const c = messageDisplayContainer.value;
-                  if (!c) return;
-                  const finalDelta = c.scrollHeight - oldScrollHeight;
-                  if (finalDelta > 0) {
-                    c.scrollTop = oldScrollTopForPrepend + finalDelta;
-                  }
-                });
-              }
+              const next = scrollTopAfterPrepend(oldScrollTopForPrepend, oldScrollHeight, container.scrollHeight);
+              if (next !== oldScrollTopForPrepend) container.scrollTop = next;
             }
             // prevDisplayItemCount is unused here because the pin is by
             // height-delta, not by displayItems index. The read keeps the
@@ -2089,8 +2260,7 @@ watch(() => props.messages, (newMessages) => {
         
         checkScrollable();
         isAtTop.value = messageDisplayContainer.value.scrollTop === 0;
-        const { scrollTop, scrollHeight, clientHeight } = messageDisplayContainer.value;
-        emit('update:isAtBottom', scrollTop + clientHeight >= scrollHeight - 5);
+        emit('update:isAtBottom', distanceFromBottom(messageDisplayContainer.value) <= PIN_THRESHOLD_PX);
 
       }
       lastKnownDisplayItemCount.value = displayItems.value.length;
@@ -2128,9 +2298,6 @@ watch(() => props.messages.map(msg => msg.reactions?.length), () => {
 // Debounced to prevent 45+ API calls per page load
 let intersectionObserver: IntersectionObserver | null = null;
 const observedMessages = new Set<string>();
-let pendingUnreadUpdate: { messageId: string; timestamp: Date } | null = null;
-let unreadUpdateTimeout: ReturnType<typeof setTimeout> | null = null;
-let hasUnreadUpdatePending = false;
 
 const setupUnreadObserver = () => {
   if (!props.channelId && !props.conversationId) return;
@@ -2148,7 +2315,6 @@ const setupUnreadObserver = () => {
           return;
         }
         observedMessages.add(messageId);
-        // Queue the message for unread update instead of calling API immediately
         queueUnreadUpdate(messageId);
       });
     },
@@ -2173,81 +2339,32 @@ const setupUnreadObserver = () => {
   });
 };
 
-// Queue unread updates and debounce - only track the most recent message
 const queueUnreadUpdate = (messageId: string) => {
   const message = props.messages.find(m => m.id === messageId);
   if (!message) return;
-  
-  const messageTimestamp = message.created_at;
-  
-  // Only update if this message is newer than the pending one
-  if (!pendingUnreadUpdate || messageTimestamp > pendingUnreadUpdate.timestamp) {
-    pendingUnreadUpdate = { messageId, timestamp: messageTimestamp };
-  }
-  
-  // Debounce the actual API call
-  if (unreadUpdateTimeout) {
-    clearTimeout(unreadUpdateTimeout);
-  }
-  
-  if (!hasUnreadUpdatePending) {
-    hasUnreadUpdatePending = true;
-  }
-  
-  unreadUpdateTimeout = setTimeout(async () => {
-    if (pendingUnreadUpdate) {
-      await flushUnreadUpdate();
-    }
-  }, 500); // 500ms debounce
+  const channelId = props.channelId || message.channel_id || null;
+  const conversationId = channelId ? null : (props.conversationId || message.conversation_id || null);
+  if (!channelId && !conversationId) return;
+  readMarkers.queue({
+    messageId,
+    createdAt: new Date(message.created_at).getTime(),
+    channelId,
+    conversationId,
+  });
 };
 
-// Flush the pending unread update to the server
-const flushUnreadUpdate = async () => {
-  if (!pendingUnreadUpdate || !hasUnreadUpdatePending) return;
-  
-  const { messageId } = pendingUnreadUpdate;
-  hasUnreadUpdatePending = false;
-  pendingUnreadUpdate = null;
-  
-  await clearUnreadCount(messageId);
-};
-
-const clearUnreadCount = async (messageId: string) => {
-  if (!props.channelId && !props.conversationId) return;
-
+const clearUnreadCount = async ({ messageId, channelId, conversationId }: QueuedRead) => {
   try {
-    // unread_counts.user_id is a profile id, not an auth user id. The wrong
-    // identity silently no-ops the UPDATE and leaves the sidebar badge stuck
-    // until the next fetch.
     const { authContextService } = await import('@/services/AuthContextService');
     const ctx = await authContextService.getCurrentContext();
     if (!ctx.isAuthenticated) return;
-    const profileId = ctx.profileId;
 
-    const message = props.messages.find(m => m.id === messageId);
-    if (!message) return;
-    
-    const channelId = props.channelId || message.channel_id;
-    const conversationId = props.conversationId || message.conversation_id;
-    
-    if (!channelId && !conversationId) return;
-    
-    const { error } = await supabase
-      .from('unread_counts')
-      .update({
-        unread_messages: 0,
-        unread_mentions: 0,
-        last_read_message_id: messageId,
-        last_read_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
-      .eq('user_id', profileId)
-      .eq(channelId ? 'channel_id' : 'conversation_id', channelId || conversationId);
-    
-    if (error) {
-      debug.error('Failed to clear unread count:', error);
-    } else {
+    try {
+      if (channelId) await markChannelRead(channelId, messageId);
+      else if (conversationId) await markConversationRead(conversationId, messageId);
       debug.log('Cleared unread count for', channelId ? 'channel' : 'conversation', channelId || conversationId);
+    } catch (error) {
+      debug.error('Failed to clear unread count:', error);
     }
     
     // Batch mark related notifications as read
@@ -2264,6 +2381,13 @@ const clearUnreadCount = async (messageId: string) => {
     debug.error('Error clearing unread count:', error);
   }
 };
+
+const readMarkers = createReadMarkerQueue((read) => clearUnreadCount(read));
+
+// A read queued in the channel or conversation being left goes out now.
+watch(() => [props.channelId, props.conversationId], () => {
+  void readMarkers.flush();
+});
 
 // Watch for messages changes to setup observer
 watch(() => props.messages.length, () => {
@@ -2302,20 +2426,9 @@ onUnmounted(() => {
     virtualRowObserverTimeout = null;
   }
 
-  // Clear the debounce timeout first to prevent it from firing after unmount
-  if (unreadUpdateTimeout) {
-    clearTimeout(unreadUpdateTimeout);
-    unreadUpdateTimeout = null;
-  }
-  
-  // onUnmounted cannot await. flushUnreadUpdate captures pendingUnreadUpdate
-  // at its start, so it completes even after the local state is cleared.
-  if (pendingUnreadUpdate && hasUnreadUpdatePending) {
-    // Fire and forget; the data is already captured.
-    flushUnreadUpdate().catch((err) => {
-      console.warn('Failed to flush unread update on unmount:', err);
-    });
-  }
+  readMarkers.flush().catch((err) => {
+    console.warn('Failed to flush unread update on unmount:', err);
+  });
   
   if (intersectionObserver) {
     intersectionObserver.disconnect();
@@ -2328,10 +2441,6 @@ onUnmounted(() => {
   if (resizeObserver) {
     resizeObserver.disconnect();
     resizeObserver = null;
-  }
-  if (resizeScrollRafId) {
-    cancelAnimationFrame(resizeScrollRafId);
-    resizeScrollRafId = null;
   }
   observedMessages.clear();
   if (tooltipTimer.value) clearTimeout(tooltipTimer.value);
@@ -2362,24 +2471,66 @@ const setupTopSentinelObserver = () => {
   topSentinelObserver.observe(topSentinelRef.value as unknown as Element);
 };
 
-// --- RESIZE OBSERVER for scroll-to-bottom ---
+// --- RESIZE OBSERVER for stick-to-bottom ---
+// The scroll container shrinks under a pinned view when the composer grows
+// (multi-line draft, reply bar, attachment previews) or a mobile keyboard
+// opens; the list element grows with content. Either leaves the end below the
+// viewport until re-seated. Callbacks run before paint.
 let resizeObserver: ResizeObserver | null = null;
-let resizeScrollRafId: number | null = null;
 
 const setupResizeObserver = () => {
   if (resizeObserver || !messageDisplayContainer.value) return;
-  const firstChild = messageDisplayContainer.value.firstElementChild as HTMLElement | null;
-  if (!firstChild) return;
+  resizeObserver = new ResizeObserver(() => stickToBottom());
+  resizeObserver.observe(messageDisplayContainer.value);
+  if (virtualListRef.value) resizeObserver.observe(virtualListRef.value);
+};
 
-  resizeObserver = new ResizeObserver(() => {
-    if (!shouldBeAtBottom.value || !messageDisplayContainer.value) return;
-    if (resizeScrollRafId) cancelAnimationFrame(resizeScrollRafId);
-    resizeScrollRafId = requestAnimationFrame(() => {
-      if (!messageDisplayContainer.value || !shouldBeAtBottom.value) return;
-      messageDisplayContainer.value.scrollTop = messageDisplayContainer.value.scrollHeight;
+watch(virtualListRef, (el, prev) => {
+  if (!resizeObserver) return;
+  if (prev) resizeObserver.unobserve(prev);
+  if (el) resizeObserver.observe(el);
+});
+
+const jumpToPresent = () => {
+  setPinned(true);
+  stickToBottom();
+};
+
+// Centres a message row and highlights it. The virtualizer's smooth scroll targets
+// estimated offsets and does not follow rows that measure while it runs, so the
+// position is re-seated from the row's DOM box while rows above it settle. A row
+// taller than the view is aligned by its top instead.
+const jumpToMessageRow = (messageId: string): boolean => {
+  const indexOf = () => displayItems.value.findIndex(
+    item => item.type === 'message' && item.message?.id === messageId
+  );
+  if (indexOf() < 0) return false;
+  setPinned(false);
+  let attempts = 0;
+  const seat = () => {
+    attempts++;
+    const idx = indexOf();
+    if (idx < 0) return;
+    rowVirtualizer.value.scrollToIndex(idx, { align: 'center' });
+    requestAnimationFrame(() => {
+      const c = messageDisplayContainer.value;
+      const el = document.getElementById(`message-${messageId}`);
+      if (c && el) {
+        const box = el.getBoundingClientRect();
+        const view = c.getBoundingClientRect();
+        c.scrollTop += box.height > view.height - CONTEXT_NUDGE_PX
+          ? box.top - view.top - CONTEXT_NUDGE_PX
+          : box.top + box.height / 2 - (view.top + view.height / 2);
+        if (attempts === 1) {
+          el.classList.add('highlighted');
+          setTimeout(() => el.classList.remove('highlighted'), 3000);
+        }
+      }
+      if (attempts < 6) setTimeout(seat, attempts < 3 ? 50 : 150);
     });
-  });
-  resizeObserver.observe(firstChild);
+  };
+  seat();
+  return true;
 };
 
 // --- LIFECYCLE HOOKS ---
@@ -2395,41 +2546,13 @@ onMounted(() => {
   setupResizeObserver();
   window.addEventListener('keydown', onShiftDown);
   window.addEventListener('keyup', onShiftUp);
-  chatStore.highlightMessage = (messageId: string) => {
-    const idx = displayItems.value.findIndex(
-      item => item.type === 'message' && item.message?.id === messageId
-    );
-    if (idx < 0) return;
-    rowVirtualizer.value.scrollToIndex(idx, { align: 'center', behavior: 'smooth' });
-    setTimeout(() => {
-      nextTick(() => {
-        const messageElement = document.getElementById(`message-${messageId}`);
-        if (messageElement) {
-          messageElement.classList.add('highlighted');
-          setTimeout(() => messageElement.classList.remove('highlighted'), 3000);
-        }
-      });
-    }, 100);
-  };
+  chatStore.highlightMessage = (messageId: string) => { jumpToMessageRow(messageId); };
 });
 
 // Watch for DM highlight requests (reply jump in DMs)
 watch(() => dmStore.highlightedMessageId, (messageId) => {
   if (!messageId) return;
-  const idx = displayItems.value.findIndex(
-    item => item.type === 'message' && item.message?.id === messageId
-  );
-  if (idx < 0) return;
-  rowVirtualizer.value.scrollToIndex(idx, { align: 'center', behavior: 'smooth' });
-  setTimeout(() => {
-    nextTick(() => {
-      const messageElement = document.getElementById(`message-${messageId}`);
-      if (messageElement) {
-        messageElement.classList.add('highlighted');
-        setTimeout(() => messageElement.classList.remove('highlighted'), 3000);
-      }
-    });
-  }, 100);
+  jumpToMessageRow(messageId);
   dmStore.highlightedMessageId = null;
 });
 
@@ -2504,12 +2627,12 @@ const checkScrollable = () => {
   }
 };
 
-const handleScroll = throttle(() => {
+const handleScrollThrottled = throttle(() => {
   if (!messageDisplayContainer.value) {
     return;
   }
   
-  const { scrollTop, scrollHeight, clientHeight } = messageDisplayContainer.value;
+  const { scrollTop } = messageDisplayContainer.value;
   
   checkScrollable();
   isAtTop.value = scrollTop === 0;
@@ -2521,30 +2644,25 @@ const handleScroll = throttle(() => {
     }
   }
 
-  const distanceFromBottom = scrollHeight - (scrollTop + clientHeight);
-  const isAtBottom = distanceFromBottom <= 5;
-  userWasAtBottom.value = isAtBottom;
-  if (!isAtBottom) {
-    // A comfortable margin so transient content growth (images/embeds
-    // measuring, the revalidate catch-up append) isn't mistaken for the user
-    // deliberately scrolling up.
-    const intentionalScrollUp = distanceFromBottom > 200;
-    // During the post-open settling window the bottom pin holds even if late
-    // content briefly puts the view above the bottom; only a real scroll-up
-    // releases it. This keeps a channel switch with messages arriving settled
-    // at the true bottom.
-    if (intentionalScrollUp || Date.now() >= openFollowBottomUntil) {
-      shouldBeAtBottom.value = false;
-    }
-    if (intentionalScrollUp) {
-      openFollowBottomUntil = 0;
-    }
-  } else {
-    shouldBeAtBottom.value = true; // User scrolled back to bottom
-  }
-
-  emit('update:isAtBottom', isAtBottom);
+  emit('update:isAtBottom', distanceFromBottom(messageDisplayContainer.value) <= PIN_THRESHOLD_PX);
 }, 16);
+
+// Not throttled: a size change in the same frame reads the pin, and a stale
+// pin re-seats a view the user has just scrolled away from.
+const handleScroll = () => {
+  const el = messageDisplayContainer.value;
+  if (el) {
+    const settling = Date.now() < openFollowBottomUntil;
+    const next = nextPinState(pinState, el, { settling });
+    pinState.lastScrollTop = next.lastScrollTop;
+    if (next.pinned !== pinState.pinned) {
+      setPinned(next.pinned);
+      // A deliberate scroll-up ends the post-open grace window.
+      if (!next.pinned) openFollowBottomUntil = 0;
+    }
+  }
+  handleScrollThrottled();
+};
 
 // Message Display Logic
 const shouldShowHeader = (message: Message, index: number): boolean => {
@@ -2755,6 +2873,12 @@ const canDeleteMessage = (message: Message) => {
     return isOwnMessage;
   }
 
+  // System rows are removed by MANAGE_MESSAGES holders only; in a conversation the
+  // database admits group admins, a role this view does not carry.
+  if (message.is_system) {
+    return !message.conversation_id && (isCurrentUserServerOwner.value || canManageMessages.value);
+  }
+
   if (isOwnMessage) return true;
   if (isCurrentUserServerOwner.value) return true;
   if (profileStore.profile?.is_admin || profileStore.profile?.is_moderator) return true;
@@ -2807,8 +2931,12 @@ const saveEdit = async (messageId: string, newContent?: string, retainedFiles: F
       await dmStore.editMessage(messageId, finalContent);
     }
     cancelEdit();
-  } catch (error) {
+  } catch (error: any) {
     debug.error('Error saving message edit:', error);
+    // An AutoMod block leaves the edit open with the reason; the text is kept.
+    if (isModerationRejectionCode(error?.code) && error?.message) {
+      toast.error(error.message);
+    }
   }
 };
 
@@ -2996,7 +3124,8 @@ const handleReportMessage = (message: Message) => {
   } else if (typeof message.content === 'string') {
     preview = message.content;
   }
-  reportTargetMessagePreview.value = preview.slice(0, 200) || undefined;
+  // Also the reporter's evidence for an encrypted message, whose stored content is ciphertext.
+  reportTargetMessagePreview.value = preview.slice(0, 4000) || undefined;
 
   const profile = getUserProfile(authorId);
   const displayName = getUserDisplayName(authorId);
@@ -3005,6 +3134,8 @@ const handleReportMessage = (message: Message) => {
     username: profile?.value?.username || displayName?.value || 'Unknown',
     display_name: displayName?.value || undefined,
     avatar_url: avatarUrl?.value || undefined,
+    domain: profile?.value?.domain ?? null,
+    is_local: profile?.value?.is_local ?? null,
   };
 
   showReportModal.value = true;
@@ -3043,96 +3174,26 @@ const createThread = (message: Message) => {
   hoveredMessageId.value = null;
 };
 
-// Correct scroll position when an item above the viewport resizes.
-// Uses an anchor-based approach: track the item at the viewport top before
-// the resize, then after re-measurement adjust scrollTop by only the change
-// in that anchor item's start offset (which reflects above-viewport growth).
-const scrollToBottomIfPinned = () => {
-  nextTick(() => {
-    requestAnimationFrame(() => {
-      if (!messageDisplayContainer.value) return;
-      const count = displayItems.value.length;
-      if (count > 0) rowVirtualizer.value.scrollToIndex(count - 1, { align: 'end' });
-    });
-  });
-};
-
-const correctScrollAfterResize = (callback: () => void) => {
-  const container = messageDisplayContainer.value;
-  if (!container) { callback(); return; }
-  
-  // Pinned to bottom: remeasure first, then re-seat so totalSize includes
-  // the new height (reactions, embeds, images) before scrolling.
-  if (shouldBeAtBottom.value || userWasAtBottom.value) {
-    callback();
-    scrollToBottomIfPinned();
-    return;
-  }
-  
-  const scrollTopBefore = container.scrollTop;
-  const totalSizeBefore = rowVirtualizer.value.getTotalSize();
-
-  // Find anchor: the first item overlapping the viewport top
-  const items = rowVirtualizer.value.getVirtualItems();
-  let anchorItem = items.find(item => item.start + item.size > scrollTopBefore);
-  if (!anchorItem && items.length) anchorItem = items[items.length - 1];
-  const anchorIdx = anchorItem?.index;
-  const anchorStartBefore = anchorItem?.start;
-  
-  callback();
-  
-  nextTick(() => {
-    requestAnimationFrame(() => {
-      if (!container || shouldBeAtBottom.value) return;
-
-      let delta = 0;
-
-      if (anchorIdx != null && anchorStartBefore != null) {
-        // Precise: only count the shift in the anchor's start position,
-        // which reflects size changes of items *above* the viewport.
-        const updatedItems = rowVirtualizer.value.getVirtualItems();
-        const updatedAnchor = updatedItems.find(item => item.index === anchorIdx);
-        if (updatedAnchor) {
-          delta = updatedAnchor.start - anchorStartBefore;
-        } else {
-          // Anchor no longer in virtual items - fall back to total size delta
-          delta = rowVirtualizer.value.getTotalSize() - totalSizeBefore;
-        }
-      } else {
-        delta = rowVirtualizer.value.getTotalSize() - totalSizeBefore;
-      }
-
-      if (Math.abs(delta) > 1) {
-        // The correction is RELATIVE to the live scroll position, not a
-        // re-seat from the now-stale `scrollTopBefore`. If the user kept
-        // scrolling while an image/embed finished loading, seating from the
-        // stale value yanks the viewport. A relative nudge cancels the size
-        // change above the viewport without fighting the user's scrolling.
-        container.scrollTop += delta;
-      }
-    });
-  });
-};
+// Size changes from media, embeds and reactions only need the row measured:
+// adjustForItemResize holds the content in view when the row is above it, and
+// a pinned view is re-seated by handleVirtualizerChange. A second correction
+// here would move the view by the same delta again.
 
 // Lightbox and Media
 const handleImageLoaded = (url: string) => {
   imageLoaded.value[url] = true;
 
-  correctScrollAfterResize(() => {
-    nextTick(() => {
-      const container = messageDisplayContainer.value;
-      if (!container) return;
-      container.querySelectorAll('[data-index]').forEach(el => {
-        rowVirtualizer.value.measureElement(el as HTMLElement);
-      });
+  nextTick(() => {
+    const container = messageDisplayContainer.value;
+    if (!container) return;
+    container.querySelectorAll('[data-index]').forEach(el => {
+      rowVirtualizer.value.measureElement(el as HTMLElement);
     });
   });
 };
 
 const handleReactionsLayoutChange = (messageId: string) => {
-  correctScrollAfterResize(() => {
-    remeasureItem(messageId);
-  });
+  remeasureItem(messageId);
 };
 
 const handleEmbedLoaded = (messageId: string) => {
@@ -3141,9 +3202,7 @@ const handleEmbedLoaded = (messageId: string) => {
   }
   embedLoaded.value[messageId] = (embedLoaded.value[messageId] || 0) + 1;
 
-  correctScrollAfterResize(() => {
-    remeasureItem(messageId);
-  });
+  remeasureItem(messageId);
 };
 
 const handleDecryptMessage = async (message: Message) => {
@@ -3927,13 +3986,7 @@ defineExpose({ editLastOwnMessage });
 
 /* No messages state */
 .no-messages {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
   height: 100%;
-  color: var(--text-muted);
-  font-size: 1rem;
 }
 
 /* Loading skeletons */
@@ -4125,6 +4178,51 @@ defineExpose({ editLastOwnMessage });
   color: inherit !important;
 }
 
+/* AutoMod alert */
+.system-icon.automod-icon {
+  color: var(--warning, #f0b232);
+}
+
+.automod-badge {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 6px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-on-accent, #fff);
+  background: var(--harmony-primary);
+  vertical-align: 1px;
+}
+
+.automod-rule {
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+
+.automod-timeout {
+  margin-left: 6px;
+  font-size: 0.75rem;
+  color: var(--error);
+}
+
+.automod-alert-excerpt {
+  margin-top: 4px;
+  padding: 4px 8px;
+  border-left: 3px solid var(--warning, #f0b232);
+  border-radius: 2px;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 /* Thread created system message */
 .thread-created-text {
   display: flex;
@@ -4262,13 +4360,63 @@ defineExpose({ editLastOwnMessage });
   pointer-events: none;
 }
 
+/* Zero-height sticky box at the end of the list: the pill floats over the
+   bottom edge of the viewport without adding to scrollHeight. */
+.jump-present-anchor {
+  position: sticky;
+  bottom: 0;
+  height: 0;
+  z-index: 2;
+}
+
+.jump-present-pill {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border: none;
+  border-radius: 999px;
+  background-color: var(--harmony-secondary);
+  color: var(--text-on-primary);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.jump-present-pill:hover {
+  filter: brightness(1.1);
+}
+
+/* An in-flow row here shifts the list by its height whenever it toggles and
+   native scroll anchoring does not compensate. */
+.loading-older-anchor {
+  position: sticky;
+  top: 0;
+  height: 0;
+  z-index: 2;
+}
+
 .loading-older-messages {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 10px;
-  padding: 12px;
-  height: 44px;
+  padding: 6px 14px;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  background: var(--background-floating);
+  box-shadow: var(--shadow-medium);
+  white-space: nowrap;
   box-sizing: border-box;
   color: var(--text-secondary);
   font-size: 13px;

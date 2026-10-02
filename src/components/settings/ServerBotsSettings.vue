@@ -62,13 +62,19 @@
         <LoadingSpinner :size="32" />
       </div>
 
-      <p v-else-if="availableBots.length === 0 && activeSearch" class="empty-state">
-        {{ t('bots.server.noResults', { query: activeSearch }) }}
-      </p>
+      <EmptyState
+        v-else-if="availableBots.length === 0 && activeSearch"
+        size="sm"
+        icon="search"
+        :title="t('bots.server.noResults', { query: activeSearch })"
+      />
 
-      <p v-else-if="availableBots.length === 0" class="empty-state">
-        {{ t('bots.server.emptyDirectory') }}
-      </p>
+      <EmptyState
+        v-else-if="availableBots.length === 0"
+        size="sm"
+        icon="bot-message-square"
+        :title="t('bots.server.emptyDirectory')"
+      />
 
       <template v-else>
         <div class="bots-grid">
@@ -222,6 +228,7 @@ import {
 import BaseModal from '@/components/common/BaseModal.vue'
 import BotAvatar from '@/components/common/BotAvatar.vue'
 import Icon from '@/components/common/Icon.vue'
+import EmptyState from '@/components/common/EmptyState.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 
@@ -584,14 +591,6 @@ onBeforeUnmount(() => {
   display: flex;
   justify-content: center;
   padding: 32px 0;
-}
-
-.empty-state {
-  text-align: center;
-  padding: 24px;
-  margin: 0;
-  color: var(--text-secondary);
-  font-size: 14px;
 }
 
 .bots-grid {

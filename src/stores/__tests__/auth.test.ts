@@ -535,4 +535,100 @@ describe('useAuthStore', () => {
       expect((store as any)._pendingMFAVerification).toBe(false)
     })
   })
+
+  describe('second factor at sign-in', () => {
+    const aal2Session = { access_token: jwtWithAAL('aal2'), user: { id: 'mfa-user' } }
+
+    function profileQuery(profile: Record<string, unknown> | null) {
+      const chain: any = {
+        select: () => chain,
+        eq: () => chain,
+        maybeSingle: vi.fn().mockResolvedValue({ data: profile, error: null }),
+      }
+      ;(supabase.from as any).mockReturnValue(chain)
+    }
+
+    it('retries an expired challenge once with a fresh one', async () => {
+      profileQuery({ is_suspended: false })
+      const verify = vi.fn()
+        .mockResolvedValueOnce({ data: null, error: { code: 'mfa_challenge_expired', message: 'expired' } })
+        .mockResolvedValueOnce({ data: { session: aal2Session }, error: null })
+      const challenge = vi.fn().mockResolvedValue({ data: { id: 'challenge-2' }, error: null })
+      ;(supabase.auth as any).mfa = { verify, challenge }
+
+      const store = useAuthStore()
+      store._pendingMFAVerification = true
+      const { session } = await store.verify2FA('factor-1', 'challenge-1', '123456')
+
+      expect(challenge).toHaveBeenCalledWith({ factorId: 'factor-1' })
+      expect(verify.mock.calls[1][0]).toEqual({ factorId: 'factor-1', challengeId: 'challenge-2', code: '123456' })
+      expect(session).toBe(aal2Session)
+      expect(store.session).toEqual(aal2Session)
+      expect(store._pendingMFAVerification).toBe(false)
+      expect(userStorage.setCurrentUser).toHaveBeenCalledWith('mfa-user')
+    })
+
+    it('refuses a suspended account after the challenge', async () => {
+      profileQuery({ is_suspended: true, suspension_reason: 'spam' })
+      ;(supabase.auth as any).mfa = { verify: vi.fn().mockResolvedValue({ data: { session: aal2Session }, error: null }) }
+      const signOut = vi.fn().mockResolvedValue({ error: null })
+      ;(supabase.auth as any).signOut = signOut
+
+      const store = useAuthStore()
+      await expect(store.verify2FA('factor-1', 'challenge-1', '123456')).rejects.toThrow('suspended: spam')
+      expect(signOut).toHaveBeenCalled()
+      expect(store.session).toBeNull()
+    })
+
+    it('signs in with a recovery code and runs the post-sign-in setup', async () => {
+      profileQuery({ is_suspended: false })
+      ;(supabase.rpc as any).mockResolvedValue({ data: true, error: null })
+      const session = { access_token: jwtWithAAL('aal1'), user: { id: 'recovered' } }
+      ;(supabase.auth as any).refreshSession = vi.fn().mockResolvedValue({ data: { session }, error: null })
+
+      const store = useAuthStore()
+      store._pendingMFAVerification = true
+      await store.completeRecoverySignIn('abcde-12345')
+
+      expect(supabase.rpc).toHaveBeenCalledWith('redeem_recovery_code_and_disable_mfa', { p_code: 'abcde-12345' })
+      expect(store.session).toEqual(session)
+      expect(store._pendingMFAVerification).toBe(false)
+      expect(userStorage.setCurrentUser).toHaveBeenCalledWith('recovered')
+    })
+
+    it('keeps the pending session out of the store when the code is wrong', async () => {
+      ;(supabase.rpc as any).mockResolvedValue({ data: false, error: null })
+      const store = useAuthStore()
+      store._pendingMFAVerification = true
+      await expect(store.completeRecoverySignIn('WRONGWRONG')).rejects.toThrow('not valid')
+      expect(store.session).toBeNull()
+      expect(store._pendingMFAVerification).toBe(false)
+    })
+  })
+
+  describe('handleSessionRejected', () => {
+    it('ignores refusals while a sign-in challenge is in progress', async () => {
+      const signOut = vi.fn().mockResolvedValue({ error: null })
+      ;(supabase.auth as any).signOut = signOut
+      const store = useAuthStore()
+      store.session = { access_token: jwtWithAAL('aal1'), user: { id: 'u' } } as any
+      store._pendingMFAVerification = true
+      await store.handleSessionRejected('insufficient_aal')
+      expect(signOut).not.toHaveBeenCalled()
+      expect(store.session).not.toBeNull()
+    })
+
+    it('drops the local session when PostgREST reports it revoked', async () => {
+      const { signOutAndForget } = await import('@/supabase')
+      const push = vi.fn().mockResolvedValue(undefined)
+      vi.doMock('@/router', () => ({ default: { push } }))
+      const store = useAuthStore()
+      store.session = { access_token: jwtWithAAL('aal2'), user: { id: 'u' } } as any
+      await store.handleSessionRejected('session_revoked')
+      expect(signOutAndForget).toHaveBeenCalledWith('local')
+      expect(store.session).toBeNull()
+      expect(push).toHaveBeenCalledWith({ path: '/login', query: { reason: 'session_revoked' } })
+      vi.doUnmock('@/router')
+    })
+  })
 })

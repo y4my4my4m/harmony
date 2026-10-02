@@ -19,6 +19,48 @@ setInterval(() => {
   }
 }, 60_000);
 
+interface RateLimitResult {
+  allowed: boolean;
+  remaining: number;
+  resetMs: number;
+}
+
+async function consume(rawKey: string, windowMs: number, maxRequests: number): Promise<RateLimitResult> {
+  if (redis.ready) {
+    const result = await redis.rateLimit(`rl:${rawKey}`, maxRequests, Math.ceil(windowMs / 1000));
+    return { allowed: result.allowed, remaining: result.remaining, resetMs: result.resetMs };
+  }
+
+  const now = Date.now();
+  let entry = memoryStore.get(rawKey);
+  if (!entry || entry.resetTime < now) {
+    entry = { count: 1, resetTime: now + windowMs };
+    memoryStore.set(rawKey, entry);
+  } else {
+    entry.count++;
+  }
+  return {
+    allowed: entry.count <= maxRequests,
+    remaining: Math.max(0, maxRequests - entry.count),
+    resetMs: entry.resetTime - now,
+  };
+}
+
+/** Sets the rate-limit headers; on refusal also sends 429. True when the request may proceed. */
+function answer(res: Response, maxRequests: number, result: RateLimitResult, message: string): boolean {
+  res.setHeader('X-RateLimit-Limit', maxRequests);
+  res.setHeader('X-RateLimit-Remaining', result.allowed ? result.remaining : 0);
+  res.setHeader('X-RateLimit-Reset', Math.ceil((Date.now() + result.resetMs) / 1000));
+  if (result.allowed) return true;
+  res.setHeader('Retry-After', Math.ceil(result.resetMs / 1000));
+  res.status(429).json({
+    error: 'Too Many Requests',
+    message,
+    retryAfter: Math.ceil(result.resetMs / 1000),
+  });
+  return false;
+}
+
 function createRateLimiter(options: {
   // Distinct per limiter: without it, two default-keyed limiters (e.g. api and
   // inbox) share the same `rl:<ip>` bucket and steal each other's budget.
@@ -36,66 +78,20 @@ function createRateLimiter(options: {
     keyGenerator = (req: Request) => req.ip || 'unknown',
   } = options;
 
-  const windowSeconds = Math.ceil(windowMs / 1000);
-
   return async (req: Request, res: Response, next: NextFunction) => {
-    const rawKey = `${name}:${keyGenerator(req)}`;
-    const redisKey = `rl:${rawKey}`;
-
-    let count: number;
-    let remaining: number;
-    let resetMs: number;
-
-    if (redis.ready) {
-      const result = await redis.rateLimit(redisKey, maxRequests, windowSeconds);
-      count = maxRequests - result.remaining;
-      remaining = result.remaining;
-      resetMs = result.resetMs;
-
-      if (!result.allowed) {
-        res.setHeader('X-RateLimit-Limit', maxRequests);
-        res.setHeader('X-RateLimit-Remaining', 0);
-        res.setHeader('X-RateLimit-Reset', Math.ceil((Date.now() + resetMs) / 1000));
-        res.setHeader('Retry-After', Math.ceil(resetMs / 1000));
-        return res.status(429).json({
-          error: 'Too Many Requests',
-          message,
-          retryAfter: Math.ceil(resetMs / 1000),
-        });
-      }
-    } else {
-      const now = Date.now();
-      let entry = memoryStore.get(rawKey);
-
-      if (!entry || entry.resetTime < now) {
-        entry = { count: 1, resetTime: now + windowMs };
-        memoryStore.set(rawKey, entry);
-      } else {
-        entry.count++;
-      }
-
-      count = entry.count;
-      remaining = Math.max(0, maxRequests - count);
-      resetMs = entry.resetTime - now;
-
-      if (count > maxRequests) {
-        res.setHeader('X-RateLimit-Limit', maxRequests);
-        res.setHeader('X-RateLimit-Remaining', 0);
-        res.setHeader('X-RateLimit-Reset', Math.ceil(entry.resetTime / 1000));
-        res.setHeader('Retry-After', Math.ceil(resetMs / 1000));
-        return res.status(429).json({
-          error: 'Too Many Requests',
-          message,
-          retryAfter: Math.ceil(resetMs / 1000),
-        });
-      }
-    }
-
-    res.setHeader('X-RateLimit-Limit', maxRequests);
-    res.setHeader('X-RateLimit-Remaining', remaining);
-    res.setHeader('X-RateLimit-Reset', Math.ceil((Date.now() + resetMs) / 1000));
-    return next();
+    const result = await consume(`${name}:${keyGenerator(req)}`, windowMs, maxRequests);
+    if (answer(res, maxRequests, result, message)) next();
   };
+}
+
+/**
+ * A limiter keyed by the caller rather than by the request, for keys known only
+ * inside a handler. Returns false after sending 429.
+ */
+function createKeyedLimit(options: { name: string; windowMs: number; maxRequests: number; message: string }) {
+  const { name, windowMs, maxRequests, message } = options;
+  return async (res: Response, key: string): Promise<boolean> =>
+    answer(res, maxRequests, await consume(`${name}:${key}`, windowMs, maxRequests), message);
 }
 
 export const apiLimiter = createRateLimiter({
@@ -126,8 +122,8 @@ export const pushLimiter = createRateLimiter({
   },
 });
 
-// Aggregate cap per source IP; the per-instance limiter below is the primary
-// defense against a single noisy peer.
+// Aggregate cap per source IP, applied before signature verification; it bounds
+// the key fetches an unauthenticated sender can cause.
 export const inboxLimiter = createRateLimiter({
   name: 'inbox',
   windowMs: 60 * 1000,
@@ -135,28 +131,29 @@ export const inboxLimiter = createRateLimiter({
   message: 'Too many inbox activities, please slow down.',
 });
 
-// Keyed by the sending actor's domain so instances behind shared IPs (CDN,
-// NAT) don't drain each other's budget, and one hostile instance can't use
-// the whole IP allowance. Falls back to IP when the actor is missing.
-export function instanceKeyFromRequest(req: Request): string {
-  const actor = req.body?.actor;
-  const actorUrl = typeof actor === 'string' ? actor : actor?.id;
-  if (typeof actorUrl === 'string') {
+/**
+ * Per-instance inbox key: the verified signer's host. Instances behind shared
+ * IPs (CDN, NAT) keep separate budgets, and a sender cannot charge its traffic
+ * to another domain by naming it in the body. Without a verified signer
+ * (REQUIRE_VALID_SIGNATURES=false) the key is the source IP.
+ */
+export function signerInstanceKey(verifiedSignerUrl: string | null | undefined, ip: string | undefined): string {
+  if (verifiedSignerUrl) {
     try {
-      return new URL(actorUrl).hostname.toLowerCase();
+      return new URL(verifiedSignerUrl).hostname.toLowerCase();
     } catch {
       // fall through to IP
     }
   }
-  return `ip:${req.ip || 'unknown'}`;
+  return `ip:${ip || 'unknown'}`;
 }
 
-export const instanceInboxLimiter = createRateLimiter({
+/** Applied after signature verification with signerInstanceKey(). */
+export const instanceInboxLimit = createKeyedLimit({
   name: 'inbox-instance',
   windowMs: 60 * 1000,
   maxRequests: 60,
   message: 'Too many inbox activities from this instance, please slow down.',
-  keyGenerator: instanceKeyFromRequest,
 });
 
 export const linkPreviewLimiter = createRateLimiter({

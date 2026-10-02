@@ -101,9 +101,7 @@
                 />
               </RouterLink>
             </div>
-            <div v-else class="no-trending">
-              <span>{{ $t('activitypub.noTrendingHashtags') }}</span>
-            </div>
+            <EmptyState v-else size="sm" icon="hash" :title="$t('activitypub.noTrendingHashtags')" />
           </div>
 
           <div class="sidebar-section">
@@ -202,8 +200,9 @@ import { useFundingStore } from '@/stores/useFunding'
 import { storeToRefs } from 'pinia'
 import { trendingService } from '@/services/TrendingService'
 import Icon from '@/components/common/Icon.vue'
+import EmptyState from '@/components/common/EmptyState.vue'
 import { useViewContextTracking } from '@/composables/useViewContext'
-import { useLayoutState } from '@/composables/useLayoutState'
+import { useLayoutState, useSidebarPanel } from '@/composables/useLayoutState'
 import { getOriginalPost } from '@/utils/postReblog'
 import FundingModal from '@/components/FundingModal.vue'
 import type { FederatedUser, TimelinePost } from '@/types'
@@ -273,6 +272,8 @@ const route = useRoute()
 
 // Layout state
 const { SIDEBAR_WIDTH } = useLayoutState()
+useSidebarPanel('left')
+useSidebarPanel('right')
 
 // Drag-follow transforms for the mobile sidebars.
 const leftSidebarStyle = computed(() => {
@@ -682,8 +683,9 @@ const formatNumber = (num: number): string => {
 <style scoped>
 .social-layout {
   width: 100%;
-  height: 100vh;
-  height: 100dvh; /* mobile: exclude browser chrome so content isn't clipped */
+  /* Fills BaseLayout's content area, which is 100dvh less the safe-area
+     padding on mobile. */
+  height: 100%;
   display: flex;
   flex-direction: column;
   position: relative;
@@ -786,13 +788,6 @@ const formatNumber = (num: number): string => {
 }
 
 .trending-loading,
-.no-trending {
-  padding: 16px;
-  text-align: center;
-  color: var(--text-secondary);
-  font-size: 14px;
-}
-
 .trending-text {
   display: flex;
   flex-direction: column;
@@ -977,6 +972,8 @@ const formatNumber = (num: number): string => {
     position: fixed;
     top: 0;
     height: 100%;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
     z-index: 200;
     /* Spring easing applied on drag release */
     transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1), width 0.2s cubic-bezier(0.32, 0.72, 0, 1);

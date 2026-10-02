@@ -255,14 +255,19 @@
       <p>{{ t('bots.loading') }}</p>
     </div>
 
-    <div v-else-if="myBots.length === 0" class="settings-section empty-state">
-      <Icon name="bot-message-square" :size="40" class="empty-icon" />
-      <h3>{{ t('bots.empty.title') }}</h3>
-      <p>{{ t('bots.empty.body') }}</p>
-      <button type="button" class="btn btn-primary" @click="openCreateModal">
-        <Icon name="plus" :size="16" />
-        {{ t('bots.empty.action') }}
-      </button>
+    <div v-else-if="myBots.length === 0" class="settings-section">
+      <EmptyState
+        icon="bot-message-square"
+        :title="t('bots.empty.title')"
+        :description="t('bots.empty.body')"
+      >
+        <template #actions>
+          <button type="button" class="list-empty__button" @click="openCreateModal">
+            <Icon name="plus" :size="16" />
+            {{ t('bots.empty.action') }}
+          </button>
+        </template>
+      </EmptyState>
     </div>
 
     <div v-else class="settings-section">
@@ -437,6 +442,7 @@ import {
 import BaseModal from '@/components/common/BaseModal.vue'
 import BotAvatar from '@/components/common/BotAvatar.vue'
 import Icon from '@/components/common/Icon.vue'
+import EmptyState from '@/components/common/EmptyState.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import ServerIcon from '@/components/common/ServerIcon.vue'
 import BridgeBotGuide from '@/components/settings/BridgeBotGuide.vue'
@@ -1092,29 +1098,8 @@ onBeforeUnmount(() => {
 }
 
 .loading-state,
-.empty-state {
-  text-align: center;
-  padding: 48px 24px;
-}
-
 .loading-state p {
   color: var(--text-secondary);
-}
-
-.empty-icon {
-  color: var(--text-muted, var(--text-secondary));
-  margin-bottom: 12px;
-}
-
-.empty-state h3 {
-  font-size: 18px;
-  color: var(--text-primary);
-  margin: 0 0 8px 0;
-}
-
-.empty-state p {
-  color: var(--text-secondary);
-  margin: 0 0 20px 0;
 }
 
 .inline-loading {

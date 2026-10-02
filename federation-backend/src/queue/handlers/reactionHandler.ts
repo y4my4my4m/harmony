@@ -1,14 +1,14 @@
 /**
  * Reaction Federation Job Handler
  * 
- * Processes federate-reaction jobs (post reactions/favorites/reblogs)
+ * Processes federate-reaction jobs: favourites and emoji reactions on posts, as Like and
+ * Undo Like. Bookmarks are private; a reblog federates as the Announce of its boost post.
  */
 
 import { getSupabaseClient } from '../../config/supabase.js';
 import { DeliveryQueue } from '../../activitypub/DeliveryQueue.js';
-import { createLikeActivity } from '../../activitypub/converters/toActivityPub.js';
+import { buildPostInteractionLike, isLikeInteraction } from '../../activitypub/postInteractionLike.js';
 import { createUndoLikeActivity } from '../../listeners/FederationHandlers.js';
-import { resolveOutboundEmoji } from '../../utils/emojiResolvers.js';
 import config from '../../config/index.js';
 import { logger } from '../../utils/logger.js';
 import type { FederationJobData } from '../BullMQManager.js';
@@ -19,9 +19,11 @@ export async function handleReactionJob(data: FederationJobData): Promise<void> 
 
   logger.info(`Processing reaction job: ${type} for interaction ${interaction_id}`);
 
-  if (interaction_type === 'bookmark') {
-    logger.info(`Bookmarks are private, skipping federation for ${interaction_id}`);
-    await updateFederationStatus(interaction_id, 'post_interactions', 'skipped');
+  if (!isLikeInteraction(interaction_type)) {
+    logger.info(`${interaction_type} ${interaction_id} federates no Like, skipping`);
+    if (type === 'create') {
+      await updateFederationStatus(interaction_id, 'post_interactions', 'skipped');
+    }
     return;
   }
 
@@ -80,27 +82,27 @@ export async function handleReactionJob(data: FederationJobData): Promise<void> 
 
     logger.info(`Reaction context: post.ap_id=${post.ap_id}, postAuthor.is_local=${postAuthor.is_local}, emoji_id=${emoji_id}, custom_emoji_content=${custom_emoji_content}`);
 
-    if (type === 'create') {
-      const targetDomain = postAuthor.is_local ? undefined : (postAuthor.domain || undefined);
-      const { content, emojiData } = await resolveOutboundEmoji(emoji_id, custom_emoji_content, targetDomain);
-      logger.info(`Resolved emoji: content="${content}", hasEmojiData=${!!emojiData}, emojiUrl=${emojiData?.url ?? 'none'}`);
+    const targetDomain = postAuthor.is_local ? undefined : (postAuthor.domain || undefined);
+    const ref = { interaction_id, interaction_type, emoji_id, custom_emoji_content };
 
+    if (type === 'create') {
       if (!postAuthor.is_local && postAuthor.inbox_url) {
         const authorUrl = postAuthor.federated_id
           || `https://${postAuthor.domain}/users/${postAuthor.username}`;
-        const activity = createLikeActivity(user, post.ap_id, content, emojiData ?? undefined, [authorUrl]);
-        logger.info(`Like activity payload: ${JSON.stringify({ content: activity.content, _misskey_reaction: activity._misskey_reaction, tag: activity.tag })}`);
+        const activity = await buildPostInteractionLike(user, post.ap_id, ref, targetDomain, [authorUrl]);
+        logger.info(`Like activity payload: ${JSON.stringify({ id: activity.id, content: activity.content, _misskey_reaction: activity._misskey_reaction, tag: activity.tag })}`);
         await DeliveryQueue.sendToInbox(postAuthor.inbox_url, activity, user.id);
         logger.info(`Reaction federated to post author ${postAuthor.inbox_url}`);
       }
 
-      const activity = createLikeActivity(user, post.ap_id, content, emojiData ?? undefined);
-      logger.info(`Broadcast Like payload: ${JSON.stringify({ content: activity.content, _misskey_reaction: activity._misskey_reaction, tag: activity.tag })}`);
+      const activity = await buildPostInteractionLike(user, post.ap_id, ref, targetDomain);
       await DeliveryQueue.broadcastToFollowers(post.author_id, activity);
       logger.info(`Reaction broadcast to post author's remote followers`);
       await updateFederationStatus(interaction_id, 'post_interactions', 'completed');
     } else if (type === 'delete') {
-      const undoActivity = createUndoLikeActivity(user, post.ap_id);
+      const undoActivity = createUndoLikeActivity(
+        user, post.ap_id, await buildPostInteractionLike(user, post.ap_id, ref, targetDomain),
+      );
 
       if (!postAuthor.is_local && postAuthor.inbox_url) {
         await DeliveryQueue.sendToInbox(postAuthor.inbox_url, undoActivity, user.id);

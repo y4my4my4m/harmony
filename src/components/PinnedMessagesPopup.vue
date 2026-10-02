@@ -28,11 +28,12 @@
               <p>Loading pinned messages...</p>
             </div>
 
-            <div v-else-if="pinnedMessages.length === 0" class="empty-state">
-              <Icon name="pin" :size="40" class="empty-icon" />
-              <p>No pinned messages yet</p>
-              <p class="empty-hint">Pin important messages to find them easily</p>
-            </div>
+            <EmptyState
+              v-else-if="pinnedMessages.length === 0"
+              icon="pin"
+              :title="$t('empty.pins.title')"
+              :description="$t('empty.pins.description')"
+            />
 
             <div v-else class="pinned-messages-list">
               <div
@@ -102,6 +103,7 @@ import { format } from 'date-fns'
 import Avatar from '@/components/common/Avatar.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import Icon from '@/components/common/Icon.vue'
+import EmptyState from '@/components/common/EmptyState.vue'
 import DisplayName from '@/components/DisplayName.vue'
 import UnifiedMessageContent from '@/components/UnifiedMessageContent.vue'
 import type { Message } from '@/types'
@@ -301,29 +303,13 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   padding: 16px;
 }
 
-.loading-state,
-.empty-state {
+.loading-state {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   padding: 48px 24px;
   text-align: center;
-}
-
-.empty-icon {
-  margin-bottom: 16px;
-  color: var(--text-muted);
-}
-
-.empty-state p {
-  margin: 8px 0;
-  color: var(--text-secondary);
-}
-
-.empty-hint {
-  font-size: 12px;
-  opacity: 0.7;
 }
 
 .pinned-messages-list {

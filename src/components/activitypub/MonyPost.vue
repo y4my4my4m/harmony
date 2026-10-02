@@ -202,6 +202,15 @@
         </div>
       </div>
 
+      <!-- Emoji reactions sit under the content, above the meta and the action bar.
+           A boost's reactions are the original post's. -->
+      <PostReactions
+        ref="postReactionsRef"
+        :post="displayPostForReactions"
+        @show-reaction-tooltip="handleShowReactionTooltip"
+        @hide-reaction-tooltip="handleHideReactionTooltip"
+      />
+
       <!-- Focused post (thread view): full timestamp and counts -->
       <template v-if="detailed">
         <div class="detail-meta">
@@ -217,33 +226,16 @@
             <span :title="t('activitypub.editedTitle')">{{ t('activitypub.edited') }}</span>
           </template>
         </div>
-        <div
-          v-if="displayInteractionCounts.replies_count > 0 || displayInteractionCounts.reblogs_count > 0 || displayInteractionCounts.favorites_count > 0"
-          class="detail-stats"
-        >
-          <span v-if="displayInteractionCounts.replies_count > 0">
-            <strong>{{ formatCount(displayInteractionCounts.replies_count) }}</strong>
-            {{ t('activitypub.repliesLabel', displayInteractionCounts.replies_count) }}
-          </span>
-          <span v-if="displayInteractionCounts.reblogs_count > 0">
-            <strong>{{ formatCount(displayInteractionCounts.reblogs_count) }}</strong>
-            {{ t('activitypub.boostsLabel', displayInteractionCounts.reblogs_count) }}
-          </span>
-          <span v-if="displayInteractionCounts.favorites_count > 0">
-            <strong>{{ formatCount(displayInteractionCounts.favorites_count) }}</strong>
-            {{ t('activitypub.favoritesLabel', displayInteractionCounts.favorites_count) }}
-          </span>
+        <div v-if="detailStats.length > 0" class="detail-stats">
+          <template v-for="(stat, index) in detailStats" :key="stat.key">
+            <span v-if="index > 0" class="detail-stats-separator" aria-hidden="true">·</span>
+            <span class="detail-stat">
+              <strong>{{ formatCount(stat.count) }}</strong>
+              {{ t(stat.label, stat.count) }}
+            </span>
+          </template>
         </div>
       </template>
-
-      <!-- Post Reactions (Emoji Reactions) - Above action buttons -->
-      <!-- For reblogs, we need to show reactions for the ORIGINAL post -->
-      <PostReactions
-        ref="postReactionsRef"
-        :post="displayPostForReactions"
-        @show-reaction-tooltip="handleShowReactionTooltip"
-        @hide-reaction-tooltip="handleHideReactionTooltip"
-      />
 
       <!-- Action Buttons -->
       <div class="post-actions">
@@ -256,7 +248,7 @@
           :aria-label="replyLabel"
           :aria-expanded="showInlineReply"
         >
-          <Icon name="message-circle" :size="18" />
+          <span class="action-glyph"><Icon name="message-circle" :size="ACTION_GLYPH.reply" :stroke-width="glyphStroke(ACTION_GLYPH.reply)" /></span>
           <span v-if="!detailed && displayInteractionCounts.replies_count > 0" class="action-count">{{ formatCount(displayInteractionCounts.replies_count) }}</span>
         </button>
 
@@ -276,7 +268,7 @@
             :aria-pressed="displayInteractionCounts.is_reblogged"
             :aria-expanded="displayInteractionCounts.is_reblogged ? undefined : showReblogMenu"
           >
-            <Icon name="reblog" :size="18" />
+            <span class="action-glyph"><Icon name="reblog" :size="ACTION_GLYPH.reblog" :stroke-width="glyphStroke(ACTION_GLYPH.reblog)" /></span>
             <span v-if="!detailed && displayInteractionCounts.reblogs_count > 0" class="action-count">{{ formatCount(displayInteractionCounts.reblogs_count) }}</span>
           </button>
 
@@ -315,7 +307,7 @@
           :aria-label="favoriteLabel"
           :aria-pressed="displayInteractionCounts.is_favorited"
         >
-          <Icon :name="displayInteractionCounts.is_favorited ? 'heart-filled' : 'heart'" :size="18" />
+          <span class="action-glyph"><Icon :name="displayInteractionCounts.is_favorited ? 'heart-filled' : 'heart'" :size="ACTION_GLYPH.default" /></span>
           <span v-if="!detailed && displayInteractionCounts.favorites_count > 0" class="action-count">{{ formatCount(displayInteractionCounts.favorites_count) }}</span>
         </button>
 
@@ -327,7 +319,7 @@
           :title="t('activitypub.addReaction')"
           :aria-label="t('activitypub.addReaction')"
         >
-          <Icon name="smile-plus" :size="18" />
+          <span class="action-glyph"><Icon name="smile-plus" :size="ACTION_GLYPH.default" /></span>
         </button>
 
         <button
@@ -340,7 +332,7 @@
           :aria-label="bookmarkLabel"
           :aria-pressed="displayInteractionCounts.is_bookmarked"
         >
-          <Icon :name="displayInteractionCounts.is_bookmarked ? 'bookmark-filled' : 'bookmark'" :size="18" />
+          <span class="action-glyph"><Icon :name="displayInteractionCounts.is_bookmarked ? 'bookmark-filled' : 'bookmark'" :size="ACTION_GLYPH.default" /></span>
         </button>
 
         <div class="action-menu">
@@ -354,7 +346,7 @@
             aria-haspopup="menu"
             :aria-expanded="showMenu"
           >
-            <Icon name="more-horizontal" :size="18" />
+            <span class="action-glyph"><Icon name="more-horizontal" :size="ACTION_GLYPH.default" /></span>
           </button>
         
           <!-- Teleported to body to escape virtual-scroll stacking contexts -->
@@ -514,7 +506,7 @@
       :target-user-id="displayAuthor.id"
       :target-post-id="post.id"
       :target-post-preview="postTextPreview"
-      :target-user="{ username: displayAuthor.username, display_name: displayAuthor.display_name, avatar_url: displayAuthor.avatar_url }"
+      :target-user="{ username: displayAuthor.username, display_name: displayAuthor.display_name, avatar_url: displayAuthor.avatar_url, domain: displayAuthor.domain, is_local: displayAuthor.is_local }"
       @close="showReportModal = false"
     />
 
@@ -632,6 +624,7 @@ import { unicodeToShortcode } from '@/services/unifiedEmojiService';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import { getReactionTooltipAnchor } from '@/utils/reactionTooltipPosition';
 import { getOriginalPost } from '@/utils/postReblog';
+import { isHeartEmoji } from '@/utils/heartReaction';
 import { supabase } from '@/supabase';
 import type { TimelinePost, DisplayNamePart } from '@/types';
 
@@ -1231,7 +1224,7 @@ const loadOriginalPostInteractions = async () => {
       .select('interaction_type')
       .eq('post_id', props.post.reblog.id)
       .eq('user_id', currentUser.id)
-      .in('interaction_type', ['favorite', 'emoji_reaction', 'reblog', 'bookmark']);
+      .in('interaction_type', ['favorite', 'reblog', 'bookmark']);
 
     if (error) {
       debug.error('Failed to load original post interactions:', error);
@@ -1240,7 +1233,7 @@ const loadOriginalPostInteractions = async () => {
 
     const interactionTypes = new Set(interactions?.map(i => i.interaction_type) || []);
     originalPostInteractions.value = {
-      is_favorited: interactionTypes.has('favorite') || interactionTypes.has('emoji_reaction'),
+      is_favorited: interactionTypes.has('favorite'),
       is_reblogged: interactionTypes.has('reblog'),
       is_bookmarked: interactionTypes.has('bookmark')
     };
@@ -1343,6 +1336,26 @@ const displayInteractionCounts = computed(() => {
     is_bookmarked: props.post.is_bookmarked || false
   };
 });
+
+// Focused-post counts: replies, then boosts and favourites as Mastodon orders them.
+// Zero counts are left out.
+const detailStats = computed(() => {
+  const counts = displayInteractionCounts.value;
+  return [
+    { key: 'replies', count: counts.replies_count, label: 'activitypub.repliesLabel' },
+    { key: 'boosts', count: counts.reblogs_count, label: 'activitypub.boostsLabel' },
+    { key: 'favorites', count: counts.favorites_count, label: 'activitypub.favoritesLabel' },
+  ].filter((stat) => stat.count > 0);
+});
+
+// Action glyph sizes in px. Ink measured at 18px with a 1.5px stroke: message-circle is a
+// closed 16.6px bubble with a 230px² convex hull, repeat-2 an open 16.5x10.5px pair of
+// arrows at 144px², heart 173px², bookmark 177px². Reply at 16 and boost at 20 come to
+// 182 and 178px².
+const ACTION_GLYPH = { reply: 16, reblog: 20, default: 18 } as const;
+
+/** Lucide stroke width, in its 24-unit viewBox, that draws 1.5px at `size` px. */
+const glyphStroke = (size: number) => (1.5 * 24) / size;
 
 const canEdit = computed(() => {
   const currentUser = getCurrentUser.value;
@@ -1501,6 +1514,13 @@ const handleEmojiSelected = async (emoji: any) => {
       // Don't block the reaction if audio fails
     }
     
+    // ❤ is the favourite, not a chip: picking it toggles the heart.
+    if (isHeartEmoji(emoji)) {
+      closeEmojiPopup();
+      await handleToggleFavorite();
+      return;
+    }
+
     // Use the PostReactions composable instead of direct Supabase calls
     if (postReactionsRef.value?.handleEmojiSelected) {
       const success = await postReactionsRef.value.handleEmojiSelected(emoji);
@@ -2296,6 +2316,20 @@ const closeLightbox = () => {
   text-decoration: underline;
 }
 
+/* The timestamp is the post's only link to its detail view; on touch screens
+   its hit area grows to about 40px square without moving the layout. */
+@media (pointer: coarse) {
+  .post-time {
+    position: relative;
+  }
+
+  .post-time::after {
+    content: '';
+    position: absolute;
+    inset: -11px -12px;
+  }
+}
+
 .visibility-indicator {
   display: inline-flex;
   align-items: center;
@@ -2452,7 +2486,7 @@ const closeLightbox = () => {
 .detail-stats {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-4);
+  gap: var(--space-2);
   margin-top: var(--space-3);
   padding: var(--space-3) 0;
   border-top: 1px solid var(--border-color);
@@ -2464,6 +2498,10 @@ const closeLightbox = () => {
 .detail-stats strong {
   color: var(--text-primary);
   font-weight: var(--font-weight-bold);
+}
+
+.detail-stats-separator {
+  color: var(--text-muted);
 }
 
 /* Action bar */
@@ -2485,6 +2523,7 @@ const closeLightbox = () => {
 .action-button {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: var(--space-1);
   min-width: 36px;
   height: 36px;
@@ -2500,6 +2539,17 @@ const closeLightbox = () => {
 
 .action-count {
   font-variant-numeric: tabular-nums;
+}
+
+/* Every glyph centres in the same 20px slot, so counts start at one offset whatever the
+   glyph's size. */
+.action-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 20px;
+  height: 20px;
 }
 
 .action-button:hover {

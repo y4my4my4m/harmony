@@ -48,6 +48,7 @@ Posts support emoji reactions via `PostReactions`:
 - Unicode and custom emoji
 - Grouped reaction counts
 - One-click to add/remove
+- ❤ is the favorite: picking it fills the heart and counts as a favorite, never as a chip
 
 ### Standard Actions
 

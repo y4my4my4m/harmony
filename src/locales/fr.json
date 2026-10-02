@@ -387,6 +387,7 @@
     "copyID": "Copier l'ID du message",
     "noMessagesHere": "Il n'y a pas de messages ici, tapez quelque chose !",
     "loadingOlder": "Chargement des anciens messages...",
+    "newMessagesBelow": "{count} nouveau message | {count} nouveaux messages",
     "conversationBeginning": "Ceci est le début de votre conversation",
     "conversationBeginningSubtitle": "Commencez à discuter et rendez-le mémorable !",
     "jumpInConversation": "Sauter dans la conversation",

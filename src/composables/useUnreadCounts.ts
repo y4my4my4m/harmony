@@ -1,6 +1,6 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { supabase } from '@/supabase'
 import { authContextService } from '@/services/AuthContextService'
+import { fetchUnreadCounts as fetchUnreadCountRows } from '@/services/readState'
 import { userEventChannel } from '@/services/UserEventChannel'
 import type { UnreadCount } from '@/types'
 import { debug } from '@/utils/debug'
@@ -137,29 +137,17 @@ export function useUnreadCounts() {
         return
       }
 
-      const { data, error } = await supabase
-        .from('unread_counts')
-        .select('*')
-        .eq('user_id', profileId)
-        .or('unread_mentions.gt.0,unread_messages.gt.0')
-
-      if (error) {
-        debug.error('Failed to fetch unread counts:', error)
-        return
-      }
-
-      if (data) {
-        sharedUnreadCounts.value.clear()
-        data.forEach((count) => {
-          const context = {
-            serverId: count.server_id,
-            channelId: count.channel_id,
-            conversationId: count.conversation_id,
-          }
-          const key = getContextKey(context)
-          sharedUnreadCounts.value.set(key, count as UnreadCount)
-        })
-      }
+      const data = await fetchUnreadCountRows()
+      sharedUnreadCounts.value.clear()
+      data.forEach((count) => {
+        const context = {
+          serverId: count.server_id,
+          channelId: count.channel_id,
+          conversationId: count.conversation_id,
+        }
+        const key = getContextKey(context)
+        sharedUnreadCounts.value.set(key, count)
+      })
 
       debug.log('Fetched unread counts:', sharedUnreadCounts.value.size)
     } catch (error) {

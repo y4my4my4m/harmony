@@ -9,6 +9,7 @@ import { getSupabaseClient } from '../config/supabase.js';
 import config from '../config/index.js';
 import { DeliveryQueue } from '../activitypub/DeliveryQueue.js';
 import { createLikeActivity } from '../activitypub/converters/toActivityPub.js';
+import { buildPostInteractionLike, isLikeInteraction } from '../activitypub/postInteractionLike.js';
 import { resolveOutboundEmoji } from '../utils/emojiResolvers.js';
 import { logger } from '../utils/logger.js';
 import { convertContentToHTML, extractActivityPubTags, extractAttachments } from '../utils/contentUtils.js';
@@ -149,18 +150,6 @@ export async function startDatabaseListener(): Promise<void> {
     .on(
       'postgres_changes',
       {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'reports',
-      },
-      async (payload) => {
-        logger.info('New report detected:', payload.new.id);
-        await handleNewReport(payload.new);
-      }
-    )
-    .on(
-      'postgres_changes',
-      {
         event: 'DELETE',
         schema: 'public',
         table: 'follows',
@@ -178,8 +167,13 @@ export async function startDatabaseListener(): Promise<void> {
         table: 'post_interactions',
       },
       async (payload) => {
-        logger.info('Interaction removal detected:', payload.old?.id);
-        await handleInteractionRemoval(payload.old);
+        // Under BullMQ the delete arm of trigger_queue_interaction_federation sends the Undo.
+        if (config.USE_BULLMQ_QUEUE) {
+          logger.debug('Interaction removal detected - handled by BullMQ:', payload.old?.id);
+        } else {
+          logger.info('Interaction removal detected:', payload.old?.id);
+          await handleInteractionRemoval(payload.old);
+        }
       }
     )
     .on(
@@ -452,24 +446,25 @@ async function handleNewReaction(interaction: any): Promise<void> {
     }
 
     const targetDomain = postAuthor.is_local ? undefined : (postAuthor.domain || undefined);
-    const { content, emojiData } = await resolveOutboundEmoji(
-      interaction.emoji_id,
-      interaction.custom_emoji_content,
-      targetDomain,
-    );
+    const ref = {
+      interaction_id: interaction.id,
+      interaction_type: interaction.interaction_type,
+      emoji_id: interaction.emoji_id,
+      custom_emoji_content: interaction.custom_emoji_content,
+    };
 
-    logger.info(`Federating reaction: ${content} on post ${post.id}`);
+    logger.info(`Federating ${interaction.interaction_type} on post ${post.id}`);
 
     if (!postAuthor.is_local && postAuthor.inbox_url) {
       const authorUrl = postAuthor.federated_id
         || `https://${postAuthor.domain}/users/${postAuthor.username}`;
-      const activity = createLikeActivity(user, post.ap_id, content, emojiData ?? undefined, [authorUrl]);
+      const activity = await buildPostInteractionLike(user, post.ap_id, ref, targetDomain, [authorUrl]);
       await DeliveryQueue.sendToInbox(postAuthor.inbox_url, activity, user.id);
       logger.info(`Reaction sent to post author ${postAuthor.inbox_url}`);
     }
 
     // Broadcast so every instance holding a copy of the post shows the reaction.
-    const broadcastActivity = createLikeActivity(user, post.ap_id, content, emojiData ?? undefined);
+    const broadcastActivity = await buildPostInteractionLike(user, post.ap_id, ref, targetDomain);
     await DeliveryQueue.broadcastToFollowers(post.author_id, broadcastActivity);
     logger.info(`Reaction broadcast to post author's remote followers`);
   } catch (error) {
@@ -667,7 +662,7 @@ async function handleInteractionRemoval(deletedInteraction: any): Promise<void> 
 
     const { data: postAuthor } = await supabase
       .from('profiles')
-      .select('inbox_url, is_local')
+      .select('inbox_url, is_local, domain')
       .eq('id', post.author_id)
       .single();
 
@@ -676,12 +671,17 @@ async function handleInteractionRemoval(deletedInteraction: any): Promise<void> 
       return;
     }
 
-    if (deletedInteraction.interaction_type === 'emoji_reaction' || 
-        deletedInteraction.interaction_type === 'favorite') {
+    if (isLikeInteraction(deletedInteraction.interaction_type)) {
       logger.info(`Federating reaction removal on post ${post.id}`);
       
       const { createUndoLikeActivity } = await import('./FederationHandlers.js');
-      const activity = createUndoLikeActivity(user, post.ap_id);
+      const like = await buildPostInteractionLike(user, post.ap_id, {
+        interaction_id: deletedInteraction.id,
+        interaction_type: deletedInteraction.interaction_type,
+        emoji_id: deletedInteraction.emoji_id,
+        custom_emoji_content: deletedInteraction.custom_emoji_content,
+      }, postAuthor.domain || undefined);
+      const activity = createUndoLikeActivity(user, post.ap_id, like);
 
       if (postAuthor.inbox_url) {
         await DeliveryQueue.sendToInbox(postAuthor.inbox_url, activity, user.id);
@@ -772,64 +772,6 @@ async function handleUnblock(block: any): Promise<void> {
     }
   } catch (error) {
     logger.error('Failed to handle unblock:', error);
-  }
-}
-
-/** Sends Flag to the reported user's instance inbox. */
-async function handleNewReport(report: any): Promise<void> {
-  try {
-    if (report.source === 'federation') {
-      logger.debug('Report is from federation, not re-federating');
-      return;
-    }
-
-    const supabase = getSupabaseClient();
-
-    const { data: reporter } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', report.reporter_id)
-      .single();
-
-    if (!reporter?.is_local) {
-      return;
-    }
-
-    const { data: reportedUser } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', report.reported_user_id)
-      .single();
-
-    if (!reportedUser) {
-      return;
-    }
-
-    if (reportedUser.is_local) {
-      logger.debug('Reported user is local, no federation needed');
-      return;
-    }
-
-    let reportedPost = null;
-    if (report.reported_post_id) {
-      const { data: post } = await supabase
-        .from('posts')
-        .select('*')
-        .eq('id', report.reported_post_id)
-        .single();
-      reportedPost = post;
-    }
-
-    const { createFlagActivity } = await import('./FederationHandlers.js');
-    const activity = createFlagActivity(reporter, reportedUser, reportedPost, report.reason);
-
-    const instanceDomain = reportedUser.domain;
-    const instanceInbox = `https://${instanceDomain}/inbox`;
-
-    await DeliveryQueue.sendToInbox(instanceInbox, activity, reporter.id);
-    logger.info(`Report federated to ${instanceInbox}`);
-  } catch (error) {
-    logger.error('Failed to handle new report:', error);
   }
 }
 

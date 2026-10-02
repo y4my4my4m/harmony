@@ -21,6 +21,41 @@ const REORDER_ECHO_TTL = 5000;
 let visibleChannelRefreshTimer: ReturnType<typeof setTimeout> | null = null;
 const VISIBLE_CHANNEL_REFRESH_MS = 500;
 
+// When each server's structure snapshot was last fetched (ms epoch). A switch
+// to a server fetched within STRUCTURE_FRESH_MS skips the background refresh;
+// the server-structure subscription covers changes from then on.
+const structureFetchedAt = new Map<string, number>();
+const STRUCTURE_FRESH_MS = 10_000;
+
+/**
+ * First text channel of the first category that has one, then the first
+ * uncategorised text channel, then the first channel of any type.
+ */
+function pickDefaultChannel(
+  categories: Category[],
+  categoryChannels: Record<string, Channel[]>,
+  channels: Channel[],
+): string | null {
+  if (categories && categories.length > 0) {
+    for (const category of categories) {
+      const categoryChannelList = categoryChannels[category.id] || [];
+      const firstTextChannel = categoryChannelList.find(ch => ch.type === 0);
+      if (firstTextChannel) {
+        return firstTextChannel.id;
+      }
+    }
+  }
+
+  const orphanChannels = channels.filter(channel => !channel.category);
+  const firstOrphanTextChannel = orphanChannels.find(ch => ch.type === 0);
+  if (firstOrphanTextChannel) {
+    return firstOrphanTextChannel.id;
+  }
+
+  const firstChannel = channels.find(ch => ch.type === 0) || channels[0];
+  return firstChannel?.id || null;
+}
+
 export const useServerChannelStore = defineStore('serverChannel', {
   state: () => ({
     servers: [] as Server[],
@@ -151,24 +186,35 @@ export const useServerChannelStore = defineStore('serverChannel', {
     },
 
     getDefaultChannel(): string | null {
-      if (this.categories && this.categories.length > 0) {
-        for (const category of this.categories) {
-          const categoryChannelList = this.categoryChannels[category.id] || [];
-          const firstTextChannel = categoryChannelList.find(ch => ch.type === 0);
-          if (firstTextChannel) {
-            return firstTextChannel.id;
-          }
-        }
-      }
+      return pickDefaultChannel(this.categories, this.categoryChannels, this.channels);
+    },
 
-      const orphanChannels = this.channels.filter(channel => !channel.category);
-      const firstOrphanTextChannel = orphanChannels.find(ch => ch.type === 0);
-      if (firstOrphanTextChannel) {
-        return firstOrphanTextChannel.id;
-      }
+    /** getDefaultChannel for any server with a loaded or cached structure; null otherwise. */
+    defaultChannelFor(serverId: string): string | null {
+      if (serverId === this._loadedCategoriesServerId) return this.getDefaultChannel();
+      const snapshot = this._structureCacheByServer[serverId];
+      if (!snapshot) return null;
+      return pickDefaultChannel(snapshot.categories, snapshot.categoryChannels, snapshot.channels);
+    },
 
-      const firstChannel = this.channels.find(ch => ch.type === 0) || this.channels[0];
-      return firstChannel?.id || null;
+    /** Background refresh of a server's structure unless its snapshot is fresh. */
+    revalidateServerStructure(serverId: string): Promise<void> {
+      const fetchedAt = structureFetchedAt.get(serverId);
+      if (fetchedAt !== undefined && Date.now() - fetchedAt < STRUCTURE_FRESH_MS) return Promise.resolve();
+      return this.fetchCategoriesAndChannels(serverId, undefined, true);
+    },
+
+    /**
+     * Fills _structureCacheByServer for a server that is not current, so
+     * selecting it takes the cached path. The snapshot is applied only when
+     * that server becomes current.
+     */
+    async prefetchServerStructure(serverId: string): Promise<void> {
+      // With no current server the fetch would apply its result and select it.
+      if (!serverId || !this.currentServerId || serverId === this.currentServerId) return;
+      if (this._structureCacheByServer[serverId]) return;
+      if (!this.servers.some(s => s.id === serverId)) return;
+      await this.fetchCategoriesAndChannels(serverId).catch(() => {});
     },
 
     setCurrentServer(serverId: string): void {
@@ -430,26 +476,28 @@ export const useServerChannelStore = defineStore('serverChannel', {
      * Service-like helper: Fetch categories and channels with abort support
      */
     async _fetchCategoriesAndChannelsHelper(serverId: string, signal?: AbortSignal): Promise<void> {
-      const { data: categories, error: categoriesError } = await supabase
-        .from('channel_categories')
-        .select('*')
-        .eq('server_id', serverId)
-        .order('order', { ascending: true });
+      // Independent reads; one round trip instead of two.
+      const [
+        { data: categories, error: categoriesError },
+        { data: channels, error: channelsError },
+      ] = await Promise.all([
+        supabase
+          .from('channel_categories')
+          .select('*')
+          .eq('server_id', serverId)
+          .order('order', { ascending: true }),
+        supabase
+          .from('channels')
+          .select('*')
+          .eq('server_id', serverId)
+          .order('order', { ascending: true }),
+      ]);
 
       if (signal?.aborted) throw new Error('Operation aborted');
       
       if (categoriesError) {
         throw new Error(`Categories fetch failed: ${categoriesError.message}`);
       }
-
-      const { data: channels, error: channelsError } = await supabase
-        .from('channels')
-        .select('*')
-        .eq('server_id', serverId)
-        .order('order', { ascending: true });
-
-      if (signal?.aborted) throw new Error('Operation aborted');
-      
       if (channelsError) {
         throw new Error(`Channels fetch failed: ${channelsError.message}`);
       }
@@ -461,11 +509,21 @@ export const useServerChannelStore = defineStore('serverChannel', {
      * Fallback method for fetching categories and channels
      */
     async _fetchCategoriesAndChannelsFallback(serverId: string, signal?: AbortSignal): Promise<void> {
-      const { data: categories, error: categoriesError } = await supabase
-        .from('channel_categories')
-        .select('*')
-        .eq('server_id', serverId)
-        .order('order', { ascending: true });
+      const [
+        { data: categories, error: categoriesError },
+        { data: channels, error: channelsError },
+      ] = await Promise.all([
+        supabase
+          .from('channel_categories')
+          .select('*')
+          .eq('server_id', serverId)
+          .order('order', { ascending: true }),
+        supabase
+          .from('channels')
+          .select('*')
+          .eq('server_id', serverId)
+          .order('order', { ascending: true }),
+      ]);
 
       if (signal?.aborted) return;
       
@@ -474,14 +532,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
         throw categoriesError;
       }
 
-      const { data: channels, error: channelsError } = await supabase
-        .from('channels')
-        .select('*')
-        .eq('server_id', serverId)
-        .order('order', { ascending: true });
-
-      if (signal?.aborted) return;
-      
       if (channelsError) {
         debug.error('Error fetching channels in fallback:', channelsError);
         throw channelsError;
@@ -506,6 +556,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
 
       // Always snapshot for instant future switches.
       this._structureCacheByServer[serverId] = { categories, channels, categoryChannels };
+      structureFetchedAt.set(serverId, Date.now());
 
       // Stale-fetch guard: if the user has already switched to a different
       // server, don't overwrite that server's (possibly cached) structure or
@@ -1079,9 +1130,9 @@ export const useServerChannelStore = defineStore('serverChannel', {
     },
 
     /**
-     * Inserts the server, then the owner's membership. The insert is never
-     * retried; a second attempt after a committed insert duplicates the server.
-     * A failed membership insert deletes the new row and rethrows.
+     * Inserts the server. The database adds the owner's membership in the same
+     * statement (add_server_owner_membership). The insert is never retried; a
+     * second attempt after a committed insert duplicates the server.
      */
     async createServer(serverData: { name: string; description?: string; public?: boolean; owner: string }) {
       const { data, error } = await supabase
@@ -1100,83 +1151,13 @@ export const useServerChannelStore = defineStore('serverChannel', {
         throw new Error(`Server creation failed: ${error.message}`)
       }
 
-      // Add server to local state before addUserToServer so the realtime
+      // Added before the membership's realtime event arrives, so the realtime
       // handler (_handleUserServerJoin) sees it and skips the duplicate push.
       if (!this.servers.some(s => s.id === data.id)) {
         this.servers.push(data)
       }
 
-      try {
-        await this.addUserToServer(data.id, serverData.owner)
-      } catch (membershipError) {
-        this.servers = this.servers.filter(s => s.id !== data.id)
-        const { error: cleanupError } = await supabase.from('servers').delete().eq('id', data.id)
-        if (cleanupError) {
-          debug.error('Could not remove server after failed membership insert:', cleanupError)
-        }
-        throw membershipError
-      }
-
       return data
-    },
-
-    async addUserToServer(serverId: string, userId: string) {
-      try {
-        debug.log('Adding user to server via service-like helper:', { serverId, userId })
-        
-        await this._addUserToServerHelper(serverId, userId)
-        
-        debug.log('User added to server successfully via service-like helper')
-      } catch (error) {
-        debug.error('Failed to add user to server via service-like helper:', error)
-        
-        try {
-          debug.log('Falling back to direct user-server addition')
-          await this._addUserToServerFallback(serverId, userId)
-        } catch (fallbackError) {
-          debug.error('Fallback user-server addition also failed:', fallbackError)
-          throw fallbackError
-        }
-      }
-    },
-
-    /**
-     * Service-like helper: Add user to server with duplicate handling
-     */
-    async _addUserToServerHelper(serverId: string, userId: string): Promise<void> {
-      const { error } = await supabase
-        .from('user_servers')
-        .insert([{ server_id: serverId, user_id: userId }])
-
-      if (error) {
-        if (error.code === '23505') { // Unique constraint violation
-          debug.log("User is already a member of this server")
-          return // Consider it successful since the desired state is achieved
-        }
-        throw new Error(`Adding user to server failed: ${error.message}`)
-      }
-    },
-
-    /**
-     * Fallback method for adding user to server
-     */
-    async _addUserToServerFallback(serverId: string, userId: string): Promise<void> {
-      const toast = useToast()
-      
-      const { error } = await supabase
-        .from('user_servers')
-        .insert([{ server_id: serverId, user_id: userId }])
-
-      if (error) {
-        if (error.code === '23505') { // Unique constraint violation
-          debug.log("User is already a member of this server")
-          // Don't show a toast here since this is typically called internally
-          return // Consider it successful since the desired state is achieved
-        }
-        debug.error('Error adding user to server:', error)
-        toast.error("Failed to add user to server")
-        throw error
-      }
     },
 
     async updateServer(serverData: { id: string; icon?: string; name?: string; description?: string; public?: boolean }) {

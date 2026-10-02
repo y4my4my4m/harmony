@@ -117,10 +117,7 @@
               </div>
             </article>
           </div>
-          <div v-else class="empty-state">
-            <Icon name="server" />
-            <p>{{ $t('activitypub.noInstancesFound') }}</p>
-          </div>
+          <EmptyState v-else icon="server" :title="$t('activitypub.noInstancesFound')" />
         </div>
       </div>
     </div>
@@ -142,6 +139,7 @@ import { activityPubService } from '@/services/activityPubService';
 import { adminService } from '@/services/AdminService';
 import InstanceDetailModal from './InstanceDetailModal.vue';
 import Icon from '@/components/common/Icon.vue';
+import EmptyState from '@/components/common/EmptyState.vue';
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 import { softwareDisplayName, instanceMonogram } from '@/utils/fediverseSoftware';
 
@@ -450,8 +448,7 @@ defineExpose({ refreshContent });
   padding: 16px;
 }
 
-.loading-state,
-.empty-state {
+.loading-state {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -714,6 +711,11 @@ defineExpose({ refreshContent });
 
   .filter-group {
     flex-wrap: wrap;
+  }
+
+  .filter-select,
+  .refresh-btn {
+    min-height: 40px;
   }
 
   .instances-grid {

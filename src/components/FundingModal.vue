@@ -168,9 +168,7 @@
             </p>
           </template>
 
-          <div v-else class="empty-state">
-            <p>Funding information is not available.</p>
-          </div>
+          <EmptyState v-else icon="heart" :title="$t('empty.funding.title')" />
         </div>
       </div>
     </div>
@@ -184,6 +182,7 @@ import SupporterBadgeIcon from '@/components/common/SupporterBadgeIcon.vue'
 import PlatformIcon from '@/components/common/PlatformIcon.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import Icon from '@/components/common/Icon.vue'
+import EmptyState from '@/components/common/EmptyState.vue'
 import { supabase } from '@/supabase'
 import { useProfileStore } from '@/stores/useProfile'
 import { getInstanceDomain } from '@/services/instanceConfig'
@@ -396,13 +395,6 @@ onBeforeUnmount(() => {
 }
 
 .loading-state,
-.empty-state {
-  display: flex;
-  justify-content: center;
-  padding: var(--space-10) 0;
-  color: var(--text-secondary);
-}
-
 .modal-body h3 {
   margin: 0 0 var(--space-2);
   font-size: var(--font-size-xs);

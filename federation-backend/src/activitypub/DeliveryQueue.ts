@@ -5,6 +5,12 @@ import { performanceMonitor } from '../services/PerformanceMonitor.js';
 import { logger } from '../utils/logger.js';
 import { validateExternalUrl, safeFetch } from '../utils/ssrfProtection.js';
 
+type RequestSigner = (
+  targetUrl: string,
+  method: string,
+  body: unknown,
+) => Promise<{ headers: Record<string, string>; digest?: string }>;
+
 const MAX_CONCURRENT_DOMAINS = 10;
 
 /**
@@ -16,7 +22,7 @@ export function isUnsalvageableStatus(status?: number): boolean {
 }
 
 /** Outcome of one immediate delivery attempt. */
-interface DirectDeliveryResult {
+export interface DirectDeliveryResult {
   delivered: boolean;
   /** False when queueing a retry is pointless (blocked, dead, unsafe, unsalvageable). */
   retry: boolean;
@@ -338,6 +344,29 @@ export class DeliveryQueue {
     targetInbox: string,
     senderId: string
   ): Promise<DirectDeliveryResult> {
+    return this.deliverSigned(activityData, targetInbox, (url, method, body) =>
+      SignatureService.signRequest(url, method, body, senderId));
+  }
+
+  /**
+   * One delivery signed by the instance actor. Nothing is queued, since
+   * federation_delivery_queue.sender_id names a profile; when `retry` is set the
+   * retry is the caller's.
+   */
+  static async deliverAsInstanceActor(
+    activityData: any,
+    targetInbox: string
+  ): Promise<DirectDeliveryResult> {
+    // Loaded on use: InstanceActor reads config, which validates the environment on import.
+    const { signAsInstanceActor } = await import('./InstanceActor.js');
+    return this.deliverSigned(activityData, targetInbox, signAsInstanceActor);
+  }
+
+  private static async deliverSigned(
+    activityData: any,
+    targetInbox: string,
+    sign: RequestSigner
+  ): Promise<DirectDeliveryResult> {
     const targetDomain = parseInboxDomain(targetInbox);
     if (!targetDomain) {
       logger.warn(`Invalid inbox URL, skipping delivery: ${targetInbox}`);
@@ -367,13 +396,7 @@ export class DeliveryQueue {
     const startedAt = process.hrtime.bigint();
 
     try {
-      // Sign the request
-      const { headers } = await SignatureService.signRequest(
-        targetInbox,
-        'POST',
-        activityData,
-        senderId
-      );
+      const { headers } = await sign(targetInbox, 'POST', activityData);
 
       headers['Content-Type'] = 'application/activity+json';
 

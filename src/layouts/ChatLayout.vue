@@ -55,6 +55,7 @@
             :channel="currentChannel"
             :server="currentServer"
             :is-mobile="isMobile"
+            :right-sidebar-open="rightSidebarOpen"
             @toggle-left-sidebar="$emit('toggleLeftSidebar')"
             @toggle-right-sidebar="$emit('toggleRightSidebar')"
             @toggle-search="handleToggleSearch"
@@ -179,7 +180,7 @@ import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useChatStore } from '@/stores/useChat'
 import { useDMStore } from '@/stores/useDM'
 import { useUserData } from '@/composables/useUserData'
-import { useLayoutState } from '@/composables/useLayoutState'
+import { useLayoutState, useSidebarPanel } from '@/composables/useLayoutState'
 import { storeToRefs } from 'pinia'
 import { useFundingStore } from '@/stores/useFunding'
 import FundingModal from '@/components/FundingModal.vue'
@@ -264,6 +265,10 @@ const shouldShowNoServersSplash = computed(() => {
     && serverChannelStore.hasInitialized
     && servers.value.length === 0
 })
+
+// The splash replaces both panels; DMs have no member list.
+useSidebarPanel('left', () => !shouldShowNoServersSplash.value)
+useSidebarPanel('right', () => !props.isDM && !shouldShowNoServersSplash.value)
 
 const leftSidebarStyle = computed(() => {
   if (!props.isMobile) return {}
@@ -434,6 +439,13 @@ const navigateToDefaultIfNeeded = async () => {
         await serverChannelStore.fetchCategoriesAndChannels(targetServerId)
       }
       
+      // currentChannelId outlives a server switch. Mid-switch it names the
+      // previous server's channel, and routing to it loads that channel's
+      // messages under the new server before the default channel resolves.
+      if (targetChannelId && !serverChannelStore.channels.some(c => c.id === targetChannelId)) {
+        targetChannelId = null
+      }
+
       if (!targetChannelId && serverChannelStore.channels.length > 0) {
         targetChannelId = serverChannelStore.getDefaultChannel()
         if (targetChannelId) {
@@ -505,8 +517,9 @@ onMounted(() => {
 <style scoped>
 .chat-layout {
   width: 100%;
-  height: 100vh;
-  height: 100dvh; /* mobile: keyboard/URL bar no longer hides the input */
+  /* Fills BaseLayout's content area, which is 100dvh less the safe-area
+     padding on mobile. */
+  height: 100%;
   display: flex;
   flex-direction: column;
   position: relative;
@@ -630,6 +643,8 @@ onMounted(() => {
     position: fixed;
     top: 0;
     bottom: 0;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
     z-index: 200;
     /* spring easing, applied on drag release */
     transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1), width 0.2s cubic-bezier(0.32, 0.72, 0, 1);

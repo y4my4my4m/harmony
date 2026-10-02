@@ -1,4 +1,5 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { AuthError, createClient, SupabaseClient } from '@supabase/supabase-js';
+import { meetsAssurance } from '../utils/sessionAssurance.js';
 import config from './index.js';
 import { logger } from '../utils/logger.js';
 
@@ -48,9 +49,13 @@ export const getSupabaseClient = (): SupabaseClient => {
  * interval retains the client (about 8 KB each, measured on auth-js 2.99.3).
  * The token arrives in the Authorization header, so there is no session to
  * refresh or persist.
+ *
+ * auth.getUser() answers no user for a token below the account's assurance level
+ * (utils/sessionAssurance.ts), so every route that authenticates through this client
+ * refuses a password-only session of a 2FA account.
  */
 export const getSupabaseClientWithAuth = (accessToken: string): SupabaseClient => {
-  return createClient(
+  const client = createClient(
     config.SUPABASE_URL,
     config.SUPABASE_ANON_KEY,
     {
@@ -66,6 +71,18 @@ export const getSupabaseClientWithAuth = (accessToken: string): SupabaseClient =
       },
     }
   );
+  const getUser = client.auth.getUser.bind(client.auth);
+  client.auth.getUser = (async (jwt?: string) => {
+    const result = await getUser(jwt);
+    if (result.data.user && !meetsAssurance(result.data.user, jwt ?? accessToken)) {
+      return {
+        data: { user: null },
+        error: new AuthError('insufficient_aal', 403, 'insufficient_aal'),
+      };
+    }
+    return result;
+  }) as typeof client.auth.getUser;
+  return client;
 };
 
 export default getSupabaseClient;

@@ -1,6 +1,5 @@
 import { ref } from 'vue'
 import { useActivityPubStore } from '@/stores/useActivityPub'
-import { usePostReactionsStore } from '@/stores/postReactions'
 import { services } from '@/services'
 import type { FederatedUser, TimelinePost } from '@/types'
 import { debug } from '@/utils/debug'
@@ -8,7 +7,6 @@ import { debug } from '@/utils/debug'
 // ActivityPub post/user interaction wrappers over the service layer.
 export function usePostInteractions() {
   const activityPubStore = useActivityPubStore()
-  const postReactionsStore = usePostReactionsStore()
 
   // Loading states
   const isFollowLoading = ref(false)
@@ -107,16 +105,6 @@ export function usePostInteractions() {
       debug.log(`Favorite toggled for post ${postId}:`, result.liked ? 'Liked' : 'Unliked')
 
       activityPubStore.updatePostInteractionInAllFeeds(postId, 'favorite', result.liked)
-
-      if (!result.liked) {
-        // Emptying the heart deletes interaction_type IN ('favorite','emoji_reaction'),
-        // so the cached chips outlive their rows. Optimistic groups shadow fetched
-        // ones, hence the clear. The toggle is committed; a failed refresh is not a
-        // failed toggle.
-        postReactionsStore.clearOptimisticState(postId)
-        await postReactionsStore.fetchPostReactions(postId, true)
-          .catch(error => debug.error('Failed to refresh reactions after unfavorite:', error))
-      }
 
       return {
         success: true,

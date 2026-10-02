@@ -5,8 +5,17 @@
  * view moves into the mini player's slot; an in-chat placeholder keeps its
  * footprint. The video docks back, still playing, when the placeholder scrolls
  * into view or is clicked, on the player's return button, or when the setting
- * is turned off. The player closes (pauses) when its source unmounts: channel
- * or route change, message deleted or edited.
+ * is turned off.
+ *
+ * The player outlives the component that registered the embed. When that
+ * component unmounts (route, server or channel change) the player keeps the
+ * floating element and playback continues. A later registration with the same
+ * source key (message id, media type and source) becomes the dock target: it
+ * is hidden behind a placeholder, and docking moves the playing <video> or
+ * <iframe> into it in place of its own media node. Closing pauses; a video with
+ * no mounted source is removed on close. The player also closes when the
+ * element is removed from its slot (message edited) or the message is deleted
+ * (releaseFloatingVideo).
  */
 
 import { computed, ref, shallowRef } from 'vue'
@@ -42,6 +51,8 @@ export interface FloatingVideoOptions {
 }
 
 interface Registration extends FloatingVideoOptions {
+  // type|messageId|source; equal keys denote the same media in the same message.
+  key: string
   // Last observed intersection ratio of the embed in the chat.
   ratio: number
   // Cleared on every dock; set once the embed is seen again. A docked embed
@@ -49,12 +60,25 @@ interface Registration extends FloatingVideoOptions {
   armed: boolean
 }
 
+interface DockTarget {
+  // Re-mounted source embed, hidden behind the placeholder while the video floats.
+  element: HTMLElement
+  // Its inline display value before hiding.
+  display: string
+}
+
 interface FloatingVideo {
   element: HTMLElement
-  placeholder: HTMLButtonElement
+  // In-chat stand-in; null while no source is mounted.
+  placeholder: HTMLButtonElement | null
   registration: Registration
   aspect: number
   canPictureInPicture: boolean
+  // The registering component unmounted; the player owns `element`.
+  orphaned: boolean
+  target: DockTarget | null
+  // location path + search when the video floated.
+  sourcePath: string
 }
 
 const ENABLED_KEY = 'floatingVideoEnabled'
@@ -70,6 +94,11 @@ const DOCK_ABOVE = 0.75
 export const FLOATING_VIDEO_BAR_HEIGHT = 32
 
 const MOBILE_BREAKPOINT = 768
+// After "return to message" navigates, a source mounted within this window is
+// scrolled to and docks once any of it shows.
+const RETURN_WINDOW_MS = 8000
+// Time a re-mounted source's placeholder stays in view before the video docks into it.
+const TARGET_DOCK_DWELL_MS = 400
 const LAYOUT = {
   desktop: { margin: 16, longEdge: 400, min: 240, max: 960 },
   mobile: { margin: 12, longEdge: 240, min: 160, max: 960 },
@@ -109,32 +138,131 @@ let observer: IntersectionObserver | null = null
 let host: { slot: HTMLElement; probe: HTMLElement } | null = null
 let slotObserver: MutationObserver | null = null
 let layoutFrame = 0
+let returnUntil = 0
+let targetDockTimer: ReturnType<typeof setTimeout> | null = null
+
+function sourceKey(el: HTMLElement, options: FloatingVideoOptions): string {
+  const media = el.querySelector(options.type === 'video' ? 'video' : 'iframe')
+  const source = options.sourceUrl ?? media?.getAttribute('src') ?? ''
+  return `${options.type}|${options.messageId ?? ''}|${source}`
+}
+
+function inAppRoot(el: HTMLElement): boolean {
+  const appRoot = document.getElementById('app')
+  return !appRoot || appRoot.contains(el)
+}
+
+// --- YouTube IFrame API ----------------------------------------------------
+// Messages from every YouTube player window are tracked so a reloaded iframe
+// can resume where it stopped. The protocol: the parent posts
+// {"event":"listening"}; the player answers with initialDelivery, onReady,
+// onStateChange (info: 1 = playing) and infoDelivery ({currentTime, playerState}).
+
+interface YouTubePlayback {
+  time: number
+  playing: boolean
+}
+
+const youtubeState = new WeakMap<object, YouTubePlayback>()
+const youtubeRestores = new Map<HTMLIFrameElement, YouTubePlayback>()
+let youtubeListening = false
+
+function isYouTubeOrigin(origin: string): boolean {
+  return /^https:\/\/(www\.)?youtube(-nocookie)?\.com$/.test(origin)
+}
+
+function postYouTube(iframe: HTMLIFrameElement, message: Record<string, unknown>): void {
+  iframe.contentWindow?.postMessage(JSON.stringify(message), '*')
+}
+
+function onYouTubeMessage(event: MessageEvent): void {
+  if (!event.source || !isYouTubeOrigin(event.origin)) return
+  let data: any = event.data
+  if (typeof data === 'string') {
+    try {
+      data = JSON.parse(data)
+    } catch {
+      return
+    }
+  }
+  if (!data || typeof data !== 'object') return
+
+  const state = youtubeState.get(event.source) ?? { time: 0, playing: false }
+  if (data.event === 'infoDelivery' && data.info) {
+    if (typeof data.info.currentTime === 'number') state.time = data.info.currentTime
+    if (typeof data.info.playerState === 'number') state.playing = data.info.playerState === 1
+  } else if (data.event === 'onStateChange' && typeof data.info === 'number') {
+    state.playing = data.info === 1
+  }
+  youtubeState.set(event.source, state)
+
+  // A floating video without a mounted source has no ProviderEmbedSwitch
+  // keeping its play flag current.
+  const cur = current.value
+  if (cur?.orphaned && cur.registration.type === 'youtube'
+    && cur.element.querySelector('iframe')?.contentWindow === event.source) {
+    cur.element.dataset.isPlaying = String(state.playing)
+  }
+
+  if (data.event !== 'onReady') return
+  for (const [iframe, restore] of youtubeRestores) {
+    if (iframe.contentWindow !== event.source) continue
+    youtubeRestores.delete(iframe)
+    postYouTube(iframe, { event: 'command', func: 'seekTo', args: [restore.time, true] })
+    postYouTube(iframe, { event: 'command', func: restore.playing ? 'playVideo' : 'pauseVideo', args: [] })
+  }
+}
+
+function listenToYouTube(): void {
+  if (youtubeListening || typeof window === 'undefined') return
+  window.addEventListener('message', onYouTubeMessage)
+  youtubeListening = true
+}
+
+// The reloaded player answers onReady once it hears "listening".
+function restoreYouTubeAfterReload(iframe: HTMLIFrameElement, playback: YouTubePlayback): void {
+  if (playback.time <= 0 && !playback.playing) return
+  youtubeRestores.set(iframe, playback)
+  iframe.addEventListener('load', () => postYouTube(iframe, { event: 'listening', id: iframe.id }), { once: true })
+}
 
 // moveBefore (Chrome 133+) relocates a node without resetting iframe or media
-// state. insertBefore reloads iframes; ProviderEmbedSwitch then restores
-// YouTube playback through its seek-on-reload path.
-function moveNode(parent: Node, el: HTMLElement, before: Node | null): void {
+// state. insertBefore reloads iframes. Returns true when state was kept.
+function moveNode(parent: Node, el: HTMLElement, before: Node | null): boolean {
   const mover = (parent as Node & { moveBefore?: (node: Node, child: Node | null) => void }).moveBefore
   if (typeof mover === 'function') {
     try {
       mover.call(parent, el, before)
-      return
+      return true
     } catch {
       // moveBefore throws when either side is disconnected; fall through.
     }
   }
   parent.insertBefore(el, before)
+  return false
 }
 
-function movePreservingPlayback(parent: Node, el: HTMLElement, before: Node | null): void {
-  const video = el.querySelector('video')
+/**
+ * Moves `node` (an embed, or its <video>/<iframe>) and resumes playback the
+ * move reset. `owner` carries the YouTube play flag (data-is-playing).
+ */
+function movePreservingPlayback(parent: Node, node: HTMLElement, before: Node | null, owner: HTMLElement = node): void {
+  const video = node instanceof HTMLVideoElement ? node : node.querySelector('video')
+  const iframe = node instanceof HTMLIFrameElement ? node : node.querySelector('iframe')
   const wasPlaying = video ? !video.paused : false
   const time = video?.currentTime ?? 0
-  moveNode(parent, el, before)
+  const youtube: YouTubePlayback | null = iframe
+    ? {
+        time: (iframe.contentWindow && youtubeState.get(iframe.contentWindow)?.time) || 0,
+        playing: owner.dataset.isPlaying === 'true',
+      }
+    : null
+  const preserved = moveNode(parent, node, before)
   if (video && wasPlaying && video.paused) {
     video.currentTime = time
     void video.play().catch(() => {})
   }
+  if (iframe && youtube && !preserved) restoreYouTubeAfterReload(iframe, youtube)
 }
 
 function isPlaying(el: HTMLElement, type: FloatingVideoType): boolean {
@@ -197,7 +325,13 @@ function onIntersect(entries: IntersectionObserverEntry[]): void {
     const target = entry.target as HTMLElement
     const cur = current.value
     if (cur && target === cur.placeholder) {
-      if (!interaction.value && visibleEnough(entry, DOCK_ABOVE)) dock()
+      if (!cur.target) {
+        if (!interaction.value && visibleEnough(entry, DOCK_ABOVE)) dock()
+      } else if (!interaction.value && visibleEnough(entry, targetDockFraction())) {
+        scheduleTargetDock(cur.placeholder)
+      } else {
+        cancelTargetDock()
+      }
       continue
     }
     const reg = registry.get(target)
@@ -213,8 +347,7 @@ function maybeFloat(el: HTMLElement, reg: Registration): void {
   if (!enabled.value || current.value || !reg.armed || !host || !el.isConnected) return
   // Embeds inside teleported overlays (threads, search, pinned) sit above
   // the player's layer; only the main app tree floats.
-  const appRoot = document.getElementById('app')
-  if (appRoot && !appRoot.contains(el)) return
+  if (!inAppRoot(el)) return
   if (!isPlaying(el, reg.type)) return
   float(el, reg)
 }
@@ -260,6 +393,9 @@ function float(el: HTMLElement, reg: Registration): void {
     registration: reg,
     aspect: mediaAspect(el),
     canPictureInPicture: !!video && document.pictureInPictureEnabled === true && !video.disablePictureInPicture,
+    orphaned: false,
+    target: null,
+    sourcePath: `${window.location.pathname}${window.location.search}`,
   }
   refreshLayout()
 
@@ -269,63 +405,211 @@ function float(el: HTMLElement, reg: Registration): void {
   attachViewportListeners()
 }
 
-/**
- * Put the floating video back in the chat. Playback continues; closing is
- * what pauses. With `scroll`, the chat scrolls to the returned embed.
- */
-function dock(options: { scroll?: boolean } = {}): void {
-  const cur = current.value
-  if (!cur) return
-  const { element, placeholder, registration } = cur
+function canDock(cur: FloatingVideo): boolean {
+  return !cur.orphaned || !!cur.target
+}
 
-  observer?.unobserve(placeholder)
+function clearCurrent(): void {
+  cancelTargetDock()
+  returnUntil = 0
   current.value = null
   livePosition.value = null
   endInteraction()
   detachViewportListeners()
+}
+
+/**
+ * Put the floating video back in the chat. Playback continues; closing is
+ * what pauses. With `scroll`, the chat scrolls to the returned embed. A video
+ * whose source is not mounted stays floating.
+ */
+function dock(options: { scroll?: boolean } = {}): void {
+  const cur = current.value
+  if (!cur || !canDock(cur)) return
+  const { element, placeholder, registration, target } = cur
+
+  if (placeholder) observer?.unobserve(placeholder)
+  clearCurrent()
   element.classList.remove('floating-video')
   registration.armed = false
 
   if (!host || element.parentNode !== host.slot) {
     // The owner removed the element itself.
-    placeholder.remove()
-    return
-  }
-  if (!placeholder.isConnected || !placeholder.parentNode) {
-    // The placeholder left with its message; there is nowhere to return to.
-    placeholder.remove()
-    element.remove()
+    placeholder?.remove()
+    if (target) target.element.style.display = target.display
     return
   }
 
-  movePreservingPlayback(placeholder.parentNode, element, placeholder)
-  placeholder.remove()
+  const home = target ? settleIntoTarget(element, placeholder, target, registration.type) : returnHome(element, placeholder)
+  if (!home) return
 
   // Re-observing delivers a fresh ratio for the returned embed.
-  if (observer && registry.get(element) === registration) {
-    observer.unobserve(element)
-    observer.observe(element)
+  if (observer && registry.get(home) === registration) {
+    observer.unobserve(home)
+    observer.observe(home)
   }
   if (options.scroll) {
-    element.scrollIntoView({ block: 'center', behavior: prefersReducedMotion() ? 'auto' : 'smooth' })
+    home.scrollIntoView({ block: 'center', behavior: prefersReducedMotion() ? 'auto' : 'smooth' })
   }
+}
+
+// Original source still mounted: the element goes back where the placeholder is.
+function returnHome(element: HTMLElement, placeholder: HTMLButtonElement | null): HTMLElement | null {
+  if (!placeholder?.isConnected || !placeholder.parentNode) {
+    // The placeholder left with its message; there is nowhere to return to.
+    placeholder?.remove()
+    element.remove()
+    return null
+  }
+  movePreservingPlayback(placeholder.parentNode, element, placeholder)
+  placeholder.remove()
+  return element
+}
+
+// Re-mounted source: its own media node is replaced by the playing one, and
+// the floating element, whose component is gone, is dropped.
+function settleIntoTarget(
+  element: HTMLElement,
+  placeholder: HTMLButtonElement | null,
+  target: DockTarget,
+  type: FloatingVideoType,
+): HTMLElement {
+  const into = target.element
+  into.style.display = target.display
+  placeholder?.remove()
+  const selector = type === 'video' ? 'video' : 'iframe'
+  const media = element.querySelector<HTMLElement>(selector)
+  const stale = into.querySelector<HTMLElement>(selector)
+  if (media && stale?.parentNode) {
+    if (type === 'youtube') into.dataset.isPlaying = element.dataset.isPlaying ?? 'false'
+    movePreservingPlayback(stale.parentNode, media, stale, into)
+    stale.remove()
+  }
+  element.remove()
+  return into
+}
+
+// Drops the floating video without returning it anywhere.
+function discard(): void {
+  const cur = current.value
+  if (!cur) return
+  if (cur.placeholder) {
+    observer?.unobserve(cur.placeholder)
+    cur.placeholder.remove()
+  }
+  if (cur.target) cur.target.element.style.display = cur.target.display
+  clearCurrent()
+  cur.element.classList.remove('floating-video')
+  cur.element.remove()
 }
 
 function close(): void {
   const cur = current.value
   if (!cur) return
   pause(cur.element, cur.registration.type)
-  dock()
+  if (canDock(cur)) dock()
+  else discard()
+}
+
+/**
+ * The registering component unmounted while its element floats. The player
+ * keeps the element; Vue removes only the top node of an unmounted subtree,
+ * so the element is still in the slot unless it was that node.
+ */
+function orphan(cur: FloatingVideo): void {
+  if (!host || cur.element.parentNode !== host.slot) {
+    discard()
+    return
+  }
+  if (cur.placeholder) {
+    observer?.unobserve(cur.placeholder)
+    cur.placeholder.remove()
+  }
+  current.value = { ...cur, placeholder: null, target: null, orphaned: true }
+}
+
+// A dock target appears by mounting, not by the user scrolling to it; a chat
+// that opens and then jumps to its newest message shows the placeholder for a
+// frame. Docking waits until the placeholder has stayed in view.
+function scheduleTargetDock(placeholder: HTMLButtonElement): void {
+  cancelTargetDock()
+  targetDockTimer = setTimeout(() => {
+    targetDockTimer = null
+    if (current.value?.placeholder !== placeholder || interaction.value) return
+    const r = placeholder.getBoundingClientRect()
+    const top = Math.max(r.top, 0)
+    const bottom = Math.min(r.bottom, window.innerHeight)
+    if (r.height > 0 && (bottom - top) / r.height >= targetDockFraction()) dock()
+  }, TARGET_DOCK_DWELL_MS)
+}
+
+// After the return button navigated here, any visible part of the placeholder
+// docks: a message near the top of a channel cannot scroll fully into view.
+function targetDockFraction(): number {
+  return Date.now() < returnUntil ? FLOAT_BELOW : DOCK_ABOVE
+}
+
+function cancelTargetDock(): void {
+  if (targetDockTimer !== null) {
+    clearTimeout(targetDockTimer)
+    targetDockTimer = null
+  }
+}
+
+// A re-mount of the floating video's source: it waits hidden behind a
+// placeholder until docking hands it the playing media.
+function adopt(cur: FloatingVideo, el: HTMLElement, reg: Registration): void {
+  const placeholder = createPlaceholder(el)
+  el.parentNode?.insertBefore(placeholder, el)
+  const target: DockTarget = { element: el, display: el.style.display }
+  el.style.display = 'none'
+  current.value = { ...cur, registration: reg, placeholder, target }
+  getObserver()?.observe(placeholder)
+
+  if (Date.now() < returnUntil) {
+    requestAnimationFrame(() => {
+      if (current.value?.placeholder === placeholder && placeholder.isConnected) {
+        placeholder.scrollIntoView({ block: 'center', behavior: prefersReducedMotion() ? 'auto' : 'smooth' })
+      }
+    })
+  }
+}
+
+// The dock target unmounted before the video docked into it.
+function releaseTarget(cur: FloatingVideo): void {
+  cancelTargetDock()
+  if (cur.placeholder) {
+    observer?.unobserve(cur.placeholder)
+    cur.placeholder.remove()
+  }
+  if (cur.target) cur.target.element.style.display = cur.target.display
+  current.value = { ...cur, placeholder: null, target: null }
 }
 
 function enterPictureInPicture(): void {
   const cur = current.value
-  const video = cur?.canPictureInPicture ? cur.element.querySelector('video') : null
+  const video = cur?.canPictureInPicture && canDock(cur) ? cur.element.querySelector('video') : null
   if (!video) return
   void video
     .requestPictureInPicture()
     .then(() => dock())
     .catch(() => {})
+}
+
+/**
+ * Return button. Docks when a source is mounted and returns null; otherwise
+ * returns the path the video floated from, and the next adopting source
+ * scrolls its placeholder into view.
+ */
+function returnToSource(): string | null {
+  const cur = current.value
+  if (!cur) return null
+  if (canDock(cur)) {
+    dock({ scroll: true })
+    return null
+  }
+  returnUntil = Date.now() + RETURN_WINDOW_MS
+  return cur.sourcePath
 }
 
 // --- Layout ---------------------------------------------------------------
@@ -475,7 +759,10 @@ function endResize(): void {
 
 function onSlotMutation(): void {
   const cur = current.value
-  if (cur && host && cur.element.parentNode !== host.slot) dock()
+  if (cur && host && cur.element.parentNode !== host.slot) {
+    if (canDock(cur)) dock()
+    else discard()
+  }
 }
 
 // --- Public API -------------------------------------------------------------
@@ -483,19 +770,41 @@ function onSlotMutation(): void {
 function setEnabled(value: boolean): void {
   enabled.value = value
   writeStorage('localStorage', ENABLED_KEY, String(value))
-  if (!value) dock()
+  if (value) return
+  const cur = current.value
+  if (cur && !canDock(cur)) close()
+  else dock()
 }
 
 /**
  * Observe `element` (the embed's root) for floating. The returned cleanup
- * belongs in the owner's unmount; a floating element closes with it.
+ * belongs in the owner's unmount; a floating element outlives it. A
+ * registration matching a floating video whose source unmounted becomes
+ * its dock target.
  */
 function registerVideo(element: HTMLElement, options: FloatingVideoOptions): () => void {
   const previous = registry.get(element)
-  const reg: Registration = { ...options, ratio: previous?.ratio ?? 1, armed: previous?.armed ?? true }
+  const reg: Registration = {
+    ...options,
+    key: sourceKey(element, options),
+    ratio: previous?.ratio ?? 1,
+    armed: previous?.armed ?? true,
+  }
   registry.set(element, reg)
-  if (current.value?.element === element) {
-    current.value = { ...current.value, registration: reg }
+  if (options.type === 'youtube') listenToYouTube()
+
+  const cur = current.value
+  if (cur?.element === element) {
+    current.value = { ...cur, registration: reg }
+  } else if (
+    cur?.orphaned
+    && !cur.target
+    && reg.messageId
+    && reg.key === cur.registration.key
+    && element.isConnected
+    && inAppRoot(element)
+  ) {
+    adopt(cur, element, reg)
   }
   getObserver()?.observe(element)
 
@@ -503,8 +812,22 @@ function registerVideo(element: HTMLElement, options: FloatingVideoOptions): () 
     if (registry.get(element) !== reg) return
     registry.delete(element)
     observer?.unobserve(element)
-    if (current.value?.element === element) close()
+    const now = current.value
+    if (now?.element === element) orphan(now)
+    else if (now?.target?.element === element) releaseTarget(now)
   }
+}
+
+/** Message id the return button navigated to, while that return is pending. */
+export function floatingReturnTarget(): string | null {
+  const cur = current.value
+  if (!cur || Date.now() >= returnUntil) return null
+  return cur.registration.messageId ?? null
+}
+
+/** Closes the floating video of a deleted message. */
+export function releaseFloatingVideo(messageId: string): void {
+  if (messageId && current.value?.registration.messageId === messageId) close()
 }
 
 /**
@@ -560,6 +883,8 @@ export function useFloatingVideoPlayer() {
     },
     dock,
     close,
+    returnToSource,
+    canDock: computed(() => !!current.value && canDock(current.value)),
     enterPictureInPicture,
     beginInteraction,
     dragTo,

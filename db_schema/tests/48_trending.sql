@@ -1,4 +1,5 @@
--- get_trending_posts and get_trending_hashtags (20261004000001_trending.sql).
+-- get_trending_posts and get_trending_hashtags (20261004000001_trending.sql; the posts
+-- signature is the keyset one from 20261005300001_trending_keyset.sql).
 --
 -- Profiles:
 --   viewer   local, has an auth user; blocks blocked, favourites 02, bookmarks 01
@@ -143,17 +144,17 @@ GRANT SELECT ON t48 TO anon, authenticated;
 
 -- Catalog -------------------------------------------------------------------------------
 SELECT ok(NOT (SELECT prosecdef FROM pg_proc
-                WHERE oid = 'public.get_trending_posts(integer, boolean, boolean, text, integer, integer, timestamptz)'::regprocedure)
+                WHERE oid = 'public.get_trending_posts(integer, boolean, boolean, text, integer, integer, timestamptz, double precision, timestamptz, uuid)'::regprocedure)
           AND NOT (SELECT prosecdef FROM pg_proc WHERE oid = 'public.get_trending_hashtags(integer, integer)'::regprocedure),
           'both functions run SECURITY INVOKER, so posts RLS applies');
-SELECT ok(has_function_privilege('anon', 'public.get_trending_posts(integer, boolean, boolean, text, integer, integer, timestamptz)', 'EXECUTE')
-          AND has_function_privilege('authenticated', 'public.get_trending_posts(integer, boolean, boolean, text, integer, integer, timestamptz)', 'EXECUTE')
+SELECT ok(has_function_privilege('anon', 'public.get_trending_posts(integer, boolean, boolean, text, integer, integer, timestamptz, double precision, timestamptz, uuid)', 'EXECUTE')
+          AND has_function_privilege('authenticated', 'public.get_trending_posts(integer, boolean, boolean, text, integer, integer, timestamptz, double precision, timestamptz, uuid)', 'EXECUTE')
           AND has_function_privilege('anon', 'public.get_trending_hashtags(integer, integer)', 'EXECUTE')
           AND has_function_privilege('authenticated', 'public.get_trending_hashtags(integer, integer)', 'EXECUTE'),
           'anon and authenticated may call both functions');
 SELECT ok(NOT EXISTS (
             SELECT 1 FROM pg_proc p, aclexplode(p.proacl) a
-             WHERE p.oid IN ('public.get_trending_posts(integer, boolean, boolean, text, integer, integer, timestamptz)'::regprocedure,
+             WHERE p.oid IN ('public.get_trending_posts(integer, boolean, boolean, text, integer, integer, timestamptz, double precision, timestamptz, uuid)'::regprocedure,
                              'public.get_trending_hashtags(integer, integer)'::regprocedure)
                AND a.grantee = 0),
           'PUBLIC holds no grant on either function');

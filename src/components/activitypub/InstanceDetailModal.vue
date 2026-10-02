@@ -168,10 +168,12 @@
             </div>
           </div>
 
-          <div v-else class="empty-placeholder">
-            <Icon name="message-square" :size="20" />
-            <span>No recent posts from this instance</span>
-          </div>
+          <EmptyState
+            v-else
+            size="sm"
+            icon="message-square"
+            :title="$t('empty.instancePosts.title')"
+          />
         </section>
       </div>
 
@@ -201,6 +203,7 @@ import { debug } from '@/utils/debug'
 import type { FederatedInstance, TimelinePost } from '@/types';
 import BaseModal from '@/components/common/BaseModal.vue';
 import Icon from '@/components/common/Icon.vue';
+import EmptyState from '@/components/common/EmptyState.vue';
 import Avatar from '@/components/common/Avatar.vue';
 import DisplayName from '@/components/DisplayName.vue';
 import { softwareDisplayName, instanceMonogram } from '@/utils/fediverseSoftware';

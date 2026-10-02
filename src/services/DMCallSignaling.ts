@@ -369,8 +369,8 @@ class DMCallSignalingService {
 
   /**
    * Ring each receiver on their own user channel (dm-calls:{receiverId}) and
-   * arm the CALL_TIMEOUT_MS no-answer timer. Inserts the call system message
-   * first so its id can ride along in the signal.
+   * arm the CALL_TIMEOUT_MS no-answer timer. Posts the call notice through
+   * start_dm_call_message first so its id can ride along in the signal.
    */
   async initiateCall(
     conversationId: string,
@@ -382,25 +382,17 @@ class DMCallSignalingService {
     
     let systemMessageId: string | null = null
     try {
-      const { data: msg, error } = await supabase.from('messages').insert({
-        user_id: callerId,
-        conversation_id: conversationId,
-        content: [{ type: 'text', text: 'started a call' }],
-        is_system: true,
-        metadata: {
-          type: 'call_started',
-          call_type: callType,
-          started_at: startedAt.toISOString(),
-          participants: [callerId],
-        }
-      }).select('id').single()
+      const { data: msgId, error } = await supabase.rpc('start_dm_call_message', {
+        p_conversation_id: conversationId,
+        p_call_type: callType,
+      })
       if (error) {
-        debug.error('Failed to insert call system message:', error.message)
+        debug.error('Failed to post call system message:', error.message)
       } else {
-        systemMessageId = msg?.id ?? null
+        systemMessageId = (msgId as string | null) ?? null
       }
     } catch (error) {
-      debug.error('Failed to insert call system message:', error)
+      debug.error('Failed to post call system message:', error)
     }
     
     const signal: CallSignal = {
@@ -812,10 +804,8 @@ class DMCallSignalingService {
       })
 
       if (rpcError) {
-        debug.warn('finalize_dm_call_message RPC unavailable, falling back to direct update:', rpcError.message)
-        await supabase.from('messages').update({
-          metadata: newMetadata
-        }).eq('id', call.systemMessageId)
+        debug.warn('finalize_dm_call_message failed:', rpcError.message)
+        return
       }
 
       debug.log('Finalized call system message:', call.systemMessageId, 'duration:', durationSeconds, 's')

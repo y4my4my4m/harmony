@@ -1,7 +1,7 @@
 <template>
   <div class="trending" data-testid="trending">
     <div class="trending-bar">
-      <div class="trending-bar-inner">
+      <div class="trending-bar-inner feed-column">
         <div
           class="trending-tabs"
           role="tablist"
@@ -26,11 +26,13 @@
           </button>
         </div>
 
+        <!-- Horizontal scrolling on narrow screens; swipes here are not sidebar gestures. -->
         <div
           v-if="showRangeFilter || showSourceFilter || showMediaFilter"
           class="trending-filters"
           role="toolbar"
           :aria-label="t('activitypub.trendingFilters')"
+          data-block-sidebar-gestures
         >
           <label
             v-if="showRangeFilter"
@@ -38,6 +40,8 @@
             :class="{ 'is-active': timeRange !== DEFAULT_RANGE }"
           >
             <Icon name="clock" :size="14" class="chip-icon" />
+            <span class="chip-label" aria-hidden="true">{{ rangeLabel(timeRange) }}</span>
+            <Icon name="chevron-down" :size="14" class="chip-caret" />
             <select
               class="chip-native"
               :value="timeRange"
@@ -47,7 +51,6 @@
             >
               <option v-for="range in TIME_RANGES" :key="range" :value="range">{{ rangeLabel(range) }}</option>
             </select>
-            <Icon name="chevron-down" :size="14" class="chip-caret" />
           </label>
 
           <label
@@ -56,6 +59,8 @@
             :class="{ 'is-active': source !== '' }"
           >
             <Icon name="globe" :size="14" class="chip-icon" />
+            <span class="chip-label" aria-hidden="true">{{ sourceLabel }}</span>
+            <Icon name="chevron-down" :size="14" class="chip-caret" />
             <select
               class="chip-native"
               :value="source"
@@ -67,7 +72,6 @@
               <option value="local">{{ t('activitypub.thisInstance') }}</option>
               <option v-for="domain in sourceDomains" :key="domain" :value="domain">{{ domain }}</option>
             </select>
-            <Icon name="chevron-down" :size="14" class="chip-caret" />
           </label>
 
           <button
@@ -137,7 +141,7 @@
       role="tabpanel"
       aria-labelledby="trending-tab-hashtags"
     >
-      <div class="trending-column">
+      <div class="trending-column feed-column">
         <div
           v-if="hashtags.loading && hashtags.items.length === 0"
           class="skeleton-list"
@@ -196,7 +200,7 @@
       role="tabpanel"
       aria-labelledby="trending-tab-people"
     >
-      <div class="trending-column">
+      <div class="trending-column feed-column">
         <div
           v-if="people.loading && people.items.length === 0"
           class="skeleton-list"
@@ -279,6 +283,7 @@ import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import {
   trendingService,
   TRENDING_TIME_RANGE_HOURS,
+  type TrendingCursor,
   type TrendingHashtag,
   type TrendingTimeRange,
 } from '@/services/TrendingService'
@@ -295,6 +300,8 @@ const TAB_IDS: readonly TrendingTab[] = ['posts', 'hashtags', 'people']
 const TIME_RANGES = Object.keys(TRENDING_TIME_RANGE_HOURS) as TrendingTimeRange[]
 const DEFAULT_RANGE: TrendingTimeRange = '24h'
 const POSTS_PAGE = 20
+// Pages fetched in a row when hidden authors and repeats leave a page with nothing new.
+const POSTS_EMPTY_PAGE_LIMIT = 5
 const HASHTAG_LIMIT = 30
 const PEOPLE_PAGE = 20
 
@@ -338,15 +345,19 @@ const hasActiveFilters = computed(() =>
   || (showMediaFilter.value && mediaOnly.value)
 )
 
-/** Empty strings drop the key; defaults stay out of the URL. */
-const setQuery = (patch: Record<string, string>) => {
+/**
+ * Empty strings drop the key; defaults stay out of the URL. Tab changes are history
+ * entries, so Back returns to the previous tab; filter changes replace the entry.
+ */
+const setQuery = (patch: Record<string, string>, mode: 'push' | 'replace' = 'replace') => {
   const query = { ...route.query }
   for (const [key, value] of Object.entries(patch)) {
     const isDefault = value === '' || (key === 'range' && value === DEFAULT_RANGE) || (key === 'tab' && value === 'posts')
     if (isDefault) delete query[key]
     else query[key] = value
   }
-  router.replace({ query })
+  if (mode === 'push') router.push({ query })
+  else router.replace({ query })
 }
 
 const clearFilters = () => {
@@ -362,7 +373,7 @@ const selectTab = (id: TrendingTab) => {
     refresh()
     return
   }
-  setQuery({ tab: id })
+  setQuery({ tab: id }, 'push')
 }
 
 // Roving focus across the tablist (WAI-ARIA tabs pattern, manual activation).
@@ -381,6 +392,12 @@ const handleTabKeydown = (event: KeyboardEvent) => {
   if (event.key === 'End') next = buttons.length - 1
   buttons[next]?.focus()
 }
+
+const sourceLabel = computed(() => {
+  if (source.value === '') return t('activitypub.allInstances')
+  if (source.value === 'local') return t('activitypub.thisInstance')
+  return source.value
+})
 
 const rangeLabel = (range: TrendingTimeRange): string => {
   switch (range) {
@@ -422,9 +439,9 @@ const posts = reactive({
   /** Filter key of the loaded rows; null until the first load. */
   key: null as string | null,
   items: [] as TimelinePost[],
-  /** Rows received from the server; the next page's offset. */
-  offset: 0,
   asOf: null as string | null,
+  /** Last row received; the next page starts after it. */
+  cursor: null as TrendingCursor | null,
   hasMore: false,
   loading: false,
   error: null as string | null,
@@ -448,22 +465,49 @@ const registerPostsScroll = (el: HTMLElement | null) => {
   postsScrollEl = el
 }
 
+/**
+ * Appends pages after the cursor until one adds a post the viewer can see, so a page
+ * made only of muted or blocked authors, or of repeats, does not stall the list.
+ * Returns false when a newer load superseded this one.
+ */
+const appendPages = async (request: number): Promise<boolean> => {
+  for (let i = 0; i < POSTS_EMPTY_PAGE_LIMIT && posts.hasMore; i++) {
+    const page = await trendingService.getTrendingPosts({
+      ...postsQuery(),
+      asOf: posts.asOf,
+      after: posts.cursor,
+    })
+    if (request !== posts.request) return false
+    // Counts move between pages; a post can rank into a page it already appeared on.
+    const seen = new Set(posts.items.map(p => p.id))
+    const fresh = page.posts.filter(p => !seen.has(p.id))
+    posts.items = [...posts.items, ...fresh]
+    activityPubStore.enrichFeedPosts(fresh)
+    posts.cursor = page.cursor ?? posts.cursor
+    posts.hasMore = page.hasMore
+    if (fresh.some(p => !isHidden(p.author_id || p.author?.id))) break
+  }
+  return true
+}
+
 const loadPosts = async () => {
   const request = ++posts.request
   posts.key = postsKey.value
   posts.items = []
-  posts.offset = 0
   posts.asOf = null
+  posts.cursor = null
   posts.hasMore = false
   posts.error = null
   posts.loading = true
   try {
-    const page = await trendingService.getTrendingPosts({ ...postsQuery(), offset: 0 })
+    const page = await trendingService.getTrendingPosts(postsQuery())
     if (request !== posts.request) return
     posts.items = page.posts
-    posts.offset = page.posts.length
+    activityPubStore.enrichFeedPosts(page.posts)
     posts.asOf = page.asOf
+    posts.cursor = page.cursor
     posts.hasMore = page.hasMore
+    if (visiblePosts.value.length === 0 && posts.hasMore && !(await appendPages(request))) return
   } catch (error) {
     if (request !== posts.request) return
     posts.error = error instanceof Error ? error.message : String(error)
@@ -477,17 +521,7 @@ const loadMorePosts = async () => {
   const request = posts.request
   posts.loading = true
   try {
-    const page = await trendingService.getTrendingPosts({
-      ...postsQuery(),
-      offset: posts.offset,
-      asOf: posts.asOf,
-    })
-    if (request !== posts.request) return
-    // Counts move between pages; a post can rank into a page it already appeared on.
-    const seen = new Set(posts.items.map(p => p.id))
-    posts.items = [...posts.items, ...page.posts.filter(p => !seen.has(p.id))]
-    posts.offset += page.posts.length
-    posts.hasMore = page.hasMore
+    await appendPages(request)
   } catch (error) {
     debug.error('Failed to load more trending posts:', error)
   } finally {
@@ -702,15 +736,17 @@ defineExpose({ refresh })
   background: var(--background-primary);
 }
 
+/* Scroll container with a stable gutter, like the feed scroller below it: both centre
+   the feed column on the same axis, so the side rules meet. */
 .trending-bar {
   flex-shrink: 0;
-  border-bottom: 1px solid var(--border-color);
+  overflow: hidden;
+  scrollbar-gutter: stable;
   background: var(--background-primary);
 }
 
 .trending-bar-inner {
-  max-width: 600px;
-  margin: 0 auto;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .trending-tabs {
@@ -765,16 +801,23 @@ defineExpose({ refresh })
   outline-offset: -2px;
 }
 
+/* Inline padding matches MonyPost's .post-content, so chips align with post text. */
 .trending-filters {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
-  padding: var(--space-2) var(--space-3) var(--space-3);
+  padding: var(--space-2) var(--space-4) var(--space-3);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.trending-filters::-webkit-scrollbar {
+  display: none;
 }
 
 .chip {
   position: relative;
+  flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
@@ -811,21 +854,27 @@ defineExpose({ refresh })
   padding-right: var(--space-2);
 }
 
-/* The native select spans the chip so the whole pill opens the menu. */
+.chip-label {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The native select covers the chip transparently: the whole pill opens the menu, and
+   the chip is as wide as the visible label rather than the longest option. */
 .chip-native {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  opacity: 0;
+  font: inherit;
+  cursor: pointer;
   appearance: none;
   -webkit-appearance: none;
-  border: none;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  padding: 0 18px 0 0;
-  margin-right: -18px;
-  height: 100%;
-  cursor: pointer;
-  outline: none;
-  max-width: 180px;
-  text-overflow: ellipsis;
 }
 
 .chip-native option {
@@ -866,12 +915,11 @@ defineExpose({ refresh })
 
 .trending-scroll {
   overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 
 .trending-column {
-  width: 100%;
-  max-width: 600px;
-  margin: 0 auto;
+  min-height: 100%;
 }
 
 /* Hashtags */
@@ -1085,12 +1133,11 @@ defineExpose({ refresh })
   background: var(--harmony-primary-hover);
 }
 
-@media (min-width: 769px) {
-  .trending-bar-inner,
-  .trending-column {
-    min-height: 100%;
-    border-left: 1px solid var(--border-color);
-    border-right: 1px solid var(--border-color);
+@media (max-width: 768px) {
+  .trending-filters,
+  .tag-row {
+    padding-left: var(--space-3);
+    padding-right: var(--space-3);
   }
 }
 </style>

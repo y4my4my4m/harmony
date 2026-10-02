@@ -180,7 +180,7 @@
           </div>
           <h2 class="modal-title">Two-factor authentication</h2>
           <p class="modal-subtitle">
-            {{ useRecoveryCode ? 'Enter your 8-character recovery code' : 'Enter the 6-digit code from your authenticator app' }}
+            {{ useRecoveryCode ? 'Enter one of your recovery codes' : 'Enter the 6-digit code from your authenticator app' }}
           </p>
         </div>
 
@@ -242,7 +242,8 @@ import { supabase } from '@/supabase'
 import { useToast } from 'vue-toastification'
 import { useAuthStore } from '@/stores/auth'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
-import { RECOVERY_CODE_MIN_LENGTH, RECOVERY_CODE_MAX_LENGTH, RECOVERY_CODE_PLACEHOLDER } from '@/utils/mfaConstants'
+import { RECOVERY_CODE_MIN_LENGTH, RECOVERY_CODE_MAX_LENGTH, RECOVERY_CODE_PLACEHOLDER, recoveryCodeLength } from '@/utils/mfaConstants'
+import { securityErrorMessage } from '@/services/AccountSecurityService'
 
 const router = useRouter()
 const toast = useToast()
@@ -507,78 +508,52 @@ const goToLogin = async () => {
 }
 
 const handleMFAVerification = async () => {
-  // Recovery codes are 10 hex chars since 2026-06; codes issued before that are
-  // 8. The verify RPC accepts either, so the client only enforces the minimum.
   if (useRecoveryCode.value) {
-    if (mfaCode.value.length < RECOVERY_CODE_MIN_LENGTH) {
-      mfaError.value = `Please enter a recovery code of at least ${RECOVERY_CODE_MIN_LENGTH} characters`
+    if (recoveryCodeLength(mfaCode.value) < RECOVERY_CODE_MIN_LENGTH) {
+      mfaError.value = 'Enter one of your recovery codes, for example ABCDE-12345.'
       return
     }
-  } else if (mfaCode.value.length !== 6) {
-    mfaError.value = 'Please enter a 6-digit code'
+  } else if (!/^\d{6}$/.test(mfaCode.value)) {
+    mfaError.value = 'Enter the 6-digit code from your authenticator app.'
     return
   }
 
-  debug.log('Starting MFA verification for password reset...')
   mfaLoading.value = true
   mfaError.value = ''
 
   try {
     if (useRecoveryCode.value) {
-      debug.log('Verifying recovery code...')
-      
-      const { data: sessionData } = await supabase.auth.getSession()
-      const userId = sessionData.session?.user?.id
-      
-      if (!userId) {
-        throw new Error('User session not found')
-      }
-
-      const { data: isValid, error } = await supabase.rpc('verify_recovery_code', {
-        p_user_id: userId,
-        p_code: mfaCode.value
+      // Consumes the code and removes the factors in one transaction; the recovery
+      // session then needs no second factor to set the password.
+      const { data: redeemed, error } = await supabase.rpc('redeem_recovery_code_and_disable_mfa', {
+        p_code: mfaCode.value,
       })
-
       if (error) throw error
+      if (!redeemed) throw new Error('That recovery code is not valid or was already used.')
 
-      if (!isValid) {
-        throw new Error('Invalid or already used recovery code')
-      }
-
-      debug.log('Recovery code verified successfully!')
-      
-      // Recovery-code use implies the authenticator is lost; drop the factor.
-      await supabase.auth.mfa.unenroll({ factorId: mfaFactorId.value })
-      
       requiresMFA.value = false
       showMFAModal.value = false
       mfaCode.value = ''
-      
       await performPasswordReset()
-      
-      toast.warning('2FA is disabled. Re-enable it after you log in with your new password.')
+      toast.warning('Two-factor authentication is off. Set it up again after you sign in.', { timeout: 10000 })
     } else {
-      debug.log('Verifying TOTP code...')
-      
       const { error: verifyError } = await supabase.auth.mfa.verify({
         factorId: mfaFactorId.value,
         challengeId: mfaChallengeId.value,
         code: mfaCode.value
       })
-
       if (verifyError) throw verifyError
 
-      debug.log('MFA verified - session upgraded to AAL2')
-      
       showMFAModal.value = false
       mfaCode.value = ''
-      
       // Session is AAL2 at this point.
       await performPasswordReset()
     }
   } catch (error: any) {
     debug.error('MFA verification error:', error)
-    mfaError.value = error.message || 'Invalid code. Please try again.'
+    mfaError.value = securityErrorMessage(error, useRecoveryCode.value
+      ? 'That recovery code is not valid or was already used.'
+      : 'Invalid code. Try again.')
   } finally {
     mfaLoading.value = false
   }
@@ -620,6 +595,24 @@ const toggleRecoveryCode = () => {
   backdrop-filter: blur(2px);
   z-index: 1;
   pointer-events: none;
+}
+
+/* Light themes, including the signed-out system-light preset. */
+:root[data-theme-type="light"] .bg-overlay {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.75) 0%,
+    rgba(255, 255, 255, 0.5) 50%,
+    rgba(255, 255, 255, 0.8) 100%
+  );
+}
+
+:root[data-theme-type="light"] .brand-title {
+  color: var(--text-primary);
+}
+
+:root[data-theme-type="light"] .brand-subtitle {
+  color: var(--text-secondary);
 }
 
 .reset-password-container {
@@ -969,9 +962,13 @@ const toggleRecoveryCode = () => {
   color: var(--text-primary);
 }
 
+/* The global .modal-header is a flex row; this one stacks icon, title and subtitle. */
 .modal-header {
+  display: block;
   text-align: center;
   margin-bottom: 24px;
+  padding: 0;
+  border: none;
 }
 
 .modal-icon {

@@ -387,6 +387,7 @@
     "copyID": "复制消息 ID",
     "noMessagesHere": "这里还没有消息，输入点什么吧！",
     "loadingOlder": "加载更早的消息...",
+    "newMessagesBelow": "{count} 条新消息",
     "conversationBeginning": "这是您对话的开始",
     "conversationBeginningSubtitle": "开始聊天，让它难忘！",
     "jumpInConversation": "跳转到对话",

@@ -1,4 +1,4 @@
-import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
+import { ref, reactive, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { debug } from '@/utils/debug'
 
@@ -28,6 +28,39 @@ const rightSidebarWasOpen = ref(false)
 // Sidebar configuration
 const SIDEBAR_WIDTH = 280
 const SERVER_SIDEBAR_WIDTH = 72
+
+// Side panels the mounted layout renders, by registering component. The left
+// drawer is the server rail plus, when registered, the layout's channel or
+// navigation panel; the right drawer exists only when registered. Pages that
+// render neither (Today, settings) get a rail-only left drawer and no right one.
+type PanelSide = 'left' | 'right'
+const panelSources = {
+  left: reactive(new Map<symbol, () => boolean>()),
+  right: reactive(new Map<symbol, () => boolean>()),
+}
+const hasPanel = (side: PanelSide) => computed(() => {
+  for (const present of panelSources[side].values()) {
+    if (present()) return true
+  }
+  return false
+})
+const hasLeftPanel = hasPanel('left')
+const hasRightPanel = hasPanel('right')
+
+/**
+ * Declares a side panel for the calling component's lifetime. `present` gates
+ * it on component state, e.g. a layout that renders the panel conditionally.
+ */
+export function useSidebarPanel(side: PanelSide, present: () => boolean = () => true): void {
+  const id = Symbol(side)
+  panelSources[side].set(id, present)
+  onBeforeUnmount(() => {
+    panelSources[side].delete(id)
+  })
+}
+
+// Width the left drag gesture spans: rail plus panel, or the rail alone.
+const leftDrawerWidth = computed(() => (hasLeftPanel.value ? SIDEBAR_WIDTH : SERVER_SIDEBAR_WIDTH))
 
 // Mobile breakpoint: 768px.
 // Sidebar state is mutated only on desktop<->mobile transitions and first mount.
@@ -68,6 +101,12 @@ const handleResize = () => {
   checkMobileDevice()
 }
 
+// A mobile right drawer whose panel unmounted (navigation to Today, a DM)
+// would leave the backdrop state set with nothing to show.
+watch(hasRightPanel, (present) => {
+  if (!present && isMobile.value) rightSidebarOpen.value = false
+})
+
 export function useLayoutState() {
   const route = useRoute()
 
@@ -76,12 +115,11 @@ export function useLayoutState() {
     return p.startsWith('/social') || p.startsWith('/posts')
   }
 
-  // DM routes have no right sidebar. Suppresses the right-sidebar
-  // toggle/gesture/overlay so the mobile backdrop blur never covers a screen
-  // with nothing to reveal.
-  const isDMRoute = (): boolean => route.path.startsWith('/dm')
+  // Without a registered right panel (DM, Today, settings) the right-sidebar
+  // toggle, gesture and overlay are suppressed, so the mobile backdrop blur
+  // never covers a screen with nothing to reveal.
   const isChatRoute = (): boolean => route.path.startsWith('/chat')
-  const hasRightSidebar = computed(() => !isDMRoute())
+  const hasRightSidebar = hasRightPanel
 
   const restoreActivityPubRightSidebar = () => {
     if (typeof window === 'undefined' || isMobile.value) return
@@ -231,7 +269,7 @@ export function useLayoutState() {
     // Initial state decides whether the gesture opens or closes.
     if (direction === 'left') {
       leftSidebarWasOpen.value = leftSidebarOpen.value
-      leftSidebarDragOffset.value = leftSidebarOpen.value ? SIDEBAR_WIDTH : 0
+      leftSidebarDragOffset.value = leftSidebarOpen.value ? leftDrawerWidth.value : 0
       rightSidebarOpen.value = false // Close other sidebar
     } else {
       rightSidebarWasOpen.value = rightSidebarOpen.value
@@ -251,15 +289,16 @@ export function useLayoutState() {
     
     if (direction === 'left') {
       // Left sidebar: +deltaX opens, -deltaX closes.
+      const width = leftDrawerWidth.value
       let newOffset: number
       if (leftSidebarWasOpen.value) {
         // Started open: offset shrinks as deltaX goes negative.
-        newOffset = SIDEBAR_WIDTH + deltaX
+        newOffset = width + deltaX
       } else {
         // Started closed: offset grows with positive deltaX.
         newOffset = deltaX
       }
-      leftSidebarDragOffset.value = Math.max(0, Math.min(SIDEBAR_WIDTH, newOffset))
+      leftSidebarDragOffset.value = Math.max(0, Math.min(width, newOffset))
     } else {
       // Right sidebar: -deltaX opens, +deltaX closes.
       let newOffset: number
@@ -277,10 +316,12 @@ export function useLayoutState() {
   // Final state is decided by drag position alone; see endDragWithVelocity for
   // the flick-aware variant.
   const endDrag = (direction: 'left' | 'right') => {
-    const COMPLETION_THRESHOLD = 0.4 // fraction of SIDEBAR_WIDTH
+    // startDrag refused the gesture (no panel on that side).
+    if (!isDragging.value) return
+    const COMPLETION_THRESHOLD = 0.4 // fraction of the drawer width
     
     if (direction === 'left') {
-      const progress = leftSidebarDragOffset.value / SIDEBAR_WIDTH
+      const progress = leftSidebarDragOffset.value / leftDrawerWidth.value
       const shouldBeOpen = progress > COMPLETION_THRESHOLD
       
       debug.log('endDrag left:', { 
@@ -316,11 +357,13 @@ export function useLayoutState() {
 
   // velocity is px/ms; positive = swipe right, negative = swipe left.
   const endDragWithVelocity = (velocity: number, direction: 'left' | 'right') => {
-    const COMPLETION_THRESHOLD = 0.4 // fraction of SIDEBAR_WIDTH
+    // startDrag refused the gesture (no panel on that side).
+    if (!isDragging.value) return
+    const COMPLETION_THRESHOLD = 0.4 // fraction of the drawer width
     const VELOCITY_THRESHOLD = 0.3 // px/ms
     
     if (direction === 'left') {
-      const progress = leftSidebarDragOffset.value / SIDEBAR_WIDTH
+      const progress = leftSidebarDragOffset.value / leftDrawerWidth.value
       
       let shouldBeOpen: boolean
       if (Math.abs(velocity) > VELOCITY_THRESHOLD) {
@@ -346,7 +389,9 @@ export function useLayoutState() {
       const progress = rightSidebarDragOffset.value / SIDEBAR_WIDTH
       
       let shouldBeOpen: boolean
-      if (Math.abs(velocity) > VELOCITY_THRESHOLD) {
+      if (!hasRightSidebar.value) {
+        shouldBeOpen = false
+      } else if (Math.abs(velocity) > VELOCITY_THRESHOLD) {
         // Flick: leftward opens the right sidebar.
         shouldBeOpen = velocity < 0
       } else {
@@ -417,12 +462,13 @@ export function useLayoutState() {
     return {}
   })
 
-  // Server sidebar sits left of the channel sidebar and slides with it on mobile.
+  // Server sidebar sits left of the channel sidebar and slides with it on
+  // mobile; without a channel panel it is the whole drawer.
   const serverSidebarDragStyle = computed(() => {
     if (!isMobile.value) return {}
     
     if (isDragging.value && dragDirection.value === 'left') {
-      const translateX = leftSidebarDragOffset.value - SIDEBAR_WIDTH
+      const translateX = leftSidebarDragOffset.value - leftDrawerWidth.value
       return {
         transform: `translateX(${translateX}px)`,
         transition: 'none'
@@ -437,6 +483,7 @@ export function useLayoutState() {
     leftSidebarOpen: computed(() => leftSidebarOpen.value),
     rightSidebarOpen: computed(() => rightSidebarOpen.value),
     hasRightSidebar,
+    leftDrawerWidth,
     voicePanelOpen: computed(() => voicePanelOpen.value),
     mobileProfileOpen: computed(() => mobileProfileOpen.value),
     isMobile: computed(() => isMobile.value),

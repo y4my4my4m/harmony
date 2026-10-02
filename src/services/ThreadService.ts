@@ -13,6 +13,7 @@ import {
   MESSAGE_TEXT_HARD_CEILING,
   messageTextLength,
 } from '@/utils/messageContentUtils'
+import { blockedMessageRejection, moderationRejectionFromError } from '@/services/AutoModService'
 
 // Thread Types
 
@@ -922,17 +923,26 @@ class ThreadService {
     if (replyTo) insertData.reply_to = replyTo
     insertData.metadata = { created_via: 'harmony_client', ...extra }
 
-    const { data, error } = await supabase
+    // Array response: AutoMod drops a blocked row (zero rows), and PostgREST
+    // rolls a zero-row .single() request back with the AutoMod event in it.
+    const { data: rows, error } = await supabase
       .from('messages')
       .insert(insertData)
       .select()
-      .single()
 
     if (error) {
       if ((error.message || '').includes('CHANNEL_ENCRYPTED')) {
         throw channelEncryptionError('changed', error)
       }
+      const rejection = moderationRejectionFromError(error)
+      if (rejection) throw Object.assign(new Error(rejection.message), { code: rejection.code, details: rejection.details })
       throw error
+    }
+
+    const data = rows?.[0]
+    if (!data) {
+      const rejection = await blockedMessageRejection(thread.channel_id)
+      throw Object.assign(new Error(rejection.message), { code: rejection.code, details: rejection.details })
     }
 
     // Stats move in place. Dropping the entry would cost the next send a full

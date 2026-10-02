@@ -112,13 +112,13 @@
           </Transition>
         </div>
 
-        <div
+        <EmptyState
           v-if="myGeneratedAiEmojis.length === 0 && !generating && !revealedEmoji"
-          class="empty-state"
-        >
-          <p>{{ $t('emoji.aiGenerateEmpty') }}</p>
-          <span class="empty-hint">{{ $t('emoji.aiGenerateEmptyHint') }}</span>
-        </div>
+          size="sm"
+          icon="sparkles"
+          :title="$t('emoji.aiGenerateEmpty')"
+          :description="$t('emoji.aiGenerateEmptyHint')"
+        />
         <div v-else-if="gridAiEmojis.length > 0 || revealedEmoji" class="ai-gen-grid">
           <button
             v-for="emoji in gridAiEmojis"
@@ -144,13 +144,13 @@
 
       <!-- Favorites View -->
       <template v-else-if="showFavorites">
-        <div v-if="favorites.length === 0" class="empty-state">
-          <svg viewBox="0 0 24 24" width="48" height="48" fill="currentColor" class="empty-icon">
-            <path d="M22 9.24l-7.19-.62L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.63-7.03L22 9.24zM12 15.4l-3.76 2.27 1-4.28-3.32-2.88 4.38-.38L12 6.1l1.71 4.04 4.38.38-3.32 2.88 1 4.28L12 15.4z"/>
-          </svg>
-          <p>No favorite {{ mediaNoun }} yet</p>
-          <span class="empty-hint">{{ $t('gif.noFavoritesHint') }}</span>
-        </div>
+        <EmptyState
+          v-if="favorites.length === 0"
+          size="sm"
+          icon="star"
+          :title="t('gif.noFavoritesOf', { kind: mediaNoun })"
+          :description="t('gif.noFavoritesHint')"
+        />
         <masonry-wall v-else :items="favorites" :column-width="150" :gap="10">
           <template #default="{ item }">
             <div 
@@ -199,14 +199,22 @@
 
       <!-- Trending/Search Results -->
       <template v-else>
-        <div v-if="items.length === 0 && !isLoading && loadError" class="empty-state" role="alert">
-          <p>{{ $t('gif.loadFailed', { kind: mediaNoun }) }}</p>
-          <button type="button" class="empty-retry" @click="fetchPage(true)">{{ $t('common.retry') }}</button>
-        </div>
-        <div v-else-if="items.length === 0 && !isLoading" class="empty-state">
-          <p>No {{ mediaNoun }} found</p>
-          <span v-if="searchQuery.trim()" class="empty-hint">{{ $t('gif.tryDifferentSearch') }}</span>
-        </div>
+        <EmptyState
+          v-if="items.length === 0 && !isLoading && loadError"
+          size="sm"
+          tone="error"
+          icon="alert-circle"
+          :title="t('gif.loadFailed', { kind: mediaNoun })"
+          :action-label="t('common.retry')"
+          @action="fetchPage(true)"
+        />
+        <EmptyState
+          v-else-if="items.length === 0 && !isLoading"
+          size="sm"
+          icon="search"
+          :title="t('gif.noneFound', { kind: mediaNoun })"
+          :description="searchQuery.trim() ? t('gif.tryDifferentSearch') : undefined"
+        />
         <!-- Ads sit in full-width rows between masonry runs (masonry can't column-span). -->
         <div v-else class="gif-results-feed">
           <template v-for="segment in feedSegments" :key="segment.key">
@@ -287,6 +295,7 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, nextTick, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
+import EmptyState from '@/components/common/EmptyState.vue';
 import { useLayoutState } from '@/composables/useLayoutState';
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
 import { useEmojiCacheStore, PERSONAL_EMOJI_GROUPS } from '@/stores/useEmojiCache';
@@ -1175,50 +1184,6 @@ onMounted(async () => {
   color: var(--text-secondary);
 }
 
-
-.empty-retry {
-  margin-top: 4px;
-  padding: 6px 14px;
-  background: var(--background-modifier-hover);
-  border: 1px solid var(--border-primary);
-  border-radius: var(--radius-base);
-  color: var(--text-primary);
-  font-size: var(--font-size-sm);
-  cursor: pointer;
-}
-
-.empty-retry:hover {
-  background: var(--background-modifier-active);
-}
-
-/* Empty State */
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 40px 20px;
-  text-align: center;
-  color: var(--text-secondary);
-}
-
-.empty-icon {
-  opacity: 0.3;
-  margin-bottom: 8px;
-}
-
-.empty-state p {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 500;
-  color: var(--text-primary);
-}
-
-.empty-hint {
-  font-size: 13px;
-  color: var(--text-muted);
-}
 
 /* Scrollbar styling */
 .gif-results::-webkit-scrollbar {

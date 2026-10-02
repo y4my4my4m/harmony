@@ -32,10 +32,11 @@ function report(target: Element, ratio: number) {
   }
 }
 
-function makeVideoEmbed(parent: HTMLElement) {
+function makeVideoEmbed(parent: HTMLElement, src = '') {
   const container = document.createElement('div')
   container.className = 'video-container'
   const video = document.createElement('video')
+  if (src) video.setAttribute('src', src)
   let paused = true
   Object.defineProperty(video, 'paused', { get: () => paused, configurable: true })
   video.play = vi.fn(async () => { paused = false })
@@ -121,20 +122,216 @@ describe('useFloatingVideo', () => {
     expect(container.parentElement).toBe(slot)
   })
 
-  it('closes the player when its owner unmounts', async () => {
-    const { api, app, message, slot } = await setup()
-    const { container, video, start } = makeVideoEmbed(message)
-    const cleanup = api.registerVideo(container, { type: 'video' })
+  it('keeps playing when its owner unmounts', async () => {
+    const { api, player, message, slot } = await setup()
+    const { container, video, start } = makeVideoEmbed(message, '/clip.webm')
+    const cleanup = api.registerVideo(container, { type: 'video', messageId: 'm1' })
     start()
     report(container, 0)
 
-    message.remove() // row unmounted; placeholder leaves with it
+    message.remove() // route change; the placeholder leaves with the row
     cleanup()
+    expect(video.pause).not.toHaveBeenCalled()
+    expect(container.parentElement).toBe(slot)
+    expect(api.floatingMessageId.value).toBe('m1')
+    expect(player.current.value?.orphaned).toBe(true)
+    expect(player.current.value?.placeholder).toBeNull()
+    expect(player.canDock.value).toBe(false)
+  })
+
+  it('docks into a re-mounted source of the same media, moving the playing node', async () => {
+    vi.useFakeTimers()
+    try {
+      const { api, app, message, slot } = await setup()
+      const first = makeVideoEmbed(message, '/clip.webm')
+      const cleanup = api.registerVideo(first.container, { type: 'video', messageId: 'm1' })
+      first.start()
+      report(first.container, 0)
+      message.remove()
+      cleanup()
+
+      const remounted = document.createElement('div')
+      app.appendChild(remounted)
+      const second = makeVideoEmbed(remounted, '/clip.webm')
+      api.registerVideo(second.container, { type: 'video', messageId: 'm1' })
+
+      const placeholder = remounted.querySelector<HTMLElement>('.floating-video-placeholder')!
+      expect(placeholder).not.toBeNull()
+      expect(second.container.style.display).toBe('none')
+      expect(first.container.parentElement).toBe(slot)
+
+      placeholder.getBoundingClientRect = () => ({ top: 100, bottom: 300, height: 200 }) as DOMRect
+      report(placeholder, 0.9)
+      expect(first.container.parentElement).toBe(slot) // waits for the dwell
+      vi.advanceTimersByTime(500)
+
+      expect(second.container.style.display).toBe('')
+      expect(second.container.querySelector('video')).toBe(first.video)
+      expect(second.video.isConnected).toBe(false)
+      expect(first.container.isConnected).toBe(false)
+      expect(remounted.querySelector('.floating-video-placeholder')).toBeNull()
+      expect(first.video.pause).not.toHaveBeenCalled()
+      expect(api.floatingMessageId.value).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not dock into a re-mounted source that scrolls away within the dwell', async () => {
+    vi.useFakeTimers()
+    try {
+      const { api, app, message, slot } = await setup()
+      const first = makeVideoEmbed(message, '/clip.webm')
+      const cleanup = api.registerVideo(first.container, { type: 'video', messageId: 'm1' })
+      first.start()
+      report(first.container, 0)
+      message.remove()
+      cleanup()
+
+      const remounted = document.createElement('div')
+      app.appendChild(remounted)
+      const second = makeVideoEmbed(remounted, '/clip.webm')
+      api.registerVideo(second.container, { type: 'video', messageId: 'm1' })
+      const placeholder = remounted.querySelector<HTMLElement>('.floating-video-placeholder')!
+
+      report(placeholder, 0.9)
+      report(placeholder, 0) // the chat jumps to its newest message
+      vi.advanceTimersByTime(500)
+      expect(first.container.parentElement).toBe(slot)
+      expect(second.container.style.display).toBe('none')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not adopt a registration for other media or another message', async () => {
+    const { api, app, message } = await setup()
+    const first = makeVideoEmbed(message, '/clip.webm')
+    const cleanup = api.registerVideo(first.container, { type: 'video', messageId: 'm1' })
+    first.start()
+    report(first.container, 0)
+    message.remove()
+    cleanup()
+
+    const other = document.createElement('div')
+    app.appendChild(other)
+    const sameMessageOtherClip = makeVideoEmbed(other, '/other.webm')
+    const otherMessage = makeVideoEmbed(other, '/clip.webm')
+    api.registerVideo(sameMessageOtherClip.container, { type: 'video', messageId: 'm1' })
+    api.registerVideo(otherMessage.container, { type: 'video', messageId: 'm2' })
+    expect(other.querySelector('.floating-video-placeholder')).toBeNull()
+    expect(sameMessageOtherClip.container.style.display).toBe('')
+    expect(otherMessage.container.style.display).toBe('')
+  })
+
+  it('releases a re-mounted source that unmounts before the video docks', async () => {
+    const { api, player, app, message, slot } = await setup()
+    const first = makeVideoEmbed(message, '/clip.webm')
+    const cleanupFirst = api.registerVideo(first.container, { type: 'video', messageId: 'm1' })
+    first.start()
+    report(first.container, 0)
+    message.remove()
+    cleanupFirst()
+
+    const remounted = document.createElement('div')
+    app.appendChild(remounted)
+    const second = makeVideoEmbed(remounted, '/clip.webm')
+    const cleanupSecond = api.registerVideo(second.container, { type: 'video', messageId: 'm1' })
+    cleanupSecond()
+
+    expect(remounted.querySelector('.floating-video-placeholder')).toBeNull()
+    expect(second.container.style.display).toBe('')
+    expect(first.container.parentElement).toBe(slot)
+    expect(player.current.value?.target).toBeNull()
+    expect(player.current.value?.orphaned).toBe(true)
+  })
+
+  it('closing a video with no mounted source pauses and removes it', async () => {
+    const { api, player, message, slot } = await setup()
+    const { container, video, start } = makeVideoEmbed(message, '/clip.webm')
+    const cleanup = api.registerVideo(container, { type: 'video', messageId: 'm1' })
+    start()
+    report(container, 0)
+    message.remove()
+    cleanup()
+
+    player.close()
     expect(video.pause).toHaveBeenCalled()
     expect(container.isConnected).toBe(false)
     expect(slot.childElementCount).toBe(0)
     expect(api.floatingMessageId.value).toBeNull()
-    expect(app.isConnected).toBe(true)
+  })
+
+  it('closes the video of a deleted message', async () => {
+    const { mod, api, message } = await setup()
+    const { container, video, start } = makeVideoEmbed(message, '/clip.webm')
+    api.registerVideo(container, { type: 'video', messageId: 'm1' })
+    start()
+    report(container, 0)
+
+    mod.releaseFloatingVideo('m2')
+    expect(api.floatingMessageId.value).toBe('m1')
+    mod.releaseFloatingVideo('m1')
+    expect(video.pause).toHaveBeenCalled()
+    expect(api.floatingMessageId.value).toBeNull()
+  })
+
+  it('returns the source path when the source is not mounted, and docks when it is', async () => {
+    window.history.replaceState(null, '', '/chat/s1/c1?x=1')
+    const { mod, api, player, message } = await setup()
+    const { container, start } = makeVideoEmbed(message, '/clip.webm')
+    const cleanup = api.registerVideo(container, { type: 'video', messageId: 'm1' })
+    start()
+    report(container, 0)
+    window.history.replaceState(null, '', '/social/local')
+
+    message.remove()
+    cleanup()
+    expect(player.returnToSource()).toBe('/chat/s1/c1?x=1')
+    expect(mod.floatingReturnTarget()).toBe('m1')
+  })
+
+  it('after a return, docks into the re-mounted source once part of it shows', async () => {
+    vi.useFakeTimers()
+    try {
+      const { api, player, app, message, slot } = await setup()
+      const first = makeVideoEmbed(message, '/clip.webm')
+      const cleanup = api.registerVideo(first.container, { type: 'video', messageId: 'm1' })
+      first.start()
+      report(first.container, 0)
+      message.remove()
+      cleanup()
+      expect(player.returnToSource()).not.toBeNull()
+
+      const remounted = document.createElement('div')
+      app.appendChild(remounted)
+      const second = makeVideoEmbed(remounted, '/clip.webm')
+      api.registerVideo(second.container, { type: 'video', messageId: 'm1' })
+      const placeholder = remounted.querySelector<HTMLElement>('.floating-video-placeholder')!
+      placeholder.scrollIntoView = vi.fn()
+
+      // A message near the top of a channel: a third of the placeholder fits above the composer.
+      placeholder.getBoundingClientRect = () => ({ top: window.innerHeight - 100, bottom: window.innerHeight + 200, height: 300 }) as DOMRect
+      report(placeholder, 0.33)
+      vi.advanceTimersByTime(500)
+      expect(first.container.parentElement).not.toBe(slot)
+      expect(second.container.querySelector('video')).toBe(first.video)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('docks on return while the source is mounted', async () => {
+    const { mod, api, player, message } = await setup()
+    const { container, start } = makeVideoEmbed(message, '/clip.webm')
+    container.scrollIntoView = vi.fn()
+    api.registerVideo(container, { type: 'video', messageId: 'm1' })
+    start()
+    report(container, 0)
+
+    expect(player.returnToSource()).toBeNull()
+    expect(container.parentElement).toBe(message)
+    expect(mod.floatingReturnTarget()).toBeNull()
   })
 
   it('closes the floating video when another video starts', async () => {
@@ -179,6 +376,38 @@ describe('useFloatingVideo', () => {
     report(container, 0)
     expect(container.parentElement).toBe(overlay)
     expect(slot.childElementCount).toBe(0)
+  })
+
+  it('resumes a YouTube iframe that a move reloaded at its last reported time', async () => {
+    const { api, message, slot } = await setup()
+    const embed = document.createElement('div')
+    const iframe = document.createElement('iframe')
+    const posted: string[] = []
+    const playerWindow = { postMessage: (data: string) => posted.push(data) }
+    Object.defineProperty(iframe, 'contentWindow', { get: () => playerWindow })
+    embed.appendChild(iframe)
+    message.appendChild(embed)
+    api.registerVideo(embed, { type: 'youtube', messageId: 'm1', sourceUrl: 'https://youtu.be/x' })
+
+    const fromPlayer = (data: unknown) => {
+      const event = new MessageEvent('message', { data: JSON.stringify(data), origin: 'https://www.youtube.com' })
+      Object.defineProperty(event, 'source', { get: () => playerWindow })
+      window.dispatchEvent(event)
+    }
+    fromPlayer({ event: 'infoDelivery', info: { currentTime: 42.5, playerState: 1 } })
+    embed.dataset.isPlaying = 'true'
+
+    report(embed, 0) // happy-dom has no moveBefore: the move reloads the iframe
+    expect(embed.parentElement).toBe(slot)
+    iframe.dispatchEvent(new Event('load'))
+    expect(posted.map(p => JSON.parse(p).event)).toContain('listening')
+
+    fromPlayer({ event: 'onReady' })
+    const commands = posted.map(p => JSON.parse(p)).filter(m => m.event === 'command')
+    expect(commands).toEqual([
+      { event: 'command', func: 'seekTo', args: [42.5, true] },
+      { event: 'command', func: 'playVideo', args: [] },
+    ])
   })
 
   it('restores the corner persisted for the session', async () => {

@@ -96,12 +96,12 @@
             </div>
 
             <!-- Empty State -->
-            <div v-if="!loading && filteredThreads.length === 0" class="empty-state">
-              <Icon name="thread" :size="48" class="empty-icon" />
-              <p v-if="searchQuery">No threads match your search</p>
-              <p v-else>No threads yet</p>
-              <span>Start a thread from any message.</span>
-            </div>
+            <EmptyState
+              v-if="!loading && filteredThreads.length === 0"
+              :icon="searchQuery ? 'search' : 'thread'"
+              :title="searchQuery ? $t('empty.threads.noMatchTitle') : $t('empty.threads.title')"
+              :description="searchQuery ? $t('empty.threads.noMatchDescription') : $t('empty.threads.description')"
+            />
 
             <!-- Loading -->
             <div v-if="loading" class="loading-state">
@@ -125,6 +125,7 @@ import DisplayName from '@/components/DisplayName.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import type { ThreadWithDetails } from '@/services/ThreadService'
 import Icon from '@/components/common/Icon.vue'
+import EmptyState from '@/components/common/EmptyState.vue'
 
 interface Props {
   isVisible: boolean
@@ -438,31 +439,6 @@ onBeforeUnmount(() => {
 .thread-avatar {
   flex-shrink: 0;
   margin-left: 12px;
-}
-
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 48px 24px;
-  text-align: center;
-  color: var(--text-secondary);
-}
-
-.empty-icon {
-  opacity: 0.2;
-  margin-bottom: 16px;
-}
-
-.empty-state p {
-  margin: 0 0 4px 0;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.empty-state span {
-  font-size: 13px;
 }
 
 .loading-state {

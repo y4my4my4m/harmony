@@ -1,5 +1,6 @@
 <template>
-  <div class="user-settings">
+  <!-- Full-screen overlay: edge swipes would open the layout's drawers behind it. -->
+  <div class="user-settings" data-block-sidebar-gestures>
     <div class="user-settings-container">
       <!--          <UserAccountSettings 
             v-if="activeSection === 'account'"
@@ -114,9 +115,11 @@
             @upload-banner="handleBannerUpload"
           />
 
-          <!-- Privacy & Safety Section (includes security/encryption) -->
+          <SecuritySettings v-if="activeSection === 'security'" />
+
+          <!-- Privacy & Safety Section (includes encryption) -->
           <PrivacySettings 
-            v-if="activeSection === 'privacy'"
+            v-else-if="activeSection === 'privacy'"
             :profile="profile"
             :loading="loading"
             @update-privacy="handlePrivacyUpdate"
@@ -217,6 +220,7 @@ import { useToast } from 'vue-toastification'
 // Components
 import UserAccountSettings from '@/components/settings/user/UserAccountSettings.vue'
 import PrivacySettings from '@/components/settings/user/PrivacySettings.vue'
+import SecuritySettings from '@/components/settings/user/SecuritySettings.vue'
 import AppearanceSettings from '@/components/settings/user/AppearanceSettings.vue'
 import AudioThemeSettings from '@/components/settings/user/AudioThemeSettings.vue'
 import NotificationSettings from '@/components/settings/user/NotificationSettings.vue'
@@ -231,6 +235,7 @@ import { useAnnouncementUnreadCount } from '@/composables/useAnnouncementUnreadC
 // Icons
 import UserIcon from '@/components/icons/User.vue'
 import ShieldIcon from '@/components/icons/Shield.vue'
+import LockIcon from '@/components/icons/Lock.vue'
 import PaletteIcon from '@/components/icons/Palette.vue'
 import VoiceIcon from '@/components/icons/VoiceIcon.vue'
 import BellIcon from '@/components/icons/Bell.vue'
@@ -292,6 +297,7 @@ const currentSectionLabel = computed(() => {
 // Navigation sections
 const userSections = computed(() => [
   { id: 'account', label: 'settings.account', icon: UserIcon },
+  { id: 'security', label: 'settings.security', icon: LockIcon },
   { id: 'privacy', label: 'settings.privacy', icon: ShieldIcon },
   { id: 'bots', label: 'settings.myBots', icon: RobotIcon }
 ])
@@ -686,6 +692,11 @@ onUnmounted(() => {
 }
 
 .mobile-menu-btn {
+  display: flex;
+  min-width: 40px;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
   background: none;
   border: none;
   padding: 8px;
@@ -729,6 +740,8 @@ onUnmounted(() => {
 }
 
 .mobile-close-btn {
+  min-width: 40px;
+  min-height: 40px;
   background: none;
   border: none;
   padding: 8px;
@@ -916,20 +929,26 @@ onUnmounted(() => {
   
   .user-settings-container {
     height: 100vh;
+    height: 100dvh;
     border-radius: 0;
     max-width: none;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 
   .mobile-nav {
     display: flex;
+    top: env(safe-area-inset-top, 0px);
   }
   
+  /* Offsets include the safe-area insets the container pads by. */
   .settings-sidebar {
     position: fixed;
-    top: 60px; /* Below mobile nav */
+    top: calc(60px + env(safe-area-inset-top, 0px));
+    bottom: 0;
     left: 0;
     width: 280px;
-    height: calc(100vh - 60px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
     z-index: 1000;
     box-shadow: 2px 0 8px rgba(0, 0, 0, 0.3);
   }

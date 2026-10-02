@@ -53,6 +53,13 @@ export const TRENDING_TIME_RANGE_HOURS: Record<TrendingTimeRange, number> = {
   '30d': 24 * 30,
 };
 
+/** Last row of a get_trending_posts page: score, created_at and id as returned. */
+export interface TrendingCursor {
+  score: number;
+  createdAt: string;
+  id: string;
+}
+
 export interface TrendingPostsQuery {
   timeRange?: TrendingTimeRange;
   /** Images or video in media_attachments or as content file parts (post_has_profile_media). */
@@ -62,19 +69,18 @@ export interface TrendingPostsQuery {
   /** Authors on this domain. */
   domain?: string | null;
   limit?: number;
-  offset?: number;
   /** Ranking instant returned by the first page; later pages pass it back. */
   asOf?: string | null;
+  /** Cursor returned by the previous page; the page continues after that row. */
+  after?: TrendingCursor | null;
 }
 
 export interface TrendingPostsPage {
   posts: TimelinePost[];
   asOf: string | null;
+  cursor: TrendingCursor | null;
   hasMore: boolean;
 }
-
-/** get_trending_posts clamps p_offset to this. */
-const TRENDING_POSTS_MAX_OFFSET = 400;
 
 class TrendingService {
   
@@ -167,21 +173,29 @@ class TrendingService {
 
   /**
    * One page of get_trending_posts. The first page passes no asOf; the returned asOf pins the
-   * window and scores for the pages after it. Throws on a failed request.
+   * window and scores, and the returned cursor marks where the next page starts. Paging by
+   * cursor rather than offset neither skips nor repeats rows when a row of an earlier page
+   * is deleted or its counts change. Throws on a failed request.
    */
   async getTrendingPosts(query: TrendingPostsQuery = {}): Promise<TrendingPostsPage> {
     const limit = query.limit ?? 20;
-    const offset = query.offset ?? 0;
-
-    const { data, error } = await supabase.rpc('get_trending_posts', {
+    const args: Record<string, unknown> = {
       p_hours: TRENDING_TIME_RANGE_HOURS[query.timeRange ?? '24h'],
       p_media_only: query.mediaOnly ?? false,
       p_local_only: query.localOnly ?? false,
       p_domain: query.domain || null,
       p_limit: limit,
-      p_offset: offset,
+      p_offset: 0,
       p_as_of: query.asOf ?? null,
-    });
+    };
+    // Cursor arguments exist from migration 20261005300001; first pages omit them.
+    if (query.after) {
+      args.p_after_score = query.after.score;
+      args.p_after_created_at = query.after.createdAt;
+      args.p_after_id = query.after.id;
+    }
+
+    const { data, error } = await supabase.rpc('get_trending_posts', args);
 
     if (error) {
       debug.error('Failed to get trending posts:', error);
@@ -189,10 +203,12 @@ class TrendingService {
     }
 
     const rows: any[] = data || [];
+    const last = rows[rows.length - 1];
     return {
       posts: rows.map(row => this.transformDatabasePostToTimelinePost(row)),
       asOf: rows[0]?.as_of ?? query.asOf ?? null,
-      hasMore: rows.length === limit && offset + limit <= TRENDING_POSTS_MAX_OFFSET,
+      cursor: last ? { score: last.score, createdAt: last.created_at, id: last.id } : null,
+      hasMore: rows.length === limit,
     };
   }
 

@@ -51,9 +51,12 @@
         {{ server.is_featured ? 'Unpin' : 'Pin' }}
       </button>
     </div>
-    <div v-if="featuredServersList.length === 0 && !loadingStates.featuredServers" class="empty-state">
-      No public communities yet. Create public servers to feature them.
-    </div>
+    <EmptyState
+      v-if="featuredServersList.length === 0 && !loadingStates.featuredServers"
+      icon="compass"
+      :title="$t('empty.admin.featured.title')"
+      :description="$t('empty.admin.featured.description')"
+    />
   </div>
 </div>
 
@@ -73,6 +76,7 @@ import { ref, onMounted } from 'vue'
 import { debug } from '@/utils/debug'
 import { useToast } from 'vue-toastification'
 import Icon from '@/components/common/Icon.vue'
+import EmptyState from '@/components/common/EmptyState.vue'
 import { adminService } from '@/services/AdminService'
 import { usePublicServersStore } from '@/stores/usePublicServers'
 import { getServerIconUrl } from '@/utils/serverUtils'

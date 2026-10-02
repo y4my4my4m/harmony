@@ -3,15 +3,15 @@
 <div class="admin-module reports-module">
   <div class="module-header">
     <Icon name="flag" :size="20" />
-    <h2>Reports & moderation</h2>
-    <span v-if="pendingReportsCount > 0" class="reports-badge">{{ pendingReportsCount }} pending</span>
+    <h2>{{ serverId ? 'Reports in this server' : 'Reports & moderation' }}</h2>
+    <span v-if="pendingCount > 0" class="reports-badge">{{ pendingCount }} pending</span>
   </div>
 
   <div class="report-filters">
     <button
       v-for="filter in reportFilters"
       :key="filter.key"
-      @click="activeReportFilter = filter.key"
+      @click="setFilter(filter.key)"
       :class="['filter-btn', { active: activeReportFilter === filter.key }]"
     >
       {{ filter.label }}
@@ -30,44 +30,44 @@
         <div class="report-type-badge" :class="report.report_type">
           {{ report.report_type }}
         </div>
+        <div class="report-category-badge">{{ categoryLabel(report.category) }}</div>
         <div class="report-users">
           <div class="report-reporter">
-            <Avatar :src="report.reporter_avatar_url" :alt="report.reporter_username" size="xs" />
-            <span class="report-user-link" @click.stop="navigateToReportUser(report, 'reporter')">
-              <DisplayName v-if="report.reporter_id" :user-id="(report.reporter_id ?? undefined)" :fallback="(report.reporter_display_name || report.reporter_username) ?? undefined" />
-              <template v-else>{{ report.reporter_display_name || report.reporter_username }}</template>
-              <span v-if="!report.reporter_is_local && report.reporter_domain" class="federation-badge" title="Federated user">
-                @{{ report.reporter_domain }}
+            <template v-if="report.source === 'federation'">
+              <Icon name="globe" :size="14" />
+              <span class="federation-badge" :title="report.source_actor || undefined">{{ reportSourceLabel(report) }}</span>
+            </template>
+            <template v-else-if="report.reporter_id || report.reporter_username">
+              <Avatar :src="report.reporter_avatar_url" :alt="report.reporter_username ?? undefined" size="xs" />
+              <span class="report-user-link" @click.stop="navigateToReportUser(report, 'reporter')">
+                <DisplayName v-if="report.reporter_id" :user-id="report.reporter_id" :fallback="(report.reporter_display_name || report.reporter_username) ?? undefined" />
+                <template v-else>{{ report.reporter_display_name || report.reporter_username }}</template>
               </span>
-            </span>
+            </template>
+            <span v-else class="report-anonymous">Anonymous reporter</span>
           </div>
           <span class="report-arrow">&#8594;</span>
           <div class="report-reported" v-if="report.reported_user_id || report.reported_user_username">
             <Avatar :src="report.reported_user_avatar_url" :alt="report.reported_user_username ?? undefined" size="xs" />
             <span class="report-user-link" @click.stop="navigateToReportUser(report, 'reported')">
-              <DisplayName v-if="report.reported_user_id" :user-id="(report.reported_user_id ?? undefined)" :fallback="(report.reported_user_display_name || report.reported_user_username) ?? undefined" />
+              <DisplayName v-if="report.reported_user_id" :user-id="report.reported_user_id" :fallback="(report.reported_user_display_name || report.reported_user_username) ?? undefined" />
               <template v-else>{{ report.reported_user_display_name || report.reported_user_username }}</template>
               <span v-if="!report.reported_user_is_local && report.reported_user_domain" class="federation-badge" title="Federated user">
                 @{{ report.reported_user_domain }}
               </span>
             </span>
-            <a
-              v-if="!report.reported_user_is_local && report.reported_user_domain"
-              :href="`https://${report.reported_user_domain}/@${report.reported_user_username}`"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="report-external-link"
-              title="View on remote instance"
-              @click.stop
-            >
-              <Icon name="external-link" :size="14" />
-            </a>
+            <span v-if="report.reported_user_is_suspended" class="badge-mini danger">suspended</span>
+            <span v-else-if="report.reported_user_is_silenced" class="badge-mini warning">silenced</span>
+            <span v-if="report.open_reports_on_target > 1" class="badge-mini" :title="`${report.open_reports_on_target} open reports on this account`">
+              {{ report.open_reports_on_target }} open
+            </span>
           </div>
         </div>
-        <div class="report-reason">{{ report.reason }}</div>
+        <div class="report-reason">{{ reasonLabel(report.reason) }}</div>
         <div class="report-meta">
-          <span v-if="report.source !== 'local'" class="report-source federation-badge">{{ report.source_instance || report.source }}</span>
-          <span v-else class="report-source-local">local</span>
+          <span v-if="report.source === 'local'" class="report-source-local">local</span>
+          <span v-if="report.forwarded_at" class="report-source federation-badge" title="An anonymous copy was sent to the account's instance">forwarded</span>
+          <span v-if="report.assigned_username" class="report-source">@{{ report.assigned_username }}</span>
           <time class="report-time">{{ formatDate(report.created_at) }}</time>
         </div>
         <div class="report-status-badge" :class="report.status">{{ report.status }}</div>
@@ -75,209 +75,344 @@
 
       <div v-if="expandedReportId === report.id" class="report-detail" @click.stop>
         <div v-if="report.comment" class="report-comment">
-          <label>Reporter's comment</label>
+          <label>{{ report.source === 'federation' ? `Comment from ${report.source_instance}` : "Reporter's comment" }}</label>
           <p>{{ report.comment }}</p>
         </div>
 
-        <div v-if="report.reported_message_preview" class="report-proof">
-          <label>Reported message</label>
-          <blockquote v-html="linkifyReportPreview(report.reported_message_preview)"></blockquote>
+        <div v-for="(item, i) in snapshotEvidence(report.content_snapshot)" :key="i" class="report-proof">
+          <label>{{ item.label }}<span v-if="item.note" class="evidence-note"> &middot; {{ item.note }}</span></label>
+          <blockquote v-html="linkifyReportPreview(item.text)"></blockquote>
         </div>
 
-        <div v-if="report.reported_post_preview" class="report-proof">
-          <label>Reported post</label>
-          <blockquote v-html="linkifyReportPreview(report.reported_post_preview)"></blockquote>
-          <div class="report-post-meta">
-            <span v-if="report.reported_post_is_sensitive" class="badge sensitive">Sensitive</span>
-            <span v-if="report.reported_post_content_warning" class="badge cw">CW: {{ report.reported_post_content_warning }}</span>
-          </div>
-          <div class="report-post-links">
-            <button
-              v-if="report.reported_post_id"
-              class="report-link-btn"
-              @click.stop="navigateToPost(report.reported_post_id!)"
-            >
-              <Icon name="eye" :size="14" /> View post
-            </button>
-            <a
-              v-if="report.reported_post_url || report.reported_post_ap_id"
-              :href="report.reported_post_url || report.reported_post_ap_id!"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="report-link-btn"
-              @click.stop
-            >
-              <Icon name="external-link" :size="14" /> View on remote instance
-            </a>
-          </div>
+        <div v-if="report.reported_message_id || report.report_type === 'message'" class="report-proof">
+          <label>Message now</label>
+          <p v-if="report.reported_message_is_deleted" class="evidence-gone">Deleted since the report</p>
+          <blockquote v-else-if="report.reported_message_preview" v-html="linkifyReportPreview(report.reported_message_preview)"></blockquote>
+        </div>
+
+        <div v-if="report.reported_post_id || report.report_type === 'post'" class="report-proof">
+          <label>Post now</label>
+          <p v-if="report.reported_post_is_deleted" class="evidence-gone">Deleted since the report</p>
+          <template v-else>
+            <blockquote v-if="report.reported_post_preview" v-html="linkifyReportPreview(report.reported_post_preview)"></blockquote>
+            <div class="report-post-meta">
+              <span v-if="report.reported_post_is_sensitive" class="badge sensitive">Sensitive</span>
+              <span v-if="report.reported_post_content_warning" class="badge cw">CW: {{ report.reported_post_content_warning }}</span>
+            </div>
+            <div class="report-post-links">
+              <button
+                v-if="report.reported_post_id"
+                class="report-link-btn"
+                @click.stop="navigateToPost(report.reported_post_id!)"
+              >
+                <Icon name="eye" :size="14" /> View post
+              </button>
+              <a
+                v-if="report.reported_post_url || report.reported_post_ap_id"
+                :href="report.reported_post_url || report.reported_post_ap_id!"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="report-link-btn"
+                @click.stop
+              >
+                <Icon name="external-link" :size="14" /> View on remote instance
+              </a>
+            </div>
+          </template>
         </div>
 
         <div v-if="report.resolution_note" class="report-resolution">
-          <label>Resolution note</label>
+          <label>Note sent to the reporter</label>
           <p>{{ report.resolution_note }}</p>
         </div>
+        <p v-if="report.resolver_username && !isOpenReport(report.status)" class="report-resolver">
+          {{ report.status }} by @{{ report.resolver_username }}
+        </p>
 
-        <div v-if="report.status === 'pending' || report.status === 'investigating'" class="report-actions-panel">
-          <div class="report-punitive-actions">
+        <div class="report-actions-panel">
+          <div v-if="contentActions(report).length" class="report-punitive-actions">
             <button
-              v-if="report.reported_post_id"
-              class="report-action-btn warning"
-              @click.stop="markPostSensitive(report)"
-            >{{ report.reported_post_is_sensitive ? 'Unmark sensitive' : 'Mark sensitive' }}</button>
+              v-for="action in contentActions(report)"
+              :key="action"
+              class="report-action-btn"
+              :class="DESTRUCTIVE_ACTIONS.has(action) ? 'danger' : 'warning'"
+              :disabled="busy"
+              @click.stop="runAction(report, action)"
+            >{{ actionLabel(report, action) }}</button>
             <button
-              v-if="report.reported_post_id"
-              class="report-action-btn warning"
-              @click.stop="setPostContentWarning(report)"
-            >{{ report.reported_post_content_warning ? 'Edit CW' : 'Add CW' }}</button>
-            <button
-              v-if="report.reported_post_id"
+              v-if="!serverId && extractStorageUrls(report).length > 0 && isAdmin"
               class="report-action-btn danger"
-              @click.stop="deleteReportedPost(report)"
-            >Delete post</button>
-            <button
-              v-if="report.reported_message_id"
-              class="report-action-btn danger"
-              @click.stop="deleteReportedMessage(report)"
-            >Delete message</button>
-            <button
-              v-if="extractStorageUrls(report).length > 0"
-              class="report-action-btn danger"
+              :disabled="busy"
               @click.stop="deleteReportedMedia(report)"
             >Delete media ({{ extractStorageUrls(report).length }})</button>
           </div>
-          <div class="report-punitive-actions">
-            <button
-              v-if="report.reported_user_id"
-              class="report-action-btn warning"
-              @click.stop="forceSensitiveReportedUser(report)"
-            >Force sensitive account</button>
-            <button
-              v-if="report.reported_user_id"
-              class="report-action-btn warning"
-              @click.stop="silenceReportedUser(report)"
-            >Silence account</button>
-            <button
-              v-if="report.reported_user_id"
-              class="report-action-btn danger"
-              @click.stop="suspendReportedUser(report)"
-            >Suspend user</button>
-          </div>
 
-          <textarea
-            v-model="reportResolutionNote"
-            placeholder="Add resolution notes…"
-            class="cyber-input resolution-textarea"
-            rows="2"
-            @click.stop
-          ></textarea>
-          <label class="toggle-label report-show-resolver" title="If checked, the reporter will see who resolved this (default off for harassment/backlash prevention)">
-            <input type="checkbox" v-model="reportShowResolver" @click.stop />
-            <span class="toggle-slider"></span>
-            <span>Show my name to reporter</span>
-          </label>
+          <template v-if="isOpenReport(report.status)">
+            <textarea
+              v-model="reportNote"
+              placeholder="Note to the reporter (optional, sent on resolve or dismiss)"
+              class="cyber-input resolution-textarea"
+              rows="2"
+              maxlength="1000"
+              @click.stop
+            ></textarea>
+            <label class="toggle-label report-show-resolver" title="Off by default, to protect moderators from retaliation">
+              <input type="checkbox" v-model="reportShowResolver" @click.stop />
+              <span class="toggle-slider"></span>
+              <span>Show my name to the reporter</span>
+            </label>
+          </template>
+
           <div class="report-action-buttons">
             <button
-              v-if="report.status === 'pending'"
-              class="report-action-btn investigating"
-              @click.stop="updateReport(report.id, 'investigating')"
-            >Mark investigating</button>
-            <button
-              class="report-action-btn resolve"
-              @click.stop="updateReport(report.id, 'resolved')"
-            >Resolve</button>
-            <button
-              class="report-action-btn dismiss"
-              @click.stop="updateReport(report.id, 'dismissed')"
-            >Dismiss</button>
+              v-for="action in statusActions(report)"
+              :key="action"
+              class="report-action-btn"
+              :class="statusActionClass(action)"
+              :disabled="busy"
+              @click.stop="runAction(report, action)"
+            >{{ actionLabel(report, action) }}</button>
           </div>
         </div>
       </div>
     </div>
+
+    <button v-if="reports.length < total" class="filter-btn load-more" :disabled="busy" @click="loadMore">
+      Load more ({{ total - reports.length }})
+    </button>
   </div>
 
-  <div v-else class="reports-empty">
-    <Icon name="check-circle" :size="32" />
-    <p>No reports{{ activeReportFilter !== 'all' ? ` with status "${activeReportFilter}"` : '' }}</p>
-  </div>
+  <EmptyState
+    v-else
+    icon="check-circle"
+    :title="activeReportFilter !== 'all' ? $t('empty.admin.reports.filtered', { status: activeReportFilter }) : $t('empty.admin.reports.title')"
+  />
 </div>
-
-<!-- Recent Activity -->
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
 import { debug } from '@/utils/debug'
 import { escapeHtml } from '@/utils/sanitize'
 import Icon from '@/components/common/Icon.vue'
+import EmptyState from '@/components/common/EmptyState.vue'
 import Avatar from '@/components/common/Avatar.vue'
 import DisplayName from '@/components/DisplayName.vue'
 import { adminService } from '@/services/AdminService'
 import { reportService, type ReportWithDetails } from '@/services/ReportService'
-import { messageService } from '@/services/MessageService'
 import { userDataService } from '@/services/userDataService'
-import { useAuthStore } from '@/stores/auth'
 import { supabase } from '@/supabase'
 import { formatDate } from './adminFormat'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
+import {
+  ACTIONS_WITH_REASON,
+  DESTRUCTIVE_ACTIONS,
+  REPORT_CATEGORY_LABELS,
+  REPORT_REASONS,
+  isOpenReport,
+  reportActionsFor,
+  reportSourceLabel,
+  snapshotEvidence,
+  type ReportAction,
+  type ReportCategory,
+} from '@/utils/reportModeration'
 
-const authStore = useAuthStore()
+const props = defineProps<{
+  /** Lists only this server's reports, as a server moderator. */
+  serverId?: string
+}>()
+
 const { confirm } = useConfirmDialog()
 const router = useRouter()
 const toast = useToast()
 
+const PAGE = 50
+
 const reports = ref<ReportWithDetails[]>([])
-const pendingReportsCount = ref(0)
-const activeReportFilter = ref<string>('all')
+const total = ref(0)
+const pendingCount = ref(0)
+const activeReportFilter = ref<string>('pending')
 const expandedReportId = ref<string | null>(null)
-const reportResolutionNote = ref('')
+const reportNote = ref('')
 const reportShowResolver = ref(false)
+const busy = ref(false)
+const isAdmin = ref(false)
+const isInstanceModerator = ref(false)
+const currentProfileId = ref<string | null>(null)
+
 const reportFilters = [
-  { key: 'all', label: 'All' },
   { key: 'pending', label: 'Pending' },
   { key: 'investigating', label: 'Investigating' },
   { key: 'resolved', label: 'Resolved' },
   { key: 'dismissed', label: 'Dismissed' },
+  { key: 'all', label: 'All' },
 ]
 
-// Reports & Moderation methods
-const loadReports = async () => {
-  try {
-    const statusParam = activeReportFilter.value === 'all' ? null : activeReportFilter.value
-    const result = await reportService.getReports({ status: statusParam })
-    reports.value = result.reports
-    const ids = result.reports
-      .flatMap((r) => [r.reporter_id, r.reported_user_id].filter(Boolean) as string[])
-    if (ids.length > 0) {
-      userDataService.ensureUsersLoaded(ids).catch(() => {})
-    }
-  } catch (error) {
-    debug.error('Failed to load reports:', error)
+const STATUS_ACTIONS: ReadonlySet<ReportAction> = new Set<ReportAction>([
+  'investigate', 'resolve', 'dismiss', 'reopen', 'assign', 'unassign', 'forward',
+])
+
+const categoryLabel = (category: string) =>
+  REPORT_CATEGORY_LABELS[category as ReportCategory] ?? category
+
+const reasonLabel = (reason: string) =>
+  REPORT_REASONS.find((r) => r.value === reason)?.label ?? reason
+
+const role = () => ({
+  isAdmin: !props.serverId && isAdmin.value,
+  isInstanceModerator: !props.serverId && isInstanceModerator.value,
+})
+
+const allActions = (report: ReportWithDetails) =>
+  reportActionsFor(report, role(), currentProfileId.value)
+
+const statusActions = (report: ReportWithDetails) =>
+  allActions(report).filter((a) => STATUS_ACTIONS.has(a))
+
+const contentActions = (report: ReportWithDetails) =>
+  allActions(report).filter((a) => !STATUS_ACTIONS.has(a))
+
+const statusActionClass = (action: ReportAction) => {
+  switch (action) {
+    case 'investigate': return 'investigating'
+    case 'resolve': return 'resolve'
+    case 'forward': return 'warning'
+    default: return 'dismiss'
   }
 }
 
-const loadPendingReportsCount = async () => {
-  pendingReportsCount.value = await reportService.getPendingReportsCount()
+const actionLabel = (report: ReportWithDetails, action: ReportAction): string => {
+  switch (action) {
+    case 'investigate': return 'Mark investigating'
+    case 'resolve': return 'Resolve'
+    case 'dismiss': return 'Dismiss'
+    case 'reopen': return 'Reopen'
+    case 'assign': return 'Assign to me'
+    case 'unassign': return 'Unassign'
+    case 'forward': return `Forward to ${report.reported_user_domain}`
+    case 'delete_post': return 'Delete post'
+    case 'mark_sensitive': return 'Mark sensitive'
+    case 'delete_message': return 'Delete message'
+    case 'warn': return 'Warn account'
+    case 'silence_account': return 'Silence account'
+    case 'suspend_account': return 'Suspend account'
+    case 'force_sensitive_account': return 'Force sensitive media'
+    case 'limit_domain': return `Limit ${report.reported_user_domain}`
+    case 'suspend_domain': return `Suspend ${report.reported_user_domain}`
+  }
 }
+
+const reasonPrompt = (report: ReportWithDetails, action: ReportAction): string => {
+  switch (action) {
+    case 'warn': return 'Warning text sent to the account:'
+    case 'limit_domain': return `Reason for limiting ${report.reported_user_domain}:`
+    case 'suspend_domain': return `Reason for suspending ${report.reported_user_domain}:`
+    default: return 'Reason (kept with the account):'
+  }
+}
+
+const loadRole = async () => {
+  try {
+    const { authContextService } = await import('@/services/AuthContextService')
+    currentProfileId.value = await authContextService.getCurrentProfileId()
+    const { data } = await supabase
+      .from('profiles')
+      .select('is_admin, is_moderator')
+      .eq('id', currentProfileId.value)
+      .maybeSingle()
+    isAdmin.value = data?.is_admin === true
+    isInstanceModerator.value = data?.is_admin === true || data?.is_moderator === true
+  } catch (error) {
+    debug.error('Failed to resolve moderator role:', error)
+  }
+}
+
+const loadReports = async (append = false) => {
+  const statusParam = activeReportFilter.value === 'all' ? null : activeReportFilter.value
+  const result = await reportService.getReports({
+    status: statusParam,
+    limit: PAGE,
+    offset: append ? reports.value.length : 0,
+    serverId: props.serverId ?? null,
+  })
+  reports.value = append ? [...reports.value, ...result.reports] : result.reports
+  total.value = result.total
+  const ids = result.reports
+    .flatMap((r) => [r.reporter_id, r.reported_user_id].filter(Boolean) as string[])
+  if (ids.length > 0) {
+    userDataService.ensureUsersLoaded(ids).catch(() => {})
+  }
+}
+
+const loadPendingCount = async () => {
+  if (props.serverId) {
+    const result = await reportService.getReports({ status: 'pending', limit: 1, serverId: props.serverId })
+    pendingCount.value = result.total
+  } else {
+    pendingCount.value = await reportService.getPendingReportsCount()
+  }
+}
+
+const refresh = async () => {
+  await Promise.all([loadReports(), loadPendingCount()])
+}
+
+const loadMore = () => loadReports(true)
+
+const setFilter = (key: string) => {
+  activeReportFilter.value = key
+  expandedReportId.value = null
+}
+
+watch(activeReportFilter, () => { void loadReports() })
 
 const toggleReportExpand = (id: string) => {
   expandedReportId.value = expandedReportId.value === id ? null : id
-  reportResolutionNote.value = ''
+  reportNote.value = ''
   reportShowResolver.value = false
 }
 
-const updateReport = async (reportId: string, status: 'investigating' | 'resolved' | 'dismissed') => {
-  const options = (status === 'resolved' || status === 'dismissed') ? { showResolver: reportShowResolver.value } : undefined
-  const success = await reportService.updateReportStatus(reportId, status, reportResolutionNote.value || undefined, options)
-  if (success) {
-    toast.success(`Report ${status}`)
-    reportResolutionNote.value = ''
-    expandedReportId.value = null
-    await loadReports()
-    await loadPendingReportsCount()
-  } else {
-    toast.error('Failed to update report')
+const runAction = async (report: ReportWithDetails, action: ReportAction) => {
+  let reason: string | undefined
+  if (ACTIONS_WITH_REASON.has(action)) {
+    const answer = prompt(reasonPrompt(report, action))
+    if (answer === null) return
+    reason = answer
+  }
+  if (DESTRUCTIVE_ACTIONS.has(action)) {
+    const ok = await confirm({
+      title: actionLabel(report, action),
+      message: `${actionLabel(report, action)}? This resolves the report.`,
+      confirmButtonText: actionLabel(report, action),
+      dangerAction: true,
+    })
+    if (!ok) return
+  }
+
+  busy.value = true
+  try {
+    const result = await reportService.moderateReport(report.id, action, {
+      note: reportNote.value || undefined,
+      reason,
+      showResolver: reportShowResolver.value,
+    })
+    if (!result.ok) {
+      toast.error(result.message)
+      return
+    }
+    toast.success(`${actionLabel(report, action)}: done`)
+    if (!STATUS_ACTIONS.has(action) || action === 'resolve' || action === 'dismiss') {
+      reportNote.value = ''
+      expandedReportId.value = null
+    }
+    if (action === 'suspend_account' || action === 'silence_account') {
+      window.dispatchEvent(new CustomEvent('admin:users-changed'))
+    }
+    await refresh()
+  } finally {
+    busy.value = false
   }
 }
 
@@ -328,110 +463,10 @@ const deleteReportedMedia = async (report: ReportWithDetails) => {
   }
 
   if (deleted > 0) {
-    await adminService.logAdminAction({ action: 'media_delete', targetType: 'storage', details: { count: deleted, urls } })
+    await adminService.logAdminAction({ action: 'media_delete', targetType: 'storage', details: { count: deleted, urls, report_id: report.id } })
     toast.success(`Deleted ${deleted} media file(s)`)
   } else {
     toast.error('Failed to delete media files')
-  }
-}
-
-const deleteReportedMessage = async (report: ReportWithDetails) => {
-  if (!report.reported_message_id) return
-  if (!(await confirm({ title: 'Delete message', message: 'Delete this message? This cannot be undone.', confirmButtonText: 'Delete', dangerAction: true }))) return
-  try {
-    await messageService.deleteMessage(report.reported_message_id)
-    toast.success('Message deleted')
-    await updateReport(report.id, 'resolved')
-  } catch (error) {
-    debug.error('Failed to delete message:', error)
-    toast.error('Failed to delete message')
-  }
-}
-
-const suspendReportedUser = async (report: ReportWithDetails) => {
-  if (!report.reported_user_id) return
-  const reason = prompt('Suspension reason:')
-  if (!reason) return
-  try {
-    await adminService.moderateUser(report.reported_user_id, 'suspend', reason, authStore.session?.user?.id || '')
-    toast.success(`User ${report.reported_user_display_name || report.reported_user_username} suspended`)
-    await updateReport(report.id, 'resolved')
-    window.dispatchEvent(new CustomEvent('admin:users-changed'))
-  } catch (error) {
-    debug.error('Failed to suspend user:', error)
-    toast.error('Failed to suspend user')
-  }
-}
-
-const markPostSensitive = async (report: ReportWithDetails) => {
-  if (!report.reported_post_id) return
-  try {
-    const action = report.reported_post_is_sensitive ? 'unmark_sensitive' : 'mark_sensitive'
-    await adminService.moderatePost(report.reported_post_id, action)
-    report.reported_post_is_sensitive = !report.reported_post_is_sensitive
-    toast.success(report.reported_post_is_sensitive ? 'Post marked as sensitive' : 'Post unmarked as sensitive')
-  } catch (error) {
-    debug.error('Failed to toggle sensitive:', error)
-    toast.error('Failed to update post sensitivity')
-  }
-}
-
-const setPostContentWarning = async (report: ReportWithDetails) => {
-  if (!report.reported_post_id) return
-  const cw = prompt('Content warning text (leave empty to remove):', report.reported_post_content_warning || '')
-  if (cw === null) return
-  try {
-    if (cw.trim()) {
-      await adminService.moderatePost(report.reported_post_id, 'set_cw', cw.trim())
-      report.reported_post_content_warning = cw.trim()
-      toast.success('Content warning set')
-    } else {
-      await adminService.moderatePost(report.reported_post_id, 'remove_cw')
-      report.reported_post_content_warning = null
-      toast.success('Content warning removed')
-    }
-  } catch (error) {
-    debug.error('Failed to set content warning:', error)
-    toast.error('Failed to update content warning')
-  }
-}
-
-const deleteReportedPost = async (report: ReportWithDetails) => {
-  if (!report.reported_post_id) return
-  if (!(await confirm({ title: 'Delete post', message: 'Delete this post? This cannot be undone.', confirmButtonText: 'Delete', dangerAction: true }))) return
-  try {
-    await adminService.moderatePost(report.reported_post_id, 'delete')
-    toast.success('Post deleted')
-    await updateReport(report.id, 'resolved')
-  } catch (error) {
-    debug.error('Failed to delete post:', error)
-    toast.error('Failed to delete post')
-  }
-}
-
-const forceSensitiveReportedUser = async (report: ReportWithDetails) => {
-  if (!report.reported_user_id) return
-  const reason = prompt('Reason for marking all media as sensitive:')
-  if (!reason) return
-  try {
-    await adminService.moderateUser(report.reported_user_id, 'force_sensitive', reason, authStore.session?.user?.id || '')
-    toast.success(`All future media from ${report.reported_user_display_name || report.reported_user_username} will be marked sensitive`)
-  } catch (error) {
-    debug.error('Failed to force sensitive:', error)
-    toast.error('Failed to force-sensitive account')
-  }
-}
-
-const silenceReportedUser = async (report: ReportWithDetails) => {
-  if (!report.reported_user_id) return
-  const reason = prompt('Reason for silencing (hiding from public timelines):')
-  if (!reason) return
-  try {
-    await adminService.moderateUser(report.reported_user_id, 'silence', reason, authStore.session?.user?.id || '')
-    toast.success(`User ${report.reported_user_display_name || report.reported_user_username} silenced`)
-  } catch (error) {
-    debug.error('Failed to silence user:', error)
-    toast.error('Failed to silence user')
   }
 }
 
@@ -455,10 +490,9 @@ const navigateToPost = (postId: string) => {
   router.push(`/post/${postId}`)
 }
 
-
-onMounted(() => {
-  void loadReports()
-  void loadPendingReportsCount()
+onMounted(async () => {
+  await loadRole()
+  await refresh()
 })
 </script>
 
@@ -1134,19 +1168,65 @@ onMounted(() => {
   background: var(--background-modifier-active);
   color: var(--text-primary);
 }
-
-
-
-
-
-.reports-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 40px 20px;
+.report-category-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--harmony-primary) 12%, transparent);
   color: var(--text-secondary);
-  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.report-anonymous {
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.badge-mini {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--background-modifier-active);
+  color: var(--text-secondary);
+}
+
+.badge-mini.danger { color: var(--error); }
+.badge-mini.warning { color: var(--warning); }
+
+.evidence-note {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.evidence-gone {
+  font-style: italic;
+  color: var(--text-secondary);
+}
+
+.report-resolver {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.report-punitive-actions {
+  flex-wrap: wrap;
+}
+
+.report-action-buttons {
+  flex-wrap: wrap;
+}
+
+.report-action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.load-more {
+  align-self: center;
+  margin-top: 8px;
 }
 </style>
 

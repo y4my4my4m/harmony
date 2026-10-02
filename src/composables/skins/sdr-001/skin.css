@@ -164,13 +164,15 @@
   border-radius: 2px;
 }
 
-/* Links and chips that colour their text with the accent fill. */
+/* Links and chips that colour their text with the accent fill. On the red
+   wash of an active chip the fill red reads 3.5:1, the lifted red 5.5:1. */
 :root[data-skin="sdr-001"] :is(
   .forgot-link,
   .switch-mode-btn,
   .visibility-chip-label,
   .secondary-links a,
-  .powered-by a
+  .powered-by a,
+  .unread-toggle.active
 ) {
   color: var(--sdr-red-text);
 }

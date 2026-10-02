@@ -325,8 +325,10 @@ const handleTabKeydown = (event: KeyboardEvent) => {
   background: var(--background-modifier-hover);
 }
 
+/* Open panel. */
 .icon-btn.active {
-  color: var(--harmony-primary);
+  color: var(--icon-active);
+  background: var(--background-modifier-selected);
 }
 
 .new-post-btn {

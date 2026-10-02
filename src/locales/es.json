@@ -382,6 +382,7 @@
     "copyID": "Copiar ID del mensaje",
     "noMessagesHere": "No hay mensajes aquí, ¡escribe algo!",
     "loadingOlder": "Cargando mensajes antiguos...",
+    "newMessagesBelow": "{count} mensaje nuevo | {count} mensajes nuevos",
     "conversationBeginning": "Este es el comienzo de tu conversación",
     "conversationBeginningSubtitle": "¡Comienza a chatear y hazlo memorable!",
     "channelWelcome": "Bienvenido a #{name}",

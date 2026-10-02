@@ -251,18 +251,14 @@ export class CorePostService {
 
       debug.log(`Core: Toggling like: post=${postId}, user=${profileId}`)
 
-      // The heart means favorite OR emoji_reaction: is_favorited in the timeline
-      // RPCs, loadPost below, and update_post_reaction_counts all count both types.
-      // The toggle spans the same set; probing 'favorite' alone takes the insert
-      // branch on a post that already reads as favourited, raising favorites_count.
-      const HEART_TYPES = ['favorite', 'emoji_reaction']
-
+      // The heart is the favourite row alone. A ❤ reaction is stored as that row
+      // (trg_fold_heart_reaction); every other emoji is a chip the heart leaves alone.
       const { data: existingLike, error: probeError } = await supabase
         .from('post_interactions')
         .select('id')
         .eq('post_id', postId)
         .eq('user_id', profileId)
-        .in('interaction_type', HEART_TYPES)
+        .eq('interaction_type', 'favorite')
         .limit(1)
 
       if (probeError) throw this.createError('CHECK_LIKE_FAILED', probeError.message, probeError)
@@ -270,14 +266,12 @@ export class CorePostService {
       let liked: boolean
 
       if (existingLike && existingLike.length > 0) {
-        // Emptying the heart deletes every row it counts. An emoji_reaction left
-        // behind holds is_favorited true and favorites_count above base.
         const { error } = await supabase
           .from('post_interactions')
           .delete()
           .eq('post_id', postId)
           .eq('user_id', profileId)
-          .in('interaction_type', HEART_TYPES)
+          .eq('interaction_type', 'favorite')
 
         if (error) throw this.createError('REMOVE_LIKE_FAILED', error.message, error)
         liked = false
@@ -569,7 +563,7 @@ export class CorePostService {
 
       const formatted = this.formatTimelinePost(post)
 
-      // Fetch current user's interactions for timeline/embed (favorite + emoji_reaction light up heart)
+      // Current user's interaction states for timeline/embed.
       try {
         const profileId = await authContextService.getCurrentProfileId()
         if (profileId) {
@@ -578,10 +572,10 @@ export class CorePostService {
             .select('interaction_type')
             .eq('post_id', postId)
             .eq('user_id', profileId)
-            .in('interaction_type', ['favorite', 'emoji_reaction', 'reblog', 'bookmark'])
+            .in('interaction_type', ['favorite', 'reblog', 'bookmark'])
 
           const types = new Set(interactions?.map((i) => i.interaction_type) || [])
-          formatted.is_favorited = types.has('favorite') || types.has('emoji_reaction')
+          formatted.is_favorited = types.has('favorite')
           formatted.is_reblogged = types.has('reblog')
           formatted.is_bookmarked = types.has('bookmark')
         }

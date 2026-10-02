@@ -122,7 +122,7 @@
                 <div class="user-name-row">
                   <span
                     class="user-name"
-                    :style="item.nameColor ? { color: item.nameColor } : undefined"
+                    :style="memberNameStyle(item.nameColor)"
                   >
                     {{ item.bridgedUser.displayName || item.bridgedUser.username }}
                   </span>
@@ -170,7 +170,7 @@
                 <div class="user-name-row">
                   <span
                     class="user-name"
-                    :style="{ color: item.nameColor || memberNameColor(item.user!.id) }"
+                    :style="memberNameStyle(item.nameColor || memberNameColor(item.user!.id))"
                   >
                     <DisplayName :user-id="item.user!.id" :truncate="true" />
                   </span>
@@ -265,7 +265,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onUnmounted } from 'vue';
+import { ref, computed, watch, onUnmounted, nextTick } from 'vue';
 import { useVirtualizer } from '@tanstack/vue-virtual';
 import { useRouter } from 'vue-router';
 import { debug } from '@/utils/debug'
@@ -284,7 +284,7 @@ import { useDMStore } from '@/stores/useDM';
 import { authContextService } from '@/services/AuthContextService';
 import { getUserIdsForServer} from '@/services/usersService';
 import { UserStatus } from '@/types';
-import { useUserData } from '@/composables/useUserData';
+import { useUserData, DEFAULT_USER_COLOR } from '@/composables/useUserData';
 import { useLayoutState } from '@/composables/useLayoutState';
 import { useHapticSettings } from '@/composables/useHapticSettings';
 import { roleService, type ServerRole } from '@/services/RoleService';
@@ -311,12 +311,19 @@ const serverChannelStore = useServerChannelStore();
 const serverRolesStore = useServerRolesStore();
 
 // Same precedence as chat authors (MessageDisplay.resolveChatUserColor):
-// highest colored role in the current server, then profile color.
+// highest colored role in the current server, then profile color. Uncoloured
+// members return undefined and take the .user-name token.
 const memberNameColor = (userId: string): string | undefined => {
   const serverId = serverChannelStore.currentServerId;
   const roleColor = serverId ? serverRolesStore.getUserRoleColor(serverId, userId) : null;
-  return roleColor || getUserColor(userId).value || undefined;
+  const color = roleColor || getUserColor(userId).value;
+  return color && color !== DEFAULT_USER_COLOR ? color : undefined;
 };
+
+// A custom property, not `color`: the offline rule derives its dimmed colour
+// from it.
+const memberNameStyle = (color?: string | null) =>
+  color ? { '--member-name-color': color } : undefined;
 const activityPubStore = useActivityPubStore();
 const router = useRouter();
 const { isMobile } = useLayoutState();
@@ -850,6 +857,9 @@ const hoistedRolesSorted = computed(() => {
     .sort((a, b) => b.position - a.position);
 });
 
+// Same ordering as String.prototype.localeCompare with no arguments.
+const nameCollator = new Intl.Collator();
+
 // Grouping order: present users with a hoisted role go to their highest
 // hoisted role group; other present users go to online/away/busy; absent users
 // go to federated or offline.
@@ -907,12 +917,18 @@ const groupedUsers = computed(() => {
     }
   });
 
+  // One name lookup per user, not two per comparison.
+  const sortKeys = new Map<string, string>();
+  const sortKey = (id: string): string => {
+    let key = sortKeys.get(id);
+    if (key === undefined) {
+      key = getUserDisplayName(id).value.toLowerCase();
+      sortKeys.set(id, key);
+    }
+    return key;
+  };
   Object.values(groups).forEach(group => {
-    group.sort((a, b) => {
-      const nameA = getUserDisplayName(a.id).value.toLowerCase();
-      const nameB = getUserDisplayName(b.id).value.toLowerCase();
-      return nameA.localeCompare(nameB);
-    });
+    group.sort((a, b) => nameCollator.compare(sortKey(a.id), sortKey(b.id)));
   });
 
   return groups;
@@ -1089,8 +1105,20 @@ const sidebarVirtualizer = useVirtualizer<HTMLElement, Element>(
 const sidebarVirtualRows = computed(() => sidebarVirtualizer.value.getVirtualItems());
 const sidebarTotalSize = computed(() => sidebarVirtualizer.value.getTotalSize());
 
+// The first measurement of a connected row registers it with the
+// virtualizer's ResizeObserver, which reports later size changes; see
+// MessageDisplay's measureElement.
+const measuredSidebarRows = new WeakSet<HTMLElement>();
 const sidebarMeasureElement = (el: any) => {
   if (!el || !(el instanceof HTMLElement)) return;
+  if (measuredSidebarRows.has(el)) return;
+  if (!el.isConnected) {
+    nextTick(() => {
+      if (el.isConnected && !measuredSidebarRows.has(el)) sidebarMeasureElement(el);
+    });
+    return;
+  }
+  if (!sidebarVirtualizer.value.isScrolling) measuredSidebarRows.add(el);
   sidebarVirtualizer.value.measureElement(el);
 };
 
@@ -1107,7 +1135,7 @@ const fetchAndSetUsers = async (serverId: string | null) => {
     
     lastFetchedServerId.value = serverId;
     
-    let users = getUsersInContext(serverId).value;
+    const users = getUsersInContext(serverId).value;
     
     if (users.length > 0) {
       debug.log(`UserSidebar: Using cached users for server ${serverId} (${users.length} members)`);
@@ -1118,28 +1146,16 @@ const fetchAndSetUsers = async (serverId: string | null) => {
     // Loading state is entered only with no cached data for the server.
     debug.log(`UserSidebar: No cached users found, loading for server ${serverId}...`);
     isLoadingUsers.value = true;
+
+    // One frame first: the message list of the same navigation paints before
+    // member hydration and the member-list sort take the main thread.
+    await new Promise<void>(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
+    // A later switch owns the loading state from here.
+    if (serverChannelStore.currentServerId !== serverId) return;
     
     try {
-      // On initial app load BaseLayout establishes the context asynchronously.
-      if (users.length === 0) {
-        debug.log(`⏳ UserSidebar: Waiting for server context to be established...`);
-        
-        const maxWaitTime = 500; // ms
-        const checkInterval = 50; // ms
-        let waitTime = 0;
-        
-        while (users.length === 0 && waitTime < maxWaitTime) {
-          await new Promise(resolve => setTimeout(resolve, checkInterval));
-          waitTime += checkInterval;
-          users = getUsersInContext(serverId).value;
-        }
-        
-        if (users.length > 0) {
-          debug.log(`UserSidebar: Server context ready after ${waitTime}ms wait`);
-          return; // Context arrived during the wait.
-        }
-      }
-      
+      // BaseLayout subscribes the startup server's context too; a concurrent
+      // subscribeToContext awaits the call already in flight.
       debug.log(`UserSidebar: Creating new subscription for server ${serverId}...`);
       const userIds = await getUserIdsForServer(serverId);
       await subscribeToContext(serverId, 'server', userIds);
@@ -1408,13 +1424,25 @@ const closeInviteModal = () => {
   color: var(--text-muted);
 }
 
-.offline-user {
-  opacity: 0.55;
+/* Offline rows dim the avatar and pull the name 40% toward --text-tertiary.
+   The mix lies between two readable colours and never drops below the lower
+   of the two. Uncoloured offline names measure 6.4:1 or more on the dark,
+   light and midnight presets, custom palettes and SDR-001. */
+.offline-user .user-avatar {
+  opacity: 0.5;
   transition: opacity 0.2s ease;
 }
 
-.offline-user:hover {
-  opacity: 1.0;
+.offline-user .user-name {
+  color: color-mix(in oklab, var(--member-name-color, var(--text-secondary)) 60%, var(--text-tertiary));
+}
+
+.offline-user:hover .user-avatar {
+  opacity: 1;
+}
+
+.offline-user:hover .user-name {
+  color: var(--member-name-color, var(--text-secondary));
 }
 
 /* Loading Indicator */
@@ -1609,7 +1637,7 @@ const closeInviteModal = () => {
 }
 
 .user-name {
-  color: var(--text-secondary);
+  color: var(--member-name-color, var(--text-secondary));
   font-size: 14px;
   font-weight: 500;
   white-space: nowrap;

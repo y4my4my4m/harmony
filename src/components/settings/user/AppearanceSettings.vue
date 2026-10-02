@@ -162,7 +162,7 @@
                   />
                   <span class="lightness-label">Lighter</span>
                 </div>
-                <div class="lightness-value">{{ settings.customBackgroundLightness > 0 ? '+' : '' }}{{ settings.customBackgroundLightness }}</div>
+                <div class="lightness-value">{{ (settings.customBackgroundLightness ?? 0) > 0 ? '+' : '' }}{{ settings.customBackgroundLightness }}</div>
               </div>
               <div class="theme-slider-block">
                 <label class="picker-label">Saturation</label>
@@ -179,7 +179,7 @@
                   />
                   <span class="chroma-label">Vivid</span>
                 </div>
-                <div class="chroma-value">{{ settings.customBackgroundChroma > 0 ? '+' : '' }}{{ settings.customBackgroundChroma }}</div>
+                <div class="chroma-value">{{ (settings.customBackgroundChroma ?? 0) > 0 ? '+' : '' }}{{ settings.customBackgroundChroma }}</div>
               </div>
             </div>
           </div>
@@ -205,8 +205,6 @@
               <ColorPicker
                 v-model:color="settings.customPrimaryColor"
                 layout="wide"
-                @update:color="onCustomColorChange"
-                @change="onCustomColorChange"
               />
             </div>
           </div>
@@ -232,8 +230,6 @@
               <ColorPicker
                 v-model:color="settings.customAccentColor"
                 layout="wide"
-                @update:color="onCustomColorChange"
-                @change="onCustomColorChange"
               />
             </div>
           </div>
@@ -459,13 +455,12 @@
         <div class="setting-control">
           <div class="font-size-slider">
             <input
-              v-model="settings.fontSize"
+              v-model.number="settings.fontSize"
               type="range"
               min="12"
               max="20"
               step="1"
               class="slider"
-              @input="onFontSizeChange"
             />
             <div class="font-size-display">{{ settings.fontSize }}px</div>
           </div>
@@ -510,7 +505,6 @@
         <div class="setting-control">
           <ToggleSwitch 
             v-model="settings.showTimestamps"
-            @change="onSettingChange"
           />
         </div>
       </div>
@@ -523,7 +517,6 @@
         <div class="setting-control">
           <ToggleSwitch 
             v-model="settings.use24HourTime"
-            @change="onSettingChange"
           />
         </div>
       </div>
@@ -536,7 +529,6 @@
         <div class="setting-control">
           <ToggleSwitch 
             v-model="settings.compactMode"
-            @change="onSettingChange"
           />
         </div>
       </div>
@@ -550,7 +542,6 @@
           <select
             v-model="settings.bridgeSourceBadge"
             class="form-select"
-            @change="onSettingChange"
           >
             <option value="icon">{{ $t('settings.appearance.bridgeSourceBadgeIcon') }}</option>
             <option value="text">{{ $t('settings.appearance.bridgeSourceBadgeText') }}</option>
@@ -564,10 +555,7 @@
           <p class="setting-description">{{ $t('settings.appearance.floatingVideoDesc') }}</p>
         </div>
         <div class="setting-control">
-          <ToggleSwitch 
-            v-model="settings.floatingVideoEnabled"
-            @change="onFloatingVideoChange"
-          />
+          <ToggleSwitch v-model="local.floatingVideoEnabled" />
         </div>
       </div>
 
@@ -578,8 +566,8 @@
         </div>
         <div class="setting-control">
           <ToggleSwitch 
-            v-model="settings.showCustomEmojisInDisplayNames"
-            @change="onSettingChange"
+            :model-value="settings.showCustomEmojisInDisplayNames !== false"
+            @update:model-value="(v: boolean) => (settings.showCustomEmojisInDisplayNames = v)"
           />
         </div>
       </div>
@@ -591,8 +579,8 @@
         </div>
         <div class="setting-control">
           <ToggleSwitch
-            v-model="settings.greentextEnabled"
-            @change="onSettingChange"
+            :model-value="settings.greentextEnabled !== false"
+            @update:model-value="(v: boolean) => (settings.greentextEnabled = v)"
           />
         </div>
       </div>
@@ -604,8 +592,8 @@
         </div>
         <div class="setting-control">
           <ToggleSwitch
-            v-model="settings.inviteBannerBackground"
-            @change="onSettingChange"
+            :model-value="settings.inviteBannerBackground !== false"
+            @update:model-value="(v: boolean) => (settings.inviteBannerBackground = v)"
           />
         </div>
       </div>
@@ -620,11 +608,11 @@
           <p class="setting-description">{{ $t('settings.appearance.quickReactEnableDesc') }}</p>
         </div>
         <div class="setting-control">
-          <ToggleSwitch v-model="quickReact.enabled.value" />
+          <ToggleSwitch v-model="local.quickReactEnabled" />
         </div>
       </div>
 
-      <div v-if="quickReact.enabled.value" class="setting-item">
+      <div v-if="local.quickReactEnabled" class="setting-item">
         <div class="setting-info">
           <h4 class="setting-label">{{ $t('settings.appearance.quickReactEmoji') }}</h4>
           <p class="setting-description">{{ $t('settings.appearance.quickReactEmojiDesc') }}</p>
@@ -638,12 +626,12 @@
             @click="toggleQuickReactPicker"
           >
             <img
-              v-if="quickReact.emoji.value.url"
-              :src="quickReact.emoji.value.url"
-              :alt="quickReact.emoji.value.name"
+              v-if="local.quickReactEmoji.url"
+              :src="local.quickReactEmoji.url"
+              :alt="local.quickReactEmoji.name"
               class="quick-react-emoji-img"
             />
-            <span v-else class="quick-react-emoji-native">{{ quickReact.emoji.value.content || quickReact.emoji.value.id }}</span>
+            <span v-else class="quick-react-emoji-native">{{ local.quickReactEmoji.content || local.quickReactEmoji.id }}</span>
           </button>
           <EmojiPopup
             v-if="showQuickReactPicker"
@@ -671,8 +659,8 @@
               v-for="pack in packs"
               :key="pack.id"
               class="emoji-pack-btn"
-              :class="{ active: settings.emojiPack === pack.id }"
-              @click="settings.emojiPack = pack.id; onEmojiPackChange()"
+              :class="{ active: local.emojiPack === pack.id }"
+              @click="local.emojiPack = pack.id"
             >
               <img
                 v-if="pack.previewImage"
@@ -703,8 +691,8 @@
         </div>
         <div class="setting-control">
           <ToggleSwitch
-            v-model="settings.glassEffectsEnabled"
-            @change="onGlassEffectsChange"
+            :model-value="settings.glassEffectsEnabled !== false"
+            @update:model-value="(v: boolean) => (settings.glassEffectsEnabled = v)"
           />
         </div>
       </div>
@@ -721,7 +709,6 @@
         <div class="setting-control">
           <ToggleSwitch 
             v-model="settings.highContrast"
-            @change="onSettingChange"
           />
         </div>
       </div>
@@ -734,7 +721,6 @@
         <div class="setting-control">
           <ToggleSwitch 
             v-model="settings.reduceMotion"
-            @change="onSettingChange"
           />
         </div>
       </div>
@@ -747,52 +733,50 @@
         <div class="setting-control">
           <ToggleSwitch 
             v-model="settings.screenReaderSupport"
-            @change="onSettingChange"
           />
         </div>
       </div>
     </div>
 
-    <div class="settings-actions">
-      <button 
-        class="btn btn-primary" 
-        @click="saveSettings"
-        :disabled="loading || !hasChanges"
-      >
-        <span v-if="loading" class="loading-spinner"></span>
-        {{ $t('settings.appearance.saveChanges') }}
-      </button>
-      <button 
-        class="btn btn-secondary" 
-        @click="resetSettings"
-        :disabled="loading || !hasChanges"
-      >
-        {{ $t('settings.appearance.resetSettings') }}
-      </button>
-    </div>
+    <Transition name="savebar">
+      <div v-if="hasChanges" class="settings-actions" role="region" :aria-label="$t('settings.appearance.unsavedChanges')">
+        <p class="settings-actions-text">{{ $t('settings.appearance.unsavedChanges') }}</p>
+        <button class="btn btn-secondary" :disabled="loading" @click="resetSettings">
+          {{ $t('settings.appearance.resetSettings') }}
+        </button>
+        <button class="btn btn-primary" :disabled="loading" @click="saveSettings">
+          <span v-if="loading" class="loading-spinner"></span>
+          {{ $t('settings.appearance.saveChanges') }}
+        </button>
+      </div>
+    </Transition>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, reactive, onMounted } from 'vue'
+import { ref, computed, reactive, onMounted, onBeforeUnmount } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useToast } from 'vue-toastification'
-import { debug } from '@/utils/debug'
 import type { User, Emoji } from '@/types'
 import { useFloatingVideo } from '@/composables/useFloatingVideo'
-import { useVisualTheme } from '@/composables/useVisualTheme'
+import {
+  useVisualTheme,
+  COMMUNITY_PRESETS,
+  BUILTIN_SKINS,
+  type ThemePreset,
+} from '@/composables/useVisualTheme'
+import { useAppearanceDraft } from '@/composables/useAppearanceDraft'
 import { useThemeEditorPanel } from '@/composables/useThemeEditorPanel'
 import { useRouter } from 'vue-router'
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import {
-  generateThemePalette,
-  applyThemePalette,
   generatePreviewColors,
   decomposeBackgroundToneHex,
   canonicalizeBackgroundTone,
 } from '@/utils/colorUtils'
 import { isValidCssColor } from '@/utils/cssColor'
 import { useEmojiPacks } from '@/services/emojiPackService'
-import { useQuickReactSettings } from '@/composables/useQuickReactSettings'
+import { useQuickReactSettings, type QuickReactEmoji } from '@/composables/useQuickReactSettings'
 
 // Components
 import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
@@ -806,28 +790,64 @@ interface Props {
   loading: boolean
 }
 
-// eslint-disable-next-line unused-imports/no-unused-vars
-const props = defineProps<Props>()
+defineProps<Props>()
 
 const emit = defineEmits<{
   'update-appearance': [settings: any]
 }>()
 
-// Composables
+const { t } = useI18n()
+const toast = useToast()
 const { isEnabled: floatingVideoEnabled, setEnabled: setFloatingVideoEnabled } = useFloatingVideo()
 const visualTheme = useVisualTheme()
 const themeEditorPanel = useThemeEditorPanel()
 const router = useRouter()
 const { currentPackId, packs, setCurrentPack } = useEmojiPacks()
+const instanceSettings = useInstanceSettingsStore()
+const quickReact = useQuickReactSettings()
+
+// Every visual-theme edit on this page is staged in `settings` (the draft) and
+// previewed live; Save stores all of it, Reset restores the stored look.
+const {
+  draft: settings,
+  isDirty: themeDirty,
+  setTheme,
+  setCssOverride,
+  removeCssOverride,
+  clearCssOverrides,
+  applySkin,
+  setSkinOption,
+  applyPreset,
+  save: saveTheme,
+  discard: discardTheme,
+  reload: reloadTheme,
+} = useAppearanceDraft()
+
+// Page settings stored outside the visual theme, staged the same way.
+interface LocalSettings {
+  floatingVideoEnabled: boolean
+  emojiPack: string
+  quickReactEnabled: boolean
+  quickReactEmoji: QuickReactEmoji
+}
+const readLocal = (): LocalSettings => ({
+  floatingVideoEnabled: floatingVideoEnabled.value,
+  emojiPack: currentPackId.value,
+  quickReactEnabled: quickReact.enabled.value,
+  quickReactEmoji: { ...quickReact.emoji.value },
+})
+const local = ref<LocalSettings>(readLocal())
+const savedLocal = ref<LocalSettings>(readLocal())
+const localDirty = computed(() => JSON.stringify(local.value) !== JSON.stringify(savedLocal.value))
+
+const hasChanges = computed(() => themeDirty.value || localDirty.value)
 
 // Closes full-screen settings so colour edits are visible against the live
-// chat and sidebars.
+// chat and sidebars. The live editor seeds from the stored theme.
 const openLiveEditor = () => {
   themeEditorPanel.open()
   router.back()
 }
-const instanceSettings = useInstanceSettingsStore()
-const quickReact = useQuickReactSettings()
 
 // Quick-react emoji chooser popup
 const showQuickReactPicker = ref(false)
@@ -839,44 +859,15 @@ function toggleQuickReactPicker() {
 }
 
 function onQuickReactEmojiChosen(emoji: Emoji) {
-  quickReact.setEmoji({
+  local.value.quickReactEmoji = {
     id: emoji.id,
     name: emoji.name,
     url: emoji.url || undefined,
     // Native emoji: id is the unicode char and url is absent. Custom: undefined.
     content: emoji.content || (emoji.url ? undefined : emoji.id),
-  })
+  }
   showQuickReactPicker.value = false
 }
-
-// State
-const settings = ref({
-  theme: 'dark' as 'dark' | 'light' | 'midnight' | 'custom',
-  customThemeMode: 'dark' as 'dark' | 'light',
-  customPrimaryColor: '#0EA5E9',
-  customAccentColor: '#0EA5E9',
-  customBackgroundColor: '#0EA5E9',
-  customBackgroundLightness: 0,
-  customBackgroundChroma: 0,
-  customCssOverrides: {} as Record<string, string>,
-  fontSize: 14,
-  zoomLevel: 100,
-  showTimestamps: true,
-  use24HourTime: false,
-  compactMode: false,
-  floatingVideoEnabled: floatingVideoEnabled.value,
-  highContrast: false,
-  reduceMotion: false,
-  screenReaderSupport: false,
-  emojiPack: currentPackId.value,
-  showCustomEmojisInDisplayNames: true,
-  greentextEnabled: true,
-  inviteBannerBackground: true,
-  bridgeSourceBadge: 'icon' as 'icon' | 'text',
-  fontFamily: 'system' as 'system' | 'pixel',
-  glassEffectsEnabled: true,
-  activeSkinId: null as string | null,
-})
 
 // `preview` is applied inline to each picker button so the card renders in its
 // own typeface before selection.
@@ -889,17 +880,15 @@ const fontFamilyOptions: Array<{
   { id: 'pixel', label: 'NoRe Sans Pixel', preview: `'NoRe Sans Pixel Pro', monospace` },
 ]
 
-const customPreviewColors = computed(() => {
-  return generatePreviewColors(
-    settings.value.customBackgroundColor,
-    settings.value.customThemeMode,
-    settings.value.customBackgroundLightness,
-    settings.value.customBackgroundChroma
-  )
-})
+const customPreviewColors = computed(() =>
+  generatePreviewColors(
+    settings.value.customBackgroundColor || '#0EA5E9',
+    settings.value.customThemeMode || 'dark',
+    settings.value.customBackgroundLightness ?? 0,
+    settings.value.customBackgroundChroma ?? 0,
+  ),
+)
 
-const originalSettings = ref({ ...settings.value })
-// eslint-disable-next-line unused-imports/no-unused-vars
 const showAdvancedCss = ref(false)
 const colorExpanded = reactive({
   background: true,
@@ -908,7 +897,6 @@ const colorExpanded = reactive({
 })
 const savedThemeName = ref('')
 const importFileInput = ref<HTMLInputElement | null>(null)
-const toast = useToast()
 
 // Saved themes
 const savedThemesList = ref(visualTheme.getSavedCustomThemes())
@@ -943,7 +931,7 @@ function confirmDelete() {
 }
 
 function exportTheme() {
-  const json = visualTheme.exportThemeAsJson()
+  const json = visualTheme.exportThemeAsJson(settings.value)
   const blob = new Blob([json], { type: 'application/json' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
@@ -964,10 +952,9 @@ function handleImportFile(e: Event) {
   if (!file) return
   const reader = new FileReader()
   reader.onload = () => {
-    const text = reader.result as string
-    if (visualTheme.importThemeFromJson(text)) {
-      Object.assign(settings.value, visualTheme.currentSettings.value)
-      previewTheme()
+    const theme = visualTheme.parseThemeJson(reader.result as string, settings.value)
+    if (theme) {
+      Object.assign(settings.value, theme, { customCssOverrides: theme.customCssOverrides ?? {} })
       toast.success('Theme imported')
     } else {
       toast.error('Invalid theme file')
@@ -980,7 +967,7 @@ function handleImportFile(e: Event) {
 function saveCurrentTheme() {
   const name = savedThemeName.value?.trim()
   if (!name) return
-  const theme = visualTheme.saveCurrentThemeAsCustom(name)
+  const theme = visualTheme.saveCurrentThemeAsCustom(name, settings.value)
   if (theme) {
     savedThemeName.value = ''
     refreshSavedThemes()
@@ -989,54 +976,37 @@ function saveCurrentTheme() {
 }
 
 function applySavedTheme(id: string) {
-  if (visualTheme.loadSavedTheme(id)) {
-    Object.assign(settings.value, visualTheme.currentSettings.value)
-    activeSavedThemeId.value = id
-    previewTheme()
-    toast.success('Theme applied')
-  }
+  const found = visualTheme.getSavedCustomThemes().find((theme) => theme.id === id)
+  if (!found?.settings) return
+  Object.assign(settings.value, JSON.parse(JSON.stringify(found.settings)), {
+    theme: 'custom',
+    customCssOverrides: { ...(found.settings.customCssOverrides ?? {}) },
+  })
+  activeSavedThemeId.value = id
 }
 
-import { COMMUNITY_PRESETS, BUILTIN_SKINS, type ThemePreset } from '@/composables/useVisualTheme'
 const communityPresets = COMMUNITY_PRESETS
 const builtinSkins = BUILTIN_SKINS
 const themableVariables = visualTheme.getThemableVariables()
 
 const applyPresetTheme = (preset: ThemePreset) => {
-  visualTheme.applyPreset(preset)
-  Object.assign(settings.value, {
-    ...preset.settings,
-    customCssOverrides: preset.settings.customCssOverrides
-      ? { ...preset.settings.customCssOverrides }
-      : {},
-  })
-  syncBackgroundToneFromSliders()
-  previewTheme()
+  applyPreset(preset)
 }
 
 const invalidVar = ref<{ name: string; text: string } | null>(null)
 
-const overrideCount = computed(() => {
-  return Object.keys(settings.value.customCssOverrides || {}).length
-})
+const overrideCount = computed(() => Object.keys(settings.value.customCssOverrides || {}).length)
 
-const getCssVarValue = (varName: string): string => {
-  if (settings.value.customCssOverrides?.[varName]) {
-    return settings.value.customCssOverrides[varName]
-  }
-  return getComputedVar(varName)
-}
+const getCssVarValue = (varName: string): string =>
+  settings.value.customCssOverrides?.[varName] || getComputedVar(varName)
 
-const getComputedVar = (varName: string): string => {
-  return getComputedStyle(document.documentElement).getPropertyValue(varName).trim() || ''
-}
+const getComputedVar = (varName: string): string =>
+  getComputedStyle(document.documentElement).getPropertyValue(varName).trim() || ''
 
 const setCssOverrideFromInput = (varName: string, value: string) => {
   if (!value) return
   invalidVar.value = null
-  visualTheme.setCssOverride(varName, value)
-  if (!settings.value.customCssOverrides) settings.value.customCssOverrides = {}
-  settings.value.customCssOverrides[varName] = value
+  setCssOverride(varName, value)
 }
 
 // Empty text clears the override. An invalid colour is rejected: on :root it is
@@ -1046,7 +1016,7 @@ const commitCssOverrideText = (varName: string, input: HTMLInputElement) => {
   const text = input.value.trim()
   if (!text) {
     invalidVar.value = null
-    if (settings.value.customCssOverrides?.[varName]) removeCssOverrideVar(varName)
+    if (settings.value.customCssOverrides?.[varName]) removeCssOverride(varName)
     return
   }
   if (!isValidCssColor(text)) {
@@ -1058,15 +1028,11 @@ const commitCssOverrideText = (varName: string, input: HTMLInputElement) => {
 }
 
 const removeCssOverrideVar = (varName: string) => {
-  visualTheme.removeCssOverride(varName)
-  if (settings.value.customCssOverrides) {
-    delete settings.value.customCssOverrides[varName]
-  }
+  removeCssOverride(varName)
 }
 
 const resetAllOverrides = () => {
-  visualTheme.clearCssOverrides()
-  settings.value.customCssOverrides = {}
+  clearCssOverrides()
   invalidVar.value = null
 }
 
@@ -1109,123 +1075,54 @@ const themes = [
   }
 ]
 
-const hasChanges = computed(() => {
-  return JSON.stringify(settings.value) !== JSON.stringify(originalSettings.value)
-})
-
 const selectTheme = (themeId: string) => {
-  settings.value.theme = themeId as 'dark' | 'light' | 'midnight' | 'custom'
+  setTheme(themeId as 'dark' | 'light' | 'midnight' | 'custom')
   activeSavedThemeId.value = null
   if (themeId === 'custom') {
     colorExpanded.background = true
     colorExpanded.primary = false
     colorExpanded.accent = false
   }
-  previewTheme()
-}
-
-const onCustomColorChange = () => {
-  previewTheme()
 }
 
 const syncBackgroundToneFromSliders = () => {
   settings.value.customBackgroundColor = canonicalizeBackgroundTone(
-    settings.value.customBackgroundColor,
-    settings.value.customBackgroundLightness,
-    settings.value.customBackgroundChroma,
-    settings.value.customThemeMode,
+    settings.value.customBackgroundColor || '#0EA5E9',
+    settings.value.customBackgroundLightness ?? 0,
+    settings.value.customBackgroundChroma ?? 0,
+    settings.value.customThemeMode || 'dark',
   )
 }
 
 const onCustomBackgroundChange = () => {
   const decomposed = decomposeBackgroundToneHex(
-    settings.value.customBackgroundColor,
-    settings.value.customThemeMode,
+    settings.value.customBackgroundColor || '#0EA5E9',
+    settings.value.customThemeMode || 'dark',
   )
   if (decomposed) {
     settings.value.customBackgroundLightness = decomposed.lightnessOffset
     settings.value.customBackgroundChroma = decomposed.chromaOffset
   }
-  previewTheme()
 }
 
 const onCustomThemeModeChange = () => {
   syncBackgroundToneFromSliders()
-  previewTheme()
-}
-
-const previewTheme = () => {
-  if (settings.value.theme === 'custom') {
-    try {
-      const palette = generateThemePalette(
-        settings.value.customAccentColor,
-        settings.value.customThemeMode,
-        settings.value.customBackgroundColor,
-        settings.value.customBackgroundLightness,
-        settings.value.customPrimaryColor,
-        settings.value.customBackgroundChroma,
-        visualTheme.settings.value.customSidebarColor,
-      )
-      applyThemePalette(palette)
-      const overrides = settings.value.customCssOverrides
-      if (overrides) {
-        for (const [varName, value] of Object.entries(overrides)) {
-          if (varName.startsWith('--') && value) {
-            document.documentElement.style.setProperty(varName, value)
-          }
-        }
-      }
-    } catch (error) {
-      debug.error('Failed to preview custom theme:', error)
-    }
-  } else {
-    visualTheme.setTheme(settings.value.theme)
-  }
 }
 
 const onLightnessChange = () => {
   syncBackgroundToneFromSliders()
-  previewTheme()
 }
 
 const onChromaChange = () => {
   syncBackgroundToneFromSliders()
-  previewTheme()
-}
-
-const onFontSizeChange = () => {
-  visualTheme.setFontSize(settings.value.fontSize)
 }
 
 const onFontFamilyChange = (family: 'system' | 'pixel') => {
   settings.value.fontFamily = family
-  visualTheme.setFontFamily(family)
-}
-
-const onGlassEffectsChange = () => {
-  visualTheme.setGlassEffectsEnabled(settings.value.glassEffectsEnabled)
 }
 
 const onSkinChange = (skinId: string | null) => {
-  // Applies the skin to the live theme system, then mirrors the result into
-  // local form state so theme cards, font picker, blur toggle and colour
-  // pickers agree. A skin is a one-shot bulk apply, not a lock; every mirrored
-  // field stays editable.
-  visualTheme.applySkin(skinId)
-  const live = visualTheme.currentSettings.value
-  settings.value.activeSkinId = live.activeSkinId ?? null
-  settings.value.theme = live.theme
-  settings.value.customThemeMode = live.customThemeMode || 'dark'
-  if (live.customPrimaryColor) settings.value.customPrimaryColor = live.customPrimaryColor
-  if (live.customAccentColor) settings.value.customAccentColor = live.customAccentColor
-  if (live.customBackgroundColor) settings.value.customBackgroundColor = live.customBackgroundColor
-  if (typeof live.customBackgroundLightness === 'number')
-    settings.value.customBackgroundLightness = live.customBackgroundLightness
-  if (typeof live.customBackgroundChroma === 'number')
-    settings.value.customBackgroundChroma = live.customBackgroundChroma
-  settings.value.customCssOverrides = live.customCssOverrides ? { ...live.customCssOverrides } : {}
-  settings.value.fontFamily = (live.fontFamily as 'system' | 'pixel') || 'system'
-  settings.value.glassEffectsEnabled = live.glassEffectsEnabled !== false
+  applySkin(skinId)
 }
 
 // Active skin manifest; undefined when "None" is selected.
@@ -1234,118 +1131,54 @@ const activeSkin = computed(() =>
 )
 const activeSkinOptions = computed(() => activeSkin.value?.options ?? [])
 
-// Stored override when set, otherwise the option's declared default.
+// Draft value when set, otherwise the option's declared default.
 const getActiveSkinOptionValue = (optionId: string): boolean => {
   const skinId = settings.value.activeSkinId
   if (!skinId) return false
-  const value = visualTheme.getSkinOption(skinId, optionId)
-  return value ?? false
+  const stored = settings.value.skinOptions?.[skinId]?.[optionId]
+  return stored ?? activeSkinOptions.value.find((o) => o.id === optionId)?.default ?? false
 }
 
-// The useVisualTheme watcher mirrors the stored value onto
-// `<html data-skin-<optionId>="on|off">`.
 const onSkinOptionToggle = (optionId: string, value: boolean) => {
   const skinId = settings.value.activeSkinId
   if (!skinId) return
-  visualTheme.setSkinOption(skinId, optionId, value)
+  setSkinOption(skinId, optionId, value)
 }
 
 const adjustZoom = (delta: number) => {
-  const newZoom = settings.value.zoomLevel + delta
-  if (newZoom >= 50 && newZoom <= 200) {
-    settings.value.zoomLevel = newZoom
-    visualTheme.setZoomLevel(newZoom)
-  }
-}
-
-const onFloatingVideoChange = () => {
-  setFloatingVideoEnabled(settings.value.floatingVideoEnabled)
-}
-
-const onEmojiPackChange = () => {
-  setCurrentPack(settings.value.emojiPack)
-}
-
-const onSettingChange = () => {
-  // Persistence is handled by the visual theme composable.
+  settings.value.zoomLevel = Math.max(50, Math.min(200, settings.value.zoomLevel + delta))
 }
 
 const saveSettings = () => {
-  emit('update-appearance', settings.value)
-  originalSettings.value = { ...settings.value }
-  
-  // Composable persists to localStorage and Supabase.
-  visualTheme.updateSettings({
-    theme: settings.value.theme,
-    customThemeMode: settings.value.customThemeMode,
-    customPrimaryColor: settings.value.customPrimaryColor,
-    customAccentColor: settings.value.customAccentColor,
-    customBackgroundColor: settings.value.customBackgroundColor,
-    customBackgroundLightness: settings.value.customBackgroundLightness,
-    customBackgroundChroma: settings.value.customBackgroundChroma,
-    customCssOverrides: settings.value.customCssOverrides ? { ...settings.value.customCssOverrides } : undefined,
-    fontSize: settings.value.fontSize,
-    zoomLevel: settings.value.zoomLevel,
-    showTimestamps: settings.value.showTimestamps,
-    use24HourTime: settings.value.use24HourTime,
-    compactMode: settings.value.compactMode,
-    highContrast: settings.value.highContrast,
-    reduceMotion: settings.value.reduceMotion,
-    screenReaderSupport: settings.value.screenReaderSupport,
-    showCustomEmojisInDisplayNames: settings.value.showCustomEmojisInDisplayNames,
-    greentextEnabled: settings.value.greentextEnabled,
-    inviteBannerBackground: settings.value.inviteBannerBackground,
-    bridgeSourceBadge: settings.value.bridgeSourceBadge,
-    fontFamily: settings.value.fontFamily,
-    glassEffectsEnabled: settings.value.glassEffectsEnabled,
-    activeSkinId: settings.value.activeSkinId,
-  })
+  saveTheme()
+  setFloatingVideoEnabled(local.value.floatingVideoEnabled)
+  setCurrentPack(local.value.emojiPack)
+  quickReact.enabled.value = local.value.quickReactEnabled
+  quickReact.setEmoji(local.value.quickReactEmoji)
+  savedLocal.value = readLocal()
+  local.value = readLocal()
+  emit('update-appearance', { ...settings.value, ...local.value })
 }
 
 const resetSettings = () => {
-  settings.value = { ...originalSettings.value }
-  
-  if (originalSettings.value.theme === 'custom') {
-    previewTheme()
-  } else {
-    visualTheme.setTheme(originalSettings.value.theme)
-  }
+  discardTheme()
+  local.value = { ...savedLocal.value, quickReactEmoji: { ...savedLocal.value.quickReactEmoji } }
+  invalidVar.value = null
+  activeSavedThemeId.value = null
 }
 
 onMounted(async () => {
-  settings.value.emojiPack = currentPackId.value
-
   await visualTheme.initialize()
-  
-  const currentSettings = visualTheme.currentSettings.value
-  settings.value = {
-    theme: currentSettings.theme,
-    customThemeMode: currentSettings.customThemeMode || 'dark',
-    customPrimaryColor: currentSettings.customPrimaryColor || '#0EA5E9',
-    customAccentColor: currentSettings.customAccentColor || '#0EA5E9',
-    customBackgroundColor: currentSettings.customBackgroundColor || '#0EA5E9',
-    customBackgroundLightness: currentSettings.customBackgroundLightness || 0,
-    customBackgroundChroma: currentSettings.customBackgroundChroma || 0,
-    customCssOverrides: currentSettings.customCssOverrides ? { ...currentSettings.customCssOverrides } : {},
-    fontSize: currentSettings.fontSize,
-    zoomLevel: currentSettings.zoomLevel,
-    showTimestamps: currentSettings.showTimestamps,
-    use24HourTime: currentSettings.use24HourTime,
-    compactMode: currentSettings.compactMode,
-    floatingVideoEnabled: floatingVideoEnabled.value,
-    highContrast: currentSettings.highContrast,
-    reduceMotion: currentSettings.reduceMotion,
-    screenReaderSupport: currentSettings.screenReaderSupport,
-    emojiPack: currentPackId.value,
-    showCustomEmojisInDisplayNames: currentSettings.showCustomEmojisInDisplayNames !== false,
-    greentextEnabled: currentSettings.greentextEnabled !== false,
-    inviteBannerBackground: currentSettings.inviteBannerBackground !== false,
-    bridgeSourceBadge: currentSettings.bridgeSourceBadge === 'text' ? 'text' : 'icon',
-    fontFamily: (currentSettings.fontFamily as 'system' | 'pixel') || 'system',
-    glassEffectsEnabled: currentSettings.glassEffectsEnabled !== false,
-    activeSkinId: currentSettings.activeSkinId ?? null,
-  }
-  originalSettings.value = { ...settings.value }
+  reloadTheme()
+  savedLocal.value = readLocal()
+  local.value = readLocal()
+})
+
+// Leaving the page drops the draft; the preview reverts to the stored look.
+onBeforeUnmount(() => {
+  if (!hasChanges.value) return
+  discardTheme()
+  toast.info(t('settings.appearance.changesDiscarded'))
 })
 </script>
 
@@ -1375,6 +1208,7 @@ onMounted(async () => {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  min-height: 40px;
   margin-top: 14px;
   padding: 9px 14px;
   border-radius: var(--radius-md);
@@ -2265,11 +2099,52 @@ onMounted(async () => {
   border-color: var(--h-primary, var(--harmony-primary));
 }
 
+/* Unsaved-changes bar, pinned to the bottom of the settings scroller. */
 .settings-actions {
+  position: sticky;
+  bottom: var(--space-4);
+  z-index: 5;
   display: flex;
-  gap: 12px;
-  justify-content: flex-end;
-  margin-top: 24px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-6);
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  background: var(--background-floating);
+  box-shadow: var(--shadow-large);
+}
+
+.settings-actions-text {
+  flex: 1;
+  min-width: 160px;
+  margin: 0;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+}
+
+@media (max-width: 480px) {
+  .settings-actions-text {
+    flex-basis: 100%;
+  }
+
+  .settings-actions .btn {
+    flex: 1;
+    min-height: 40px;
+  }
+}
+
+.savebar-enter-active,
+.savebar-leave-active {
+  transition: opacity var(--transition-base), transform var(--transition-base);
+}
+
+.savebar-enter-from,
+.savebar-leave-to {
+  opacity: 0;
+  transform: translateY(8px);
 }
 
 .btn {

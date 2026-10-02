@@ -95,6 +95,14 @@
             </button>
           </div>
 
+          <AutoModOptInBanner
+            v-if="permissions.canEditBasicInfo && activeSection !== 'automod'"
+            :server-id="serverId"
+            :status="automodStatus"
+            @review="setActiveSection('automod')"
+            @status-change="automodStatus = $event"
+          />
+
           <!-- Server Overview Section -->
           <ServerBasicInfo
             v-if="activeSection === 'overview'"
@@ -118,6 +126,19 @@
           <ServerBans
             v-if="activeSection === 'bans'"
             :server-id="serverId"
+          />
+
+          <!-- Reports about messages in this server -->
+          <ReportsModeration
+            v-if="activeSection === 'reports' && permissions.canModerateReports"
+            :server-id="serverId"
+          />
+
+          <!-- AutoMod Section -->
+          <ServerAutoMod
+            v-if="activeSection === 'automod' && permissions.canEditBasicInfo"
+            :server-id="serverId"
+            @status-change="automodStatus = $event"
           />
 
           <!-- Emoji Management Section -->
@@ -176,7 +197,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, computed, watch, onUnmounted } from 'vue'
+import { onMounted, ref, computed, watch, onUnmounted, defineAsyncComponent } from 'vue'
 import { debug } from '@/utils/debug'
 import { useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
@@ -198,6 +219,10 @@ import ServerBotsSettings from '@/components/settings/ServerBotsSettings.vue'
 import DiscordBridgeSetup from '@/components/settings/DiscordBridgeSetup.vue'
 import RoleManagement from '@/components/settings/RoleManagement.vue'
 import ServerBans from '@/components/settings/server/ServerBans.vue'
+import ServerAutoMod from '@/components/settings/server/ServerAutoMod.vue'
+import AutoModOptInBanner from '@/components/settings/server/AutoModOptInBanner.vue'
+import { getServerAutoMod, type AutoModState } from '@/services/AutoModService'
+const ReportsModeration = defineAsyncComponent(() => import('@/components/admin/ReportsModeration.vue'))
 
 interface Props {
   serverId: string
@@ -216,7 +241,7 @@ const router = useRouter()
 const serverStore = useServerStore()
 const emojiCacheStore = useEmojiCacheStore()
 const toast = useToast()
-const { serverSettingsPermissions } = useServerPermissions()
+const { serverSettingsPermissions } = useServerPermissions(() => props.serverId)
 
 // Reactive state
 const loading = ref(false)
@@ -254,6 +279,18 @@ const currentSectionLabel = computed(() => {
 // Computed permissions
 const permissions = computed(() => serverSettingsPermissions.value)
 
+const automodStatus = ref<AutoModState['status'] | null>(null)
+
+const loadAutoModStatus = async () => {
+  if (!permissions.value.canEditBasicInfo) return
+  try {
+    automodStatus.value = (await getServerAutoMod(props.serverId)).status
+  } catch (error) {
+    debug.warn('AutoMod status unavailable:', error)
+  }
+}
+watch(() => [props.serverId, permissions.value.canEditBasicInfo], loadAutoModStatus, { immediate: true })
+
 const emojiPermissions = computed(() => ({
   canUpload: permissions.value.canUploadEmojis,
   canDelete: permissions.value.canDeleteEmojis,
@@ -263,15 +300,19 @@ const emojiPermissions = computed(() => ({
 
 // Available sections based on permissions
 const availableSections = computed(() => {
-  const sections = [
+  const p = permissions.value
+  return [
     { id: 'overview', label: t('server.overview') },
     { id: 'roles', label: t('server.roles', 'Roles') },
-    { id: 'bans', label: t('server.bans') },
+    // get_server_bans requires BAN_MEMBERS.
+    ...(p.canManageBans ? [{ id: 'bans', label: t('server.bans') }] : []),
+    ...(p.canModerateReports ? [{ id: 'reports', label: t('server.reports', 'Reports') }] : []),
+    // MANAGE_SERVER on a local server; the RPCs refuse anyone else.
+    ...(p.canEditBasicInfo ? [{ id: 'automod', label: t('automod.title') }] : []),
     { id: 'emoji', label: t('server.emoji') },
     { id: 'privacy', label: t('server.privacySettings') },
     { id: 'advanced', label: t('server.advancedSettings') }
   ]
-  return sections
 })
 
 const generalHasChanges = computed(() => {
@@ -479,8 +520,7 @@ watch(hasChanges, (newValue) => {
 .server-settings {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  height: 100dvh;
+  height: 100%;
   background-color: var(--background-tertiary);
   color: var(--text-primary);
 }
@@ -501,6 +541,11 @@ watch(hasChanges, (newValue) => {
 }
 
 .mobile-menu-btn {
+  display: flex;
+  min-width: 40px;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
   background: none;
   border: none;
   padding: 8px;
@@ -544,6 +589,8 @@ watch(hasChanges, (newValue) => {
 }
 
 .mobile-back-btn {
+  min-width: 40px;
+  min-height: 40px;
   background: none;
   border: none;
   padding: 8px;
@@ -754,12 +801,14 @@ watch(hasChanges, (newValue) => {
   }
   
 
+  /* Below the mobile nav, which BaseLayout insets by the top safe area. */
   .server-settings-sidebar {
     position: fixed;
-    top: 60px; /* Below mobile nav */
+    top: calc(60px + env(safe-area-inset-top, 0px));
+    bottom: 0;
     left: 0;
     width: 280px;
-    height: calc(100vh - 60px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
     z-index: 1000;
     box-shadow: 2px 0 8px rgba(0, 0, 0, 0.3);
   }

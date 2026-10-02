@@ -32,6 +32,7 @@ disable_federation_triggers	service key	service_role
 enable_conversation_encryption	service key	service_role
 enable_federation_triggers	service key	service_role
 end_user_session	service key	service_role
+enforce_request_assurance	http anon	anon+authenticated+service_role
 generate_livekit_token	service key	service_role
 get_batch_post_reactions	http anon	anon+authenticated+service_role
 get_conversation_context	http anon	anon+authenticated+service_role

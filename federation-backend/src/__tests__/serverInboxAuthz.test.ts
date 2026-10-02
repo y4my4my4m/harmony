@@ -34,8 +34,11 @@ import {
   actorIsAcceptedMember,
   actorIsServerModerator,
   actorOwnsMessage,
-  canPostInChannel,
 } from '../activitypub/ServerInboxHandler.js';
+import { hasChannelPermissions } from '../activitypub/channelWriteAuthz.js';
+
+const canPostInChannel = (sb: any, userId: string, serverId: string, channelId: string) =>
+  hasChannelPermissions(sb, userId, serverId, channelId, [['VIEW_CHANNEL'], ['SEND_MESSAGES']]);
 
 /**
  * Minimal table-keyed fake Supabase supporting the chained calls the helpers
@@ -160,7 +163,7 @@ describe('actorOwnsMessage', () => {
   });
 });
 
-describe('canPostInChannel', () => {
+describe('hasChannelPermissions (VIEW_CHANNEL, SEND_MESSAGES)', () => {
   const CHANNEL_ID = '00000000-0000-0000-0000-0000000000cc';
   const rpcWith = (grants: Record<string, boolean | 'error'>) => {
     const calls: any[] = [];
@@ -197,5 +200,11 @@ describe('canPostInChannel', () => {
   it('denies when the permission lookup fails', async () => {
     const { sb } = rpcWith({ VIEW_CHANNEL: 'error', SEND_MESSAGES: true });
     expect(await canPostInChannel(sb, 'alice-id', SERVER_ID, CHANNEL_ID)).toBe(false);
+  });
+
+  it('accepts any one permission of an alternative group', async () => {
+    const { sb } = rpcWith({ VIEW_CHANNEL: true, CREATE_PRIVATE_THREADS: true });
+    expect(await hasChannelPermissions(sb, 'alice-id', SERVER_ID, CHANNEL_ID,
+      [['VIEW_CHANNEL'], ['CREATE_PUBLIC_THREADS', 'CREATE_PRIVATE_THREADS']])).toBe(true);
   });
 });

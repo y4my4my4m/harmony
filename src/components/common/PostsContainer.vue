@@ -3,7 +3,7 @@
     <!-- Loading State -->
     <div
       v-if="isLoading && posts.length === 0"
-      class="skeleton-list"
+      class="skeleton-list feed-column"
       role="status"
       aria-busy="true"
       :aria-label="loadingMessage"
@@ -19,32 +19,30 @@
     </div>
 
     <!-- Error State -->
-    <div v-else-if="error && posts.length === 0" class="empty-state error-state" role="alert">
-      <Icon name="alert-circle" :size="40" />
-      <h3>{{ errorTitle || t('activitypub.loadFailedTitle') }}</h3>
-      <p>{{ t('activitypub.loadFailedMessage') }}</p>
-      <button type="button" class="explore-btn" @click="$emit('retry')">
-        {{ t('common.retry') }}
-      </button>
-    </div>
+    <EmptyState
+      v-else-if="error && posts.length === 0"
+      tone="error"
+      class="feed-column"
+      icon="alert-circle"
+      :title="errorTitle || t('activitypub.loadFailedTitle')"
+      :description="t('activitypub.loadFailedMessage')"
+      :action-label="t('common.retry')"
+      @action="$emit('retry')"
+    />
 
     <!-- Empty State -->
-    <div v-else-if="!isLoading && posts.length === 0" class="empty-state">
-      <Icon :name="emptyIcon" :size="40" />
-      <h3>{{ emptyTitle }}</h3>
-      <p>{{ emptyMessage }}</p>
-      <button 
-        v-if="emptyAction"
-        type="button"
-        @click="$emit('empty-action')" 
-        class="explore-btn"
-      >
-        {{ emptyAction }}
-      </button>
-    </div>
+    <EmptyState
+      v-else-if="!isLoading && posts.length === 0"
+      class="feed-column"
+      :icon="emptyIcon"
+      :title="emptyTitle ?? t('empty.posts.title')"
+      :description="emptyMessage ?? t('empty.posts.description')"
+      :action-label="emptyAction"
+      @action="$emit('empty-action')"
+    />
 
     <!-- Virtualized Posts -->
-    <div v-else class="posts-list" :style="{ height: `${totalSize}px`, position: 'relative' }">
+    <div v-else class="posts-list feed-column" :style="{ height: `${totalSize}px`, position: 'relative' }">
       <div
         v-for="virtualRow in virtualRows"
         :key="virtualRow.index < posts.length ? posts[virtualRow.index].id : '__loader__'"
@@ -92,7 +90,7 @@ import { computed, ref, watch, onMounted, onUnmounted, watchEffect } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useVirtualizer } from '@tanstack/vue-virtual'
 import MonyPost from '@/components/activitypub/MonyPost.vue'
-import Icon from '@/components/common/Icon.vue'
+import EmptyState from '@/components/common/EmptyState.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import type { TimelinePost } from '@/types'
 
@@ -118,8 +116,8 @@ const props = withDefaults(defineProps<Props>(), {
   isLoading: false,
   hasMore: false,
   loadingMessage: 'Loading posts...',
-  emptyTitle: 'No posts yet',
-  emptyMessage: 'Posts will appear here when available.',
+  emptyTitle: undefined,
+  emptyMessage: undefined,
   emptyIcon: 'users',
   emptyAction: undefined,
   postProps: () => ({}),
@@ -323,22 +321,19 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/* The gutter is reserved with or without overflow, so the feed column sits on the same
+   axis as a column header outside the scroller that reserves the same gutter. */
 .posts-container {
   display: flex;
   flex-direction: column;
   align-items: center;
   width: 100%;
   overflow-y: auto;
+  scrollbar-gutter: stable;
   padding: 0;
   flex: 1;
   min-height: 0;
   height: 100%;
-}
-
-.posts-list,
-.skeleton-list {
-  width: 100%;
-  max-width: 600px;
 }
 
 .virtual-post-row {
@@ -395,52 +390,6 @@ onUnmounted(() => {
   }
 }
 
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-2);
-  padding: var(--space-16) var(--space-4);
-  text-align: center;
-  color: var(--text-secondary);
-  min-height: 320px;
-  max-width: 600px;
-}
-
-.empty-state h3 {
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-semibold);
-  margin: var(--space-2) 0 0;
-  color: var(--text-primary);
-}
-
-.empty-state p {
-  font-size: var(--font-size-sm);
-  margin: 0 0 var(--space-3);
-  max-width: 320px;
-  line-height: var(--line-height-relaxed);
-}
-
-.explore-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-5);
-  border: none;
-  border-radius: var(--radius-full);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-semibold);
-  cursor: pointer;
-  transition: background-color var(--transition-fast);
-  background: var(--harmony-primary);
-  color: var(--text-on-primary);
-}
-
-.explore-btn:hover {
-  background: var(--harmony-primary-hover);
-}
-
 .loading-more {
   display: flex;
   align-items: center;
@@ -466,7 +415,6 @@ onUnmounted(() => {
   background: var(--background-modifier-hover);
 }
 
-.explore-btn:focus-visible,
 .retry-btn:focus-visible {
   outline: 2px solid var(--harmony-primary);
   outline-offset: 2px;
@@ -481,12 +429,16 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
+/* The column rules run to the bottom whether the feed is loading, listed or empty. */
 @media (min-width: 769px) {
   .posts-list,
-  .skeleton-list {
-    border-left: 1px solid var(--border-color);
-    border-right: 1px solid var(--border-color);
+  .skeleton-list,
+  .empty-state {
     min-height: 100%;
+  }
+
+  .empty-state {
+    justify-content: flex-start;
   }
 }
 </style>

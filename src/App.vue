@@ -59,8 +59,9 @@
   <!-- Native (Linux X11) screenshare source picker -->
   <ScreenSharePicker v-if="!isAuthRoute" />
   
-  <!-- PWA Components -->
-  <PWAInstallBanner />
+  <!-- PWA Components. The install prompt waits for sign-in; on auth routes it
+       covers the form on small screens. -->
+  <PWAInstallBanner v-if="!isAuthRoute" />
   <PWAUpdateNotification />
 
   <!-- Native app updates: in-app updater on desktop, release notice on Android -->

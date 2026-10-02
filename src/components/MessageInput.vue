@@ -1272,16 +1272,17 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
       padding-right: 4px;
     }
 
+    /* 40px touch targets. */
     .plus-icon-container {
-      width: 36px;
-      height: 36px;
-      border-radius: 18px;
+      width: 40px;
+      height: 40px;
+      border-radius: 20px;
     }
 
     .right-icons button {
-      width: 32px;
-      height: 32px;
-      border-radius: 16px;
+      width: 40px;
+      height: 40px;
+      border-radius: 20px;
     }
 
     .textarea-wrapper {
@@ -1290,7 +1291,6 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
       margin-right: 0;
     }
 
-    /* Touch targets. */
     .left-icons > *,
     .right-icons > * {
       min-width: 24px;
@@ -1326,9 +1326,9 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
   .send-button {
     background-color: var(--harmony-primary) !important;
     border-radius: 50% !important;
-    width: 36px !important;
-    height: 36px !important;
-    min-width: 36px !important;
+    width: 40px !important;
+    height: 40px !important;
+    min-width: 40px !important;
     color: var(--text-on-primary);
     transition: transform 0.15s ease, background-color 0.2s ease;
   }

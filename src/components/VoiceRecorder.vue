@@ -182,6 +182,15 @@ onUnmounted(() => {
   cursor: not-allowed;
 }
 
+/* Matches the 40px composer buttons beside it on mobile. */
+@media (max-width: 768px) {
+  .mic-trigger {
+    width: 40px;
+    height: 40px;
+    border-radius: 20px;
+  }
+}
+
 .recorder-active {
   display: flex;
   align-items: center;
