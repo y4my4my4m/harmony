@@ -46,9 +46,13 @@ pub async fn android_video_thumbnail(url: String) -> Result<String, String> {
 }
 
 // tauri-plugin-shell's open command doesn't route to the Android mobile plugin,
-// so open URLs via a native ACTION_VIEW intent instead.
+// so open URLs via a native ACTION_VIEW intent instead. Only http(s) URLs: an
+// ACTION_VIEW intent for file:, content: or app schemes reaches other apps.
 #[tauri::command]
 pub fn android_open_url(url: String) -> Result<(), String> {
+  if !is_web_url(&url) {
+    return Err("only http and https URLs are opened".into());
+  }
   #[cfg(target_os = "android")]
   {
     use jni::objects::{JObject, JValue};
@@ -69,6 +73,36 @@ pub fn android_open_url(url: String) -> Result<(), String> {
   #[cfg(not(target_os = "android"))]
   let _ = url;
   Ok(())
+}
+
+fn is_web_url(url: &str) -> bool {
+  let lower = url.to_ascii_lowercase();
+  let rest = if let Some(r) = lower.strip_prefix("https://") {
+    r
+  } else if let Some(r) = lower.strip_prefix("http://") {
+    r
+  } else {
+    return false;
+  };
+  !rest.is_empty() && !url.chars().any(|c| c.is_control())
+}
+
+#[cfg(test)]
+mod tests {
+  use super::is_web_url;
+
+  #[test]
+  fn web_url_schemes() {
+    assert!(is_web_url("https://example.com/a"));
+    assert!(is_web_url("HTTP://example.com"));
+    assert!(!is_web_url("javascript:alert(1)"));
+    assert!(!is_web_url("intent://x#Intent;scheme=http;end"));
+    assert!(!is_web_url("file:///data/data/online.knowmad.harmony/x"));
+    assert!(!is_web_url("content://media/external/x"));
+    assert!(!is_web_url("https://"));
+    assert!(!is_web_url(" https://example.com"));
+    assert!(!is_web_url("https://a\nb"));
+  }
 }
 
 // start/stop the Android call foreground service (keeps audio alive when backgrounded)

@@ -190,7 +190,7 @@
           </div>
         </dl>
 
-        <a class="doc-link" :href="BOT_API_DOCS_URL" target="_blank" rel="noopener noreferrer">
+        <a class="doc-link" :href="safeHref(BOT_API_DOCS_URL)" target="_blank" rel="noopener noreferrer">
           <Icon name="file" :size="16" />
           <span>{{ t('bots.connection.docs') }}</span>
           <Icon name="external-link" :size="14" />
@@ -420,6 +420,7 @@
 </template>
 
 <script setup lang="ts">
+import { safeHref } from '@/utils/sanitize';
 import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useToast } from 'vue-toastification'

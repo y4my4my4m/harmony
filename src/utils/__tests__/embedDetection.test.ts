@@ -8,6 +8,7 @@ vi.mock('@/types', () => ({}))
 // embedDetection.ts reads import.meta.env at module load time, so the env is
 // mocked via the setup file.
 import {
+  isYouTubeOrigin,
   normalizeEmbedUrl,
   parseEmbedUrl,
   isYouTubeUrl,
@@ -162,5 +163,26 @@ describe('embedDetection', () => {
       const url = new URL('https://open.spotify.com/')
       expect(buildSpotifyEmbedUrl(url)).toBe(null)
     })
+  })
+})
+
+describe('isYouTubeOrigin', () => {
+  it('matches the YouTube player origins exactly', () => {
+    expect(isYouTubeOrigin('https://www.youtube.com')).toBe(true)
+    expect(isYouTubeOrigin('https://youtube.com')).toBe(true)
+    expect(isYouTubeOrigin('https://www.youtube-nocookie.com')).toBe(true)
+  })
+
+  it('refuses origins that only contain a YouTube host', () => {
+    for (const origin of [
+      'https://youtube.com.evil.example',
+      'https://evil-youtube.com',
+      'https://evil.example',
+      'http://www.youtube.com',
+      'https://www.youtube.com:8443',
+      'null',
+    ]) {
+      expect(isYouTubeOrigin(origin), origin).toBe(false)
+    }
   })
 })

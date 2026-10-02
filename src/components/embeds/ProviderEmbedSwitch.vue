@@ -40,7 +40,7 @@
                 <Icon name="globe" :size="12" class="fedi-badge-icon" />
                 <span class="fedi-badge-label">{{ fediversePlatformLabel }}</span>
               </span>
-              <a :href="fediverseSourceUrl" target="_blank" rel="noopener noreferrer" class="fedi-source-link__right">
+              <a :href="safeHref(fediverseSourceUrl)" target="_blank" rel="noopener noreferrer" class="fedi-source-link__right">
                 View on {{ fediverseSourceDomain }}
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
@@ -129,6 +129,7 @@ const fediversePostCache = {
 </script>
 
 <script setup lang="ts">
+import { safeHref } from '@/utils/sanitize';
 import Icon from '@/components/common/Icon.vue';
 import { softwareDisplayName } from '@/utils/fediverseSoftware';
 import { computed, onMounted, ref, nextTick, onUnmounted } from 'vue';
@@ -136,7 +137,7 @@ import { debug } from '@/utils/debug'
 // `TimelinePost` is already imported in the module-scope <script lang="ts">
 // block above for the cache helpers; re-importing it here is a TS duplicate.
 import type { EmbedPayload } from '@/types';
-import { parseEmbedUrl, buildYouTubeEmbedUrl, buildSpotifyEmbedUrl } from '@/utils/embedDetection';
+import { parseEmbedUrl, buildYouTubeEmbedUrl, buildSpotifyEmbedUrl, isYouTubeOrigin } from '@/utils/embedDetection';
 import { useFloatingVideo } from '@/composables/useFloatingVideo';
 import MonyPost from '@/components/activitypub/MonyPost.vue';
 import LinkEmbedCard from './LinkEmbedCard.vue';
@@ -328,7 +329,7 @@ function updatePlayState(playing: boolean) {
 }
 
 function handleYouTubeMessage(event: MessageEvent) {
-  if (!event.origin.includes('youtube.com') && !event.origin.includes('youtube-nocookie.com')) return;
+  if (!isYouTubeOrigin(event.origin)) return;
   if (!event.data) return;
   
   try {

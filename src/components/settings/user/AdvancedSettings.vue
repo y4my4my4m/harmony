@@ -211,7 +211,7 @@
         </div>
         <div class="setting-control">
           <a
-            :href="reportBugUrl"
+            :href="safeHref(reportBugUrl)"
             target="_blank"
             rel="noopener noreferrer"
             class="btn btn-secondary"
@@ -325,6 +325,7 @@
 </template>
 
 <script setup lang="ts">
+import { safeHref } from '@/utils/sanitize';
 import { ref, computed, onMounted, watch } from 'vue'
 import { debug } from '@/utils/debug'
 import { useToast } from 'vue-toastification'

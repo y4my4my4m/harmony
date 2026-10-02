@@ -62,7 +62,7 @@
           <span class="file-name">{{ media.filename }}</span>
           <span class="file-size">{{ formatFileSize(media.size) }}</span>
         </div>
-        <a :href="media.url" target="_blank" class="download-btn">
+        <a :href="safeHref(media.url)" target="_blank" class="download-btn">
           <Icon name="download" />
         </a>
       </div>
@@ -127,6 +127,7 @@
 </template>
 
 <script setup lang="ts">
+import { safeHref } from '@/utils/sanitize';
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { debug } from '@/utils/debug'

@@ -199,7 +199,7 @@
             </div>
             <div class="federation-item">
               <span class="federation-label">Profile URL:</span>
-              <a :href="getProfileUrl(user)" 
+              <a :href="safeHref(getProfileUrl(user))" 
                  target="_blank" 
                  rel="noopener noreferrer" 
                  class="federation-link">
@@ -423,7 +423,7 @@
 import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
 import { apiUrl } from '@/services/instanceConfig';
 import { debug } from '@/utils/debug'
-import { escapeHtml } from '@/utils/sanitize'
+import { escapeHtml, safeHref } from '@/utils/sanitize'
 import DOMPurify from 'dompurify'
 import { useI18n } from 'vue-i18n'
 import { useRouter, useRoute } from 'vue-router'

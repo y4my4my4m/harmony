@@ -122,8 +122,8 @@ export function sanitizeMessageHtml(html: string): string {
  * emits: `div`, `iframe` (YouTube embeds), `video`, `audio`, `source`,
  * `picture`, `figure`, `figcaption`. Inline event handlers are still stripped.
  *
- * `iframe` src is restricted to the YouTube embed origin by the renderer
- * before this sanitizer runs (`sanitizeUrl` + buildYouTubeEmbedUrl).
+ * `href` and `src` pass DOMPurify's URI check. An `iframe` survives only when
+ * its src is an https embed URL of a supported provider (`isAllowedEmbedFrameSrc`).
  */
 const FORMATTED_HTML_ALLOWED_TAGS = [
   ...MESSAGE_ALLOWED_TAGS,
@@ -150,13 +150,56 @@ const FORMATTED_HTML_ALLOWED_ATTR = [
   'data-handle',
 ];
 
+/**
+ * Embed iframe origins: the players `embedDetection` builds URLs for.
+ * Each also requires an `/embed/` path.
+ */
+const EMBED_FRAME_ORIGINS = new Set([
+  'https://www.youtube.com',
+  'https://www.youtube-nocookie.com',
+  'https://open.spotify.com',
+]);
+
+export function isAllowedEmbedFrameSrc(src: string | null | undefined): boolean {
+  if (!src) return false;
+  // eslint-disable-next-line no-control-regex
+  if (/[\x00-\x20\x7F]/.test(src)) return false;
+  let url: URL;
+  try {
+    url = new URL(src);
+  } catch {
+    return false;
+  }
+  return url.protocol === 'https:'
+    && !url.username && !url.password
+    && EMBED_FRAME_ORIGINS.has(url.origin)
+    && url.pathname.startsWith('/embed/');
+}
+
+/** Same scheme set as `SAFE_URL_SCHEMES`; relative and fragment refs pass. */
+const SAFE_URI_REGEXP = /^(?:(?:https?|mailto|tel|blob):|[^a-z]|[a-z+.-]+(?:[^a-z+.\-:]|$))/i;
+
+// Separate instance: hooks on the default export would apply to every sanitizer.
+const formattedPurifier: typeof DOMPurify =
+  typeof window !== 'undefined' ? DOMPurify(window) : DOMPurify;
+
+if (typeof formattedPurifier.addHook === 'function') {
+  formattedPurifier.addHook('uponSanitizeElement', (node, data) => {
+    if (data.tagName !== 'iframe') return;
+    const el = node as Element;
+    if (!isAllowedEmbedFrameSrc(el.getAttribute('src'))) {
+      el.parentNode?.removeChild(el);
+    }
+  });
+}
+
 export function sanitizeFormattedHtml(html: string): string {
   if (!html) return '';
-  return DOMPurify.sanitize(html, {
+  return formattedPurifier.sanitize(html, {
     ALLOWED_TAGS: FORMATTED_HTML_ALLOWED_TAGS,
     ALLOWED_ATTR: FORMATTED_HTML_ALLOWED_ATTR,
     ALLOW_DATA_ATTR: false,
-    ADD_URI_SAFE_ATTR: ['href', 'src'],
+    ALLOWED_URI_REGEXP: SAFE_URI_REGEXP,
     FORBID_ATTR: [
       'onerror',
       'onload',
@@ -178,6 +221,18 @@ export function sanitizeFormattedHtml(html: string): string {
       'srcdoc',
     ],
     FORBID_TAGS: ['style', 'script', 'object', 'embed', 'link', 'meta', 'base', 'form', 'input', 'textarea', 'button', 'select', 'option'],
+  });
+}
+
+/**
+ * Output of the CodeBlock highlighters: `span` elements with a class, nothing else.
+ */
+export function sanitizeHighlightedCode(html: string): string {
+  if (!html) return '';
+  return DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: ['span'],
+    ALLOWED_ATTR: ['class'],
+    ALLOW_DATA_ATTR: false,
   });
 }
 
@@ -259,4 +314,9 @@ export function sanitizeUrl(url: string | null | undefined): string {
     return '';
   }
   return cleaned;
+}
+
+/** `sanitizeUrl` for a `:href` binding: undefined drops the attribute. */
+export function safeHref(url: string | null | undefined): string | undefined {
+  return sanitizeUrl(url) || undefined;
 }

@@ -337,7 +337,7 @@
           <a
             v-for="(link, i) in fundingLinks"
             :key="i"
-            :href="link.url"
+            :href="safeHref(link.url)"
             target="_blank"
             rel="noopener noreferrer"
             class="supporter-link"
@@ -371,6 +371,7 @@
 </template>
 
 <script setup lang="ts">
+import { safeHref } from '@/utils/sanitize';
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { debug } from '@/utils/debug'
 import { useAuthStore } from '@/stores/auth'

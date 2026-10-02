@@ -158,17 +158,15 @@ class DMCallPermissionService {
     return userData.status === UserStatus.Busy
   }
 
-  /** Busy means present in any voice channel, not only a DM call. */
+  /**
+   * Busy means present in any voice channel, not only a DM call. Voice rows are
+   * readable only for channels the caller can view; the RPC answers for all.
+   */
   private async isUserBusy(userId: string): Promise<boolean> {
     try {
-      const { data, error } = await supabase
-        .from('voice_channel_participants')
-        .select('id')
-        .eq('user_id', userId)
-        .limit(1)
-
-      if (error || !data || data.length === 0) return false
-      return true
+      const { data, error } = await supabase.rpc('is_profile_in_voice', { p_profile_id: userId })
+      if (error) return false
+      return data === true
     } catch {
       return false
     }

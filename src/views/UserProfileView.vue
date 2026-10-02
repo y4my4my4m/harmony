@@ -89,7 +89,7 @@
                   <!-- View in remote instance (for federated users) -->
                   <a 
                     v-if="!user.is_local && remoteProfileUrl" 
-                    :href="remoteProfileUrl" 
+                    :href="safeHref(remoteProfileUrl)" 
                     target="_blank" 
                     rel="noopener noreferrer"
                     class="action-item"
@@ -328,6 +328,7 @@
 </template>
 
 <script setup lang="ts">
+import { safeHref } from '@/utils/sanitize';
 import { computed, ref, watch, onMounted, onUnmounted } from 'vue';
 import { storeToRefs } from 'pinia';
 import { debug } from '@/utils/debug'

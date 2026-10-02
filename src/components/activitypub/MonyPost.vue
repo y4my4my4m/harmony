@@ -91,7 +91,7 @@
           </div>
           <a
             v-if="reblogReferenceUrl"
-            :href="reblogReferenceUrl"
+            :href="safeHref(reblogReferenceUrl)"
             target="_blank"
             rel="noopener noreferrer"
             class="reblog-reference-link"
@@ -170,7 +170,7 @@
           <a
             v-for="embed in inlineRichEmbeds"
             :key="`inline-${embed.url}`"
-            :href="embed.url"
+            :href="safeHref(embed.url)"
             target="_blank"
             rel="noopener noreferrer"
             class="post-link-preview post-link-preview--compact"
@@ -192,7 +192,7 @@
           <a
             v-for="embed in cardEmbeds"
             :key="embed.url"
-            :href="embed.url"
+            :href="safeHref(embed.url)"
             target="_blank"
             rel="noopener noreferrer"
             class="post-link-preview"
@@ -607,6 +607,7 @@
 </script>
 
 <script setup lang="ts">
+import { safeHref } from '@/utils/sanitize';
 import { computed, ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue';
 import { debug } from '@/utils/debug'
 import { useI18n } from 'vue-i18n';
